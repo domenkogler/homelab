@@ -231,7 +231,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   case just above) is indistinguishable from an ssh/auth failure. Verified 2026-09-21: the wrapper's exact
   ssh+base64 command works from the runner, and the invocation that "failed" had failed only on its own
   `ImportError`. Until it is fixed (owner: the lane holding `scripts/**` this wave,
-  [`../prompt-407.md`](../prompt-407.md) — named in the HD-360 row tail), reproduce the one-liner with
+  `prompt-407.md` (**closed, brief deleted**) — named in the HD-360 row tail), reproduce the one-liner with
   stderr visible, or run `ssh vps 'sudo docker exec authentik-worker ak shell -c …'` directly, before
   believing the message.
 

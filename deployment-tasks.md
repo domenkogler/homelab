@@ -245,7 +245,6 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 - [ ] **HD-112** — Zipline public bin + private OIDC share (`bin.kogler.si`). · [services-utilities.md](docs/services-utilities.md)
 - [ ] **HD-111** — Office MCP via Open WebUI (`ppt-mcp` first). · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-354** — Navidrome on VPS + the live Storage Box. · [services-media.md](docs/services-media.md)
-- [ ] **HD-356** — the LiteLLM split (family instance on the VPS vs the LAN instance). · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-397** — off-LAN access parity: landed + verified off-LAN; the **on-site** pass is the open leg. · [services-vps.md](docs/services-vps.md)
 - [ ] **HD-316** — the Homepage family launchpad (real app dashboard + a separate technical section). · [services.md](docs/services.md)
 ---
@@ -578,6 +577,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       retirement/embed cutover → Mem0 + OpenHands. Most legs are done; the row stays open until the tail lands. · [hardware-spark.md](docs/hardware-spark.md)
 - [ ] **HD-336** — the coding plane: agent-memory.dev per-project memory on oldsrv (MCP + a LiteLLM key), the
       ZeroClaw system-mgmt runner, CrewAI gated on the homelab being finished. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-376** — harness-side context/timeout tuning (its `HD-388` half — client model config rendered from one repo spec — shipped 2026-09-23 and that row is deleted; record [pi-harness.md](docs/pi-harness.md) §4)
 - [ ] **HD-373** — LiteLLM admin UI: the `/ui/login` deep-link 404s (no nginx SPA fallback in the container);
       workaround `https://litellm.kogler.si/fallback/login`. Fix = SPA fallback or route-scoped `/ui/*`. · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-369** — the tail of the tier row: Ollama stays as the **embed fallback** (the owner keeps it), and
@@ -605,7 +605,6 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [ ] **HD-387** — the thinking-control re-measure **through the gateway** (a recorded contradiction between a
       recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. · [hardware-spark.md](docs/hardware-spark.md)
-- [ ] **HD-376 / HD-388** — harness-side context/timeout tuning and generating the client model config from a repo
       template instead of hand-kept files. · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-383 / HD-384** — parked LAN-LiteLLM bootstrap-keys glue (parked by HD-386) and the gateway grant for
       `spark/*` to the simple-querier tier. · [services-ai.md](docs/services-ai.md)

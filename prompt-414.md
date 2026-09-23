@@ -19,10 +19,10 @@
 > configured on the RB4011**. This lane makes that path direct, then finishes what 405 left open.
 > Start with [README.md](README.md) §0 → §1 mandatory context → this file → the HD rows in [todo.md](todo.md).
 > **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
-> **Sibling lanes:** runner/cockpit = [`prompt-407.md`](prompt-407.md) · remote desktop =
+> **Sibling lanes:** runner/cockpit = `prompt-407.md` (**closed 2026-09-23, brief deleted**) · remote desktop =
 > prompt-412.md — brief deleted · cadence = [`prompt-420.md`](prompt-420.md).
 > **Wave 2.** Pair it with prompt-412.md — brief deleted only (you hold the router + oldsrv slots, it holds the
-> VPS one). ⛔ **Never with [`prompt-407.md`](prompt-407.md)** — both converge
+> VPS one). ⛔ **Never with `prompt-407.md` (**closed 2026-09-23, brief deleted**)** — both converge
 > oldsrv, both need `group_vars/all/main.yml`, and once this brief's HD-415 row lands they would both reach the
 > Technitium files; and never with `prompt-357` / `prompt-384` for the same reason. `prompt-420` is also
 > compatible, but it is consumed in Wave 1.
@@ -132,7 +132,7 @@ home WAN is down*, is accepted as unresolvable: no resolver behind a dead WAN is
 Acceptance is therefore the **three-case drill** (LAN / cellular / home with the WAN pulled), and the third case
 needs the owner present — **park** it with the exact steps rather than declaring the row done (O4).
 ⚠ The files are `templates/docker_services/technitium/**` + the headscale config — **not**
-`roles/docker_services/tasks/technitium-seed.yml`, whose check-mode gate is HD-399 in [`prompt-407.md`](prompt-407.md).
+`roles/docker_services/tasks/technitium-seed.yml`, whose check-mode gate is HD-399 in `prompt-407.md` (**closed 2026-09-23, brief deleted**).
 
 ## Sequence + gates
 
@@ -203,7 +203,7 @@ feed it, never in the rendered file (the HD-404 rule).
 
 **Never touches (orchestrator mode):** **`prompt.md` and `todo-table.md`** (O2 — the old list claimed both),
 `roles/docker_services/tasks/technitium-seed.yml` and `…/dns-seed.yml` — the **check-mode** gate there is HD-399,
-which belongs to [`prompt-407.md`](prompt-407.md); edit them only after 407 has merged, and say so in the commit,
+which belongs to `prompt-407.md` (**closed 2026-09-23, brief deleted**); edit them only after 407 has merged, and say so in the commit,
 `scripts/**` (HD-407's lane — and it does not need a script edit),
 `docs/{services-ai,pi-harness,security,1password,deployment-ansible}.md` (407's), `docs/services-admin.md` (412's
 owning doc — the `docs/services-rustdesk.md` named in this list until now **does not exist**),

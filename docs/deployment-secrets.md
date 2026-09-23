@@ -275,7 +275,7 @@ without the `op-write_api` token — i.e. it is **not read-only**. Scripts and d
 `op-write_api` because "the exported SA token is READ-scoped" (`rotate-spark-llm-key.sh`, its
 [`scripts/README.md`](../scripts/README.md) row) carry an assumption that no longer holds; the read-only
 expectation is a least-privilege property, so either the token is narrowed or those notes are corrected
-(`scripts/**` owner this wave: [`../prompt-407.md`](../prompt-407.md)). Do not treat the discrepancy as
+(`scripts/**` owner this wave: `prompt-407.md` (**closed, brief deleted**)). Do not treat the discrepancy as
 permission to write from an automation path that was designed to be read-only.---
 
 ## Master Secret List (canonical)

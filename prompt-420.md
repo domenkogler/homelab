@@ -8,7 +8,7 @@
 > [docs/observability.md](docs/observability.md) §Scrape cadence and metric resolution; read that section
 > first, then this brief. Do **not** re-measure the baseline.
 > **Linked from:** [prompt.md](prompt.md) §2 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
-> **Sibling lanes:** runner/cockpit = [`prompt-407.md`](prompt-407.md) (**this wave's sibling** — file-disjoint,
+> **Sibling lanes:** runner/cockpit = `prompt-407.md` (**closed 2026-09-23, brief deleted**) (**this wave's sibling** — file-disjoint,
 > different converge host) · transport = [`prompt-414.md`](prompt-414.md) · remote desktop =
 > prompt-412.md — brief deleted. This lane owns `roles/monitoring/**` + `templates/docker_services/spark-dcgm/**`
 > + `roles/spark/files/spark-oom-watchdog.sh`, and collides with no other live lane **this wave**. ⛔ It must **never
@@ -146,7 +146,7 @@ claimed them, and under [prompt.md](prompt.md) §4 O2 they belong to the orchest
 [`prompt-376.md`](prompt-376.md)), `roles/router/**` +
 `roles/tailscale-node/**` ([`prompt-414.md`](prompt-414.md)), `scripts/bootstrap-runner.sh` +
 `docs/{services-ai,pi-harness,1password,deployment-ansible}.md` + `scripts/**` otherwise
-([`prompt-407.md`](prompt-407.md)), `docs/services-rustdesk.md` / `docs/services-vps.md` /
+(`prompt-407.md` (**closed 2026-09-23, brief deleted**)), `docs/services-rustdesk.md` / `docs/services-vps.md` /
 `templates/docker_services/rustdesk-server/` (prompt-412.md — brief deleted), `group_vars/spark.yml` (the
 certified engine values — this lane changes no engine setting), the frozen archives
 (`reports/changelog.md`, `reports/deployment-journal.md`, `docs/archived/`), generated `docs/*-generated.md`.

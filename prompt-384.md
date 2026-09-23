@@ -2,7 +2,7 @@
 
 > **Role:** one lane for the whole **LiteLLM consumption chain** — the vault-and-registry change that finally gives
 > voice and the simple-querier tier something to call, plus the two measurements/tails hanging off the same gateway.
-> **Wave 3**, and it **follows** [`prompt-407.md`](prompt-407.md): HD-409's cockpit runs on the borrowed
+> **Wave 3** — its gate on the runner/cockpit lane is **SATISFIED 2026-09-23** (that lane merged and its brief is deleted), so nothing here waits. The cockpit does still run on the borrowed
 > `spark-llm_api` bearer only until this lane mints the router its own client credential.
 > Start with [README.md](README.md) §0 → §1 mandatory context → [prompt.md](prompt.md) **§4 (orchestrator mode)** →
 > this file → the rows in [todo.md](todo.md) §2 (AI / Office).
