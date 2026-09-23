@@ -777,17 +777,24 @@ the exclusions avoid:
    5 s data changes what a rule *sees*, not how often it runs; raising the alert interval is a separate,
    deliberate decision (it multiplies ruler load and shortens `for:` windows into noise).
 
-**State (HD-420): the VPS half is LIVE, the spark half is gated, and the gate is a rule.**
+**State (HD-420): the whole thing is LIVE 2026-09-23** — VPS half (datasource `timeInterval` floor + the `rate()` fix, 2026-09-22) **and** the spark half (hot/cold Alloy jobs + `DCGM_EXPORTER_INTERVAL: "5000"` + the 5 s acceptance on external traffic).
 
 - **LIVE on the VPS (item 3 + item 4's `rate()` fix):** proved by converging
   `vps.yml --tags monitoring` twice — `failed=0 changed=3`, then **`changed=0`** with the new
   datasource task reporting `skipping`, so the floor is not a changed-on-every-run task.
   Live read-back of the datasource: `jsonData {"timeInterval": "5s"}`, `basicAuthPassword`
   still set (the PUT re-sends the vault secret because PUT replaces the record), health OK.
-- **Authored, NOT converged (items 1 + 2 + the acceptance):** standing rule §C2 forbids
-  converging or benchmarking spark from a session whose own model is spark, and the
-  contamination is not theoretical — token throughput and pool memory are among the nine panels
-  being certified. The row closes when the row-2 sidecar pre-flight has run **from the laptop**,
+- **The spark half is LIVE 2026-09-23 (this lane, external traffic):** the hot/cold Alloy jobs,
+  `DCGM_EXPORTER_INTERVAL: "5000"` and the datasource floor are all converged; the acceptance was
+  measured on **external** traffic (three 2k-token completions from the laptop through
+  `llm.kogler.si`): `count_over_time(node_load1{instance=~"spark.*"}[1m])` = **12**,
+  `count_over_time(vllm:generation_tokens_total[…][1m])` = **12**,
+  `count_over_time(DCGM_FI_DEV_GPU_UTIL[…][1m])` = **12**, while cold-only names
+  (`node_cpu_seconds_total{mode="user"}`, `vllm:e2e_request_latency_seconds_bucket`) read **1/1m**
+  — the hot `keep` / cold `drop` are disjoint and matching, no `-dedup` change owed. Sidecar under
+  load: **72 MiB / 256 MiB, cgroup anon 61.5 MiB** (idle 36.9) — well under the ~200 MiB raise
+  threshold, so no `spark_dcgm_exporter_memory_limit` change was made. GPU util 84 %, die 64 °C,
+  power 34 W, SM 2489, XID 0 on the loaded samples.
   both spark halves converge together (`alloy.river.j2` + the `spark-dcgm` interval are one
   coupled pair), and `count_over_time(node_load1{instance=~"spark.*"}[1m])` reads **12**.
 - **Item 4's other half is not a panel bug.** The hard-coded `[5m]` gauge lives only on

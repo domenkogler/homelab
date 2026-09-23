@@ -255,6 +255,7 @@ then went **88,773 → 109,785 MiB (avail 24.5 → 9.6 GiB)** under ~30 min of *
 | + ~30 min one light agent session (pre-governor) | 109,785 MiB | 9.6 GiB | 1.6 GiB at the kill |
 | boot + `expandable_segments` + prefill cap (8.2 GiB pool) | 85,445 → 86,243 MiB | 26.9 GiB | 30.3 idle / **28.81 worst** |
 | **boot + both + 16 GiB pool (CERTIFIED baseline)** | **92,343 → 93,621 MiB (+1,278)** | 18.5 → 24.9 idle-after | **17.78 worst** under 2×240k ≈ 94.6 % pool |
+| **HD-395 recycle proof (2026-09-23, J1)** | **92,309 MiB committed** (re-baseline after an intentional `docker restart`; boot floor spread **71,911 → 92,309** recorded, the max not the first read) | 118.29 GiB moments after the restart (engine ≈106 GiB released), idle-after 24.3 GiB | recovery 000 → 200 in ~5 min; trigger **100,501 MiB > certified peak 96,235** ⇒ recycle stays SILENT on ordinary traffic (owner tuning call) |
 
 The last row is the load-certified peak-bound number: the same class of box went **+21,012 MiB in ~30 min of
 one light session** before the governor and **+1,278 MiB across ~1.5 h of the pessimal two-full-window

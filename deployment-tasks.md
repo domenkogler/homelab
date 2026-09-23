@@ -595,17 +595,15 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [x] **HD-375** — **CLOSED 2026-09-22 (owner).** The two spark host-memory OOM rules are live in the ruler
       (deployed 2026-09-17 22:33C, `vps.yml --tags monitoring`, failed=0) and the owner took the Grafana-UI +
       n8n confirmation, so the row is deleted. Record: [observability.md](docs/observability.md) §Alerting.
-- [ ] **HD-380 / HD-395** — the governor's second term + OOM-forensics watchdog, and the idle-recycle baselines
-      that move with a boot-time coin-flip. · [hardware-spark.md](docs/hardware-spark.md)
+- [x] **HD-380 / HD-395** — **DONE + PROVEN 2026-09-23**: the governor's second term + OOM-forensics watchdog and the idle-recycle baseline fix are converged live and the intentional-recycle proof passed (engine restarted cleanly, re-baseline committed the max, not the coin-flip). Remaining is only the owner tuning call on `spark_oom_watchdog_recycle_grow_gib` (silent margin). · [hardware-spark.md](docs/hardware-spark.md)
 - [ ] **HD-377** — (a) **owner:** render `homelab-llm` on `stats.kogler.si`; on sign-off, delete the three HD-368
       boards and re-converge `vps.yml --tags monitoring`. (b) is **DONE 2026-09-22**: the three `DCGM_FI_PROF_*`
       panels are deleted (impossible on GB10), the six real DCGM signals + an XID readiness stat are wired, and
       the re-derived board is provisioned. · [observability.md](docs/observability.md)
-- [ ] **HD-420** — the VPS half is DONE 2026-09-22 (datasource `timeInterval` floor + the `rate()` panel fix,
-      converged `changed=3` then `changed=0`). What is left is spark-side and gated: pre-flight the `spark-dcgm`
-      sidecar at 5 s against its 256M cap **from the laptop** (⛔ §C2: never from a spark-backed session), then
-      converge the Alloy hot/cold split and the DCGM interval TOGETHER and read
-      `count_over_time(node_load1{instance=~"spark.*"}[1m])` = 12. ⛔ never restart the vLLM engine for this.
+- [x] **HD-420** — **DONE 2026-09-23.** VPS half 2026-09-22 (datasource `timeInterval` floor + `rate()` panel fix,
+      converged `changed=3` then `changed=0`). Spark half 2026-09-23: Alloy hot/cold split + `DCGM_EXPORTER_INTERVAL:
+      "5000"` converged together; the acceptance was measured on external traffic — `count_over_time(node_load1{instance=~"spark.*"}[1m])`
+      = 12, and the sidecar under load sat at 72 MiB / anon 61.5 MiB of the 256M cap (no limit change).
       · [observability.md](docs/observability.md)
 - [ ] **HD-387** — the thinking-control re-measure **through the gateway** (a recorded contradiction between a
       recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
