@@ -147,11 +147,30 @@
     creates: /root/.ssh/ha-sync
   tags: [ha_failover, hd17]
 
+- name: Assert the cert issuer is a remote host (HD-450 self-pull guard)
+  # Same guard as roles/docker_services (oldsrv / spark edges): the Pi pulls the SAME
+  # wildcard pair from the VPS issuer, and a SRC that points back at this box would
+  # report success while the pair aged out. See docs/services-traefik.md §Edge model.
+  ansible.builtin.assert:
+    that:
+      - cert_issuer_addr | length > 0
+      - cert_issuer_addr != (ansible_host | default('', true))
+      - cert_issuer_addr not in [home_ip | default(''), mgmt_ip | default('')]
+    fail_msg: >-
+      ha-cert-sync issuer resolves to {{ cert_issuer_addr }}, which is THIS host
+      ({{ inventory_hostname }}). The single ACME issuer is the VPS Traefik (HD-178/HD-204).
+    quiet: true
+  vars:
+    cert_issuer_addr: "{{ hostvars['vps.kogler.si'].ansible_host }}"
+  tags: [ha_failover, hd17]
+
 - name: Deploy ha-cert-sync script (pull wildcard certs from the VPS traefik issuer)
   ansible.builtin.template:
     src: ha-cert-sync.sh.j2
     dest: /usr/local/sbin/ha-cert-sync.sh
     mode: '0755'
+  vars:
+    cert_issuer_addr: "{{ hostvars['vps.kogler.si'].ansible_host }}"
   tags: [ha_failover, hd17]
 
 - name: Deploy ha-config-sync script (push HA config to standby)

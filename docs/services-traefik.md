@@ -187,7 +187,47 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 ### Certification (unchanged rules)
 
 - **Single ACME issuer = VPS Traefik** (HD-178/HD-181/HD-204): consumers (VPS traefik-tailnet bind-mount, Pi traefik-ha ha-cert-sync, **oldsrv traefik-internal via the parametrized traefik-cert-pull**) serve the synced wildcard pair; the issuer issues via Cloudflare DNS-01. `traefik_acme_issuer: true` only on the VPS. The home edge is **offline-safe for both TLS and auth** by design (synced certs + local app logins).
+- **A consumer must never pull from itself — proved, not assumed (HD-450).** Closing HD-350's tail found
+  oldsrv's `traefik-cert-pull.timer` failing every 15 minutes since 2026-09-19: the rendered
+  `/usr/local/sbin/traefik-cert-pull.sh` carried `SRC` = **oldsrv's own Home IP**, so it asked its own box for
+  `/opt/traefik/certs/` and got `Permission denied (publickey)`, while the pair on disk stayed the 2026-08-28
+  copy (valid to 2026-11-20 — which is why nothing screamed). No repo state renders that value (`git log -S` on
+  the `SRC` line shows only the `hostvars['vps.kogler.si']` form ever existed), so it was **live drift, not an
+  IaC bug** — and the reason it survived four days of scoped converges is that the cert-pull block carried **no
+  tag**, and `roles/*` in `home_servers.yml` get no implicit role tag, so `--tags docker_services` filtered the
+  whole block out and still reported a green run. Three durable changes shipped with the close-out: the block is
+  tagged `docker_services`; the deploying tasks **assert** the issuer address is neither empty nor this host;
+  and both pull scripts (`traefik-cert-pull.sh`, Pi `ha-cert-sync.sh`) exit **90** when `SRC` names one of the
+  host's own scope-global addresses. **Scope of what is live:** oldsrv's copy is deployed and proved; the Pi
+  carries the guard from its next `home_assistant` converge (render-proved in `--check`: assert `ok`, render
+  `changed=1`, `failed=0`) — its pull works today, so the HA primary was not restarted to install a guard.
+  Spark's `spark-dashboard` copy picks the guard up at its own next `docker_services` converge (never run from
+  a spark-backed session).
+  Note the tag arithmetic that hid it: reaching the Pi's pull task takes `--tags home_assistant,ha_failover`,
+  because the `include_tasks` is tagged `home_assistant` and the tasks inside are tagged `ha_failover,hd17`.
+  The age/alerting half of the lesson is **HD-450**.
 - **trusted_proxies:** HA must trust **all** edges that front it — Pi `traefik-ha` (Pi Home-IP/32, SSOT `dns_tertiary_ip`), **oldsrv `traefik-internal` (oldsrv Home-IP/32 — host-net source = oldsrv Home-VLAN IP, SSOT `oldsrv_home_ip`, HD-350)** and the VPS edges (`traefik_edge_ips`/32, e.g. the oldsrv `traefik` label-edge bridge default) — so real client IPs are preserved (`ha_trusted_proxies` in group_vars/all/main.yml).
+
+**Consumer cert-leg check — the one a stale pair cannot fake.** Run ON the consumer (`oldsrv`/`spark`:
+`traefik-cert-pull`; Pi: `ha-cert-sync`). A running timer is not evidence: this fault ran a green-looking timer
+for four days.
+
+```bash
+systemctl list-timers traefik-cert-pull.timer                    # Pi: ha-cert-sync.timer
+sudo systemctl start traefik-cert-pull.service && echo PULL_OK
+# empty itemize output = this consumer holds the issuer's current pair:
+sudo rsync -azn --itemize-changes --exclude='dump/' \
+  -e "ssh -i /root/.ssh/traefik-cert-sync -o BatchMode=yes" \
+  "ansible-admin@<issuer address>:/opt/traefik/certs/" "<local certs dir>/"
+# the edge must serve the wildcard, never the Traefik default cert:
+echo | openssl s_client -connect <edge address>:443 -servername media.kogler.si 2>/dev/null \
+  | openssl x509 -noout -subject -enddate
+```
+
+`Permission denied (publickey)` = the consumer's `/root/.ssh/traefik-cert-sync.pub` is not on the issuer's
+`ansible-admin` `authorized_keys` (append it with the restricted option prefix the existing consumer entries
+carry). Exit `90` = the deployed script drifted; re-converge it (`docker_services` on oldsrv/spark,
+`home_assistant` on the Pi) and never hand-edit `/usr/local/sbin/traefik-cert-pull.sh`.
 
 > **Invariants of the edge model** (each survived every revision of the model, and each is load-bearing):
 >

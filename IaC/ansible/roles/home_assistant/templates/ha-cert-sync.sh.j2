@@ -7,9 +7,19 @@
 # ha-cert-sync.service (key at /root/.ssh/ha-sync).
 set -euo pipefail
 
-SRC="ansible-admin@{{ hostvars['vps.kogler.si'].ansible_host }}:/opt/traefik/certs/"
+SRC_HOST="{{ cert_issuer_addr }}"
+SRC="ansible-admin@${SRC_HOST}:/opt/traefik/certs/"
 DST="/opt/traefik-ha/certs/"
 SSH="ssh -i /root/.ssh/ha-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+
+# Self-pull guard (HD-450): refuse to run when SRC is one of this host's own addrs — a
+# drifted SRC would "succeed" while the pair on disk rots toward expiry.
+if ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | grep -qx "$SRC_HOST"; then
+    echo "FATAL: ha-cert-sync SRC host $SRC_HOST is a LOCAL address on $(hostname) — the" >&2
+    echo "       issuer is the VPS Traefik (HD-178/HD-204), never this consumer. Re-converge" >&2
+    echo "       the home_assistant role; do not hand-edit this script." >&2
+    exit 90
+fi
 
 mkdir -p "$DST"
 # Exclude dump/ — ACME private keys live there (root-only, must never leave the

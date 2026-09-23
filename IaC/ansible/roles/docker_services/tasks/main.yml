@@ -350,16 +350,39 @@
   tags: [docker_services, hd362]
 
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
+  # HD-450: these tasks carried NO tag, and `roles/*` here get no implicit role tag
+  # (home_servers.yml comment at the role list) — so `--tags docker_services` silently
+  # filtered the whole block out and reported a clean run. That is how a drifted pull script
+  # survived four days of scoped converges on this box. The platform tag makes it reachable.
+  tags: docker_services
   when:
     - scope_is_all
     - "('traefik' in (docker_services | map(attribute='name') | list)) or ('traefik-internal' in (docker_services | map(attribute='name') | list)) or ('spark-dashboard' in (docker_services | map(attribute='name') | list))"
     - not (traefik_acme_issuer | default(false))
   vars:
+    # HD-450: the issuer address in ONE named place, so the assert below and the rendered
+    # script cannot disagree about which host is the issuer.
+    cert_issuer_addr: "{{ hostvars['vps.kogler.si'].ansible_host }}"
     # HD-350/HD-370: which edge the cert pull targets. The shared `traefik` template dir
     # (old default) vs the home-LAN edge vs the spark-dashboard edge (spark's name edge).
     # Defaults to the legacy shared dir.
     traefik_consumer_dir: "{{ 'traefik-internal' if 'traefik-internal' in (docker_services | map(attribute='name') | list) else ('spark-dashboard' if 'spark-dashboard' in (docker_services | map(attribute='name') | list) else 'traefik') }}"
   block:
+    - name: Assert the cert issuer is a remote host (HD-450 self-pull guard)
+      # Live lesson 2026-09-23: oldsrv's rendered pull carried SRC = oldsrv's OWN Home IP
+      # since 2026-09-19, so every timer fire rsynced the box from itself and reported
+      # success while the wildcard pair sat there aging toward expiry (HD-350 tail). A
+      # consumer that pulls from itself is always a fault, never a configuration.
+      ansible.builtin.assert:
+        that:
+          - cert_issuer_addr | length > 0
+          - cert_issuer_addr != (ansible_host | default('', true))
+          - cert_issuer_addr not in [home_ip | default(''), mgmt_ip | default('')]
+        fail_msg: >-
+          Cert issuer resolves to {{ cert_issuer_addr }}, which is THIS host ({{ inventory_hostname }}).
+          The single ACME issuer is the VPS Traefik (HD-178/HD-204) — a consumer must never pull from itself.
+        quiet: true
+
     - name: Generate traefik-cert-sync SSH keypair (consumer → VPS issuer pull)
       ansible.builtin.command:
         cmd: ssh-keygen -t ed25519 -N '' -C traefik-cert-sync@{{ inventory_hostname }} -f /root/.ssh/traefik-cert-sync

@@ -451,8 +451,13 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       *arr configs were chowned to their image uid 2026-09-15 after a converge recreated them root-owned). · [hardware-oldsrv.md](docs/hardware-oldsrv.md)
 - [ ] **HD-347** — the Signal alerting **group UUID** belongs in SSOT (`signal_alert_recipients` is empty); the
       device itself is linked and alerts flow. · [observability.md](docs/observability.md) §Alerting
-- [ ] **HD-350** — **[MANUAL, owner]** authorize oldsrv's `traefik-cert-sync.pub` on the VPS so `traefik-internal`
-      can pull the wildcard pair (the timer is armed; the pull 401s until the key is authorized). · [services-traefik.md](docs/services-traefik.md)
+- [x] **HD-350** — **CLOSED 2026-09-23.** oldsrv's `traefik-cert-sync.pub` is authorized on the VPS (the grant has
+      been in `ansible-admin`'s `authorized_keys` since 2026-09-15 — `SHA256:VX0TbLr…`, matching
+      [deployment-secrets.md](docs/deployment-secrets.md)), and the pull now lands: `traefik-cert-pull.service`
+      exits 0, a dry-run `rsync` against the issuer reports no difference, and the home edge serves
+      `CN=*.kogler.si` on both the VIP and the Home IP. It took a fix first: the rendered pull script carried
+      `SRC` = oldsrv's OWN Home IP, so the consumer asked itself for the pair (HD-450, guard + tag shipped with
+      this close-out). · [services-traefik.md](docs/services-traefik.md)
 - [ ] **HD-353** — **[MANUAL, owner]** verify own Jellyfin login at the `seerrng` route. · [services-media.md](docs/services-media.md)
 - [ ] **HD-357** — Homepage tiles: wire the Jellyfin/Seerr/Immich widgets to the verified endpoints (the edge model
       and route tables are final now). · [services.md](docs/services.md)
