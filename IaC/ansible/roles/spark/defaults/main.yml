@@ -100,6 +100,19 @@ spark_oom_watchdog_enforce_wait_max: 600      # s to wait for in-flight drain
 spark_oom_watchdog_recycle: true
 spark_oom_watchdog_recycle_grow_gib: 8
 spark_oom_watchdog_recycle_idle_s: 1800
+# HD-395: how the boot baseline (the thing the recycle trigger sits +N GiB above) is acquired.
+# The first post-boot read of the engine top-pid is a coin-flip on this box — 71,911 / 86,243 /
+# 92,343 MiB for ONE config, because the 168 GiB PLE checkpoint loads unevenly — and both ends
+# of that spread are failures: low floor ⇒ the watchdog restarts a healthy engine, high floor ⇒
+# recycle goes silent. So: /health 200, then a settle window, then the MAX of N plausible reads
+# inside a span. Acquisition is persisted, so restarting this UNIT (what a converge does) never
+# re-baselines a running engine; only a new engine instance or `rebaseline` does.
+spark_oom_watchdog_baseline_settle_s: 120      # quiet time after /health 200 before measuring
+spark_oom_watchdog_baseline_samples: 8         # plausible reads to collect (max wins)
+spark_oom_watchdog_baseline_span_s: 600        # cap on the collection window (~10 min)
+# Below this a read is not "the engine at rest" (partial load / wrong pid / no answer) and is
+# refused rather than committed — refusing keeps recycle disarmed, which is the safe direction.
+spark_oom_watchdog_baseline_min_mib: 40000
 # Memory cap RAISED (HD-381): it was MemoryMax=96M and the watchdog's own cgroup
 # memory.peak measured 71.8M (75% of the cap) from sampling alone. An ENFORCING watchdog
 # forks the docker CLI (a Go binary) plus a curl of /metrics at exactly the moment the box

@@ -40,10 +40,40 @@
 # that is monotone with danger and is what both this watchdog and the HD-375 alert rules
 # (roles/monitoring) use.
 #
+# HD-395 (2026-09-23) — THE BOOT BASELINE IS MEASURED, NOT GUESSED. Read this before
+# touching the recycle term:
+#   The idle-recycle trigger is `boot baseline + RECYCLE_GROW_GIB`. The baseline USED TO BE
+#   the first sample of the engine top-pid after the unit started, and on this engine that
+#   first read is a coin-flip: one config has been measured at 71,911 / 86,243 / 92,343 MiB
+#   because the 168 GiB PLE checkpoint loads unevenly. BOTH ends of that spread are failures:
+#   low floor  ⇒ the trigger sits under ordinary traffic and the watchdog restarts a HEALTHY
+#                engine (two fired 35 min apart, ~20 min cold start + a 502 window);
+#   high floor ⇒ the trigger sits above the traffic peak and recycle goes SILENT, which is
+#                the failure direction the guard exists to prevent.
+#   It is now acquired by a PERSISTED state machine: engine running → /health 200 →
+#   BASELINE_SETTLE_S quiet → BASELINE_SAMPLES plausible readings inside BASELINE_SPAN_S →
+#   commit the MAX of that window (the max is the floor that matters: a floor measured while
+#   the checkpoint is still landing is not a floor). Acquisition is NEVER re-run on a unit
+#   restart — a converge restarts the UNIT, not the engine, and a sampler restart must not
+#   re-baseline a running engine to a fresh coin-flip. The only re-baseline paths are a NEW
+#   ENGINE INSTANCE (check_engine_restart) and an explicit operator `rebaseline`.
+#   The old "ratchet the baseline DOWN only" rule is GONE deliberately: it converted any
+#   transient low read into a permanently low trigger — the same defect in a different hat.
+#   SAFETY INVARIANT: a missing or partial baseline fails toward SILENCE with a logged
+#   reason, NEVER toward `docker stop`. (A stop/restart here is intentional, so the engine's
+#   `unless-stopped` will not bring it back on its own — see docs/hardware-spark.md.)
+#   The +8 GiB margin is reported against the certified peak at commit time and in `status`:
+#   at the high end of the measured spread (92,343 MiB) the trigger is 100,535 MiB, which is
+#   ABOVE the certified peak of 96,235 MiB — i.e. a fixed margin over a variable floor cannot
+#   be right on both ends. The watchdog now says so out loud instead of being quietly dead.
+#
 # Modes:
 #   sample-loop              run forever (systemd default)
 #   snapshot <tag> [reason]  take one bundle and exit (tag: KILL|CRIT|WARN|MANUAL)
-#   status                   print current readings + last snapshot
+#   status                   print current readings + baseline state + last snapshot
+#   rebaseline               drop the committed baseline and re-acquire (operator action)
+#   self-test                offline 4-case test of the baseline/recycle logic (stubs docker)
+#   _tick                    INTERNAL (self-test): one governor tick, no sampling, no sleep
 #
 # Cheap on purpose: bash + coreutils + awk + docker + nvidia-smi + journalctl.
 # Runs as root with OOMScoreAdj=-1000 (see the unit) — it must NOT become the
@@ -90,7 +120,42 @@ RECYCLE="${SPARK_OOM_RECYCLE:-1}"
 RECYCLE_GROW_GIB="${SPARK_OOM_RECYCLE_GROW_GIB:-8}"      # trigger above the boot baseline
 RECYCLE_IDLE_S="${SPARK_OOM_RECYCLE_IDLE_S:-1800}"       # must be idle this long first
 
-mkdir -p "$STATE_DIR" "$SNAP_DIR"
+# ---- HD-395: how the boot baseline is acquired ----------------------------------------
+# Chosen policy: BOTH gates, in order — (a) engine `/health` must answer 200, then (b) a
+# settle window with no measurement, then (c) the MAX of N plausible samples inside a span.
+# `/health` alone is not enough (it goes 200 before the PLE checkpoint has finished
+# settling, which is exactly how a 71,911 MiB "first sample" was ever recorded); N samples
+# alone is not enough (a window that starts too early averages in the loading ramp).
+# MAX, not mean: we are looking for the floor the engine sits at when fully loaded, and the
+# uneven checkpoint load can only ever make an early read read LOW.
+BASELINE_SETTLE_S="${SPARK_OOM_BASELINE_SETTLE_S:-120}"   # quiet time after /health 200
+BASELINE_SAMPLES="${SPARK_OOM_BASELINE_SAMPLES:-8}"       # plausible reads to collect
+BASELINE_SPAN_S="${SPARK_OOM_BASELINE_SPAN_S:-600}"       # cap on the collection window
+# A read below this is not the engine holding its weights — it is a partially loaded model,
+# a different pid, or nvidia-smi answering nothing. Refuse it rather than commit a floor that
+# would make the recycle trigger reachable by ordinary traffic.
+BASELINE_MIN_MIB="${SPARK_OOM_BASELINE_MIN_MIB:-40000}"
+# Certified arithmetic (hardware-spark.md §Unified-memory budget + HD-380's measured run):
+# used ONLY to report whether the +8 GiB margin is reachable — it never moves the trigger.
+CERTIFIED_PEAK_MIB="${SPARK_OOM_CERTIFIED_PEAK_MIB:-96235}"   # measured per-pid peak, post C1/C2
+CERTIFIED_CAGE_MIB="${SPARK_OOM_CERTIFIED_CAGE_MIB:-107520}"  # spark_vllm_memory_limit = 105 GiB
+
+# State dirs are created for every mode EXCEPT self-test, which runs entirely in a temp dir.
+# (Unconditional mkdir made `self-test`/`status` on a dev box fail on the production XFS path.)
+case "${1:-sample-loop}" in
+  self-test) : ;;
+  *) mkdir -p "$STATE_DIR" "$SNAP_DIR" ;;
+esac
+
+# ---- persisted state helpers (HD-395) -----------------------------------------------
+# Every governor decision state lives in $STATE_DIR, one value per file, so it survives a
+# unit restart AND is readable by a human over SSH without a parser.
+st_read()  { head -1 "$STATE_DIR/$1" 2>/dev/null; }
+st_write() { printf '%s\n' "$2" > "$STATE_DIR/$1" 2>/dev/null; }
+
+# Is the integer in $1 at least $2? Non-numeric input is FALSE, never an error — the
+# readings come from external tools and a garbage answer must fail toward inaction.
+ge_int() { case "${1:-}" in ''|*[!0-9]*) return 1 ;; esac; [ "$1" -ge "$2" ]; }
 
 # ---- readings ---------------------------------------------------------------
 mem_field() { awk -v f="$1" '$1==f":"{printf "%.2f", $2/1048576; exit}' /proc/meminfo; }
@@ -100,6 +165,12 @@ psi_val() { # $1 = some|full, $2 = avg10
 gpu_mib() { timeout 8 nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits 2>/dev/null \
             | sort -t, -k2 -rn | head -1 | tr -d ' ' ; }
 eng_field() { timeout 10 docker inspect "$CTR" --format "{{.RestartCount}} {{.State.StartedAt}} {{.State.OOMKilled}}" 2>/dev/null; }
+# HD-395: the baseline machine's two liveness questions. /health is NOT api-key gated (the
+# snapshot's `health_http=` line has always read it without a bearer), so it is safe to poll
+# on every tick; a 401/502/000 answer means "not measurable yet", never "baseline it".
+engine_running()     { [ "$(timeout 10 docker inspect "$CTR" --format '{{.State.Running}}' 2>/dev/null)" = "true" ]; }
+engine_health_code() { timeout 10 curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+                         "http://localhost:$VLLM_PORT/health" 2>/dev/null; }
 mem_avail_gib() { mem_field MemAvailable; }
 cma_free_gib()  { mem_field CmaFree; }
 
@@ -252,9 +323,13 @@ check_engine_restart() {
   prev=$(cat "$STATE_DIR/last_engine" 2>/dev/null || echo "")
   echo "$cur" > "$STATE_DIR/last_engine"
   if [ -n "$prev" ] && [ "$prev" != "$cur" ]; then
-    # New engine instance: the boot baseline for idle-recycling is only valid per engine
-    # start, so drop it and let the next samples re-establish it.
-    rm -f "$STATE_DIR/engine_baseline_mib" "$STATE_DIR/last_busy_epoch"
+    # New engine instance: the boot baseline is only valid per engine start, so drop it AND
+    # the in-flight acquisition and let the state machine re-acquire it from scratch (HD-395:
+    # health 200 → settle → max of N). This is the ONLY automatic re-baseline path; a UNIT
+    # restart must never land here, because the engine field has not changed.
+    rm -f "$STATE_DIR/last_busy_epoch" 2>/dev/null
+    bl_reset_acquisition
+    st_write baseline_stage await-health
     snapshot RESTART "engine field changed: [$prev] -> [$cur]"
   fi
 }
@@ -264,22 +339,115 @@ check_engine_restart() {
 # engine" is answerable without reconstructing it from the ring.
 act_log() { echo "$(date -u +%FT%TZ) $*" >> "$STATE_DIR/enforce.log"; }
 
-# Boot baseline: the engine's top-pid device MiB shortly after it finished loading.
-# The recycle term is measured AGAINST this, not against an absolute figure, because
-# 88,773 MiB is normal here and 109,785 MiB is what kills the box.
-update_engine_baseline() {
-  local started top cur
-  started=$(eng_field | awk '{print $2}'); top=$(engine_top_mib)
-  if [ -z "$top" ] || [ "$top" -lt 1000 ]; then return 0; fi
-  if [ ! -s "$STATE_DIR/engine_baseline_mib" ]; then
-    echo "$top" > "$STATE_DIR/engine_baseline_mib"
-    act_log "baseline engine top-pid = ${top} MiB (started=$started)"
-    return 0
+# A watchdog that declines to act must still say WHY, or "disarmed" and "dead" look identical
+# (that symmetry is what made HD-395's silent-recycle direction hard to see). Rate-limited by
+# key, because "baseline not ready yet" is NORMAL for the first minutes after a boot and must
+# not fill enforce.log.
+reason_note() { # $1 = key, $2 = window seconds, $3 = text
+  cooldown_ok "note_$1" "$2" || return 0
+  date +%s > "$STATE_DIR/last_note_$1" 2>/dev/null
+  act_log "note[$1]: $3"
+}
+
+# ---- HD-395: the boot baseline state machine ------------------------------------------
+# Stages: (unset)/await-health → settling → collecting → committed. Progress is driven one
+# tick per sampler iteration and NEVER sleeps: the sampler loop already sets the cadence,
+# and a blocking baseline acquisition would stall the forensics ring (the payload).
+bl_stage() { st_read baseline_stage; }
+
+bl_reset_acquisition() { # drop the in-flight acquisition, keep nothing stale
+  rm -f "$STATE_DIR/baseline_stage" "$STATE_DIR/baseline_deadline" "$STATE_DIR/collect_n" \
+        "$STATE_DIR/collect_max" "$STATE_DIR/boot_min_mib" "$STATE_DIR/boot_max_mib" \
+        "$STATE_DIR/engine_baseline_mib" "$STATE_DIR/baseline_meta" 2>/dev/null
+}
+
+# Track the boot-floor SPREAD across the whole acquisition (including the waiting stages),
+# so `status` can show a low floor and a high floor as one number instead of forcing the
+# next reader into state/enforce.log.
+bl_track_floor() {
+  local top="$1" cur
+  ge_int "$top" "$BASELINE_MIN_MIB" || return 0
+  cur=$(st_read boot_min_mib); { [ -z "$cur" ] || [ "$top" -lt "$cur" ]; } && st_write boot_min_mib "$top"
+  cur=$(st_read boot_max_mib); { [ -z "$cur" ] || [ "$top" -gt "$cur" ]; } && st_write boot_max_mib "$top"
+  return 0
+}
+
+# The +8 GiB margin, stated against the certified peak. Reporting only — the trigger itself
+# is RECYCLE_GROW_GIB over the baseline and nothing here changes it.
+margin_verdict() {
+  local base trigger
+  base=$(st_read engine_baseline_mib)
+  ge_int "$base" 1 || { echo "no committed baseline ⇒ recycle DISARMED (silence by design)"; return 0; }
+  trigger=$(( base + RECYCLE_GROW_GIB * 1024 ))
+  if [ "$trigger" -gt "$CERTIFIED_CAGE_MIB" ]; then
+    echo "trigger=${trigger} MiB > engine cage ${CERTIFIED_CAGE_MIB} MiB ⇒ recycle unreachable before the cage/OOM"
+  elif [ "$trigger" -gt "$CERTIFIED_PEAK_MIB" ]; then
+    echo "trigger=${trigger} MiB > certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle will stay SILENT on ordinary traffic (HD-395 open margin question)"
+  else
+    echo "trigger=${trigger} MiB ≤ certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle reachable (headroom $(( CERTIFIED_PEAK_MIB - trigger )) MiB)"
   fi
-  # Ratchet the baseline DOWN only (a smaller true floor means the knobs changed);
-  # never up — growing above the baseline is exactly the thing we recycle for.
-  cur=$(cat "$STATE_DIR/engine_baseline_mib" 2>/dev/null || echo 0)
-  [ "$top" -lt "${cur:-0}" ] && echo "$top" > "$STATE_DIR/engine_baseline_mib"
+}
+
+bl_commit() { # $1 = max plausible MiB seen in the collecting window
+  local max="$1" n
+  n=$(st_read collect_n)
+  st_write engine_baseline_mib "$max"
+  st_write baseline_stage committed
+  st_write baseline_meta "value=${max}MiB samples=${n:-0}/${BASELINE_SAMPLES} window=${BASELINE_SPAN_S}s settle=${BASELINE_SETTLE_S}s boot_min=$(st_read boot_min_mib)MiB boot_max=$(st_read boot_max_mib)MiB committed=$(date -u +%FT%TZ)"
+  act_log "baseline COMMITTED engine top-pid = ${max} MiB (n=${n:-0}, boot floor spread $(st_read boot_min_mib)–$(st_read boot_max_mib) MiB) | margin: $(margin_verdict)"
+}
+
+baseline_tick() {
+  local stage now top n max hc
+  now=$(date +%s)
+  stage=$(bl_stage)
+  [ "$stage" = "committed" ] && return 0
+  top=$(engine_top_mib)
+  bl_track_floor "$top"
+
+  case "$stage" in
+    ''|await-health)
+      if ! engine_running; then
+        reason_note baseline 900 "engine container not running — baseline acquisition waiting (recycle disarmed)"
+        st_write baseline_stage await-health; return 0
+      fi
+      hc=$(engine_health_code)
+      if [ "$hc" != "200" ]; then
+        reason_note baseline 900 "engine /health answered '${hc:-no-answer}' — baseline acquisition waiting (recycle disarmed)"
+        st_write baseline_stage await-health; return 0
+      fi
+      st_write baseline_stage settling
+      st_write baseline_deadline $(( now + BASELINE_SETTLE_S ))
+      act_log "baseline: /health 200 — settling ${BASELINE_SETTLE_S}s before measuring (HD-395: the first read is a coin-flip)"
+      return 0 ;;
+    settling)
+      [ "$now" -lt "$(st_read baseline_deadline)" ] && return 0
+      st_write baseline_stage collecting
+      st_write baseline_deadline $(( now + BASELINE_SPAN_S ))
+      st_write collect_n 0
+      st_write collect_max 0
+      return 0 ;;
+    collecting)
+      n=$(st_read collect_n); n=${n:-0}
+      max=$(st_read collect_max); max=${max:-0}
+      if ge_int "$top" "$BASELINE_MIN_MIB"; then
+        n=$(( n + 1 )); st_write collect_n "$n"
+        [ "$top" -gt "$max" ] && { max="$top"; st_write collect_max "$max"; }
+      fi
+      if [ "$n" -ge "$BASELINE_SAMPLES" ] || [ "$now" -ge "$(st_read baseline_deadline)" ]; then
+        if ! ge_int "$max" "$BASELINE_MIN_MIB"; then
+          # Fail toward silence: no plausible reading ⇒ no baseline ⇒ no recycle decision.
+          reason_note baseline 300 "no plausible engine read in the ${BASELINE_SPAN_S}s window (n=$n max=${max:-0} < ${BASELINE_MIN_MIB} MiB) — baseline NOT committed, recycle disarmed"
+          rm -f "$STATE_DIR/baseline_stage" "$STATE_DIR/collect_n" "$STATE_DIR/collect_max" 2>/dev/null
+          return 0
+        fi
+        bl_commit "$max"
+      fi
+      return 0 ;;
+    *) # unknown/corrupt stage marker ⇒ restart acquisition from the top, never act on it
+      rm -f "$STATE_DIR/baseline_stage" 2>/dev/null
+      st_write baseline_stage await-health; return 0 ;;
+  esac
 }
 
 restart_engine() { # $1 = tag, $2 = reason
@@ -345,7 +513,12 @@ enforce_crit() { # $1 = reason
 check_idle_recycle() {
   local top base infl now
   [ "$RECYCLE" = "1" ] || return 0
-  [ -s "$STATE_DIR/engine_baseline_mib" ] || { update_engine_baseline; return 0; }
+  # HD-395 SAFETY INVARIANT: no recycle decision without a COMMITTED baseline. A missing or
+  # half-acquired one fails toward silence-with-a-reason, never toward `docker stop`.
+  if [ "$(bl_stage)" != "committed" ] || ! ge_int "$(st_read engine_baseline_mib)" "$BASELINE_MIN_MIB"; then
+    reason_note recycle 900 "recycle disarmed: baseline stage='$(bl_stage)', value='$(st_read engine_baseline_mib)' (needs stage=committed and >= ${BASELINE_MIN_MIB} MiB)"
+    return 0
+  fi
   [ -e "$NO_ENFORCE_FILE" ] && return 0
   top=$(engine_top_mib); base=$(cat "$STATE_DIR/engine_baseline_mib" 2>/dev/null || echo 0)
   [ -z "$top" ] && return 0
@@ -364,6 +537,163 @@ check_idle_recycle() {
   restart_engine RECYCLE "engine ${top} MiB > baseline ${base} + ${RECYCLE_GROW_GIB} GiB and idle > ${RECYCLE_IDLE_S}s"
 }
 
+# ---- self-test (HD-395) ---------------------------------------------------------------
+# Offline by construction: everything external is stubbed on PATH (docker, nvidia-smi, curl,
+# journalctl, dmesg, uptime) and every state file lands in a temp dir. It drives the REAL
+# governor functions by invoking this same script as `_tick` — one process per tick, which is
+# also how the persistence-across-a-unit-restart property is proved. `docker` here is a file
+# append: the test can never touch a real engine.
+# It is written to be RED-able: each case fails on exactly one guard, and `mutants` in the
+# delivery notes lists the edits that turn each one red.
+self_test() {
+  local SELF_SRC tmp bin st pass=0 fail=0
+  local T_SETTLE=0 T_SAMPLES=3 T_SPAN=600 T_MINMIB=40000 T_GROW=8 T_IDLE=1800
+  SELF_SRC=$(readlink -f "$0")
+  tmp=$(mktemp -d /tmp/spark-oom-selftest.XXXXXX) || { echo "self-test: mktemp failed"; return 1; }
+  bin="$tmp/bin"; st="$tmp/stub"
+  mkdir -p "$bin" "$st"
+
+  cat > "$bin/docker" <<'STUB'
+#!/bin/sh
+D=$SPARK_OOM_STUB_DIR
+case " $* " in
+  *'.State.Running'*)   cat "$D/running" 2>/dev/null; exit 0 ;;
+  *'{{.RestartCount}}'*) printf '0 %s false\n' "$(cat "$D/started" 2>/dev/null)"; exit 0 ;;
+  *'join .Args'*)        printf 'vllm serve --api-key stub-not-a-secret\n'; exit 0 ;;
+  *restart*)             printf 'restart\n' >> "$D/restarts"; exit 0 ;;
+esac
+case " $* " in
+  *'ps -q'*) printf 'stubid\n' ;;
+  *'logs'*)  : ;;
+  *'ps'*)    printf 'vllm-qwen-spark\tUp (stub)\n' ;;
+esac
+exit 0
+STUB
+  cat > "$bin/nvidia-smi" <<'STUB'
+#!/bin/sh
+case " $* " in
+  *query-compute-apps*) printf '4242,%s\n' "$(cat "$SPARK_OOM_STUB_DIR/top_mib" 2>/dev/null || echo 0)" ;;
+  *) printf 'stub,stub\n' ;;
+esac
+exit 0
+STUB
+  cat > "$bin/curl" <<'STUB'
+#!/bin/sh
+D=$SPARK_OOM_STUB_DIR
+case " $* " in
+  *health*)  printf '%s' "$(cat "$D/health" 2>/dev/null || echo 000)"; exit 0 ;;
+  *metrics*) v=$(cat "$D/inflight" 2>/dev/null || echo ERR)
+             [ "$v" = "ERR" ] && exit 0
+             printf 'vllm:num_requests_running{model_name="stub"} %s\nvllm:num_requests_waiting{model_name="stub"} 0\n' "$v"
+             exit 0 ;;
+esac
+printf '000'
+STUB
+  for t in journalctl dmesg; do printf '#!/bin/sh\nexit 0\n' > "$bin/$t"; done
+  printf '#!/bin/sh\n[ "$1" = -s ] && { echo "2026-09-23 00:00:00"; exit 0; }\nprintf "up 0 mins (stub)\\n"\n' > "$bin/uptime"
+  chmod +x "$bin"/*
+  printf 'true' > "$st/running"; printf '2026-09-23T00:00:00Z' > "$st/started"
+  printf '000' > "$st/health"; printf '0' > "$st/top_mib"; printf 'ERR' > "$st/inflight"
+  : > "$st/restarts"
+
+  tick() {
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_INTERVAL=1 \
+        SPARK_OOM_STUB_DIR="$st" SPARK_OOM_KEEP_SNAPS=2 \
+        SPARK_OOM_BASELINE_SETTLE_S="$T_SETTLE" SPARK_OOM_BASELINE_SAMPLES="$T_SAMPLES" \
+        SPARK_OOM_BASELINE_SPAN_S="$T_SPAN" SPARK_OOM_BASELINE_MIN_MIB="$T_MINMIB" \
+        SPARK_OOM_RECYCLE=1 SPARK_OOM_RECYCLE_GROW_GIB="$T_GROW" SPARK_OOM_RECYCLE_IDLE_S="$T_IDLE" \
+        SPARK_OOM_ENFORCE=0 VLLM_CONTAINER=vllm-qwen-spark \
+        bash "$SELF_SRC" _tick >/dev/null 2>&1
+  }
+  seed() { printf '%s' "$1" > "$st/health"; printf '%s' "$2" > "$st/running"
+           printf '%s' "$3" > "$st/top_mib"; printf '%s' "$4" > "$st/inflight"; }
+  new_case() { rm -rf "$tmp/base"; mkdir -p "$tmp/base/state" "$tmp/base/snapshots"; : > "$st/restarts"; }
+  restarts()   { wc -l < "$st/restarts" 2>/dev/null | tr -d ' '; }
+  stv()        { head -1 "$tmp/base/state/$1" 2>/dev/null; }
+  commit_by_hand() { # $1 = MiB — a state dir a real acquisition would have produced
+    printf 'committed\n' > "$tmp/base/state/baseline_stage"
+    printf '%s\n' "$1" > "$tmp/base/state/engine_baseline_mib"; }
+  idle_since() { printf '%s\n' "$(( $(date +%s) - $1 ))" > "$tmp/base/state/last_busy_epoch"; }
+  ok()   { printf '  PASS %s\n' "$1"; pass=$((pass+1)); }
+  bad()  { printf '  FAIL %s\n' "$1"; fail=$((fail+1)); }
+  expect_eq() { if [ "$2" = "$3" ]; then ok "$1 = $3"; else bad "$1: got '$2' want '$3'"; fi; }
+
+  printf 'self-test (HD-395 baseline + recycle governance), stubs in %s\n' "$tmp"
+
+  # C1 — acquisition waits for a REAL engine, and a LOW first read must never become the
+  #      baseline. Until it commits, the recycle path must be silent.
+  new_case
+  seed 200 false 92343 0            # container not running at all — nothing may be measured
+  tick; tick
+  expect_eq "C1 stage while engine not running" "$(stv baseline_stage)" "await-health"
+  expect_eq "C1 no baseline while not running"  "$(stv engine_baseline_mib)" ""
+  expect_eq "C1 no restart while not running"   "$(restarts)" "0"
+  seed 503 true 71911 0
+  tick; tick; tick; tick; tick
+  expect_eq "C1 stage while /health is 503"  "$(stv baseline_stage)" "await-health"
+  expect_eq "C1 no baseline while unhealthy" "$(stv engine_baseline_mib)" ""
+  expect_eq "C1 restarts while unhealthy"    "$(restarts)" "0"
+  seed 200 true 86243 0; tick                       # health 200 → settling
+  expect_eq "C1 stage after health 200" "$(stv baseline_stage)" "settling"
+  tick                                              # settle done → collecting (no sample this tick)
+  expect_eq "C1 stage after settle" "$(stv baseline_stage)" "collecting"
+  expect_eq "C1 restarts while acquiring" "$(restarts)" "0"
+  seed 200 true 92343 0; tick
+  seed 200 true 86243 0; tick
+  seed 200 true 86243 0; tick
+  expect_eq "C1 committed stage"   "$(stv baseline_stage)" "committed"
+  expect_eq "C1 baseline = MAX not first read" "$(stv engine_baseline_mib)" "92343"
+  expect_eq "C1 boot floor min recorded"       "$(stv boot_min_mib)" "71911"
+  expect_eq "C1 boot floor max recorded"       "$(stv boot_max_mib)" "92343"
+  expect_eq "C1 never restarted the engine"    "$(restarts)" "0"
+
+  # C2 — a committed baseline survives new processes (unit restarts) and a LOW later read
+  new_case
+  seed 200 true 92343 0
+  tick; tick; tick; tick; tick
+  expect_eq "C2 committed" "$(stv engine_baseline_mib)" "92343"
+  seed 200 true 71911 0
+  tick; tick; tick; tick
+  expect_eq "C2 no down-ratchet on a low read" "$(stv engine_baseline_mib)" "92343"
+  expect_eq "C2 stage stays committed"         "$(stv baseline_stage)" "committed"
+  expect_eq "C2 no restart"                    "$(restarts)" "0"
+
+  # C3 — growth + proven idle ⇒ the guard DOES fire (a guard that cannot fire is the bug)
+  new_case
+  commit_by_hand 92343; idle_since 4000
+  seed 200 true 101000 0            # 92343 + 8 GiB = 100535 < 101000
+  tick
+  expect_eq "C3 recycle fired once" "$(restarts)" "1"
+  if grep -q 'RECYCLE' "$tmp/base/state/enforce.log" 2>/dev/null; then ok "C3 enforce.log records RECYCLE"; else bad "C3 enforce.log has no RECYCLE line"; fi
+
+  # C4 — no positive proof of idle (or no baseline) ⇒ silence, never `docker stop`
+  new_case
+  commit_by_hand 92343; idle_since 4000
+  seed 200 true 101000 ERR; tick
+  expect_eq "C4a in-flight unreadable ⇒ no restart" "$(restarts)" "0"
+  seed 200 true 101000 3;   tick
+  expect_eq "C4b in-flight busy ⇒ no restart"       "$(restarts)" "0"
+  new_case                                           # growth + idle but NO baseline
+  idle_since 4000
+  seed 200 true 101000 0; tick
+  expect_eq "C4c no baseline ⇒ no restart" "$(restarts)" "0"
+  if grep -q 'recycle disarmed' "$tmp/base/state/enforce.log" 2>/dev/null; then
+    ok "C4c the silence is logged with a reason"
+  else
+    bad "C4c silence was not explained in enforce.log"
+  fi
+
+  printf 'self-test: %d assertions, %d failed ⇒ %s\n' "$((pass+fail))" "$fail" \
+    "$([ "$fail" -eq 0 ] && echo 'ALL PASS (4/4 cases)' || echo RED)"
+  rm -rf "$tmp"
+  [ "$fail" -eq 0 ]
+}
+
+# The two governor calls the sampler loop makes per iteration, factored out so the self-test
+# can drive the SAME code path one tick at a time (the CRIT/snapshot path is deliberately not
+# part of it — it is exercised live, and driving it here would restart things).
+_tick_body() { baseline_tick; check_idle_recycle; }
+
 # ---- modes ------------------------------------------------------------------
 case "${1:-sample-loop}" in
   snapshot) shift; snapshot "${1:-MANUAL}" "${2:-manual request}" ;;
@@ -373,7 +703,12 @@ case "${1:-sample-loop}" in
     echo "        (MemFree $(mem_field MemFree) is NOT the gauge — see the header of this script)"
     echo "mem:    cached=$(mem_field Cached) anon=$(mem_field AnonPages) GiB"
     echo "psi:  some avg10=$(psi_val some) full avg10=$(psi_val full)"
-    echo "gpu top pid: $(gpu_mib)  baseline=$(cat "$STATE_DIR/engine_baseline_mib" 2>/dev/null || echo NA) MiB"
+    echo "gpu top pid: $(gpu_mib)"
+    echo "baseline: stage=$(bl_stage) value=$(st_read engine_baseline_mib || echo NA) MiB"
+    echo "          (acquisition: /health 200 → settle ${BASELINE_SETTLE_S}s → max of ${BASELINE_SAMPLES} plausible reads inside ${BASELINE_SPAN_S}s; plausible ≥ ${BASELINE_MIN_MIB} MiB)"
+    [ -s "$STATE_DIR/baseline_meta" ] && echo "          $(st_read baseline_meta)"
+    echo "          boot floor: min=$(st_read boot_min_mib || echo NA) max=$(st_read boot_max_mib || echo NA) MiB  ← the HD-395 coin-flip, as one spread"
+    echo "          margin: $(margin_verdict)"
     echo "in flight: $(in_flight)"
     echo "governor: enforce=$ENFORCE (cooldown ${ENFORCE_COOLDOWN}s, max ${ENFORCE_MAX}/${ENFORCE_WINDOW}s, arm-off file $NO_ENFORCE_FILE) recycle=$RECYCLE (+${RECYCLE_GROW_GIB} GiB / ${RECYCLE_IDLE_S}s idle)"
     [ -s "$STATE_DIR/enforce.log" ] && { echo "governor actions:"; tail -5 "$STATE_DIR/enforce.log"; }
@@ -389,7 +724,7 @@ case "${1:-sample-loop}" in
       ring_append
       check_kill_events
       check_engine_restart
-      update_engine_baseline
+      baseline_tick
       use=$(usable_gib); pfull=$(psi_val full)
       if awk -v u="${use:-999}" -v c="$CRIT_GIB" 'BEGIN{exit !(u<c)}' \
          || awk -v p="${pfull:-0}" -v c="$PSI_CRIT" 'BEGIN{exit !(p>c)}'; then
@@ -412,5 +747,12 @@ case "${1:-sample-loop}" in
     done
     ;;
   enforce-status) echo "see status" ;;
-  *) echo "usage: $0 {sample-loop|snapshot <tag> [reason]|status}" >&2; exit 2 ;;
+  _tick) _tick_body ;;
+  rebaseline) # operator action: drop the committed baseline and re-acquire from scratch
+    act_log "rebaseline requested (operator): previous baseline=$(st_read engine_baseline_mib) stage=$(bl_stage)"
+    bl_reset_acquisition; st_write baseline_stage await-health
+    echo "baseline cleared; re-acquiring: /health 200 → settle ${BASELINE_SETTLE_S}s → max of ${BASELINE_SAMPLES} reads inside ${BASELINE_SPAN_S}s (plausible ≥ ${BASELINE_MIN_MIB} MiB)"
+    ;;
+  self-test) self_test; exit $? ;;
+  *) echo "usage: $0 {sample-loop|snapshot <tag> [reason]|status|rebaseline|self-test}" >&2; exit 2 ;;
 esac

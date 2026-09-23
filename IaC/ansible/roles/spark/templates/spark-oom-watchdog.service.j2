@@ -23,6 +23,12 @@ Environment=SPARK_OOM_ENFORCE_WAIT_MAX={{ spark_oom_watchdog_enforce_wait_max }}
 Environment=SPARK_OOM_RECYCLE={{ 1 if spark_oom_watchdog_recycle | bool else 0 }}
 Environment=SPARK_OOM_RECYCLE_GROW_GIB={{ spark_oom_watchdog_recycle_grow_gib }}
 Environment=SPARK_OOM_RECYCLE_IDLE_S={{ spark_oom_watchdog_recycle_idle_s }}
+# HD-395: the recycle baseline is MEASURED (health 200 → settle → max of N reads in a span),
+# persisted so a UNIT restart never re-baselines a running engine. See the script header.
+Environment=SPARK_OOM_BASELINE_SETTLE_S={{ spark_oom_watchdog_baseline_settle_s }}
+Environment=SPARK_OOM_BASELINE_SAMPLES={{ spark_oom_watchdog_baseline_samples }}
+Environment=SPARK_OOM_BASELINE_SPAN_S={{ spark_oom_watchdog_baseline_span_s }}
+Environment=SPARK_OOM_BASELINE_MIN_MIB={{ spark_oom_watchdog_baseline_min_mib }}
 Environment=VLLM_CONTAINER={{ spark_vllm_container }}
 Restart=always
 RestartSec=10s
