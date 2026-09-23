@@ -96,29 +96,32 @@ LAYOUT: list[tuple[str, str, list[tuple[str, int]]]] = [
         ("new:gpu_activity", 12),
         ("new:spark_gpu_note", 24),
     ]),
+    # The owner's verdict on the first render (2026-09-23) named the two donor-board views
+    # they actually work with — "Engine Internal & Cache" (v2) and the prefill/decode token
+    # throughput pair (inf). Both survived the merge, but scattered: the internals panels sat
+    # in a Cache row and a Reliability row of three, and the throughput pair was buried in a
+    # row titled for TP-ranks. So the merge now reproduces those two GROUPINGS rather than
+    # merely carrying their panels — a panel you have to hunt for is a panel you do not use.
     ("row_sched", "Scheduling & Concurrency", [
-        ("new:requests", 8), ("new:kv_cache", 8), ("v2:101", 8),
-        ("v2:403", 8), ("new:preemptions", 8), ("inf:17", 8),
-        ("inf:18", 8), ("inf:24", 16),
+        ("new:requests", 8), ("v2:101", 8), ("new:preemptions", 8),
+        ("inf:17", 8), ("inf:18", 8), ("inf:24", 16),
     ]),
+    ("row_engine_internals", "Engine internals & cache",
+     [("new:kv_cache", 8), ("new:prefix_cache", 8), ("v2:403", 8),
+      ("v2:501", 8), ("v2:502", 8), ("v2:503", 8), ("inf:13", 8)]),
     ("row_latency", "Latency", [
         ("inf:7", 12), ("inf:9", 12), ("inf:8", 12), ("inf:10", 12),
+        ("new:e2e_avg", 12),
     ]),
     ("row_throughput", "Throughput & Workload", [
-        ("inf:11", 12), ("inf:12", 12), ("new:request_rate", 8),
-        ("inf:19", 8), ("new:request_rate_note", 8),
-    ]),
-    ("row_cache", "Cache", [
-        ("new:prefix_cache", 8), ("inf:13", 8), ("new:e2e_avg", 8),
-    ]),
-    ("row_reliability", "Reliability", [
-        ("v2:502", 8), ("v2:503", 8), ("v2:501", 8),
+        ("inf:11", 12), ("inf:21", 12), ("inf:22", 12), ("inf:12", 12),
+        ("new:request_rate", 8), ("inf:19", 8), ("new:request_rate_note", 8),
     ]),
     ("row_request", "Request shape (single-engine deep dive)", [
         ("v2:304", 12), ("v2:202", 12),
     ]),
     ("row_engine_detail", "Per-engine / TP-rank detail", [
-        ("inf:21", 12), ("inf:22", 12), ("inf:23", 12), ("inf:14", 12),
+        ("inf:23", 12), ("inf:14", 12),
     ]),
     ("row_forward", "Forward look — RX 7600 (oldsrv) + SGLang", [
         ("new:forward_note", 24),
@@ -229,18 +232,25 @@ EXPR_REWRITES = {
          'instance=~"$instance"}[$__rate_interval]))', "exact"),
     ],
     "v2:202": [
+        # vLLM-only on BOTH legs, deliberately. SGLang's per_stage_req_latency_seconds
+        # needs `stage="…"` and vLLM's names have no such label, so the two engines cannot
+        # share one selector: with `stage="decode"` on the alternation the vLLM leg matched
+        # nothing (measured 0 series on a live engine, 2026-09-23), and without it the
+        # SGLang leg sums every stage into a line titled "prefill" — wrong instead of dead.
+        # Both are lies, so the SGLang halves wait for their own targets on the day SGLang
+        # actually runs. See guard_joined_selectors + DESCRIPTION_NOTES["v2:202"].
         ('rate(vllm:request_prefill_time_seconds_sum{model_name="$model_name"}[5m]) / '
          'clamp_min(rate(vllm:request_prefill_time_seconds_count{model_name="$model_name"}[5m]), 0.001)',
-         'sum by (job) (rate({__name__=~"vllm:request_prefill_time_seconds_sum|sglang:per_stage_req_latency_seconds_sum", '
-         'instance=~"$instance"}[$__rate_interval])) / clamp_min(sum by (job) (rate({__name__=~'
-         '"vllm:request_prefill_time_seconds_count|sglang:per_stage_req_latency_seconds_count", '
+         'sum by (job) (rate(vllm:request_prefill_time_seconds_sum{model_name=~"$model_name", '
+         'instance=~"$instance"}[$__rate_interval])) / clamp_min(sum by (job) '
+         '(rate(vllm:request_prefill_time_seconds_count{model_name=~"$model_name", '
          'instance=~"$instance"}[$__rate_interval])), 0.001)', "exact"),
         ('rate(vllm:request_decode_time_seconds_sum{model_name="$model_name"}[5m]) / '
          'clamp_min(rate(vllm:request_decode_time_seconds_count{model_name="$model_name"}[5m]), 0.001)',
-         'sum by (job) (rate({__name__=~"vllm:request_decode_time_seconds_sum|sglang:per_stage_req_latency_seconds_sum", '
-         'stage="decode", instance=~"$instance"}[$__rate_interval])) / clamp_min(sum by (job) (rate({__name__=~'
-         '"vllm:request_decode_time_seconds_count|sglang:per_stage_req_latency_seconds_count", '
-         'stage="decode", instance=~"$instance"}[$__rate_interval])), 0.001)', "exact"),
+         'sum by (job) (rate(vllm:request_decode_time_seconds_sum{model_name=~"$model_name", '
+         'instance=~"$instance"}[$__rate_interval])) / clamp_min(sum by (job) '
+         '(rate(vllm:request_decode_time_seconds_count{model_name=~"$model_name", '
+         'instance=~"$instance"}[$__rate_interval])), 0.001)', "exact"),
     ],
     "inf:13": [
         # HD-420 row 4: 'Cached Token Stats' plotted `vllm:prompt_tokens_cached_total` RAW —
@@ -348,7 +358,7 @@ NEW_PANELS = {
             "Expect to correct names here exactly as HD-368 corrected the vLLM half "
             "against the live engine; the fix is in this script, not in the JSON."
         ),
-        "unit": "short", "min": 0, "max": 1,
+        "unit": "short", "min": 0, "max": 1, "noValue": "not deployed",
         "targets": [{"expr": 'up{job="sglang", instance=~"$instance"}', "legend": "{{ instance }}"}],
         "thresholds": [{"color": "red", "value": None}, {"color": "green", "value": 1}],
     },
@@ -364,7 +374,7 @@ NEW_PANELS = {
             "which would make the panel a duplicate of the first one and hide real "
             "readiness failures. Spec: docs/observability.md §LLM Dashboard."
         ),
-        "unit": "short", "min": 0, "max": 1,
+        "unit": "short", "min": 0, "max": 1, "noValue": "probe not wired",
         "targets": [{
             "expr": 'max(probe_success{job="blackbox_llm", instance=~"$instance"})',
             "legend": "http_2xx",
@@ -814,19 +824,28 @@ NEW_PANELS = {
             "cache number on a chat/agent box: every hit is prefill you did not pay. "
             "Live ≈ 0.97 on spark (HD-368). Collapses gnet 24756's gauge + gnet 25043's "
             "rate panel into one. "
-            "⚠ NOT live-verified for SGLang, and the denominator is the weaker half: "
-            "SGLang exposes cached_tokens_total{cache_source} but no prefix-cache QUERIES "
-            "counter, so the SGLang leg divides by total prompt tokens — an upper bound "
-            "on the true hit rate. Confirm against a real scrape (same drill as HD-368)."
+            "⚠ This panel rendered No data until 2026-09-23 while the metric was live, "
+            "because both engines were joined into ONE selector carrying "
+            "`cache_source=\"device\"` — a label only SGLang has, and a matcher applies to "
+            "every name in the alternation, so it filtered vLLM out too. Each engine now "
+            "queries on its own line (guard_joined_selectors refuses the joined form). "
+            "The SGLang leg is the weaker half: SGLang exposes cached_tokens_total but no "
+            "prefix-cache QUERIES counter, so it divides by prompt tokens — an upper "
+            "bound, and unverified (we have never run SGLang)."
         ),
         "unit": "percentunit", "min": 0, "max": 1,
-        "targets": [{
-            "expr": 'sum by (job) (rate({__name__=~"vllm:prefix_cache_hits_total|sglang:cached_tokens_total", '
-                    'cache_source="device", instance=~"$instance"}[$__rate_interval])) / '
-                    'clamp_min(sum by (job) (rate({__name__=~"vllm:prefix_cache_queries_total|sglang:prompt_tokens_total", '
-                    'instance=~"$instance"}[$__rate_interval])), 1)',
-            "legend": "hit rate · {{ job }}",
-        }],
+        "targets": [
+            {
+                "expr": 'sum by (job) (rate(vllm:prefix_cache_hits_total{instance=~"$instance"}[$__rate_interval])) / '
+                        'clamp_min(sum by (job) (rate(vllm:prefix_cache_queries_total{instance=~"$instance"}[$__rate_interval])), 1)',
+                "legend": "hit rate · vLLM",
+            },
+            {
+                "expr": 'sum by (job) (rate(sglang:cached_tokens_total{cache_source="device", instance=~"$instance"}[$__rate_interval])) / '
+                        'clamp_min(sum by (job) (rate(sglang:prompt_tokens_total{instance=~"$instance"}[$__rate_interval])), 1)',
+                "legend": "≤ hit rate · SGLang",
+            },
+        ],
     },
     "e2e_avg": {
         "type": "stat",
@@ -853,9 +872,14 @@ NEW_PANELS = {
             "embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → "
             "Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land "
             "in the node row here — that card DOES expose VRAM, unlike the GB10. "
-            "**SGLang:** needs `prometheus.scrape \"sglang\"` only; its `sglang:*` sibling "
-            "is already written into every joined query, so the SGLang half of this "
-            "dashboard fills from the same file. "
+            "**SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — "
+            "its `sglang:*` sibling is already written into every joined query, so the "
+            "SGLang half fills from the same file. TWO places are deliberately vLLM-only "
+            "until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` "
+            "label vLLM does not carry and a joined selector cannot filter one family with "
+            "it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line "
+            "of 'Prefix cache hit rate' (its own target, unverified). Both are named in "
+            "scripts/build-llm-dashboard.py, which refuses the joined form. "
             "**The three HD-368 dashboards stay provisioned** until the owner retires them."
         ),
     },
@@ -865,6 +889,7 @@ NEW_PANELS = {
 DESCRIPTION_NOTES = {
     "inf:14": "Carried from gnet 25502: vLLM per-engine step/token histogram + the SGLang CUDA-graph counter.",
     "inf:13": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. HD-420: all three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
+    "v2:202": "vLLM-only on both legs since 2026-09-23: SGLang's per-stage latency needs `stage=\"…\"`, which vLLM's names do not have, and a label matcher on a joined `{__name__=~\"vllm:…|sglang:…\"}` selector filters the family that lacks it — the decode leg measured 0 series on a live engine that way. The SGLang halves wait for their own targets on the day it runs.",
 }
 
 # Operator-visible strings must be English (CONVENTIONS: English technical). The three
@@ -973,6 +998,11 @@ def build_new(spec: dict) -> dict:
                      [{"color": "green", "value": None}],
         },
     }
+    if spec.get("noValue") is not None:
+        # A panel that is empty BY DESIGN must say so on its face. Without this Grafana
+        # prints "No data", which is indistinguishable from an outage — and on a board
+        # whose whole purpose is readiness, that is not a cosmetic difference.
+        defaults["noValue"] = spec["noValue"]
     if spec.get("min") is not None:
         defaults["min"] = spec["min"]
     if spec.get("max") is not None:
@@ -1077,6 +1107,7 @@ def build() -> dict:
     dash = dict(HEAD)
     dash["templating"] = {"list": template_vars()}
     dash["panels"] = panels
+    normalize_picker_operators(dash)
     return dash
 
 
@@ -1088,6 +1119,50 @@ def panel_height(panel: dict) -> int:
     if ptype == "stat":
         return 5
     return 8
+
+
+# A picker variable behind an EXACT-equality matcher is a silent No-data machine: with
+# "All" selected Grafana substitutes the variable's allValue (`.*`), and PromQL `=` is
+# literal equality, so `model_name=".*"` matches no series on a healthy engine. Measured
+# on the live box 2026-09-23: `vllm:num_requests_running{model_name=".*"}` -> 0 series,
+# `{model_name=~".*"}` -> 1. This is what made "Throughput & Workload" and "Per-engine /
+# TP-rank detail" read as dead on the first owner render while the SAME queries rendered
+# on the donor boards — those boards' pickers have no All, so the variable always resolved
+# to a concrete value. The merged board's pickers DO carry All (a second engine is the
+# point), so every picker matcher here must be `=~`. Guarded by guard_picker_operators().
+PICKER_EXACT = re.compile(r'\b(model_name|instance)\s*=\s*"\$\{?\1\}?"')
+
+
+def normalize_picker_operators(dash: dict) -> int:
+    """Rewrite `<picker>="$<picker>"` to `<picker>=~"$<picker>"` on every emitted query.
+
+    Carried donor panels arrive with the exact form (their own picker has no All, where it
+    is harmless). Doing it here, once, at emit time, means an upstream re-import cannot
+    re-introduce the bug — a hand-fix of the JSON would be lost on the next merge."""
+    n = 0
+    for p in dash["panels"]:
+        for t in p.get("targets") or []:
+            expr = t.get("expr") or ""
+            fixed = PICKER_EXACT.sub(lambda m: f'{m.group(1)}=~"${m.group(1)}"', expr)
+            if fixed != expr:
+                t["expr"] = fixed
+                n += 1
+    return n
+
+
+def guard_picker_operators(dash: dict) -> list:
+    """No picker variable may sit behind exact equality — see PICKER_EXACT for the proof."""
+    errors = []
+    for p in dash["panels"]:
+        for t in p.get("targets") or []:
+            m = PICKER_EXACT.search(t.get("expr") or "")
+            if m:
+                errors.append(
+                    f"panel {p.get('title')!r} target {t.get('refId')} matches the "
+                    f"{m.group(1)} picker with `=` — with All selected Grafana sends "
+                    f"{m.group(1)}=\".*\" and the panel renders No data: "
+                    f"{(t.get('expr') or '')[:110]}")
+    return errors
 
 
 def template_vars() -> list:
@@ -1113,7 +1188,7 @@ def template_vars() -> list:
             "regex": "", "sort": 0, "multi": True, "includeAll": True, "allValue": ".*",
             "current": {"selectedAllValue": True, "text": ["All"], "value": ["$__all"]},
             "hide": 0, "options": [], "skipUrlSync": False,
-            "description": "Served model. NEVER pin `current:` to a literal — HD-368 found a stale upstream pin that made every panel behind it empty.",
+            "description": "Served model. NEVER pin `current:` to a literal — HD-368 found a stale upstream pin that made every panel behind it empty. ⚠ A query must match this variable with `=~`, never `=`: when All is selected the value is `.*`, and exact equality on `.*` matches nothing (measured 2026-09-23 — it killed two whole rows).",
         },
     ]
 
@@ -1159,6 +1234,39 @@ def guard_no_dead_query(dash: dict) -> list:
             expr = t["expr"]
             if "$model_name" in expr and "model_name=" not in expr:
                 errors.append(f"panel {p.get('title')!r}: $model_name used outside a label matcher")
+    return errors
+
+
+def guard_joined_selectors(dash: dict) -> list:
+    """A selector that joins BOTH engine families may only carry shared labels.
+
+    A label matcher applies to every name in a `{__name__=~"vllm:a|sglang:b"}` alternation.
+    If that label belongs to one family — `cache_source` (SGLang), `stage` (SGLang),
+    `finished_reason` (vLLM) — the other family is silently filtered out, so the panel
+    either dies outright or plots one engine under a title that says "both engines".
+
+    Measured 2026-09-23 with `cache_source="device"`: 'Prefix cache hit rate (both
+    engines)' returned **0 series** while `vllm:prefix_cache_hits_total` was live and the
+    model picker resolved. Same shape, same day, in the decode leg of 'Inference Stage
+    Breakdown' (`stage="decode"`). Both now query per engine.
+
+    Exempt labels: `instance`, `job` — shared by construction (every scrape target has them).
+    """
+    shared = ("instance", "job")
+    errors = []
+    for p in dash["panels"]:
+        for t in p.get("targets") or []:
+            expr = t.get("expr") or ""
+            for m in re.finditer(r'\{__name__=~"([^"]+)"([^}]*)\}', expr):
+                names, labels = m.group(1), m.group(2)
+                if "|" not in names:
+                    continue
+                for lm in re.finditer(r'([A-Za-z_][A-Za-z0-9_]*)\s*[!]?[=~]?"', labels):
+                    if lm.group(1) not in shared:
+                        errors.append(
+                            f"panel {p.get('title')!r} joins {names!r} but also matches "
+                            f"{lm.group(1)}=… , which only one family carries — the other "
+                            f"is filtered out silently: {expr[:110]}")
     return errors
 
 
@@ -1415,6 +1523,7 @@ def main(argv=None) -> int:
     dash = build()
     errors = (guard_references(dash) + guard_no_dead_query(dash) + guard_instance(dash)
               + guard_layout_consistency(dash) + guard_empty_by_design(dash)
+              + guard_picker_operators(dash) + guard_joined_selectors(dash)
               + guard_english(dash) + guard_stale(dash))
     if errors:
         for e in errors:

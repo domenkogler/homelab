@@ -602,12 +602,16 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       the sampler and the forensics stay live. Read back with
       `sudo /usr/local/bin/spark-oom-watchdog.sh status` (it flags unit/script drift) +
       `systemctl show -p Environment --value spark-oom-watchdog.service`. · [hardware-spark.md](docs/hardware-spark.md)
-- [ ] **HD-377** — (a) **owner:** open `homelab-llm` on `stats.kogler.si` and sign off; on sign-off, delete the
-      three HD-368 boards and re-converge `vps.yml --tags monitoring`. The board itself is **already provisioned
-      + imported** (VPS file byte-identical to the repo, `uid=homelab-llm`, 53 panels, datasource healthy —
-      verified 2026-09-23). (b) is **DONE 2026-09-22**: the three `DCGM_FI_PROF_*` panels are deleted (impossible
-      on GB10), the six real DCGM signals + an XID readiness stat are wired, and the re-derived board is
-      provisioned. · [observability.md](docs/observability.md)
+- [ ] **HD-377** — (a) **owner: render `homelab-llm` on `stats.kogler.si` AGAIN.** The first render
+      (2026-09-23) **failed**: "Throughput & Workload" and "Per-engine / TP-rank detail" were mostly No data —
+      51 of 100 queries returned zero series and 15 of 53 panels were fully blank, from a picker behind exact
+      `=`, a joined selector carrying a SGLang-only label, and empties that read as outages. All three are fixed
+      in `build-llm-dashboard.py` with guards (`guard_picker_operators`, `guard_joined_selectors`), the two
+      groupings the owner named are now rows, and all 101 queries were replayed against live VM (every panel
+      resolves except two that now say "not deployed" / "probe not wired"); re-converged `vps.yml --tags
+      monitoring` `ok=34 changed=1 failed=0`, live `version` 3. On sign-off, delete the three HD-368 boards and
+      re-converge again. (b) is **DONE 2026-09-22**: the three `DCGM_FI_PROF_*` panels are deleted (impossible
+      on GB10), the six real DCGM signals + an XID readiness stat are wired. · [observability.md](docs/observability.md)
 - [x] **HD-420** — **DONE 2026-09-23.** VPS half 2026-09-22 (datasource `timeInterval` floor + `rate()` panel fix,
       converged `changed=3` then `changed=0`). Spark half 2026-09-23: Alloy hot/cold split + `DCGM_EXPORTER_INTERVAL:
       "5000"` converged together; the acceptance was measured on external traffic — `count_over_time(node_load1{instance=~"spark.*"}[1m])`

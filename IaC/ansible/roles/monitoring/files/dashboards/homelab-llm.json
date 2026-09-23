@@ -118,6 +118,7 @@
           "mappings": [],
           "max": 1,
           "min": 0,
+          "noValue": "not deployed",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -188,6 +189,7 @@
           "mappings": [],
           "max": 1,
           "min": 0,
+          "noValue": "probe not wired",
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -2040,6 +2042,451 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Request success rate. Healthy >99.5% (green), at risk <98% (red). Only clean completions count as success.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 98
+              },
+              {
+                "color": "green",
+                "value": 99.5
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 8,
+        "y": 62
+      },
+      "id": 28,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "12.3.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "(sum(rate(vllm:request_success_total{finished_reason=~\"stop|length\", model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(rate(vllm:request_success_total{model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])), 0.001)) * 100",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Success Rate",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "vllm:num_preemptions_total: requests evicted from KV and recomputed. Sustained > 0 means the KV budget is too tight for the concurrent window (HD-374 governance; the gnet 25502 panel this replaces was HD-368-rewritten from a metric this build does not emit). 0 is the target — the 2026-09-15 C3 incident is what a non-zero line looks like. vLLM-only: SGLang signals the same event through its eviction counters (eviction_duration_seconds / evicted_tokens_total), already plotted by the carried gnet 25502 KV-pressure panel — not summed into this one.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 62
+      },
+      "id": 29,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job, instance) (rate({__name__=~\"vllm:num_preemptions_total\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "preemptions/s · {{ instance }}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job, instance) (increase({__name__=~\"vllm:num_preemptions_total\", instance=~\"$instance\"}[$__range]))",
+          "legendFormat": "window total · {{ instance }}",
+          "refId": "B"
+        }
+      ],
+      "title": "Preemptions — rate + window total (vLLM)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 1000000
+              },
+              {
+                "color": "red",
+                "value": 1800000
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 70
+      },
+      "id": 30,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(vllm:request_params_max_tokens_sum{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) / clamp_min(sum(rate(vllm:request_params_max_tokens_count{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "vLLM",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "max(sglang:max_total_num_tokens{model_name=~\"$model_name\", instance=~\"${instance}\"})",
+          "legendFormat": "SGLang",
+          "refId": "B"
+        }
+      ],
+      "title": "Requested Max Tokens (avg)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 0.5
+              },
+              {
+                "color": "red",
+                "value": 0.9
+              }
+            ]
+          },
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 70
+      },
+      "id": 31,
+      "options": {
+        "minVizHeight": 75,
+        "minVizWidth": 75,
+        "orientation": "auto",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showThresholdLabels": false,
+        "showThresholdMarkers": true,
+        "sizing": "auto"
+      },
+      "pluginVersion": "11.0.1",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(vllm:request_prefill_kv_computed_tokens_sum{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) / clamp_min(sum(rate(vllm:request_prompt_tokens_sum{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "vLLM",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "avg(sglang:new_token_ratio{model_name=~\"$model_name\", instance=~\"${instance}\"})",
+          "legendFormat": "SGLang",
+          "refId": "B"
+        }
+      ],
+      "title": "Prefill KV Computed Ratio",
+      "type": "gauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 16,
+        "x": 0,
+        "y": 78
+      },
+      "id": 32,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (engine) (rate(vllm:request_queue_time_seconds_sum{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) / clamp_min(sum by (engine) (rate(vllm:request_queue_time_seconds_count{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])), 1e-9)",
+          "legendFormat": "vLLM Engine {{engine}} Avg",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (tp_rank) (sglang:queue_time_seconds_sum{model_name=~\"$model_name\", instance=~\"${instance}\"}) / sum by (tp_rank) (sglang:queue_time_seconds_count{model_name=~\"$model_name\", instance=~\"${instance}\"})",
+          "legendFormat": "SGLang TP {{tp_rank}} Avg",
+          "refId": "B"
+        }
+      ],
+      "title": "Avg Queue Time (per Engine / TP Rank)",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 86
+      },
+      "id": 33,
+      "panels": [],
+      "title": "Engine internals & cache",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "description": "Fraction of the KV pool in use. Sits under the HD-374 explicit budget (--kv-cache-memory-bytes = 8.8e9 ≈ 283k tokens @262k ctx). Pinning near 1.0 is what precedes a preemption storm — read it together with the Preemptions panel. Collapses gnet 24756 'GPU KV Cache Usage' + gnet 25043 'GPU KV Usage Percentage' + gnet 25043 'GPU Cache Usage' (three panels, one quantity). SGLang's same-quantity name is token_usage (its KV+pool utilisation gauge).",
       "fieldConfig": {
         "defaults": {
@@ -2092,10 +2539,10 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 8,
-        "y": 62
+        "x": 0,
+        "y": 87
       },
-      "id": 28,
+      "id": 34,
       "options": {
         "legend": {
           "calcs": [
@@ -2131,73 +2578,100 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Request success rate. Healthy >99.5% (green), at risk <98% (red). Only clean completions count as success.",
+      "description": "hits / queries for the automatic prefix cache. The single most valuable cache number on a chat/agent box: every hit is prefill you did not pay. Live ≈ 0.97 on spark (HD-368). Collapses gnet 24756's gauge + gnet 25043's rate panel into one. ⚠ This panel rendered No data until 2026-09-23 while the metric was live, because both engines were joined into ONE selector carrying `cache_source=\"device\"` — a label only SGLang has, and a matcher applies to every name in the alternation, so it filtered vLLM out too. Each engine now queries on its own line (guard_joined_selectors refuses the joined form). The SGLang leg is the weaker half: SGLang exposes cached_tokens_total but no prefix-cache QUERIES counter, so it divides by prompt tokens — an upper bound, and unverified (we have never run SGLang).",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "thresholds"
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
           },
           "mappings": [],
-          "max": 100,
+          "max": 1,
           "min": 0,
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 98
-              },
-              {
                 "color": "green",
-                "value": 99.5
+                "value": null
               }
             ]
           },
-          "unit": "percent"
+          "unit": "percentunit"
         },
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 8,
         "w": 8,
-        "x": 16,
-        "y": 62
+        "x": 8,
+        "y": 87
       },
-      "id": 29,
+      "id": 35,
       "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
+        "legend": {
           "calcs": [
-            "lastNotNull"
+            "mean",
+            "max"
           ],
-          "fields": "",
-          "values": false
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
       },
-      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "(sum(rate(vllm:request_success_total{finished_reason=~\"stop|length\", model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum(rate(vllm:request_success_total{model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])), 0.001)) * 100",
-          "legendFormat": "{{ job }}",
+          "expr": "sum by (job) (rate(vllm:prefix_cache_hits_total{instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (job) (rate(vllm:prefix_cache_queries_total{instance=~\"$instance\"}[$__rate_interval])), 1)",
+          "legendFormat": "hit rate · vLLM",
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job) (rate(sglang:cached_tokens_total{cache_source=\"device\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (job) (rate(sglang:prompt_tokens_total{instance=~\"$instance\"}[$__rate_interval])), 1)",
+          "legendFormat": "≤ hit rate · SGLang",
+          "refId": "B"
         }
       ],
-      "title": "Success Rate",
-      "type": "stat"
+      "title": "Prefix cache hit rate (both engines)",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -2306,10 +2780,10 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 0,
-        "y": 70
+        "x": 16,
+        "y": 87
       },
-      "id": 30,
+      "id": 36,
       "options": {
         "legend": {
           "calcs": [
@@ -2373,262 +2847,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "vllm:num_preemptions_total: requests evicted from KV and recomputed. Sustained > 0 means the KV budget is too tight for the concurrent window (HD-374 governance; the gnet 25502 panel this replaces was HD-368-rewritten from a metric this build does not emit). 0 is the target — the 2026-09-15 C3 incident is what a non-zero line looks like. vLLM-only: SGLang signals the same event through its eviction counters (eviction_duration_seconds / evicted_tokens_total), already plotted by the carried gnet 25502 KV-pressure panel — not summed into this one.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisPlacement": "auto",
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientVisibility": false,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": {
-                "A": "none"
-              },
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 70
-      },
-      "id": 31,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (job, instance) (rate({__name__=~\"vllm:num_preemptions_total\", instance=~\"$instance\"}[$__rate_interval]))",
-          "legendFormat": "preemptions/s · {{ instance }}",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (job, instance) (increase({__name__=~\"vllm:num_preemptions_total\", instance=~\"$instance\"}[$__range]))",
-          "legendFormat": "window total · {{ instance }}",
-          "refId": "B"
-        }
-      ],
-      "title": "Preemptions — rate + window total (vLLM)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 1000000
-              },
-              {
-                "color": "red",
-                "value": 1800000
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 16,
-        "y": 70
-      },
-      "id": 32,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.0.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(vllm:request_params_max_tokens_sum{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) / clamp_min(sum(rate(vllm:request_params_max_tokens_count{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])), 1e-9)",
-          "legendFormat": "vLLM",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "max(sglang:max_total_num_tokens{model_name=\"${model_name}\", instance=~\"${instance}\"})",
-          "legendFormat": "SGLang",
-          "refId": "B"
-        }
-      ],
-      "title": "Requested Max Tokens (avg)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "yellow",
-                "value": 0.5
-              },
-              {
-                "color": "red",
-                "value": 0.9
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 78
-      },
-      "id": 33,
-      "options": {
-        "minVizHeight": 75,
-        "minVizWidth": 75,
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true,
-        "sizing": "auto"
-      },
-      "pluginVersion": "11.0.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(vllm:request_prefill_kv_computed_tokens_sum{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) / clamp_min(sum(rate(vllm:request_prompt_tokens_sum{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])), 1e-9)",
-          "legendFormat": "vLLM",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "avg(sglang:new_token_ratio{model_name=\"${model_name}\", instance=~\"${instance}\"})",
-          "legendFormat": "SGLang",
-          "refId": "B"
-        }
-      ],
-      "title": "Prefill KV Computed Ratio",
-      "type": "gauge"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
+      "description": "Engine process only (job=\"vllm\"): Python GC rate + RSS. Frequent GC or a monotonically rising RSS points at a leak in the API server.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2641,6 +2860,7 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -2650,273 +2870,14 @@
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 16,
-        "x": 8,
-        "y": 78
-      },
-      "id": 34,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (engine) (rate(vllm:request_queue_time_seconds_sum{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) / clamp_min(sum by (engine) (rate(vllm:request_queue_time_seconds_count{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])), 1e-9)",
-          "legendFormat": "vLLM Engine {{engine}} Avg",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (tp_rank) (sglang:queue_time_seconds_sum{model_name=\"${model_name}\", instance=~\"${instance}\"}) / sum by (tp_rank) (sglang:queue_time_seconds_count{model_name=\"${model_name}\", instance=~\"${instance}\"})",
-          "legendFormat": "SGLang TP {{tp_rank}} Avg",
-          "refId": "B"
-        }
-      ],
-      "title": "Avg Queue Time (per Engine / TP Rank)",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 86
-      },
-      "id": 35,
-      "panels": [],
-      "title": "Latency",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 87
-      },
-      "id": 36,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(vllm:time_to_first_token_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM TTFT P50",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM TTFT P95",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(vllm:time_to_first_token_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM TTFT P99",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(sglang:time_to_first_token_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang TTFT P50",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(sglang:time_to_first_token_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang TTFT P95",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(sglang:time_to_first_token_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang TTFT P99",
-          "refId": "F"
-        }
-      ],
-      "title": "Time to First Token (TTFT)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
+            "lineInterpolation": "smooth",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": true,
+            "spanNulls": false,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -2932,890 +2893,44 @@
               {
                 "color": "green",
                 "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
               }
             ]
           },
-          "unit": "s"
+          "unit": "short"
         },
-        "overrides": []
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "RSS Memory"
+            },
+            "properties": [
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              },
+              {
+                "id": "unit",
+                "value": "bytes"
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 87
+        "w": 8,
+        "x": 0,
+        "y": 95
       },
       "id": 37,
       "options": {
         "legend": {
           "calcs": [
             "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(vllm:e2e_request_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM E2E P50",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:e2e_request_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM E2E P95",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(vllm:e2e_request_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM E2E P99",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(sglang:e2e_request_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang E2E P50",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(sglang:e2e_request_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang E2E P95",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(sglang:e2e_request_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang E2E P99",
-          "refId": "F"
-        }
-      ],
-      "title": "End-to-End Request Latency",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 95
-      },
-      "id": 38,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(vllm:inter_token_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM ITL P50",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:inter_token_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM ITL P95",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(vllm:inter_token_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
-          "legendFormat": "vLLM ITL P99",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(sglang:inter_token_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang ITL P50",
-          "refId": "D"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(sglang:inter_token_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang ITL P95",
-          "refId": "E"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.99, sum(rate(sglang:inter_token_latency_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le))",
-          "legendFormat": "SGLang ITL P99",
-          "refId": "F"
-        }
-      ],
-      "title": "Inter-Token Latency (ITL)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 95
-      },
-      "id": 39,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(vllm:request_queue_time_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
-          "legendFormat": "vLLM Engine {{engine}} P50",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:request_queue_time_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
-          "legendFormat": "vLLM Engine {{engine}} P95",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.50, sum(rate(sglang:queue_time_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le, tp_rank))",
-          "legendFormat": "SGLang TP {{tp_rank}} P50",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "histogram_quantile(0.95, sum(rate(sglang:queue_time_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le, tp_rank))",
-          "legendFormat": "SGLang TP {{tp_rank}} P95",
-          "refId": "D"
-        }
-      ],
-      "title": "Queue Wait Time (per Engine / TP Rank)",
-      "type": "timeseries"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 103
-      },
-      "id": 40,
-      "panels": [],
-      "title": "Throughput & Workload",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 20,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "tokens/s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 104
-      },
-      "id": 41,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(vllm:prompt_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval]))",
-          "legendFormat": "vLLM Prefill",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum(rate(vllm:generation_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval]))",
-          "legendFormat": "vLLM Decode",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (mode) (rate(sglang:realtime_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[1m]))",
-          "legendFormat": "SGLang {{mode}}",
-          "refId": "C"
-        }
-      ],
-      "title": "Token Throughput (Prefill / Decode)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "tokens/s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 104
-      },
-      "id": 42,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (engine) (rate(vllm:prompt_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval]))",
-          "legendFormat": "vLLM Engine {{engine}} Prefill",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (engine) (rate(vllm:generation_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval]))",
-          "legendFormat": "vLLM Engine {{engine}} Decode",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (tp_rank, mode) (rate(sglang:realtime_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[1m]))",
-          "legendFormat": "SGLang TP {{tp_rank}} - {{mode}}",
-          "refId": "C"
-        }
-      ],
-      "title": "Realtime Token Rate (per Engine / TP Rank)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Completed requests/s — derived from the engine's own success counter. The gnet 25043 export asked for vllm:current_qps, which only exists on the K8s production-stack router we do not run (HD-368 finding); this is the honest equivalent, now instance-scoped.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {},
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "reqps"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 0,
-        "y": 112
-      },
-      "id": 43,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (job) (rate({__name__=~\"vllm:request_success_total|sglang:num_run_reqs_total\", instance=~\"$instance\"}[$__rate_interval]))",
-          "legendFormat": "{{ job }}",
-          "refId": "A"
-        }
-      ],
-      "title": "Request rate (QPS)",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 112
-      },
-      "id": 44,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
             "lastNotNull"
           ],
           "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(vllm:request_prefill_time_seconds_sum{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])",
-          "legendFormat": "vLLM Prefill Time Sum/s",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(vllm:request_decode_time_seconds_sum{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])",
-          "legendFormat": "vLLM Decode Time Sum/s",
-          "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sglang:process_cpu_seconds_total{component=\"tokenizer\", instance=~\"${instance}\"}",
-          "legendFormat": "SGLang Tokenizer CPU Time",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sglang:process_cpu_seconds_total{component=\"detokenizer\", instance=~\"${instance}\"}",
-          "legendFormat": "SGLang Detokenizer CPU Time",
-          "refId": "D"
-        }
-      ],
-      "title": "Request Phase Time (Prefill / Decode)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "",
-      "gridPos": {
-        "h": 3,
-        "w": 8,
-        "x": 16,
-        "y": 112
-      },
-      "id": 45,
-      "mode": "markdown",
-      "options": {
-        "content": "The two panels above (gnet 25502) **already** cover both engines: each keeps a `vllm:*` target and the `sglang:realtime_tokens_total` sibling side by side. Re-writing them into one `{__name__=~...}` regex would only be possible by assuming vLLM's `prompt_tokens_total` and SGLang's `realtime_tokens_total` are the same quantity measured the same way — they are not (the SGLang counter carries a `mode` dimension), and a sum across them would print a number that means neither. **Cross-engine joins in this dashboard are applied only where the two engines expose the same metric name** (the waiting_by_reason / prefix_cache_* / num_preemptions_total family), which is why the joins are visible in the Scheduling and Cache rows and absent here.",
-        "mode": "markdown"
-      },
-      "targets": [],
-      "title": "Why the token panels are not re-joined",
-      "type": "text"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 120
-      },
-      "id": 46,
-      "panels": [],
-      "title": "Cache",
-      "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "hits / queries for the automatic prefix cache. The single most valuable cache number on a chat/agent box: every hit is prefill you did not pay. Live ≈ 0.97 on spark (HD-368). Collapses gnet 24756's gauge + gnet 25043's rate panel into one. ⚠ NOT live-verified for SGLang, and the denominator is the weaker half: SGLang exposes cached_tokens_total{cache_source} but no prefix-cache QUERIES counter, so the SGLang leg divides by total prompt tokens — an upper bound on the true hit rate. Confirm against a real scrape (same drill as HD-368).",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisPlacement": "auto",
-            "drawStyle": "line",
-            "fillOpacity": 8,
-            "gradientVisibility": false,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "showPoints": "never",
-            "spanNulls": false,
-            "stacking": {
-              "group": {
-                "A": "none"
-              },
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "max": 1,
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 0,
-        "y": 121
-      },
-      "id": 47,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
@@ -3825,113 +2940,15 @@
           "sort": "desc"
         }
       },
+      "pluginVersion": "12.3.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (job) (rate({__name__=~\"vllm:prefix_cache_hits_total|sglang:cached_tokens_total\", cache_source=\"device\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (job) (rate({__name__=~\"vllm:prefix_cache_queries_total|sglang:prompt_tokens_total\", instance=~\"$instance\"}[$__rate_interval])), 1)",
-          "legendFormat": "hit rate · {{ job }}",
-          "refId": "A"
-        }
-      ],
-      "title": "Prefix cache hit rate (both engines)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. HD-420: all three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 8,
-        "x": 8,
-        "y": 121
-      },
-      "id": 48,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "last"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(vllm:prompt_tokens_cached_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])",
-          "legendFormat": "vLLM Cached Prompt Tokens",
+          "expr": "rate(python_gc_collections_total{job=~\"vllm|sglang\", instance=~\"$instance\"}[$__rate_interval])",
+          "legendFormat": "GC/s · {{ job }} {{ instance }}",
           "refId": "A"
         },
         {
@@ -3939,109 +2956,13 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum(rate(vllm:prefix_cache_queries_total{instance=~\"${instance}\"}[$__rate_interval])) - sum(rate(vllm:prefix_cache_hits_total{instance=~\"${instance}\"}[$__rate_interval]))",
-          "legendFormat": "vLLM Cache Miss Tokens/s",
+          "expr": "process_resident_memory_bytes{job=~\"vllm|sglang\", instance=~\"$instance\"}",
+          "legendFormat": "RSS · {{ job }} {{ instance }}",
           "refId": "B"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(sglang:cached_tokens_total{cache_source=\"total\", model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])",
-          "legendFormat": "SGLang Cached Tokens",
-          "refId": "C"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "rate(sglang:evicted_tokens_total{cache_type=\"RadixCache\", instance=~\"${instance}\"}[$__rate_interval])",
-          "legendFormat": "SGLang Evicted Tokens",
-          "refId": "D"
         }
       ],
-      "title": "Cached Token Stats",
+      "title": "Python GC & Memory",
       "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Mean end-to-end request latency (sum/count). Kept as the one headline latency number; the p50/p95/p99 truth is the E2E timeseries in the Latency row. Replaces gnet 25043's unscoped avg() across every engine.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {},
-          "mappings": [],
-          "min": 0,
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 5,
-        "w": 8,
-        "x": 16,
-        "y": 121
-      },
-      "id": 49,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (job) ({__name__=~\"vllm:e2e_request_latency_seconds_sum\", instance=~\"$instance\"}) / clamp_min(sum by (job) ({__name__=~\"vllm:e2e_request_latency_seconds_count\", instance=~\"$instance\"}), 0.001)",
-          "legendFormat": "{{ job }}",
-          "refId": "A"
-        }
-      ],
-      "title": "Average E2E latency",
-      "type": "stat"
-    },
-    {
-      "collapsed": false,
-      "gridPos": {
-        "h": 1,
-        "w": 24,
-        "x": 0,
-        "y": 129
-      },
-      "id": 50,
-      "panels": [],
-      "title": "Reliability",
-      "type": "row"
     },
     {
       "datasource": {
@@ -4114,10 +3035,10 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 0,
-        "y": 130
+        "x": 8,
+        "y": 95
       },
-      "id": 51,
+      "id": 38,
       "options": {
         "displayLabels": [
           "name",
@@ -4252,10 +3173,10 @@
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 8,
-        "y": 130
+        "x": 16,
+        "y": 95
       },
-      "id": 52,
+      "id": 39,
       "options": {
         "legend": {
           "calcs": [
@@ -4301,7 +3222,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Engine process only (job=\"vllm\"): Python GC rate + RSS. Frequent GC or a monotonically rising RSS points at a leak in the API server.",
+      "description": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. HD-420: all three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4314,7 +3235,6 @@
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 10,
             "gradientMode": "none",
@@ -4324,14 +3244,581 @@
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "smooth",
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 103
+      },
+      "id": 40,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "last"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(vllm:prompt_tokens_cached_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])",
+          "legendFormat": "vLLM Cached Prompt Tokens",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(vllm:prefix_cache_queries_total{instance=~\"${instance}\"}[$__rate_interval])) - sum(rate(vllm:prefix_cache_hits_total{instance=~\"${instance}\"}[$__rate_interval]))",
+          "legendFormat": "vLLM Cache Miss Tokens/s",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(sglang:cached_tokens_total{cache_source=\"total\", model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])",
+          "legendFormat": "SGLang Cached Tokens",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "rate(sglang:evicted_tokens_total{cache_type=\"RadixCache\", instance=~\"${instance}\"}[$__rate_interval])",
+          "legendFormat": "SGLang Evicted Tokens",
+          "refId": "D"
+        }
+      ],
+      "title": "Cached Token Stats",
+      "type": "timeseries"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 111
+      },
+      "id": 41,
+      "panels": [],
+      "title": "Latency",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 112
+      },
+      "id": 42,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(vllm:time_to_first_token_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM TTFT P50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:time_to_first_token_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM TTFT P95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(vllm:time_to_first_token_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM TTFT P99",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(sglang:time_to_first_token_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang TTFT P50",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(sglang:time_to_first_token_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang TTFT P95",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(sglang:time_to_first_token_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang TTFT P99",
+          "refId": "F"
+        }
+      ],
+      "title": "Time to First Token (TTFT)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
             "lineWidth": 2,
             "pointSize": 5,
             "scaleDistribution": {
               "type": "linear"
             },
             "showPoints": "never",
-            "spanNulls": false,
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 80
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 112
+      },
+      "id": 43,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(vllm:e2e_request_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM E2E P50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:e2e_request_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM E2E P95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(vllm:e2e_request_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM E2E P99",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(sglang:e2e_request_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang E2E P50",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(sglang:e2e_request_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang E2E P95",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(sglang:e2e_request_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang E2E P99",
+          "refId": "F"
+        }
+      ],
+      "title": "End-to-End Request Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 120
+      },
+      "id": 44,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(vllm:inter_token_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM ITL P50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:inter_token_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM ITL P95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(vllm:inter_token_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le))",
+          "legendFormat": "vLLM ITL P99",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(sglang:inter_token_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang ITL P50",
+          "refId": "D"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(sglang:inter_token_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang ITL P95",
+          "refId": "E"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.99, sum(rate(sglang:inter_token_latency_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le))",
+          "legendFormat": "SGLang ITL P99",
+          "refId": "F"
+        }
+      ],
+      "title": "Inter-Token Latency (ITL)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
             "stacking": {
               "group": "A",
               "mode": "none"
@@ -4350,32 +3837,709 @@
               }
             ]
           },
-          "unit": "short"
+          "unit": "s"
         },
-        "overrides": [
-          {
-            "matcher": {
-              "id": "byName",
-              "options": "RSS Memory"
-            },
-            "properties": [
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 120
+      },
+      "id": 45,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(vllm:request_queue_time_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
+          "legendFormat": "vLLM Engine {{engine}} P50",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:request_queue_time_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
+          "legendFormat": "vLLM Engine {{engine}} P95",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.50, sum(rate(sglang:queue_time_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le, tp_rank))",
+          "legendFormat": "SGLang TP {{tp_rank}} P50",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(sglang:queue_time_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le, tp_rank))",
+          "legendFormat": "SGLang TP {{tp_rank}} P95",
+          "refId": "D"
+        }
+      ],
+      "title": "Queue Wait Time (per Engine / TP Rank)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Mean end-to-end request latency (sum/count). Kept as the one headline latency number; the p50/p95/p99 truth is the E2E timeseries in the Latency row. Replaces gnet 25043's unscoped avg() across every engine.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
               {
-                "id": "custom.axisPlacement",
-                "value": "right"
-              },
-              {
-                "id": "unit",
-                "value": "bytes"
+                "color": "green",
+                "value": null
               }
             ]
-          }
-        ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 12,
+        "x": 0,
+        "y": 128
+      },
+      "id": 46,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job) ({__name__=~\"vllm:e2e_request_latency_seconds_sum\", instance=~\"$instance\"}) / clamp_min(sum by (job) ({__name__=~\"vllm:e2e_request_latency_seconds_count\", instance=~\"$instance\"}), 0.001)",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Average E2E latency",
+      "type": "stat"
+    },
+    {
+      "collapsed": false,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 133
+      },
+      "id": 47,
+      "panels": [],
+      "title": "Throughput & Workload",
+      "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 20,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "tokens/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 134
+      },
+      "id": 48,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(vllm:prompt_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval]))",
+          "legendFormat": "vLLM Prefill",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(vllm:generation_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval]))",
+          "legendFormat": "vLLM Decode",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (mode) (rate(sglang:realtime_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[1m]))",
+          "legendFormat": "SGLang {{mode}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Token Throughput (Prefill / Decode)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "tokens/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 134
+      },
+      "id": 49,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (engine) (rate(vllm:generation_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval]))",
+          "legendFormat": "vLLM Engine {{engine}} Decode",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (tp_rank) (rate(sglang:realtime_tokens_total{model_name=~\"$model_name\", mode=\"decode\", instance=~\"${instance}\"}[1m]))",
+          "legendFormat": "SGLang TP {{tp_rank}} Decode",
+          "refId": "B"
+        }
+      ],
+      "title": "Decode Throughput (per Engine / TP Rank)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 2,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "tokens/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 142
+      },
+      "id": 50,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (engine) (rate(vllm:prompt_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval]))",
+          "legendFormat": "vLLM Engine {{engine}} Prefill",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (tp_rank) (rate(sglang:realtime_tokens_total{model_name=~\"$model_name\", mode=\"prefill_compute\", instance=~\"${instance}\"}[1m]))",
+          "legendFormat": "SGLang TP {{tp_rank}} Prefill",
+          "refId": "B"
+        }
+      ],
+      "title": "Prefill Throughput (per Engine / TP Rank)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "tokens/s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 142
+      },
+      "id": 51,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
+        }
+      },
+      "pluginVersion": "8.0.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (engine) (rate(vllm:prompt_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval]))",
+          "legendFormat": "vLLM Engine {{engine}} Prefill",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (engine) (rate(vllm:generation_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval]))",
+          "legendFormat": "vLLM Engine {{engine}} Decode",
+          "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (tp_rank, mode) (rate(sglang:realtime_tokens_total{model_name=~\"$model_name\", instance=~\"${instance}\"}[1m]))",
+          "legendFormat": "SGLang TP {{tp_rank}} - {{mode}}",
+          "refId": "C"
+        }
+      ],
+      "title": "Realtime Token Rate (per Engine / TP Rank)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "Completed requests/s — derived from the engine's own success counter. The gnet 25043 export asked for vllm:current_qps, which only exists on the K8s production-stack router we do not run (HD-368 finding); this is the honest equivalent, now instance-scoped.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 8,
+        "x": 0,
+        "y": 150
+      },
+      "id": 52,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum by (job) (rate({__name__=~\"vllm:request_success_total|sglang:num_run_reqs_total\", instance=~\"$instance\"}[$__rate_interval]))",
+          "legendFormat": "{{ job }}",
+          "refId": "A"
+        }
+      ],
+      "title": "Request rate (QPS)",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisColorMode": "text",
+            "axisLabel": "",
+            "axisPlacement": "auto",
+            "barAlignment": 0,
+            "drawStyle": "line",
+            "fillOpacity": 10,
+            "gradientMode": "none",
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "insertNulls": false,
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "scaleDistribution": {
+              "type": "linear"
+            },
+            "showPoints": "never",
+            "spanNulls": true,
+            "stacking": {
+              "group": "A",
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "s"
+        },
+        "overrides": []
       },
       "gridPos": {
         "h": 8,
         "w": 8,
-        "x": 16,
-        "y": 130
+        "x": 8,
+        "y": 150
       },
       "id": 53,
       "options": {
@@ -4389,20 +4553,20 @@
           "showLegend": true
         },
         "tooltip": {
-          "hideZeros": false,
-          "mode": "multi",
-          "sort": "desc"
+          "maxHeight": 600,
+          "mode": "single",
+          "sort": "none"
         }
       },
-      "pluginVersion": "12.3.0",
+      "pluginVersion": "8.0.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "rate(python_gc_collections_total{job=~\"vllm|sglang\", instance=~\"$instance\"}[$__rate_interval])",
-          "legendFormat": "GC/s · {{ job }} {{ instance }}",
+          "expr": "rate(vllm:request_prefill_time_seconds_sum{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])",
+          "legendFormat": "vLLM Prefill Time Sum/s",
           "refId": "A"
         },
         {
@@ -4410,13 +4574,53 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "process_resident_memory_bytes{job=~\"vllm|sglang\", instance=~\"$instance\"}",
-          "legendFormat": "RSS · {{ job }} {{ instance }}",
+          "expr": "rate(vllm:request_decode_time_seconds_sum{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])",
+          "legendFormat": "vLLM Decode Time Sum/s",
           "refId": "B"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sglang:process_cpu_seconds_total{component=\"tokenizer\", instance=~\"${instance}\"}",
+          "legendFormat": "SGLang Tokenizer CPU Time",
+          "refId": "C"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sglang:process_cpu_seconds_total{component=\"detokenizer\", instance=~\"${instance}\"}",
+          "legendFormat": "SGLang Detokenizer CPU Time",
+          "refId": "D"
         }
       ],
-      "title": "Python GC & Memory",
+      "title": "Request Phase Time (Prefill / Decode)",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "",
+      "gridPos": {
+        "h": 3,
+        "w": 8,
+        "x": 16,
+        "y": 150
+      },
+      "id": 54,
+      "mode": "markdown",
+      "options": {
+        "content": "The two panels above (gnet 25502) **already** cover both engines: each keeps a `vllm:*` target and the `sglang:realtime_tokens_total` sibling side by side. Re-writing them into one `{__name__=~...}` regex would only be possible by assuming vLLM's `prompt_tokens_total` and SGLang's `realtime_tokens_total` are the same quantity measured the same way — they are not (the SGLang counter carries a `mode` dimension), and a sum across them would print a number that means neither. **Cross-engine joins in this dashboard are applied only where the two engines expose the same metric name** (the waiting_by_reason / prefix_cache_* / num_preemptions_total family), which is why the joins are visible in the Scheduling and Cache rows and absent here.",
+        "mode": "markdown"
+      },
+      "targets": [],
+      "title": "Why the token panels are not re-joined",
+      "type": "text"
     },
     {
       "collapsed": false,
@@ -4424,9 +4628,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 138
+        "y": 158
       },
-      "id": 54,
+      "id": 55,
       "panels": [],
       "title": "Request shape (single-engine deep dive)",
       "type": "row"
@@ -4456,9 +4660,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 139
+        "y": 159
       },
-      "id": 55,
+      "id": 56,
       "options": {
         "calculate": false,
         "cellGap": 1,
@@ -4521,7 +4725,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Prefill (input) vs decode (output) time split. Prefill-heavy = long prompts; decode-heavy = long generations.",
+      "description": "Prefill (input) vs decode (output) time split. Prefill-heavy = long prompts; decode-heavy = long generations. — vLLM-only on both legs since 2026-09-23: SGLang's per-stage latency needs `stage=\"…\"`, which vLLM's names do not have, and a label matcher on a joined `{__name__=~\"vllm:…|sglang:…\"}` selector filters the family that lacks it — the decode leg measured 0 series on a live engine that way. The SGLang halves wait for their own targets on the day it runs.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4609,9 +4813,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 139
+        "y": 159
       },
-      "id": 56,
+      "id": 57,
       "options": {
         "legend": {
           "calcs": [
@@ -4634,7 +4838,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (job) (rate({__name__=~\"vllm:request_prefill_time_seconds_sum|sglang:per_stage_req_latency_seconds_sum\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (job) (rate({__name__=~\"vllm:request_prefill_time_seconds_count|sglang:per_stage_req_latency_seconds_count\", instance=~\"$instance\"}[$__rate_interval])), 0.001)",
+          "expr": "sum by (job) (rate(vllm:request_prefill_time_seconds_sum{model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (job) (rate(vllm:request_prefill_time_seconds_count{model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])), 0.001)",
           "legendFormat": "prefill s · {{ job }}",
           "refId": "A"
         },
@@ -4643,7 +4847,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sum by (job) (rate({__name__=~\"vllm:request_decode_time_seconds_sum|sglang:per_stage_req_latency_seconds_sum\", stage=\"decode\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (job) (rate({__name__=~\"vllm:request_decode_time_seconds_count|sglang:per_stage_req_latency_seconds_count\", stage=\"decode\", instance=~\"$instance\"}[$__rate_interval])), 0.001)",
+          "expr": "sum by (job) (rate(vllm:request_decode_time_seconds_sum{model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])) / clamp_min(sum by (job) (rate(vllm:request_decode_time_seconds_count{model_name=~\"$model_name\", instance=~\"$instance\"}[$__rate_interval])), 0.001)",
           "legendFormat": "decode s · {{ job }}",
           "refId": "B"
         }
@@ -4657,218 +4861,12 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 147
+        "y": 167
       },
-      "id": 57,
+      "id": 58,
       "panels": [],
       "title": "Per-engine / TP-rank detail",
       "type": "row"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "tokens/s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 148
-      },
-      "id": 58,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (engine) (rate(vllm:generation_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval]))",
-          "legendFormat": "vLLM Engine {{engine}} Decode",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (tp_rank) (rate(sglang:realtime_tokens_total{model_name=\"${model_name}\", mode=\"decode\", instance=~\"${instance}\"}[1m]))",
-          "legendFormat": "SGLang TP {{tp_rank}} Decode",
-          "refId": "B"
-        }
-      ],
-      "title": "Decode Throughput (per Engine / TP Rank)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "drawStyle": "line",
-            "fillOpacity": 10,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 2,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "never",
-            "spanNulls": true,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "tokens/s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 148
-      },
-      "id": 59,
-      "options": {
-        "legend": {
-          "calcs": [
-            "mean",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "maxHeight": 600,
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "pluginVersion": "8.0.0",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (engine) (rate(vllm:prompt_tokens_total{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval]))",
-          "legendFormat": "vLLM Engine {{engine}} Prefill",
-          "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "expr": "sum by (tp_rank) (rate(sglang:realtime_tokens_total{model_name=\"${model_name}\", mode=\"prefill_compute\", instance=~\"${instance}\"}[1m]))",
-          "legendFormat": "SGLang TP {{tp_rank}} Prefill",
-          "refId": "B"
-        }
-      ],
-      "title": "Prefill Throughput (per Engine / TP Rank)",
-      "type": "timeseries"
     },
     {
       "datasource": {
@@ -4938,9 +4936,9 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 156
+        "y": 168
       },
-      "id": 60,
+      "id": 59,
       "options": {
         "legend": {
           "calcs": [
@@ -4964,7 +4962,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:request_prefill_time_seconds_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:request_prefill_time_seconds_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
           "legendFormat": "vLLM Engine {{engine}} P95",
           "refId": "A"
         },
@@ -4973,7 +4971,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(sglang:per_stage_req_latency_seconds_bucket{stage=\"prefill_waiting\", model_name=\"${model_name}\", instance=~\"${instance}\"}[5m])) by (le, tp_rank))",
+          "expr": "histogram_quantile(0.95, sum(rate(sglang:per_stage_req_latency_seconds_bucket{stage=\"prefill_waiting\", model_name=~\"$model_name\", instance=~\"${instance}\"}[5m])) by (le, tp_rank))",
           "legendFormat": "SGLang TP {{tp_rank}} P95",
           "refId": "B"
         }
@@ -5042,9 +5040,9 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 156
+        "y": 168
       },
-      "id": 61,
+      "id": 60,
       "options": {
         "legend": {
           "calcs": [
@@ -5068,7 +5066,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "histogram_quantile(0.95, sum(rate(vllm:iteration_tokens_total_bucket{model_name=\"${model_name}\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
+          "expr": "histogram_quantile(0.95, sum(rate(vllm:iteration_tokens_total_bucket{model_name=~\"$model_name\", instance=~\"${instance}\"}[$__rate_interval])) by (le, engine))",
           "legendFormat": "vLLM Engine {{engine}}",
           "refId": "A"
         },
@@ -5077,7 +5075,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "expr": "sglang:cuda_graph_passes_total{mode=\"decode_cuda_graph\", model_name=\"${model_name}\", instance=~\"${instance}\"}",
+          "expr": "sglang:cuda_graph_passes_total{mode=\"decode_cuda_graph\", model_name=~\"$model_name\", instance=~\"${instance}\"}",
           "legendFormat": "SGLang TP {{tp_rank}}",
           "refId": "B"
         }
@@ -5091,9 +5089,9 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 164
+        "y": 176
       },
-      "id": 62,
+      "id": 61,
       "panels": [],
       "title": "Forward look — RX 7600 (oldsrv) + SGLang",
       "type": "row"
@@ -5108,12 +5106,12 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 165
+        "y": 177
       },
-      "id": 63,
+      "id": 62,
       "mode": "markdown",
       "options": {
-        "content": "**The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. **RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land in the node row here — that card DOES expose VRAM, unlike the GB10. **SGLang:** needs `prometheus.scrape \"sglang\"` only; its `sglang:*` sibling is already written into every joined query, so the SGLang half of this dashboard fills from the same file. **The three HD-368 dashboards stay provisioned** until the owner retires them.",
+        "content": "**The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. **RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land in the node row here — that card DOES expose VRAM, unlike the GB10. **SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its `sglang:*` sibling is already written into every joined query, so the SGLang half fills from the same file. TWO places are deliberately vLLM-only until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a joined selector cannot filter one family with it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, unverified). Both are named in scripts/build-llm-dashboard.py, which refuses the joined form. **The three HD-368 dashboards stay provisioned** until the owner retires them.",
         "mode": "markdown"
       },
       "targets": [],
@@ -5179,7 +5177,7 @@
           "uid": "prometheus"
         },
         "definition": "label_values({__name__=~\"vllm:num_requests_running|sglang:num_running_reqs\"}, model_name)",
-        "description": "Served model. NEVER pin `current:` to a literal — HD-368 found a stale upstream pin that made every panel behind it empty.",
+        "description": "Served model. NEVER pin `current:` to a literal — HD-368 found a stale upstream pin that made every panel behind it empty. ⚠ A query must match this variable with `=~`, never `=`: when All is selected the value is `.*`, and exact equality on `.*` matches nothing (measured 2026-09-23 — it killed two whole rows).",
         "hide": 0,
         "includeAll": true,
         "label": "Model",
