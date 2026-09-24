@@ -187,6 +187,18 @@ a verdict — the parent had already verified the final state itself. Rules:
 > oldsrv's management leg) and the three traps: [docs/network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away.
 `CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · archive: `reports/changelog.md`, `reports/deployment-journal.md` (frozen)
 
+**Ansible questions — answer them without bulk-reading the tree (HD-456).** §0 says *do not bulk-read the
+repo*; [`scripts/ansible_query.py`](scripts/ansible_query.py) is how that is done for Ansible. Read-only,
+bounded digest over `IaC/ansible` (`--root spark` for the other tree), needs `~/ansible-venv`:
+
+| Question | Command |
+|---|---|
+| Where is this variable set, and does anything read it? | `--var <name>` — definitions in **precedence order** with the winner marked, incl. **bare** Jinja in `when:` / `assert: that:` and `{% %}` inside `.j2` |
+| Which roles/tasks use a module, or what does a role contain? | `--module <name>` · `--role <role>` |
+| Does every `notify:` reach a handler? | `--handlers --unresolved` (exit 1 when one does not) |
+| Which 1Password items does IaC read? | `--vault` — item/field **names** + file:line only, never a value (§6) |
+| Search Jinja expressions only (no YAML noise) | `--jinja '<regex>'` · discovery: `--list-vars`, `--context` |
+
 ---
 
 ## 7. For humans / family
