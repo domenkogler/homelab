@@ -44,21 +44,18 @@
       - cockpit_maint_vault_item is string
       - cockpit_maint_vault_item | length > 0
     fail_msg: >-
-      cockpit_maint_vault_item is unset for {{ inventory_hostname }}. Set it in
-      host_vars/{{ inventory_hostname }}.yml to this host's own item
-      ('<host>-cockpit_login') — sharing one item between oldsrv and nas would give two
-      management consoles the same password, which is the opposite of why there are two items.
-    success_msg: "provisioning {{ cockpit_maint_user }} from {{ cockpit_maint_vault_item }}"
-
-- name: HD-361 | Read the maint password from 1Password (control node, fail-closed)
-  ansible.builtin.set_fact:
-    cockpit_maint_password: >-
-      {{ lookup('community.general.onepassword', cockpit_maint_vault_item,
-                field='password', vault=op_vault) }}
-  delegate_to: localhost
-  become: false
-  run_once: true
-  no_log: true
+      maint contract violated on {{ inventory_hostname }}: {{ cockpit_maint_problems | join(', ') }}.
+      Groups now [{{ cockpit_maint_id.stdout }}]. What each name means:
+      group-set-not-exactly-as-decided = a membership appeared or vanished (the rebuild uses
+      `append: false`, so a hand-edit cannot survive a converge; if this fires during a converge the
+      role itself changed and must be re-read); sudo-is-passwordless-for-a-console-identity = a
+      sudoers fragment grants NOPASSWD to a break-glass account, forbidden by the 2026-09-21
+      decision; installed-hash-differs-from-vault-value = vault and host disagree, so rotate
+      DELIBERATELY instead of "fixing" one side; sshd-has-no-allowusers-gate /
+      maint-appears-in-allowusers = this console account is reachable over SSH, which was not
+      decided; pam-gate-missing-or-ordered-after-common-auth = the gate is absent or inert.
+  # NOT no_log: nothing in this message is secret, and the previous version's no_log censored the
+  # only traceback that described the bug.
   changed_when: false
 
 - name: HD-361 | Refuse to provision from an empty or absurdly short vault value
@@ -215,9 +212,14 @@
   failed_when: false # `sudo -l` exits non-zero for a user with no sudoers entry; the assert reads the text
 
 - name: HD-361 | Read back who SSH may reach
-  ansible.builtin.command:
-    cmd: /usr/sbin/sshd -T
-  register: cockpit_sshd_config
+  # Extracted with grep on the TARGET, not regex_findall in Jinja: the first version used the POSIX
+  # class `[[:space:]]`, which ERE accepts and Python's re does not, so the clause raised inside re
+  # — and the censored assert hid that fact. `sshd -T` does NOT fold its repeated `allowusers`
+  # lines (nas emits one per line), so they are joined into one token list here.
+  ansible.builtin.shell:
+    cmd: /usr/sbin/sshd -T | grep -i '^allowusers ' | cut -d' ' -f2- | tr '\n' ' '
+    executable: /bin/bash
+  register: cockpit_sshd_allowusers
   changed_when: false
   become: true
 
@@ -311,28 +313,40 @@
     - not (ansible_check_mode | bool)
     - cockpit_maint_verify_login | default(true) | bool
 
+# Every clause is evaluated into a NAMED verdict first. Two reasons, both earned today:
+# (1) the assert below must run WITHOUT no_log, because nothing in it is secret, so a failure has to
+# NAME the broken contract — a bare `false` among nine `that:` entries tells you nothing at 23:00;
+# (2) when one clause RAISED instead of returning false (see the `[[:space:]]` note above), no_log
+# on the assert censored the traceback, which was the only description of the bug. Doing the work
+# here also keeps the shadow hash and the `sudo -l` text from ever being echoed.
+- name: HD-361 | Evaluate the maint contract clause by clause
+  ansible.builtin.set_fact:
+    cockpit_maint_problems: >-
+      {{ []
+         + ([] if (cockpit_maint_id.stdout.split() | sort)
+                    == (([cockpit_maint_group, cockpit_maint_user]
+                         + (['sudo'] if cockpit_maint_sudo_group | bool else [])) | sort)
+            else ['group-set-not-exactly-as-decided'])
+         + ([] if not (cockpit_maint_sudo_group | bool)
+              or ('NOPASSWD' not in (cockpit_maint_sudo.stdout | default('')))
+            else ['sudo-is-passwordless-for-a-console-identity'])
+         + ([] if (cockpit_maint_shadow.stdout.split(':')[1] | default('')) == (cockpit_maint_hash.stdout | trim)
+            else ['installed-hash-differs-from-vault-value'])
+         + ([] if (cockpit_sshd_allowusers.stdout | trim | length) > 0
+            else ['sshd-has-no-allowusers-gate'])
+         + ([] if cockpit_maint_user not in (cockpit_sshd_allowusers.stdout.split())
+            else ['maint-appears-in-allowusers'])
+         + ([] if (cockpit_pam_stack.stdout.split() | length) == 2
+                         and 'none' not in (cockpit_pam_stack.stdout.split())
+                         and ((cockpit_pam_stack.stdout.split() | first) | int)
+                             < ((cockpit_pam_stack.stdout.split() | last) | int)
+            else ['pam-gate-missing-or-ordered-after-common-auth']) }}
+  no_log: true
+
 - name: HD-361 | Verify the account, the group set, the credential and the two gates
   ansible.builtin.assert:
     that:
-      # 1. the group set is EXACTLY the decided one — gate group (+ sudo) + primary, nothing else
-      #    Parenthesised on purpose: `a + b | sort` parses as `a + (b | sort)`, which would have
-      #    compared a 3-element list against a sorted 1-element list and failed a correct host.
-      - (cockpit_maint_id.stdout.split() | sort)
-        == (([cockpit_maint_group, cockpit_maint_user]
-             + (['sudo'] if cockpit_maint_sudo_group | bool else [])) | sort)
-      # 1b. sudo, if granted, is password-required: no passwordless path for a console identity
-      - ('NOPASSWD' not in (cockpit_maint_sudo.stdout | default('')))
-        or not (cockpit_maint_sudo_group | bool)
-      # 2. the console credential really is the vault value (byte-identical deterministic hash)
-      - (cockpit_maint_shadow.stdout.split(':')[1] | default('')) == (cockpit_maint_hash.stdout | trim)
-      # 3. SSH is still gated by AllowUsers, and maint is not in it
-      - (cockpit_sshd_config.stdout | regex_findall('(?im)^allowusers[[:space:]]+(.*)$') | join(' ')).strip() | length > 0
-      - cockpit_maint_user not in (cockpit_sshd_config.stdout | regex_findall('(?im)^allowusers[[:space:]]+(.*)$') | join(' ')).split()
-      # 4. the gate EXISTS, the password stack is FOUND, and the gate runs BEFORE it
-      - (cockpit_pam_stack.stdout.split() | length) == 2
-      - (cockpit_pam_stack.stdout.split() | first) != 'none'
-      - (cockpit_pam_stack.stdout.split() | last) != 'none'
-      - ((cockpit_pam_stack.stdout.split() | first) | int) < ((cockpit_pam_stack.stdout.split() | last) | int)
+      - cockpit_maint_problems | length == 0
     fail_msg: >-
       maint verification failed on {{ inventory_hostname }}. Groups were
       [{{ cockpit_maint_id.stdout }}]. The usual meanings: 'none' in the PAM line numbers = the
@@ -342,4 +356,3 @@
       forbids; a hash mismatch = the vault value and the host disagree
       (rotate deliberately, do not "fix" one side); a bad ordering = the gate line landed after
       common-auth and would be inert.
-  no_log: true
