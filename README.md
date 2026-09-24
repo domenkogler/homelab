@@ -41,7 +41,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 | 1 | [`CONVENTIONS.md`](CONVENTIONS.md) | Cross-cutting rules index — naming, secrets, SSOT, IaC, lifecycle, service-onboarding (§5) | always — every rule is binding |
 | 2 | [`docs/index.md`](docs/index.md) | AI dispatcher / document map — which owning doc to open for your task | always |
 | 3 | [`IaC/README.md`](IaC/README.md) | Ansible implementation spec — roles, templates, layout, build order, status | any IaC / compose / template work |
-| 4 | [`todo.md`](todo.md) | Backlog + open decisions; §0 lifecycle (HD-XX); pick up or register work | always, before every task |
+| 4 | [`todo.md`](todo.md) | Backlog + open decisions; §0 lifecycle (HD-XX); pick up or register work. **Rows hold what is missing + how to do it; durable knowledge lives in the owning doc the row links; a finished row is deleted** | always, before every task |
 | 5 | [`scripts/README.md`](todo.md) | tools and scripts | always, before every task |
 
 > **Decisions** live in the owning doc + the `<domain>-rejected.md` decision log (append-only, per
@@ -123,7 +123,8 @@ task-specific dispatch. Do **not** bulk-read the repo.
 4. open the owning doc via `docs/index.md`
 5. update `todo.md` (pick/register an HD-XX; open a new HD if none exists)
 6. implement → `bash scripts/validate-all.sh` green → update `todo.md` + owning `docs/*.md` per
-   lifecycle (close-out lives in the owning doc + commit; the frozen changelog/journal are archived)
+   lifecycle (the finding/✅ goes to the doc, the row keeps only the remaining `⏳` items and shrinks;
+   close-out record = owning doc + commit; the frozen changelog/journal are archived)
    → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
 
 > **Live converges run DETACHED (HD-370 live lesson 2026-09-15):** a full `docker_services` converge

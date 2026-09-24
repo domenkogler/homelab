@@ -155,6 +155,35 @@ Containers start at boot via systemd units **before any user logs in**:
 - BIOS-level control, remote power/reset, virtual ISO mounting
 - OS-independent (works if Debian crashes)
 
+### Reachability & wake (measured 2026-09-24)
+
+**Off the network since 2026-09-23 21:39:55 local.** Four independent observations agree, and the
+point of listing them is that the first one people reach for does NOT prove it:
+
+- headscale (authoritative, ACL-blind): node id 11 `oldsrv`, `Connected: offline`,
+  last seen `2026-09-23 19:39:55` **UTC** = 21:39:55 local — the same second as the nas `rpc.mountd`
+  `v4.2 client detached` lease release for that NFS client (the address is the SSOT's, not this doc's).
+  Two control planes, one timestamp.
+- `ip neigh show <oldsrv Home IP>` on the nas: `INCOMPLETE`; the MAC above is absent from the
+  neighbour table entirely, and a sweep of the usual alternate addresses finds nothing → it is not a
+  DHCP re-assign, it is L2-dead.
+- `tailscale ping <oldsrv tailnet IP>` from the VPS sidecar answers `no matching peer`, which proves
+  **nothing** about this box: the sidecar is ACL-scoped away from `tag:dev` by design. Do not record
+  that output as evidence of a dead host again.
+
+**To bring it back, in increasing order of cost:**
+1. `wakeonlan` from the nas (same L2, binary present, `ansible-admin` has NOPASSWD sudo):
+   `sudo wakeonlan 70:85:C2:2D:6F:04`. Needs standby power, and it is a power action → §5.9 human gate.
+2. The Comet KVM above: BIOS-level power/reset, so a *hung* box is reachable from anywhere without a
+   hand on the button. This is the path when (1) is refused by silence.
+3. HD-06's `nut-wake.timer` is NOT a rescue path: it arms only after a NUT-initiated powerdown and
+   recharge, so it cannot wake an unscheduled drop.
+
+**Consequence for the fleet:** a down oldsrv takes the home edge with it — including the nas's own
+Cockpit route, because `/opt/traefik/dynamic/cockpit.yml` is rendered onto oldsrv by the cockpit role.
+A healthy nas with a dead console is normal behaviour here, not a nas fault.
+
+
 ---
 
 ## Host platform: bare-metal, no hypervisor

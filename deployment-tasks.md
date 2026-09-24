@@ -338,7 +338,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 
 **Verify:**
 - `zpool status` healthy; `upsc powerwalker@nas` returns live UPS data.
-- `nut_exporter` scrapable on :9199; cockpit reachable at `cockpit-nas.kogler.si` (Traefik file-provider route).
+- `nut_exporter` scrapable on :9199; cockpit reachable at `cockpit-nas.kogler.si` (Traefik file-provider route) **and `maint` authenticates there** — reachability proves nothing on its own: `cockpit-ws` answered 200/401 for three weeks with no credential in existence. Proof = `GET /cockpit/login` with Basic auth returns 200 (401 `authentication-failed` for a wrong one); `GET /` returns 200 unauthenticated and `POST /cockpit/login` is 405, so neither is a test.
 
 **Deploy-gated verification (Phase 2):**
 - [ ] **HD-06** — **[MANUAL, owner]** the one thing left in the UPS lane: a short power-pull → poweroff + WoL
@@ -356,8 +356,14 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
       is required — the runner's SA token is read-scoped).
       · [deployment-compose.md](docs/deployment-compose.md)
 - [ ] **HD-207** — land the migrated data: redistribute the `bulk/migrate` landing zone (personal → OpenCloud/live
-- [ ] **HD-361** — Cockpit break-glass login on nas: the PAM identity is missing, so `cockpit-nas` has **no
-      valid credential today** (it is reachable but unusable in an emergency). · [hardware-nas.md](docs/hardware-nas.md)
+- [x] **HD-361** — Cockpit break-glass login on **nas** ✅ done + verified 2026-09-24: `maint` provisioned by
+      `roles/cockpit` (`--tags cockpit`, from the laptop — `cockpit` is in the HD-413 lockout set), groups
+      exactly `cockpit-session sudo`, hash byte-matching `nas-cockpit_login`, `cockpit-session` now the PAM
+      gate, converge asserts `GET /cockpit/login` → 200 with the vault password.
+- [ ] **HD-361** — same converge on **oldsrv** (`--limit oldsrv.kogler.si --tags cockpit`), which also lands
+      its `cockpit.yml` routes. Blocked on the box: [hardware-oldsrv.md](docs/hardware-oldsrv.md)
+      §Reachability & wake. Then a browser login on each host (the authenticated pane, not the login probe, is
+      what exercises cockpit's Origin check). · [hardware-nas.md](docs/hardware-nas.md)
 - [ ] **HD-191** — oldsrv Kopia agent is Up with snapshots in the repo; the open tail is the **restore drill from a
       snapshot** (+ volume-name pin verified at restore). · [backup.md](docs/backup.md)
       Box + `/tank/data/users/<name>`, media → `bulk/media/*`), then destroy the landing zone. · [hardware-nas.md](docs/hardware-nas.md)
