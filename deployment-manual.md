@@ -1335,7 +1335,17 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
 
 5. **Verify:** `zpool status` (tank mirror + bulk raidz2 ONLINE), `upsc powerwalker@localhost`
    (battery %/runtime), `exportfs` shows the 3 shares → oldsrv, `ss -tlnp | grep 9199`
-   (nut_exporter), cockpit at cockpit-nas.kogler.si.
+   (nut_exporter), and Cockpit **authenticates** at `cockpit-nas.kogler.si` — do not settle for
+   reachability, `cockpit-ws` answers 200/401 whether or not any credential exists:
+   ```sh
+   PW=$(op read 'op://Homelab-ansible/nas-cockpit_login/password')   # never echo $PW
+   curl -sk -o /dev/null -w '%{http_code}\n' -u "maint:$PW" \
+        https://nas.kogler.si:9090/cockpit/login                     # 200 = the seat works
+   ```
+   `401` with `"problem":"authentication-failed"` = wrong credential; `GET /` returns 200
+   unauthenticated and `POST /cockpit/login` is 405, so neither endpoint is a test. The login itself
+   is `roles/cockpit` (`--tags cockpit`, from the laptop — `cockpit` is in the HD-413 lockout set),
+   which also writes the `cockpit-session` PAM gate; see [docs/security.md](docs/security.md).
 
 > **If a client NFS automount errors `Stale file handle`** (often after an export change):
 > ```sh
