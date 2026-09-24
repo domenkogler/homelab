@@ -48,7 +48,7 @@ DOC = REPO / "docs" / "deployment-secrets.md"
 SECTION = "Who is authorized where"
 # The vault items that ARE grants. Deriving fingerprints from the vault beats parsing prose:
 # it cannot go stale, and a rotated key shows up as an unknown on the first run.
-VAULT_SSH_ITEMS = ["laptop-domen_ssh", "ansible-admin_ssh", "ai_ssh"]
+VAULT_SSH_ITEMS = ["domen_ssh", "ansible-admin_ssh", "ai_ssh"]
 VAULT = "Homelab-ansible"
 MANAGED_HOSTS = ["vps", "oldsrv", "nas", "pi", "spark"]
 # Where to look. Accounts, not paths: an account's authorized_keys is the grant surface.

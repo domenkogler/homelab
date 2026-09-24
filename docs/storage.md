@@ -334,6 +334,15 @@ and `nvme` (oldsrv), documented above.
 - **VPS NVMe (`/srv/docker/immich/`)**: Postgres DB + Valkey + `upload/thumbs` (small previews, hot random reads on every UI render).
 - **Live Box (CIFS)**: **originals** (`library/`) **and encoded-video** (`encoded-video/`) — sequential reads, big files, safe off NVMe.
   - Enabled via Immich **storage template** (a DB/UI setting at deploy, not compose env): thumbnails stay under `upload/thumbs`; originals + encoded-video are templated out to the CIFS mount.
+  - **The template question, answered (owner onboarding 2026-09-25): YES, default `{{y}}/{{y}}-{{MM}}-{{dd}}/{{filename}}`.** It is the mechanism this layout depends on — with it OFF, uploads simply
+    **stay in `upload/`** (UUID-ish flat store) and nothing is filed into the date tree, so the Box layout and any "read the library without Immich" hope both fail. The default is upstream's, it is
+    browsable, rsync/Kopia-friendly, and **reversible**: change the template and re-run the migration job.
+  - ⚠ **Verify it actually saved.** Upstream shipped an onboarding bug where the storage-template choice was silently not persisted (immich #19395, fixed by PR #19405) — after onboarding, re-open
+    Administration → Settings → Storage Template and read it back rather than trusting the wizard.
+  - ⚠ **New uploads only.** Existing assets move when the **Storage Template Migration** job runs (Administration → Jobs). On the CIFS mount that is a mass rename: run it with nothing uploading,
+    expect it to be slow, and expect one large Kopia snapshot delta.
+  - ⏳ Durable gap: this lives in Immich's DB while everything around it is rendered, so a rebuilt Immich comes back with the template OFF. Encoding it (Immich's admin system-config API, not
+    compose env) is the fix; the wizard click is a one-time bootstrap, not the SSOT.
 - **ML on oldsrv GPU** (`IMMICH_MACHINE_LEARNING_URL` over WG): embeddings/face data in Postgres → covered by DB dumps.
 - **Face thumbnail files** are backed up (Kopia → backup Box) because regenerating them means a full facial-recognition re-scan (expensive). Plain thumbnails and encoded-video are regenerable on demand (Immich reconstruct job), so only the large cold files move to the Box, not an extra backup copy.
 

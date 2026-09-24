@@ -201,7 +201,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | `api`        | API Credential    | `credential`          | tokens & keys: Cloudflare (`cloudflare_api`), Forgejo (`forgejo_api`), HA long-lived (`ha_api`), HA failover trigger (`ha-failover_api`), headscale OIDC (`headscale_api`), Headplane → Headscale API key (`headplane_api`), 1Password service-account (`op_api`), signal-cli (`signal_api`), PrivadoVPN WireGuard client key (`privado-vpn_api`), Matrix/Authentik OIDC client (`matrix_api`), Meteoblue weather key (`meteoblue_api`) |
 | `oidc`       | API Credential    | `username`=`client_id`, `credential`=`client_secret` | **OAuth2/OIDC client credentials** — the 1Password item holds the Authentik-generated client_id (in `username`) + client_secret (in `credential`), seeded by the secret-egress glue (HD-143). e.g. `immich_oidc`, `opencloud_oidc`, `forgejo_oidc`, `metabase_oidc`. **Use `oidc`, NOT `api`**, for a service's OIDC *client* — this keeps it distinct from service API tokens (e.g. `forgejo_api` = the renovate git token, vs `forgejo_oidc` = the Authentik login client). Items older than this rule (`matrix_api`, `headscale_api`, `openwebui_api` for OIDC) are grandfathered under `api`; do not rename them. |
 | `db`         | Database          | `password` (also `username`) | platform DBs: `authentik_db`, `opencloud_db`, `immich_db`, `forgejo_db`, `onlyoffice_db` — Database item holds both `username` (DB user) and `password` |
-| `ssh`        | SSH Key           | `private_key` / `public_key` | `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh` — item stores both halves; read whichever the consumer needs |
+| `ssh`        | SSH Key           | `private_key` / `public_key` | `domen_ssh`, `ansible-admin_ssh`, `ai_ssh` — item stores both halves; read whichever the consumer needs |
 
 > **Guidance:**
 > - `login` = anything with a **username** (admin accounts, SMTP relays). One Login item per service — e.g. a service that has both an admin login and an SMTP relay gets two items: `grafana_login` + `smtp_login`.
@@ -282,7 +282,7 @@ permission to write from an automation path that was designed to be read-only.--
 
 | Item name | `field=` | Used By |
 |-----------|----------|---------|
-| `laptop-domen_ssh` | `private_key` / `public_key` | post_install.sh — Domen's personal key → `ansible-admin` |
+| `domen_ssh` | `private_key` / `public_key` | post_install.sh — Domen's personal key → `ansible-admin` |
 | `ansible-admin_ssh` | `private_key` / `public_key` | post_install.sh — dedicated Ansible key → `ansible-admin` |
 | `ai_ssh` | `private_key` / `public_key` | post_install.sh — AI debug key (maps to `openrouter_ai`) → `ai-debug` |
 | `netcup-ccp_login` | `password` | netcup — **Customer Control Panel** login (item `netcup-ccp_login`, 1Password `Homelab-ansible`). Billing / orders / subscription management at netcup. **NOT** consumed by Ansible (SSH provisioning, see `ansible-admin_ssh`) — account reference only (netcup RS 2000 G12) |
@@ -451,7 +451,7 @@ service is how this row's defect stayed invisible: the list, not the fleet, deci
 
 | Legacy (before) | Canonical (now) |
 |-----------------|-----------------|
-| `admin_laptop_ssh_pubkey` | `laptop-domen_ssh` |
+| `admin_laptop_ssh_pubkey` | `domen_ssh` |
 | `ssh_ansible_pubkey` | `ansible-admin_ssh` |
 | `ssh_ai_pubkey` | `ai_ssh` |
 | `kopia_master_password` | `kopia_password` |
@@ -496,19 +496,23 @@ Three independent ED25519 keys, one per purpose. Separate keys = revoke/rotate o
 
 | Key (1Password item) | Authorized user on hosts | Access level |
 |----------------------|--------------------------|--------------|
-| `domen_ssh` — ⏳ rename from `laptop-domen_ssh` is **HD-443** (1P item + the four script references land in one change; every reference below keeps the old name until it does) | `domen`, on **every** node | Human seat. Proposed shape: `sudo` group, **password-required, no NOPASSWD**, credential in a `domen_login` item (the HD-361 break-glass precedent) |
+| `domen_ssh` (item **renamed by the owner 2026-09-25** from `laptop-domen_ssh`; the script + doc references moved in the same change) | `domen`, on **every** node | Human seat — **decided:** `sudo` group, **password-required, no NOPASSWD**, credential in a `domen_login` item (the HD-361 break-glass precedent) |
 | `ansible-admin_ssh` | `ansible-admin`, on **every** node | Full (NOPASSWD sudo) — the converge key, and the only account IaC needs |
 | `ai_ssh` (private maps to `openrouter_ai`) | `ai-debug`, on **every** node | Debug only — **no sudo group, no 1Password/op access**, LAN-only, no forwarding |
 
 **Decided 2026-09-25 (HD-443), and this table's shape is the decision, not an observation:** the human key
 becomes an **account** (`domen`) rather than a second key under the automation account; the AI account is
-fleet-wide with no sudo; the Pi uses the same `ansible-admin` shape as every other host. The item rename
-`laptop-domen_ssh` → `domen_ssh` is the owner's click; the scripts and these rows move in the same window
-(item and scripts must never diverge, or every bootstrap path breaks mid-flight).
+fleet-wide with no sudo; the Pi uses the same `ansible-admin` shape as every other host. The 1Password rename **was executed by the owner on 2026-09-25** and the four script references
+(`check_ssh_grants.py`, `gen-custom-script.sh`, `gen-media-post-install.sh`, `get-bootstrap-keys.sh`)
+plus every doc row moved in the same change — a rename that spans item + scripts in one window is the
+only safe form, because a script reading the old item name breaks every bootstrap path mid-flight.
+⚠ **Laptop-side tail (owner, not AI-doable):** rename the SSH-agent stub `~/.ssh/laptop-domen.pub` →
+`~/.ssh/domen_ssh.pub` and point `IdentityFile` at it — the 1Password agent matches by item name, so a
+stale stub makes `ssh` offer nothing and report `invalid format`.
 
 **Not "the same keys everywhere" — measured per host (2026-09-22 sweep, `scripts/check_ssh_grants.py`).**
 The three vault keys did **not** all ride on every host: `ansible-admin_ssh` is on all five managed
-hosts; `laptop-domen_ssh` is on nas · oldsrv · spark · vps but **not the Pi**; `ai_ssh` is on
+hosts; `domen_ssh` is on nas · oldsrv · spark · vps but **not the Pi**; `ai_ssh` is on
 nas · oldsrv only, and only as `ai-debug`. **⚠ That is the measured state, and the gap between it and the
 table above is live drift, not a decision** — the fleet-wide `domen` / `ai-debug` placement is owed by
 HD-443's IaC work, and today **no role owns the user+key layout** (preseed and `first-boot-config.sh`
@@ -531,8 +535,9 @@ Host nas nas-ansible nas-ai
   IdentityAgent <1Password SSH agent socket>
 
 Host nas              # personal key
-  User ansible-admin
-  IdentityFile ~/.ssh/laptop-domen.pub
+  User ansible-admin    # ⚠ becomes `domen` when HD-443 lands the accounts; until then the human key
+                        #   is still authorized under ansible-admin (that is the drift being closed)
+  IdentityFile ~/.ssh/domen_ssh.pub
   IdentitiesOnly yes
 
 Host nas-ansible      # dedicated Ansible key
@@ -562,8 +567,8 @@ sweeping every host. Fingerprints only, never key material (CONVENTIONS §6):
 
 | Fingerprint | Identity | Where authorized | Verdict |
 |---|---|---|---|
-| `XTmK3tR…` | `laptop-domen_ssh` | nas · oldsrv · spark · vps → `ansible-admin` | vault-issued, live. **✅ Decided 2026-09-25: fleet-wide, but under `domen`, not `ansible-admin`** — spark is sanctioned as the `domen` seat; the item renames to domen_ssh and moving the key off `ansible-admin` is HD-443's IaC step |
-| `1uKzmwf…` | `ansible-admin_ssh` | every managed host → `ansible-admin`, **plus pi → `admin`** | vault-issued, the converge key (30 accepted logins on nas in 2 days). **✅ Decided 2026-09-25: `ansible-admin` is the Pi's admin surface.** ⚠ The second placement — `admin` on the Pi (uid 1000, `/etc/sudoers.d/admin` = `NOPASSWD:ALL`) — is **not** needed by IaC (`host_vars/pi.kogler.si.yml` sets `ansible_user: ansible-admin`), so it stays **UNRESOLVED on purpose**: recommended disposition is the key comes off `admin` (or the account is removed), pending the owner's confirm; nothing is removed until `ansible-admin` on the Pi is proven to log in (HD-413 lockout set) |
+| `XTmK3tR…` | `domen_ssh` | nas · oldsrv · spark · vps → `ansible-admin` | vault-issued, live. **✅ Decided 2026-09-25: fleet-wide, but under `domen`, not `ansible-admin`** — spark is sanctioned as the `domen` seat; the 1Password item was renamed 2026-09-25, and moving the key off `ansible-admin` onto `domen` is HD-443's IaC step |
+| `1uKzmwf…` | `ansible-admin_ssh` | every managed host → `ansible-admin`, **plus pi → `admin`** | vault-issued, the converge key (30 accepted logins on nas in 2 days). **✅ Decided 2026-09-25: `ansible-admin` is the Pi's admin surface.** ⚠ The second placement — `admin` on the Pi (uid 1000, `/etc/sudoers.d/admin` = `NOPASSWD:ALL`) — is **not** needed by IaC (`host_vars/pi.kogler.si.yml` sets `ansible_user: ansible-admin`), **✅ DECIDED 2026-09-25 (round 2): the owner needs no `admin` account at all** — the key comes off `admin` and the account is retired. ⛔ Order is the safety property: prove `ansible-admin` (then `domen`) can log in on the Pi → remove the key from `admin` → only then lock/remove the account. Never reverse it (HD-413 lockout set) |
 | `Ug788c…` | `ai_ssh` | nas · **oldsrv** → `ai-debug` | vault-issued, scoped by HD-51. **✅ Decided 2026-09-25: sanctioned on every node** (`nas · oldsrv · pi · spark · vps`), no sudo, no op access; the `restrict,…,from=` options stay. Extending it to pi/spark/vps is HD-443 work |
 | `DxoZeGK…` | `ha-sync@pi.kogler.si` | oldsrv · vps | hand-made, live (HA failover + cert pull), **no vault item** |
 | `VX0TbLr…` | `traefik-cert-sync@oldsrv.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
@@ -573,7 +578,7 @@ sweeping every host. Fingerprints only, never key material (CONVENTIONS §6):
 **This table is a machine-checked gate, not prose (HD-416).** `python3 scripts/check_ssh_grants.py`
 sweeps every `authorized_keys` + `/root/.ssh/authorized_keys` on the managed hosts (`ssh` +
 `ssh-keygen -lf`, read-only), derives the named set from THIS table plus the vault public halves
-(`laptop-domen_ssh` / `ansible-admin_ssh` / `ai_ssh`), and exits 1 unless named ≡ live. It reds on
+(`domen_ssh` / `ansible-admin_ssh` / `ai_ssh`), and exits 1 unless named ≡ live. It reds on
 `UNKNOWN` (live key nobody named), `RETIRED-BUT-PRESENT`, `WRONG-ACCOUNT` (a named key under an
 account the table does not name — the exact shape of the `oldsrv-rsync` finding), `UNPLACED` (a key
 on a host the table does not name) and `AMBIGUOUS` (two identities matching one key — reported, never

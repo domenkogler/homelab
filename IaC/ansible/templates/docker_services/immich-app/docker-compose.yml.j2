@@ -60,6 +60,12 @@ services:
       # v3 mobile is OAuth-capable (app.immich:///oauth-callback). Provider declared in the
       # Authentik Blueprint (ks-oidc.yml, HD-142); client creds seeded into `immich_oidc` by the
       # secret-egress glue (HD-143). Must be Authorization Code (Confidential client), never implicit.
+      # ⛔ ENABLED is not implied by the other four. Measured 2026-09-25 on the live container: it carried
+      #   ISSUER_URL / CLIENT_ID / CLIENT_SECRET / SCOPE / STORAGE_LABEL_CLAIM and NOT ONE of them turned up
+      #   a login button, because oauth.enabled defaults FALSE. The comment below this block used to read
+      #   "native OIDC enabled" while the flag was never set — a comment is not a config (HD-147's foto leg
+      #   was blocked on exactly this one line).
+      IMMICH_OAUTH_ENABLED: "true"
       IMMICH_OAUTH_ISSUER_URL: "https://sso.kogler.si/application/o/immich/"
       IMMICH_OAUTH_CLIENT_ID: "{{ vault['immich_oidc'].username | replace('$','$$') }}"
       IMMICH_OAUTH_CLIENT_SECRET: "{{ vault['immich_oidc'].credential | replace('$','$$') }}"

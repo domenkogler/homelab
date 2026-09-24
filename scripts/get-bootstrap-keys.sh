@@ -16,7 +16,8 @@
 # and is immune, so its .pub files stay in root.
 #
 # Canonical store = 1Password vault "Homelab-ansible":
-#   admin.pub   ← item "laptop-domen_ssh"      (human admin)
+#   admin.pub   ← item "domen_ssh"      (human seat; the OUTPUT file keeps the historic admin.pub
+#                  name because the MikroTik bootstrap and IaC/README.md name it that)
 #   ansible.pub ← item "ansible-admin_ssh"     (Ansible automation)
 #
 # Each is an SSH_KEY category item with a "public key" field. The script
@@ -61,7 +62,7 @@ fi
 # Update these by re-running:
 #   op item get <item> --vault Homelab-ansible --fields fingerprint
 declare -A KEYS=(
-    ["admin.pub"]="laptop-domen_ssh|SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA"
+    ["admin.pub"]="domen_ssh|SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA"
     ["ansible.pub"]="ansible-admin_ssh|SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU"
 )
 

@@ -72,7 +72,7 @@
 > [docs/1password.md](docs/1password.md) (runner auth + agent), [scripts/README.md](scripts/README.md)
 > (runner tooling).
 > **Prerequisites (vault `Homelab-ansible`):** items `op_api` (field `credential`),
-> `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `kopia_password` exist.
+> `domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `kopia_password` exist.
 
 ### 0.1 (Re-)install the WSL Debian distro `[MANUAL]`
 
@@ -157,10 +157,10 @@ Host vps-ansible   # runner identity (ansible-admin_ssh)
   IdentityFile ~/.ssh/ansible-admin_ssh.pub
   IdentitiesOnly yes
 
-Host vps           # personal interactive identity (laptop-domen_ssh)
+Host vps           # personal interactive identity (domen_ssh)
   HostName vps.kogler.si
   User ansible-admin
-  IdentityFile ~/.ssh/laptop-domen_ssh.pub
+  IdentityFile ~/.ssh/domen_ssh.pub
   IdentitiesOnly yes
 ```
 
@@ -225,7 +225,7 @@ lacks the fix in question: a pull-only runner converges what is on main, never m
 
 > Maps to [deployment-tasks.md](deployment-tasks.md) Phase 1 step 1. Authoring spec for the install
 > scripts/media: [docs/deployment-preseed.md](docs/deployment-preseed.md).
-> **Prerequisites:** Phase 0 green; vault fields `laptop-domen_ssh.public_key` +
+> **Prerequisites:** Phase 0 green; vault fields `domen_ssh.public_key` +
 > `ansible-admin_ssh.public_key` readable by the runner.
 
 ### 0.5.1 Generate the Custom Script
@@ -1030,7 +1030,7 @@ expected byte sizes (rb4011 4173 B, crs328 4877 B, ap 3249 B, capsman 5110 B), a
 .pub files carry the expected fingerprints (asserted inside the script — `admin.pub` =
 `SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA`, `ansible.pub` =
 `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU`). The script reads from the
-1Password vault `Homelab-ansible` (items `laptop-domen_ssh` + `ansible-admin_ssh`) and
+1Password vault `Homelab-ansible` (items `domen_ssh` + `ansible-admin_ssh`) and
 exits non-zero on fingerprint drift — re-anchor the expected fingerprints in the script
 if the vault rotates. Re-render the .rsc files if any lookup fails (fail-loud).
 
@@ -1658,7 +1658,7 @@ on `dhcp-10`.
 # 1) First-contact bootstrap (manual, ON spark as `admin` over its display/KVM):
 #    served bootstrap-spark.sh over LAN HTTP from the management laptop (WSL: python -m http.server + netsh portproxy),
 #    fetched AS admin, run with sudo — creates ansible-admin (key-only, NOPASSWD sudo), installs 2 keys
-#    (ansible-admin_ssh + laptop-domen_ssh, from 1P Homelab-ansible), sshd hardening drop-in, masks auto-suspend,
+#    (ansible-admin_ssh + domen_ssh, from 1P Homelab-ansible), sshd hardening drop-in, masks auto-suspend,
 #    writes /etc/spark-bootstrap.done. (The standalone spark/ansible/spark-bootstrap role is the same logic.)
 sudo bash bootstrap-spark.sh
 

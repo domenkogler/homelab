@@ -75,7 +75,7 @@ are added by the **Ansible `router` role** (not the router template). AP → IP 
 |----------------|----------|
 | `pppoe_login` | Router egress WAN (Telekom PPPoE) user + password |
 | `mikrotik-admin_login` | Admin password on router + switch + APs (**shared — accepted, HD-165**); every RouterOS mgmt surface binds to Mgmt-VLAN 99 only → never reaches the internet |
-| `ansible-admin_ssh` / `laptop-domen_ssh` | `ansible.pub` / `admin.pub` SSH keys uploaded alongside |
+| `ansible-admin_ssh` / `domen_ssh` | `ansible.pub` / `admin.pub` SSH keys uploaded alongside |
 
 ## Related
 

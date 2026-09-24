@@ -70,7 +70,7 @@
 | **Phase 0 — runner** | | | |
 | `ai_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
 | `ansible-admin_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
-| `laptop-domen_ssh` | ssh → `private_key`/`public_key` | Phase 0 (bootstrap key on laptop) | ✓ |
+| `domen_ssh` | ssh → `private_key`/`public_key` | Phase 0 (bootstrap key on laptop) | ✓ |
 | `op_api` | api → `credential` (1Password SA token, **read**-scoped) | Phase 0 — `scripts/bootstrap-runner.sh` stores it as the runner token | ✓ |
 | `op-write_api` | api → `credential` (**read+write** SA token; renamed 2026-09-19 from `vps-op-write_api`) | Phase 1 — the docker_services pre-pass deploys it to `/etc/op/provision-token` for the secret-egress glue | ✓ |
 | **Phase 1 — VPS edge** | | | |
@@ -144,7 +144,7 @@ item as a runner token. Confirm on the Forgejo side: if the runner exists, renew
 ## Phase 0 — Bootstrap the Management Laptop
 
 > **Depends on:** nothing (first action).
-> **1Password prerequisites:** `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api`, and
+> **1Password prerequisites:** `domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api`, and
 > `kopia_password` (seed `password`-type item read by `test-1password.yml`) all exist in `Homelab-ansible`.
 > **Continuation:** once verified, you can run Ansible and the 1Password test; nothing else.
 > **Step-by-step runbook:** [deployment-manual.md](deployment-manual.md) §Phase 0 (true-zero rebuild incl. canonical key restore).
@@ -816,7 +816,7 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 **Phase prerequisites (1Password) recap — what must exist before you start:**
 Full authority = `docs/deployment-secrets.md` + `scripts/check-vault-items.sh --strict`; this recap is the
 **human-gated** subset only (catalog-generated items are seeded by `scripts/provision-vault.sh --create`).
-- **Phase 0:** `laptop-domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api` (read-scoped runner token),
+- **Phase 0:** `domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api` (read-scoped runner token),
   `kopia_password` (seed), `laptop-domen-wsl-debian_login` (the WSL user password — **Homelab (human)** vault)
 - **Phase 1 (VPS):** + `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (Homelab (human) vault),
   `Hertzner-SB-Data`, `Hertzner-SB-Backup`, `op-write_api`, `cloudflare_api`, `authentik_login`,

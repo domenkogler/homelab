@@ -532,7 +532,10 @@ repositories with two different jobs, and they must not be confused for each oth
 | Clone | Account | Job | Update mechanism |
 |---|---|---|---|
 | `/home/ansible-admin/source/homelab` | `ansible-admin` | **the runner** — the tree every converge executes | `scripts/ansible-run.sh` fast-forwards it before each run |
-| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` (HD-409) actually edits | plain `git pull`; pull-only until HD-449(a) rules on a write credential |
+| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` (HD-409) actually edits | **push by seat** (owner ruled 2026-09-25: the repo-scoped `github-homelab-deploy_ssh` deploy key, install pending HD-455) |
+| `/home/ansible-admin/source/homelab` (runner) | `ansible-admin` | the converge tree | **pull by runner** — read-only HTTPS `github-homelab-deploy_api`, `--ff-only`; ⛔ the write key never goes here, because this is the tree every converge executes |
+
+**"Push by seat, pull by runner" is the decision (HD-449, owner 2026-09-25)**, not an accident of two clones: the runner's least-privilege read-only path and the seat's write path are different credentials on purpose. Acceptance for the seat's write path is a `git push --dry-run`, never the deploy key's existence — GitHub deploy keys are read-only unless write was granted, and the private half has to actually be in the 1Password item (`github-homelab-deploy_ssh`). |
 
 `scripts/ansible-run.sh` used to declare "NOTHING HERE PULLS", on the sound principle that a
 runner which updates itself mid-run is a runner whose behaviour you did not choose. Measured

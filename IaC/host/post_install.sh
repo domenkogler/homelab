@@ -6,7 +6,7 @@
 # =====================================================================
 # SECURITY NOTE: Never commit real keys — only placeholders. At media-build time
 # the real PUBLIC keys are injected from the 1Password `Homelab-ansible` vault
-# (items: laptop-domen_ssh · ansible-admin_ssh · ai_ssh, field=public_key).
+# (items: domen_ssh · ansible-admin_ssh · ai_ssh, field=public_key).
 # =====================================================================
 
 set -euo pipefail
@@ -98,7 +98,7 @@ if [ -n "$placeholder_hits" ]; then
     echo "FATAL (HD-201): placeholder content still present in:$placeholder_hits" >&2
     echo "       patterns: $PLACEHOLDER_PATTERNS" >&2
     echo "       Replace the placeholders with the real 1Password Homelab-ansible" >&2
-    echo "       values (laptop-domen_ssh / ansible-admin_ssh / ai_ssh) and re-run" >&2
+    echo "       values (domen_ssh / ansible-admin_ssh / ai_ssh) and re-run" >&2
     echo "       the install — aborting BEFORE reboot so the misfire is loud." >&2
     exit 1
 fi

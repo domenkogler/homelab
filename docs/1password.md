@@ -116,7 +116,7 @@ Two identity models are in use on the runner:
 
 - **WSL local key:** `~/.ssh/id_ed25519` — used to reach the VPS (`vps.kogler.si` /
   `159.195.111.66`). Its public key is installed in each host's `~/.ssh/authorized_keys`
-  for `ansible-admin`. (Committed `ansible-admin`/`laptop-domen` keys are the repo
+  for `ansible-admin`. (Committed `ansible-admin`/`domen_ssh` keys are the repo
   convention; on hosts lacking them, the runner's local key was authorized to unblock.)
 - **1Password SSH agent** (repo-preferred, `deployment-secrets.md` -> "SSH Key
   Separation"): private keys never on disk, served on demand via `IdentityAgent`.
@@ -131,7 +131,7 @@ Discovered the hard way during a VPS SSH restore (HD-209). Each of these produce
 - **Vault allowlist:** the desktop agent serves ONLY vaults listed in 1Password's agent
   config `agent.toml` (Windows: `%LOCALAPPDATA%\1Password\config\ssh\agent.toml`; each
   vault gets an `[[ssh-keys]] vault = "<vault>"` block). `Homelab-ansible` MUST be added
-  or its SSH items (`laptop-domen_ssh`, `ansible-admin_ssh`) are invisible to `ssh`.
+  or its SSH items (`domen_ssh`, `ansible-admin_ssh`) are invisible to `ssh`.
 - **Keep the offered-key count small:** hosts run `maxauthtries 3` (HD-154); every
   agent-served key burns one offer. Disable "Use with SSH agent" on unused items so
   plain `ssh ansible-admin@vps.kogler.si` reaches the right key within 3 tries.
@@ -142,8 +142,8 @@ Discovered the hard way during a VPS SSH restore (HD-209). Each of these produce
 - **Laptop convenience (owner-set):** `~/.ssh/config` carries TWO aliases,
   both `User ansible-admin` (the only SSH user), differing only by the presented key via
   `.pub` hint + `IdentitiesOnly yes`: `vps-ansible` → runner identity (`ansible-admin_ssh.pub`),
-  `vps` → personal interactive identity (`laptop-domen_ssh.pub`). Item names are vault
-  identities, NOT usernames — there is no `laptop-domen` user on any host.
+  `vps` → personal interactive identity (`domen_ssh.pub`). Item names are vault
+  identities, NOT usernames. The human account is `domen` (HD-443: sanctioned fleet-wide, being landed by IaC); `domen_ssh` is the item name, never a login.
 
 ---
 

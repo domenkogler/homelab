@@ -193,7 +193,14 @@ forgejo_version: "16.0.3"  # codeberg.org/forgejo/forgejo (docker tag strips `v`
 grafana_version: "13.2.0"           # grafana/grafana OSS
 kopia_version: "0.23.1"             # kopia/kopia (server on the VPS + oldsrv agent, HD-191)
 n8n_version: "2.35.3"               # n8nio/n8n
-immich_version: "v3.1.0"            # ghcr.io/immich-app/immich-server (tag has `v`)
+immich_version: "v3.2.2"            # ghcr.io/immich-app/immich-server (tag has `v`)
+                                    # ⚠ ONE var, TWO images: this also pins immich-machine-learning on
+                                    #   OLDSRV (templates/docker_services/immich-ml). Immich wants the
+                                    #   server and the ML service on the same version. oldsrv has been
+                                    #   off the network since 2026-09-23 (HD-455), so converging the VPS
+                                    #   now leaves the PAIR SPLIT (server 3.2.2 / ML 3.1.0) until that box
+                                    #   returns and home_servers.yml is converged — ML jobs are the symptom
+                                    #   to expect in the window, not a new bug.
 opencloud_version: "7.4.0"          # ghcr.io/opencloud-eu/opencloud (docker tag strips `v`)
 zipline_version: "4.6.5"            # ghcr.io/diced/zipline (owner-corrected 2026-08-25; tag has NO `v` prefix; registry-verified 200 live). Note: upstream also ships rolling `v4`/`latest` — never use those (§7).
 zipline_db_version: "16.15-alpine"  # postgres 16 line (forgejo-db / onlyoffice-pg series)

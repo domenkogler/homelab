@@ -30,7 +30,7 @@ fi
 mkdir -p /home/ansible-admin/.ssh
 chmod 700 /home/ansible-admin/.ssh
 
-# 2a. Domen's personal key (1Password: laptop-domen_ssh.public_key — full key
+# 2a. Domen's personal key (1Password: domen_ssh.public_key — full key
 #     INCLUDING the algorithm token; never hardcode a prefix here)
 echo "<PERSONAL_PUBKEY_FROM_1PASSWORD> admin@laptop" >> /home/ansible-admin/.ssh/authorized_keys
 

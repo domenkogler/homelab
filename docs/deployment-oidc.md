@@ -85,6 +85,12 @@ auto-appended on discovery).
 - optional **Backchannel logout**: `https://foto.kogler.si/api/oauth/backchannel-logout`
 For local debugging also allow `http://localhost:2283/auth/login` + `http://localhost:2283/user-settings`.
 
+⚠ **`enabled` is a setting, not a side-effect of the client creds (measured 2026-09-25).** The container had
+`IMMICH_OAUTH_ISSUER_URL/CLIENT_ID/CLIENT_SECRET/SCOPE/STORAGE_LABEL_CLAIM` and the login page still showed
+only e-pošta/geslo, because `oauth.enabled` defaults to **false** — so `IMMICH_OAUTH_ENABLED: "true"` is
+required, and the acceptance test is *the button on the login page*, not the env being present. Note also the
+upstream caution that **env changes need the container recreated**, not restarted.
+
 **Immich env/config (`immich_oidc` from 1Password):** `scope openid email profile`; claims
 `preferred_username` → storage label, `immich_role` → role (`user`/`admin`), `immich_quota` →
 storage quota (claims are creation-only, not re-synced); `Auto Register` true, optional `Auto Launch`

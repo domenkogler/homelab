@@ -171,7 +171,7 @@ Public keys are fetched from 1Password `Homelab-ansible` vault by the AI when ge
 
 | Key (1Password item) | Authorized user | Access |
 |----------------------|-----------------|--------|
-| `laptop-domen_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `domen_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
 | `ansible-admin_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
 | `ai_ssh` | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
 
@@ -301,6 +301,6 @@ public keys before flashing).
 
 | Key (1Password item) | Authorized user | Access |
 |----------------------|-----------------|--------|
-| `laptop-domen_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
+| `domen_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
 | `ansible-admin_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
 | `ai_ssh` | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |

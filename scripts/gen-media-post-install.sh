@@ -6,7 +6,7 @@
 # The committed IaC/host/post_install.sh is PLACEHOLDER-ONLY (repo law:
 # keys never in Git). At media-build time this generator injects the three
 # REAL public keys from the 1Password Homelab-ansible vault
-#   laptop-domen_ssh · ansible-admin_ssh · ai_ssh   (field public_key)
+#   domen_ssh · ansible-admin_ssh · ai_ssh   (field public_key)
 # into a git-ignored copy. The output is what the preseed late_command
 # expects on the media as  /preseed/post_install.sh  (next to the host's
 # preseed.cfg). DELETE the generated file after copying it to the stick.
@@ -27,7 +27,7 @@ SRC="$REPO/IaC/host/post_install.sh"
 
 command -v op >/dev/null || { echo "FAIL: op CLI not found"; exit 1; }
 
-domen_pub=$(op read "op://Homelab-ansible/laptop-domen_ssh/public_key")
+domen_pub=$(op read "op://Homelab-ansible/domen_ssh/public_key")
 ansible_pub=$(op read "op://Homelab-ansible/ansible-admin_ssh/public_key")
 ai_pub=$(op read "op://Homelab-ansible/ai_ssh/public_key")
 [ -n "$domen_pub" ] && [ -n "$ansible_pub" ] && [ -n "$ai_pub" ] \

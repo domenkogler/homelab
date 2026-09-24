@@ -22,7 +22,7 @@
 #   - Sets hostname on the root partition (if accessible)
 #
 # SSH keys: replace the <PLACEHOLDER> values below with real public keys
-# from the 1Password "Homelab" vault (laptop-domen_ssh, ansible-admin_ssh, ai_ssh).
+# from the 1Password "Homelab" vault (domen_ssh, ansible-admin_ssh, ai_ssh).
 # =====================================================================
 
 set -euo pipefail
@@ -162,7 +162,7 @@ for cfg_file in "$BOOT/user-data" "$BOOT/firstboot.sh"; do
 done
 if [ -n "$placeholder_hits" ]; then
     echo "       Replace them with the real 1Password Homelab-ansible public keys" >&2
-    echo "       (laptop-domen_ssh / ansible-admin_ssh / ai_ssh): edit the files on" >&2
+    echo "       (domen_ssh / ansible-admin_ssh / ai_ssh): edit the files on" >&2
     echo "       the card directly, or edit the key lines in this script and re-run." >&2
     exit 1
 fi

@@ -4,7 +4,7 @@
 # SCP Custom-Script field (HD-206-era flow, deployment-preseed.md §netcup).
 #
 # Injects the two REAL public keys from the 1Password Homelab-ansible vault
-# (items laptop-domen_ssh / ansible-admin_ssh, field public_key) into a copy
+# (items domen_ssh / ansible-admin_ssh, field public_key) into a copy
 # of post_install.sh. The output is git-ignored (.gitignore) and must be
 # DELETED after pasting into the netcup SCP field.
 #
@@ -20,7 +20,7 @@ SRC="$REPO/IaC/host/vps/post_install.sh"
 
 command -v op >/dev/null || { echo "FAIL: op CLI not found"; exit 1; }
 
-domen_pub=$(op read "op://Homelab-ansible/laptop-domen_ssh/public_key")
+domen_pub=$(op read "op://Homelab-ansible/domen_ssh/public_key")
 ansible_pub=$(op read "op://Homelab-ansible/ansible-admin_ssh/public_key")
 [ -n "$domen_pub" ] && [ -n "$ansible_pub" ] || { echo "FAIL: empty key from 1Password"; exit 1; }
 
