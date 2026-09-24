@@ -18,7 +18,9 @@
     - network
     - storage        # oldsrv: import/create nvme, datasets+props, NFS mounts, push timers (docs/storage.md)
     - nut             # UPS client (oldsrv) — after network, before monitoring
-    - cockpit         # management UI (oldsrv) — own login, NOT behind Authentik
+    - role: cockpit       # management UI (oldsrv) — own login, NOT behind Authentik
+      tags: [cockpit]     # HD-361: bare role names are not tags — see playbooks/storage.yml for
+                          # why this line exists (a `--tags cockpit` run was a silent no-op).
     # HD-405: oldsrv as a headscale node. BEFORE docker_services so the interface exists
     # when traefik-internal binds its tailnet listener on the same run.
     # NOTE the explicit `tags:` — roles here carry NO implicit role tag (verified live with

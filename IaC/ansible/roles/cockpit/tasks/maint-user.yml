@@ -1,0 +1,243 @@
+---
+# maint-user.yml — HD-361: the interactive Cockpit login on nas + oldsrv.
+#
+# why-for-this-file — THE PART THAT IS NOT OBVIOUS: Debian/Ubuntu ship /etc/pam.d/cockpit
+# with **no group restriction at all** (verified on cockpit-ws 337-1+deb13u2: auth is
+# pam_sepermit + `substack common-auth`, nothing else). So the group name `cockpit-session`
+# is decoration unless something enforces it, and the real posture of :9090 today is "anyone
+# with a local password gets a session" — which on oldsrv means `domen`, who holds both a
+# password and group `sudo`, i.e. a leaked password = a root-capable web session. Therefore
+# provisioning `maint` WITHOUT the pam_succeed_if line below would WIDEN the attack surface
+# (one more password holder) while pretending to narrow it. Both halves land together or not
+# at all: create the account, then make the group actually admit logins.
+#
+# Contract being implemented (todo.md HD-361, docs/deployment-secrets.md):
+#   * The vault item (`oldsrv-cockpit_login` / `nas-cockpit_login`, owner-minted) is the
+#     recovery copy. The host stores only a crypt hash in /etc/shadow, which is root-readable.
+#     Never a plaintext on disk, never in /etc/passwd, never a Jinja literal.
+#   * `maint`'s membership is an EXACT SET, rebuilt every converge: `cockpit-session` (the
+#     console gate) + `sudo` (owner decision 2026-09-21, so the web-tty can reach root behind
+#     the interactive password) + its own primary group. `append: false` is what makes that
+#     auditable — a `docker` or `lxd` membership hand-added on the box is dropped by the next
+#     converge instead of quietly persisting. What is NOT granted: a NOPASSWD sudoers fragment
+#     (asserted against below, not assumed), an SSH key, or an `AllowUsers` entry.
+#   * No SSH keys, and the existing `AllowUsers` (ansible-admin, ai-debug) keeps it off SSH —
+#     verified below rather than assumed.
+#   * FAIL-CLOSED (HD-91): no vault value -> the run dies before the box is touched. An empty
+#     string is specifically trapped because 1Password's duplicate-field shape bug produces
+#     exactly that (docs/deployment-secrets.md §"Verify by length AND shape").
+#
+# Idempotency, without a controller dependency: the controller venv has no `passlib`, so
+# `password_hash` is unavailable, and `chpasswd` was rejected — the hosts' own default is
+# yescrypt (login.defs ENCRYPT_METHOD), which nothing off-box can then verify against the
+# vault value. Instead the hash is made ON THE TARGET with `openssl passwd -6` using a salt
+# derived from the *item name*. A salt's job is uniqueness and rainbow-resistance, not
+# secrecy, so deriving it is sound; the payoff is that the same vault value in produces a
+# byte-identical hash, so the `user` module reports ok on every converge after the first, and
+# the verification step below can prove the installed hash IS the vault value.
+# PAM/pam_unix verifies $6$ transparently even where the local default is yescrypt.
+
+- name: HD-361 | Assert this host names its own maint vault item
+  ansible.builtin.assert:
+    that:
+      - cockpit_maint_vault_item is defined
+      - cockpit_maint_vault_item is string
+      - cockpit_maint_vault_item | length > 0
+    fail_msg: >-
+      cockpit_maint_vault_item is unset for {{ inventory_hostname }}. Set it in
+      host_vars/{{ inventory_hostname }}.yml to this host's own item
+      ('<host>-cockpit_login') — sharing one item between oldsrv and nas would give two
+      management consoles the same password, which is the opposite of why there are two items.
+    success_msg: "provisioning {{ cockpit_maint_user }} from {{ cockpit_maint_vault_item }}"
+
+- name: HD-361 | Read the maint password from 1Password (control node, fail-closed)
+  ansible.builtin.set_fact:
+    cockpit_maint_password: >-
+      {{ lookup('community.general.onepassword', cockpit_maint_vault_item,
+                field='password', vault=op_vault) }}
+  delegate_to: localhost
+  become: false
+  run_once: true
+  no_log: true
+  changed_when: false
+
+- name: HD-361 | Refuse to provision from an empty or absurdly short vault value
+  ansible.builtin.assert:
+    that:
+      - cockpit_maint_password | default('') | length >= 16
+    fail_msg: >-
+      '{{ cockpit_maint_vault_item }}' resolved to nothing usable in vault '{{ op_vault }}'.
+      Mint it with `bash scripts/provision-vault.sh` (it is in the CATALOG), and if it exists
+      but reads empty, suspect the duplicate-field shape bug — `op read
+      op://{{ op_vault }}/{{ cockpit_maint_vault_item }}/password | wc -c` must be non-zero.
+  no_log: true
+
+- name: HD-361 | Ensure the gate group exists (not packaged by cockpit-ws on Debian)
+  ansible.builtin.group:
+    name: "{{ cockpit_maint_group }}"
+    state: present
+
+- name: HD-361 | Crypt the maint password on the target (salt = item name, so it is stable)
+  ansible.builtin.shell:
+    cmd: |
+      set -euo pipefail
+      salt=$(printf '%s' '{{ cockpit_maint_vault_item }}' | sha256sum | cut -c1-16)
+      printf '%s' "$MAINT_PW" | openssl passwd -6 -salt "$salt" -stdin
+    executable: /bin/bash
+  environment:
+    MAINT_PW: "{{ cockpit_maint_password }}"
+  register: cockpit_maint_hash
+  changed_when: false
+  no_log: true
+
+- name: HD-361 | Provision {{ cockpit_maint_user }} with its exact group set
+  ansible.builtin.user:
+    name: "{{ cockpit_maint_user }}"
+    comment: "Cockpit management seat (HD-361) - not a human account, no SSH"
+    shell: /bin/bash # the web-tty is Cockpit's whole point; a nologin shell would kill it
+    home: "/home/{{ cockpit_maint_user }}"
+    create_home: true
+    home_mode: '0750'
+    groups: "{{ [cockpit_maint_group] + (['sudo'] if cockpit_maint_sudo_group | bool else []) }}"
+    append: false # exact set: drops any membership added by hand on the box
+    password: "{{ cockpit_maint_hash.stdout | trim }}"
+
+- name: HD-361 | Add any additional console logins to the gate group
+  ansible.builtin.user:
+    name: "{{ item }}"
+    groups: "{{ [cockpit_maint_group] }}"
+    append: true
+  loop: "{{ cockpit_session_members | difference([cockpit_maint_user]) }}"
+  when: cockpit_session_members | difference([cockpit_maint_user]) | length > 0
+
+# --- the control itself ------------------------------------------------------------------------------
+- name: HD-361 | Confirm the PAM module exists before referencing it
+  ansible.builtin.shell:
+    cmd: ls /lib/x86_64-linux-gnu/security/pam_succeed_if.so /usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so
+  register: cockpit_pam_module
+  failed_when: cockpit_pam_module.rc != 0
+  changed_when: false
+  when: cockpit_maint_pam_gate | bool
+
+- name: HD-361 | Refuse to edit the PAM stack if the anchor line is not where we think it is
+  # lineinfile with an unmatched insertbefore APPENDS, and an `auth` line parked after the
+  # `session` rules would be silently ignored — a gate that looks deployed and is inert.
+  # So: fail loudly instead of writing a placebo.
+  ansible.builtin.command:
+    cmd: grep -qE '^auth[[:space:]]+required[[:space:]]+pam_sepermit\.so' /etc/pam.d/cockpit
+  register: cockpit_pam_anchor
+  changed_when: false
+  failed_when: cockpit_pam_anchor.rc != 0
+  when: cockpit_maint_pam_gate | bool
+
+- name: HD-361 | Make {{ cockpit_maint_group }} the gate for every Cockpit login
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/cockpit
+    regexp: '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\b'
+    line: "auth     requisite  pam_succeed_if.so user ingroup {{ cockpit_maint_group }} quiet_use_uid # HD-361: the group is the gate"
+    insertbefore: '^auth\s+required\s+pam_sepermit\.so'
+    firstmatch: true
+    mode: '0644'
+  when: cockpit_maint_pam_gate | bool
+
+# --- verification (provable claims only; the browser login stays the owner's acceptance test) --------
+- name: HD-361 | Read back group memberships
+  ansible.builtin.command:
+    cmd: id -nG {{ cockpit_maint_user }}
+  register: cockpit_maint_id
+  changed_when: false
+
+- name: HD-361 | Read back the installed shadow hash
+  ansible.builtin.command:
+    cmd: getent shadow {{ cockpit_maint_user }}
+  register: cockpit_maint_shadow
+  changed_when: false
+  no_log: true
+
+- name: HD-361 | Read back how far {{ cockpit_maint_user }} can escalate
+  ansible.builtin.command:
+    cmd: sudo -l -U {{ cockpit_maint_user }}
+  register: cockpit_maint_sudo
+  changed_when: false
+  become: true
+  failed_when: false # `sudo -l` exits non-zero for a user with no sudoers entry; the assert reads the text
+
+- name: HD-361 | Read back who SSH may reach
+  ansible.builtin.command:
+    cmd: /usr/sbin/sshd -T
+  register: cockpit_sshd_config
+  changed_when: false
+  become: true
+
+- name: HD-361 | Read back the gate line and its position in the auth stack
+  ansible.builtin.shell:
+    cmd: grep -nE '^auth' /etc/pam.d/cockpit
+    executable: /bin/bash
+  register: cockpit_pam_stack
+  changed_when: false
+
+# THE ACCEPTANCE TEST, i.e. the only check that answers why this account exists at all:
+# does `maint` + the vault password actually get a Cockpit session? Everything above proves the
+# account is *shaped* right; none of it proves the console opens, and HD-361's whole premise is
+# that nas's console has NEVER opened. So the converge asks cockpit-ws itself, over the local
+# socket, on the endpoint its own shell uses. The shape is measured, not assumed (2026-09-23):
+#   GET /cockpit/login  +  Basic auth   -> 200 on success
+#                                     -> 401 {"problem":"authentication-failed"} on a bad credential
+# (POST is 405 here, and `GET /` answers 200 UNAUTHENTICATED — a status probe on `/` would pass
+# on a host where login is impossible, which is exactly the fake-green this replaces.)
+#
+# Only the SUCCESS attempt is scripted. A deliberate wrong-password task would fire a failing
+# PAM conversation on every single converge from a fixed source, which is how pam_faillock /
+# brute-force defences get tripped by the configuration manager — the negative control was taken
+# by hand once (see the 401 `authentication-failed` above) and is not repeated per converge.
+- name: HD-361 | Prove the console actually opens for {{ cockpit_maint_user }} (real PAM login)
+  ansible.builtin.uri:
+    url: http://127.0.0.1:9090/cockpit/login
+    # cockpit-ws answers this endpoint on the local socket; no TLS, no SNI, no Host rewrite —
+    # cockpit-ws requires the browser Origin to match its Host, which is why the real test from
+    # off-box must go through the traefik route, not straight at this port.
+    method: GET
+    url_username: "{{ cockpit_maint_user }}"
+    url_password: "{{ cockpit_maint_password }}"
+    force_basic_auth: true
+    headers:
+      Accept: application/json
+    status_code: 200
+    timeout: 20
+  register: cockpit_maint_login
+  no_log: true
+  changed_when: false
+  when:
+    - not (ansible_check_mode | bool)
+    - cockpit_maint_verify_login | default(true) | bool
+  retries: 3
+  delay: 5
+  until: cockpit_maint_login.status | default(0) == 200
+
+- name: HD-361 | Verify the account, the group set, the credential and the two gates
+  ansible.builtin.assert:
+    that:
+      # 1. the group set is EXACTLY the decided one — gate group (+ sudo) + primary, nothing else
+      - (cockpit_maint_id.stdout.split() | sort)
+        == ([cockpit_maint_group, cockpit_maint_user]
+            + (['sudo'] if cockpit_maint_sudo_group | bool else []) | sort)
+      # 1b. sudo, if granted, is password-required: no passwordless path for a console identity
+      - ('NOPASSWD' not in (cockpit_maint_sudo.stdout | default('')))
+        or not (cockpit_maint_sudo_group | bool)
+      # 2. the console credential really is the vault value (byte-identical deterministic hash)
+      - (cockpit_maint_shadow.stdout.split(':')[1] | default('')) == (cockpit_maint_hash.stdout | trim)
+      # 3. SSH is still gated by AllowUsers, and maint is not in it
+      - (cockpit_sshd_config.stdout | regex_findall('(?im)^allowusers[[:space:]]+(.*)$') | join(' ')).strip() | length > 0
+      - cockpit_maint_user not in (cockpit_sshd_config.stdout | regex_findall('(?im)^allowusers[[:space:]]+(.*)$') | join(' ')).split()
+      # 4. the gate is present AND ordered before the password stack actually runs
+      - (cockpit_pam_stack.stdout | regex_findall('(?m)^(\d+):auth.*' ~ cockpit_maint_group)).0 | default('9999') | int
+        < (cockpit_pam_stack.stdout | regex_findall('(?m)^(\d+):auth\s+(substack|include)\s+common-auth')).0 | default('0') | int
+    fail_msg: >-
+      maint verification failed on {{ inventory_hostname }}. Groups were
+      [{{ cockpit_maint_id.stdout }}]. The usual meanings: a sudo/docker entry in that list =
+      the exact-set contract broke; NOPASSWD in that sudo -l output = a fragment somewhere
+      granted a passwordless root path to a console identity, which the 2026-09-21 decision
+      forbids; a hash mismatch = the vault value and the host disagree
+      (rotate deliberately, do not "fix" one side); a bad ordering = the gate line landed after
+      common-auth and would be inert.
+  no_log: true

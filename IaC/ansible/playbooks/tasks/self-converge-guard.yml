@@ -22,6 +22,14 @@
 #                  for node-direct remote dev, so the tailnet is both an admin leg and the
 #                  remote-rescue leg. Same class as wireguard, added 2026-09-20 the day the
 #                  role landed — the guard has to follow the roles, not the other way round.
+#   cockpit          HD-361 put a write to /etc/pam.d/cockpit in this role, i.e. it now owns
+#                  the authentication path of the fleet's only web management console. A PAM
+#                  stack fails in two directions and both are silent from the caller's side:
+#                  a `requisite` line naming a module that will not load denies every login,
+#                  and an `auth` line parked after the `session` rules is inert — a gate that
+#                  reads as deployed and enforces nothing. So a self-converge of this role can
+#                  take away the exact console an operator is driving, which is the HD-413
+#                  class even though sshd's own stack is untouched.
 #
 # An agent driving from a phone will run these against the box it is logged into if
 # nothing refuses. So something refuses. Mechanically, not by discipline.
@@ -83,9 +91,11 @@
 #
 # Scope notes: roles NOT guarded, on purpose — `common` (users/sudoers/hosts; cannot sever
 # a session by itself), `docker`/`docker_services` (the whole point of a self-hosted
-# runner), `monitoring`/`cockpit`/`nut`/`ai_diag`. Adding a role to the lockout set is a
-# decision, not a config value: append the role dir name here AND a matching guard task
-# below, in one change, or the validator gate fails.
+# runner). `monitoring`/`nut`/`ai_diag`/`cifs`/`home_assistant`/`spark` carry written
+# exemptions in their own defaults. `cockpit` was in that unguarded list until HD-361 made it
+# write /etc/pam.d — adding a role to the lockout set is a decision, not a config value:
+# append the role dir name here AND a matching guard task below, in one change, or the
+# validator gate fails (that is the mechanism that caught this one).
 
 - name: HD-413 | Identify the control plane this playbook runs from
   # `lookup('pipe', ...)` executes on the CONTROLLER, never on the target — which is the
@@ -235,6 +245,40 @@
          and (homelab_guard_selected | bool)
          and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
   tags: [always, tailscale-node]
+
+- name: HD-413 | Refuse the cockpit role against the control node it is run from
+  ansible.builtin.assert:
+    that:
+      - not (homelab_guard_block | bool)
+    fail_msg: >-
+      HD-413 SELF-CONVERGE GUARD — refusing to run the 'cockpit' role against
+      '{{ inventory_hostname }}', which is the machine running this playbook
+      (control plane '{{ homelab_controller_host }}'). roles/cockpit writes
+      /etc/pam.d/cockpit (HD-361: the group gate that makes a console login mean anything),
+      and that file decides who can authenticate to the web console at all — a converge can
+      remove the console it is being run from, and both failure modes of a bad PAM line
+      (deny-everyone, or an auth rule sitting after the session rules and enforcing nothing)
+      look like success to the caller. Off-box: run this leg from a controller that is not
+      the target. Check mode of this role IS allowed (nothing in it carries
+      `check_mode: false`).
+      Tags requested: {{ ansible_run_tags | join(',') }}.
+      Details: deployment-ansible.md §Self-converge guardrail.
+  vars:
+    homelab_guard_role: cockpit
+    homelab_guard_tags: [cockpit]
+    homelab_guard_check_safe: true
+    homelab_guard_self: >-
+      {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
+    homelab_guard_selected: >-
+      {{ homelab_guard_role in ansible_play_role_names
+         and (('all' in ansible_run_tags)
+              or ('untagged' in ansible_run_tags)
+              or ((homelab_guard_tags | intersect(ansible_run_tags)) | length > 0)) }}
+    homelab_guard_block: >-
+      {{ (homelab_guard_self | bool)
+         and (homelab_guard_selected | bool)
+         and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
+  tags: [always, cockpit]
 
 - name: HD-413 | Refuse vps-hardening (nftables + sshd) against the control node it is run from
   ansible.builtin.assert:

@@ -2,7 +2,8 @@
 """Lint: the HD-413 self-converge guardrail stays complete and fail-loud.
 
 `playbooks/tasks/self-converge-guard.yml` refuses the lockout-capable roles
-(`network`, `storage`, `wireguard`, `vps-hardening`) when a playbook's target is the same
+(`network`, `storage`, `wireguard`, `vps-hardening`, `tailscale-node`,
+and the role that writes a PAM stack, `cockpit`) when a playbook's target is the same
 machine running the playbook. Once oldsrv is a control node (HD-407) — and the VPS already
 is one — an agent driving from a phone can converge the roles that decide whether its own
 SSH session survives: netdev units, fstab/NFS/ZFS mounts, the WG interface, nftables +

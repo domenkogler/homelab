@@ -59,6 +59,15 @@
     mode: '0644'
   when: inventory_hostname == 'oldsrv.kogler.si'
 
+# HD-361 — the interactive login. Its own file because it is the only part of this role that
+# touches a credential or the PAM stack, so a skipped or failed credential leg is visible in a
+# task name instead of hiding among package and template tasks. It also carries the gate that
+# makes this role's login surface safe to have at all — read maint-user.yml §why-for-this-file
+# before disabling any part of it.
+- name: HD-361 | Provision the maint Cockpit login
+  ansible.builtin.include_tasks: maint-user.yml
+  when: cockpit_maint_vault_item is defined
+
 # NOTE on Cockpit behind the proxy: cockpit-ws accepts the request only when
 # the browser Origin matches the Host header. Traefik preserves the original
 # Host (cockpit-nas.kogler.si / cockpit-oldsrv.kogler.si) and no port rewrite

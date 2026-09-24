@@ -415,7 +415,8 @@ point (the HD-399 rule): the guard carries no `default()` and no `failed_when`.
 | `… --tags storage` / `untagged` / `zfs_exporter` | **refused** |
 | `… --tags hardening` / `--check` of it | **refused** — `roles/vps-hardening` carries a `check_mode: false` task, so `--check` really writes `/etc/ssh/sshd_config` |
 | `… --tags tailscale-node` | **refused** — it restarts `tailscaled`; since HD-405 that is an admin and rescue leg |
-| `… --tags network --check`, `--tags storage --check`, `--tags tailscale-node --check` | allowed — those roles have no `check_mode: false` task, which is what *check-safe* means, and it is what makes HD-407's read-only proof possible |
+| `… --tags cockpit` | **refused** — HD-361 writes `/etc/pam.d/cockpit`, and that file decides who may authenticate to the web console at all: a converge can take away the console it is being driven from (both bad-PAM failure modes, deny-everyone and an `auth` rule after the `session` rules enforcing nothing, look like a green run) |
+| `… --tags network --check`, `--tags storage --check`, `--tags tailscale-node --check`, `--tags cockpit --check` | allowed — those roles have no `check_mode: false` task, which is what *check-safe* means, and it is what makes HD-407's read-only proof possible |
 | `… --tags docker_services,<svc>` | allowed, and no lockout-role task runs — this is the everyday case a self-hosted runner exists for |
 
 Any run whose target is **not** the controller is untouched by the guard (proven, not assumed).
@@ -451,14 +452,18 @@ its selection expression: the silent version of the hole.
   `/etc/sudoers`, `/etc/pam.d`, `/root/.ssh` or `authorized_keys`, and `mount`/`filesystem`
   state. An exempt role declares `homelab_lockout_exempt_reason` in its own
   `defaults/main.yml`, and the reason has to be an argument, not a placeholder (under 40
-  characters fails). Measured today: **5 guarded roles, all 5 justified by behaviour rather
+  characters fails). Measured today: **6 guarded roles, all justified by behaviour rather
   than by someone remembering to list them, and 6 exempt by written argument** (`ai_diag`,
   `cifs`, `common`, `home_assistant`, `nut`, `spark` — read those rows before changing those
   roles; `spark`'s exemption is explicitly conditional on spark never becoming a control node).
 
   This closes the failure mode that actually happened rather than a theoretical one:
   `tailscale-node` arrived from another lane mid-session and was lockout-capable the day it
-  landed, and a hand-maintained set catches that only if a human notices. The checker carries
+  landed, and a hand-maintained set catches that only if a human notices. It has since caught
+  the same shape twice more, both times from a role nobody would have guessed: `spark` (now
+  exempt by argument, conditionally) and `cockpit`, which became lockout-capable the moment
+  HD-361 added its `/etc/pam.d/cockpit` write — a role whose name says "web UI" and whose task
+  list decides who can log into it. The checker carries
   its own `self_test()` — it asserts the detector fires on an `sshd` restart, an `nft`
   command, an `sshd_config` write, a `{{ netd_dir }}`-templated netdev write, a mount, and a
   task nested two blocks deep, while staying silent on a debug task, an unrelated template,

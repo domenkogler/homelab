@@ -21,5 +21,10 @@
     - network
     - storage        # ZFS: import tank/bulk, datasets+props, sanoid/syncoid, NFS exports (docs/storage.md)
     - nut             # UPS master (usbhid-ups + upsd + nut_exporter on the host)
-    - cockpit         # management UI (nas) + cockpit-zfs — own login, NOT behind Authentik
+    - role: cockpit       # management UI (nas) + cockpit-zfs — own login, NOT behind Authentik
+      tags: [cockpit]     # HD-361: a BARE ROLE NAME IS NOT A TAG. Without this, `--tags cockpit`
+                          # selected nothing but the role's `always` guard and reported a green,
+                          # changed=0 run — the silent no-op this repo already documents for
+                          # docker_services (HD-236c). Tagging the role makes single-role scoping
+                          # real instead of converging storage/network to add one user.
     - monitoring      # per-node Alloy host-exporter (apt-installed, no Docker) — ships nas node_* to VM on VPS

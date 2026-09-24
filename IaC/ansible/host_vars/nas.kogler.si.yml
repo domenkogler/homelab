@@ -27,3 +27,8 @@ nut_wake_charge: 80
 nut_wake_macs:
   oldsrv: "70:85:c2:2d:6f:04"
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
+
+# HD-361 — which vault item holds THIS host's Cockpit console password (roles/cockpit).
+# Per-host on purpose: one shared item would give two management consoles the same password.
+# Value lives only in 1Password; the host gets a sha512 crypt hash in /etc/shadow.
+cockpit_maint_vault_item: nas-cockpit_login

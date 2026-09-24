@@ -33,7 +33,9 @@
 #   plus the vault-canonical runner key (scripts/restore-runner-key.sh).
 #
 # HD-413: some legs refuse when this runner IS the target (network / storage /
-# wireguard / tailscale-node / vps-hardening). That is the guardrail, not a fault — the
+# wireguard / tailscale-node / vps-hardening / cockpit — the last one because HD-361 made
+# that role write /etc/pam.d, i.e. it can revoke the web console a converge is driven from).
+# That is the guardrail, not a fault — the
 # off-box path and the check-mode legs that stay open are in docs/deployment-ansible.md.
 #
 # RUNNER SELF-UPDATE (owner decision 2026-09-23, reversing this script's original

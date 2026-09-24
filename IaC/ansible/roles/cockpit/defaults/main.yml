@@ -1,0 +1,36 @@
+---
+# cockpit role defaults — HD-361 (the interactive login on the two managed hosts).
+#
+# The vault item is deliberately NOT defaulted here: it is per-host (there is no shared
+# secret between oldsrv and nas) and a wrong-or-missing value must stop the run rather than
+# quietly provision one host's password onto the other. Set it in host_vars; maint-user.yml
+# asserts it before anything credential-shaped happens.
+
+# The single Cockpit login account. `maint` never becomes a human account and never an SSH
+# account (todo.md HD-361 + HD-449's "domen: never for web" row).
+cockpit_maint_user: maint
+
+# Which group admits a Cockpit login. Enforced as an EXACT set (see maint-user.yml): a
+# membership added by hand on the box does not survive the next converge. Extra logins that
+# should also reach the console go in `cockpit_session_members` (a var edit, not a new task) —
+# the alternative is someone hand-editing /etc/group on a production box, which nothing will
+# ever repair.
+cockpit_maint_group: cockpit-session
+cockpit_session_members: ["{{ cockpit_maint_user }}"]
+
+# Owner decision 2026-09-21 (todo.md HD-361 §DECIDED): `maint` gets the `sudo` GROUP with NO
+# NOPASSWD — so the web-tty can reach root behind the same interactive password, and the
+# break-glass seat can actually break glass. Verified below rather than assumed: the converge
+# fails if any sudoers fragment hands `maint` a passwordless path. Set this to false to tighten
+# the seat to read-only; do NOT loosen it any further than "sudo group, password required".
+cockpit_maint_sudo_group: true
+
+# Run the real end-to-end console login (see maint-user.yml). Turn off only for a converge
+# where cockpit is known to be down and its absence must not fail the run.
+cockpit_maint_verify_login: true
+
+# Make the group the gate. See maint-user.yml §why-for-this-file: Debian's /etc/pam.d/cockpit
+# carries no group restriction whatsoever, so without this line "the group is the gate" is a
+# comment, not a control — and any local password holder gets a :9090 session (on oldsrv that
+# includes `domen`, who is in `sudo`). Flip to false only as a deliberate, temporary unlock.
+cockpit_maint_pam_gate: true
