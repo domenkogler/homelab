@@ -70,7 +70,9 @@ HOME_HOSTED = {  # oldsrv_home_ip home / dns_primary_ip VPS
     "prowlarr", "bazarr", "profilarr", "sab", "torrent", "llogs",
 }
 TAILNET = {"stats", "logs", "csui", "traefik", "auto"}
-# NOTE: `pi-oldsrv` is deliberately ABSENT from every set here. It is a
+# NOTE: `pi-oldsrv` is absent from every set here, and `cockpit-nas` is absent from TAILNET — but
+# not from this file entirely: the PLAIN `cockpit-nas.kogler.si` sits in LAN_ONLY above, and it is its
+# `.ts` twin that must never be seeded. Two names, two questions; do not "tidy" one into the other.
 # `tailnet_ts_only_subdomains` name (MagicDNS-only; headscale renders just the `.ts` twin), so it
 # has no Technitium record at all — a LAN answer for it would be a second door the owner did not
 # ask for. If a future change ever seeds it, that is a decision, not a tidy-up.

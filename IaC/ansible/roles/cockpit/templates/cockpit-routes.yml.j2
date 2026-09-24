@@ -8,6 +8,13 @@
 # synced wildcard pair from the DEFAULT store (traefik dynamic/tls.yml.j2).
 # Backends derived from the address SSOT `network_static_hosts` (Home VLAN 10) —
 # HD-188; no hardcoded IP literals.
+# The `*-ts` router below lands on the TAILNET listener (`websecure-ts`), which is declared by
+# docker_services/traefik-internal as `{{ tailnet_oldsrv_ip }}:443` — bound to oldsrv's own tailnet
+# address, never 0.0.0.0 (HD-405). Both files are read by the SAME Traefik instance (this one lands
+# in the file-provider dir it watches), so a router here may name an entrypoint defined there. When
+# `tailnet_oldsrv_ip` is empty the listener does not exist and neither does this router — that guard
+# is the reason, not decoration. Own login again means NO authentik-forward-auth on this path, and
+# it keeps crowdsec-only@file for the same §1 reason as its LAN sibling.
 http:
   routers:
     cockpit-nas:
@@ -26,6 +33,25 @@ http:
         - crowdsec-only@file   # bouncer only — own-login mgmt surface (HD-188/S17b)
       service: cockpit-oldsrv
       tls: {}
+{% if tailnet_oldsrv_ip is defined and tailnet_oldsrv_ip %}
+    # HD-361 (2026-09-24): the nas console over the tailnet, node-direct — the name an off-LAN admin
+    # can actually resolve, because the LAN sibling answers with a Home-VLAN address that is a black
+    # hole anywhere else. Reuses the `cockpit-nas` service above: one backend definition, two doors.
+    # Backend is plain HTTP on :9090 — re-measured on the live host before writing this, because the
+    # existing LAN routes had never carried a successful login and "wrong scheme here" would have
+    # looked exactly like "Cockpit is broken": cockpit-ws on these hosts answers 401 over BOTH
+    # http:// and https:// on 9090, so the three-week-old http:// precedent is correct and stays.
+    # `tls: true` (not `tls: {}`) copies the ts-listener house pattern (ha-ts); the wildcard pair
+    # from the default store covers `*.ts.kogler.si`.
+    cockpit-nas-ts:
+      rule: "Host(`cockpit-nas.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      middlewares:
+        - crowdsec-only@file   # same law as the LAN route; drop it here if the bouncer ever 403s a break-glass console
+      service: cockpit-nas
+      tls: true
+{% endif %}
 
   services:
     cockpit-nas:

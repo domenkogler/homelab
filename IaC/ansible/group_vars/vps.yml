@@ -328,6 +328,21 @@ tailnet_ts_only_subdomains:
   # edge, which Host-routes it over WG S2S to spark's own edge :443). The LAN answer is
   # unchanged: Technitium seeds `spark.kogler.si` = `spark_home_ip` on the HOME instances only.
   - { name: spark, ip: "100.64.0.1" }   # -> vps-obs edge -> db-spark-backend -> https://{{ spark_home_ip }}:443
+  # HD-361 (2026-09-24): the nas management console, away from home. `cockpit-nas.kogler.si` is
+  # LAN-ONLY in the seed (its answer is a Home-VLAN address, i.e. a black hole for a peer that is
+  # not at home — see LAN_ONLY in scripts/check_dns_seed_drift.py), so before this row an
+  # off-LAN admin had NO name for the nas console at all: the tunnel (`ssh -J vps -L 9090:…`) was
+  # the only path. A `.ts` twin needs no resolver to fight (HD-382/389 rule #1) and repoints
+  # nothing. `ip` defaults to `tailnet_oldsrv_ip`, i.e. oldsrv's own `websecure-ts` listener ->
+  # cockpit role's `cockpit-nas-ts` router -> nas:9090 over the Home VLAN.
+  # THE COUPLING, named out loud: this tailnet path DIES WITH OLDSRV. Accepted deliberately — the
+  # decoupled alternative is the VPS `traefik-tailnet` edge, which needs a NEW nftables/WG allow
+  # for VPS -> nas:9090 (measured blocked 2026-09-24: the route exists, nas:22 is allowed, :9090 is
+  # not) and the nas itself runs no edge by design. Note the LAN route already had this coupling:
+  # `/opt/traefik/dynamic/cockpit.yml` is rendered ONTO OLDSRV by the cockpit role, so when oldsrv
+  # left the network at 21:39:55 the healthy nas lost its console route too. If that ever stops
+  # being acceptable, the fix is `ip: tailnet_sidecar_ip` + the firewall allow + an edge-side router.
+  - { name: cockpit-nas }  # -> oldsrv tailnet node -> cockpit role `cockpit-nas-ts` -> nas:9090
 
 # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
