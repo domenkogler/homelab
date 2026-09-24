@@ -300,10 +300,12 @@ The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and t
   the owner's own remote development does not stop when the VPS does, and it is possible because
   [network.md](network.md) §WAN is a **static public IPv4** — P2P is available and we had been routing around it.
 
-**The one host on the tailnet is `oldsrv`** (node `oldsrv`, `tag:dev`, headscale node id 11, joined by
-`roles/tailscale-node`). Pi and NAS are still off the tailnet. The scope is enforced, not intended:
+**The host on the tailnet is `oldsrv`**, and **the Pi joins it once HD-435 lands — the owner approved the
+second node and its grant on 2026-09-25** (this is a widening, decided, so the next session does not read it
+as drift). Node `oldsrv`, `tag:dev`, headscale node id 11, joined by `roles/tailscale-node`; the NAS stays
+off. The scope is enforced, not intended:
 no `--advertise-routes` (so `headscale routes list` stays empty and no home subnet is reachable from the
-tailnet at all), no exit node (§Exit-node stays the Pi — HD-408 is an open owner call), no Tailscale SSH,
+tailnet at all), no exit node (§Exit-node stays the Pi — HD-408 decided 2026-09-21, row deleted), no Tailscale SSH,
 `--accept-dns=false` (oldsrv *runs* a Technitium instance; a DNS takeover would put a resolver in front of
 the tier it serves), and the ACL admits **`tag:dev:443`** plus **one DNS rule** — `udp 53` to that node's own
 address, written on the address rather than on the tag so a second `tag:dev` node cannot inherit a resolver
@@ -311,6 +313,12 @@ grant (HD-415, 2026-09-22; docs/network-dns.md §The resolution requirement). Po
 not `:*` on the box that holds the vault token — and no TCP/53, no other port, nothing by tag. The boundary's
 purpose survives on purpose: Shelly/KNX/IoT/guest stay
 non-tailnet-reachable, and VLAN 99 keeps its seal (HD-398 decision A).
+
+**⚠ The one thing HD-435 must get right while implementing:** `443` is granted **by tag**, so whatever tag the
+Pi's node lands with decides everything it can be reached on — joining it as `tag:dev` widens every existing
+`tag:dev` rule to a second box (including the DNS-tertiary host), while a dedicated tag keeps the grant to
+exactly the `ha.kogler.si` listener that motivated the row. Pick the tag deliberately, and keep the `udp 53`
+rule address-scoped so the Pi cannot become a tailnet resolver by accident.
 
 Because a preauth-key node lands in headscale's synthetic `tagged-devices` user rather than the owner's
 user, `dst: ["domen@kogler.si:*"]` cannot reach it — the ONLY path in is the explicit `tag:dev:443` rule in

@@ -184,9 +184,21 @@ point of listing them is that the first one people reach for does NOT prove it:
    what it can do, but records no address, no network (VLAN 10 / VLAN 99 / tailnet?), no account, and no
    reachability check from off-site. Until that is written down, "use the KVM" cannot be executed by a
    session or by the owner from a phone — tracked as **HD-454**, which also asks whether a device that can
-   hard-power a production host belongs on a user VLAN un-gated.
+   hard-power a production host belongs on a user VLAN un-gated. ⚠ **The conditional that decides whether
+   "from anywhere" is even true:** if the Comet sits on VLAN 99, then **HD-398 decision A seals it to
+   same-site** and there is no off-site path to the reset button at all, so a hung oldsrv waits for a human
+   at home; if it is on VLAN 10 or a tailnet node, the seal does not apply and the gap is only that nobody
+   wrote the path down. HD-454 must measure which, not assume either — the answer is a one-line `ip neigh`
+   / ARP lookup against the KVM's address.
 3. HD-06's `nut-wake.timer` is NOT a rescue path: it arms only after a NUT-initiated powerdown and
    recharge, so it cannot wake an unscheduled drop.
+
+**Registered as HD-455** (P1) — a measured fault with an owning doc but no backlog row is invisible to every
+lane, and the tail behind this box is long: the home edge, `cockpit-oldsrv`, the nas cockpit's tailnet name
+(rendered onto oldsrv by the cockpit role), the control node, the pinned-AI tier, HD-442, HD-443's oldsrv
+placements and the HD-419-class 502s all wait here. **The wake path is spent** (2026-09-24, above), so what
+recovery needs is not another packet but the answer HD-454 owes: an executable off-site power path, or an
+explicit decision that a hung oldsrv waits for a human at home.
 
 **Consequence for the fleet:** a down oldsrv takes the home edge with it — including the nas's own
 Cockpit route, because `/opt/traefik/dynamic/cockpit.yml` is rendered onto oldsrv by the cockpit role.

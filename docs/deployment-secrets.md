@@ -496,18 +496,27 @@ Three independent ED25519 keys, one per purpose. Separate keys = revoke/rotate o
 
 | Key (1Password item) | Authorized user on hosts | Access level |
 |----------------------|--------------------------|--------------|
-| `laptop-domen_ssh` (private: personal) | `ansible-admin` | Full (NOPASSWD sudo) |
-| `ansible-admin_ssh` | `ansible-admin` | Full (NOPASSWD sudo) |
-| `ai_ssh` (private maps to `openrouter_ai`) | `ai-debug` | Debug only — no sudo, LAN-only, no forwarding |
+| `domen_ssh` — ⏳ rename from `laptop-domen_ssh` is **HD-443** (1P item + the four script references land in one change; every reference below keeps the old name until it does) | `domen`, on **every** node | Human seat. Proposed shape: `sudo` group, **password-required, no NOPASSWD**, credential in a `domen_login` item (the HD-361 break-glass precedent) |
+| `ansible-admin_ssh` | `ansible-admin`, on **every** node | Full (NOPASSWD sudo) — the converge key, and the only account IaC needs |
+| `ai_ssh` (private maps to `openrouter_ai`) | `ai-debug`, on **every** node | Debug only — **no sudo group, no 1Password/op access**, LAN-only, no forwarding |
+
+**Decided 2026-09-25 (HD-443), and this table's shape is the decision, not an observation:** the human key
+becomes an **account** (`domen`) rather than a second key under the automation account; the AI account is
+fleet-wide with no sudo; the Pi uses the same `ansible-admin` shape as every other host. The item rename
+`laptop-domen_ssh` → `domen_ssh` is the owner's click; the scripts and these rows move in the same window
+(item and scripts must never diverge, or every bootstrap path breaks mid-flight).
 
 **Not "the same keys everywhere" — measured per host (2026-09-22 sweep, `scripts/check_ssh_grants.py`).**
-The three vault keys do **not** all ride on every host: `ansible-admin_ssh` is on all five managed
+The three vault keys did **not** all ride on every host: `ansible-admin_ssh` is on all five managed
 hosts; `laptop-domen_ssh` is on nas · oldsrv · spark · vps but **not the Pi**; `ai_ssh` is on
-nas · oldsrv only, and only as `ai-debug`. Nothing from this table is authorized on the HA guests
-(`haos-vm-1`, `haos-mininta`) are **NOT swept and their grant state is unknown, not clean** — the short
-names do not resolve from any host I can drive (`ssh ansible-admin@haos-vm-1` → "Could not resolve
-hostname"), so they are outside the sweep set until an address or alias is named for them (HD-416
-tail). Placement and verdicts live in one place: §Who is authorized where below, machine-checked.
+nas · oldsrv only, and only as `ai-debug`. **⚠ That is the measured state, and the gap between it and the
+table above is live drift, not a decision** — the fleet-wide `domen` / `ai-debug` placement is owed by
+HD-443's IaC work, and today **no role owns the user+key layout** (preseed and `first-boot-config.sh`
+write it once, imperatively), which is why it drifted at all. No vault key is authorized on the HA guests.
+The guests (`haos-vm-1`, `haos-mininta`) are **not swept** — their short names do not resolve from any host
+the sweep can drive (`ssh ansible-admin@haos-vm-1` → "Could not resolve hostname"), and **the owner accepted
+that scope on 2026-09-25**: they are outside the audit set, which is a declared limit, **not** a clean bill
+(HD-416 tail). Placement and verdicts live in one place: §Who is authorized where below, machine-checked.
 
 **AI access is safe because it is a different user.** The AI key can never log in as `ansible-admin` (which has passwordless root). The `ai-debug` authorized_keys line is injected by `post_install.sh`:
 
@@ -553,9 +562,9 @@ sweeping every host. Fingerprints only, never key material (CONVENTIONS §6):
 
 | Fingerprint | Identity | Where authorized | Verdict |
 |---|---|---|---|
-| `XTmK3tR…` | `laptop-domen_ssh` | nas · oldsrv · spark · vps → `ansible-admin` | vault-issued, live. **spark was not named 2026-09-21** — measured present 2026-09-22; name it or revoke it (HD-416 tail) |
-| `1uKzmwf…` | `ansible-admin_ssh` | every managed host → `ansible-admin`, **plus pi → `admin`** | vault-issued, the converge key (30 accepted logins on nas in 2 days). **⚠️ the `admin` account on the Pi (uid 1000, `/etc/sudoers.d/admin` = `NOPASSWD:ALL`) holds this key too and was named nowhere** — HD-416 tail |
-| `Ug788c…` | `ai_ssh` | nas · **oldsrv** → `ai-debug` | vault-issued, scoped by HD-51. **oldsrv not named 2026-09-21, measured present 2026-09-22** — same call: name or revoke |
+| `XTmK3tR…` | `laptop-domen_ssh` | nas · oldsrv · spark · vps → `ansible-admin` | vault-issued, live. **✅ Decided 2026-09-25: fleet-wide, but under `domen`, not `ansible-admin`** — spark is sanctioned as the `domen` seat; the item renames to domen_ssh and moving the key off `ansible-admin` is HD-443's IaC step |
+| `1uKzmwf…` | `ansible-admin_ssh` | every managed host → `ansible-admin`, **plus pi → `admin`** | vault-issued, the converge key (30 accepted logins on nas in 2 days). **✅ Decided 2026-09-25: `ansible-admin` is the Pi's admin surface.** ⚠ The second placement — `admin` on the Pi (uid 1000, `/etc/sudoers.d/admin` = `NOPASSWD:ALL`) — is **not** needed by IaC (`host_vars/pi.kogler.si.yml` sets `ansible_user: ansible-admin`), so it stays **UNRESOLVED on purpose**: recommended disposition is the key comes off `admin` (or the account is removed), pending the owner's confirm; nothing is removed until `ansible-admin` on the Pi is proven to log in (HD-413 lockout set) |
+| `Ug788c…` | `ai_ssh` | nas · **oldsrv** → `ai-debug` | vault-issued, scoped by HD-51. **✅ Decided 2026-09-25: sanctioned on every node** (`nas · oldsrv · pi · spark · vps`), no sudo, no op access; the `restrict,…,from=` options stay. Extending it to pi/spark/vps is HD-443 work |
 | `DxoZeGK…` | `ha-sync@pi.kogler.si` | oldsrv · vps | hand-made, live (HA failover + cert pull), **no vault item** |
 | `VX0TbLr…` | `traefik-cert-sync@oldsrv.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
 | `7ZuAhqI…` | `traefik-cert-sync@spark.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
@@ -571,7 +580,8 @@ on a host the table does not name) and `AMBIGUOUS` (two identities matching one 
 guessed away). `--self-test` scores fixtures offline, including the false readings the live run
 caught in the checker itself; `--dump` keeps a dated capture. Run it before and after any grant
 change; it revokes nothing. The sweep set is the five managed hosts (`nas`, `oldsrv`, `pi`, `spark`,
-`vps`) — **the HA guests are not in it and are therefore unaudited, which is a hole, not a pass**.
+`vps`) — **the HA guests are not in it and are therefore unaudited**; the owner accepted that scope
+on 2026-09-25 (HD-443), and the acceptance changes the *wording*, not the truth: unaudited ≠ clean.
 
 **Two claims this sweep disproved** (both were written as fact and both were wrong): "the same three
 keys are authorized on **every** homelab host" — pi carries ONLY `ansible-admin_ssh`, and no vault
