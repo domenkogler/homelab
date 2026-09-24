@@ -97,10 +97,21 @@
     shell: /bin/bash # the web-tty is Cockpit's whole point; a nologin shell would kill it
     home: "/home/{{ cockpit_maint_user }}"
     create_home: true
-    home_mode: '0750'
     groups: "{{ [cockpit_maint_group] + (['sudo'] if cockpit_maint_sudo_group | bool else []) }}"
     append: false # exact set: drops any membership added by hand on the box
     password: "{{ cockpit_maint_hash.stdout | trim }}"
+
+- name: HD-361 | Enforce the seat's home mode (0750, owned by the seat itself)
+  # Own task because `home_mode` is NOT a `user` parameter — live: this converge died on nas with
+  # "Unsupported parameters for (ansible.builtin.user) module: home_mode", which --syntax-check
+  # cannot see (module args are validated at runtime, not at parse time). `create_home` also only
+  # applies on first creation, so a home a human chmod'd would otherwise keep that mode forever.
+  ansible.builtin.file:
+    path: "/home/{{ cockpit_maint_user }}"
+    state: directory
+    owner: "{{ cockpit_maint_user }}"
+    group: "{{ cockpit_maint_user }}"
+    mode: '0750'
 
 - name: HD-361 | Add any additional console logins to the gate group
   ansible.builtin.user:
@@ -113,9 +124,14 @@
 # --- the control itself ------------------------------------------------------------------------------
 - name: HD-361 | Confirm the PAM module exists before referencing it
   ansible.builtin.shell:
-    cmd: ls /lib/x86_64-linux-gnu/security/pam_succeed_if.so /usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so
+    cmd: >-
+      ls /usr/lib/x86_64-linux-gnu/security/pam_succeed_if.so
+         /lib/x86_64-linux-gnu/security/pam_succeed_if.so 2>/dev/null | head -n1
   register: cockpit_pam_module
-  failed_when: cockpit_pam_module.rc != 0
+  # Fail on the ANSWER, not the exit code: `ls` exits non-zero when either candidate path is
+  # absent, and one of these two is always the symlink — so an rc check fails a perfectly healthy
+  # host. What must hold is that the module exists somewhere.
+  failed_when: cockpit_pam_module.stdout | length == 0
   changed_when: false
   when: cockpit_maint_pam_gate | bool
 
@@ -169,9 +185,15 @@
   changed_when: false
   become: true
 
-- name: HD-361 | Read back the gate line and its position in the auth stack
+- name: HD-361 | Read back the gate line and the password stack as line numbers
+  # Two numbers: <gate line> <common-auth line>. Resolved on the target rather than indexed in
+  # Jinja, because `.0` on an empty list ERRORS and `default()` only catches undefined — an absent
+  # gate would have blown up the assert instead of failing it with a readable message.
   ansible.builtin.shell:
-    cmd: grep -nE '^auth' /etc/pam.d/cockpit
+    cmd: |
+      gate=$(grep -nE '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\b' /etc/pam.d/cockpit | head -n1 | cut -d: -f1)
+      pass=$(grep -nE '^auth\s+(substack|include)\s+common-auth\b' /etc/pam.d/cockpit | head -n1 | cut -d: -f1)
+      printf '%s %s\n' "${gate:-none}" "${pass:-none}"
     executable: /bin/bash
   register: cockpit_pam_stack
   changed_when: false
@@ -218,9 +240,11 @@
   ansible.builtin.assert:
     that:
       # 1. the group set is EXACTLY the decided one — gate group (+ sudo) + primary, nothing else
+      #    Parenthesised on purpose: `a + b | sort` parses as `a + (b | sort)`, which would have
+      #    compared a 3-element list against a sorted 1-element list and failed a correct host.
       - (cockpit_maint_id.stdout.split() | sort)
-        == ([cockpit_maint_group, cockpit_maint_user]
-            + (['sudo'] if cockpit_maint_sudo_group | bool else []) | sort)
+        == (([cockpit_maint_group, cockpit_maint_user]
+             + (['sudo'] if cockpit_maint_sudo_group | bool else [])) | sort)
       # 1b. sudo, if granted, is password-required: no passwordless path for a console identity
       - ('NOPASSWD' not in (cockpit_maint_sudo.stdout | default('')))
         or not (cockpit_maint_sudo_group | bool)
@@ -229,13 +253,16 @@
       # 3. SSH is still gated by AllowUsers, and maint is not in it
       - (cockpit_sshd_config.stdout | regex_findall('(?im)^allowusers[[:space:]]+(.*)$') | join(' ')).strip() | length > 0
       - cockpit_maint_user not in (cockpit_sshd_config.stdout | regex_findall('(?im)^allowusers[[:space:]]+(.*)$') | join(' ')).split()
-      # 4. the gate is present AND ordered before the password stack actually runs
-      - (cockpit_pam_stack.stdout | regex_findall('(?m)^(\d+):auth.*' ~ cockpit_maint_group)).0 | default('9999') | int
-        < (cockpit_pam_stack.stdout | regex_findall('(?m)^(\d+):auth\s+(substack|include)\s+common-auth')).0 | default('0') | int
+      # 4. the gate EXISTS, the password stack is FOUND, and the gate runs BEFORE it
+      - (cockpit_pam_stack.stdout.split() | length) == 2
+      - (cockpit_pam_stack.stdout.split() | first) != 'none'
+      - (cockpit_pam_stack.stdout.split() | last) != 'none'
+      - ((cockpit_pam_stack.stdout.split() | first) | int) < ((cockpit_pam_stack.stdout.split() | last) | int)
     fail_msg: >-
       maint verification failed on {{ inventory_hostname }}. Groups were
-      [{{ cockpit_maint_id.stdout }}]. The usual meanings: a sudo/docker entry in that list =
-      the exact-set contract broke; NOPASSWD in that sudo -l output = a fragment somewhere
+      [{{ cockpit_maint_id.stdout }}]. The usual meanings: 'none' in the PAM line numbers = the
+      gate never landed, or the stack has no common-auth line to order it against, i.e. it is
+      inert; a sudo/docker entry in that list = the exact-set contract broke; NOPASSWD in that sudo -l output = a fragment somewhere
       granted a passwordless root path to a console identity, which the 2026-09-21 decision
       forbids; a hash mismatch = the vault value and the host disagree
       (rotate deliberately, do not "fix" one side); a bad ordering = the gate line landed after
