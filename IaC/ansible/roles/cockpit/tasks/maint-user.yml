@@ -51,6 +51,24 @@
     success_msg: "provisioning {{ cockpit_maint_user }} from {{ cockpit_maint_vault_item }}"
   changed_when: false
 
+# Read on the CONTROL node, once, into a fact. This task is the whole reason the leg can be
+# idempotent and the reason the leg cannot run without the vault: `community.general.onepassword`
+# is the house pattern for host roles (see roles/cloudflare_dns), and it fails closed — an
+# unreadable vault aborts here rather than provisioning an empty password into /etc/shadow.
+# DELETED ONCE by a bad string slice of mine (a non-unique `fail_msg` anchor swallowed it) and the
+# file still parsed, still linted, and failed at the NEXT task with an undefined fact — so if this
+# block ever moves, re-run the converge: nothing else in the toolchain notices its absence.
+- name: HD-361 | Read the maint password from 1Password (control node, fail-closed)
+  ansible.builtin.set_fact:
+    cockpit_maint_password: >-
+      {{ lookup('community.general.onepassword', cockpit_maint_vault_item,
+                field='password', vault=op_vault) }}
+  delegate_to: localhost
+  become: false
+  run_once: true
+  no_log: true
+  changed_when: false
+
 - name: HD-361 | Refuse to provision from an empty or absurdly short vault value
   ansible.builtin.assert:
     that:
