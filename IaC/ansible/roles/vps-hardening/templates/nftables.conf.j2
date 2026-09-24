@@ -69,7 +69,7 @@ table inet filter {
         meta l4proto icmpv6 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } ip6 saddr fe80::/10 accept
         meta l4proto icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
         meta l4proto icmpv6 icmpv6 type echo-request accept
-        ip6 nexthdr 0 ip6 saddr fe80::/10 accept
+        ip6 nexthdr 0 ip6 saddr fe80::/10 accept comment "MLD: nexthdr 0; nft lists this value as 'ip' (IPPROTO_IP) - it is NOT IPv4"
 
         # Docker containers that publish host ports — RustDesk (HD-412) is the FIRST exception to
         # the old "none expected by policy (compose uses traefik-public only)" note: hbbs/hbbr run

@@ -131,12 +131,23 @@ ICMPv6 RS/RA accepts carrying real RAs. Counters reset only at reboot or on the 
 
 **The external matrix (the honest acceptance test) — and why it was not closed on 2026-09-22.** The intended
 probe is a scratch TCP listener on oldsrv (`[::]:18099`) plus a *temporary* v6 accept above the WAN drop, then
-`curl -6` from an off-net v6 host and check the router's byte counters. ⛔ **This repo has no off-net IPv6 host
-right now:** the VPS has a GUA (`2a0a:4cc0:60:fcc:…`) and a v6 default route, but `ping6` to the home GUA and to
-`2606:4700:4700::1111` are both 100 % loss, `curl -6` never connects, and no ip6 nftables ruleset is visible —
-netcup's v6 route is not actually working on that box. So the probe was run against itself and returned nothing.
-⛔ **Do not close the row on that** — an untested hole is not a proven-closed hole. Re-run it from a host with
-working v6 (a phone's carrier network counts: LTE UEs get a GUA), or fix the VPS's v6 first.
+`curl -6` from an off-net v6 host and check the router's byte counters. **The probe host now exists again.** The
+VPS was unusable for this (`ping6` 100 % loss, `curl -6` never connecting) and the cause was recorded here as
+"netcup's v6 route is not actually working on that box" — **it was not netcup** (HD-448, 2026-09-24): the VPS's
+own `input` chain is an `inet` table whose only ICMP accept was `ip protocol icmp`, the IPv4 upper-protocol
+field, so under `policy drop` it discarded the provider router's NA/RA replies and no v6 nexthop could ever
+resolve. Fixed in `roles/vps-hardening/templates/nftables.conf.j2`; the same v6 root server now answers at
+sub-ms RTT and TLS over v6 connects.
+🔬 **How the blame was settled — the reusable part:** a *counter-only* rule (`nft insert rule inet filter input
+ip6 nexthdr icmpv6 counter`) carries no verdict, so it cannot change behaviour, and it counts packets that
+**arrived at our hook**. Nine arrived, while `nstat Icmp6InNeighborAdvertisements` stayed 0 — because the
+netfilter verdict runs *before* the ICMPv6 handler. Arrive + not delivered ⇒ ours. The home punch test (`a7fb1c6`)
+used the same shape and came out the other way: nothing arrived at all, so *that* block is upstream. ⚠ **A
+logger's silence is not evidence until the logger is proved**: the VPS drop-log is rate-limited to 5/minute and
+was saturated (50 lines in 10 min), which is precisely when a counter beats a log.
+⛔ **Still do not close the home row on a self-directed probe** — an untested hole is not a proven-closed hole.
+The same standard applies to HD-448 itself: outbound v6 from the VPS is measured, but no external v6 peer has
+connected *to* that box yet, so its inbound half stays open.
 ⚠ **Scratch rule hygiene** (this is what `routeros-apply-delta.sh` comments are for): a temporary accept **must
 sit above the drop** (below it, it does nothing and the test result is a lie), **must be `dst-port`-scoped**
 (otherwise the first packet of a *scan* matches, the conntrack entry then admits the real target, and the matrix

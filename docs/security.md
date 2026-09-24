@@ -226,6 +226,14 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md). **Tracked: HD-160.
 - **Published-port bypass (S1, HD-186):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **Implemented (decided HD-204): no public publishes** — authentik's all-interfaces LDAP `3389` publish was removed; the outpost binds only the WG S2S address (prometheus/loki precedent), and Samba (nas, the client) pulls over the tunnel. Verify row added to the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. **HD-186. ✅ IaC; ⏳ live-verify at deploy.**
 - **DNS primary published-port gate:** the Technitium `53:53` publish is the ONE intentionally-public host publish (the LAN/tailnet resolver is the VPS public IP, HD-299). Because input default-deny cannot see published-port traffic (same S1 bypass as above), the `:53 → {{ tchnitium_dns_overlay_ip }}` forward path is **source-restricted in the nftables FORWARD chain** (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — a FORWARD drop is authoritative over Docker's accept (proven by the 2026-08-23 isolation incident). Template `vps-hardening/templates/nftables.conf.j2`; apply `playbooks/vps.yml --tags hardening`. Same allow-set as the input rules. **SSOT doc: `network-dns.md`; security: this §8.**
   `/etc/nftables.conf` (nftables, input policy drop). Committed as executable checklist, not prose. **HD-154. ✅ enforced.**
+- **IPv6 stateless control traffic (HD-448, live 2026-09-24)** ✅ — an `inet` table under `policy drop` that accepts
+  only `ip protocol icmp` (IPv4 upper-proto field) silently discards IPv6 NDP/MLD/PMTUD: the host cannot see its
+  own neighbour replies, so IPv6 fails in *both* directions while every v4 rule reads correct. The accepts are
+  stateless and (for ND) link-local-scoped, so they open **no** service surface. ⚠ **The consequence is a
+  decision, not a detail:** the `:22`, `:443`, `:51820` and RustDesk accepts are family-agnostic, so they have
+  been IPv4-only *in practice* only while NDP was broken — they are reachable over v6 from the moment it works.
+  Confirm that parity or scope them `meta nfproto ipv4`; the `ip saddr …` rules (the DNS allow-set, the wg-s2s
+  scoping) stay IPv4-only by the shape of the match itself. **⏳ owner verdict outstanding — tracked: HD-448.**
 - **SSO on VPS admission** ✅ — the netcup `post_install.sh` SSH config matches the preseed defaults; root-login
   disabled, per-host keys (Domen + Ansible), no `ai-debug` on a public box
   (see [deployment-preseed.md](deployment-preseed.md) → VPS Deviations). **HD-154. ✅ enforced.**

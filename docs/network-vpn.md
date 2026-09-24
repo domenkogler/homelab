@@ -477,9 +477,13 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > apart; the socket a peer must reach is 41641. ⛔ **The one number that decides HD-406/HD-410 is still
 > unmeasured:** whether the phone on cellular now negotiates **Direct**. That is a 3-minute owner measurement
 > (`tailscale ping <oldsrv's tailnet address, SSOT `tailnet_oldsrv_ip`>` over LTE + the app's session-type line, with `/ipv6 firewall filter print stats`
-> before/after on the router). ⛔ And note for any future off-site v6 probe: the **VPS cannot take it** — it has a
-> GUA and a v6 default route but no working IPv6 (100 % `ping6` loss to the home GUA and to Quad1111, `curl -6`
-> no connect, no ip6 nft ruleset) — see [network-ops.md](network-ops.md) §IPv6.
+> before/after on the router). ✅ **Corrected 2026-09-24 (HD-448): the VPS can take a v6 probe now.** It had a GUA
+> and a v6 default route but no working IPv6, and this file attributed that to the provider; it was our own
+> `vps-hardening` input chain discarding the router's NDP replies (`ip protocol icmp` is the IPv4 upper-proto
+> field, so everything v6 met `policy drop`). Fixed and measured live, so the VPS is usable as the off-net v6
+> probe host again. **The punch conclusion does not move:** the two live causes are the phone leg (carrier NAT —
+> upstream, proven by the counter test) and the VPS `tailscale-sidecar`'s ephemeral listen sockets, and neither is
+> a firewall rule. Method + the counter technique: [network-ops.md](network-ops.md) §IPv6.
 >
 > 📡 **Measured 2026-09-22 (owner's phone on cellular, plus the reciprocal test from oldsrv): IPv6 did NOT make the
 > away session direct.** Phone→oldsrv **relayed via FRA, 70–90 ms**; phone→VPS **relayed via NUE, 50–70 ms**;
