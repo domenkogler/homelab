@@ -29,7 +29,8 @@
 >   at a brief that is gone. **The gates the lane hit became rows** — 442 deleted op service account,
 >   443 three SSH-grant verdicts keeping the new gate red, 444 the phone has never driven the cockpit, 445 no role owns
 >   the cockpit's unit files, 446 no bare-Debian pi installer, 447 Metabase Authentik objects plus a dormant item, 448 the
->   VPS has no working IPv6, 449 pull-only promise plus a leftover key backup — and one defect was minted by measurement
+>   VPS's IPv6 (only the inbound probe and the v6 parity verdict are still work — the outage itself was fixed live
+>   2026-09-24), 449 pull-only promise plus a leftover key backup — and one defect was minted by measurement
 >   rather than design (440: every `docker_services` converge restarts a healthy service). Nothing here re-decides
 >   anything; each row names the gate that produced it.
 
