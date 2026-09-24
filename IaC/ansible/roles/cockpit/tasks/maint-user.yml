@@ -146,12 +146,48 @@
   failed_when: cockpit_pam_anchor.rc != 0
   when: cockpit_maint_pam_gate | bool
 
+- name: HD-361 | Strip any malformed earlier variant of the gate line
+  # Must run BEFORE the lineinfile: that task's regexp is end-anchored (`\s*$`), so it will not
+  # recognise the line this leg first wrote on nas — `... cockpit-session quiet_use_uid # HD-361:
+  # the group is the gate` — and would have happily inserted a second, correct rule underneath the
+  # broken one. Two rules, the first of which is `requisite` and fails to parse, means the fix
+  # changes nothing. Anything in this family that carries trailing junk is removed here; the
+  # canonical single line is then written by the task below.
+  ansible.builtin.replace:
+    path: /etc/pam.d/cockpit
+    regexp: '(?m)^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}(?!\s*$).*$\n'
+    replace: ''
+  when: cockpit_maint_pam_gate | bool
+
 - name: HD-361 | Make {{ cockpit_maint_group }} the gate for every Cockpit login
+  # NO trailing comment and NO options on this line — learned the hard way on nas. A PAM file has
+  # no trailing-comment syntax: every token after the module name is an ARGUMENT, so the
+  # provenance comment I first wrote here was parsed as more condition tokens and pam_succeed_if
+  # answered `incomplete condition detected`. Under `requisite` that becomes PAM_MODULE_ERROR ->
+  # cockpit-ws HTTP 500 {"problem":"internal-error","message":"Error in service module"} for
+  # EVERY user — the deny-everyone failure mode the guard header warns about, produced by the very
+  # change that was supposed to add a login. So the rule line stays machine-minimal and the
+  # provenance goes on its own comment line, in its own task: lineinfile replaces the entire line
+  # its regexp matches, so one task writing a 3-line block would duplicate the comment every
+  # converge. The regexps are anchored to end-of-line for the same reason — a stale line carrying
+  # trailing junk must be replaced, not treated as already-correct.
   ansible.builtin.lineinfile:
     path: /etc/pam.d/cockpit
-    regexp: '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\b'
-    line: "auth     requisite  pam_succeed_if.so user ingroup {{ cockpit_maint_group }} quiet_use_uid # HD-361: the group is the gate"
+    regexp: '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\s*$'
+    line: "auth     requisite  pam_succeed_if.so user ingroup {{ cockpit_maint_group }}"
     insertbefore: '^auth\s+required\s+pam_sepermit\.so'
+    firstmatch: true
+    mode: '0644'
+  when: cockpit_maint_pam_gate | bool
+
+- name: HD-361 | Label the gate line so a future human knows who owns it
+  # Directly above the rule. Without it the line reads as an unexplained restriction in a file
+  # nobody owns, and the third person to find it deletes it.
+  ansible.builtin.lineinfile:
+    path: /etc/pam.d/cockpit
+    regexp: '^# homelab:HD-361 cockpit gate$'
+    line: "# homelab:HD-361 cockpit gate - only {{ cockpit_maint_group }} members may log in; owned by roles/cockpit"
+    insertbefore: '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\s*$'
     firstmatch: true
     mode: '0644'
   when: cockpit_maint_pam_gate | bool
@@ -191,7 +227,7 @@
   # gate would have blown up the assert instead of failing it with a readable message.
   ansible.builtin.shell:
     cmd: |
-      gate=$(grep -nE '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\b' /etc/pam.d/cockpit | head -n1 | cut -d: -f1)
+      gate=$(grep -nE '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\s*$' /etc/pam.d/cockpit | head -n1 | cut -d: -f1)
       pass=$(grep -nE '^auth\s+(substack|include)\s+common-auth\b' /etc/pam.d/cockpit | head -n1 | cut -d: -f1)
       printf '%s %s\n' "${gate:-none}" "${pass:-none}"
     executable: /bin/bash
@@ -227,14 +263,52 @@
     status_code: 200
     timeout: 20
   register: cockpit_maint_login
-  no_log: true
+  no_log: true            # the Basic header carries the vault password
+  changed_when: false
+  failed_when: false      # diagnose in the SAME run, below — see why this matters
+  status_code: [200, 401, 403, 500]
+  when:
+    - not (ansible_check_mode | bool)
+    - cockpit_maint_verify_login | default(true) | bool
+  retries: 4
+  delay: 5
+  until: cockpit_maint_login.status | default(0) == 200
+
+# no_log is what the probe needs and what makes its failure unreadable: the first real run of
+# this leg failed with `{"attempts": 3, "censored": "the output has been hidden..."}` and left me
+# to go reproduce the request through an SSH tunnel to learn it was an HTTP 500. So the failure
+# path now prints the two things that actually diagnose it, NEITHER of which is secret: what
+# cockpit answered, and the last PAM lines from the journal. That is how the malformed gate line
+# was found (`pam_succeed_if: incomplete condition detected`) instead of guessed at.
+- name: HD-361 | Show what the console answered and what PAM said about it
+  ansible.builtin.shell:
+    cmd: |
+      echo "cockpit-ws answered: status={{ cockpit_maint_login.status | default('no response') }} problem={{ cockpit_maint_login.json.problem | default('-') }} message={{ cockpit_maint_login.json.message | default('-') }}"
+      echo "--- last cockpit/PAM lines on the host ---"
+      journalctl --no-pager -n 200 --since "-3 minutes" 2>/dev/null | grep -iE "pam_.*cockpit|cockpit-session|cockpit-ws|pam_succeed_if" | tail -6 || echo "(journal not readable without privilege here)"
+    executable: /bin/bash
+  register: cockpit_maint_probe_diag
   changed_when: false
   when:
     - not (ansible_check_mode | bool)
     - cockpit_maint_verify_login | default(true) | bool
-  retries: 3
-  delay: 5
-  until: cockpit_maint_login.status | default(0) == 200
+    - (cockpit_maint_login.status | default(0)) != 200
+
+- name: HD-361 | Fail unless the console actually opened for {{ cockpit_maint_user }}
+  ansible.builtin.assert:
+    that:
+      - (cockpit_maint_login.status | default(0)) == 200
+    fail_msg: >-
+      Cockpit did NOT open for {{ cockpit_maint_user }} on {{ inventory_hostname }} (status
+      {{ cockpit_maint_login.status | default('no response') }} /
+      {{ cockpit_maint_login.json.problem | default('-') }}). Read the PAM lines printed by the
+      task above — 401 means the credential or the group gate, 500 means the PAM line itself is
+      malformed (it is being parsed as module arguments), no response means cockpit is not
+      listening on 9090. This is the row's acceptance test; leaving it green without this is how
+      HD-361 sat "done but unusable" for days.
+  when:
+    - not (ansible_check_mode | bool)
+    - cockpit_maint_verify_login | default(true) | bool
 
 - name: HD-361 | Verify the account, the group set, the credential and the two gates
   ansible.builtin.assert:
