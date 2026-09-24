@@ -7,49 +7,11 @@
 > is a view, not a second record) and **must be re-synced whenever the backlog changes**.
 > **Linked from:** [`todo.md`](todo.md) · [`prompt.md`](prompt.md) · [`README.md`](README.md) · [`scripts/README.md`](scripts/README.md)
 >
-> **Re-synced 2026-09-22, third pass — the done-item sweep.** What moved:
-> - **If a commit says it is finished, it now leaves the views** (CONVENTIONS §4(a)). **HD-375 is deleted on the
->   owner's call** — both spark host-memory OOM rules are live in the ruler and the Grafana-UI + n8n confirmation is
->   taken, record [observability.md](docs/observability.md) §Alerting. Also gone from `todo.md`: the **duplicated
->   struck HD-181** row (done + superseded, and the two copies were byte-identical — the exact table-corruption
->   class HD-417 registers), **HD-382** (its only tails were HD-383 and HD-384, which have their own rows),
->   **HD-385** (both premises failed, every item closed by measurement or shipped with the pinned-AI lane — the
->   research record is [services-ai.md](docs/services-ai.md) §9c and its two non-actions are
->   [hardware-gpu.md](docs/hardware-gpu.md) §CWSR), the **closed 2026-09-04 network packages A/B/C/D/F** (every row
->   they folded is deleted) and the five closed owner items in §2.1b. §A2/§D lost the phone re-measure row — it
->   RAN, and so did the 60-second discriminator — and **HD-412 moved from §B to §D**: its server is LIVE, only the
->   two enrolment sessions wait on a human at each end.
-> - **The question queue emptied.** §A became a record of 17 decisions (cockpit surface and seat, the exit node,
->   the scoped-consumer grant, the git-credential shape, the OWUI split, the resolver chain, and more), each pointing
->   at its `*-rejected.md` row. §A2 is what is actually left of the owner: logins, a sideload, and physical windows.
-> - **2026-09-23 (the runner/cockpit lane closeout, performed by the lane itself because no orchestrator existed).** Seven
->   rows leave the registry as delivered: the oldsrv control node, the Technitium `--check` gate, the SSH-grant auditor, the
->   parked-pair converge, the rendered client config, the browser cockpit, and the LAN-gateway confirmation whose only tail
->   was that converge. The lane **deleted its own brief** and re-synced both views, so §B0/§B/§D point at rows rather than
->   at a brief that is gone. **The gates the lane hit became rows** — 442 deleted op service account,
->   443 three SSH-grant verdicts keeping the new gate red, 444 the phone has never driven the cockpit, 445 no role owns
->   the cockpit's unit files, 446 no bare-Debian pi installer, 447 Metabase Authentik objects plus a dormant item, 448 the
->   VPS's IPv6 (only the inbound probe and the v6 parity verdict are still work — the outage itself was fixed live
->   2026-09-24), 449 pull-only promise plus a leftover key backup — and one defect was minted by measurement
->   rather than design (440: every `docker_services` converge restarts a healthy service). Nothing here re-decides
->   anything; each row names the gate that produced it.
-
-> - **§0 Repo state:** the two empty session worktrees (the HD-395 and HD-399 lanes, both 0 commits) and all twelve
->   stale `session/*` branches are gone; `main` is the only checkout, clean, `validate-all.sh` green.
-> - **Registry** (re-derive any count from `todo.md`; never type one) — HD-408 deleted as decided, **HD-418 / HD-419**
->   registered out of the two fault-notes that lived only in [network-vpn.md](docs/network-vpn.md) prose.
->   **2026-09-22 (the HD-414 lane):** **HD-419** deleted (shipped + verified), **HD-301** deleted (hardening floor
->   measured on the live device), **HD-09** deleted as **void** — its ask contradicts [docs/hardware-ups.md](docs/hardware-ups.md)
->   and the rule never existed despite "IaC done"; it is now a row in [docs/network-rejected.md](docs/network-rejected.md).
->   **2026-09-22, second pass (the discriminator):** **HD-410** and **HD-414** deleted as **done** — the scoped
->   IPv6 shipped and folded into the converge, and the post-IPv6 phone re-measure plus a log-only discriminator
->   came back **still relayed, with nothing at all arriving from the phone on either family**. The DERP posture is
->   therefore **decided** (no self-hosted relay) and both inbound remedies are retired. Durable content is in
->   [docs/network-vlans.md](docs/network-vlans.md) §IPv6 + [docs/network-vpn.md](docs/network-vpn.md); the two
->   side-findings that have no registry row are recorded as owner residue in §A2.
-> - **§B** gained the rows the decision round converted from owner-gated to pure AI.
-> - **Watch-list** now also catches the false claims a decision round creates by itself — "`§A` is done" (decided is
->   not shipped), "Forgejo is the remote" (it holds no copy), "oldsrv will push" (it is pull-only until HD-409).
+> **Re-synced 2026-09-24.** **Task detail does not live here**: a row in this view is one short line + the owning
+> link, and findings, measurements and closeout history belong to [`todo.md`](todo.md), the owning `docs/*.md`, and
+> git. Hence two mechanical rules — a finished item **leaves this view in the same change that finished it**
+> (CONVENTIONS §4(a)), and any row count is **re-derived from [`todo.md`](todo.md)**, never typed. §A = decision
+> record (not a queue) · §A2 = residue needing an owner hand · §B0 = row→brief index · dispatch rules: [prompt.md](prompt.md) §4.
 
 ---
 
@@ -169,11 +131,8 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 | [prompt-357.md](prompt-357.md) launchpad + home edge — **its old gate fell 2026-09-22** (HD-419 shipped, so the jellyfin tile has an endpoint) | **4** | HD-357 · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
 | [prompt-417.md](prompt-417.md) gates + doc hygiene | **5, alone** | HD-417 · 404 · 248 · 396 | none (repo-only) |
 
-> **Briefs deleted at the 2026-09-22 sweep** (job done, links fixed in the same commit): `prompt-412` (HD-412
-> shipped live), `prompt-394`, `prompt-405` (closed banner), `prompt-next` (the 2026-09-15 spark handoff, absorbed
-> by `prompt-376`), `prompt-OV` and `prompt-agentmemory` (both probe lanes closed). **Unbriefed but still open —
-> not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394 lane's residue), **HD-450** (a cert
-> consumer can age out unalerted — found closing HD-350), and HD-412's two
+> **Unbriefed but still open — not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394
+> lane's residue), **HD-450** (a cert consumer can age out unalerted — found closing HD-350), and HD-412's two
 > enrolment sessions, which need a human at both ends and therefore live in §D.
 
 
