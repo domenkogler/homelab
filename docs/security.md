@@ -50,7 +50,17 @@ were deleted after folding — HD-153).
 - `foto.kogler.si` (Immich — native OIDC, HD-148)
 - `ai.kogler.si` (Open WebUI — native OIDC, HD-101)
 - `sso.kogler.si` (Authentik itself — it IS the auth provider, so Forward-Auth would be circular; **HD-194**: the bouncer filters by source IP only and every callback path (`/application/o/<slug>/callback/`, `/outpost.goauthentik.io/*`) arrives as an ordinary browser request from a user IP — outpost↔server API traffic runs container-direct on services-internal, never through this router; brute force is additionally covered by the fail2ban `http-auth` jail — **HD-280 (2026-09-04): now actually wired** — Traefik writes an accesslog (`/opt/traefik/logs/access.log`, compose dir-bind) and the jail uses a Traefik-CLF-aware filter matching 401/403 responses)
-- cockpit-nas/cockpit-oldsrv file-provider routes (own-login mgmt surface, HD-188) — **no PAM password exists on any account today, so these have no working login; dedicated break-glass `maint` identity tracked in HD-361**
+- cockpit-nas/cockpit-oldsrv file-provider routes (own-login mgmt surface, HD-188) — the only login is the
+  break-glass `maint` account (HD-361), and since that work the group is the control rather than the
+  decoration: Debian/Ubuntu ship `/etc/pam.d/cockpit` with **no group restriction at all**, so before
+  HD-361 the real posture of :9090 was "anyone holding a local password gets a session" (on oldsrv
+  that includes `domen`, who is in `sudo` — a leaked password was a root-capable web session).
+  `roles/cockpit` now writes `auth requisite pam_succeed_if.so user ingroup cockpit-session` above
+  `common-auth`, so **only** `cockpit-session` members can authenticate, `maint`'s membership is an
+  exact set rebuilt every converge, and `sudo` for that account is password-required (a converge fails
+  if any sudoers fragment gives it NOPASSWD). Landed + console-verified on nas 2026-09-24; oldsrv
+  pending its box coming back. Lockout note: this gates Cockpit only — SSH is untouched, and
+  `AllowUsers` still admits just `ansible-admin`/`ai-debug`.
 - HA standby via VIP
 
 Owning doc: [services-traefik.md](services-traefik.md). **Tracked: HD-60** (crowdsec-only middleware
