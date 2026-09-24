@@ -1,6 +1,8 @@
 #!/usr/sbin/nft -f
 # nftables ruleset — VPS default-deny inbound (HD-154 / security.md §8)
-# Allow: loopback, established/related, :443 (Traefik edge), :51820 (WireGuard S2S).
+# Allow: loopback, established/related, :443 (Traefik edge), :51820 (WireGuard S2S),
+# and the stateless IPv6 NDP/MLD/PMTUD traffic without which none of the above is
+# reachable over v6 (HD-448).
 # Deny everything else inbound. Docker containers on isolated overlay networks
 # (traefik-public/services-internal/db-internal) reach the internet via the host
 # NAT (docker's own iptables/nftables chains), which this ruleset leaves intact —
@@ -39,6 +41,35 @@ table inet filter {
         iifname "wg-s2s" ip saddr {{ wg_s2s_vps.router_ip }} tcp dport {{ wg_internal_edge_port }} accept
         # ICMP ping (ops sanity) — limited
         ip protocol icmp icmp type echo-request accept
+
+        # IPv6 stateless control traffic (HD-448). `ip protocol icmp` just above is the
+        # IPv4 upper-proto field, so it matches NOTHING for v6; under `policy drop` the
+        # chain therefore discarded the provider router's neighbour-advertisement and
+        # router-advertisement replies. Result: `ip -6 -s neigh show` pinned at
+        # `fe80::1 … FAILED`, so the v6 default route (statically configured by the netcup
+        # image — `accept_ra=0`/`autoconf=0`, so NOT SLAAC) could never resolve a nexthop
+        # and IPv6 was dead in BOTH directions, including the published AAAA.
+        # The drop is OURS, not netcup's, and that is measured, not inferred: a counter-only
+        # probe rule (`ip6 nexthdr icmpv6 counter`) counted the inbound NA/RA, while
+        # `nstat Icmp6InNeighborAdvertisements` stayed 0 — because the netfilter verdict
+        # precedes the ICMPv6 handler. Same instrument as the home punch discriminator
+        # (network-ops.md §IPv6), opposite verdict.
+        # This opens no service surface: it is what lets the box see packets at all.
+        # NDP is scoped to link-local sources because RFC 4861 requires ND to be
+        # link-local-sourced; the ICMPv6 error types are deliberately NOT scoped — a
+        # `packet-too-big` arrives from an upstream router with a GLOBAL address, and
+        # black-holing it is the classic silent-v6 breakage (PMTUD). MLD rides nexthdr 0,
+        # not 58, so it cannot share the icmpv6 rule.
+        # ⚠ Second-order effect, and it is an OPEN owner question, not a decision: the
+        # `tcp dport 22/443`, `udp dport 51820` and RustDesk accepts are family-agnostic in
+        # this `inet` table, so they have been IPv4-only *in practice* only because NDP
+        # never resolved. Fixing NDP makes them reachable over v6 too; scope them with
+        # `meta nfproto ipv4` if that parity is not wanted. The `ip saddr …` rules (DNS
+        # source-allow, wg-s2s scoping) stay IPv4-only by the shape of the match itself.
+        meta l4proto icmpv6 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } ip6 saddr fe80::/10 accept
+        meta l4proto icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
+        meta l4proto icmpv6 icmpv6 type echo-request accept
+        ip6 nexthdr 0 ip6 saddr fe80::/10 accept
 
         # Docker containers that publish host ports — RustDesk (HD-412) is the FIRST exception to
         # the old "none expected by policy (compose uses traefik-public only)" note: hbbs/hbbr run
