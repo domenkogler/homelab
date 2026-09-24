@@ -176,6 +176,15 @@ point of listing them is that the first one people reach for does NOT prove it:
    `sudo wakeonlan 70:85:C2:2D:6F:04`. Needs standby power, and it is a power action → §5.9 human gate.
 2. The Comet KVM above: BIOS-level power/reset, so a *hung* box is reachable from anywhere without a
    hand on the button. This is the path when (1) is refused by silence.
+   **Attempted 2026-09-24, and it was:** three magic-packet shapes (default broadcast, subnet broadcast,
+   port 9) sent twice from the nas on the same L2 as the target, with no ARP entry for the MAC afterwards
+   and no answer on the Home IP. Silence after that pattern means "no standby power or the wake path is
+   not armed", not "wrong packet" — so do not re-litigate the packet shape; go to the KVM.
+   ⚠ **The KVM is documented as a capability and not as an access path**: this file names the model and
+   what it can do, but records no address, no network (VLAN 10 / VLAN 99 / tailnet?), no account, and no
+   reachability check from off-site. Until that is written down, "use the KVM" cannot be executed by a
+   session or by the owner from a phone — tracked as **HD-454**, which also asks whether a device that can
+   hard-power a production host belongs on a user VLAN un-gated.
 3. HD-06's `nut-wake.timer` is NOT a rescue path: it arms only after a NUT-initiated powerdown and
    recharge, so it cannot wake an unscheduled drop.
 
