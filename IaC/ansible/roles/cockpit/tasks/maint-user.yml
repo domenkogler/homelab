@@ -44,18 +44,11 @@
       - cockpit_maint_vault_item is string
       - cockpit_maint_vault_item | length > 0
     fail_msg: >-
-      maint contract violated on {{ inventory_hostname }}: {{ cockpit_maint_problems | join(', ') }}.
-      Groups now [{{ cockpit_maint_id.stdout }}]. What each name means:
-      group-set-not-exactly-as-decided = a membership appeared or vanished (the rebuild uses
-      `append: false`, so a hand-edit cannot survive a converge; if this fires during a converge the
-      role itself changed and must be re-read); sudo-is-passwordless-for-a-console-identity = a
-      sudoers fragment grants NOPASSWD to a break-glass account, forbidden by the 2026-09-21
-      decision; installed-hash-differs-from-vault-value = vault and host disagree, so rotate
-      DELIBERATELY instead of "fixing" one side; sshd-has-no-allowusers-gate /
-      maint-appears-in-allowusers = this console account is reachable over SSH, which was not
-      decided; pam-gate-missing-or-ordered-after-common-auth = the gate is absent or inert.
-  # NOT no_log: nothing in this message is secret, and the previous version's no_log censored the
-  # only traceback that described the bug.
+      cockpit_maint_vault_item is unset for {{ inventory_hostname }}. Set it in
+      host_vars/{{ inventory_hostname }}.yml to this host's own item ('<host>-cockpit_login') —
+      sharing one item between oldsrv and nas would give two management consoles the same password,
+      which is the opposite of why there are two items.
+    success_msg: "provisioning {{ cockpit_maint_user }} from {{ cockpit_maint_vault_item }}"
   changed_when: false
 
 - name: HD-361 | Refuse to provision from an empty or absurdly short vault value
@@ -348,11 +341,14 @@
     that:
       - cockpit_maint_problems | length == 0
     fail_msg: >-
-      maint verification failed on {{ inventory_hostname }}. Groups were
-      [{{ cockpit_maint_id.stdout }}]. The usual meanings: 'none' in the PAM line numbers = the
-      gate never landed, or the stack has no common-auth line to order it against, i.e. it is
-      inert; a sudo/docker entry in that list = the exact-set contract broke; NOPASSWD in that sudo -l output = a fragment somewhere
-      granted a passwordless root path to a console identity, which the 2026-09-21 decision
-      forbids; a hash mismatch = the vault value and the host disagree
-      (rotate deliberately, do not "fix" one side); a bad ordering = the gate line landed after
-      common-auth and would be inert.
+      maint contract violated on {{ inventory_hostname }}: {{ cockpit_maint_problems | join(', ') }}.
+      Groups now [{{ cockpit_maint_id.stdout }}]. What each name means:
+      group-set-not-exactly-as-decided = a membership appeared or vanished (the rebuild uses
+      `append: false`, so a hand-edit cannot survive a converge; if this fires DURING a converge the
+      role itself changed and must be re-read); sudo-is-passwordless-for-a-console-identity = a
+      sudoers fragment grants NOPASSWD to a break-glass account, forbidden by the 2026-09-21
+      decision; installed-hash-differs-from-vault-value = vault and host disagree, so rotate
+      DELIBERATELY instead of "fixing" one side; sshd-has-no-allowusers-gate /
+      maint-appears-in-allowusers = this console account is reachable over SSH, which was not
+      decided; pam-gate-missing-or-ordered-after-common-auth = the gate is absent or inert (an
+      `auth` rule after the `session` rules parses but enforces nothing).
