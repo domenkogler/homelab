@@ -260,13 +260,14 @@
     force_basic_auth: true
     headers:
       Accept: application/json
-    status_code: 200
     timeout: 20
+    # Tolerate the wrong answers at the module layer so the assert below can name them; `uri`
+    # raises on an unexpected status before `failed_when` ever sees it.
+    status_code: [200, 401, 403, 500]
   register: cockpit_maint_login
   no_log: true            # the Basic header carries the vault password
   changed_when: false
   failed_when: false      # diagnose in the SAME run, below — see why this matters
-  status_code: [200, 401, 403, 500]
   when:
     - not (ansible_check_mode | bool)
     - cockpit_maint_verify_login | default(true) | bool
