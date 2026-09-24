@@ -221,7 +221,7 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 | **HD-445** | 2 | no role owns the cockpit user units / drop-in / env file, so the port vars are reservations nobody reads and a rebuild loses the surface | no |
 | **HD-446** | 3 | `scripts/install-pi-debian.sh` does not exist; apt Node 20 cannot run pi (needs >= 22.19.0) — sibling of the WSL installer, not a fork | no |
 | **HD-447** | 3 | Metabase is retired via the registry switch (and the egress glue now honours it), but its live Authentik provider/app/edges, the dormant `metabase_oidc` item, `sec.kogler.si` and `/opt/metabase` remain | **Yes** — delete or justify |
-| **HD-448** | 2 | the VPS nft `input` chain has no `icmpv6`, so NDP drops and IPv6 is dead in both directions — which also makes the Cloudflare VPS /64 entry decoration | no (transport lane owns the file) |
+| **HD-448** | 2 | ✅ VPS IPv6 is live since 2026-09-24 (the cause was our own input chain — `ip protocol icmp` is IPv4-only, so NDP met `policy drop`); outbound + NDP measured, **inbound** still unproven by an external v6 peer | **Yes** — v6 parity verdict for the family-agnostic `:22/:443/:51820`/RustDesk accepts |
 | **HD-449** | 2 | oldsrv is pull-only unless you mint a repo-scoped write key — and the docs still promised that ends when the cockpit lands, which it did; plus an unverified pre-restore runner key backup sits on the box | **Yes** — decide |
 
 
