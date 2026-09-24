@@ -309,7 +309,7 @@ permission to write from an automation path that was designed to be read-only.--
 | `opencloud-collab_password` | `password` | **Single shared WOPI/JWT secret across the entire OpenCloud ↔ ONLYOFFICE chain (HD-166, single-secret decision)** — used on ALL of: OpenCloud `OC_JWT_SECRET` (system-wide reva token_manager secret — MUST be set so auth-minted REVA tokens validate in collaboration; absence causes “token signature is invalid” 401), OpenCloud `COLLABORATION_JWT_SECRET` (mints/verifies ONLYOFFICE REST tokens), OpenCloud `COLLABORATION_WOPI_SECRET` (mints/verifies WOPI JWT + encrypts/decrypts embedded REVA token), and ONLYOFFICE `JWT_SECRET` — all must match exactly. Generated once at deploy; fail-loud if absent (HD-65). Rotation = regenerate, re-render BOTH compose files, converge, and **users must RE-LOGIN** (existing REVA tokens die).
 | `immich_oidc` | `api` (`username` = client_id, `credential` = client_secret) | **Immich native-OIDC client** (HD-148) — web redirects `https://foto.kogler.si/auth/login` + `https://foto.kogler.si/user-settings` + mobile custom-scheme `app.immich:///oauth-callback` (needs Authentik to accept the custom scheme, or the http(s)/Mobile Redirect Override workaround); Confidential + Auth Code; storage label `preferred_username`, optional `immich_quota`. Declared in Blueprint; creds seeded by glue. |
 | `forgejo_oidc` | `api` (`username` = client_id, `credential` = client_secret) | **Forgejo native-OIDC client** (HD-148) — web + git/API SSO on `git.`, callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; declared in Blueprint, creds seeded by glue. |
-| ~~`metabase_oidc`~~ | ~~`api`~~ | **RETIRED 2026-09-14 (Metabase removed from VPS; future home oldsrv).** Was FUTURE/OPTIONAL (HD-148): Metabase OSS has **no OIDC/SSO — paid Pro/Enterprise only**; provider declared in Blueprint + item seeded by glue for a *future* Enterprise license; Metabase stayed **Forward-Auth**. Callback was `https://sec.kogler.si/auth/sso`. The dormant provider/glue line is left in place (touching it forces a live Authentik blueprint re-apply — out of scope of the retirement); item stays in the vault. Revisit ONLY if an oldsrv Metabase gets an Enterprise license + VPS Authentik OIDC. |
+| ~~`metabase_oidc`~~ | ~~`api`~~ | **RETIRED 2026-09-14 (Metabase removed from VPS; future home oldsrv).** Was FUTURE/OPTIONAL (HD-148): Metabase OSS has **no OIDC/SSO — paid Pro/Enterprise only**; provider declared in Blueprint + item seeded by glue for a *future* Enterprise license; Metabase stayed **Forward-Auth**. Callback was `https://sec.kogler.si/auth/sso`. The dormant provider/glue line is left in place (touching it forces a live Authentik blueprint re-apply — out of scope of the retirement); item stays in the vault. **Owner ruling 2026-09-25 (HD-447): the live Authentik objects are deleted and the IaC stays `enabled: false` — see §Item titles are load-bearing for the acceptance test.** Whether this vault item is deleted too is the one residue the row still carries. Revisit ONLY if an oldsrv Metabase gets an Enterprise license + VPS Authentik OIDC. |
 | `zipline_oidc` | `api` (`username` = client_id, `credential` = client_secret) | **Zipline native-OIDC client (HD-112)** — dashboard SSO on `bin.kogler.si`, callback `https://bin.kogler.si/api/auth/oauth/oidc`; declared in Blueprint, creds seeded by glue. Viewer routes + guest uploads stay anonymous by design (crowdsec-only tier). |
 | ~~`minio_login`~~ | ~~`login`~~ | **retired (HD-135): MinIO S3 removed** — Immich originals + encoded-video go to the **live Hetzner Box (CIFS)**, not S3/MinIO. Orphaned MinIO compose template, `minio_version` var, and the Immich `IMMICH_S3_*` block all removed; `services.md` MinIO row removed. No S3 credential needed. |
 | `immich_db` | `password` | immich-app (Postgres) |
@@ -439,11 +439,19 @@ minted **nothing** — the sweep above shows exactly one clean `metabase_oidc`. 
 byte-identical to the template (`md5 d1ccc0d4…`, `bash -n` clean), so the guard is live, not just committed.
 The clinching measurement: `metabase_oidc` still reports `updated_at == created_at == 2026-08-22`, i.e. it was
 **never** written in its whole life — which is precisely what a permanently-failing `op item edit` with a
-successful `op item create` fall-through looks like from the outside. ⚠ One decision left to the owner: the
-entry is still in `PROVIDERS` although Metabase is `enabled: false` since 2026-09-14 and its own compose
-template notes Metabase OSS cannot do OIDC — so either restore a reason for the entry or delete the entry,
-the Authentik `metabase` provider and the dormant item together. A hard-coded provider list that outlives the
-service is how this row's defect stayed invisible: the list, not the fleet, decides what gets synced.
+successful `op item create` fall-through looks like from the outside. **✅ DECIDED 2026-09-25 (HD-447):** the
+owner ruled **delete** — remove the live `provider_metabase` + `app_metabase` and the `edge-sec`/`edge-sec-ts`
+providers, apps and `outpost_embedded` entries from the RUNNING Authentik, while the **IaC stays in the repo at
+`enabled: false`** (disable first; comment only if disable cannot reach it) so the revival path survives. The
+cleanup is AI work through the Authentik API / `ak shell`, not a human hunt-and-peck. ⛔ Acceptance is proving
+the blueprint does **not** re-mint those objects while `enabled: false` — a dangling `!KeyOf` fails the whole
+import, which is an **IdP** outage rather than a Metabase one (`blueprints/*.yml` are `copy:`d unrendered, and
+`outpost_embedded` is one shared object, which is why commenting them out was never the answer). Also gone by
+owner hand the same day: `sec.kogler.si` in Cloudflare — note WHY a human had to do it: the `cloudflare_api`
+token is IP-filtered to the home WAN, so Cloudflare records are unreachable from any session that is away. The
+last residue is the dormant `metabase_oidc` vault item itself (delete or keep, one line, still open in HD-447).
+A hard-coded provider list that outlives the service is how this row's defect stayed invisible: the list, not
+the fleet, decides what gets synced.
 
 ---
 

@@ -91,6 +91,14 @@ only e-pošta/geslo, because `oauth.enabled` defaults to **false** — so `IMMIC
 required, and the acceptance test is *the button on the login page*, not the env being present. Note also the
 upstream caution that **env changes need the container recreated**, not restarted.
 
+⚠ **The trap that eats an afternoon (why the first SSO login must be a decision, not a click):** Immich links
+an OIDC identity to an existing user **by email**, and `Auto Register` creates a **new empty library** for any
+email it does not recognise — so an SSO login with the wrong email looks exactly like "my photos are gone" when
+what happened is a second account. `immich_role`/`immich_quota` are **creation-only**, never re-synced, so the
+role has to be right on the first login. **Decide which account owns the family library BEFORE the first
+`domen` SSO login**, and verify with the family seat, not the `admin` password login (that proves the admin
+seat, not the family one).
+
 **Immich env/config (`immich_oidc` from 1Password):** `scope openid email profile`; claims
 `preferred_username` → storage label, `immich_role` → role (`user`/`admin`), `immich_quota` →
 storage quota (claims are creation-only, not re-synced); `Auto Register` true, optional `Auto Launch`
