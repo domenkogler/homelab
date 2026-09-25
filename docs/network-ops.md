@@ -148,6 +148,13 @@ was saturated (50 lines in 10 min), which is precisely when a counter beats a lo
 ⛔ **Still do not close the home row on a self-directed probe** — an untested hole is not a proven-closed hole.
 The same standard applies to HD-448 itself: outbound v6 from the VPS is measured, but no external v6 peer has
 connected *to* that box yet, so its inbound half stays open.
+
+🔬 **Two habits that decide any reachability probe, learned the expensive way here:** **(a) probe the transport you
+actually use.** A verdict from ICMP or TCP says nothing about a UDP or an ESP path, and this repo has drawn a wrong
+conclusion from each: a KNX gate looked shut because TCP/3671 was refused while the live tunnel is UDP/3671, and a
+phone's tailnet path looked relayed for a reason that had nothing to do with the transport being measured.
+**(b) when a probe says NO, run the identical probe from a host you already know is healthy before you believe it.**
+Otherwise the control you skipped becomes the finding — and the finding is the probe, not the path.
 ⚠ **Scratch rule hygiene** (this is what `routeros-apply-delta.sh` comments are for): a temporary accept **must
 sit above the drop** (below it, it does nothing and the test result is a lie), **must be `dst-port`-scoped**
 (otherwise the first packet of a *scan* matches, the conntrack entry then admits the real target, and the matrix

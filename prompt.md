@@ -213,6 +213,13 @@ crossing (HD-444) and a browser login on each cockpit host (HD-361).
   `xknxproject` and **no file in this repo declares it**, so its `--check` guard cannot be wired into
   `validate-all.sh` without declaring the dependency first. Minting rows is yours; the fixes are one declared
   dependency and one verdict-source change.
+- ⚠ **Unrowed, mechanical, and safe to start anywhere: three owning docs still narrate how their facts were
+  discovered instead of stating them.** `network-ops.md` §IPv6 ("…and why it was not closed on 2026-09-22", "The
+  probe host now exists again", "**it was not netcup**"), `network-vpn.md`'s 2026-09-20/22 punch blocks ("the
+  assumption this section was written under did not survive", "written wrong here once already"), and
+  `network-dns.md` decision 5's forward-looking phrasing. Nothing is missing and no measurement is wrong — the voice
+  is, and it is the same defect the five files cleared on 2026-09-25 were rewritten for. Rule for the rewrite: keep
+  the trap, keep the dated ✅ evidence, drop the correction story.
 - **HD-403** — ⏳ **Home Assistant has no LiteLLM path (its compose env carries only `TZ`; no scoped consumer, no vault item, no `llm:` wiring in `roles/home_assistant/`)** — text-only IaC + vault work, gate-free until the Assist turn is proven end-to-end; rides with HD-384. · [services-ai.md](docs/services-ai.md) · [smart-home-voice.md](docs/smart-home-voice.md)
 - **HD-404** — ⏳ **six stale IaC strings/comments** (Victoria-vs-Prometheus headers, the Pi "primary DNS" comment, the `llm-backend` purpose string that feeds a generated doc, `amd_rocm`'s `OLLAMA_KEEP_ALIVE`, the Pi image wording in `first-boot-config.sh`, the `tailnet-apps` overlay comment) — pure text, no converge risk. · [deployment-ansible.md](docs/deployment-ansible.md)
 - **HD-397 (tail only)** — ✅ **off-LAN access parity landed + live-verified 2026-09-19** (the VPS jump in `group_vars` for all four behind-NAT hosts, `host_vars/oldsrv.kogler.si.yml` `ansible_host` = the Home leg, both laptop ssh configs rebuilt to the documented alias contract, the rotation script's `lan-litellm` leg reads a real hash off-LAN again on its default target). ⏳ **What is left needs presence:** re-run the matrix from the LAN and with `Mgmt99` link — prove the jump is a harmless no-op for a LAN-attached runner and that the mgmt aliases answer again. ⛔ The leg decision is settled and not to be revisited: HD-398 closed as **A — the seal stays** ([network-rejected.md](docs/network-rejected.md)); do not widen `wg_s2s_vps.allowed_ips` / the router `available-from`, and do not join LAN hosts to the tailnet (decided 2026-09-10). · [network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away · [todo.md HD-397](todo.md)

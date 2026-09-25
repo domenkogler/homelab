@@ -31,6 +31,13 @@
 > list, not the decision list:** `oldsrv` is off the network and the WoL path is spent (HD-455 → HD-454), so every
 > oldsrv leg is parked — do not plan oldsrv work as if it were runnable.
 >
+> **Open as of 2026-09-25 — one deletion only a human can do, and it waits on nothing:** the `metabase_oidc`
+> 1Password vault item. Metabase is retired and the repo-side half is finished (the service reads no env for it, and
+> the glue that would have written `METABASE_SECRET_KEY` was removed with it), so the item is dormant but still
+> live. A human hand is needed because Authentik's deploy consumes the IP-filtered `cloudflare_api` token ⇒
+> [deployment-secrets.md](docs/deployment-secrets.md) §Item titles are load-bearing. With your word it is a
+> two-minute `ak shell` pass, and the acceptance read is already written down there.
+>
 > **Open as of 2026-09-22 — three memory-plane calls, measured and waiting (no HD row until you answer):**
 > **OQ-12** is `agentmemory` the ONE central memory plane (not as specified on 0.9.29: loopback-forced REST, one
 > shared bearer, `TEAM_*` inert in the search path ⇒ central means a proxy + `project` tags); **OQ-13** where
