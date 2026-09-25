@@ -13,6 +13,20 @@
 # Secrets: the preauth key is read from 1Password by the HOST_VAR ref (lazy lookup, so it
 # costs an `op` call only when this role actually runs) and is never printed (no_log).
 
+# Detection, not assumption: `dpkg --print-architecture` is the only thing on the host that
+# answers with the name Tailscale's filenames use. The gathered `architecture` fact is the
+# KERNEL name (aarch64 / x86_64) and is wrong here — measured on the Pi 2026-09-25.
+- name: Read the host's dpkg architecture
+  ansible.builtin.command: dpkg --print-architecture
+  register: _dpkg_arch
+  changed_when: false
+  when: tailscale_host_arch | default('', true) | length == 0
+
+- name: Set the architecture used for the pinned .deb (explicit var wins, else the dpkg read)
+  ansible.builtin.set_fact:
+    tailscale_host_arch: >-
+      {{ (tailscale_host_arch | default('', true) or (_dpkg_arch.stdout | default('') | trim)) | trim }}
+
 # ⚠ Arch comes from the host, it is NOT a literal: the URL, the dest path and the checksum
 # all moved onto `tailscale_host_arch` together. Shipping a checksum that does not belong to
 # the arch being downloaded is worse than shipping none — it would call a wrong-arch .deb
