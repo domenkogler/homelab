@@ -618,16 +618,36 @@ owner, both because they are the first account on the service:
    stop and reconcile the emails instead of deleting anything.
 4. Mobile: in the Immich app point the server at `foto.kogler.si` and use SSO; the app's
    `app.immich:///oauth-callback` redirect is already an authorised redirect URI.
-3. Confirm it landed on the family library (not a fresh empty one) and that the role is right
-   (Administration → Users). A `domen` login that shows no photos is the second-account case above —
-   stop and reconcile the emails instead of deleting anything.
-4. Mobile: in the Immich app point the server at `foto.kogler.si` and use SSO; the app's
-   `app.immich:///oauth-callback` redirect is already an authorised redirect URI.
 
 Native password login stays enabled as the break-glass path (`immich-admin_login`, 1Password).
 If the button is **absent**, that is not an owner step — `oauth` is off server-side; run the
 `immich_seed` lane instead of clicking around (see [docs/deployment-oidc.md](docs/deployment-oidc.md)
 §Immich for what to look at).
+
+### 1.6c OpenCloud (file.) — first OIDC login: browser + phone `[MANUAL — owner browser + phone]`
+
+Server side is Ansible's job (the `opencloud` compose OIDC block + the `opencloud` provider in
+`ks-oidc.yml`). What stays with a human is enrolling the devices:
+
+1. **Browser first.** Open `file.kogler.si` → SSO → sign in as `domen`. The FIRST login
+   autoprovisions that identity in idm's LDAP (`PROXY_AUTOPROVISION_ACCOUNTS`), so use the intended
+   family account the first time — same rule as Immich §1.6b step 1.
+2. **Phone.** Install the **OpenCloud** app, enter the server `file.kogler.si`; the app hands the
+   browser to `sso.kogler.si` and comes back on its own `oc://android.opencloud.eu` callback.
+   ⛔ Do NOT enrol files through the ONLYOFFICE Documents app's own connectors (Nextcloud/ownCloud/
+   WebDAV/…) — every one of them needs a username+password or an app token and cannot present the SSO
+   session ([docs/services-office.md](docs/services-office.md) §Mobile).
+3. ⚠ **After ANY change to the OpenCloud OIDC client, remove the account in the app and re-add it.**
+   The native apps do not hardcode their OIDC client — they read the client_id from WebFinger
+   (`?…&platform=android|ios|desktop`) at setup time, and a half-configured account keeps the token
+   set it was created with; the symptom of NOT re-adding is `invalid refresh token` after a login that
+   looked fine.
+4. **Verify on the device:** the file list renders, and tapping a document hands a browser tab to the
+   ONLYOFFICE editor. Photo backup stays OFF on purpose — Immich owns family photos (§1.6b).
+5. **Acceptance is server-side, not in the UI:** a `RefreshToken` row for provider `opencloud` whose
+   scope still contains `offline_access`. The read-only one-liner is
+   [docs/services-authentik.md](docs/services-authentik.md) §Blueprint note 9 — a login with no refresh
+   token LOOKS healthy for exactly one access-token hour (1 h).
 
 ### 1.7 Forgejo one-time wizard
 
