@@ -293,9 +293,9 @@ Produce in the session worktree (do NOT commit findings inside a service config 
 
 ## 5. Session workflow reminder (from `README.md` / `CONVENTIONS.md`)
 
-1. `read README.md` (intent-routed) → read mandatory context §2 in order (CONVENTIONS → index → IaC README → todo → owning docs).
+1. `read README.md` (intent-routed) → read mandatory context §1 in order (CONVENTIONS → index → IaC README → todo → owning docs).
 2. State environment (`platform-env`): debian (WSL ext4) · bash · `/home/domen/source/homelab` primary; `scripts/ansible-run.sh` for playbooks; `ssh ansible-admin@vps.kogler.si` for live.
-3. **Step-0 ritual:** `git status` + fresh worktree `../homelab-wt-<date>-<HHMM>` BEFORE any edit (guard-session enforces).
+3. **Step-0 ritual:** conventions-map grep over `CONVENTIONS.md` headings (README §0 step 1) FIRST, then `git status` + fresh worktree `../homelab-wt-<date>-<HHMM>` BEFORE any edit (guard-session enforces).
 4. Prior-art sweep (`todo.md`/`changelog.md`/`reports/audit-analysis.md` + `brainstorming/audit-prompt.md` — the old Qwen audit) and REPORT prior art before proposing any new HD row.
 5. Update `todo.md` (register the audit as HD-<next> via `scripts/next-hd.sh`), implement, validate green, journal, commit signed, merge back.
 6. Close-out per CONVENTIONS §7 (open questions, owning docs, prompt.md #33 diff-edit, manual-unchanged rule, branch-per-session).

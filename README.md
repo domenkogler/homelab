@@ -15,10 +15,19 @@ free-form intent sentence (e.g. *"read README.md — zipline uploads stopped wor
 is the bootstrapper; it carries all background so the intent sentence needs no extra briefing.
 The agent then routes the intent — there is NO keyword routing table:
 
-1. **Step-0 ritual, UNCONDITIONAL:** `git status` sanity check + fresh session worktree
-   (`../homelab-wt-<date>-<HHMM>`, CONVENTIONS §6) BEFORE any edit — enforced mechanically by
-   [`scripts/guard-session.sh`](scripts/guard-session.sh) + a hard gate inside
-   [`scripts/validate-all.sh`](scripts/validate-all.sh).
+1. **Step-0 ritual, UNCONDITIONAL, in this order:**
+   1. **Conventions map — the FIRST command of the session, before any file is opened:**
+      `grep -n "^#\|^## \|^### " CONVENTIONS.md | head -40`
+      Every rule in this repo is cited by section number (§5 onboarding, §6 worktrees, §8.3
+      rejected-check), so without the printed outline a citation is not actionable and the file
+      gets bulk-read to find what §N means. Read the cited section in full, then all of
+      `CONVENTIONS.md` (§1 row 1) — the map is the entry point, never a substitute for the rules.
+      It is cheap and it is mandatory on every task, however trivial (depth markers in 3 below
+      trim analysis verbosity, never the safety ritual).
+   2. `git status` sanity check + fresh session worktree (`../homelab-wt-<date>-<HHMM>`,
+      CONVENTIONS §6) BEFORE any edit — enforced mechanically by
+      [`scripts/guard-session.sh`](scripts/guard-session.sh) + a hard gate inside
+      [`scripts/validate-all.sh`](scripts/validate-all.sh).
 2. **Semantic prior-art sweep:** search todo.md / docs/ — including the `<domain>-rejected.md`
    decision logs, `<domain>-review.md` and `brainstorming/` — plus `git log -S 'HD-XX'` / `git log`
    on the owning doc, and REPORT the prior art found BEFORE proposing any new HD row (side-effect:
@@ -28,8 +37,8 @@ The agent then routes the intent — there is NO keyword routing table:
    (worktree, validate-all, owning-doc/lifecycle discipline always applies).
 4. **Ambiguous intent → ask exactly ONE clarifying question**, then proceed.
 
-Routing changes ORDER/emphasis only — it never eliminates context. Read §1 below, then §2 mandatory
-context **in order**. After §2, use `docs/index.md` → "Which Document to Read First" for
+Routing changes ORDER/emphasis only — it never eliminates context. Read the §1 mandatory context
+table **in order**. After it, use `docs/index.md` → "Which Document to Read First" for
 task-specific dispatch. Do **not** bulk-read the repo.
 
 ---
@@ -38,7 +47,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 | # | File | Role | Read when |
 |---|------|------|-----------|
-| 1 | [`CONVENTIONS.md`](CONVENTIONS.md) | Cross-cutting rules index — naming, secrets, SSOT, IaC, lifecycle, service-onboarding (§5) | always — every rule is binding |
+| 1 | [`CONVENTIONS.md`](CONVENTIONS.md) | Cross-cutting rules index — naming, secrets, SSOT, IaC, lifecycle, service-onboarding (§5) | always — every rule is binding; enter it with the §0 step-1 outline grep, then read in full |
 | 2 | [`docs/index.md`](docs/index.md) | AI dispatcher / document map — which owning doc to open for your task | always |
 | 3 | [`IaC/README.md`](IaC/README.md) | Ansible implementation spec — roles, templates, layout, build order, status | any IaC / compose / template work |
 | 4 | [`todo.md`](todo.md) | Backlog + open decisions; §0 lifecycle (HD-XX); pick up or register work. **Rows hold what is missing + how to do it; durable knowledge lives in the owning doc the row links; a finished row is deleted** | always, before every task |
@@ -117,8 +126,8 @@ task-specific dispatch. Do **not** bulk-read the repo.
 
 ## 4. Task workflow (default)
 
-1. `read README.md`
-2. read mandatory context §2 (in order)
+1. `read README.md` — run the §0 step-1 conventions-map grep first
+2. read mandatory context §1 (in order)
 3. state your environment (`platform-env`) per the global `AGENTS.md`
 4. open the owning doc via `docs/index.md`
 5. update `todo.md` (pick/register an HD-XX; open a new HD if none exists)
