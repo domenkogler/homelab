@@ -356,7 +356,9 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
       Re-probed live 2026-09-21: **two** blockers, not one — Authentik holds **no LDAP provider, no LDAP source
       and no LDAP outpost object** (the only Outpost row is the proxy one), and the `authentik-ldap` container is
       crash-looping `403 Forbidden (Token invalid/expired)`; minting a token alone therefore yields an outpost
-      serving zero providers. Ordered gates + the `ldapsearch` proof step (WG side only) recorded in
+      serving zero providers. **2026-09-25 re-probe: the 403 is gone** — the container is Up and simply serves
+      nothing (3389 REFUSED), and its healthcheck fails on a missing metrics UDS, so expect the `unhealthy` flag
+      to survive a token mint and clear only once a real outpost runs (services-vps.md §VPS findings). Ordered gates + the `ldapsearch` proof step (WG side only) recorded in
       [deployment-compose.md](docs/deployment-compose.md); parked at the owner gate (a write-scoped `op` session
       is required — the runner's SA token is read-scoped).
       · [deployment-compose.md](docs/deployment-compose.md)
