@@ -60,9 +60,11 @@ the only path to any model, local or paid. This doc covers only the office slice
 > native clients **discover** their client_id from WebFinger and Authentik binds one client_id to one
 > issuer, so every platform must share the single `web` client; (b) a refresh token is minted only if
 > `offline_access` is a property mapping on the provider. Family steps: [manual/opencloud.md](manual/opencloud.md).
-> ⏳ **Still owed on the phone:** the doc-open path should hand a browser tab to the WOPI editor (it
-> rides the HD-166 app-provider chain and has never been exercised from a phone), and photo backup if
-> the family wants it.
+> ✅ **Exercised on the phone 2026-09-25 (owner):** tapping a document really does hand a browser tab
+> to the WOPI editor — the HD-166 app-provider chain works from a handset, not just a desktop browser.
+> Photo backup is deliberately **not** enabled here: Immich owns family photos (the owner uploaded a
+> picture and a video from the same phone to `foto` the same day), so a second photo copy in OpenCloud
+> would only double the storage bill and the restore surface.
 
 > ✅ **Verified (`docs.opencloud.eu/dev`):** OpenCloud ships a native**`collaboration` service** that connects to ONLYOFFICE / Collabora / Microsoft **via WOPI** (no third-party glue). Not enabled by default — start manually with `opencloud collaboration server`. Key vars: `COLLABORATION_APP_PRODUCT=OnlyOffice`, `COLLABORATION_APP_ADDR` (editing app URL), `COLLABORATION_WOPI_SRC` (public WOPI callback), plus `OC_URL`, `OC_JWT_SECRET`, `OC_REVA_GATEWAY`, `MICRO_REGISTRY_ADDRESS`. [Docs](https://docs.opencloud.eu/docs/dev/server/services/collaboration/information/).
 
