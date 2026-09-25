@@ -91,6 +91,12 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 > | spark engine `--api-key` | **the authority** — vLLM's own argv, rendered from `spark-ai` compose | argv hash == vault |
 > | VPS `litellm` `OPENAI_API_KEY` | what LiteLLM sends **upstream** to spark | env hash == vault |
 > | oldsrv `lan-litellm` `OPENAI_API_KEY` | same, LAN leg | host was down |
+| ~~Forgejo CI runner~~ | **does not exist** — this was HD-396's last open consumer, settled 2026-09-25 by five "
+"measurements: no `.forgejo/` workflow in the repo, no runner defined anywhere in IaC, no `[actions]` section or "
+"runner env override in the live `forgejo` `app.ini`, zero runner containers on vps/spark/nas/pi, and `origin` is "
+"GitHub so no pipeline here ever reached one. `op_api`'s live holder is the **control node** `op` CLI "
+"(`scripts/bootstrap-runner.sh`), re-seeded on the rotation day and proven by a 1Password-resolved converge after "
+"it. Recorded in [../deployment-tasks.md](../deployment-tasks.md) §Vault inventory + Phase 5 | measured 2026-09-25 |
 > | laptop `models.json → providers.spark.apiKey` | **a second copy of the engine key, not a LiteLLM key.** `baseUrl` is `https://llm.ts.kogler.si/v1`, and `traefik-tailnet/dynamic/routes.yml.j2:365` routes that host straight to spark's own edge: *"auth is the ENGINE's `--api-key` … not a middleware"* | 200 at `llm.ts`, and a real completion came back |
 >
 > **The corollary, and it is the part that would mislead a rotation:** the LiteLLM edge does **not**

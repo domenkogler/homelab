@@ -108,10 +108,15 @@
 `authentik-ldap_bind` + the OIDC client-credential items (minted by the Authentik secret-egress glue),
 and the LiteLLM virtual keys (bootstrap glue — currently `bootstrap_keys: false`).
 
-**`op_api` as a Forgejo-runner secret (HD-396, open):** the Phase 5 premise "the deploy runner holds
-`op_api`" is **unverified from the repo** — no `.forgejo/` workflow exists here and no IaC file reads the
-item as a runner token. Confirm on the Forgejo side: if the runner exists, renew its token after the
-2026-09-19 SA rotation (or its vault access 403s); if it does not, that premise is folklore and goes.
+**There is no Forgejo runner holding `op_api`** (settled 2026-09-25, was HD-396). The Phase 5 line "the deploy
+runner holds `op_api`" described a thing that does not exist: no `.forgejo/` workflow in this repo, no runner
+defined anywhere in IaC (`act_runner` / `forgejo-runner` appear in zero files), no `[actions]` section or
+runner env override in the live `forgejo` instance's `app.ini`, zero runner containers on vps / spark / nas /
+pi, no `act_runner` binary on the control node — and `origin` is GitHub, so this repo's history never reached a
+Forgejo runner either. `op_api`'s only live holder is the **control node** (the `op` CLI, via
+`scripts/bootstrap-runner.sh`), whose token file predates none of this: it was re-seeded on the rotation day and
+a 1Password-resolved converge since then proves it works. Phase 5 still has to CREATE a runner before it can
+have a runner secret; do not wire a secret for a holder that is not there.
 
 #### B) Account / connection refs — NOT consumed by Ansible (human maintenance / break-glass)
 
@@ -647,18 +652,20 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 > **Status (2026-09-19):** ⏳ **the deploy button does not exist yet.** `docs/services-vps.md` lists Forgejo as
 > `⏳ pending`, so Phase 5 is still the one unbuilt leg of the deploy pipeline, while `vps.yml` has converged
 > **manually** many times since 2026-08-22. Two premises this phase used to state as fact are **unverified from the
-> repo** and are now questions, not steps: (1) the `op_api`-as-runner-secret arrangement — **HD-396** is open, no
-> `.forgejo/` workflow exists in this repo, and no IaC file reads that item as a runner token; and the SA token was
-> rotated 2026-09-19, so IF a runner exists its token is dead until renewed; (2) the Victoria-metrics scrape-set
+> repo** and are now questions, not steps: (1) the `op_api`-as-runner-secret arrangement — **answered 2026-09-25:
+> there is no runner** (no workflow, no IaC runner, no `[actions]` in the live instance, no runner container on any
+> host — see the `op_api` note in §Vault inventory above), so the secret has no holder to renew and Phase 5 must
+> build the runner first; (2) the Victoria-metrics scrape-set
 > tail of step 5 (closed 2026-09-08 — see Phase 6).
 > **Continuation:** once active, merges are applied via the Forgejo Actions deploy button instead of manual Ansible runs.
 
 - [ ] **Forgejo Actions deploy workflow** — add `.forgejo/workflows/deploy.yml` (manual `workflow_dispatch`,
    `--tags` selector); the runner SSHes to the target host(s) and runs `ansible-playbook`
    (`vps.yml` for VPS, `home_servers.yml` for oldsrv).
-- [ ] ⏳ **1Password for the runner** — **unverified premise (HD-396)**: `op_api` as a Forgejo secret, runner
-   resolving secrets at render time. Confirm the runner exists at all before wiring it; after the 2026-09-19 SA
-   rotation, renew whatever token it does hold or its vault access 403s.
+- [ ] **1Password for the runner** — `op_api` as a Forgejo secret, runner resolving secrets at render time.
+   **Do this as part of creating the runner, not before it** (HD-396, closed 2026-09-25: no runner exists today, so
+   there is nothing to hold the secret and nothing to renew). Seed it with the POST-2026-09-19 SA value — the token
+   an older registration would have carried is superseded and its vault access 403s.
 - [ ] **Trigger** — no webhook; you click the **deploy button** on Forgejo (Dependency Dashboard / Actions tab).
 - [ ] **Deploy-button wiring for Renovate PRs** — Renovate itself is live (Phase 3) and opens PRs; what is missing is applying them through the button.
 - [ ] **Metrics** — none from the deploy path (no Doco-CD exporter). The **VictoriaMetrics** scrape set
