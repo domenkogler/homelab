@@ -39,6 +39,29 @@ the only path to any model, local or paid. This doc covers only the office slice
 | **🌐 Web Browser** | OpenCloud Web Interface | **ONLYOFFICE Docs Server** (via WOPI) | Perfect for quick edits or when a family member is on a guest computer. |
 | **💻 Windows 11** | **OpenCloud Desktop Client** for Windows | **Microsoft Office Suite** (Local) | Your files sync to a local folder, and MS Office opens them with maximum feature compatibility. |
 | **🐧 Linux** | **OpenCloud Desktop Client** for Linux | **ONLYOFFICE Desktop Editors** | ONLYOFFICE preserves Microsoft formatting much better than LibreOffice or OpenOffice. |
+| **📱 Phone (Android/iOS)** | **OpenCloud mobile app** (native OIDC → Authentik SSO, photo backup) | **"Open in web" → the ONLYOFFICE Docs tab**, or ONLYOFFICE Documents for a downloaded copy | The phone never holds a file-server password: it holds a short-lived SSO token, like every other family surface. |
+
+#### Mobile: which app is the storage surface (HD-459)
+
+> **Decision: on phones the OpenCloud app is the file surface; the ONLYOFFICE Documents app is an
+> editor, not a cloud client.** ONLYOFFICE Documents ships its own connector list (ONLYOFFICE
+> Docs/DocSpace, Nextcloud, ownCloud, kDrive, OneDrive, Dropbox, "Other WebDAV") and **every one of
+> them authenticates with username + password / app token** — none of them can present an Authentik
+> session, so choosing any entry there means parking a long-lived file credential on a device that
+> leaves the house. WebDAV + an OpenCloud **app token** is a legitimate *fallback* (the same
+> scoped-credential pattern as the OpenClaw service user, HD-160 / `openclaw-opencloud_api`, and
+> OpenCloud documents app tokens for WebDAV clients) — but it is not SSO and not the family default.
+>
+> **Why the mobile login needed a server-side change at all (the durable part):** the OpenCloud
+> mobile/desktop clients do OIDC with a **built-in client_id** that they *discover* from the server's
+> WebFinger (`?…&platform=android|ios|desktop`), and Authentik binds one client_id to one issuer — so
+> the native clients cannot get their own provider the way Authentik's ownCloud integration page
+> suggests. Shape + the two Authentik mechanics are in
+> [services-authentik.md](services-authentik.md) §"Blueprint authoring notes" fact 9; the live symptom
+> (Android → sso.kogler.si → "client_id is missing or invalid", 2026-09-25) and its ⏳ landing steps are
+> HD-459 in [todo.md](../todo.md). ⏳ **Owner hand:** confirm on device that the doc-open path lands in
+> the WOPI editor tab (the in-app "open in web" route rides on the app-provider/`collaboration` chain
+> that HD-166 wired for the browser).
 
 > ✅ **Verified (`docs.opencloud.eu/dev`):** OpenCloud ships a native**`collaboration` service** that connects to ONLYOFFICE / Collabora / Microsoft **via WOPI** (no third-party glue). Not enabled by default — start manually with `opencloud collaboration server`. Key vars: `COLLABORATION_APP_PRODUCT=OnlyOffice`, `COLLABORATION_APP_ADDR` (editing app URL), `COLLABORATION_WOPI_SRC` (public WOPI callback), plus `OC_URL`, `OC_JWT_SECRET`, `OC_REVA_GATEWAY`, `MICRO_REGISTRY_ADDRESS`. [Docs](https://docs.opencloud.eu/docs/dev/server/services/collaboration/information/).
 

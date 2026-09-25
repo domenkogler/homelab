@@ -96,6 +96,24 @@ services:
       PROXY_OIDC_REWRITE_WELLKNOWN: "true"
       PROXY_USER_OIDC_CLAIM: preferred_username
       PROXY_USER_CS3_CLAIM: username
+      # === WebFinger hands OUR client_id to the native clients (opencloud ADR 0003) ===
+      # `/.well-known/webfinger?resource=https://file.kogler.si&rel=http://openid.net/specs/
+      # connect/1.0/issuer&platform=<android|ios|desktop>` returns `properties[
+      # "http://opencloud.eu/ns/oidc/client_id"]`, and the Android/desktop/iOS clients use THAT
+      # as their OIDC client_id (android app: OCServerInfoRepository.retrieveOidcInfoFromWebFinger
+      # -> ServerInfo.OIDCServer.webFingerClientId -> LoginActivity). Server defaults are
+      # `web` for web but OpenCloudAndroid/OpenCloudIOS/OpenCloudDesktop for the native clients,
+      # and Authentik has exactly ONE client_id per provider (issuer is derived from the provider,
+      # so a second provider = a SECOND ISSUER that OC_OIDC_ISSUER above would reject — the ADR
+      # says it outright: "all OpenCloud clients need to use the same client id to work with
+      # Authentik"). Hence: one Authentik client `web`, advertised to every platform. Live symptom
+      # this fixes (2026-09-25): OpenCloud Android app -> sso.kogler.si "client_id is missing or
+      # invalid", because the app asked with the default `OpenCloudAndroid` (verified: the live
+      # webfinger response carried it) while the provider only knows `web`. Web redirects for the
+      # native custom scheme live in ks-oidc.yml (provider_opencloud), NOT here.
+      WEBFINGER_ANDROID_OIDC_CLIENT_ID: "web"
+      WEBFINGER_IOS_OIDC_CLIENT_ID: "web"
+      WEBFINGER_DESKTOP_OIDC_CLIENT_ID: "web"
       # === ONLYOFFICE / WOPI collaboration (HD-166) — in-browser doc editor ===
       # OpenCloud's native `collaboration` service speaks WOPI to ONLYOFFICE Docs at
       # office.kogler.si. ONLYOFFICE is NOT an auth surface: it never sees family logins.

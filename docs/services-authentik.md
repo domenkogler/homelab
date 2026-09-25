@@ -147,6 +147,30 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 8. **openclaw placeholder:** the serializer requires ≥1 redirect_uri even for the not-yet-onboarded
    provider — ks-oidc.yml carries `{url: "http://localhost:.*", matching_mode: regex}` as an explicit
    placeholder; replace with the real `openclaw onboard` callback(s) at HD-104.
+9. **One provider = one client_id = one issuer, so a multi-client app shares ONE client.**
+   `OAuth2Provider.client_id` is a single unique field and the issuer Authentik puts in every token
+   is derived from the provider, `https://sso.kogler.si/application/o/<provider-slug>/`. Authentik's
+   own integration guide for ownCloud therefore tells you to create an application/provider pair per
+   client type (Web UI / Desktop / Android / iOS). **Do not follow that here:** OpenCloud validates
+   bearer tokens against the single `OC_OIDC_ISSUER`, so a second provider is a second issuer. The
+   vendors' own words settle it — OpenCloud's
+   [ADR 0003](https://github.com/opencloud-eu/opencloud/blob/main/docs/adr/0003-oidc-client-config-discovery.md)
+   names this exact conflict: *"Authentik basically creates a different issuer URL for each client.
+   As OpenCloud can only work with a single issuer URL, all OpenCloud clients need to use the same
+   client id to work with Authentik."* So `provider_opencloud` serves web **and** the native clients
+   with `web`, and the server tells each platform that via WebFinger
+   (`WEBFINGER_<PLATFORM>_OIDC_CLIENT_ID`, see the opencloud compose) — never a second provider.
+   Two related mechanics, both read from source, not inferred:
+   - **STRICT redirect matching is byte-exact** (`providers/oauth2/views/authorize.py`
+     `check_redirect_uri`: `self.redirect_uri == allowed.url`); REGEX entries use `fullmatch`. Custom
+     schemes are accepted (`FORBIDDEN_URI_SCHEMES` blocks only javascript/data/file-style ones) —
+     Immich's `app.immich:///oauth-callback` and OpenCloud's `oc://android.opencloud.eu` both live.
+   - **`token_endpoint_auth_methods_supported` decides how a native client authenticates.** Authentik
+     advertises only `client_secret_post` + `client_secret_basic` (no `none`), so the OpenCloud Android
+     app sends `client_id` (+ empty `client_secret`) in the POST body with PKCE
+     (`S256` is advertised, and the app always sends `code_challenge`). Public `client_type` + PKCE is
+     therefore the correct pairing for these clients; unrequested/unknown scopes (`offline_access`) are
+     intersected down to the provider's scope mappings rather than rejected.
 
 **Canonical 2-entry pattern (per OIDC consumer):**
 

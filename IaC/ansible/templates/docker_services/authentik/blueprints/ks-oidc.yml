@@ -234,10 +234,21 @@ entries:
       # WEBFINGER_WEB_OIDC_CLIENT_ID=web). Redirects are the web app's callback pair.
       # client_id itself is set to 'web' via ORM (serializer treats it read-only);
       # upsert preserves unlisted attrs, so it survives applies.
+      # HD-459 (2026-09-25): the SAME client also serves the native clients, because Authentik
+      # derives the issuer from the provider and OpenCloud validates tokens against one issuer
+      # (opencloud ADR 0003) — the compose makes WebFinger advertise `web` to android/ios/desktop.
+      # `oc://android.opencloud.eu` is the Android app's custom-scheme callback, hardcoded in its
+      # setup.xml (oauth2_redirect_uri_scheme=oc / _host=android.opencloud.eu / _path empty) and
+      # intent-filtered in its AndroidManifest. STRICT comparison is BYTE-EXACT
+      # (authentik providers/oauth2/views/authorize.py: `self.redirect_uri == allowed.url`), so
+      # this entry must stay identical to what the client sends — add the trailing-slash variant
+      # rather than editing this one if a client ever sends one. Desktop/iOS share the client_id
+      # but have their OWN scheme callbacks; add their entries when those clients onboard (HD-52).
       client_type: public
       redirect_uris:
         - {url: "https://file.kogler.si/oidc-callback.html", matching_mode: strict}
         - {url: "https://file.kogler.si/oidc-silent-redirect.html", matching_mode: strict}
+        - {url: "oc://android.opencloud.eu", matching_mode: strict}
       signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
       sub_mode: hashed_user_id
       # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
