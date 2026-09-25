@@ -158,6 +158,32 @@ oldsrv is off the network (HD-455).
   `crowdsec-only` edge; decide whether git-over-https/API pushes stay open or follow web SSO.
 - **Metabase** (`sec.`): **RETIRED 2026-09-14** (removed from the VPS; future home oldsrv). Historically: Metabase OSS has **NO OIDC/SSO — paid Enterprise only** (image pinned in `group_vars/all/versions.yml`); the `metabase_oidc` provider was declared (Blueprint) only for a future Enterprise license, so the live route **stayed Forward-Auth**. A future oldsrv Metabase is a sandbox (no sources) and does **not** re-use this VPS Authentik OIDC provider — revisit only with an Enterprise license + VPS Authentik.
 
+### Open WebUI native-OIDC note (HD-458 — the callback path moved under us)
+
+`ai.kogler.si` starts the flow and dies on the return leg: authorize succeeds, Authentik issues a code,
+the browser lands on `https://ai.kogler.si/oauth2/callback?code=…&state=…` and gets a 404 page. Measured
+against the deployed build (**0.11.0**, 2026-09-25):
+
+- The callback is served at **`/oauth/oidc/callback`** — `main.py:2652` registers
+  `@app.get('/oauth/{provider}/login/callback')` and `:2653` the legacy `/oauth/{provider}/callback`.
+- **`/oauth2/callback` does not exist in this build** (there is no `routers/oauth2.py`), so the path falls
+  through to the SPA shell — every unmatched URL returns `index.html`, and the client router has no such
+  route either. That is why the failure looks like a web-server 404 but is really the app's own page.
+- Everything upstream is correct, which is why the flow *starts*: `OPENID_PROVIDER_URL` + client id/secret
+  satisfy the provider-registration gate at `config.py:2678`, so `OAUTH_PROVIDERS['oidc']` exists and
+  discovery is fetched. `OPENID_REDIRECT_URI` is then handed to the provider verbatim (`config.py:2694`).
+- The stale string sits on **both** sides of the wire: `OPENID_REDIRECT_URI` in
+  `templates/docker_services/open-webui/docker-compose.yml.j2` and `provider_openwebui.redirect_uris` in
+  `authentik/blueprints/ks-oidc.yml`. Change both, recreate OWUI, re-apply
+  `playbooks/authentik-blueprints.yml`, then verify `grant_types` + `property_mappings` survived the
+  upsert (HD-231 — they are pinned there; check, don't assume).
+- OWUI's `config` table holds **no** `oauth.*` rows, so env is authoritative here. That is the opposite of
+  Immich (§Immich: env is inert, the DB is the only surface) — the same defect class with opposite
+  remedies, which is why the standing rule is: **read the shipped build to find which surface it actually
+  consults, before choosing env or a seed.**
+- Acceptance is **a login that lands logged in**, not a 200 on the callback: a token-exchange failure and a
+  success look identical from the redirect alone.
+
 ---
 
 ## Per-service SSO login ledger
