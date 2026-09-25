@@ -13,17 +13,33 @@
 # Secrets: the preauth key is read from 1Password by the HOST_VAR ref (lazy lookup, so it
 # costs an `op` call only when this role actually runs) and is never printed (no_log).
 
+# ⚠ Arch comes from the host, it is NOT a literal: the URL, the dest path and the checksum
+# all moved onto `tailscale_host_arch` together. Shipping a checksum that does not belong to
+# the arch being downloaded is worse than shipping none — it would call a wrong-arch .deb
+# "verified" — hence the map in group_vars/all/versions.yml and this assert in front.
+- name: Assert the host architecture has a pinned, checksummed tailscale .deb
+  ansible.builtin.assert:
+    that:
+      - tailscale_host_arch in (tailscale_host_deb_sha256_by_arch | default({}, true))
+    fail_msg: >-
+      No pinned tailscale .deb checksum for architecture '{{ tailscale_host_arch }}'.
+      Supported: {{ (tailscale_host_deb_sha256_by_arch | default({}, true)).keys() | list }}.
+      Add it from https://pkgs.tailscale.com/stable/tailscale_{{ tailscale_host_version }}_
+      {{ tailscale_host_arch }}.deb.sha256 — do NOT relax this assert to reuse another arch's
+      checksum, that is the exact failure mode HD-435 hit.
+    quiet: true
+
 - name: Download the pinned tailscale host package (checksum-verified)
   ansible.builtin.get_url:
-    url: "https://pkgs.tailscale.com/stable/tailscale_{{ tailscale_host_version }}_amd64.deb"
-    dest: "/root/tailscale_{{ tailscale_host_version }}_amd64.deb"
-    checksum: "sha256:{{ tailscale_host_deb_sha256 }}"
+    url: "https://pkgs.tailscale.com/stable/tailscale_{{ tailscale_host_version }}_{{ tailscale_host_arch }}.deb"
+    dest: "/root/tailscale_{{ tailscale_host_version }}_{{ tailscale_host_arch }}.deb"
+    checksum: "sha256:{{ tailscale_host_deb_sha256_by_arch[tailscale_host_arch] }}"
     mode: "0600"
   register: _ts_deb
 
 - name: Install the tailscale host package
   ansible.builtin.apt:
-    deb: "/root/tailscale_{{ tailscale_host_version }}_amd64.deb"
+    deb: "/root/tailscale_{{ tailscale_host_version }}_{{ tailscale_host_arch }}.deb"
     state: present
 
 - name: Enable + start tailscaled

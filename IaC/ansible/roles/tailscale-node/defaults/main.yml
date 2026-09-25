@@ -31,5 +31,13 @@ tailscale_node_port: "{{ tailscale_listen_port }}"
 # against oldsrv's address. Per-host expectation, set in host_vars, asserted here.
 tailscale_node_expected_ip: ""
 
+# Which .deb to fetch. Defaulted from the gathered fact (a fact, not a guess) because the
+# role hard-coded `_amd64` for its whole life on one host and failed on the Pi with dpkg's
+# "Wrong architecture 'amd64'" (HD-435, 2026-09-25). dpkg arch names are what Tailscale's
+# filenames use (amd64 / arm64 / armhf), so the fact maps straight across — but only the
+# arches with a checksum in `tailscale_host_deb_sha256_by_arch` are supported, and the task
+# asserts that BEFORE downloading anything.
+tailscale_host_arch: "{{ ansible_facts['architecture'] }}"
+
 # Where the key lives while a join is actually happening: tmpfs, 0600, shredded in `always`.
 tailscale_node_authkey_path: /run/tailscale-authkey

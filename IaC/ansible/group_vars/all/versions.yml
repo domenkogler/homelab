@@ -241,7 +241,16 @@ tailscale_version: "v1.82.0"        # tailscale/tailscale (Docker Hub tag EXISTS
 # track this (docker datasource only) → bump = change BOTH lines, then re-converge.
 # Verified 2026-09-20: HTTP 200, 31502538 bytes, sha256 captured from the same fetch.
 tailscale_host_version: "1.82.0"
-tailscale_host_deb_sha256: "fd8018d489d29bace2f2e09c7a57d6714b064aa0fd774f53c171e495da566cb3"
+# Per-architecture SHA256 of the pinned host .deb. ⚠ ONE VALUE PER ARCH, and the reason
+# is a live failure (HD-435, 2026-09-25): the role hard-coded `_amd64` because oldsrv was
+# the only host it had ever run on, and the Pi (arm64) failed install with dpkg's
+# "Wrong architecture 'amd64'". A checksum map is what makes the pin honest — a single
+# sha for a URL that varies by arch would let a wrong-arch .deb through as "verified".
+# Source (authoritative, and the amd64 line here matches it byte for byte):
+#   https://pkgs.tailscale.com/stable/tailscale_<ver>_<arch>.deb.sha256
+tailscale_host_deb_sha256_by_arch:
+  amd64: "fd8018d489d29bace2f2e09c7a57d6714b064aa0fd774f53c171e495da566cb3"
+  arm64: "3f79eb18a34357669b343806e149037b9202357cf60aecc78731167341a5b308"
 # VictoriaMetrics MCP servers (HD-344) — oldsrv AI-debugging front-ends to the VPS
 # Victoria backends. Images: ghcr.io/victoriametrics-community/*. Tags registry-verified
 # 2026-09-08 via the GHCR token API (v1.18.0 / v1.8.0 = latest release lines; the
