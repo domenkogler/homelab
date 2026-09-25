@@ -66,11 +66,17 @@
   notify: [reload udev, trigger udev]
   tags: [amd_rocm]
 
-- name: Set OLLAMA_KEEP_ALIVE in /etc/environment (VRAM release after inactivity)
+# HD-404 (4): this host-level env write is REMOVED, not repointed. The ollama CONTAINER already
+# gets OLLAMA_KEEP_ALIVE from its own compose template (`docker_services/ollama`, same
+# `ollama_keep_alive` var), so the /etc/environment copy changed nothing except the impression
+# that this box runs a chat model worth keeping warm — decision #27 demoted its only Ollama to
+# the embed fallback rung. lineinfile with state: absent so an already-installed stale line is
+# actually taken off the box; the var itself stays (the compose template is its real consumer).
+- name: Remove the obsolete host-level OLLAMA_KEEP_ALIVE (HD-404; the container env owns it)
   ansible.builtin.lineinfile:
     path: /etc/environment
     regexp: '^OLLAMA_KEEP_ALIVE='
-    line: "OLLAMA_KEEP_ALIVE={{ ollama_keep_alive | default('5m') }}"
+    state: absent
   tags: [amd_rocm]
 
 # Verify after deploy:  getent group video render

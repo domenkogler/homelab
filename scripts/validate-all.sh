@@ -66,6 +66,35 @@
 #                                     is always False because that magic var is a TUPLE, and
 #                                     passed every static check while allowing an unfiltered
 #                                     self-converge of the netdev role
+#  18. check_merge_markers.py        — HD-453: no merge-conflict marker may reach a commit
+#                                     (`<<<<<<<` / `>>>>>>>` / `|||||||`, plus git's exact-width
+#                                     `=======` divider). A `>>>>>>>` line once survived a bad
+#                                     rebase into a rebased commit of a root view file and every
+#                                     gate stayed green; the gate scans the WORKING TREE, so it
+#                                     also fires before the commit that would ship the marker.
+#                                     `--self-test` proves it red on each marker shape and green
+#                                     on the near-misses that would otherwise mute it (a Markdown
+#                                     setext `=` heading; the repo's 50–60-char `=` banners in
+#                                     tracked raw evidence — a first draft matching `^={7,}`
+#                                     reported 78 false positives on its first run)
+#  19. check_iac_backend_strings.py   — HD-404 ratchet: the number of `Prometheus|Loki` mentions
+#                                     under IaC/ansible/{playbooks,group_vars} may not exceed the
+#                                     recorded floor (HD-342 replaced them with VictoriaMetrics +
+#                                     VictoriaLogs; the six stale claims HD-404 fixed were all in
+#                                     that corpus). A RATCHET, not a per-line lie-detector: an
+#                                     assertion-shaped regex caught 2 of the 4 real violations and
+#                                     an allowlist would mute the gate — both measured, both in the
+#                                     script's docstring. `--show` re-derives the count; the
+#                                     self-test refuses a floor red at rest or absurdly loose
+#  19. check_iac_backend_strings.py   — HD-404 ratchet: the count of `Prometheus|Loki` mentions under
+#                                     IaC/ansible/{playbooks,group_vars} may not exceed the recorded
+#                                     floor (HD-342 replaced them with VictoriaMetrics + VictoriaLogs;
+#                                     the six stale claims HD-404 fixed all lived in that corpus).
+#                                     A RATCHET, not a per-line lie-detector — measured: an
+#                                     assertion-shaped regex caught 2 of the 4 real violations, and an
+#                                     allowlist over the 28 mostly-legitimate mentions would mute the
+#                                     gate (the HD-417 lesson). `--show` re-derives the count; the
+#                                     self-test refuses a floor red at rest or absurdly loose
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -195,6 +224,24 @@ if [ -d "$HOME/.pi/agent/skills" ]; then
 else
   echo "SKIP: no ~/.pi/agent/skills on this host (bare CI / non-pi laptop) — skill gate runs where pi is configured"
 fi
+
+echo "== check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow) =="
+$PY scripts/check_iac_backend_strings.py
+
+echo "== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) =="
+$PY scripts/check_iac_backend_strings.py --self-test
+
+echo "== check_iac_backend_strings.py (HD-404: retired-backend names may not regrow) =="
+$PY scripts/check_iac_backend_strings.py
+
+echo "== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) =="
+$PY scripts/check_iac_backend_strings.py --self-test
+
+echo "== check_merge_markers.py (HD-453: no conflict markers in tracked files) =="
+$PY scripts/check_merge_markers.py
+
+echo "== check_merge_markers.py --self-test (HD-453 canary) =="
+$PY scripts/check_merge_markers.py --self-test
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
 # HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.

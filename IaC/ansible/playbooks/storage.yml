@@ -2,8 +2,9 @@
 # storage.yml — ZFS storage hosts (nas).
 # nas runs NO Docker and NO service stack. Ansible is
 # bootstrap-only: system hardening, /etc/hosts, host networking, and the
-# NUT UPS master. The observability backend (Prometheus/Grafana/n8n) lives on the
-# VPS (HD-135) and scrapes nas's nut_exporter over the WG S2S tunnel (see observability.md).
+# NUT UPS master. The observability backend (VictoriaMetrics + VictoriaLogs + Grafana +
+# n8n — the Victoria pair replaced Prometheus + Loki in HD-342) lives on the VPS (HD-135),
+# reached by Alloy shipping nas's node_*/nut_* series over the WG S2S tunnel (see observability.md).
 # Per-node model (HD-135b/HD-341): nas runs its OWN Alloy host-exporter (the monitoring
 # role installs Alloy via APT — no Docker requirement; nas ships node_* to the VPS
 # Victoria backend over wg-s2s), while oldsrv still scrapes nas's nut/zfs exporters.

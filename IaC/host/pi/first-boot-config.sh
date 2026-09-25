@@ -1,10 +1,15 @@
 #!/bin/bash
 # =====================================================================
-# Pi first-boot SD card config — run AFTER flashing raspi.debian.net image
+# Pi first-boot SD card config — the FALLBACK path. The normal route is Raspberry Pi
+# Imager's advanced settings (they do SSH + user + keys headless); this script is for the
+# case where the image was flashed without them. See docs/deployment-preseed.md §Pi Image
+# Deployment (Raspberry Pi OS Lite) + docs/deployment-pi-provision.md.
 #
 # Prerequisites:
-#   1. Download the latest tested image from https://raspi.debian.net/tested-images/
-#      (pick the Pi 4 image for the current Debian release).
+#   1. Flash the OFFICIAL Raspberry Pi OS Lite (64-bit) image. ⛔ NOT a raspi.debian.net
+#      rebuild — that image boots THIS Pi 4 to a rainbow screen (kernel/firmware mismatch,
+#      recorded in deployment-preseed.md; the wording that told operators to use it lived
+#      in this very file until HD-404).
 #   2. Flash to microSD (≥32 GB) — Raspberry Pi Imager, Balena Etcher, or dd.
 #   3. DO NOT boot yet — re-insert the SD card so the boot partition mounts.
 #
@@ -58,7 +63,7 @@ echo "  [1/4] SSH enabled (boot/ssh)"
 
 # -----------------------------------------------------------------
 # 2. Cloud-init user-data (primary method)
-#    raspi.debian.net images historically don't include cloud-init, but
+#    Raspberry Pi OS Lite ships without cloud-init enabled on the SD card, but
 #    writing user-data is harmless if unsupported. The fallback script
 #    below covers that case.
 # -----------------------------------------------------------------

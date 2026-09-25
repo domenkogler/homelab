@@ -110,7 +110,8 @@ spark_mgmt_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark'
 
 # ==== UPS / NUT (docs/hardware-ups.md) ====
 # Single SSOT `nut_exporter` runs as a HOST binary on the NUT master (nas, no Docker)
-# and is scraped by Prometheus (on the VPS, HD-135) over the WG S2S tunnel. Host derived
+# and is scraped over the WG S2S tunnel: Alloy is the collector tier and ships to the VPS
+# Victoria backend (HD-342 — it replaced the Prometheus/Loki pair). Host derived
 # from the address SSOT below (nas @ VLAN 10); port matches the nut role's `nut_exporter_listen`.
 nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 # nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
@@ -375,7 +376,7 @@ network_ranges:
   - { name: traefik-public,    cidr: "172.20.0.0/16",  purpose: "Docker bridge — Traefik edge ↔ exposed services" }
   - { name: services-internal, cidr: "172.21.0.0/16",  purpose: "Docker bridge — app ↔ app communication" }
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
-  - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LLM backend (Ollama) ↔ LiteLLM only, fully isolated (HD-59)" }
+  - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LiteLLM ↔ its oldsrv LLM backends (the Vulkan pinned tier; Ollama is the embed fallback rung, decision #27), fully isolated (HD-59)" }
   - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
   # Technitium PRIMARY on the VPS (HD-299, 2026-09-03): DNS is a first-class public
   # resolvable tier — the VPS (always-on, WAN-reachable) hosts the DNS primary.

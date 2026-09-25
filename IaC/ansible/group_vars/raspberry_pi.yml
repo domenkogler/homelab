@@ -32,7 +32,9 @@ ha_primary_peer_priority: 90  # failback peer mode — below standby (100/120), 
 # Pi also runs a small docker_services set (needs the docker + docker_services roles):
 #   - home-assistant-primary: PRIMARY HA + keepalived MASTER (configs rendered by the
 #     home_assistant role BEFORE docker_services runs)
-#   - technitium-secondary: DNS secondary (moved from nas; primary is on oldsrv)
+#   - technitium-secondary: the Pi's Technitium instance (moved from nas). ⚠ The NAME is
+#     historical: the live tier is VPS primary + oldsrv secondary + Pi TERTIARY (HD-332),
+#     so do not read "secondary" here as the role — docs/network-dns.md §the DNS tier owns it.
 #   - traefik-ha: HA + DNS-secondary web-UI edge (VIP-bound; oldsrv-down gap)
 #
 #   - raspberrymatic was REMOVED from the Pi loop (2026-08-18, HD-13 parked): keeping the

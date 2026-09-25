@@ -4,8 +4,9 @@
 # === Service placement (HD-135 split, 2026-08-18) ===
 # Old-srv keeps the GPU / LAN / storage-bound core (immich-ml, jellyfin,
 # sunshine, media/*arr, DNS, ha-standby) + the thin Alloy collector (dozzle moved to VPS, HD-135b).
-# The public edge + live-data apps + AI stack + observability backend + alert brain
-# (n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.
+# The public edge + live-data apps + AI stack + the observability backend
+# (VictoriaMetrics + VictoriaLogs + Grafana — HD-342 replaced the Prometheus/Loki pair) +
+# the alert brain (n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.
 
 # Reachability (HD-397, decided 2026-09-19): oldsrv sits behind the home NAT, so a runner
 # that is not LAN-attached reaches it ONLY via the VPS jump. The jump therefore travels IN
@@ -153,7 +154,7 @@ docker_services:
   # Public edge + live-data apps + observability backend + alert brain + backup agents
   # moved to the VPS (group_vars/vps.yml). old-srv keeps the hardware-bound core + the
   # thin Alloy collector (monitoring role) that forwards home telemetry to the VPS
-  # Prometheus/Loki over the wg-vps-services tunnel.
+  # Victoria backend (VictoriaMetrics + VictoriaLogs, HD-342) over the wg-vps-services tunnel.
 
   # --- Compute / GPU backend (cannot leave the GPU box) ---
   # ollama: RE-ARMED 2026-09-15 (decision #24) as the RX 7600 pinned-services tier, and
@@ -340,7 +341,8 @@ docker_services:
 
   # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
   # opencloud/immich-app/forgejo/litellm/qdrant/docling/open-webui/openclaw,
-  # prometheus/loki/grafana/blackbox-exporter (backend on VPS), n8n, kopia-server,
+  # grafana/blackbox-exporter + the Victoria backend (victoria-metrics + victoria-logs —
+  # they replaced prometheus + loki, HD-342), n8n, kopia-server,
   # db-backup, matrix, chat, headscale, pairdrop, stirling-pdf, renovate,
   # homepage (HD-180/HD-183 — family launchpad at the public edge).
   # metabase: RETIRED from the VPS 2026-09-14 (was here); future home = oldsrv.

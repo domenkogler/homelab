@@ -23,15 +23,16 @@
 #       resolve by service name on this overlay; the sidecar inherits it via the
 #       shared `network_mode: service:traefik-tailnet` namespace and rides it
 #       for outbound tailnet control traffic.
-#     - `tailnet-apps` (172.24.0.0/16, HD-296) — NEW overlay added to carry
-#       the Pattern-A sidecar UIs (dsh:3080, pi-dev:8080) so this edge can
-#       route clean URLs (`https://dsh.ts.kogler.si` / `https://pi-dev.ts.kogler.si`)
-#       to them via Docker DNS. The dsh + pi-dev apps join tailnet-apps in
-#       addition to services-internal; their tailscale sidecars inherit both
-#       networks via `network_mode: service:<app>`. ISO from traefik-public
-#       (defense in depth — the tailnet edge can't reach the main public
-#       apps' Docker DNS) and from services-internal (dsh/pi-dev UIs bind
-#       loopback-only; the tailnet edge must reach them via the new overlay
+#     - `tailnet-apps` (172.24.0.0/16) — the app→tailnet-edge bridge: the overlay
+#       this edge uses to reach an app by Docker DNS without joining the app's own
+#       internal network. ⚠ HD-404: its LIVE USER TODAY IS LITELLM (`litellm`,
+#       HD-372 — the tailnet clean URL for the gateway). It was ADDED as HD-296 for
+#       the Pattern-A sidecar UIs (dsh:3080, pi-dev:8080), but HD-355 moved those
+#       backends to oldsrv over WG S2S, and that pair is now parked with DELIBERATE
+#       502s (HD-386) — so read the dsh/pi-dev wording below as the overlay's origin,
+#       not its purpose. ISO from traefik-public (defense in depth — the tailnet edge
+#       can't reach the main public apps' Docker DNS) and from services-internal (the
+#       bridged apps' UIs bind loopback-only; the edge reaches them via this overlay's
 #       DNS, not by joining services-internal directly).
 #   Userspace networking (TS_USERSPACE=true + --tun=userspace-networking) on the
 #   sidecar — no NET_RAW/SYS_MODULE needed (pi-dev/dsh idiom).
@@ -93,9 +94,11 @@ services:
         # HD-240 pattern: pin this edge's IP so the header-trust whitelist
         # (traefik_edge_ips) stays valid (see header above).
         ipv4_address: 172.20.0.250
-      # HD-296: tailnet-apps overlay (172.24.0.0/16, group_vars/all/main.yml network_ranges)
-      # carries the Pattern-A sidecar UIs (dsh + pi-dev) so the file-provider routers
-      # in dynamic/routes.yml.j2 can resolve them via Docker DNS. NOT traefik-public
+      # tailnet-apps (172.24.0.0/16, group_vars/all/main.yml network_ranges): the app→edge
+      # bridge. Live user today = litellm (HD-372); it was added in HD-296 for the dsh +
+      # pi-dev sidecar UIs, which HD-355 moved to oldsrv over WG S2S (parked, deliberate
+      # 502s — HD-386). Either way the routers in dynamic/routes.yml.j2 resolve backends
+      # via Docker DNS here. NOT traefik-public
       # (the main public edge's apps live there; the tailnet edge must not be able to
       # reach them — defense in depth) and NOT services-internal (dsh + pi-dev UIs
       # bind loopback-only inside their containers; only the sidecar proxies them).
