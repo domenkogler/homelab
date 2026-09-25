@@ -599,15 +599,25 @@ exclusions are declared by router labels (source of truth) and mirrored in
 ### 1.6b Immich (foto.) — first OIDC login `[MANUAL — owner browser]`
 
 The OAuth settings themselves are Ansible's job (`docker_services` → `immich-seed.yml`, which PUTs
-them over the API — Immich stores them in its database, not in compose). What stays with the owner
-is the **first login as a human**, because Immich links an OIDC identity to an existing account by
-email and auto-registers a **new empty library** for any email it does not know:
+them over the API — Immich stores them in its database, not in compose). Two things stay with the
+owner, both because they are the first account on the service:
 
+0. **First-run wizard, then the vault — in that order.** A fresh Immich has no account at all until a
+   human answers the setup wizard in a browser (admin e-mail + password). Store those exact values in
+   the 1Password item `immich-admin_login` (`username` = that e-mail, `password`). ⚠ Until this step is
+   done the `immich_seed` lane cannot work — it logs in as that account to write the OAuth config — so
+   the FIRST VPS converge of a from-zero rebuild reports it red by design; re-run it
+   (`--tags immich_seed`) after the wizard + the vault write, do not chase the failure.
 1. Decide which Authentik account owns the family library **before** the first click. Immich reads
    the `immich_role` / `immich_quota` claims **only when it creates the user** — a wrong role or a
    second account is fixed by an admin merge afterwards, not by a re-login.
 2. Open `foto.kogler.si` in a normal browser and use the SSO button (label: `Prijava z SSO`) on the
    login page, then sign in as `domen` in Authentik.
+3. Confirm it landed on the family library (not a fresh empty one) and that the role is right
+   (Administration → Users). A `domen` login that shows no photos is the second-account case above —
+   stop and reconcile the emails instead of deleting anything.
+4. Mobile: in the Immich app point the server at `foto.kogler.si` and use SSO; the app's
+   `app.immich:///oauth-callback` redirect is already an authorised redirect URI.
 3. Confirm it landed on the family library (not a fresh empty one) and that the role is right
    (Administration → Users). A `domen` login that shows no photos is the second-account case above —
    stop and reconcile the emails instead of deleting anything.
