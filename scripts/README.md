@@ -117,6 +117,12 @@ inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
 ## Notes & conventions
 
 - **Never edit a `-generated` doc directly** — change the SSOT (`group_vars/*.yml`, `rack-connections.json`) and re-render, then `git diff --exit-code` to confirm.
+- **Judge `validate-all.sh` by its EXIT CODE, never by a filtered view of its output.** Live
+  2026-09-25: `bash scripts/validate-all.sh 2>&1 | grep -iE "FAIL|OK: all validators" && git commit … &&
+  git push` — the pipeline's status is GREP's, and grep exits 0 when it finds something, so a run that
+  printed `FAIL: 2 internal IP literal(s)` happily committed and pushed to `main`. Run the gate, check
+  `$?` (or `&&` on the bare command), and only then filter the log for reading: `bash
+  scripts/validate-all.sh >/tmp/v.log 2>&1; echo "exit=$?"; grep -iE 'FAIL|OK: all' /tmp/v.log`.
 - **No secrets outside 1Password `Homelab-ansible`.** Render scripts that need one (e.g. `render-routeros.yml` → device `.rsc`) resolve via `lookup(...)`; the pure-Python renderers here intentionally touch **no** secrets (they read only the YAML/JSON SSOT).
 - **Windows vs Linux:** the Python scripts run cross-platform (PyYAML + Jinja2). Ansible playbooks (`render-docs.yml`, `render-routeros.yml`) require WSL/CI on this machine. Since the WSL ext4 move (HD-259) the Debian/WSL primary is the canonical runner, so scripts must not assume Windows-only launchers/paths; the gate enforces this (see §Portability). Like `ansible-run.sh`, the `validate-all.sh` `--syntax-check` gate exports `ANSIBLE_CONFIG`/`ANSIBLE_ROLES_PATH` from the repo root so roles resolve (HD-256).
 - **Live converges run ASYNC (HD-370 live lesson 2026-09-15):** a full/`--tags docker_services` converge takes **10–30+ min** (Bulk 1P pre-pass, authentik glue, per-service compose up, restart guards, Technitium seed). Running it in the foreground of a tool/terminal shell (or behind the container host's own timeout) lets an outer timeout kill it **mid-restart** — live evidence: a `timeout 600` killed a VPS converge right at `docker compose restart traefik-tailnet`, leaving `tailscale-sidecar Exited (128)` and a `cannot join network namespace of a non running container` failure on the *next* run's restart guard. Always launch converges **detached** and poll:
