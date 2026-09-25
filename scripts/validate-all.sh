@@ -27,6 +27,12 @@
 #                                     --validate-mode fails on primary+main+DIRTY; clean-main
 #                                     merge-station runs pass silently; self-test fixture asserts
 #                                     the guard contract inside throwaway temp repos
+#  10b. guarded-converge.sh --self-test — the post-converge liveness verdict must
+#                                     refuse a crash-looping container (HD-436: a
+#                                     service that exits at every start still reports
+#                                     Running=true between crashes; the pinned
+#                                     headscale does exactly that when both
+#                                     extra-record settings are set)
 #  11. testdata/check-vault-items/run.sh — check-vault-items.sh scanner self-test
 #                                     (HD-244/245): *_item registry-key parsing + --strict
 #                                     contract asserted on a committed synthetic mini-tree
@@ -133,6 +139,9 @@ bash scripts/guard-session.sh --validate-mode
 
 echo "== guard-session.sh --self-test (sandboxed guard fixture, HD-253) =="
 bash scripts/guard-session.sh --self-test
+
+echo "== guarded-converge.sh --self-test (post-converge liveness verdict, HD-436) =="
+bash scripts/guarded-converge.sh --self-test
 
 echo "== validate-docker-services.py =="
 $PY scripts/validate-docker-services.py
