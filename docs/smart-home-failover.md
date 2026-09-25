@@ -78,11 +78,12 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > - **Follow-ups tracked:** (1) Pi Technitium admin-align + seed so `ha.kogler.si`→VIP resolves on ALL
 >   3 DNS instances (HD-330) — removes the DNS-ordering dependency (phone on Wifi Kogler already works
 >   via the VPS primary; the Pi tertiary zone is empty), (2) mobile-over-Tailscale path (subnet router /
->   tailnet DNS + ACL) — **the transport landed 2026-09-25 (HD-435): the Pi is now a tailnet node in
->   its own right and its `traefik-ha` edge answers `https://pi.ts.kogler.si/` → 200 over a DIRECT
->   session** (measured from the laptop's Windows client: `active; direct 193.77.156.222:41641`), no
->   subnet routes and no Authentik in the path. Still the owner's step: pointing the Companion App at
->   that name — it is per-device config, nothing in IaC can do it. TLS on the Pi
+>   tailnet DNS + ACL) — **the transport exists (HD-435), the app pointer does not:** the Pi is a tailnet
+>   node in its own right and its `traefik-ha` edge answers `https://pi.ts.kogler.si/` → 200 over a DIRECT
+>   session (measured 2026-09-25 from the laptop's Windows client: `active; direct
+>   193.77.156.222:41641`), with no subnet routes and no Authentik in the path. ⚠ Away from home the name
+>   that answers today is `pi.ts.kogler.si`, not `ha.ts.kogler.si` (see the drill note below). Pointing the
+>   Companion App at it is **per-device config — an owner step nothing in IaC can do**. TLS on the Pi
 >   edge was verified fine 2026-09-07 (valid Let's-Encrypt cert served by traefik-ha).
 - **VRRP auth constraint (HD-124 / KOPS-020):** keepalived uses `auth_type PASS` (an 8-char password from `ha-vrrp_password`, truncated identically on both nodes). VRRP has **no stronger in-protocol auth** — VRRPv2 offers only PASS (plaintext) or AH (discontinued), and VRRPv3 (RFC 5798) **removed Authentication Header entirely** — so `auth_type PASS` is the maximum the protocol provides, not an oversight to "fix" with a stronger cipher. The real mitigation is **network trust**: VRRP multicast runs only on the Home VLAN (10), isolated from the Management/IoT planes. Do not chase a "real auth mechanism" here (none exists); rely on VLAN isolation instead. (Likewise, keepalived image is pinned to `keepalived_version` — HD-124/KOPS-053.)
 
@@ -191,11 +192,11 @@ The forward takeover (Pi → oldsrv) has been **drilled live**: Pi LAN cable pul
   the conntrack timeout is permanently half-open and xknx cannot see it. Reload restored inbound; the
   `src-port=3671 → trusted-ha` reverse accept removes the recurrence, verified by deleting the flow's conntrack
   entry and watching inbound continue. Two things it did **not** explain and are still open: the ~36 state
-  group addresses the generator emits that your old working config never used (they will keep timing out on
+  group addresses the generator emits that the old hand-authored config never used (they will keep timing out on
   every sync even on a healthy bus), and whether the standby's KNX (HD-434) behaves any differently — retest at
-  a drill with the primary now as a known-good reference. My earlier "GIRA router refuses the standby" and
-  "trusted-ha was the cause" claims are both withdrawn; the probe that should have caught the second one was a
-  UDP test, and I ran ICMP and TCP instead.
+  a drill with the primary now as a known-good reference. ⚠ **The probe that decides this class is a UDP
+  test**: ICMP and TCP answers say nothing about a half-open UDP tunnel, and both "the GIRA router refuses the
+  standby" and "trusted-ha was the cause" read like explanations until that probe has been run.
 - ⚠ **Two dependencies the same drill exposed, both closed on paper 2026-09-22, neither drilled.**
   **(1) Home DNS turned out to be fine and my claim about it was wrong.** I wrote that the router advertised
   only the Pi, so a Pi-out would leave the house unable to name anything — a "half takeover". Measured on the
@@ -203,15 +204,16 @@ The forward takeover (Pi → oldsrv) has been **drilled live**: Pi LAN cable pul
   survives one DNS host dying; there was no router change to make and none was made. The residual is
   per-VLAN, not global: IoT's `:53` is dst-nat'd to the **Pi alone** and the Kids rules to the **VPS alone**,
   both deliberate, both single-target ([network-dns.md](network-dns.md) §The answer-plane model decision 4).
-  **(2) The tailnet path now exists on BOTH home boxes; the ANSWER is still the weak half
-  (HD-435, measured 2026-09-25):** `ha`/`ha-ts` target the VIP, so after a takeover a tailnet client
-  keeps reaching HA — but until today only oldsrv had a tailnet listener, so with oldsrv L2-dead
-  (HD-455) the entire away path was dead even while the healthy Pi answered VIP:8123 locally. The Pi
-  now runs its own `websecure-ts` listener + `ha-ts` router, measured working end to end.
+  **(2) The tailnet path exists on BOTH home boxes; the ANSWER is the weak half (HD-435):**
+  `ha`/`ha-ts` target the VIP, so after a takeover a tailnet client keeps reaching HA whichever box owns it —
+  each home box runs its own `websecure-ts` listener + `ha-ts` router (the Pi's measured end to end
+  2026-09-25). That is the whole point of the second listener: with only oldsrv carrying one, a tailnet
+  client lost HA whenever the node-carrying box was down (HD-455 had oldsrv L2-dead while the healthy Pi
+  answered VIP:8123 locally).
   ⚠ **What is left is DNS, not the edge:** MagicDNS (the loopback resolver in
-  [network-dns.md](network-dns.md)) answers `ha.ts.kogler.si` with **oldsrv's node address**
-  (SSOT `tailnet_oldsrv_ip`) — a dead box today — so an away client still gets a dead answer for the `ha`-shaped
-  names and must reach HA as `pi.ts.kogler.si`. The dual-A publish is the `zone_kogler_si`
+  [network-dns.md](network-dns.md)) answers `ha.ts.kogler.si` with **one node address only** — oldsrv's,
+  SSOT `tailnet_oldsrv_ip` — so when that is the dead box an away client gets a dead answer for the
+  `ha`-shaped names and must reach HA as `pi.ts.kogler.si`. The dual-A publish is the `zone_kogler_si`
   `tailnet: dual` step in **HD-436** — deliberately NOT a bolt-on to `tailnet_subdomains`, which would
   answer the PLAIN `ha.kogler.si` client-side for a phone standing at home (HD-382/389). Reasons:
   [network-dns.md](network-dns.md) §The answer-plane model.
