@@ -435,38 +435,47 @@ Measured 2026-09-23 on `Homelab-ansible` (118 items): `dups: none`, and `dirty:`
 The pattern is deliberately stricter than reality because the titles that matter are machine-written;
 the two above are the accepted exceptions, so leave them and watch for anything *new*.
 
-**Closure of the `metabase_oidc,` case (what the fix had to survive):** the owner deleted the four phantoms;
-the full VPS `docker_services` converge of 2026-09-23 (`ok=330 failed=0`) then ran the glue for 15.3 s and
-minted **nothing** — the sweep above shows exactly one clean `metabase_oidc`. The deployed copy on the VPS is
-byte-identical to the template (`md5 d1ccc0d4…`, `bash -n` clean), so the guard is live, not just committed.
-The clinching measurement: `metabase_oidc` still reports `updated_at == created_at == 2026-08-22`, i.e. it was
-**never** written in its whole life — which is precisely what a permanently-failing `op item edit` with a
-successful `op item create` fall-through looks like from the outside. **✅ DECIDED 2026-09-25 (HD-447):** the
-owner ruled **delete** — remove the live `provider_metabase` + `app_metabase` and the `edge-sec`/`edge-sec-ts`
-providers, apps and `outpost_embedded` entries from the RUNNING Authentik, while the **IaC stays in the repo at
-`enabled: false`** (disable first; comment only if disable cannot reach it) so the revival path survives. The
-cleanup is AI work through the Authentik API / `ak shell`, not a human hunt-and-peck. ⛔ Acceptance is proving
-the blueprint does **not** re-mint those objects while `enabled: false` — a dangling `!KeyOf` fails the whole
-import, which is an **IdP** outage rather than a Metabase one (`blueprints/*.yml` are `copy:`d unrendered, and
-`outpost_embedded` is one shared object, which is why commenting them out was never the answer). Also gone by
-owner hand the same day: `sec.kogler.si` in Cloudflare — note WHY a human had to do it: the `cloudflare_api`
-token is IP-filtered to the home WAN, so Cloudflare records are unreachable from any session that is away. The
-last residue is the dormant `metabase_oidc` vault item itself (delete or keep, one line, still open in HD-447).
-**✅ CLOSED 2026-09-25, and the acceptance read is the interesting part.** The live objects were deleted
-via `ak shell` with an exact-name allowlist plus two asserts (right set present, no OTHER application riding
-those providers): **3 applications** (`Metabase`, `Metabase (edge)`, `Metabase (tailnet ts)`) and
-**3 OAuth2 providers** — whose real names are `metabase`, `forward-sec`, `forward-sec-ts`. ⚠ **The blueprint
-ids are `provider_edge_sec*` but the object names are `forward-sec*`**, so a DB search for `edge-sec` returns
-nothing and invites a second, unnecessary deletion pass. Acceptance then measured rather than asserted: the
-scoped converge re-rendered `/opt/authentik/blueprints/*.yml` (the retirement comments are what proves it —
-the object blocks are gone), `playbooks/authentik-blueprints.yml` came back `changed=0 failed=0`, and the same
-read afterwards shows **nothing re-minted**, which is the point: a blueprint apply is an UPSERT, so deletion
-has to be explicit and the revival path has to be the registry flag. The one real
-`authentik Embedded Outpost` — shared by every Forward-Auth route in the fleet — was left untouched.
-The owner deleted `metabase_oidc` the same day, provably safe: that entry is
-`{% raw %}{% if _enabled.get('metabase', false) %}{% endraw %}`-gated in the egress glue, so it rendered nothing
-while `enabled: false` (and see above for why the gate, not just the shape guard, was the fix).
-A hard-coded provider list that outlives the service is how this row's defect stayed invisible: the list, not
+**What verifying that fix looks like (measured 2026-09-23).** The full VPS `docker_services` converge
+(`ok=330 failed=0`) runs the glue (15.3 s) and mints **nothing** — the sweep above returns exactly one clean
+`metabase_oidc` (the four phantom items being owner-deleted by then), and the deployed copy on the VPS is
+byte-identical to the template (`md5 d1ccc0d4…`, `bash -n` clean), so the guard is live, not just committed. The signature that separates "written and
+rotating" from "a duplicate sitting beside the real item": `updated_at == created_at` (here both
+`2026-08-22`) means the item was **never** written, which is what a permanently-failing `op item edit`
+with a successful `op item create` fall-through looks like from the outside.
+
+**Retiring a service out of Authentik (HD-447, executed 2026-09-25).** The owner's ruling was **delete the
+live objects, keep the IaC disabled**: the objects come out of the RUNNING Authentik while the repo keeps its
+(disabled) declaration, so the revival path survives. Four standing rules fall out of doing that safely:
+
+- **Disable it in the registry first; comment a blueprint block out only where the disable flag cannot reach
+  it.** `enabled: false` keeps both the IaC and the revival path. Commenting is the fallback, not the
+  mechanism, because an edit that leaves a dangling `!KeyOf` behind fails the **whole** blueprint
+  (`blueprints/*.yml` are `copy:`d unrendered) — an **IdP** outage rather than one service's. The same care
+  applies to `outpost_embedded`: one shared object, so retire a service's entries, never the object.
+- **A blueprint apply is an UPSERT: removing an entry does NOT delete the server-side object.** Deletion is a
+  separate, explicit pass through the Authentik API / `ak shell` — AI work, not a human hunt-and-peck — run
+  with an exact-name allowlist plus two asserts: the expected set is present, and no OTHER application rides
+  those providers.
+- ⚠ **Blueprint ids are not object names.** This service's providers are `provider_edge_sec*` /
+  `edge-sec-ts` in the blueprint but live in the DB as `forward-sec` and `forward-sec-ts` (and
+  `provider_metabase`/`app_metabase` are the DB's `Metabase`), so a search for `edge-sec` returns nothing and
+  invites a second, unnecessary deletion pass. Query the DB for `name`/`slug`, not for the blueprint id.
+- **Acceptance is a read, not a claim:** re-render the scoped blueprint set (the retiring comments replacing
+  the object blocks prove the render), apply `playbooks/authentik-blueprints.yml` to `changed=0 failed=0`,
+  then take the same read again and confirm **nothing re-minted**. The one real `authentik Embedded Outpost`
+  — shared by every Forward-Auth route in the fleet — stays untouched by any such pass.
+
+Deleted 2026-09-25 and verified by that read: **3 applications** (`Metabase`, `Metabase (edge)`,
+`Metabase (tailnet ts)`) and **3 OAuth2 providers** (`metabase`, `forward-sec`, `forward-sec-ts`), plus the
+dormant `metabase_oidc` vault item — safe to remove because its egress entry is
+`{% raw %}{% if _enabled.get('metabase', false) %}{% endraw %}`-gated, so it renders nothing while
+`enabled: false` (the gate, not the name-shape guard, is what makes it inert).
+
+⚠ **A Cloudflare record is an owner step from anywhere but home:** the `cloudflare_api` token is IP-filtered
+to the home WAN, so no away session can delete a public record (`sec.kogler.si` went by owner hand for that
+reason alone).
+
+A hard-coded provider list that outlives the service is how this defect stayed invisible: the **list**, not
 the fleet, decides what gets synced.
 
 ---
