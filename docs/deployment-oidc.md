@@ -197,6 +197,7 @@ verified by its redirect; native-OIDC services are verified by the session exist
 | `vpn` (Headscale) | native OIDC | owner login in the HD-219 era | ✅ then — **not re-verified 2026-09-25** (`ai` is the lesson: an old ✅ is not a current one) |
 | `chat` (Element + Tuwunel) | homeserver SSO | `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik` IdP + owner login | ✅ 2026-09-25 |
 | `file` (OpenCloud) | native OIDC (web) | owner login **and** a `.docx` open through the ONLYOFFICE WOPI chain in that session ([services-office.md](services-office.md)) | ✅ 2026-09-25 |
+| `file` (OpenCloud) **native Android app** | native OIDC, client_id from WebFinger | owner login as `domen` **and** the file list on device; acceptance measured server-side = a `RefreshToken` row for the provider whose scope still contains `offline_access` (HD-459 — an app that logs in but gets no refresh token LOOKS alive for an hour) | ✅ 2026-09-25 |
 | `foto` (Immich) | native OIDC | the button, then an owner login as `domen` (see §Immich for how the settings get there) | ✅ 2026-09-25 |
 | `git` (Forgejo) | native OIDC | `user/login` advertises `Sign in with authentik`; the source is registered by `deploy-service.yml`, `ENABLE_AUTO_REGISTRATION=true`, `/user/register` 404 by design | ✅ 2026-09-25 |
 | `claw` (OpenClaw) | native OIDC | — | ⏳ desktop/mobile OAuth + CSP (HD-144) |

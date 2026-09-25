@@ -52,16 +52,17 @@ the only path to any model, local or paid. This doc covers only the office slice
 > scoped-credential pattern as the OpenClaw service user, HD-160 / `openclaw-opencloud_api`, and
 > OpenCloud documents app tokens for WebDAV clients) — but it is not SSO and not the family default.
 >
-> **Why the mobile login needed a server-side change at all (the durable part):** the OpenCloud
-> mobile/desktop clients do OIDC with a **built-in client_id** that they *discover* from the server's
-> WebFinger (`?…&platform=android|ios|desktop`), and Authentik binds one client_id to one issuer — so
-> the native clients cannot get their own provider the way Authentik's ownCloud integration page
-> suggests. Shape + the two Authentik mechanics are in
-> [services-authentik.md](services-authentik.md) §"Blueprint authoring notes" fact 9; the live symptom
-> (Android → sso.kogler.si → "client_id is missing or invalid", 2026-09-25) and its ⏳ landing steps are
-> HD-459 in [todo.md](../todo.md). ⏳ **Owner hand:** confirm on device that the doc-open path lands in
-> the WOPI editor tab (the in-app "open in web" route rides on the app-provider/`collaboration` chain
-> that HD-166 wired for the browser).
+> **OpenCloud Android app SSO — ✅ LIVE + owner-verified on device 2026-09-25** (login as `domen`
+> through sso, file list shown; the acceptance check that actually counted was server-side: a
+> `RefreshToken` row whose scope still contains `offline_access`). Two server-side causes behind the
+> two errors the phone threw, both recorded in
+> [services-authentik.md](services-authentik.md) §"Blueprint authoring notes" facts 7 + 9 — (a) the
+> native clients **discover** their client_id from WebFinger and Authentik binds one client_id to one
+> issuer, so every platform must share the single `web` client; (b) a refresh token is minted only if
+> `offline_access` is a property mapping on the provider. Family steps: [manual/opencloud.md](manual/opencloud.md).
+> ⏳ **Still owed on the phone:** the doc-open path should hand a browser tab to the WOPI editor (it
+> rides the HD-166 app-provider chain and has never been exercised from a phone), and photo backup if
+> the family wants it.
 
 > ✅ **Verified (`docs.opencloud.eu/dev`):** OpenCloud ships a native**`collaboration` service** that connects to ONLYOFFICE / Collabora / Microsoft **via WOPI** (no third-party glue). Not enabled by default — start manually with `opencloud collaboration server`. Key vars: `COLLABORATION_APP_PRODUCT=OnlyOffice`, `COLLABORATION_APP_ADDR` (editing app URL), `COLLABORATION_WOPI_SRC` (public WOPI callback), plus `OC_URL`, `OC_JWT_SECRET`, `OC_REVA_GATEWAY`, `MICRO_REGISTRY_ADDRESS`. [Docs](https://docs.opencloud.eu/docs/dev/server/services/collaboration/information/).
 
