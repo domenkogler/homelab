@@ -144,8 +144,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    Layer-2 cause of discovery non-registration still unknown — follow-up investigation pending.
    Remember: apply = UPSERT; removing a blueprint entry does NOT delete the server-side object —
    intentional deletions need ak-shell ORM one-shots in the same change.
-   ⚠ **The apply playbook reads the DEPLOYED render, not the repo file** (found live 2026-09-25,
-   HD-459): it pushes `/opt/authentik/blueprints/*` into the worker, and that path is refreshed only
+   ⚠ **The apply playbook reads the DEPLOYED render, not the repo file**: it pushes `/opt/authentik/blueprints/*` into the worker, and that path is refreshed only
    by the docker_services **authentik** template step. So a blueprint edit needs TWO steps —
    `-e docker_services_scope=authentik` to re-render, THEN the apply playbook — and running only the
    playbook silently re-applies the stale file. Both runs report `changed=0`, which looks like "no-op,

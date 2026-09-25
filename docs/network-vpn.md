@@ -520,7 +520,8 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > unsolicited inbound to the UE (carrier NAT / APN behaviour — not ours to fix); **(2) the VPS leg** is ours —
 > `tailscale-sidecar` shares another container's netns with `ports=map[]` and its tailscaled binds **ephemeral**
 > sockets (`0.0.0.0:39417`, `[::]:35131`) instead of 41641, so no firewall could ever allow it and that node is
-> permanently relayed; pinning + publishing its listen port is the cheap win and **has no row yet**. ⛔ Neither is
+> permanently relayed; pinning **and** publishing that listen port is the pair that fixes it — that is **HD-460**, live since
+> 2026-09-25 ([services-vps.md](services-vps.md)). ⛔ It says nothing about the HOME node's carrier NAT. ⛔ Neither is
 > an argument for a self-hosted DERP: a DERP is another relay leg and the cost lives on the phone↔FRA/NUE leg, which
 > the VPS's location does not shorten — HD-410's decision holds.
 >

@@ -376,10 +376,20 @@ in `group_vars/vps.yml`, enabled). Imperative facts a from-scratch deploy needs:
 Verify from a tailnet device: `https://stats.kogler.si` (forward-auth → SSO) and
 `https://stats.ts.kogler.si` (ACL-gated, tailnet-only).
 
-### 1.4d Home tailnet node — `oldsrv` (HD-405)
+### 1.4d Home tailnet nodes — `oldsrv` and the Pi (HD-405, HD-435)
 
 `roles/tailscale-node` converges the node, but **nothing below is created by Ansible** — a from-scratch
-rebuild fails loud without these, in this order:
+rebuild fails loud without these, in this order. Run the whole block **once per home node**; the two nodes
+differ only in the values in the right-hand column below, and a node enrolled without its own tag is either
+unreachable or reachable on more than it was granted (an ACL grants by TAG).
+
+| Step value | `oldsrv` | `pi` |
+|---|---|---|
+| tag | `tag:dev` | `tag:home-edge` — **never** `tag:dev` (shared tag = shared ports) |
+| 1Password item | `tailscale-oldsrv_api` | `tailscale-pi_api` |
+| address var | `tailnet_oldsrv_ip` | `tailnet_pi_ip` |
+| what re-renders after the address is written | headscale (MagicDNS for `ha.ts`) + `traefik-internal` | `traefik-ha` (its `websecure-ts` listener binds exactly that address) |
+| resolver grant | carries the address-scoped `udp 53` rule | ⛔ must NOT receive it — the Pi already runs Technitium tertiary |
 
 1. **Declare the tag first.** `tag:dev` must exist in headscale `tagOwners` (rendered from
    `templates/docker_services/headscale/policy.hujson.j2`) **before** any key carries it — headscale refuses
@@ -400,7 +410,12 @@ rebuild fails loud without these, in this order:
    `tailnet_oldsrv_ip` (`group_vars/all/main.yml`). Re-converge **headscale** (MagicDNS record for
    `ha.ts.kogler.si`) **and traefik-internal** (its `websecure-ts` listener binds exactly that address;
    empty renders no listener).
-5. **Never enrol a home host interactively (OIDC).** A preauth-key node lands in headscale's synthetic
+5. **Read the tag back before trusting the join.** `docker exec headscale headscale nodes list -o json` and
+   confirm the node's `tags` — the ACL grants by tag, so a key minted with a different tag produces a node
+   that is unreachable or over-reachable, and nothing else in the stack reports it. A tagged node registers
+   under headscale's `tagged-devices` user even when the key was minted `--user <id>`; that is headscale's own
+   rule for tagged nodes, not a mis-mint.
+6. **Never enrol a home host interactively (OIDC).** A preauth-key node lands in headscale's synthetic
    `tagged-devices` user and is therefore reachable by *nobody* until an ACL names `tag:dev`; an interactive
    join lands it under the owner user and silently inherits `dst:domen:*` on every port.
 

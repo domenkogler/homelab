@@ -21,10 +21,16 @@
 |---|---|
 | Primary checkout `/home/domen/source/homelab` | `main`, working tree **clean** — a merge station, not an edit site |
 | `bash scripts/validate-all.sh` | **GREEN** |
-| Session worktrees | **transient by design** — a lane worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`) exists only while its lane runs, and the parent removes it after the merge. **Swept 2026-09-22:** the five finished-lane worktrees (`1359` OV probe, `1403` HD-412, `1440` HD-394, `2259` agentmemory probe, `0100` HD-312 close) and the HD-414 lane worktree (`20260922-0200`) were merged and removed by name with `git worktree remove` — the station held **one** worktree before this sweep and none of them was mid-flight. **Swept again 2026-09-23:** the external spark lane (`1025`) merged fast-forward and its worktree came off with the close-out worktree that merged it. ⚠ A worktree existing has **three times** meant *nobody was in it* — check `git log` on the branch, not the directory. **Swept 2026-09-25:** the owner-round-2 lane (`homelab-wt-r2-0019`) was already a fast-forward of `main` with a clean tree, so its worktree came off with `git worktree remove` and the branch with `git branch -d` — the deletion refusing an unmerged branch is itself the proof nothing was stranded |
+| Session worktrees | **transient by design** — a lane worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`) exists only
+  while its lane runs; the parent removes it **after** the merge, by name, with `git worktree remove`, and the
+  branch dies with `git branch -d`, whose refusal on an unmerged branch is itself the proof nothing was stranded
+  (never `rm`, never `-D`) · ⚠ **a worktree existing has repeatedly meant the opposite of "work is in flight"** —
+  read `git log main..<branch>` and `git status` inside it, never the directory name ·
+  [prompt.md](prompt.md) §4 O8 |
 | **Lane briefs = the dispatch unit** | **one `prompt-<HD>.md` brief = one session = one worktree = one branch.** Each brief carries the rows it owns, the files it owns and the converge host it holds; the row index per brief is §B0 below. Waves, pairing and the merge/cleanup contract are in [prompt.md](prompt.md) **§4**, whose rules deliberately DIFFER from README §4 and CONVENTIONS §6 (items O1–O8 there) — §4 is silent nowhere this table depends on |
 | **Who writes `prompt.md` / `todo-table.md`** | **The orchestrator only** (§4 O2). Lane sessions edit their own `todo.md` rows and their own `deployment-tasks.md` lines, and never touch these two views — `check_todo_done.py` couples `prompt.md` to `todo.md`, so two writers on the views means a red gate by construction |
-| Stale session branches | deleted with `git branch -d`, which refuses an unmerged branch — so the sweep itself proves nothing was stranded (12 at the 2026-09-21 sync; again on 2026-09-22; and on 2026-09-23 the merged 395 / spark-edge / spark-external branches) |
+| Stale session branches | deleted with `git branch -d`, which refuses an unmerged branch — so the sweep itself
+  proves nothing was stranded. `git branch --list 'session/*'` is the derived count; never type one here |
 | Registry size | **derived, never typed** — the row count and the next-free id (max + 1) are read out of [todo.md](todo.md) (`grep -c` on its `HD-` rows, `sort` for the max); this sweep deleted rows, so re-derive rather than trusting any number quoted in prose (a literal pipe would break this cell — see [todo.md](todo.md) HD-417) |
 
 ### What is live vs authored-only
@@ -34,10 +40,13 @@
   pinned-AI Vulkan legs on the RX 7600, spark as the generation tier with the **16 GiB KV pool certified**, and
   **two home headscale nodes, not one**: `oldsrv` (`tag:dev:443`) and — since 2026-09-25, HD-435 —
   `pi` (`tag:home-edge:443`), whose own `traefik-ha` answers `pi.ts.kogler.si` → 200 **direct**, which is
-  the difference between "HA is up" and "HA is reachable" while oldsrv is L2-dead (HD-455). Also live and
-  measured the same day: the apex `/.well-known/matrix/{client,server}` are **public** with the launchpad
-  still behind SSO (HD-47), the VPS's tailnet node is reached **directly** on a pinned 41641 (HD-460), and
-  a `nut` converge finally reports `changed=0` (HD-452, nut half).
+  the difference between "HA is up" and "HA is reachable" while oldsrv is L2-dead (HD-455). Also live: the apex
+  `/.well-known/matrix/{client,server}` are **public** with the launchpad still behind SSO (HD-47), the VPS's
+  tailnet node is reached **directly** on a pinned 41641 (HD-460), and a `nut` converge reports `changed=0` — what
+  is left of HD-452 is its postgres analogue on the VPS.
+- **⚠ The asymmetry a transport session must not read backwards:** the tailnet EDGE now survives either home box,
+  the tailnet ANSWER does not. MagicDNS still answers `ha.ts.kogler.si` with the dead node, so the away path that
+  works today is `pi.ts.kogler.si`, and the fix is HD-436's `tailnet: dual` step (HD-435).
 - **Open, and now fully AI-owned:** everything in §B. The owner answer round of 2026-09-21 removed every remaining
   hand from the top of the backlog (§A1) — what is left on the owner's side is §A2.
 - **The live reality that reorders the transport lane — measured twice, and now settled.** The first real away
@@ -110,7 +119,12 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 | **Sideload the Paseo APK + pair + a 2-week verdict** | HD-411 | Runs in parallel with HD-409 now |
 | **Check your Jellyfin login at seerrng** | HD-353 | 30 seconds |
 | **A spark bench window** | HD-400 · 376 · 359 · 367 | Detached; never with an agent session attached, never from a spark-backed session |
-| **A WAN-pulled drill at home** | HD-415 | The new resolver design's whole load-bearing assumption is that a phone at home reaches the node **direct over the LAN with the WAN pulled**. That is proven by a drill you are present for, not by a `dig` from the laptop |
+| **One external-room join** (Matrix) | HD-47 | Everything publishable is published and read off-network; the delegation is reachable but **undelivered** — no foreign homeserver has ever sent anything here, and only you can start that from another account |
+| **A phone latency read, and a WAN-pulled drill at home** | HD-460 · HD-415 | The new resolver design's whole
+load-bearing assumption is that a phone at home reaches the node **direct over the LAN with the WAN pulled**, and
+that is proven by a drill you are present for, not by a `dig` from the laptop. ⏳ HD-460 separately needs one
+**phone→VPS latency reading from LTE** now that the node publishes a pinned 41641 — no device in this repo can
+produce it |
 | **One visual pass** *(owner deferred it 2026-09-25: not today — do not chase)* | HD-316 · 315 · 343 · 377 · 319 | Launchpad, host-overview (disk-work + temps), Network Clients, `homelab-llm`, the three rekuperator GAs — the spark memory rules left this list when HD-375 closed 2026-09-22 |
 | **Be on-site once** | HD-397 tail | The LAN matrix + the `Mgmt99` vNIC half |
 | **Physical windows** | HD-06 · 288 · 194 · 34/191 | UPS pull → WoL · a router/switch/AP reset · gaming + Moonlight · one edge login/callback · the yearly restore drill (also where HD-207 and HD-230 get decided) — HD-301 left the registry when its floor was verified on the device |
@@ -141,9 +155,11 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 | [prompt-357.md](prompt-357.md) launchpad + home edge — **its old gate fell 2026-09-22** (HD-419 shipped, so the jellyfin tile has an endpoint) | **4** | HD-357 · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
 | [prompt-417.md](prompt-417.md) gates + doc hygiene | **5, alone** | HD-417 · 404 · 248 · 396 | none (repo-only) |
 
-> **Unbriefed but still open — not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394
-> lane's residue), **HD-450** (a cert consumer can age out unalerted — found closing HD-350), and HD-412's two
-> enrolment sessions, which need a human at both ends and therefore live in §D.
+> **Unbriefed but still open — not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394 lane's
+> residue), **HD-450** (a cert consumer can age out unalerted — found closing HD-350), and the **transport-plane
+> cluster, no brief and no owner gate on it:** HD-436 (the derivation, and the gate every other row in it waits
+> on) · HD-435 (its dual-A step) · HD-448 · HD-452 (postgres half) · HD-460 · HD-461 (parked on reachability, not
+> on you) · HD-463 · **HD-459**. HD-412's two enrolment sessions need a human at both ends and live in §D.
 
 
 ### 🔥 Active lanes
@@ -169,8 +185,10 @@ and the follow-on lanes [prompt-384.md](prompt-384.md)
 (`prompt-394`) briefs are **closed and deleted** — HD-412's two enrolment sessions are in §D, and the open VPS
 rows (HD-360 · 402 · 103 · 238 · 421) are unbriefed. Run one brief per session — [prompt.md](prompt.md) §4.
 Decisions are already in the `network` / `deployment` / `services` decision logs — start from the briefs, do not
-re-open the direction. Two standing decisions were **scoped, not repealed**: the tailnet permits exactly one home host
-with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
+re-open the direction. Two standing decisions were **scoped, not repealed**: the tailnet permits **two** home nodes (`oldsrv` + the Pi,
+each on its own tag — `tag:home-edge` deliberately not `tag:dev`, because an ACL grants by tag) with **no
+advertised routes and no LAN bridge**. That widening was granted on the HD-435 call as an amendment and is logged
+in [network-rejected.md](docs/network-rejected.md); the VLAN-99 seal (HD-398 A) is untouched.
 
 | HD | P | Goal | ⏳ Next action | Gate / note |
 |----|---|------|----------------|-------------|
@@ -184,14 +202,19 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 | HD | P | What is actually left | Owner step in front? |
 |---|---|---|---|
 | **HD-361** | 1 | Cockpit break-glass login on **oldsrv**: one converge `--limit oldsrv.kogler.si --tags cockpit` lands account + PAM gate + its route file; then one browser login (the authenticated pane, not the login probe, is what exercises cockpit's Origin check). nas is done and self-verifying  **Gated on the box** — [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake. | **Yes** — power, then a browser login per host |
-| **HD-452** | 2 | ✅ **nut half closed 2026-09-25**: the ACL repair now READS the state (mode / named ACL / group `x`) instead of asserting `changed`, measured `changed=0` twice where c1f015b gave `changed=1` every run · ⛔ still open: the **VPS postgres** `ALTER ROLE` half, same measurement obligation, needs a VPS converge |
+| **HD-452** | 2 | the VPS converge stops reporting `changed` it did not cause | take the same-commit-twice
+measurement, then make the six `Sync postgres role password with vault` tasks read the state before writing it —
+acceptance is the second run at `changed=0` | needs a VPS converge ·
+[deployment-ansible.md](docs/deployment-ansible.md) §run-it-twice |
 | **HD-454** | 1 | oldsrv's remote power path is undocumented — the KVM has no address, network or account anywhere in the repo, and WoL is already spent | **Yes** — where is it, and may it join the tailnet |
 | **HD-442** | 1 | oldsrv's rendered `/etc/op/provision-token` is stale, so vault writes from that host fail — land the refresh task, re-probe, mint `cockpit-pi-web_api` with the value already on the box, audit what silently never wrote | no — **gated on the box** (HD-455), not on the owner: nothing to mint until oldsrv answers — [docs/deployment-secrets.md](docs/deployment-secrets.md) `op-write_api` |
 | **HD-443** | 1 | the grant gate is **red** until the sanctioned placements are live: a role must own users + `authorized_keys`, then `ansible-admin` / `domen` / `ai-debug` converge on the reachable nodes, then the auditor re-runs | **Yes** — one 30-second laptop step (§A2); the rest is AI |
 | **HD-444** | 2 | the cockpit is live and tailnet-bound, but no real peer has ever crossed the ACL to it — prove it from the phone with the laptop shut **Gated on the box** — [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake.| **Yes** — presence, and power first|
 | **HD-445** | 2 | no role owns the cockpit user units / drop-in / env file, so the port vars are reservations nobody reads and a rebuild loses the surface **Gated on the box** — [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake.| no |
 | **HD-446** | 3 | `scripts/install-pi-debian.sh` does not exist; apt Node 20 cannot run pi (needs >= 22.19.0) — sibling of the WSL installer, not a fork | no |
-| **HD-448** | 2 | ✅ VPS IPv6 is live since 2026-09-24 (the cause was our own input chain — `ip protocol icmp` is IPv4-only, so NDP met `policy drop`); outbound + NDP measured, **inbound** still unproven by an external v6 peer | **Yes** — v6 parity verdict for the family-agnostic `:22/:443/:51820`/RustDesk accepts |
+| **HD-448** | 2 | inbound v6 proven to arrive, and the parity question answered | one
+`curl -6 https://vps.kogler.si` from an off-net v6 host (a phone on LTE counts) | **Yes** — the v6 parity verdict
+for the family-agnostic `:22/:443/:51820`/RustDesk accepts (confirm it, or scope them `meta nfproto ipv4`) |
 | **HD-449** | 2 | answered 2026-09-25: **push by seat, pull by runner** is the ruling, so the old "until the cockpit lands" promise is gone; the seat key install + dry-run push wait on HD-455, and an unverified pre-restore runner key backup still sits on the box | no |
 
 
@@ -220,11 +243,21 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 | HD-357 | 2 | the launchpad tiles are alive | wire Homepage tiles/widgets to the verified endpoints (home edge + VPS edge), then hand the visual check to the owner | endpoints and route tables are final; bug #6 is wiring · 📋 [`prompt-357.md`](prompt-357.md) |
 | HD-358 | 2 | Seerr can talk to the *arrs without a human | record the Seerr→\*arr API-key + URL hand-off as a runbook step (and consider automating it in IaC) | home edge is up; bug #7 · 📋 [`prompt-357.md`](prompt-357.md) |
 | HD-458 | 1 | **`ai.` SSO logs a human in again** | change the callback to `/oauth/oidc/callback` on **both** sides (Open WebUI 0.11 dropped `/oauth2/callback`: `main.py:2652`), recreate OWUI, re-apply `playbooks/authentik-blueprints.yml`, then check `grant_types`/`property_mappings` survived (HD-231) | P1 — authorize works and the code dies on the return leg; the app's SPA renders the 404, so it looks like an nginx error · 📋 [docs/deployment-oidc.md](docs/deployment-oidc.md) §Per-service SSO login ledger |
-| HD-122 | 2 | Matrix profile auth proven | ✅ **measured 2026-09-25**: unauthenticated `GET /_matrix/client/v3/profile/<user>` → 401 `M_MISSING_TOKEN`; user-directory query → 404. Nothing left here but HD-47's federation proof | the row used to wait on a deploy that already happened |
-| HD-47 | 3 | Matrix is federated | prove it with **an external-room join** (owner) — nothing about inbound federation is proven until a foreign homeserver delivers | ✅ **apex delegation public + measured 2026-09-25**: `.well-known/matrix/{client,server}` → 200 from off-network, while the launchpad root AND `/.well-known/security.txt` still 302 into SSO, so nothing else inherited the hole |
-| **HD-460** | 1 | the VPS's tailnet node is reachable DIRECTLY | publish IPv6 too (host binds `0.0.0.0:41641` only) and re-measure phone latency from LTE (owner step) | ✅ pinned + published as ONE change 2026-09-25 (publish on the **netns owner**, pin the daemon via `TS_TAILSCALED_EXTRA_ARGS`); measured netns v4+v6 on 41641 and the laptop peer `active; direct …:41641` instead of relayed |
-| **HD-461** | 2 | the router's memory log stops rotating itself away | remove the non-default `/system logging` `ssh → memory` rule, then prove it stays gone across the next router converge | ~1000 dump lines / 3 min against a 1000-line buffer — it rotated away a window under measurement; takes the **global** router slot (prompt.md §4 O3) · [docs/network-ops.md](docs/network-ops.md) · **PARKED 2026-09-25 (measured)**: `ssh router` → connect timeout on the Mgmt-plane address and the only jump (oldsrv) is L2-dead, so a laptop session cannot reach it — the rule is still live |
-| **HD-463** | 1 | `guarded-converge.sh` can guard the Pi at all | thread one `--docker-cmd` through `guarded-converge.sh` + `restart-watchdog.sh` (`sudo -n docker` where docker needs sudo), then run `--action prove --target pi --container traefik-ha` and record the changed `StartedAt` + `RE-ENABLING` line | minted 2026-09-25 at the owner's instruction: on the Pi every arm/verify `docker` call dies on `docker.sock`, so its compose services run unguarded and `prove` can never pass · ⛔ do NOT solve it by putting the ansible user in `docker` (root-equivalent on a DNS + VIP host) · ⚠ HD-462 is left unclaimed for unfinished uncommitted README work |
+| HD-47 | 3 | Matrix is federated | **an external-room join** (owner) — nothing about inbound federation is
+proven until a foreign homeserver delivers something | ✅ delegation + both records live and read 200
+off-network; `m.server` is `host:port`, and the doc says do-not-fix it |
+| **HD-460** | 1 | the VPS's tailnet node is reachable DIRECTLY on **both** families | publish IPv6 — the host
+binds `0.0.0.0:41641` and there is no `[::]:41641` | the v4 half is measured `active; direct …:41641`; **the phone
+latency read is yours** · pin + publish stay ONE change on the netns owner, never the sidecar |
+| **HD-461** | 2 | the router's memory log stops rotating itself away | remove the non-default `/system logging`
+`ssh → memory` rule and prove it stays gone across the next router converge | **PARKED on reachability** — the
+Mgmt address times out and the only documented jump (oldsrv) is L2-dead, so it needs an on-site or LAN-attached
+runner; takes the **global** router slot (§4 O3) |
+| **HD-463** | 1 | `guarded-converge.sh` can guard the Pi at all | thread one `--docker-cmd` through
+`guarded-converge.sh` + `restart-watchdog.sh` (`sudo -n docker` where docker needs sudo), into the remote
+watchdog's arm command too, then `--action prove --target pi --container traefik-ha` and record the changed
+`StartedAt` + the `RE-ENABLING` line | ⛔ do NOT solve it by putting the ansible user in `docker` — that is
+root-equivalent on a DNS + VIP host |
 | HD-112 | 2 | Zipline is usable, not just up | post-up seeding: local admin → OIDC login (one owner browser step) → flip `bypass-local-login` → create `guestbin` + `dropzone` → round-trip + 6 h sweep verify | deployed; the remainder is seeding |
 | HD-159 | 2 | the tunnel-down alert is proven | run the deliberate `wg down` test and confirm `wg-s2s-down` fires (short planned window) | rule + scrape deployed, never proven · 📋 [`prompt-414.md`](prompt-414.md) |
 | HD-287 | 2 | immich-ml runs with minimal caps | encode `cap_drop: ALL` + the ROCm-init `cap_add` set → converge → verify ML inference still works | its gate (the ML leg being live) is met; rides the HD-386 converge |
@@ -276,9 +309,10 @@ Lane brief for this section: [prompt-420.md](prompt-420.md) — **Wave 1**, trim
 4. **One writer per file family** — narrowed for parallel lanes by [prompt.md](prompt.md) §4 **O3**:
    `docs/services-ai*.md` stays one-lane-at-a-time (lane 407 while it lives), `templates/docker_services/**` is
    **one writer per service directory**, and there is **one converge in flight per host** (oldsrv / VPS / spark /
-   router — the router slot is global because its converge is a device-wide `/import`). `roles/router/**` belongs to
-   the HD-414 lane — **closed 2026-09-22, so `roles/router/**` and the router's converge slot are free again** (the IPv6
-   section is folded into the converge template; the phone matrix RAN and the one-port exception was retired by measurement, so nothing reopens it). Check `git worktree list` + `git log` on the file before editing it.
+   router — the router slot is global because its converge is a device-wide `/import`). `roles/router/**` is unowned and
+   that slot is free (the HD-414 lane closed 2026-09-22; the IPv6 section is folded into the converge template and
+   the one-port exception was retired by measurement, so nothing reopens it). **HD-461 is the row that wants that
+   slot** — and it is the only one there is. Check `git worktree list` + `git log` on the file before editing it.
 5. **The runbook has no owning lane — ownership follows the action** (README §4.8): if a session did something a human
    would repeat by hand, `deployment-manual.md` gains the imperative line **in that same change**.
 6. **Never print a secret value** — lengths, prefixes, item ids and hashes only.
@@ -330,7 +364,9 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
 | "Vision can be split: laptop ViT → spark" | **Rejected as unbuildable**, not merely expensive — vLLM's only pre-computed-vision seam is multimodal *embeddings*, which must live in the target model's own visual-token space. Vision lives on the workstation as a **text cascade** · [services-ai.md](docs/services-ai.md) §9 #28 + [hardware-workstation.md](docs/hardware-workstation.md) |
 | "HD-383's stale-secret abort is a live blocker" | The glue is `bootstrap_keys: false` and the scoped-key list is empty — the abort is **unreachable**, and the stale 1P value is still standing in the vault. **authorized 2026-09-21** to clear it before HD-384 re-arms the glue |
 | "Navidrome never deployed" | Deployed: container Up, the Box music dir mounted ro, scanner ran. **there is no local music at all** (the family listens from the cloud — owner fact 2026-09-21), so HD-354's library and admin halves are void; do not mint an admin for an empty library |
-| "Matrix waits on unprovisioned hosts" | Tuwunel + Element have been live since 2026-08-22; HD-47/122 are verifies now (DNS records + profile auth) |
+| "Matrix waits on unprovisioned hosts" | Tuwunel + Element have been live since 2026-08-22. HD-122 is **closed**
+(profile auth measured) and HD-47 is no longer a DNS job either — its records and both apex delegations are public,
+so one external-room join is all that stands between it and "closed" |
 | "Zipline's first deploy is human-gated and pending" | `zipline` + `zipline-db` are Up/healthy — only post-up seeding is left (HD-112) |
 | "`homelab-llm` is verified — every query sits on a series proven in VM" | **It was true of metric NAMES and false of PANELS.** The owner's first render (2026-09-23) showed 15 of 53 panels blank: a picker behind exact `=` (All → `.*` → matches nothing), a joined selector carrying a one-family label, and empties drawn as outages. A byte-identical file, a healthy datasource and an API `version` read all passed over it. Prove a board by **replaying every query with the picker's own All value** and counting series — see [observability.md](docs/observability.md) §The first owner render |
 | "The watchdog's idle recycle is a safe background detail" | It restarted a healthy engine twice 35 min apart and its baseline was boot-timing-dependent (HD-395) — **fixed, and the term is now OFF by owner decision 2026-09-23** (`spark_oom_watchdog_recycle: false`). What still bites: `sudo … status` does NOT inherit the unit's `Environment=`, so it reads script defaults — it prints `⚠ CONFIG DRIFT`; the truth is `systemctl show -p Environment --value spark-oom-watchdog.service` |
@@ -343,7 +379,10 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
 | "Cockpit runs on every node, so break-glass is a fleet-wide problem" | The `cockpit` role runs on **two** hosts — `nas` + `oldsrv`. Pi, spark and the VPS have no cockpit, and spark's management surface is deliberately a separate question |
 | "The tailnet resolver chain just needs tidying" | Trimming the "unreachable" home resolvers sells the WAN-out case. The decided fix is reachability: a resolver on **oldsrv's tailnet address**, with the VPS as fallback (HD-415) |
 | "The exit-node question is still open" | **Decided 2026-09-21: it stays on the Pi**, row deleted. The re-open trigger is HD-406's full-tunnel profile, which removes the need for an exit node at all |
-| "A static public IPv4 means phone→oldsrv is direct" | **Measured false here:** the first away session came back `Relayed (FRA)`, 60–90 ms. Hence HD-414 gating HD-410/406/412 |
+| "A static public IPv4 means phone→oldsrv is direct" | **Measured false here:** the first away session came back
+`Relayed (FRA)`, 60–90 ms. Hence HD-414 gating HD-410/406/412. ⚠ **Fixing the VPS side does not change that
+verdict:** a pinned, published 41641 makes *that* node direct and says nothing about the home node's carrier NAT
+(HD-460 vs the HD-414 measurement) |
 | "HD-386's parked tailnet names are an open decision" | Settled in code + [network-vpn.md](docs/network-vpn.md): `dsh`/`pi-dev` answers **502 by design**. The row's only tail is the `failed=0` converge log |
 
 ---
@@ -371,8 +410,11 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
   written, and off it: **HD-399** (oldsrv `--check` works), **HD-416** (the grant gate), **HD-350** (the cert-pull
   leg — and it was not "one pubkey": the grant had been in place for eight days, see
   [docs/services-traefik.md](docs/services-traefik.md) §Certification).
-- **Then the sequenced chain:** HD-414 (scoped IPv6) was the hinge — it shipped and measured, closing itself and HD-410, which unblocks
-  HD-415 resolver redesign: HD-406 now runs and is the surviving transport shape, while HD-415 shipped on 2026-09-22 and now waits on a measurement only — the three-case drill (HD-412 shipped 2026-09-21 without waiting). HD-407 is unblocked and mechanical now, and HD-409 rides it.
+- **Then the sequenced chain, as of the 2026-09-25 merge:** the transport thread's hinge is now **HD-436** — its
+  `tailnet: dual` step is what makes HD-435's HA answer survive either box, and nothing in that lane waits on the
+  owner. HD-414 and HD-410 shipped and closed themselves; HD-415 shipped and waits only on the three-case drill;
+  HD-406 is the surviving transport shape and stays owner-timed. The oldsrv cluster (HD-361 · 442 · 443 · 444 ·
+  445 · 409/411) still waits on one dead box and not on a decision, so its order is HD-455 → HD-454 → HD-445.
 - **Closed out of the chain list:** **HD-420** (spark metric cadence) — 5 s for the nine panels the owner named is **LIVE end to end** (hot/cold Alloy + 5 s DCGM + the datasource floor); the answer, the arithmetic and the sidecar's under-load memory are in [docs/observability.md](docs/observability.md) §Scrape cadence.
 - **One thing is still wrong with the repo and has a row:** the standby HA edge cannot proxy (**HD-418**). The other
   fault-note of that pair, `media.kogler.si` answering 502 (**HD-419**), was fixed and verified 2026-09-22 — and fixing it

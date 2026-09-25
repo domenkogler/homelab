@@ -400,8 +400,8 @@ black hole with extra steps.
    **never seeded into the LAN-facing view**; a LAN client gets a clean `NXDOMAIN` ("not here") rather
    than a black hole. Publishing Dozzle / the CrowdSec UI on the public edge was the alternative and
    was declined — that option puts container logs and the security console on the open internet.
-4. **LAN DNS redundancy — the decision was already implemented; my premise for raising it was wrong.**
-   I recorded "the router advertises only the Pi, so a Pi outage ends home resolution" and it is **false**:
+4. **LAN DNS redundancy — already implemented; the premise for raising it was false.**
+   "The router advertises only the Pi, so a Pi outage ends home resolution" is **wrong**:
    live `/ip dhcp-server network` on the router shows **all six** DHCP networks advertising **three**
    resolvers, Home (the Home subnet) first-listed as Pi → VPS → oldsrv, the other VLANs VPS → oldsrv → Pi
    (RouterOS caps a network at three, which is why all three are used). So the failover I "decided" tonight
@@ -418,7 +418,8 @@ black hole with extra steps.
    `dns.extra_records_path` are **mutually exclusive** in the pinned version (both set → the process
    exits at startup), so the swap is atomic or it takes the control plane down; and a "container is
    Running" post-check is **not** liveness, because a fatal config leaves a crash-looping container
-   reporting `running`. The guarded-converge assert gets a real probe before that swap is allowed.
+   reporting `running`. **Precondition:** the guarded-converge assert must carry a real probe before this swap is
+   attempted — that half shipped (HD-436 step 0); the swap itself is still ahead (step 2).
 6. **`HD-435`: the Pi joins the tailnet and HA's names get two A records** (Pi + oldsrv). Both boxes
    proxy to the VIP, so the answer follows HA in either direction. Flagged as **designed, not yet
    measured**: multi-A fall-over on a real client must be proven with a plug-pull before it is relied on.

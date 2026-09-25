@@ -181,7 +181,15 @@ for nothing. Cause: `Remove stub dirs at extra-template dest paths (HD-268c)` gu
 empty stub **directory**), so the template always reports `changed` and the restart-on-config-change guard
 always fires. Ask two questions of any converge that is supposed to be finished: **is `changed` zero on
 the second run**, and **is the task that repeats a state assertion or an unconditional action**. The same
-pass caught a second suspect (`nut`: clearing the `upssched-cmd` ACL) — recorded in the row, not assumed.
+pass caught a second suspect (`nut`: clearing the `upssched-cmd` ACL), which is now closed the way this rule
+demands — the task probes the real ACL and decides, and the second consecutive converge reports `changed=0`.
+**The surviving instance of the class is `Sync postgres role password with vault`**, which runs an unconditional
+`ALTER ROLE` per service, so a green VPS converge prints six `changed` lines on hosts whose passwords were
+already correct. The rule for either: **a task that can only assert is not allowed to report `changed`** — read
+the state (`getfacl`/`stat`, `SELECT 1` against the target password hash) into a `check_mode: false` probe, turn
+it into a verdict fact, and act only on a defect. ⚠ When you do parse `getfacl` output, a **base** line
+(`group::r-x`) splits with `-F:` into `("group", "", "r-x")`, so the permissions are **$3** — reading `$2` (the
+owner's intuition) reports every compliant file as broken and reproduces the permanent yellow you came to fix.
 
 ### Compose templates (`templates/docker_services/`)
 - **One directory per service.** Files inside: `docker-compose.yml.j2` (always),
@@ -253,6 +261,12 @@ Used for: initial setup, new hardware, full rebuild.
 ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich-ml
 # A service tag alone matches nothing; keep the role tag (union semantics).
 ```
+
+> ⚠ **A VPS group converge converges EVERY host in the group** — they all consume `vault_read_token` — and
+> `--limit vps.kogler.si` does **not** narrow it: that host is not a member of group `vps`, so the limit selects
+> nothing while the play header still prints `PLAY [VPS servers]` as though it had run there. Narrow with the
+> scope var (§Tags & surgical runs), and read which hosts the play actually matched before believing a surgical run
+> was surgical.
 
 ### Two ways a converge lies to you
 
