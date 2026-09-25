@@ -17,7 +17,7 @@
 
 ## 0. Repo state (one screen)
 
-| Fact | State (measured 2026-09-23) |
+| Fact | State (measured 2026-09-23; tailnet / DNS / edge lines re-measured 2026-09-25) |
 |---|---|
 | Primary checkout `/home/domen/source/homelab` | `main`, working tree **clean** — a merge station, not an edit site |
 | `bash scripts/validate-all.sh` | **GREEN** |
@@ -32,7 +32,12 @@
 - **Live:** VPS edge (Phase 1), nas (Phase 2), Pi (Phase 4), oldsrv (Phase 3, full `docker_services` healthy),
   Victoria* observability, 3-instance DNS HA, the home `traefik-internal` edge, `lan-litellm` on oldsrv, the three
   pinned-AI Vulkan legs on the RX 7600, spark as the generation tier with the **16 GiB KV pool certified**, and
-  **oldsrv as a headscale node** (`tag:dev:443`, `ha.ts.kogler.si` from its own edge).
+  **two home headscale nodes, not one**: `oldsrv` (`tag:dev:443`) and — since 2026-09-25, HD-435 —
+  `pi` (`tag:home-edge:443`), whose own `traefik-ha` answers `pi.ts.kogler.si` → 200 **direct**, which is
+  the difference between "HA is up" and "HA is reachable" while oldsrv is L2-dead (HD-455). Also live and
+  measured the same day: the apex `/.well-known/matrix/{client,server}` are **public** with the launchpad
+  still behind SSO (HD-47), the VPS's tailnet node is reached **directly** on a pinned 41641 (HD-460), and
+  a `nut` converge finally reports `changed=0` (HD-452, nut half).
 - **Open, and now fully AI-owned:** everything in §B. The owner answer round of 2026-09-21 removed every remaining
   hand from the top of the backlog (§A1) — what is left on the owner's side is §A2.
 - **The live reality that reorders the transport lane — measured twice, and now settled.** The first real away
