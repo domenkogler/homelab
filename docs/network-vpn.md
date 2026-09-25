@@ -303,7 +303,19 @@ The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and t
 **The host on the tailnet is `oldsrv`**, and **the Pi joins it once HD-435 lands — the owner approved the
 second node and its grant on 2026-09-25** (this is a widening, decided, so the next session does not read it
 as drift). Node `oldsrv`, `tag:dev`, headscale node id 11, joined by `roles/tailscale-node`; the NAS stays
-off. The scope is enforced, not intended:
+off. **HD-435 landed the second node's config on 2026-09-25 (join + key seeding still pending):**
+the Pi joins as node `pi` with its OWN `tag:home-edge`, granted `tcp/443` from `domen@kogler.si`
+and nothing else. Deliberately not `tag:dev`: an ACL grants by TAG, so a shared tag would hand
+the Pi every dev-seat port someone adds later — the same silent-inheritance hazard HD-415 was
+about. And no tailnet `udp/53` rule exists for it or may be inferred from the sentence above:
+the Pi's Technitium TERTIARY role is a LAN role (network-dns.md §The answer-plane model), and
+naming a tailnet nameserver is its own address-scoped decision. It serves HA to tailnet peers
+from its own `traefik-ha` `websecure-ts` listener (`ha.ts.kogler.si` / `pi.ts.kogler.si`, XFF
+stripped, no Forward-Auth) — the same node-direct shape as oldsrv's, which is what makes
+`ha.kogler.si` survivable when either home box dies. `tailscale_node_expected_ip` (host_vars) is
+what the join guard compares the assigned address against, per-host now: the guard used to
+assert EVERY joining node against `tailnet_oldsrv_ip`, so a second node could never pass it.
+The scope is enforced, not intended:
 no `--advertise-routes` (so `headscale routes list` stays empty and no home subnet is reachable from the
 tailnet at all), no exit node (§Exit-node stays the Pi — HD-408 decided 2026-09-21, row deleted), no Tailscale SSH,
 `--accept-dns=false` (oldsrv *runs* a Technitium instance; a DNS takeover would put a resolver in front of

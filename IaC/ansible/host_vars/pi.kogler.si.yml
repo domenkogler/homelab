@@ -17,6 +17,31 @@ shutdown_delay_seconds: 0
 # HA failover (docs/smart-home-failover.md): Home-VLAN access-port interface —
 # the Pi is an access port on VLAN 10 (plain eth0, unlike oldsrv's trunk).
 ha_keepalived_interface: eth0
+# ==== HD-435: the Pi joins headscale as the SECOND permitted home node (network-vpn.md) ====
+# Why a second node at all: the tailnet's answer for HA was oldsrv's node ALONE, so the
+# house's most critical service went unreachable from away whenever the box that happens to
+# carry the node was down — proven the other way at the 2026-09-22 drill, where the standby
+# answered VIP:8123 but no tailnet listener existed to reach it. The Pi is the right second
+# node because it already runs `traefik-ha`, the HA standby edge.
+# WHAT THIS DOES NOT DO (enforced in roles/tailscale-node, not by a comment): no advertised
+# routes, no exit node, no Tailscale SSH, no LAN bridge, and NO DNS takeover — the last one
+# is load-bearing here, not inherited caution: this box RUNS the Technitium TERTIARY that the
+# IoT VLAN's DNS is dst-nat'd to (network-dns.md §The answer-plane model), so letting
+# tailscaled rewrite /etc/resolv.conf would put a resolver in front of the service it serves.
+# WHO may reach it is the ACL's `tag:home-edge:443` rule (policy.hujson.j2) — its OWN tag,
+# never `tag:dev`. The tag is the reach surface, so the key below must carry tag:home-edge.
+# DEPLOY PREREQUISITE (the value is MINTED by headscale, never generated here):
+#   docker exec headscale headscale preauthkeys create --user <id> --tags tag:home-edge \
+#     --reusable --expiration 8760h -o json
+# → store as 1Password `tailscale-pi_api` (API Credential, `credential` field) in Homelab-ansible,
+# then join, read `headscale nodes list`, set `tailnet_pi_ip` (group_vars/all/main.yml) to the
+# assigned address, re-converge. `tailnet_pi_ip` empty = traefik-ha renders no tailnet listener,
+# so a half-done join cannot leave a half-configured edge behind.
+tailscale_node_enabled: true
+tailscale_node_hostname: "{{ tailnet_pi_node_name }}"
+tailscale_node_authkey: "{{ lookup('community.general.onepassword', 'tailscale-pi_api', field='credential', vault=op_vault) }}"
+tailscale_node_expected_ip: "{{ tailnet_pi_ip }}"
+
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
 # Homematic: LOCAL RF (HmIP-RFUSB + RaspberryMatic) is PARKED (2026-08-18, HD-13) — keeping
 # the HmIP-HAP in cloud mode until an HmIP-RFUSB is bought. No `homematic_usb_by_id` here

@@ -203,6 +203,15 @@ tailnet_oldsrv_node_name: oldsrv
 # asserts the live IP equals this value, so a silent drift is impossible.
 # Live since 2026-09-20 (HD-405): headscale node id 11, name `oldsrv`, tag:dev.
 tailnet_oldsrv_ip: "100.64.0.3"
+# HD-435 (2026-09-25): the Pi joins as the SECOND permitted home node (tag:home-edge, tcp/443
+# only — see policy.hujson.j2) so HA keeps a tailnet answer when the node-carrying box dies.
+# Same contract as above: empty until the node has joined, then read `headscale nodes list`,
+# set it, re-converge; roles/tailscale-node asserts the live address equals it.
+# WHY the Pi can do this at all: it runs `traefik-ha`, the HA standby edge, so it has a
+# listener to point a tailnet answer at — and host networking on that edge means the tailnet
+# address is bindable (ip_nonlocal_bind is already required there for the VIP).
+tailnet_pi_node_name: pi
+tailnet_pi_ip: ""
 
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived

@@ -49,7 +49,22 @@
     // (SSH, RustDesk), add it deliberately — do not widen this to :*
     // (HD-415 2026-09-22 added one DNS rule; it is NOT under this tag — it names the node's
     //  own address, so acquiring `tag:dev` does not grant resolver access.)
-    "tag:dev": ["domen@kogler.si"]
+    "tag:dev": ["domen@kogler.si"],
+    // HD-435 (2026-09-25, owner approved the node AND the grant): the SECOND permitted home
+    // node — the Pi, which carries `traefik-ha` (the HA standby edge). Its own tag, on
+    // purpose, rather than borrowing `tag:dev`:
+    //   * `tag:dev` is the DEV SEAT tag, and its own comment above invites another port
+    //     ("if this lane ever needs another port (SSH, RustDesk), add it deliberately").
+    //     A shared tag would hand the Pi every dev-seat port the day someone adds one —
+    //     the same silent-inheritance hazard the HD-415 note below calls out for DNS, and
+    //     this row's owner condition was literally "the tag decides the reach surface".
+    //   * With its own tag, the Pi's entire inbound tailnet surface is this one rule: 443.
+    // No `udp 53` rule is added for it and none may be inferred: the Pi is the LAN Technitium
+    // TERTIARY (and the IoT VLAN's forced dst-nat target), which is a LAN role needing no ACL
+    // grant; naming it a TAILNET nameserver would be a separate, address-scoped rule, written
+    // on purpose, exactly like oldsrv's below. No routes, no LAN bridge, no exit node, no
+    // Tailscale SSH — the boundary permits TWO home nodes and still zero home subnets.
+    "tag:home-edge": ["domen@kogler.si"]
   },
 
   // REAL ACL — TIGHTENED at first enrolment (HD-84 / HD-252 ④, 2026-08-26).
@@ -86,6 +101,21 @@
       "action": "accept",
       "src": ["domen@kogler.si"],
       "dst": ["tag:dev:443"]
+    },
+    // HD-435 (2026-09-25, owner-approved grant): the Pi's tailnet node, **tcp/443 only**.
+    // Why this exists: today the tailnet's ONLY answer for HA is oldsrv's node, so the
+    // house's most critical service is unreachable from away whenever the box that happens
+    // to be the tailnet node is down — which is not hypothetical while oldsrv sits L2-dead
+    // (HD-455). Same shape as the rule above, same limits: no routes, no LAN bridge, no
+    // exit node, no Tailscale SSH, and nothing toward VLAN 20/30.
+    // ⚠ This grants by TAG, so the tag the node lands with IS the reach surface — a
+    // preauth key carrying anything else (or nothing) silently produces a node that either
+    // cannot be reached at all or is reachable on more than 443. Mint the key with
+    // `--tags tag:home-edge` and read the assignment back before trusting the grant.
+    {
+      "action": "accept",
+      "src": ["domen@kogler.si"],
+      "dst": ["tag:home-edge:443"]
     }
     // HD-415 (2026-09-22, owner decision): **DNS only** — udp/53 to oldsrv's tailnet node
     // address, so the tailnet can use the resolver that is reachable from wherever the device

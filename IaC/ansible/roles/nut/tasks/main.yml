@@ -113,14 +113,56 @@
 # the group class stays at the last ACL value (r--) until an explicit chmod. So always
 # follow with chmod 0750 (verified live 2026-09-09: template mode:'0750' then setfacl -b
 # left the file at 0740 and nut still could not exec).
-- name: Clear stray ACL on upssched-cmd and restore mode 0750 (group nut must execute)
+#
+# HD-452 (2026-09-25): the repair task used to carry `changed_when: true` under `tags:
+# always`, so EVERY converge of EVERY tag on every nut host reported `changed=1` forever.
+# That is not a cosmetic wart: `changed` is the one number that means "this converge did
+# something you did not ask for", and a permanently-yellow count is how a real surprise
+# hides. The verdict is now READ, not asserted — probe first (never changes anything,
+# runs under --check too), repair only when the probe says the file is actually wrong.
+# ⚠ The probe's three conditions are the defect, not an invention: mode 750 (execute for
+# owner+group), no NAMED ACL entries, and a group class that still carries `x` — the last
+# one is the 2026-09-09 failure (a hand-applied `group::r--`), which a mode-only check
+# would happily pass while nut could not exec the script.
+- name: "Probe upssched-cmd mode + ACL state (drives the changed verdict; never mutates)"
+  ansible.builtin.shell:
+    cmd: |
+      set -u
+      f=/etc/nut/upssched-cmd
+      mode="$(stat -c '%a' "$f" 2>/dev/null || echo absent)"
+      named="$(getfacl -p --no-effective "$f" 2>/dev/null | grep -Ec '^(user|group):[^:]+:' || true)"
+      grp="$(getfacl -p --no-effective "$f" 2>/dev/null | awk -F: '/^group::/{print $2; exit}')"
+      echo "mode=${mode} named_acl=${named:-0} group_entry=${grp:-none}"
+  args:
+    executable: /bin/bash
+  register: _acl_state
+  changed_when: false
+  check_mode: false        # a probe, not a mutation — --check must still be able to judge
+  when: nut_mode is defined
+  tags: always
+
+- name: "Decide whether upssched-cmd actually needs the ACL repair (read, not assumed)"
+  ansible.builtin.set_fact:
+    nut_acl_needs_repair: >-
+      {{ (_acl_state.stdout.split() | select('match', '^mode=') | first | default('mode=absent'))
+           .replace('mode=', '') != '750'
+         or (_acl_state.stdout.split() | select('match', '^named_acl=') | first | default('named_acl=9'))
+           .replace('named_acl=', '') != '0'
+         or 'x' not in (_acl_state.stdout.split() | select('match', '^group_entry=') | first | default('group_entry=none'))
+                            .replace('group_entry=', '') }}
+  when: nut_mode is defined
+  tags: always
+
+- name: "Clear stray ACL on upssched-cmd and restore mode 0750 (group nut must execute)"
   ansible.builtin.command:
     cmd: /bin/bash -c 'setfacl -b /etc/nut/upssched-cmd; chmod 0750 /etc/nut/upssched-cmd'
   args:
     executable: /bin/bash
   register: _acl_clear
-  changed_when: true
-  when: nut_mode is defined
+  changed_when: true       # honest now: this task only runs when the probe found a defect
+  when:
+    - nut_mode is defined
+    - nut_acl_needs_repair | default(true) | bool
   tags: always
 
 # --- Shutdown execution — nut must be able to halt the host ---

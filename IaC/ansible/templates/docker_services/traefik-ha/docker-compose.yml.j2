@@ -45,3 +45,14 @@ services:
       - "--providers.file.watch=true"
       - "--entrypoints.web.address={{ ha_vip }}:80"
       - "--entrypoints.websecure.address={{ ha_vip }}:443"
+{% if tailnet_pi_ip is defined and tailnet_pi_ip %}
+      # HD-435 (2026-09-25): HA over the TAILNET, node-direct — the away-from-home path that
+      # survives OLDSRV being down (it was L2-dead the first time this mattered, HD-455).
+      # Bound to THIS node's own tailnet address and never 0.0.0.0: the ACL grants tcp/443 to
+      # the node address, and a VIP/Home-address listener would open a second door on the LAN
+      # that nobody asked for. Binding it before tailscaled is up is safe for the same reason
+      # the VIP bind above works — `net.ipv4.ip_nonlocal_bind=1`, set by the home_assistant
+      # role. Renders NOTHING while tailnet_pi_ip is empty, so a half-finished join cannot
+      # leave an edge listening on an address this node does not own.
+      - "--entrypoints.websecure-ts.address={{ tailnet_pi_ip }}:443"
+{% endif %}

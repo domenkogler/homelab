@@ -18,6 +18,19 @@
 
 http:
   middlewares:
+{% if tailnet_pi_ip is defined and tailnet_pi_ip %}
+    # HD-435: HA rejects X-Forwarded-* from a proxy it does not trust, and `ha_trusted_proxies`
+    # covers the edge container addresses — not a tailnet node address. Same fix as
+    # traefik-internal's `ha-ts` router: strip the headers on the tailnet leg instead of
+    # widening HA's trust list to a tailnet range.
+    ha-ts-strip-forwarded:
+      headers:
+        customRequestHeaders:
+          X-Forwarded-For: ""
+          X-Forwarded-Proto: ""
+          X-Forwarded-Host: ""
+          X-Forwarded-Server: ""
+{% endif %}
     redirect-to-https:
       redirectScheme:
         scheme: https
@@ -45,6 +58,26 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
+{% if tailnet_pi_ip is defined and tailnet_pi_ip %}
+    # --- HA over the TAILNET (HD-435) — the away path, node-direct, survives oldsrv down ---
+    # Matches `ha.{{ tailnet_base_domain }}` (the tailnet-only twin published by
+    # tailnet_ts_only_subdomains) and this node's own MagicDNS name, so it answers BEFORE any
+    # `ha.kogler.si` extra-record exists — which is deliberate: publishing the PLAIN name into
+    # MagicDNS answers it client-side for a phone that is standing at home, taking HA off the
+    # VIP and onto a node for people who did not ask for that. The plain-name dual-A publish is
+    # the HD-435/HD-436 `zone_kogler_si` `tailnet: dual` step and lands with the record
+    # vocabulary, not here.
+    # NO authentik-forward-auth — same reason as the `ha` route above: it breaks the Companion
+    # app's token/WebSocket flow (docs/smart-home.md).
+    ha-ts:
+      rule: "Host(`ha.{{ tailnet_base_domain }}`) || Host(`{{ tailnet_pi_node_name }}.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      middlewares:
+        - ha-ts-strip-forwarded
+      service: ha-backend
+      tls: true
+{% endif %}
 
   services:
     ha-backend:

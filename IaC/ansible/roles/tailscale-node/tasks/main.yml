@@ -116,18 +116,22 @@
   changed_when: false
 
 # The tailnet IP is assigned by headscale at join time, so the repo cannot know it in
-# advance — same contract as `tailnet_sidecar_ip`: leave the var EMPTY until the node has
-# joined, read `headscale nodes list`, set it, re-converge. This guard is what stops the
-# two from drifting silently (derived-values ban, CONVENTIONS §1).
+# advance — same contract as `tailnet_sidecar_ip`: leave the per-host expectation EMPTY until
+# the node has joined, read `headscale nodes list`, set the group var, re-converge. This
+# guard is what stops the two from drifting silently (derived-values ban, CONVENTIONS §1).
+# HD-435 note: this reads `tailscale_node_expected_ip` (set in host_vars) rather than
+# `tailnet_oldsrv_ip` inline — the old inline form asserted EVERY joining node against
+# OLDSRV's address, so the second home node could never pass its own join guard.
 - name: Assert the IaC tailnet IP matches what headscale assigned
   ansible.builtin.assert:
     that:
-      - tailnet_oldsrv_ip | default('', true) | length == 0 or
-        tailnet_oldsrv_ip == (_ts_ip.stdout | trim)
+      - tailscale_node_expected_ip | default('', true) | length == 0 or
+        tailscale_node_expected_ip == (_ts_ip.stdout | trim)
     fail_msg: >-
-      tailnet_oldsrv_ip={{ tailnet_oldsrv_ip | default('') }} but this node is
-      {{ _ts_ip.stdout | trim }}. Update the var in group_vars/all/main.yml and re-converge
-      (the traefik-internal `websecure-ts` listener binds exactly this address).
+      tailscale_node_expected_ip={{ tailscale_node_expected_ip | default('') }} for this
+      host but the node was assigned {{ _ts_ip.stdout | trim }}. Update the matching
+      `tailnet_*_ip` in group_vars/all/main.yml and re-converge (the tailnet listeners —
+      traefik-internal / traefik-ha `websecure-ts` — bind exactly this address).
     success_msg: "tailnet IP {{ _ts_ip.stdout | trim }} (IaC agrees or is unset)"
 
 - name: Report the node identity for the run log (no secrets)

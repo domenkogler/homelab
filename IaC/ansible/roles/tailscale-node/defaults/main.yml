@@ -22,5 +22,14 @@ tailscale_node_authkey: ""             # per-host 1P ref, NEVER a literal (CONVE
 # the daemon binds 41641 on both families after the converge.
 tailscale_node_port: "{{ tailscale_listen_port }}"
 
+# The tailnet IPv4 this node is EXPECTED to hold, i.e. the value the repo carries for it in
+# group_vars/all/main.yml (`tailnet_oldsrv_ip`, `tailnet_pi_ip`). Empty = no assertion, which
+# is the pre-join state (headscale assigns the address at join, so the repo cannot know it
+# in advance).
+# ⚠ Why this is a var and not `tailnet_oldsrv_ip` inline: the role was written for one host
+# and asserted that literal, so a SECOND home node (HD-435's Pi) would have failed the guard
+# against oldsrv's address. Per-host expectation, set in host_vars, asserted here.
+tailscale_node_expected_ip: ""
+
 # Where the key lives while a join is actually happening: tmpfs, 0600, shredded in `always`.
 tailscale_node_authkey_path: /run/tailscale-authkey

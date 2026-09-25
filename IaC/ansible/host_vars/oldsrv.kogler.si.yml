@@ -68,6 +68,9 @@ tailscale_node_hostname: "{{ tailnet_oldsrv_node_name }}"
 #     --reusable --expiration 8760h -o json
 # Lazy lookup: costs an `op` read only when roles/tailscale-node actually runs.
 tailscale_node_authkey: "{{ lookup('community.general.onepassword', 'tailscale-oldsrv_api', field='credential', vault=op_vault) }}"
+# HD-435: the join guard compares the assigned address against this (per-host now, so the
+# Pi's join cannot be compared against oldsrv's address by accident).
+tailscale_node_expected_ip: "{{ tailnet_oldsrv_ip }}"
 
 # HD-361 — which vault item holds THIS host's Cockpit console password (roles/cockpit).
 # Per-host on purpose: one shared item would give two management consoles the same password.
