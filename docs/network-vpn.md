@@ -300,26 +300,33 @@ The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and t
   the owner's own remote development does not stop when the VPS does, and it is possible because
   [network.md](network.md) §WAN is a **static public IPv4** — P2P is available and we had been routing around it.
 
-**The host on the tailnet is `oldsrv`**, and **the Pi joins it once HD-435 lands — the owner approved the
-second node and its grant on 2026-09-25** (this is a widening, decided, so the next session does not read it
-as drift). Node `oldsrv`, `tag:dev`, headscale node id 11, joined by `roles/tailscale-node`; the NAS stays
-off. **HD-435 is LIVE (2026-09-25): the Pi joined as node `pi` — headscale id 13, address in SSOT `tailnet_pi_ip`, tag
-`tag:home-edge`, read back from `headscale nodes list -o json` rather than assumed — granted
-`tcp/443` from `domen@kogler.si` and nothing else. Measured from the laptop's own tailnet client:
-`https://pi.ts.kogler.si/` → **200**, with the peer shown as `active; direct
-193.77.156.222:41641`, i.e. a direct session, no relay.** Deliberately not `tag:dev`: an ACL grants by TAG, so a shared tag would hand
-the Pi every dev-seat port someone adds later — the same silent-inheritance hazard HD-415 was
-about. And no tailnet `udp/53` rule exists for it or may be inferred from the sentence above:
-the Pi's Technitium TERTIARY role is a LAN role (network-dns.md §The answer-plane model), and
-naming a tailnet nameserver is its own address-scoped decision. It serves HA to tailnet peers
-from its own `traefik-ha` `websecure-ts` listener (`ha.ts.kogler.si` / `pi.ts.kogler.si`, XFF
-stripped, no Forward-Auth) — the same node-direct shape as oldsrv's, which is what makes
-HA survivable when either home box dies. ⚠ The EDGE is fixed; the ANSWER is not: MagicDNS still
-replies `ha.ts.kogler.si` with **oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), which today is a
-node on a dead box, so the away path that works is
-`pi.ts.kogler.si` and the dual-A publish is HD-436's `tailnet: dual` step. `tailscale_node_expected_ip` (host_vars) is
-what the join guard compares the assigned address against, per-host now: the guard used to
-assert EVERY joining node against `tailnet_oldsrv_ip`, so a second node could never pass it.
+**Two home nodes are permitted on the tailnet, and the NAS is not one of them** (owner decision
+2026-09-25, logged in [network-rejected.md](network-rejected.md) §Decisions). Node **`oldsrv`**: `tag:dev`,
+headscale node id 11, joined by `roles/tailscale-node`. Node **`pi`** (HD-435, live since 2026-09-25):
+headscale id 13, address in SSOT `tailnet_pi_ip`, tag `tag:home-edge`, granted **`tcp/443` from
+`domen@kogler.si` and nothing else** — and the tag is **read back** from `headscale nodes list -o json`
+rather than trusted from the mint command, because the grant follows whatever tag the node actually landed
+with.
+✅ Measured 2026-09-25 from a laptop's own tailnet client: `https://pi.ts.kogler.si/` → **200**, the peer
+listed as `active; direct 193.77.156.222:41641` — a direct session, no relay.
+
+⚠ **`tag:home-edge` is deliberate, and the tag IS the reach surface.** An ACL grants by TAG, so joining the
+Pi as `tag:dev` would widen every existing `tag:dev` rule to a second box (the DNS-tertiary host) and hand it
+every dev-seat port someone adds later — the same silent-inheritance hazard HD-415 was about — while a
+dedicated tag keeps the Pi's entire inbound tailnet surface at the one `ha` listener that motivated the row.
+For the same reason the Pi gets **no** tailnet `udp/53` grant and none may be inferred from oldsrv's rule below: the Pi's
+Technitium TERTIARY role is a LAN role (network-dns.md §The answer-plane model), and naming a tailnet
+nameserver is its own address-scoped decision. What the Pi does serve there is HA, from its own `traefik-ha`
+`websecure-ts` listener (`ha.ts.kogler.si` / `pi.ts.kogler.si`, XFF stripped, no Forward-Auth) — the same
+node-direct shape as oldsrv's, which is what makes HA survivable when either home box dies.
+
+⚠ **The edge survives either box; the ANSWER does not yet.** MagicDNS answers `ha.ts.kogler.si` with
+**oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), so while oldsrv is L2-dead (HD-455) the away path that
+works is `pi.ts.kogler.si`. Publishing both addresses is HD-436's `tailnet: dual` step.
+
+`tailscale_node_expected_ip` (host_vars) is the **per-host** address the join guard compares the assignment
+against — its default is `""`, which reads as "not yet asserted", not as "wrong".
+
 The scope is enforced, not intended:
 no `--advertise-routes` (so `headscale routes list` stays empty and no home subnet is reachable from the
 tailnet at all), no exit node (§Exit-node stays the Pi — HD-408 decided 2026-09-21, row deleted), no Tailscale SSH,
@@ -330,12 +337,6 @@ grant (HD-415, 2026-09-22; docs/network-dns.md §The resolution requirement). Po
 not `:*` on the box that holds the vault token — and no TCP/53, no other port, nothing by tag. The boundary's
 purpose survives on purpose: Shelly/KNX/IoT/guest stay
 non-tailnet-reachable, and VLAN 99 keeps its seal (HD-398 decision A).
-
-**⚠ The one thing HD-435 must get right while implementing:** `443` is granted **by tag**, so whatever tag the
-Pi's node lands with decides everything it can be reached on — joining it as `tag:dev` widens every existing
-`tag:dev` rule to a second box (including the DNS-tertiary host), while a dedicated tag keeps the grant to
-exactly the `ha.kogler.si` listener that motivated the row. Pick the tag deliberately, and keep the `udp 53`
-rule address-scoped so the Pi cannot become a tailnet resolver by accident.
 
 Because a preauth-key node lands in headscale's synthetic `tagged-devices` user rather than the owner's
 user, `dst: ["domen@kogler.si:*"]` cannot reach it — the ONLY path in is the explicit `tag:dev:443` rule in
