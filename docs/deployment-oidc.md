@@ -130,6 +130,10 @@ what happened is a second account. `immich_role`/`immich_quota` are **creation-o
 role has to be right on the first login. **Decide which account owns the family library BEFORE the first
 `domen` SSO login**, and verify with the family seat, not the `admin` password login (that proves the admin
 seat, not the family one).
+✅ **Answered by the owner 2026-09-26 (HD-457): the SSO seat `domen@kogler.si` IS the family library**, and
+`admin@kogler.si` stays a break-glass seat holding only 2 upload-test assets — so there is nothing to migrate and
+`Auto Register` cost nothing here. The seat question is settled; the mechanical half (delete those 2 assets and
+re-confirm `admin`'s password login still works) rides HD-457.
 
 **What the seed writes (`immich_oidc` from 1Password for the creds, role defaults for the rest):**
 `scope openid email profile`; claims `preferred_username` → storage label, `immich_role` → role

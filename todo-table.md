@@ -119,8 +119,8 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 | **Sideload the Paseo APK + pair + a 2-week verdict** | HD-411 | Runs in parallel with HD-409 now |
 | **Check your Jellyfin login at seerrng** | HD-353 | 30 seconds |
 | **A spark bench window** | HD-400 · 376 · 359 · 367 | Detached; never with an agent session attached, never from a spark-backed session |
-| **One external-room join** (Matrix) | HD-47 | Everything publishable is published and read off-network; the delegation is reachable but **undelivered** — no foreign homeserver has ever sent anything here, and only you can start that from another account |
-| **A phone latency read, and a WAN-pulled drill at home** | HD-460 · HD-415 | The new resolver design's whole
+| **One external-room join** (Matrix) | HD-47 · HD-464 | The room and its URL are ready; what is missing is an account **on another homeserver** — a second client on our own server proves nothing. Only you can start that |
+| **A WAN-pulled drill at home** | HD-415 | The new resolver design's whole load-bearing assumption is that a phone at home reaches the node **direct over the LAN with the WAN pulled**, and that is proven by a drill you are present for, not by a `dig` from the laptop. ✅ The sibling read landed 2026-09-26: phone→VPS on LTE is **direct at 45 ms**, which is why HD-460 is down to its IPv6 publish |
 load-bearing assumption is that a phone at home reaches the node **direct over the LAN with the WAN pulled**, and
 that is proven by a drill you are present for, not by a `dig` from the laptop. ⏳ HD-460 separately needs one
 **phone→VPS latency reading from LTE** now that the node publishes a pinned 41641 — no device in this repo can
@@ -158,8 +158,11 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 > **Unbriefed but still open — not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394 lane's
 > residue), **HD-450** (a cert consumer can age out unalerted — found closing HD-350), and the **transport-plane
 > cluster, no brief and no owner gate on it:** HD-436 (the derivation, and the gate every other row in it waits
-> on) · HD-435 (its dual-A step) · HD-448 · HD-452 (postgres half) · HD-460 · HD-461 (parked on reachability, not
-> on you) · HD-463 · **HD-459**. HD-412's two enrolment sessions need a human at both ends and live in §D.
+> on) · HD-435 (its dual-A step) · HD-448 · HD-452 (postgres half) · HD-460 (its IPv6 publish only) · HD-461 (parked
+> on reachability, on you) · HD-463 · **HD-459** · 🆕 **HD-464** (Element for Android cannot log in where the web
+> client can — read the failing path server-side before touching anything) · 🆕 **HD-465** (a documented tailnet
+> console name that was never published to `tailnet_ts_only_subdomains`). HD-412's two enrolment sessions need a
+> human at both ends and live in §D.
 
 
 ### 🔥 Active lanes
@@ -201,7 +204,8 @@ in [network-rejected.md](docs/network-rejected.md); the VLAN-99 seal (HD-398 A) 
 
 | HD | P | What is actually left | Owner step in front? |
 |---|---|---|---|
-| **HD-361** | 1 | Cockpit break-glass login on **oldsrv**: one converge `--limit oldsrv.kogler.si --tags cockpit` lands account + PAM gate + its route file; then one browser login (the authenticated pane, not the login probe, is what exercises cockpit's Origin check). nas is done and self-verifying  **Gated on the box** — [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake. | **Yes** — power, then a browser login per host |
+| **HD-361** | 1 | Cockpit break-glass login on **oldsrv**: one converge `--limit oldsrv.kogler.si --tags cockpit` (`cockpit` is in the HD-413 lockout set, so the laptop drives it), then prove the **authenticated** pane in a browser on nas and oldsrv. ⛔ `GET /` answers 200 unauthenticated, so it proves nothing; cockpit's real Origin check is on the WebSocket handshake and no probe reaches it | **Yes** — two browser logins once the boxes answer. ⚠ The nas-from-away half cannot pass until HD-465 publishes the name |
+| **HD-465** 🆕 | 2 | `cockpit-nas.ts.kogler.si` resolves at all: add `cockpit-nas` to `tailnet_ts_only_subdomains` (⛔ NOT `tailnet_subdomains`, which renders BOTH namespaces — the HD-382/389 trap), converge headscale, read it back from a tailnet client. ⚠ The documented chain lands on **oldsrv's** node and that box is L2-dead (HD-455), so decide whether the console hangs off the Pi instead of silently re-pointing the record · [services-traefik.md](docs/services-traefik.md) §Cockpit Routes |
 | **HD-452** | 2 | the VPS converge stops reporting `changed` it did not cause | take the same-commit-twice
 measurement, then make the six `Sync postgres role password with vault` tasks read the state before writing it —
 acceptance is the second run at `changed=0` | needs a VPS converge ·
@@ -212,7 +216,7 @@ acceptance is the second run at `changed=0` | needs a VPS converge ·
 | **HD-444** | 2 | the cockpit is live and tailnet-bound, but no real peer has ever crossed the ACL to it — prove it from the phone with the laptop shut **Gated on the box** — [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake.| **Yes** — presence, and power first|
 | **HD-445** | 2 | no role owns the cockpit user units / drop-in / env file, so the port vars are reservations nobody reads and a rebuild loses the surface **Gated on the box** — [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake.| no |
 | **HD-446** | 3 | `scripts/install-pi-debian.sh` does not exist; apt Node 20 cannot run pi (needs >= 22.19.0) — sibling of the WSL installer, not a fork | no |
-| **HD-448** | 2 | inbound v6 proven to arrive, and the parity question answered | one
+| **HD-448** | 2 | inbound v6 proven to arrive, and the parity question answered | re-take the inbound read with a **proven v6 source** (`curl -6 https://api6.ipify.org` in the same reading) and then the counters | **Yes** — the v6 parity verdict for the family-agnostic `:22/:443/:51820`/RustDesk accepts (confirm, or scope `meta nfproto ipv4`) · ⚠ the owner's Termux-on-LTE attempt printed the same words a v6-less host prints, so it settled nothing |
 `curl -6 https://vps.kogler.si` from an off-net v6 host (a phone on LTE counts) | **Yes** — the v6 parity verdict
 for the family-agnostic `:22/:443/:51820`/RustDesk accepts (confirm it, or scope them `meta nfproto ipv4`) |
 | **HD-449** | 2 | answered 2026-09-25: **push by seat, pull by runner** is the ruling, so the old "until the cockpit lands" promise is gone; the seat key install + dry-run push wait on HD-455, and an unverified pre-restore runner key backup still sits on the box | no |
@@ -243,10 +247,11 @@ for the family-agnostic `:22/:443/:51820`/RustDesk accepts (confirm it, or scope
 | HD-357 | 2 | the launchpad tiles are alive | wire Homepage tiles/widgets to the verified endpoints (home edge + VPS edge), then hand the visual check to the owner | endpoints and route tables are final; bug #6 is wiring · 📋 [`prompt-357.md`](prompt-357.md) |
 | HD-358 | 2 | Seerr can talk to the *arrs without a human | record the Seerr→\*arr API-key + URL hand-off as a runbook step (and consider automating it in IaC) | home edge is up; bug #7 · 📋 [`prompt-357.md`](prompt-357.md) |
 | HD-458 | 1 | **`ai.` SSO logs a human in again** | change the callback to `/oauth/oidc/callback` on **both** sides (Open WebUI 0.11 dropped `/oauth2/callback`: `main.py:2652`), recreate OWUI, re-apply `playbooks/authentik-blueprints.yml`, then check `grant_types`/`property_mappings` survived (HD-231) | P1 — authorize works and the code dies on the return leg; the app's SPA renders the 404, so it looks like an nginx error · 📋 [docs/deployment-oidc.md](docs/deployment-oidc.md) §Per-service SSO login ledger |
-| HD-47 | 3 | Matrix is federated | **an external-room join** (owner) — nothing about inbound federation is
+| HD-47 | 3 | Matrix is federated | **an external-room join from an account on ANOTHER homeserver** (owner) — a second client on `chat.` or Element Web on the same account is not a foreign server; the test room exists and its URL is shared, phone use is separately broken by HD-464 | ✅ delegation + both records live and read 200 off-network; `m.server` is `host:port`, and the doc says do-not-fix it |
+| **HD-464** 🆕 | 2 | Element for Android can log in | read the failing PATH server-side first (tuwunel logs + the Traefik access log) — `M_UNRECOGNISED` names an error class, not an endpoint — then decide which host is a client's homeserver host: `chat.` today answers 404 for both the client well-known and `/_matrix/*`, while `matrix.` answers both. If it still fails after that, it is the native custom-scheme SSO redirect, the HD-459 class · ⛔ the doubled-slash `base_url` artifact is measured harmless (200) — do not chase it · needs a VPS read, no owner hand · [services-matrix.md](docs/services-matrix.md) |
 proven until a foreign homeserver delivers something | ✅ delegation + both records live and read 200
 off-network; `m.server` is `host:port`, and the doc says do-not-fix it |
-| **HD-460** | 1 | the VPS's tailnet node is reachable DIRECTLY on **both** families | publish IPv6 — the host
+| **HD-460** | 1 | the VPS's tailnet node is reachable DIRECTLY on **both** families | publish IPv6 — the host binds `0.0.0.0:41641` and there is no `[::]:41641` | ✅ **v4 half closed by the owner from LTE: direct, 45 ms (2026-09-26)** — the reading no device in this repo could produce · pin + publish stay ONE change on the netns owner, never the sidecar |
 binds `0.0.0.0:41641` and there is no `[::]:41641` | the v4 half is measured `active; direct …:41641`; **the phone
 latency read is yours** · pin + publish stay ONE change on the netns owner, never the sidecar |
 | **HD-461** | 2 | the router's memory log stops rotating itself away | remove the non-default `/system logging`

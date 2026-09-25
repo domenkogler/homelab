@@ -256,6 +256,10 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
   2026-09-24). That listener is oldsrv's own tailnet address — `{{ tailnet_oldsrv_ip }}:443`, never
   `0.0.0.0` — so the chain is: MagicDNS record (headscale `tailnet_ts_only_subdomains`) → tailnet ACL
   (`tag:dev:443`) → oldsrv's node → this router → Home VLAN → nas:9090. One backend, two doors.
+  ⚠ **Read the first hop as a requirement, not a fact (HD-465):** `cockpit-nas` is in neither
+  `tailnet_subdomains` nor `tailnet_ts_only_subdomains`, and MagicDNS answers only what those lists publish — so
+  today this router exists and its name does not. The two hops after it also hang off oldsrv, which is L2-dead
+  (HD-455), and `ha` / `pi-oldsrv` in that list share that fate.
   ⚠ **This path dies with oldsrv**, and so did the LAN route before it: `cockpit.yml` is rendered onto
   *oldsrv*, so when that box left the network on 2026-09-23 21:39:55 the healthy nas lost its console
   route as well. Decoupling = the VPS `traefik-tailnet` edge + a new nftables allow for VPS→nas:9090

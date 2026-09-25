@@ -27,6 +27,14 @@ tags: [services, matrix, chat, messaging]
 > is the federation delegation, and it is what a remote homeserver parses.
 > `{"server_name":"kogler.si","port":443}` is not a spec shape; it is the wrong fix these two small
 > JSON bodies invite.
+> 📱 **What a client may be pointed at (measured 2026-09-26):** `matrix.kogler.si` is the homeserver host —
+> `/_matrix/client/versions` → 200 and `/v3/login` advertises the `authentik` IdP. `chat.kogler.si` is the
+> **web client only**: `chat.kogler.si/.well-known/matrix/client` → 404 and
+> `chat.kogler.si/_matrix/client/versions` → 404, so a native app typed at `chat.` gets neither discovery nor
+> client API. Whether `chat.` should also be a client host is open (**HD-464**, which is what broke Element for
+> Android on a phone on LTE). ⛔ The trailing slash in the client well-known `base_url` is NOT the fault: a
+> doubled slash path (`//_matrix/client/versions`) answers 200 here, so Traefik normalizes it — do not "fix" the
+> bodies chasing that.
 > ⏳ **Inbound federation is NOT PROVEN.** A reachable delegation is not delivery: nothing has ever
 > been delivered here by a foreign homeserver. The one read that proves it is an **external-room join**
 > by the owner (or `curl` from a foreign server) — until it lands, treat federation as unproven.

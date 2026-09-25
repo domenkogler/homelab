@@ -155,6 +155,13 @@ conclusion from each: a KNX gate looked shut because TCP/3671 was refused while 
 phone's tailnet path looked relayed for a reason that had nothing to do with the transport being measured.
 **(b) when a probe says NO, run the identical probe from a host you already know is healthy before you believe it.**
 Otherwise the control you skipped becomes the finding — and the finding is the probe, not the path.
+⚠ **Say which source produced a v6 read, because a source with no v6 route prints the same words as a filtered
+destination.** The first off-net attempt at the VPS inbound read (owner, Termux on a phone on LTE, 2026-09-26)
+printed `Could not connect to server` for `https://vps.kogler.si` — byte-identical to what this repo's laptop
+prints with zero global v6 addresses on it, so it is **undetermined, not a failure**. Prove the source in the same
+reading (`curl -6 https://api6.ipify.org` must print an address) before writing anything down about the destination.
+DNS is already out of the question: `vps.kogler.si` publishes a DNS-only `AAAA`
+(`IaC/ansible/roles/cloudflare_dns/vars/main.yml`) and `matrix.kogler.si` CNAMEs to it.
 ⚠ **Scratch rule hygiene** (this is what `routeros-apply-delta.sh` comments are for): a temporary accept **must
 sit above the drop** (below it, it does nothing and the test result is a lie), **must be `dst-port`-scoped**
 (otherwise the first packet of a *scan* matches, the conntrack entry then admits the real target, and the matrix

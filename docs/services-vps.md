@@ -82,9 +82,10 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 > ⚠ **`TS_EXTRA_ARGS` is the wrong variable** — it goes to `tailscale up` (login flags), not to the
 > daemon, so the intuitive place for `--port` silently does nothing.
 > ✅ Measured 2026-09-25: netns UDPv4 + UDPv6 both on `41641`, host `ss -lun` shows `0.0.0.0:41641`,
-> and a peer reads `active; direct …:41641` instead of relayed. ⚠ Two open residues: the host publishes
-> **IPv4 only** (no `[::]:41641`), and the phone latency re-measure is an owner step — both stay open
-> until read.
+> and a peer reads `active; direct …:41641` instead of relayed. ✅ **Confirmed from a real away network
+> 2026-09-26:** an owner on LTE reached this node **directly, 45 ms** — the reading the row waited on, and the
+> one no device in this repo can produce. ⚠ One residue left: the host publishes **IPv4 only** (no `[::]:41641`),
+> so the v6 disco path stays unreachable from outside despite the socket being pinned inside the netns.
 
 ---
 

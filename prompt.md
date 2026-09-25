@@ -110,9 +110,10 @@ are in [todo.md](todo.md) §1.
 the apex Matrix delegation, the Pi's tailnet join, the VPS disco-port pin/publish and the Metabase
 retirement, and each fact was written where it owns it. What the next session carries, in order: **(1)
 HD-436** is the only substantial item left in this thread and it is unblocked (step 0 is merged); **(2)**
-HD-47 stays ⏳ open on exactly one read — an **external-room join**, which only you can start; **(3)** HD-452's postgres half,
-HD-460's IPv6 publish and your phone reading, and HD-435's reciprocal drill wait on a VPS converge, on the
-phone, and on oldsrv; **(4)** HD-461 is parked on reachability and not on you — no laptop path to VLAN 99
+HD-47 stays open on one read — an **external-room join from an account on
+another homeserver** (a second client on our own server is not a foreign server), and 🆕 **HD-464** sits in front of
+its phone half; **(3)** HD-452's postgres half, HD-460's IPv6 publish and HD-435's reciprocal drill wait on a VPS
+converge, on the `::` bind, and on oldsrv; **(4)** HD-461 is parked on reachability and not on you — no laptop path to VLAN 99
 while oldsrv is down. ⚠ Two traps that bite a runner, both written in `scripts/README.md`: the headscale
 probe in that table (`curl -fsS localhost:8080/`) **does not answer on the VPS**, so copying it turns a
 healthy control plane RED and fires your own trap; and `--project` is not optional when the compose dir is
@@ -178,9 +179,9 @@ crossing (HD-444) and a browser login on each cockpit host (HD-361).
 - **HD-454** — ⏳ **the only remote power path for oldsrv is undocumented.** WoL was tried on 2026-09-24 (3 shapes × 2 bursts, same L2) and drew nothing, so the Comet KVM is the way in — and [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake gives its model and its powers but no address, network, account or off-site reachability. Record those, prove it can power-cycle the box, and decide its VLAN/ACL. Everything in HD-361/442/444/445 waits behind this. ⚠ **The conditional HD-454 must settle first:** if the Comet is on VLAN 99 then HD-398 decision A seals it to same-site and there is NO off-site path to the reset button at all; if it is on VLAN 10 or a tailnet node the seal does not apply and only the write-up is missing. Measure, do not assume either.
 - **HD-455** — 🚧 **`oldsrv` is off the network (since 2026-09-23 21:39:55, L2-dead) and it is the fleet's real blocker** — the fault was measured and documented on 2026-09-24 but carried no row, so no lane could see it; that is the lesson. Fan-out: home edge, `cockpit-oldsrv`, the nas cockpit's tailnet name (rendered ONTO oldsrv), the control node/runner, the pinned-AI tier, HD-361 · 442 · 443(oldsrv placements) · 444 · 445 · 409/411 · 450 and the HD-419-class 502s. ⛔ Do not re-try WoL (spent 2026-09-24); ⛔ the sidecar's `no matching peer` is not evidence. Recovery waits on HD-454's answer or a human at home. · [hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake
 - **OIDC epic tail — `foto`/`chat`/`git`/`file` are proven by a human login; the tail is two rows and your
-  browser.** ⏳ **HD-457** (yours to decide): Immich's only 4 assets belong to the native `admin@` seat while the
-  SSO seat `domen@` owns none — `Auto Register` doing exactly what [deployment-oidc.md](docs/deployment-oidc.md)
-  §Immich says it does. ⏳ **HD-458**: `ai.` SSO dies on the return leg because Open WebUI **0.11** serves
+  browser.** **HD-457: the owner answered it 2026-09-26** — the SSO seat `domen@` **is** the family library, and the native
+  `admin@` seat is break-glass holding 2 upload-test assets, so there is nothing to migrate and `Auto Register` cost
+  nothing. What the row keeps is mechanical: ⏳ delete those 2 assets and re-confirm `admin`'s password login ⏳ **HD-458**: `ai.` SSO dies on the return leg because Open WebUI **0.11** serves
   `/oauth/oidc/callback` while our redirect URI says `/oauth2/callback` in **both** places (compose env +
   `ks-oidc.yml`), which falsifies the `ai.` SSO claim carried in [deployment-oidc.md](docs/deployment-oidc.md) since its Phase-1 sign-off. ⚠ Before touching ANY
   Authentik OIDC client, read [services-authentik.md](docs/services-authentik.md) §Blueprint authoring notes
@@ -205,8 +206,11 @@ crossing (HD-444) and a browser login on each cockpit host (HD-361).
   found are minted: **HD-452** (the permanently-yellow `changed` count), **HD-453** (nothing gated a conflict
   marker — shipped), **HD-454** (the only remote power path for oldsrv had no address in the repo), **HD-460**
   (the VPS node's ephemeral listen sockets), **HD-461** (the router's self-emptying memory log) and **HD-463**
-  (`guarded-converge.sh` cannot guard a host where docker needs sudo). **Still unrowed, and it is the gate
-  itself:** `check_todo_done.py` decides open-vs-done from a ±60/90-character window around each HD mention, so
+  (`guarded-converge.sh` cannot guard a host where docker needs sudo). Two more came
+  straight off the owner's report on 2026-09-26: **HD-464** (Element for Android cannot log in while the web client
+  can) and **HD-465** (a documented tailnet console name that was never published to
+  `tailnet_ts_only_subdomains`). **Still unrowed, and it is the
+  gate itself:** `check_todo_done.py` decides open-vs-done from a ±60/90-character window around each HD mention, so
   the mandated `[todo.md HD-NNN](todo.md)` pointer disables the check for its own row, and a closed row cannot be
   mentioned in §2 at all without a neighbour's marker landing in the window. The fix is not a longer word list —
   read the verdict from the bullet's own leading marker. Also unrowed: `scripts/knx-hass-gen.py` needs
