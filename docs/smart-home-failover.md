@@ -198,12 +198,12 @@ The forward takeover (Pi → oldsrv) has been **drilled live**: Pi LAN cable pul
   test**: ICMP and TCP answers say nothing about a half-open UDP tunnel, and both "the GIRA router refuses the
   standby" and "trusted-ha was the cause" read like explanations until that probe has been run.
 - ⚠ **Two dependencies the same drill exposed, both closed on paper 2026-09-22, neither drilled.**
-  **(1) Home DNS turned out to be fine and my claim about it was wrong.** I wrote that the router advertised
-  only the Pi, so a Pi-out would leave the house unable to name anything — a "half takeover". Measured on the
-  device: every DHCP network advertises **three** resolvers (Home: Pi → VPS → oldsrv), so resolution already
-  survives one DNS host dying; there was no router change to make and none was made. The residual is
-  per-VLAN, not global: IoT's `:53` is dst-nat'd to the **Pi alone** and the Kids rules to the **VPS alone**,
-  both deliberate, both single-target ([network-dns.md](network-dns.md) §The answer-plane model decision 4).
+  **(1) Home DNS survives one DNS host dying: the router already advertises three resolvers.** Measured on
+  the device, every DHCP network lists **three** (Home: Pi → VPS → oldsrv), so a Pi-out does not leave the
+  house unable to name anything — there was no router change to make and none was made. ⚠ **"The router
+  points only at the Pi" is the claim to check before acting on it**; the real residual is per-VLAN, not
+  global: IoT's `:53` is dst-nat'd to the **Pi alone** and the Kids rules to the **VPS alone**, both
+  deliberate, both single-target ([network-dns.md](network-dns.md) §The answer-plane model decision 4).
   **(2) The tailnet path exists on BOTH home boxes; the ANSWER is the weak half (HD-435):**
   `ha`/`ha-ts` target the VIP, so after a takeover a tailnet client keeps reaching HA whichever box owns it —
   each home box runs its own `websecure-ts` listener + `ha-ts` router (the Pi's measured end to end
