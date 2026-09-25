@@ -95,6 +95,14 @@
 #                                     allowlist over the 28 mostly-legitimate mentions would mute the
 #                                     gate (the HD-417 lesson). `--show` re-derives the count; the
 #                                     self-test refuses a floor red at rest or absurdly loose
+#  20. check_md_tables.py             — HD-417: no markdown table row may be WIDER than its own header.
+#                                     Two misses in one session on 2026-09-21 (a swallowed newline merged two
+#                                     registry rows; a description quoting `vllm|sglang` widened a 3-cell row to
+#                                     12) both passed every validator because nothing counts cells. Wider-only on
+#                                     purpose: 14 NARROWER rows are legal GFM (short rows, struck-through PARKED
+#                                     rows) and asserting equality printed 41 findings in 12 files — a gate that
+#                                     shouts gets muted. `--self-test` plants a stray pipe (inside a code span,
+#                                     where it still cuts) and a merged row, and asserts clean tables stay clean
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -230,6 +238,12 @@ $PY scripts/check_iac_backend_strings.py
 
 echo "== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) =="
 $PY scripts/check_iac_backend_strings.py --self-test
+
+echo "== check_md_tables.py (HD-417: no table row wider than its header) =="
+$PY scripts/check_md_tables.py
+
+echo "== check_md_tables.py --self-test (HD-417 cell-count canary) =="
+$PY scripts/check_md_tables.py --self-test
 
 echo "== check_iac_backend_strings.py (HD-404: retired-backend names may not regrow) =="
 $PY scripts/check_iac_backend_strings.py
