@@ -182,7 +182,6 @@ with **no advertised routes**, and the VLAN-99 seal (HD-398 A) is untouched.
 | HD | P | What is actually left | Owner step in front? |
 |---|---|---|---|
 | **HD-361** | 1 | Cockpit break-glass login on **oldsrv**: one converge `--limit oldsrv.kogler.si --tags cockpit` lands account + PAM gate + its route file; then one browser login (the authenticated pane, not the login probe, is what exercises cockpit's Origin check). nas is done and self-verifying  **Gated on the box** — [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake. | **Yes** — power, then a browser login per host |
-| **HD-453** | 2 | nothing gates a merge-conflict marker into a commit — `validate-all.sh` passed one into `main` | no |
 | **HD-452** | 2 | `nut` reports `changed` on every converge of every tag (`changed_when: true` under `tags: always`), so the changed count has stopped meaning anything | no |
 | **HD-454** | 1 | oldsrv's remote power path is undocumented — the KVM has no address, network or account anywhere in the repo, and WoL is already spent | **Yes** — where is it, and may it join the tailnet |
 | **HD-442** | 1 | oldsrv's rendered `/etc/op/provision-token` is stale, so vault writes from that host fail — land the refresh task, re-probe, mint `cockpit-pi-web_api` with the value already on the box, audit what silently never wrote | **Gated on the box** (HD-455); nothing to mint — [docs/deployment-secrets.md](docs/deployment-secrets.md) `op-write_api` | no |
