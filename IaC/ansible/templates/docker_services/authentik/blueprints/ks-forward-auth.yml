@@ -16,12 +16,17 @@
 #   pairdrop — PUBLIC since HD-230 (2026-08-23): crowdsec-only tier, no
 #   forward-auth; its former forward-pairdrop/edge-pairdrop objects were removed
 #   here and deleted server-side via ak-shell ORM one-shots after the converge.
+#   sec / sec.ts (Metabase) — REMOVED by HD-447 (2026-09-25) on the same pattern as
+#   forgejo: the service is retired, so these were dead objects pointing at a container
+#   that no longer exists.
 #   forgejo/git — NATIVE OIDC since HD-230 (2026-08-23, owner decision): SSO via
 #   ks-oidc.yml provider_forgejo (declared since HD-148); forward-git removed here
 #   and deleted server-side via ak-shell ORM one-shots after the converge.
-# 11 plain forward_single routes (stats, sec, auto, pdf, homepage-apex, homepage-home,
-# traefik-dash, dsh, pi-dev, dns [HD-317, 2026-09-03], logs) + 6 tailnet .ts twins
-# (stats/sec/auto/traefik-dash/logs/csui) = 17 providers/apps total.
+# 10 plain forward_single routes (stats, auto, pdf, homepage-apex, homepage-home,
+# traefik-dash, dsh, pi-dev, dns [HD-317, 2026-09-03], logs) + 5 tailnet .ts twins
+# (stats/auto/traefik-dash/logs/csui) = 15 providers/apps total. HD-447 took `sec` and
+# `sec.ts` out of both counts on 2026-09-25 — re-derive any count from the outpost list
+# below rather than trusting this sentence (derived-values ban, CONVENTIONS §6).
 # forward_single ONLY — forward_domain would swallow sibling subdomains.
 # ==================================================================================
 version: 1
@@ -40,18 +45,12 @@ entries:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-  - model: authentik_providers_proxy.proxyprovider
-    id: provider_edge_sec
-    identifiers:
-      name: forward-sec
-    attrs:
-      mode: forward_single
-      external_host: https://sec.kogler.si
-      internal_host: http://metabase:3000
-      internal_host_ssl_validation: false
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  # provider_edge_sec (forward-sec → http://metabase:3000) REMOVED by HD-447 (2026-09-25,
+  # owner ruled the live objects deleted; Metabase itself was retired 2026-09-14).
+  # ⚠ A blueprint apply is an UPSERT: removing an entry here does NOT delete the server-side
+  # object. The same change must carry the ak-shell ORM one-shot, and the ORDER matters —
+  # deleting the object while `outpost_embedded` still references it is what makes the next
+  # import fail (see the file header and services-authentik.md §Blueprint authoring notes).
   - model: authentik_providers_proxy.proxyprovider
     id: provider_edge_auto
     identifiers:
@@ -195,18 +194,8 @@ entries:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-  - model: authentik_providers_proxy.proxyprovider
-    id: provider_edge_sec_ts
-    identifiers:
-      name: forward-sec-ts
-    attrs:
-      mode: forward_single
-      external_host: https://sec.ts.kogler.si
-      internal_host: http://metabase:3000
-      internal_host_ssl_validation: false
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
+  # provider_edge_sec_ts (forward-sec-ts) REMOVED by HD-447 — see the note at
+  # provider_edge_sec's old position; same rule, same one-shot.
   - model: authentik_providers_proxy.proxyprovider
     id: provider_edge_auto_ts
     identifiers:
@@ -264,14 +253,7 @@ entries:
       name: Grafana (edge)
       meta_launch_url: https://stats.kogler.si
       provider: !KeyOf provider_edge_stats
-  - model: authentik_core.application
-    id: app_edge_sec
-    identifiers:
-      slug: edge-metabase
-    attrs:
-      name: Metabase (edge)
-      meta_launch_url: https://sec.kogler.si
-      provider: !KeyOf provider_edge_sec
+  # app_edge_sec (slug: edge-metabase) REMOVED by HD-447 — see provider_edge_sec.
   - model: authentik_core.application
     id: app_edge_auto
     identifiers:
@@ -357,14 +339,7 @@ entries:
       name: Grafana (tailnet ts)
       meta_launch_url: https://stats.ts.kogler.si
       provider: !KeyOf provider_edge_stats_ts
-  - model: authentik_core.application
-    id: app_edge_sec_ts
-    identifiers:
-      slug: edge-metabase-ts
-    attrs:
-      name: Metabase (tailnet ts)
-      meta_launch_url: https://sec.ts.kogler.si
-      provider: !KeyOf provider_edge_sec_ts
+  # app_edge_sec_ts (slug: edge-metabase-ts) REMOVED by HD-447 — see provider_edge_sec.
   - model: authentik_core.application
     id: app_edge_auto_ts
     identifiers:
@@ -407,7 +382,6 @@ entries:
       deployment_type: local
       providers:
         - !KeyOf provider_edge_stats
-        - !KeyOf provider_edge_sec
         - !KeyOf provider_edge_auto
         - !KeyOf provider_edge_pdf
         - !KeyOf provider_edge_home
@@ -418,7 +392,6 @@ entries:
         - !KeyOf provider_edge_dns
         - !KeyOf provider_edge_logs
         - !KeyOf provider_edge_stats_ts
-        - !KeyOf provider_edge_sec_ts
         - !KeyOf provider_edge_auto_ts
         - !KeyOf provider_edge_traefik_dash_ts
         - !KeyOf provider_edge_logs_ts

@@ -89,6 +89,24 @@ services:
     # precedent: kopia-server :51515 bind.
     ports:
       - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:{{ wg_internal_edge_port }}:443"
+      # HD-460 (2026-09-25): the tailnet UDP listen/disco port of the SIDECAR that shares
+      # this netns — and it has to be published HERE, because the sidecar runs
+      # `network_mode: service:...`, where compose ignores its own `ports` entirely. That
+      # is the whole defect: the netns owner published nothing for UDP, so `tailscaled`
+      # bound EPHEMERAL sockets (`0.0.0.0:39417`, `[::]:35131` — measured 2026-09-24), no
+      # firewall could ever name them, and the node became permanently relayed: every
+      # tailnet request to the admin edge (stats/logs/csui/traefik/auto) paid a DERP hop
+      # (phone→VPS measured `Relayed (NUE)`, 50–70 ms).
+      # Pinned to the tailscale default 41641 and matched by the sidecar's
+      # TS_TAILSCALED_EXTRA_ARGS below — publishing without pinning publishes a socket
+      # nobody can predict, and pinning without publishing publishes nothing.
+      # 0.0.0.0 on purpose: a hole-punch packet arrives from an address that cannot be
+      # enumerated, and tailscaled authenticates the packet itself (no anonymous UDP
+      # service is exposed — a foreign packet yields no response). The FORWARD chain's
+      # generic `oifname "br-*" accept` already carries DNAT'd published-port traffic
+      # (the 2026-08-23 bridge incident rule); only :53 is specially gated there, because
+      # only :53 was an open resolver.
+      - "41641:41641/udp"
     networks:
       traefik-public:
         # HD-240 pattern: pin this edge's IP so the header-trust whitelist
@@ -169,6 +187,20 @@ services:
       TS_HOSTNAME: vps-obs    # node name on the tailnet (containerboot TS_HOSTNAME, NOT TS_EXTRA_ARGS)
       TS_ACCEPT_DNS: "true"   # use the tailnet's MagicDNS (headscale dns.extra_records) for *.ts.kogler.si
       TS_EXTRA_ARGS: "--login-server=https://vpn.kogler.si"   # CRITICAL: point at OUR headscale, not public controlplane.tailscale.com
+      # HD-460 (2026-09-25): pin the UDP listen port so the host can publish it (see the
+      # `ports:` note on traefik-tailnet — the port is published THERE, not here, because
+      # this container shares that netns and compose ignores ports on a `network_mode:
+      # service:` dependent). ⚠ NOT TS_EXTRA_ARGS: that one is passed to `tailscale up`,
+      # which has no `--port` and would eat this silently as an unknown flag error at boot.
+      # The v1.82.0 containerboot header names TS_TAILSCALED_EXTRA_ARGS as "extra arguments
+      # to 'tailscaled'" — read from the pinned image's own source, not from memory.
+      # Acceptance is measured, never inferred: `tailscale status` must report DIRECT for
+      # this node and `tailscale netcheck` must report the mapped port as 41641. If it is
+      # still relayed after this, the remaining suspect is MASQUERADE stealing the
+      # symmetric source port, and the named fallback is running the node on the host net
+      # — which is NOT free: the serve config proxies to 127.0.0.1:443 inside THIS netns,
+      # so host networking would need that rewired first.
+      TS_TAILSCALED_EXTRA_ARGS: "--port=41641"
       TS_SERVE_CONFIG: /config/serve.json   # containerboot applies + watches this (TCP:443 -> 127.0.0.1:443) — survives recreate
       TS_AUTH_ONCE: "true"   # containerboot: only auth if not already logged in (reusable key, no forced re-login)
     depends_on:

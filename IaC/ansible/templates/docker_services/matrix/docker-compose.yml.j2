@@ -2,7 +2,8 @@
 #   Public + federated. Matrix-native SSO -> Authentik OIDC; NO Traefik Forward-Auth
 #   on /_matrix/* (docs/services-matrix.md, services-traefik.md, services-authentik.md).
 #   server_name = kogler.si (clean @user:kogler.si IDs), delegated to matrix.kogler.si
-#   via .well-known — that root-domain delegation is HD-47; nothing here needed for it.
+#   via .well-known. The APEX half of that delegation is served by THIS container — see
+#   the matrix-wellknown router below (HD-47, landed 2026-09-25).
 #   RocksDB file store (NO external Postgres) — stateful data bind-mounted to
 #   /srv/docker/matrix (included in ZFS/Kopia backup — HD-49). Config = tuwunel.toml.
 #
@@ -40,6 +41,28 @@ services:
       # auth via Matrix-native SSO (docs/services-matrix.md). Wrapping /_matrix/* would
       # break federation + native clients.
       traefik.http.services.matrix.loadbalancer.server.port: "8008"
+      # ── HD-47: the root-domain (apex) delegation, served by THIS backend ────────────
+      # A remote homeserver resolves the APEX, because server_name = kogler.si — and the
+      # apex host is the family launchpad behind Forward-Auth, so it answered
+      # 302 → sso.kogler.si instead of the delegation JSON. That, not the DNS records, is
+      # what made inbound federation dead. There is no `_matrix._tcp`/`_matrix._https` SRV
+      # anywhere (DoH: NXDOMAIN), so this well-known is the ONLY delegation we have.
+      # What becomes public: exactly two static bodies, and they are the SAME two Tuwunel
+      # already serves publicly at matrix.kogler.si (measured 2026-09-25: 200 + correct
+      # JSON) — so this discloses nothing new, it only stops the login redirect from
+      # intercepting them. Nothing on `chat.`/`matrix.`/`sso.` changes: Element, the
+      # homeserver and Authentik ride their own Host routers, so Matrix-native SSO for the
+      # family is untouched, and the launchpad root stays behind Forward-Auth.
+      # Deliberate shape: PathPrefix is scoped to `/.well-known/matrix` and NOT to all of
+      # `/.well-known/*`, so no future well-known inherits a public path; priority is set
+      # EXPLICITLY rather than relying on Traefik's rule-length tie-break against the
+      # launchpad's Host(`kogler.si`) router.
+      traefik.http.routers.matrix-wellknown.rule: "Host(`kogler.si`) && PathPrefix(`/.well-known/matrix`)"
+      traefik.http.routers.matrix-wellknown.entrypoints: websecure
+      traefik.http.routers.matrix-wellknown.priority: "100"
+      traefik.http.routers.matrix-wellknown.service: matrix
+      traefik.http.routers.matrix-wellknown.middlewares: crowdsec-only@file   # block-list stays; Forward-Auth deliberately does not
+      {{ 'traefik.http.routers.matrix-wellknown.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
 networks:
   traefik-public:
     external: true

@@ -39,7 +39,7 @@
 # secret-egress glue (HD-143) seeds client creds + each redirect_uri matches its consumer.
 #
 # Scope (2026-08-19): HD-142 + HD-148 — OpenWebUI, Headscale, Matrix(Tuwunel), OpenClaw,
-#   OpenCloud, Immich, Forgejo, Metabase.
+#   OpenCloud, Immich, Forgejo.
 ---
 version: 1
 entries:
@@ -374,45 +374,18 @@ entries:
 
 
   # ==================================================================================
-  # Metabase (sec.kogler.si)  ->  1Password `metabase_oidc` (seeded by glue)
-  #   native OIDC (HD-148). Metabase supports ONE OIDC provider at a time; callback
-  #   https://sec.kogler.si/auth/sso. Email-based auto-provision + roles. For a read-only
-  #   CrowdSec dashboard, evaluate whether per-user identity is worth it (HD-148 note).
+  # Metabase — REMOVED by HD-447 (2026-09-25, owner ruled the live objects deleted; the
+  # service was retired 2026-09-14 and its `sec.kogler.si` names went with it).
+  # Deleted here: provider_metabase (OIDC client `metabase`) + app_metabase (slug
+  # `metabase`). A blueprint apply is an UPSERT, so the server-side objects need the
+  # ak-shell ORM one-shot in the SAME change — see ks-forward-auth.yml's header note and
+  # docs/services-authentik.md §Blueprint authoring notes.
+  # ⚠ If Metabase ever comes back: the `metabase:metabase_oidc` entry in
+  # templates/authentik-secret-egress.sh.j2 is registry-gated (renders only while
+  # `enabled: true`) and the 1Password item was DELETED by the owner on 2026-09-25 — so a
+  # re-enable must mint that item first, and the item TITLE is load-bearing (§Item titles
+  # are load-bearing).
   # ==================================================================================
-  - model: authentik_providers_oauth2.oauth2provider
-    id: provider_metabase
-    identifiers:
-      name: metabase
-    attrs:
-      authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
-      authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
-      invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-      client_type: confidential
-      redirect_uris:
-        - {url: "https://sec.kogler.si/auth/sso", matching_mode: strict}
-      signing_key: !Find [authentik_crypto.certificatekeypair, [name, authentik Self-signed Certificate]]
-      sub_mode: hashed_user_id
-      # HD-231: blueprint upserts WIPED grant_types to [] (attr absent -> serializer
-      # writes empty), breaking the authorization_code grant on EVERY apply — found
-      # live 2026-08-24 (forgejo + opencloud logins dead; forward-* providers were
-      # unaffected because created via a different path). Pin explicitly.
-      grant_types:
-        - authorization_code
-        - refresh_token
-      # HD-231 pt.2: property_mappings were wiped to [] by the same upsert mechanism
-      # -> UserInfo 403 insufficient_scope (forgejo OIDC 500). Pin the three defaults.
-      property_mappings:
-        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
-        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
-        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
-  - model: authentik_core.application
-    id: app_metabase
-    identifiers:
-      slug: metabase
-    attrs:
-      name: Metabase
-      meta_launch_url: https://sec.kogler.si
-      provider: !KeyOf provider_metabase
 
   # ==================================================================================
   # Zipline (bin.kogler.si)  ->  1Password `zipline_oidc` (seeded by glue)
