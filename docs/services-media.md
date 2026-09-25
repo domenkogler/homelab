@@ -17,6 +17,12 @@ tags: [services, media, arr, photos, streaming]
 > VPS; the **music library** lives on the Hetzner Storage Box.
 > ⏳ **Open:** immich's whole-collection ML import (a separate task), and Tube Archivist, which is
 > **disabled** until its Elasticsearch `path.repo` problem is fixed (§Music Pillar).
+>
+> ✅ **Immich SSO is live 2026-09-25** (`foto.kogler.si` → Authentik). The settings are NOT compose env:
+> Immich v3 has no OAuth env vars, so `roles/docker_services/tasks/immich-seed.yml` PUTs them into the
+> service's own database config (proof + the six-week autopsy of the inert env block:
+> [deployment-oidc.md](deployment-oidc.md) §Immich). ⚠ Consequence still open: the only assets live on
+> the native `admin` seat while the new SSO seat is empty — **HD-457**.
 
 ---
 

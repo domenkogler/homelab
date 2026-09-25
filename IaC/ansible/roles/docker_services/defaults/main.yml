@@ -109,6 +109,25 @@ _extra_templates:
 # dynamic/tls.yml.j2). Override to true ONLY in group_vars/vps.yml.
 traefik_acme_issuer: false
 
+# ---- Immich OAuth (HD-147 foto leg / HD-148) — the values tasks/immich-seed.yml PUTs into
+# Immich's DB-backed system config. They live HERE because Immich v3 reads NO OAuth env var
+# (see the autopsy in templates/docker_services/immich-app/docker-compose.yml.j2): compose
+# cannot carry them, so the role defaults + 1Password are their IaC home.
+# Client creds are NOT here: they come from `immich_oidc` (Blueprint + glue-seeded).
+immich_oauth_enabled: true                       # false = seed asserts the flag is OFF, not that it skips
+immich_oauth_container_name: immich-server       # mirrors the compose container_name
+immich_oauth_port: 2283                          # the in-network API port (no published port on the VPS)
+immich_oauth_issuer_url: "https://sso.{{ domain_public }}/application/o/immich/"
+immich_oauth_scope: "openid email profile"
+immich_oauth_button_text: "Prijava z SSO"        # family-facing button label (docs/manual is Slovenian)
+immich_oauth_storage_label_claim: preferred_username
+immich_oauth_role_claim: immich_role             # creation-ONLY claims — never re-synced (deployment-oidc.md)
+immich_oauth_storage_quota_claim: immich_quota
+immich_oauth_auto_register: true
+immich_oauth_auto_launch: false                  # keep the native login page reachable (admin fallback)
+immich_oauth_mobile_override_enabled: false      # Authentik accepts app.immich:///oauth-callback (verified 2026-09-25)
+immich_oauth_mobile_redirect_uri: ""
+
 # ---- HD-258: bulk 1Password pre-pass item sets (per-template map) ----
 # The compose/config templates reference `vault: {name: {field}}` items which
 # fetch-vault-pass.yml + scripts/op-vault-export.py fetch ONCE per item (one op
@@ -128,7 +147,7 @@ _template_vault_items:
   headscale: {'headplane_password', 'headscale_api', 'headplane_api'}
   homelable: {'homelable_login', 'homelable_secret', 'homelable_mcp'}   # HD-45 — mcp item is catalog-created unconditionally (unused while homelable_mcp_enabled=false) so flipping the flag never needs a derive-map edit; the compose only references it in the mcp if-block
   home-assistant-standby: {'ha-vrrp_password'}
-  immich-app: {'immich_oidc', 'immich-ml-internal_api', 'immich_db'}
+  immich-app: {'immich_oidc', 'immich-ml-internal_api', 'immich_db', 'immich-admin_login'}   # immich-admin_login is NOT a compose reference: the OIDC SEED task (tasks/immich-seed.yml) needs it and the derive set is where a missing item fails loudly (HD-147); immich_oidc likewise moved out of the compose — Immich v3 reads no OAuth env var, so the seed consumes it via lookup()
   immich-ml: {'immich-ml-internal_api'}
   kopia-agent: {'kopia_password', 'kopia-server-internal_api', 'kopia-server_fingerprint'}
   kopia-server: {'kopia_password', 'kopia-server-internal_api'}   # NB: kopia-server_fingerprint NOT fetched here — cannot exist before kopia-server first start seeds it (HD-318a); only the AGENT (oldsrv, later play) consumes it

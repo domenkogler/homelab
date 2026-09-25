@@ -596,7 +596,31 @@ Unauthenticated requests to protected hosts redirect to `sso.kogler.si`. Protect
 exclusions are declared by router labels (source of truth) and mirrored in
 `ks-forward-auth.yml` — add a proxy provider there when a new service joins the tier.
 
+### 1.6b Immich (foto.) — first OIDC login `[MANUAL — owner browser]`
+
+The OAuth settings themselves are Ansible's job (`docker_services` → `immich-seed.yml`, which PUTs
+them over the API — Immich stores them in its database, not in compose). What stays with the owner
+is the **first login as a human**, because Immich links an OIDC identity to an existing account by
+email and auto-registers a **new empty library** for any email it does not know:
+
+1. Decide which Authentik account owns the family library **before** the first click. Immich reads
+   the `immich_role` / `immich_quota` claims **only when it creates the user** — a wrong role or a
+   second account is fixed by an admin merge afterwards, not by a re-login.
+2. Open `foto.kogler.si` in a normal browser and use the SSO button (label: `Prijava z SSO`) on the
+   login page, then sign in as `domen` in Authentik.
+3. Confirm it landed on the family library (not a fresh empty one) and that the role is right
+   (Administration → Users). A `domen` login that shows no photos is the second-account case above —
+   stop and reconcile the emails instead of deleting anything.
+4. Mobile: in the Immich app point the server at `foto.kogler.si` and use SSO; the app's
+   `app.immich:///oauth-callback` redirect is already an authorised redirect URI.
+
+Native password login stays enabled as the break-glass path (`immich-admin_login`, 1Password).
+If the button is **absent**, that is not an owner step — `oauth` is off server-side; run the
+`immich_seed` lane instead of clicking around (see [docs/deployment-oidc.md](docs/deployment-oidc.md)
+§Immich for what to look at).
+
 ### 1.7 Forgejo one-time wizard
+
 
 Browse to `git.kogler.si` → authentik login → installer:
 

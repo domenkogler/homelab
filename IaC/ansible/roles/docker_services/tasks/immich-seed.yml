@@ -1,0 +1,169 @@
+---
+# immich-seed.yml — ensure Immich's OAuth (Authentik) system config (HD-147 foto leg / HD-148)
+# Runs from docker_services/main.yml AFTER the immich-app stack is up. Gated at the include site
+# on `template_dir == 'immich-app'` + the deploy scope + `not ansible_check_mode` (every task
+# here drives the live API — `uri`/`shell` do not run in check mode, so a preview must skip the
+# whole block rather than fake a token; docs/deployment-ansible.md §Dry-run Mode).
+#
+# WHY A SEED TASK AND NOT COMPOSE ENV (measured 2026-09-25 on the live vps, image
+# ghcr.io/immich-app/immich-server:v3.2.2 — this is the whole reason the SSO button was missing):
+#   * Immich v3 has NO OAuth environment variables. `grep -rI 'IMMICH_OAUTH' dist/ node_modules/`
+#     returns 0 hits; the only env reader is dist/repositories/config.repository.js getEnv(), a
+#     whitelist of BOOTSTRAP vars (DB_*, IMMICH_MEDIA_LOCATION, IMMICH_LOG_LEVEL,
+#     IMMICH_CONFIG_FILE, IMMICH_WORKERS_*, …).
+#   * dist/utils/config.js buildConfig() loads the settings partial from EITHER the DB row
+#     system_metadata.key='system-config' (default) OR a file when IMMICH_CONFIG_FILE is set. The
+#     Admin UI writes it via PUT /api/admin/config, and services/server.service.js getFeatures()
+#     derives the `oauth` feature flag from THAT config — which is what the login page renders the
+#     button from. No env var is ever consulted.
+#   * So an API seed is the only way IaC can own these values. The compose block it replaced
+#     (IMMICH_OAUTH_ENABLED / _ISSUER_URL / _CLIENT_ID / _CLIENT_SECRET / _SCOPE /
+#     _STORAGE_LABEL_CLAIM) was silently inert for six weeks — autopsy in
+#     templates/docker_services/immich-app/docker-compose.yml.j2.
+#
+# WHY THE DB AND NOT IMMICH_CONFIG_FILE: buildConfig() reads the file INSTEAD OF the DB partial,
+# so adopting the file would silently revert every UI-set setting — the live row already carries
+# `storageTemplate.enabled=true` (the HD-135 originals-on-Box naming, a deliberate UI setting).
+# DB + an idempotent seed keeps the Admin UI usable by the family admin.
+#
+# Idempotence: read the live config, compare ONLY the keys this task owns, PUT only on drift.
+# A whole-config PUT is what the Admin UI does too, so no other setting gets invented here.
+#
+# Secrets (docs/deployment-secrets.md; no_log throughout; fail-loud HD-65 — no default()):
+#   immich-admin_login    (login)            username=email, password
+#   immich_oidc           (api, glue-seeded)  username=client_id, credential=client_secret
+# Lookups resolve on the CONTROL node (HD-258/HD-324: the bulk `vault` dict is NOT visible to
+# target-side tasks — technitium-seed.yml carries that live lesson).
+
+- name: "Immich: assert seed inputs are defined"
+  ansible.builtin.assert:
+    that:
+      - immich_oauth_issuer_url | trim | length > 0
+      - immich_oauth_container_name | trim | length > 0
+      - immich_oauth_port | int > 0
+    fail_msg: >-
+      immich_oauth_* role defaults are incomplete
+      (roles/docker_services/defaults/main.yml). The issuer URL has no fallback on purpose: a
+      wrong issuer fails the OIDC flow at the token exchange, far from the cause.
+  tags: [docker_services, immich_seed]
+
+- name: "Immich: discover the immich-server container IP"
+  ansible.builtin.shell:
+    # Same discovery shape as technitium-seed.yml: docker emits a LITERAL '\n' inside the Go
+    # template, so space-delimit the addresses then take the first non-empty field (immich-server
+    # sits on traefik-public + services-internal + db-internal = several addresses).
+    cmd: >-
+      docker inspect {{ immich_oauth_container_name }}
+      --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+      | tr ' ' '\n' | awk 'NF{print $1; exit}'
+    executable: /bin/bash
+  register: _immich_ip
+  changed_when: false
+  tags: [docker_services, immich_seed]
+
+- name: "Immich: fail when the container is not inspectable"
+  ansible.builtin.assert:
+    that:
+      - _immich_ip.stdout | trim | length > 0
+    fail_msg: >-
+      `docker inspect {{ immich_oauth_container_name }}` returned no IP — the container is not up
+      on this host, so the OAuth seed cannot run. Fix the stack; do not seed blindly.
+  tags: [docker_services, immich_seed]
+
+- name: "Immich: login as the admin seat (PUT /api/admin/config needs a bearer token)"
+  ansible.builtin.uri:
+    url: "http://{{ _immich_ip.stdout | trim }}:{{ immich_oauth_port }}/api/auth/login"
+    method: POST
+    body_format: json
+    body:
+      email: "{{ lookup('community.general.onepassword', 'immich-admin_login', field='username', vault=op_vault) }}"
+      password: "{{ lookup('community.general.onepassword', 'immich-admin_login', field='password', vault=op_vault) }}"
+    status_code: [200, 201]
+  register: _immich_login
+  no_log: true
+  failed_when: _immich_login.json is not defined or _immich_login.json.accessToken is not defined
+  tags: [docker_services, immich_seed]
+
+- name: "Immich: read the live system config"
+  ansible.builtin.uri:
+    url: "http://{{ _immich_ip.stdout | trim }}:{{ immich_oauth_port }}/api/admin/config"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ _immich_login.json.accessToken }}"
+    status_code: 200
+  register: _immich_cfg
+  no_log: true
+  failed_when: _immich_cfg.json is not defined or _immich_cfg.json.oauth is not defined
+  tags: [docker_services, immich_seed]
+
+- name: "Immich: the OAuth values IaC owns (everything else in the config stays as the UI set it)"
+  ansible.builtin.set_fact:
+    _immich_oauth_want:
+      enabled: "{{ immich_oauth_enabled | bool }}"
+      issuerUrl: "{{ immich_oauth_issuer_url | trim }}"
+      clientId: "{{ lookup('community.general.onepassword', 'immich_oidc', field='username', vault=op_vault) }}"
+      clientSecret: "{{ lookup('community.general.onepassword', 'immich_oidc', field='credential', vault=op_vault) }}"
+      scope: "{{ immich_oauth_scope | trim }}"
+      storageLabelClaim: "{{ immich_oauth_storage_label_claim | trim }}"
+      roleClaim: "{{ immich_oauth_role_claim | trim }}"
+      storageQuotaClaim: "{{ immich_oauth_storage_quota_claim | trim }}"
+      buttonText: "{{ immich_oauth_button_text | trim }}"
+      autoRegister: "{{ immich_oauth_auto_register | bool }}"
+      autoLaunch: "{{ immich_oauth_auto_launch | bool }}"
+      mobileOverrideEnabled: "{{ immich_oauth_mobile_override_enabled | bool }}"
+      mobileRedirectUri: "{{ immich_oauth_mobile_redirect_uri | trim }}"
+  no_log: true
+  tags: [docker_services, immich_seed]
+
+# Drift = any owned key differs. Compared as STRINGS, key-aligned: the live config comes back from
+# JSON with real booleans while a templated `{{ x | bool }}` can land as "True"/"true" depending on
+# the Ansible jinja2_native setting, and a type-only difference would PUT on every converge. A key
+# missing from the live config extracts to None -> drift -> PUT (fail-safe direction).
+- name: "Immich: diff only the keys this task owns"
+  ansible.builtin.set_fact:
+    _immich_oauth_drift: >-
+      {{ dict(_keys | zip(_keys | map('extract', _immich_cfg.json.oauth) | map('string') | list))
+         != dict(_keys | zip(_keys | map('extract', _immich_oauth_want) | map('string') | list)) }}
+  vars:
+    _keys: "{{ _immich_oauth_want.keys() | list }}"
+  no_log: true
+  tags: [docker_services, immich_seed]
+
+- name: "Immich: PUT the system config with the OAuth block (only on drift)"
+  ansible.builtin.uri:
+    url: "http://{{ _immich_ip.stdout | trim }}:{{ immich_oauth_port }}/api/admin/config"
+    method: PUT
+    headers:
+      Authorization: "Bearer {{ _immich_login.json.accessToken }}"
+    body_format: json
+    body: "{{ _immich_cfg.json | combine({'oauth': _immich_cfg.json.oauth | combine(_immich_oauth_want)}) }}"
+    status_code: [200, 201]
+  when: _immich_oauth_drift | bool
+  changed_when: true
+  no_log: true
+  tags: [docker_services, immich_seed]
+
+# The flag is derived from the stored config, so this fails loudly if the PUT was accepted but the
+# server disagrees with what we think we wrote (a rejected/ignored field is the failure class that
+# hid this bug: six env vars were 'present' and none were read).
+- name: "Immich: verify the oauth feature flag matches the desired state"
+  ansible.builtin.uri:
+    url: "http://{{ _immich_ip.stdout | trim }}:{{ immich_oauth_port }}/api/server/features"
+    method: GET
+    status_code: 200
+  register: _immich_features
+  failed_when: >-
+    _immich_features.json is not defined
+    or (_immich_features.json.oauth | default(false) | bool) != (immich_oauth_enabled | bool)
+  tags: [docker_services, immich_seed]
+
+- name: "Immich: what the login page now reads (acceptance is still the button itself)"
+  ansible.builtin.debug:
+    msg: >-
+      /api/server/features oauth={{ _immich_features.json.oauth }}
+      oauthAutoLaunch={{ _immich_features.json.oauthAutoLaunch | default('n/a') }}
+      passwordLogin={{ _immich_features.json.passwordLogin | default('n/a') }} —
+      oauth=true is necessary but NOT sufficient: the human acceptance test is the button on
+      https://foto.{{ domain_public }}/auth/login and the
+      first OIDC login as `domen` (email-linking trap: docs/deployment-oidc.md §Immich).
+  tags: [docker_services, immich_seed]

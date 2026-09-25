@@ -11,7 +11,16 @@ tags: [services, matrix, chat, messaging]
 > **Links to:** `services.md`, `services-traefik.md`, `services-authentik.md`, `interfaces.md`, `network-dns.md`, `manual/chat.md`
 > **Linked from:** `index.md`, `services.md`
 
-> 🟢 **Containers live** (Phase 1): matrix (Tuwunel) + element-web Up on the VPS. ⏳ verify/deploy-gated: public federation records + inbound federation traffic (**HD-47**), backup wiring (**HD-49**); bridges are **deferred** (Phase 2 best-effort) — HD-48.
+> 🟢 **Containers live** (Phase 1): matrix (Tuwunel) + element-web Up on the VPS. ✅ **SSO login live +
+> owner-verified 2026-09-25** — `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik`
+> IdP, and a human logged in at `chat.`. ✅ **profile auth measured the same day**: unauthenticated
+> `GET /_matrix/client/v3/profile/<user>` → **401 `M_MISSING_TOKEN`** (HD-122's long-delayed verify).
+> ⏳ **Inbound federation is still NOT proven**, and the reason is now named: the records are published
+> (`matrix.` + `kogler.si` resolve publicly, `matrix./.well-known/matrix/{client,server}` → 200 JSON),
+> but **`https://kogler.si/.well-known/matrix/{client,server}` answers 302 into Forward-Auth**, and a
+> remote homeserver asks the apex because `server_name = kogler.si`. Public-exclude that path (same rule
+> class as `/_matrix/*`), then prove it with an external-room join — **HD-47**. Also open: backup wiring
+> (**HD-49**); bridges are **deferred** (Phase 2 best-effort) — HD-48.
 > Decisions below remain the authoring/implementation spec for those gated parts.
 
 ---

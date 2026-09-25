@@ -72,6 +72,10 @@ no UI creation is needed.
 ### Immich native-OIDC note (HD-148)
 Immich v3 mobile is OAuth-capable; its default mobile redirect is the custom scheme
 `app.immich:///oauth-callback`. Per the official Immich OAuth docs (Authentik is first-class):
+[docs.immich.app/administration/oauth/](https://docs.immich.app/administration/oauth/) and
+[integrations.goauthentik.io/media/immich/](https://integrations.goauthentik.io/media/immich/).
+⚠ Both pages describe the settings as things you fill in on the **Administration → Settings** page; neither
+offers an env-var form — that is the detail that cost this service six weeks.
 
 **Authentik client profile (confidential):** Provider type OIDC/OAuth2, **Confidential** client,
 Application type **Web**, Grant type **Authorization Code** (no `implicit`). `issuer_url` =
@@ -85,11 +89,39 @@ auto-appended on discovery).
 - optional **Backchannel logout**: `https://foto.kogler.si/api/oauth/backchannel-logout`
 For local debugging also allow `http://localhost:2283/auth/login` + `http://localhost:2283/user-settings`.
 
-⚠ **`enabled` is a setting, not a side-effect of the client creds (measured 2026-09-25).** The container had
-`IMMICH_OAUTH_ISSUER_URL/CLIENT_ID/CLIENT_SECRET/SCOPE/STORAGE_LABEL_CLAIM` and the login page still showed
-only e-pošta/geslo, because `oauth.enabled` defaults to **false** — so `IMMICH_OAUTH_ENABLED: "true"` is
-required, and the acceptance test is *the button on the login page*, not the env being present. Note also the
-upstream caution that **env changes need the container recreated**, not restarted.
+⚠ **`enabled` is a setting, not a side-effect of the client creds — and in v3 it is not an env var either
+(the corrected root cause, both halves measured 2026-09-25).** The login page showed only e-pošta/geslo while
+the container carried `IMMICH_OAUTH_ISSUER_URL/CLIENT_ID/CLIENT_SECRET/SCOPE/STORAGE_LABEL_CLAIM`. The first
+cut at this, written the same day, said “`oauth.enabled` defaults to **false**, so set `IMMICH_OAUTH_ENABLED`”
+— **that fix was also wrong**: setting it, recreating the container, and re-reading the env changed nothing.
+The real shape, read out of the shipped image (`ghcr.io/immich-app/immich-server:v3.2.2`):
+
+- **Immich v3 has no OAuth environment variables at all.** `grep -rI 'IMMICH_OAUTH'` over
+  `dist/` + `node_modules/` = **0 hits**; `dist/repositories/config.repository.js getEnv()` is a whitelist
+  of *bootstrap* vars (`DB_*`, `IMMICH_MEDIA_LOCATION`, `IMMICH_LOG_LEVEL`, `IMMICH_CONFIG_FILE`,
+  `IMMICH_WORKERS_*`, …) and OAuth is not in it.
+- `dist/utils/config.js buildConfig()` takes the settings partial from **either** the DB row
+  `system_metadata.key='system-config'` **or** a file when `IMMICH_CONFIG_FILE` is set — never from the
+  environment. The Admin UI writes that row via `PUT /api/admin/config` (and the PUT is *refused* with
+  “Cannot update configuration while IMMICH_CONFIG_FILE is in use” when the file variant is active).
+- `services/server.service.js getFeatures()` returns `oauth: config.oauth.enabled` **from that config**; the
+  login page renders the button off the feature flag. So the read-only ladder is
+  `GET /api/server/features` → `oauth` · `GET /api/public/config` → `oauth.enabled` ·
+  `GET /api/server/config` → `oauthButtonText`, and only then the button itself.
+
+⇒ The values are IaC-owned but **not compose-owned**: `roles/docker_services/defaults/main.yml`
+(`immich_oauth_*`) + 1Password `immich_oidc`, applied by `roles/docker_services/tasks/immich-seed.yml`
+(login as `immich-admin_login` → read config → merge only the OAuth keys → PUT only on drift → re-read the
+flag). The compose keeps a comment where the six dead vars used to sit.
+**Why the DB and not `IMMICH_CONFIG_FILE`:** the file *replaces* the DB partial in `buildConfig()`, so it
+would silently revert everything the family admin sets in the UI — the live row already carries
+`storageTemplate.enabled=true` (the HD-135 originals-on-Box naming). An IaC-owned file wins on
+drift-proofing and loses someone else's setting; a seed that touches only the keys it owns loses nothing.
+
+⚠ **Why the seed logs in instead of using an API key:** system config has no API-key path and no admin CLI
+in v3 — the only writable surface is the admin bearer token from `POST /api/auth/login`, hence the
+`immich-admin_login` item (which is also the break-glass account if OIDC ever breaks; `passwordLogin.enabled`
+is deliberately left true and `autoLaunch` false so the native page stays reachable).
 
 ⚠ **The trap that eats an afternoon (why the first SSO login must be a decision, not a click):** Immich links
 an OIDC identity to an existing user **by email**, and `Auto Register` creates a **new empty library** for any
@@ -99,21 +131,63 @@ role has to be right on the first login. **Decide which account owns the family 
 `domen` SSO login**, and verify with the family seat, not the `admin` password login (that proves the admin
 seat, not the family one).
 
-**Immich env/config (`immich_oidc` from 1Password):** `scope openid email profile`; claims
-`preferred_username` → storage label, `immich_role` → role (`user`/`admin`), `immich_quota` →
-storage quota (claims are creation-only, not re-synced); `Auto Register` true, optional `Auto Launch`
-(per-request `/auth/login?autoLaunch=0|1`). `Mobile Redirect URI Override` empty → uses the custom scheme;
-only set it if Authentik rejects the custom scheme (http(s)-forwarder workaround, deploy-verify).
+**What the seed writes (`immich_oidc` from 1Password for the creds, role defaults for the rest):**
+`scope openid email profile`; claims `preferred_username` → storage label, `immich_role` → role
+(`user`/`admin`), `immich_quota` → storage quota (claims are creation-only, not re-synced);
+`buttonText Prijava z SSO`; `Auto Register` true; `Auto Launch` false (per-request override stays
+`/auth/login?autoLaunch=0|1`); `Mobile Redirect URI Override` off → the custom scheme is used, only set it
+if Authentik rejects that scheme (http(s)-forwarder workaround — **verified accepted 2026-09-25**, so it
+stays off: `GET /application/o/authorize/` answers 302 for all three redirect URIs and 400 for a
+not-registered control URI).
 
-**Edge changes in the `immich-app` compose:**
-- add the config above (client creds from 1Password `immich_oidc`, issuer/scope/claims);
-- **remove** the `traefik.http.routers.immich.middlewares: authentik-forward-auth@file` label
-  (would block the mobile OAuth redirect).
+**Edge (already live):** `traefik.http.routers.immich.middlewares: crowdsec-only@file` — the
+`authentik-forward-auth@file` label is NOT to be restored: a browser-redirect SSO layer in front of the
+service swallows the mobile `app.immich:///oauth-callback` redirect.
+
+**Live-verified 2026-09-25 (foto leg of HD-147):** issuer discovery `200` with
+`issuer = https://sso.kogler.si/application/o/immich/`; `PUT /api/admin/config` → `200`;
+`GET /api/server/features` → `oauth=true, oauthAutoLaunch=false, passwordLogin=true`;
+`GET /api/server/config` → `oauthButtonText="Prijava z SSO"`. **The remaining acceptance is the human one**
+— the button in a browser and the first `domen` OIDC login (deployment-manual.md §1.6b), which this doc
+cannot prove from the API side. ⚠ Still open on this service: `immich_version` is ONE pin for TWO images
+(server on the VPS, `immich-machine-learning` on oldsrv), and the pair sits SPLIT 3.2.2 / 3.1.0 while
+oldsrv is off the network (HD-455).
 
 ### Forgejo / Metabase native-OIDC notes (HD-148)
 - **Forgejo** (`git.`): callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; keep
   `crowdsec-only` edge; decide whether git-over-https/API pushes stay open or follow web SSO.
 - **Metabase** (`sec.`): **RETIRED 2026-09-14** (removed from the VPS; future home oldsrv). Historically: Metabase OSS has **NO OIDC/SSO — paid Enterprise only** (image pinned in `group_vars/all/versions.yml`); the `metabase_oidc` provider was declared (Blueprint) only for a future Enterprise license, so the live route **stayed Forward-Auth**. A future oldsrv Metabase is a sandbox (no sources) and does **not** re-use this VPS Authentik OIDC provider — revisit only with an Enterprise license + VPS Authentik.
+
+---
+
+## Per-service SSO login ledger
+
+What has been proven by an actual human login (not a 302), and what has not. The forward-auth tier is
+verified by its redirect; native-OIDC services are verified by the session existing on the other side.
+
+| Service | Tier | Proof | Status |
+|---|---|---|---|
+| `ai` (Open WebUI) | native OIDC | authorize works, **the callback 404s** — the app serves `/oauth/oidc/callback` since 0.11 and our redirect URI still says `/oauth2/callback` on both sides | ❌ **HD-458** (the ✅ this row carried since HD-219 was wrong) |
+| `vpn` (Headscale) | native OIDC | owner login in the HD-219 era | ✅ then — **not re-verified 2026-09-25** (`ai` is the lesson: an old ✅ is not a current one) |
+| `chat` (Element + Tuwunel) | homeserver SSO | `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik` IdP + owner login | ✅ 2026-09-25 |
+| `file` (OpenCloud) | native OIDC (web) | owner login **and** a `.docx` open through the ONLYOFFICE WOPI chain in that session ([services-office.md](services-office.md)) | ✅ 2026-09-25 |
+| `foto` (Immich) | native OIDC | the button, then an owner login as `domen` (see §Immich for how the settings get there) | ✅ 2026-09-25 |
+| `git` (Forgejo) | native OIDC | `user/login` advertises `Sign in with authentik`; the source is registered by `deploy-service.yml`, `ENABLE_AUTO_REGISTRATION=true`, `/user/register` 404 by design | ✅ 2026-09-25 |
+| `claw` (OpenClaw) | native OIDC | — | ⏳ desktop/mobile OAuth + CSP (HD-144) |
+| `office` (ONLYOFFICE) | no auth surface (WOPI helper) | reached through `file` | ✅ by way of `file` |
+| Forward-auth edge apps | Forward-Auth | 302 to `sso.` per HD-219 | ✅ |
+
+⚠ **A green `GET /api/v3/...` or a working redirect is not a login.** Every ✅ above is a human in a
+browser; the ⏳ rows have neither.
+
+⚠ **Found while measuring the SSO surface (belongs to HD-47, not to auth):**
+`https://kogler.si/.well-known/matrix/client` and `.../server` answer **302 → `sso.kogler.si`**, i.e. the
+apex well-knowns a remote homeserver needs for the federation handshake are behind the Forward-Auth wall.
+`matrix.kogler.si` serves both correctly (200 + JSON) and both hosts resolve publicly, but federation
+resolves the **apex** (`kogler.si` = the `server_name`), so it lands on the login redirect. Excluding
+`/.well-known/matrix/*` from Forward-Auth is the same rule class HD-47 already states for `/_matrix/*`.
+No `_matrix._tcp` / `_matrix._https` SRV exists anywhere (public DoH: NXDOMAIN) — fine only if the
+well-known path is made public.
 
 ---
 

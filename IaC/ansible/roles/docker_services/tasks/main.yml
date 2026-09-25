@@ -260,6 +260,27 @@
     loop_var: svc_entry
   tags: [docker_services, technitium_seed]
 
+# HD-147 foto leg: Immich's OAuth (Authentik) settings are NOT compose env — Immich v3 has no
+# OAuth env vars at all; they live in the DB-backed system config the Admin UI writes. Seed them
+# idempotently via PUT /api/admin/config once the stack is up. Autopsy + the reason a seed task
+# exists at all: templates/docker_services/immich-app/docker-compose.yml.j2 + tasks/immich-seed.yml.
+# Gated `not ansible_check_mode`: every task drives the live API (deployment-ansible.md §Dry-run).
+- name: "Seed Immich OAuth system config (HD-147/HD-148)"
+  ansible.builtin.include_tasks:
+    file: immich-seed.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') == 'immich-app'
+    - scope_is_all or svc_entry.name in scope_list
+    - not ansible_check_mode
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, immich_seed]
+
 # DNS self-heal (2026-09-15): the seed tail above ONLY runs when a converge's deploy loop
 # includes a technitium instance — a deploy-SCOPED converge (docker_services_scope=<svc>)
 # silently skips it (live llogs gap: Pi zone lacked the record -> ERR_NAME_NOT_RESOLVED).

@@ -10,11 +10,15 @@
 #       HD-184 — Docker DNS cannot resolve across hosts; immich-ml publishes
 #       :3003 bound to oldsrv's Home IP).
 #   Supersedes the older "originals on S3/MinIO" plan — the live Box is CIFS, not S3.
-#   Addons: DB (Postgres), Valkey. Auth: native OIDC (HD-148), not Forward-Auth.
+#   Addons: DB (Postgres), Valkey. Auth: native OIDC (HD-148), not Forward-Auth — but the OIDC
+#   settings are NOT in this file: Immich v3 reads no OAuth env var at all (see the note in the
+#   environment block); they live in the DB-backed system config, written by immich-seed.yml.
 #
 #   Secrets (deployment-secrets.md):
 #     immich_db  (Database) — Postgres
-#     immich_oidc (api) — Authentik OIDC client (username=client_id, credential=client_secret)
+#     immich_oidc (api) — Authentik OIDC client (username=client_id, credential=client_secret).
+#         Consumed by the SEED task (API PUT), NOT by this compose.
+#     immich-admin_login (login) — the Immich admin seat (username=email, password). SEED task only.
 #     immich-ml-internal_api (api) — shared ML API-key auth immich-app -> immich-ml (HD-160)
 services:
   immich-server:
@@ -56,21 +60,24 @@ services:
       # (Immich originals + encoded-video -> live Hetzner Box CIFS via the Immich storage
       # template, HD-135; thumbs/DB stay on local /data. MinIO/S3 retired — minio_login removed.)
 
-      # === OIDC via Authentik (HD-148) — native OIDC for web + mobile ===
-      # v3 mobile is OAuth-capable (app.immich:///oauth-callback). Provider declared in the
-      # Authentik Blueprint (ks-oidc.yml, HD-142); client creds seeded into `immich_oidc` by the
-      # secret-egress glue (HD-143). Must be Authorization Code (Confidential client), never implicit.
-      # ⛔ ENABLED is not implied by the other four. Measured 2026-09-25 on the live container: it carried
-      #   ISSUER_URL / CLIENT_ID / CLIENT_SECRET / SCOPE / STORAGE_LABEL_CLAIM and NOT ONE of them turned up
-      #   a login button, because oauth.enabled defaults FALSE. The comment below this block used to read
-      #   "native OIDC enabled" while the flag was never set — a comment is not a config (HD-147's foto leg
-      #   was blocked on exactly this one line).
-      IMMICH_OAUTH_ENABLED: "true"
-      IMMICH_OAUTH_ISSUER_URL: "https://sso.kogler.si/application/o/immich/"
-      IMMICH_OAUTH_CLIENT_ID: "{{ vault['immich_oidc'].username | replace('$','$$') }}"
-      IMMICH_OAUTH_CLIENT_SECRET: "{{ vault['immich_oidc'].credential | replace('$','$$') }}"
-      IMMICH_OAUTH_SCOPE: "openid profile email"
-      IMMICH_OAUTH_STORAGE_LABEL_CLAIM: preferred_username
+      # === OIDC via Authentik (HD-148) — NOTHING here, and the six vars that used to be had no effect ===
+      # ⛔ Immich v3 does not read a single `IMMICH_OAUTH_*` variable. Measured 2026-09-25 on the live
+      #   container (ghcr.io/immich-app/immich-server:v3.2.2): grep -rI 'IMMICH_OAUTH' over
+      #   /usr/src/app/server/dist + node_modules = 0 hits. The only env reader is
+      #   dist/repositories/config.repository.js getEnv(), a whitelist of BOOTSTRAP vars
+      #   (DB_*, IMMICH_MEDIA_LOCATION, IMMICH_LOG_LEVEL, IMMICH_CONFIG_FILE, IMMICH_WORKERS_*, …).
+      #   utils/config.js buildConfig() takes the settings partial from EITHER the DB row
+      #   system_metadata.key='system-config' (default) OR a file when IMMICH_CONFIG_FILE is set —
+      #   never from the environment — and services/server.service.js getFeatures() derives the
+      #   `oauth` feature flag (what the login page renders the button from) off THAT config.
+      #   This block was inert decoration: the container carried all six vars, was RECREATED (not
+      #   merely restarted), foto.kogler.si still showed only e-pošta/geslo, and the login page's own
+      #   /api/server/features answered "oauth": false. A comment is not a config — and neither is an
+      #   env var the program never reads (HD-147 foto leg; the same wrong conclusion had been
+      #   recorded once already as "oauth.enabled defaults false, so set IMMICH_OAUTH_ENABLED").
+      #   Settings are written by tasks/immich-seed.yml (PUT /api/admin/config) from the values in
+      #   roles/docker_services/defaults/main.yml (immich_oauth_*) + 1Password `immich_oidc`.
+      #   Acceptance is the BUTTON on the login page, then an OIDC login as `domen` — not this file.
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"
