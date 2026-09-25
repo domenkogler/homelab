@@ -124,6 +124,10 @@
 # owner+group), no NAMED ACL entries, and a group class that still carries `x` — the last
 # one is the 2026-09-09 failure (a hand-applied `group::r--`), which a mode-only check
 # would happily pass while nut could not exec the script.
+# ⚙ awk note, learned the hard way on the first run of this task: a base `group::r-x` line
+# splits with -F: into ("group", "", "r-x"), so the permissions are $3, NOT $2 — reading $2
+# yields empty on every compliant file, which made the verdict demand a repair forever and
+# reproduced the exact permanent-yellow this rewrite exists to remove.
 - name: "Probe upssched-cmd mode + ACL state (drives the changed verdict; never mutates)"
   ansible.builtin.shell:
     cmd: |
@@ -131,7 +135,7 @@
       f=/etc/nut/upssched-cmd
       mode="$(stat -c '%a' "$f" 2>/dev/null || echo absent)"
       named="$(getfacl -p --no-effective "$f" 2>/dev/null | grep -Ec '^(user|group):[^:]+:' || true)"
-      grp="$(getfacl -p --no-effective "$f" 2>/dev/null | awk -F: '/^group::/{print $2; exit}')"
+      grp="$(getfacl -p --no-effective "$f" 2>/dev/null | awk -F: '/^group::/{print $3; exit}')"
       echo "mode=${mode} named_acl=${named:-0} group_entry=${grp:-none}"
   args:
     executable: /bin/bash
