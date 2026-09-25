@@ -561,7 +561,8 @@ MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, e
 > (because the value contains a comma), so match on `comment` instead; and `/log` is memory-capped while a
 > **non-default `/system logging` rule (`ssh → memory`) floods ~1000 packet-dump lines per 3 min**, rotating the
 > buffer in seconds and silently erasing the window under measurement. That ssh rule is foreign config, not
-> repo-managed, and has no row.
+> repo-managed — the defect and its read command are in [network-ops.md](network-ops.md) §Central log
+> shipping (**HD-461**).
 
 **Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the
 moved `dsh`/`pi-dev`) remain reachable by **publishing a host port bound to `oldsrv_home_ip`** + a

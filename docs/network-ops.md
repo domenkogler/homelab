@@ -281,6 +281,17 @@ VictoriaLogs for central search.
   `centralsyslog`. RouterOS 7 action-name rule: **letters+numbers only** — `central-syslog` is rejected by
   the device. `src-address` ties the source to the wg-s2s interface (Mgmt-plane only; never WAN).
   Fail-loud: any missing SSOT value aborts the render.
+- ⛔ **A foreign `/system logging` rule destroys the log window every measurement needs — live defect
+  (HD-461).** The device carries the `ssh` topic routed to the **`memory`** action, and **no repo-managed
+  config creates it**: the `router-logging` task owns exactly the `error` / `firewall` / `critical` /
+  `warning` rows that forward to `centralsyslog`, and this is not one of them. Consequence: **~1000
+  packet-dump lines per 3 min against a 1000-line memory buffer**, so the buffer is *always* rotating and
+  silently rotates away whatever window a measurement is reading (it has already eaten a firewall-window
+  count mid-measurement and forced a re-run), and the dumps write handshake/packet bytes into the stream
+  that this section then ships to the centre. Read the table instead of trusting the config:
+  `ssh router '/system logging print'`. Removing it is only half the work — the deletion has to be proved
+  to **stay** gone across the next router converge (that converge's own `path: system logging` task is the
+  suspect for restoring it).
 - **WireGuard AllowedIPs gotcha (the reason this class of failure is invisible):** WireGuard **silently
   drops any inner packet whose source IP is not in the peer's `AllowedIPs`**. The syslog packets are
   sourced from the **router's own tunnel address** (`wg_s2s_vps.router_ip`), so that /32 MUST be in
