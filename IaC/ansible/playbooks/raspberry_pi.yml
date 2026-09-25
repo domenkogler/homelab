@@ -25,3 +25,14 @@
     - home_assistant         # render-first (HD-204): configs exist before compose up
     - docker_services        # home-assistant-primary + technitium-secondary on the Pi
     - monitoring
+    # HD-435 (2026-09-25): the Pi enrols as the SECOND permitted home node (tag:home-edge,
+    # tcp/443 only). It has to be wired HERE as well as in home_servers.yml: `tailscale-node`
+    # lived only in playbooks/home_servers.yml, whose `hosts:` is the `home_servers` group =
+    # oldsrv ALONE (this host is in its own `raspberry_pi` group, inventory.ini), so
+    # `tailscale_node_enabled: true` in host_vars/pi.kogler.si.yml would have been a silent
+    # no-op — the same "bare role name is not a tag, and a role in a play that never runs"
+    # class the comment above docker_services warns about.
+    # Explicit `tags:` because a bare role gets none: `--tags tailscale-node` is the join run.
+    - role: tailscale-node
+      tags: [tailscale-node]
+      when: tailscale_node_enabled | default(false)
