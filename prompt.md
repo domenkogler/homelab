@@ -301,8 +301,14 @@ row cluster, and never launch a pair marked *never with*.
 | **4** | [`prompt-357.md`](prompt-357.md) | HD-357 · 17 · 217 · 358 · 418 (window-gated) | **oldsrv** | its old gate is **satisfied** (HD-419 shipped 2026-09-22), so it runs as soon as the oldsrv slot is free · ⛔ never with 407 / 384 / 414 |
 | **5 — alone** | [`prompt-417.md`](prompt-417.md) | HD-417 · 404 · 248 · 396 | none (repo-only) | **runs alone**: its one-time docs sweep edits every doc, so it conflicts with every lane by construction (and it is the one brief allowed to reformat table **cells** in the two views — see its own lane rules) |
 
-> **Unbriefed open rows — no session launches from them, and nothing is lost:** **HD-360 · 402 · 103 · 238 · 421**
-> (the VPS-hygiene lane's residue — that lane's own row is gone from the registry). They stay in
+> **Unbriefed open rows — no session launches from them, and nothing is lost:** **HD-360 · 402 · 103 · 238 · 421 · 459**
+> (the VPS-hygiene lane's residue — that lane's own row is gone from the registry). **HD-459 joined 2026-09-25**
+> with only its onboarding tail left: the OpenCloud mobile SSO is LIVE and owner-verified, and what remains is one
+> custom-scheme redirect URI per native client when the desktop/iOS clients onboard, plus the pre-v1.2.5 app-build
+> fallback. Before touching ANY Authentik OIDC client, read [docs/services-authentik.md](docs/services-authentik.md)
+> §Blueprint authoring notes facts 7 + 9 — they are the two mechanics that cost this session its rounds (the apply
+> playbook consumes the DEPLOYED blueprint render, and a refresh token exists only if `offline_access` is a property
+> mapping on the provider). They stay in
 > [todo.md](todo.md) + [todo-table.md](todo-table.md) §B; whoever takes them forms the next **VPS + nas** lane.
 
 > **Probe lanes — outside the wave system, deliberately.** Two have run; both are **closed** and both briefs are
