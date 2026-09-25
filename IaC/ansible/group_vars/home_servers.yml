@@ -357,10 +357,7 @@ litellm_scoped_keys: []
   # LAN LiteLLM scoped keys (HD-356/HD-370) — per-instance SSOT consumed by the
   # bootstrap-keys glue + scripts/check-vault-items.sh (same record shape as the
   # VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS, but the
-  # keys minted here live in the LAN lan-litellm-db — 2026-09-15: the stale
-  # VPS-DB-minted dsh_api/pi-harness values were CLEARED in 1Password so this glue
-  # mints fresh LAN keys vault-first; the orphaned VPS-DB alias keys were deleted
-  # server-side and the records dropped from vps.yml).
+  # keys minted here live in the LAN lan-litellm-db).
   #
   # PARKED 2026-09-17 (HD-386, decision #26): the two harness records are commented out
   # because their consumers no longer exist (dsh/pi-dev removed by the owner; coding
@@ -369,9 +366,11 @@ litellm_scoped_keys: []
   # every converge red: the glue probes the stored `dsh_api` credential, gets 401 (it is
   # a VPS-DB-era value), and correctly refuses to auto-overwrite a secret → ABORT rc2
   # (that is HD-383). Commenting the records removes both the mint and the probe.
-  # The 1P ITEMS stay in the vault untouched (a parked consumer must not imply a
-  # deleted secret); `dsh_api` still holds the stale value and would still trip rc2 if
-  # this record is ever restored — that remediation is written in HD-383.
+  # The 1P ITEMS stay in the vault (a parked consumer must not imply a deleted
+  # secret). Measured 2026-09-26 (HD-383 remediation): `dsh_api` is now EMPTY — the
+  # stale VPS-DB-era bearer that used to trip rc2 is gone — while
+  # `pi-harness_openai_api` still holds its value and is NOT yet remediated. The
+  # LAN-gateway orphan (alias `dsh`) still needs deleting server-side on oldsrv.
   # The list being EMPTY is what forces `bootstrap_keys: false` on lan-litellm above.
   # - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
   # - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }   # HD-268 pi scoped LiteLLM key (dual harness) — PARKED HD-386

@@ -37,7 +37,7 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 >   still name `ollama/*` model names that no longer exist, and `spark/*` is in no allow-list. Everything
 >   measured so far ran on the admin-grade master key (**HD-384**).
 >
-> ⏳ **Open:** HD-384 (scoped-consumer allow-lists), HD-383 (parked stale `dsh_api` secret), HD-248 (the
+> ⏳ **Open:** HD-384 (scoped-consumer allow-lists), HD-383 (the `dsh_api` bearer is CLEARED in the vault as of 2026-09-26; the LAN-gateway orphan `dsh` still needs deleting on oldsrv), HD-248 (the
 > OWUI instance split), HD-268b (implement `rag-mcp`), HD-267 tails (Qdrant cutover verification, OKF wiki
 > repos), HD-387 (re-measure the thinking parameter through a gateway), HD-402 (Docling OCR engine swap).
 > Tracked in [`../todo.md`](../todo.md) (`source: services-ai`).
@@ -751,7 +751,7 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 | **HD-268b** implement `rag-mcp` (+ `forgejo-mcp`) | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **HD-267 tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |
 | **HD-248** Open WebUI instance split | One instance today; the public/internal capability split is undecided work. |
-| **HD-383** parked stale `dsh_api` secret | Parked with its consumer; remediation recorded there. Every `lan-litellm` converge aborts `rc2` until a record is restored or the item is cleared deliberately. |
+| **HD-383** stale `dsh_api` bearer — **remediated vault-side 2026-09-26** | The consumer stays rejected (decision #26 — do not restore the record), but the 401-ing VPS-DB-era value is now CLEARED in 1Password, so a restored `lan-litellm` record would no longer abort `rc2` on it. ⏳ **Left:** delete the orphaned alias `dsh` in the LAN gateway (Admin UI on `llitellm.kogler.si`) — that instance is on oldsrv, so it waits on HD-455. |
 | **HD-387** thinking-parameter re-measure | Open (see §9c). |
 | **HD-402** Docling OCR engine | Proposed EasyOCR → RapidOCR-ONNX; benchmark-gated. |
 | **Mem0 / OpenHands** | Planned spark services; neither onboarded. |
