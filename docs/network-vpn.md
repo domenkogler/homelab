@@ -303,16 +303,21 @@ The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and t
 **The host on the tailnet is `oldsrv`**, and **the Pi joins it once HD-435 lands — the owner approved the
 second node and its grant on 2026-09-25** (this is a widening, decided, so the next session does not read it
 as drift). Node `oldsrv`, `tag:dev`, headscale node id 11, joined by `roles/tailscale-node`; the NAS stays
-off. **HD-435 landed the second node's config on 2026-09-25 (join + key seeding still pending):**
-the Pi joins as node `pi` with its OWN `tag:home-edge`, granted `tcp/443` from `domen@kogler.si`
-and nothing else. Deliberately not `tag:dev`: an ACL grants by TAG, so a shared tag would hand
+off. **HD-435 is LIVE (2026-09-25): the Pi joined as node `pi` — headscale id 13, address in SSOT `tailnet_pi_ip`, tag
+`tag:home-edge`, read back from `headscale nodes list -o json` rather than assumed — granted
+`tcp/443` from `domen@kogler.si` and nothing else. Measured from the laptop's own tailnet client:
+`https://pi.ts.kogler.si/` → **200**, with the peer shown as `active; direct
+193.77.156.222:41641`, i.e. a direct session, no relay.** Deliberately not `tag:dev`: an ACL grants by TAG, so a shared tag would hand
 the Pi every dev-seat port someone adds later — the same silent-inheritance hazard HD-415 was
 about. And no tailnet `udp/53` rule exists for it or may be inferred from the sentence above:
 the Pi's Technitium TERTIARY role is a LAN role (network-dns.md §The answer-plane model), and
 naming a tailnet nameserver is its own address-scoped decision. It serves HA to tailnet peers
 from its own `traefik-ha` `websecure-ts` listener (`ha.ts.kogler.si` / `pi.ts.kogler.si`, XFF
 stripped, no Forward-Auth) — the same node-direct shape as oldsrv's, which is what makes
-`ha.kogler.si` survivable when either home box dies. `tailscale_node_expected_ip` (host_vars) is
+HA survivable when either home box dies. ⚠ The EDGE is fixed; the ANSWER is not: MagicDNS still
+replies `ha.ts.kogler.si` with **oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), which today is a
+node on a dead box, so the away path that works is
+`pi.ts.kogler.si` and the dual-A publish is HD-436's `tailnet: dual` step. `tailscale_node_expected_ip` (host_vars) is
 what the join guard compares the assigned address against, per-host now: the guard used to
 assert EVERY joining node against `tailnet_oldsrv_ip`, so a second node could never pass it.
 The scope is enforced, not intended:

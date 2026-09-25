@@ -53,7 +53,22 @@
 #   bash scripts/guarded-converge.sh --action prove    --target vps --container headscale
 #   bash scripts/guarded-converge.sh --action converge --target vps --container headscale \
 #        --playbook playbooks/vps.yml --limit vps --tags docker_services,headscale \
-#        --probe 'curl -fsS localhost:8080/ >/dev/null'
+#        --probe 'docker exec headscale headscale nodes list >/dev/null'
+#   ⚠ Pick a probe that ACTUALLY ANSWERS on the target, and test it before you arm. The
+#   example this header used to carry — `curl -fsS localhost:8080/` for headscale — is wrong:
+#   nothing listens on the VPS's localhost:8080 (measured 2026-09-25: connection refused), so a
+#   session copying it gets a RED verdict on a HEALTHY control plane and watches its own trap
+#   fire. `headscale nodes list` is the honest app-level read: it exercises the gRPC server and
+#   the DB, which is what "the control plane is alive" means. Same rule for any service: prove
+#   the probe green BEFORE the change, or you have built an outage generator.
+#   ⚠ `--project` is NOT optional when the compose directory is named after the SERVICE and the
+#   guarded CONTAINER is different: the watchdog defaults to /opt/<container>, which for
+#   authentik means /opt/authentik-server and the arm step dies with "compose file … not found"
+#   (measured 2026-09-25; the correct value is /opt/authentik). Failing to arm is a REFUSAL to
+#   converge — the guard will not touch a service it cannot prove it can bring back.
+#   ⚠ Hosts where docker needs sudo (the Pi: `ansible-admin` is not in the `docker` group) are
+#   OUTSIDE this guard entirely — every docker call in the arm/verify path fails with
+#   "permission denied … docker.sock", so `--action prove` can never pass there. See HD-463.
 #   bash scripts/guarded-converge.sh --self-test   # exercises the verdict logic
 # Both tag classes are mandatory for docker_services (inner per-service tasks
 # carry `tags: svc.name` — deployment-ansible.md "silent no-op"), so the default
@@ -106,7 +121,7 @@ while [ $# -gt 0 ]; do
         --sample-interval) SAMPLE_INTERVAL="${2:-}"; shift 2 ;;
         --self-test)   SELF_TEST=1; shift ;;
         --foreground)  FOREGROUND=1; shift ;;
-        -h|--help)     sed -n '2,62p' "$0"; exit 0 ;;
+        -h|--help)     sed -n '2,80p' "$0"; exit 0 ;;
         *) echo "FAIL: unknown argument '$1'" >&2; exit 2 ;;
     esac
 done

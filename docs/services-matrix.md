@@ -15,12 +15,23 @@ tags: [services, matrix, chat, messaging]
 > owner-verified 2026-09-25** — `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik`
 > IdP, and a human logged in at `chat.`. ✅ **profile auth measured the same day**: unauthenticated
 > `GET /_matrix/client/v3/profile/<user>` → **401 `M_MISSING_TOKEN`** (HD-122's long-delayed verify).
-> ⏳ **Inbound federation is still NOT proven**, and the reason is now named: the records are published
-> (`matrix.` + `kogler.si` resolve publicly, `matrix./.well-known/matrix/{client,server}` → 200 JSON),
-> but **`https://kogler.si/.well-known/matrix/{client,server}` answers 302 into Forward-Auth**, and a
-> remote homeserver asks the apex because `server_name = kogler.si`. Public-exclude that path (same rule
-> class as `/_matrix/*`), then prove it with an external-room join — **HD-47**. Also open: backup wiring
-> (**HD-49**); bridges are **deferred** (Phase 2 best-effort) — HD-48.
+> ✅ **The apex delegation is now PUBLIC (HD-47, live + measured 2026-09-25):**
+> `https://kogler.si/.well-known/matrix/client` → 200 `{"m.homeserver":{"base_url":"https://matrix.kogler.si/"}}`
+> and `.../server` → 200 `{"m.server":"matrix.kogler.si:443"}`, both from off-network, while
+> `https://kogler.si/` still 302s into Forward-Auth and `/.well-known/security.txt` still 302s too —
+> so exactly the two Matrix bodies are public and nothing else inherited the hole. It is a router on
+> the Tuwunel container with `Host(kogler.si) && PathPrefix(/.well-known/matrix)` at **priority 100**:
+> Traefik does NOT resolve a router tie by rule length, and the launchpad (`homepage`) router matches
+> the same apex Host at default priority 0, so an unprioritised route here is a coin flip.
+> ⚠ **Do not "fix" the bodies.** An earlier note in this repo expected
+> `{"server_name":"kogler.si","port":443}` for the server document; that is not the spec shape. What
+> Tuwunel serves — `m.server` as `host:port` — is the federation delegation, and it is what a remote
+> homeserver parses.
+> ⏳ **Inbound federation is STILL NOT PROVEN.** This was always the last hop: the delegation is now
+> reachable, but nothing has ever been delivered from a foreign homeserver. The proof is an
+> **external-room join** by the owner (or `curl` from a foreign server); until then the row stays open
+> on that single read. Also open: backup wiring (**HD-49**); bridges are **deferred**
+> (Phase 2 best-effort) — HD-48.
 > Decisions below remain the authoring/implementation spec for those gated parts.
 
 ---

@@ -73,6 +73,18 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 
 > **Wildcard-cert issuer (HD-178/HD-181):** this host's Traefik is **THE single ACME (DNS-01) issuer** for `*.kogler.si` (`traefik_acme_issuer: true` — the only host with ACME flags + certs-dumper). The internal all-app edge here (`traefik-tailnet`, HD-331) and the Pi `traefik-ha` edge consume the synced cert pair (bind-mount / ha-cert-sync pull timer); verify first issuance + consumer sync at deploy.
 
+> 📡 **HD-460 (2026-09-25): the tailnet node on this host can now be reached DIRECTLY, and the fix
+> had to be TWO edits at once.** `tailscale-sidecar` shares `traefik-tailnet`'s netns
+> (`network_mode: service:traefik-tailnet`), and compose **ignores `ports:` on a netns dependent**, so
+> before this the daemon's sockets were ephemeral (measured inside the netns: `39417` + `52926`) and no
+> amount of firewall work could ever publish them. Now the port is published on the NETNS OWNER
+> (`traefik-tailnet`: `41641/udp`) and pinned in the sidecar with `TS_TAILSCALED_EXTRA_ARGS=--port=41641`
+> — note the variable: `TS_EXTRA_ARGS` goes to `tailscale up` (login flags), not to the daemon, so the
+> intuitive place for it is the wrong place. Measured after: netns UDPv4+UDPv6 both on `41641`, host
+> `ss -lun` shows `0.0.0.0:41641`, and the laptop peer reads `active; direct …:41641` instead of
+> relayed. ⚠ Two named residues: the host publishes **IPv4 only** (no `[::]:41641`), and the phone
+> latency re-measure is an owner step — the row keeps its acceptance until both are read.
+
 ---
 
 ## Application Stack
