@@ -211,7 +211,11 @@ tailnet_oldsrv_ip: "100.64.0.3"
 # listener to point a tailnet answer at — and host networking on that edge means the tailnet
 # address is bindable (ip_nonlocal_bind is already required there for the VIP).
 tailnet_pi_node_name: pi
-tailnet_pi_ip: ""
+# Live since 2026-09-25 (HD-435): headscale node id 13, name `pi`, tag `tag:home-edge`
+# (read back from `headscale nodes list -o json`, not assumed), IPv4 100.64.0.6 — the join
+# landed under the `tagged-devices` user even though the key was minted `--user 2`, which is
+# headscale's own rule for tagged nodes (same as vps-obs), not a mis-mint.
+tailnet_pi_ip: "100.64.0.6"
 
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
