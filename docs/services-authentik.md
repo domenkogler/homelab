@@ -144,6 +144,19 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    Layer-2 cause of discovery non-registration still unknown — follow-up investigation pending.
    Remember: apply = UPSERT; removing a blueprint entry does NOT delete the server-side object —
    intentional deletions need ak-shell ORM one-shots in the same change.
+   ⚠ **The apply playbook reads the DEPLOYED render, not the repo file** (found live 2026-09-25,
+   HD-459): it pushes `/opt/authentik/blueprints/*` into the worker, and that path is refreshed only
+   by the docker_services **authentik** template step. So a blueprint edit needs TWO steps —
+   `-e docker_services_scope=authentik` to re-render, THEN the apply playbook — and running only the
+   playbook silently re-applies the stale file. Both runs report `changed=0`, which looks like "no-op,
+   already applied" while the edit never reached the server (evidence: the deployed `ks-oidc.yml`
+   still dated 2026-08-24 after an edit + two applies; the phone kept failing on redirect URI).
+   Converging the authentik scope is NOT an SSO outage when only a blueprint changed: `compose up -d`
+   left every authentik container at its multi-week uptime.
+   **Verify a redirect/client change without an admin token** — ask the authorize endpoint itself:
+   `curl -s -o /dev/null -D - 'https://sso.kogler.si/application/o/authorize/?response_type=code&client_id=<id>&redirect_uri=<exact client string>&scope=openid&state=x&code_challenge=<43ch>&code_challenge_method=S256'`
+   → **302 to `/if/flow/default-authentication-flow/` = accepted**, **400 = rejected**. Run a bogus
+   redirect as a control, or a 302 means nothing (HD-459 probe, 2026-09-25).
 8. **openclaw placeholder:** the serializer requires ≥1 redirect_uri even for the not-yet-onboarded
    provider — ks-oidc.yml carries `{url: "http://localhost:.*", matching_mode: regex}` as an explicit
    placeholder; replace with the real `openclaw onboard` callback(s) at HD-104.
@@ -169,8 +182,23 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
      advertises only `client_secret_post` + `client_secret_basic` (no `none`), so the OpenCloud Android
      app sends `client_id` (+ empty `client_secret`) in the POST body with PKCE
      (`S256` is advertised, and the app always sends `code_challenge`). Public `client_type` + PKCE is
-     therefore the correct pairing for these clients; unrequested/unknown scopes (`offline_access`) are
-     intersected down to the provider's scope mappings rather than rejected.
+     therefore the correct pairing for these clients; scopes the provider does not carry are
+     intersected away rather than rejected — which is exactly how a refresh-token-less mobile login is
+     born, see the next bullet.
+   - **`offline_access` must be a PROPERTY MAPPING on the provider, not just a requested scope, or no
+     refresh token is ever issued.** `check_scope` intersects requested scopes with the provider's
+     `property_mappings` and *silently* narrows to the overlap (it logs "requested scopes not
+     configured, setting to overlap" at info level, not a warning), and `create_code_response` mints
+     `refresh_token` **only if `offline_access` is still in the authorization-code scope**. So a client
+     that needs a refresh token (every mobile/desktop sync client) fails *after* a successful login —
+     symptom: "invalid refresh token", with a valid-looking session at the IdP. Authentik ships the
+     mapping (`authentik default OAuth Mapping: OpenID 'offline_access'`) but does NOT add it to a
+     provider by default, and our blueprint pins the mapping list explicitly (HD-231 pt.2), so the
+     pin is where it must be added. **Acceptance check, read-only, no API token:**
+     `docker exec authentik-worker ak shell -c "from authentik.providers.oauth2.models import
+     OAuth2Provider, RefreshToken; p=OAuth2Provider.objects.filter(name='<svc>').first();
+     print([m.name for m in p.property_mappings.all()], RefreshToken.objects.filter(provider=p).count())"`
+     — count 0 right after a mobile login = this bug (HD-459, 2026-09-25).
 
 **Canonical 2-entry pattern (per OIDC consumer):**
 

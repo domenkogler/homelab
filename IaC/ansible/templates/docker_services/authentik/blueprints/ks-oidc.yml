@@ -264,6 +264,16 @@ entries:
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, openid]]
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, email]]
         - !Find [authentik_providers_oauth2.scopemapping, [scope_name, profile]]
+        # HD-459 (2026-09-25, found live): offline_access MUST be listed here or the native clients
+        # cannot work. check_scope intersects the REQUESTED scopes with this provider's scope mappings
+        # and silently drops the rest, and create_code_response mints a refresh token ONLY when
+        # `offline_access` is still in the code's scope. WebFinger asks for it on android/ios/desktop
+        # (`WEBFINGER_<PLATFORM>_OIDC_CLIENT_SCOPES` default `openid profile email offline_access`),
+        # so without this line the app logs in, gets an access token ONLY, and reports an invalid
+        # refresh token (live proof before the fix: RefreshToken count for this provider = 0, while
+        # access_token_validity is 1h / refresh 30d). The web client is unaffected: its advertised
+        # scope list is `openid profile email`.
+        - !Find [authentik_providers_oauth2.scopemapping, [scope_name, offline_access]]
   - model: authentik_core.application
     id: app_opencloud
     identifiers:
