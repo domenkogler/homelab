@@ -25,11 +25,69 @@ Output contract:
     by HA from these names (light.hodnik_luc_on_off_1_1 etc.).
   - idempotent + deterministic; no secrets.
 
-Dependency: xknxproject (pip install xknxproject).
+Dependency: xknxproject (pip install xknxproject) for `--check` and for generation itself;
+`--self-test` is pure stdlib so it can sit in `validate-all.sh` on a runner that has no
+xknxproject (the runner today has none — measured 2026-09-25: `import xknxproject` fails in
+the system python, and nothing in the repo declares the dependency).
+
+Self-check (`--check`) — WHY it exists: most addresses here are read out of the project file
+and cannot be invented, but the `sensor:` appendix below is a HAND-TYPED list of 19 group
+addresses. That is the one place this generator can ship an address that ETS does not know,
+and HA fails per-entity on exactly that (`Did not respond to GroupValueRead`). `--check`
+re-renders and asserts every emitted address is published in the project, so the appendix
+cannot silently drift from the SSOT. Measured on 2026-09-25: 246 GAs published in the
+project, 154 emitted, 0 outside the project — including all 19 hand-typed ones.
 """
 import argparse
 import re
 import sys
+
+# Every address shape the renderer can emit (address / state_address / brightness_… etc.)
+EMITTED_ADDR = re.compile(r'address:\s*"(\d+/\d{1,2}/\d{1,5})"')
+
+
+def emitted_addresses(yaml_text: str) -> set:
+    """Every KNX group address in a rendered block."""
+    return set(EMITTED_ADDR.findall(yaml_text))
+
+
+def phantom_addresses(emitted: set, published) -> list:
+    """Emitted addresses that the ETS project does not publish, sorted for a stable diff."""
+    pub = set(published)
+    return sorted(a for a in emitted if a not in pub)
+
+
+def self_test() -> int:
+    """Pure-stdlib check of the subset logic `--check` relies on (no xknxproject, no project file)."""
+    failures = []
+    published = {"1/1/1", "1/1/2", "2/0/5"}
+    doc = '\n'.join([
+        '  light:',
+        '    - name: "Hall"',
+        '      address: "1/1/1"',
+        '      state_address: "1/1/2"',
+        '  sensor:',
+        '    - name: "Boiler"',
+        '      state_address: "9/9/9"',
+    ])
+    got = emitted_addresses(doc)
+    if got != {"1/1/1", "1/1/2", "9/9/9"}:
+        failures.append(f"emitted_addresses() read {sorted(got)} — the checker cannot see what to verify")
+    if phantom_addresses(got, published) != ["9/9/9"]:
+        failures.append("a hand-typed address that ETS does not publish was NOT flagged — the check is decorative")
+    clean = '\n'.join(['    - name: "Hall"', '      address: "1/1/1"', '      state_address: "1/1/2"'])
+    if phantom_addresses(emitted_addresses(clean), published):
+        failures.append("a clean render was flagged — the check would cry wolf on every regeneration")
+    if phantom_addresses(set(), published):
+        failures.append("an empty render reported phantoms")
+    if failures:
+        print("FAIL: knx-hass-gen.py --self-test:")
+        for f in failures:
+            print(f"  - {f}")
+        return 1
+    print("OK: self-test — the emitter reader sees every address field, an address outside the ETS "
+          "project is caught, a clean render is not (HD-439)")
+    return 0
 
 # FT-0 "custom" functions whose role-uuid addresses are opaque — classify by name.
 CUSTOM_SWITCH_NAMES = re.compile(
@@ -177,6 +235,31 @@ def build(proj):
     return lights, covers, switches, binary_sensors, dedup
 
 
+# Hand-typed on purpose: these GAs are published in the ETS project but sit outside any
+# FT-1/6/7 function, so nothing derives them. They are the ONLY place this generator can
+# emit an address ETS does not know — which is what `--check` exists to prove.
+APPENDIX_SENSORS = [
+        ("Rekuperator Airflow",         "12/1/13", "flow_rate_m3h"),
+        ("Rekuperator Room Temperature",  "12/1/14", "temperature"),
+        ("Rekuperator Extract Temperature","12/1/15", "temperature"),
+        ("Rekuperator Exhaust Temperature","12/1/16", "temperature"),
+        ("Rekuperator Outdoor Temperature","12/1/17", "temperature"),
+        ("Rekuperator Supply Temperature", "12/1/18", "temperature"),
+        ("Rekuperator Room Humidity",     "12/1/19", "percent"),
+        ("Rekuperator Extract Humidity",  "12/1/20", "percent"),
+        ("Rekuperator Exhaust Humidity",  "12/1/21", "percent"),
+        ("Rekuperator Outdoor Humidity",  "12/1/22", "percent"),
+        ("Rekuperator Supply Humidity",   "12/1/23", "percent"),
+        ("Rekuperator Filter Replace",    "12/1/24", "delta_time_hrs"),
+        ("Kopalnica Radiator Current",    "4/4/3",   "current"),
+        ("WC Radiator Current",           "10/4/3",  "current"),
+        ("Pecica velika Current",         "5/4/2",   "current"),
+        ("Pecica mala Current",           "5/4/5",   "current"),
+        ("Pomivalni stroj Current",       "5/4/8",   "current"),
+        ("Pralni stroj Current",          "6/4/2",   "current"),
+        ("Susilni stroj Current",         "6/4/5",   "current"),
+    ]
+
 def render_yaml(lights, covers, switches, binary_sensors, sensors):
     lines = []
     lines.append("# Generated by scripts/knx-hass-gen.py from the ETS project file")
@@ -232,27 +315,7 @@ def render_yaml(lights, covers, switches, binary_sensors, sensors):
     # 12/1/14-18 = 9.001, 12/1/19-23 = 5.001, 12/1/24 = 7.007 '(h)'). The
     # current clamps (ElektricniTok Status) have no DPT in ETS but are mA
     # (legacy live-config type). Kept here so regeneration never drops them.
-    appendix_sensors = [
-        ("Rekuperator Airflow",         "12/1/13", "flow_rate_m3h"),
-        ("Rekuperator Room Temperature",  "12/1/14", "temperature"),
-        ("Rekuperator Extract Temperature","12/1/15", "temperature"),
-        ("Rekuperator Exhaust Temperature","12/1/16", "temperature"),
-        ("Rekuperator Outdoor Temperature","12/1/17", "temperature"),
-        ("Rekuperator Supply Temperature", "12/1/18", "temperature"),
-        ("Rekuperator Room Humidity",     "12/1/19", "percent"),
-        ("Rekuperator Extract Humidity",  "12/1/20", "percent"),
-        ("Rekuperator Exhaust Humidity",  "12/1/21", "percent"),
-        ("Rekuperator Outdoor Humidity",  "12/1/22", "percent"),
-        ("Rekuperator Supply Humidity",   "12/1/23", "percent"),
-        ("Rekuperator Filter Replace",    "12/1/24", "delta_time_hrs"),
-        ("Kopalnica Radiator Current",    "4/4/3",   "current"),
-        ("WC Radiator Current",           "10/4/3",  "current"),
-        ("Pecica velika Current",         "5/4/2",   "current"),
-        ("Pecica mala Current",           "5/4/5",   "current"),
-        ("Pomivalni stroj Current",       "5/4/8",   "current"),
-        ("Pralni stroj Current",          "6/4/2",   "current"),
-        ("Susilni stroj Current",         "6/4/5",   "current"),
-    ]
+    appendix_sensors = APPENDIX_SENSORS
     if appendix_sensors:
         lines.append("  sensor:")
         for name, addr, t in appendix_sensors:
@@ -268,12 +331,40 @@ def render_yaml(lights, covers, switches, binary_sensors, sensors):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--knxproj', required=True)
+    ap.add_argument('--knxproj', required=False)
+    ap.add_argument('--check', action='store_true',
+                    help="re-render and assert every emitted address is published in the project; "
+                         "print the counts instead of the YAML")
+    ap.add_argument('--self-test', action='store_true', help="pure-stdlib check of --check's logic")
     args = ap.parse_args()
+
+    if args.self_test:
+        sys.exit(self_test())
+    if not args.knxproj:
+        ap.error("--knxproj is required unless --self-test is given")
     from xknxproject import XKNXProj
     proj = XKNXProj(args.knxproj).parse()
     lights, covers, switches, binary_sensors, sensors = build(proj)
     out = render_yaml(lights, covers, switches, binary_sensors, sensors)
+
+    if args.check:
+        published = set(proj['group_addresses'].keys())
+        emitted = emitted_addresses(out)
+        bad = phantom_addresses(emitted, published)
+        hand = sorted({a for _, a, _ in APPENDIX_SENSORS})
+        print(f"ETS project publishes {len(published)} group addresses; this render emits "
+              f"{len(emitted)} of them ({len(hand)} of those come from the hand-typed sensor appendix).")
+        if bad:
+            print(f"FAIL: {len(bad)} emitted address(es) are NOT published in the ETS project — HA will "
+                  "fail those entities per-entity ('Did not respond to GroupValueRead'):")
+            for a in bad:
+                origin = "hand-typed appendix" if a in hand else "derived from a function"
+                print(f"  {a}  ({origin})")
+            sys.exit(1)
+        print(f"OK: every emitted address is published in the project (HD-439). The render is safe to "
+              "commit; regenerate without --check to write it.")
+        sys.exit(0)
+
     # Encode UTF-8 + LF explicitly (Windows console/stdout mangles the em-dash to
     # cp1252 0x97 and adds CRLF; repo convention = UTF-8/LF).
     sys.stdout.buffer.write(out.encode('utf-8'))

@@ -103,6 +103,13 @@
 #                                     rows) and asserting equality printed 41 findings in 12 files — a gate that
 #                                     shouts gets muted. `--self-test` plants a stray pipe (inside a code span,
 #                                     where it still cuts) and a merged row, and asserts clean tables stay clean
+#  21. knx-hass-gen.py --self-test    — HD-439: the KNX generator's own address guard. `--check` (manual, needs
+#                                     xknxproject + the .knxproj) asserts every address the generator emits is
+#                                     PUBLISHED IN THE ETS PROJECT — the one invention risk left is the 19-address
+#                                     hand-typed sensor appendix, because HA fails per-entity on an address the
+#                                     bus does not know. This item runs the pure-stdlib half, because the runner
+#                                     has no xknxproject and nothing in the repo declares it
+#                                     (import xknxproject fails here — measured 2026-09-25)
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -238,6 +245,9 @@ $PY scripts/check_iac_backend_strings.py
 
 echo "== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) =="
 $PY scripts/check_iac_backend_strings.py --self-test
+
+echo "== knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project) =="
+$PY scripts/knx-hass-gen.py --self-test
 
 echo "== check_md_tables.py (HD-417: no table row wider than its header) =="
 $PY scripts/check_md_tables.py

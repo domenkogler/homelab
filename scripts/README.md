@@ -57,6 +57,7 @@ Every script here is part of one of three groups: **validation** (the fail-close
 |--------|--------|-----------------|----------------------------|
 | [`render_network_addresses.py`](render_network_addresses.py) | `docs/network-addresses-generated.md` | `group_vars/all/main.yml` + host_vars (`oldsrv`/`pi` DNS) → generated doc | **Windows fallback** — Ansible crashes natively on this host (`os.get_blocking` → WinError 87); this refreshes the doc without WSL/Ansible |
 | [`render_rack_connections.py`](render_rack_connections.py) | `docs/network-rack-generated.md` + `docs/rack-layout.mmd` | `docs/rack-connections.json` (parsed from `docs/assets/Rack.canvas`) → generated docs | **Different SSOT** (rack JSON, not group_vars) — not covered by `render-docs.yml` |
+| [`knx-hass-gen.py`](knx-hass-gen.py) | `IaC/ansible/roles/home_assistant/files/knx-entities.yaml` (deployed into HA) | the ETS export `docs/assets/references/knx/StanovanjeKogler_v1_0.knxproj` (parsed with `xknxproject`) → the HA `knx:` entity block | **Not docs, same direction**: the `.knxproj` is the KNX SSOT and this is the only thing allowed to translate it. `--check` re-renders and REFUSES if any emitted address is not published in the project — the hand-typed 19-address sensor appendix is the one place an address can be invented here, and HA pays per-entity (`Did not respond to GroupValueRead`). Measured 2026-09-25: 246 published, 154 emitted, 0 outside; canary: retyping one appendix address to `12/1/99` turns it red and names it as hand-typed. `--self-test` (stdlib-only) is wired into `validate-all.sh`; `--check` is not, because the runner has no `xknxproject` and **no file in this repo declares that dependency** |
 
 > Ansible equivalents: `IaC/ansible/playbooks/render-docs.yml` renders the same *group_vars*-derived
 > docs on Linux/CI or in WSL (`wsl.exe -d Debian`). `render_all.py` makes the Python path the
@@ -167,6 +168,7 @@ Every script must run natively in WSL Debian; paths use `$HOME`, `$SRC`, `$REPO`
 | `provision-vault.sh` | bash | none (paths from `$REPO`; `python3` already) | 🟢 portable |
 | `render_all.py` | python3 | none | 🟢 portable |
 | `render_network_addresses.py` | python3 | none | 🟢 portable |
+| `knx-hass-gen.py` | python3 | `xknxproject` for generation and `--check`; nothing for `--self-test` — ⚠ the dep is declared nowhere in the repo (measured 2026-09-25) | 🟡 dep missing |
 | `render_rack_connections.py` | python3 | none | 🟢 portable |
 | `restore-runner-key.sh` | bash | none (paths from `$HOME`) | 🟢 portable |
 | `seed-runner-ssh.sh` | bash | none (`$HOME`, `ssh`/`ssh-keygen`) | 🟢 portable |
