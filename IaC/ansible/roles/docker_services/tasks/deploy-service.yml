@@ -282,8 +282,12 @@
       - "{{ svc.db_pg_container }}"
       - sh
       - -c
+      # -tA (tuples-only, unaligned) is NOT cosmetic: psql's default aligned output begins
+      # with the column header ` coalesce `, and that header — not the marker — is what the
+      # first version of this probe compared against, so every converge re-ran the ALTER all
+      # over again (measured on the VPS 2026-09-26: three runs, six `changed` every time).
       - >-
-        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+        psql -v ON_ERROR_STOP=1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"
         -v syncuser="$PGSYNC_USER" -f -
     stdin: >-
       SELECT coalesce(shobj_description(oid, 'pg_authid'), '')
@@ -302,7 +306,7 @@
   ansible.builtin.set_fact:
     db_role_marker_desired: "pgsync:{{ _db_pass_now | hash('sha256') }}"
     db_role_needs_sync: >-
-      {{ (db_role_marker_state.stdout_lines | select('!=', '') | list | first | default('') | trim)
+      {{ (db_role_marker_state.stdout | trim)
          != 'pgsync:' ~ (_db_pass_now | hash('sha256')) }}
   no_log: true
   tags: "{{ svc.name }}"
