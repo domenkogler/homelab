@@ -16,10 +16,23 @@ tags: [smart-home, voice, whisper, piper]
 > simple querier — never a direct engine URL. See [services-ai.md](services-ai.md) §Architecture for the
 > routing model and §9c for the GPU model.
 >
-> ⚠ **That leg does not exist yet.** Home Assistant has **no LiteLLM consumer, no scoped key and no
-> gateway env wiring** in the deployment: `home-assistant-primary` puts **only `TZ`** into `environment:`, and `roles/home_assistant/` has no LiteLLM/`llm:` wiring anywhere, so voice's
-> LLM step has nothing to call. The STT engine underneath it is live; the wiring is open work
-> (**HD-403**, which ships with HD-384's consumer work).
+> ⚠ **That leg does not exist yet — and as of 2026-09-26 it is not merely unwired, it is un-wireable in the pinned Home Assistant.**
+> Measured on the live primary (Pi): the container's environment is `TZ` + s6 internals only; `configuration.yaml`
+> carries no `llm:` / `conversation:` / `assist_pipeline:` key; `custom_components/` does not exist; and
+> `.storage/core.config_entries` contains **no LLM provider entry at all** — voice has never had an LLM, so this
+> is a gap, not a regression. HD-384 has authored HA's scoped-key record, and three separate things stand between
+> it and one working intent turn:
+> **(1)** the key cannot be minted — `lan-litellm`, the decided gateway, runs on oldsrv, which is unreachable;
+> **(2)** the key cannot be rendered — the 1P item does not exist, and the fail-closed render rule (no `default('')`,
+> CONVENTIONS §6) would redden the next Pi converge, on the box that currently serves HA;
+> **(3)** HA has nowhere to point it — `openai_conversation` is config-flow based and targets OpenAI's hosted API:
+> it has **no base-URL field** (upstream ha-core issue
+> [#137087](https://github.com/home-assistant/core/issues/137087)), and the clean fix is still an open PR
+> ([#172960](https://github.com/home-assistant/core/pull/172960), a `litellm` integration limited to the
+> `conversation` platform).
+> The STT engine underneath it is live. The LLM step is therefore **parked on an owner call**, not on time:
+> vendor and maintain a custom component, adopt upstream when it merges, or relax decision #24's "never a direct
+> engine URL" for this one leg. Tracked in **HD-403**.
 >
 > **Engine = `whisper.cpp` `main-vulkan`, digest-pinned** (decision #27) — RADV, native RDNA3, no ROCm
 > userspace. Two earlier recipes were ruled out by evidence, not preference: a ROCm/`GGML_HIP` build
