@@ -234,6 +234,16 @@ point at `oldsrv:3080` / `oldsrv:8080` over the WG S2S, where nothing listens an
 and the edge answers **502** — that is not an outage to chase, and `group_vars/vps.yml` says so where the
 records live. Deleting them is a decision of its own, because it deletes MagicDNS records: do it as ONE change
 that drops the `tailnet_subdomains` entries, the routers and the two service blocks together.
+
+**A published name is only as live as the node it points at (measured 2026-09-26).** `tailnet_ts_only_subdomains`
+entries inherit `ip: tailnet_oldsrv_ip` unless they say otherwise, so `cockpit-nas.ts.kogler.si` — present in the
+live headscale config since the 2026-09-25 converge — resolves to the **oldsrv node's** address while
+`headscale nodes list` reports that node **offline**. Resolution succeeds and the console is unreachable anyway:
+a MagicDNS record is a pointer to a *node*, not to a service, so the question a `.ts` name ever answers is
+"is that node up", never "is that app up". Re-pointing such a record at a live node is a routing decision, not a
+fix — the target must actually serve the route. ⚠ **And the obvious read-back instrument is missing at home:**
+the Pi does not accept tailscale DNS (`/etc/resolv.conf` is `1.1.1.1`, not `100.100.100.100`), so it cannot resolve
+any `.ts` name and proves nothing about a record; a `.ts` read-back needs a client with MagicDNS enabled.
 Also note what the overlay is actually for now: `tailnet-apps` is no longer the sidecar trick its compose header
 describes — its live user is `litellm`.
 
