@@ -35,6 +35,14 @@ tags: [services, matrix, chat, messaging]
 > Android on a phone on LTE). ⛔ The trailing slash in the client well-known `base_url` is NOT the fault: a
 > doubled slash path (`//_matrix/client/versions`) answers 200 here, so Traefik normalizes it — do not "fix" the
 > bodies chasing that.
+> 🚪 **Where that 404 actually comes from (measured 2026-09-26):** the body is **nginx's** (`nginx/1.27.4`), not
+> Traefik's. In IaC, `chat` is nothing but a public Cloudflare **CNAME to `vps.kogler.si`**
+> (`roles/cloudflare_dns/vars/main.yml`) — it has **no `docker_services` entry and no Traefik router**, so its
+> `Host` falls through to whatever container owns the default route and that answers 404. So making `chat.` a
+> Matrix client host is **not** a DNS record, a seed entry, or a well-known file: it is adding a router for a name
+> that has no owning service — which HD-436's derivation cannot synthesize, because there is no service entry to
+> derive from. The cheaper shape (and the one that needs no new router) is to state that `matrix.kogler.si` is the
+> **only** client host and point every onboarding line and every app at it.
 > ⏳ **Inbound federation is NOT PROVEN.** A reachable delegation is not delivery: nothing has ever
 > been delivered here by a foreign homeserver. The one read that proves it is an **external-room join**
 > by the owner (or `curl` from a foreign server) — until it lands, treat federation as unproven.
