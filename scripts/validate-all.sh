@@ -49,6 +49,11 @@
 #                                     not deleted (fully-done rows must be removed; only
 #                                     deploy-gated rows with a real ⏳ tail stay), and stale ⏳
 #                                     markers inside struck/rejected/parked fragments (2026-09-08)
+#                                     + `--self-test`: the marker GRAMMAR (case-sensitive,
+#                                     word-boundary). A completion marker is a ✅/✔ glyph or an
+#                                     UPPERCASE word — lowercase prose is never a claim, so
+#                                     "the live config", "deliver", "olive" and a var named
+#                                     `OLLAMA_KEEP_ALIVE` cannot accuse an open row of being done
 #  15. check_secrets.py              — secret-SHAPE scanner over the TRACKED TIP incl. the
 #                                     members of tracked .tar/.tar.gz/.zip (added 2026-09-18 after
 #                                     a live spark-llm_api bearer reached origin/main inside bench
@@ -184,6 +189,9 @@ $PY scripts/check_placeholders.py
 
 echo "== check_todo_done.py (CONVENTIONS §4(a) done-row sweep) =="
 $PY scripts/check_todo_done.py
+
+echo "== check_todo_done.py --self-test (marker grammar: glyphs or UPPERCASE words, never prose) =="
+$PY scripts/check_todo_done.py --self-test
 
 echo "== check_secrets.py (secret shapes in the tracked tip, archive members included) =="
 $PY scripts/check_secrets.py

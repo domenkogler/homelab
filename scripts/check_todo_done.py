@@ -44,6 +44,10 @@ prompt.md handoff check (same run):
     ⏳) → compressible to the owning docs (INFO only).
   * Sub-IDs (HD-318a) inherit their parent row's open-ness; phase-done prose
     ("IaC done … ⏳ deploy") on an open row is NOT a contradiction.
+
+Marker grammar (provable: `python3 scripts/check_todo_done.py --self-test`): a completion
+marker is a ✅/✔ glyph or an UPPERCASE marker word at a word boundary. Lowercase prose is
+never a marker, so "the live headscale config" does not claim the row is finished.
 """
 from __future__ import annotations
 
@@ -56,10 +60,39 @@ TODO = ROOT / "todo.md"
 PROMPT = ROOT / "prompt.md"
 
 # Completion markers for the row's own outcome (row-level state, not a tail item).
-_COMPLETION = (
-    "✅", "✔", "DONE", "LIVE", "COMPLETE", "CLOSED",
+#
+# ⚠ Matched CASE-SENSITIVELY and at WORD BOUNDARIES, because every one of these words is
+# also ordinary English. The match used to be a case-INSENSITIVE substring test, which made
+# prose into completion claims: "the live headscale config", "deliver the record", "olive
+# oil", "unresolved drift" and "closed the loop" all matched, and since the prompt-side
+# window is only -60/+90 characters around an HD id, an innocent word a few lines away from
+# the id was enough to fail the gate with "prompt.md marks it done but the todo.md row is
+# open" — for a reason that looked completely unrelated to the sentence anyone wrote.
+# Status markers in this repo are written UPPERCASE or as a glyph (`ALL LEGS LIVE`, `DONE`,
+# `✅`); lowercase prose is prose, not a marker.
+#
+# Direction of the tradeoff, deliberately: tightening can only turn a FALSE ALARM into a
+# keep. A row that is genuinely finished and carries no marker at all is still caught by
+# CONVENTIONS §4's own delete step + the audit sweep, never silently blessed.
+_GLYPHS = "✅✔"
+# Row-level vocabulary — exactly the words this checker matched before, unchanged.
+_ROW_MARKERS = (
+    "DONE", "LIVE", "COMPLETE", "CLOSED",
     "RESOLVED", "VERIFIED", "REJECTED", "SUPERSEDED",
 )
+# Prompt-level vocabulary — again exactly the previous set. REJECTED/SUPERSEDED are
+# deliberately NOT here: "⛔ Ladder #10 (LMCache KV offload) is REJECTED" next to an HD id
+# says nothing about whether that HD's row is finished, and folding them in made HD-376
+# read as done (measured). Neither is COMPLETE, which the prompt side never matched.
+_PROMPT_DONE_MARKERS = ("DONE", "LIVE", "CLOSED", "RESOLVED", "DELETED", "VERIFIED")
+_ROW_MARKER_RE = re.compile(f"[{_GLYPHS}]|\\b(?:{'|'.join(_ROW_MARKERS)})\\b")
+_DONE_MARKER_RE = re.compile(f"[{_GLYPHS}]|\\b(?:{'|'.join(_PROMPT_DONE_MARKERS)})\\b")
+# REJECTED/SUPERSEDED drive a different question — "does this row belong in the owning
+# <domain>-rejected.md decision log instead of the backlog?" — and that is an INFO nudge,
+# not a completion claim. Here prose IS the signal, and the repo writes it that way
+# ("**Superseded note (2026-09-03):** …", "superseded by decisions #24/#25"), so this one
+# stays case-INSENSITIVE. Word boundaries still apply, so "unsuperseded" cannot match.
+_REJECT_RE = re.compile(r"\b(?:REJECTED|SUPERSEDED)\b", re.IGNORECASE)
 # If any of these appear in the text AFTER the final completion marker, the row
 # has remaining open work → keep (never a fully-done violation).
 _REMAIN = re.compile(
@@ -95,12 +128,10 @@ def _rows() -> list[tuple[str, str]]:
 
 
 def _last_marker(text: str) -> int:
+    """Start index of the last completion marker, or -1. Grammar: _DONE_MARKER_RE."""
     last = -1
-    for tok in _COMPLETION:
-        i = text.find(tok)
-        while i != -1:
-            last = max(last, i)
-            i = text.find(tok, i + 1)
+    for m in _ROW_MARKER_RE.finditer(text):
+        last = m.start()
     return last
 
 
@@ -113,7 +144,7 @@ def classify(body: str) -> str:
     tail = body[last:]
 
     # Reject/supersede rows: never a violation, always INFO-only.
-    if re.search(r"(REJECTED|SUPERSEDED)", tail, re.I):
+    if _REJECT_RE.search(tail):
         return "rejected_info"
 
     # Any ⏳ anywhere → deploy-gated / backlog, keep (a title ⏳ is real open work).
@@ -161,8 +192,12 @@ def _ctx_is_open(ctx: str) -> bool:
 
 
 def _ctx_is_done(ctx: str) -> bool:
-    """Does this context present the HD as done? (✅/✔/DONE/LIVE/CLOSED/DELETED)"""
-    return bool(re.search(r"(✅|✔|DONE|LIVE|CLOSED|RESOLVED|DELETED|VERIFIED)", ctx, re.I))
+    """Does this context present the HD as done?
+
+    Case-sensitive and boundary-anchored on purpose — see _DONE_MARKER_RE. Prose that
+    merely contains a marker word ('deliver', 'olive', 'unresolved') is not a claim.
+    """
+    return bool(_DONE_MARKER_RE.search(ctx))
 
 
 def scan_prompt(open_ids: set[str]) -> tuple[list[str], list[str], list[str]]:
@@ -288,5 +323,85 @@ def main() -> int:
     return 0
 
 
+# ── Self-test: the marker grammar, independent of todo.md / prompt.md content ───────
+# The negative set is the class that bit a runner writing a §2 handoff: sentences whose
+# only crime is containing a substring of a marker word.
+_ST_NOT_DONE = (
+    "the live headscale config all along",
+    "deliver the record to the seed",
+    "alive on the netmap",
+    "olive oil",
+    "unresolved drift in the table",
+    "closed the loop on the alias",
+    "complete the login on LTE",
+    "an undeleted item, kept",
+    "delivery of the key",
+    "resolve later, not now",
+)
+_ST_DONE = (
+    "✅ ALL LEGS LIVE",
+    "row DONE, nothing left",
+    "✔ shipped",
+    "decision CLOSED",
+    "question RESOLVED",
+    "surface DELETED",
+    "path VERIFIED",
+    "rollout COMPLETE",
+)
+_ST_REJECT = ("decision REJECTED", "row SUPERSEDED by HD-1")
+_ST_NOT_REJECT = ("this is unresolved, not a rejection", "supersede logic in lowercase")
+
+
+def _self_test() -> int:
+    fails: list[str] = []
+    for s in _ST_NOT_DONE:
+        m = _DONE_MARKER_RE.search(s)
+        if m:
+            fails.append(f"prose read as a completion claim: {s!r} matched {m.group(0)!r}")
+    for s in _ST_DONE:
+        if not (_DONE_MARKER_RE.search(s) or _ROW_MARKER_RE.search(s)):
+            fails.append(f"real marker NOT detected: {s!r}")
+    for s in _ST_REJECT:
+        if not _REJECT_RE.search(s):
+            fails.append(f"reject/supersede marker NOT detected: {s!r}")
+    for s in _ST_NOT_REJECT:
+        if _REJECT_RE.search(s):
+            fails.append(f"prose read as reject/supersede: {s!r}")
+    # The decision-log nudge deliberately reads prose case-insensitively:
+    for s in ("**Superseded note (2026-09-03):** the path moved", "superseded by decisions #24/#25"):
+        if not _REJECT_RE.search(s):
+            fails.append(f"decision-log prose no longer nudges: {s!r}")
+    # Row-level vs prompt-level vocabularies differ on purpose (measured, not taste):
+    # a rejected ladder inside a row's text is not a claim that the row is finished.
+    _rej = "⛔ **Ladder #10 (LMCache KV offload) is REJECTED**"
+    if _DONE_MARKER_RE.search(_rej):
+        fails.append(f"prompt detector treats REJECTED as a completion claim: {_rej!r}")
+    if classify(_rej + " — rest of the row") != "rejected_info":
+        fails.append("row classifier no longer reports rejected_info for a REJECTED row")
+    # Row classification: marker + no tail = fully_done (must be deleted); an explicit ⏳
+    # or stated remaining work keeps the row; no marker = open backlog.
+    for body, want in (
+        ("✅ all legs LIVE", "fully_done"),
+        ("✅ IaC merged ⏳ deploy on oldsrv", "keep"),
+        ("✅ shipped. Remaining: the LAN alias delete", "keep"),
+        ("open work, no marker here", "keep"),
+        ("the live headscale config, nothing else", "keep"),
+        ("REJECTED by decision #26", "rejected_info"),
+    ):
+        got = classify(body)
+        if got != want:
+            fails.append(f"classify({body!r}) = {got}, expected {want}")
+    if fails:
+        print(f"FAIL: check_todo_done self-test — {len(fails)} case(s):")
+        for f in fails:
+            print(f"  - {f}")
+        return 1
+    n = len(_ST_NOT_DONE) + len(_ST_DONE) + len(_ST_REJECT) + len(_ST_NOT_REJECT)
+    print(f"OK: check_todo_done self-test passed ({n} marker-grammar cases, 6 row-classification cases)")
+    return 0
+
+
 if __name__ == "__main__":
+    if "--self-test" in sys.argv[1:]:
+        sys.exit(_self_test())
     sys.exit(main())
