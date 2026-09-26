@@ -465,16 +465,28 @@
         src: "{{ playbook_dir }}/../templates/homepage_services.yaml.j2"
         dest: "{{ docker_compose_dir }}/homepage/config/services.yaml"
         mode: '0644'
+      register: homepage_services_yaml
 
     - name: Template homepage widgets.yaml
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/homepage_widgets.yaml.j2"
         dest: "{{ docker_compose_dir }}/homepage/config/widgets.yaml"
         mode: '0644'
+      register: homepage_widgets_yaml
 
     - name: Restart Homepage to pick up new config
+      # HD-440 (measured on the VPS 2026-09-27): this task had NO condition and
+      # `changed_when: true`, so it ran `docker compose restart` on the dashboard on
+      # EVERY docker_services converge and reported `changed` every single time — the
+      # exact class this row exists for (a healthy service restarted for no reason, and
+      # the one number that means "this converge did something" stops being readable).
+      # It is not a reporting lie: the restart really happened, because nothing gated it.
+      # Now gated on the two templates that are the ONLY thing this task can pick up.
       ansible.builtin.shell:
         cmd: "docker compose -f {{ docker_compose_dir }}/homepage/docker-compose.yml restart"
+      when: >-
+        (homepage_services_yaml.changed | default(false))
+        or (homepage_widgets_yaml.changed | default(false))
       changed_when: true
   tags: [homepage, docker_services]
 
