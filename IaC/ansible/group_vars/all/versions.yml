@@ -88,8 +88,16 @@ secured_signal_api_version: "v1.6.2"       # ghcr.io/codeshelldev/secured-signal
                                            # image + identity volume are untouched by this.
 renovate_version: "35.10.0"                # ghcr.io/renovatebot/renovate — GHCR tag list truncated
                                            # (1000-tag page); REGISTRY-VERIFY at first deploy.
-element_web_version: "v1.11.96"            # ghcr.io/element-hq/element-web (vectorim org is GONE —
-                                           # DENIED on probe 2026-08-21; template re-pointed)
+element_web_version: "v1.12.29"           # ghcr.io/element-hq/element-web (vectorim org is GONE —
+                                           # DENIED on probe 2026-08-21; template re-pointed).
+                                           # 1.12 line = native OIDC login (MSC2965 discovery, which
+                                           # Tuwunel serves) + simplified sliding sync. Tag verified
+                                           # present on GHCR before pinning — an anonymous ghcr token
+                                           # MUST carry service=ghcr.io or the registry answers 404
+                                           # for tags that exist (it did this to v1.11.96 too).
+                                           # ⚠ Element Web offers OIDC as the ONLY login once it
+                                           # discovers a provider; accepted 2026-09-26 because no
+                                           # other account uses the web client.
 
 # ==== Finance ====
 # Actual Budget (actualbudget/actual-server) image tag — internal finance stack (HD-57).
