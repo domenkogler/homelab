@@ -320,9 +320,12 @@ per-consumer virtual keys (lookups are fail-closed thereafter). Specs SSOT in `g
 **The LAN instance still has zero MINTED consumers.** A first record is authored (`home-assistant` →
 `home-assistant_api`, HD-384, 2026-09-26) but `bootstrap_keys` stays `false` on `lan-litellm`, because the
 mint runs on oldsrv and oldsrv is unreachable — so every call on that side still runs on the master key.
-That is also why the pinned-AI legs have no per-consumer caps yet. ⚠ And the record alone would not light
-up voice even if oldsrv answered today: HA has no surface for an OpenAI-compatible custom base_url, which
-is HD-403's own gate ([smart-home-voice.md](smart-home-voice.md) §the LLM leg).
+That is also why the pinned-AI legs have no per-consumer caps yet. ✅ And the record **is** consumable the moment it
+mints: HA **2026.8** ships a stock `litellm` conversation integration (this repo pins `2026.8.1`, verified at the
+release tag) that takes **any proxy URL + an optional virtual key** and lists its models from `/v1/models` — so
+what the `home-assistant` row must satisfy is visibility of `spark/qwen3.8-flash-next` **to that key's
+`/v1/models`**, the same endpoint the glue probes below
+([smart-home-voice.md](smart-home-voice.md) §the LLM leg).
 ⚠ The allow-lists still name `ollama/*` model names that no longer exist after decision #27 — correcting
 them (and adding the real rows for the real consumers) is **HD-384**, and the model-catalog doctrine
 below governs how.

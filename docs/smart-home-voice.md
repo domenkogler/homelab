@@ -16,23 +16,49 @@ tags: [smart-home, voice, whisper, piper]
 > simple querier — never a direct engine URL. See [services-ai.md](services-ai.md) §Architecture for the
 > routing model and §9c for the GPU model.
 >
-> ⚠ **That leg does not exist yet — and as of 2026-09-26 it is not merely unwired, it is un-wireable in the pinned Home Assistant.**
+> ⚠ **That leg does not exist yet — what is missing is the gateway and one HA config entry, NOT a Home Assistant surface.**
 > Measured on the live primary (Pi): the container's environment is `TZ` + s6 internals only; `configuration.yaml`
 > carries no `llm:` / `conversation:` / `assist_pipeline:` key; `custom_components/` does not exist; and
 > `.storage/core.config_entries` contains **no LLM provider entry at all** — voice has never had an LLM, so this
-> is a gap, not a regression. HD-384 has authored HA's scoped-key record, and three separate things stand between
-> it and one working intent turn:
-> **(1)** the key cannot be minted — `lan-litellm`, the decided gateway, runs on oldsrv, which is unreachable;
-> **(2)** the key cannot be rendered — the 1P item does not exist, and the fail-closed render rule (no `default('')`,
-> CONVENTIONS §6) would redden the next Pi converge, on the box that currently serves HA;
-> **(3)** HA has nowhere to point it — `openai_conversation` is config-flow based and targets OpenAI's hosted API:
-> it has **no base-URL field** (upstream ha-core issue
-> [#137087](https://github.com/home-assistant/core/issues/137087)), and the clean fix is still an open PR
-> ([#172960](https://github.com/home-assistant/core/pull/172960), a `litellm` integration limited to the
-> `conversation` platform).
-> The STT engine underneath it is live. The LLM step is therefore **parked on an owner call**, not on time:
-> vendor and maintain a custom component, adopt upstream when it merges, or relax decision #24's "never a direct
-> engine URL" for this one leg. Tracked in **HD-403**.
+> is a gap, not a regression.
+>
+> ✅ **The HA-side surface is stock and already in the pinned version — no vendored component, no HA bump, and
+> decision #24 stays intact** (measured from primary sources 2026-09-26). Home Assistant ships a `litellm`
+> **conversation** integration: ha-core PR
+> [#172960](https://github.com/home-assistant/core/pull/172960) **merged 2026-07-17**, first released in
+> **2026.8.0** — probed at the release tags, `homeassistant/components/litellm/manifest.json` is **404 at 2026.7.0
+> and 200 at 2026.8.0 / 2026.8.1** — and this repo pins `home_assistant_version: "2026.8.1"`, so the pin already
+> carries it. It is the exact shape #24 asks for: **the URL of any LiteLLM proxy + an optional virtual key**, and
+> the agent is usable in Assist like any other conversation agent
+> ([integration docs](https://www.home-assistant.io/integrations/litellm/)). Read from the **2026.8.1 source**, not
+> only the docs: `config_flow.py` takes `CONF_URL` (required; the OpenAI `/v1` path is appended if missing) +
+> `CONF_API_KEY` (optional — placeholder `sk-no-key-required` when empty); the agent itself is a config-entry
+> subentry holding `CONF_MODEL` / `CONF_PROMPT` / `CONF_LLM_HASS_API` (`LLM_API_ASSIST` is the recommended
+> default); `requirements: ["openai==2.45.0"]` is bundled in the image, so nothing is installed at runtime;
+> quality scale **bronze**. One delta vs the current release, non-blocking: reconfiguring an agent to have **no**
+> tools does not stick until 2026.9 (#178490, a two-line `is None` fix).
+> `openai_conversation` remains the wrong tool and is not a near-term option either — it targets only OpenAI's
+> hosted endpoint, and upstream **closed** ha-core
+> [#137087](https://github.com/home-assistant/core/issues/137087) (2025-03-27, `balloob`: *"not planning on
+> implementing this"*), choosing a dedicated integration over a base-URL field.
+>
+> **Four constraints that therefore fix the order of work:**
+> **(1)** the config flow calls `/v1/models` **before it creates the entry** (10 s timeout), so the gateway must be
+> up and the key minted before HA can hold an entry — `oldsrv` → `bootstrap_keys` → mint `home-assistant_api` →
+> HA entry → conversation agent → Assist pipeline;
+> **(2)** the model picker is fed by `/v1/models` **as the scoped key**, so the allow-list row
+> `spark/qwen3.8-flash-next` must be visible **to that key** — the same endpoint the bootstrap glue probes
+> ([services-ai.md](services-ai.md) §4);
+> **(3)** URL + key go into **HA's config entry** (`.storage/core.config_entries`); HA reads **no
+> `LITELLM_BASE_URL` env var** and the integration has no YAML import, so
+> `templates/docker_services/home-assistant-primary/**` needs no change and **no Pi converge is gated on the vault
+> item** (the old fail-closed-render worry was aimed at a render that should never have existed);
+> **(4)** ⚠ the same storage means the minted **virtual key sits in plaintext** in `/config/.storage/`, and the
+> standby sync (`roles/home_assistant/templates/ha-config-sync.sh.j2` — `rsync --delete`, excluding only
+> `secrets.yaml`) **replicates it to oldsrv**. That placement is owed to
+> [deployment-secrets.md](deployment-secrets.md) **before** the entry is created.
+> The STT engine underneath it is live. Tracked in **HD-403**, whose owner call (vendor / wait / relax #24) is
+> **closed by this finding** — see [smart-home-rejected.md](smart-home-rejected.md).
 >
 > **Engine = `whisper.cpp` `main-vulkan`, digest-pinned** (decision #27) — RADV, native RDNA3, no ROCm
 > userspace. Two earlier recipes were ruled out by evidence, not preference: a ROCm/`GGML_HIP` build

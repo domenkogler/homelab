@@ -362,11 +362,16 @@ litellm_scoped_keys:
   # ⛔ AUTHORED ONLY, NOT MINTED (2026-09-26): this instance (lan-litellm) runs on oldsrv,
   # which answers No route to host, so the glue has never run for it and the 1P item
   # `home-assistant_api` does not exist yet. `bootstrap_keys` therefore STAYS false.
-  # ⛔ SECOND GATE, found 2026-09-26 while wiring HD-403: even with oldsrv back and the
-  # mint run, HA cannot consume this key yet — HA has no surface that speaks OpenAI-compatible
-  # to a custom base_url (see smart-home-voice.md §the LLM leg). Do not flip `bootstrap_keys`
-  # expecting voice to light up; that would mint a key for nobody (the HD-386 mistake).
-  - { alias: home-assistant, vault_item: home-assistant_api, models: "spark/qwen3.8-flash-next", max_budget: "", budget_duration: "", rpm: "30" }   # HD-384 · INTENDED consumer HD-403 (not yet possible — no HA-side surface) · change rpm HERE, never in the LiteLLM DB
+  # ✅ THE SECOND GATE RECORDED HERE IS GONE (research 2026-09-26, HD-403): "HA has no surface for a
+  # self-hosted OpenAI-compatible base_url" was true of `openai_conversation` only. HA **2026.8** ships a stock
+  # `litellm` conversation integration (ha-core #172960, merged 2026-07-17; probed at the tags — 404 at 2026.7.0,
+  # 200 at 2026.8.0) and the pin `home_assistant_version: "2026.8.1"` already carries it: any proxy URL + an
+  # optional virtual key, models discovered from `/v1/models`. So flip `bootstrap_keys` as the first act once
+  # oldsrv answers — the key is no longer minted for nobody. ⚠ Two sequencing facts: HA queries `/v1/models`
+  # **before** it creates its config entry (mint must land first), and voice goes live only once that entry + its
+  # conversation agent exist (config-flow only, no YAML, no template here). Evidence:
+  # smart-home-voice.md §the LLM leg.
+  - { alias: home-assistant, vault_item: home-assistant_api, models: "spark/qwen3.8-flash-next", max_budget: "", budget_duration: "", rpm: "30" }   # HD-384 · consumer HD-403 (surface = HA 2026.8 stock `litellm` integration, already in the pin) · change rpm HERE, never in the LiteLLM DB
   # LAN LiteLLM scoped keys (HD-356/HD-370) — per-instance SSOT consumed by the
   # bootstrap-keys glue + scripts/check-vault-items.sh (same record shape as the
   # VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS, but the

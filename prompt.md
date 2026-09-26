@@ -117,8 +117,12 @@ left with **corrected premises instead of fixes**: 🆕 **HD-465** — ⏳ the r
 retired `/_matrix/client/r0/login/sso/redirect/<idp>` route, Tuwunel 404s it, and the phone renders that body
 verbatim; Element X (native OIDC + `simplified_msc3575`) logs in on the same account, so it is the mobile client
 and no edge change was made — see [docs/services-matrix.md](docs/services-matrix.md);
-**HD-403** — stock HA has no surface for a self-hosted OpenAI-compatible base_url (`openai_conversation` is
-hosted-only, no base-URL field; upstream PR #172960 is the clean fix), so voice is an owner call, not work.
+**HD-403** — ⚠ **the owner call is CLOSED, by research (2026-09-26): the surface was never missing.** HA **2026.8**
+ships a stock `litellm` conversation integration (ha-core PR #172960, merged 2026-07-17; probed at the tags —
+**404 at 2026.7.0, 200 at 2026.8.0**), and **the pin `home_assistant_version: "2026.8.1"` already contains it**:
+it takes **any LiteLLM proxy URL + an optional virtual key** and discovers models from `/v1/models`, so voice needs
+no vendored component, no HA bump and no relaxing decision #24. Voice is work again, gated only on `oldsrv` — see
+[docs/smart-home-voice.md](docs/smart-home-voice.md) §the LLM leg.
 **What the next session carries, in order:** **(1)** the transport thread's hinge is still **HD-436**, and its
 step 1 sits unmerged on `session/hd436-zone-derived-wip` — it is finished by rewriting
 `scripts/check_dns_seed_drift.py` in the SAME change (that checker finds the seed task by name and parses its
@@ -239,7 +243,15 @@ crossing (HD-444) and a browser login on each cockpit host (HD-361).
   `network-dns.md` decision 5's forward-looking phrasing. Nothing is missing and no measurement is wrong — the voice
   is, and it is the same defect the five files cleared on 2026-09-25 were rewritten for. Rule for the rewrite: keep
   the trap, keep the dated ✅ evidence, drop the correction story.
-- **HD-403** — ⏳ **Home Assistant has no LiteLLM path (its compose env carries only `TZ`; no scoped consumer, no vault item, no `llm:` wiring in `roles/home_assistant/`)** — text-only IaC + vault work, gate-free until the Assist turn is proven end-to-end; rides with HD-384. · [services-ai.md](docs/services-ai.md) · [smart-home-voice.md](docs/smart-home-voice.md)
+- **HD-403** — ⏳ **voice's LLM leg is ordinary work now, not an owner call** — the surface is the stock `litellm`
+  integration already in the pinned HA 2026.8.1 (proxy URL + virtual key, models discovered from `/v1/models`);
+  what remains is `oldsrv` (HD-455 → HD-454) → flip `bootstrap_keys` to mint `home-assistant_api` → add the HA
+  integration + a conversation agent for `spark/qwen3.8-flash-next` + the Assist-pipeline wire → one Slovenian
+  intent turn. ⛔ **It is not a compose/template change**: HA reads no `LITELLM_BASE_URL`, and URL + key live in
+  `.storage/core.config_entries` (config-flow only, no YAML import) — so no Pi render waits on the vault item.
+  ⚠ Before creating the entry: that key sits in **plaintext** in `/config/.storage` and the standby rsync copies it
+  to oldsrv — ruling owed to [deployment-secrets.md](docs/deployment-secrets.md). Rides with HD-384.
+  · [smart-home-voice.md](docs/smart-home-voice.md) · [services-ai.md](docs/services-ai.md)
 - **HD-404** — ⏳ **six stale IaC strings/comments** (Victoria-vs-Prometheus headers, the Pi "primary DNS" comment, the `llm-backend` purpose string that feeds a generated doc, `amd_rocm`'s `OLLAMA_KEEP_ALIVE`, the Pi image wording in `first-boot-config.sh`, the `tailnet-apps` overlay comment) — pure text, no converge risk. · [deployment-ansible.md](docs/deployment-ansible.md)
 - **HD-397 (tail only)** — ✅ **off-LAN access parity landed + live-verified 2026-09-19** (the VPS jump in `group_vars` for all four behind-NAT hosts, `host_vars/oldsrv.kogler.si.yml` `ansible_host` = the Home leg, both laptop ssh configs rebuilt to the documented alias contract, the rotation script's `lan-litellm` leg reads a real hash off-LAN again on its default target). ⏳ **What is left needs presence:** re-run the matrix from the LAN and with `Mgmt99` link — prove the jump is a harmless no-op for a LAN-attached runner and that the mgmt aliases answer again. ⛔ The leg decision is settled and not to be revisited: HD-398 closed as **A — the seal stays** ([network-rejected.md](docs/network-rejected.md)); do not widen `wg_s2s_vps.allowed_ips` / the router `available-from`, and do not join LAN hosts to the tailnet (decided 2026-09-10). · [network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away · [todo.md HD-397](todo.md)
 
