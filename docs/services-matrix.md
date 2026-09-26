@@ -58,12 +58,16 @@ tags: [services, matrix, chat, messaging]
 > registration (MSC2966), and simplified sliding sync (`org.matrix.simplified_msc3575`). What *is*
 > old is the pinned client build: `group_vars/all/versions.yml` pins
 > `element_web_version: "v1.11.96"`, while upstream Element Web is on the 1.12 line, which has had
-> native-OIDC login work and Simplified Sliding Sync land in it. ⏳ **Recorded as an option, not a
-> decision:** bumping that pin would give the browser client the same next-gen login Element X uses,
-> with two things to check first — Element Web's own docs say that where a valid MSC2965 config is
-> discovered, **OIDC becomes the only login option it offers** (so the legacy SSO path the family
-> uses today would disappear from the sign-in screen), and `config.json` keys drift between major
-> lines. Not taken here; it needs the owner's call and a login check on a real account.
+✅ **Shipped 2026-09-26: `element_web_version` went `v1.11.96` → `v1.12.29`**, so the browser
+> client now speaks the same generation as the homeserver. Live proof: the `chat` container runs
+> `ghcr.io/element-hq/element-web:v1.12.29` (healthy) and `https://chat.kogler.si/version` answers
+> `1.12.29`; the converge was scoped with `docker_services_scope=chat` (`ok=31 changed=2
+> failed=0`), so nothing else on that host moved. Two things a future bump inherits: Element Web
+> offers **OIDC as the only login** once it discovers a provider, which was accepted by the owner
+> because no other account uses the web client; and a GHCR tag must be verified with an anonymous
+> token that carries `service=ghcr.io`, because the registry answers **404 for tags that exist**
+> when it does not — which is how a first probe managed to report the then-current `v1.11.96` as
+> missing. `config.json` needed no migration (only long-stable keys in use).
 > 🧪 **Step 0 ran 2026-09-26 and it killed the discovery theory:** typing `matrix.kogler.si`
 > into the phone produced the **same** `M_UNRECOGNISED: not found`. The server-side probe that
 > followed ruled out, each by measurement rather than by elimination-on-a-forum: **routing**
