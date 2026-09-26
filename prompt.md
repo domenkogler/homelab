@@ -113,16 +113,18 @@ HA-exporter gate is now `alloy_ha_exporter` across IaC, docs and the ledger (**H
 left with **corrected premises instead of fixes**: 🆕 **HD-465** — ⏳ the row's premise was the bug, not the IaC: that
 `.ts` record has been in the headscale config the whole time, so what remains is the node it points at
 (oldsrv, offline) and the owner call over which node should own Cockpit;
-🆕 **HD-464** — `chat.kogler.si` is not a Matrix host at all: **nginx** answers its 404 and `chat` has no
-`docker_services` entry and no router, so "publish it on `chat.`" is a new router rather than a derivation;
+**HD-464** — root-caused from the app's own traffic and settled as a client choice: classic Element asks the
+retired `/_matrix/client/r0/login/sso/redirect/<idp>` route, Tuwunel 404s it, and the phone renders that body
+verbatim; Element X (native OIDC + `simplified_msc3575`) logs in on the same account, so it is the mobile client
+and no edge change was made — see [docs/services-matrix.md](docs/services-matrix.md);
 **HD-403** — stock HA has no surface for a self-hosted OpenAI-compatible base_url (`openai_conversation` is
 hosted-only, no base-URL field; upstream PR #172960 is the clean fix), so voice is an owner call, not work.
 **What the next session carries, in order:** **(1)** the transport thread's hinge is still **HD-436**, and its
 step 1 sits unmerged on `session/hd436-zone-derived-wip` — it is finished by rewriting
 `scripts/check_dns_seed_drift.py` in the SAME change (that checker finds the seed task by name and parses its
 `loop:` rows, so deriving the loop makes it exit 1 instead of silently checking nothing); **(2)** **HD-47** still
-needs one external-room join from an account on another homeserver, with the one-minute **HD-464 step 0** phone
-test in front of its phone half; **(3)** **HD-452**'s postgres half, **HD-460**'s IPv6 publish and **HD-435**'s
+needs one external-room join from an account on another homeserver — the phone now has a working client, so the
+owner can do it directly; **(3)** **HD-452**'s postgres half, **HD-460**'s IPv6 publish and **HD-435**'s
 reciprocal drill still wait on a VPS converge, the `::` bind, and oldsrv; **(4)** **HD-461** is parked on
 reachability, not on you. ⚠ Two traps that bite a runner, both written in `scripts/README.md`: the headscale probe
 in that table **does not answer on the VPS**, so copying it turns a healthy control plane RED and fires your own
@@ -220,8 +222,8 @@ crossing (HD-444) and a browser login on each cockpit host (HD-361).
   marker — shipped), **HD-454** (the only remote power path for oldsrv had no address in the repo), **HD-460**
   (the VPS node's ephemeral listen sockets), **HD-461** (the router's self-emptying memory log) and **HD-463**
   (`guarded-converge.sh` cannot guard a host where docker needs sudo). Two more came
-  straight off the owner's report on 2026-09-26: **HD-464** (Element for Android cannot log in while the web client
-  can) and **HD-465** (a documented tailnet console name that was never published to
+  straight off the owner's report on 2026-09-26: **HD-464** (classic Element could not log in while the web client
+  could — it asks a route the homeserver no longer serves; Element X is the mobile client) and **HD-465** (a documented tailnet console name that was never published to
   `tailnet_ts_only_subdomains`). **Still unrowed, and it is the
   gate itself:** `check_todo_done.py` decides open-vs-done from a ±60/90-character window around each HD mention, so
   the mandated `[todo.md HD-NNN](todo.md)` pointer disables the check for its own row, and a closed row cannot be

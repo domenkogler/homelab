@@ -61,154 +61,60 @@ tags: [services, matrix, chat, messaging]
 > Tuwunel, so the terse `{"m.homeserver":…}` body is **the server's own output**, and forking
 > the homeserver's identity data into IaC to imitate a spec member is how a second source of
 > truth gets born.
-> 🎯 **Closest upstream match:** tuwunel #505, "Native OIDC login breaks in two places: 405 on
-> `/_complete` and a redirect Chrome refuses to follow". The shape reproduces here on
-> `jevolk/tuwunel:v1.9.0`: `POST /_tuwunel/oidc/_complete` → **405**, i.e. the endpoint only
-> accepts GET, so a native flow that POSTs into it dies at the last hop — which is precisely
-> "web works, native app does not".
-> 🔬 **What would settle it, and why it is still unmeasured:** the *path* the app actually
-> hits. Traefik runs here with **no `accesslog`** — its static config is the CLI flag list on
-> the `traefik` service in `templates/docker_services/traefik/docker-compose.yml.j2` (the same
-> place `--entryPoints…` lives), Tuwunel logs nothing at default level, and the image has no
-> shell to inspect — so nothing anywhere records the request. Either
-> add `--accesslog=true` for one capture (⚠ it writes client IPs and user agents: choose the
-> retention before it ships, it is not a repo default) or read the app's own log/bug-report
-> export. Until one of those exists, #505 is the leading hypothesis, **not** a finding.
-> ⏳ **Inbound federation is NOT PROVEN.** A reachable delegation is not delivery: nothing has ever
-> been delivered here by a foreign homeserver. The one read that proves it is an **external-room join**
-> by the owner (or `curl` from a foreign server) — until it lands, treat federation as unproven.
-> Also open: backup wiring (**HD-49**); bridges are **deferred**
-> (Phase 2 best-effort) — HD-48.
-> Decisions below remain the authoring/implementation spec for those gated parts.
-
----
-
-## Goals
-
-Family messaging that does **not** depend on any single commercial chat app: a self-hosted Matrix
-homeserver with **Element Web** as the web client. Runs on the **VPS** (public/federated tier — HD-139).
-
-> **Scope (decided):** Phase 1 is **Matrix-native only** — family↔family in Matrix rooms. The family
-> keeps WhatsApp/Signal native on their phones for the outside world. **Third-party bridges are
-> deliberately deferred** (see [Bridges — deferred](#bridges--deferred-phase-2-best-effort)) because
-> every bridge links a real external account and puts that account at ban/isolation risk without
-> cleanly serving a whole family.
-
----
-
-## FQDN & Components
-
-| Component | FQDN / role | Notes |
-|-----------|-------------|-------|
-| **Tuwunel** (homeserver) | `matrix.kogler.si` | Rust homeserver — official successor to Conduwuit. Handles `/_matrix/*` (client-server + federation). **Public + federated.** |
-| **Element Web** (web client) | `chat.kogler.si` | Static web client. **Matrix-native SSO → Authentik.** ⏳ Renaming to `msg.kogler.si` (HD-248 -- subdomain goes to the public OWUI family chat). |
-
-- **Container:** homeserver + Element Web on the **VPS** (`traefik-public` + `services-internal`; placement per `group_vars/vps.yml`, HD-139).
-- **Storage:** Tuwunel uses a **RocksDB file store** (`database_path`, includes media) — **no external Postgres**; bind-mounted to `/srv/docker/matrix` on the VPS and included in ZFS/Kopia backup (**HD-49**).
-- **RAM (idle/peak MB, to validate after deploy):** Tuwunel 150–350 / 700 · Element Web 30–80 / 150.
-  ≈ **180–430 idle / ≤ 900 peak** — comfortable within the VPS budget (**16 GB DDR5**, netcup RS 2000 G12 — [`services-vps.md`](services-vps.md)).
-
----
-
-## Domain & Federation Decision
-
-- **Homeserver name = `kogler.si`** (decided), **delegated** to the physical homeserver on
-  `matrix.kogler.si` via `_matrix` well-known (client `/_matrix/client` + server `/_matrix/server`).
-  User IDs are clean `@user:kogler.si`, and the name is **stable across future host moves** (e.g. a
-  Phase-2 VPS): only the well-known pointer changes, never the user IDs / rooms / encrypted history.
-- **Public + federated.** Needed because the family uses chat on phones/from outside the LAN. This
-  **adds `matrix` and `chat` to the public internet-facing set** (the repo's public subset today:
-  `kogler.si`, `home`, `sso`, `foto`, `file`, `git`, `ha`, `vpn`).
-- The wildcard `*.kogler.si` cert (Cloudflare DNS-01) already covers both subdomains — no extra cert work.
-- **Federation transport:** serve `matrix.kogler.si` through Traefik on **443/TLS** (federation-over-443).
-  Optional listener on **8448** is not required. WAN firewall must allow 443 (and 8448 if used)**to the VPS — `/_matrix/*` is NOT behind Forward-Auth.** See [`services-traefik.md`](services-traefik.md).
-
-### Federation posture (HD-122 / KOPS-033 — decided)
-
-**Open federation is kept** — this affirms the recorded KOPS-033 acceptance in [`security.md`](security.md) §7
-(a federated homeserver interoperating with the wider Matrix world; the family is not sealed off).
-
-The "any Matrix user can DM the family" concern is mitigated **without** breaking federation by two settings
-in `tuwunel.toml.j2`:
-
-| Setting | Value | Effect on the KOPS-033 exposure |
-|---------|-------|----------------------------------|
-| `require_auth_for_profile_requests` | `true` | Stops **anonymous profile scraping** — strangers must authenticate to GET a user's profile, so family MXIDs/display names can't be harvested idlely. Closes the *discoverability* half of the concern. |
-| `allow_public_room_directory_over_federation` | `false` (Conduwuit default) | Blocks `/publicRooms` spiders from enumerating our server's public room directory. |
-| `allow_federation` | `true` | Interop with the wider Matrix network — kept. |
-
-> ⚠️ **`trusted_servers` is a key-notary list, NOT a permit-list.** In Conduwuit/Tuwunel it only gathers
-> other servers' signing keys for signature verification (matrix.org = the default Synapse notary). It does
-> **not** control who can DM our users, and there is **no per-server inbound federation allow-list** in this
-> homeserver — federation is global on/off (the docs warn against disabling it after the fact). Do **not**
-> repurpose `trusted_servers` as a federation permit-list. Truly stopping unsolicited DMs is **client-side**
-> (per-user ignore/block in Element), out of server control — noted so AUD does not re-raise it.
-
----
-
-## Authentication — Matrix-native SSO (NOT Traefik Forward-Auth)
-
-Unlike web apps that sit entirely behind Authentik Forward-Auth (e.g. `file`), Matrix **cannot** be
-wrapped at the edge: native clients and other servers must reach `/_matrix/*` directly. Instead,
-authentication is **delegated into the homeserver**:
-
-```
-Element Web (chat.kogler.si)
-   └─ "Log in with SSO"  →  homeserver /login/sso  →  Authentik OIDC (sso.kogler.si)
-                                                       └─ 1Password passkey / TOTP
-                                → returns Matrix access_token to the client
-Phones / Element X ─────────────  same homeserver /login/sso flow
-```
-
-- **Element Web is NOT wrapped in Traefik Forward-Auth** — that would force a double login (Authentik,
-  then Matrix) and would not help native apps. The SSO is Matrix's own OIDC flow backed by Authentik.
-- This is the one deviation from the repo rule *"No app exposes its own login publicly"* — document it
-  explicitly; Matrix's public login endpoint is the homeserver itself, and Authentik is the identity
-  source. Provider/application for Tuwunel lives in [`services-authentik.md`](services-authentik.md).
-
----
-
-## Server Identity & Backup (Critical)
-
-- The homeserver **signing key + room encryption keys** are the server's identity.**Losing them breaks
-  all existing rooms / encrypted history.** They are **secrets**: keep in 1Password *and* include the
-  identity file in the ZFS/Kopia backup (see [`backup.md`](backup.md)).
-- Back up: the RocksDB database/media store (`/srv/docker/matrix`, via Kopia — there is **no** homeserver Postgres) and the signing/identity
-  keys. Tracked as **HD-49**.
-
----
-
-## Observability & Alerting (optional consolidation)
-
-- Homeserver exposes metrics; Alloy scrapes into VictoriaMetrics (`/metrics`) as part of the stack.
-- **Optional:** expose a `#homelab` room and route Grafana alerts to it so alerting can also reach
-  Matrix — alongside the existing Signal + SMTP fail-safe. See [`observability.md`](observability.md).
-
----
-
-## Bridges — Deferred (Phase 2 best-effort)
-
-WhatsApp / Messenger / Signal bridges are **not part of Phase 1**. Rationale (recorded decision):
-
-- Every bridge links a **real external account**. In the multi-user model each family member who wants
-  *their* contacts in Matrix links *their own* number → each personal number at ban/isolation risk
-  (WhatsApp/Meta actively detect and block unofficial bridges; numbers are often 2FA for other services).
-- Protected via **dedicated throwaway numbers**, a whole family needs several **and** a throwaway has
-  **no real contacts**, so nobody's actual contacts are reachable — the model doesn't cleanly serve a family.
-
-**Decision:** defer. Revisit **only if** the family explicitly asks for a specific bridge, and then
-**only** against a **dedicated** number, accepting ongoing re-pairing and possible ban. Tracked as
-**HD-48** — **REJECTED/closed: ** the owner is the sole Matrix user, native
-Signal already works, and Matrix is not yet federated (HD-46/47) — no bridge will be built. Re-decide
-cheaply if WhatsApp-in-Matrix is ever wanted. Decision log: [services-rejected.md](services-rejected.md) HD-48.
-
----
-
-## Related
-
-- [Service Catalog](services.md) — catalog rows, networks, the public subdomain set
-- [Traefik — Reverse Proxy & Edge](services-traefik.md) — Matrix routing, public records, no Forward-Auth on `/_matrix/*`
-- [Authentik — Identity & SSO](services-authentik.md) — Matrix OIDC SSO provider/application
-- [Interface Matrix](interfaces.md) — Element Web as a family interface
-- [DNS / Delegation](network-dns.md) — `_matrix` well-known, public records
-- [Družinski vodnik: klepet](manual/chat.md) *(Slovenian, wip)*
+> ✅ **Root cause, confirmed from the client's own traffic (2026-09-26).** The Traefik access
+> log (router `matrix@docker`) shows the classic Element app asking, twice, three seconds
+> apart:
+> ```
+> GET /_matrix/client/r0/login/sso/redirect/<idp>?redirectUrl=…     → 404 M_UNRECOGNIZED
+> ```
+> Tuwunel 1.9.0 mounts only a **subset** of the retired `r0` family — `/_matrix/client/r0/login`
+> answers 200 while `/_matrix/client/r0/versions` and the `r0` **SSO-redirect-with-IdP** answer
+> 404 `M_UNRECOGNIZED: Not Found` — and the app surfaces that body verbatim as the
+> `M_UNRECOGNISED: not found` on the phone. Upstream tuwunel **#286** is this exact report
+> ("Unable to log into tuwunel via SSO from element (non x) app"). Nothing else in the classic
+> path is missing: the `v3` SSO redirect answers **302 → Authentik even for the custom
+> `element://connect` app-link** (so no `sso_redirect_allow_uri` change is needed and #286's
+> `M_INVALID_PARAM` variant is not our case), `/v3/sync` works (which is why Element Web works),
+> and the account itself is fine.
+> ✅ **The A/B that proves it:** the same owner, same server, same account, **Element X logs in
+> and registers the phone as a new device**. Its flow — `v3/login/sso/redirect/…?redirectUrl=
+> …/_tuwunel/oidc/_complete` → Authentik flow → `v1/login/token/unused` →
+> `POST /_matrix/client/unstable/org.matrix.simplified_msc3575/sync` — is fully served. So this
+> was never DNS, never the well-known, never the router, never sliding sync.
+> ⚠ **Two corrections to this row's earlier draft, both my own probe artifacts, recorded so
+> nobody re-inherits them:** (1) `/_matrix/simplified/v3/*` 404s because that is superseded
+> MSC4108 path naming — Tuwunel serves MSC4186 under `org.matrix.simplified_msc3575`, and I
+> nearly shipped a "the server advertises msc4108 but serves nothing" claim on that; (2)
+> `/_matrix/client/v1/login/token/unused` returning 404 for a **bogus** token is the
+> spec-correct answer, not an advertise/serve mismatch — the log shows the real client
+> completing through that same endpoint.
+> 🔎 **How to read this log again** (both of these cost a wrong turn): the flag says
+> `--accesslog.filepath=/var/log/traefik/access.log`, which is the **container** path; the host
+> path is the bind source **`/opt/traefik/logs/access.log`**, and greping the flag path finds
+> nothing. The format is **combined/CLF, not JSON** — there is no Host field and no JSON per
+> line — so filter by the **router name** (`"matrix@docker"`), not by hostname: a hostname grep
+> only matches lines whose *query string* happens to mention it. ⛔ Query strings here carry
+> `login_token`/`state`/`code` values: redact at `?` before sharing a capture.
+> 📱 **Element vs Element X — why one works here and the other cannot (owner asked, 2026-09-26).**
+> They share a name and an account and almost nothing else. **Element** (classic) is the decade-old
+> React/Android/iOS client on the **Matrix 1.x client API**: long-polled `GET /_matrix/client/v3/sync`,
+> `m.login.password` / `m.login.sso`, legacy Olm/Megolm key UX. It talks to anything that implements
+> the classic API, which is why it has always been the safe default — and why its login path here runs
+> into a retired `r0` route. **Element X** is a ground-up rewrite on the **Rust SDK**, built for what is
+> being sold as **Matrix 2.0**: the homeserver itself becomes an **OAuth 2.0 / OIDC provider**
+> (MSC2965/MSC3861 — no more password or web SSO redirect inside the app), the sync loop is
+> **simplified sliding sync** (MSC4108, renamed MSC4186) instead of `/sync`, and encryption onboarding
+> is rebuilt around a recovery key + device verification and QR sign-in.
+> **Practical consequences:** sliding sync is why Element X's first sync on a big room list is fast
+> where classic Element crawls; native OIDC is why logging in never asks for a password; and
+> registering the phone creates **a separate device/session**, which will prompt verification elsewhere
+> and is worth pruning from the device list now and then. The trade is breadth: the classic clients (and
+> Element Web, which still speaks the 1.x API and works fine here) carry widgets/legacy integrations and
+> older power features that Element X has been slower to absorb.
+> 🧭 **Why this homeserver is the unusual one, not the app:** most non-Synapse homeservers cannot do
+> Element X at all. Tuwunel ships its **own OIDC provider** (`/_tuwunel/oidc/*`) and the
+> `simplified_msc3575` sync, so it supports the modern client while having dropped the `r0` route the
+> legacy client wants. **Decision: Element X is the mobile client for this deployment; classic Element
+> is not supported here** (upstream tuwunel #286, and we are not rewriting `r0`→`v3` at the edge to
+> imitate an API the origin does not serve). Anyone else in the family who logs in on a phone needs the
+> Element X app — the same server, the same Authentik account, no other change.

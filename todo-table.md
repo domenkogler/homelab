@@ -159,7 +159,7 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 > residue), **HD-450** (a cert consumer can age out unalerted — found closing HD-350), and the **transport-plane
 > cluster, no brief and no owner gate on it:** HD-436 (the derivation, and the gate every other row in it waits — **step 1 is preserved unmerged on `session/hd436-zone-derived-wip`**, red on purpose: the drift checker must be rewritten in the same change)
 > on) · HD-435 (its dual-A step) · HD-448 · HD-452 (postgres half) · HD-460 (its IPv6 publish only) · HD-461 (parked
-> on reachability, on you) · HD-463 · **HD-459** · 🆕 **HD-464** (Element for Android cannot log in — but `chat.kogler.si` is not a Matrix host: **nginx** answers its 404, and `chat` has no service entry and no router, so the owner's one-minute `matrix.kogler.si` phone test decides the diagnosis) · 🆕 **HD-465** (the tailnet console name **is** published — the row's premise was wrong; it points at the **offline** oldsrv node, so the open question is which node owns Cockpit). HD-412's two enrolment sessions need a
+> on reachability, on you) · HD-463 · **HD-459** · **HD-464 closed** (classic Element could not log in; it asks the retired `r0` SSO route, which Tuwunel 404s — Element X is the mobile client, recorded in [services-matrix.md](docs/services-matrix.md)) · 🆕 **HD-465** (the tailnet console name **is** published — the row's premise was wrong; it points at the **offline** oldsrv node, so the open question is which node owns Cockpit). HD-412's two enrolment sessions need a
 > human at both ends and live in §D.
 
 
@@ -246,7 +246,6 @@ for the family-agnostic `:22/:443/:51820`/RustDesk accepts (confirm it, or scope
 | HD-358 | 2 | Seerr can talk to the *arrs without a human | record the Seerr→\*arr API-key + URL hand-off as a runbook step (and consider automating it in IaC) | home edge is up; bug #7 · 📋 [`prompt-357.md`](prompt-357.md) |
 | HD-458 | 1 | **`ai.` SSO logs a human in again** | change the callback to `/oauth/oidc/callback` on **both** sides (Open WebUI 0.11 dropped `/oauth2/callback`: `main.py:2652`), recreate OWUI, re-apply `playbooks/authentik-blueprints.yml`, then check `grant_types`/`property_mappings` survived (HD-231) | P1 — authorize works and the code dies on the return leg; the app's SPA renders the 404, so it looks like an nginx error · 📋 [docs/deployment-oidc.md](docs/deployment-oidc.md) §Per-service SSO login ledger |
 | HD-47 | 3 | Matrix is federated | **an external-room join from an account on ANOTHER homeserver** (owner) — a second client on `chat.` or Element Web on the same account is not a foreign server; the test room exists and its URL is shared, phone use is separately broken by HD-464 | ✅ delegation + both records live and read 200 off-network; `m.server` is `host:port`, and the doc says do-not-fix it |
-| **HD-464** 🆕 | 2 | Element for Android can log in | read the failing PATH server-side first (tuwunel logs + the Traefik access log) — `M_UNRECOGNISED` names an error class, not an endpoint — then decide which host is a client's homeserver host: `chat.` answers 404 for both the client well-known and `/_matrix/*` while `matrix.` answers both — and that 404 is served by **nginx**, because `chat` is only a Cloudflare CNAME with no `docker_services` entry and no router, so "publish it on `chat.`" is a new router, not a derivation. If it still fails after that, it is the native custom-scheme SSO redirect, the HD-459 class · ⛔ the doubled-slash `base_url` artifact is measured harmless (200) — do not chase it · needs a VPS read, no owner hand · [services-matrix.md](docs/services-matrix.md) |
 proven until a foreign homeserver delivers something | ✅ delegation + both records live and read 200
 off-network; `m.server` is `host:port`, and the doc says do-not-fix it |
 | **HD-460** | 1 | the VPS's tailnet node is reachable DIRECTLY on **both** families | publish IPv6 — the host binds `0.0.0.0:41641` and there is no `[::]:41641` | ✅ **v4 half closed by the owner from LTE: direct, 45 ms (2026-09-26)** — the reading no device in this repo could produce · pin + publish stay ONE change on the netns owner, never the sidecar |
@@ -407,8 +406,10 @@ verdict:** a pinned, published 41641 makes *that* node direct and says nothing a
   windows in §A2, answer the three **memory-plane** calls (OQ-12/13/14 — measured, one page, nothing blocks AI
   work while they wait), answer the two calls the 2026-09-26 session opened — **HD-403's LLM surface** (vendor a
   custom component, wait for ha-core PR #172960, or relax decision #24 for the voice leg) and **HD-465's node
-  question** (does Cockpit hang off the Pi or off oldsrv) — and spend one minute on a phone for **HD-464 step 0**
-  (type `matrix.kogler.si`, not `chat.kogler.si`). That last one is not a decision, it is a measurement.
+  question** (does Cockpit hang off the Pi or off oldsrv) — **HD-464 is closed**: the classic Element
+  app asks the retired `r0` SSO route the homeserver 404s, and Element X logs in on the same account, so Element X
+  is the mobile client for this deployment (no edge change). The owner can now do the **HD-47** external-room join
+  on a working client.
 - **What limits an AI session tonight is the dead box, not the backlog.** `oldsrv` answers `No route to host`, and
   it is the host behind: `signal-cli` (⇒ **HD-347** cannot source the group ID, so Signal alerting stays dark),
   `lan-litellm` (⇒ **HD-384**'s LAN mint and **HD-403**'s key), the node the Cockpit tailnet name points at
