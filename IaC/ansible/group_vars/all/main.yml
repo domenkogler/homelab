@@ -244,6 +244,154 @@ tailnet_pi_node_name: pi
 # headscale's own rule for tagged nodes (same as vps-obs), not a mis-mint.
 tailnet_pi_ip: "100.64.0.6"
 
+# ============================================================================
+# zone_kogler_si — the kogler.si answer plane as ONE list (HD-436 step 1)
+# ============================================================================
+# Every name in the zone and every address it answers with, in one entry per name.
+# The three consumers below DERIVE from this list; none of them owns a record list
+# any more: the Technitium seed (`docker_services/tasks/technitium-seed.yml`),
+# headscale `dns.extra_records` (`templates/docker_services/headscale/config.yaml.j2`)
+# and the public Cloudflare set (`roles/cloudflare_dns`).
+#
+# This var lives in group_vars/all because `all` is the only group in scope for all
+# three: the seed runs on VPS + oldsrv + the Pi, the headscale template renders on the
+# VPS, and `playbooks/dns.yml` runs against localhost.
+#
+# Fields (⛔ all three exposure fields are required on EVERY entry — an omitted field
+# is a decision nobody made, which is the drift class this list exists to kill):
+#   name:      the FQDN inside the zone. The apex is `kogler.si` itself.
+#   internal:  seed into the LAN-facing Technitium zone.
+#   ip:        what the LAN-facing zone answers (required when internal is true).
+#              Write the SSOT expression, never the resolved address: the split-horizon
+#              targets differ per instance and `check_dns_seed_drift.py` resolves these
+#              against `network_static_hosts` to prove the per-instance contract.
+#   lan_only:  true = never seed on the VPS PRIMARY (the answer is a Home-VLAN or
+#              modem-subnet address — a black hole for a peer that is not at home).
+#   tailnet:   none | edge | node | dual — what MagicDNS answers (docs/network-vpn.md
+#              §Tailnet boundary). `edge` publishes BOTH `name.kogler.si` and the
+#              `.ts` twin; `node` and `dual` publish the `.ts` twin ONLY, because a
+#              tailnet address answering a plain name client-side is the HD-382/389
+#              resolver-ambiguity trap (a phone standing at home stops seeing the LAN
+#              answer). `dual` = the same name answered by two home nodes (HD-435);
+#              no entry uses it yet and nothing renders differently for it today.
+#   tailnet_ip: literal tailnet IPv4. OMIT it to take the class default
+#              (`tailnet_sidecar_ip` for edge, `tailnet_oldsrv_ip` for node/dual).
+#              A literal is deliberate: group_vars gets no second Jinja pass, so
+#              `{{ tailnet_sidecar_ip }}` here would render as that literal TEXT.
+#   ts_router: the name's router is attached to the tailnet listener. Meaningless
+#              (always false) when tailnet is none — `check_zone_kogler_si_parity.py`
+#              fails the build on the mismatch. The renderer for it (the
+#              traefik-tailnet router list) is a later HD-436 step; today the field
+#              is the declared intent, and it is validated, not wired.
+#   public:    true = publish the canonical Cloudflare CNAME → vps.kogler.si.
+#   public_records: explicit Cloudflare records for a name whose public answer is not
+#              that CNAME (the VPS host A/AAAA pair, the SMTP2Go delegations).
+#              `proxied: false` (DNS-only) is the consumer's default, not per record.
+#
+# ⛔ A change here changes live DNS on the next converge of that consumer. The parity
+# gate (`scripts/check_zone_kogler_si_parity.py`, in validate-all) compares the derived
+# output against `scripts/testdata/zone_kogler_si_golden.json`, a snapshot taken from
+# the three hand-authored lists BEFORE the derivation. So an edit that silently drops a
+# name, re-points an address, or moves a `.ts`-only name into the plain namespace goes
+# RED at the gate instead of at 3am. Deliberate changes: edit the list, run the gate,
+# read the diff it prints, and re-derive the fixture IN THE SAME COMMIT.
+zone_kogler_si:
+  # --- control plane + the HA pair (the VIP answers; the edge follows HA either way) ---
+  - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }
+  - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
+  # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
+  - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: seerr.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: seerrng.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: sonarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: radarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: lidarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: prowlarr.kogler.si,      internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: bazarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: profilarr.kogler.si,     internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: sab.kogler.si,           internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: torrent.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  # --- LAN-only: answers a Home/modem address, so the VPS primary must never carry them ---
+  - { name: llogs.kogler.si,         internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: modem.kogler.si,         internal: true, ip: "192.168.1.1", lan_only: true, tailnet: none, ts_router: false }   # Comtrend UI; mirrors group_vars/router.yml modem_mgmt_ip
+  - { name: spark.kogler.si,         internal: true, ip: "{{ spark_home_ip }}", lan_only: true, tailnet: node, tailnet_ip: "100.64.0.1", ts_router: true }
+  - { name: db-spark.kogler.si,      internal: true, ip: "{{ spark_home_ip }}", lan_only: true, tailnet: edge, ts_router: true }
+  - { name: llm.kogler.si,           internal: true, ip: "{{ spark_home_ip }}", lan_only: true, tailnet: edge, ts_router: true }
+  - { name: llitellm.kogler.si,      internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  # HD-188 Cockpit break-glass surfaces: Home addresses, so LAN-only (never the VPS primary).
+  - { name: cockpit-oldsrv.kogler.si, internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: cockpit-nas.kogler.si,   internal: true, ip: "{{ nas_home_ip }}", lan_only: true, tailnet: node, ts_router: false }
+  # --- tailnet-edge dashboards: internal-only, tailnet-only (never public — HD-135b) ---
+  - { name: stats.kogler.si,         internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
+  - { name: logs.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
+  - { name: csui.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
+  - { name: traefik.kogler.si,       internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
+  - { name: auto.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
+  # --- VPS-served: the same answer on every instance (split-horizon parity, HD-341) ---
+  - { name: litellm.kogler.si,       internal: true, ip: "{{ dns_primary_ip }}", tailnet: edge, ts_router: true }   # tailnet-only admin edge; never public
+  - { name: vps.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false,
+     public_records: [ { type: A, value: "{{ dns_primary_ip }}" }, { type: AAAA, value: "{{ dns_primary_ipv6 }}" } ] }
+  - { name: kogler.si,               internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }   # apex (Cloudflare flattens it)
+  - { name: home.kogler.si,          internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: vpn.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }   # headscale coordination URL
+  - { name: dns.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }   # Technitium web UI
+  - { name: sso.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: file.kogler.si,          internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: foto.kogler.si,          internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: git.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: bin.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: ai.kogler.si,            internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: office.kogler.si,        internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: pdf.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: chat.kogler.si,          internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: matrix.kogler.si,        internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  - { name: drop.kogler.si,          internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false, public: true }
+  # --- tailnet-only names: no LAN answer by design (a LAN client must get NXDOMAIN) ---
+  - { name: pi-oldsrv.kogler.si,     internal: false, tailnet: node, ts_router: false }
+  # --- names with NO Technitium record: published publicly, resolved by Cloudflare alone ---
+  # `pairdrop` rides alongside `drop` (HD-230). Neither has a docker_services entry, so
+  # nothing here invents them: they are declared, which is the point of the list.
+  - { name: pairdrop.kogler.si,      internal: false, tailnet: none, ts_router: false, public: true }
+  # SMTP2Go sender verification / DKIM / tracking — consumed by SMTP2Go, not by our edge.
+  - { name: em918249.kogler.si,      internal: false, tailnet: none, ts_router: false,
+     public_records: [ { type: CNAME, value: return.smtp2go.net } ] }
+  - { name: s918249._domainkey.kogler.si, internal: false, tailnet: none, ts_router: false,
+     public_records: [ { type: CNAME, value: dkim.smtp2go.net } ] }
+  - { name: link.kogler.si,          internal: false, tailnet: none, ts_router: false,
+     public_records: [ { type: CNAME, value: track.smtp2go.net } ] }
+  # PARKED (HD-386 decision #26): the dsh / pi-dev backends no longer exist, so the edge
+  # answers 502 BY DESIGN — this is not an outage to chase. Dropping these two would delete
+  # live MagicDNS records, which is its own decision, not a tidy-up.
+  - { name: dsh.kogler.si,           internal: false, tailnet: edge, ts_router: true }
+  - { name: pi-dev.kogler.si,        internal: false, tailnet: edge, ts_router: true }
+
+# Split-horizon target of the home-hosted apps: oldsrv's internal edge at home (no VPS
+# round-trip, so WAN-out survival keeps working), the VPS public edge everywhere else.
+# ONE expression, evaluated per instance by the seed — the same value the seed's inline
+# rows carried before HD-436 folded them into `zone_kogler_si`.
+home_edge_ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}"
+# The tailnet Traefik edge (`vps-obs`). `tailnet_sidecar_ip` is a vps.yml value and the
+# seed also runs on oldsrv + the Pi, so the cluster constant is the fallback here too.
+tailnet_edge_ip: "{{ tailnet_sidecar_ip | default('100.64.0.1', true) }}"
+# The VPS public IPv6 (netcup-delegated). Cloudflare's AAAA for the host record is the
+# only consumer today: the seed's record loop is IPv4 and answers this name with the v4.
+dns_primary_ipv6: "2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5"
+# The nas has no `nas_*_ip` entry in the address SSOT's naming pattern; read it the way
+# the seed's inline row did, from `network_static_hosts` itself.
+nas_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+
+# --- the derived views each consumer loops over ------------------------------------
+# These are VIEWS, not sources: edit `zone_kogler_si`, never these.
+zone_kogler_si_seed_records: "{{ zone_kogler_si | selectattr('internal') | list }}"
+zone_kogler_si_lan_only: "{{ zone_kogler_si | selectattr('lan_only', 'defined') | selectattr('lan_only') | map(attribute='name') | list }}"
+zone_kogler_si_tailnet_plain: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'equalto', 'edge') | list }}"
+zone_kogler_si_tailnet_ts: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'in', ['node', 'dual']) | list }}"
+# Public face: the canonical CNAME set, then the names that answer something else.
+# `subelements` pairs each name with each of its declared records, so one entry per
+# name can still publish an A and an AAAA (item.0 = the entry, item.1 = the record).
+zone_kogler_si_public_cnames: "{{ zone_kogler_si | selectattr('public', 'defined') | selectattr('public') | map(attribute='name') | list }}"
+zone_kogler_si_public_records: "{{ q('ansible.builtin.subelements', zone_kogler_si | selectattr('public_records', 'defined') | list, 'public_records') }}"
+
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived
 ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on both HA nodes

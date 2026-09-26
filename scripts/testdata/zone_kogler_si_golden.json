@@ -1,0 +1,799 @@
+{
+  "_comment": "Golden answer-plane set for the kogler.si zone, captured from the HAND-AUTHORED sources before HD-436 step 1 (one derived list) replaced them. Regenerating this from the derived list is self-fulfilling and is refused by capture_zone_kogler_si_golden.py. Every zone change must re-derive it on purpose: review the diff, then land the new fixture and the change in ONE commit.",
+  "cloudflare": [
+    {
+      "proxied": "False",
+      "record": "ai",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "bin",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "chat",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "dns",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "drop",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "em918249",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "return.smtp2go.net"
+    },
+    {
+      "proxied": "False",
+      "record": "file",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "foto",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "git",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "home",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "kogler.si",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "link",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "track.smtp2go.net"
+    },
+    {
+      "proxied": "False",
+      "record": "matrix",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "office",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "pairdrop",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "pdf",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "s918249._domainkey",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "dkim.smtp2go.net"
+    },
+    {
+      "proxied": "False",
+      "record": "sso",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "vpn",
+      "state": "",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
+      "record": "vps",
+      "state": "",
+      "ttl": "300",
+      "type": "A",
+      "value": "159.195.111.66"
+    },
+    {
+      "proxied": "False",
+      "record": "vps",
+      "state": "",
+      "ttl": "300",
+      "type": "AAAA",
+      "value": "2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5"
+    }
+  ],
+  "counts": {
+    "cloudflare": 21,
+    "headscale:plain": 10,
+    "headscale:ts_only": 14,
+    "technitium:primary": 35,
+    "technitium:secondary": 43,
+    "technitium:secondary-pi": 43
+  },
+  "headscale": {
+    "plain": [
+      {
+        "name": "auto.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "csui.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "db-spark.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "dsh.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "litellm.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "llm.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "logs.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "pi-dev.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "stats.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "traefik.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      }
+    ],
+    "ts_only": [
+      {
+        "name": "auto.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "cockpit-nas.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "csui.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "db-spark.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "dsh.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "ha.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "litellm.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "llm.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "logs.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "pi-dev.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "pi-oldsrv.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "spark.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "stats.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      },
+      {
+        "name": "traefik.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.1"
+      }
+    ]
+  },
+  "technitium": {
+    "primary": [
+      {
+        "ip": "10.10.1.200",
+        "name": "dns-pi.kogler.si"
+      },
+      {
+        "ip": "10.10.1.200",
+        "name": "ha.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "auto.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "csui.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "logs.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "stats.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "traefik.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "ai.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "bazarr.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "bin.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "chat.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "dns.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "drop.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "file.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "foto.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "git.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "home.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "lidarr.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "litellm.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "matrix.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "media.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "office.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "pdf.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "profilarr.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "prowlarr.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "radarr.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "sab.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "seerr.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "seerrng.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "sonarr.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "sso.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "torrent.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "vpn.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "vps.kogler.si"
+      }
+    ],
+    "secondary": [
+      {
+        "ip": "10.10.1.10",
+        "name": "cockpit-nas.kogler.si"
+      },
+      {
+        "ip": "10.10.1.200",
+        "name": "dns-pi.kogler.si"
+      },
+      {
+        "ip": "10.10.1.200",
+        "name": "ha.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "bazarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "cockpit-oldsrv.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "lidarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "llitellm.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "llogs.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "media.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "profilarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "prowlarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "radarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "sab.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "seerr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "seerrng.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "sonarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "torrent.kogler.si"
+      },
+      {
+        "ip": "10.10.1.40",
+        "name": "db-spark.kogler.si"
+      },
+      {
+        "ip": "10.10.1.40",
+        "name": "llm.kogler.si"
+      },
+      {
+        "ip": "10.10.1.40",
+        "name": "spark.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "auto.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "csui.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "logs.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "stats.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "traefik.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "ai.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "bin.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "chat.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "dns.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "drop.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "file.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "foto.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "git.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "home.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "litellm.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "matrix.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "office.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "pdf.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "sso.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "vpn.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "vps.kogler.si"
+      },
+      {
+        "ip": "192.168.1.1",
+        "name": "modem.kogler.si"
+      }
+    ],
+    "secondary-pi": [
+      {
+        "ip": "10.10.1.10",
+        "name": "cockpit-nas.kogler.si"
+      },
+      {
+        "ip": "10.10.1.200",
+        "name": "dns-pi.kogler.si"
+      },
+      {
+        "ip": "10.10.1.200",
+        "name": "ha.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "bazarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "cockpit-oldsrv.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "lidarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "llitellm.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "llogs.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "media.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "profilarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "prowlarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "radarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "sab.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "seerr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "seerrng.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "sonarr.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "torrent.kogler.si"
+      },
+      {
+        "ip": "10.10.1.40",
+        "name": "db-spark.kogler.si"
+      },
+      {
+        "ip": "10.10.1.40",
+        "name": "llm.kogler.si"
+      },
+      {
+        "ip": "10.10.1.40",
+        "name": "spark.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "auto.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "csui.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "logs.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "stats.kogler.si"
+      },
+      {
+        "ip": "100.64.0.1",
+        "name": "traefik.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "ai.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "bin.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "chat.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "dns.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "drop.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "file.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "foto.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "git.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "home.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "litellm.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "matrix.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "office.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "pdf.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "sso.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "vpn.kogler.si"
+      },
+      {
+        "ip": "159.195.111.66",
+        "name": "vps.kogler.si"
+      },
+      {
+        "ip": "192.168.1.1",
+        "name": "modem.kogler.si"
+      }
+    ]
+  }
+}
