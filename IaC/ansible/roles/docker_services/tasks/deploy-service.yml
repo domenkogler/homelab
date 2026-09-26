@@ -248,8 +248,69 @@
 # db_item/db_pg_container (group_vars/vps.yml) get their ROLE password re-synced from the SAME vault item after the stack is up. Runs every converge;
 # ALTER to the identical value is a cheap server-side no-op. IaC-only by design:
 # no hand-run SQL against managed DBs.
-- name: "Sync postgres role password with vault ({{ svc.name }})"
+# HD-452 (2026-09-26): the ALTER above was UNCONDITIONAL, so `ALTER ROLE` was in the output
+# of every converge and `changed_when` reported `changed` on six hosts' worth of already
+# correct passwords. Measured, same commit twice on the VPS: run 1 `changed=8`, run 2
+# `changed=6` — and all six were this task, so the one number that means "this converge did
+# something you did not ask for" was permanently yellow. Fixed with the `roles/nut` shape:
+# read → verdict fact → repair only on a defect, and `--check` still judges (the probe is a
+# read, so it carries `check_mode: false`).
+#
+# Why a marker and not "just try to log in": a live probe on the VPS 2026-09-26 found that
+# every one of these clusters answers `127.0.0.1/32` with **trust** (initdb's default line,
+# which the image keeps ahead of its own `host all all all scram-sha-256`), so an
+# authenticate-with-the-vault-password probe inside the container SUCCEEDS WITH ANY PASSWORD
+# — a test that cannot fail. Connecting via the container's own bridge IP is refused
+# (`no pg_hba entry`). So drift is decided against a fingerprint of the vault value stored
+# IN the cluster (`COMMENT ON ROLE`), which travels with the data dir and cannot pass
+# vacuously: absent or different marker = sync.
+# ⚠ Named limitation, in exchange for a readable `changed`: a human running `ALTER ROLE`
+# by hand is out of band and will NOT be repaired any more (it re-applies on every vault
+# rotation and on every fresh cluster, which is the incident class this guard was born
+# from). Also: a hand-written `COMMENT ON ROLE` on one of these six roles is overwritten.
+- name: "Read the postgres role sync marker ({{ svc.name }})"
   when: svc.db_role_sync | default(false)
+  vars:
+    _probe_user: "{{ vault[svc.db_item].username }}"
+  ansible.builtin.command:
+    argv:
+      - docker
+      - exec
+      - -i
+      - -e
+      - "PGSYNC_USER={{ _probe_user }}"
+      - "{{ svc.db_pg_container }}"
+      - sh
+      - -c
+      - >-
+        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+        -v syncuser="$PGSYNC_USER" -f -
+    stdin: >-
+      SELECT coalesce(shobj_description(oid, 'pg_authid'), '')
+      FROM pg_roles WHERE rolname = :'syncuser';
+  register: db_role_marker_state
+  changed_when: false
+  check_mode: false        # a probe, not a mutation — --check must still be able to judge
+  failed_when: db_role_marker_state.rc != 0
+  no_log: true
+  tags: "{{ svc.name }}"
+
+- name: "Decide whether the postgres role password actually needs re-syncing ({{ svc.name }})"
+  when: svc.db_role_sync | default(false)
+  vars:
+    _db_pass_now: "{{ vault[svc.db_item].password }}"
+  ansible.builtin.set_fact:
+    db_role_marker_desired: "pgsync:{{ _db_pass_now | hash('sha256') }}"
+    db_role_needs_sync: >-
+      {{ (db_role_marker_state.stdout_lines | select('!=', '') | list | first | default('') | trim)
+         != 'pgsync:' ~ (_db_pass_now | hash('sha256')) }}
+  no_log: true
+  tags: "{{ svc.name }}"
+
+- name: "Sync postgres role password with vault ({{ svc.name }})"
+  when:
+    - svc.db_role_sync | default(false)
+    - db_role_needs_sync | default(true) | bool
   vars:
     # Read from the HD-258 bulk `vault` dict (built ONCE per converge by fetch-vault-pass),
     # NOT per-task community.general.onepassword lookups — each lookup was an `op` spawn,
@@ -266,6 +327,10 @@
       - "PGSYNC_USER={{ _db_user }}"
       - -e
       - "PGSYNC_PASS={{ _db_pass }}"
+      - -e
+      # The fingerprint the probe compares against, written in the SAME transaction as the
+      # ALTER. A hash of the secret, never the secret (CONVENTIONS §6).
+      - "PGSYNC_MARKER={{ db_role_marker_desired }}"
       - "{{ svc.db_pg_container }}"
       - sh
       - -c
@@ -273,10 +338,16 @@
       # Identifier needs :"var", literal needs :'var'. ON_ERROR_STOP is MANDATORY here:
       # without it psql exits 0 even after SQL errors and the drift would persist silently
       # (live-proven 2026-08-23).
+      # `-1` (single transaction) is load-bearing: without it psql autocommits the ALTER and
+      # a failing COMMENT leaves the password written but the marker stale — permanently
+      # re-syncing the same correct password, which is the noise this change exists to kill.
       - >-
-        psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
-        -v syncuser="$PGSYNC_USER" -v syncpass="$PGSYNC_PASS" -f -
-    stdin: 'ALTER ROLE :"syncuser" WITH PASSWORD :''syncpass'';'
+        psql -v ON_ERROR_STOP=1 -1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+        -v syncuser="$PGSYNC_USER" -v syncpass="$PGSYNC_PASS"
+        -v syncmarker="$PGSYNC_MARKER" -f -
+    stdin: |-
+      ALTER ROLE :"syncuser" WITH PASSWORD :'syncpass';
+      COMMENT ON ROLE :"syncuser" IS :'syncmarker';
   register: db_role_sync_result
   no_log: true
   changed_when: "'ALTER ROLE' in db_role_sync_result.stdout"
