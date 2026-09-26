@@ -35,14 +35,35 @@ tags: [services, matrix, chat, messaging]
 > Android on a phone on LTE). ⛔ The trailing slash in the client well-known `base_url` is NOT the fault: a
 > doubled slash path (`//_matrix/client/versions`) answers 200 here, so Traefik normalizes it — do not "fix" the
 > bodies chasing that.
-> 🚪 **Where that 404 actually comes from (measured 2026-09-26):** the body is **nginx's** (`nginx/1.27.4`), not
-> Traefik's. In IaC, `chat` is nothing but a public Cloudflare **CNAME to `vps.kogler.si`**
-> (`roles/cloudflare_dns/vars/main.yml`) — it has **no `docker_services` entry and no Traefik router**, so its
-> `Host` falls through to whatever container owns the default route and that answers 404. So making `chat.` a
-> Matrix client host is **not** a DNS record, a seed entry, or a well-known file: it is adding a router for a name
-> that has no owning service — which HD-436's derivation cannot synthesize, because there is no service entry to
-> derive from. The cheaper shape (and the one that needs no new router) is to state that `matrix.kogler.si` is the
-> **only** client host and point every onboarding line and every app at it.
+> 🚪 **Where that 404 comes from — and a retraction.** It is **element-web's own nginx**
+> (`server: nginx/1.27.4`) answering for `/_matrix/*` and `/.well-known/matrix/*`, paths a static
+> client host does not serve: `GET https://chat.kogler.si/` returns `200` with
+> `<title>Element</title>`. An earlier draft of this paragraph claimed `chat` was "nothing but a
+> Cloudflare CNAME with **no `docker_services` entry and no Traefik router**", and that making
+> `chat.` a client host would mean inventing a router for a name with no owning service. **That was
+> wrong**: `group_vars/vps.yml` carries
+> `- { name: chat, template_dir: element-web, subdomain: chat, public: true, enabled: true }` and
+> `templates/docker_services/element-web/docker-compose.yml.j2` defines
+> `traefik.http.routers.chat.rule: Host(\`chat.kogler.si\`)`. The miss came from greping service lists
+> for "matrix" — the service is called **`chat`** and its template **`element-web`**, so a
+> keyword-shaped search walks straight past it. It also means `chat` is exactly the kind of entry
+> HD-436's derivation *can* render (it has `subdomain`/`public`/`enabled`), not the exception I
+> described. Lesson kept where it will be hit again: locate a service by its **host/label**, not by
+> guessing which word its name contains.
+> 🧪 **What the client/server split actually is, measured 2026-09-26:** `matrix.kogler.si` is the
+> homeserver and `chat.kogler.si` is the browser client — two hosts, one Matrix. The homeserver side
+> is **not** legacy: it serves MSC2965 discovery three ways
+> (`/_matrix/client/v1/auth_metadata` → 200 with issuer + `/_tuwunel/oidc/*` endpoints,
+> `/_matrix/client/v1/auth_issuer` → 200, and the unstable variant → 200), dynamic client
+> registration (MSC2966), and simplified sliding sync (`org.matrix.simplified_msc3575`). What *is*
+> old is the pinned client build: `group_vars/all/versions.yml` pins
+> `element_web_version: "v1.11.96"`, while upstream Element Web is on the 1.12 line, which has had
+> native-OIDC login work and Simplified Sliding Sync land in it. ⏳ **Recorded as an option, not a
+> decision:** bumping that pin would give the browser client the same next-gen login Element X uses,
+> with two things to check first — Element Web's own docs say that where a valid MSC2965 config is
+> discovered, **OIDC becomes the only login option it offers** (so the legacy SSO path the family
+> uses today would disappear from the sign-in screen), and `config.json` keys drift between major
+> lines. Not taken here; it needs the owner's call and a login check on a real account.
 > 🧪 **Step 0 ran 2026-09-26 and it killed the discovery theory:** typing `matrix.kogler.si`
 > into the phone produced the **same** `M_UNRECOGNISED: not found`. The server-side probe that
 > followed ruled out, each by measurement rather than by elimination-on-a-forum: **routing**
