@@ -66,9 +66,14 @@
 #   authentik means /opt/authentik-server and the arm step dies with "compose file … not found"
 #   (measured 2026-09-25; the correct value is /opt/authentik). Failing to arm is a REFUSAL to
 #   converge — the guard will not touch a service it cannot prove it can bring back.
-#   ⚠ Hosts where docker needs sudo (the Pi: `ansible-admin` is not in the `docker` group) are
-#   OUTSIDE this guard entirely — every docker call in the arm/verify path fails with
-#   "permission denied … docker.sock", so `--action prove` can never pass there. See HD-463.
+#   ⚠ Hosts where docker needs sudo are IN the guard now (HD-463): pass
+#   `--docker-cmd 'sudo -n docker'`. Without it the Pi used to fail every docker call in the
+#   arm/verify path with "permission denied … docker.sock", so its compose services ran with
+#   NO auto-re-enable net and `--action prove` could never pass there. ⛔ The fix is NOT
+#   adding the runner to the `docker` group — that is root-equivalent on a host holding a
+#   Technitium instance and the HA VIP. Verify `sudo -n docker ps` is passwordless first.
+#   bash scripts/guarded-converge.sh --action prove --target pi --container traefik-ha \
+#        --docker-cmd 'sudo -n docker'
 #   bash scripts/guarded-converge.sh --self-test   # exercises the verdict logic
 # Both tag classes are mandatory for docker_services (inner per-service tasks
 # carry `tags: svc.name` — deployment-ansible.md "silent no-op"), so the default
@@ -96,6 +101,13 @@ CONSECUTIVE=""
 REMOTE_DIR="/tmp/restart-watchdog"
 RUNNER_TAG=""
 PROBE=""
+# How to invoke docker ON THE TARGET. Default bare `docker`; on the Pi `ansible-admin` is
+# NOT in the `docker` group, so every docker call in this file's arm/verify path used to die
+# on `permission denied … docker.sock` — the Pi's compose services ran unguarded and
+# `--action prove` could never pass there (HD-463). ⛔ The fix is deliberately NOT adding the
+# runner to the `docker` group: that is root-equivalent on a host holding a Technitium
+# instance and the HA VIP. `sudo -n docker` is verified passwordless there.
+DOCKER_CMD="docker"
 SAMPLES=""
 SAMPLE_INTERVAL=""
 SELF_TEST=0
@@ -119,6 +131,7 @@ while [ $# -gt 0 ]; do
         --probe)       PROBE="${2:-}"; shift 2 ;;
         --samples)     SAMPLES="${2:-}"; shift 2 ;;
         --sample-interval) SAMPLE_INTERVAL="${2:-}"; shift 2 ;;
+        --docker-cmd) DOCKER_CMD="${2:-}"; shift 2 ;;
         --self-test)   SELF_TEST=1; shift ;;
         --foreground)  FOREGROUND=1; shift ;;
         -h|--help)     sed -n '2,80p' "$0"; exit 0 ;;
@@ -154,7 +167,8 @@ COMPOSE="${PROJECT}/docker-compose.yml"
 
 log() { printf '%s guarded-converge[%s]: %s\n' "$(date -u +%H:%M:%S)" "$ACTION" "$*"; }
 die() { log "FAIL: $*"; exit 1; }
-bring_up() { ssh -o BatchMode=yes "$TARGET" docker compose -f "$COMPOSE" up -d; }
+bring_up() { # shellcheck disable=SC2086  # DOCKER_CMD is a command + flags on purpose (HD-463)
+    ssh -o BatchMode=yes "$TARGET" ${DOCKER_CMD} compose -f "$COMPOSE" up -d; }
 
 # ---- the liveness verdict (pure logic — self-testable, no ssh, no docker) ----
 # stdin: one line per sample, "<running> <started> <restartcount> <health> [<probe_rc>]"
@@ -186,7 +200,7 @@ liveness_verdict() {
 read_state() {
     local insp prc
     insp="$(ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET" \
-        "docker inspect -f '{{.State.Running}} {{.State.StartedAt}} {{.RestartCount}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' ${CONTAINER} 2>/dev/null" \
+        "${DOCKER_CMD} inspect -f '{{.State.Running}} {{.State.StartedAt}} {{.RestartCount}} {{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' ${CONTAINER} 2>/dev/null" \
         2>/dev/null || true)"
     [ -n "$insp" ] || { echo "false absent 0 none"; return 1; }
     prc=""
@@ -261,7 +275,7 @@ log "watchdog present on ${TARGET} (md5 ${LOCAL_MD5})"
 ssh "$TARGET" "rm -f ${DISARM}" || die "could not clear a stale disarm marker on ${TARGET}"
 ssh "$TARGET" "setsid nohup bash ${REMOTE_WATCHDOG} arm --container ${CONTAINER} --project ${PROJECT} \
       --grace ${GRACE} --window ${WINDOW} --interval ${INTERVAL} --consecutive ${CONSECUTIVE} \
-      --disarm ${DISARM} > ${WD_LOG} 2>&1 < /dev/null & echo launched" >/dev/null \
+      --docker-cmd \"${DOCKER_CMD}\" --disarm ${DISARM} > ${WD_LOG} 2>&1 < /dev/null & echo launched" >/dev/null \
     || die "could not launch the watchdog on ${TARGET}"
 sleep 3
 ALIVE="$(ssh "$TARGET" "pgrep -fc 'restart-watchdog.sh arm' || true")"
@@ -269,24 +283,24 @@ ARMED_LINE="$(ssh "$TARGET" "grep -c 'armed:' ${WD_LOG} || true")"
 { [ "${ALIVE:-0}" -ge 1 ] && [ "${ARMED_LINE:-0}" -ge 1 ]; } \
     || die "watchdog is NOT provably alive on ${TARGET} (procs=${ALIVE:-0} armed-lines=${ARMED_LINE:-0}) — refusing to touch ${CONTAINER}. Log: ssh ${TARGET} cat ${WD_LOG}"
 log "watchdog ARMED and alive on ${TARGET} (log: ${WD_LOG})"
-ssh "$TARGET" "docker inspect -f 'PRE-STATE running={{.State.Running}} started={{.State.StartedAt}}' ${CONTAINER} 2>/dev/null || echo 'PRE-STATE: container absent'"
+ssh "$TARGET" "${DOCKER_CMD} inspect -f 'PRE-STATE running={{.State.Running}} started={{.State.StartedAt}}' ${CONTAINER} 2>/dev/null || echo 'PRE-STATE: container absent'"
 
 if [ "$ACTION" = "prove" ]; then
     # ---- 4. stop it, and let ONLY the watchdog bring it back ---------------
-    PRE_STARTED="$(ssh "$TARGET" "docker inspect -f '{{.State.StartedAt}}' ${CONTAINER}")"
+    PRE_STARTED="$(ssh "$TARGET" "${DOCKER_CMD} inspect -f '{{.State.StartedAt}}' ${CONTAINER}")"
     log "stopping ${CONTAINER} — this session will NOT start it again"
-    ssh "$TARGET" "docker stop -t 10 ${CONTAINER}" >/dev/null || die "docker stop failed (watchdog still armed — wait for it or bring it up manually)"
+    ssh "$TARGET" "${DOCKER_CMD} stop -t 10 ${CONTAINER}" >/dev/null || die "${DOCKER_CMD} stop failed (watchdog still armed — wait for it or bring it up manually)"
     DEADLINE=$(( $(date +%s) + WINDOW + 60 ))
     BACK=""
     while [ "$(date +%s)" -lt "$DEADLINE" ]; do
         sleep 5
-        if [ "$(ssh "$TARGET" "docker inspect -f '{{.State.Running}}' ${CONTAINER} 2>/dev/null")" = "true" ]; then
+        if [ "$(ssh "$TARGET" "${DOCKER_CMD} inspect -f '{{.State.Running}}' ${CONTAINER} 2>/dev/null")" = "true" ]; then
             BACK=$(date -u +%H:%M:%S); break
         fi
         log "still down at $(date -u +%H:%M:%S)"
     done
-    [ -n "$BACK" ] || die "${CONTAINER} did NOT come back within $((WINDOW + 60))s — bring it up NOW: ssh ${TARGET} docker compose -f ${COMPOSE} up -d"
-    POST_STARTED="$(ssh "$TARGET" "docker inspect -f '{{.State.StartedAt}}' ${CONTAINER}")"
+    [ -n "$BACK" ] || die "${CONTAINER} did NOT come back within $((WINDOW + 60))s — bring it up NOW: ssh ${TARGET} ${DOCKER_CMD} compose -f ${COMPOSE} up -d"
+    POST_STARTED="$(ssh "$TARGET" "${DOCKER_CMD} inspect -f '{{.State.StartedAt}}' ${CONTAINER}")"
     [ "$PRE_STARTED" != "$POST_STARTED" ] || die "running but StartedAt unchanged (${POST_STARTED}) — something other than a real restart is going on"
     FIRED="$(ssh "$TARGET" "grep -c 'RE-ENABLING' ${WD_LOG} || true")"
     log "recovered at ${BACK}; new StartedAt ${POST_STARTED}; watchdog 'RE-ENABLING' entries=${FIRED}"
@@ -305,7 +319,7 @@ cat > "$RUNNER" <<RUNNER_SH
 set -uo pipefail
 ensure_up() {
     echo "[\$(date -u +%H:%M:%S)] TRAP FIRED — re-enabling ${CONTAINER} on ${TARGET}"
-    ssh -o BatchMode=yes ${TARGET} docker compose -f ${COMPOSE} up -d
+    ssh -o BatchMode=yes ${TARGET} ${DOCKER_CMD} compose -f ${COMPOSE} up -d
     echo "[\$(date -u +%H:%M:%S)] trap re-enable command returned"
 }
 trap 'ensure_up' EXIT INT TERM HUP

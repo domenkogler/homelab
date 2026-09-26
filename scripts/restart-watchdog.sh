@@ -44,6 +44,10 @@ INTERVAL=10
 CONSECUTIVE=3
 DISARM="/tmp/restart-watchdog.disarm"
 COMPOSE_FILE=""
+# How to invoke docker on THIS host. Default `docker`; `sudo -n docker` on a host where the
+# runner is not in the `docker` group (the Pi — HD-463). Split on purpose, so it may contain
+# a program + flags: the unquoted ${DOCKER_CMD} below is the intended word-splitting.
+DOCKER_CMD="${DOCKER_CMD:-docker}"
 
 say() { printf '%s restart-watchdog: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 
@@ -65,12 +69,14 @@ running() {
     # Anything other than a clean "true" (missing container, daemon hiccup) counts
     # as down — the recovery command `docker compose up -d` is idempotent, so a
     # false "down" reading costs one no-op call, a false "up" reading costs the net.
-    [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)" = "true" ]
+    # shellcheck disable=SC2086  # DOCKER_CMD is a command + flags on purpose (HD-463)
+    [ "$(${DOCKER_CMD} inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null)" = "true" ]
 }
 
 bring_up() {
-    say "RE-ENABLING: docker compose -f ${COMPOSE_FILE} up -d"
-    if docker compose -f "$COMPOSE_FILE" up -d 2>&1; then
+    # shellcheck disable=SC2086  # DOCKER_CMD is a command + flags on purpose (HD-463)
+    say "RE-ENABLING: ${DOCKER_CMD} compose -f ${COMPOSE_FILE} up -d"
+    if ${DOCKER_CMD} compose -f "$COMPOSE_FILE" up -d 2>&1; then
         say "re-enable command returned 0"
     else
         say "re-enable command FAILED (rc=$?) — the net fired, the service is still down"
@@ -212,6 +218,39 @@ STUB
         say "self-test D PASS: a running service is left alone"
     fi
 
+    # Case D (HD-463): the net must honour DOCKER_CMD, not assume bare `docker`.
+    # On the Pi `ansible-admin` is NOT in the `docker` group, so every call in the
+    # arm/verify path died on `permission denied … docker.sock` and the host could not
+    # be guarded at all. This case points the watchdog at a DIFFERENTLY-NAMED program;
+    # if the variable were ignored, the bare stub would get the compose call instead.
+    cat > "$tmp/bin/docker-sudo" <<STUB_D
+#!/usr/bin/env bash
+case "\$1" in
+  inspect) echo false ;;
+  compose) printf 'compose-up-called\n' >> '$tmp/calls_sudo' ;;
+esac
+exit 0
+STUB_D
+    chmod +x "$tmp/bin/docker-sudo"
+    # THREE words in DOCKER_CMD, so this also proves the value is word-split as a command
+    # + flags (the Pi's real value is `sudo -n docker`), not treated as one program name.
+    cat > "$tmp/bin/sudo" <<'SUDO_STUB'
+#!/usr/bin/env bash
+[ "${1:-}" = "-n" ] && shift
+exec "$@"
+SUDO_STUB
+    chmod +x "$tmp/bin/sudo"
+    : > "$tmp/calls_sudo"; : > "$tmp/calls"
+    CONTAINER=x PROJECT="$tmp" COMPOSE_FILE="$tmp/docker-compose.yml" \
+      DOCKER_CMD="$tmp/bin/sudo -n docker-sudo" \
+      GRACE=1 WINDOW=4 INTERVAL=1 CONSECUTIVE=2 DISARM="$tmp/nope" cmd_arm >/dev/null 2>&1
+    if [ -s "$tmp/calls_sudo" ] && [ ! -s "$tmp/calls" ]; then
+        say "self-test E PASS: re-enable went through DOCKER_CMD (bare docker untouched)"
+    else
+        say "self-test E FAIL: DOCKER_CMD was ignored (sudo-calls=$(wc -l < "$tmp/calls_sudo" | tr -d ' ') bare-calls=$(wc -l < "$tmp/calls" | tr -d ' '))"
+        rc=1
+    fi
+
     [ "$rc" = 0 ] && say "self-test: GREEN" || say "self-test: RED"
     return "$rc"
 }
@@ -232,6 +271,7 @@ while [ $# -gt 0 ]; do
         --interval)     INTERVAL="${2:-}"; shift 2 ;;
         --consecutive)  CONSECUTIVE="${2:-}"; shift 2 ;;
         --disarm)       DISARM="${2:-}"; shift 2 ;;
+        --docker-cmd)   DOCKER_CMD="${2:-}"; shift 2 ;;
         -h|--help)      usage; exit 0 ;;
         *) echo "FAIL: unknown argument '$1'" >&2; usage; exit 2 ;;
     esac
