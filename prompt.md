@@ -106,19 +106,32 @@ advertised routes and no LAN bridge**, widened on the HD-435 call as an amendmen
 remote-dev direction is decided and logged — start from the briefs, do not re-open it; the open owner calls
 are in [todo.md](todo.md) §1.
 
-**Lane status 2026-09-25 (transport + edge — merged; the worktrees it left are closed).** The session landed
-the apex Matrix delegation, the Pi's tailnet join, the VPS disco-port pin/publish and the Metabase
-retirement, and each fact was written where it owns it. What the next session carries, in order: **(1)
-HD-436** is the only substantial item left in this thread and it is unblocked (step 0 is merged); **(2)**
-HD-47 stays open on one read — an **external-room join from an account on
-another homeserver** (a second client on our own server is not a foreign server), and 🆕 **HD-464** sits in front of
-its phone half; **(3)** HD-452's postgres half, HD-460's IPv6 publish and HD-435's reciprocal drill wait on a VPS
-converge, on the `::` bind, and on oldsrv; **(4)** HD-461 is parked on reachability and not on you — no laptop path to VLAN 99
-while oldsrv is down. ⚠ Two traps that bite a runner, both written in `scripts/README.md`: the headscale
-probe in that table (`curl -fsS localhost:8080/`) **does not answer on the VPS**, so copying it turns a
-healthy control plane RED and fires your own trap; and `--project` is not optional when the compose dir is
-named after the service rather than the guarded container. ⛔ `guarded-converge.sh` still cannot guard a
-host where docker needs sudo, so the Pi's compose services run unguarded (**HD-463**).
+**Lane status 2026-09-26 (the gateway/hygiene lane merged; the zone refactor parked on a branch).** Landed: the
+stale `dsh` bearer is gone from the vault (**HD-383**, vault half — the LAN Admin-UI alias still needs deleting,
+on oldsrv); `rpm` finally has a code path and the first simple-querier record is authored (**HD-384**); the
+HA-exporter gate is now `alloy_ha_exporter` across IaC, docs and the ledger (**HD-404**, seventh item). Three rows
+left with **corrected premises instead of fixes**: 🆕 **HD-465** — ⏳ the row's premise was the bug, not the IaC: that
+`.ts` record has been in the headscale config the whole time, so what remains is the node it points at
+(oldsrv, offline) and the owner call over which node should own Cockpit;
+🆕 **HD-464** — `chat.kogler.si` is not a Matrix host at all: **nginx** answers its 404 and `chat` has no
+`docker_services` entry and no router, so "publish it on `chat.`" is a new router rather than a derivation;
+**HD-403** — stock HA has no surface for a self-hosted OpenAI-compatible base_url (`openai_conversation` is
+hosted-only, no base-URL field; upstream PR #172960 is the clean fix), so voice is an owner call, not work.
+**What the next session carries, in order:** **(1)** the transport thread's hinge is still **HD-436**, and its
+step 1 sits unmerged on `session/hd436-zone-derived-wip` — it is finished by rewriting
+`scripts/check_dns_seed_drift.py` in the SAME change (that checker finds the seed task by name and parses its
+`loop:` rows, so deriving the loop makes it exit 1 instead of silently checking nothing); **(2)** **HD-47** still
+needs one external-room join from an account on another homeserver, with the one-minute **HD-464 step 0** phone
+test in front of its phone half; **(3)** **HD-452**'s postgres half, **HD-460**'s IPv6 publish and **HD-435**'s
+reciprocal drill still wait on a VPS converge, the `::` bind, and oldsrv; **(4)** **HD-461** is parked on
+reachability, not on you. ⚠ Two traps that bite a runner, both written in `scripts/README.md`: the headscale probe
+in that table **does not answer on the VPS**, so copying it turns a healthy control plane RED and fires your own
+trap; and `--project` is not optional when the compose dir is named after the service rather than the guarded
+container. ⛔ `guarded-converge.sh` still cannot guard a host where docker needs sudo, so the Pi's compose services
+run unguarded (**HD-463**). 🚧 **One dead box now gates four rows:** `oldsrv` answers `No route to host`, and it
+hosts `signal-cli` (**HD-347**'s group ID), `lan-litellm` (**HD-384**'s mint, **HD-403**'s key), the Cockpit
+tailnet node (**HD-465**) and the stale `OLLAMA_KEEP_ALIVE` line (**HD-404(a)**) — the wake path is
+**HD-455 → HD-454**.
 
 
 

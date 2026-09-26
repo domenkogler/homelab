@@ -76,11 +76,11 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 
 | HD | The decision, as it now stands | Recorded in |
 |----|------------------------------|-------------|
-| **HD-347** ✅ | Alerts go to the **whole "Homelab Alerts" group**; the value in SSOT is the **group ID signal-cli reports** — not the invite link (that blob is an encrypted join payload, not a recipient). **AI sources it itself**, read-only, from the linked daemon | [observability.md](docs/observability.md) §Alerting |
+| **HD-347** ✅ | Alerts go to the **whole "Homelab Alerts" group**; the value in SSOT is the **group ID signal-cli reports** — not the invite link (that blob is an encrypted join payload, not a recipient). **AI sources it itself**, read-only, from the linked daemon — ⛔ **and it cannot while oldsrv is down (re-measured 2026-09-26: `No route to host`)**: that daemon is `signal-cli-rest-api` on oldsrv, the VPS has n8n but no signal container and nas/pi neither, so the group ID is unreachable and alerting stays email-only. Gated on HD-455, not on a decision | [observability.md](docs/observability.md) §Alerting |
 | **HD-354** ✅ | **No music exists on local disks** (the family listens from the cloud) → the Box-library and admin-user halves are **void**; do not mint an admin for an empty library. Tail = the Subsonic/ExtAuth verify | `todo.md` row |
 | **HD-361** ✅ | Break-glass identity = **one password-bearing `maint` per cockpit host** (`nas` + `oldsrv`), password AI-generated into `<host>-cockpit_login`, `sudo` group with **no `NOPASSWD`**, no SSH keys, outside `AllowUsers`, and `cockpit-session` enforced by a PAM rule the role writes (Debian ships no group gate). `maint` is a console identity, never a network one.| [docs/security.md](docs/security.md) · [docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes · [docs/deployment-secrets.md](docs/deployment-secrets.md)|
-| **HD-383** ✅ | Remediate the stale `dsh` secret **now** (owner authorized the write path): clear the credential, delete the `dsh` alias in the LAN Admin UI, drop the item's doc row — one change | `todo.md` row |
-| **HD-384** ✅ | Scoped consumers get the **`spark/qwen3.8-flash-next` row only**, never a `spark/*` wildcard. **`max_budget` dropped** (owned devices, no metered cost); **`rpm` caps stay** — they are contention protection on the one 262k KV pool, not a bill. Plus a separate client credential for the `llm` router so `spark-llm_api` stops being triple-used | [services-rejected.md](docs/services-rejected.md) 2026-09-21 |
+| **HD-383** ✅ | Remediate the stale `dsh` secret **now** (owner authorized the write path): clear the credential, delete the `dsh` alias in the LAN Admin UI, drop the item's doc row — one change. **Vault half DONE 2026-09-26** (`dsh_api` credential measured empty, doc row struck to RETIRED, dropped from the preseed create-list); the LAN Admin-UI alias delete is still owed, on oldsrv | `todo.md` row |
+| **HD-384** ✅ | Scoped consumers get the **`spark/qwen3.8-flash-next` row only**, never a `spark/*` wildcard. **`max_budget` dropped** (owned devices, no metered cost); **`rpm` caps stay** — they are contention protection on the one 262k KV pool, not a bill. Plus a separate client credential for the `llm` router so `spark-llm_api` stops being triple-used. **Partially shipped 2026-09-26:** `rpm` finally has a code path (it had none — a decided cap minted an uncapped key), and the first LAN record is authored; the mint waits on oldsrv, the OWUI grant needs `/key/update` (the glue is create-only), and the router credential is still undecided | [services-rejected.md](docs/services-rejected.md) 2026-09-21 |
 | **HD-406** ✅ **(re-decided 2026-09-22)** | The admin path will be **MikroTik Back To Home** — WireGuard with MikroTik relay fallback, TILE-capable so the RB4011 qualifies — **explicitly not now**, and it does not restore the family road-warrior surface. Two things to clear first: BTH writes router config **outside `roles/router`**, which the device-wide converge rebuilds, and it can put a **vendor relay** in the path, whose cost is the shape just measured on cellular. | `todo.md` row |
 | **HD-407** ✅ | Seeding is **AI-runnable and authorized**. Pull with the **read-only** `github-homelab-deploy_api` over HTTPS via a 0600 credential store (never in the remote URL); **GitHub is the live remote** — Forgejo on the VPS holds no copy of this repo; the vault **signing** key is reused, so commits on oldsrv are signed and attributed to you; `github_auth` (push) stays off the box. **Consequence: oldsrv is PULL-ONLY until HD-409** adds a repo-scoped write key | [deployment-rejected.md](docs/deployment-rejected.md) 2026-09-21 |
 | **HD-408** ✅ | **Exit node stays on the Pi** — the row is deleted. Weighed: an exit node adds no SD-card wear worth naming (tailscaled logs no per-flow data, nft masquerade is silent), so the real tradeoff was oldsrv's better pipe against widening the tailnet boundary — and the boundary won. Re-open trigger: the HD-406 full-tunnel profile proving geo-egress with no exit node at all | [network-rejected.md](docs/network-rejected.md) 2026-09-21 |
@@ -157,11 +157,9 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 
 > **Unbriefed but still open — not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394 lane's
 > residue), **HD-450** (a cert consumer can age out unalerted — found closing HD-350), and the **transport-plane
-> cluster, no brief and no owner gate on it:** HD-436 (the derivation, and the gate every other row in it waits
+> cluster, no brief and no owner gate on it:** HD-436 (the derivation, and the gate every other row in it waits — **step 1 is preserved unmerged on `session/hd436-zone-derived-wip`**, red on purpose: the drift checker must be rewritten in the same change)
 > on) · HD-435 (its dual-A step) · HD-448 · HD-452 (postgres half) · HD-460 (its IPv6 publish only) · HD-461 (parked
-> on reachability, on you) · HD-463 · **HD-459** · 🆕 **HD-464** (Element for Android cannot log in where the web
-> client can — read the failing path server-side before touching anything) · 🆕 **HD-465** (a documented tailnet
-> console name that was never published to `tailnet_ts_only_subdomains`). HD-412's two enrolment sessions need a
+> on reachability, on you) · HD-463 · **HD-459** · 🆕 **HD-464** (Element for Android cannot log in — but `chat.kogler.si` is not a Matrix host: **nginx** answers its 404, and `chat` has no service entry and no router, so the owner's one-minute `matrix.kogler.si` phone test decides the diagnosis) · 🆕 **HD-465** (the tailnet console name **is** published — the row's premise was wrong; it points at the **offline** oldsrv node, so the open question is which node owns Cockpit). HD-412's two enrolment sessions need a
 > human at both ends and live in §D.
 
 
@@ -228,7 +226,7 @@ for the family-agnostic `:22/:443/:51820`/RustDesk accepts (confirm it, or scope
 |----|---|------|----------------|------|
 | HD-268 / HD-337 / HD-335 | 1–2 | RAG + memory + office stack live | Qdrant embed/rerank + **re-index** after the bge-m3/1024 cutover, OKF wiki skeletons (**268a**), then **268b = implement `rag-mcp`**, Mem0 + OpenHands | ⚠ the Vulkan embed move does **not** trigger the re-index (same dims, cosine 0.9996). ⚠ `rag-mcp`'s compose is a TODO comment block with **no `services:` section** — its `enabled: false` is not a flag to flip; until 268b lands the reranker leg stays dormant (~327 MiB) |
 | HD-360 | 2 | Samba auth rides Authentik over LDAP | declare the provider + `svc_samba` in the Blueprint → mint a fresh bind token → redeploy the outpost → **then** flip `storage_samba_passdb: ldapsam` + converge nas | ⚠ order is safety-critical: smbd fails hard if the flip lands first (that outpost is Up **unhealthy** = expired token; re-probed 2026-09-21: Authentik also has **no LDAP provider/source/outpost object**, so token minting alone is not enough — [deployment-compose.md](docs/deployment-compose.md) §HD-132) · 📋 prompt-394.md — brief deleted |
-| **HD-403** | 2 | voice has an LLM to call | mint a `home-assistant` scoped key vault-first, render `LITELLM_BASE_URL` + key into the compose env, point the Assist pipeline at it | HA ships only `TZ` in its env today; **HD-384 is decided**, so this is now plain work · [smart-home-voice.md](docs/smart-home-voice.md) · 📋 [`prompt-384.md`](prompt-384.md) |
+| **HD-403** | 2 | voice has an LLM to call | ⛔ **parked on an owner call (2026-09-26), not on work:** stock HA has no surface for a self-hosted OpenAI-compatible base_url — `openai_conversation` is config-flow only, hosted-OpenAI-only, no base-URL field (ha-core #137087; clean fix is the open PR #172960). Vendor a custom component / wait upstream / relax decision #24. Rendering `LITELLM_BASE_URL` today would be a dead env var on the live primary (and the vault item does not exist yet, so the fail-closed render would red the Pi converge) · [smart-home-voice.md](docs/smart-home-voice.md) · 📋 [`prompt-384.md`](prompt-384.md) |
 | **HD-404** | 3 | the last stale IaC strings stop teaching agents the wrong truth | text-only PR over the enumerated list (Victoria headers, the Pi "primary DNS" comment, the `llm-backend` purpose string that feeds a generated doc, `amd_rocm`'s `OLLAMA_KEEP_ALIVE`, `first-boot-config.sh`'s wording) | the docs stopped repeating these; the comments are now the last place an agent reads a wrong truth · [deployment-ansible.md](docs/deployment-ansible.md) · 📋 [`prompt-417.md`](prompt-417.md) |
 | HD-336 | 2 | agent memory per project | agent-memory.dev on oldsrv + ZeroClaw runner | spec in [services-ai.md](docs/services-ai.md) §9b; does not wait on HD-336b |
 | HD-248 | 2 | the OWUI story matches the box | correct the stale "x2 live" banner in [services-ai.md](docs/services-ai.md); stop there | **decided 2026-09-21: no second instance.** The split stays planned until a second audience exists — building it today duplicates a service that does not run · 📋 [`prompt-417.md`](prompt-417.md) |
@@ -248,7 +246,7 @@ for the family-agnostic `:22/:443/:51820`/RustDesk accepts (confirm it, or scope
 | HD-358 | 2 | Seerr can talk to the *arrs without a human | record the Seerr→\*arr API-key + URL hand-off as a runbook step (and consider automating it in IaC) | home edge is up; bug #7 · 📋 [`prompt-357.md`](prompt-357.md) |
 | HD-458 | 1 | **`ai.` SSO logs a human in again** | change the callback to `/oauth/oidc/callback` on **both** sides (Open WebUI 0.11 dropped `/oauth2/callback`: `main.py:2652`), recreate OWUI, re-apply `playbooks/authentik-blueprints.yml`, then check `grant_types`/`property_mappings` survived (HD-231) | P1 — authorize works and the code dies on the return leg; the app's SPA renders the 404, so it looks like an nginx error · 📋 [docs/deployment-oidc.md](docs/deployment-oidc.md) §Per-service SSO login ledger |
 | HD-47 | 3 | Matrix is federated | **an external-room join from an account on ANOTHER homeserver** (owner) — a second client on `chat.` or Element Web on the same account is not a foreign server; the test room exists and its URL is shared, phone use is separately broken by HD-464 | ✅ delegation + both records live and read 200 off-network; `m.server` is `host:port`, and the doc says do-not-fix it |
-| **HD-464** 🆕 | 2 | Element for Android can log in | read the failing PATH server-side first (tuwunel logs + the Traefik access log) — `M_UNRECOGNISED` names an error class, not an endpoint — then decide which host is a client's homeserver host: `chat.` today answers 404 for both the client well-known and `/_matrix/*`, while `matrix.` answers both. If it still fails after that, it is the native custom-scheme SSO redirect, the HD-459 class · ⛔ the doubled-slash `base_url` artifact is measured harmless (200) — do not chase it · needs a VPS read, no owner hand · [services-matrix.md](docs/services-matrix.md) |
+| **HD-464** 🆕 | 2 | Element for Android can log in | read the failing PATH server-side first (tuwunel logs + the Traefik access log) — `M_UNRECOGNISED` names an error class, not an endpoint — then decide which host is a client's homeserver host: `chat.` answers 404 for both the client well-known and `/_matrix/*` while `matrix.` answers both — and that 404 is served by **nginx**, because `chat` is only a Cloudflare CNAME with no `docker_services` entry and no router, so "publish it on `chat.`" is a new router, not a derivation. If it still fails after that, it is the native custom-scheme SSO redirect, the HD-459 class · ⛔ the doubled-slash `base_url` artifact is measured harmless (200) — do not chase it · needs a VPS read, no owner hand · [services-matrix.md](docs/services-matrix.md) |
 proven until a foreign homeserver delivers something | ✅ delegation + both records live and read 200
 off-network; `m.server` is `host:port`, and the doc says do-not-fix it |
 | **HD-460** | 1 | the VPS's tailnet node is reachable DIRECTLY on **both** families | publish IPv6 — the host binds `0.0.0.0:41641` and there is no `[::]:41641` | ✅ **v4 half closed by the owner from LTE: direct, 45 ms (2026-09-26)** — the reading no device in this repo could produce · pin + publish stay ONE change on the netns owner, never the sidecar |
@@ -367,7 +365,7 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
 | "The reranker has a consumer" | It ships **dormant** (~327 MiB idle): `rag-mcp` is the HD-268b compose STUB with no `services:` block. It was verified with a LiteLLM probe + a synthetic consumer, **not** live RAG traffic |
 | "Making spark text-only buys throughput" | Decision #28 says the opposite: no image tokens ⇒ the tower never executes ⇒ decode is expected **flat**. It buys memory on the boot-bound side (≈32.2k KV tokens per GiB). HD-400 |
 | "Vision can be split: laptop ViT → spark" | **Rejected as unbuildable**, not merely expensive — vLLM's only pre-computed-vision seam is multimodal *embeddings*, which must live in the target model's own visual-token space. Vision lives on the workstation as a **text cascade** · [services-ai.md](docs/services-ai.md) §9 #28 + [hardware-workstation.md](docs/hardware-workstation.md) |
-| "HD-383's stale-secret abort is a live blocker" | The glue is `bootstrap_keys: false` and the scoped-key list is empty — the abort is **unreachable**, and the stale 1P value is still standing in the vault. **authorized 2026-09-21** to clear it before HD-384 re-arms the glue |
+| "HD-383's stale-secret abort is a live blocker" | The glue is `bootstrap_keys: false` and the scoped-key list is empty — the abort is **unreachable**, and as of 2026-09-26 the stale value is **cleared** (the `home_servers.yml` claim that it had been cleared on 2026-09-15 was false — it measured 25 chars). Still owed: the LAN gateway's orphan alias `dsh`, which needs oldsrv |
 | "Navidrome never deployed" | Deployed: container Up, the Box music dir mounted ro, scanner ran. **there is no local music at all** (the family listens from the cloud — owner fact 2026-09-21), so HD-354's library and admin halves are void; do not mint an admin for an empty library |
 | "Matrix waits on unprovisioned hosts" | Tuwunel + Element have been live since 2026-08-22. HD-122 is **closed**
 (profile auth measured) and HD-47 is no longer a DNS job either — its records and both apex delegations are public,
@@ -405,27 +403,26 @@ verdict:** a pinned, published 41641 makes *that* node direct and says nothing a
 
 ## Bottom line
 
-- **The owner-side backlog is three sentences long:** do the browser logins (HD-147), be present for the
-  windows in §A2, and answer the three **memory-plane** calls (OQ-12/13/14 — measured, one page, nothing blocks
-  AI work while they wait). Everything that used to sit in front of the AI work has a decision attached to it.
-- **Decided ≠ shipped — that is the honest state of this table.** Cheapest first, in order: **HD-347** (one value,
-  alerting stops being blind) → **HD-383 → HD-384 → HD-403**
-  (one vault-and-registry change that finally gives voice and the simple queriers a route)
-  → **HD-417** (the last cheap gate for a failure class no validator can see today). Shipped since this line was
-  written, and off it: **HD-399** (oldsrv `--check` works), **HD-416** (the grant gate), **HD-350** (the cert-pull
-  leg — and it was not "one pubkey": the grant had been in place for eight days, see
-  [docs/services-traefik.md](docs/services-traefik.md) §Certification).
-- **Then the sequenced chain, as of the 2026-09-25 merge:** the transport thread's hinge is now **HD-436** — its
-  `tailnet: dual` step is what makes HD-435's HA answer survive either box, and nothing in that lane waits on the
-  owner. HD-414 and HD-410 shipped and closed themselves; HD-415 shipped and waits only on the three-case drill;
-  HD-406 is the surviving transport shape and stays owner-timed. The oldsrv cluster (HD-361 · 442 · 443 · 444 ·
-  445 · 409/411) still waits on one dead box and not on a decision, so its order is HD-455 → HD-454 → HD-445.
-- **Closed out of the chain list:** **HD-420** (spark metric cadence) — 5 s for the nine panels the owner named is **LIVE end to end** (hot/cold Alloy + 5 s DCGM + the datasource floor); the answer, the arithmetic and the sidecar's under-load memory are in [docs/observability.md](docs/observability.md) §Scrape cadence.
-- **One thing is still wrong with the repo and has a row:** the standby HA edge cannot proxy (**HD-418**). The other
-  fault-note of that pair, `media.kogler.si` answering 502 (**HD-419**), was fixed and verified 2026-09-22 — and fixing it
-  exposed that the same `502` shape covers `seerr`/`sonarr` and the rest of the home-hosted route group, which has **no row
-  yet** (recorded in [docs/services-traefik.md](docs/services-traefik.md) so it can be minted with the evidence attached).
-- **Oldsrv reachability is not a blocker:** off-LAN it is the Home leg through the VPS jump, carried in `group_vars`
-  since 2026-09-19 — `bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check …`
-  needs no `-e`. The only things presence still buys are the on-site half of HD-397, the `*99` aliases and the
-  HD-415 WAN-pulled drill.
+- **The owner-side backlog is now five sentences long:** do the browser logins (HD-147), be present for the
+  windows in §A2, answer the three **memory-plane** calls (OQ-12/13/14 — measured, one page, nothing blocks AI
+  work while they wait), answer the two calls the 2026-09-26 session opened — **HD-403's LLM surface** (vendor a
+  custom component, wait for ha-core PR #172960, or relax decision #24 for the voice leg) and **HD-465's node
+  question** (does Cockpit hang off the Pi or off oldsrv) — and spend one minute on a phone for **HD-464 step 0**
+  (type `matrix.kogler.si`, not `chat.kogler.si`). That last one is not a decision, it is a measurement.
+- **What limits an AI session tonight is the dead box, not the backlog.** `oldsrv` answers `No route to host`, and
+  it is the host behind: `signal-cli` (⇒ **HD-347** cannot source the group ID, so Signal alerting stays dark),
+  `lan-litellm` (⇒ **HD-384**'s LAN mint and **HD-403**'s key), the node the Cockpit tailnet name points at
+  (⇒ **HD-465**), and the stale host-level `OLLAMA_KEEP_ALIVE` line (⇒ **HD-404(a)**). HD-455 / HD-454 are the
+  wake path. Nothing in that list is waiting on a decision that has not already been made.
+- **Cheapest AI work left, in order:** **HD-452** (the VPS postgres analogue of the `nut` fix that already
+  reported `changed=0`) → **HD-460** (the VPS node's IPv6 publish — `::` bind, one change) → **HD-463** (thread one
+  `--docker-cmd` so `guarded-converge.sh` can guard the Pi at all — the Pi's compose runs unguarded today) →
+  **HD-436 step 1**, picking up `session/hd436-zone-derived-wip`, whose honest blocker is that
+  `check_dns_seed_drift.py` has to be rewritten in the SAME change as the derivation, or the drift contract stops
+  checking the thing it exists to check.
+- **Shipped since this line was last written, and off the list:** **HD-383**'s vault half, **HD-384**'s `rpm` code
+  path + first LAN record, **HD-404**'s seventh (the `alloy_ha_exporter` rename), **HD-417** and **HD-396** (rows
+  already deleted). **Decided ≠ shipped still governs everything above** — re-measure, do not trust this line, and
+  note that two rows just proved stale premises in the same session (**HD-465**'s name was published all along;
+  **HD-464**'s 404 belongs to nginx, not Traefik).
+- **One thing is still wrong with the repo and has a row:** the standby HA edge cannot proxy (**HD-418**).
