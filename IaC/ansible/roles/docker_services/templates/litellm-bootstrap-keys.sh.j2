@@ -63,10 +63,12 @@ fi
 
 # Scoped-key specs are RENDERED statically from the instance's scoped-keys SSOT
 # (`litellm_scoped_keys` — defined per group_vars file, one instance per group).
-# Format: alias|item|models_csv|max_budget|budget_duration
+# Format: alias|item|models_csv|max_budget|budget_duration|rpm
+# (rpm is OPTIONAL and last; records written before HD-384 carry only five fields and
+# render an empty sixth, which mint_key then omits — LiteLLM treats absent as uncapped.)
 KEYS=(
 {% for k in litellm_scoped_keys %}
-  "{{ k.alias }}|{{ k.vault_item }}|{{ k.models }}|{{ k.max_budget }}|{{ k.budget_duration }}"
+  "{{ k.alias }}|{{ k.vault_item }}|{{ k.models }}|{{ k.max_budget }}|{{ k.budget_duration }}|{{ k.rpm | default('', true) }}"
 {% endfor %}
 )
 if [ -z "${KEYS[*]:-}" ]; then
@@ -114,9 +116,9 @@ PYEOF
     fi
 }
 
-# mint <alias> <models_csv> <max_budget> <budget_duration> : prints sk or fails rc 1/4
+# mint <alias> <models_csv> <max_budget> <budget_duration> [rpm] : prints sk or fails rc 1/4
 mint_key() {
-    local alias="$1" models_csv="$2" mb="$3" bd="$4" body="" parts=() out err rc
+    local alias="$1" models_csv="$2" mb="$3" bd="$4" rpm="$5" body="" parts=() out err rc
     [ -n "$models_csv" ] && {
         IFS=',' read -ra parts <<<"$models_csv"
         local json_models="["
@@ -132,6 +134,11 @@ mint_key() {
     }
     [ -n "$mb" ] && body="$body \"max_budget\": $mb,"
     [ -n "$bd" ] && body="$body \"budget_duration\": \"$bd\","
+    # rpm = requests/minute. Under decision of 2026-09-21 (HD-384) the simple-querier tier
+    # carries NO max_budget (owned devices, no metered cost) but DOES carry rpm: it is
+    # contention protection on spark's single shared KV pool, not a bill. Without this line
+    # a record's rpm is silently unminted — which is how a decided cap becomes nothing.
+    [ -n "$rpm" ] && body="$body \"rpm\": $rpm,"
     # Build the JSON request body: strip the trailing comma left by the last accumulated
     # field, then append key_alias with a comma. Empty-body case (e.g. owui-int-owner
     # full-access key with no models/budget) must NOT emit a leading comma — else invalid
@@ -187,7 +194,7 @@ vault_write() {
 until healthy; do log "waiting for litellm stack to become healthy…"; sleep 10; done
 
 for spec in "${KEYS[@]}"; do
-    IFS='|' read -r alias item models_csv maxb bd <<<"$spec"
+    IFS='|' read -r alias item models_csv maxb bd rpm <<<"$spec"
     cur="$(op item get "$item" --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null || true)"
     if [ -n "$cur" ]; then
         code="$(probe_key "$cur")"
@@ -199,7 +206,7 @@ for spec in "${KEYS[@]}"; do
             *)   log "transient probe failure for '$alias' (code $code)"; exit 3 ;;
         esac
     else
-        if ! sk="$(mint_key "$alias" "$models_csv" "$maxb" "$bd")"; then
+        if ! sk="$(mint_key "$alias" "$models_csv" "$maxb" "$bd" "$rpm")"; then
             rc=$?
             [ "$rc" -eq 4 ] && exit 4
             exit 3

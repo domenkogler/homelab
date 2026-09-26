@@ -184,6 +184,10 @@ traefik_acme_issuer: true
 # MISSING). One PHYSICAL line per record (closing brace ends the record).
 # models: comma-separated LiteLLM model names (wildcards allowed); empty = all models.
 # max_budget/budget_duration: LiteLLM budget semantics (USD per period); blank = uncapped.
+# rpm: optional, LAST field — requests/minute, blank = uncapped. Added 2026-09-26 (HD-384):
+#   the decided simple-querier caps had NO code path before that date, so a record carrying
+#   rpm minted an uncapped key and looked green. Records without the field still render
+#   (default('', true)) — do not "clean up" the six-field format back to five.
 litellm_scoped_keys:
   - { alias: owui-public-chat, vault_item: owui-public-chat_api, models: "ollama/*,openrouter/*", max_budget: "20", budget_duration: "30d" }
   - { alias: owui-public-rag, vault_item: owui-public-rag_api, models: "ollama/bge-m3,ollama/bge-reranker-v2-m3", max_budget: "5", budget_duration: "30d" }  # decision #24 (2026-09-15): Cohere retired → local bge-m3/bge-reranker on oldsrv RX 7600 (Ollama :rocm); rerank included DEVIATION: HD-246 routes /rerank through this same key — embed-only would hard-break the decided RAG pipeline

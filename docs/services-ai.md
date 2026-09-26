@@ -317,13 +317,20 @@ driver. Nothing here adds a scrape target or a dashboard.
 per-consumer virtual keys (lookups are fail-closed thereafter). Specs SSOT in `group_vars/vps.yml`:
 `owui-public-chat` · `owui-public-rag` · `owui-int-wife` / `owui-int-owner` · `openclaw-litellm` ·
 `rag-int-svc`; starting budgets/durations are Admin-UI-editable.
-**The LAN instance has no scoped consumers at all** (`litellm_scoped_keys: []` in
-`group_vars/home_servers.yml`) — its dsh/pi-harness consumers were removed with the harnesses, so every
-call on that side runs on the master key. That is also why the pinned-AI legs have no per-consumer
-budgets yet: HD-384 has to create consumers on the LAN instance, not only widen VPS allow-lists.
+**The LAN instance still has zero MINTED consumers.** A first record is authored (`home-assistant` →
+`home-assistant_api`, HD-384, 2026-09-26) but `bootstrap_keys` stays `false` on `lan-litellm`, because the
+mint runs on oldsrv and oldsrv is unreachable — so every call on that side still runs on the master key.
+That is also why the pinned-AI legs have no per-consumer caps yet.
 ⚠ The allow-lists still name `ollama/*` model names that no longer exist after decision #27 — correcting
-them (and adding `spark/*` + the pinned rows for the real consumers) is **HD-384**, and the model-catalog
-doctrine below governs how.
+them (and adding the real rows for the real consumers) is **HD-384**, and the model-catalog doctrine
+below governs how.
+⚠ **The glue is CREATE-ONLY, and that decides what "grant a consumer" means** (read off the template
+2026-09-26): a vault item that already holds a value is only *probed* (`GET /v1/models`; 200 = keep,
+401/403 = `ABORT rc2`) — its server-side params are never updated. So editing `models:` or budgets on an
+existing record (e.g. handing the four live `owui-*` keys the `spark/qwen3.8-flash-next` row) changes
+nothing about the live key. Granting an existing consumer another model needs `/key/update` (not
+implemented — it is HD-384's remaining half) or a deliberate re-mint (clear the item, delete the alias,
+which invalidates the running consumer). Never report an allow-list edit as a shipped grant.
 
 > 📋 Deploy checklist: [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md).
 
@@ -371,8 +378,10 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
   documented fallback of the SAME 1024-dim space. **Neither LiteLLM DB contains an `ollama/*` row**, so
   "keeping" it means keeping the service + the model (`bge-m3` re-verified at dim 1024 after the blob
   cleanup). Re-pointing a consumer to either leg is HD-384 work.
-- **`bootstrap_keys` stays `false` on the LAN instance** (HD-386): none of these legs has a scoped consumer
-  yet, and the glue fail-louds on an empty spec list.
+- **`bootstrap_keys` stays `false` on the LAN instance** (HD-386 → HD-384): it was forced by the empty spec
+  list (the glue fail-louds on one). A consumer record now exists, so what holds the flip is only that the
+  minting host — oldsrv — is unreachable, and an unverifiable glue failure would red the recovery converge
+  that box still owes (HD-455/HD-445). It is the first thing to flip when the box answers.
 - **Two traps:** a `--check --diff` on a LiteLLM converge renders **live keys into the log**; and a green
   **scoped** converge (`-e docker_services_scope=… --tags docker_services`) can **skip** the named service
   and still print `failed=0` — prove a deploy with `docker inspect` / the rendered file, never the RECAP.
@@ -747,7 +756,7 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 | Item | State |
 |------|-------|
 | **Memory plane for the coding plane** | **Measured, undecided.** The 2026-09-21 `agentmemory` probe answered OQ-12/13/14 in one line each (§9b note + [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md)); the owner call is open and nothing was installed. ⛔ Do not build a central instance before it: the shape the question assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29. |
-| **HD-384** scoped-consumer allow-lists | Not started. The simple-querier tier (HA, Docling, OWUI) needs rows for `spark/*` + the pinned legs, and the existing `ollama/*` allow-lists name models that no longer exist. Until it lands, only the admin-grade master key is in play. |
+| **HD-384** scoped-consumer tier | **Started 2026-09-26, not shipped.** The `rpm` field now has a code path (it had none — a decided cap minted an uncapped key and looked green); the first LAN record is authored (`home-assistant`). Held: the LAN mint (oldsrv down), the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet — HD-402/421), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
 | **HD-268b** implement `rag-mcp` (+ `forgejo-mcp`) | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **HD-267 tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |
 | **HD-248** Open WebUI instance split | One instance today; the public/internal capability split is undecided work. |

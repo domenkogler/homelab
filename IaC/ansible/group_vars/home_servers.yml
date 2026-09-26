@@ -301,7 +301,7 @@ docker_services:
   # service MUST precede its consumers in this list, because the glue runs during ITS
   # deploy pass and refreshes the vault dict the consumers render from.)
   - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway (decision #26); own Postgres; Kopia-backed
-      bootstrap_keys: false }   # HD-386: no scoped consumers while the harness records are parked — see the block above (flip together with HD-384)
+      bootstrap_keys: false }   # HD-386 → HD-384: the consumer record EXISTS (2026-09-26) but the flip is held back ON PURPOSE — minting needs oldsrv (dead) + its write-scoped op token, and an unverifiable glue failure would red the whole recovery converge this box still owes (HD-455/HD-445). Flip it as the FIRST act once oldsrv answers, then run --tags "docker_services,lan-litellm".
   - { name: dsh,            template_dir: dsh,       public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:3080
   - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:8080
 
@@ -353,7 +353,16 @@ docker_services:
 # UNDEFINED only) — `roles/docker_services/tasks/main.yml` op_derive_glue and
 # `tasks/deploy-service.yml` both pipe it through `map(attribute='vault_item')` and would
 # die on a full oldsrv converge. `[]` keeps those pipes clean.
-litellm_scoped_keys: []
+litellm_scoped_keys:
+  # HD-384 (decided 2026-09-21): the simple-querier tier gets the spark ROW, never a
+  # `spark/*` wildcard, and NO max_budget (owned devices, no metered cost); `rpm` stays —
+  # it is contention protection on spark's single shared KV pool, not a bill. The field
+  # had no code path until 2026-09-26 (litellm-bootstrap-keys.sh.j2 mint_key); the value
+  # 30 below is the IMPLEMENTER's pick — the owner decided "small caps stay", not a number.
+  # ⛔ AUTHORED ONLY, NOT MINTED (2026-09-26): this instance (lan-litellm) runs on oldsrv,
+  # which answers No route to host, so the glue has never run for it and the 1P item
+  # `home-assistant_api` does not exist yet. `bootstrap_keys` therefore STAYS false.
+  - { alias: home-assistant, vault_item: home-assistant_api, models: "spark/qwen3.8-flash-next", max_budget: "", budget_duration: "", rpm: "30" }   # HD-384 · consumed by HD-403 (HA Assist LLM leg) · change rpm HERE, never in the LiteLLM DB
   # LAN LiteLLM scoped keys (HD-356/HD-370) — per-instance SSOT consumed by the
   # bootstrap-keys glue + scripts/check-vault-items.sh (same record shape as the
   # VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS, but the
@@ -371,8 +380,11 @@ litellm_scoped_keys: []
   # stale VPS-DB-era bearer that used to trip rc2 is gone — while
   # `pi-harness_openai_api` still holds its value and is NOT yet remediated. The
   # LAN-gateway orphan (alias `dsh`) still needs deleting server-side on oldsrv.
-  # The list being EMPTY is what forces `bootstrap_keys: false` on lan-litellm above.
+  # The list being EMPTY used to be what forced `bootstrap_keys: false` on lan-litellm
+  # above; a real consumer record now exists (HD-384), so the ONLY thing still holding the
+  # flip is that the minting host is unreachable — see the ⛔ block above the record.
   # - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
   # - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }   # HD-268 pi scoped LiteLLM key (dual harness) — PARKED HD-386
-  # First records to land here again are the SIMPLE QUERIER tier (decision #26), not the
-  # harnesses: spark/* + ollama/* allowlists for ha / docling / owui = HD-384.
+  # The SIMPLE QUERIER tier (decision #26) is what lands here — the harnesses above never
+  # do. First record has landed 2026-09-26 (home-assistant, HD-384); docling and the
+  # owui tier are deliberately NOT here yet, and why is written on the HD-384 row.
