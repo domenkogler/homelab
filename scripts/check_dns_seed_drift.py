@@ -29,12 +29,26 @@ Contract enforced (mirrors the seed role's own gates):
 Run:    python3 scripts/check_dns_seed_drift.py
 Exit:   0 = contract holds; 1 = a drift/guard violation (prints every finding).
 Wired into `validate-all.sh` (item 15) + scripts/README.md.
+
+HD-436 changed the SHAPE of the SSOT: the rows moved out of the task's inline `loop:`
+into the derived `zone_kogler_si` list in group_vars/all/main.yml, and the when-gate's
+exclusion list became `zone_kogler_si_lan_only`. This checker therefore RESOLVES the
+loop and the gate through `scripts/zone_kogler_si_render.py` — the module that renders
+the REAL seed task — instead of parsing a literal list out of the YAML. It accepts both
+shapes (a hand-authored literal loop and a derived expression) and fails loud on a loop
+that resolves to zero rows or a task it cannot find, so it can never pass vacuously.
+That is the whole point: the version that only understood inline lists went RED on the
+derivation and, if it had stayed green by finding "no rows", it would have stopped
+checking the thing it exists to check.
 """
 import sys
 from pathlib import Path
 
 import yaml
 from jinja2 import Environment, StrictUndefined
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import zone_kogler_si_render as zr  # noqa: E402  # renders the REAL seed task (HD-436)
 
 ROOT = Path(__file__).resolve().parent.parent
 ANSIBLE = ROOT / "IaC" / "ansible"
@@ -105,82 +119,49 @@ def _host_ip(gv: dict, name: str, vlan: int) -> str | None:
     return None
 
 
-def _build_context(gv: dict, instance: str) -> dict:
-    """Mirror the exact Jinja context the seed role resolves for this instance.
+def _load_seed_rows(path: Path) -> list[dict]:
+    """The seed's record rows, resolved through the real task (HD-436: may be derived).
 
-    The SSOT keys (dns_primary_ip, oldsrv_home_ip, ha_vip, spark_home_ip, ...) are
-    THEMSELVES Jinja expressions in group_vars/all/main.yml that reference
-    network_static_hosts. Resolve them once with network_static_hosts in scope, exactly
-    like Ansible does at converge time, so the expected targets are real IPs.
+    Accepts a literal `loop:` list AND a Jinja expression over `zone_kogler_si`.
+    Never returns empty: a missing task, a loop that is not a list, or zero rows all
+    abort, because an empty record set would make every rule below pass vacuously.
     """
-    hosts = gv.get("network_static_hosts", [])
-    env = Environment(undefined=StrictUndefined)
-    base = {"network_static_hosts": hosts}
-
-    def resolve(key: str, fallback: str = "") -> str:
-        raw = gv.get(key, fallback)
-        if isinstance(raw, str) and "{{" in raw:
-            try:
-                return env.from_string(raw).render(**base).strip()
-            except Exception:  # noqa: BLE001 — surfaces in the finding if it fails
-                return raw
-        return raw or ""
-
-    return {
-        # Rows in the seed may legitimately derive an address from the SSOT inline (the
-        # `network_static_hosts | selectattr(...)` idiom that `nut_exporter_host` and the
-        # cockpit route backends use), so the render context must carry the SSOT itself —
-        # Ansible has it in scope at converge time. Without it such a row renders as a
-        # StrictUndefined error and the checker reports an invented target.
-        "network_static_hosts": hosts,
-        "dns_primary_ip": resolve("dns_primary_ip"),
-        "oldsrv_home_ip": resolve("oldsrv_home_ip"),
-        "ha_vip": resolve("ha_vip"),
-        "spark_home_ip": resolve("spark_home_ip"),
-        "tailnet_sidecar_ip": gv.get("tailnet_sidecar_ip", DEFAULT_TAILNET),
-        "svc": {"instance": instance},
-    }
-
-
-def _load_seed_rows(path: Path) -> list[dict] | None:
-    """Return the record loop rows from the seed task, or None (task not found)."""
     try:
-        doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-    except (OSError, yaml.YAMLError) as e:
-        print(f"FAIL: cannot parse {path}: {e}", file=sys.stderr)
+        task = zr._find_task(path, SEED_TASK, ("ansible.builtin.uri", "uri"))
+        # The instance only selects WHICH split-horizon target each row renders; the row
+        # set itself is instance-independent, so resolve it once on the primary context.
+        return zr._loop_items(task, zr.build_context(extra={"svc": {"instance": "primary"}}),
+                              "technitium seed")
+    except zr.RenderError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
         sys.exit(1)
+    return []  # unreachable
 
-    def walk(tasks):
-        for task in tasks or []:
-            if not isinstance(task, dict):
-                continue
-            if task.get("name") == SEED_TASK and isinstance(task.get("loop"), list):
-                return task["loop"]
-            # Recurse into block/always/rescue/when nesting (the seed file is a `block:`).
-            for sub_key in ("block", "always", "rescue", "tasks"):
-                if isinstance(task.get(sub_key), list):
-                    sub = walk(task[sub_key])
-                    if sub is not None:
-                        return sub
-        return None
 
-    found = walk(doc)
-    if found is None:
-        # Fail loud: the SSOT task must exist — otherwise the checker would pass vacuously.
-        print(f"FAIL: seed task '{SEED_TASK}' not found in {path}", file=sys.stderr)
+def _seed_when(path: Path) -> str:
+    """The seed task's per-item `when` expression, unevaluated."""
+    try:
+        task = zr._find_task(path, SEED_TASK, ("ansible.builtin.uri", "uri"))
+    except zr.RenderError as exc:
+        print(f"FAIL: {exc}", file=sys.stderr)
         sys.exit(1)
-    return found
+    when = task.get("when")
+    if when is None:
+        print(f"FAIL: seed task '{SEED_TASK}' has no `when` — LAN-only records would seed "
+              f"on the VPS primary", file=sys.stderr)
+        sys.exit(1)
+    return str(when)
 
 
 INSTANCES = ["primary", "secondary", "secondary-pi"]
 
 
-def _render_ip(row: dict, ctx: dict) -> str | None:
-    env = Environment(undefined=StrictUndefined)
+def _render_ip(row: dict, ctx: dict) -> str:
+    """Resolve one row's `ip:` the way the seed role does, through the render module."""
     try:
-        return env.from_string(row.get("ip", "")).render(**ctx).strip()
-    except Exception as e:  # noqa: BLE001 — any render failure is a drift finding
-        return f"<render error: {e}>"
+        return zr._render_expr(str(row.get("ip", "")), ctx)
+    except zr.RenderError as exc:
+        return f"<render error: {exc}>"
 
 
 def _name_prefix(domain: str) -> str:
@@ -191,19 +172,21 @@ def main() -> int:
     gv = _load_ssot()
     rows = _load_seed_rows(SEED_FILE)
     findings = []
-    # Resolve SSOT-derived addrs ONCE (they are Jinja in all/main.yml referencing
-    # network_static_hosts); use them both as render context and as expectations.
-    _ctx_primary = _build_context(gv, "primary")
-    _ctx_home = _build_context(gv, "secondary")
+    # ONE context builder for the whole answer plane (scripts/zone_kogler_si_render.py):
+    # the split-horizon targets are Jinja over network_static_hosts and, post-HD-436,
+    # `home_edge_ip`/`tailnet_edge_ip`/`nas_home_ip` live in group_vars too. A second
+    # resolver here would drift from the consumer it is supposed to mirror.
+    CTXS = {inst: zr.build_context(extra={"svc": {"instance": inst}}) for inst in INSTANCES}
+    _ctx_primary, _ctx_home = CTXS["primary"], CTXS["secondary"]
     EXPECT = {
-        "vps": _ctx_primary["dns_primary_ip"],
-        "oldsrv": _ctx_home["oldsrv_home_ip"],
-        "ha_vip": _ctx_primary["ha_vip"],
-        "spark": _ctx_home["spark_home_ip"],
-        # nas has no `nas_home_ip` var (the seed renders it from the address SSOT inline), so the
-        # expectation resolves through the same helper the seed's expression models.
-        "nas": _host_ip(gv, "nas", 10),
-        "tailnet": gv.get("tailnet_sidecar_ip", DEFAULT_TAILNET),
+        "vps": _ctx_primary.get("dns_primary_ip", ""),
+        "oldsrv": _ctx_home.get("oldsrv_home_ip", ""),
+        "ha_vip": _ctx_primary.get("ha_vip", ""),
+        "spark": _ctx_home.get("spark_home_ip", ""),
+        # nas has no `nas_home_ip` var in older shapes; the derived list defines it as the
+        # selectattr over network_static_hosts, which the resolver already expanded.
+        "nas": _ctx_home.get("nas_home_ip") or _host_ip(gv, "nas", 10),
+        "tailnet": _ctx_primary.get("tailnet_sidecar_ip", DEFAULT_TAILNET),
     }
     rendered = {inst: {} for inst in INSTANCES}
 
@@ -211,7 +194,7 @@ def main() -> int:
     for row in rows:
         name = row.get("name", "")
         for inst in INSTANCES:
-            rendered[inst][name] = _render_ip(row, _build_context(gv, inst))
+            rendered[inst][name] = _render_ip(row, CTXS[inst])
 
     # Second pass: enforce the documented per-instance contract.
     for inst in INSTANCES:
@@ -257,15 +240,32 @@ def main() -> int:
                 # name; the VPS primary answers it so VPS-side DNS + headscale clients agree).
                 _check(name, ip, {"expect": EXPECT["vps"], "all": True}, findings, inst)
 
-    # Gate guard: every LAN-only row must be covered by the seed's per-item `when` so it
-    # NEVER resolves on the VPS primary (forgetting a row in the exclusion list = the seed
-    # would happily add it on the VPS — the exact modem/spark class). Scrape the when-
-    # expression and compare against LAN_ONLY.
-    gate = _load_seed_when(SEED_FILE)
-    if gate != set(LAN_ONLY):
+    # Gate guard: every LAN-only row must be excluded on the VPS PRIMARY by the seed's
+    # per-item `when`. Post-HD-436 the exclusion list is a DERIVED view
+    # (`zone_kogler_si_lan_only`), so text-matching it would prove nothing — evaluate the
+    # real expression per row on the primary and compare the EXCLUDED set against both the
+    # checker's own expectation table and the `lan_only:` flags in the list itself.
+    # Three-way equality is the point: a row that is flagged but not gated, gated but not
+    # flagged, or in neither place is the modem/spark class this guard was written for.
+    gate_expr = _seed_when(SEED_FILE)
+    excluded: set[str] = set()
+    for row in rows:
+        name = row.get("name", "")
+        try:
+            keep = zr._render_expr(gate_expr, dict(CTXS["primary"], item=row), is_expr=True)
+        except zr.RenderError as exc:
+            findings.append(f"when-gate cannot be evaluated for {name}: {exc}")
+            continue
+        if keep not in ("True", "False"):
+            findings.append(f"when-gate for {name} did not evaluate to a boolean: {keep!r}")
+        elif keep == "False":
+            excluded.add(name)
+    flagged = {str(r.get("name")) for r in rows if r.get("lan_only")}
+    if excluded != set(LAN_ONLY) or excluded != flagged:
         findings.append(
-            f"seed when-gate {sorted(gate)} != LAN-only set {sorted(LAN_ONLY)} — "
-            f"a LAN-only record is missing from the exclusion list and could seed on the VPS primary"
+            f"seed when-gate excludes {sorted(excluded)} but LAN-only expectations are "
+            f"{sorted(set(LAN_ONLY))} and the list flags {sorted(flagged)} — a LAN-only "
+            f"record could seed on the VPS primary (or a public one is black-holing there)"
         )
     if not findings:
         # Sanity: make sure the SSOT resolved the key addresses (empty -> everything would pass).
@@ -284,41 +284,6 @@ def main() -> int:
     for f in findings:
         print(f"  - {f}", file=sys.stderr)
     return 1
-
-
-def _load_seed_when(path: Path) -> set[str]:
-    """Extract the LAN-only names from the seed task's per-item `when` exclusion list.
-
-    The record task's `when: item.name not in [...] or svc.instance ...` is the ONLY thing
-    keeping LAN-only records off the VPS primary. Parse the `not in [...]` list and return
-    it as a set. This is the gate that must stay equal to LAN_ONLY.
-    """
-    import re
-
-    doc = yaml.safe_load(path.read_text(encoding="utf-8"))
-
-    def walk(tasks):
-        for task in tasks or []:
-            if not isinstance(task, dict):
-                continue
-            if task.get("name") == SEED_TASK:
-                when = task.get("when", "")
-                # pattern: item.name not in ["a", "b", ...]
-                m = re.search(r"item\.name not in \[([^\]]*)\]", str(when))
-                if m:
-                    return {s.strip().strip('\"').strip("'") for s in m.group(1).split(",")}
-            for sub_key in ("block", "always", "rescue", "tasks"):
-                if isinstance(task.get(sub_key), list):
-                    sub = walk(task[sub_key])
-                    if sub is not None:
-                        return sub
-        return None
-
-    found = walk(doc)
-    if found is None:
-        print(f"FAIL: seed when-gate not parsed in {path}", file=sys.stderr)
-        sys.exit(1)
-    return found
 
 
 def _check(name, rendered_ip, rule: dict, findings: list, inst: str) -> None:

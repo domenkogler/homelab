@@ -248,14 +248,27 @@ tailnet_pi_ip: "100.64.0.6"
 # zone_kogler_si — the kogler.si answer plane as ONE list (HD-436 step 1)
 # ============================================================================
 # Every name in the zone and every address it answers with, in one entry per name.
-# The three consumers below DERIVE from this list; none of them owns a record list
-# any more: the Technitium seed (`docker_services/tasks/technitium-seed.yml`),
-# headscale `dns.extra_records` (`templates/docker_services/headscale/config.yaml.j2`)
-# and the public Cloudflare set (`roles/cloudflare_dns`).
 #
-# This var lives in group_vars/all because `all` is the only group in scope for all
-# three: the seed runs on VPS + oldsrv + the Pi, the headscale template renders on the
-# VPS, and `playbooks/dns.yml` runs against localhost.
+# WIRED TODAY (measured on this branch, 2026-09-26 — not what the first draft of this
+# comment claimed, which named two consumers that do not read it):
+#   * the Technitium seed (`docker_services/tasks/technitium-seed.yml`) loops
+#     `zone_kogler_si_seed_records` and gates on `zone_kogler_si_lan_only`.
+# NOT WIRED YET — these planes are still DOUBLED (this list + a hand-authored source),
+# and `check_zone_kogler_si_parity.py` is what keeps the two halves answering the same:
+#   * MagicDNS / the tailnet routers read `tailnet_subdomains` and
+#     `tailnet_ts_only_subdomains` in `group_vars/vps.yml` — consumed by
+#     `templates/docker_services/headscale/config.yaml.j2` and the traefik-internal,
+#     traefik-tailnet, traefik-ha and spark-dashboard `dynamic/routes.yml.j2`.
+#   * the public Cloudflare set reads `cloudflare_dns_records` in
+#     `roles/cloudflare_dns/vars/main.yml`.
+# ⛔ Editing this list therefore changes LIVE DNS only for Technitium. For the other two
+# planes it changes nothing on the wire — the gate proves the derived view still matches
+# them, it does NOT publish anything. Switching a consumer is its own step, done behind
+# this gate, never asserted in a comment.
+#
+# This var lives in group_vars/all because the seed runs on VPS + oldsrv + the Pi and
+# `playbooks/dns.yml` runs against localhost; `all` is the only group in scope for all
+# of them.
 #
 # Fields (⛔ all three exposure fields are required on EVERY entry — an omitted field
 # is a decision nobody made, which is the drift class this list exists to kill):
@@ -283,18 +296,26 @@ tailnet_pi_ip: "100.64.0.6"
 #              fails the build on the mismatch. The renderer for it (the
 #              traefik-tailnet router list) is a later HD-436 step; today the field
 #              is the declared intent, and it is validated, not wired.
-#   public:    true = publish the canonical Cloudflare CNAME → vps.kogler.si.
+#   public:    true = the name is published publicly (canonical Cloudflare CNAME →
+#              vps.kogler.si). DECLARED INTENT, NOT WIRED: the publisher still reads
+#              `cloudflare_dns_records`; the parity gate fails if the two disagree.
 #   public_records: explicit Cloudflare records for a name whose public answer is not
 #              that CNAME (the VPS host A/AAAA pair, the SMTP2Go delegations).
 #              `proxied: false` (DNS-only) is the consumer's default, not per record.
+#              Also declared, not wired.
 #
-# ⛔ A change here changes live DNS on the next converge of that consumer. The parity
-# gate (`scripts/check_zone_kogler_si_parity.py`, in validate-all) compares the derived
-# output against `scripts/testdata/zone_kogler_si_golden.json`, a snapshot taken from
-# the three hand-authored lists BEFORE the derivation. So an edit that silently drops a
-# name, re-points an address, or moves a `.ts`-only name into the plain namespace goes
-# RED at the gate instead of at 3am. Deliberate changes: edit the list, run the gate,
-# read the diff it prints, and re-derive the fixture IN THE SAME COMMIT.
+# ⛔ A change here changes live Technitium DNS on the next seed converge, and nothing
+# else. The parity gate (`scripts/check_zone_kogler_si_parity.py`, in validate-all)
+# compares the derived views against `scripts/testdata/zone_kogler_si_golden.json`, a
+# snapshot of what the hand-authored sources answered BEFORE the derivation. So an edit
+# that silently drops a name, re-points an address, or moves a `.ts`-only name into the
+# plain namespace goes RED at the gate instead of at 3am. Deliberate change to an
+# ANSWER: edit the list, run the gate, READ the diff it prints, and put in the commit
+# message which answer you meant to change and why. ⛔ The fixture is NOT regenerated
+# from this tree — `capture_zone_kogler_si_golden.py` refuses once the zone is derived,
+# because comparing the derived list against itself would make the gate vacuous. It moves
+# only with a re-capture from a pre-derivation checkout, which is the point: the gate
+# protects the answers, not the author's convenience.
 zone_kogler_si:
   # --- control plane + the HA pair (the VIP answers; the edge follows HA either way) ---
   - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }

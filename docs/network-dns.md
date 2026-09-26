@@ -688,6 +688,29 @@ comparing the four sources, none of which noticed:
 The last row also costs an instrument: a hosts override sits **above** DNS on the one machine you would
 otherwise debug on, so a wrong zone answer becomes invisible exactly where it would have been noticed.
 
+**Shipped status (2026-09-26 — HD-436 is PARTIALLY done, and the difference matters)**:
+
+| plane | state | what is the source of truth today |
+|---|---|---|
+| Technitium seed | **derived** | `zone_kogler_si` — `loop: zone_kogler_si_seed_records`, gate `zone_kogler_si_lan_only` |
+| MagicDNS + the tailnet router lists | still hand-authored | `group_vars/vps.yml` → `tailnet_subdomains` / `tailnet_ts_only_subdomains` |
+| public Cloudflare set | still hand-authored | `roles/cloudflare_dns/vars/main.yml` → `cloudflare_dns_records` |
+
+Two planes are therefore **doubled**, and while they are, `scripts/check_zone_kogler_si_parity.py`
+(runs in `validate-all.sh`) is what keeps the halves answering the same thing: it diffs the derived
+views against `scripts/testdata/zone_kogler_si_golden.json` — a snapshot of what the hand-authored
+sources answered BEFORE the derivation — and refuses a dropped name, a re-pointed address, a
+`.ts`-only name published in the plain namespace, a consumer answering nothing, or a golden field
+silently dropped from a row. The measured reason it exists: the first derivation dropped `kogler.si`,
+`litellm` and `logs` from the VPS primary because a `when` gate compared `item.name` against a var
+that had resolved to the STRING repr of a list, turning `in` into a substring test — and
+`check_dns_seed_drift.py`, which only understood literal inline `loop:` lists, reported "OK: 43
+records" from the hand-authored era while reading ZERO rows from the derived one. A contract gate and
+the thing it guards can be blind in the same way, at the same time.
+
+⛔ So: do not write that a consumer reads this list until its `loop:` or template actually does. No
+gate catches that sentence; the next NXDOMAIN does.
+
 ---
 
 ## MikroTik Firewall Rules for DNS

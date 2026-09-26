@@ -183,7 +183,7 @@ def build_context(extra: dict | None = None) -> dict:
                 value = env.from_string(raw[key]).render(**base)
             except Exception:  # noqa: BLE001 - unresolved now; the consumer that needs it reports
                 continue
-            base[key] = value
+            base[key] = _native(value)
             pending.discard(key)
             progressed = True
         if not progressed:
@@ -194,6 +194,31 @@ def build_context(extra: dict | None = None) -> dict:
     # one gets "undefined" from the strict environment and reports it, instead of
     # comparing against an empty string that resolved from nothing.
     return base
+
+
+def _native(value: str) -> object:
+    """Round-trip a literal-looking rendered string back to data (Ansible native types).
+
+    Jinja ALWAYS yields a string, so a group_vars view authored as
+    `"{{ zone_kogler_si | selectattr(...) | list }}"` comes back as the TEXT
+    "['llogs.kogler.si', ...]". Left as a string, the seed's per-item gate
+    `item.name not in zone_kogler_si_lan_only` becomes a STRING SUBSTRING test — and
+    `logs.kogler.si` IS a substring of `llogs.kogler.si`, `litellm.kogler.si` of
+    `llitellm.kogler.si`, `kogler.si` of both — so three legitimate records were reported
+    as gated OFF the VPS primary. Ansible hands the consumer a real list, so a checker
+    that does not does not mirror Ansible.
+
+    Only `[`/`{` prefixes are parsed: `yaml.safe_load('no')` is `False` and `'10.10.1.200'`
+    would stop being an address, so a scalar keeps its text (same convention as
+    ``_loop_items``).
+    """
+    text = value.strip()
+    if text[:1] in ("[", "{"):
+        try:
+            return yaml.safe_load(text)
+        except yaml.YAMLError:
+            return value
+    return value
 
 
 def _render_value(value, ctx: dict, env: Environment) -> object:
