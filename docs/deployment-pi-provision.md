@@ -23,7 +23,7 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 > `traefik-ha`. This is the **live HA instance** — the old HAOS box is gone.
 >
 > **Remaining on this host:** the KNX dashboard render check is an owner UI step (§4), the HA metrics
-> scrape stays off until `prometheus_ha_exporter` + the `ha_api` item exist, and the **failover
+> scrape stays off until `alloy_ha_exporter` + the `ha_api` item exist, and the **failover
 > runbook** belongs to HD-04 ([smart-home-failover.md](smart-home-failover.md)).
 > Authentik OIDC on `ha` is **not wanted** (owner decision, HD-310).
 
@@ -33,7 +33,7 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 
 | # | Check | How to verify |
 |---|-------|---------------|
-| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all required items must exist before the run** (fail-loud lookups). `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Alloy HA-exporter scrape token via `prometheus_ha_exporter`; not a HA YAML secret). |
+| 1 | Vault items present | `ha-vrrp_password`, `smtp_login`, `meteoblue_api`, `ha-failover_api` (standby-only) — **all required items must exist before the run** (fail-loud lookups). `ha_api` is **NOT required** for the Pi (it gates the `monitoring` role's Alloy HA-exporter scrape token via `alloy_ha_exporter`; not a HA YAML secret). |
 | 2 | Pi reachable | `ping 10.10.1.20` + `ssh ansible-admin@10.10.1.20 'echo ok'` (SSH via the 1Password SSH agent / `~/.ssh/config`). |
 | 3 | Router static reservations | Pi Home `10.10.1.20` + Mgmt `10.10.99.20` bound (SSOT `network_static_hosts`). |
 | 4 | Oldsrv standby config renders (cold) | `home_servers.yml` on oldsrv already renders `/opt/home-assistant-standby/` (cold; not started). Not a blocker for the Pi. |
@@ -89,7 +89,7 @@ This (re)renders on the Pi:
 - `docker_services` — installs the `docker-compose@.service` unit + brings up
   `home-assistant-primary`, `technitium-secondary`, `traefik-ha` (the HD-185 first-boot guard
   asserts `./config/configuration.yaml`, `./keepalived.conf`, `./secrets.yaml` are regular files).
-- `monitoring` — Alloy only (HA token file gated off until `prometheus_ha_exporter`).
+- `monitoring` — Alloy only (HA token file gated off until `alloy_ha_exporter`).
 
 Expected tail (modeled on the oldsrv/VPS converges): `ok=… changed=… failed=0` with the
 `home-assistant-primary` guard green.
@@ -123,7 +123,7 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
    (already deployed at `/config/knx/`). The entity maps (`knx-entities.yaml`) are already
    active via YAML; the import ONLY adds Group Monitor names + `knx.telegram` destination names
    (HA does NOT auto-create control entities from the import — verified).
-2. **Monitoring scrape:** create the `ha_api` 1Password item and set `prometheus_ha_exporter: true` so
+2. **Monitoring scrape:** create the `ha_api` 1Password item and set `alloy_ha_exporter: true` so
    the Alloy HA exporter has a token (note: `ha_api` is a **monitoring** credential, not a HA YAML secret —
    it must **not** appear in `secrets.yaml.j2`).
 3. **No Authentik OIDC on `ha`** — considered and declined: HA stays local-auth and WAN-independent
@@ -147,7 +147,7 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
   If reordered, Docker auto-creates `config/` etc. as empty dirs and HA silently runs default
   config. The `deploy-service.yml` guard fails loud if that happens (remove the dir + re-run).
 - **`ha_api` is NOT a HA secret** — the monitoring role writes `/etc/prometheus/ha_token` under
-  `prometheus_ha_exporter`; it is absent from the vault pre-gate and correctly excluded from
+  `alloy_ha_exporter`; it is absent from the vault pre-gate and correctly excluded from
   `secrets.yaml.j2`.
 - **KNX addresses are the .knxproj SSOT, not the old maps:** `knx-entities.yaml` is generated from
   the ETS project; the old hand-maps (`docs/assets/references/old-ha/knx-*.yaml`) used stale

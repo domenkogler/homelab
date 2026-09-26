@@ -59,7 +59,7 @@
 > actually render: with the fail-loud rule (no `default('')`), an item consumed by an enabled + live service
 > cannot be missing — so the old `✗` marks on `authentik_login` / `forgejo_api` / `headscale_api` /
 > `signal_api` were wrong (their services are live). `ha_api` is the one genuinely absent item: it is gated
-> behind `prometheus_ha_exporter: false` (`roles/monitoring/tasks/main.yml`) and lands only with HD-14.
+> behind `alloy_ha_exporter: false` (`roles/monitoring/tasks/main.yml`) and lands only with HD-14.
 > **Placeholder-then-swap class:** the catalog seeds a random value so the render can run; the REAL value is
 > minted by the app on first boot and a human overwrites the item (`forgejo_api`, `sonarr_api`,
 > `radarr_api`, `lidarr_api`, `slskd_login`, `soulseek_api`).
@@ -99,7 +99,7 @@
 | `slskd_login` / `soulseek_api` / `privado-vpn_api` | login / api | Phase 3 — slskd + its gluetun sidecar; `privado-vpn_api` is the owner-supplied PrivadoVPN WireGuard client key | ✓ |
 | `ha-vrrp_password` | password → `password` (keepalived VRRP auth) | Phase 3/4 — shared secret of the HA pair | ✓ |
 | **Phase 4 — pi** | | | |
-| `ha_api` | api → `credential` (HA long-lived token) | ⏳ **absent by design** — consumed only by the HA-exporter bearer, gated behind `prometheus_ha_exporter: false`; seed it together with HD-14 | ✗ |
+| `ha_api` | api → `credential` (HA long-lived token) | ⏳ **absent by design** — consumed only by the HA-exporter bearer, gated behind `alloy_ha_exporter: false`; seed it together with HD-14 | ✗ |
 | **spark** | | | |
 | `spark-llm_api` | api → `credential` (vLLM `--api-key` = the engine bearer) | spark phase (`spark-ai`) — the SAME string is sent upstream by BOTH LiteLLM instances as `OPENAI_API_KEY`, so rotation is a coupled window: `scripts/rotate-spark-llm-key.sh` + [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a | ✓ |
 
@@ -447,7 +447,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
   the n8n API leg).
 - ~~Already seeded in Phase 1 (VPS services), not here:~~ `authentik_db`/`authentik_password`/`authentik_login`,
   `opencloud_db`, `immich_db`, `forgejo_db`, `forgejo_api`, `grafana_login`, `headscale_api`, `smtp_login`.
-- `ha_api` is **not** a Phase-3 item: it is gated behind `prometheus_ha_exporter: false` and lands with HD-14.
+- `ha_api` is **not** a Phase-3 item: it is gated behind `alloy_ha_exporter: false` and lands with HD-14.
 
 **Verify:**
 - `docker compose ps` for every service is healthy; `systemctl status docker-compose@<service>`.
@@ -495,7 +495,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 > **Depends on:** Phase 1.5 (VLANs), Phase 2 (NAS NUT master). The Pi is the HA **primary** node;
 > oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).
 > **1Password prerequisites (new this phase):** none — `ha-vrrp_password`, `nut_password` and `smtp_login` are
-> already in from Phase 2/3. (`ha_api` is NOT a Phase-4 item: it is gated behind `prometheus_ha_exporter: false`
+> already in from Phase 2/3. (`ha_api` is NOT a Phase-4 item: it is gated behind `alloy_ha_exporter: false`
 > and arrives with HD-14.) Add `ha-mqtt_login` if/when MQTT is introduced — currently out of scope.
 > **Continuation:** `ha.kogler.si` → VIP becomes live here; observability (Phase 6) scrapes the HA
 > exporter and smart-home work (Phase 7) builds on this node.
@@ -696,7 +696,7 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 
 **Deploy-gated verification (Phase 6):** ✅ the migration itself is **done** — VictoriaMetrics + VictoriaLogs run
 on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the single UI.
-- [ ] **HD-14** — enable the HA Prometheus exporter (seed `ha_api` + flip `prometheus_ha_exporter` + re-enable the
+- [ ] **HD-14** — enable the HA Prometheus exporter (seed `ha_api` + flip `alloy_ha_exporter` + re-enable the
       scrape job **together**, or the converge breaks), then the HA dashboard and Grafana panels. · [smart-home.md](docs/smart-home.md)
 - [ ] **Pi recorder trim** (`purge_keep_days: 2`) + log strategy to protect the Pi SD — planned in
       [observability.md](docs/observability.md) §Log strategy but **has no `todo.md` row** (the old HD-19 lineage);

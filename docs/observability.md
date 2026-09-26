@@ -136,7 +136,7 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 | Backend | **VictoriaMetrics** | Sole metrics store (pure storage/query — Alloy does ALL scraping, topology B) | `db-internal` | 365d (Kopia-backed) |
 | Backend | **VictoriaLogs** | Log aggregation, single-node/SSD | `db-internal` | 90d (Kopia-backed) |
 | Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in VictoriaMetrics |
-| Exporter | **HA exporter** | HA entities → VictoriaMetrics (Alloy scrape, gated `prometheus_ha_exporter`) | `services-internal` | in VictoriaMetrics |
+| Exporter | **HA exporter** | HA entities → VictoriaMetrics (Alloy scrape, gated `alloy_ha_exporter`) | `services-internal` | in VictoriaMetrics |
 | Exporter | **nut_exporter** | UPS status (battery/runtime/voltage/load) → VictoriaMetrics · single instance on **nas** (NUT master) | `services-internal` | in VictoriaMetrics |
 | ~~Exporter~~ | ~~**minio_exporter**~~ | ~~MinIO S3 store~~ — **retired (HD-135): Immich originals = live Hetzner Box (CIFS), not S3/MinIO** | — | — |
 | UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |

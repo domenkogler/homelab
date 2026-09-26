@@ -330,9 +330,11 @@ prometheus.scrape "zfs_exporter" {
 }
 
 // ---- HA exporter (edge HA /api/prometheus). GATED until Phase 4 ----
-// (prometheus_ha_exporter, Wave-2 triage 2026-08-22): no HA behind ha_vip + no token
-// file pre-cutover. Flip the var at HD-04 with the HA token + compose mount.
-{% if prometheus_ha_exporter | default(false) %}
+// (alloy_ha_exporter, Wave-2 triage 2026-08-22): no HA behind ha_vip + no token
+// file pre-cutover. Flip the var at HD-04 with the HA token + compose mount — the mount is
+// NOT optional: `docker inspect alloy` on 2026-09-26 shows no mount for this path, so a
+// flipped gate without it renders a job that cannot read its own bearer token.
+{% if alloy_ha_exporter | default(false) %}
 prometheus.scrape "ha_exporter" {
     targets = [{
         "__address__" = "{{ ha_vip }}:8123",

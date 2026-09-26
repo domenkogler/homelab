@@ -226,10 +226,15 @@ homepage_show_technical: true
 homepage_show_soon: true
 
 # HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the Phase-4 HA
-# cutover (HD-04). Today nothing can populate /etc/prometheus/ha_token (no vault item, no
+# cutover (HD-04). Today nothing can populate the bearer-token file (no vault item, no
 # monitoring render) and ha_vip serves no HA yet - a live job would just fail. Flip true at
-# HD-04 with the HA long-lived-token item seeded.
-prometheus_ha_exporter: false
+# HD-04 with the HA long-lived-token item seeded, the Alloy compose mount added, and the
+# token path renamed off the retired product name — measured 2026-09-26 on the VPS: Alloy
+# has NO mount for the path this block would read, so enabling the gate alone yields a
+# scrape that cannot see its own token (see the same-change rule in roles/monitoring/tasks).
+# The gate is named for what it gates (Alloy's ha_exporter job), not for the retired
+# backend. HA's endpoint really is /api/prometheus, so THAT name stays.
+alloy_ha_exporter: false
 
 # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)
 # is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale

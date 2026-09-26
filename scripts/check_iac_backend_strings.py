@@ -15,7 +15,7 @@ regex (`backend` / `scraped by` / `lives on`) catches two and misses the other t
 (`prometheus/loki fall back to 127.0.0.1`, `forwards telemetry to the VPS
 Prometheus/Loki`) — a documented 50 % recall is not a gate. A permissive regex with
 an allowlist is worse: most of these mentions are legitimate today (the Alloy
-`prometheus.scrape` module, the `prometheus_ha_exporter` var, the retired-pin notes,
+`prometheus.scrape` module, the `alloy_ha_exporter` var, the retired-pin notes,
 the paragraph explaining what replaced what), so a naked grep prints mostly noise and
 gets muted inside a week — the failure mode HD-417 names.
 
@@ -54,11 +54,11 @@ MENTION = re.compile(r"prometheus|loki", re.I)
 # Set by HD-404 (2026-09-25) at the post-sweep count. Measured on BOTH sides of the
 # change: 28 mentions before, 28 after — the six HD-404 fixes rewrote wording that
 # already named Victoria in the same line or kept the name deliberately (the
-# `prometheus_ha_exporter` var, the Alloy `prometheus.scrape` module, the retired-pin
+# `alloy_ha_exporter` var, the Alloy `prometheus.scrape` module, the retired-pin
 # notes in versions.yml, the paragraph explaining what replaced what). So this floor
 # is not a victory count, it is a ratchet that keeps 28 from becoming 29; removing a
 # mention is welcome — lower the floor in the same commit and say why.
-FLOOR = 28
+FLOOR = 27
 
 
 def count(root: Path) -> tuple[int, list[str]]:
