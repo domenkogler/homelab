@@ -43,6 +43,37 @@ tags: [services, matrix, chat, messaging]
 > that has no owning service — which HD-436's derivation cannot synthesize, because there is no service entry to
 > derive from. The cheaper shape (and the one that needs no new router) is to state that `matrix.kogler.si` is the
 > **only** client host and point every onboarding line and every app at it.
+> 🧪 **Step 0 ran 2026-09-26 and it killed the discovery theory:** typing `matrix.kogler.si`
+> into the phone produced the **same** `M_UNRECOGNISED: not found`. The server-side probe that
+> followed ruled out, each by measurement rather than by elimination-on-a-forum: **routing**
+> (the `matrix` router is `Host(matrix.kogler.si)` with no path constraint, and
+> `/_tuwunel/oidc/jwks` returns real ES256 keys); **simplified sliding sync** — `POST
+> /_matrix/client/unstable/org.matrix.simplified_msc3575/sync` → 401 `M_MISSING_TOKEN`, i.e.
+> present (⚠ `/_matrix/simplified/v3/*` 404s and proves nothing: that is superseded MSC4108
+> path naming, Tuwunel serves the MSC4186 `simplified_msc3575` paths — a probe against the old
+> path will mislead whoever runs it next); **legacy `/sync`** (401, present — which is why
+> Element Web keeps working); **the login flows** (`m.login.password` and `m.login.sso` with
+> the Authentik IdP both advertised); and **the native Matrix 2.0 auth surface**
+> (`POST /_tuwunel/oidc/native` → 415 "Form requests must have `application/x-www-form-urlencoded`"
+> — the endpoint is live, it just wants a form post). The name and well-known layer was never
+> the bug. ⛔ So do **not** publish anything on `chat.`, and do **not** hand-author
+> `org.matrix.msc2965.authentication` into the client well-known: the whole host routes to
+> Tuwunel, so the terse `{"m.homeserver":…}` body is **the server's own output**, and forking
+> the homeserver's identity data into IaC to imitate a spec member is how a second source of
+> truth gets born.
+> 🎯 **Closest upstream match:** tuwunel #505, "Native OIDC login breaks in two places: 405 on
+> `/_complete` and a redirect Chrome refuses to follow". The shape reproduces here on
+> `jevolk/tuwunel:v1.9.0`: `POST /_tuwunel/oidc/_complete` → **405**, i.e. the endpoint only
+> accepts GET, so a native flow that POSTs into it dies at the last hop — which is precisely
+> "web works, native app does not".
+> 🔬 **What would settle it, and why it is still unmeasured:** the *path* the app actually
+> hits. Traefik runs here with **no `accesslog`** — its static config is the CLI flag list on
+> the `traefik` service in `templates/docker_services/traefik/docker-compose.yml.j2` (the same
+> place `--entryPoints…` lives), Tuwunel logs nothing at default level, and the image has no
+> shell to inspect — so nothing anywhere records the request. Either
+> add `--accesslog=true` for one capture (⚠ it writes client IPs and user agents: choose the
+> retention before it ships, it is not a repo default) or read the app's own log/bug-report
+> export. Until one of those exists, #505 is the leading hypothesis, **not** a finding.
 > ⏳ **Inbound federation is NOT PROVEN.** A reachable delegation is not delivery: nothing has ever
 > been delivered here by a foreign homeserver. The one read that proves it is an **external-room join**
 > by the owner (or `curl` from a foreign server) — until it lands, treat federation as unproven.
