@@ -367,8 +367,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
       exactly `cockpit-session sudo`, hash byte-matching `nas-cockpit_login`, `cockpit-session` now the PAM
       gate, converge asserts `GET /cockpit/login` → 200 with the vault password.
 - [ ] **HD-361** — same converge on **oldsrv** (`--limit oldsrv.kogler.si --tags cockpit`), which also lands
-      its `cockpit.yml` routes. Blocked on the box: [hardware-oldsrv.md](docs/hardware-oldsrv.md)
-      §Reachability & wake. Then a browser login on each host (the authenticated pane, not the login probe, is
+      its `cockpit.yml` routes (runnable — the box answers again 2026-09-27). Then a browser login on each host (the authenticated pane, not the login probe, is
       what exercises cockpit's Origin check). · [hardware-nas.md](docs/hardware-nas.md)
 - [ ] **HD-191** — oldsrv Kopia agent is Up with snapshots in the repo; the open tail is the **restore drill from a
       snapshot** (+ volume-name pin verified at restore). · [backup.md](docs/backup.md)

@@ -331,8 +331,8 @@ nameserver is its own address-scoped decision. What the Pi does serve there is H
 node-direct shape as oldsrv's, which is what makes HA survivable when either home box dies.
 
 ⚠ **The edge survives either box; the ANSWER does not yet.** MagicDNS answers `ha.ts.kogler.si` with
-**oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), so while oldsrv is L2-dead (HD-455) the away path that
-works is `pi.ts.kogler.si`. Publishing both addresses is HD-436's `tailnet: dual` step.
+**oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), so when that node is not answering (it was powered off,
+not lost, for four days to 2026-09-27) the away path that still works is `pi.ts.kogler.si`. Publishing both addresses is HD-436's `tailnet: dual` step.
 
 `tailscale_node_expected_ip` (host_vars) is the **per-host** address the join guard compares the assignment
 against — its default is `""`, which reads as "not yet asserted", not as "wrong".

@@ -256,13 +256,22 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
   2026-09-24). That listener is oldsrv's own tailnet address — `{{ tailnet_oldsrv_ip }}:443`, never
   `0.0.0.0` — so the chain is: MagicDNS record (headscale `tailnet_ts_only_subdomains`) → tailnet ACL
   (`tag:dev:443`) → oldsrv's node → this router → Home VLAN → nas:9090. One backend, two doors.
-  ⚠ **Read the first hop as a requirement, not a fact (HD-465):** `cockpit-nas` is in neither
-  `tailnet_subdomains` nor `tailnet_ts_only_subdomains`, and MagicDNS answers only what those lists publish — so
-  today this router exists and its name does not. The two hops after it also hang off oldsrv, which is L2-dead
-  (HD-455), and `ha` / `pi-oldsrv` in that list share that fate.
-  ⚠ **This path dies with oldsrv**, and so did the LAN route before it: `cockpit.yml` is rendered onto
-  *oldsrv*, so when that box left the network on 2026-09-23 21:39:55 the healthy nas lost its console
-  route as well. Decoupling = the VPS `traefik-tailnet` edge + a new nftables allow for VPS→nas:9090
+  ✅ **The first hop is a fact, not a requirement (HD-465):** `cockpit-nas` sits in
+  `tailnet_ts_only_subdomains` (since `97d9fbf`) and the live headscale config carries the record — the earlier
+  claim that the name was never published read a stale copy of that list. ⛔ It belongs in that list and **not**
+  in `tailnet_subdomains`, which renders BOTH namespaces (the HD-382/389 ambiguity trap).
+  **Placement decided 2026-09-27 (owner):** the Cockpit surfaces stay pinned to **oldsrv's** node; the deciding
+  fact was the type of the 2026-09-23 outage — a human poweroff at the chassis button, not a lost leg
+  ([hardware-oldsrv.md](hardware-oldsrv.md) §Remote Management) — so the record stays rather than being
+  re-pointed at the Pi. Accepted cost: one node behind both doors.
+  ⚠ **A published name and an `online` node are still not a route (measured 2026-09-27):** oldsrv's deployed
+  `/opt/traefik/dynamic/cockpit.yml` is the **2026-09-03** render and carries only the two LAN `Host()` rules, so
+  `Host: cockpit-nas.ts.kogler.si` against the tailnet listener answers **404** while headscale publishes that
+  name and reports the node `online`. The `cockpit-nas-ts` router authored on 2026-09-24 exists in the role
+  template and has never been deployed — the box was offline through every converge that would have rendered it.
+  ⚠ **This path dies with oldsrv**, and so does the LAN route: `cockpit.yml` is rendered onto *oldsrv*, so a
+  down oldsrv costs the healthy nas its console route too — normal behaviour here, not a nas fault.
+  Decoupling = the VPS `traefik-tailnet` edge + a new nftables allow for VPS→nas:9090
   (measured blocked: route present, :22 allowed, :9090 not) — the nas runs no edge of its own by design.
 - **Deliberately NO Authentik Forward-Auth**: Cockpit is a management surface with its
   own login and must stay reachable if Authentik is down. Internal-only (no public DNS
@@ -279,7 +288,7 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
   so these converges run from the laptop, never oldsrv-converging-itself.
   ✅ **Landed and console-verified on nas 2026-09-24** — `roles/cockpit/tasks/maint-user.yml` provisions
   `maint`, and the converge itself asserts `GET /cockpit/login` → 200 with the vault password.
-  ⏳ oldsrv pending its box coming back. The finding that mattered is in [security.md](security.md):
+  ⏳ oldsrv: the box answers again (2026-09-27) — what is missing is the converge itself. The finding that mattered is in [security.md](security.md):
   Debian ships `/etc/pam.d/cockpit` with **no group restriction at all**, so the `cockpit-session` group
   was never the gate these docs claimed it was — the role now writes the `pam_succeed_if` rule that makes
   it one.

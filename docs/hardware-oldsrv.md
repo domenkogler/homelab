@@ -149,60 +149,27 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Remote Management
 
-**GL.iNet Comet KVM (GL-RM1):**
-- Connects to motherboard iGPU HDMI
-- PoE-powered from CRS328 switch
-- BIOS-level control, remote power/reset, virtual ISO mounting
-- OS-independent (works if Debian crashes)
+**There is none.** The board (ASRock Z270 Extreme4) carries no BMC/IPMI, and the **GL.iNet Comet KVM
+(GL-RM1)** this section long listed as installed hardware **was never bought** — it is a line in the costed
+shopping list (`brainstorming/Stroškovnik za novi strežnik.md`), and the owner confirmed on 2026-09-27 that no
+such device exists on site. The section was reading a wish as an inventory item, which is why four lanes spent
+2026-09-24 waiting to be let into a machine that had only been switched off. No address, network, account or
+off-site check can be recorded for it, because there is nothing to record.
 
-### Reachability & wake (measured 2026-09-24)
+The power paths that exist are therefore exactly two: the **chassis button**, and **a human at home**.
 
-**Off the network since 2026-09-23 21:39:55 local.** Four independent observations agree, and the
-point of listing them is that the first one people reach for does NOT prove it:
-
-- headscale (authoritative, ACL-blind): node id 11 `oldsrv`, `Connected: offline`,
-  last seen `2026-09-23 19:39:55` **UTC** = 21:39:55 local — the same second as the nas `rpc.mountd`
-  `v4.2 client detached` lease release for that NFS client (the address is the SSOT's, not this doc's).
-  Two control planes, one timestamp.
-- `ip neigh show <oldsrv Home IP>` on the nas: `INCOMPLETE`; the MAC above is absent from the
-  neighbour table entirely, and a sweep of the usual alternate addresses finds nothing → it is not a
-  DHCP re-assign, it is L2-dead.
-- `tailscale ping <oldsrv tailnet IP>` from the VPS sidecar answers `no matching peer`, which proves
-  **nothing** about this box: the sidecar is ACL-scoped away from `tag:dev` by design. Do not record
-  that output as evidence of a dead host again.
-
-**To bring it back, in increasing order of cost:**
-1. `wakeonlan` from the nas (same L2, binary present, `ansible-admin` has NOPASSWD sudo):
-   `sudo wakeonlan 70:85:C2:2D:6F:04`. Needs standby power, and it is a power action → §5.9 human gate.
-2. The Comet KVM above: BIOS-level power/reset, so a *hung* box is reachable from anywhere without a
-   hand on the button. This is the path when (1) is refused by silence.
-   **Attempted 2026-09-24, and it was:** three magic-packet shapes (default broadcast, subnet broadcast,
-   port 9) sent twice from the nas on the same L2 as the target, with no ARP entry for the MAC afterwards
-   and no answer on the Home IP. Silence after that pattern means "no standby power or the wake path is
-   not armed", not "wrong packet" — so do not re-litigate the packet shape; go to the KVM.
-   ⚠ **The KVM is documented as a capability and not as an access path**: this file names the model and
-   what it can do, but records no address, no network (VLAN 10 / VLAN 99 / tailnet?), no account, and no
-   reachability check from off-site. Until that is written down, "use the KVM" cannot be executed by a
-   session or by the owner from a phone — tracked as **HD-454**, which also asks whether a device that can
-   hard-power a production host belongs on a user VLAN un-gated. ⚠ **The conditional that decides whether
-   "from anywhere" is even true:** if the Comet sits on VLAN 99, then **HD-398 decision A seals it to
-   same-site** and there is no off-site path to the reset button at all, so a hung oldsrv waits for a human
-   at home; if it is on VLAN 10 or a tailnet node, the seal does not apply and the gap is only that nobody
-   wrote the path down. HD-454 must measure which, not assume either — the answer is a one-line `ip neigh`
-   / ARP lookup against the KVM's address.
-3. HD-06's `nut-wake.timer` is NOT a rescue path: it arms only after a NUT-initiated powerdown and
-   recharge, so it cannot wake an unscheduled drop.
-
-**Registered as HD-455** (P1) — a measured fault with an owning doc but no backlog row is invisible to every
-lane, and the tail behind this box is long: the home edge, `cockpit-oldsrv`, the nas cockpit's tailnet name
-(rendered onto oldsrv by the cockpit role), the control node, the pinned-AI tier, HD-442, HD-443's oldsrv
-placements and the HD-419-class 502s all wait here. **The wake path is spent** (2026-09-24, above), so what
-recovery needs is not another packet but the answer HD-454 owes: an executable off-site power path, or an
-explicit decision that a hung oldsrv waits for a human at home.
-
-**Consequence for the fleet:** a down oldsrv takes the home edge with it — including the nas's own
-Cockpit route, because `/opt/traefik/dynamic/cockpit.yml` is rendered onto oldsrv by the cockpit role.
-A healthy nas with a dead console is normal behaviour here, not a nas fault.
+> **What is durable about power here, and what is not:** a short press of the chassis power button is wired to
+> a clean `systemd-logind` poweroff, so a silent oldsrv is a **power state first and a fault second** — read
+> `journalctl --list-boots` (a gap between boots is not a lost box) before diagnosing anything. A four-day
+> `L2-dead` reading (2026-09-23 21:39:55 → 2026-09-27 22:11) cost the fleet its home edge and was a button.
+> **WoL is unproven, not spent:** `enp0s31f6` reads `Supports Wake-on: pumbg` / `Wake-on: g`, so the 2026-09-24
+> silence was measured against a box with no standby power, not against an unarmed NIC — one re-test at a planned
+> power-off settles it. Whether to buy a real out-of-band path, and where such a device may sit (VLAN 99 is
+> sealed same-site by HD-398 A), is an owner call: [../todo.md](../todo.md) **HD-454**.
+> What does outlive any single outage is the topology: a down
+> oldsrv takes the home edge with it, including the nas's own Cockpit route, because
+> `/opt/traefik/dynamic/cockpit.yml` is rendered onto oldsrv by the cockpit role
+> ([services-traefik.md](services-traefik.md) §Cockpit Routes).
 
 
 ---

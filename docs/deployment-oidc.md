@@ -154,8 +154,8 @@ service swallows the mobile `app.immich:///oauth-callback` redirect.
 `GET /api/server/config` → `oauthButtonText="Prijava z SSO"`. **The remaining acceptance is the human one**
 — the button in a browser and the first `domen` OIDC login (deployment-manual.md §1.6b), which this doc
 cannot prove from the API side. ⚠ Still open on this service: `immich_version` is ONE pin for TWO images
-(server on the VPS, `immich-machine-learning` on oldsrv), and the pair sits SPLIT 3.2.2 / 3.1.0 while
-oldsrv is off the network (HD-455).
+(server on the VPS, `immich-machine-learning` on oldsrv), and the pair sits SPLIT 3.2.2 / 3.1.0 — the ML leg can
+be converged now that its host answers again (2026-09-27).
 
 ### Forgejo / Metabase native-OIDC notes (HD-148)
 - **Forgejo** (`git.`): callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; keep

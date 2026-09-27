@@ -208,11 +208,11 @@ The forward takeover (Pi → oldsrv) has been **drilled live**: Pi LAN cable pul
   `ha`/`ha-ts` target the VIP, so after a takeover a tailnet client keeps reaching HA whichever box owns it —
   each home box runs its own `websecure-ts` listener + `ha-ts` router (the Pi's measured end to end
   2026-09-25). That is the whole point of the second listener: with only oldsrv carrying one, a tailnet
-  client lost HA whenever the node-carrying box was down (HD-455 had oldsrv L2-dead while the healthy Pi
-  answered VIP:8123 locally).
+  client lost HA whenever the node-carrying box was down (the 2026-09-23→27 outage had oldsrv powered off while
+  the healthy Pi answered VIP:8123 locally).
   ⚠ **What is left is DNS, not the edge:** MagicDNS (the loopback resolver in
   [network-dns.md](network-dns.md)) answers `ha.ts.kogler.si` with **one node address only** — oldsrv's,
-  SSOT `tailnet_oldsrv_ip` — so when that is the dead box an away client gets a dead answer for the
+  SSOT `tailnet_oldsrv_ip` — so when that node is not answering, an away client gets a dead answer for the
   `ha`-shaped names and must reach HA as `pi.ts.kogler.si`. The dual-A publish is the `zone_kogler_si`
   `tailnet: dual` step in **HD-436** — deliberately NOT a bolt-on to `tailnet_subdomains`, which would
   answer the PLAIN `ha.kogler.si` client-side for a phone standing at home (HD-382/389). Reasons:

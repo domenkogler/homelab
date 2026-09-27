@@ -384,9 +384,10 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
   "keeping" it means keeping the service + the model (`bge-m3` re-verified at dim 1024 after the blob
   cleanup). Re-pointing a consumer to either leg is HD-384 work.
 - **`bootstrap_keys` stays `false` on the LAN instance** (HD-386 → HD-384): it was forced by the empty spec
-  list (the glue fail-louds on one). A consumer record now exists, so what holds the flip is only that the
-  minting host — oldsrv — is unreachable, and an unverifiable glue failure would red the recovery converge
-  that box still owes (HD-455/HD-445). It is the first thing to flip when the box answers.
+  list (the glue fail-louds on one). A consumer record now exists, so what holds the flip is only that an
+  unverifiable glue failure would red the converge the minting host owes (HD-445). ⚠ HD-442's stale rendered
+  `op/provision-token` is the credential to land first: a glue pass that cannot write is exactly the red that
+  would eat the converge.
 - **Two traps:** a `--check --diff` on a LiteLLM converge renders **live keys into the log**; and a green
   **scoped** converge (`-e docker_services_scope=… --tags docker_services`) can **skip** the named service
   and still print `failed=0` — prove a deploy with `docker inspect` / the rendered file, never the RECAP.
