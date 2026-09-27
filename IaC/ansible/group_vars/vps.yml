@@ -204,8 +204,17 @@ litellm_scoped_keys:
   # dsh + pi-harness MOVED to the LAN instance 2026-09-15 (HD-356/HD-370, owner go):
   # dsh/pi-dev re-pointed at lan-litellm (oldsrv), so their scoped keys live in the
   # LAN DB — the records now render from group_vars/home_servers.yml (its own
-  # `litellm_scoped_keys`). The old VPS-DB alias keys for dsh/pi-harness were
-  # deleted server-side (glue rc-4 ABORT guard: alias exists + vault cleared).
+  # `litellm_scoped_keys`). ⚠ Until 2026-09-28 these lines claimed the old VPS-DB alias keys
+  # for dsh/pi-harness "were deleted server-side". THEY HAD NOT BEEN: `/key/list` + `/key/info`
+  # on the VPS instance showed alias `dsh` AND alias `pi-harness` still present (both created
+  # 2026-09-15, both `last_used=None`). `dsh` is now genuinely deleted (HD-383: 9 keys → 8,
+  # re-listed to confirm); `pi-harness` is deliberately left — its vault item still holds a
+  # value, so it is a parked key of a parked consumer (HD-386), not an orphan. The rc-4 ABORT
+  # guard this note cited is real, and it is exactly why a cleared/DELETED vault item must never
+  # share the spec list with a live alias: the glue would mint, LiteLLM would refuse the
+  # duplicate alias, and the converge would go red for a key nobody consumes.
+  # ⚠ Endpoint shape on the pin (v1.83.10): `POST /key/delete` wants `{"keys":[…]}` or
+  # `{"key_aliases":[…]}` — the singular `key` is a 422, and `/key/info` 404s without `?key=`.
   - { alias: openclaw-litellm, vault_item: openclaw-litellm_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # NOT openclaw_api — that name is TAKEN by the OpenClaw OIDC client (secret-egress glue PROVIDERS)
   - { alias: rag-int-svc, vault_item: rag-int-svc_api, models: "ollama/bge-m3,ollama/bge-reranker-v2-m3", max_budget: "5", budget_duration: "30d" }  # decision #24 (2026-09-15): Cohere retired → local bge-m3/bge-reranker on oldsrv RX 7600 (Ollama :rocm) — ⚠ same stale-names caveat as owui-public-rag above (decision #27 / HD-391)
 

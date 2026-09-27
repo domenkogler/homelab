@@ -394,7 +394,11 @@ litellm_scoped_keys:
   # used to trip rc2 is gone at the source rather than merely cleared — and enabling the
   # parked `dsh` service would now fail at the vault lookup, not just at an empty field.
   # `pi-harness_openai_api` still holds its value and is NOT remediated.
-  # The LAN-gateway orphan (alias `dsh`) still needs deleting server-side on oldsrv.
+  # ✅ DONE 2026-09-28 (HD-383): the orphan alias `dsh` was deleted server-side — but on the
+  # VPS instance, not here. The LAN DB has two keys: `home-assistant` (minted by the flip
+  # below) and `pi.dev laptop` (hand-created 2026-09-17, a live consumer — do not delete it).
+  # The row's "LAN Admin UI" location was wrong; the value it described was a VPS-DB-era
+  # bearer because the KEY lived in the VPS DB the whole time.
   # The list being EMPTY is what forced `bootstrap_keys: false` on lan-litellm
   # above until 2026-09-27; the consumer record (HD-384) and the reachable host (HD-455
   # cleared) are both in place, so the flag is on and this list is its spec.

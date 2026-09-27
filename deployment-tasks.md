@@ -366,9 +366,8 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
       `roles/cockpit` (`--tags cockpit`, from the laptop — `cockpit` is in the HD-413 lockout set), groups
       exactly `cockpit-session sudo`, hash byte-matching `nas-cockpit_login`, `cockpit-session` now the PAM
       gate, converge asserts `GET /cockpit/login` → 200 with the vault password.
-- [ ] **HD-361** — same converge on **oldsrv** (`--limit oldsrv.kogler.si --tags cockpit`), which also lands
-      its `cockpit.yml` routes (runnable — the box answers again 2026-09-27). Then a browser login on each host (the authenticated pane, not the login probe, is
-      what exercises cockpit's Origin check). · [hardware-nas.md](docs/hardware-nas.md)
+- [x] **HD-361** — oldsrv cockpit converge DONE 2026-09-28: `--limit oldsrv.kogler.si --tags cockpit` → `ok=50 changed=6 failed=0`; `maint` read back as exactly `maint sudo cockpit-session`, the gate line at `/etc/pam.d/cockpit:3` ahead of `substack common-auth` at :5, installed hash == vault value, and the converge's OWN acceptance probe (`GET /cockpit/login` + Basic auth) answered **200**. It also landed the rendered `cockpit.yml` — which is where the surprise is, see the open line below. · [hardware-nas.md](docs/hardware-nas.md)
+- [ ] **HD-361** — a browser login on each cockpit host (the authenticated pane, not the login probe, is what exercises cockpit's Origin check on the WebSocket handshake). For the tailnet names this is blocked on IA, not on a human: `roles/cockpit` renders `/opt/traefik/dynamic/cockpit.yml`, which NO Traefik on oldsrv watches — its edge `traefik-internal` watches `/opt/traefik-internal/dynamic` and holds zero cockpit routes — measured HTTP/2 **404** for `cockpit-oldsrv.kogler.si` and `cockpit-nas.ts.kogler.si` at BOTH the tailnet listener and the LAN entrypoint, right after that green converge. Fix the render destination first. · [services-traefik.md](docs/services-traefik.md)
 - [ ] **HD-191** — oldsrv Kopia agent is Up with snapshots in the repo; the open tail is the **restore drill from a
       snapshot** (+ volume-name pin verified at restore). · [backup.md](docs/backup.md)
       Box + `/tank/data/users/<name>`, media → `bulk/media/*`), then destroy the landing zone. · [hardware-nas.md](docs/hardware-nas.md)
@@ -633,8 +632,8 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. · [hardware-spark.md](docs/hardware-spark.md)
       template instead of hand-kept files. · [services-ai.md](docs/services-ai.md)
-- [ ] **HD-383 / HD-384** — parked LAN-LiteLLM bootstrap-keys glue (parked by HD-386) and the gateway grant for
-      `spark/*` to the simple-querier tier. · [services-ai.md](docs/services-ai.md)
+- [x] **HD-383 / HD-384** — LAN-LiteLLM bootstrap-keys glue UNPARKED and the first LAN key minted, 2026-09-28: `bootstrap_keys: true` on `lan-litellm` + the `docker_services` converge, the glue ran inside that service's pass and exited 0, minting `home-assistant_api`, which answers `GET /v1/models` with **exactly** `['spark/qwen3.8-flash-next']` (the decided ROW-only grant, `rpm: 30`, no wildcard). HD-383's server-side act also landed: the orphan alias `dsh` was found on the **VPS** DB (never in the LAN DB) and deleted — 9 keys → 8, re-listed to confirm. · [services-ai.md](docs/services-ai.md)
+- [ ] **HD-384** — the three halves minting cannot do: the OWUI grant needs `/key/update` (the glue is create-only, so live keys keep their old allow-list), the docling key lands WITH its wiring (HD-402/HD-421), and the `llm` router still triple-uses `spark-llm_api`. Plus HD-383's sibling residue: alias `pi-harness` still stands on the VPS while `pi-harness_openai_api` still holds a value. · [services-ai.md](docs/services-ai.md)
       deleting them (decision #26 routes harnesses straight to the engine). · [services-ai.md](docs/services-ai.md)
 - [ ] **[MANUAL, owner]** the human-only surface of a headless GB10: the DGX OS first-boot wizard needs a person at
       a display + keyboard (that is where `spark_login` is set), and there is **no out-of-band console** afterwards —
