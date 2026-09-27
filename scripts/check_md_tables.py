@@ -97,7 +97,20 @@ def tables(lines: list[str]):
             while j < n and lines[j].lstrip().startswith("|"):
                 body.append((j + 1, lines[j]))
                 j += 1
-            yield i + 1, ncells(header), ncells(lines[i + 1]), body
+            # HD-417's own blind spot, found 2026-09-27. The body run above stops at the first
+            # line that does not start with `|` — so a row that was SOFT-WRAPPED across lines
+            # ends the table as far as this scanner is concerned, and every row below it stops
+            # being checked while the gate prints GREEN. Measured cost: one wrapped row in
+            # todo-table.md hid a wide row four rows beneath it for the whole life of both; it
+            # only surfaced when an unrelated row deletion moved the boundary. So collect the
+            # lines that broke the run: if any of them ENDS with `|`, the table did not really
+            # end — a row was wrapped — and that is reported instead of being silently skipped.
+            tail: list[tuple[int, str]] = []
+            k = j
+            while k < n and lines[k].strip() and not lines[k].lstrip().startswith("|"):
+                tail.append((k + 1, lines[k]))
+                k += 1
+            yield i + 1, ncells(header), ncells(lines[i + 1]), body, tail
             i = j
         else:
             i += 1
@@ -123,7 +136,7 @@ def scan(files: list[str], root: Path) -> list[str]:
             lines = p.read_text(encoding="utf-8").split("\n")
         except (UnicodeDecodeError, OSError):
             continue
-        for hline, hcells, scells, body in tables(lines):
+        for hline, hcells, scells, body, tail in tables(lines):
             if scells != hcells:
                 findings.append(f"{rel}:{hline + 1}: separator row has {scells} cells, "
                                 f"header has {hcells} — the table is half-written")
@@ -134,6 +147,13 @@ def scan(files: list[str], root: Path) -> list[str]:
                     findings.append(
                         f"{rel}:{lineno}: row has {c} cells, header (line {hline}) has {hcells} — "
                         f"escape the stray pipe(s) as \\| or the newline was swallowed: {snippet}")
+            for lineno, line in tail:
+                if line.rstrip().endswith("|"):
+                    findings.append(
+                        f"{rel}:{lineno}: a table row is WRAPPED across lines here. That ends the "
+                        f"table for this scanner, which silently UN-CHECKS every row below it — "
+                        f"join the row back onto one line: {line.strip()[:100]}")
+                    break
     return findings
 
 
@@ -172,9 +192,16 @@ FIXTURE = """\
 | Bad | Sep |
 |-----|
 | a | b |
+
+| W1 | W2 |
+|----|----|
+| ok | row |
+| wrapped | this row was soft-
+wrapped onto a second line |
+| hidden | this row is below the wrap and would otherwise go UNCHECKED | extra |
 """
 
-EXPECTED = 3  # `a|b` row, the swallowed-newline row, the short separator row
+EXPECTED = 4  # `a|b` row, the swallowed-newline row, the short separator row, the WRAPPED row
 
 
 def self_test() -> int:
@@ -190,6 +217,9 @@ def self_test() -> int:
         joined = "\n".join(got)
         if "stray" not in joined and "extra" not in joined:
             failures.append("the escaped-pipe fixture row was not caught")
+        if "WRAPPED" not in joined:
+            failures.append("the soft-wrapped fixture row was not reported — without it, a wrapped row "
+                            "still ends the table and silently un-checks the rows below it")
         clean = "| A | B | C |\n|---|---|---|\n| `a\\|b` | ok | `c\\|d` |\n| fewer | cells |\n"
         (root / "clean.md").write_text(clean, encoding="utf-8")
         if scan(["clean.md"], root):

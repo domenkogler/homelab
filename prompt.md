@@ -23,8 +23,7 @@ Take the rows in this order:
 - **HD-436 — `zone_kogler_si`: one derived list replacing the four places the namespace is maintained today**
   (Technitium seed, headscale's two subdomain lists, the public Cloudflare set, an unversioned workstation hosts
   file). **Step 0 is merged** — `guarded-converge.sh` now samples liveness across six probes instead of glancing
-  at `Running`, so a bad render can no longer sit down on the control plane unseen. **Step 1 = derive the list
-  with a provably empty diff**, and nothing else may move in that change. **Step 2 = the `extra_records_path`
+  at `Running`, so a bad render can no longer sit down on the control plane unseen. **Step 1 (seed consumer) is DONE on the branch since 2026-09-27**: the derived list answers exactly what the hand-authored seed answered (primary 35/35, both home instances 43/43, both headscale planes match), `scripts/check_dns_seed_drift.py` was rewritten in the same change to RESOLVE the derived loop instead of parsing a literal one, a parity gate (`check_zone_kogler_si_parity.py`) is wired into `validate-all`, and Ansible's own evaluation of the derived vars is proven read-only on the VPS. **What is left of step 1 is switching the two consumers that still hand-author their own lists** — headscale/traefik via `vps.yml`'s `tailnet_subdomains` / `tailnet_ts_only_subdomains`, and Cloudflare via `roles/cloudflare_dns/vars/main.yml` — which re-renders live edge routing, so it is not a midnight change. **Step 2 = the `extra_records_path`
   swap, and HD-435's dual-A publish rides that same converge.** Drift table + the answer-plane decisions: [network-dns.md](docs/network-dns.md) §The answer-plane model.
 - **HD-435 — the Pi is a tailnet node; the transport now survives either home box, the ANSWER does not.** Joined
   and measured 2026-09-25: `traefik-ha` answers `pi.ts.kogler.si` → 200 over a **direct** session from a real
@@ -123,18 +122,18 @@ ships a stock `litellm` conversation integration (ha-core PR #172960, merged 202
 it takes **any LiteLLM proxy URL + an optional virtual key** and discovers models from `/v1/models`, so voice needs
 no vendored component, no HA bump and no relaxing decision #24. Voice is work again, gated only on `oldsrv` — see
 [docs/smart-home-voice.md](docs/smart-home-voice.md) §the LLM leg.
-**What the next session carries, in order:** **(1)** the transport thread's hinge is still **HD-436**, and its
-step 1 sits unmerged on `session/hd436-zone-derived-wip` — it is finished by rewriting
-`scripts/check_dns_seed_drift.py` in the SAME change (that checker finds the seed task by name and parses its
-`loop:` rows, so deriving the loop makes it exit 1 instead of silently checking nothing); **(2)** **HD-47** still
+**What the next session carries, in order:** **(1)** the transport thread's hinge is still **HD-436**: its step 1 sits unmerged on
+`session/hd436-zone-derived-wip`, **green now** (checker rewritten to resolve the derived loop, parity gate
+wired into `validate-all`, the derived vars proven native in Ansible itself); what remains is switching the two
+consumers that still hand-author their lists, which re-renders live edge routing; **(2)** **HD-47** still
 needs one external-room join from an account on another homeserver — the phone now has a working client, so the
-owner can do it directly; **(3)** **HD-452**'s postgres half, **HD-460**'s IPv6 publish and **HD-435**'s
-reciprocal drill still wait on a VPS converge, the `::` bind, and oldsrv; **(4)** **HD-461** is parked on
+owner can do it directly; **(3)** **HD-460**'s IPv6 publish is NOT a flag away (measured 2026-09-27: the edge netns has
+no global IPv6 address at all, so it waits on an edge-networking decision rather than `--port`/publish work),
+and **HD-435**'s reciprocal drill waits on oldsrv; **(4)** **HD-461** is parked on
 reachability, not on you. ⚠ Two traps that bite a runner, both written in `scripts/README.md`: the headscale probe
 in that table **does not answer on the VPS**, so copying it turns a healthy control plane RED and fires your own
 trap; and `--project` is not optional when the compose dir is named after the service rather than the guarded
-container. ⛔ `guarded-converge.sh` still cannot guard a host where docker needs sudo, so the Pi's compose services
-run unguarded (**HD-463**). 🚧 **One dead box now gates four rows:** `oldsrv` answers `No route to host`, and it
+container. 🚧 **One dead box now gates four rows:** `oldsrv` answers `No route to host`, and it
 hosts `signal-cli` (**HD-347**'s group ID), `lan-litellm` (**HD-384**'s mint, **HD-403**'s key), the Cockpit
 tailnet node (**HD-465**) and the stale `OLLAMA_KEEP_ALIVE` line (**HD-404(a)**) — the wake path is
 **HD-455 → HD-454**.
@@ -190,11 +189,23 @@ crossing (HD-444) and a browser login on each cockpit host (HD-361).
   in the Signal alert group**, so HD-347's router is the dependency. ⛔ Never mute it by tolerating a non-zero rc:
   rc 90 is the self-pull guard and must stay loud. · [services-traefik.md](docs/services-traefik.md) §Certification
 - **HD-361** — ⏳ **the Cockpit break-glass login exists on nas, and not yet on oldsrv.** ✅ nas is live-verified by the converge itself (`maint` → `GET /cockpit/login` → 200, hash byte-matches the vault item, `cockpit-session` is now a real PAM gate — Debian ships no group gate at all, which is the finding, and [docs/security.md](docs/security.md) owns it). Remaining: one converge `--limit oldsrv.kogler.si --tags cockpit` (account + gate + `cockpit.yml`, Traefik hot-reloads) and one browser login per host, because cockpit's real Origin check is on the WebSocket handshake and no probe reaches it. `cockpit-nas.ts.kogler.si` was added on owner instruction and its router is authored but unconverged. · [docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes
-- **HD-452** — ⏳ **the VPS converge still reports `changed` it did not cause:** six `Sync postgres role password
-  with vault` tasks run an unconditional `ALTER ROLE`, so a green run prints `changed` on hosts whose passwords
-  were already correct. Take the same-commit-twice measurement first, then make them read before they write; the
-  acceptance is the second run at `changed=0`. The `nut` half of the class is closed, and
-  [deployment-ansible.md](docs/deployment-ansible.md) §run-it-twice carries the rule and the `getfacl` trap.
+- ✅ **HD-452 CLOSED 2026-09-27 — the VPS postgres role sync is compare-first.** It now compares a
+  marker the sync owns (`COMMENT ON ROLE` holding `pgsync:<sha256 of the vault password>`, written in the same
+  `-1` transaction as the `ALTER`) and repairs only on a defect: one commit measured `changed=8` with six false
+  postgres lines, then `changed=2`. Two findings outlive the fix. ⛔ **A password probe cannot work on this
+  cluster** — its loopback TCP auth is `trust` (measured), so a WRONG password authenticates fine and such a
+  probe would have laundered drift into green forever; and ⚠ **`psql` without `-tA` hands back the aligned table
+  whose first line is the column header**, which made the first version of this fix compare a header against a
+  hash and reissue the `ALTER` on every converge (three converges, six `changed` each). Named limit: the marker
+  records what the sync last wrote, not what the cluster holds, so a manually issued `ALTER ROLE` is out of band
+  (rotate in vault, or `COMMENT ON ROLE <role> IS NULL`). Mechanism + reasoning:
+  [deployment-secrets.md](docs/deployment-secrets.md) §3a and
+  [deployment-ansible.md](docs/deployment-ansible.md) §run-it-twice.
+- ✅ **HD-463 CLOSED 2026-09-27** — `guarded-converge.sh` and the watchdog it arms both take
+  `--docker-cmd`, so the Pi's compose services are inside the guard now (`sudo -n docker` there; proved by
+  a real stop + watchdog re-enable of `traefik-ha` in 19 s, HA answering 200 through the VIP afterwards).
+  ⚠ Read an HA answer **on the Pi** at the VIP address: its `resolv.conf` is 1.1.1.1, so `ha.kogler.si`
+  does not resolve locally and a name-based read prints 000 on a healthy edge.
 - **HD-454** — ⏳ **the only remote power path for oldsrv is undocumented.** WoL was tried on 2026-09-24 (3 shapes × 2 bursts, same L2) and drew nothing, so the Comet KVM is the way in — and [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake gives its model and its powers but no address, network, account or off-site reachability. Record those, prove it can power-cycle the box, and decide its VLAN/ACL. Everything in HD-361/442/444/445 waits behind this. ⚠ **The conditional HD-454 must settle first:** if the Comet is on VLAN 99 then HD-398 decision A seals it to same-site and there is NO off-site path to the reset button at all; if it is on VLAN 10 or a tailnet node the seal does not apply and only the write-up is missing. Measure, do not assume either.
 - **HD-455** — 🚧 **`oldsrv` is off the network (since 2026-09-23 21:39:55, L2-dead) and it is the fleet's real blocker** — the fault was measured and documented on 2026-09-24 but carried no row, so no lane could see it; that is the lesson. Fan-out: home edge, `cockpit-oldsrv`, the nas cockpit's tailnet name (rendered ONTO oldsrv), the control node/runner, the pinned-AI tier, HD-361 · 442 · 443(oldsrv placements) · 444 · 445 · 409/411 · 450 and the HD-419-class 502s. ⛔ Do not re-try WoL (spent 2026-09-24); ⛔ the sidecar's `no matching peer` is not evidence. Recovery waits on HD-454's answer or a human at home. · [hardware-oldsrv.md](docs/hardware-oldsrv.md) §Reachability & wake
 - **OIDC epic tail — `foto`/`chat`/`git`/`file` are proven by a human login; the tail is two rows and your
@@ -225,7 +236,7 @@ crossing (HD-444) and a browser login on each cockpit host (HD-361).
   found are minted: **HD-452** (the permanently-yellow `changed` count), **HD-453** (nothing gated a conflict
   marker — shipped), **HD-454** (the only remote power path for oldsrv had no address in the repo), **HD-460**
   (the VPS node's ephemeral listen sockets), **HD-461** (the router's self-emptying memory log) and **HD-463**
-  (`guarded-converge.sh` cannot guard a host where docker needs sudo). Two more came
+  (`guarded-converge.sh` could not guard a host where the docker socket is not group-granted). Two more came
   straight off the owner's report on 2026-09-26: **HD-464** (classic Element could not log in while the web client
   could — it asks a route the homeserver no longer serves; Element X is the mobile client) and **HD-465** (a documented tailnet console name that was never published to
   `tailnet_ts_only_subdomains`). **Still unrowed, and it is the

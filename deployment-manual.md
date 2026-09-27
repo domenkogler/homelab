@@ -1468,9 +1468,7 @@ All of this runs on **oldsrv** only; streaming stays on the VPS (Navidrome, HD-3
 | `tube-archivist_ui` | API Credential | Tube Archivist UI/API token — OPTIONAL (only if the Jellyfin plugin is used later) |
 | `tube-archivist-es` | API Credential | **ES `elastic` bootstrap password** (ELASTIC_PASSWORD on app + archivist-es) — catalog-generated; required by the TA env-check |
 | `lidarr-url-dl_login` | Login | **Lidarr-YouTube-Downloader** web-UI login (`username`+`credential`) — entered in its Settings page at first run |
-| `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first
-  boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same
-  manual-value class as `sonarr_api`/`radarr_api`; NOT auto-rotatable). Used by Aurral AND lidarr-ydl |
+| `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same manual-value class as `sonarr_api`/`radarr_api`; NOT auto-rotatable). Used by Aurral AND lidarr-ydl |
 
 Run `bash scripts/check-vault-items.sh --strict` before converging — it lists exactly what's missing.
 

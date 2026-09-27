@@ -183,10 +183,20 @@ always fires. Ask two questions of any converge that is supposed to be finished:
 the second run**, and **is the task that repeats a state assertion or an unconditional action**. The same
 pass caught a second suspect (`nut`: clearing the `upssched-cmd` ACL), which is now closed the way this rule
 demands — the task probes the real ACL and decides, and the second consecutive converge reports `changed=0`.
-**The surviving instance of the class is `Sync postgres role password with vault`**, which runs an unconditional
-`ALTER ROLE` per service, so a green VPS converge prints six `changed` lines on hosts whose passwords were
-already correct. The rule for either: **a task that can only assert is not allowed to report `changed`** — read
-the state (`getfacl`/`stat`, `SELECT 1` against the target password hash) into a `check_mode: false` probe, turn
+**The surviving instance of the class was `Sync postgres role password with vault`**, which ran an unconditional
+`ALTER ROLE` per service, so a green VPS converge printed six `changed` lines on hosts whose passwords were
+already correct. ✅ **Closed HD-452 (2026-09-27): it now reads before it writes.** The measured path matters
+more than the fix — the obvious probe, *try to authenticate with the vault password*, **cannot work here**:
+the cluster's loopback TCP auth is `trust` (measured on the VPS), so a WRONG password authenticates fine and
+that probe would have reported "in sync" forever, while connecting from the container's own bridge address is
+refused. What is readable is a marker the sync writes about itself (`COMMENT ON ROLE` =
+`pgsync:<sha256 of the vault password>`), so the task compares that and repairs only on a defect. ⚠ Two traps,
+both hit for real: a `psql` probe without **`-tA`** returns the aligned table whose first line is the column
+header, so the verdict compared a header against a hash and re-ran the `ALTER` on every converge (three runs,
+six `changed` each, AFTER the "fix" landed); and the marker records what the sync last wrote, not what the
+cluster holds, so a hand-run `ALTER ROLE` is now out of band (see the mechanism note below).
+The rule for either: **a task that can only assert is not allowed to report `changed`** — read
+the state (`getfacl`/`stat`, or a cluster-stored marker) into a `check_mode: false` probe, turn
 it into a verdict fact, and act only on a defect. ⚠ When you do parse `getfacl` output, a **base** line
 (`group::r-x`) splits with `-F:` into `("group", "", "r-x")`, so the permissions are **$3** — reading `$2` (the
 owner's intuition) reports every compliant file as broken and reproduces the permanent yellow you came to fix.
@@ -229,7 +239,13 @@ owner's intuition) reports every compliant file as broken and reproduces the per
   (forgejo crash-looped overnight on exactly this). Opted-in services get an idempotent
   `ALTER ROLE ... WITH PASSWORD` executed via `docker exec` into the pg container AFTER the
   stack is up — the password source is the SAME vault item (no_log; IaC-only, no hand-run
-  SQL against managed DBs). Set all three keys on any service entry whose template bundles
+  SQL against managed DBs). Since **HD-452** it is compare-first: the `ALTER` runs only when the role's own
+  marker (`COMMENT ON ROLE`, written in the same `-1` transaction as the `ALTER`) is absent or different, so a
+  converge on a compliant host reports `changed=0`; ⚠ the marker records what the sync last wrote, NOT what the
+  cluster holds, so a hand-run `ALTER ROLE` is out of band and will not be auto-repaired — rotate in vault, or
+  clear it with `COMMENT ON ROLE <role> IS NULL`. Mechanism + the `trust`-auth finding:
+  [deployment-secrets.md](deployment-secrets.md) §Rotation propagation contract. Set all three keys
+  on any service entry whose template bundles
   its own postgres container. Sibling opt-in **`db_ro_sync` + `db_ro_item` +
   `db_pg_container`** (HD-242): ensures a dedicated READ-ONLY login role (CREATE-if-absent,
   then password + `SELECT`-only grants on schema `public` incl. default privileges,
