@@ -290,18 +290,21 @@ docker_services:
   # The LAN LiteLLM itself STAYS ENABLED: per decision #26 it is the gateway for the
   # SIMPLE QUERIER tier (HomeAssistant, Docling, Open WebUI) + the pinned-AI legs
   # (embed/STT per decision #25) — that role is independent of the harnesses.
-  # Its bootstrap-keys glue is now OFF: with the harness records gone from
-  # `litellm_scoped_keys` (below) the instance has no scoped consumers, and the glue
-  # fail-louds on an empty spec list ("FATAL: no scoped-key specs rendered", rc1) — the
-  # FATAL is kept on purpose (a silently-empty list would mean consumers getting 401s at
-  # runtime), so the switch is at the registry instead. Flip `bootstrap_keys: true` back
-  # IN THE SAME CHANGE as the first real consumer's record (ha / docling / owui = HD-384)
-  # — one change, per the same-change rule in hardware-spark.md §Model-catalog sync.
+  # Its bootstrap-keys glue is ON since 2026-09-27, flipped in the same change as its first
+  # real consumer record (`home-assistant`, HD-384/HD-403) — the same-change rule from
+  # hardware-spark.md §Model-catalog sync. What held it OFF for ten days was not the flag:
+  # with the harness records gone the spec list was empty and the glue fail-louds on that
+  # ("FATAL: no scoped-key specs rendered", rc1). That FATAL stays on purpose — it is what
+  # makes a flip-without-a-consumer and a consumer-without-a-flip both a red converge
+  # instead of a runtime 401 — and it is why the two halves must always move together.
+  # Minting also needs the host-side write-scoped op token (HD-442's
+  # `docker_services_op_provision_token`), which is why a flip on a host that cannot reach
+  # 1Password is never safe to attempt.
   # (Historical ordering contract, inert while no consumer exists: a bootstrap_keys
   # service MUST precede its consumers in this list, because the glue runs during ITS
   # deploy pass and refreshes the vault dict the consumers render from.)
   - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway (decision #26); own Postgres; Kopia-backed
-      bootstrap_keys: false }   # HD-386 → HD-384: the consumer record EXISTS (2026-09-26) but the flip is held back ON PURPOSE — minting needs oldsrv (dead) + its write-scoped op token, and an unverifiable glue failure would red the whole recovery converge this box still owes (HD-455/HD-445). Flip it as the FIRST act once oldsrv answers, then run --tags "docker_services,lan-litellm".
+      bootstrap_keys: true }   # HD-386 → HD-384 → HD-403 step 2: FLIPPED 2026-09-27, the act this line told the next session to perform. oldsrv answers again and the token leg that made the glue unwritable is fixed (HD-442), so `home-assistant_api` mints here. ⚠ The glue runs inside THIS service's pass and rc1/rc2/rc4 all fail the converge (`failed_when: rc != 0`), so an empty spec list or a stale vault bearer is a red run by design — remediation is named in the log line (litellm-bootstrap-keys.sh.j2).
   - { name: dsh,            template_dir: dsh,       public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:3080
   - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:8080
 
@@ -359,15 +362,16 @@ litellm_scoped_keys:
   # it is contention protection on spark's single shared KV pool, not a bill. The field
   # had no code path until 2026-09-26 (litellm-bootstrap-keys.sh.j2 mint_key); the value
   # 30 below is the IMPLEMENTER's pick — the owner decided "small caps stay", not a number.
-  # ⛔ AUTHORED ONLY, NOT MINTED (2026-09-26): this instance (lan-litellm) runs on oldsrv,
-  # which answers No route to host, so the glue has never run for it and the 1P item
-  # `home-assistant_api` does not exist yet. `bootstrap_keys` therefore STAYS false.
+  # ⛔ MINTING SINCE 2026-09-27 (the `bootstrap_keys: true` flip above): oldsrv answers again and
+  # the write-scoped token leg is fixed (HD-442), so the glue runs on this instance's deploy
+  # pass and `home-assistant_api` is created in the vault by the converge, not by hand.
+  # ⚠ The item's ABSENCE before that flip was the correct state, not a gap: the glue is
+  # create-if-absent and the consumers render only after it refreshes the vault dict.
   # ✅ THE SECOND GATE RECORDED HERE IS GONE (research 2026-09-26, HD-403): "HA has no surface for a
   # self-hosted OpenAI-compatible base_url" was true of `openai_conversation` only. HA **2026.8** ships a stock
   # `litellm` conversation integration (ha-core #172960, merged 2026-07-17; probed at the tags — 404 at 2026.7.0,
   # 200 at 2026.8.0) and the pin `home_assistant_version: "2026.8.1"` already carries it: any proxy URL + an
-  # optional virtual key, models discovered from `/v1/models`. So flip `bootstrap_keys` as the first act once
-  # oldsrv answers — the key is no longer minted for nobody. ⚠ Two sequencing facts: HA queries `/v1/models`
+  # optional virtual key, models discovered from `/v1/models`. So `bootstrap_keys` was flipped on 2026-09-27, once oldsrv answered — the key is not minted for nobody. ⚠ Two sequencing facts: HA queries `/v1/models`
   # **before** it creates its config entry (mint must land first), and voice goes live only once that entry + its
   # conversation agent exist (config-flow only, no YAML, no template here). Evidence:
   # smart-home-voice.md §the LLM leg.
@@ -384,14 +388,16 @@ litellm_scoped_keys:
   # every converge red: the glue probes the stored `dsh_api` credential, gets 401 (it is
   # a VPS-DB-era value), and correctly refuses to auto-overwrite a secret → ABORT rc2
   # (that is HD-383). Commenting the records removes both the mint and the probe.
-  # The 1P ITEMS stay in the vault (a parked consumer must not imply a deleted
-  # secret). Measured 2026-09-26 (HD-383 remediation): `dsh_api` is now EMPTY — the
-  # stale VPS-DB-era bearer that used to trip rc2 is gone — while
-  # `pi-harness_openai_api` still holds its value and is NOT yet remediated. The
-  # LAN-gateway orphan (alias `dsh`) still needs deleting server-side on oldsrv.
-  # The list being EMPTY used to be what forced `bootstrap_keys: false` on lan-litellm
-  # above; a real consumer record now exists (HD-384), so the ONLY thing still holding the
-  # flip is that the minting host is unreachable — see the ⛔ block above the record.
+  # The 1P ITEMS used to stay in the vault (a parked consumer must not imply a deleted
+  # secret). Owner act 2026-09-27 (HD-383): `dsh_api`, `dsh_forgejo_api` and
+  # `tailscale_dsh_api` are now DELETED from the vault, so the stale VPS-DB-era bearer that
+  # used to trip rc2 is gone at the source rather than merely cleared — and enabling the
+  # parked `dsh` service would now fail at the vault lookup, not just at an empty field.
+  # `pi-harness_openai_api` still holds its value and is NOT remediated.
+  # The LAN-gateway orphan (alias `dsh`) still needs deleting server-side on oldsrv.
+  # The list being EMPTY is what forced `bootstrap_keys: false` on lan-litellm
+  # above until 2026-09-27; the consumer record (HD-384) and the reachable host (HD-455
+  # cleared) are both in place, so the flag is on and this list is its spec.
   # - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
   # - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }   # HD-268 pi scoped LiteLLM key (dual harness) — PARKED HD-386
   # The SIMPLE QUERIER tier (decision #26) is what lands here — the harnesses above never

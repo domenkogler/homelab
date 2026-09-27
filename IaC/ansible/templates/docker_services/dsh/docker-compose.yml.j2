@@ -31,8 +31,9 @@
 #
 #   ⚠ PARKED 2026-09-17 (todo.md HD-386 + services-ai.md decision #26): this template is
 #   NOT DEPLOYED — the registry entry is `enabled: false`. Do not flip it back casually:
-#   dsh_api is deliberately EMPTY in 1Password (the STALE VPS-era value was CLEARED
-#   on 2026-09-26, HD-383),
+#   dsh_api no longer EXISTS in 1Password — the stale
+#   VPS-era value was cleared 2026-09-26 (HD-383) and the owner DELETED the item on
+#   2026-09-27, together with `dsh_forgejo_api` and `tailscale_dsh_api`,
 #   so enabling renders fail-closed and takes the oldsrv docker_services converge down. Per
 #   decision #26 a re-onboarded harness reaches the spark name edge DIRECTLY instead.
 #
