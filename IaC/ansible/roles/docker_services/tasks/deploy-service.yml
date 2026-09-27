@@ -208,8 +208,17 @@
   # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
   tags: "{{ svc.name }}"
   when:
-    - svc.name not in ['traefik', 'traefik-ha', 'traefik-tailnet', 'spark-dashboard']
-      # ^ HD-451/C2 (2026-09-23): `spark-dashboard` is the FOURTH file-provider edge, not an
+    - svc.name not in ['traefik', 'traefik-ha', 'traefik-tailnet', 'spark-dashboard', 'traefik-internal']
+      # ^ HD-440 (2026-09-28): `traefik-internal` was MISSING from this list although it is the
+      # same kind of thing as the four above — its compose mounts ./dynamic read-only and runs
+      # `--providers.file.watch=true`, so a re-rendered routes.yml is picked up in-process and a
+      # restart buys only downtime. Measured the moment it was noticed: a scoped
+      # `docker_services,traefik-internal` run that added one router (pi-oldsrv-ts) reported
+      # `changed=3` and one of the three was this task — `traefik-internal` StartedAt moved to
+      # 2026-09-27T22:01:15Z. That edge is the home LAN edge AND the HA tailnet route (`ha-ts`)
+      # AND the pi seat's only door, so every routes.yml edit bounced all home-hosted apps for a
+      # hot-reload. HD-451's spark-dashboard note is the same reasoning, one edge earlier.
+      # HD-451/C2 (2026-09-23): `spark-dashboard` is the FOURTH file-provider edge, not an
       # ordinary extra-consuming service — its `dynamic/*.yml` land in /etc/traefik/dynamic
       # with `--providers.file.watch=true`, so Traefik reloads routes in-process and a restart
       # buys nothing but downtime. And the downtime is not cosmetic: this is also spark's
