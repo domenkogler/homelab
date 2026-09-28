@@ -607,7 +607,9 @@ decision forbids.
 **⚠ What the seat still cannot do is AUTHOR.** Measured 2026-09-28: `domen` has no global git
 config at all — no `user.name`/`user.email`, no `gpg.format=ssh`, no `user.signingkey` — and the
 signing key sits in the `Private` vault, which the read-scope service account cannot read (it
-needs a human `op` sign-in). A commit from the seat today would be unattributed and unsigned, so
+needs a human `op` sign-in). Measured the same minute: `ansible-admin` has no global git config either, so this is
+not a seat-only gap — **nothing on oldsrv is configured to sign or even attribute a commit**, and the HD-407
+decision's "commits on oldsrv are signed and attributed to you" is intent, not state. A commit from the seat today would be unattributed and unsigned, so
 the cockpit can edit and run but must not be treated as a commit surface yet.
 `git-bootstrap.sh --ssh-auth` is the laptop's version of that act and is **not** what the seat
 runs. Unrowed finding for the owner to mint if the cockpit should commit, rather than only edit.
