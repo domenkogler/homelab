@@ -19,14 +19,18 @@ container in isolation.
     never pass against a stale number the operator typed.
 
 Usage (each subcommand prints PASS/FAIL + the measured number):
+  scripts/spark-llm-probe.py --base-url … matrix              # ALL profiles, local, no token
+  scripts/spark-llm-probe.py --base-url … profile reasoning    # one profile, local, no token
   scripts/spark-llm-probe.py --base-url https://llm.ts.kogler.si/v1 health
-  scripts/spark-llm-probe.py --base-url … profile reasoning
   scripts/spark-llm-probe.py --base-url … reasoning            # binary on/off
   scripts/spark-llm-probe.py --base-url … budget 2048          # thinking_token_budget
   scripts/spark-llm-probe.py --base-url … effort high          # native reasoning_effort (UNPROVEN)
   scripts/spark-llm-probe.py --base-url … ctx 131072           # real depth, ~6 tokens/word
   scripts/spark-llm-probe.py --base-url … concurrent 4 --max-tokens 64
   scripts/spark-llm-probe.py --base-url … all --profile reasoning
+
+`matrix` and `profile` are the LOCAL legs: they touch the repo only — no HTTP, no
+1Password, no token, so lane-brief step 0 needs no dummy `--token-env`.
 
 Exit: 0 all probes passed, 1 any failure, 2 usage/env. Additive-only: unknown
 subcommand is a usage error, never a silent no-op.
@@ -43,6 +47,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SPARK_VARS = ROOT / "IaC" / "ansible" / "group_vars" / "spark.yml"
+HOST_VARS = ROOT / "IaC" / "ansible" / "host_vars" / "spark.kogler.si.yml"
 VAULT_ITEM = "spark-llm_api"
 VAULT_VAULT = "Homelab-ansible"
 # ~6 English tokens/word for Qwen-style BPE (docs/pi-harness.md §3 uses 1.38 chars/token
@@ -73,13 +78,92 @@ def read_key():
 
 def profile_spec(name):
     """Engine expectations straight from the IaC SSOT (no operator-typed numbers)."""
-    import yaml
-    data = yaml.safe_load(SPARK_VARS.read_text(encoding="utf-8")) or {}
-    profiles = data.get("spark_llm_profiles") or {}
+    profiles = catalogue().get("spark_llm_profiles") or {}
     if name not in profiles:
         die(f"profile '{name}' not in {SPARK_VARS.relative_to(ROOT)} "
             f"(valid: {', '.join(sorted(profiles))})")
     return profiles[name]
+
+
+def catalogue():
+    """The whole profile section of group_vars/spark.yml — the SSOT for every number a
+    probe or a report may quote. Fail-loud: a missing key is an error, never a default
+    (CONVENTIONS §2/§7; the fp8 bytes/token constant was hardcoded HERE once and was
+    wrong by ~18 % for exactly the reason this function exists)."""
+    import yaml
+    data = yaml.safe_load(SPARK_VARS.read_text(encoding="utf-8")) or {}
+    for key in ("spark_llm_profiles", "spark_llm_kv_bytes_per_token",
+                "spark_llm_pool_ceiling_bytes", "spark_llm_device_hold_ceiling_bytes"):
+        if key not in data:
+            die(f"{key} is missing from {SPARK_VARS.relative_to(ROOT)} — refusing to guess it")
+    return data
+
+
+def active_profile(cat):
+    """Which profile host_vars would converge RIGHT NOW (the dial lives there; the
+    group_vars value is only the fallback). Used by `matrix` to mark the live row."""
+    import yaml
+    if HOST_VARS.is_file():
+        host = yaml.safe_load(HOST_VARS.read_text(encoding="utf-8")) or {}
+        if host.get("spark_llm_profile"):
+            return host["spark_llm_profile"]
+    return cat.get("spark_llm_profile", "(unset)")
+
+
+def kv_slots(spec, cat):
+    """(bytes/token, slots, ok_flags) for one profile. A PROJECTION, always printed as
+    one: the authoritative number is the engine's own `Available KV cache memory` /
+    `GPU KV cache size` boot-log pair (prompt-llm.md §0.2)."""
+    per_tok = cat["spark_llm_kv_bytes_per_token"]
+    dtype = spec["kv_cache_dtype"]
+    pool = int(spec["kv_cache_memory"])
+    window = int(spec["max_model_len"])
+    if dtype not in per_tok:
+        die(f"kv_cache_dtype '{dtype}' has no bytes/token constant "
+            f"(known: {', '.join(sorted(per_tok))})")
+    bpt = int(per_tok[dtype])
+    slots = pool // bpt if pool else 0
+    fc = spec.get("fixed_cost_bytes")
+    hold = (int(fc) + pool) if fc else None
+    checks = {
+        "pool≥window": slots >= window or pool == 0,
+        "pool≤ceiling": pool <= int(cat["spark_llm_pool_ceiling_bytes"]),
+        "host-floor": (hold is None and pool == 0) or (hold is not None
+                        and hold <= int(cat["spark_llm_device_hold_ceiling_bytes"])),
+    }
+    return bpt, slots, hold, checks
+
+
+def print_profile_rows(specs, cat, active=None):
+    """The offline matrix: catalogue → slots → host floor, for every profile at once."""
+    for name, spec in specs.items():
+        engine = spec.get("engine", "?")
+        mark = "  ← ACTIVE (spark_llm_profile)" if name == active else ""
+        print(f"\n  {name}{mark}")
+        print(f"    label          = {spec.get('label')}")
+        print(f"    engine / model = {engine} / {spec.get('model_subdir')}")
+        print(f"    ctx / seqs     = {spec.get('max_model_len')} / {spec.get('max_num_seqs')}")
+        print(f"    reasoning      = {spec.get('reasoning_surface')}")
+        print(f"    client ctx     = {spec.get('client_context_window')} "
+              f"(scripts/pi-config/models-spec.yml must carry this)")
+        print(f"    certified      = {bool(spec.get('certified'))}"
+              + ("" if spec.get("certified") else f"  ← reason: {str(spec.get('uncertified_reason','')).strip()[:110]}…"))
+        if engine != "vllm":
+            frac = "·"
+            args = spec.get("args_extra") or []
+            for i, a in enumerate(args):
+                if str(a).startswith("--mem-fraction-static") and i + 1 < len(args):
+                    frac = args[i + 1]
+            print(f"    pool           = sglang-sized (--mem-fraction-static {frac}); "
+                  f"read the startup log, not a projection")
+            continue
+        bpt, slots, hold, checks = kv_slots(spec, cat)
+        verdict = " ".join(f"{k}={'OK' if v else 'BREACH'}" for k, v in checks.items())
+        print(f"    KV             = {spec['kv_cache_dtype']}, {int(spec['kv_cache_memory']):,} B "
+              f"@ {bpt:,} B/token = {slots:,} slots = {slots / int(spec['max_model_len']):.2f} × window")
+        print(f"    device hold    = fixed {spec.get('fixed_cost_bytes', '(none)')} + pool = "
+              f"{hold:,} B" if hold else "    device hold    = (fixed_cost_bytes undeclared)")
+        print(f"    gate mirror    = {verdict}   (authoritative: scripts/check_spark_llm_gate.py)")
 
 
 class Endpoint:
@@ -272,40 +356,67 @@ class Probes:
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--base-url", required=True, help="e.g. https://llm.ts.kogler.si/v1")
+    ap.add_argument("--base-url", default=None,
+                    help="e.g. https://llm.ts.kogler.si/v1 (required for every HTTP leg; "
+                         "not needed by the local legs `matrix` and `profile`)")
     ap.add_argument("--token-env", default=None, help="env var holding the bearer (default: read 1Password)")
     ap.add_argument("--timeout", type=int, default=300)
     ap.add_argument("--profile", default=None, help="expected profile (checks ctx/seqs against IaC)")
     ap.add_argument("--max-tokens", type=int, default=64)
     ap.add_argument("cmd", nargs="?", default="all",
-                    choices=["all", "health", "profile", "reasoning", "budget", "effort", "ctx", "concurrent"])
+                    choices=["all", "health", "profile", "matrix", "reasoning", "budget",
+                             "effort", "ctx", "concurrent"])
     ap.add_argument("arg", nargs="?", default=None)
     a = ap.parse_args()
 
+    # LOCAL legs read only the repo: no bearer, no 1Password, no network. (Step 0 of the
+    # lane brief runs these before anything is up on the box, and a probe that needs the
+    # vault to print a catalogue is a probe the operator has to fake a token for.)
+    local_only = a.cmd in ("profile", "matrix")
     key = None
-    if a.token_env:
-        import os
-        key = os.environ.get(a.token_env, "").strip()
-        if not key:
-            die(f"--token-env {a.token_env} is empty")
+    if local_only:
+        print(f"local leg ({a.cmd}) — repo only, no bearer read, no HTTP")
     else:
-        key = read_key()
-    print(f"endpoint {a.base_url}  bearer len={len(key)} (value not printed)")
+        if not a.base_url:
+            die("--base-url is required for the HTTP legs (…/v1 on the tailnet, "
+                "http://localhost:8000/v1 on the box)")
+        if a.token_env:
+            import os
+            key = os.environ.get(a.token_env, "").strip()
+            if not key:
+                die(f"--token-env {a.token_env} is empty")
+        else:
+            key = read_key()
+        print(f"endpoint {a.base_url}  bearer len={len(key)} (value not printed)")
+    ep = Endpoint(a.base_url, key, a.timeout) if not local_only else None   # local legs never touch it
 
-    ep = Endpoint(a.base_url, key, a.timeout)
+    if a.cmd == "matrix":
+        # Pure-local: every profile, every invariant, one screen. This is the command the
+        # operator runs BEFORE picking a profile; the authoritative version of the checks
+        # is scripts/check_spark_llm_gate.py (wired into validate-all.sh).
+        cat = catalogue()
+        print_profile_rows(cat["spark_llm_profiles"], cat, active=active_profile(cat))
+        return 0
 
     if a.cmd == "profile":
         # Pure-local: no HTTP at all, so it works before the engine is even up.
         name = a.arg or die("profile <name> required")
+        cat = catalogue()
         spec = profile_spec(name)
         for k in ("engine", "max_model_len", "max_num_seqs", "kv_cache_dtype",
-                  "kv_cache_memory", "certified"):
-            print(f"  {k:16s}= {spec.get(k)}")
-        kvb = {"auto": 31027, "bf16": 31027, "fp8": 15514}[spec["kv_cache_dtype"]]
-        slots = int(spec["kv_cache_memory"]) // kvb
-        print(f"  {'kv slots':16s}= {slots} ({slots / spec['max_model_len']:.2f} × full window)")
-        print(f"  {'client ctx':16s}= {spec.get('client_context_window')} "
-              f"(scripts/pi-config/models-spec.yml must carry this)")
+                  "kv_cache_memory", "fixed_cost_bytes", "certified",
+                  "client_context_window", "reasoning_surface"):
+            print(f"  {k:22s}= {spec.get(k)}")
+        bpt, slots, hold, checks = kv_slots(spec, cat)
+        print(f"  {'bytes/token':22s}= {bpt:,} (from spark_llm_kv_bytes_per_token — not hardcoded)")
+        print(f"  {'kv slots':22s}= {slots:,} ({slots / spec['max_model_len']:.2f} × full window)")
+        if hold is not None:
+            print(f"  {'device hold':22s}= {hold:,} B vs ceiling "
+                  f"{int(cat['spark_llm_device_hold_ceiling_bytes']):,} B")
+        for k, v in checks.items():
+            print(f"  {'gate mirror ' + k:22s}= {'OK' if v else 'BREACH'}")
+        print("  NOTE: slots is a PROJECTION. The number of record is the engine's own")
+        print("        'Available KV cache memory' + 'GPU KV cache size' boot-log pair.")
         return 0
 
     # Completion probes need a served model id; resolve it once, here.

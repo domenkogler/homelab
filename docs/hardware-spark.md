@@ -299,8 +299,18 @@ Certified state and its costs, stated plainly:
   0 guard-fires**. Evidence [`../spark/reports/stability/README.md`](../spark/reports/stability/README.md),
   runbook [`../spark/stability-test.md`](../spark/stability-test.md).
 - **16 GiB is the practical bf16 ceiling — do not raise it further.** The headroom arithmetic is runtime
-  **+5.5 GiB** vs boot-side **+5.4 GiB (binding)**. The next KV byte must come from `--kv-cache-dtype fp8`
-  (≈2× tokens for the same GiB, **unvalidated on this hybrid+MTP build**), not from Linux's reserve.
+  **+5.5 GiB** vs boot-side **+5.4 GiB (binding)**. The next KV byte was supposed to come from
+  `--kv-cache-dtype fp8`, and the two things this bullet used to say about it were both wrong:
+  fp8 buys **1.70–1.89×** tokens for the same GiB, **not ≈2×** (it halves the main K/V only — the
+  QSA indexer side-caches and the GDN state stay bf16), and "unvalidated on this hybrid+MTP build"
+  understates the finding: on the image we pin it **cannot boot at all**
+  (`NotImplementedError: QSA requires a BF16 main KV cache`,
+  [`../spark/reports/hd469-graded/README.md`](../spark/reports/hd469-graded/README.md)). That is the
+  **build**, not the model: fp8 main KV merged upstream as vllm#55557 on 2026-09-16, three weeks
+  after the last push of our tag ([`image-probe-20260928.md`](../spark/reports/hd469-graded/image-probe-20260928.md)),
+  and is not in vLLM v0.30.0 either. Reaching it is the engine-pin lane (**HD-471**), not a config
+  flip and not a bigger pool. Profile-level arithmetic + the host-floor gate:
+  [spark-llm-profiles.md](spark-llm-profiles.md).
 - **Costs paid:** idle `usable` fell **30.5 → 18.5 GiB** (margin to the 12 GiB reserve target is now
   6.5 GiB, not 18), and `NV_ERR_NO_MEMORY` occurrences rose slightly across the run (boot-load burst
   unchanged in character). Under the 94.6 % shape the engine served it but slowly: mean TTFT **631 s**, MTP
@@ -466,11 +476,41 @@ this is *served by* spark and does not touch the engine it runs on. The first co
 **is** the test: if it fails, this unit is in the no-op class and the answer is to raise the ceiling or
 set `spark_gpu_clock_cap_enable: false` and write down which.
 
+Corroboration from the prep session (2026-09-28, read-only ssh, no converge):
+`nvidia-smi --query-gpu=clocks.sm,clocks.max.sm` → **2405 MHz / 3003 MHz** — i.e. the box is still
+uncapped until that first converge, which is also why the pre-cap numbers below (and every timed
+number in this repo) carry no ceiling.
+
 **Read it in Grafana:** `DCGM_FI_DEV_SM_CLOCK` (already scraped —
 [observability.md](observability.md) §DCGM, recorded at **2509 MHz** pre-cap) should now sit on a
 **plateau at ≤ 2418 MHz under load**. A ceiling reading *below* 2418 under load is the driver's own power
 capping doing its job (see the `SW Power Capping` counter above) — not a scheduler problem, and exactly
 what the clock + power panel pair exists to separate.
+
+## DGX Spark host limits the vendor measured for us (2026-09-28)
+
+SGLang's own DGX Spark cookbook pages ([Qwen3.8-Flash-Next](https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-Flash-Next),
+[Qwen3.8-27B](https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-27B)) run grids **on this
+box** (SM121 / aarch64, GB10) and publish numbers for the failure modes we already paid for. Three of
+them are host rules, not engine trivia:
+
+* **`0.85 × 128 GB` is DGX OS's own earlyoom SIGTERM threshold.** Static allocation at 0.85 leaves
+  ~8 GB for the OS, the first long prefill or boot-time graph capture dips under it, and the scheduler
+  dies with **`exit code -15` and no traceback** (`journalctl -u earlyoom` shows the kill). In their
+  GB10 grid **15 of 48 cells died that way at 0.85 and every cell served at 0.80**; "which cells" was
+  margin noise. This is the same shape as our own `usable = MemAvailable − CmaFree` kills (§above), and
+  it is why `--mem-fraction-static 0.80` in the `fast-sglang` profile is a **floor, not a preference** —
+  now asserted (`roles/spark-llm-profile` refuses > 0.80) instead of being an uncited number.
+  Note that the flash-next cells themselves run 0.85 with ~8–12 GiB free and report host memory never
+  below 10 GiB: on a box that serves a live agent all day, 0.80 is the operating point we keep.
+* **Docker GPU access on GB10 is CDI-only** — `--device nvidia.com/gpu=all`; **no `nvidia` runtime is
+  registered**. Any future engine container in this stack must use CDI (our `spark-ai` compose pattern
+  needs checking against that before an sglang spike, not after a boot failure).
+* **`nvidia-smi` is not a memory gauge here** (`memory.*` → `Not Supported`, unified with the CPU) —
+  gate a relaunch on `MemAvailable` in `/proc/meminfo` (our watchdog + bench guards already do), and
+  budget a real load time before calling a boot hung: the BF16 27B checkpoint takes **~6.5 min just to
+  load its 18 shards** from NVMe, ~10 min to READY. Our own 20 min `health_start_period` is sized for
+  the vLLM PLE path; the SGLang file-backed-PLE path needs 4800 s (see the profile comment).
 
 ---
 
