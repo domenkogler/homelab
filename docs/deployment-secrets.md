@@ -284,6 +284,8 @@ permission to write from an automation path that was designed to be read-only.--
 
 | Item name | `field=` | Used By |
 |-----------|----------|---------|
+| `github-homelab-deploy_api` | `credential` (API-credential item; username = the deploy token's username) | **The runner clone's read-only GitHub pull** (`/home/ansible-admin/source/homelab` on oldsrv, HD-407/HD-449). Fine-grained, repo-scoped, **read-only by design**: proven by a `403` on `git push` and on `git push --dry-run`. Placed as a 0600 `~/.git-credentials` store under `ansible-admin`, never embedded in the remote URL and never copied into another account (the seat has its own key below). Rotating = re-place the store file, then prove with `git fetch`. · [deployment-ansible.md](deployment-ansible.md) §Runner placement |
+| `GitHub-homelab-deploy_ssh` | SSH_KEY item: `private_key` / `public_key` / `fingerprint` / `key_type` | **The seat clone's write path** (`/home/domen/source/homelab` on oldsrv, HD-449; the item's name carries a capital `G`, which is why searching `github-homelab…` finds only the API token). Category SSH_KEY, ed25519, `fingerprint` `SHA256:dGe193grwS3d74i7I…`. ⛔ Read it with **`op read op://…/<field>`** — `op item get --fields <SSHKEY field>` returns a pretty-wrapped PEM that `ssh-keygen` cannot load. Consumer: `scripts/seed-seat-deploy-key.sh`, which installs it under `domen` only and proves the grant with `git push --dry-run`. **⚠ State 2026-09-28: GitHub does not accept this keypair** — the public half was never registered as a deploy key on `domenkogler/homelab` — so the item is currently a secret with no effect; registering it (with write access) is the owner act in HD-449. Rotating = re-register the new public half on GitHub first, then re-run the script; a repo whose only write path is a deploy key is one browser tab away from unpushable. · [deployment-ansible.md](deployment-ansible.md) §Runner placement · [deployment-manual.md](../deployment-manual.md) Phase 4c step 8 |
 | `domen_ssh` | `private_key` / `public_key` | post_install.sh — Domen's personal key → `ansible-admin` |
 | `ansible-admin_ssh` | `private_key` / `public_key` | post_install.sh — dedicated Ansible key → `ansible-admin` |
 | `ai_ssh` | `private_key` / `public_key` | post_install.sh — AI debug key (maps to `openrouter_ai`) → `ai-debug` |
@@ -611,7 +613,7 @@ sweeping every host. Fingerprints only, never key material (CONVENTIONS §6):
 | `DxoZeGK…` | `ha-sync@pi.kogler.si` | oldsrv · vps | hand-made, live (HA failover + cert pull), **no vault item** |
 | `VX0TbLr…` | `traefik-cert-sync@oldsrv.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
 | `7ZuAhqI…` | `traefik-cert-sync@spark.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer (HD-350), **no vault item** |
-| `U+6vLRV…` | `oldsrv-rsync` | ~~nas → `ansible-admin`~~ | **retired 2026-09-21** (below); re-confirmed ABSENT on the 2026-09-22 sweep |
+| `U+6vLRV…` | `oldsrv-rsync` | ~~nas → `ansible-admin`~~ | **retired 2026-09-21** (below); re-confirmed ABSENT on the 2026-09-22 sweep; **both private halves deleted 2026-09-28** (HD-449(b), proof below) |
 
 **This table is a machine-checked gate, not prose (HD-416).** `python3 scripts/check_ssh_grants.py`
 sweeps every `authorized_keys` + `/root/.ssh/authorized_keys` on the managed hosts (`ssh` +
@@ -634,7 +636,8 @@ before it touches a thing" when the retired key is absent — on 2026-09-22 it r
 state. The script grew `--force-throwaway` for exactly that case; the box's own key went to
 `id_ed25519.pre-restore-20260922-230051`, and the **grant stays retired** (the restore moved a
 private file, it did not re-authorize anything). The `⏳ Delete both halves after one green backup
-night` gate below is **unsatisfiable as written** — see that paragraph.
+night` gate below is **unsatisfiable as written** — see that paragraph, and note it was replaced by
+a better test and closed on 2026-09-28.
 
 **The `oldsrv-rsync` retirement, in full, because it is the reason this section exists.**
 oldsrv's `/home/ansible-admin/.ssh/id_ed25519` was a hand-made key with no vault item and no
@@ -648,21 +651,32 @@ this writing (30 of them the canonical runner key), so the silence after 2026-09
 authorized on nas for the same account. Retired by commenting the entry out (backup:
 `/root/authorized_keys.nas.pre-retire-20260921-011512`), then proven inert rather than
 assumed: fresh `ansible-admin` auth to nas + `storage.yml --limit nas --check --tags common`
-→ `ok=20 changed=0 failed=0`. **⏳ Delete both halves after one green backup night**
-(`push-db-dumps` 03:35 / `push-services` 04:00 / `push-face-thumbs` 04:30 run as
-`svc-backup` and rsync to a local tank path, so they were never the consumer — one night is
-the proof, not the theory). Do **not** adopt it into the vault: adopting would promote a
-one-time migration key to a managed secret, which is backwards.
+→ `ok=20 changed=0 failed=0`. ~~**⏳ Delete both halves after one green backup night**~~ —
+the gate was **replaced and closed 2026-09-28 (HD-449(b))**, because it was unfailable rather than
+slow: `push-db-dumps` 03:35 / `push-services` 04:00 / `push-face-thumbs` 04:30 run as `svc-backup`
+and rsync to a **local tank path**, so they were never this key's consumer, and all three have been
+red since 2026-09-18 for a destination-ownership cause (HD-468). What actually decided it was the
+direct question, asked as a falsifiable sweep: derive the public half from the displaced private key
+(`ssh-keygen -yf` → `SHA256:U+6vLRV…`), then enumerate **every** `authorized_keys*` on all five
+managed hosts with `ssh-keygen -lf` and compare **fingerprints** — 0 live acceptances. (The blob
+grep the first pass used *did* match on nas, and matched a `#`-commented line: a commented line is
+not a grant, which is why the retire in step 3 works. Enumerate by fingerprint, then read what the
+match actually is.) Both halves were then `shred`+unlinked from
+`ansible-admin/.ssh`, and the canonical runner pair was re-proved in the same act
+(`1uKzmwf…` in place, fresh `oldsrv → nas` as `ansible-admin` = ok). Do **not** adopt it into the
+vault: adopting would promote a one-time migration key to a managed secret, which is backwards.
 
 **⚠️ The "one green backup night" gate cannot be met as written (measured 2026-09-22).** All three
 push timers have been `Result=ERR` **since 2026-09-18** — before the key was retired on the 21st —
 and for a cause with nothing to do with SSH: `rsync: chown3 … Operation not permitted (1)` from
 `svc-backup` into `/srv/backups/nextcloud`, i.e. an ownership problem on the destination. Waiting
 for green would hold an retired private key on disk indefinitely on a criterion that will not turn
-green until a different row lands. The deletion decision belongs to **HD-122** (`push-db-dumps`
-failures) / the owner; what HD-416 owns is the *grant*, and the grant is proven absent. Do not
-"resolve" this by pointing the gate at an unrelated green timer, and do not delete the key while
-those timers are red for whatever reason the owner decides.
+green until a different row lands. **How this was actually closed (2026-09-28, HD-449(b)):** the
+green-night proxy was replaced by the direct measurement — a fleet-wide **fingerprint** sweep of
+live `authorized_keys` showing 0 acceptances, which is evidence about *this key* rather than
+evidence about unrelated timers. That is the form the rule should take: **delete on a test of the
+grant itself, never on the colour of an adjacent timer** — and never delete a key whose grant you
+have not enumerated.
 
 **Retiring an SSH grant — the reversible sequence.** The characteristic failure of an SSH change
 is being locked out by your own fix, so the order matters and each step is evidence, not opinion:

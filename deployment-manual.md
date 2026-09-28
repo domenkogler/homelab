@@ -1883,17 +1883,32 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    A 404 here = the `pi-oldsrv-ts` router is not converged yet; a TLS name mismatch = the `*.ts.kogler.si`
    wildcard is not loaded (`check_traefik_host_rules.py` catches the template shape, not the cert store).
    Final word is a **tailnet peer** — see HD-444: no node inside this fleet may reach oldsrv's tailnet node.
-8. **Seat clone (the authoring repo).** oldsrv runs two clones: `/home/ansible-admin/source/homelab`
+8. **Seat clone (the authoring repo) + its own write credential.** oldsrv runs two clones: `/home/ansible-admin/source/homelab`
    **converges**, `/home/domen/source/homelab` **is what the seat edits** — roles, update rules and why they
-   are separate are in [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement. If the
-   seat clone is absent (`ls /home/domen/source/homelab`), create it:
+   are separate are in [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement. The seat
+   pushes with the repo-scoped SSH deploy key in 1Password `GitHub-homelab-deploy_ssh` (note the capital `G`);
+   ⛔ the runner's read-only `github-homelab-deploy_api` store lives under `ansible-admin` at 0600 and must
+   **not** be copied into `domen`, and the write key must **not** be installed under `ansible-admin`.
    ```bash
-   sudo -u domen git clone https://github.com/domenkogler/homelab.git /home/domen/source/homelab
+   # [MANUAL, owner — once per key pair] register the public half as a deploy key, WITH write access:
+   op read "op://Homelab-ansible/GitHub-homelab-deploy_ssh/public_key"
+   #   → https://github.com/domenkogler/homelab/settings/keys/new  — tick "Allow write access"
+
+   # then, from a workstation (the script runs on the box as root; --check writes nothing):
+   ssh oldsrv 'sudo bash -s' -- --check < scripts/seed-seat-deploy-key.sh
+   ssh oldsrv 'sudo bash -s'            < scripts/seed-seat-deploy-key.sh
    ```
-   ⚠ Gated on the git-credential decision in HD-449(a): the runner's read-only
-   `github-homelab-deploy_api` store lives under `ansible-admin` at 0600 and must **not** be copied into
-   `domen` to make this step pass. Either `domen` gets its own read-only credential, or the clone is
-   pull-only over a protocol that needs none.
+   The script installs the key under `domen` only, writes the marker-delimited `Host github.com` block with
+   `IdentitiesOnly yes`, pins `github.com`'s host key from `api.github.com/meta` against the fingerprints
+   GitHub publishes (never TOFU), then clones `/home/domen/source/homelab` and finishes with `git push
+   --dry-run`. **Acceptance is that dry-run exiting 0 — never the key's existence:** GitHub authorizes the
+   `git-receive-pack` request a dry-run still makes, so a read-only key dies there. Exit 3 with
+   `Permission denied (publickey)` means the key is not registered (or GitHub rotated it); the trap that
+   makes a hand-rolled install look finished is `op item get --fields <SSHKEY field>`, which returns a
+   pretty-wrapped PEM `ssh-keygen` cannot load — read vault secrets with `op read op://…`. After the first
+   commit is wanted, give the seat its own identity: `git -C /home/domen/source/homelab config user.name/
+   user.email` + the signing pointer in step 4 (the signing key needs a human `op` sign-in; the read-scope SA
+   cannot read it).
 
 9. **Stop / roll back:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
    --now pi-web.service`, then remove the drop-in to return to the installer's loopback-only default.

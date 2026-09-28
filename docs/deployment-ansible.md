@@ -562,10 +562,20 @@ repositories with two different jobs, and they must not be confused for each oth
 | Clone | Account | Job | Update mechanism |
 |---|---|---|---|
 | `/home/ansible-admin/source/homelab` | `ansible-admin` | **the runner** — the tree every converge executes | `scripts/ansible-run.sh` fast-forwards it before each run |
-| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` (HD-409) actually edits | **push by seat** (owner ruled 2026-09-25: the repo-scoped `github-homelab-deploy_ssh` deploy key; installing it is the AI half of HD-449) |
+| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` (HD-409) actually edits | **push by seat** — the repo-scoped `github-homelab-deploy_ssh` deploy key, installed by `scripts/seed-seat-deploy-key.sh` (owner ruled 2026-09-25; the AI half ran 2026-09-28, the clone itself still waits on GitHub knowing the key — HD-449) |
 | `/home/ansible-admin/source/homelab` (runner) | `ansible-admin` | the converge tree | **pull by runner** — read-only HTTPS `github-homelab-deploy_api`, `--ff-only`; ⛔ the write key never goes here, because this is the tree every converge executes |
 
-**"Push by seat, pull by runner" is the decision (HD-449, owner 2026-09-25)**, not an accident of two clones: the runner's least-privilege read-only path and the seat's write path are different credentials on purpose. Acceptance for the seat's write path is a `git push --dry-run`, never the deploy key's existence — GitHub deploy keys are read-only unless write was granted, and the private half has to actually be in the 1Password item (`github-homelab-deploy_ssh`). |
+**"Push by seat, pull by runner" is the decision (HD-449, owner 2026-09-25)**, not an accident of two clones: the runner's least-privilege read-only path and the seat's write path are different credentials on purpose. Acceptance for the seat's write path is a `git push --dry-run`, never the deploy key's existence — GitHub deploy keys are read-only unless write was granted, and the private half has to actually be in the 1Password item (`GitHub-homelab-deploy_ssh`; **the item's real name has a capital `G`**, which is why a search for `github-homelab…` finds the API token and not the key).
+
+**Why a `--dry-run` is a real test (measured 2026-09-28, the same box, both directions).** `--dry-run` transfers nothing but it **does** request `git-receive-pack`, and GitHub authorizes that request before any negotiation: the runner clone's **read-only** HTTPS deploy token, asked the identical `git push --dry-run origin HEAD:refs/heads/<throwaway>`, dies with `403 remote: Permission to domenkogler/homelab.git denied`. So rc 0 from the seat's dry-run means the write grant is real, and a key that merely *exists* proves nothing.
+
+**What the seat-side credential run found (2026-09-28, `scripts/seed-seat-deploy-key.sh`, all of it re-runnable and `--check`-safe):**
+
+- The vault pair is self-consistent: `op read` derives a public half whose fingerprint equals both the item's `fingerprint` field and its `public_key` field (`SHA256:dGe193grwS3d74i7I…`). **`op item get --fields <SSHKEY field>` is not usable for this** — it returns a pretty-wrapped PEM that `ssh-keygen` refuses with `error in libcrypto`, so a naive install produces a key file that looks right and loads never. `op read op://…/<field>` returns the real value.
+- The item stores the private half as **PKCS#8** (the generic PEM header, not OpenSSH's own key format), and OpenSSH loads it happily (`identity file … type 3`, key offered) — no re-encoding needed, so a rejected key is a **GitHub-side** fact, not a format fact.
+- `github.com`'s host key is **pinned, not TOFU'd**: taken from `api.github.com/meta` and asserted against the fingerprints GitHub publishes, then cross-checked against what the wire actually presents (`ssh-keyscan` — and skip its `# …` probe lines, a `grep -F` on their empty blob matches every pin and makes the check unfailable).
+- **The blocker is GitHub-side.** `ssh -T git@github.com` with that key answers `Permission denied (publickey)`, and `ssh -vv` shows the key *offered* — so the public half was never registered on `domenkogler/homelab` (the item even carries the `settings/keys/new` URL as its own field, and it was not followed). **Owner act:** paste `op read op://Homelab-ansible/GitHub-homelab-deploy_ssh/public_key` into [github.com/domenkogler/homelab/settings/keys/new](https://github.com/domenkogler/homelab/settings/keys/new) **with "Allow write access" ticked**, then re-run the script — key, `IdentitiesOnly` block and host pin are already in place, so it goes straight to the clone and the dry-run.
+- **⛔ What this does NOT license:** copying the runner's 0600 read-only credential store into `domen` to "make the step pass", and putting the write key under `ansible-admin`. The first forks the runner's least-privilege path onto the seat, the second hands the tree every converge executes a write path.
 
 `scripts/ansible-run.sh` used to declare "NOTHING HERE PULLS", on the sound principle that a
 runner which updates itself mid-run is a runner whose behaviour you did not choose. Measured
@@ -582,8 +592,13 @@ a converge does not do what the tip of `main` says it should.
 **The seat clone did not exist until this decision was written down.** Measured 2026-09-23:
 no `.git` anywhere under `/home/domen`, and `~/.pi/agent/sessions` empty — so the cockpit was
 a live, token-gated listener with no repository and no sessions to drive. Creating it is
-Phase 4c step 8, gated on the credential decision in HD-449(a); copying the runner's 0600
-deploy-token store into `domen` is **not** an acceptable way to satisfy it.
+Phase 4c step 8. The credential half was installed on 2026-09-28 and the clone is **still
+absent**, because GitHub does not accept the deploy key yet (above) — a clone over the
+runner's read-only HTTPS store is not an acceptable substitute, it is the thing the decision
+forbids. A first commit from the seat also needs its own git identity + signing pointer
+(`user.name`/`user.email`, `gpg.format=ssh`, `user.signingkey` from the `Private` vault — a
+human `op` sign-in, the read-scope SA cannot read it); `git-bootstrap.sh --ssh-auth` is the
+laptop's version of that act and is **not** what the seat runs.
 
 **The order is not cosmetic.** `--token-stdin` takes the token on stdin, and stdin can only
 carry one thing — so the script must already be ON oldsrv, which means the repo lands first
@@ -620,8 +635,12 @@ op read "op://Homelab-ansible/op_api/credential" | \
 #     2026-09-21 as the thing to restore, and there is nothing left to restore. The refusal is real;
 #     the old reason recorded here ("it refuses to overwrite the rsync key") is not what fired.
 #     `--force-throwaway` is the path for a box whose id_ed25519 is not the vault key, and it keeps
-#     what it displaced as id_ed25519.pre-restore-<stamp> — which is what happened here, and that
-#     backup is still on the box, unverified (HD-416's tail owns the delete decision):
+#     what it displaced as id_ed25519.pre-restore-<stamp> — which is what happened here. That backup
+#     was retired 2026-09-28 (HD-449(b)): the displaced pair was `oldsrv-rsync` (`U+6vLRV…`), already
+#     commented out of nas on 2026-09-21, and a fingerprint sweep of every live authorized_keys on all
+#     five managed hosts found 0 acceptances before both halves were shredded. The one remaining copy
+#     of that blob fleet-wide is a `#`-commented line + the pre-retire archive on nas — inert, and
+#     NOT proof for the next sweep (a commented line is not a grant):
 ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh --force-throwaway'
 #     Then run it again WITHOUT the flag: it must no-op and print the canonical fingerprint, and
 #     `python3 scripts/check_ssh_grants.py` must show the box presenting `1uKzmwf…`.
