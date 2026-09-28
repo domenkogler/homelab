@@ -399,12 +399,14 @@ offloading out of the box" upstream either (vLLM #38230 / PR #38261), so this re
 
 ### GPU clock cap — the only power lever on GB10 (HD-469)
 
-GB10 has **no power-limit control**: `nvidia-smi -pl` is unsupported and `power.limit` reads **N/A**
-(reality delta above). The one software lever on this SoC is a **graphics-clock ceiling**, and since
-2026-09-28 spark runs under one permanently, owned by IaC:
+GB10 has **no power-limit control** (`nvidia-smi -pl` unsupported, `power.limit` reads **N/A**) and, as probed
+2026-09-28, **no writable temperature target either** — so a **graphics-clock ceiling** is the only software
+power/thermal lever on this SoC. spark runs under one since 2026-09-28, owned by IaC, set at the **default
+application clock** (2418 MHz):
 
-- **The lever:** `nvidia-smi -lgc 300,2200`. **Range form, never a bare value** — a bare `-lgc 2200`
-  pins min=max, so the GPU can never idle its clocks down on a box serving a live agent 24/7.
+- **The lever:** `nvidia-smi -lgc 300,2418` — the default application clock. **Range form, never a bare
+  value** — a bare `-lgc 2418` pins min=max, so the GPU can never idle its clocks down on a box serving a
+  live agent 24/7.
 - **The IaC:** `spark_gpu_clock_cap_{enable,mhz,bin,ceiling_mhz}` in `roles/spark/defaults/main.yml`;
   the `spark` role installs `spark-gpu-clock-cap.service` (tag `clockcap`) **and** applies the cap during
   the converge, then **asserts the read-back**. `--check` reports desired-vs-actual drift without writing.
@@ -421,15 +423,42 @@ GB10 has **no power-limit control**: `nvidia-smi -pl` is unsupported and `power.
 after `nvidia-smi -lgc 300,2200`* (in combination with memory-pressure mitigations), at a measured cost
 of **~5 % throughput on bandwidth-bound LLM inference** (30.8 vs 32.3 tok/s on identical vLLM lanes).
 Our own wedges in [spark-incidents.md](spark-incidents.md) are **OOM-class, not this class** — do not
-retro-diagnose them as this. The trade accepted on 2026-09-28 is availability over a few percent of
-speed, because a power-off here needs someone at the rack.
+retro-diagnose them as this.
 
-**Measured on this unit** (2026-09-28, read-only `--query-gpu`): `clocks.sm` **2496 MHz**,
-`clocks.max.sm` **3003 MHz**, Default Applications Clocks **2418 MHz**, and
-`--query-supported-clocks=graphics` → **[N/A]**. Two consequences: **2200 is a real ceiling ≈ 12 % below
-where this box actually sits**, so expect a few percent off every tok/s figure; and the value **cannot
+**Why 2418 and not the 2150–2200 those reports used (owner ruling, 2026-09-28).** This unit has **never had a
+hard power-off**, so it is not paying ~12 % of clock for insurance against a fault it has not demonstrated
+(and the reports smell unit/PSU-specific: one survived a full platform firmware update, another needed a
+firmware *downgrade*, and ours is a Lenovo chassis on a 240 W USB-C PD PSU the OS cannot even see).
+What the cap buys at 2418 is therefore **a known measurement regime at ~3 % cost** plus a bound on peak
+draw — *not* the crash mitigation those reports measured. If a hard-off ever does happen here, this var is
+the first thing to lower, and the ceiling is derived from the range so the role's assert follows it with
+no other edit.
+
+**No thermal policy is available on this SoC — probed, not assumed** (`nvidia-smi -q -d TEMPERATURE /
+- PERFORMANCE`, 2026-09-28): `GPU Target Temperature` **N/A**, `GPU Slowdown T.Limit Temp` **N/A**,
+`GPU Shutdown T.Limit Temp` **N/A**, `GPU Max Operating T.Limit Temp` **0 C**, and `--help-gpu-queries`
+offers no temp/slowdown key at all. So a temperature-threshold policy — the obvious "don't fix the
+clock, cap the heat instead" idea — **cannot be set here**. It would also be the wrong tool if it could:
+the upstream failure is an **electrical** power-off at ~90 W, and a thermal feedback loop cannot act on a
+cold die pulling 90 W for seconds. Same gap family as `-pl` and `--query-supported-clocks`: GB10 exposes
+none of the usual control surface.
+
+The same probe is mildly reassuring about the driver's own loop though: **`SW Power Capping` =
+1,335,107,735 µs ≈ 22 min cumulative**, while `SW Thermal Slowdown`, `HW Thermal Slowdown` and
+`HW Power Braking` are all **0 µs** — the part already caps itself electrically and has never thermally
+throttled. Read `GPU Current Temp 68 C` as sane; read **`GPU T.Limit Temp 26 C` as junk** (a 26 °C limit
+below the current temp is not a real threshold — same class of bogus reading as `MEMORY_TEMP` = 0,
+[observability.md](observability.md) §DCGM). ⚠ Driver has also moved under us: **580.178.04**
+(`nvidia-driver-580-open`, re-measured 2026-09-28 via `dpkg -l`) where §Identity/§As-measured had recorded
+**580.173.02** — DGX OS/apt changed the driver with no IaC change, so treat driver-version claims in this
+doc as dated snapshots, not state.
+
+**Measured on this unit** (2026-09-28, read-only `--query-gpu`): `clocks.sm` **2496 MHz** (2515 MHz on a
+second read minutes later), `clocks.max.sm` **3003 MHz**, Default Applications Clocks **2418 MHz**, and
+`--query-supported-clocks=graphics` → **[N/A]**. Two consequences: **2418 is only ~3 % below where this box
+actually boosts**, so the cap is cheap and its throughput cost is close to noise; and the value **cannot
 be validated by enumeration** — GB10 does not enumerate clocks any more than it enumerates memory, so
-the read-back is the entire proof. That is why the role asserts `clocks.max.sm == 2200` instead of
+the read-back is the entire proof. That is why the role asserts `clocks.max.sm == 2418` instead of
 trusting exit code 0 (there is a documented GB10 unit where `-lgc` is accepted and does nothing).
 
 ⚠ **Not yet exercised here.** The assert has not run against a live converge — the session that wrote
@@ -439,8 +468,9 @@ set `spark_gpu_clock_cap_enable: false` and write down which.
 
 **Read it in Grafana:** `DCGM_FI_DEV_SM_CLOCK` (already scraped —
 [observability.md](observability.md) §DCGM, recorded at **2509 MHz** pre-cap) should now sit on a
-**plateau at ≤ 2200 MHz under load**. A ceiling reading *below* 2200 under load is thermal/power
-headroom, not a scheduler problem — that is what the clock + power panel pair exists to separate.
+**plateau at ≤ 2418 MHz under load**. A ceiling reading *below* 2418 under load is the driver's own power
+capping doing its job (see the `SW Power Capping` counter above) — not a scheduler problem, and exactly
+what the clock + power panel pair exists to separate.
 
 ---
 
@@ -648,7 +678,7 @@ must implement when it lands:
 | Firmware | UEFI **`S0QKT0EA`** dated 2026-07-13 (AMI), UEFI boot, TPM 2.0 (`/dev/tpm0` v2) | `hostnamectl` / `dmidecode -s bios-version` |
 | OS | Ubuntu **24.04.5 LTS** (noble), kernel `7.0.0-1019-nvidia` arm64 | `/etc/os-release`, `uname -mr` |
 | DGX OS | base image 7.4.0 → OTA **7.6.0** | `/etc/dgx-release` |
-| GPU | UUID `GPU-d5ad56cc-01cf-7521-4c4e-e215e7ccd76b`, PCI id `10de:2e12` @ `000f:01:00.0`, driver **580.173.02** (`nvidia-driver-580-open`), compute cap **12.1** = **sm_121** | `nvidia-smi --query-gpu=...`, `lspci -nn` |
+| GPU | UUID `GPU-d5ad56cc-01cf-7521-4c4e-e215e7ccd76b`, PCI id `10de:2e12` @ `000f:01:00.0`, driver **580.178.04** (`nvidia-driver-580-open`, re-measured 2026-09-28 — it read **580.173.02** when this row was taken), compute cap **12.1** = **sm_121** | `nvidia-smi --query-gpu=...`, `lspci -nn`, `dpkg -l` |
 | CUDA / runtime | CUDA **13.0**, `nvidia-container-toolkit` **1.20.0** | `ls -d /usr/local/cuda-*`, `dpkg -l` |
 | machine-id | `a7c5519de45d4244be889d2af3749476` | `/etc/machine-id` |
 | Ethernet MAC | `38:a7:46:78:13:97` (`enP7s7`; `enP7s7.99` shares it — VLAN subinterface) | `ip -br link` |
@@ -725,7 +755,7 @@ console/live USB; spark is SSH-reachable, so the inline sweep above is enough.)
 | Network | 10 GbE RJ-45 (Realtek on this unit) + 2× QSFP 200 G for ConnectX-7 (2-node scale-out to 405B); ⚠️ **neither is live here** — link is 1 G, no ConnectX function enumerated |
 | Wireless | Wi-Fi 7, Bluetooth 5.3 LE |
 | Ports | 3× USB-C USB4 (20 Gb/s, DP 2.1), HDMI 2.1a, RJ-45 10GbE, 2× QSFP |
-| OS | NVIDIA DGX OS / Ubuntu Pro with NVIDIA Base OS, **CUDA 13** — live: DGX Spark 7.6.0 on Ubuntu 24.04.5, CUDA 13.0, driver 580.173.02 |
+| OS | NVIDIA DGX OS / Ubuntu Pro with NVIDIA Base OS, **CUDA 13** — live: DGX Spark 7.6.0 on Ubuntu 24.04.5, CUDA 13.0, driver 580.178.04 (was 580.173.02) |
 | Security | Self-encrypting NVMe (AES SED), **TPM 2.0**, NVLink-C2C enclave, NVIDIA FW recovery, AMI setup password, UEFI Secure Boot (only TPM 2.0 + UEFI verified here) |
 
 ## Bring-up order (what a true-zero rebuild needs)

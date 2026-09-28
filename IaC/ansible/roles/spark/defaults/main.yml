@@ -131,16 +131,23 @@ spark_oom_watchdog_memory_max: 512M
 spark_oom_watchdog_memory_high: 384M
 
 # ---- GPU graphics-clock cap (HD-469, 2026-09-28) ----
-# GB10 has NO power-limit knob (`nvidia-smi -pl` unsupported; power.limit reads N/A), so a
-# graphics-clock CEILING is the only software power lever on this SoC. Owner decision 2026-09-28:
-# run the box capped permanently — upstream DGX Spark reports tie sustained ~90 W GPU load to
-# log-less hard power-offs, and a power-off here means hands-on recovery ("never reboot spark").
-# Measured cost upstream on bandwidth-bound LLM inference: ~5 % (30.8 vs 32.3 tok/s).
-# RANGE form 'min,max' — a bare single value pins min=max and forbids idle downclocking on a box
-# that serves a live agent all day. Knowledge + evidence: docs/hardware-spark.md §GPU clock cap.
+# GB10 has NO power-limit knob (`nvidia-smi -pl` unsupported; power.limit reads N/A) AND no writable
+# temperature target (`GPU Target Temperature` / Slowdown / Shutdown T.Limit all read N/A), so a
+# graphics-clock CEILING is the only software power/thermal lever on this SoC. Owner decision
+# 2026-09-28: cap at the DEFAULT APPLICATION CLOCK (2418 MHz), not at the 2150-2200 the upstream
+# hard-power-off reports used — this unit has never had one, so we are not paying ~12 % of clock for
+# insurance against a fault it has not shown. What the cap buys now is a KNOWN REGIME (every tok/s
+# comparable) at ~3 % cost, plus a bound on peak draw. Knowledge: docs/hardware-spark.md §GPU clock cap.
+# RANGE form 'min,max' — a bare single value pins min=max and forbids idle downclocking on a box that
+# serves a live agent all day.
 spark_gpu_clock_cap_enable: true
-spark_gpu_clock_cap_mhz: "300,2200"
-spark_gpu_clock_cap_bin: /usr/bin/nvidia-smi
+spark_gpu_clock_cap_mhz: "300,2418"
+# DELIBERATELY NO `..._bin` KNOB. A path nobody overrides is a knob that can only rot — this role has
+# already deleted one piece of dead config (`spark_vllm_gpu_memory_utilization`, HD-374), and the sibling
+# `spark-oom-watchdog.service.j2` sets the precedent: hard-code the binary, template the tunables.
+# `/usr/bin/nvidia-smi` is therefore hard-coded in the unit and the tasks. Verified on the box 2026-09-28:
+# `command -v nvidia-smi` → `/usr/bin/nvidia-smi` (itself, not a symlink; owned by `nvidia-utils-580`).
+# If DGX OS ever relocates it, that is a code change with a review, not a value to re-tune.
 # The ceiling (max of the range) is what `clocks.max.sm` must READ BACK. GB10 will not enumerate
 # clocks for us (`--query-supported-clocks` → N/A), so the read-back IS the verification — exit
 # code 0 is not (a documented GB10 unit accepts `-lgc` and does nothing with it).

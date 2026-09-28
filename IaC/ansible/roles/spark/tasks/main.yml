@@ -286,11 +286,13 @@
   tags: [spark, watchdog]
 
 # ---- GPU graphics-clock cap (HD-469, 2026-09-28) ----
-# WHY: GB10 exposes NO power-limit control — `-pl` is unsupported and `power.limit` reads N/A
-# (docs/hardware-spark.md §GPU clock cap), so a graphics-clock CEILING is the only software power
-# lever this SoC has. Upstream DGX Spark reports tie sustained ~90 W GPU load to LOG-LESS hard
-# power-offs and report the ceiling as what stopped them; on this box a power-off is a hands-on
-# recovery ("never reboot spark"). Owner call 2026-09-28: run the box capped permanently.
+# WHY: GB10 exposes NO power-limit control (`-pl` unsupported, `power.limit` N/A) and NO writable temperature
+# target (`GPU Target Temperature` / Slowdown / Shutdown T.Limit all N/A — probed 2026-09-28), so a graphics-clock
+# CEILING is the only software power/thermal lever this SoC has. Upstream DGX Spark reports tie sustained ~90 W
+# GPU load to LOG-LESS hard power-offs and report the ceiling as what stopped them; on this box a power-off is a
+# hands-on recovery ("never reboot spark"). Owner call 2026-09-28: cap at the DEFAULT APPLICATION CLOCK (2418),
+# not at those reports' 2150-2200 — this unit has never hard-offed, so we buy a known measurement regime at ~3 %
+# instead of paying ~12 % for insurance it has not earned. Lower this var if it ever does.
 # WHY TWO HALVES: the lock is RUNTIME driver state — it does NOT survive a boot, and this box has a
 # documented history of hard power-cycles (SMART row, same doc). So: the unit covers boot, the
 # converge apply covers everything else (driver reload, a hand-run `-rgc`, a skipped unit).
@@ -304,7 +306,7 @@
     that:
       - spark_gpu_clock_cap_mhz.split(',') | length == 2
     fail_msg: >-
-      spark_gpu_clock_cap_mhz must be the RANGE form 'min,max' (e.g. "300,2200"). A bare single
+      spark_gpu_clock_cap_mhz must be the RANGE form 'min,max' (e.g. "300,2418"). A bare single
       value pins min=max, so the GPU can never idle its clocks down — on a box that serves a live
       agent all day that is wasted heat for nothing.
     quiet: true
@@ -338,7 +340,7 @@
 - name: Read the SM clock ceiling
   ansible.builtin.command:
     cmd: >-
-      {{ spark_gpu_clock_cap_bin }} --query-gpu=clocks.max.sm --format=csv,noheader,nounits
+      /usr/bin/nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits
   register: spark_clock_read
   changed_when: false
   # Read-only → run it even under --check, so --check can REPORT drift instead of hiding it.
@@ -361,7 +363,7 @@
 
 - name: Apply the GPU clock cap now (the boot unit only covers boots)
   ansible.builtin.command:
-    cmd: "{{ spark_gpu_clock_cap_bin }} -lgc {{ spark_gpu_clock_cap_mhz }}"
+    cmd: "/usr/bin/nvidia-smi -lgc {{ spark_gpu_clock_cap_mhz }}"
   become: true
   when:
     - spark_gpu_clock_cap_enable | bool
@@ -374,7 +376,7 @@
 - name: Re-read the SM clock ceiling after applying
   ansible.builtin.command:
     cmd: >-
-      {{ spark_gpu_clock_cap_bin }} --query-gpu=clocks.max.sm --format=csv,noheader,nounits
+      /usr/bin/nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits
   register: spark_clock_verify
   changed_when: false
   check_mode: false
