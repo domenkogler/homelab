@@ -60,6 +60,89 @@
       byte is --kv-cache-dtype fp8's job, not a bigger pool.
   tags: [spark, spark-llm-profile, llm]
 
+# ---- The host floor: fixed cost + pool, not the pool alone (HD-469 run #2) ----
+# On GB10 the engine's fixed cost and the KV pool are paid out of the SAME 121.62 GiB the OS
+# lives in (docs/hardware-spark.md §Unified-memory budget). A profile that changes the WEIGHTS
+# changes the fixed cost, and the pool ceiling cannot see that: `fast` (NVFP4, core 88.6 GB vs
+# AWQ's 83.4 GB) fits the 16 GiB pool ceiling at 16.5 GB of KV and still walks this box into
+# DGX OS's earlyoom threshold — which Docker reports as `OOMKilled: false` and which upstream
+# describes as needing a POWER CYCLE. Every vLLM profile therefore declares fixed_cost_bytes
+# (measured for the lanes that have booted, DERIVED + flagged for the ones that have not) and
+# the SUM is what is gated. Fix a refusal by shrinking that profile's pool or by measuring the
+# fixed cost — never by raising the ceiling, which is the certification itself.
+- name: Assert the profile leaves the certified host floor (fixed cost + KV pool)
+  when: spark_llm.engine == 'vllm'
+  ansible.builtin.assert:
+    that:
+      - spark_llm.fixed_cost_bytes is defined
+      - (spark_llm.fixed_cost_bytes | int) > 0
+      - (spark_llm.fixed_cost_bytes | int) + (spark_llm.kv_cache_memory | int) <= (spark_llm_device_hold_ceiling_bytes | int)
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' does not leave the certified host floor:
+      fixed_cost={{ spark_llm.fixed_cost_bytes | default('<unset>') }} B +
+      KV pool={{ spark_llm.kv_cache_memory }} B =
+      {{ (spark_llm.fixed_cost_bytes | default(0) | int) + (spark_llm.kv_cache_memory | int) }} B,
+      ceiling is {{ spark_llm_device_hold_ceiling_bytes }} B (= MemTotal 130,593,136,640 −
+      6.9 GiB held by OS/driver at engine start − 17.78 GiB the CERTIFIED worst usable
+      reading; docs/hardware-spark.md §Unified-memory budget, spark/stability-test.md §2).
+      A breach is not a warning here: it is the global OOM Docker reports as
+      `OOMKilled: false` (docs/spark-incidents.md). Fix it in group_vars/spark.yml by
+      LOWERING this profile's kv_cache_memory, or by replacing a DERIVED
+      fixed_cost_bytes with a measured one (the engine's 'Available KV cache memory' log
+      line + the oom-watchdog's worst usable_gib over one boot of this profile), and put
+      the measurement in spark/reports/. Do NOT raise
+      spark_llm_device_hold_ceiling_bytes — a profile that needs a bigger ceiling needs a
+      re-cert of the certified lane, not a bigger constant.
+    success_msg: >-
+      Host floor OK for '{{ spark_llm_profile }}': fixed
+      {{ (spark_llm.fixed_cost_bytes | int / 1e9) | round(1) }} GB + pool
+      {{ (spark_llm.kv_cache_memory | int / 1e9) | round(1) }} GB =
+      {{ ((spark_llm.fixed_cost_bytes | int + spark_llm.kv_cache_memory | int) / 1e9) | round(1) }} GB
+      of {{ (spark_llm_device_hold_ceiling_bytes | int / 1e9) | round(1) }} GB ceiling
+      (basis: {{ spark_llm.fixed_cost_basis | default('undeclared — declare it') }}).
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- SGLang lane invariants (GB10-specific, HD-469 `fast-sglang`) ----
+# SGLang sizes its pool from --mem-fraction-static instead of --kv-cache-memory-bytes, so the
+# asserts above do not reach it. These three are the failure modes the vendor's own DGX Spark
+# documentation names (docs.sglang.io §Qwen3.8-Flash-Next / §Qwen3.8-27B DGX Spark notes),
+# each of which costs either the box or the client contract:
+#   * 0.85 × 128 GB leaves ~8 GB = DGX OS's earlyoom SIGTERM threshold → the scheduler dies at
+#     the first long prefill with `exit code -15` and NO traceback (15 of 48 measured cells);
+#     at 0.80 every cell served. Our house value is 0.80 — a floor, not a preference.
+#   * `--ple-offload-embedding` WITHOUT `--ple-offload-backend file` pins the 47.7 GiB table
+#     in host RAM, which ON GB10 IS the device pool — the exact reason this lane was blocked.
+#   * a `--max-total-tokens` below the profile's max_model_len serves a smaller window than
+#     the client contract promises: pi 400s mid-session (docs/spark-llm-profiles.md §Client
+#     contract). The pool is sglang's own startup-log number; the FLAG must at least honour
+#     the window we advertise.
+- name: Render the SGLang arg list as a string for the invariant checks
+  ansible.builtin.set_fact:
+    spark_llm_args_str: "{{ spark_llm.args_extra | default([]) | join(' ') }}"
+  when: spark_llm.engine == 'sglang'
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the SGLang lane keeps the host its memory and honours the window
+  when: spark_llm.engine == 'sglang'
+  ansible.builtin.assert:
+    that:
+      - (spark_llm_args_str | regex_findall('--mem-fraction-static[= ]+([^ ]+)') | first | default('1.0')) | float <= 0.80
+      - (spark_llm_args_str | regex_findall('--max-total-tokens[= ]+([^ ]+)') | first | default(spark_llm.max_model_len)) | int >= (spark_llm.max_model_len | int)
+      - ('--ple-offload-embedding' not in spark_llm_args_str) or ((spark_llm_args_str | regex_findall('--ple-offload-backend[= ]+([^ ]+)') | first | default('pinned')) == 'file')
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' passes SGLang flags this box cannot survive:
+      mem-fraction={{ spark_llm_args_str | regex_findall('--mem-fraction-static[= ]+([^ ]+)') | first | default('(unset — sglang default)') }}
+      (≤ 0.80 here: 0.85 leaves ~8 GB = the DGX OS earlyoom SIGTERM threshold, and the
+      kill is `exit -15` with no traceback),
+      max-total-tokens={{ spark_llm_args_str | regex_findall('--max-total-tokens[= ]+([^ ]+)') | first | default('(unset — sglang sizes it)') }}
+      (must be ≥ max_model_len={{ spark_llm.max_model_len }}, else the served window is
+      smaller than the client contract),
+      ple-offload-backend={{ spark_llm_args_str | regex_findall('--ple-offload-backend[= ]+([^ ]+)') | first | default('(unset = pinned host RAM)') }}
+      (on GB10 a pinned table comes out of the SAME 121.62 GiB pool as the weights — only
+      the `file` backend, with a bind of the XFS NVMe store at that path, moves it off).
+      Flags: spark_llm_profiles.{{ spark_llm_profile }}.args_extra in group_vars/spark.yml.
+  tags: [spark, spark-llm-profile, llm]
+
 - name: Assert the CUDA-graph capture cap cannot exceed the decode batch (HD-380)
   when: (spark_llm.max_cudagraph_capture_size | int) > 0
   ansible.builtin.assert:
@@ -157,6 +240,8 @@
       - "PLE              : {{ spark_llm.ple_container_dir or '(none)' }} (host {{ spark_xfs_mount }}/{{ spark_llm.ple_host_subdir or '(none)' }}, overlay={{ spark_llm.ple_overlay | bool }})"
       - "ctx / seqs       : {{ spark_llm.max_model_len }} / {{ spark_llm.max_num_seqs }}"
       - "KV               : {{ spark_llm.kv_cache_dtype }}, {{ spark_llm.kv_cache_memory }} B = {{ (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(1) | int) if spark_llm.kv_cache_dtype in spark_llm_kv_bytes_per_token else '?' }} slots"
+      - "device hold     : fixed {{ spark_llm.fixed_cost_bytes | default('(undeclared — sglang sizes by mem-fraction)') }} + pool {{ spark_llm.kv_cache_memory }} ≤ ceiling {{ spark_llm_device_hold_ceiling_bytes }}"
+      - "fp8 note        : the pool gain from --kv-cache-dtype fp8 is 1.70–1.89×, NOT 2× (main K/V only); read the engine's own 'GPU KV cache size' line, never a projection"
       - "certified        : {{ spark_llm.certified | bool }}{{ '' if spark_llm.certified | bool else '  ← UNCERTIFIED (override: spark_llm_allow_uncertified)' }}"
       - "client ctx owed  : scripts/pi-config/models-spec.yml contextWindow = {{ spark_llm.client_context_window }}"
       - "reasoning surface: {{ spark_llm.reasoning_surface }}"

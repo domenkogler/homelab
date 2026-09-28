@@ -121,6 +121,15 @@
 #                                     bus does not know. This item runs the pure-stdlib half, because the runner
 #                                     has no xknxproject and nothing in the repo declares it
 #                                     (import xknxproject fails here — measured 2026-09-25)
+#  22. check_spark_llm_gate.py        — HD-469: the spark LLM profile gate must be PROVEN OFFLINE.
+#                                     `roles/spark-llm-profile` is the only thing between a one-var flip
+#                                     and a global OOM that Docker reports as `OOMKilled: false`, yet its
+#                                     live test costs a ~20-minute engine boot on the box that serves the
+#                                     operator. The checker evaluates the ROLE'S OWN patterns (extracted
+#                                     from the task YAML, never re-typed) + the group_vars constants over
+#                                     every authored profile, then breeds a canary per invariant and
+#                                     REFUSES a canary that passes — a gate that cannot fail is not a
+#                                     gate (CONVENTIONS §6). PyYAML-only: no Ansible, no network, no box
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -283,6 +292,9 @@ $PY scripts/check_merge_markers.py
 
 echo "== check_merge_markers.py --self-test (HD-453 canary) =="
 $PY scripts/check_merge_markers.py --self-test
+
+echo "== check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries) =="
+$PY scripts/check_spark_llm_gate.py
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
 # HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.

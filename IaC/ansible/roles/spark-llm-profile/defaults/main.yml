@@ -9,6 +9,11 @@
 #   2. the engine is known + its image is pinned  (CONVENTIONS §7)
 #   3. the KV pool can hold max_model_len and stays under the certified ceiling
 #      (docs/hardware-spark.md §Unified-memory budget — three global OOMs paid for this)
+#   3b. fixed cost + pool leaves the CERTIFIED HOST FLOOR — the pool ceiling alone cannot
+#      see a profile that changed the WEIGHTS (HD-469 run #2: NVFP4 is +5.2 GB over the
+#      AWQ lane, and on GB10 that bill is paid out of the KV pool, not out of nowhere)
+#   3c. for SGLang: the flags that price the HOST memory (mem-fraction ≤ 0.80) and the
+#      served window (--max-total-tokens ≥ max_model_len) honour this box's limits
 #   4. the profile's artifacts are staged  (no surprise 84 GB download mid-converge)
 #   5. an uncertified profile is a deliberate act, not an accident
 

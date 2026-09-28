@@ -18,10 +18,12 @@ spark_headless: true
 # bearer key. Valid names + every value each one renders: group_vars/spark.yml
 # §LLM SERVING PROFILES; gate + evidence: docs/hardware-spark.md §LLM serving
 # profiles; test loop: spark/llm-profiles/README.md.
-#   reasoning     = live certified B1 (AWQ W4A16 + PLE INT4 + MTP3)      ← today
-#   graded        = same weights, fp8 KV (≈2× slots) for graded thinking — UNCERTIFIED
-#   fast          = NVFP4 + fp8 KV, 4 × 262k windows                      — UNCERTIFIED
-#   fast-sglang   = second engine (SGLang) — EXPERIMENTAL, image pin empty
+#   reasoning     = live certified B1 (AWQ W4A16 + PLE INT4 + MTP3)             ← today
+#   graded        = same weights, fp8 KV (~1.7× slots) — BLOCKED ON THE IMAGE PIN,
+#                   needs the engine-pin lane (todo.md HD-471) + a re-cert, NOT a flip
+#   fast          = NVFP4 weights, bf16 KV (1.35 × 262k) — UNCERTIFIED, never benched here
+#   fast-sglang   = second engine (SGLang) — blocked: no image pin AND its measured
+#                   single-Spark pool cannot hold the 262,144 window we serve
 # Uncertified profiles need `spark_llm_allow_uncertified: true` alongside this.
 # Flipping is NOT free: ~20 min boot (converge DETACHED), and the CLIENT window in
 # scripts/pi-config/models-spec.yml must be set to the profile's client_context_window.

@@ -199,16 +199,37 @@ spark_llm_allow_uncertified: false
 
 # Measured on THIS box — the KV-pool boot-gate arithmetic (docs/hardware-spark.md
 # §Unified-memory budget: "KV pool = 19.04 GiB → 658,902 tokens (30.3 KiB/token)").
-# fp8 halves bytes/token (docs/hardware-spark.md:302 + docs/pi-harness.md §7
-# "~halves bytes/token → ~2× pool") but is UNVALIDATED on this hybrid+MTP build.
+# ⚠ THE OLD `fp8 = 15514` (a flat 2×) WAS WRONG and is corrected here (HD-469 run #2,
+# 2026-09-28): fp8 halves the MAIN K/V only. The QSA indexer side-caches (raw-key ring,
+# compressed keys) and the GDN state stay bf16, so the pool gain is ~1.7–1.9×, NOT 2×.
+# Upstream measurements on this model: 1.77× (SM120, spec off) · 1.89× · 1.70× (2× Spark
+# GB10) · 1.85× (1× Spark GB10). Shape check: main KV ≈ 24,576 B of ≈ 29,294 B/token =
+# 84 % → 1/(1 − 0.84/2) ≈ 1.72×. We plan with the WORST of the measured ratios (1.70) so
+# a projection can only be beaten, never missed.
 spark_llm_kv_bytes_per_token:
   auto: 31027        # 30.3 KiB/token, bf16 — the measured constant
   bf16: 31027
-  fp8: 15514         # 15.15 KiB/token
+  fp8: 18251         # 31,027 / 1.70 — 17.8 KiB/token, the conservative measured ratio
 # bf16 pool ceiling: "16 GiB is the practical bf16 ceiling — do not raise it
 # further" (docs/hardware-spark.md:301). Expressed in the same decimal bytes the
 # governor takes, so the gate compares like with like.
 spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB
+
+# ---- The host floor, as an arithmetic gate (HD-469 run #2) -----------------
+# The pool ceiling alone is NOT the OOM guard: a profile that changes the WEIGHTS changes
+# the fixed cost, and on GB10 the fixed cost and the KV pool are paid out of the SAME
+# 121.62 GiB the OS lives in (docs/hardware-spark.md §Unified-memory budget — three
+# global OOMs paid for that sentence). Every profile declares its engine-side fixed cost;
+# roles/spark-llm-profile refuses a profile whose (fixed + pool) exceeds what is left for
+# the host. Every term is a documented constant, not a tuning knob:
+#   MemTotal 127,532,360 kB = 130,593,136,640 B   (measured, docs/hardware-spark.md)
+#   − 6.9 GiB already held by OS/driver/dashboard at engine start  (same source)
+#   − 17.78 GiB the CERTIFIED worst usable reading (spark/stability-test.md §2 row
+#     "worst moment under 2×240k", docs/hardware-spark.md:272 — kill point was 1.62 GiB)
+#   = 104,113,000,000 B the engine (fixed cost + KV pool) may hold at once.
+# A profile that cannot fit is a profile that needs SMALLER POOL, a measured fixed cost,
+# or a re-cert — never a bigger number in this file. The gate's fail message says which.
+spark_llm_device_hold_ceiling_bytes: 104113000000
 
 spark_llm_profiles:
   # ── 1. REASONING = today's live config, verbatim ───────────────────────────
@@ -246,20 +267,36 @@ spark_llm_profiles:
     reasoning_surface: binary
     client_context_window: 262144
     client_max_tokens: 16384
+    # MEASURED, not derived: the vLLM boot log's own accounting for this exact engine +
+    # weights (docs/hardware-spark.md §The measured allocation arithmetic: 77.69 GiB
+    # weights+non-torch + 2.99 activation + ~7 GiB stranded graphs ≈ 81 GiB = 86.9 GB).
+    # The certified lane's (fixed + pool) = 86.9 + 16.0 = 102.9 GB, inside the host-floor
+    # ceiling above — that arithmetic IS the certification, and it is why changing the
+    # weights changes the POOL, not just the label.
+    fixed_cost_bytes: 86900000000
+    fixed_cost_basis: "MEASURED from the engine boot log (docs/hardware-spark.md §Unified-memory budget)"
     artifact_sets: [b1-awq, ple-int4]
     certified: true
-    certified_evidence: "spark/reports/stability/README.md · docs/hardware-spark.md §Unified-memory budget"
+    certified_evidence: "spark/reports/hd469-reasoning/README.md · spark/reports/stability/README.md · docs/hardware-spark.md §Unified-memory budget"
 
   # ── 2. GRADED = same weights/engine, fp8 KV so graded thinking + full windows coexist ─
   # The grading itself is CLIENT-side (pi `thinkingLevelMap` + `thinking_token_budget`,
   # docs/pi-harness.md §2/§4); what this profile changes on the server is the KV
-  # shape: fp8 halves bytes/token, so the SAME 16 GB pool holds ~1.03M slots
-  # (≈3.9 full windows) — thinking chains stop evicting each other at 4 sessions.
-  # UNCERTIFIED: --kv-cache-dtype fp8 is "unvalidated on this hybrid+MTP build"
-  # (docs/hardware-spark.md:302-303) and the needle/accuracy gate at operating
-  # depth has never run here (BENCHMARK-PLAN cross-profile requirements, XQA #36845).
+  # shape: fp8 shrinks bytes/token by ~1.7-1.9x (NOT 2x — see the constant above), so
+  # the SAME 16 GB pool would hold ~877k-913k slots ≈ 3.3-3.5 full windows, and thinking
+  # chains stop evicting each other at 4 sessions.
+  # ⛔ IT CANNOT BOOT ON THE PINNED IMAGE (measured 2026-09-28, run #1) — but the reason
+  # is the IMAGE, not the model. Read this before writing it off:
+  #   * fp8 main KV on the QSA path merged upstream 2026-09-16 as vllm#55557, and was
+  #     reproduced on GB10/sm_121 (TP2 across two Sparks, MTP active) by a third party;
+  #   * the build we pin (`fc120ece`, self-reporting `vllm-0.1.dev20073+g8e685d198`) is a
+  #     day-0 build that PREDATES that merge — its qsa.py is a dtype guard, not a law;
+  #   * vLLM v0.30.0 does NOT carry it either (v0.30 = indexer-side fp8 #54890).
+  # So `graded` = an engine-pin change + a full re-cert = todo.md HD-471, not a config
+  # flip. Do not vendor the AGPL overlay patch and do not hand-edit a container's
+  # site-packages to make this boot (prompt-llm.md §2).
   graded:
-    label: "Graded thinking — AWQ W4A16 + PLE INT4, fp8 KV (2× slots) — UNCERTIFIED"
+    label: "Graded thinking — AWQ W4A16 + PLE INT4, fp8 KV (~1.7x slots) — BLOCKED ON IMAGE PIN (HD-471)"
     engine: vllm
     container: vllm-qwen-spark
     model_subdir: Qwen3.8-Flash-Next-AWQ
@@ -288,30 +325,47 @@ spark_llm_profiles:
     reasoning_surface: graded-budget
     client_context_window: 262144
     client_max_tokens: 16384
+    fixed_cost_bytes: 86900000000      # = the `reasoning` lane: same weights, same engine
+    fixed_cost_basis: "inherited from reasoning (weights unchanged); fp8 KV changes the pool, not the fixed cost"
     artifact_sets: [b1-awq, ple-int4]
     certified: false
     uncertified_reason: >-
-      fp8 KV cache is unvalidated on this hybrid-GDN + MTP build
-      (docs/hardware-spark.md:302-303); needle + accuracy gate at operating depth
-      is owed before this profile may run (spark/llm-profiles/README.md gate).
+      BLOCKED ON THE PINNED IMAGE, not on the model. fp8 main KV on the QSA path merged
+      upstream 2026-09-16 as vllm#55557; it is absent from the day-0 build this box pins
+      (fc120ece, self-reporting vllm-0.1.dev20073+g8e685d198), where it dies at
+      EngineCore init with NotImplementedError at qsa.py:187 (measured 2026-09-28,
+      spark/reports/hd469-graded/README.md). vLLM v0.30.0 does not carry it either.
+      Reaching it = an engine-pin change + full re-cert (todo.md HD-471), NOT a config
+      flip; do not re-attempt it against this pin, and do not patch the container.
+      When it does land, size it at 1.70-1.89x the slots, not 2x, and read the count from
+      the engine's own 'GPU KV cache size' log line — see spark/llm-profiles/README.md
+      gates 8-9 for the MTP-acceptance and noise-floor quality bars it must clear.
 
-  # ── 3. FAST = NVFP4 + fp8 KV, 4 concurrent full windows ───────────────────
+  # ── 3. FAST = NVFP4 weights, bf16 KV: the decode-speed + accuracy lane ─────
   # The "implementator" lane: S2/S3 (NVFP4 decode 40–46 tok/s expected on GB10,
   # RESEARCH-VERDICTS §2). Sizes verified against the HF API 2026-09-28:
   # primitive-ai mixed-NVFP4/FP8 = 191.0 GB repo, 102.4 GB of it is its own
   # BF16 PLE table (skippable) → core ≈ 88.6 GB; ples_nvfp4 sidecar = 28.8 GB
   # (accuracy cost ≈ nothing: 92.2 knowledge / 78.7 tool-call vs 92.2/79.2 BF16,
   # primitive-ai card, spark/resources/R1-ple-quant-card-evidence.md).
-  # NVFP4 buys DECODE SPEED, not KV room: core ≈ 88.6 GB vs the AWQ fixed cost
-  # 77.69 GiB (83.4 GB) — same order, so the pool math is unchanged.
-  # KV: 16,500,000,000 B / 15,514 B = 1,063,400 slots ≥ 4 × 262,144 = 1,048,576
-  # (the no-preemption bound) and still UNDER the 16 GiB ceiling — the +0.5 GB
-  # over `reasoning` is inside the measured +5.4 GiB boot-side headroom.
+  # WHY bf16 KV HERE (changed 2026-09-28, run #2 prep): the fp8 half of this profile is
+  # HD-471's problem (image pin), so `fast` measures ONE variable — the weights. Carrying
+  # fp8 here would have it fail for a reason that is not NVFP4's.
+  # ⚠ THE OLD COMMENT HERE ("fp8 16.5 GB = 1.063M slots = 4.06 × window ≥ the 4 × 262,144
+  # no-preemption bound") WAS WRONG TWICE: it used the ×2 constant (real ratio 1.70–1.89,
+  # so ≈ 905k = 3.45 ×, failing its own bound) AND it ignored that these weights are
+  # HEAVIER than AWQ's. NVFP4 core 88.6 GB vs the AWQ lane's whole measured fixed cost
+  # 81 GiB (77.69 GiB weights+non-torch, +2.99 activation, +~7 stranded graphs) ⇒ fixed
+  # cost +≈ 5.2 GB. On a 121.62 GiB unified pool that is paid for OUT OF THE KV POOL,
+  # which is why this profile's pool went DOWN to 11 GB, not up to 16.5 GB (gate:
+  # spark_llm_device_hold_ceiling_bytes). KV: 11,000,000,000 / 31,027 = ~354,000 slots
+  # = 1.35 × one full window — enough to boot, measure speed and run the accuracy battery;
+  # 4 concurrent full windows need fp8 KV, i.e. HD-471, on top.
   # UNCERTIFIED: never benched on this box; NVFP4-vs-AWQ accuracy is unresolved
   # (91/100 vs 98/100 in one capture, 99/100 in another — engine+template+effort
   # confound it: spark/resources/R2-nvfp4.md §B).
   fast:
-    label: "Fast implementator — NVFP4 (mixed NVFP4/FP8) + fp8 KV, 4 × 262k — UNCERTIFIED"
+    label: "Fast implementator — NVFP4 (mixed NVFP4/FP8) + bf16 KV, 1.35 × 262k — UNCERTIFIED"
     engine: vllm      # same pinned fork: the PLE overlay serves NVFP4 too
     container: vllm-qwen-spark
     model_subdir: Qwen3.8-Flash-Next-mixed-NVFP4-FP8
@@ -325,8 +379,8 @@ spark_llm_profiles:
     # (~13 min TTFT at 250k cold measured); 8192 halves the queue but spikes
     # activation memory — re-measure against the governor (docs/pi-harness.md §7).
     max_num_batched_tokens: 8192
-    kv_cache_dtype: fp8
-    kv_cache_memory: "16500000000"
+    kv_cache_dtype: auto
+    kv_cache_memory: "11000000000"
     max_cudagraph_capture_size: 4
     enforce_eager: false
     distributed_executor_backend: mp
@@ -342,26 +396,68 @@ spark_llm_profiles:
     reasoning_surface: binary
     client_context_window: 262144
     client_max_tokens: 16384
+    # DERIVED, not measured — the one number here the operator is expected to REPLACE with
+    # a measurement: AWQ-lane fixed cost 86.9 GB + the NVFP4 core-weight delta (88.6 GB core
+    # vs 83.4 GB of AWQ weights). It over-states slightly (this profile batches at 8192, the
+    # measured 2.99 GiB activation was at 16384), which is the safe direction. Measure it as
+    # the engine's `Available KV cache memory` + the watchdog's worst `usable_gib` over one
+    # boot of this profile, then correct THIS field — never the ceiling.
+    fixed_cost_bytes: 92100000000
+    fixed_cost_basis: "DERIVED 2026-09-28: reasoning's measured 86.9 GB + 5.2 GB NVFP4 core-weight delta"
     artifact_sets: [nvfp4-mixed, ple-nvfp4]
     certified: false
     uncertified_reason: >-
-      NVFP4 has never been benched on this box; the accuracy delta vs the AWQ
-      98/100 anchor is unresolved (spark/resources/R2-nvfp4.md §B) and the fp8 KV
-      gate is owed with it. Run the accuracy + stability gate first.
+      NVFP4 has never been benched on this box and the accuracy delta vs the AWQ 98/100
+      anchor is unresolved (spark/resources/R2-nvfp4.md §B). fp8 KV is NOT part of this
+      profile (that is the image pin, todo.md HD-471) — one variable = the weights. Boot
+      first, then accuracy with engine/template/thinking-state/budget recorded, then the
+      memory curve: the pool here is sized against a DERIVED fixed cost, so gate 7
+      (spark/llm-profiles/README.md) is what falsifies it.
 
   # ── 4. FAST-SGLANG = the second engine, authored but gate-blocked ─────────
   # Proves the "different engine too" contract: same service, same port, same
-  # served id, different engine/image/flag family. Flags are the community
-  # SGLang recipe captured verbatim in spark/resources/R5-sglang-nvfp4-recipe-
-  # turbulent.md (that box: 1× RTX PRO 6000, 96 GB DISCRETE).
-  # ⚠ NOT FIT-PROVEN ON GB10: --ple-offload-embedding PINS the 51.2 GB FP8
-  # n-gram table in host RAM, and on GB10 host RAM IS the 121.62 GiB device
-  # pool → 84 GB weights + 51.2 GB pinned > pool. The SGLang lane needs either
-  # PLE-on-NVMe semantics or the primitive-ai mmap sidecar path on SGLang, plus
-  # a registry-verified arm64 image digest (spark_sglang_image is intentionally
-  # empty until then). Do not flip to this profile expecting a boot.
+  # served id, different engine/image/flag family.
+  # WHY IT IS BLOCKED — rewritten 2026-09-28 against the VENDOR's own DGX Spark page
+  # (https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-Flash-Next, §DGX Spark
+  # notes; the sibling Qwen3.8-27B page carries the earlyoom + CDI facts). The old
+  # comment here ("needs PLE-on-NVMe semantics") was already SOLVED upstream, and the
+  # real blocker is the pool size:
+  #   * `--ple-offload-embedding` ALONE is indeed useless here — "on GB10 the 'offloaded'
+  #     pinned-host table comes out of the same pool as the GPU weights" — and the vendor
+  #     says our exact sentence. The single-Spark answer is a DIFFERENT flag pair:
+  #     `--ple-offload-embedding --ple-offload-backend file` (sglang #37068, merged into
+  #     `qwen4-main-squashed`): a sparse 47.7 GiB file on NVMe (`--ple-offload-dir`, page-
+  #     cache RSS capped by SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB, default 8), resident set
+  #     0 while serving. 78.3 GiB of experts+dense stays resident; `--mem-fraction-static`
+  #     leaves ~12–18 GB for the pools → concurrency 8 with MTP / 24 without.
+  #   * AND THE MEASURED CEILING KILLS THE WINDOW ANYWAY: the single-Spark KV pool lands at
+  #     ~93k (RadixArk, MTP on) / ~174k (NVIDIA export, MTP on) — BOTH under our 262,144
+  #     servable window. (Those two figures are what run #2 recorded from that page; they
+  #     were NOT re-verified against the page text — read the pool from the STARTUP LOG,
+  #     never from `/get_server_info`.)
+  #   * so fp8 KV is not a luxury on this lane, it is the ENABLING CONDITION — and on the
+  #     sglang side it is sglang #36644, OPEN since 2026-08-27 and stacked on a branch that
+  #     is not `main`. vLLM fp8 KV (#55557) is merged and waiting on an image; prefer it.
+  #   * PIN PROBLEM, unchanged: support needs sglang ≥ v0.5.20; the NVIDIA NVFP4 export also
+  #     needs the loader from #38121, which `lmsysorg/sglang:qwen38flashnext` predates — so
+  #     the only tags that carry it are FLOATING DEV TAGS, which CONVENTIONS §7 rejects
+  #     without a registry-verified arm64 digest (`spark_sglang_image` stays empty until one
+  #     exists, and the empty pin is the gate).
+  #   * BOOT TRAP that would break our health gate: every boot REWRITES the whole table
+  #     through the mapping — ~17 MB/s on an already-populated file (MADV_RANDOM
+  #     read-modify-write) ≈ 55 MINUTES, ~10 minutes on a fresh sparse file. Until upstream
+  #     fixes it, the previous `ple_table_*.bin` must be deleted before each boot; the old
+  #     1200 s start_period could never pass the 55-minute path and the container would be
+  #     marked unhealthy and restarted into a worse loop. `health_start_period` below covers
+  #     the 55-minute path INSTEAD of owning that delete in the role — if this lane is ever
+  #     unblocked, the delete is the better fix and this number should come back down.
+  #   * DO NOT SPIKE THIS IN A LIVE WINDOW. Unified-memory exhaustion on GB10 "can take the
+  #     whole box down and needs a power cycle to recover" (vendor) — matches our own
+  #     incident history (docs/spark-incidents.md). If ever authorised: production engine
+  #     stopped, own window, `MemAvailable` watchdog, and docker GPU access on GB10 is
+  #     CDI-only (`--device nvidia.com/gpu=all`; no `nvidia` runtime is registered).
   fast-sglang:
-    label: "EXPERIMENTAL — SGLang + RadixArk NVFP4 (unverified on GB10, image pin empty)"
+    label: "EXPERIMENTAL — SGLang + RadixArk NVFP4 (pool cannot hold our window, image pin empty)"
     engine: sglang
     container: sglang-qwen-spark
     model_subdir: Qwen3.8-Flash-Next-NVFP4-RadixArk
@@ -380,13 +476,26 @@ spark_llm_profiles:
     spec_method: nextn
     spec_tokens: 3
     memory_limit: 105G
-    health_start_period: 1200s
-    env_extra: []
+    # 4800 s = the file-backed-PLE worst case (≈55 min table re-write on an existing file,
+    # see the ⚠ block above) + slack. The vLLM profiles' 1200 s is a ~20 min PLE load.
+    health_start_period: 4800s
+    env_extra:
+      # Vendor default, declared explicitly so the RSS cap is visible in the render: the
+      # file-backed table's page-cache resident set. Raising it trades host RAM for hit rate.
+      - SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB=8
     args_extra:
       - --quantization
       - modelopt_fp4
       - --fp4-gemm-backend
       - flashinfer_cutlass
+      # SM121: the 27B page says flashinfer; MTP + FlashInfer needs a build whose prefill
+      # `plan` accepts `uniform_q_len` (newer than 0.6.15.post1), and the flash-next page
+      # resolves the GDN kernels to triton on SM120 anyway. triton + MTP is the combination
+      # that is documented to run here — re-check once an image is pinned, and pin
+      # --moe-runner-backend flashinfer_cutlass explicitly IF the NVIDIA export is used
+      # (its auto-default picks flashinfer_trtllm on GB10 and the NVFP4 MoE method rejects
+      # it at autotune; for that export do NOT pass --quantization at all — it resolves to
+      # modelopt_mixed).
       - --attention-backend
       - triton
       - --linear-attn-prefill-backend
@@ -398,6 +507,16 @@ spark_llm_profiles:
       - --page-size
       - "64"
       - --ple-offload-embedding
+      # THE flag that makes one Spark able to hold this checkpoint at all (#37068). Without
+      # `file` the offload pins the table in host RAM = the same 121.62 GiB pool = the
+      # failure this lane was blocked on. `--ple-offload-dir` must point at a bind of the
+      # XFS NVMe store (spark_xfs_mount/ple_offload → /ple_offload): that bind is NOT wired
+      # in the spark-ai template yet, and the sparse 47.7 GiB file must not land on EXT4 or
+      # in the container's own storage. Wire it in the same change that pins the image.
+      - --ple-offload-backend
+      - file
+      - --ple-offload-dir
+      - /ple_offload
       - --tp
       - "1"
       - --speculative-algorithm
@@ -414,25 +533,53 @@ spark_llm_profiles:
       - "24"
       - --mamba-radix-cache-strategy
       - extra_buffer
-      - --mamba-track-interval
-      - "64"
+      # --mamba-track-interval 64 REMOVED (2026-09-28): the vendor's DGX Spark cells run
+      # WITHOUT it. The default (256 tokens) still satisfies the constraints (a multiple of
+      # the 64-token page, ≥ the 4 draft tokens) and leaves a ~40 % LARGER KV pool — on a
+      # lane whose whole problem is that the pool does not hold 262,144, that is not a
+      # knob to leave at the community recipe's value.
       - --watchdog-timeout
       - "1800"
-      # GB10 overrides of the community numbers (see the ⚠ above — UNVERIFIED):
+      # Was 1048576 — a community number from a box that is not this one (the same flag
+      # value is the TP=2 / other-card figure), and asking sglang for a pool the box cannot
+      # give is a unified-memory event, not a refusal. Pinned to the CLIENT CONTRACT instead:
+      # 262,144 is the smallest value that does not lie to pi, and the vendor's measured
+      # single-Spark pools (93k / 174k, both at bf16) say this boot must FAIL. Do not lower
+      # it to make it boot — a server that serves 174k while models.json promises 262,144
+      # 400s mid-session (docs/spark-llm-profiles.md §Client contract). Doubling the pool is
+      # fp8 KV's job (sglang #36644, unmerged) — 2 × 174k clears 262k, 2 × 93k does not.
       - --max-total-tokens
-      - "1048576"
+      - "262144"
+      # 0.80, NOT the flash-next cells' 0.85: 0.85 × 128 GB leaves ~8 GB for the OS, which
+      # is DGX OS's own earlyoom SIGTERM threshold — measured on the 27B page's GB10 grid,
+      # 15 of 48 cells died that way (`exit code -15`, no traceback, `journalctl -u earlyoom`),
+      # every cell served at 0.80. Our box has the same failure mode in its own incident
+      # history, so this is a floor, not a preference (docs/hardware-spark.md
+      # §DGX Spark host limits). roles/spark-llm-profile refuses a higher value.
       - --mem-fraction-static
       - "0.80"
-    reasoning_surface: binary
+    # SGLang cannot turn thinking OFF on this model (vendor: "always reasons"), and depth is
+    # requested via `reasoning_effort` — the opposite of the vLLM build we measured
+    # (binary enable_thinking, reasoning_effort accepted-and-ignored, docs/pi-harness.md §2).
+    # That measurement is ENGINE-specific: a sglang profile must not inherit the pi harness
+    # flags without re-measuring them, and `spark-llm-probe.py reasoning` legs are expected
+    # to FAIL on this engine by design until someone re-measures.
+    reasoning_surface: always-on-effort-unmeasured
     client_context_window: 262144
     client_max_tokens: 16384
     artifact_sets: [nvfp4-radixark]
     certified: false
     uncertified_reason: >-
-      SGLang + PLE on GB10 is unproven (BENCHMARK-PLAN: "PLE is vLLM-only
-      today"), the pinned table does not fit the unified pool, and
-      spark_sglang_image carries no digest yet. Authored so the engine swap is a
-      var flip once the R5 lane is measured.
+      Three independent blockers, in cost order: (1) spark_sglang_image carries no
+      digest — CONVENTIONS §7 forbids the floating dev tags that are the only builds
+      carrying support ≥ v0.5.20 plus the #38121 export loader; (2) the single-Spark KV
+      pool sglang measures for this checkpoint (~93k RadixArk / ~174k NVIDIA export, MTP
+      on) cannot hold the 262,144 window the client contract promises, and closing that
+      gap needs sglang fp8 KV (#36644, still open); (3) PLE + SGLang on GB10 has never
+      been booted here (BENCHMARK-PLAN: "PLE is vLLM-only today"), and a failed boot
+      competes with the certified engine for the same 121.62 GiB pool. The file-backed
+      table (#37068) is the vendor's own fix for (1 Spark, weights) and is already
+      authored below.
 
 # Resolve the active profile. Unknown profile name = undefined key = the render
 # aborts (fail-loud); roles/spark-llm-profile names the valid list up front.
