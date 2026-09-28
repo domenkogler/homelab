@@ -6,7 +6,10 @@
       "name": "Grafana Alert Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [0, 0],
+      "position": [
+        0,
+        0
+      ],
       "parameters": {
         "httpMethod": "POST",
         "path": "homelab-alerts",
@@ -20,7 +23,10 @@
       "name": "Route by Alert State",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [220, 0],
+      "position": [
+        220,
+        0
+      ],
       "parameters": {
         "mode": "rules",
         "rules": {
@@ -80,7 +86,10 @@
       "name": "Format Alerting Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, -220],
+      "position": [
+        440,
+        -220
+      ],
       "parameters": {
         "jsCode": "const b = $input.first().json.body || {};\nconst title = b.title || 'Homelab alert';\nconst state = b.state || 'unknown';\nconst msg = b.message || '';\nconst labels = b.labels || {};\nlet line = `⚠️ *${title}*\\nstate: ${state}\\n`;\nif (msg) line += `\\n${msg}\\n`;\nconst obj = JSON.stringify(labels);\nif (obj && obj !== '{}') line += `\\n\\`${obj}\\``;\nreturn [{ json: { message: line } }];"
       }
@@ -90,8 +99,11 @@
       "name": "Send Signal (alerting)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [680, -220],
-      "onError": "continueRegularOutput",
+      "position": [
+        680,
+        -220
+      ],
+      "onError": "stopWorkflow",
       "parameters": {
         "method": "POST",
         "url": "={{ $env.SIGNAL_CLI_URL }}",
@@ -131,7 +143,10 @@
       "name": "Format Resolved Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [440, 220],
+      "position": [
+        440,
+        220
+      ],
       "parameters": {
         "jsCode": "const b = $input.first().json.body || {};\nconst title = b.title || 'Homelab alert';\nreturn [{ json: { message: `✅ *${title}* resolved` } }];"
       }
@@ -141,8 +156,11 @@
       "name": "Send Signal (resolved)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [680, 220],
-      "onError": "continueRegularOutput",
+      "position": [
+        680,
+        220
+      ],
+      "onError": "stopWorkflow",
       "parameters": {
         "method": "POST",
         "url": "={{ $env.SIGNAL_CLI_URL }}",

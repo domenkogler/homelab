@@ -54,6 +54,18 @@ services:
       N8N_BASIC_AUTH_PASSWORD: "{{ vault['n8n-webhook_api'].credential | replace('$','$$') }}"
       N8N_METRICS: "true"
       DB_TYPE: sqlite
+      # ⛔ REQUIRED for the alert router, and the default is the WRONG way round (HD-347,
+      # read n8n-workflow/workflow-data-proxy-env-provider.js before changing):
+      #   isEnvAccessBlocked = process.env.N8N_BLOCK_ENV_ACCESS_IN_NODE !== 'false'
+      # — unset therefore means BLOCKED, every `$env.*` expression throws "access to
+      # env vars denied", and with the Signal node's old onError mute the execution still
+      # reported `success`, which is how "alerts go to Signal" stayed false through several
+      # n8n upgrades. The four SIGNAL_* values below are the reason this leg exists: they
+      # are the render's SSOT->runtime handoff, so the alternative (typing them into the
+      # workflow) would fork the SSOT. Cost of the switch: any workflow this instance can
+      # run may read the whole container env — bounded by n8n being admin-only over the
+      # tailnet (auto.ts.kogler.si, no public route, see the labels below).
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # HD-347: homelab-alerts workflow env — Signal delivery via signal-cli-rest-api on
       # oldsrv (Home-VLAN publish, WG-reachable from the VPS). Values are 1P-resolved at
