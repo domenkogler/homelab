@@ -111,7 +111,13 @@ class Endpoint:
             url, headers={"Authorization": f"Bearer {self.key}"})
         try:
             with urllib.request.urlopen(req, timeout=self.timeout) as r:
-                return json.loads(r.read().decode()), r.status
+                raw = r.read().decode(errors="replace")
+                try:
+                    return json.loads(raw), r.status
+                except json.JSONDecodeError:
+                    # /health on this vLLM build is 200 with an EMPTY body;
+                    # return the raw text so the caller can judge, never crash.
+                    return raw, r.status
         except urllib.error.HTTPError as e:
             return {"_error": e.read().decode()[:200]}, e.code
 
@@ -146,7 +152,12 @@ class Endpoint:
 def reasoning_text(resp):
     ch = (resp.get("choices") or [{}])[0]
     msg = ch.get("message") or {}
-    return (msg.get("reasoning_content") or ""), (msg.get("content") or "")
+    # This build names the thinking output `reasoning` (Qwen3-style), not
+    # `reasoning_content` (the legacy field). Read both so the probe works on
+    # either build; measured on 2026-09-28 (HD-469 cert): enable_thinking=true
+    # → message.reasoning populated, reasoning_content null. If a future build
+    # flips the field, BOTH are read and the non-empty one wins.
+    return (msg.get("reasoning") or msg.get("reasoning_content") or ""), (msg.get("content") or "")
 
 
 def verdict(name, ok, detail):
@@ -164,7 +175,10 @@ class Probes:
 
     def health(self):
         d, code = self.ep.get("health", absolute=True)
-        self.record("health", code == 200, f"HTTP {code}")
+        # vLLM answers /health with HTTP 200 and an EMPTY body (measured on
+        # this fork, 2026-09-28); do not json.loads an empty body.
+        ok = code == 200
+        self.record("health", ok, f"HTTP {code} body={str(d)[:60]!r}")
 
     def binary_reasoning(self):
         q = [{"role": "user", "content": "A snail climbs 3 ft/day and slips 2 ft/night from a 30 ft well. How many days? Reason carefully, then answer with the number."}]
@@ -204,8 +218,19 @@ class Probes:
                     f"identical={same} (identical ⇒ engine IGNORES reasoning_effort)")
 
     def ctx(self, target, max_tokens=24):
-        words = max(1, int(target / TOKENS_PER_WORD))
-        filler = (WORD + f"{target} ") * words
+        # Size by MEASURED bytes/token, not the 6-words/token guess: the repetitive
+        # filler above tokenizes denser than prose (measured 2026-09-28:
+        # 12209 body chars → 2352 tokens = 5.19 chars/token), and an over-sized
+        # prompt would trip the engine's max_model_len boot-gate with a 400 — an
+        # honest gate, but a probe that cannot reach its own target. Build the
+        # prompt to a REAL depth of ≥ 0.90 × target token-slots minus a safety
+        # margin, then assert against 0.8 × target (gate 3 in
+        # spark/llm-profiles/README.md: "prompt_tokens ≥ 80 % of the ask").
+        body_chars_per_tok = 5.2       # measured for WORD (12209 chars → 2352 tok)
+        room = target * 0.90            # stay under max_model_len even at target=262144
+        chars = int(room * body_chars_per_tok * 0.9)  # ×0.9 belts-and-braces
+        unit = (WORD + f"{target} ")
+        filler = unit * max(1, chars // len(unit))
         q = [{"role": "user", "content": f"Read this, then say only OK. {filler}\n"
                                          f"NEEDLE: the code word is ORANGE-LEDGER-7741. Say OK."}]
         r, dt, code = self.ep.chat(q, None, max_tokens=max_tokens, timeout=max(900, target // 20))

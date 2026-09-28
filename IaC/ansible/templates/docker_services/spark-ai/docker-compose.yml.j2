@@ -88,6 +88,15 @@ services:
       - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor
       - NCCL_NSOCKS_PERTHREAD=4
       - NCCL_SOCKET_NTHREADS=2
+      # HD-469 cert (2026-09-28): vLLM's usage-stats writer creates
+      # ~/.config/usage_stats.json in the WORKER at startup; with the hardened
+      # `read_only: true` root FS that write is OSError[Errno 30] and the worker
+      # dies (only reached on the fp8 KV path's later init order — the bf16
+      # `reasoning` lane never hit it). Disable vLLM's telemetry outright
+      # (the standard opt-out trio; this build honors them per usage_lib.py).
+      - VLLM_NO_USAGE_STATS=1
+      - VLLM_DO_NOT_TRACK=1
+      - DO_NOT_TRACK=1
 {% for e in profile.env_extra | default([]) %}
       # profile-specific (profile {{ spark_llm_profile }} · env_extra)
       - {{ e }}

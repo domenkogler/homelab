@@ -137,7 +137,16 @@
     # under --local-dir, which fails there. With --local-dir = ples_int4/ and
     # --include "ples_int4/*", the repo-relative path nests → ples_int4/ples_int4/*;
     # the flatten task below moves the nested dir's contents up after download.
-    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir }}/{{ item.subdir }}/META.json"
+    # HD-469 cert (2026-09-28): the idempotency guard must test the INSTALLED
+    # FLAT state, not the transient nested dir — the flatten task removes the
+    # nested dir after download, so a guard on the nested path is NEVER satisfied
+    # on a previously-staged store and re-downloads ~60 GB on every flip.
+    # Flatten keeps the nested dir as the write target so a mid-download retry
+    # still works; the guard reads the flat result. local_dir is the writable
+    # CHILD dir ({{ spark_xfs_mount }}/ples_int4), so the INSTALLED table marker
+    # is local_dir/META.json — NOT local_dir/subdir/META.json (that is the
+    # transient nested write target the flatten task removes).
+    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/META.json"
   environment:
     HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
     # The store root /mnt/spark_nvme is root-owned — hf writes a .cache dir under
@@ -156,7 +165,10 @@
       inner="{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}/{{ item.subdir }}";
       outer="{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}";
       shopt -s dotglob nullglob;
-      if [ -d "$inner" ]; then mv "$inner"/* "$outer"/; rmdir "$inner"; fi
+      if [ -d "$inner" ]; then
+        if [ -n "$(ls -A "$inner")" ]; then mv "$inner"/* "$outer"/; fi;
+        rmdir "$inner";
+      fi
     '
   args:
     removes: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir }}/{{ item.subdir }}"
@@ -164,6 +176,9 @@
     # `mv dir/. dir/` refuses to move a dir into itself (Device or resource busy)
     # — move the CONTENTS up via glob (incl. dotfiles), then rmdir the empty
     # nested shell. Idempotent via `removes` (runs only when nested exists).
+    # 2026-09-28 (HD-469 cert): with an EMPTY nested dir the bare `mv "$inner"/*`
+    # is a no-arg mv → error exit; guard the mv on content and always rmdir so an
+    # empty leftover (created by the dir-ensure task) is cleaned, not retried.
   become: "{{ spark_artifacts_become | default(false) }}"
   loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
   tags: [spark, spark-artifacts, artifacts]

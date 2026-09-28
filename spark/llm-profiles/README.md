@@ -12,6 +12,14 @@ Why a bar at all: the box has one 121.62 GiB unified pool shared by weights, KV 
 cold engine boot is ~20 min. A profile that "boots and answers one prompt" has proven nothing about
 whether it will survive an agent session.
 
+> **Measured 2026-09-28 (HD-469 cert): fp8 KV CANNOT boot on Qwen3.8-Flash-Next.** The engine
+> dies at EngineCore init with
+> `NotImplementedError: Qwen3.8-Flash-Next QSA requires a BF16 main KV cache`
+> (`vllm/models/qwen3_8_flash_next/nvidia/qsa.py:187`) — the hybrid model's QSA (sparse attention)
+> layer hard-requires a BF16 main KV cache. So the `graded` profile (fp8 KV) is architecturally
+> impossible on this model/build. Do not re-attempt fp8 KV here without a model/engine change;
+> evidence: [`spark/reports/hd469-graded/README.md`](../../spark/reports/hd469-graded/README.md).
+
 ## Gate order (each step is a command, not a vibe)
 
 | # | Gate | Command / measure | Pass = |
