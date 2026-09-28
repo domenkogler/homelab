@@ -76,6 +76,52 @@ top-level `reasoning_effort` accepted-and-**ignored**), so "graded reasoning" is
 per-level budgets until a profile proves otherwise — `scripts/spark-llm-probe.py effort high` is the
 one command that re-measures it.
 
+### Not a profile: Qwen3.8-27B is a SECOND served model, never a value of `spark_llm_profile`
+
+Raised by the owner on 2026-09-28 ([SGLang's own 27B cookbook page](https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-27B)).
+It is a dense hybrid-GDN **VL** model (`model_type: qwen3_5`, 27.78 B params, 64 layers = 48
+linear-attention + 16 full-attention, GQA 24/4 @ head_dim 256, MTP head in-checkpoint, 262,144
+native / 1 M extensible) and the only candidate whose **whole grid is measured on this box**: 80
+configurations served on SM121/aarch64, each scored on the full 1319-question GSM8K (93.18–95.15 %;
+the NVIDIA NVFP4 export 94.16–95.07 %).
+
+* **Why it cannot be a profile:** serving a different model under `spark/qwen3.8-flash-next` voids
+  every anchor HD-469 exists to protect — HD-376's depth proof, the reasoning-lane cert, the
+  pi-harness 100-task score, and the AWQ/FP8/NVFP4 quality ladder. It is a second served model with
+  its own cert, and on one 121.62 GiB pool the two cannot co-run.
+* **Vendor-pinned constants (use these, do not re-derive):** `kv_bytes_per_token` = 16 attn layers ×
+  4 KV heads × 256 × K+V = **32,768 B fp8 / 65,536 B bf16**; GDN state slot (48 × 48 × 128 × 128 +
+  bf16 conv) = **153.9 MB fp32 / 78.4 MB bf16**; slots/request `S` = 5 (`extra_buffer`) / 4
+  (`extra_buffer_lazy`) / 3 (`no_buffer`) / 1 (radix off); `D` = 4 verify states at MTP 3/1/4 (8 for
+  DFLASH, 0 with spec off). The post-weight split between the worst-case-reserved **state pool** and
+  the paged **KV pool** is `--mamba-full-memory-ratio`, default **0.9 = 90 % to KV**, which
+  "over-provisions the KV pool and silently clamps concurrency".
+* **The pool it buys on one Spark** at the page's `--mem-fraction-static 0.80` (= 102.4 GB static)
+  minus weights, ~3 GB context/allocator, ~1.5 GB spec — **computed from those constants, NOT
+  measured** (the page publishes no GB10 KV-pool size for this model):
+
+  | checkpoint | weights | pools | KV @ fp8 | KV @ bf16 |
+  |---|---|---|---|---|
+  | NVFP4 (FP4 head) / NVIDIA export | 21.9 GB | ~76 GB | **~2.09 M tok** | ~1.04 M |
+  | NVFP4 (BF16 head) | 25.1 GB | ~73 GB | ~2.0 M | ~1.0 M |
+  | FP8 blockwise | ~28.5 GB | ~69 GB | ~1.9 M | ~0.95 M |
+  | BF16 | ~55.6 GB | ~42 GB | ~1.16 M | ~0.58 M |
+
+  One 262,144-token session = **8.59 GB** of KV at fp8 (17.18 GB bf16) + (S+D) × 153.9 MB of state
+  ≈ 1.4 GB → **~10 GB ≈ 13 % of the NVFP4 pool**. Our AWQ lane today: 515,679 slots total =
+  **1.97 ×** window, so one full-window session consumes ~half the box. **That gap — not decode
+  speed, not accuracy — is the argument for this model**, and it is the same gap behind our
+  0 %-prefix-hit re-prefill pain ([pi-harness.md](pi-harness.md): a 162 k-token session re-prefilling
+  at 17,008 tok/s). 1 M context = 32.8 GB fp8 (fits the NVFP4/FP8 cells) but 65.5 GB bf16 (does not),
+  so YaRN-to-1 M is fp8-KV-only and quality-unverified for our workloads either way.
+* **Read the number, do not trust the arithmetic:** sglang's startup log (`max_total_num_tokens=`,
+  `max_running_requests=`) is the authoritative readout — the RTX 5090 story on that page is exactly
+  this failure mode (pool self-sized for 127,332 tokens against 9,216 needed, starving the state
+  pool). `nvidia-smi` reports memory `Not Supported` on GB10; gate on `MemAvailable`.
+* If it is ever taken up, it is its own lane: its own `client_context_window`, its own cert, its own
+  served id, and an engine decision (the grid is a **SGLang** grid, and the pin problem in
+  `fast-sglang` applies to it too — plus the binary/`reasoning_effort` surface differs per engine).
+
 ### Test loop (run it detached, boot is ~20 min)
 
 `scripts/spark-llm-probe.py` reads the bearer from 1Password at runtime (never in argv/git) and reads
