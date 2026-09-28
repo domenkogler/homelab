@@ -1,9 +1,0 @@
-[Unit]
-Description=Push Immich face thumbnails → bulk/data/immich-thumbs (NFS /mnt/nas/thumbs)
-After=network-online.target
-
-[Service]
-Type=oneshot
-ExecStart=/usr/bin/rsync -a --delay-updates \
-    --include "{{ storage_push_face_thumbs.pattern }}" --exclude "*" \
-    {{ storage_push_face_thumbs.src | quote }}/ {{ storage_push_face_thumbs.target | quote }}/

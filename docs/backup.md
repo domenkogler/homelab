@@ -117,17 +117,17 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
 | PostgreSQL DBs — **Authentik, Forgejo, Immich, Zipline** (HD-112), **LiteLLM runtime** (HD-247: `STORE_MODEL_IN_DB` ⇒ the DB holds keys/models/spend) — all on the **VPS** via `db-backup` `DB01–03` + `DB05–06` | VPS NVMe | ⚠ **daily dumps, ONE copy, on the same disk as the databases** — see §VPS-side coverage gap. The documented `→ tank/data/db-dumps (ZFS)` push and the Kopia snapshot of the dump volume **do not exist** | *(intended: ZFS `tank/data/db-dumps` + Storage Box via Kopia — **not live**)* |
-| **`lan-litellm-db` on oldsrv** (the LAN inference gateway's Postgres) | oldsrv | ⚠ **no dump job exists on oldsrv at all** (no `db-backup` container on oldsrv, and the `push-db-dumps` timer that exists dies every night on `chown … Operation not permitted` over the root-squashed NFS export — rc 23 — so nothing ever reaches `tank/data/db-dumps` while the oldsrv `kopia-agent` snapshots an empty scratch dir: **HD-468**) — the same `STORE_MODEL_IN_DB` class the VPS closed with DB06 in HD-247 | *(nothing — open gap)* |
+| **`lan-litellm-db` on oldsrv** (the LAN inference gateway's Postgres) | oldsrv | **dump job now exists (HD-468, 2026-09-28)**: `storage-push-db-dumps.sh` runs `pg_dumpall` inside `lan-litellm-db`, gzip-tests the dump, refuses to ship an empty one, and rsyncs with owner/group preservation OFF — the export is `root_squash,anonuid=1005`, so `rsync -a` could only ever die on `chown` (rc 23). Local retention 14, no `--delete` on the NAS side (sanoid owns retention) | oldsrv `/srv/dumps` → `tank/data/db-dumps` (ZFS) |
 | **Matrix server state + signing identity + media store** (HD-49) — tuwunel: RocksDB room/user state, the **server signing key** + key-notary data, the E2EE key-backup, `media/` and `archive/` | VPS NVMe `/srv/docker/matrix` (single bind → `/var/lib/tuwunel`) | **Nothing backs it up today** — the path is not in any snapshot because there is no VPS-side Kopia client (§VPS-side coverage gap). Note there is **no separate key file to archive**: `database_path` is the data dir and probing it finds no `*.pem`/keystore file, so the signing identity lives inside the same RocksDB store as the rooms | *(pending the VPS client; then one row covers all of it)* — see §Matrix: what one path buys and what it does not |
 | **RustDesk server keypair + client registrations** (HD-412) — `/srv/docker/rustdesk-server/data` | VPS NVMe | **Primary restore is 1Password `rustdesk_login`, not a snapshot** (the s6 unit re-seeds `/data/id_ed25519*` from `KEY_PUB`/`KEY_PRIV` when absent, so wiping the dir + re-converging restores the identity and enrolled clients keep working). The snapshot only has to cover `db_v2.sqlite3` (client/peer registrations) — losing it re-prompts devices, it does not lock anyone out | 1P (identity) + Kopia once the VPS client exists (registrations) |
 | **Qdrant** vector store (`/srv/docker/qdrant`), HD-267/268 | VPS NVMe | **rebuildable cache** (docs/services-ai.md §5b) — snapshot/export via Qdrant REST `/snapshots` + Kopia-backed host bind; **not** a db-backup Postgres dump | `tank/data/services` (ZFS) + Hetzner Storage Box (Kopia) — *intended; same VPS-client caveat* |
 | Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
-| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **AI harness (pi-dev + DSH) workspaces** (`/srv/docker/pi-dev/workspace`, `/srv/docker/dsh/workspace`, HD-268c); **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | ⚠ **the push fails every night** — `push-services` dumps `forgejo`/`n8n` containers that exist only on the VPS while the unit is installed on oldsrv (**HD-468**) — + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) |
+| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **AI harness (pi-dev + DSH) workspaces** (`/srv/docker/pi-dev/workspace`, `/srv/docker/dsh/workspace`, HD-268c); **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | ⚠ **the push fails every night** — `push-services` dumps `forgejo`/`n8n` containers that exist only on the VPS while the unit is installed on oldsrv (**HD-468**) — + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) — ⚠ the oldsrv unit that named these containers was REMOVED 2026-09-28 (HD-468): they are vps-side, and the vps dump is ONE copy on ONE disk until HD-191 gives that host a client |
 | **Zipline file payloads** (`/srv/docker/zipline/uploads` — datasource; HD-112) | VPS NVMe | **Kopia-EXCLUDED by design**: anonymous dropzone drops self-destruct at ≤ 6h TTL (guestbin quota-bounded); private-account files are owner-managed | — *(ephemeral/regenerable-by-design — observability-TSDB precedent)*. The metadata DB IS dumped (`db-backup` DB05). |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
 | Immich **originals + encoded-video** (photos/videos) | **live Hetzner Box** (CIFS `//u653411.../backup`, VPS) | **live tier** (HD-135) | backed by **Kopia → backup Box** (off-site) **+ the Immich DB** (albums/faces/tags) — D3. *Supersedes the MinIO/S3-originals plan (HD-131 D1).* |
-| Immich **face thumbnails** | oldsrv NVMe | ⚠ **the rsync fails every night** — its source `/srv/docker/immich/upload/thumbs` does not exist (**HD-468**) — + Kopia | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
+| Immich **face thumbnails** | **VPS** NVMe `/srv/docker/immich/upload/thumbs` (measured 1.2 MB; immich-server/-postgres/-valkey all run there) — **not** oldsrv, which runs only the immich-ml leg and holds no user data | ⚠ **unbacked**: the oldsrv `push-face-thumbs` unit named a path that does not exist there and was REMOVED 2026-09-28 (**HD-468**); the VPS has no push path (**HD-191**) — + Kopia covers VPS NVMe where the tree actually is | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
 | **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
 
 > **Victoria observability (HD-342):** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed** (owner decision — reverses the old "regenerable, NOT backed up" doctrine for Prometheus 30d/Loki 14d). They live on the **VPS NVMe** (HD-135 backend placement) at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds). ⚠ **The snapshooting client for these — and for every other `/srv/docker` path on the VPS — does not exist yet: §VPS-side coverage gap. Until it does, "Kopia-backed" in this section is the policy, not the state.**
@@ -183,6 +183,33 @@ RustDesk row to an include list that has no client to attach to would only make 
 > thumbnails are the one exception — see above).
 
 ---
+
+### ⚠ What the 2026-09-28 sweep of the oldsrv push legs found (HD-468)
+
+Three red timers, three different truths, and only one of them was the one the failures named:
+
+- `push-db-dumps` — **two stacked defects.** `rsync -a` cannot chown onto an export mounted
+  `root_squash,anonuid=1005` (rc 23 every night), **and there was no producer at all** — `/srv/dumps`
+  was an empty directory, so fixing only the rsync flags would have produced a green timer shipping
+  nothing. Both fixed: `storage-push-db-dumps.sh` dumps each Postgres this host runs
+  (`storage_push_db_dumps_pg`), gzip-tests it, refuses to ship an empty dump, asserts the target really
+  is the `nas.kogler.si:/tank/data` mount before writing, and copies with owner/group preservation off.
+  No `--delete` — retention belongs to sanoid, not to a copy job.
+- `push-services` — it ran `docker exec forgejo` / `docker exec n8n`, and **neither container exists on
+  oldsrv** (`group_vars/vps.yml` owns both). Removed. Skipping the missing containers so it could exit 0
+  was the available shortcut and is exactly the fake-green this repo forbids, so the leg went away.
+- `push-face-thumbs` — same class: its source does not exist on oldsrv, which runs only the immich **ml**
+  leg; the thumb tree is on the VPS (measured 1.2 MB). Removed, and this table's "Location" cell for face
+  thumbnails — which said oldsrv — corrected.
+
+**The asymmetry worth more than the three fixes:** nas exports `/tank/data`, `/bulk/media` and
+`/bulk/data/immich-thumbs` each to a single `/32` — **oldsrv's own address, and nothing else**
+(the export lines are in `roles/storage/templates/exports.j2`; the address itself is in
+[network-addresses-generated.md](network-addresses-generated.md)). The VPS cannot push to the NAS over NFS
+at all today, which is why its `db-backup` dumps (Postgres for Authentik/Forgejo/Immich/Zipline/LiteLLM,
+plus the forgejo archive and n8n sqlite that used to be this unit's payload) sit as a single copy on a
+single disk. Closing **HD-191** is what makes those legs real; editing these units again is not.
+
 
 ## Backup Flow
 

@@ -153,9 +153,12 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 
 | Job | Source (oldsrv) | Target (nas) | Method |
 |-----|-----------------|--------------|--------|
-| DB dumps | `/srv/dumps` (local scratch) | `tank/data/db-dumps` | rsync/cp after db-backup completes |
-| Service state | Forgejo `forgejo dump` archive, n8n `sqlite3 .backup`, Authentik state | `tank/data/services/<svc>/` | rsync |
-| Face thumbnails | Immich `thumbs/` face files | `bulk/data/immich-thumbs` | rsync over NFS (deltas) |
+| DB dumps | `/srv/dumps` (produced here by `storage-push-db-dumps.sh`: `pg_dumpall` per container in `storage_push_db_dumps_pg`) | `tank/data/db-dumps` | rsync `-a --no-owner --no-group` — the export is `root_squash,anonuid=1005`, so preservation is not optional |
+
+**There used to be two more rows here.** `push-services` (Forgejo/n8n state) and `push-face-thumbs` were
+removed 2026-09-28 (**HD-468**): both named payloads that live on the **VPS**, not on oldsrv, so neither
+could ever exit 0 where it was installed. What the VPS should do instead, and why it cannot do it by NFS
+to the NAS, is in [backup.md](backup.md) — the sweep section — and **HD-191**.
 
 Key properties: dumps are written **locally first** (Kopia snapshots the local dir) and then pushed —
 Kopia never reads NAS mounts, so off-site backup survives a dead NAS. All three jobs are systemd timers

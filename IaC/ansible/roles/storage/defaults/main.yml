@@ -179,16 +179,24 @@ storage_nfs_mounts:
   - { src: "{{ storage_nfs_server }}:/bulk/data/immich-thumbs", path: /mnt/nas/thumbs, opts: "nfsvers=4.2,hard,intr,nofail,x-systemd.automount,noatime" }
 
 # ---------------------------------------------------------------------
-# Nightly push jobs (oldsrv → nas). Schedules are systemd OnCalendar specs.
+# Nightly push leg (oldsrv → nas): DB dumps this host owns. Schedules are systemd
+# OnCalendar specs. Two sibling legs (push-services, push-face-thumbs) were REMOVED
+# 2026-09-28 (HD-468) — their payloads live on the vps, where no push path exists yet;
+# see docs/backup.md rather than re-adding them here.
 # ---------------------------------------------------------------------
-# 1) DB dump scratch → tank/data/db-dumps (runs after tiredofit/db-backup).
-storage_push_db_dumps: { src: /srv/dumps, target: /mnt/nas/data/db-dumps, oncalendar: "*-*-* 03:35:00" }
-# 2) Service state (Forgejo dump, n8n sqlite backup) → tank/data/services.
-storage_push_services: { src: /srv/docker/services, target: /mnt/nas/data/services, oncalendar: "*-*-* 04:00:00",
-                         scripts: "/usr/local/sbin/storage-push-services.sh" }
-# 3) Immich face thumbnails → bulk/data/immich-thumbs. Over NFS like the other
-#    two jobs (third export + /mnt/nas/thumbs mount) — no ssh key, no extra secret.
-storage_push_face_thumbs: { src: /srv/docker/immich/upload/thumbs, target: /mnt/nas/thumbs, oncalendar: "*-*-* 04:30:00", pattern: "face*" }
+# expected_source is asserted before the rsync: writing a backup into a directory whose
+# automount silently failed is how you get a green timer and no off-host copy.
+storage_push_db_dumps:
+  src: /srv/dumps
+  target: /mnt/nas/data/db-dumps
+  oncalendar: "*-*-* 03:35:00"
+  expected_source: "nas.kogler.si:/tank/data"
+  keep: 14                      # local retention per container; the NAS keeps its own history
+# Every Postgres this host runs. Adding a service means adding a row here — the leg fails
+# loudly on an EMPTY list, because a configured-to-dump-nothing leg looks identical to a
+# working one from the outside.
+storage_push_db_dumps_pg:
+  - { container: lan-litellm-db, db_user: litellm }
 
 # Kopia wiring (oldsrv): sources already exist as dirs above; policies are
 # configured in the kopia-agent container config — this role only guarantees

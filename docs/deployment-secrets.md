@@ -653,9 +653,10 @@ authorized on nas for the same account. Retired by commenting the entry out (bac
 assumed: fresh `ansible-admin` auth to nas + `storage.yml --limit nas --check --tags common`
 → `ok=20 changed=0 failed=0`. ~~**⏳ Delete both halves after one green backup night**~~ —
 the gate was **replaced and closed 2026-09-28 (HD-449(b))**, because it was unfailable rather than
-slow: `push-db-dumps` 03:35 / `push-services` 04:00 / `push-face-thumbs` 04:30 run as `svc-backup`
-and rsync to a **local tank path**, so they were never this key's consumer, and all three have been
-red since 2026-09-18 for a destination-ownership cause (HD-468). What actually decided it was the
+slow: `push-db-dumps` 03:35 (plus `push-services` 04:00 and `push-face-thumbs` 04:30, both since removed as
+mis-placed — **HD-468** closed 2026-09-28) ran as `svc-backup` and rsynced to a **local tank path**, so
+they were never this key's consumer; all three had been red since 2026-09-18 for a destination-ownership
+cause. What actually decided it was the
 direct question, asked as a falsifiable sweep: derive the public half from the displaced private key
 (`ssh-keygen -yf` → `SHA256:U+6vLRV…`), then enumerate **every** `authorized_keys*` on all five
 managed hosts with `ssh-keygen -lf` and compare **fingerprints** — 0 live acceptances. (The blob
