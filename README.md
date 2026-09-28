@@ -88,8 +88,9 @@ task-specific dispatch. Do **not** bulk-read the repo.
   replacing the old Phase-2 Ryzen/Proxmox plan (HD-335, [`docs/hardware-spark.md`](docs/hardware-spark.md)).
 - **Recommended next tasks:** see the latest `prompt-*.md` handoff (date-stamped) — it names the
   current most-valuable, laptop-doable items. **Handoff family note (2026-09-19):** `prompt.md` is the
-  standing handoff; `prompt-<HD>.md` files are **single-lane briefs** for the HD in their name and are
-  listed from `prompt.md` §2 — read those, not `prompt-next.md` (the 2026-09-15 spark S1 handoff, superseded by
+  standing handoff; `prompt-<HD>.md` files are **single-lane briefs** (epic/wave work), referenced from
+  their `todo.md` rows and listed in the `prompt.md` §3 wave table; a brief dies with its lane (O7) and any
+  small residue folds back into the rows — read those, not `prompt-next.md` (the 2026-09-15 spark S1 handoff, superseded by
   `prompt.md`; absorbed into the `prompt-376.md` lane brief and **deleted 2026-09-22** — the record is git history). **HD-312 3-SSID WiFi + per-MAC cloud-IoT WAN is LIVE
   (2026-09-03)** — the cloud-IoT appliances (LG/Bosch/HAP) regain WAN as leases turn over; the phantom
   **VLAN 21 (IoT-Internet) was DELETED (HD-325, 2026-09-04)** — cloud-IoT moved to VLAN 20 with a
@@ -151,7 +152,8 @@ task-specific dispatch. Do **not** bulk-read the repo.
 > **Two different things, one word.** Everything in this section is about **subagent children inside one session**.
 > Running **independent lane sessions** — one [`prompt-<HD>.md`](prompt.md) brief per session, each with its own
 > worktree and branch, then merged and cleaned up by a parent — is governed by
-> [`prompt.md`](prompt.md) **§4 (Orchestrator mode)**, whose rules **deliberately differ from README §4 and
+> [docs/orchestration.md](docs/orchestration.md) **§4 (Orchestrator mode)** (moved out of `prompt.md`
+> 2026-09-28), whose rules **deliberately differ from README §4 and
 > CONVENTIONS §6** at the items it numbers O1–O8 (fast-forward vs rebase, who may write `prompt.md` /
 > `todo-table.md`, per-directory converge slots, park-instead-of-stop on owner gates, and who deletes a brief).
 > Where §4 is silent, this README and CONVENTIONS stand and outrank any brief.
