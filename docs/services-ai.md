@@ -743,7 +743,7 @@ route, if the existing gateway already carries it without contorting the gateway
 not, cleanly. `gateway-auth` authenticates **real client identity** — a phone-driven cockpit has no browser
 that can complete an Authentik flow inside a sub-request, and the daemon-to-origin hop would need a machine
 credential. So the gate is the **tailnet ACL** (headscale decides which node may reach `31415`) **plus** the
-per-daemon token, and TLS-into-Traefik stays with the tailnet/TLS lane (prompt-414).
+per-daemon token, and TLS-into-Traefik stays with the tailnet/TLS lane (old lane 414; tracked in [todo.md](../todo.md)).
 
 **Ports are vars, never literals** (`cockpit_pi_web_port: 31415`, `paseo_port: 6767` in
 `group_vars/all/main.yml`) — HD-344 moved MCP off a shared port precisely because a port written twice is

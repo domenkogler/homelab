@@ -64,6 +64,7 @@ tags: [index, dispatcher, ai]
 ```
 docs/
 ├── index.md                              ← YOU ARE HERE
+├── orchestration.md                       Permanent session contract: working contract + lane-session orchestrator mode (O1–O8, launch, merge/cleanup)
 │
 ├── network.md                             Index: ISP, topology, links to network-*.md
 ├── network-review.md                      Network intake queue

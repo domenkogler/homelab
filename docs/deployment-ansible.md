@@ -399,7 +399,7 @@ run under `--check`, so `_ts_ip.stdout` is empty and the very next task fails cl
 (`home_servers.yml --limit oldsrv.kogler.si --check`, 2026-09-22 22:44). Same fix shape, better variant:
 that read is harmless under `--check`, so it wants `check_mode: false` on the `command` task (which
 `check_self_converge_guard.py` permits for a guarded, non-`check_safe` role) rather than gating the assert
-away. `roles/tailscale-node/**` was **lane 414's file this wave** ( [`prompt-414.md`](../prompt-414.md) ),
+away. `roles/tailscale-node/**` was **lane 414's file this wave** ( the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](../todo.md)) ),
 so it is recorded here rather than edited — until it lands, the honest oldsrv pre-flight form is
 `--check --tags docker_services` (proved green above) or `--check --tags common,network`, and the form you
 ran must be named in the report. (After HD-413 both are legal **from the control node itself** — `--check`
@@ -707,7 +707,7 @@ NDP to `fe80::1` never resolves and IPv6 is dead in both directions (`ping6 fe80
 loss, `curl -6` → FAIL). The fix is one `meta l4proto ipv6-icmp` accept covering NDP + PMTUD
 (`neighbour-solicitation`, `neighbour-advertisement`, `router-solicitation`, `router-advertisement`,
 `destination-unreachable`, `packet-too-big`, echo) — **and until it lands, any path that depends on
-the VPS having IPv6 is dead**, which includes prompt-414's IPv6-scoped direct transport and the VPS
+the VPS having IPv6 is dead**, which includes the closed lane 414's IPv6-scoped direct transport (now HD-448's territory) and the VPS
 `/64` just added to the Cloudflare allowlist.
 
 **`dns.yml` and the Cloudflare filter: the filter is on the egress ADDRESS, not on "being home."**

@@ -228,7 +228,7 @@ inherited, not overridden, because it checks supervision state, which is the onl
 expose (no HTTP surface to probe; contrast the whisper lesson in [services-ai.md](services-ai.md) §3a-3).
 Reachability signal = a blackbox `tcp_connect` probe of 21116/21117 from the VPS blackbox-exporter —
 ⛔ **owed**: scrape targets live in `roles/monitoring/**`, whose owning brief is
-[`prompt-420.md`](../prompt-420.md) (it carries this probe as named, undispatched debt), and it rides on any
+the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](../todo.md)) (it carries this probe as named, undispatched debt), and it rides on any
 future `--tags monitoring` change rather than a lane of its own.
 
 ### Onboarding stage (CONVENTIONS §5)
