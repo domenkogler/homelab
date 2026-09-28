@@ -165,8 +165,13 @@ ssh-keyscan -t ed25519,rsa,ecdsa github.com 2>/dev/null | grep -v '^#' | while r
 done
 
 # ── 4. prove the credential, then (only if proven) create the seat clone ──────────────────
+# ⚠ `-n` + `</dev/null` are load-bearing, not style: this script is fed to `bash -s` over ssh,
+# so ssh's stdin IS the rest of this script. A bare `ssh -T` swallows everything after it and the
+# run silently ends at the last executed line with THAT status — which reads as the thing under
+# test failing. Measured the hard way here: with the deploy key ACCEPTED, the run stopped after
+# the host-key loop and exited 1 without ever reaching the dry-run. Same trap, opposite symptom.
 probe=$(sudo -u "$SEAT" -H env SSH_AUTH_SOCK= GIT_SSH_COMMAND="ssh -o BatchMode=yes -o IdentityAgent=none" \
-        ssh -T git@github.com 2>&1 | head -2)
+        ssh -n -T git@github.com </dev/null 2>&1 | head -2)
 say "auth probe: $probe"
 case "$probe" in
   *"successfully authenticated"*) say "GitHub accepts this deploy key" ;;
@@ -197,7 +202,7 @@ if [ ! -d "$REPO/.git" ]; then
   sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git clone --quiet "$REMOTE" "$REPO" && say "seat clone created over the deploy key" || { say "CLONE FAILED"; exit 1; }
 else
   say "seat clone already present"
-  sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git -C "$REPO" fetch --quiet origin && say "  fetch over the deploy key: ok" || say "  FETCH FAILED over the deploy key"
+  sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git -C "$REPO" fetch --quiet origin </dev/null && say "  fetch over the deploy key: ok" || say "  FETCH FAILED over the deploy key"
 fi
 say "  remote: $(sudo -u "$SEAT" -H git -C "$REPO" remote get-url origin)"
 say "  HEAD:   $(sudo -u "$SEAT" -H git -C "$REPO" rev-parse --short HEAD) $(sudo -u "$SEAT" -H git -C "$REPO" rev-parse --abbrev-ref HEAD)"
@@ -207,7 +212,7 @@ say "  HEAD:   $(sudo -u "$SEAT" -H git -C "$REPO" rev-parse --short HEAD) $(sud
 # authorizes BEFORE any transfer. Negative control, same host, same day: the read-only HTTPS
 # deploy token on the runner clone gets `403 Permission to domenkogler/homelab.git denied`
 # from the identical --dry-run command — so a rc 0 here means the write grant is real.
-sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git -C "$REPO" push --dry-run origin HEAD:refs/heads/hd449-write-probe > "$TMP/dry" 2>&1
+sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git -C "$REPO" push --dry-run origin HEAD:refs/heads/hd449-write-probe </dev/null > "$TMP/dry" 2>&1
 RC=$?
 sed 's/^/   | /' "$TMP/dry"
 say "push --dry-run rc=$RC $([ "$RC" = 0 ] && echo '→ WRITE PATH PROVEN (nothing was written: dry-run)' || echo '→ NOT PROVEN')"

@@ -574,9 +574,15 @@ repositories with two different jobs, and they must not be confused for each oth
 - The vault pair is self-consistent: `op read` derives a public half whose fingerprint equals both the item's `fingerprint` field and its `public_key` field (`SHA256:dGe193grwS3d74i7I…`). **`op item get --fields <SSHKEY field>` is not usable for this** — it returns a pretty-wrapped PEM that `ssh-keygen` refuses with `error in libcrypto`, so a naive install produces a key file that looks right and loads never. `op read op://…/<field>` returns the real value.
 - The item stores the private half as **PKCS#8** (the generic PEM header, not OpenSSH's own key format), and OpenSSH loads it happily (`identity file … type 3`, key offered) — no re-encoding needed, so a rejected key is a **GitHub-side** fact, not a format fact.
 - `github.com`'s host key is **pinned, not TOFU'd**: taken from `api.github.com/meta` and asserted against the fingerprints GitHub publishes, then cross-checked against what the wire actually presents (`ssh-keyscan` — and skip its `# …` probe lines, a `grep -F` on their empty blob matches every pin and makes the check unfailable).
-- **The blocker is GitHub-side** (see the public-remote note below). `ssh -T git@github.com` with that key answers `Permission denied (publickey)`, and `ssh -vv` shows the key *offered* — so the public half was never registered on `domenkogler/homelab` (the item even carries the `settings/keys/new` URL as its own field, and it was not followed). **Owner act:** paste `op read op://Homelab-ansible/GitHub-homelab-deploy_ssh/public_key` into [github.com/domenkogler/homelab/settings/keys/new](https://github.com/domenkogler/homelab/settings/keys/new) **with "Allow write access" ticked**, then re-run the script — key, `IdentitiesOnly` block and host pin are already in place, so it goes straight to the clone and the dry-run.
-- **The seat tree now exists** (created 2026-09-28 the same day): `/home/domen/source/homelab`, owned by `domen`, `origin = git@github.com:domenkogler/homelab.git` for BOTH fetch and push — no `pushurl` split, no second git path — and nothing planted: no `credential.helper`, no `~/.git-credentials` under `domen`. It cannot sync yet (every fetch fails closed with `Permission denied (publickey)`), which is the honest state of an unregistered key rather than a silent fallback to HTTPS.
+- **The blocker WAS GitHub-side, and it closed the same day.** Measured at 08:41, unregistered: `ssh -T git@github.com` answered `Permission denied (publickey)` while `ssh -vv` showed the key *offered* — offer-then-denied means the public half is not in the repo's key list, which no key file can fix (the vault item even carries the `settings/keys/new` URL as its own field). The owner registered it **with write access**, and the 10:3x re-run answered `Hi domenkogler/homelab! You've successfully authenticated` — that repo-named greeting is what a **deploy** key looks like, distinct from an identity key — and the acceptance passed: `git push --dry-run` **rc 0** (`* [new branch] HEAD -> hd449-write-probe`, nothing transferred). `git fetch` works and the tree is fast-forwarded to `origin/main`.
+- **The seat tree exists and syncs**: `/home/domen/source/homelab`, owned by `domen`, `origin = git@github.com:domenkogler/homelab.git` for BOTH fetch and push — no `pushurl` split, no second git path — and nothing planted: no `credential.helper`, no `~/.git-credentials` under `domen`. Before the key was registered it failed CLOSED at the key rather than silently falling back to anonymous HTTPS — the property to preserve if this is ever re-plumbed. It was materialised by an anonymous HTTPS read (allowed: the remote is public) and `origin` was immediately pointed at the SSH remote, so no one else's credential is in its config.
 - **⚠ The live remote is PUBLIC** — measured 2026-09-28 through `api.github.com` (`private: false`, `visibility: public`), and the repo's own text never said so. Three consequences a session must carry: (1) the runner's `github-homelab-deploy_api` token is about **scope + a non-interactive identity**, not about keeping code secret — a read needs no credential at all; (2) it is why the seat tree could be materialised before its write key worked; (3) it makes the no-literal-secrets rule (CONVENTIONS §6 + `check_secrets.py`) the only thing between a converge `--diff` / a pasted log and a **public** disclosure — the "never `--diff`" rule is not hygiene, it is disclosure control, and the tree already publishes the whole topology (hosts, IPs, services, vault item names).
+- **A script fed to `bash -s` over ssh must pass `-n` to every bare `ssh` it runs.** ssh's stdin IS the
+  rest of the script, so a bare `ssh -T host` swallows everything after it and the run silently ends at the
+  last executed line carrying THAT status — which reads as the thing under test failing. Measured both ways
+  on this one script: unregistered key → `exit 3`, correct only because that branch exits before any later
+  ssh; registered key → `rc 1` with the acceptance never executed. The fix is `-n` + `</dev/null`, not
+  reordering, and no amount of reading the exit code alone would have told you which of the two you had.
 - **⛔ What this does NOT license:** copying the runner's 0600 read-only credential store into `domen` to "make the step pass", and putting the write key under `ansible-admin`. The first forks the runner's least-privilege path onto the seat, the second hands the tree every converge executes a write path.
 
 `scripts/ansible-run.sh` used to declare "NOTHING HERE PULLS", on the sound principle that a
@@ -594,10 +600,22 @@ a converge does not do what the tip of `main` says it should.
 **The seat clone did not exist until this decision was written down.** Measured 2026-09-23:
 no `.git` anywhere under `/home/domen`, and `~/.pi/agent/sessions` empty — so the cockpit was
 a live, token-gated listener with no repository and no sessions to drive. Creating it is
-Phase 4c step 8. The credential half was installed on 2026-09-28 and the clone is **still
-absent**, because GitHub does not accept the deploy key yet (above) — a clone over the
-runner's read-only HTTPS store is not an acceptable substitute, it is the thing the decision
-forbids. A first commit from the seat also needs its own git identity + signing pointer
+Phase 4c step 8. It exists since 2026-09-28 and both directions work over the seat's own deploy
+key; it was never cloned through the runner's read-only HTTPS store, which is the thing the
+decision forbids.
+
+**⚠ What the seat still cannot do is AUTHOR.** Measured 2026-09-28: `domen` has no global git
+config at all — no `user.name`/`user.email`, no `gpg.format=ssh`, no `user.signingkey` — and the
+signing key sits in the `Private` vault, which the read-scope service account cannot read (it
+needs a human `op` sign-in). A commit from the seat today would be unattributed and unsigned, so
+the cockpit can edit and run but must not be treated as a commit surface yet.
+`git-bootstrap.sh --ssh-auth` is the laptop's version of that act and is **not** what the seat
+runs. Unrowed finding for the owner to mint if the cockpit should commit, rather than only edit.
+
+**⚠ And none of the seat's git plumbing is role-owned.** `/home/domen/.ssh/{config,known_hosts,github-homelab-deploy_ed25519}`
+and the clone are ad-hoc state on a converged host — the same shape HD-445 complains about for the cockpit
+units — so a rebuild of oldsrv loses the seat's credential silently and only re-running
+`scripts/seed-seat-deploy-key.sh` restores it. Nothing in the converge proves it is there.
 (`user.name`/`user.email`, `gpg.format=ssh`, `user.signingkey` from the `Private` vault — a
 human `op` sign-in, the read-scope SA cannot read it); `git-bootstrap.sh --ssh-auth` is the
 laptop's version of that act and is **not** what the seat runs.

@@ -1890,7 +1890,9 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    ⛔ the runner's read-only `github-homelab-deploy_api` store lives under `ansible-admin` at 0600 and must
    **not** be copied into `domen`, and the write key must **not** be installed under `ansible-admin`.
    ```bash
-   # [MANUAL, owner — once per key pair] register the public half as a deploy key, WITH write access:
+   # [MANUAL, owner — once per key pair, and again on rotation] register the public half as a deploy
+   # key, WITH write access. Whether this has been done is state; it lives in
+   # docs/deployment-ansible.md §Runner placement, not here:
    op read "op://Homelab-ansible/GitHub-homelab-deploy_ssh/public_key"
    #   → https://github.com/domenkogler/homelab/settings/keys/new  — tick "Allow write access"
 
@@ -1900,9 +1902,9 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    ```
    The script installs the key under `domen` only, writes the marker-delimited `Host github.com` block with
    `IdentitiesOnly yes`, pins `github.com`'s host key from `api.github.com/meta` against the fingerprints
-   GitHub publishes (never TOFU), then clones `/home/domen/source/homelab` and finishes with `git push
-   --dry-run`. **Acceptance is that dry-run exiting 0 — never the key's existence:** GitHub authorizes the
-   `git-receive-pack` request a dry-run still makes, so a read-only key dies there. Exit 3 with
+   GitHub publishes (never TOFU), and finishes with the acceptance: **`git push --dry-run` exiting 0 — never
+   the key's existence** (GitHub authorizes the `git-receive-pack` request a dry-run still makes, so a
+   read-only credential dies there, which is the whole point of using it as the acceptance). Exit 3 with
    `Permission denied (publickey)` means the key is not registered (or GitHub rotated it); the trap that
    makes a hand-rolled install look finished is `op item get --fields <SSHKEY field>`, which returns a
    pretty-wrapped PEM `ssh-keygen` cannot load — read vault secrets with `op read op://…`. After the first
