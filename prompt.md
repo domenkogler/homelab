@@ -40,7 +40,7 @@ One brief = one session = one worktree; rules in [docs/orchestration.md](docs/or
 | **2** | [prompt-384.md](prompt-384.md) | 384 · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` | ⛔ never with 357 / 361 (all converge oldsrv) |
 | **2** | [prompt-376.md](prompt-376.md) | 376 · 400 · 359 · 367 · 380 | **spark**, owner bench window | with 384 **only in an open bench window**, else alone · ⛔ never with 469-lane |
 | **3** | [prompt-357.md](prompt-357.md) | 357 · 17 · 217 · 358 · 418 (window-gated) | **oldsrv** | runs when the oldsrv slot is free · ⛔ never with 384 / 361 |
-| **3** | `prompt-436.md` (carved with its rows) | 436 · 435 · 460 | router slot + Cloudflare | owner-present window (live edge routing) |
+| **3** | [prompt-436.md](prompt-436.md) | 436 · 435 · 460 | router slot + Cloudflare | owner-present window (live edge routing) |
 | **3** | `prompt-361.md` (carved with its rows) | 361 · 411 · 442 · 443 · 444 · 445 · 446 · 465 | **oldsrv** (+nas/pi read-back) | ⛔ never with 384 / 357 (oldsrv slot) |
 
 Lane sessions: read [docs/orchestration.md](docs/orchestration.md) §4 **first** — it overrides README §4 / CONVENTIONS §6 at O1–O8. A lane touches only its own rows + owning docs + runbook lines; `prompt.md` and `todo-table.md` are orchestrator-only (O2).
