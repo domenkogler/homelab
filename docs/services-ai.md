@@ -37,7 +37,7 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 >   still name `ollama/*` model names that no longer exist, and `spark/*` is in no allow-list. Everything
 >   measured so far ran on the admin-grade master key (**HD-384**).
 >
-> ⏳ **Open:** HD-384 (scoped-consumer allow-lists), HD-383 (the `dsh_api` bearer is CLEARED in the vault as of 2026-09-26; the LAN-gateway orphan `dsh` still needs deleting on oldsrv), HD-248 (the
+> ⏳ **Open:** HD-384 (scoped-consumer allow-lists), HD-248 (the
 > OWUI instance split), HD-268b (implement `rag-mcp`), HD-267 tails (Qdrant cutover verification, OKF wiki
 > repos), HD-387 (re-measure the thinking parameter through a gateway), HD-402 (Docling OCR engine swap).
 > Tracked in [`../todo.md`](../todo.md) (`source: services-ai`).
@@ -133,7 +133,7 @@ HD-62; Patterns A/B in [network-vpn.md](network-vpn.md)).
 | Service | Role | Network | Notes |
 |---------|------|---------|-------|
 | **LiteLLM (VPS)** | LLM gateway / router | `services-internal` + `llm-backend` + `tailnet-apps` | OpenAI-compatible spine (Postgres-backed, HD-247). The only component holding upstream keys. Admin UI is **tailnet-only** at `litellm.kogler.si` (edge → `http://litellm:4000` via Docker DNS — the `tailnet-apps` overlay is the bridge that makes that resolve; never join the key-holder to `traefik-public`). ⚠ `/ui/login` deep-link 404s (no SPA fallback in the image, upstream #29340) → **use `/fallback/login`**. |
-| **LiteLLM (LAN)** | Dev/pinned-side gateway | oldsrv, `llm-backend` + traefik-internal | `lan-litellm` + `lan-litellm-db`, exposed as **`llitellm.kogler.si`** on the oldsrv `traefik-internal` HOME edge (`http://oldsrv_home_ip:4000` backend, TLS + HSTS). Own Postgres, Kopia-backed. `litellm_scoped_keys` is currently **empty** → `bootstrap_keys: false` (the glue fail-louds on an empty spec list); the first records back are the HD-384 allow-lists. |
+| **LiteLLM (LAN)** | Dev/pinned-side gateway | oldsrv, `llm-backend` + traefik-internal | `lan-litellm` + `lan-litellm-db`, exposed as **`llitellm.kogler.si`** on the oldsrv `traefik-internal` HOME edge (`http://oldsrv_home_ip:4000` backend, TLS + HSTS). Own Postgres, Kopia-backed. `bootstrap_keys: true` **since 2026-09-27** — one consumer minted (`home-assistant`), so the glue's fail-loud gate on an EMPTY spec list must never be re-triggered by emptying `litellm_scoped_keys`; the rest of the HD-384 allow-lists are pending. |
 | **Open WebUI** | chat + RAG UI | `traefik-public` | ONE instance today at `ai.kogler.si`, Authentik OIDC. The public/internal split + per-instance corpus is **HD-248**. |
 | **Qdrant** | hybrid vector store | `db-internal` | Standalone Rust DB (dense + sparse BM25), **independent of OWUI's built-in RAG**, replaces PGVector. Dimension locks at first ingest — **1024**. Keep the snapshot seam (§5b). |
 | **Forgejo (wiki repos)** | knowledge SSOT | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
@@ -317,10 +317,10 @@ driver. Nothing here adds a scrape target or a dashboard.
 per-consumer virtual keys (lookups are fail-closed thereafter). Specs SSOT in `group_vars/vps.yml`:
 `owui-public-chat` · `owui-public-rag` · `owui-int-wife` / `owui-int-owner` · `openclaw-litellm` ·
 `rag-int-svc`; starting budgets/durations are Admin-UI-editable.
-**The LAN instance still has zero MINTED consumers.** A first record is authored (`home-assistant` →
-`home-assistant_api`, HD-384, 2026-09-26) but `bootstrap_keys` stays `false` on `lan-litellm`, because the
-mint runs on oldsrv and oldsrv is unreachable — so every call on that side still runs on the master key.
-That is also why the pinned-AI legs have no per-consumer caps yet. ✅ And the record **is** consumable the moment it
+**The LAN instance now has ONE minted consumer.** The record (`home-assistant` → `home-assistant_api`, HD-384,
+authored 2026-09-26) minted on 2026-09-27 when `bootstrap_keys` flipped to `true` on `lan-litellm`, and the
+glue exited 0 on that service's deploy pass. Every other call on that side still runs on the master key, and
+the pinned-AI legs still have no per-consumer caps — that is the rest of HD-384. ✅ And the record **is** consumable the moment it
 mints: HA **2026.8** ships a stock `litellm` conversation integration (this repo pins `2026.8.1`, verified at the
 release tag) that takes **any proxy URL + an optional virtual key** and lists its models from `/v1/models` — so
 what the `home-assistant` row must satisfy is visibility of `spark/qwen3.8-flash-next` **to that key's
@@ -379,15 +379,32 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
 - **Admin endpoints (v1.83.10, measured):** `/model/list` is **not** usable with the master key (it answers
   `{"detail": …}`) — **`/model/info`** is the one that enumerates rows; and **`/model/delete` takes
   `{"id": …}`**, not `{"model_id": …}` (the latter is a 422 that says which field it wanted — do not assume).
+  The KEY endpoints have the same shape trap (measured 2026-09-28 while retiring HD-383): **`/key/list`**
+  is the only enumerator (it returns `{keys:[<token hash>…]}`, the aliases are NOT in it), **`/key/info`
+  404s without `?key=`**, and **`/key/delete` wants `{"keys":[…]}` or `{"key_aliases":[…]}`** — a singular
+  `key` is a 422. The DB tables are quoted-mixed-case (`"LiteLLM_APIKey"`) and only reachable through the
+  container's own psql.
 - **The Ollama fallback is a rung, not a row.** The Vulkan embed leg has its own row; Ollama stays as the
   documented fallback of the SAME 1024-dim space. **Neither LiteLLM DB contains an `ollama/*` row**, so
   "keeping" it means keeping the service + the model (`bge-m3` re-verified at dim 1024 after the blob
   cleanup). Re-pointing a consumer to either leg is HD-384 work.
-- **`bootstrap_keys` stays `false` on the LAN instance** (HD-386 → HD-384): it was forced by the empty spec
-  list (the glue fail-louds on one). A consumer record now exists, so what holds the flip is only that an
-  unverifiable glue failure would red the converge the minting host owes (HD-445). ⚠ HD-442's stale rendered
-  `op/provision-token` is the credential to land first: a glue pass that cannot write is exactly the red that
-  would eat the converge.
+- **`bootstrap_keys` is `true` on the LAN instance since 2026-09-27** (HD-386 → HD-384 → HD-403 step 2): the
+  flip ran with the token leg HD-442 already fixed, the glue runs inside `lan-litellm`'s own deploy pass, and
+  `home-assistant_api` mints from the converge (`rpm: 30`, ROW-only grant, no wildcard). Two things the flip
+  settled: an empty spec list is the ONLY thing the fail-loud gate protects (the record must never be emptied
+  while the flag is on), and **the ordering contract in `home_servers.yml` is live now, not inert** — a
+  `bootstrap_keys` service must precede its consumers in the list because the glue refreshes the vault dict
+  they render from.
+- **⚠ An orphan virtual key lives in the DB that minted it, not in the DB that fails.** The `dsh` alias
+  (HD-383) was deleted from the **VPS** LiteLLM DB — `lan-litellm`'s own `/key/list` returned two keys and
+  neither was `dsh`, while the VPS carried it. The row's own wording ("VPS-DB-era value") had the answer and
+  the fix location was inferred from the *symptom's* host instead. Deleted behind an alias guard (`/key/info?key=`
+  → exactly one `dsh`, `last_used=None`, `spend=0`, vault item confirmed absent first): **9 keys → 8**,
+  re-listed. ⚠ Same class, deliberately untouched: alias `pi-harness` still stands on the VPS and
+  `pi-harness_openai_api` **still holds a value** (a parked key of a parked consumer = HD-386's call, not an
+  orphan), and `test-probe-a0b651` (2026-08-27, never used) is probe residue. `pi.dev laptop` (hand-created
+  2026-09-17) is a **live consumer — do not delete it**. (All of the above is in §4a, where the measured
+  endpoint shapes live.)
 - **Two traps:** a `--check --diff` on a LiteLLM converge renders **live keys into the log**; and a green
   **scoped** converge (`-e docker_services_scope=… --tags docker_services`) can **skip** the named service
   and still print `failed=0` — prove a deploy with `docker inspect` / the rendered file, never the RECAP.
@@ -762,11 +779,11 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 | Item | State |
 |------|-------|
 | **Memory plane for the coding plane** | **Measured, undecided.** The 2026-09-21 `agentmemory` probe answered OQ-12/13/14 in one line each (§9b note + [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md)); the owner call is open and nothing was installed. ⛔ Do not build a central instance before it: the shape the question assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29. |
-| **HD-384** scoped-consumer tier | **Started 2026-09-26, not shipped.** The `rpm` field now has a code path (it had none — a decided cap minted an uncapped key and looked green); the first LAN record is authored (`home-assistant`). Held: the LAN mint (oldsrv down), the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet — HD-402/421), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
+| **HD-384** scoped-consumer tier | **Started 2026-09-26, not shipped.** The `rpm` field now has a code path (it had none — a decided cap minted an uncapped key and looked green); the first LAN record is authored **and minted** (`home-assistant`, 2026-09-27). Held: the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet — HD-402/421), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
 | **HD-268b** implement `rag-mcp` (+ `forgejo-mcp`) | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **HD-267 tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |
 | **HD-248** Open WebUI instance split | One instance today; the public/internal capability split is undecided work. |
-| **HD-383** stale `dsh_api` bearer — **remediated vault-side 2026-09-26** | The consumer stays rejected (decision #26 — do not restore the record), but the 401-ing VPS-DB-era value is now CLEARED in 1Password, so a restored `lan-litellm` record would no longer abort `rc2` on it. ⏳ **Left:** delete the orphaned alias `dsh` in the LAN gateway (Admin UI on `llitellm.kogler.si`) — that instance is on oldsrv, so it waits on HD-455. |
+| **HD-383** stale `dsh_api` bearer | **CLOSED 2026-09-28** — vault-side CLEARED 2026-09-26 (the consumer stays rejected, decision #26: do not restore the record) and the orphan alias `dsh` deleted from the **VPS** DB (9 → 8, behind an alias guard). Findings, including the endpoint shapes and the untouched same-class residue: §4a above. |
 | **HD-387** thinking-parameter re-measure | Open (see §9c). |
 | **HD-402** Docling OCR engine | Proposed EasyOCR → RapidOCR-ONNX; benchmark-gated. |
 | **Mem0 / OpenHands** | Planned spark services; neither onboarded. |

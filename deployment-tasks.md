@@ -460,8 +460,6 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       flows, the WG AllowedIPs scope for the :5006 API leg, and the first live verify. · [services-finance.md](docs/services-finance.md)
 - [ ] **HD-318(b)** — recyclarr @daily quality-profile sync verify (the stacks have been up since 2026-09-08; the
       *arr configs were chowned to their image uid 2026-09-15 after a converge recreated them root-owned). · [hardware-oldsrv.md](docs/hardware-oldsrv.md)
-- [ ] **HD-347** — the Signal alerting **group UUID** belongs in SSOT (`signal_alert_recipients` is empty); the
-      device itself is linked and alerts flow. · [observability.md](docs/observability.md) §Alerting
 - [x] **HD-350** — **CLOSED 2026-09-23.** oldsrv's `traefik-cert-sync.pub` is authorized on the VPS (the grant has
       been in `ansible-admin`'s `authorized_keys` since 2026-09-15 — `SHA256:VX0TbLr…`, matching
       [deployment-secrets.md](docs/deployment-secrets.md)), and the pull now lands: `traefik-cert-pull.service`
@@ -708,8 +706,7 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
       (`--tags monitoring`, `failed=0`); read back on the backend: `up{job="alloy-snmp",instance="router"}=1`,
       `instance="switch"}=1`, `ifOperStatus` = 23 router + 31 switch series with those labels.
       · [observability.md](docs/observability.md)
-- [ ] alerting tails are tracked where their hosts are: **HD-159** (Phase 1, prove `wg-s2s-down` fires) and
-      **HD-347** (Phase 3, the Signal group UUID in SSOT).
+- [ ] alerting tail tracked where its host is: **HD-159** (Phase 1, prove `wg-s2s-down` fires).
 
 
 ---

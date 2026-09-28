@@ -167,7 +167,13 @@ container — no separate `immich-microservices` service needed.
 1. **Jinja evaluates expressions inside YAML COMMENTS.** A header line like
    `# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}` EXECUTES the
    lookup at render and fails on the literal item name. Keep comments expression-free (39 templates
-   neutralized; traefik was the first live hit).
+   neutralized; traefik was the first live hit). **Re-hit 2026-09-28 in a `#` comment that merely
+   mentioned n8n's `{{ $env.SIGNAL_* }}`** — the render died with `Syntax error in template:
+   unexpected char '$'` and took the VPS `docker_services` converge with it. Prose about a Jinja
+   expression must be written WITHOUT the braces, and `validate-docker-services.py` (run by
+   `validate-all.sh`, renders every compose template in ~0.5 s) catches exactly this: it was green on
+   that commit only because it had not been re-run after the edit — **run it after touching any
+   template, not only before the commit.**
 2. **Indented block tags + `trim_blocks` glue indentation.** An indented
    `      {% if ... %}` / `{% endif %}` pair collapses to its leading spaces merged onto the next
    content line (+6 indent per tag), producing invalid YAML (29 blocks converted to inline

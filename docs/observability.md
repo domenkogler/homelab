@@ -217,7 +217,7 @@ update, or queries keep 401-ing despite correct rendered files.
   Grafana (compose env), Pi + oldsrv HA (`secrets.yaml`), and **NUT `upssched-cmd` on nas**, which embeds it
   **inline** (see [hardware-ups.md](hardware-ups.md)).
   - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress** — verified live — so **2525 is the SSOT port**, not 587).
-- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. **Recipient value (owner confirmed 2026-09-21, HD-347): alerts go to the WHOLE group, and `signal_alert_recipients` takes the group ID that signal-cli reports** (read it from the linked daemon on oldsrv, read-only) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts. **State 2026-09-26: `signal_alert_recipients` is still `""` in `group_vars/all/main.yml` — the ID cannot be sourced, because the linked `signal-cli` daemon that holds it runs on oldsrv and oldsrv answers `No route to host` (VPS has n8n but no signal container; nas/pi neither). Alerting is therefore email-only until HD-455 returns the box; the group ID itself must be read from the daemon, never reconstructed from a message-store backup.**
+- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. **Recipient value (owner confirmed 2026-09-21, HD-347): alerts go to the WHOLE group, and `signal_alert_recipients` takes the group ID that signal-cli reports** (read it from the linked daemon on oldsrv, read-only) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. ✅ **LIVE 2026-09-28:** the ID is in `group_vars/all/main.yml` (`group.NVZ6Y21…`, read off `GET 127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` → `.id` on oldsrv) and delivery was **proven end to end**: n8n executed the alerting + resolved legs, the gateway logged two `POST /v2/send` → **201**, and signal-cli returned a **delivery receipt**. Two mutes had to be removed first — both are in §Alert delivery below, and both had made a dead leg look healthy. An `invite_link` is not a recipient, and the ID is still only readable from the linked daemon (never reconstructed from a message-store backup, which would mean reading private messages).
 
 ### Operational gotchas (learned live — the rules that keep them from coming back)
 
@@ -272,14 +272,40 @@ update, or queries keep 401-ing despite correct rendered files.
   `roles/monitoring/files/n8n/homelab-alerts.workflow.json` and created/activated through the n8n public API
   (`n8n_api`, `POST /api/v1/workflows` + `/activate`). Verify with a POST expecting
   `200 "Workflow was started"`.
-- **A missing Signal device is silent by design.** The Signal HTTP step uses
-  `onError: continueRegularOutput` so an unlinked `signal-cli` cannot break email delivery — which also
-  means **no alert ever proves the Signal leg works**. Linking the "Homelab Alerts" device is an owner
-  action (HD-318d); until then email is the only proven channel.
+- **⚠ That 200 proves the run STARTED, never that anything was delivered.** Measured 2026-09-28: the
+  webhook answered 200 for executions that sent **nothing**. The delivery evidence is downstream and
+  specific — n8n's **execution status** for the Signal node, the gateway's `POST /v2/send` → **201**, and
+  the **delivery receipt** signal-cli logs. Ask for those three; a green webhook is not one of them.
+- **n8n 2.x blocks `$env` in workflow expressions BY DEFAULT, which silently kills the Signal leg.**
+  Read inside the pin (`n8n-workflow/dist/esm/workflow-data-proxy-env-provider.js`):
+  `isEnvAccessBlocked = process.env.N8N_BLOCK_ENV_ACCESS_IN_NODE !== 'false'` — **unset means blocked**,
+  every `{{ $env.* }}` throws `access to env vars denied`, and the render's `SIGNAL_*` values (the whole
+  SSOT→runtime handoff: token, URL, recipients, phone) never reach the node. The compose therefore sets
+  `N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"` explicitly; typing the four values into the workflow instead
+  would fork the SSOT, which is what the row's design refused. Consequence to remember: **env access is
+  now ON for every workflow this instance can run** — bounded by n8n being admin-only over the tailnet
+  (`auto.ts.kogler.si`, no public route).
+- **`onError` on a delivery node is a mute, so it must be `stopWorkflow`.** Both Signal nodes ran with
+  `continueRegularOutput`, which turned "no recipient configured", "wrong-shaped recipient" and "access
+  to env vars denied" into `status=success`. An alerting path that swallows its own send failure cannot
+  ever be trusted; from 2026-09-28 a failed send is a **RED execution** (applied to the live n8n DB by
+  `PUT` + `/activate`, and the repo copy kept byte-in-step).
+- **⚠ The versioned workflow JSON is NOT deployed by anything.** The live copy lives in n8n's SQLite
+  (created through the API), so `roles/monitoring/files/n8n/homelab-alerts.workflow.json` drifts
+  silently: measured on 2026-09-28 the repo copy still sent `X-Api-Key` while the live copy had carried
+  `Authorization: Bearer` since HD-353 (2026-09-10). Two consequences: editing the repo file changes
+  nothing until it is PUT to the API, and a re-provision from the repo copy would re-break delivery
+  **after** a green converge. Any change therefore lands in **both** places in one act.
+- **A missing Signal device is silent by design — for the LINK, not for the send.** An unlinked
+  `signal-cli` must not be able to break email delivery, so email is a separate parallel Grafana contact
+  point (§above) rather than a node downstream of the Signal node. Linking the "Homelab Alerts" device is
+  an owner action (HD-318d).
 - **`signal-cli-rest-api` is published on `{{ oldsrv_home_ip }}:8082`** because the alert brain (n8n) runs on
   the VPS and cannot resolve an oldsrv-only overlay name — the cross-host API-leg pattern (precedents:
   actual-budget `:5006`, immich-ml `:3003`). **`:8080` belongs to something else**, which is exactly how the
-  collision was found; auth stays mandatory (`X-Api-Key`, KOPS-002/HD-125).
+  collision was found. **⚠ The gateway takes the token ONLY as `Authorization: Bearer <token>`** — measured
+  from the VPS against `:8082` on 2026-09-28: `X-Api-Key` → **401**, `Bearer` → **200** on `/v1/about`.
+  The older `X-Api-Key` wording here (KOPS-002/HD-125) describes the intent, not this build's behaviour.
 - **Three converge-time traps that are repo rules:** every vault item a template reads must be declared in
   `_template_vault_items`, or the render dies with `dict has no attribute …`; Jinja `default()` fallbacks in
   YAML need single quotes, or the fallback renders nested quotes and `docker compose config` fails; and a
