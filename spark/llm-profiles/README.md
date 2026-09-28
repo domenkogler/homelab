@@ -21,7 +21,7 @@ whether it will survive an agent session.
 > QSA path as vllm **#55557** on **2026-09-16** — three weeks *after* the last push of our
 > tag (2026-08-26, registry-verified) — reproduced it on GB10/sm_121, and the fp8 plumbing
 > (`kv_quant_mode`) is already in our build. It is not in vLLM v0.30.0 either.
-> So `graded` is blocked on an **engine pin + re-cert (todo.md HD-471)**, not on the model:
+> So `graded` is blocked on an **engine pin + re-cert (todo.md HD-473)**, not on the model:
 > do not re-attempt it against this pin, do **not** vendor the AGPL overlay patch, do **not**
 > hand-edit a container's site-packages. Evidence:
 > [`reports/hd469-graded/README.md`](../../spark/reports/hd469-graded/README.md) +

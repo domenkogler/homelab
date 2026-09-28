@@ -18,16 +18,16 @@
 > [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (**rule 0 + the gate table = your test
 > plan, now 0–9**) → [docs/hardware-spark.md](docs/hardware-spark.md) §Unified-memory budget +
 > §GPU clock cap + §DGX Spark host limits → [docs/pi-harness.md](docs/pi-harness.md) §2 →
-> the `HD-469` / `HD-471` / `HD-380` / `HD-376` rows in [todo.md](todo.md) §2.7.
+> the `HD-469` / `HD-473` / `HD-380` / `HD-376` rows in [todo.md](todo.md) §2.7.
 >
-> **Linked from:** [todo.md](todo.md) HD-469 · HD-471 · [docs/spark-llm-profiles.md](docs/spark-llm-profiles.md) ·
+> **Linked from:** [todo.md](todo.md) HD-469 · HD-473 · [docs/spark-llm-profiles.md](docs/spark-llm-profiles.md) ·
 > [docs/index.md](docs/index.md) · [prompt.md](prompt.md)
 
 ## 0 · Already settled — do not spend your window re-deriving it
 
 | Thing | State on this branch | Proof |
 |---|---|---|
-| **fp8 KV verdict.** Run #1 wrote “architecturally impossible, do not re-attempt” in four places. It is **false**: the boot failure is real, the build is the cause. The pinned image’s own `qsa.py:70` declares `supported_kv_cache_dtypes = ["auto","bfloat16"]` and raises at :109/:188; vllm **#55557** merged the read path **2026-09-16**, three weeks after this tag was last pushed (**2026-08-26**, digest unchanged, and no newer tag of this model exists in the registry); vLLM v0.30.0 does not carry it either. ⇒ `graded` is **HD-471** (engine pin + re-cert), not a flip, and **not** a container patch: the third-party recipes hand-edit site-packages, which this lane rejects. | swept in all four docs + the catalogue; new evidence dir | [`spark/reports/hd469-graded/README.md`](spark/reports/hd469-graded/README.md) · [`image-probe-20260928.md`](spark/reports/hd469-graded/image-probe-20260928.md) |
+| **fp8 KV verdict.** Run #1 wrote “architecturally impossible, do not re-attempt” in four places. It is **false**: the boot failure is real, the build is the cause. The pinned image’s own `qsa.py:70` declares `supported_kv_cache_dtypes = ["auto","bfloat16"]` and raises at :109/:188; vllm **#55557** merged the read path **2026-09-16**, three weeks after this tag was last pushed (**2026-08-26**, digest unchanged, and no newer tag of this model exists in the registry); vLLM v0.30.0 does not carry it either. ⇒ `graded` is **HD-473** (engine pin + re-cert), not a flip, and **not** a container patch: the third-party recipes hand-edit site-packages, which this lane rejects. | swept in all four docs + the catalogue; new evidence dir | [`spark/reports/hd469-graded/README.md`](spark/reports/hd469-graded/README.md) · [`image-probe-20260928.md`](spark/reports/hd469-graded/image-probe-20260928.md) |
 | **The ×2 arithmetic.** fp8 halves the **main K/V only** → measured **1.70–1.89×**, not 2×. `spark_llm_kv_bytes_per_token.fp8` is now 18,251; `graded` = **876,664** slots (3.34×), not 1,031,326. The `fast` profile’s “4.06 × window ≥ the 4 × 262,144 bound” failed its own bound with the correct constant and is gone. | constant in `group_vars/spark.yml`, gate + probe read it | [`scripts/check_spark_llm_gate.py`](scripts/check_spark_llm_gate.py) |
 | **The pool ceiling was not an OOM guard.** A profile that changes the **weights** changes the fixed cost; NVFP4’s core is 88.6 GB vs the AWQ lane’s whole measured 81 GiB. Every vLLM profile now declares `fixed_cost_bytes` and the gate asserts `fixed + pool ≤ 104,113,000,000 B` (= MemTotal − 6.9 GiB held at engine start − the certified **17.78 GiB** worst `usable`). `fast` therefore runs an **11 GB** pool, not 16.5 GB. | gate + catalogue + canary | same |
 | **The gate is proven without the box.** Item 22 of `validate-all.sh` extracts the role’s own regexes + the constants, runs every profile and breeds a canary per invariant; both canaries are also refused by the real `ansible.builtin.assert` tasks (run against localhost). | `bash scripts/validate-all.sh` | `scripts/check_spark_llm_gate.py` |
@@ -126,7 +126,7 @@ fails, **stop and roll back the branch** — nothing downstream is testable on a
 ```bash
 python3 scripts/spark-fp8-image-probe.py --tag-filter 'qwen|flash'      # exit 0 = verdict reached
 ```
-If it prints `REACHABLE`, the registry or the image changed under us and `graded` (HD-471) is open
+If it prints `REACHABLE`, the registry or the image changed under us and `graded` (HD-473) is open
 again — say so loudly, and do not flip the profile on the strength of a grep. If it prints
 `BLOCKED-ON-IMAGE` (the expected answer), record the run, and the lane’s `graded` half is **done**:
 no box work, no risk, a pass. `UNDECIDED` means one leg could not run — that is not a verdict; fix
@@ -144,7 +144,7 @@ and trims the `ngram` entries from `model.safetensors.index.json` — verify bot
 
 **4 · `fast` — the valuable thing left, and it needs no engine change.** The catalogue already
 carries the decision this run used to have to make: `fast` is **NVFP4 weights on bf16 KV** with an
-**11 GB** pool (`kv_cache_dtype: auto`), because the fp8 half belongs to HD-471 and the weights cost
+**11 GB** pool (`kv_cache_dtype: auto`), because the fp8 half belongs to HD-473 and the weights cost
 +≈5.2 GB of the shared pool. One variable = the weights. Set `spark_llm_profile: fast` +
 `spark_llm_allow_uncertified: true`, converge **detached**, then run gates 0–7 of
 [spark/llm-profiles/README.md](spark/llm-profiles/README.md). Two things decide it, in order:

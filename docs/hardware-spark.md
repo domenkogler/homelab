@@ -308,7 +308,7 @@ Certified state and its costs, stated plainly:
   [`../spark/reports/hd469-graded/README.md`](../spark/reports/hd469-graded/README.md)). That is the
   **build**, not the model: fp8 main KV merged upstream as vllm#55557 on 2026-09-16, three weeks
   after the last push of our tag ([`image-probe-20260928.md`](../spark/reports/hd469-graded/image-probe-20260928.md)),
-  and is not in vLLM v0.30.0 either. Reaching it is the engine-pin lane (**HD-471**), not a config
+  and is not in vLLM v0.30.0 either. Reaching it is the engine-pin lane (**HD-473**), not a config
   flip and not a bigger pool. Profile-level arithmetic + the host-floor gate:
   [spark-llm-profiles.md](spark-llm-profiles.md).
 - **Costs paid:** idle `usable` fell **30.5 → 18.5 GiB** (margin to the 12 GiB reserve target is now

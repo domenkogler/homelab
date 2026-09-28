@@ -292,11 +292,11 @@ spark_llm_profiles:
   #   * the build we pin (`fc120ece`, self-reporting `vllm-0.1.dev20073+g8e685d198`) is a
   #     day-0 build that PREDATES that merge — its qsa.py is a dtype guard, not a law;
   #   * vLLM v0.30.0 does NOT carry it either (v0.30 = indexer-side fp8 #54890).
-  # So `graded` = an engine-pin change + a full re-cert = todo.md HD-471, not a config
+  # So `graded` = an engine-pin change + a full re-cert = todo.md HD-473, not a config
   # flip. Do not vendor the AGPL overlay patch and do not hand-edit a container's
   # site-packages to make this boot (prompt-llm.md §2).
   graded:
-    label: "Graded thinking — AWQ W4A16 + PLE INT4, fp8 KV (~1.7x slots) — BLOCKED ON IMAGE PIN (HD-471)"
+    label: "Graded thinking — AWQ W4A16 + PLE INT4, fp8 KV (~1.7x slots) — BLOCKED ON IMAGE PIN (HD-473)"
     engine: vllm
     container: vllm-qwen-spark
     model_subdir: Qwen3.8-Flash-Next-AWQ
@@ -335,7 +335,7 @@ spark_llm_profiles:
       (fc120ece, self-reporting vllm-0.1.dev20073+g8e685d198), where it dies at
       EngineCore init with NotImplementedError at qsa.py:187 (measured 2026-09-28,
       spark/reports/hd469-graded/README.md). vLLM v0.30.0 does not carry it either.
-      Reaching it = an engine-pin change + full re-cert (todo.md HD-471), NOT a config
+      Reaching it = an engine-pin change + full re-cert (todo.md HD-473), NOT a config
       flip; do not re-attempt it against this pin, and do not patch the container.
       When it does land, size it at 1.70-1.89x the slots, not 2x, and read the count from
       the engine's own 'GPU KV cache size' log line — see spark/llm-profiles/README.md
@@ -349,7 +349,7 @@ spark_llm_profiles:
   # (accuracy cost ≈ nothing: 92.2 knowledge / 78.7 tool-call vs 92.2/79.2 BF16,
   # primitive-ai card, spark/resources/R1-ple-quant-card-evidence.md).
   # WHY bf16 KV HERE (changed 2026-09-28, run #2 prep): the fp8 half of this profile is
-  # HD-471's problem (image pin), so `fast` measures ONE variable — the weights. Carrying
+  # HD-473's problem (image pin), so `fast` measures ONE variable — the weights. Carrying
   # fp8 here would have it fail for a reason that is not NVFP4's.
   # ⚠ THE OLD COMMENT HERE ("fp8 16.5 GB = 1.063M slots = 4.06 × window ≥ the 4 × 262,144
   # no-preemption bound") WAS WRONG TWICE: it used the ×2 constant (real ratio 1.70–1.89,
@@ -360,7 +360,7 @@ spark_llm_profiles:
   # which is why this profile's pool went DOWN to 11 GB, not up to 16.5 GB (gate:
   # spark_llm_device_hold_ceiling_bytes). KV: 11,000,000,000 / 31,027 = ~354,000 slots
   # = 1.35 × one full window — enough to boot, measure speed and run the accuracy battery;
-  # 4 concurrent full windows need fp8 KV, i.e. HD-471, on top.
+  # 4 concurrent full windows need fp8 KV, i.e. HD-473, on top.
   # UNCERTIFIED: never benched on this box; NVFP4-vs-AWQ accuracy is unresolved
   # (91/100 vs 98/100 in one capture, 99/100 in another — engine+template+effort
   # confound it: spark/resources/R2-nvfp4.md §B).
@@ -409,7 +409,7 @@ spark_llm_profiles:
     uncertified_reason: >-
       NVFP4 has never been benched on this box and the accuracy delta vs the AWQ 98/100
       anchor is unresolved (spark/resources/R2-nvfp4.md §B). fp8 KV is NOT part of this
-      profile (that is the image pin, todo.md HD-471) — one variable = the weights. Boot
+      profile (that is the image pin, todo.md HD-473) — one variable = the weights. Boot
       first, then accuracy with engine/template/thinking-state/budget recorded, then the
       memory curve: the pool here is sized against a DERIVED fixed cost, so gate 7
       (spark/llm-profiles/README.md) is what falsifies it.

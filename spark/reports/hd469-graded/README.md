@@ -61,7 +61,7 @@ What the measurement supports:
   Sparks, MTP active) — so this is an image problem with a measured existence proof.
 
 So: `graded` is **blocked on the pinned image**, which is an engine-pin lane with its own
-re-cert, registered as **HD-471**, not a config flip. Do not vendor the AGPL overlay patch
+re-cert, registered as **HD-473**, not a config flip. Do not vendor the AGPL overlay patch
 and do not hand-edit a container's site-packages: that is unreproducible from IaC.
 
 ## Arithmetic — the number this report originally carried was wrong

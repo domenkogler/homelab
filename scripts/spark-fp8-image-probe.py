@@ -25,7 +25,7 @@ theoretical). The image is already on the box, so this pulls nothing.
 
 Verdicts are exits, not vibes:
   0  decided — prints REACHABLE (grep found the fp8 QSA read path in the pin) or
-             BLOCKED-ON-IMAGE (= the HD-471 engine-pin lane, not a config flip)
+             BLOCKED-ON-IMAGE (= the HD-473 engine-pin lane, not a config flip)
   1  undecided — one leg could not run; the lane brief says an inconclusive probe is
                  NOT a verdict, so go get the missing leg rather than the box
   2  usage / refused (converge in flight)
@@ -307,7 +307,7 @@ def main():
         print("re-run with --image, or record this as OPEN.")
         return 1
     print("BLOCKED-ON-IMAGE — the pinned build carries no fp8 main-KV read path.")
-    print("  · `graded` is therefore an ENGINE-PIN question (todo.md HD-471), not a config")
+    print("  · `graded` is therefore an ENGINE-PIN question (todo.md HD-473), not a config")
     print("    flip; it stays uncertified and nothing on this box needs to change.")
     print("  · fp8 KV merged upstream as vllm#55557 (2026-09-16) and is NOT in vLLM v0.30.0;")
     print("    the only refs that can carry it are a rebuilt qwen38-flash-next tag or a")

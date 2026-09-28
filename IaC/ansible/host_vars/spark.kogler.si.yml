@@ -20,7 +20,7 @@ spark_headless: true
 # profiles; test loop: spark/llm-profiles/README.md.
 #   reasoning     = live certified B1 (AWQ W4A16 + PLE INT4 + MTP3)             ← today
 #   graded        = same weights, fp8 KV (~1.7× slots) — BLOCKED ON THE IMAGE PIN,
-#                   needs the engine-pin lane (todo.md HD-471) + a re-cert, NOT a flip
+#                   needs the engine-pin lane (todo.md HD-473) + a re-cert, NOT a flip
 #   fast          = NVFP4 weights, bf16 KV (1.35 × 262k) — UNCERTIFIED, never benched here
 #   fast-sglang   = second engine (SGLang) — blocked: no image pin AND its measured
 #                   single-Spark pool cannot hold the 262,144 window we serve

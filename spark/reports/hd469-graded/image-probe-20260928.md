@@ -1,4 +1,4 @@
-# fp8 KV reachability — read-only image probe, 2026-09-28 (HD-469 step 2 / HD-471 input)
+# fp8 KV reachability — read-only image probe, 2026-09-28 (HD-469 step 2 / HD-473 input)
 
 Produced by `scripts/spark-fp8-image-probe.py --tag-filter 'qwen|flash'` at
 2026-09-28 ≈18:55 CEST from the workstation, against the box over ssh for Leg B only.
@@ -49,7 +49,7 @@ pinned image (versions.yml): vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0
 
 ── Verdict ─────────────────────────────────────────────────────────────
 BLOCKED-ON-IMAGE — the pinned build carries no fp8 main-KV read path.
-  · `graded` is therefore an ENGINE-PIN question (todo.md HD-471), not a config
+  · `graded` is therefore an ENGINE-PIN question (todo.md HD-473), not a config
     flip; it stays uncertified and nothing on this box needs to change.
   · fp8 KV merged upstream as vllm#55557 (2026-09-16) and is NOT in vLLM v0.30.0;
     the only refs that can carry it are a rebuilt qwen38-flash-next tag or a
@@ -76,7 +76,7 @@ model** — and not merely on "an image exists upstream":
   push of this model's tag (2026-08-26), and it is not in the vLLM v0.30.0 release either;
 * so reaching fp8 main KV on this box requires a **rebuilt `qwen38-flash-next` image**
   (or an equivalent nightly) whose **arm64** manifest we have digest-verified — an
-  engine-pin lane with its own re-cert, registered as **HD-471**;
+  engine-pin lane with its own re-cert, registered as **HD-473**;
 * the two third-party recipes that make it work today do it by **patching the container's
   site-packages** (`MiaAI-Lab/Qwen3.8-Flash-Next-{Single,Dual}-DGX-Spark`,
   `files/patch_qsa_fp8_kv.py`, AGPL-3.0-or-later). This lane rejects that: a patched
