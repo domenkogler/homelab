@@ -133,18 +133,21 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 Every row below that has a brief is dispatched **from the brief**, not from this table: the brief adds the file
 ownership, the converge host and the lane contract. Rows with **no brief** stay exactly where they are — that is not
 lost work, it is unassigned work. Waves, pairing, the owner-gate "park and continue" rule and the merge/cleanup
-sequence are [prompt.md](prompt.md) **§4** (orchestrator mode), which **overrides** parts of README §4 and
-CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and keeps no second copy of those rules.
+sequence are [docs/orchestration.md](docs/orchestration.md) **§4** (orchestrator mode), which **overrides**
+parts of README §4 and CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and keeps no
+second copy of those rules. (2026-09-28 restructure: briefs are referenced FROM the todo.md rows; a brief dies
+with its lane, small residue folds back into the rows.)
 
 | Brief | Wave | Rows it carries (lead · merged-in) | Converge host |
 |---|---|---|---|
-| `prompt-407.md` runner + cockpit — **CLOSED 2026-09-23, brief deleted** | **1** | closed as delivered: 407 · 409 · 399 · 386 · 416 · 388 · 356. Open residue: **411** (parked) + **442–449** | oldsrv + one full VPS `docker_services` |
-| the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) — **trimmed 2026-09-23 to its two surviving rows** | **1** | ⏳ **377(a)** (the owner renders `homelab-llm` **again** — the first render failed and was fixed the same day) · **342** (the Victoria backup tail, whose client is **HD-191's** change). Closed by it or in it: **420** (cadence LIVE 2026-09-23), **395** (baseline fixed + term OFF by owner), **345** (SNMP labels LIVE 2026-09-23), **377(b)** | VPS + oldsrv `--tags monitoring` (both ran 2026-09-23). ⚠ it is kept ONLY for those two rows — deleting it would orphan them, and it must not be re-dispatched for the cadence work, which is done |
-| the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) transport — **re-dispatch card only: closed 2026-09-22 for its AI half** (scoped IPv6 shipped, the phone matrix and the punch discriminator both RAN) | **2** | **HD-415 · 406** (+159 with a stated window); the rows it also carried (**414 · 410 · 405 tail · 419 · 09 · 301**) are closed and left the registry | router slot **now free** + oldsrv |
-| [prompt-384.md](prompt-384.md) LiteLLM consumer chain | **3** | **384** · 403 · 387 · 373 · 249 (**383 closed 2026-09-28**) | oldsrv + VPS `docker_services` |
-| [prompt-376.md](prompt-376.md) spark engine + bench | **3** | HD-376 · 400 · 359 · 367 · 380 (absorbs the stale `prompt-next.md`, now deleted) | spark, **owner bench window** |
-| [prompt-357.md](prompt-357.md) launchpad + home edge — **its old gate fell 2026-09-22** (HD-419 shipped, so the jellyfin tile has an endpoint) | **4** | HD-357 · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
-| the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) gates + doc hygiene | **5, alone** | HD-417 · 404 · 248 · 396 | none (repo-only) |
+| [prompt-llm.md](prompt-llm.md) HD-469 profile certification — **running now** | **1** | **469** (converge + certify `spark_llm_profile`) | spark |
+| [prompt-384.md](prompt-384.md) LiteLLM consumer chain | **2** | **384** · 403 · 387 · 373 · 249 (**383 closed 2026-09-28**) | oldsrv + VPS `docker_services` |
+| [prompt-376.md](prompt-376.md) spark engine + bench | **2** | **376** · 400 · 359 · 367 · 380 (the landed-state section of the brief is the do-not-redo list) | spark, **owner bench window** |
+| [prompt-357.md](prompt-357.md) launchpad + home edge — its old gate fell 2026-09-22 (HD-419 shipped) | **3** | **357** · 17 · 217 · 358 · 418 (window-gated) | oldsrv |
+| [prompt-436.md](prompt-436.md) transport / answer-plane — **carved 2026-09-28** from the rows + the old handoff §2 | **3** | **436** · 435 · 460 (461 stays unbriefed — parked on reachability) | VPS + oldsrv, owner-present |
+| [prompt-361.md](prompt-361.md) cockpit / coding-seat / grants — **carved 2026-09-28** | **3** | **361** · 411 · 442 · 443 · 444 · 445 · 446 · 465 | oldsrv |
+| `prompt-407.md` runner + cockpit — **CLOSED 2026-09-23, brief deleted** | — | delivered: 407 · 409 · 399 · 386 · 416 · 388 · 356; its former residue now carries the **prompt-361** brief above | — |
+| `prompt-420.md` / `prompt-414.md` / `prompt-417.md` — **deleted 2026-09-28**: their surviving rows (377(a) · 342-tail · 406 · 159 · 404 · 248) live in [todo.md](todo.md) like every other row | — | — | — |
 
 > **Unbriefed but still open — not lost, just unassigned:** HD-360 · 402 · 103 · 238 · 421 (the HD-394 lane's
 > residue), **HD-450** (a cert consumer can age out unalerted — found closing HD-350), and the **transport-plane
@@ -167,15 +170,15 @@ CONVENTIONS §6 at items O1–O8; this table is a row→brief index only and kee
 
 ### 🆕 Remote-dev plane (three file-disjoint lanes — run one per session)
 
-Briefs: the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) (transport; it absorbed the closed `prompt-405`) ·
-`prompt-407.md` (runner + cockpit) is **closed and deleted** — its residue is the 442–449 cluster below, not a brief.
-and the follow-on lanes [prompt-384.md](prompt-384.md)
-(LiteLLM consumer chain), [prompt-357.md](prompt-357.md) (launchpad + home edge),
-[prompt-376.md](prompt-376.md) (spark engine + bench) and
-the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) (gates + doc hygiene). The remote-desktop (`prompt-412`) and VPS-hygiene
-(`prompt-394`) briefs are **closed and deleted** — HD-412's two enrolment sessions are in §D, and the open VPS
-rows (HD-360 · 402 · 103 · 238 · 421) are unbriefed. Run one brief per session — [prompt.md](prompt.md) §4.
-Decisions are already in the `network` / `deployment` / `services` decision logs — start from the briefs, do not
+Briefs: the closed lanes `prompt-407.md` (runner + cockpit), `prompt-394.md` and the
+2026-09-28-deleted `prompt-414/417/420.md` are **gone — their surviving work either carries a live brief or
+lives as a plain row in [todo.md](todo.md)**. The live lanes for this plane are [prompt-361.md](prompt-361.md)
+(cockpit / seat / grants — the old 442–449 residue), [prompt-384.md](prompt-384.md) (LiteLLM consumer chain),
+[prompt-357.md](prompt-357.md) (launchpad + home edge), [prompt-376.md](prompt-376.md) +
+[prompt-llm.md](prompt-llm.md) (spark bench + profile certification) and [prompt-436.md](prompt-436.md)
+(transport / answer-plane). Run one brief per session — the contract is
+[docs/orchestration.md](docs/orchestration.md) §4. Decisions are already in the `network` / `deployment` /
+`services` decision logs — start from the brief
 re-open the direction. Two standing decisions were **scoped, not repealed**: the tailnet permits **two** home nodes (`oldsrv` + the Pi,
 each on its own tag — `tag:home-edge` deliberately not `tag:dev`, because an ACL grants by tag) with **no
 advertised routes and no LAN bridge**. That widening was granted on the HD-435 call as an amendment and is logged
@@ -183,9 +186,9 @@ in [network-rejected.md](docs/network-rejected.md); the VLAN-99 seal (HD-398 A) 
 
 | HD | P | Goal | ⏳ Next action | Gate / note |
 |----|---|------|----------------|-------------|
-| **HD-406** | 2 | a dev path that depends on neither the VPS nor headscale | ⏸ **owner-timed, not now** — and the shape changed: **MikroTik Back To Home** replaces the hand-rendered `roles/router` WG peer (BTH creates its own WireGuard interface + peers, and a standard WG client can import its config) | **re-decided 2026-09-22.** Clear two things first: BTH's artifacts live **outside `roles/router`** while the converge rebuilds filter rules device-wide, and BTH may use a **MikroTik relay** rather than the direct path. The old "AI mints the keypair" plan is superseded — BTH manages its own keys · 📋 the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) |
+| **HD-406** | 2 | a dev path that depends on neither the VPS nor headscale | ⏸ **owner-timed, not now** — and the shape changed: **MikroTik Back To Home** replaces the hand-rendered `roles/router` WG peer (BTH creates its own WireGuard interface + peers, and a standard WG client can import its config) | **re-decided 2026-09-22.** Clear two things first: BTH's artifacts live **outside `roles/router`** while the converge rebuilds filter rules device-wide, and BTH may use a **MikroTik relay** rather than the direct path. The old "AI mints the keypair" plan is superseded — BTH manages its own keys · 📋 no brief — plain row |
 | **HD-411** | 3 | a native Android path to the same harness, without a third-party relay | AI: the daemon (systemd or a scoped container), tailnet bind + password + hostname allowlist, **relay off**, one 1P item | **sequence changed: runs simultaneously with HD-409**, one comparison window. Owner hand: sideload + pair + the 2-week verdict. The browser cockpit stays **primary** — an app someone else maintains cannot be a dependency, a URL can · 📋 closed runner/cockpit lane (2026-09-23; brief deleted) |
-| **HD-415** | 3 | one tailnet resolver that works **wherever the device is** | **✅ SHIPPED 2026-09-22 (AI half complete):** `udp 53` in the headscale ACL scoped to the resolver node's address (not `tag:dev`), the node address as the tailnet nameserver, the VPS instance kept as the fallback, the two LAN-address entries gone; converged behind the proven auto-re-enable net and measured over the tailnet. ⚠ **acceptance = the three-case drill** (LAN / cellular / **home with the WAN pulled**) — procedure deployment-manual.md §1.4e · [network-dns.md](docs/network-dns.md) §The resolution requirement · 📋 the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) |
+| **HD-415** | 3 | one tailnet resolver that works **wherever the device is** | **✅ SHIPPED 2026-09-22 (AI half complete):** `udp 53` in the headscale ACL scoped to the resolver node's address (not `tag:dev`), the node address as the tailnet nameserver, the VPS instance kept as the fallback, the two LAN-address entries gone; converged behind the proven auto-re-enable net and measured over the tailnet. ⚠ **acceptance = the three-case drill** (LAN / cellular / **home with the WAN pulled**) — procedure deployment-manual.md §1.4e · [network-dns.md](docs/network-dns.md) §The resolution requirement · 📋 no brief — plain row |
 | hygiene | — | the last debt the transport lane named | expire the **retired headscale preauth keys 4 (`tag:pi-dev`) + 5 (`tag:dsh`)** — live, reusable, non-expiring for services that no longer exist; report ids only, never values | one `headscale preauthkeys expire` each; the tombstones in [deployment-secrets.md](docs/deployment-secrets.md) do not revoke them — headscale does |
 
 ### 🔒 Residuals of the closed runner/cockpit lane (442–449) — the gates it hit, not work it abandoned
@@ -210,9 +213,9 @@ in [network-rejected.md](docs/network-rejected.md); the VLAN-99 seal (HD-398 A) 
 | HD-268 / HD-337 / HD-335 | 1–2 | RAG + memory + office stack live | Qdrant embed/rerank + **re-index** after the bge-m3/1024 cutover, OKF wiki skeletons (**268a**), then **268b = implement `rag-mcp`**, Mem0 + OpenHands | ⚠ the Vulkan embed move does **not** trigger the re-index (same dims, cosine 0.9996). ⚠ `rag-mcp`'s compose is a TODO comment block with **no `services:` section** — its `enabled: false` is not a flag to flip; until 268b lands the reranker leg stays dormant (~327 MiB) |
 | HD-360 | 2 | Samba auth rides Authentik over LDAP | declare the provider + `svc_samba` in the Blueprint → mint a fresh bind token → redeploy the outpost → **then** flip `storage_samba_passdb: ldapsam` + converge nas | ⚠ order is safety-critical: smbd fails hard if the flip lands first (that outpost is Up **unhealthy** = expired token; re-probed 2026-09-21: Authentik also has **no LDAP provider/source/outpost object**, so token minting alone is not enough — [deployment-compose.md](docs/deployment-compose.md) §HD-132) · 📋 prompt-394.md — brief deleted |
 | **HD-403** | 2 | voice has an LLM to call | flip `bootstrap_keys` → mint `home-assistant_api` → add HA's **stock `litellm`** integration + a conversation agent + the Assist wire → one Slovenian intent turn | ✅ **the owner call is CLOSED (research 2026-09-26):** HA **2026.8** ships a `litellm` conversation integration (ha-core #172960, merged 2026-07-17; probed at the tags — 404 @ 2026.7.0, 200 @ 2026.8.0) and **the pin `2026.8.1` already has it**: any proxy URL + a virtual key, so no vendored component, no HA bump, no relaxing #24. ⛔ Not a template change — HA reads no `LITELLM_BASE_URL`; URL + key live in `.storage/core.config_entries`, whose standby rsync replicates the key to oldsrv · [smart-home-voice.md](docs/smart-home-voice.md) · 📋 [`prompt-384.md`](prompt-384.md) |
-| **HD-404** | 3 | the last stale IaC strings stop teaching agents the wrong truth | text-only PR over the enumerated list (Victoria headers, the Pi "primary DNS" comment, the `llm-backend` purpose string that feeds a generated doc, `amd_rocm`'s `OLLAMA_KEEP_ALIVE`, `first-boot-config.sh`'s wording) | the docs stopped repeating these; the comments are now the last place an agent reads a wrong truth · [deployment-ansible.md](docs/deployment-ansible.md) · 📋 the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) |
+| **HD-404** | 3 | the last stale IaC strings stop teaching agents the wrong truth | text-only PR over the enumerated list (Victoria headers, the Pi "primary DNS" comment, the `llm-backend` purpose string that feeds a generated doc, `amd_rocm`'s `OLLAMA_KEEP_ALIVE`, `first-boot-config.sh`'s wording) | the docs stopped repeating these; the comments are now the last place an agent reads a wrong truth · [deployment-ansible.md](docs/deployment-ansible.md) · 📋 no brief — plain row |
 | HD-336 | 2 | agent memory per project | agent-memory.dev on oldsrv + ZeroClaw runner | spec in [services-ai.md](docs/services-ai.md) §9b; does not wait on HD-336b |
-| HD-248 | 2 | the OWUI story matches the box | correct the stale "x2 live" banner in [services-ai.md](docs/services-ai.md); stop there | **decided 2026-09-21: no second instance.** The split stays planned until a second audience exists — building it today duplicates a service that does not run · 📋 the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) |
+| HD-248 | 2 | the OWUI story matches the box | correct the stale "x2 live" banner in [services-ai.md](docs/services-ai.md); stop there | **decided 2026-09-21: no second instance.** The split stays planned until a second audience exists — building it today duplicates a service that does not run · 📋 no brief — plain row |
 | HD-104 (+ HD-160) | 2 | OpenClaw is actually configured | `openclaw onboard` → `openclaw.json`, then the OpenCloud WebDAV round-trip | container Up/healthy; only onboarding + verify remain |
 | HD-103 | 2 | Docling converts a real Slovenian scan | convert a real Slovenian scan end-to-end **through the served API** (the in-container CLI cannot run: unwritable `/models` bind) | Docling is Up on the VPS; **HD-402** closes on this same gate. Premise corrected 2026-09-21: there is no HF download to trigger (weights baked into the image; the `/models` bind is decorative — HD-421) |
 | HD-111 | 2 | office MCP tools reachable from the UI | `ppt-mcp` first, register MCP servers in OWUI | nothing gates it now — the OWUI split question is deferred, not open |
@@ -235,7 +238,7 @@ in [network-rejected.md](docs/network-rejected.md); the VLAN-99 seal (HD-398 A) 
 | **HD-461** | 2 | the router's memory log stops rotating itself away | remove the non-default `/system logging` `ssh → memory` rule and prove it stays gone across the next router converge | **PARKED on reachability** — the Mgmt address times out from the laptop and the oldsrv jump, though the box answers again, has not been re-measured: plan an on-site or LAN-attached runner; takes the **global** router slot (§4 O3) |
 | **HD-463** | 1 | `guarded-converge.sh` can guard the Pi at all | thread one `--docker-cmd` through `guarded-converge.sh` + `restart-watchdog.sh` (`sudo -n docker` where docker needs sudo), into the remote watchdog's arm command too, then `--action prove --target pi --container traefik-ha` and record the changed `StartedAt` + the `RE-ENABLING` line | ⛔ do NOT solve it by putting the ansible user in `docker` — that is root-equivalent on a DNS + VIP host |
 | HD-112 | 2 | Zipline is usable, not just up | post-up seeding: local admin → OIDC login (one owner browser step) → flip `bypass-local-login` → create `guestbin` + `dropzone` → round-trip + 6 h sweep verify | deployed; the remainder is seeding |
-| HD-159 | 2 | the tunnel-down alert is proven | run the deliberate `wg down` test and confirm `wg-s2s-down` fires (short planned window) | rule + scrape deployed, never proven · 📋 the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) |
+| HD-159 | 2 | the tunnel-down alert is proven | run the deliberate `wg down` test and confirm `wg-s2s-down` fires (short planned window) | rule + scrape deployed, never proven · 📋 no brief — plain row |
 | HD-287 | 2 | immich-ml runs with minimal caps | encode `cap_drop: ALL` + the ROCm-init `cap_add` set → converge → verify ML inference still works | its gate (the ML leg being live) is met; rides the HD-386 converge |
 | HD-318(b) | 1 | the *arr quality profiles actually sync | confirm the recyclarr @daily sync landed (after the 2026-09-15 `bind_owner_uid` fix) | stacks are up; observation only |
 | HD-280 | 2 | brute force actually gets banned | observation: confirm a repeated 401/403 produces a ban | jail is live; waits on natural traffic |
@@ -245,12 +248,12 @@ in [network-rejected.md](docs/network-rejected.md); the VLAN-99 seal (HD-398 A) 
 
 ### Observability
 
-Lane brief for this section: the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) — **Wave 1**, trimmed 2026-09-23 to the two rows that still live in it (**HD-377(a)** owner sign-off, **HD-342** backup tail → **HD-191**). Everything else it carried has landed: the cadence row (**HD-420**), the spark watchdog (**HD-395** — fixed, then the recycle term switched off by owner), the SNMP labels (**HD-345**) and **HD-377(b)**. The oldsrv `monitoring` converge and the VPS `monitoring` converge both ran 2026-09-23; the rest of this section is independent of it and of each other.
+The brief for this section was `prompt-420.md` (**deleted 2026-09-28**): its two surviving rows — **HD-377(a)** owner sign-off and the **HD-342** backup tail → **HD-191** — are plain rows here like every other. Everything else it carried has landed: the cadence row (**HD-420**), the spark watchdog (**HD-395** — fixed, then the recycle term switched off by owner), the SNMP labels (**HD-345**) and **HD-377(b)**. The oldsrv `monitoring` converge and the VPS `monitoring` converge both ran 2026-09-23; the rest of this section is independent of it and of each other.
 
 | HD | P | Goal | ⏳ Next action | Note |
 |----|---|------|----------------|------|
 | HD-344 | 3 | AI can query metrics/logs through MCP from its own tools | register the MCP endpoints in pi / Open WebUI / OpenClaw — **ports are `mcp_metrics_port` 8083 / `mcp_logs_port` 8084**, not :8080/:8081 | servers live on oldsrv; registration is the whole remaining row. ⚠ use the vars, never a literal port |
-| HD-342 | 2 | the observability data itself is backed up | Kopia client wiring for the Victoria data dirs | the Victoria cutover is live; this is its backup tail · 📋 the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) |
+| HD-342 | 2 | the observability data itself is backed up | Kopia client wiring for the Victoria data dirs | the Victoria cutover is live; this is its backup tail · 📋 no brief — plain row |
 
 ### Docs / policy (no host risk)
 
@@ -312,7 +315,7 @@ also in §A2 with the reasoning.
 | HD-400 · 376 · 359 · 367 | 1–2 | one spark bench window | run the ladder detached, report the numbers |
 | HD-412 | 2 | **two enrolment sessions** — the server itself has been LIVE on the VPS since 2026-09-21: enrol one Path-B family machine, then run one relayed session (phone on mobile data) and one Path-A tailnet direct-IP session with the relay provably uninvolved | the log read-back + the row close-out · ⛔ never on oldsrv: a rescue tool behind the thing it rescues is not a rescue (the `prompt-412.md` brief is deleted) |
 | ⚠ **unrowed** | 3 | **decide whether inbound IPv6 from the ISP is worth chasing** — no unsolicited inbound v6 reaches the delegated prefix, so no home service can be published over v6 at any firewall cost | mint a row, or record the acceptance in [docs/network-rejected.md](docs/network-rejected.md) |
-| **HD-415** | 3 | **a WAN-pulled drill at home** — the new resolver design is only as good as "the phone reaches the node direct over the LAN with the WAN pulled" | the chain is shipped — now prove all three cases in that drill (procedure: deployment-manual.md §1.4e) · 📋 the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](todo.md)) |
+| **HD-415** | 3 | **a WAN-pulled drill at home** — the new resolver design is only as good as "the phone reaches the node direct over the LAN with the WAN pulled" | the chain is shipped — now prove all three cases in that drill (procedure: deployment-manual.md §1.4e) · 📋 no brief — plain row |
 | HD-316 · 315 · 343 · 377 · 319 | 1–2 | the one visual pass — **`homelab-llm` was rendered once on 2026-09-23 and FAILED** (15 of 53 panels blank); it is fixed, guarded and query-replayed and needs **a second render**, plus launchpad, host-overview, Network Clients and the three KNX GAs | fix what the eyeball catches; retire the three superseded dashboards |
 | HD-397 (tail) | 2 | be on-site: the LAN matrix + the `Mgmt99` vNIC linked | close the row |
 | HD-06 · 288 · 194 · 34 / 191 | 1–4 | physical windows: UPS pull → WoL · a router/switch/AP reset · gaming + Moonlight · one edge login/callback · the yearly restore drill | verify state after each; run the pin + Kopia GUI-vs-CLI assessment during the drill |
