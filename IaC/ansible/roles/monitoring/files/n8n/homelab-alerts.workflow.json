@@ -19,19 +19,57 @@
       "id": "route-state",
       "name": "Route by Alert State",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 2,
+      "typeVersion": 3,
       "position": [220, 0],
       "parameters": {
-        "dataPropertyName": "body.state",
+        "mode": "rules",
         "rules": {
           "values": [
             {
-              "value1": "alerting",
-              "operation": "equals"
+              "outputKey": "alerting",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.state }}",
+                    "rightValue": "alerting",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "caseSensitive": false,
+                    "typeValidation": "strict"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                }
+              }
             },
             {
-              "value1": "resolved",
-              "operation": "equals"
+              "outputKey": "resolved",
+              "conditions": {
+                "combinator": "and",
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.body.state }}",
+                    "rightValue": "resolved",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "caseSensitive": false,
+                    "typeValidation": "strict"
+                  }
+                ],
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                }
+              }
             }
           ]
         }
@@ -61,17 +99,26 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-Api-Key",
-              "value": "={{ $env.SIGNAL_API_TOKEN }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SIGNAL_API_TOKEN }}"
             }
           ]
         },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "message", "value": "={{$json.message}}" },
-            { "name": "number", "value": "={{ $env.SIGNAL_NUMBER }}" },
-            { "name": "recipients", "value": "=[{{ $env.SIGNAL_RECIPIENTS }}]" }
+            {
+              "name": "message",
+              "value": "={{$json.message}}"
+            },
+            {
+              "name": "number",
+              "value": "={{ $env.SIGNAL_NUMBER }}"
+            },
+            {
+              "name": "recipients",
+              "value": "=[{{ $env.SIGNAL_RECIPIENTS }}]"
+            }
           ]
         },
         "options": {
@@ -103,17 +150,26 @@
         "headerParameters": {
           "parameters": [
             {
-              "name": "X-Api-Key",
-              "value": "={{ $env.SIGNAL_API_TOKEN }}"
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SIGNAL_API_TOKEN }}"
             }
           ]
         },
         "sendBody": true,
         "bodyParameters": {
           "parameters": [
-            { "name": "message", "value": "={{$json.message}}" },
-            { "name": "number", "value": "={{ $env.SIGNAL_NUMBER }}" },
-            { "name": "recipients", "value": "=[{{ $env.SIGNAL_RECIPIENTS }}]" }
+            {
+              "name": "message",
+              "value": "={{$json.message}}"
+            },
+            {
+              "name": "number",
+              "value": "={{ $env.SIGNAL_NUMBER }}"
+            },
+            {
+              "name": "recipients",
+              "value": "=[{{ $env.SIGNAL_RECIPIENTS }}]"
+            }
           ]
         },
         "options": {
@@ -125,23 +181,53 @@
   "connections": {
     "Grafana Alert Webhook": {
       "main": [
-        [{ "node": "Route by Alert State", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Route by Alert State",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Route by Alert State": {
       "main": [
-        [{ "node": "Format Alerting Message", "type": "main", "index": 0 }],
-        [{ "node": "Format Resolved Message", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Format Alerting Message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Format Resolved Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Format Alerting Message": {
       "main": [
-        [{ "node": "Send Signal (alerting)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Send Signal (alerting)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Format Resolved Message": {
       "main": [
-        [{ "node": "Send Signal (resolved)", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Send Signal (resolved)",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     }
   },

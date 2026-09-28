@@ -266,12 +266,23 @@ homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # source restriction. Derived from the address SSOT.
 oldsrv_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
-# Signal alert recipients — the "Homelab Alerts" Signal group (HD-347). JSON-array form
-# WITHOUT the brackets; the n8n compose wraps it: recipients = [{{ signal_alert_recipients }}].
-# Populated once the Signal device is linked (owner, HD-318d) with the group UUID or
-# phone-number list — e.g. '"+3863163xxxx",  "<group-id>"'. Non-secret SSOT (like
-# grafana_alert_email) — the Signal token itself stays in 1Password `signal-internal_api`.
-signal_alert_recipients: ""
+# Signal alert recipients — the "Homelab alerts" Signal group (HD-347, owner ruling
+# 2026-09-21: the WHOLE group, not the personal number). JSON-array body WITHOUT the
+# brackets — the n8n workflow renders `recipients = [{{ $env.SIGNAL_RECIPIENTS }}]`, so
+# each entry carries its own JSON quotes (add more entries as `"a", "b"`).
+# The value is the V2 group id (`group.` + base64) that the linked signal-cli daemon
+# reports, read read-only on oldsrv:
+#   docker exec signal-cli-rest-api-signal-cli-rest-api-1 \
+#     curl -s http://127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER   -> .id
+# (that raw upstream API has NO auth and NO host port — hence `docker exec`, and the
+# secured-signal-api gateway does not proxy it: /v1/groups is outside its allow-list.)
+# ⛔ NOT the `invite_link` the same call returns — that is an encrypted join blob, not a
+# recipient — and ⛔ NOT the group NAME, which is what the old render fallback produced:
+# signal-cli-rest-api rejects a name and the workflow node swallows the rejection
+# (`onError: continueRegularOutput`), so a wrong-shaped recipient fails silently forever.
+# Non-secret SSOT (like grafana_alert_email): an id names a recipient, it authorises
+# nothing — the send token stays in 1Password `signal-internal_api`.
+signal_alert_recipients: '"group.NVZ6Y212bC9iZnIyNjNyQ0pnaVN6NllMOWRUbSszb0R5K0swbElQdjRrRT0="'
 # ── IPv6 (HD-414, scoped dual-stack) ─────────────────────────────────────────
 # Measured on the live ISP 2026-09-22: the PPPoE session DOES delegate a prefix —
 # DHCPv6-PD hands out `2a00:ee2:2700:8f00::/56` (pool lease ~10 min, renewed). The

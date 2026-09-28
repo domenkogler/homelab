@@ -60,10 +60,19 @@ services:
       # render; the workflow JSON references these env names, not literals.
       # :8082 (not :8080 — pi-dev owns oldsrv_home_ip:8080, HD-355/HD-353 collision fix;
       # signal gateway moved, see signal-cli-rest-api compose).
+      # The gateway takes the token ONLY as `Authorization: Bearer <token>` — measured
+      # 2026-09-28 from the VPS against oldsrv:8082: X-Api-Key -> 401, Bearer -> 200 on
+      # /v1/about. The workflow's header must stay in that shape (its repo copy had drifted
+      # back to X-Api-Key; the live n8n DB copy has carried Bearer since HD-353 on 09-10).
       SIGNAL_CLI_URL: "http://{{ oldsrv_home_ip }}:8082/v2/send"
       SIGNAL_API_TOKEN: "{{ vault['signal-internal_api'].credential | replace('$','$$') }}"
       SIGNAL_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
-      SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | default('\"Homelab Alerts\"', true) | replace('$','$$') }}'
+      # NO default() (HD-347): this value is required for delivery, and the fallback this
+      # line used to carry rendered the group NAME — not a recipient. signal-cli-rest-api
+      # rejects it and the workflow node swallows the rejection (onError:
+      # continueRegularOutput), which is how "alerts go to Signal" stayed silently false.
+      # An empty env is now at least visible in the render / `docker inspect`.
+      SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | replace('$','$$') }}'
     labels: {}   # INTERNAL-ONLY (HD-135b follow-up): no public Traefik route on the main
                   # edge — n8n is served over the tailnet by the traefik-tailnet edge
                   # (auto.kogler.si / auto.ts.kogler.si).
