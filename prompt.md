@@ -171,7 +171,9 @@ cockpit host (HD-361). ⏳ The power half of that lane is about the **next** out
 > [todo-table.md](todo-table.md) §A1 and in the `network` / `services` / `deployment` / `smart-home` decision logs;
 > `todo.md` §1 is now empty of decisions. Five facts a session must carry rather than re-derive: **GitHub is the
 > live remote** (the VPS Forgejo holds no copy of this repo), so the runner pulls from GitHub with the **read-only**
-> `github-homelab-deploy_api` and **oldsrv is pull-only until HD-409**; the cockpit/harness seat on oldsrv is
+> `github-homelab-deploy_api` — and that split is permanent, not a phase: **push by seat, pull by runner** (HD-449),
+> where the runner's read-only path never gains write access and the seat's write key never reaches the runner;
+> the cockpit/harness seat on oldsrv is
 > **`domen`** (your decision, with the measured reason: that account holds neither the `op` token nor the fleet key),
 > `ansible-admin` is runner-only, and the break-glass identity is a new **`<host>-cockpit_login`** PAM user per
 > cockpit host (HD-361); the scoped grant is the **`spark/qwen3.8-flash-next` row only**, `rpm` caps, **no budgets**;
