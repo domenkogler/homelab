@@ -130,9 +130,17 @@ ai_tier_whisper_memory_limit: "4g"      # fp16 GGML = 1.51 GiB + Vulkan buffers;
                                         # native CPU-fallback path (RSS 1.59 GiB measured) must
                                         # still fit under its own cap
 ai_tier_reranker_port: 9001
-ai_tier_reranker_memory_limit: "1g"     # measured host RSS 157 MiB + 606 MiB Q8_0 weights
+ai_tier_reranker_memory_limit: "4g"     # was 1g, sized from "host RSS 157 MiB + 606 MiB Q8_0 weights" —
+                                        # an IDLE/reload reading, which is not the doctrine's "measured
+                                        # peak". Same-image sibling `embed` sits at 838 MiB / 1 GiB (82%)
+                                        # at rest, so 1g sits BELOW the operating point and a real batch
+                                        # memcg-kills the leg (HD-393: that kill is what emitted the
+                                        # `amdgpu: init_user_pages: Failed to get user pages: -1` bursts).
+                                        # 4g = the whisper leg's value for a comparable-size GGUF.
 ai_tier_embed_port: 9002
-ai_tier_embed_memory_limit: "1g"        # same shape as the reranker leg
+ai_tier_embed_memory_limit: "4g"        # same correction, same image (`llama.cpp:server-vulkan`), same
+                                        # 1g-from-idle mistake; measured 838.4 MiB / 1 GiB at rest on
+                                        # 2026-09-28, with the llama-server process alone at 550 MiB.
 # Context window for BOTH GGUF legs. llama.cpp truncates SILENTLY beyond it and
 # llama-server's own default is 512 - which would slice a real ingest chunk in half. The RAG
 # ingest spec is token-based 512/64 (docs/services-ai.md §5b), so 2048 = that spec with 4x
