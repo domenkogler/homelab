@@ -140,7 +140,9 @@ for p in reasoning graded fast fast-sglang; do \
 (T=dummy: `profile` makes no HTTP call and never reads the vault — it is the catalogue viewer.)
 
 **1 · The docs sweep (§0.1 + §0.2).** Free, laptop-only, and it un-gates whoever reads these docs after you.
-Do it first so a future session cannot be talked out of the lane by a stale “do not re-attempt”.
+Do it first so a future session cannot be talked out of the lane by a stale “do not re-attempt”. Also add the
+**`earlyoom` host rule** (§0.3): `grep -rn earlyoom docs/` is empty on a box whose incident history *is* that
+failure mode, and our `fast-sglang` `--mem-fraction-static 0.80` is correct but currently uncited.
 
 **2 · Is fp8 KV reachable at all? Decide it without booting anything.**
 ```bash
@@ -246,6 +248,57 @@ reasoning is **client-side**: per-level `thinking_token_budget` in `~/.pi/agent/
 `reasoning_effort` — `python3 scripts/spark-llm-probe.py … effort high` is the measurement that keeps
 `supportsReasoningEffort: false` honest. Both files are workstation-owned and carry the bearer: propose
 the diff, let the owner apply it ([docs/pi-harness.md](docs/pi-harness.md) is the reference copy).
+
+### 0.3 · Not a profile: Qwen3.8-27B (owner question — it is a *second lane*, never a value of `spark_llm_profile`)
+
+`https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-27B`. Dense hybrid-GDN **VL** model
+(`model_type: qwen3_5`, 27.78 B params, 64 layers = 48 linear-attention + 16 full-attention, GQA 24/4 @
+head_dim 256, MTP head in-checkpoint, 262,144 native / 1 M extensible). It is the only candidate whose **whole
+grid is measured on this box**: 80/80 configurations served on SM121/aarch64 on sglang **v0.5.19**, each scored
+on the full 1319-question GSM8K (**93.18–95.15 %**; the NVIDIA NVFP4 export 94.16–95.07 %).
+
+* **Why it cannot be a profile:** serving a different model under `spark/qwen3.8-flash-next` silently voids every
+  anchor HD-469 exists to protect — HD-376's depth proof, the reasoning-lane cert, the pi-harness 100-task score,
+  and the AWQ/FP8/NVFP4 quality ladder. It is a second served model with its own cert, and on one
+  121.62 GiB pool the two cannot co-run. **Out of scope for this run.**
+* **Vendor-pinned constants (use these, do not re-derive):** `kv_bytes_per_token` = 16 attn layers × 4 KV heads
+  × 256 × K+V = **32,768 B fp8 / 65,536 B bf16**; GDN state slot (48 layers × 48 heads × 128 × 128 + bf16 conv)
+  = **153.9 MB fp32 / 78.4 MB bf16**; `S` = 5 slots/request (`extra_buffer`) / 4 (`extra_buffer_lazy`) / 3
+  (`no_buffer`) / 1 (radix off); `D` = 4 verify states at MTP 3/1/4 (8 for DFLASH, 0 with spec off).
+  Post-weight memory splits into a worst-case-reserved **state pool** (sets the concurrency ceiling) and a paged
+  **KV pool** by `--mamba-full-memory-ratio`, default **0.9 = 90 % to KV**, which “over-provisions the KV pool and
+  silently clamps concurrency”.
+* **The pool this buys on one Spark** at the page's `--mem-fraction-static 0.80` (= 102.4 GB static), minus
+  weights, ~3 GB context/allocator, ~1.5 GB spec — **computed from the constants above, NOT measured**: the page
+  publishes no GB10 KV-pool size for this model.
+
+  | checkpoint | weights | pools | KV @ fp8 | KV @ bf16 |
+  |---|---|---|---|---|
+  | NVFP4 (FP4 head) / NVIDIA export | 21.9 GB | ~76 GB | **~2.09 M tok** | ~1.04 M |
+  | NVFP4 (BF16 head) | 25.1 GB | ~73 GB | ~2.0 M | ~1.0 M |
+  | FP8 blockwise | ~28.5 GB | ~69 GB | ~1.9 M | ~0.95 M |
+  | BF16 | ~55.6 GB | ~42 GB | ~1.16 M | ~0.58 M |
+
+  One **262,144-token session = 8.59 GB** of KV (fp8) / 17.18 GB (bf16), + (S+D) × 153.9 MB state ≈ 1.4 GB
+  → **~10 GB, ~13 % of the NVFP4 pool**. Our AWQ lane today: `kv_cache_memory` auto = **515,679 slots** total =
+  **1.97 × window**, so one full-window pi session consumes ~half the box. That gap — not decode speed, not
+  accuracy — is the actual argument for this model, and it is the same gap behind our 0 %-prefix-hit re-prefill
+  pain ([docs/pi-harness.md](docs/pi-harness.md): 162 k-token session, 17,008 tok/s re-prefill).
+  1 M context = **32.8 GB fp8** (fits the NVFP4/FP8 cells) but 65.5 GB bf16 (does not) — so YaRN-to-1 M is
+  fp8-KV-only and quality-unverified for our workloads either way.
+* **Read the number, don't trust the arithmetic**: the authoritative readout is sglang's own startup log
+  (`max_total_num_tokens=`, `max_running_requests=`) — the flash-next page says the same, and the RTX 5090
+  story on that page is exactly this failure mode (pool self-sized for 127,332 tokens against 9,216 needed,
+  starving the state pool). `nvidia-smi` reports memory `Not Supported` on GB10 — gate on
+  `/proc/meminfo` `MemAvailable`.
+* **Three GB10 host quirks worth copying into our docs regardless of model choice** (same page): docker GPU
+  access is **CDI-only** (`--device nvidia.com/gpu=all`; no `nvidia` runtime is registered) — our compose
+  pattern would need that; `earlyoom` below; and the **BF16 checkpoint takes ~6.5 min to load 18 shards, budget
+  ~10 min to READY** before calling a boot hung.
+* **The host rule our docs do not have:** on DGX Spark **0.85 × 128 GB leaves ~8 GB for the OS = DGX OS
+  `earlyoom`'s SIGTERM threshold**, and the engine dies as **`exit code -15` with no traceback**
+  (`journalctl -u earlyoom` shows the kill) on the first long prefill or boot-time graph capture — **15 of 48
+  cells died at 0.85, every cell served at 0.80**. Add to [docs/hardware-spark.md](docs/hardware-spark.md).
 
 ## Gates fp8 KV must pass *when it becomes possible* (two that run #1's bar does not have)
 
