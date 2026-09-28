@@ -16,6 +16,16 @@ WHAT IT DOES — read-only, by construction:
     and on an ambiguous (colliding) fingerprint prefix;  reports named-but-absent as INFORMATIONAL
     (a revoked key is not an incident, an un-named key is).
 
+GRANULARITY (HD-443, 2026-09-28): a grant is (key, HOST, ACCOUNT), and one row's `Where` cell can
+carry SEVERAL placements of the same key with one of them struck through — `every managed host →
+ansible-admin, plus pi → admin` with the `pi → admin` half revoked is a state this fleet actually
+has. Live runs before this scored per IDENTITY, so the struck half made the WHOLE key read as revoked
+and the fleet's own converge key came back as six `RETIRED-BUT-PRESENT` violations on the very
+account IaC connects as. A gate that reds on the healthy case is a gate that gets muted, so
+placements are scored per (host, account), and a whole key is retired only on a STRUCTURAL marker
+(`Verdict` starting with `retired`, or a `Where` cell whose every placement is struck) — never
+because the word appears somewhere in prose. `--self-test` pins both directions of that.
+
 ⛔ IT NEVER WRITES. There is no code path here that opens an `authorized_keys` for anything but
 reading, and the remote command list is fixed (find / ssh-keygen -lf / cat). The characteristic
 failure of an SSH-management tool is locking yourself out with your own fix (HD-416's own warning,
@@ -41,6 +51,7 @@ import re
 import shlex
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -111,7 +122,8 @@ def vault_named() -> list[dict]:
                 fp = fp_of_pubkey(str(f["value"]))
                 if fp:
                     out.append({"fp": core(fp), "identity": item, "hosts": None,
-                                "user": None, "retired": False, "source": "vault"})
+                                "user": None, "placements": [],
+                                "retired": False, "source": "vault"})
     return out
 
 
@@ -133,15 +145,42 @@ def merge_named(entries: list[dict]) -> list[dict]:
             cur["fp"] = e["fp"]
             cur["source"] = "vault+doc" if cur["source"] == "doc" else "vault"
         else:
-            if e["hosts"]:
-                cur["hosts"] = e["hosts"]
-            if e["user"]:
-                cur["user"] = e["user"]
+            # The doc owns placement — including WHICH ACCOUNT on WHICH HOST — so its placement list
+            # replaces whatever was there. The vault owns the fingerprint and nothing else.
+            if e.get("placements"):
+                cur["placements"] = e["placements"]
+                cur["hosts"] = {h for q in e["placements"] if not q["revoked"] for h in q["hosts"]}
+                cur["user"] = next((q["user"] for q in e["placements"]
+                                    if not q["revoked"] and q["user"]), cur.get("user"))
             if e["retired"]:
                 cur["retired"] = True
             if cur["source"] == "vault":
                 cur["source"] = "vault+doc"
     return list(by_id.values())
+
+
+def _placement(seg: str, revoked: bool) -> dict | None:
+    """One `host(s) → account` fragment. `every managed host` expands; a fragment naming a user but
+    no host means `wherever this key is named`."""
+    hosts = set(re.findall(r"\b(vps|oldsrv|nas|pi|spark)\b", seg))
+    if "every managed host" in seg.lower():
+        hosts |= set(MANAGED_HOSTS)
+    um = re.search(r"→\s*\**\s*`?([A-Za-z0-9._-]+)`?", seg)
+    if not hosts and not um:
+        return None
+    return {"hosts": hosts, "user": um.group(1) if um else None, "revoked": revoked}
+
+
+def parse_where(where: str) -> list[dict]:
+    """Split a `Where` cell into PLACEMENTS. It can carry several (`every managed host →
+    ansible-admin, plus pi → admin`), and one of them can be struck through, which revokes THAT
+    placement and not the key. Struck segments are read first and then removed, so a revoked
+    placement can never be re-added as a live one by the comma split."""
+    out = [_placement(seg, True) for seg in re.findall(r"~~([^~]*)~~", where)]
+    rest = re.sub(r"~~[^~]*~~", " ", where)
+    for part in re.split(r"[,;]| \u2014 ", rest):
+        out.append(_placement(part, False))
+    return [q for q in out if q]
 
 
 def parse_doc(path: Path = DOC) -> list[dict]:
@@ -172,18 +211,17 @@ def parse_doc(path: Path = DOC) -> list[dict]:
         if len(fp) < 5:                    # not a fingerprint cell (a stray row)
             continue
         identity = cells[1].strip("` ")
-        where = cells[2]
-        verdict = cells[3]
-        retired = "retired" in verdict.lower()
-        # Struck-through placements (~~nas → ansible-admin~~) are REVOKED grants: must be absent.
-        revoked = bool(re.search(r"~~[^~]*~~", where))
-        hosts = set(re.findall(r"\b(vps|oldsrv|nas|pi|spark)\b", where))
-        if "every managed host" in where.lower():
-            hosts |= set(MANAGED_HOSTS)
-        user_m = re.search(r"→\s*`?([A-Za-z0-9._-]+)`?", where)
-        rows.append({"fp": fp, "identity": identity, "hosts": hosts,
-                     "user": user_m.group(1) if user_m else None,
-                     "retired": retired or revoked, "source": "doc"})
+        where, verdict = cells[2], cells[3]
+        places = parse_where(where)
+        live_places = [q for q in places if not q["revoked"]]
+        # WHOLE-key retirement is STRUCTURAL, never a word found in prose: this row's verdict explains
+        # that ONE of its placements is retired, which is not the same claim as "this key is revoked".
+        retired = bool(re.match(r"\**\s*retired\b", verdict, re.I)) or (bool(places) and not live_places)
+        rows.append({"fp": fp, "identity": identity,
+                     "hosts": {h for q in live_places for h in q["hosts"]},
+                     "user": next((q["user"] for q in live_places if q["user"]), None),
+                     "placements": places,
+                     "retired": retired, "source": "doc"})
     if not rows:
         die(f"no grant rows parsed from {path} §{SECTION}")
     return rows
@@ -253,20 +291,31 @@ def score(live: dict, named: list[dict]) -> tuple[list, list, list]:
                            "Name it in deployment-secrets.md §Who is authorized where or retire it.")
                 continue
             n = matches[0]
-            if n["retired"]:
+            acct = account_of(path)
+            places = n.get("placements") or []
+            # A struck placement is must-be-absent at THAT (host, account) only. Scoring it against the
+            # whole identity is what made the healthy converge key read as revoked on every host.
+            struck = [q for q in places if q["revoked"]
+                      and (not q["hosts"] or host in q["hosts"])
+                      and (not q["user"] or not acct or q["user"] == acct)]
+            if n["retired"] or struck:
+                which = "the whole key" if n["retired"] else \
+                        f"the {host} → {struck[0]['user'] or 'any account'} placement"
                 bad.append(f"RETIRED-BUT-PRESENT {host} {path}: {fp} ({comment}) = {n['identity']} — "
-                           "the inventory says revoked; the file says otherwise.")
+                           f"{which} is struck in the inventory; the file says otherwise.")
                 continue
-            if n["hosts"] and host not in n["hosts"]:
+            on_host = [q for q in places if not q["revoked"] and (not q["hosts"] or host in q["hosts"])]
+            if places and not on_host:
                 bad.append(f"UNPLACED {host} {path}: {fp} ({comment}) = {n['identity']} — named for "
                            f"{sorted(n['hosts'])}, found on {host}")
+                continue
             # The ACCOUNT is half the grant. A named key under an unnamed account is the exact
             # shape HD-416 was born from (a key authorizing ansible-admin as NOPASSWD root on nas
             # was found by hand-sweeping, because nothing compared the account either).
-            acct, want = account_of(path), n["user"]
-            if acct and want and acct != want:
+            want = {q["user"] for q in on_host if q["user"]}
+            if acct and want and acct not in want:
                 bad.append(f"WRONG-ACCOUNT {host} {path}: {fp} ({comment}) = {n['identity']} — "
-                           f"named as {want}, authorized as {acct}. Name the account or revoke it.")
+                           f"named as {sorted(want)}, authorized as {acct}. Name the account or revoke it.")
     seen = {core(fp) for keys in live.values() for fp, _ in keys}
     for n in named:
         if not n["retired"] and not any(s.startswith(n["fp"]) or n["fp"].startswith(s) for s in seen):
@@ -280,11 +329,14 @@ def self_test() -> int:
     ambiguous prefix, and MUST stay green on a named grant. Without this the checker could stop
     detecting and still print OK — the failure mode CONVENTIONS §6 names."""
     named = [{"fp": "AAAA1111", "identity": "ansible-admin_ssh", "hosts": set(MANAGED_HOSTS),
-              "user": "ansible-admin", "retired": False, "source": "vault"},
+              "user": "ansible-admin", "retired": False, "source": "vault",
+              "placements": [{"hosts": set(MANAGED_HOSTS), "user": "ansible-admin", "revoked": False}]},
              {"fp": "BBBB2222", "identity": "ha-sync@pi.kogler.si", "hosts": {"oldsrv", "vps"},
-              "user": None, "retired": False, "source": "doc"},
+              "user": None, "retired": False, "source": "doc",
+              "placements": [{"hosts": {"oldsrv", "vps"}, "user": None, "revoked": False}]},
              {"fp": "CCCC3333", "identity": "oldsrv-rsync", "hosts": set(),
-              "user": None, "retired": True, "source": "doc"}]
+              "user": None, "retired": True, "source": "doc",
+              "placements": [{"hosts": {"nas"}, "user": "ansible-admin", "revoked": True}]}]
     cases = [
         ("named grant stays green",
          {("oldsrv", "/home/ansible-admin/.ssh/authorized_keys"): [("SHA256:AAAA1111ABC", "ansible-admin")]}, 0),
@@ -297,34 +349,73 @@ def self_test() -> int:
         ("a short doc prefix still matches a full fingerprint",
          {("vps", "/home/x/.ssh/authorized_keys"): [("SHA256:BBBB", "ha-sync@pi")]}, 0),
         ("a named key under an unnamed ACCOUNT is red",   # the HD-416 origin story, mechanised
-         {("pi", "/home/admin/.ssh/authorized_keys"): [("SHA256:AAAA1111ABC", "ansible")]}, 1),
+         {("spark", "/home/other/.ssh/authorized_keys"): [("SHA256:AAAA1111ABC", "someone")]}, 1,
+         "WRONG-ACCOUNT"),
+        ("ONE struck placement does not revoke the key elsewhere (HD-443)",
+         {("oldsrv", "/home/ansible-admin/.ssh/authorized_keys"): [("SHA256:AAAA1111ABC", "iac")]}, 0),
+        ("the struck placement, live where it was revoked, is red AS a retired grant",
+         {("pi", "/home/admin/.ssh/authorized_keys"): [("SHA256:AAAA1111ABC", "owner")]}, 1,
+         "RETIRED-BUT-PRESENT"),
     ]
+    # The multi-placement row must be scored per placement, so the fixtures carry a revoked `pi →
+    # admin` half next to the live `every managed host → ansible-admin` half — the exact shape of the
+    # `ansible-admin_ssh` row, whose struck `admin` placement used to mark the converge key itself
+    # retired on all five hosts (six false REDs, 2026-09-28).
+    named[0]["placements"].append({"hosts": {"pi"}, "user": "admin", "revoked": True})
     rc = 0
-    for label, live, want in cases:
+    for case in cases:
+        label, live, want = case[:3]
+        kind = case[3] if len(case) > 3 else None
         bad, _, _ = score(live, named)
         got = 1 if bad else 0
-        print(f"  {'ok  ' if got == want else 'FAIL'} {label} → {'red' if got else 'green'}")
-        rc |= got ^ want
+        # The KIND is part of the assertion: a red that fires for the wrong reason (retired where the
+        # claim was wrong-account, or the other way round) teaches the next reader the wrong lesson.
+        kind_ok = kind is None or any(v.startswith(kind) for v in bad)
+        print(f"  {'ok  ' if got == want and kind_ok else 'FAIL'} {label} → {'red' if got else 'green'}"
+              + ('' if kind_ok else f" (wanted {kind}, got {[v.split(' ')[0] for v in bad]})"))
+        rc |= (got ^ want) | (0 if kind_ok else 1)
     # ambiguity: a live key matching two DIFFERENT named identities must be reported, never
     # guessed away — and a key named twice under ONE identity must NOT be reported.
     dup = named + [{"fp": "AAAA", "identity": "looks-similar", "hosts": set(MANAGED_HOSTS),
-                    "user": None, "retired": False, "source": "doc"}]
+                    "user": None, "retired": False, "source": "doc", "placements": []}]
     bad, _, _ = score({("vps", "/root/.ssh/authorized_keys"): [("SHA256:AAAA1111ABC", "x")]}, dup)
     ok = any(v.startswith("AMBIGUOUS") for v in bad)
     print(f"  {'ok  ' if ok else 'FAIL'} colliding short prefixes are reported, not guessed")
     both = named + [{"fp": "AAAA1111", "identity": "ansible-admin_ssh", "hosts": set(MANAGED_HOSTS),
-                     "user": "ansible-admin", "retired": False, "source": "doc"}]
+                     "user": "ansible-admin", "retired": False, "source": "doc",
+                     "placements": [{"hosts": set(MANAGED_HOSTS), "user": "ansible-admin",
+                                     "revoked": False}]}]
     bad2, _, _ = score({("vps", "/home/ansible-admin/.ssh/authorized_keys"): [("SHA256:AAAA1111ABC", "ansible")]}, both)
     ok2 = not bad2
     print(f"  {'ok  ' if ok2 else 'FAIL'} one key named by vault AND doc is corroboration, not ambiguity")
     # merge_named: the vault must NOT get to assert a placement the doc never named
     merged = merge_named([{"fp": "ZZZZ1111", "identity": "ai_ssh", "hosts": None, "user": None,
-                           "retired": False, "source": "vault"},
+                           "placements": [], "retired": False, "source": "vault"},
                           {"fp": "ZZZZ", "identity": "ai_ssh", "hosts": {"nas"}, "user": "ai-debug",
+                           "placements": [{"hosts": {"nas"}, "user": "ai-debug", "revoked": False}],
                            "retired": False, "source": "doc"}])
     ok3 = (len(merged) == 1 and merged[0]["hosts"] == {"nas"} and merged[0]["fp"] == "ZZZZ1111")
     print(f"  {'ok  ' if ok3 else 'FAIL'} merge keeps the doc's placement and the vault's fingerprint")
-    return rc | (0 if ok else 1) | (0 if ok2 else 1) | (0 if ok3 else 1)
+
+    # The parser, pinned: a verdict that merely EXPLAINS a retired placement must not revoke the key,
+    # and a fully-struck row must. This is the regression that made the healthy fleet key read as
+    # revoked six times over; prose is not a marker.
+    fx = Path(tempfile.mkdtemp(prefix="grant-fixture-")) / "grant-table.md"
+    fx.write_text(
+        "### Who is authorized where\n"
+        "| Fingerprint | Identity | Where authorized | Verdict |\n|---|---|---|---|\n"
+        "| `AAAA1111` | `ansible-admin_ssh` | every managed host → `ansible-admin`, ~~plus pi → `admin`~~ |"
+        " live converge key; this row's prose explains that one placement is retired, which is NOT a marker |\n"
+        "| `CCCC3333` | `oldsrv-rsync` | ~~nas → `ansible-admin`~~ | **retired 2026-09-21** |\n",
+        encoding="utf-8")
+    rows = {r["identity"]: r for r in parse_doc(fx)}
+    r1, r2 = rows.get("ansible-admin_ssh"), rows.get("oldsrv-rsync")
+    ok4 = (r1 and not r1["retired"] and len(r1["placements"]) == 2
+           and any(q["revoked"] and q["hosts"] == {"pi"} for q in r1["placements"])
+           and not any(q["revoked"] for q in r1["placements"] if q["user"] == "ansible-admin")
+           and r2 and r2["retired"])
+    print(f"  {'ok  ' if ok4 else 'FAIL'} a struck placement revokes that placement, not the key")
+    return rc | (0 if ok else 1) | (0 if ok2 else 1) | (0 if ok3 else 1) | (0 if ok4 else 1)
 
 
 def die(msg: str) -> None:

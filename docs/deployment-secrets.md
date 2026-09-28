@@ -628,6 +628,46 @@ change; it revokes nothing. The sweep set is the five managed hosts (`nas`, `old
 `vps`) — **the HA guests are not in it and are therefore unaudited**; the owner accepted that scope
 on 2026-09-25 (HD-443), and the acceptance changes the *wording*, not the truth: unaudited ≠ clean.
 
+**The gate could not express a per-account revoke until 2026-09-28 (HD-443).** The `1uKzmwf…` row carries
+TWO placements of one key (`every managed host → ansible-admin`, `pi → admin`), and the ruling on that
+key's verdict cell explains that one of them is to come off. The auditor scored per IDENTITY, which
+made both readings impossible at once: the word `retired` anywhere in the verdict marked the fleet's
+own converge key revoked, so a healthy `ansible-admin` on all five hosts came back as six
+`RETIRED-BUT-PRESENT` violations; and striking the one placement, the only way the table had of
+expressing the decision, would have reddened the four hosts where the key must stay. It now scores
+**(key, host, account)**: a `~~struck~~` placement is must-be-absent at that host and account only, a
+whole key is retired only on a structural marker (`Verdict` *starting* with `retired`, or a `Where`
+cell whose every placement is struck), and `--self-test` pins both directions of that plus the
+violation KIND, because a red that fires for the wrong reason teaches the next reader the wrong lesson.
+
+**A retire that had to be reverted the same day (2026-09-28, HD-443).** `pi → admin` was struck, the
+sequence below was followed, and the placement is live again. What went wrong is worth more than the
+revocation would have been:
+
+- The 2026-09-25 ruling — ✅ *the owner needs no `admin` account at all; the key comes off `admin`* —
+  was derived from `host_vars/pi.kogler.si.yml` setting `ansible_user: ansible-admin`, i.e. from what
+  **IaC** needs. The consumer turned out to be the **operator**: the laptop's `~/.ssh/config` has
+  `Host pi` → `User admin` with `IdentityFile ~/.ssh/id_ed25519` — which is this same key — over
+  `ProxyJump vps`. The journal over the 30 days it covers shows **90** `Accepted publickey for admin`
+  against **16** for `ansible-admin` (those are the converge runs). "IaC does not need it" was read as
+  "nobody needs it".
+- The sequence was followed and still caught us: enumerate (`ssh-keygen -lf`, not a fingerprint grep),
+  back up (`/home/admin/.ssh/authorized_keys.pre-hd443-20260928T105856Z`, 0600), **comment the line out
+  with a dated marker rather than delete it** — and the next `ssh pi` answered
+  `admin@<the Pi>: Permission denied (publickey)`. Restored from the backup in the same session; the
+  operator path is proven working again (`RESTORED: admin@pi`), and the backup stays on the box.
+- **So step 2 of the sequence has a scope it did not state**: "establish disuse from the log" has to
+  include the operator's own client config, not only what `host_vars` implies. The very count that
+  looks like idleness (`Accepted publickey for admin`, if you only grep IaC's identity) is the count of
+  the human sitting at the keyboard.
+- **The way back in, recorded:** with `admin` closed on the Pi, `ssh ansible-admin@pi` (same key, that account) still
+  authenticates — the key is authorized under that account too, and `sudo` there is NOPASSWD — so a
+  botched revoke of the interactive path is recoverable without another credential. That is what made
+  the revert possible in minutes rather than requiring console access.
+- **What has to exist before that placement can be struck**: a sanctioned interactive path for the
+  operator on the Pi (either repoint `Host pi` at the IaC identity, or land `domen_ssh` under a `domen`
+  account that does not need `admin`), and the 2026-09-25 ruling re-made with the usage in front of it.
+
 **Two claims this sweep disproved** (both were written as fact and both were wrong): "the same three
 keys are authorized on **every** homelab host" — pi carries ONLY `ansible-admin_ssh`, and no vault
 key is authorized on the HA guests; and the row's premise that `restore-runner-key.sh` "refuses
