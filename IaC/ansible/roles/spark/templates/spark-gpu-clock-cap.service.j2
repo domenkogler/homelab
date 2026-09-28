@@ -1,0 +1,25 @@
+[Unit]
+# GB10 has no power-limit control at all (`nvidia-smi -pl` unsupported, `power.limit` reads
+# N/A — docs/hardware-spark.md §GPU clock cap), so a graphics-clock CEILING is the only
+# software power lever on this SoC. Upstream DGX Spark reports tie sustained ~90 W GPU load
+# to LOG-LESS hard power-offs and report the ceiling as what stopped them.
+Description=spark GB10 GPU graphics-clock cap ({{ spark_gpu_clock_cap_mhz }} MHz) — the only power lever on this SoC
+# The cap is driver state, not persistent hardware config: it is LOST on every boot, and
+# this box has a documented history of hard power-cycles (docs/hardware-spark.md §As-measured
+# SMART row). Without this unit the cap only exists until the next power event.
+After=systemd-modules-load.service
+# No-op instead of fail-loop if the driver is ever absent (Condition* = silent skip, which is
+# correct HERE because the tasks/ verify task is the loud half of the contract).
+ConditionPathExists={{ spark_gpu_clock_cap_bin }}
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart={{ spark_gpu_clock_cap_bin }} -lgc {{ spark_gpu_clock_cap_mhz }}
+# Hand the clocks back on stop, so `spark_gpu_clock_cap_enable: false` (which drives
+# `state: stopped` in tasks/) genuinely UNDOES the cap instead of leaving it pinned forever.
+ExecStop={{ spark_gpu_clock_cap_bin }} -rgc
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target

@@ -397,6 +397,53 @@ offloading out of the box" upstream either (vLLM #38230 / PR #38261), so this re
 
 ---
 
+### GPU clock cap — the only power lever on GB10 (HD-469)
+
+GB10 has **no power-limit control**: `nvidia-smi -pl` is unsupported and `power.limit` reads **N/A**
+(reality delta above). The one software lever on this SoC is a **graphics-clock ceiling**, and since
+2026-09-28 spark runs under one permanently, owned by IaC:
+
+- **The lever:** `nvidia-smi -lgc 300,2200`. **Range form, never a bare value** — a bare `-lgc 2200`
+  pins min=max, so the GPU can never idle its clocks down on a box serving a live agent 24/7.
+- **The IaC:** `spark_gpu_clock_cap_{enable,mhz,bin,ceiling_mhz}` in `roles/spark/defaults/main.yml`;
+  the `spark` role installs `spark-gpu-clock-cap.service` (tag `clockcap`) **and** applies the cap during
+  the converge, then **asserts the read-back**. `--check` reports desired-vs-actual drift without writing.
+- **Why both a unit and a converge apply:** the lock is **runtime driver state, lost on every boot** —
+  and this box has a documented power-cycle history (SMART row, §As-measured: "high power-cycle +
+  unsafe-shutdown count"). The unit covers boots; the converge apply covers driver reloads and any
+  hand-run `-rgc`.
+- **Opt-out is real:** `spark_gpu_clock_cap_enable: false` stops the unit, whose `ExecStop` runs
+  `nvidia-smi -rgc`. That matters because a runtime lock on a box nobody ever reboots would otherwise
+  persist silently forever — permanent drift that `--check` cannot see.
+
+**Why cap at all.** Upstream DGX Spark reports describe a **hard power-off under sustained GPU load at
+~90 W that leaves no log**, and report the ceiling as the fix: *~20 log-less hard-offs in 3 weeks → zero
+after `nvidia-smi -lgc 300,2200`* (in combination with memory-pressure mitigations), at a measured cost
+of **~5 % throughput on bandwidth-bound LLM inference** (30.8 vs 32.3 tok/s on identical vLLM lanes).
+Our own wedges in [spark-incidents.md](spark-incidents.md) are **OOM-class, not this class** — do not
+retro-diagnose them as this. The trade accepted on 2026-09-28 is availability over a few percent of
+speed, because a power-off here needs someone at the rack.
+
+**Measured on this unit** (2026-09-28, read-only `--query-gpu`): `clocks.sm` **2496 MHz**,
+`clocks.max.sm` **3003 MHz**, Default Applications Clocks **2418 MHz**, and
+`--query-supported-clocks=graphics` → **[N/A]**. Two consequences: **2200 is a real ceiling ≈ 12 % below
+where this box actually sits**, so expect a few percent off every tok/s figure; and the value **cannot
+be validated by enumeration** — GB10 does not enumerate clocks any more than it enumerates memory, so
+the read-back is the entire proof. That is why the role asserts `clocks.max.sm == 2200` instead of
+trusting exit code 0 (there is a documented GB10 unit where `-lgc` is accepted and does nothing).
+
+⚠ **Not yet exercised here.** The assert has not run against a live converge — the session that wrote
+this is *served by* spark and does not touch the engine it runs on. The first converge after this lands
+**is** the test: if it fails, this unit is in the no-op class and the answer is to raise the ceiling or
+set `spark_gpu_clock_cap_enable: false` and write down which.
+
+**Read it in Grafana:** `DCGM_FI_DEV_SM_CLOCK` (already scraped —
+[observability.md](observability.md) §DCGM, recorded at **2509 MHz** pre-cap) should now sit on a
+**plateau at ≤ 2200 MHz under load**. A ceiling reading *below* 2200 under load is thermal/power
+headroom, not a scheduler problem — that is what the clock + power panel pair exists to separate.
+
+---
+
 ## Bench + engine selection
 
 spark serves Qwen3.8-Flash-Next under several serving profiles (S1–S5, engine-neutral). The engine is
@@ -655,7 +702,7 @@ must implement when it lands:
 ssh spark 'cat /etc/dgx-release; hostnamectl; uname -mr'
 ssh spark 'sudo dmidecode -s system-serial-number; sudo dmidecode -s system-product-name; sudo dmidecode -s bios-version'
 ssh spark 'lscpu | grep -E "Model name|CPU\(s\)|MHz|L2|L3"; grep MemTotal /proc/meminfo; sudo dmidecode -t 16 -t 17'
-ssh spark 'nvidia-smi --query-gpu=name,driver_version,uuid,compute_cap,temperature.gpu --format=csv'
+ssh spark 'nvidia-smi --query-gpu=name,driver_version,uuid,compute_cap,temperature.gpu,clocks.sm,clocks.max.sm --format=csv'
 ssh spark 'sudo nvme list; sudo smartctl -H -A /dev/nvme0; ls -l /dev/disk/by-id/; lsblk -o NAME,SIZE,FSTYPE,MOUNTPOINTS /dev/nvme0n1'
 ssh spark 'lspci -nn; sudo ethtool enP7s7 | grep -E "Speed|link modes"; ip -br link'
 ```

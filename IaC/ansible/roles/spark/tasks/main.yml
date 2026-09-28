@@ -285,6 +285,137 @@
   failed_when: false
   tags: [spark, watchdog]
 
+# ---- GPU graphics-clock cap (HD-469, 2026-09-28) ----
+# WHY: GB10 exposes NO power-limit control — `-pl` is unsupported and `power.limit` reads N/A
+# (docs/hardware-spark.md §GPU clock cap), so a graphics-clock CEILING is the only software power
+# lever this SoC has. Upstream DGX Spark reports tie sustained ~90 W GPU load to LOG-LESS hard
+# power-offs and report the ceiling as what stopped them; on this box a power-off is a hands-on
+# recovery ("never reboot spark"). Owner call 2026-09-28: run the box capped permanently.
+# WHY TWO HALVES: the lock is RUNTIME driver state — it does NOT survive a boot, and this box has a
+# documented history of hard power-cycles (SMART row, same doc). So: the unit covers boot, the
+# converge apply covers everything else (driver reload, a hand-run `-rgc`, a skipped unit).
+# WHY VERIFY: measured on this unit 2026-09-28 — clocks.sm 2496 MHz, clocks.max.sm 3003 MHz,
+# Default Applications Clocks 2418 MHz, and `--query-supported-clocks=graphics` → **[N/A]**: GB10
+# does not enumerate clocks any more than it enumerates memory, so a value cannot be validated up
+# front. There is also a documented GB10 unit where `-lgc` is accepted and does nothing. The
+# read-back below is therefore the whole contract, and it is loud.
+- name: Reject a bare clock value (range form only)
+  ansible.builtin.assert:
+    that:
+      - spark_gpu_clock_cap_mhz.split(',') | length == 2
+    fail_msg: >-
+      spark_gpu_clock_cap_mhz must be the RANGE form 'min,max' (e.g. "300,2200"). A bare single
+      value pins min=max, so the GPU can never idle its clocks down — on a box that serves a live
+      agent all day that is wasted heat for nothing.
+    quiet: true
+  when: spark_gpu_clock_cap_enable | bool
+  tags: [spark, clockcap]
+
+- name: Install the GPU clock-cap systemd unit
+  ansible.builtin.template:
+    src: spark-gpu-clock-cap.service.j2
+    dest: /etc/systemd/system/spark-gpu-clock-cap.service
+    owner: root
+    group: root
+    mode: "0644"
+  become: true
+  when: spark_gpu_clock_cap_enable | bool
+  tags: [spark, clockcap]
+
+- name: Enable the GPU clock-cap at boot
+  ansible.builtin.systemd:
+    name: spark-gpu-clock-cap.service
+    enabled: true
+    daemon_reload: true
+  become: true
+  # check-mode safe: same live-hit rule as the watchdog — during --check the unit file is not on
+  # the target, so systemd cannot resolve it and the module fails.
+  when:
+    - spark_gpu_clock_cap_enable | bool
+    - not ansible_check_mode
+  tags: [spark, clockcap]
+
+- name: Read the SM clock ceiling
+  ansible.builtin.command:
+    cmd: >-
+      {{ spark_gpu_clock_cap_bin }} --query-gpu=clocks.max.sm --format=csv,noheader,nounits
+  register: spark_clock_read
+  changed_when: false
+  # Read-only → run it even under --check, so --check can REPORT drift instead of hiding it.
+  check_mode: false
+  become: true
+  when: spark_gpu_clock_cap_enable | bool
+  tags: [spark, clockcap]
+
+- name: Report clock-cap drift under --check
+  ansible.builtin.debug:
+    msg: >-
+      GPU clock cap: desired ceiling {{ spark_gpu_clock_cap_ceiling_mhz }} MHz, target currently
+      reads {{ spark_clock_read.stdout | trim }} MHz
+      {{ '→ would APPLY' if (spark_clock_read.stdout | trim | int) != (spark_gpu_clock_cap_ceiling_mhz | int)
+         else '→ already in effect' }} (no change made; --check)
+  when:
+    - spark_gpu_clock_cap_enable | bool
+    - ansible_check_mode
+  tags: [spark, clockcap]
+
+- name: Apply the GPU clock cap now (the boot unit only covers boots)
+  ansible.builtin.command:
+    cmd: "{{ spark_gpu_clock_cap_bin }} -lgc {{ spark_gpu_clock_cap_mhz }}"
+  become: true
+  when:
+    - spark_gpu_clock_cap_enable | bool
+    - not ansible_check_mode
+    - (spark_clock_read.stdout | trim | int) != (spark_gpu_clock_cap_ceiling_mhz | int)
+  # Non-zero exit = the driver REFUSED the flag → fail loud rather than claim a cap we do not have.
+  # (The silent no-op is the other failure mode; the read-back below catches that one.)
+  tags: [spark, clockcap]
+
+- name: Re-read the SM clock ceiling after applying
+  ansible.builtin.command:
+    cmd: >-
+      {{ spark_gpu_clock_cap_bin }} --query-gpu=clocks.max.sm --format=csv,noheader,nounits
+  register: spark_clock_verify
+  changed_when: false
+  check_mode: false
+  become: true
+  when:
+    - spark_gpu_clock_cap_enable | bool
+    - not ansible_check_mode
+  tags: [spark, clockcap]
+
+- name: Assert the GPU clock cap is in effect
+  ansible.builtin.assert:
+    that:
+      - (spark_clock_verify.stdout | trim | int) == (spark_gpu_clock_cap_ceiling_mhz | int)
+    fail_msg: >-
+      GPU clock cap NOT in effect: nvidia-smi reads clocks.max.sm = {{ spark_clock_verify.stdout | trim }} MHz,
+      expected {{ spark_gpu_clock_cap_ceiling_mhz }} MHz. GB10 will not enumerate clocks for us
+      (--query-supported-clocks → N/A), so this read-back is the only proof there is — and a
+      documented GB10 failure mode is `-lgc` being accepted and having no effect at all.
+      Reproduce: ssh spark 'nvidia-smi --query-gpu=clocks.max.sm,clocks.sm --format=csv'.
+      Skip just this for one converge: --skip-tags clockcap.
+      Stop enforcing permanently: spark_gpu_clock_cap_enable: false (next converge stops the unit,
+      whose ExecStop hands the clocks back with -rgc).
+    success_msg: >-
+      GPU clock cap in effect: clocks.max.sm = {{ spark_clock_verify.stdout | trim }} MHz
+  when:
+    - spark_clock_verify.stdout is defined     # only when we actually read it back (skips under --check)
+  tags: [spark, clockcap]
+
+- name: Disable the GPU clock-cap and hand the clocks back (opt-out reversal)
+  ansible.builtin.systemd:
+    name: spark-gpu-clock-cap.service
+    state: stopped
+    enabled: false
+    daemon_reload: true
+  become: true
+  # ExecStop on the unit runs `-rgc`, so disabling the var genuinely UNDOES the cap instead of
+  # leaving a silent runtime lock on a box nobody ever reboots.
+  when: not (spark_gpu_clock_cap_enable | bool)
+  failed_when: false
+  tags: [spark, clockcap]
+
 # NOTE on the ANSIBLE USER: unlike preseed hosts, spark has no post_install.sh — the
 # automation user + authorized_keys + sudoers are provisioned by the `common` role
 # (roles/common/tasks/system.yml: user/key/sudoers), exactly like the VPS/Pi/nas/oldsrv.
