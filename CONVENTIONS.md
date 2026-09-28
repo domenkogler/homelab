@@ -112,6 +112,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - **Secret → YAML config = block scalar `>-` by default** (never inline-quote a 1P secret into a
   YAML/TOML file the app parses) — HD-233 live lesson; see `deployment-secrets.md` Rendering section.
 - Generated files use the **`-generated` filename suffix** and are rendered, never hand-edited (§8.2). The legacy **★** marker in `docs/index.md` is a display aid only, **not** the convention.
+- **A script piped into `bash -s` over ssh must pass `-n` (or `</dev/null`) to every bare `ssh` it runs** — for the duration of that ssh, stdin IS the rest of the script, so the run silently truncates and exits with whatever the last executed line returned. Measured both ways in one script: the correct `exit 3`, then (after the blocker cleared) `rc 1` on a fully working setup with its acceptance never executed. The exit code alone never tells you which of the two you are looking at.
 - **Don't chase cosmetic tweaks** during planning phase (ASCII alignment, spacing); substantive, consistent edits only.
 - **Git worktrees (owning rule — CONVENTIONS is SSOT):** **every** session creates its own fresh
   worktree named `../homelab-wt-<date>-<HHMM>` **before touching any file** — single-session work
