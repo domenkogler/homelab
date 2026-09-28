@@ -48,7 +48,7 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Lidarr-URL-DL | url-dl | I | 150–300 / 500 | Lidarr-YouTube-Downloader (angrido/lidarr-downloader, HD-362) — acquisition **#3**: YouTube → Lidarr (Newznab + SABnzbd emulation, yt-dlp + PO-token sidecar), up to 320 kbps MP3/M4A/Opus; internal-only UI |
 | Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd, HD-362) — **gluetun WireGuard sidecar, VPN-locked egress**, acquisition **#2**; no inbound port → fetch-only peer (search + download, no upload credit); own login/token |
 | Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** · needs `vm.max_map_count` · **⏳ disabled** — ES `path.repo` problem, see §Music Pillar
-| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (scheduled, no UI) |
+| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (`@daily` inside the container, no UI) — **mechanism fixed + proven 2026-09-28, policy switch still commented** (it rewrites live quality profiles): [deployment-secrets.md](deployment-secrets.md) §the `sonarr_api`/`radarr_api` rows |
 
 ## Storage & Import (Media / *arr)
 

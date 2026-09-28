@@ -4,15 +4,39 @@
 # interpolation), so `vault['<item>']` values pass through unchanged. Compose's `$`-substitution
 # only applies to compose files (HD-270/HD-233 lesson). Raw `vault['sonarr_api'].credential` /
 # `vault['radarr_api'].credential` here are safe — no `| replace('$','$$')` needed.
+#
+# SCHEMA (HD-318(b), corrected 2026-09-28): instances MUST be a NAMED mapping, not an array list.
+# Recyclarr v5.0 dropped array-style lists; this file stayed array-style, and every `@daily` run
+# since the image moved to 7.x was rejected at line 12 with
+#   `Found array-style list of instances instead of named-style` … `this config will be skipped`
+# — while `recyclarr sync` exited 0 anyway. Names are also unique ACROSS services, so the two
+# instances below cannot share one name (measured: `The specified instance names are duplicated`).
+#
+# WHAT THIS FILE IS NOT YET: a policy. The `quality_definition:` block is deliberately commented out
+# because enabling it REWRITES the live quality profiles inside Radarr and Sonarr, and no owner
+# decision on which profile set to follow has ever been recorded (docs/services-media.md says
+# "TRaSH custom formats + quality profiles sync" and stops there). The accepted values are not
+# guessable — they come from the image itself (`recyclarr list qualities <svc>`):
+#     radarr → movie | sqp-uhd | sqp-streaming | anime
+#     sonarr → series | anime
+# Uncomment one per service to turn the sync on. Until then this service authenticates and processes
+# both apps while syncing NOTHING, which is stated here so nobody reads a green container as a backup
+# of the media library's settings.
 {{ ansible_managed | comment }}
 # See https://recyclarr.dev/wiki/yaml/config-reference/
 
 sonarr:
-  - base_url: http://sonarr:8989
+  sonarr-homelab:
+    base_url: http://sonarr:8989
     api_key: >-
       {{ vault['sonarr_api'].credential }}
+    # quality_definition:
+    #   type: series          # or: anime
 
 radarr:
-  - base_url: http://radarr:7878
+  radarr-homelab:
+    base_url: http://radarr:7878
     api_key: >-
       {{ vault['radarr_api'].credential }}
+    # quality_definition:
+    #   type: movie           # or: sqp-uhd | sqp-streaming | anime
