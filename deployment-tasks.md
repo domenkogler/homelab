@@ -596,8 +596,12 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
       workaround `https://litellm.kogler.si/fallback/login`. Fix = SPA fallback or route-scoped `/ui/*`. · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-369** — the tail of the tier row: Ollama stays as the **embed fallback** (the owner keeps it), and
       the rerank leg still has **no consumer** — `rag-mcp` is a compose stub, so nothing calls the reranker yet. · [services-ai.md](docs/services-ai.md)
-- [ ] **HD-393** — the spark re-cert that gates the rerank cutover: attribute that OOM episode per-process,
-      decide benign-vs-OOM-adjacent, fix it or accept it as noise. **Never converge an unpinned AI leg.** · [services-ai.md](docs/services-ai.md)
+- [x] **HD-393** — **CLOSED 2026-09-28.** Attributed: a `CONSTRAINT_MEMCG` kill of the 1g-capped pinned-tier
+      embed leg (2,881 `init_user_pages` lines in `kern.log.2.gz` in three bursts, each after the kill), decided
+      OOM-adjacent at the cgroup level, fixed: both GGUF caps `1g → 4g`, which is what the binary's documented
+      1.59 GiB CPU-fallback path needed. The old “bounded episode” reading was a wrapped `dmesg` ring. What
+      survives this line is **not** HD-393: the spark re-cert gating the rerank cutover is HD-369's tail, and the
+      standing rule stands — **never converge an unpinned AI leg.** · [services-ai.md](docs/services-ai.md)
 - [x] **HD-386 tail** — **CLOSED 2026-09-21: there was no owner step.** The retired `dsh`/`pi-dev` harness records and their 502 tailnet routes were settled in `group_vars/vps.yml` and documented in [network-vpn.md](docs/network-vpn.md) — the names stay, the 502 is the design, and removal is the one-change procedure written there. What is left on HD-386 is the `failed=0` oldsrv converge sighting, which is Table AI work, not an owner call.
 - [ ] **HD-367 / HD-359** — the Mgmt-99 dual-home leg + the engine-neutral benchmark kit: IaC and boot done, the
       **S1 bench is not yet certified** — the numbers still do not back the tier decision. · [services-ai-bench.md](docs/services-ai-bench.md)

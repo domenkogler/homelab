@@ -187,8 +187,30 @@ boundary and only `lan-litellm` may speak to them).
 | Service | Image pin (`group_vars/all/versions.yml`) | Listen | Weights (`:ro`) | Model sha256 | Mem cap |
 |---|---|---|---|---|---|
 | `whisper` | `whisper_cpp_vulkan_image` (`main-vulkan@sha256:cf102ac3…`) | `:9000` (`ai_tier_whisper_port`) | `/srv/models/whisper/ggml-large-v3-turbo.bin` (1 624 555 275 B) | `1fc70f77…2bc69` | `4g` |
-| `reranker` | `llama_cpp_vulkan_image` (`server-vulkan@sha256:7158edb4…`) | `:9001` | `/srv/models/reranker/bge-reranker-v2-m3-Q8_0.gguf` (635 676 416 B) | `a43c7c9b…a1d3` | `1g` |
-| `embed` | same llama.cpp digest as reranker | `:9002` | `/srv/models/embed/bge-m3-q8_0.gguf` (634 553 760 B) | `aa473d51…a173` | `1g` |
+| `reranker` | `llama_cpp_vulkan_image` (`server-vulkan@sha256:7158edb4…`) | `:9001` | `/srv/models/reranker/bge-reranker-v2-m3-Q8_0.gguf` (635 676 416 B) | `a43c7c9b…a1d3` | `4g` |
+| `embed` | same llama.cpp digest as reranker | `:9002` | `/srv/models/embed/bge-m3-q8_0.gguf` (634 553 760 B) | `aa473d51…a173` | `4g` |
+
+**Why both GGUF caps moved `1g` → `4g` (HD-393, 2026-09-28).** The doctrine two paragraphs above says
+*measured peak, then headroom*; these two values came from `host RSS 157 MiB + 606 MiB weights`, which is
+a reload-time reading. What the cap actually has to cover is the binary's **CPU-fallback path — 1.59 GiB
+RSS**, a number this file already carries on the whisper leg (which is why whisper had 4g and the two GGUF
+legs did not). A leg that falls back to CPU under a 1g cap is killed by its own limit, and the kernel
+reports that kill as GPU trouble: `amdgpu: init_user_pages: Failed to get user pages: -1`, **2,881 lines**
+in `kern.log.2.gz` across three bursts (09-15 12:xx = 721, 09-18 16/18/19 = 1,728, 09-19 23:xx = 432), each
+following `Memory cgroup out of memory: Killed process 517641 (text-embeddings) total-vm:13095828k`
+(`CONSTRAINT_MEMCG`, 2.5 min after that scope started). Zero such lines since, in `kern.log.1` (09-20 →
+09-27) or in the boot that follows the power cycle.
+
+**What is deliberately NOT claimed:** the over-cap path was not reproduced. With the cap already at 4g, a
+318 KB / 120-item batch (58.6 s, 2.6 MB of vectors, `http 200`) peaked the cgroup at **200 MiB** with
+`memory.events` all zero (`oom_kill 0`). So this change removes a **documented** failure mode and aligns
+the cap with the sibling leg's doctrine; it does not claim a reproduced one. The recurrence test is whether
+that `init_user_pages` line ever comes back — and if it does, look at the cgroup first, not the card.
+
+**And the method correction, because it cost a week of wrong belief:** the 2026-09-19 reading concluded
+\*"one bounded ~1.8 h episode"* from `dmesg`, which had already **wrapped** and only still held the last
+1.8 h of a five-day spread. A wrapped ring buffer makes a recurring symptom look bounded. Judge bounded-vs-
+recurring from the rotated `/var/log/kern.log.*`, not from the live buffer.
 
 **Context and batch sizing (measured, not guessed):** both GGUF legs run
 `--ctx-size 2048 / --batch-size 2048 / --ubatch-size 2048`

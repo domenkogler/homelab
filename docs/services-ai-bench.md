@@ -259,7 +259,11 @@ Contention factor ≈ 1.5–2× at worst, flat under sustained load, host **load
 on the GPU path), and **0 `amdgpu` hang/reset lines** in `dmesg` across ~25 min of Vulkan compute (the CWSR
 burn-in item in HD-385(f) is partly satisfied for Vulkan; ROCm/KFD legs were not stressed).
 ⚠ Pre-existing, **not** caused by these probes: `dmesg` carries **641 × `amdgpu: init_user_pages: Failed to get
-user pages: -1`** spread over 2026-09-15 → 09-18, i.e. from the `/dev/kfd` holders (ollama / immich-ml) → **HD-393**.
+user pages: -1`** spread over 2026-09-15 → 09-18 → **HD-393**. **Corrected 2026-09-28:** the attribution to
+the `/dev/kfd` holders was wrong, and so was the count — the rotated `kern.log.2.gz` holds **2,881** lines in
+three bursts, and each burst follows a `CONSTRAINT_MEMCG` OOM kill of the pinned-tier embed leg (1g cap), which
+is the driver unmapping a killed process's GPU pages. Not a compute fault, so these probes were testing the
+right thing against the wrong hypothesis; full record in [services-ai.md](services-ai.md) §the pinned-tier caps.
 
 ## 7. What this measurement invalidates
 
