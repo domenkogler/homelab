@@ -103,7 +103,9 @@ python3 scripts/spark-llm-probe.py matrix                      # every profile, 
 stays `reasoning`; the branch carries `roles/spark`’s `clockcap` unit for the first time, so this
 converge is both the refactor check and the cap check.
 ```bash
-nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark >/tmp/hd469-reasoning.log 2>&1 &
+# --no-pull is deliberate: a session worktree has no upstream, so the runner would
+# otherwise refuse (uncommitted) or converge the wrong commit. Read the NOTE it prints.
+nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/hd469-reasoning.log 2>&1 &
 tail -f /tmp/hd469-reasoning.log          # poll, do not block a tool timeout on it
 ```
 Expect: gate summary `certified: true`; the container is **not** recreated for cosmetic reasons; the
