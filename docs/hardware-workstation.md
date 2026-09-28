@@ -1,11 +1,11 @@
 ---
-title: Workstation — admin laptop (AMD Strix Halo) as the client-side inference tier
+title: Workstation — admin laptop (AMD Strix Point, Radeon 890M) as the client-side inference tier
 role: detail
 domain: hardware
 status: active
-tags: [hardware, ai, workstation, strix-halo, fim, vision, gpu]
+tags: [hardware, ai, workstation, strix-point, fim, vision, gpu]
 ---
-# Workstation — admin laptop (AMD Strix Halo)
+# Workstation — admin laptop (AMD Strix Point)
 
 > **Role:** Detail — the **admin workstation (laptop)** and its role in the AI tier: the two model legs that
 > must run **locally** (FIM autocomplete + visual judgment), why the vision hand-off to spark is a
@@ -16,19 +16,25 @@ tags: [hardware, ai, workstation, strix-halo, fim, vision, gpu]
 > (laptop alias contract), [`../todo.md`](../todo.md) (HD-401)
 > **Linked from:** `hardware.md`, `index.md`
 
-> ⚠ **Evidence status (2026-09-20):** the platform below is **owner-stated, not yet measured on-device**.
-> Every `t/s`, VRAM and driver figure in this doc is a **community reference expectation** from the Strix
-> Halo llama.cpp ecosystem, not a measurement on this box — same discipline as
+> ⚠ **Evidence status (2026-09-20 → corrected 2026-09-27):** the platform block is now **measured on-device**
+> (Windows CIM queries driven from the WSL seat). The correction is not cosmetic — this box is **not** the
+> Strix Halo / 128 GB / ~256 GB/s machine this doc was written against, and both legs' placement rationale had
+> inherited those three numbers. The A3B-over-dense rationale survives; the *speed* figures do not: every `t/s`
+> quoted below is a 256 GB/s-class, 40-CU community measurement, still unverified here. Same discipline as
 > [`services-ai-bench.md`](services-ai-bench.md): measure before any of it becomes config.
 
-## Platform (owner-stated 2026-09-20, unverified)
+## Platform (measured on-device 2026-09-27)
 
 | Item | Value |
 |---|---|
-| SoC | AMD **Ryzen AI MAX+ 395** (Strix Halo, `gfx1151`, RDNA 3.5) — iGPU **Radeon 8060S** |
-| Memory | **128 GB unified LPDDR5x** — no VRAM partition; ~256 GB/s class bandwidth (same bandwidth class as spark's GB10 273 GB/s) |
+| SoC | AMD **Ryzen AI 9 HX PRO 370 w/ Radeon 890M** — Strix **Point**, 12 C / 24 T. iGPU **Radeon 890M**, RDNA 3.5, PCI `VEN_1002&DEV_150E`. ⚠ **Not** the Strix Halo `Ryzen AI MAX+ 395` / `Radeon 8060S` recorded here until 2026-09-27: different product, roughly a third of the memory bandwidth and ~40 % of the compute units |
+| LLVM target | **unconfirmed.** AMD's support matrix lists `gfx1150` and `gfx1151` together with no per-APU mapping, and the `gfx1151` recorded here was inherited from the wrong SoC. Confirm on-device (`rocminfo`, or the llama.cpp build log) before it drives a build or a driver pin |
+| Memory | **64.0 GB** — 2 × 32 GB **DDR5-5600 SODIMM** (`FormFactor=12`, `TotalWidth=DataWidth=64`, `ConfiguredClockSpeed=5600`) ⇒ dual-channel 128-bit ⇒ **≈89.6 GB/s peak** (~2.9× below the 256 GB/s previously claimed, and **not** the soldered LPDDR5x / 256-bit fabric those figures came from) |
+| Memory visible | **55.6 GB to Windows** (⇒ ≈8.4 GB firmware/BIOS reserved — not a 32 GB carve-out); WSL2 guest `MemTotal` **27.2 GiB** (undocumented 50 % default; `.wslconfig` carries only `networkingMode=Nat`); host free at idle **30.4 GB** with `vmmemWSL` at **2.72 GB** |
+| Driver | `32.0.22024.19001`, one video controller. WMI `AdapterRAM` reads 4 GiB because the property is **capped at 4 GiB** — it is not a VRAM reading, do not quote it |
 | NPU | XDNA2 (Ryzen AI) — **explicitly not used** (§NPU: out of the AI tier) |
-| OS | Windows + **WSL2** (the SSH alias contract for both `~/.ssh/config` files lives in [`network-vpn.md`](network-vpn.md) §The laptop alias contract) |
+| OS | **Windows 11 Pro** + **WSL2** (kernel `6.6.114.1-microsoft-standard-WSL2`, Debian 13 guest). The SSH alias contract for both `~/.ssh/config` files lives in [`network-vpn.md`](network-vpn.md) §The laptop alias contract |
+| GPU access from WSL | **None usable.** `/dev/dxg` is present but there is **no `/dev/dri` and no `/dev/kfd`**, and no Vulkan ICD is installed in the guest — so no native Vulkan and no native ROCm. Docker-in-WSL inherits exactly this, and a different distro changes nothing: the nodes come from the WSL kernel and the Windows driver, not from the distro. → the legs run **on Windows**, or the box runs native Linux (gate 1) |
 | Hostname / IP | client-class device (no server role, no `kogler.si` service record) |
 
 ## Role in the AI tier (decision #28 in [`services-ai.md`](services-ai.md) §9)
@@ -59,9 +65,11 @@ tags: [hardware, ai, workstation, strix-halo, fim, vision, gpu]
 
 ## Leg 2 — Vision = visual judgment (not OCR, not split inference)
 
-Model: **`Qwen3-VL-30B-A3B-Instruct`** GGUF (Q4_K_M class). On this platform an **A3B MoE is preferred over
-a dense 8B** — the 30B-A3B text siblings are the community's ~100 t/s-class results on `gfx1151`, so an A3B
-VL gives 8B-plus perception at dense-4B-ish speed. Dense 4B/8B remain the fallback for fast round-trips.
+Model: **`Qwen3-VL-30B-A3B-Instruct`** GGUF (Q4_K_M class). The **A3B MoE is preferred over a dense 8B**
+reasoning survives the 2026-09-27 correction and is in fact *stronger* on a ~90 GB/s bus, which punishes dense
+weights harder. What does **not** survive is the speed figure: the community's ~100 t/s-class results are
+256 GB/s / 40 CU Strix Halo numbers, so "dense-4B-ish speed" is **unmeasured here** (gate 3) and dense 4B stays
+the fallback for fast round-trips.
 
 **This leg is scoped to *judgment*, not reading:**
 
@@ -114,21 +122,41 @@ earns its place on *visual* judgment.
 **Revisit trigger:** a concrete low-power, always-on consumer (fanless/battery ASR or an idle prefill
 offload) — not "the NPU is there".
 
-## Memory & residency
+## Memory & residency (ledger re-derived 2026-09-27)
 
-Two resident models (FIM 2–7 GB + a 30B-A3B VL ~18 GB) inside 128 GB unified is **not** a ledger problem —
-unlike the 8 GiB card on oldsrv. The one thing to verify on-device: the **BIOS iGPU carve-out / GTT** range,
-so Vulkan and ROCm can allocate past the UMA aperture.
+The old sentence — two resident models inside 128 GB is "not a ledger problem" — was arithmetic on a machine
+this is not. At 55.6 GB visible with a ~90 GB/s bus the honest version is: **two** resident models fit, **three**
+do not.
+
+| Resident set | Footprint | Verdict |
+|---|---|---|
+| FIM `Qwen2.5-Coder-3B` Q4 **+** `Qwen3-30B-A3B-Instruct-2507` Q4_K_M | ~2 GB + KV ~0.3 GB @8k, and ~18–19 GB + KV ~3 GB @32k (≈96 KiB/token) | fits: measured host free **30.4 GB** ⇒ ~6 GB margin, and with `-ngl 99` + mmap the GGUF mapping is reclaimable page-cache, not private RAM |
+| **+** the 30B-A3B VL (~20 GB) as a third resident | | **does not fit.** The VL **replaces** the 30B for the duration of a vision session; it does not join it |
+
+Two things must be proven before that swap is a routine rather than an experiment. First, unchanged from the
+original note: the **BIOS iGPU carve-out / GTT** range, so the iGPU can allocate past the UMA aperture. Second,
+new: **unloading a model must actually return the allocation** — `pause` frees compute, not memory, and the
+`amdgpu` VRAM OOM is not graceful with no arbiter for two on-demand consumers ([`hardware-gpu.md`](hardware-gpu.md)
+§findings, the 7600 lesson). A swap is therefore strictly unload → confirm release → load, never
+optimistically start the second server.
 
 ## Pre-flight gates before this becomes config (HD-401)
 
-1. **ROCm/gfx1151 stack:** the community break is `ROCm 7.2.1` (gfx1151 is *not* supported on 7.0); Vulkan/RADV
-   is the fallback. Pick one, record the version.
-2. **VL multimodal path on the chosen backend:** confirm the `mmproj` vision tower actually runs on GPU and
+1. **Where the stack runs at all** (replaces the old "ROCm vs RADV" gate, which is moot): the WSL guest has no
+   `/dev/dri` and no `/dev/kfd`, so the real choice is **Win11 native** (LM Studio already installed, models dir
+   empty) or **native Linux on this box**. ROCm-inside-WSL for this family is its own newer path (AMD: ROCDXG
+   with Adrenalin 26.2.2 + ROCm 7.2.1). Pick one, record the version.
+2. **LLVM target:** `gfx1150` vs `gfx1151` is **unconfirmed for this APU** (§Platform) — re-derive it before any
+   build, driver pin or quantization script names it.
+3. **Bandwidth is ≈90 GB/s, not ≈256 GB/s.** Re-measure decode **and** prefill here before the FIM leg's
+   ~150–400 ms budget is treated as reachable at a useful model size: prefill is paid on every trigger, it is
+   the compute-bound half, and this iGPU has 16 CU, not 40.
+4. **VL multimodal path on the chosen backend:** confirm the `mmproj` vision tower actually runs on GPU and
    does not fall back to CPU — measure prefill with `--image`, don't assume.
-3. **FIM:** model is FIM-trained, and measured trigger latency inside the budget with the real Continue
+5. **FIM:** model is FIM-trained, and measured trigger latency inside the budget with the real Continue
    prompt shape.
-4. **Carve-out/GTT** check above.
+6. **Carve-out/GTT** check, plus the unload/reload proof (VRAM returned, reload latency of a ~19 GB model) from
+   §Memory & residency.
 
 ## Document Map / Related
 

@@ -40,7 +40,7 @@ tags: [hardware, phases]
 | **Raspberry Pi 4** | Home Assistant **primary** (Debian + HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium **tertiary** + `traefik-ha` edge + exit node | HA service VIP = `ha.kogler.si` |
 | **VPS (netcup)** | **Public edge + live-data apps + observability backend + DNS primary + tailnet control** (HD-93/HD-40A) | The only public address = the away-access door |
 | **spark** (ThinkStation PGX, NVIDIA GB10, 128 GB unified) | **AI inference node** — vLLM serving the pinned model set behind LiteLLM (`llm.kogler.si`) | Provisioned + live; text-only mode is the plan of record ([services-ai.md](services-ai.md) §9 #28) |
-| **workstation** (admin laptop, AMD Strix Halo, 128 GB unified) | Client-side AI: **FIM autocomplete + visual judgment** locally; never a generation tier ([`hardware-workstation.md`](hardware-workstation.md)) | — |
+| **workstation** (admin laptop, AMD Strix Point, 64 GB / ~90 GB/s) | Client-side AI: **FIM autocomplete + visual judgment** locally; never a generation tier ([`hardware-workstation.md`](hardware-workstation.md)) | — |
 | **PowerWalker VFI ICT/ICR IoT 3000** (UPS) | Protects nas + rack infra (see [`hardware-ups.md`](hardware-ups.md)) | — |
 
 ---

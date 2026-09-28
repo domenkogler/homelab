@@ -82,7 +82,7 @@ docs/
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
 ├── hardware-spark.md                       NVIDIA GB10 vLLM inference node (spark.kogler.si) — replaces the old Phase-2 Ryzen/R9700 build (archived in the decision log + git)
-├── hardware-workstation.md               Admin laptop (Strix Halo) = client-side inference tier: FIM autocomplete + visual judgment; NPU out
+├── hardware-workstation.md               Admin laptop (Strix Point) = client-side inference tier: FIM autocomplete + visual judgment; NPU out
 ├── spark-incidents.md                       spark OOM / engine-restart incident log (append-only; knowledge = hardware-spark.md §Unified-memory budget)
 ├── services-finance.md                    Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
 │
