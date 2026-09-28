@@ -62,3 +62,17 @@
   when: inventory_hostname in groups['storage'] | default([])   # Samba shares on the NAS (D4/HD-131)
 - include_tasks: oldsrv.yml
   when: inventory_hostname in groups['home_servers'] | default([])
+  tags: storage
+  # ⚠ TWO places, both load-bearing (HD-468, measured 2026-09-28). oldsrv.yml used to be the one file
+  # in this role with no tags anywhere, so `--tags storage` against oldsrv selected nothing but the
+  # role's `always` guard and reported `ok=23 changed=0 failed=0` — a green, changed=0 run that
+  # converged nothing. Getting scoped runs to work needed BOTH halves, and each half alone still
+  # returns a deceptively green no-op:
+  #   1. the include task itself must carry the tag — a DYNAMIC include that fails the tag filter is
+  #      never expanded, so its children never get a chance to match;
+  #   2. every task inside oldsrv.yml must carry it too — once expanded, untagged children are
+  #      filtered out on their own.
+  # Making the include carry the tag by inheritance is not available on this Ansible (2.21.3 rejects
+  # `apply:` next to `include_tasks`: "conflicting action statements"). And the underlying trap is the
+  # one the playbooks already document for `--tags cockpit`: a bare role name is not a tag.
+  # nas.yml / samba.yml / zfs_exporter.yml are tagged the same way.

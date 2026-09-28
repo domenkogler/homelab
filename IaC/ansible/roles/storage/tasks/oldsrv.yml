@@ -21,6 +21,7 @@
     opts: "{{ item.opts }}"
     state: mounted
   loop: "{{ storage_nfs_mounts }}"
+  tags: storage
 
 # ---------------------------------------------------------------------------
 # Retired legs: stop, unarm and delete (HD-468). Guarded by a stat so a re-run after
@@ -35,6 +36,7 @@
     - push-face-thumbs.service
     - push-face-thumbs.timer
   register: retired_push_units
+  tags: storage
 
 - name: Stop and unarm retired push units
   ansible.builtin.systemd:
@@ -47,6 +49,7 @@
     label: "{{ item.item }}"
   when: item.stat.exists
   failed_when: false
+  tags: storage
 
 - name: Remove retired push units and the vps-only script
   ansible.builtin.file:
@@ -59,6 +62,7 @@
     - /etc/systemd/system/push-face-thumbs.timer
     - /usr/local/sbin/storage-push-services.sh
   notify: Reload systemd
+  tags: storage
 
 # ---------------------------------------------------------------------------
 # Push job — DB dumps: produce them here, then push → tank/data/db-dumps
@@ -74,6 +78,7 @@
     home: "/srv/docker"   # the old service-state staging lived under /srv/docker
     create_home: false
   register: svc_backup_user
+  tags: storage
 
 - name: Ensure the DB-dump staging dir exists and belongs to svc-backup
   ansible.builtin.file:
@@ -82,6 +87,7 @@
     owner: svc-backup
     group: svc-backup
     mode: "0755"
+  tags: storage
 
 - name: Render the DB-dump push script + units
   ansible.builtin.template:
@@ -95,6 +101,7 @@
   loop_control:
     label: "{{ item.dest }}"
   notify: Reload systemd
+  tags: storage
 
 - name: Enable+start push-db-dumps.timer
   ansible.builtin.systemd:
@@ -102,3 +109,4 @@
     daemon_reload: true
     enabled: true
     state: started
+  tags: storage
