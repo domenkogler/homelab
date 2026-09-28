@@ -64,6 +64,30 @@ rule may already have changed; say which version you benched on).
   `roles/router/**` (414); `docs/services-ai.md` + `roles/docker_services/**` (384); the frozen archives and
   generated `*-generated.md`.
 
+## Row state 2026-09-28 — landed, do not redo (condensed; full records in the cited docs)
+
+- **359** — IaC host + `roles/spark` + artifact store LIVE (weights 169G + overlays + INT4 tables staged on XFS,
+  4 live-run defects fixed); DGX OS first boot DONE (all 4 sleep targets masked — headless auto-suspend is the
+  L2-blackout cause; runbook Phase 5). Remaining chain = the row's ⏳.
+- **367** — mgmt-leg dual-home LIVE on the SINGLE NIC (VLAN-99 tagged, mgmt ping 0.5 ms, default route stays
+  Home); llm-d REMOVED (it is a Kubernetes stack, the router image was never public; LiteLLM fronts vLLM);
+  S1 blockers fixed (no numactl under the hardened container; mount the WHOLE `/root/.cache`; `--swap-space`
+  does not exist in the pinned build; `--quantization awq` mismatched `compressed-tensors` weights — dropped).
+  S1 sweep VERDICT: usable for casual/chat now — max servable util **0.82**, max ctx **262,144** native
+  (300k rejected at startup), 250k@95% with 0 preemptions; C3 once OOMed the HOST at 02:50 → harness defaults
+  C3→6x8k@c2 + `MEM_FLOOR_GB` preflight. Dashboards closed (`spark.kogler.si:11000` 200).
+- **376** — harness window/thinking block APPLIED on the workstation (probe table + the parallel-lane rule —
+  the KV pool is ONE shared ~262k budget, `max_num_seqs: 4` → lanes need their own profile — in
+  [pi-harness.md](docs/pi-harness.md)); `max_model_len 262144` IS the servable ceiling — the "273k" number is
+  KV slots / bandwidth, never put it in a client; `pi-dev` re-point CLOSED as moot (HD-386 parked + decision #26).
+- **380** — governor term LIVE: `--max-cudagraph-capture-size 4` (per-pid 105,477→96,235 MiB, MemAvailable
+  16.7→22.2 GiB; root defect: graphs captured [1..32] while decode caps at 4); `spark-oom-watchdog` LIVE and
+  self-proved; bench harness de-noised — **any bench number taken after `spark-llm_api` landed is invalid until
+  re-run** (401s exited 0); ~13 GiB stays unprofiled but the observed peak is bounded → C3 `--enforce-eager`
+  trigger NOT met, stays off on measurement; idle-recycle term OFF by owner decision; the "idle ratchet" was
+  RETRACTED by HD-381.
+- **400** — nothing landed (proposal + acceptance spec stay in the row).
+
 ## Acceptance
 
 Needle-test results **per profile** with the depth that failed or passed recorded (a pass at 32k is not a pass at
@@ -71,4 +95,4 @@ Needle-test results **per profile** with the depth that failed or passed recorde
 table **or** an explicit "not applied, and here is the number that decided it" · the S2/S3 verdict written into
 [BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §9 · nothing converged over the certified values without a diff shown ·
 closed rows deleted, others trimmed · `bash scripts/validate-all.sh` green **in this worktree** → **stop**
-([prompt.md](prompt.md) §4).
+([docs/orchestration.md](docs/orchestration.md) §4).

@@ -77,6 +77,22 @@ on **both** gateways before designing any consumer, so the allow-list describes 
 * ⛔ **Never the same wave as `prompt-407` / `prompt-357` / `prompt-414`** — all converge oldsrv; the Admin-UI
   writes here also collide with a converge that recreates the same containers.
 
+## Row state 2026-09-28 — landed, do not redo
+
+- **rpm code path SHIPPED**: `litellm-bootstrap-keys.sh.j2` `KEYS` is six-field (`…|budget_duration|rpm`,
+  optional via `default('', true)`), `mint_key` emits `"rpm": N` — before it, every decided cap silently
+  minted an UNCAPPED key and the converge still read green. ⚠ the `rpm: "30"` figure on the HA record is the
+  IMPLEMENTER's (owner decided "small caps stay", no figure) — change it in the SSOT, never in the LiteLLM DB.
+- **LAN mint LANDED**: `bootstrap_keys: true` on `lan-litellm`; `home-assistant_api` exists (len 25), answers
+  `GET /v1/models` with EXACTLY `['spark/qwen3.8-flash-next']` (the ROW-only grant is real, not `spark/*`),
+  `rpm: 30` riding it. What made the flip safe was HD-442 (the mint host could finally write the vault).
+- **Runner facts**: the mint glue lives INSIDE the `lan-litellm` deploy pass — `--tags docker_services` alone
+  never runs it (inheritance stops at dynamic includes; name the service tag), and the name-tag form walks
+  EVERY service's compose-up (wide but idempotent); the gateway was NOT restarted at close (`Restart
+  lan-litellm stack to apply changed extra config` = skipping).
+- **Glue is CREATE-ONLY** (existing vault value → probe → keep): live keys keep their old allow-list until
+  `/key/update` exists or a key is deliberately re-minted — the OWUI grant cannot be shipped by editing records.
+
 ## Acceptance
 
 `/model/info` on both gateways showing the decided rows · each scoped consumer authenticates with **its own** key and
