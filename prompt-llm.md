@@ -156,6 +156,10 @@ ssh spark 'docker run --rm --entrypoint sh <image-or-digest> -c
   "P=\$(python3 -c \"import vllm,os;print(os.path.dirname(vllm.__file__))\");
    grep -rn \"supported_kv_cache_dtypes\|IS_FP8\|BF16 main KV\" \$P/models/q*/nvidia/qsa.py | head -20"'
 ```
+Not done for you: the registry probe above was **inconclusive on the laptop** — the agent sandbox reported
+`MISSING jq/curl` on the first attempt and produced nothing parseable on the second, which does not tell us
+whether egress or `jq` was the cause. So **no digest, push date or architecture here is verified** — run (a) for
+real and treat every image claim below as unverified until you do.
 Record: our pinned digest's **actual architecture** (`docker image inspect <pin> --format '{{.Architecture}}/{{.Os}}'`
 — `versions.yml` claims a multi-arch manifest and Docker Hub renders an amd64 entry next to that digest; verify and
 record which one spark actually runs), the date of the newest tag push, and the grep result.
@@ -185,13 +189,55 @@ profile — the *plain* NVFP4 build must drop it); (b) **accuracy** — the capt
 99/100 elsewhere) because engine/template/effort were not held constant. Record engine, template, thinking state
 and budget with the score, or the number is worthless.
 
-**5 · `fast-sglang` — expect a refusal, and that is the pass.** `spark_sglang_image` is empty on purpose
-(CONVENTIONS §7: no floating tag). The gate aborting is the correct outcome. Opening it needs a registry-verified
-**arm64** digest pinned in `group_vars/all/versions.yml` **plus** an answer to the pool problem:
-`--ple-offload-embedding` pins the 51.2 GB FP8 table in host RAM, which on GB10 *is* the 121.62 GiB device pool
-(the x86 recipe box has 96 GB **discrete** — do not copy its numbers). Note for the row: vLLM's native
-`--engram-config` PLE offload (#54371/#53899) is what dissolves this class of problem **on the vLLM side**,
-which is a real argument for HD-470.
+**5 · `fast-sglang` — expect a refusal, and that is the pass. But rewrite WHY it is blocked.**
+`spark_sglang_image` is empty on purpose (CONVENTIONS §7: no floating tag), and the gate aborting is the correct
+outcome. What changed: **SGLang now documents this model on DGX Spark**, and its own text confirms our arithmetic
+while replacing our fix. Read it before writing anything about this lane into the docs:
+`https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-Flash-Next` (the “DGX Spark notes” bullets).
+
+* **Our `--ple-offload-embedding` plan is dead, in the vendor's words:** *“the NVFP4 checkpoint is 126 GiB …
+  it does not fit one DGX Spark's 128 GB … and `--ple-offload-embedding` does not help there: on GB10 the
+  ‘offloaded’ pinned-host table comes out of the same pool as the GPU weights.”* Exactly the blocker in the row.
+* **The single-Spark answer is a different flag:** `--ple-offload-embedding --ple-offload-backend file`
+  (sglang **#37068**, merged into `qwen4-main-squashed`) — a sparse 47.7 GiB file on NVMe
+  (`--ple-offload-dir`, page-cache RSS capped by `SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB`, default 8), resident
+  set 0 while serving. 78.3 GiB of experts+dense stay resident and `--mem-fraction-static 0.85` leaves
+  ~12–18 GB for the pools.
+* **And the measured ceiling kills the window anyway:** with that fix the single-Spark KV pool is **93k tokens**
+  (RadixArk export, MTP on) or **174k** (NVIDIA export, MTP on) — **both below our 262,144 servable window**.
+  Our profile's `--max-total-tokens 1048576` is a community number our own comment already marks UNVERIFIED;
+  at 85 % static fraction it is fantasy on this box. The knobs we do have (`--mamba-ssm-dtype bfloat16`,
+  `extra_buffer_lazy` = 4 slots/request, and **dropping `--mamba-track-interval 64`** → default 256 buys ~40 %
+  more KV) move this by tens of percent, not 3×. Concurrency reality per the vendor: 8 requests with MTP,
+  24 without — read the effective number from the startup log, not `/get_server_info`.
+* **fp8 KV is not a luxury on this lane, it is the enabling condition** — and it is **unmerged** here: sglang
+  **#36644** (`[Qwen3.8] Fix FP8 KV cache support in QSA`, open since 2026-08-27, stacked on #36497 because
+  “the Qwen3.8/QSA implementation is not on `main` yet”). It measured **+88.9 % KV capacity, GSM8K −0.30 pp
+  (McNemar p = 0.45), throughput flat**, and a third party ran it on **GB10/sm_121** (2× Spark, TP2, NEXTN)
+  by `git apply`-ing it to `lmsysorg/sglang:qwen38flashnext` — without it, fp8 KV dies at CUDA-graph capture
+  with `unsupported SM121 QSA call: expected BF16 D=256 …`. Doubling 174k clears 262k; doubling 93k does not.
+  So: vLLM fp8 KV = **merged upstream, wait for an image**; SGLang fp8 KV = **an open PR on a branch that is not
+  `main`, carried forever**. Prefer the first.
+* **Pin problem, unchanged and sharper:** support needs sglang **≥ v0.5.20**; the NVIDIA NVFP4 export needs the
+  loader from **#38121**, which `lmsysorg/sglang:qwen38flashnext` **predates** (“cannot load this export”) —
+  only `dev-qwen38-next-local` (or the Python install path) ships it, and both are **floating dev tags**, which
+  CONVENTIONS §7 rejects without a registry-verified arm64 digest. For that export: do **not** pass
+  `--quantization` (resolves to `modelopt_mixed`) and pin `--moe-runner-backend flashinfer_cutlass` — the
+  auto-default picks `flashinfer_trtllm` on GB10 and the NVFP4 MoE method rejects it at autotune.
+  (Our block passes `--fp4-gemm-backend flashinfer_cutlass`; check the flag still exists before trusting it.)
+* **Boot-time trap that breaks our health gate:** every boot rewrites the whole table through the mapping —
+  ~17 MB/s, **~55 min** on an already-populated file (`MADV_RANDOM` read-modify-write); a *fresh* sparse file
+  fills at GB/s and boots in ~10 min. Until upstream fixes it, the previous `ple_table_*.bin` must be deleted
+  before each boot. `health_start_period: 1200s` (20 min) **cannot pass** on the 55-minute path — raise it or
+  own the delete step in the role, do not let the container look unhealthy and get restarted into a worse loop.
+* **Do not try it during this window regardless.** A failed sglang boot competes with the certified engine for the
+  same 121.62 GiB pool, and the vendor's own warning matches our incident history: unified-memory exhaustion
+  “can take the whole box down and needs a power cycle to recover”. If a sglang spike is ever authorised, it runs
+  with the production engine stopped, in its own window, with a `MemAvailable` watchdog.
+* Record in the row (it is not in it today): SGLang states thinking **cannot be turned off** on this model and
+  depth is requested via `reasoning_effort` — the `enable_thinking` / `supportsReasoningEffort: false` model in
+  [docs/pi-harness.md](docs/pi-harness.md) is a **vLLM-engine** measurement. A sglang profile must not inherit
+  the binary reasoning surface without re-measuring it.
 
 **6 · The client half (owner gate, do not just do it).** The server flip does not change the harness.
 If a profile serves a different window, `scripts/pi-config/models-spec.yml` → `~/.pi/agent/models.json`
