@@ -58,15 +58,54 @@
   tags: [spark, spark-artifacts, artifacts]
 
 - name: Download weights (repo with config.json, skipped when present)
+  # `kind: weights-trim` = a checkpoint whose OWN PLE table is deliberately not
+  # downloaded (`exclude:`) because the primitive-ai overlay stubs that parameter
+  # and serves gathers from the quantized sidecar instead. The index must then be
+  # trimmed or vLLM asks for shards that were never fetched — see the trim task
+  # below (primitive-ai card, spark/resources/R1-ple-quant-card-evidence.md:
+  # "--exclude 'ple-bf16-*' + index trim dropping the ngram_embedding entries").
   ansible.builtin.command: >
     {{ spark_hf_cli }} download {{ item.repo_id }}
+    {% for x in item.exclude | default([]) %}--exclude "{{ x }}" {% endfor %}
     --local-dir {{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}
   args:
     creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir | default('') }}/config.json"
   environment:
     HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
   become: "{{ spark_artifacts_become | default(false) }}"
-  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'weights') | list }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'in', ['weights', 'weights-trim']) | list }}"
+  loop_control:
+    label: "{{ item.repo_id }} ({{ item.kind }})"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Trim the stubbed PLE table entries out of the weight index (weights-trim)
+  # Idempotent via the marker file. Drops every weight_map entry matching
+  # `trim_pattern` (the ngram/PLE tensors) so the loader never looks for a shard
+  # that was excluded at download time, and writes the marker only when it edited
+  # the index. NOT a `--check` action (command module skips in check mode).
+  ansible.builtin.command:
+    argv:
+      - python3
+      - -c
+      - |
+        import json,sys,os
+        d=sys.argv[1]; pat=sys.argv[2]
+        p=os.path.join(d,'model.safetensors.index.json')
+        idx=json.load(open(p))
+        wm=idx['weight_map']; keep={k:v for k,v in wm.items() if pat not in k}
+        n=len(wm)-len(keep)
+        if n:
+            idx['weight_map']=keep
+            json.dump(idx, open(p,'w'), indent=2)
+        open(os.path.join(d,'.index-trimmed'),'w').write(f"{n} entries dropped (pattern={pat})\n")
+      - "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir | default('') }}"
+      - "{{ item.trim_pattern | default('ngram') }}"
+  args:
+    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir | default('') }}/.index-trimmed"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'weights-trim') | list }}"
+  loop_control:
+    label: "{{ item.repo_id }}"
   tags: [spark, spark-artifacts, artifacts]
 
 - name: Download PLE quant files (list of files, skipped when all present)
@@ -133,12 +172,14 @@
 - name: Verify critical artifacts exist (manifest weights)
   ansible.builtin.stat:
     path: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}/config.json"
-  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'weights') | list }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'in', ['weights', 'weights-trim']) | list }}"
+  loop_control:
+    label: "{{ item.repo_id }}"
   register: spark_art_stat
   tags: [spark, spark-artifacts, artifacts]
 
 - name: Fail if any weight artifact is missing after download
   ansible.builtin.assert:
-    that: "{{ (spark_art_stat.results | selectattr('stat.exists', 'equalto', true) | list | length) == (spark_artifacts | selectattr('kind', 'equalto', 'weights') | list | length) }}"
-    fail_msg: "One or more Spark weight artifacts missing after download (manifest: spark_artifacts)"
+    that: "{{ (spark_art_stat.results | selectattr('stat.exists', 'equalto', true) | list | length) == (spark_artifacts | selectattr('kind', 'in', ['weights', 'weights-trim']) | list | length) }}"
+    fail_msg: "One or more Spark weight artifacts missing after download (manifest: spark_artifacts, fetch set: {{ spark_artifacts_fetch | join(',') }})"
   tags: [spark, spark-artifacts, artifacts]

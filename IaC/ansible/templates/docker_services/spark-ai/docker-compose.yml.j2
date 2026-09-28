@@ -1,9 +1,15 @@
-# spark-ai docker-compose.yml — Qwen3.8-Flash-Next proven inference on DGX Spark (GB10)
-#   The "most proven" config (B1 baseline, AWQ W4A16 + PLE INT4 + MTP3).
-#   Folded from spark/ansible/roles/spark-ai/templates/docker-compose.yaml.j2 (reference),
-#   hardened to repo docker_services conventions (network isolation, security, vault).
+# spark-ai docker-compose.yml — Qwen3.8-Flash-Next inference on DGX Spark (GB10)
+#   PROFILE-DRIVEN (HD-469): what renders here is decided by ONE var,
+#   `spark_llm_profile` (host_vars/spark.kogler.si.yml) → `spark_llm_profiles`
+#   (group_vars/spark.yml). reasoning | graded | fast | fast-sglang.
+#   Every engine value below comes from the active profile (directly or through the
+#   flat `spark_vllm_*` pass-throughs) — a hardcoded number here is a defect.
 #
-#   Placement (HD-359/HD-337): spark.kogler.si — headless AI node. The vLLM :8000 is NOT
+#   Folded from spark/ansible/roles/spark-ai/templates/docker-compose.yaml.j2
+#   (reference), hardened to repo docker_services conventions (network isolation,
+#   security, vault).
+#
+#   Placement (HD-359/HD-337): spark.kogler.si — headless AI node. The engine :8000 is NOT
 #   published on the LAN — LiteLLM (VPS/oldsrv LAN instance) fronts it (HD-367 decision:
 #   llm-d REMOVED — the real llm-d is a Kubernetes inference-pool stack, not a single-node
 #   queue gateway; LiteLLM is the router in front). `spark_router_publish` flips a Home-VLAN
@@ -11,9 +17,15 @@
 #   (`spark_metrics_publish`, 127.0.0.1:8000) is for the host Alloy → VPS VM vLLM scrape
 #   (HD-368) — it never exposes the engine on the LAN.
 #
-#   Secrets: NONE required by vLLM (models are public, no API keys) — so this template is
-#   intentionally OUT of the 1Password item map (_template_vault_items) and renders with
-#   zero vault lookups (like ollama).
+#   ENGINE SWAP: the service name, host port, served model id and bearer key are the
+#   CLIENT-FACING CONTRACT and must survive any profile (HD-370). Only the image,
+#   entrypoint, flag family and the mounts change. `profile.engine` selects them:
+#     vllm   → --kv-cache-memory-bytes governor, --reasoning-parser, --speculative-config
+#     sglang → --mem-fraction-static / --max-total-tokens pool semantics, NEXTN spec
+#
+#   Secrets: ONE — `spark-llm_api` (bearer on the OpenAI endpoint, HD-370). The header
+#   claim "no secrets required by vLLM" predates HD-370 and is no longer true: this
+#   template renders exactly one vault value (item+field name only, never a value in git).
 #
 #   Storage: weights + PLE tables + KV + compile caches all on the XFS data partition
 #   (roles/spark mounts /mnt/spark_nvme; spark_models_dir points there — never EXT4).
@@ -21,9 +33,20 @@
 #   Digest pin (R4, 2026-09-13): vllm/vllm-openai:qwen38-flash-next @
 #   sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
 #   (multi-arch arm64+amd64; the arm64-cu130 manifest is the DGX Spark candidate).
+#   SGLang has NO verified arm64 digest yet → spark_sglang_image is empty on purpose
+#   and roles/spark-llm-profile refuses the profile before this file is ever rendered.
+{% set profile = spark_llm_profiles[spark_llm_profile] %}
+{#  The template indexes spark_llm_profiles DIRECTLY (native dict in both the real
+    Ansible render and the offline validator mock) — a Jinja-valued alias such as
+    `spark_llm: "{{ spark_llm_profiles[...] }}"` survives Ansible but arrives here as
+    a stringified dict under scripts/validate-docker-services.py. #}
 services:
   vllm-engine:
+{% if profile.engine == 'vllm' %}
     image: "{{ spark_vllm_image }}"
+{% else %}
+    image: "{{ spark_sglang_image }}"     # empty until the arm64 digest is verified — the gate refuses before this renders
+{% endif %}
     container_name: "{{ spark_vllm_container }}"
     cap_drop:
       - ALL
@@ -42,28 +65,47 @@ services:
     # no-new-privileges) blocks the membind syscall (get_mempolicy: Operation not
     # permitted, crash-loop HD-367 2026-09-14). Single-NUMA GB10 makes membind a
     # no-op anyway; vLLM binds tensor-parallel 1 to the one node implicitly.
-    entrypoint: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
+    entrypoint: {{ spark_llm_engine_entrypoints[profile.engine] | to_json }}
     environment:
       - CUDA_VISIBLE_DEVICES=0
+{% if profile.engine == 'vllm' %}
       - VLLM_LOGGING_LEVEL={{ spark_vllm_log_level }}
-      - VLLM_PLE_QUANT_DIR=/ples_int4
+{% if profile.ple_container_dir | length > 0 %}
+      # INT4 (reasoning/graded) or NVFP4 (fast) — whichever sidecar the profile names.
+      # Order is load-bearing for render-parity only: the `reasoning` profile renders
+      # byte-identical to the pre-HD-469 template (verified by diffing old vs new
+      # renders), so flipping profiles is the ONLY thing that recreates the container.
+      # Do NOT set VLLM_PLE_DISK_OFFLOAD_DIR: that is the slow BF16 path
+      # (spark/ansible/group_vars/spark_nodes.yml + the primitive-ai card).
+      - VLLM_PLE_QUANT_DIR={{ profile.ple_container_dir }}
+{% endif %}
       - VLLM_PLE_CPU_OFFLOAD={{ spark_vllm_cpu_offload }}
       - VLLM_PLE_OFFLOAD_READY_TIMEOUT={{ spark_vllm_ple_offload_ready_timeout }}
+{% endif %}
       - OMP_NUM_THREADS={{ spark_vllm_omp_num_threads }}
       - SAFETENSORS_FAST_GPU=1
       - PYTORCH_CUDA_ALLOC_CONF={{ spark_vllm_pytorch_cuda_alloc_conf }}
       - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor
       - NCCL_NSOCKS_PERTHREAD=4
       - NCCL_SOCKET_NTHREADS=2
+{% for e in profile.env_extra | default([]) %}
+      # profile-specific (profile {{ spark_llm_profile }} · env_extra)
+      - {{ e }}
+{% endfor %}
     volumes:
-      # Model (read-only) — XFS /mnt/spark_nvme/models
-      - {{ spark_models_dir }}/Qwen3.8-Flash-Next-AWQ:/model:ro
-      # PLE overlay patches (read-only) — on the XFS data partition
-      - {{ spark_xfs_mount }}/overlays/worker_image_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/worker.py:ro
-      - {{ spark_xfs_mount }}/overlays/ple_layer_quant.py:/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/ple_layer.py:ro
-      - {{ spark_xfs_mount }}/overlays/connector_mrv2.py:/usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py:ro
-      # Quantized tables (read-only)
-      - {{ spark_xfs_mount }}/ples_int4:/ples_int4:ro
+      # Model (read-only) — XFS /mnt/spark_nvme/models/<profile's checkpoint>
+      - {{ spark_models_dir }}/{{ profile.model_subdir }}:/model:ro
+{% if profile.ple_overlay %}
+      # PLE overlay patches (read-only) — on the XFS data partition. Mapping =
+      # spark_llm_overlays (group_vars), the SAME list the profile gate stats.
+{% for o in spark_llm_overlays %}
+      - {{ spark_overlays_dir }}/{{ o.host }}:{{ o.container }}:ro
+{% endfor %}
+{% endif %}
+{% if profile.ple_host_subdir | length > 0 %}
+      # Quantized PLE tables (read-only) — the sidecar the overlay gathers from.
+      - {{ spark_xfs_mount }}/{{ profile.ple_host_subdir }}:{{ profile.ple_container_dir }}:ro
+{% endif %}
       # KV Cache (read-write, on XFS)
       - {{ spark_xfs_mount }}/kv_cache:/data/kv_cache
       # Compile/quant caches (rootfs is read-only; persist across restarts).
@@ -72,7 +114,9 @@ services:
       # the `vllm` child left torchinductor pointing at the read-only rootfs →
       # OSError [Errno 30] Read-only file system crash-loop (HD-367). Mount the
       # WHOLE /root/.cache from XFS; vllm_cache holds vllm/ + torchinductor/
-      # subdirs once the engine writes them.
+      # subdirs once the engine writes them. (Shared with SGLang profiles: the
+      # dirs are per-engine inside the cache root, and a cold compile cache after
+      # an engine swap costs boot time, not correctness.)
       - {{ spark_xfs_mount }}/vllm_cache:/root/.cache
       - {{ spark_xfs_mount }}/triton_cache:/root/.triton
 {% if spark_router_publish | default(false) %}
@@ -80,7 +124,7 @@ services:
       - "{{ spark_home_ip }}:8000:8000"
 {% else %}
     # Loopback-only metrics publish (HD-368): lets the spark host Alloy scrape
-    # vLLM's Prometheus /metrics (vllm:8000). Same pattern as traefik's
+    # the engine's Prometheus /metrics (vllm:8000). Same pattern as traefik's
     # dedicated metrics entryPoint (127.0.0.1:8082, HD-315) — the engine is
     # NOT reachable from the LAN, only the monitoring agent on the box.
     # `spark_router_publish: true` (LAN publish, post-bench) supersedes this.
@@ -114,10 +158,11 @@ services:
       interval: 30s
       timeout: 10s
       retries: 8
-      start_period: 1200s               # first PLE-table load ~20 min (recipe)
+      start_period: {{ profile.health_start_period }}   # first PLE-table load ~20 min (recipe)
     restart: unless-stopped
     networks:
       - llm-backend
+{% if profile.engine == 'vllm' %}
     command:
       - --model
       - /model
@@ -131,9 +176,10 @@ services:
       # key both required). The spark-ai template now carries its first vault item (spark-llm_api).
       - --api-key
       - "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
-      # compression: the staged B1 weights pack compressed-tensors (config.json quant_method)
-      # — forcing --quantization awq mismatches → pydantic ValidationError at boot.
-      # vLLM reads quant_method from the model config when the flag is omitted.
+      # compression: NEVER force --quantization. The staged checkpoints declare their
+      # own packed format in config.json (AWQ build = compressed-tensors, primitive-ai
+      # mixed NVFP4/FP8 = compressed-tensors too, verified 2026-09-28 against the HF
+      # API) — forcing a flag mismatches → pydantic ValidationError at boot.
       - --trust-remote-code
       - --max-num-seqs
       - "{{ spark_vllm_max_num_seqs }}"
@@ -146,26 +192,27 @@ services:
       - --no-enable-flashinfer-autotune
       - --kv-cache-dtype
       - {{ spark_vllm_kv_cache_dtype }}
-      # GPU×host unified-memory governance (HD-374, 2026-09-16): explicit KV-pool governor
-      # via --kv-cache-memory-bytes (= bytes int) — the PRIMARY dial on GB10.
+      # GPU×host unified-memory governance (HD-374, 2026-09-16): explicit KV pool via
+      # --kv-cache-memory-bytes (= bytes int) — the PRIMARY dial on GB10.
       # In this build, kv_cache_memory_bytes IGNORES gpu_memory_utilization entirely
       # (CacheConfig docstring + gpu_worker.determine_available_memory: "does not
       # respect the gpu_memory_utilization config"), so util is dead/removed — the
-      # explicit pool IS the whole budget decision. See group_vars/spark.yml.
+      # explicit pool IS the whole budget decision. The profile gate re-checks that
+      # this pool holds max_model_len and stays under the certified ceiling.
       - --kv-cache-memory-bytes
       - "{{ spark_vllm_kv_cache_memory }}"
       - --distributed-executor-backend
       - {{ spark_vllm_distributed_executor_backend }}
-{% if spark_vllm_enforce_eager %}
+{% if profile.enforce_eager %}
       - --enforce-eager
 {% endif %}
       # CUDA-graph capture-size cap (HD-380): the build defaults to capturing graphs
       # for batch sizes [1,2,4,8,16,24,32]; max_num_seqs caps the decode batch, so any
       # capture above it is unreachable AND strands memory in the single GB10 pool.
       # Measured basis + incident link: group_vars/spark.yml + docs/spark-incidents.md.
-{% if spark_vllm_max_cudagraph_capture_size | default(none) is not none %}
+{% if (profile.max_cudagraph_capture_size | int) > 0 %}
       - --max-cudagraph-capture-size
-      - "{{ spark_vllm_max_cudagraph_capture_size }}"
+      - "{{ profile.max_cudagraph_capture_size }}"
 {% endif %}
       - --reasoning-parser
       - qwen3
@@ -176,6 +223,42 @@ services:
       - '{"temperature":1,"top_p":0.95,"top_k":20}'
       - --speculative-config
       - '{"method": "{{ spark_vllm_spec_method }}", "num_speculative_tokens": {{ spark_vllm_spec_tokens }}}'
+{% for a in profile.args_extra | default([]) %}
+      # profile-specific (profile {{ spark_llm_profile }} · args_extra)
+      - {{ a }}
+{% endfor %}
+{% else %}
+    # SGLang flag family (HD-469 fast-sglang). Contract kept identical to vLLM's:
+    # same --model path, same served id, same --api-key, same port, same parsers.
+    # Pool semantics DIFFER: SGLang sizes its KV by --mem-fraction-static /
+    # --max-total-tokens (both in args_extra), NOT by --kv-cache-memory-bytes.
+    command:
+      - --model-path
+      - /model
+      - --served-model-name
+      - {{ spark_vllm_served_name }}
+      - --api-key
+      - "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
+      - --host
+      - 0.0.0.0
+      - --port
+      - "{{ spark_engine_port }}"
+      - --trust-remote-code
+      - --context-length
+      - "{{ spark_vllm_max_model_len }}"
+      - --max-running-requests
+      - "{{ spark_vllm_max_num_seqs }}"
+      - --chunked-prefill-size
+      - "{{ spark_vllm_max_num_batched_tokens }}"
+      - --reasoning-parser
+      - qwen3
+      - --tool-call-parser
+      - qwen3_coder
+{% for a in profile.args_extra | default([]) %}
+      # profile-specific (profile {{ spark_llm_profile }} · args_extra)
+      - {{ a }}
+{% endfor %}
+{% endif %}
 
 
 

@@ -1,0 +1,163 @@
+---
+# role: spark-llm-profile — read-only preflight for `spark_llm_profile` (HD-469).
+# Order = cheapest failure first; every fail_msg names the exact command or file to
+# fix, because the alternative is discovering it 20 minutes into an engine boot.
+
+- name: Assert the LLM profile exists
+  ansible.builtin.assert:
+    that:
+      - spark_llm_profile is defined
+      - spark_llm_profile | length > 0
+      - spark_llm_profile in spark_llm_profiles
+    fail_msg: >-
+      spark_llm_profile='{{ spark_llm_profile | default('<unset>', true) }}' is not a known
+      profile. Valid: {{ spark_llm_profiles.keys() | sort | join(' | ') }}
+      (definitions: IaC/ansible/group_vars/spark.yml §LLM SERVING PROFILES;
+      the dial: IaC/ansible/host_vars/spark.kogler.si.yml).
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the profile is complete and its engine is servable
+  ansible.builtin.assert:
+    that:
+      - spark_llm.engine is defined
+      - spark_llm.engine in ['vllm', 'sglang']
+      - spark_llm.container | length > 0
+      - spark_llm.served_name | length > 0
+      - spark_llm.model_subdir | length > 0
+      - spark_llm.max_model_len | int > 0
+      - spark_llm.max_num_seqs | int > 0
+      - (spark_llm_image_pins[spark_llm.engine] | default('')) | length > 0
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' is not servable as authored:
+      engine='{{ spark_llm.engine | default('<unset>') }}',
+      image='{{ spark_llm_image_pins[spark_llm.engine] | default('<unset>') }}'.
+      An EMPTY image means the engine image has no digest pin yet — CONVENTIONS §7
+      forbids pulling a floating tag. Pin it in group_vars/all/versions.yml after
+      registry-verifying the arm64 manifest, and record the verification in
+      docs/hardware-spark.md §LLM serving profiles in the same change.
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- KV-pool arithmetic (docs/hardware-spark.md §Unified-memory budget) ----
+# max_model_len is a BOOT-GATE, not an allocation: vLLM refuses to boot when the
+# pool cannot hold one full sequence, and the pool is a slice of the SAME
+# 121.62 GiB unified pool the host lives in. Catch it at render time.
+- name: Assert the KV pool holds max_model_len and stays under the certified ceiling
+  when: spark_llm.engine == 'vllm'
+  ansible.builtin.assert:
+    that:
+      - spark_llm.kv_cache_dtype in spark_llm_kv_bytes_per_token
+      - (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | int) >= (spark_llm.max_model_len | int)
+      - (spark_llm.kv_cache_memory | int) <= (spark_llm_pool_ceiling_bytes | int)
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' KV math does not close:
+      pool={{ spark_llm.kv_cache_memory }} B at dtype={{ spark_llm.kv_cache_dtype }}
+      ({{ spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(0) }} B/token)
+      = {{ (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(1) | int) }}
+      token slots, needs >= max_model_len={{ spark_llm.max_model_len }}
+      and <= the certified ceiling {{ spark_llm_pool_ceiling_bytes }} B.
+      Ceiling rationale + the incident it came from: docs/hardware-spark.md
+      §Unified-memory budget ("16 GiB is the practical bf16 ceiling"). The next KV
+      byte is --kv-cache-dtype fp8's job, not a bigger pool.
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the CUDA-graph capture cap cannot exceed the decode batch (HD-380)
+  when: (spark_llm.max_cudagraph_capture_size | int) > 0
+  ansible.builtin.assert:
+    that:
+      - (spark_llm.max_cudagraph_capture_size | int) <= (spark_llm.max_num_seqs | int)
+    fail_msg: >-
+      max_cudagraph_capture_size={{ spark_llm.max_cudagraph_capture_size }} exceeds
+      max_num_seqs={{ spark_llm.max_num_seqs }} — graphs captured above the decode
+      batch are unreachable AND strand memory in the single GB10 pool
+      (docs/spark-incidents.md, HD-380).
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- Uncertified profiles are a deliberate act ----
+- name: Require an explicit override for an uncertified profile
+  when: not (spark_llm.certified | bool)
+  ansible.builtin.assert:
+    that:
+      - spark_llm_allow_uncertified | bool
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' is NOT certified on this box.
+      {{ (spark_llm.uncertified_reason | default('') | trim) }}
+      To run it anyway (bench/test only, never the daily driver) set
+      spark_llm_allow_uncertified: true in host_vars/spark.kogler.si.yml or pass
+      -e spark_llm_allow_uncertified=true, and say so in the commit message.
+      Evidence bar + procedure: spark/llm-profiles/README.md.
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Note the engine swap cost (orphan container + endpoint contract)
+  when: spark_llm.engine != 'vllm'
+  ansible.builtin.debug:
+    msg: >-
+      engine='{{ spark_llm.engine }}' — container name changes
+      ({{ spark_llm.container }}), so the vLLM container of the previous profile is
+      an ORPHAN of the compose project. Before the flip:
+      `docker compose -p spark-ai -f /opt/spark-ai/docker-compose.yml down
+      --remove-orphans` on the box. The endpoint, served id and bearer key must stay
+      identical or every client breaks (HD-370 contract).
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- Artifacts: never download implicitly, never boot without ----
+- name: Stat the profile's model dir
+  ansible.builtin.stat:
+    path: "{{ spark_models_dir }}/{{ spark_llm.model_subdir }}/config.json"
+  register: spark_llm_model_stat
+  when: not spark_llm_profile_skip_artifact_check | bool
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Stat the profile's PLE table dir
+  ansible.builtin.stat:
+    path: "{{ spark_xfs_mount }}/{{ spark_llm.ple_host_subdir }}/META.json"
+  register: spark_llm_ple_stat
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.ple_host_subdir | default('') | length > 0
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Stat the profile's PLE overlay files
+  ansible.builtin.stat:
+    path: "{{ spark_overlays_dir }}/{{ item.host }}"
+  loop: "{{ spark_llm_overlays }}"
+  loop_control:
+    label: "{{ item.host }}"
+  register: spark_llm_overlay_stat
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.ple_overlay | bool
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Fail when the profile's artifacts are not staged yet
+  when: not spark_llm_profile_skip_artifact_check | bool
+  ansible.builtin.assert:
+    that:
+      - spark_llm_model_stat.stat.exists
+      - (spark_llm.ple_host_subdir | default('') | length == 0) or (spark_llm_ple_stat.stat.exists | default(false))
+      - (not (spark_llm.ple_overlay | bool)) or (((spark_llm_overlay_stat.results | default([])) | selectattr('stat.exists', 'equalto', true) | list | length) == (spark_llm_overlays | length))
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' expects artifacts that are not on the XFS
+      store: model='{{ spark_models_dir }}/{{ spark_llm.model_subdir }}'
+      (config.json {{ 'present' if spark_llm_model_stat.stat.exists else 'MISSING' }}),
+      PLE tables='{{ spark_xfs_mount }}/{{ spark_llm.ple_host_subdir | default('(none)') }}',
+      overlays={{ spark_llm.ple_overlay | bool }}.
+      Downloads are EXPLICIT by design (84 GB + 1 G link). Stage them first:
+      ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark
+      --tags spark-artifacts -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
+      (sets: spark_artifact_sets in group_vars/spark.yml).
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- Converge-log summary (no secrets; the values are all in group_vars) ----
+- name: Show the active LLM profile
+  ansible.builtin.debug:
+    msg:
+      - "profile          : {{ spark_llm_profile }} — {{ spark_llm.label }}"
+      - "engine / image   : {{ spark_llm.engine }} / {{ spark_llm_image_pins[spark_llm.engine] }}"
+      - "model            : {{ spark_models_dir }}/{{ spark_llm.model_subdir }}"
+      - "PLE              : {{ spark_llm.ple_container_dir or '(none)' }} (host {{ spark_xfs_mount }}/{{ spark_llm.ple_host_subdir or '(none)' }}, overlay={{ spark_llm.ple_overlay | bool }})"
+      - "ctx / seqs       : {{ spark_llm.max_model_len }} / {{ spark_llm.max_num_seqs }}"
+      - "KV               : {{ spark_llm.kv_cache_dtype }}, {{ spark_llm.kv_cache_memory }} B = {{ (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(1) | int) if spark_llm.kv_cache_dtype in spark_llm_kv_bytes_per_token else '?' }} slots"
+      - "certified        : {{ spark_llm.certified | bool }}{{ '' if spark_llm.certified | bool else '  ← UNCERTIFIED (override: spark_llm_allow_uncertified)' }}"
+      - "client ctx owed  : scripts/pi-config/models-spec.yml contextWindow = {{ spark_llm.client_context_window }}"
+      - "reasoning surface: {{ spark_llm.reasoning_surface }}"
+  tags: [spark, spark-llm-profile, llm]

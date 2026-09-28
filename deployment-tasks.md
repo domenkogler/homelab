@@ -852,7 +852,7 @@ Full authority = `docs/deployment-secrets.md` + `scripts/check-vault-items.sh --
 | switch | `switch.kogler.si` | L2 trunk; Mgmt 99 | `switch.yml` (+ bootstrap / converge `.rsc` for the escape path) | `switch` |
 | nas | `nas.kogler.si` | 10 untagged + 99 tagged | `storage.yml` | common → ai_diag → network → storage → nut(**master**) → cockpit → monitoring(alloy) |
 | oldsrv | `oldsrv.kogler.si` | 10 untagged + 99 tagged (same NIC) | `home_servers.yml` | common → ai_diag → docker → network → storage → nut(client) → cockpit → amd_rocm → desktop → office → proxmox(gated, inert) → docker_services → home_assistant(standby) → monitoring |
-| spark | `spark.kogler.si` | 10 untagged + 99 tagged (same NIC, `enP7s7`) | `spark.yml` | common → network → docker → spark (NVMe/XFS) → spark-artifacts → monitoring(alloy) → docker_services(`spark-ai`) |
+| spark | `spark.kogler.si` | 10 untagged + 99 tagged (same NIC, `enP7s7`) | `spark.yml` | common → network → docker → spark (NVMe/XFS) → spark-llm-profile (HD-469 read-only profile gate) → spark-artifacts → monitoring(alloy) → docker_services(`spark-ai`) |
 | pi | `pi.kogler.si` | 10 untagged + 99 tagged | `raspberry_pi.yml` | common → ai_diag → network → nut(client) → docker → **home_assistant(primary+keepalived) → docker_services(pi)** → monitoring(alloy) |
 | vps | `vps.kogler.si` | public | `vps.yml` (**Phase 1**) | common → docker → vps-hardening → network → cifs → wireguard(cond.) → docker_services → monitoring |
 | — | all | — | `all.yml` | `/etc/hosts` sync |

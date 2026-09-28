@@ -11,6 +11,25 @@ homelab_mode: headless
 # HD-364: headless contract enforced at converge (sleep masks + multi-user default.target).
 # Group-var default is true; set false explicitly to keep the DGX graphical desktop.
 spark_headless: true
+
+# ══ THE LLM CONFIG DIAL (HD-469) ═════════════════════════════════════════
+# One var + one converge = a different engine config behind the SAME endpoint
+# (llm.kogler.si), the SAME served id (spark/qwen3.8-flash-next) and the SAME
+# bearer key. Valid names + every value each one renders: group_vars/spark.yml
+# §LLM SERVING PROFILES; gate + evidence: docs/hardware-spark.md §LLM serving
+# profiles; test loop: spark/llm-profiles/README.md.
+#   reasoning     = live certified B1 (AWQ W4A16 + PLE INT4 + MTP3)      ← today
+#   graded        = same weights, fp8 KV (≈2× slots) for graded thinking — UNCERTIFIED
+#   fast          = NVFP4 + fp8 KV, 4 × 262k windows                      — UNCERTIFIED
+#   fast-sglang   = second engine (SGLang) — EXPERIMENTAL, image pin empty
+# Uncertified profiles need `spark_llm_allow_uncertified: true` alongside this.
+# Flipping is NOT free: ~20 min boot (converge DETACHED), and the CLIENT window in
+# scripts/pi-config/models-spec.yml must be set to the profile's client_context_window.
+spark_llm_profile: reasoning
+spark_llm_allow_uncertified: false
+# Big artifact downloads stay explicit: --tags spark-artifacts with
+# -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
+# ════════════════════════════════════════════════════════════════════════
 # AI stack is NOT yet enabled — benches + winner-engine promotion are deploy-gated (HD-359).
 # spark.enabled flips to true in group_vars/home_servers.yml after bench certification.
 # spark_partition_enable — operator-set true AFTER first-boot inspection (2026-09-14:

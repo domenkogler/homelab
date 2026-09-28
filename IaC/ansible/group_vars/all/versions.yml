@@ -281,6 +281,16 @@ homelable_version: "3.4.1"
 # Renovate docker datasource would track the tag; the digest is the load-bearing pin.
 spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8"
 
+# SGLang (HD-469 `fast-sglang` profile) — INTENTIONALLY EMPTY, and that is the gate.
+# CONVENTIONS §7 forbids a bare `latest`/mutable alias, and no SGLang image has been
+# registry-verified for the GB10 arm64-cu130 manifest yet (the R5 captures are all
+# x86 RTX PRO 6000). roles/spark-llm-profile refuses any profile whose image resolves
+# empty, so flipping spark_llm_profile to `fast-sglang` fails loud instead of pulling
+# a floating tag. To unblock: verify the arm64 manifest + take the digest, pin it
+# HERE, record the verification in docs/hardware-spark.md §LLM serving profiles in the
+# same change (fluid-tag first-pin rule, §7) — then the gate opens by itself.
+spark_sglang_image: ""
+
 # DCGM exporter (HD-379) — the ONLY source of GPU util/temp/power/energy/SM-clock/XID on the
 # GB10 (no nvidia hwmon chip; nvidia-smi has no metric endpoint). Multi-arch manifest; ARM64
 # verified + digest taken from spark's own image store 2026-09-16, where the same digest was run

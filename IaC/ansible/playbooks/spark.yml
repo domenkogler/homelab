@@ -28,6 +28,7 @@
     - network         # DHCP client-id=mac + netd units (dual-homed mgmt/home) — same as nas/oldsrv/pi
     - docker
     - spark           # NVMe p2 → XFS for PLE/KV + headroom assert (gated by spark_partition_enable)
+    - spark-llm-profile  # HD-469 read-only gate: which LLM config is about to boot (profile exists, KV math closes, artifacts staged, uncertified override)
     - spark-artifacts # GENERAL artifact store on XFS: weights + PLE overlays + INT4 tables (manifest spark_artifacts, HD-359)
     - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
     - docker_services # spark-ai (vLLM B1 + llm-d router) via the spark group_vars; deploy-gated by `enabled`

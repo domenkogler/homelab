@@ -1,0 +1,18 @@
+---
+# role: spark-llm-profile — READ-ONLY preflight gate for the LLM serving profile
+# switch (HD-469). Runs before spark-artifacts + docker_services so a bad flip
+# aborts BEFORE a 20-minute engine boot or a broken compose render.
+#
+# It writes nothing to the host (stat/assert/debug only) → safe under --check.
+# Design rule it enforces, in order of cost:
+#   1. the profile name exists            (typo → no silent "defaults" render)
+#   2. the engine is known + its image is pinned  (CONVENTIONS §7)
+#   3. the KV pool can hold max_model_len and stays under the certified ceiling
+#      (docs/hardware-spark.md §Unified-memory budget — three global OOMs paid for this)
+#   4. the profile's artifacts are staged  (no surprise 84 GB download mid-converge)
+#   5. an uncertified profile is a deliberate act, not an accident
+
+# Escape hatch for a gate the operator has consciously overruled (document the
+# reason in the commit; the gate exists because the failure it prevents costs a
+# power-cycle, not a restart).
+spark_llm_profile_skip_artifact_check: false

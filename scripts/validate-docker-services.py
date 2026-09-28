@@ -226,6 +226,14 @@ def _load_ssot_ctx():
                 except Exception:
                     pass
             ctx[k] = v
+        elif k in ("spark_llm_profiles", "spark_llm_engine_entrypoints", "spark_llm_overlays"):
+            # HD-469 (LLM profile switch): the profile catalogue + engine entrypoint map +
+            # PLE overlay list are NATIVE dicts/lists here, not stringified. They are
+            # Jinja-free by design (every engine value a literal; paths are composed in
+            # the template from spark_xfs_mount / spark_models_dir), which is what lets the
+            # offline render index them exactly like Ansible does. Same precedent as the
+            # wg_s2s_vps dict mock — but these are SSOT, read straight from group_vars.
+            ctx[k] = v
     # Neutral shared-data owner (HD-94) — SSOT: roles/storage/defaults/main.yml.
     sp = ROOT / "IaC" / "ansible" / "roles" / "storage" / "defaults" / "main.yml"
     try:

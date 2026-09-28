@@ -404,6 +404,14 @@ spark serves Qwen3.8-Flash-Next under several serving profiles (S1–S5, engine-
 gets promoted into the SSOT. Full plan: [`../spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md);
 research + verdicts: [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resources/RESEARCH-VERDICTS.md).
 
+> **Since HD-469 those benchmark lanes and the DEPLOYED config are the same dial.** The S-lanes above are
+> bench shapes; the configs this box can actually boot are the Ansible profiles (`spark_llm_profile` →
+> `spark_llm_profiles`): `reasoning` = the S1 shape that is live and certified, `graded` = S1 with fp8 KV,
+> `fast` = the S2/S3 NVFP4 lane, `fast-sglang` = the S5-shaped SGLang lane (gate-blocked). Catalogue,
+> KV/quant arithmetic, the certifying gate and the client-contract split:
+> [spark-llm-profiles.md](spark-llm-profiles.md); certification procedure:
+> [`../spark/llm-profiles/README.md`](../spark/llm-profiles/README.md).
+
 - **vLLM (live today):** the 98/100 AWQ+PLE accuracy recipe is vLLM-only (PLE n-gram overlay); NVFP4 on
   GB10 has an upstream Marlin fallback gap (#50925).
 - **SGLang (candidate):** the native-GB10 NVFP4 route (262k ctx); long-context concurrency (S5) fits its

@@ -42,6 +42,7 @@ tags: [index, dispatcher, ai]
 | **Music pillar (HD-362)** | [`services-media.md`](services-media.md) §Music Pillar | `deployment-secrets.md` (lidarr_api, slskd_login, lastfm/metabrainz, tube_archivist_*, lidarr-url-dl_login) · `deployment-manual.md` §Phase 3 · `services-downloads.md` §VPN |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md`, `../todo.md` |
+| **Switch / certify a spark LLM config (reasoning · graded · fast · fast-sglang)** | [`spark-llm-profiles.md`](spark-llm-profiles.md) | `hardware-spark.md` (pool budget), `pi-harness.md` (measured reasoning surface), `../spark/llm-profiles/README.md` (certify gate), `../todo.md` |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md` |
 | **Triage an AI-plane candidate / check past rejections (RAG, memory, gateways, harnesses)** | [`services-ai-rejected.md`](services-ai-rejected.md) — append-only decision log | `services-ai.md`, `services-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Decide where an AI leg runs (generation vs client-side FIM/vision vs pinned services)** | [`hardware-workstation.md`](hardware-workstation.md) (client-side tier) + [`services-ai.md`](services-ai.md) §9 decision #28 | `hardware-spark.md` (text-only engine), `hardware-gpu.md` (8 GiB ledger), `pi-harness.md` |
@@ -82,6 +83,7 @@ docs/
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
 ├── hardware-spark.md                       NVIDIA GB10 vLLM inference node (spark.kogler.si) — replaces the old Phase-2 Ryzen/R9700 build (archived in the decision log + git)
+├── spark-llm-profiles.md                  One-var LLM config switching (`spark_llm_profile`): profile catalogue, KV/quant math, what the gate refuses, client-contract split (HD-469)
 ├── hardware-workstation.md               Admin laptop (Strix Point) = client-side inference tier: FIM autocomplete + visual judgment; NPU out
 ├── spark-incidents.md                       spark OOM / engine-restart incident log (append-only; knowledge = hardware-spark.md §Unified-memory budget)
 ├── services-finance.md                    Personal finance: Actual Budget, Enable Banking, account import strategy, AI categorization
