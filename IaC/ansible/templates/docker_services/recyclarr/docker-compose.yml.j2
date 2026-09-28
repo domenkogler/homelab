@@ -19,6 +19,13 @@ services:
       - services-internal
     volumes:
       - /srv/docker/recyclarr/config:/config
+      # The rendered config lands next to this compose file (that is where the role's
+      # extra-template step writes every per-service config — same `./file:/config/file:ro` shape
+      # as element-web's config.json and opencloud's csp.yaml). These two paths never met before
+      # 2026-09-28: /opt/recyclarr/recyclarr.yml had been rendered since 09-19 and mounted nowhere,
+      # so the container ran with NO config and the @daily cron had nothing it could ever sync.
+      # Read-only on purpose — recyclarr writes cache/logs under /config, never its own config.
+      - ./recyclarr.yml:/config/recyclarr.yml:ro
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 networks:
