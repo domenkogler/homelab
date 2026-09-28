@@ -39,7 +39,8 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 >
 > ⏳ **Open:** HD-384 (scoped-consumer allow-lists), HD-248 (the
 > OWUI instance split), HD-268b (implement `rag-mcp`), HD-267 tails (Qdrant cutover verification, OKF wiki
-> repos), HD-387 (re-measure the thinking parameter through a gateway), HD-402 (Docling OCR engine swap).
+> repos), HD-387 (re-measure the thinking parameter through a gateway), HD-471 (Docling returns empty
+> markdown for real scans — `noexec /tmp`), HD-472 (RapidOCR prose-page recall gate).
 > Tracked in [`../todo.md`](../todo.md) (`source: services-ai`).
 
 ---
@@ -137,7 +138,7 @@ HD-62; Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **Open WebUI** | chat + RAG UI | `traefik-public` | ONE instance today at `ai.kogler.si`, Authentik OIDC. The public/internal split + per-instance corpus is **HD-248**. |
 | **Qdrant** | hybrid vector store | `db-internal` | Standalone Rust DB (dense + sparse BM25), **independent of OWUI's built-in RAG**, replaces PGVector. Dimension locks at first ingest — **1024**. Keep the snapshot seam (§5b). |
 | **Forgejo (wiki repos)** | knowledge SSOT | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
-| **Docling** | OCR / document understanding | `services-internal` | **CPU on the VPS** (no GPU there). Model stack = layout detector + TableFormer + pluggable OCR; current engine **EasyOCR** (dedicated `sl` model → Slovenian scans, HD-103) — probed: the container sets **no OCR env at all**, so the engine is docling's default resolution with `easyocr 1.7.2` present. ⚠ Its accelerator set is `auto\|cpu\|cuda\|mps\|xpu` — **no Vulkan/ROCm**, so Docling cannot use the RX 7600. ⏳ **HD-402:** EasyOCR → **RapidOCR-ONNX** is **not switchable in the pinned image** (see §Docling OCR engine selection (HD-402)); free lever regardless: `do_ocr=false` per request for born-digital PDFs. |
+| **Docling** | OCR / document understanding | `services-internal` | **CPU on the VPS** (no GPU there). Model stack = layout detector + TableFormer + pluggable OCR; live engine **RapidOCR / onnxruntime (PP-OCRv6 small)** — measured 2026-09-28 from the served log; `easyocr 1.7.2` is installed but never reached, because `OcrAutoModel` prefers rapidocr+onnxruntime (§Docling OCR engine selection). Slovenian is covered: `sl` is a first-class PP-OCRv6 code and the multilingual `rec_small` is baked. ⚠ Its accelerator set is `auto\|cpu\|cuda\|mps\|xpu` — **no Vulkan/ROCm**, so Docling cannot use the RX 7600. ⛔ **It cannot convert a real scan today** — `noexec /tmp` kills the layout stage (**HD-471**), and on light prose the live engine drops whole sentences (**HD-472**). Free lever regardless: `do_ocr=false` per request, but **only for born-digital PDFs** (a scanner's own text layer carries no diacritics). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models via a LiteLLM scoped key. |
 | **kapa-inspired-rag-mcp** *(stub)* | MCP hybrid reader | `services-internal` | Intended flow: hybrid search in Qdrant → top-20 → rerank via LiteLLM `jina_ai/` → top-5 clean markdown. Not implemented (**HD-268b**) — see the status block. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
@@ -445,62 +446,129 @@ hand-added model cannot be clobbered even on a name collision). Today the equiva
 
 ---
 
-## Docling OCR engine selection (HD-402)
+## Docling OCR engine selection (HD-402) — measured, bench closed 2026-09-28
 
-Probed **inside the pinned image** (`quay.io/docling-project/docling-serve-cpu:2.118.0`, running on the
-VPS) on 2026-09-21, because the row was written as "one measurement away":
+Measured on the **live VPS service** (`quay.io/docling-project/docling-serve-cpu:v1.30.0`, container up
+5 weeks at the time of the probe) against **two real Slovenian scans** — a UKC Ljubljana discharge
+summary, page 1 = crisp form + diagnosis table, page 2 = small light-print prose. Chosen because the
+row asked for a decision "one measurement away" and the 2026-09-21 probe could not get one (a synthetic
+render is not a scan). Everything below is a probe, not inference.
 
-| Question the row asked | Answer (probe, not inference) |
-|------------------------|-------------------------------|
-| Does the `RapidOcrOptions` adapter expose the PP-OCR rec-model choice, or hardcode ch/en defaults? | **It exposes it.** Fields: `rec_model_path`, `rec_keys_path`, `rec_font_path`, `lang`, `backend`, `scale`, `text_score`, `force_full_page_ocr`, `use_det`/`use_cls`/`use_rec`, `rapidocr_params`. A script-grouped `latin` recognizer is therefore *representable* — the wiring is not the blocker |
-| Is the engine present in the deployed image? | **No.** `importlib.metadata` finds `easyocr 1.7.2` and `onnxruntime 1.28.0`, and **no rapidocr distribution**. Nothing in `IaC/` or the docs selects it either — the container's only Docling env is log level/format, `ENABLE_UI`, `ENABLE_MANAGEMENT_ENDPOINTS`, `ARTIFACTS_PATH` |
-| So what does the running service actually use? | docling's default OCR resolution with what is installed → **EasyOCR**. The "RapidOCR was enabled 2026-08-25" premise does not hold for this deployment |
-| Is the row's remaining work a bench? | **No — it is a dependency change.** `--to md` with RapidOCR fails on import today; getting the 35 % CPU saving requires an image that carries the engine, *then* the bench, *then* the pin. Do not buy the image change before the bench has a chance of paying for it |
+### What the deployed engine actually is
 
-**Free lever, available with no image change (and the bigger real win):** `do_ocr` is a live option on
-`PdfPipelineOptions` and docling-serve accepts it **per request** on `/v1/convert` — born-digital PDFs
-never needed OCR. The lever is at the **call site** (Open WebUI / OpenClaw / the ingest script), not in
-the service env, so the cheap follow-up is making callers pass `do_ocr=false` when the document already
-carries a text layer, and measuring how much of the queue that is.
+| Question | Measured answer (2026-09-28) |
+|---|---|
+| Which OCR engine does the served pipeline use? | **RapidOCR / onnxruntime, PP-OCRv6 small.** Served log, on every conversion: `Auto OCR model selected rapidocr with onnxruntime.` + `[RapidOCR] Using …/RapidOcr/PP-OCRv6_{det,rec}_small.onnx` + `ch_ppocr_mobile_v2.0_cls_mobile.onnx`. `OcrAutoModel` on Linux resolves nemotron → **rapidocr+onnxruntime** → easyocr, and this image has rapidocr, so EasyOCR is never reached |
+| Is `rapidocr` installed in the pinned image? | **Yes** — `rapidocr 3.9.2`, alongside `easyocr 1.7.2`, `onnxruntime 1.28.0`, `docling-slim 2.118.0`, `docling-serve 1.30.0`, `torch 2.13.0+cpu` (`pip list` + `GET /version`) |
+| Was the 2026-09-21 entry in this section wrong? | **On three counts, kept visible so nobody re-litigates the old text:** (1) "`rapidocr` distribution absent" — it is installed; (2) "running engine = EasyOCR" — the runtime log has said rapidocr since 2026-08-23; (3) "pinned `docling-serve-cpu:2.118.0`" — the tag is **`v1.30.0`**, which is the IaC pin (`docling_version`), while **2.118.0 is the docling-slim library version** reported by `/version`. Mis-attribution, not pin drift |
+| Does `sl` need a download? | **No.** `sl` is a first-class PP-OCRv6 code (`rapidocr.utils.model_resolver.PP_OCRV6_LANGS`, 52 codes, `sl in` → True) and PP-OCRv6 `rec_small` is **multilingual** — the same baked weights serve `ch` (docling's RapidOCR default) and `sl`. EasyOCR's `sl` → the `latin_g2` recognizer, also baked |
 
-### Where the model weights actually live (found 2026-09-21 while probing HD-402)
+### Request-level levers on `/v1/convert/file` (measured, this build)
 
-The compose comment says the `/models` bind "keeps the multi-GB weights across restarts". **It does not,
-and it cannot:**
+| Field | Verdict | Evidence |
+|---|---|---|
+| `do_ocr=false` | **honoured** — this is the free lever for born-digital PDFs | markdown changed (scan1 4370 → 4355 chars, scan2 2891 → 2872) with everything else fixed |
+| `ocr_preset` (`easyocr` / `rapidocr` / `tesseract` / `auto`) | **honoured** | `ocr_preset=tesseract` produced `docling.models.stages.ocr.tesseract_ocr_cli_model - command: tesseract --psm 0 -l osd` then `-l fra+deu+spa+eng`, and a different markdown (md5 `12b3e42…`) |
+| `ocr_lang` for tesseract | **honoured** | the `-l fra+deu+spa+eng` in the CLI line is docling's *default* `EasyOcrOptions.lang`, i.e. the request/default lang reaches the engine invocation |
+| `ocr_lang` for rapidocr | **inert here** — byte-identical output for unset / `sl` / `latin` (md5 `bc05b6dc…` on both pages) | `sl`/`ch` resolve to the same baked multilingual rec; `latin`/`th` resolve to **PP-OCRv5**, whose weights are **not** baked, and the pipeline still produced the same bytes → with `artifacts_path` set, requesting a language cannot change the model file. A `sl` "language setting" is therefore not a lever on this engine at all |
 
-- the bind is **empty** (8 KB) and root-owned `0755`, while the container runs as **uid 1001** → it is
-  not writable by the process, so a runtime download fails:
-  `PermissionError: [Errno 13] Permission denied: '/models/hub'` (reproduced in 13 s via the `docling`
-  CLI, which resolves `HF_HOME=/models`).
-- the weights the served pipeline really uses are **baked into the pinned image** at
-  `/opt/app-root/src/.cache/docling/models` (871 MB, dated 2026-08-07 = the image build), reached because
-  `DOCLING_SERVE_ARTIFACTS_PATH` points there. The bind is decorative.
-- consequences, all measured: **(1)** a recreate is safe (nothing to re-download — HD-103's "first start
-  pulls multi-GB models" gate was satisfied by the image build, not by a runtime pull);
-  **(2)** *no model can ever be fetched at runtime*, so any engine/rec-model that is not baked in is
-  unreachable until the bind becomes writable (`bind_owner_uid: "1001"` on the registry entry) or
-  `HF_HOME` is pointed at a writable path — this is now a hard dependency of HD-402, ahead of the bench;
-  **(3)** an operator who reaches for `docker exec docling docling …` hits the PermissionError above,
-  so any CLI-based procedure must override the artifacts/HF path, and a bench must go through the served
-  API instead;
-  **(4)** the baked set tells us what is even possible offline — `EasyOcr/{craft_mlt_25k, english_g2,
-  latin_g2}` (`latin_g2` is what EasyOCR uses for `sl`, so Slovenian is covered without a download) and
-  **`RapidOcr/PP-OCRv6_{det,rec}_small` in both `.pth` and `.onnx` + `ppocrv6_dict.txt`**. So the RapidOCR
-  **weights are already in the image** while its **python package is not** — the engine swap is one
-  dependency away, not a download away, which also means the 35 % claim is testable in a throwaway
-  container without touching production storage.
-- ⚠ What is still **not** answered: end-to-end OCR quality on a Slovenian scan. A synthetic render proved
-  the plumbing question above but is not a scan, and the served API rejected the ad-hoc multipart request
-  (`{"detail":[{"type":"missing","loc":["body","files"]}]}`) — the bench needs the proper client call
-  (`docling-serve` client or a correctly framed multipart POST to `/v1/convert/file`) plus a real scan.
-  HD-103's gate stays open.
+### The Slovenian bench: same physical scan, both engines
 
-**Bench protocol (unchanged, parked until an image carries the engine):** same physical Slovenian scan,
-both engines, diff the markdown on `č ć š ž` + table text, keep RapidOCR only if quality ≥ EasyOCR, and
-record the wall-clock delta. The quality risk is structural, not incidental: EasyOCR has a **dedicated
-`sl`** recognizer while PP-OCR's `latin` group is **script-grouped (~40 languages)**, so a speed win
-with diacritic regressions is the expected failure mode — and a markdown corpus that silently loses
-diacritics poisons the RAG floor (OKF wiki), which is a worse cost than slow OCR.
+Method: both pages rendered once from the PDF (pypdfium2, scale 2.0 ≈ 144 dpi) and fed to each engine
+as the same PNG; warm engine, 4 CPUs, in a throwaway container from the pinned image (production
+storage untouched). Engine loads: rapidocr 0.3 s, easyocr 2.1 s. Per-page wall time:
+
+| Page | rapidocr (PP-OCR6, live engine) | easyocr (`lang_list=['sl']` → `latin_g2`) |
+|---|---|---|
+| scan1 (form + diagnosis table) | **2.9 s**, 100 lines / 2085 chars | 9.3 s, 109 lines / 2045 chars |
+| scan2 (small light prose) | **2.7 s**, 40 lines / 2331 chars | 7.8 s, 48 lines / 2771 chars |
+
+→ **EasyOCR is 3.2 – 3.4× slower** than the engine already running. The old "35 % CPU saving" number
+was an understatement for this workload.
+
+Failure inventory (mechanical, per page):
+
+| Signal | rapidocr | easyocr-sl |
+|---|---|---|
+| Fragment-soup lines (≥ 6 one-letter tokens = a whole line lost) | 0 on scan1, **5 on scan2** | 0 and 0 |
+| Word-merge / junk tokens (lower→upper glue, `_`) | 0 on scan1, 3 on scan2 (`ElN`, `OlT`, `eRp` — all real) | **8** on scan1 (`kirurškaklinkakozatravmatologijo`, `koait_dddelek`, `travmatologiio_EIN`, `dex_`, `WWW_`), 3 on scan2 |
+| Diacritic marks recovered | 37 (scan1) / 33 (scan2) | 29 / 38 |
+
+Adjudication of the words the two engines disagree on (Slovenian validity, not popularity):
+
+- scan1, unique to **rapidocr**: `kirurška`, `kritični`, `izolacije` are **correct**; `intenzovne`,
+  `zdravijenja` are wrong (→ `intenzivne`, `zdravljenja`).
+- scan1, unique to **easyocr** (19): `kirurska`, `kriticni`, `stevilka`, `lececi`/`leceći`, `ijubljana`,
+  `ljubljnna`, `izbolišanje`, `izolacie`, `einzaloška`, `kirurskaklinika`, `zaravljenja`, `ukcdj`,
+  `travmatoloqijo_oddelek`, `gttlteden`, `ielml`… — i.e. **lost** `š`/`č` in caps, `l`→`j`/`n`, `,`→`;`,
+  `:`→`.`, `/`→space, plus glued words. ~17 of 19 are defects.
+- scan2, unique to **easyocr** (39): `priporočamo`, `preležaninam`, `pomoči`, `višanjem`, `obremenitev`,
+  `fizioterapije`, `rehabilitacija`, `endokrinologu`, `osteoporoze`, `parametrov`, `vnetnih`,
+  `napoti`, `izbrani`, `aktivacija(tio)`… — **37 of 39 are real content RapidOCR never emitted**: those
+  are exactly the five fragment-soup lines (the Fragmin order, the rehabilitation sentence, the
+  pressure-sore prevention sentence, the follow-up-labs sentence, the nephrology referral).
+- Third independent source, the scanner's own embedded text layer (Canon IJ Scan Utility): 2128/2773
+  chars with **0 diacritic marks** and `Zalo5ka`-class damage → the `do_ocr=false` lever must never be
+  applied to scans, only to born-digital PDFs.
+
+**Decision (closes HD-402): keep RapidOCR. Do not switch to EasyOCR.** The row's own gate was "keep
+RapidOCR only if quality ≥ EasyOCR" — measured, RapidOCR wins the crisp form/table page *including its
+diacritics*, is 3.2× faster, and the swap direction was inverted anyway (the premise that production
+ran EasyOCR is what the probe disproved). EasyOCR wins only the light/small-print prose page, where
+RapidOCR drops whole clinical sentences — that is a **recall gap worth its own decision**, not a reason
+to buy a 3.2× CPU bill plus a new class of diacritic/merge defects. The gap is tracked in
+[todo.md](../todo.md) (HD-472), with one measured cheap candidate: re-running rapidocr on the 288 dpi
+render cut scan2's fragment-soup lines from **5 → 2 at the same 2.9 s** (rapidocr resizes internally, so
+the extra pixels cost nothing at this scale), i.e. raster scale is a per-request knob
+(`images_scale`/page rasterization at the call site) worth testing before any engine or model change.
+
+### Where the model weights actually live (corrected 2026-09-28 — supersedes the 2026-09-21 notes)
+
+- The weights the served pipeline uses are **baked into the pinned image** at
+  `/opt/app-root/src/.cache/docling/models` (871 MB, image build 2026-08-07), reached because
+  `DOCLING_SERVE_ARTIFACTS_PATH` points there: `EasyOcr/{craft_mlt_25k, english_g2, latin_g2}.pth`,
+  `RapidOcr/PP-OCRv6_{det,rec}_small.{onnx,pth}` + `ch_ppocr_mobile_v2.0_cls_mobile.onnx` +
+  `ppocrv6_dict.txt`, plus the layout/TableFormer/FigureClassifier model dirs.
+- The `/srv/docker/docling/models → /models` bind is **empty, root-owned, and unused** (`HF_HOME=/models`).
+  A `docling` CLI run in the container dies on `PermissionError: [Errno 13] … '/models/hub'`.
+- **Corrected mechanism (this is what HD-421 now rests on):** chowning that bind does **not** make a
+  model reachable. In production the artifacts directory itself is **read-only** (`read_only: true`
+  rootfs; verified: `touch` → `Read-only file system`), and docling-jobkit prints
+  `artifacts_path is set to a valid directory. No model weights will be downloaded at runtime.` —
+  **3× in the served log** — so with `artifacts_path` set the served path never downloads at all.
+  The remedy is therefore a **pre-seeded, writable artifacts location** (a bind carrying the weights,
+  with `bind_owner_uid: "1001"` + `bind_dirs`, both already supported by the `docker_services` role) or
+  an image that carries what is needed — not a `HF_HOME` repoint.
+- Consequences that stand: a recreate is safe (nothing to re-download); anything **not** baked is
+  unreachable, which today means **PP-OCRv5 recognisers** (`lang=latin`, `lang=th`), tesseract **`sl`**
+  traineddata (the image ships only `eng` + `osd` → tesseract is not a Slovenian option here), and any
+  pin bump that drops a baked weight.
+
+### Operational facts measured on the way (each is a row, not a footnote)
+
+- **Production converts a real scan to *nothing*.** `POST /v1/convert/file` on the live service returns
+  **HTTP 200 with `status: failure`, empty markdown**, and the layout stage error:
+  `OSError: /tmp/torchinductor_default/….main.so: failed to map segment from shared object … /tmp is
+  mounted with noexec`. Cause: the compose runs `read_only: true` + `tmpfs: /tmp`, and Docker mounts
+  tmpfs `noexec` (verified: `tmpfs on /tmp … noexec`), which torch inductor needs for its compiled
+  kernels. Canary (a test that could have failed): the same image + same scan in a container with
+  `--tmpfs /tmp:rw,exec` converted both pages fine. Tracked in [todo.md](../todo.md) **HD-471**; the fix
+  shapes are `TORCHINDUCTOR_CACHE_DIR` (and friends) on a writable **bind** — which keeps `/tmp` noexec
+  — or `/tmp:exec`, and it is deploy-gated.
+- **Cold start beats the sync endpoint.** In a fresh container the *first* conversion took ~121 s and
+  the request returned **504** (measured 3×); the second returned in 12 s. Anything that treats docling
+  as a warm service needs a warm-up or the async endpoint.
+- **Each distinct options set costs another converter, in RAM.** docling-serve caches a converter per
+  options hash; a bench container capped at 7 GiB was **OOM-killed twice** while adding an EasyOCR
+  converter on top of the preloaded auto+layout set (rapidocr path peak: 3.263 GiB sampled). The
+  production container has **no memory limit** on a 15 GB host with ~3 GB available and **no swap** —
+  so an engine change is also a memory-budget change, to be measured before it is proposed.
+- A bench needs a **throwaway container**, not production: production's `/models` bind cannot take a
+  file, the container rootfs is read-only (`docker cp` → `container rootfs is marked read-only`), and
+  calling the API from the host needs the container's `services-internal` address (no published port).
+  From the VPS host: `IP=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}'
+  docling)` then `curl -F "files=@scan.pdf" -F "do_ocr=true" http://$IP:5001/v1/convert/file` — the
+  2026-09-21 "API rejected the multipart" note was a missing/renamed `files` field, the endpoint is fine.
 
 ---
 
@@ -801,11 +869,11 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 | Item | State |
 |------|-------|
 | **Memory plane for the coding plane** | **Measured, undecided.** The 2026-09-21 `agentmemory` probe answered OQ-12/13/14 in one line each (§9b note + [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md)); the owner call is open and nothing was installed. ⛔ Do not build a central instance before it: the shape the question assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29. |
-| **HD-384** scoped-consumer tier | **Started 2026-09-26, not shipped.** The `rpm` field now has a code path (it had none — a decided cap minted an uncapped key and looked green); the first LAN record is authored **and minted** (`home-assistant`, 2026-09-27). Held: the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet — HD-402/421), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
+| **HD-384** scoped-consumer tier | **Started 2026-09-26, not shipped.** The `rpm` field now has a code path (it had none — a decided cap minted an uncapped key and looked green); the first LAN record is authored **and minted** (`home-assistant`, 2026-09-27). Held: the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet — HD-471/421; HD-402 closed 2026-09-28), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
 | **HD-268b** implement `rag-mcp` (+ `forgejo-mcp`) | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **HD-267 tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |
 | **HD-248** Open WebUI instance split | One instance today; the public/internal capability split is undecided work. |
 | **HD-383** stale `dsh_api` bearer | **CLOSED 2026-09-28** — vault-side CLEARED 2026-09-26 (the consumer stays rejected, decision #26: do not restore the record) and the orphan alias `dsh` deleted from the **VPS** DB (9 → 8, behind an alias guard). Findings, including the endpoint shapes and the untouched same-class residue: §4a above. |
 | **HD-387** thinking-parameter re-measure | Open (see §9c). |
-| **HD-402** Docling OCR engine | Proposed EasyOCR → RapidOCR-ONNX; benchmark-gated. |
+| **HD-402** Docling OCR engine | **Closed 2026-09-28 by measurement: keep RapidOCR.** The swap premise was inverted (production already runs RapidOCR, not EasyOCR) and EasyOCR is 3.2–3.4× slower with its own diacritic/merge defects on the same real Slovenian scans. Full numbers + method: §Docling OCR engine selection. Residual work became **HD-471** (empty markdown, `noexec /tmp`) and **HD-472** (prose-page recall). |
 | **Mem0 / OpenHands** | Planned spark services; neither onboarded. |
