@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily DB-dump produce+push chain to the NAS
+# Implicitly arms push-db-dumps-push.service, which Requires= push-db-dumps.service (the producer).
+# This used to be push-db-dumps.timer; the chain head moved when the leg split in two (HD-468).
+
+[Timer]
+OnCalendar={{ storage_push_db_dumps.oncalendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

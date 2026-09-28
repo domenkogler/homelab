@@ -1,77 +1,51 @@
 #!/bin/bash
-# Managed by Ansible — storage role. Nightly DB-dump leg on oldsrv: PRODUCE the dumps this
-# host owns, then push them to the NAS.
+# Managed by Ansible — storage role. DB-dump leg on oldsrv, HALF ONE of two units: this one
+# PRODUCES the dumps this host owns. It runs unprivileged as `svc-backup` (in the docker group),
+# because that is the half that touches the docker socket. The copy to the NAS is
+# storage-push-db-dumps-push.sh, which must run as root — see the why in that file.
 #
-# Two independent failure modes were measured here on 2026-09-28 (HD-468) and both are
-# handled, because fixing only one of them yields a green timer that carries nothing:
-#  1. There was no producer at all. `/srv/dumps` was permanently empty (512 bytes = an empty
-#     directory), so the unit rsynced nothing to `tank/data/db-dumps` — and docs/backup.md
-#     already admitted "no dump job exists on oldsrv at all". A timer that ships an empty
-#     directory is worse than a red one, so this script FAILS when it would produce nothing.
-#  2. `rsync -a` onto the export cannot chown: nas exports `/tank/data` with
-#     `root_squash,anonuid=1005,anongid=1005`, so oldsrv's root lands as `media` and
-#     `change_dir/chown … Operation not permitted` gave rc 23 every single night. Owner and
-#     group preservation is therefore OFF on this leg (measured: `-a --no-owner --no-group`
-#     lands files as `media:media`, rc 0). rc 23 is not swallowed — the run is asserted.
-#
-# What it deliberately does NOT do: no `--delete` (a backup leg must not prune NAS history —
-# sanoid owns retention), and no rsync unless the target really is the NAS export (a stale
-# automount would otherwise turn a failed mount into a quietly local "backup").
+# Why this half exists at all (HD-468, measured 2026-09-28): `/srv/dumps` was a permanently EMPTY
+# directory. The old unit rsynced it to `tank/data/db-dumps` and, once the rsync flags were the only
+# thing fixed, would have gone green while shipping nothing. A leg that produces nothing must fail,
+# so every step here is asserted and an empty output is a failure rather than a success.
 set -euo pipefail
 umask 022
 
 SRC="{{ storage_push_db_dumps.src | quote }}"
-TARGET="{{ storage_push_db_dumps.target | quote }}"
-EXPECT="{{ storage_push_db_dumps.expected_source | quote }}"
 KEEP={{ storage_push_db_dumps.keep | default(14) | int }}
 STAMP=$(date -u +%Y%m%dT%H%M%SZ)
 
 fail() { echo "FATAL: $*" >&2; exit 1; }
 
-command -v docker  >/dev/null || fail "docker not present"
-command -v rsync   >/dev/null || fail "rsync not present"
-command -v findmnt >/dev/null || fail "findmnt not present"
-[ -d "$SRC" ] || fail "staging dir $SRC does not exist"
+command -v docker >/dev/null || fail "docker not present"
+[ -d "$SRC" ] || fail "staging dir $SRC does not exist (is the nvme/dumps dataset mounted?)"
 
-# ── 1. produce ────────────────────────────────────────────────────────────────────────────
 produced=0
 {% for pg in storage_push_db_dumps_pg %}
-# {{ pg.container }}: pg_dumpall INSIDE the container (the socket is local to it, and
-# --clean --if-exists makes the dump restorable onto a non-empty cluster), streamed through
-# gzip on the host so a failed dump can never leave a truncated file behind.
-# mktemp needs the X's at the END of the template, so the .err suffix is not an option here.
+# {{ pg.container }}: pg_dumpall INSIDE the container (its socket is local to it; --clean
+# --if-exists makes the dump restorable onto a non-empty cluster), streamed to a temp file and only
+# then gzipped — so a dump that dies halfway can never leave a truncated .sql.gz behind.
+# mktemp needs the X's at the END of the template, so a `.err` suffix is not an option here.
 err=$(mktemp "$SRC/.{{ pg.container }}.err.XXXXXX")
+raw=$(mktemp "$SRC/.{{ pg.container }}.raw.XXXXXX")
 out="$SRC/{{ pg.container }}-$STAMP.sql.gz"
 if ! docker exec {{ pg.container | quote }} pg_dumpall -U {{ pg.db_user | quote }} --clean --if-exists \
-      > "$out.raw" 2>"$err"; then
+      > "$raw" 2>"$err"; then
   reason=$(tail -c 300 "$err" 2>/dev/null | tr '\n' ' ')
-  rm -f "$out.raw" "$err"
+  rm -f "$raw" "$err"
   fail "{{ pg.container }}: pg_dumpall failed — ${reason:-(no stderr)}"
 fi
-gzip -n -c "$out.raw" > "$out" || { rm -f "$out.raw" "$err"; fail "{{ pg.container }}: gzip failed"; }
-rm -f "$out.raw"
+gzip -n -c "$raw" > "$out" || { rm -f "$raw" "$err"; fail "{{ pg.container }}: gzip failed"; }
+rm -f "$raw"
 [ -s "$out" ] || { rm -f "$out" "$err"; fail "{{ pg.container }}: dump is empty (that is not a backup)"; }
 gzip -t "$out" 2>/dev/null || { rm -f "$out" "$err"; fail "{{ pg.container }}: dump failed its own gzip integrity test"; }
 rm -f "$err"
-echo "dumped {{ pg.container }} → $(basename "$out") ($(stat -c %s "$out") bytes)"
-# local retention only; the NAS copy keeps whatever it has ever received
+echo "produced {{ pg.container }} → $(basename "$out") ($(stat -c %s "$out") bytes)"
+# Local retention only. The NAS side keeps whatever it has ever received; retention there belongs to
+# sanoid snapshots, not to a copy job (which is also why the push half never passes --delete).
 ls -1t "$SRC"/{{ pg.container }}-*.sql.gz 2>/dev/null | tail -n +$(( KEEP + 1 )) | xargs -r rm -f
 produced=$(( produced + 1 ))
 {% endfor %}
+
 [ "$produced" -gt 0 ] || fail "no dump sources configured (storage_push_db_dumps_pg is empty) — this leg is a no-op, and a no-op is not a backup"
-
-# ── 2. push ───────────────────────────────────────────────────────────────────────────────
-tgt=$(findmnt -no SOURCE,FSTYPE -T "$TARGET" 2>/dev/null || true)
-case "$tgt" in
-  *"$EXPECT"*nfs*) : ;;
-  *) fail "$TARGET is not mounted from $EXPECT (found: ${tgt:-nothing}) — refusing to write a backup where the mount is not" ;;
-esac
-
-rsync -a --no-owner --no-group --delay-updates "$SRC/" "$TARGET/" \
-  || fail "rsync $SRC → $TARGET failed (rc $?)"
-
-# ── 3. prove it landed ────────────────────────────────────────────────────────────────────
-newest=$(ls -1t "$TARGET"/*.sql.gz 2>/dev/null | head -1 || true)
-[ -n "$newest" ] || fail "no .sql.gz visible on $TARGET after rsync"
-[ -n "$(find "$newest" -mmin -60)" ] || fail "newest dump on $TARGET ($newest) is older than an hour — the push did not land"
-echo "OK: $produced dump(s) pushed; newest on target is $(basename "$newest") ($(stat -c %s "$newest") bytes)"
+echo "OK: $produced dump(s) produced into $SRC"

@@ -1,14 +1,18 @@
 ---
-# oldsrv: NFS client mounts + the nightly DB-dump push leg.
+# oldsrv: NFS client mounts + the nightly DB-dump leg.
 #
-# There used to be THREE push legs here. Two of them could never exit 0 on this host and
-# were removed on 2026-09-28 (HD-468) rather than patched into a green lie:
-#   * push-services  — it ran `docker exec forgejo` / `docker exec n8n`, and BOTH live on
-#     the vps (measured: oldsrv's `docker ps` has neither). Its payload is vps state.
-#   * push-face-thumbs — its source /srv/docker/immich/upload/thumbs does not exist on
-#     oldsrv (immich-server, immich-postgres and the 1.2 MB thumbs tree live on the vps);
-#     oldsrv only runs the immich-ml leg, which holds no user data.
-# The removals + what still has to be built on the vps are in docs/backup.md.
+# Every task here carries `tags: storage`, and BOTH that and the tag on the include in
+# tasks/main.yml are load-bearing — see the comment there. Without them `--tags storage` against
+# this host is a green, changed=0 no-op (measured 2026-09-28, HD-468).
+#
+# There used to be THREE push legs here. Two of them could never exit 0 on this host and were
+# removed on 2026-09-28 rather than patched into a green lie:
+#   * push-services  — it ran `docker exec forgejo` / `docker exec n8n`, and BOTH live on the vps
+#     (measured: oldsrv's `docker ps` has neither). Its payload is vps state.
+#   * push-face-thumbs — its source /srv/docker/immich/upload/thumbs does not exist on oldsrv
+#     (immich-server, immich-postgres and the 1.2 MB thumbs tree live on the vps); oldsrv only runs
+#     the immich-ml leg, which holds no user data.
+# The removals, and what still has to be built on the vps, are in docs/backup.md.
 
 # ---------------------------------------------------------------------------
 # NFS client mounts (fstab + systemd automount)
@@ -24,8 +28,8 @@
   tags: storage
 
 # ---------------------------------------------------------------------------
-# Retired legs: stop, unarm and delete (HD-468). Guarded by a stat so a re-run after
-# the unit files are gone stays idempotent instead of erroring on a missing unit.
+# Retired legs: stop, unarm and delete. Guarded by a stat so a re-run after the unit files are
+# gone stays idempotent instead of erroring on a missing unit.
 # ---------------------------------------------------------------------------
 - name: Check for retired push units before removing them
   ansible.builtin.stat:
@@ -35,6 +39,7 @@
     - push-services.timer
     - push-face-thumbs.service
     - push-face-thumbs.timer
+    - push-db-dumps.timer      # superseded by push-db-dumps-push.timer when the leg split in two
   register: retired_push_units
   tags: storage
 
@@ -60,15 +65,45 @@
     - /etc/systemd/system/push-services.timer
     - /etc/systemd/system/push-face-thumbs.service
     - /etc/systemd/system/push-face-thumbs.timer
-    - /usr/local/sbin/storage-push-services.sh
+    - /etc/systemd/system/push-db-dumps.timer
+    - /usr/local/sbin/storage-push-services.sh   # the vps-only script (HD-468)
   notify: Reload systemd
   tags: storage
 
+- name: Ask which retired units are still counted as failed
+  ansible.builtin.command: systemctl is-failed {{ item }}
+  loop:
+    - push-services.service
+    - push-face-thumbs.service
+    - push-db-dumps.timer
+  register: retired_failed
+  changed_when: false
+  failed_when: false
+  tags: storage
+
+# A unit whose files are deleted keeps its red state: `systemctl --failed` went on listing
+# `push-services.service not-found failed` after the removal, so `--failed` on oldsrv still read as
+# a problem list full of problems that no longer exist. That is worth one more task, because an
+# unreadable red list is how the next real failure gets missed (HD-450's class). The guard is the
+# retired set only — a LIVE unit that genuinely failed must never be reset here (measured: is-failed
+# exits 0 for the ghosts, 1 for the healthy chain head).
+- name: Clear the failed-state of retired units whose unit files are gone
+  ansible.builtin.command: systemctl reset-failed {{ item.item }}
+  loop: "{{ retired_failed.results }}"
+  loop_control:
+    label: "{{ item.item }}"
+  when: item.rc == 0
+  changed_when: true
+  tags: storage
+
 # ---------------------------------------------------------------------------
-# Push job — DB dumps: produce them here, then push → tank/data/db-dumps
+# The DB-dump leg: produce (unprivileged) then push (as the identity the export accepts)
 # ---------------------------------------------------------------------------
-# Dedicated non-root run user (KOPS-056 / HD-127): a timer must not reach the docker
-# socket as root. svc-backup is in the docker group and owns the dump staging dir.
+# Dedicated non-root run user for the docker-touching half (KOPS-056 / HD-127): a timer must not
+# reach the docker socket as root. svc-backup is in the docker group and owns the dump staging dir.
+# The push half is root on purpose — `root_squash,anonuid=1005` on the export means root IS the
+# writer identity there; measured as svc-backup it dies with `rsync [receiver] mkstemp … Permission
+# denied (13)`. Do not unify the two users.
 - name: Create dedicated non-root backup user (svc-backup)
   ansible.builtin.user:
     name: svc-backup
@@ -89,23 +124,25 @@
     mode: "0755"
   tags: storage
 
-- name: Render the DB-dump push script + units
+- name: Render the produce/push scripts and their units
   ansible.builtin.template:
     src: "{{ item.src }}"
     dest: "{{ item.dest }}"
     mode: "{{ item.mode }}"
   loop:
-    - { src: storage-push-db-dumps.sh.j2, dest: /usr/local/sbin/storage-push-db-dumps.sh, mode: "0755" }
-    - { src: push-db-dumps.service.j2,    dest: /etc/systemd/system/push-db-dumps.service, mode: "0644" }
-    - { src: push-db-dumps.timer.j2,      dest: /etc/systemd/system/push-db-dumps.timer,   mode: "0644" }
+    - { src: storage-push-db-dumps.sh.j2,      dest: /usr/local/sbin/storage-push-db-dumps.sh,      mode: "0755" }
+    - { src: storage-push-db-dumps-push.sh.j2, dest: /usr/local/sbin/storage-push-db-dumps-push.sh, mode: "0755" }
+    - { src: push-db-dumps.service.j2,         dest: /etc/systemd/system/push-db-dumps.service,      mode: "0644" }
+    - { src: push-db-dumps-push.service.j2,    dest: /etc/systemd/system/push-db-dumps-push.service, mode: "0644" }
+    - { src: push-db-dumps-push.timer.j2,      dest: /etc/systemd/system/push-db-dumps-push.timer,   mode: "0644" }
   loop_control:
     label: "{{ item.dest }}"
   notify: Reload systemd
   tags: storage
 
-- name: Enable+start push-db-dumps.timer
+- name: Enable+start push-db-dumps-push.timer (the chain head)
   ansible.builtin.systemd:
-    name: push-db-dumps.timer
+    name: push-db-dumps-push.timer
     daemon_reload: true
     enabled: true
     state: started

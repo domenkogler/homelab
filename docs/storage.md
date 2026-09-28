@@ -153,7 +153,7 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 
 | Job | Source (oldsrv) | Target (nas) | Method |
 |-----|-----------------|--------------|--------|
-| DB dumps | `/srv/dumps` (produced here by `storage-push-db-dumps.sh`: `pg_dumpall` per container in `storage_push_db_dumps_pg`) | `tank/data/db-dumps` | rsync `-a --no-owner --no-group` — the export is `root_squash,anonuid=1005`, so preservation is not optional |
+| DB dumps | `/srv/dumps` — produced here by `push-db-dumps.service` → `storage-push-db-dumps.sh` (`pg_dumpall` per container in `storage_push_db_dumps_pg`), as `svc-backup` | `tank/data/db-dumps` — pushed by `push-db-dumps-push.service` (the timer's chain head), **as root**: the export maps root to `anonuid=1005`, which is the only identity it accepts writes from | rsync `-a --no-owner --no-group`, no `--delete`; preservation is not optional on this export, see [backup.md](backup.md) §What the 2026-09-28 sweep found |
 
 **There used to be two more rows here.** `push-services` (Forgejo/n8n state) and `push-face-thumbs` were
 removed 2026-09-28 (**HD-468**): both named payloads that live on the **VPS**, not on oldsrv, so neither

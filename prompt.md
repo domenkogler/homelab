@@ -137,9 +137,9 @@ container. ✅ **The gated rows are ungated:** `oldsrv` answers again (2026-09-2
 button for four days, not lost — so `lan-litellm` (**HD-384**'s mint, **HD-403**'s key), the Cockpit tailnet node
 (**HD-465**) and the stale `OLLAMA_KEEP_ALIVE` line (**HD-404(a)**) are reachable again, and the two rows the outage
 were gating both closed on it: **HD-347**'s Signal group ID is in SSOT and **delivery is proven** (see below), and
-`bootstrap_keys` flipped on `lan-litellm`. What the same reading exposed instead are two silent-failure rows that had been hiding
-behind the outage: **HD-467** (P1 — no home host is UPS-protected) and **HD-468** (oldsrv's `push-*` backup
-timers have never once succeeded).
+`bootstrap_keys` flipped on `lan-litellm`. What the same reading exposed instead are two rows that had been hiding behind the
+outage: **HD-467** (P1 — no home host is UPS-protected) and the oldsrv `push-*` timers, whose closure
+then uncovered **HD-469**: the VPS's own dumps and service state have exactly one copy on one disk.
 
 
 
@@ -214,7 +214,15 @@ cockpit host (HD-361). ⏳ The power half of that lane is about the **next** out
   does not resolve locally and a name-based read prints 000 on a healthy edge.
 - **HD-454** — ⏳ **oldsrv has NO out-of-band power path, and the doc that seemed to document one was reading a shopping list as inventory**: the GL.iNet Comet KVM **was never bought** (owner confirmed 2026-09-27), so there is no address/network/account to write down — the only remote power control is the **chassis button**, plus a human at home. That is what the four-day outage actually cost. ⚠ The 2026-09-24 "WoL is spent" verdict also lost its premise: the NIC reads `Supports Wake-on: pumbg` / `Wake-on: g` (armed by `/etc/network/if-up.d/ethtool`), so that silence was measured against a box with no standby power — ⏳ re-test it ONCE at a planned power-off before buying anything. ⏳ Owner call: buy a real path or accept presence-only; if bought, **where** it sits is deliberate (VLAN 99 is sealed same-site by HD-398 A, and a device that can hard-power a production host must not land un-gated on a user VLAN). · [docs/hardware-oldsrv.md](docs/hardware-oldsrv.md)
 - **HD-467** — ⏳ **P1: no home host is UPS-protected, and nothing can see it.** The nas's `upsd` logs `not listening on <its Home address> port 3493` at start and `ss -lntp` shows loopback only, so oldsrv and the Pi get `Connection refused` indefinitely while `systemctl is-active nut-monitor` keeps answering `active` (upsmon retries forever — a unit result is never evidence for this class). ⛔ A mains loss today hard-stops the home hosts with no orderly shutdown. Make the declared listener bind, declare the `ACCEPT`/`REJECT` ACL in the same change (`upsd.conf` names none), and accept only from the clients: `upsc powerwalker@nas.kogler.si ups.status` → `OL…` on **both** · [docs/hardware-ups.md](docs/hardware-ups.md)
-- **HD-468** — ⏳ **none of oldsrv's three `push-*` backup timers has ever succeeded**, and because the timers re-arm, a 04:00 failure is invisible by 09:00 and no series carries it. Three distinct causes sit in the row: `chown` refused on the root-squashed NFS export (rc 23), `push-services` dumping `forgejo`/`n8n` containers that exist only on the VPS, and `push-face-thumbs` reading a source path that does not exist. Correct [docs/backup.md](docs/backup.md)'s coverage table in the same change.
+- **HD-469** — ⏳ **the VPS's own state has one copy on one disk.** Found while sweeping the oldsrv push legs: the nas
+  exports are each pinned to a single `/32` (oldsrv's address), so the VPS cannot push to the NAS by NFS
+  at all, and it has no `restic`/`borg`/`kopia` CLI either — only the `kopia-server` container. So its
+  `db-backup` Postgres dumps, the forgejo archive and the n8n sqlite (the payload the now-removed
+  `push-services` unit pretended to move) sit on the same disk as the services they would restore. The
+  transport is not a mystery: the immich originals tier already pushes from that host to a Hetzner
+  Storage Box. Acceptance is a copy that exists off the VPS disk, read back, plus one restore of one DB
+  from it — see [docs/backup.md](docs/backup.md).
+
 - **OIDC epic tail — `foto`/`chat`/`git`/`file` are proven by a human login; the tail is two rows and your
   browser.** **HD-457: the owner answered it 2026-09-26** — the SSO seat `domen@` **is** the family library, and the native
   `admin@` seat is break-glass holding 2 upload-test assets, so there is nothing to migrate and `Auto Register` cost

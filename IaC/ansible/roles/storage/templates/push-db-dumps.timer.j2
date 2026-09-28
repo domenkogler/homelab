@@ -1,9 +1,0 @@
-[Unit]
-Description=Daily DB-dump push to NAS (after tiredofit/db-backup)
-
-[Timer]
-OnCalendar={{ storage_push_db_dumps.oncalendar }}
-Persistent=true
-
-[Install]
-WantedBy=timers.target

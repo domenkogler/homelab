@@ -1,0 +1,18 @@
+[Unit]
+Description=Push oldsrv DB dumps to the NAS ({{ storage_push_db_dumps.target }})
+Documentation=file:///usr/local/sbin/storage-push-db-dumps-push.sh
+# Chain: produce first, then push. A oneshot dependency still gates us — if the producer fails,
+# this job fails, which is the whole point (a push of yesterday's dumps must not look green).
+Requires=push-db-dumps.service
+After=push-db-dumps.service network-online.target
+
+[Service]
+# HALF TWO of the DB-dump leg (HD-468). Runs as ROOT deliberately: nas exports `/tank/data` with
+# root_squash,anonuid=1005, so root is mapped to `media` — the only identity that export accepts for
+# writing. Measured: running this as svc-backup gives `rsync [receiver] mkstemp … Permission
+# denied (13)` against a drwxr-xr-x media:media target.
+Type=oneshot
+ExecStart=/usr/local/sbin/storage-push-db-dumps-push.sh
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle

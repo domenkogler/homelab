@@ -1,0 +1,44 @@
+#!/bin/bash
+# Managed by Ansible — storage role. DB-dump leg on oldsrv, HALF TWO: copy the dumps this host
+# produced onto the NAS. Runs as ROOT, and that is not an oversight.
+#
+# Why two run users (HD-468, measured 2026-09-28): nas exports `/tank/data` with
+# `root_squash,anonuid=1005,anongid=1005`, so oldsrv's root is mapped to `media` — which is the ONLY
+# identity the export accepts for writing (the target dir is `drwxr-xr-x media:media`). The obvious
+# "least privilege" move of running this half as svc-backup fails, and fails in a way that looks like
+# a permission bug rather than an identity-model fact: `rsync [receiver] mkstemp … Permission
+# denied (13)`. So the docker-touching half stays unprivileged and this half uses the identity the
+# export was built around. Anything that later changes the export (or the target's ownership, which
+# lives on the NAS) can revisit this.
+#
+# What is asserted rather than assumed:
+#  * the target really is the NAS export — a stale automount must not turn a failed mount into a
+#    quietly LOCAL "backup", which is the failure mode a green timer loves;
+#  * owner/group preservation is OFF, because on this export it can only ever fail (rc 23);
+#  * the copy landed, by looking for a fresh file on the far side.
+set -euo pipefail
+
+SRC="{{ storage_push_db_dumps.src | quote }}"
+TARGET="{{ storage_push_db_dumps.target | quote }}"
+EXPECT="{{ storage_push_db_dumps.expected_source | quote }}"
+
+fail() { echo "FATAL: $*" >&2; exit 1; }
+
+command -v rsync   >/dev/null || fail "rsync not present"
+command -v findmnt >/dev/null || fail "findmnt not present"
+[ -d "$SRC" ] || fail "staging dir $SRC does not exist"
+
+tgt=$(findmnt -no SOURCE,FSTYPE -T "$TARGET" 2>/dev/null || true)
+case "$tgt" in
+  *"$EXPECT"*nfs*) : ;;
+  *) fail "$TARGET is not mounted from $EXPECT (found: ${tgt:-nothing}) — refusing to write a backup where the mount is not" ;;
+esac
+
+# no --delete: retention on the NAS belongs to sanoid, not to a copy job
+rsync -a --no-owner --no-group --delay-updates "$SRC/" "$TARGET/" \
+  || fail "rsync $SRC → $TARGET failed"
+
+newest=$(ls -t -1 "$TARGET"/*.sql.gz 2>/dev/null | head -1 || true)
+[ -n "$newest" ] || fail "no .sql.gz visible on $TARGET after rsync"
+[ -n "$(find "$newest" -mmin -60)" ] || fail "newest dump on $TARGET ($newest) is older than an hour — the push did not land"
+echo "OK: pushed to $TARGET; newest there is $(basename "$newest") ($(stat -c %s "$newest") bytes)"

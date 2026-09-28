@@ -1,14 +1,16 @@
 [Unit]
-Description=Produce oldsrv DB dumps and push them (local scratch → tank/data/db-dumps)
+Description=Produce oldsrv DB dumps (local scratch {{ storage_push_db_dumps.src }})
 Documentation=file:///usr/local/sbin/storage-push-db-dumps.sh
 After=network-online.target
 Wants=network-online.target
 
 [Service]
+# HALF ONE of the DB-dump leg (HD-468): produce only. Unprivileged on purpose — this is the half
+# that touches the docker socket, and a nightly timer has no business owning it as root
+# (KOPS-056 / HD-127). svc-backup is in the docker group and owns the staging dir.
+# The copy to the NAS is push-db-dumps-push.service, which runs as root because the export maps
+# root to the only uid it accepts writes from; do not "harmonise" the two run users.
 Type=oneshot
-# Non-root on purpose (KOPS-056/HD-127): the dump needs the docker socket, and a nightly
-# timer has no business owning it as root. svc-backup is in the docker group and owns the
-# staging dir — see roles/storage/tasks/oldsrv.yml.
 User=svc-backup
 Group=svc-backup
 ExecStart=/usr/local/sbin/storage-push-db-dumps.sh

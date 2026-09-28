@@ -191,10 +191,22 @@ Three red timers, three different truths, and only one of them was the one the f
 - `push-db-dumps` — **two stacked defects.** `rsync -a` cannot chown onto an export mounted
   `root_squash,anonuid=1005` (rc 23 every night), **and there was no producer at all** — `/srv/dumps`
   was an empty directory, so fixing only the rsync flags would have produced a green timer shipping
-  nothing. Both fixed: `storage-push-db-dumps.sh` dumps each Postgres this host runs
-  (`storage_push_db_dumps_pg`), gzip-tests it, refuses to ship an empty dump, asserts the target really
-  is the `nas.kogler.si:/tank/data` mount before writing, and copies with owner/group preservation off.
+  nothing. Both fixed, and the fix is **two units because one run user cannot serve both halves**:
+  `push-db-dumps.service` → `storage-push-db-dumps.sh` runs **as `svc-backup`** (docker group, owns
+  `/srv/dumps`), dumps every Postgres in `storage_push_db_dumps_pg`, gzip-tests it and fails on an empty
+  dump; `push-db-dumps-push.service` → `storage-push-db-dumps-push.sh` runs **as root**, asserts the
+  target really is the `nas.kogler.si:/tank/data` mount, copies with owner/group preservation off and
+  then confirms a fresh file exists on the far side. The timer arms the push unit, which
+  `Requires=`/`After=` the producer, so a failed dump cannot be papered over by pushing yesterday's file.
   No `--delete` — retention belongs to sanoid, not to a copy job.
+
+  **Why the push half is root and not `svc-backup`, since it looks like a privilege regression:** the
+  export maps root to `anonuid=1005` (`media`), and the target directory is `drwxr-xr-x media:media`,
+  so `media` is the only identity the export accepts writes from. Running the push as `svc-backup` was
+  tried first and measured: `rsync [receiver] mkstemp … Permission denied (13)`. Least-privilege and
+  this export's identity model are in genuine conflict; the resolution is to make only the half that
+  needs the docker socket unprivileged, and to say so in both unit files so nobody "harmonises" them
+  back into one user and reintroduces the failure.
 - `push-services` — it ran `docker exec forgejo` / `docker exec n8n`, and **neither container exists on
   oldsrv** (`group_vars/vps.yml` owns both). Removed. Skipping the missing containers so it could exit 0
   was the available shortcut and is exactly the fake-green this repo forbids, so the leg went away.
