@@ -317,9 +317,37 @@ on the full 1319-question GSM8K (**93.18–95.15 %**; the NVIDIA NVFP4 export 94
   (Also: nvfp4 KV, 3.06× pool, is available in the still-open #54846 — it measured perplexity +0.37…0.59 % worse
   with CIs excluding 0 and 6/12 vs 8/8 on near-1M aggregation. Do not open that axis here.)
 
+## Timed measurements: the box is capped now — measure under the cap
+
+**Owner decision 2026-09-28, already implemented in IaC: spark runs permanently at `nvidia-smi -lgc 300,2200`
+(`roles/spark`, `spark-gpu-clock-cap.service`, tag `clockcap`, asserted on every converge).** Do not lock it and
+do not reset it — the ceiling is house state. What changes for you is *how you label numbers*.
+
+* **Verify it is in effect at the start of every timed window:**
+  `ssh spark 'nvidia-smi --query-gpu=clocks.sm,clocks.max.sm,power.draw,temperature.gpu --format=csv'` must read
+  `clocks.max.sm = 2200`. If it does not, that is a **host finding for the report**, not something to fix by hand
+  mid-run: the role owns that state, and an ad-hoc `-lgc`/`-rgc` inside a measurement window destroys the thing
+  you are measuring.
+* **Every tok/s, TTFT and TPOT number this brief produces is now under-cap.** The first under-cap run of the
+  `reasoning` lane is a **new baseline** — write the regime in the report header. Do **not** compare it to the
+  unlocked figures still in the docs (~11 tok/s decode, 17,008 tok/s re-prefill, `SM_CLOCK` 2509 MHz): those are
+  pre-cap history. The cap is ~12 % of clock on this unit (it sat at 2496 MHz; ceiling is 2200), and upstream
+  measured ~5 % on bandwidth-bound inference.
+* **One regime per A/B.** Both arms inherit the cap, so fp8-vs-bf16 and NVFP4-vs-AWQ stay clean — but if the cap
+  is missing on one arm (a `--skip-tags clockcap` converge, a driver reload between measurements) the A/B is
+  void. Re-read `clocks.max.sm` at the **end** of each window and put both reads in `spark/reports/hd469-<profile>/`.
+* **GB10 will not validate a clock value for you:** `--query-supported-clocks=graphics` returns **[N/A]** here,
+  and there is a documented GB10 unit where `-lgc` is accepted and does nothing. The read-back is the only proof,
+  and a report quoting a clock state it never read is worse than one quoting none.
+* **If the role's assert fails on the first converge**, this unit is in that no-op class: say so in the report and
+  let the owner pick ceiling-up or `spark_gpu_clock_cap_enable: false` (stops the unit; its `ExecStop` hands the
+  clocks back with `-rgc`). Do **not** paper over it with `--skip-tags clockcap` and carry on as if capped.
+
 ## Report + commit
 
-Write the run into `spark/reports/hd469-<profile>/` (commands, timestamps, `MemAvailable`, preemption +
+Write the run into `spark/reports/hd469-<profile>/` (commands, timestamps, `MemAvailable`, **`clocks.sm` /
+`clocks.max.sm` / power / temp read at the start AND end of each timed window — the cap must be shown, not
+assumed**, preemption +
 prefix-hit + `spec_decode` counters from `/metrics`, the engine's own `Available KV cache memory` /
 `GPU KV cache size` lines, probe output) and cite it from the doc — `certified_evidence:` in the catalogue takes a
 **link to that directory**, never prose. Fix what run #1 left half-done: `spark/reports/hd469-graded/README.md`
