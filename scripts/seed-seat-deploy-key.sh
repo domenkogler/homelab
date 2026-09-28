@@ -10,6 +10,10 @@
 # Two git paths on one box is the decision, so this script installs under `domen` ONLY and
 # asserts at the end that the runner's remote and `~ansible-admin/.ssh` are untouched.
 #
+# The GitHub remote is **PUBLIC** (measured 2026-09-28: api.github.com returns `private: false`),
+# so reading it needs no credential. That is why `--check` can clone before the key works, and
+# why the read-only token below is about scope + a non-interactive identity, not secrecy.
+#
 # Run ON the seat host as root (it needs to write into another account's home):
 #     ssh oldsrv 'sudo bash -s' -- --check < scripts/seed-seat-deploy-key.sh
 #     ssh oldsrv 'sudo bash -s'           < scripts/seed-seat-deploy-key.sh
@@ -172,15 +176,28 @@ case "$probe" in
     say "   op read op://$VAULT/$ITEM/public_key   →   https://github.com/domenkogler/homelab/settings/keys/new"
     say "   ⚠ 'Allow write access' MUST be ticked, or the seat clones and cannot push."
     say "   Nothing else here needs redoing: key, ssh config and host pin are already in place."
+    # The remote is PUBLIC (measured 2026-09-28: api.github.com returns private:false), so a READ
+    # needs no credential at all: materialise the tree over anonymous HTTPS, then point origin at
+    # the ruled SSH remote so the seat exists for authoring and the retry after the owner act is
+    # just this script again. Every sync then fails CLOSED at the key — that is the point.
+    if [ "$CHECK" != 1 ] && [ ! -d "$REPO/.git" ]; then
+      sudo -u "$SEAT" -H env GIT_TERMINAL_PROMPT=0 git clone --quiet "https://github.com/domenkogler/homelab.git" "$REPO" \
+        && say "seat clone materialised anonymously (public read — no credential planted)"
+      sudo -u "$SEAT" -H git -C "$REPO" remote set-url origin "$REMOTE"
+      say "  origin = $(sudo -u "$SEAT" -H git -C "$REPO" remote get-url origin)  (the ruled shape)"
+      say "  ⚠ it cannot fetch or push until the key is registered; nothing here degrades to HTTPS silently,"
+      say "    because origin is SSH for BOTH directions — no pushurl split, no second git path."
+    fi
     exit 3 ;;
   *) say "⛔ unexpected auth result — not continuing"; exit 1 ;;
 esac
 
 if [ "$CHECK" = 1 ]; then say "--check: stopping before the clone"; exit 0; fi
 if [ ! -d "$REPO/.git" ]; then
-  sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git clone --quiet "$REMOTE" "$REPO" && say "seat clone created" || { say "CLONE FAILED"; exit 1; }
+  sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git clone --quiet "$REMOTE" "$REPO" && say "seat clone created over the deploy key" || { say "CLONE FAILED"; exit 1; }
 else
   say "seat clone already present"
+  sudo -u "$SEAT" -H env SSH_AUTH_SOCK= git -C "$REPO" fetch --quiet origin && say "  fetch over the deploy key: ok" || say "  FETCH FAILED over the deploy key"
 fi
 say "  remote: $(sudo -u "$SEAT" -H git -C "$REPO" remote get-url origin)"
 say "  HEAD:   $(sudo -u "$SEAT" -H git -C "$REPO" rev-parse --short HEAD) $(sudo -u "$SEAT" -H git -C "$REPO" rev-parse --abbrev-ref HEAD)"
