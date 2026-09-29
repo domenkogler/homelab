@@ -159,15 +159,18 @@
   loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
   tags: [spark, spark-artifacts, artifacts]
 
-- name: Flatten the nested ples_int4/ples_int4 dir into place (idempotent)
+- name: Flatten the nested ples_*/ples_* dir into place (idempotent, verify)
   ansible.builtin.shell: >
     bash -c '
       inner="{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}/{{ item.subdir }}";
       outer="{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}";
       shopt -s dotglob nullglob;
       if [ -d "$inner" ]; then
-        if [ -n "$(ls -A "$inner")" ]; then mv "$inner"/* "$outer"/; fi;
-        rmdir "$inner";
+        if [ -n "$(ls -A "$inner")" ]; then mv "$inner"/* "$outer"/; rc=$?; [ $rc -ne 0 ] && exit $rc; fi;
+        rmdir "$inner" || true;
+        if [ -d "$inner" ] && [ -n "$(ls -A "$inner")" ]; then
+          echo "FLATTEN-INCOMPLETE: $inner still has content" >&2; exit 9;
+        fi
       fi
     '
   args:
@@ -179,6 +182,10 @@
     # 2026-09-28 (HD-469 cert): with an EMPTY nested dir the bare `mv "$inner"/*`
     # is a no-arg mv → error exit; guard the mv on content and always rmdir so an
     # empty leftover (created by the dir-ensure task) is cleaned, not retried.
+    # 2026-09-29 (run #3): the task once reported `changed` while the nested dir
+    # was still full (transient mv failure mid-download); verify the flat result
+    # and fail the converge loudly so the next run re-flattens instead of the
+    # gate rejecting the profile on a nested store.
   become: "{{ spark_artifacts_become | default(false) }}"
   loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
   tags: [spark, spark-artifacts, artifacts]
