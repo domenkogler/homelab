@@ -90,6 +90,14 @@ uncertified without the override · artifacts missing. The dial is `spark_llm_pr
 
 ## Sequence
 
+> **Run #4 state (2026-09-29, after run #3 — read this before spending a window):** step 1 the
+> baseline is **OWED** (the cap converged 15:45 but no clock-regime trace exists — this is the
+> valuable leg, and it is why run #4 must be a non-spark-served session); step 2 `graded` **DONE**
+> (BLOCKED-ON-IMAGE, re-derivable in 40 s, no box work); step 3 artifacts **STAGED** (verify only, do
+> not re-fetch); step 4 `fast` is **HD-475 and code-first** (it booted and failed gate 3 — do not flip
+> it to rediscover that); step 5 sglang **do not spike**; step 6 client half **no change needed**
+> (every profile serves the same 262,144 window, so `models-spec.yml` needs nothing today).
+
 **0 · Local, before touching the box** (your own fresh worktree — CONVENTIONS §6):
 ```bash
 git -C ../homelab-wt-<date>-<HHMM> status
@@ -137,29 +145,43 @@ again — say so loudly, and do not flip the profile on the strength of a grep. 
 no box work, no risk, a pass. `UNDECIDED` means one leg could not run — that is not a verdict; fix
 the leg or write “OPEN” in the report.
 
-**3 · Stage the `fast` artifacts — explicitly, in its own window** (≈117 GB over a 1 G link; ~296 GB
-was free after B1 staging, re-check `df` first):
+**3 · The `fast` artifacts are ALREADY STAGED — verify, do not re-fetch.** Run #3 staged
+`nvfp4-mixed` + `ple-nvfp4` (~117 GB) in its own window and both landed; re-checked read-only on
+2026-09-29: `Qwen3.8-Flash-Next-mixed-NVFP4-FP8/.index-trimmed` = **130 entries dropped
+(pattern=ngram)**, **no `ple-bf16-*`** anywhere, `ples_nvfp4/` flat (`META.json` + shards, no nested
+dir left by the flatten step). ⚠ **Disk headroom is now ~185 GB, not the ~296 GB this brief assumed**
+— a needless re-fetch of a 117 GB set on a 504 GB store is how you walk into a full data disk, so the
+artifacts tag is NOT run by default:
 ```bash
-nohup ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark --tags spark-artifacts \
-  -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]' >/tmp/hd469-artifacts.log 2>&1 &
+ssh spark 'cat /mnt/spark_nvme/models/Qwen3.8-Flash-Next-mixed-NVFP4-FP8/.index-trimmed; find /mnt/spark_nvme -maxdepth 2 -name "ple-bf16-*" | head; df -h /mnt/spark_nvme | tail -1'
 ```
-The `weights-trim` kind skips the checkpoint’s own BF16 PLE table (`ple-bf16-*`, 102.4 GB of 191.0)
-and trims the `ngram` entries from `model.safetensors.index.json` — verify both landed: no
-`ple-bf16-*` in the dir, and `<model dir>/.index-trimmed` says how many entries it dropped.
+If — and only if — a verify fails, re-run the fetch **detached, in its own window**, naming the kinds
+that are actually missing (never the whole set): `--tags spark-artifacts -e
+spark_artifacts_fetch='["nvfp4-mixed","ple-nvfp4"]'`.
 
-**4 · `fast` — the valuable thing left, and it needs no engine change.** The catalogue already
-carries the decision this run used to have to make: `fast` is **NVFP4 weights on bf16 KV** with an
-**11 GB** pool (`kv_cache_dtype: auto`), because the fp8 half belongs to HD-473 and the weights cost
-+≈5.2 GB of the shared pool. One variable = the weights. Set `spark_llm_profile: fast` +
-`spark_llm_allow_uncertified: true`, converge **detached**, then run gates 0–7 of
-[spark/llm-profiles/README.md](spark/llm-profiles/README.md). Two things decide it, in order:
-(a) **does it boot** with the PLE overlay + `ples_nvfp4` sidecar (`VLLM_GDN_DECODE_KERNEL=triton` is
-set by the profile — the *plain* NVFP4 build must drop it); (b) **accuracy** — the existing captures
-disagree (91/100 vs 98/100, and 99/100 elsewhere) because engine/template/effort were not held
-constant, so record engine, template, thinking state and budget with every score or the number is
-worthless. Gate 7 is not optional here: the profile’s `fixed_cost_bytes` is **DERIVED**, and the
-watchdog curve is what falsifies it — if `usable` drops toward 17.78 GiB or the pool the engine
-reports is smaller than 11 GB’s worth of slots, shrink the pool and record the measured fixed cost.
+**4 · `fast` is HD-475's, and it is CODE-FIRST — do not flip the profile to re-prove gate 3.** Run #3
+staged the weights, booted the profile healthy (`GPU KV cache size: 354,248 tokens / 1.35×`,
+`RestartCount=0`, so the DERIVED `fixed_cost_bytes` held and the 11 GB pool is real) and it **failed
+gate 3**: the 262,144-token leg 502s at ~105 s and `concurrent 4` fails 0/4, with `RestartCount=0`,
+`OOMKilled=false` and zero preemptions ruling memory out — the engine's jit_monitor lines show the
+QSA/GDN kernels compiling **at inference** because the profile sets
+`VLLM_GDN_DECODE_KERNEL=triton`, which the plain mixed-NVFP4 build must not carry, and the full-window
+prefill then trips the engine's 60 s `shm_broadcast` timeout. Evidence + the exact next steps:
+[`spark/reports/hd469-fast/README.md`](spark/reports/hd469-fast/README.md).
+
+So the order is: **first** change the profile (drop that env, or pre-warm the kernel shapes — the fix
+is a code edit, and a converge that boots the old argv buys nothing but a 14-minute boot and a repeat
+502); **then** set `spark_llm_profile: fast` + `spark_llm_allow_uncertified: true`, converge
+**detached**, and run gates 0–7 of [spark/llm-profiles/README.md](spark/llm-profiles/README.md) from a
+session that is not spark-served. (b) **accuracy** — the existing captures disagree (91/100 vs 98/100,
+and 99/100 elsewhere) because engine/template/effort were not held constant, so record engine,
+template, thinking state and budget with every score or the number is worthless. Gate 7 is not
+optional here either: the profile's `fixed_cost_bytes` is **DERIVED**, and what falsifies it is one
+working day of OOM-watchdog `usable` samples **plus** the pool the engine itself reports (run #3
+verified the pool from the boot line and never ran the day) — if `usable` drops toward 17.78 GiB or the
+reported pool is smaller than 11 GB's worth of slots, shrink the pool and record the measured fixed
+cost. Timed legs carry the sustained `clocks.sm` trace and the `/metrics` counters (§Timed
+measurements); one `/tmp/hd469-fast-<HHMM>.log` per converge attempt.
 
 **5 · `fast-sglang` — expect a refusal, and that is the pass.** `spark_sglang_image` is empty on
 purpose (CONVENTIONS §7: no floating tag); the gate aborting is the correct outcome. The *why* was
