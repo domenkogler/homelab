@@ -33,6 +33,7 @@ import json
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -46,7 +47,7 @@ except ImportError:  # pragma: no cover
 REPO = Path(__file__).resolve().parent.parent
 SPEC = REPO / "scripts" / "pi-config" / "models-spec.yml"
 # Spec-only keys that describe intent or another vendor; never rendered into a vendor file.
-META_KEYS = {"description", "credential", "unmanaged", "gateway_row", "continue"}
+META_KEYS = {"description", "credential", "unmanaged", "gateway_row", "continue", "hosts"}
 SECRET_RE = re.compile(r"key|token|secret|password|credential", re.I)
 
 
@@ -85,7 +86,22 @@ def op_secret(vault: str, item: str, field: str) -> str:
     sys.exit(f"FAIL: op://{vault}/{item} has no non-empty field '{field}'")
 
 
-def render_pi(spec: dict, target: Path, keep_legacy: bool) -> tuple[str, list[str]]:
+def on_host(p: dict, host: str) -> bool:
+    """Should this provider be rendered on `host`? A provider without `hosts:` renders everywhere
+    (that is the back-compat contract: the existing render stays byte-identical). A provider WITH
+    `hosts:` is machine-scoped — the laptop's loopback LM Studio leg (HD-474) is the first case.
+
+    Why this exists rather than a per-host spec file: §15 forbids the second copy, and HD-388's
+    whole point is that ONE spec renders every client. Scoping is a property of the provider row,
+    not a fork of the file. Matching is case-insensitive because Windows reports `DomenP14s` and
+    `hostname` conventions want lowercase (§8) — a case mismatch would silently drop a provider."""
+    allowed = p.get("hosts")
+    if not allowed:
+        return True
+    return str(host).lower() in [str(a).lower() for a in allowed]
+
+
+def render_pi(spec: dict, target: Path, keep_legacy: bool, host: str = "") -> tuple[str, list[str]]:
     """models.json for pi. Returns (text, notes)."""
     notes: list[str] = []
     prev_existing = {}
@@ -97,9 +113,18 @@ def render_pi(spec: dict, target: Path, keep_legacy: bool) -> tuple[str, list[st
 
     providers = {}
     for p in spec.get("providers", []):
+        if not on_host(p, host):
+            notes.append(f"skipped provider '{p['id']}': hosts={p.get('hosts')} does not include "
+                         f"'{host}' (rendering it here would put a dead endpoint in the picker)")
+            continue
         body: dict = {}
         cred = p.get("credential", {})
-        if p.get("unmanaged"):
+        if "credential" in p and "apiKey" in p:
+            sys.exit(f"FAIL: provider '{p['id']}' names BOTH a vault credential and a literal apiKey "
+                     "— one of them would win silently. Pick one source (§6).")
+        if "credential" in p:
+            body["apiKey"] = op_secret(cred["vault"], cred["item"], cred.get("field", "credential"))
+        elif p.get("unmanaged"):
             legacy = prev_existing.get(p["id"], {}).get("apiKey")
             if keep_legacy and legacy:
                 body["apiKey"] = legacy
@@ -111,8 +136,17 @@ def render_pi(spec: dict, target: Path, keep_legacy: bool) -> tuple[str, list[st
                          f"preserve. The spec names op://{cred.get('vault','?')}/{cred.get('item','?')} — "
                          f"record that item (and its row in docs/deployment-secrets.md), or pass "
                          f"--keep-legacy-credentials on a host that already holds a working key.")
+        elif "apiKey" in p:
+            # A machine-local listener with no auth: the laptop LM Studio leg (HD-474), baseUrl loopback.
+            # The literal is a placeholder pi requires to be non-empty, NOT a secret — which is the only
+            # reason it may sit in git when a real key never could. Loud, so nobody mistakes it for
+            # managed auth, and so widening that endpoint past loopback stays a visible decision.
+            body["apiKey"] = p["apiKey"]
+            notes.append(f"{p['id']}: literal apiKey from the spec — a placeholder for a listener with "
+                         "no auth. If this endpoint ever leaves loopback it needs a vault credential.")
         else:
-            body["apiKey"] = op_secret(cred["vault"], cred["item"], cred.get("field", "credential"))
+            sys.exit(f"FAIL: provider '{p['id']}' names no `credential:`, is not `unmanaged: true`, and "
+                     "carries no literal apiKey — refusing to render a provider with no apiKey at all.")
         body.update({k: v for k, v in p.items() if k not in META_KEYS and k not in ("models", "id")})
         # `id` is the spec's key for the provider, not a pi field — it becomes the dict KEY below.
         # (First live run proved this: rendering it produced a phantom drift on every provider.)
@@ -126,10 +160,12 @@ def render_pi(spec: dict, target: Path, keep_legacy: bool) -> tuple[str, list[st
     return json.dumps({"providers": providers}, indent=2) + "\n", notes
 
 
-def render_continue(spec: dict) -> str:
+def render_continue(spec: dict, host: str = "") -> str:
     """A standalone generated block. NOT merged into a user's config.yaml — see module docstring."""
     rows = []
     for p in spec.get("providers", []):
+        if not on_host(p, host):
+            continue
         for m in p.get("models", []):
             c = m.get("continue", {})
             rows.append({
@@ -212,6 +248,9 @@ def main() -> int:
     ap.add_argument("--keep-legacy-credentials", action="store_true",
                     help="preserve existing apiKey values for spec providers marked unmanaged: true")
     ap.add_argument("--no-backup", action="store_true", help="skip the timestamped backup (plumbing)")
+    ap.add_argument("--host", default=socket.gethostname(),
+                    help="host name to scope machine-local providers against (default: this host). "
+                         "Pass the TARGET's name when rendering for another box, e.g. --host oldsrv.")
     args = ap.parse_args()
 
     spec = yaml.safe_load(Path(args.spec).read_text())
@@ -239,11 +278,11 @@ def main() -> int:
 
     for name, target in targets:
         if name == "pi":
-            text, notes = render_pi(spec, target, args.keep_legacy_credentials)
+            text, notes = render_pi(spec, target, args.keep_legacy_credentials, args.host)
         elif name == "pi_auth":
             text, notes = render_piauth(spec, target)
         else:
-            text, notes = render_continue(spec), []
+            text, notes = render_continue(spec, args.host), []
         for n in notes:
             print(f"NOTE {name}: {n}")
         if args.check:
