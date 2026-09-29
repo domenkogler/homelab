@@ -183,20 +183,19 @@ switch ($Command) {
     Set-Settings
     Set-Presets
     Assert-Library -Profile $p
-    # Mirrored networking, not a NAT address: it is the difference between the pi/Continue contract
-    # declaring 127.0.0.1:1234 (stable) and declaring today's gateway IP (moves when the NAT range
-    # does). Read from the driver, which PROBES rather than assuming.
+    # The seat decision (owner, 2026-09-29): local models are served to pi.dev running ON Win11.
+    # /etc/wsl.conf stays exactly as it is — WSL2 is configured the way it is for reasons that
+    # outlive this leg, and the loopback contract does not need mirrored mode once the client is
+    # native. So this reports the seat rather than asking you to reconfigure the guest.
     $base = Get-Api
     Write-Host "API base the clients will use: $base"
     if ($base -notmatch '127\.0\.0\.1') {
         Write-Warning @"
-Not on loopback — WSL is in Nat mode, so the spec's 127.0.0.1 does not reach Windows.
-Fix (one-time, owner): add to /etc/wsl.conf inside the distro
-    [network]
-    networkingMode=mirrored
-then 'wsl --shutdown' and reopen. Until then pi/Continue on the Linux seat cannot use the leg.
+The driver could not answer on loopback from here, so it fell back to the discovered WSL gateway. That is fine for DEBUGGING from the Linux guest; it is NOT the contract. models-spec.yml marks this provider native_only, so pi on Win11 uses 127.0.0.1:1234 and the WSL render omits it on purpose. Do not reconfigure /etc/wsl.conf to make a WSL probe pass.
 "@
     }
+    Write-Host "seat: Windows-native pi.dev is the contracted client. pi.dev inside WSL does not get
+    this provider (models-spec.yml: native_only) — with networkingMode=Nat, 127.0.0.1 there is the guest."
     # No firewall rule is created on purpose: the contract is a loopback listener. Opening :1234 to
     # the LAN is a decision with a cost (an unauthenticated inference endpoint on your wifi), so it
     # stays a decision and not a side effect of running an installer.

@@ -155,7 +155,7 @@ MTP” — so `agent-unified-mtp` is text-only by construction, and lmstudio-bug
 MTP failing to initialise on the 35B **MoE** (the dense 9B got 40–60 %). MTP stays off until an A/B
 on this box shows an actual gain.
 
-**What is NOT yet true (⏳, and the gate enforces it):** `runtime.version` is `null` — LM Studio
+**⏳ What is NOT yet true (the gate enforces every line of it):** `runtime.version` is `null` — LM Studio
 auto-updates and 0.4.25-1 was sitting in `lm-studio-updater\pending\`, so there is no pin to certify
 against (§7). The Q4_K_M weights are **not on `D:` yet** (≈21 GB one-time fetch; the applier reports
 it rather than silently downloading). `tool_probe`, `vision_probe`, `fim_probe` are all `pending`, so
@@ -164,17 +164,24 @@ contradiction: this doc's §Leg 1 requires a FIM-trained model and says Instruct
 it”, while Qwen2.5-Coder's own card documents chat-template FIM on Instruct — `probe-fim` settles it
 with a cursor-shaped completion instead of an argument.
 
-**Client contract:** `providers.laptop-lmstudio` in `scripts/pi-config/models-spec.yml`, scoped by the
-new `hosts:` key so it renders **only** on this laptop and never into the oldsrv cockpit (HD-409). Its
-`baseUrl` is loopback, which requires `networkingMode=mirrored` in `/etc/wsl.conf`; the NAT gateway
-address is deliberately not written down, because an IP that moves is how this breaks later.
-`laptop-llm.py probe-client` fails if the client's `contextWindow`/`maxTokens`/`input` drift ahead of
-the active profile — the pi-side 400 mid-session class.
+**Client contract — and the seat it is addressed to (owner decision 2026-09-29):** local models are
+served to **pi.dev running ON Win11**. `providers.laptop-lmstudio` in
+`scripts/pi-config/models-spec.yml` therefore declares `native_only: true` next to `hosts:
+[domenp14s]`, and `scripts/render-pi-config.py` omits it when rendering inside WSL2 — with
+`networkingMode=Nat`, which is left exactly as configured because it is there for reasons that
+outlive this leg, `127.0.0.1` inside the guest is the guest. Hostname alone cannot separate the two
+seats (both report `DomenP14s`), which is why the spec carries a flag rather than a second name.
+`laptop-llm.py probe-client` honours the same rule and SKIPs itself in the guest instead of failing a
+contract that was never addressed to it. The drift check itself compares
+`contextWindow`/`maxTokens`/`input` against the ACTIVE profile — pi's 400-mid-session class.
 
 **Carve-out note (supersedes the ≈8.4 GB line above):** the BIOS UMA carve is now **32 GiB**. That
 buys **residency**, never bandwidth — the ≈89.6 GB/s ceiling is untouched, so a dense model is still
 bandwidth-bound and the MoE-A3B family is still the only one that answers (§Leg 2). It also removes
 ~24 GB from what Windows and the WSL2 guest can use; re-measure before trusting any ledger number.
+
+**The session that finishes this leg runs on the Windows seat** — pin the engine version, fetch the
+weights, boot, and run the six probes: the brief is [`prompt-lmstudio.md`](../prompt-lmstudio.md).
 
 ## NPU: out of the AI tier
 

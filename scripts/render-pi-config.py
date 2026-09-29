@@ -47,7 +47,8 @@ except ImportError:  # pragma: no cover
 REPO = Path(__file__).resolve().parent.parent
 SPEC = REPO / "scripts" / "pi-config" / "models-spec.yml"
 # Spec-only keys that describe intent or another vendor; never rendered into a vendor file.
-META_KEYS = {"description", "credential", "unmanaged", "gateway_row", "continue", "hosts"}
+META_KEYS = {"description", "credential", "unmanaged", "gateway_row", "continue", "hosts",
+             "native_only"}
 SECRET_RE = re.compile(r"key|token|secret|password|credential", re.I)
 
 
@@ -86,19 +87,42 @@ def op_secret(vault: str, item: str, field: str) -> str:
     sys.exit(f"FAIL: op://{vault}/{item} has no non-empty field '{field}'")
 
 
-def on_host(p: dict, host: str) -> bool:
-    """Should this provider be rendered on `host`? A provider without `hosts:` renders everywhere
-    (that is the back-compat contract: the existing render stays byte-identical). A provider WITH
-    `hosts:` is machine-scoped — the laptop's loopback LM Studio leg (HD-474) is the first case.
+def in_wsl() -> bool:
+    """Are we running INSIDE the Linux guest? /proc/version is the documented marker (the kernel
+    string carries 'microsoft'); it is a read of local fact, not a guess from the hostname, which is
+    the SAME on both seats of this laptop."""
+    try:
+        return "microsoft" in Path("/proc/version").read_text().lower()
+    except OSError:
+        return False
 
-    Why this exists rather than a per-host spec file: §15 forbids the second copy, and HD-388's
-    whole point is that ONE spec renders every client. Scoping is a property of the provider row,
-    not a fork of the file. Matching is case-insensitive because Windows reports `DomenP14s` and
-    `hostname` conventions want lowercase (§8) — a case mismatch would silently drop a provider."""
+
+def scope_skip(p: dict, host: str) -> str | None:
+    """Why this provider must NOT be rendered here, or None to render it.
+
+    Two INDEPENDENT scopes, because the laptop has two seats that report the same hostname:
+      `hosts:`        which MACHINE (case-insensitive: Windows says `DomenP14s`, §8 wants lowercase,
+                      and a case mismatch would silently drop a provider);
+      `native_only:`  which SEAT on that machine. The laptop's LM Studio listener is loopback and
+                      WSL2 runs networkingMode=Nat here ON PURPOSE, so 127.0.0.1 inside the guest is
+                      the guest — rendering the provider there would put a dead endpoint in the
+                      picker, which is the HD-409 failure mode wearing a different hat.
+    A provider with neither renders everywhere: the back-compat contract, proven by --host oldsrv
+    reproducing the previous output. Why this is a property of the provider row rather than a
+    per-host spec file: §15 forbids the second copy, and HD-388's whole point is ONE spec."""
     allowed = p.get("hosts")
-    if not allowed:
-        return True
-    return str(host).lower() in [str(a).lower() for a in allowed]
+    if allowed and str(host).lower() not in [str(a).lower() for a in allowed]:
+        return f"hosts={allowed} does not include '{host}'"
+    if p.get("native_only") and in_wsl():
+        return ("native_only: true but this is WSL2 — with networkingMode=Nat, 127.0.0.1 here is the "
+                "Linux guest, so this endpoint would be dead in the picker")
+    return None
+
+
+def on_host(p: dict, host: str) -> bool:
+    """Back-compat name for the boolean answer; `scope_skip` carries the reason so both render paths
+    can print the SAME explanation instead of paraphrasing it."""
+    return scope_skip(p, host) is None
 
 
 def render_pi(spec: dict, target: Path, keep_legacy: bool, host: str = "") -> tuple[str, list[str]]:
@@ -113,9 +137,10 @@ def render_pi(spec: dict, target: Path, keep_legacy: bool, host: str = "") -> tu
 
     providers = {}
     for p in spec.get("providers", []):
-        if not on_host(p, host):
-            notes.append(f"skipped provider '{p['id']}': hosts={p.get('hosts')} does not include "
-                         f"'{host}' (rendering it here would put a dead endpoint in the picker)")
+        skip = scope_skip(p, host)
+        if skip:
+            notes.append(f"skipped provider '{p['id']}': {skip} (rendering it here would put a dead "
+                         "endpoint in the picker)")
             continue
         body: dict = {}
         cred = p.get("credential", {})
@@ -160,11 +185,16 @@ def render_pi(spec: dict, target: Path, keep_legacy: bool, host: str = "") -> tu
     return json.dumps({"providers": providers}, indent=2) + "\n", notes
 
 
-def render_continue(spec: dict, host: str = "") -> str:
-    """A standalone generated block. NOT merged into a user's config.yaml — see module docstring."""
+def render_continue(spec: dict, host: str = "") -> tuple[str, list[str]]:
+    """A standalone generated block. NOT merged into a user's config.yaml — see module docstring.
+    Returns (text, notes): a Continue row pointing at a seat that cannot reach it is exactly as dead
+    as a pi row, and silently dropping it would leave the operator wondering where the FIM model went."""
     rows = []
+    notes: list[str] = []
     for p in spec.get("providers", []):
-        if not on_host(p, host):
+        skip = scope_skip(p, host)
+        if skip:
+            notes.append(f"continue: skipped provider '{p['id']}': {skip}")
             continue
         for m in p.get("models", []):
             c = m.get("continue", {})
@@ -182,7 +212,7 @@ def render_continue(spec: dict, host: str = "") -> str:
             "# Do not hand-edit, and do not let it overwrite a real config: this file is a block.\n"
             "# Wiring a workstation to it (an `@`-import or a merge) is a per-machine choice and is\n"
             "# NOT verified by this script — see docs/pi-harness.md §4b.\n")
-    return head + yaml.dump({"models": rows}, sort_keys=False, allow_unicode=True)
+    return head + yaml.dump({"models": rows}, sort_keys=False, allow_unicode=True), notes
 
 
 def render_piauth(spec: dict, target: Path) -> tuple[str, list[str]]:
@@ -282,7 +312,7 @@ def main() -> int:
         elif name == "pi_auth":
             text, notes = render_piauth(spec, target)
         else:
-            text, notes = render_continue(spec, args.host), []
+            text, notes = render_continue(spec, args.host)
         for n in notes:
             print(f"NOTE {name}: {n}")
         if args.check:

@@ -41,6 +41,7 @@ One brief = one session = one worktree; rules in [docs/orchestration.md](docs/or
 | Wave | Brief | Rows it carries | Converge host | Pairing |
 |---|---|---|---|---|
 | **1 — ready; nobody running it** | [prompt-llm.md](prompt-llm.md) | ⏳ **469** (the under-cap baseline trace + `reasoning` re-cert) · **473** (engine pin, ⛔ upstream-blocked, 40 s re-check) · **475** (`fast` triton fix → gates 0–7); `fast-sglang` gate-blocked by design | **spark**, engine restarts each flip | ⛔ never with 376; run **before** re-dispatching 376's NVFP4 half; ⚠ **the operator's model must not be spark** (gate rule 0 — run #3 could not take its own timed legs) |
+| **1 — laptop seat** | [prompt-lmstudio.md](prompt-lmstudio.md) | ⏳ **474** (pin the LM Studio version, fetch the ~21 GB Q4_K_M + mmproj, boot, run the six probes, then certify + render the client) | **the laptop, in Windows** — no Ansible converge, no shared host | only rule 0: a session served by `laptop-lmstudio` may not take its own timed numbers · can run alongside the spark/oldsrv lanes |
 | **2** | [prompt-384.md](prompt-384.md) | 384 · 403 · 387 · 373 · 249 | oldsrv + VPS `docker_services` | ⛔ never with 357 / 361 (all converge oldsrv) |
 | **2** | [prompt-376.md](prompt-376.md) | 376 · 400 · 359 · 367 · 380 | **spark**, owner bench window | with 384 **only in an open bench window**, else alone · ⛔ never with 469-lane |
 | **3** | [prompt-357.md](prompt-357.md) | 357 · 17 · 217 · 358 · 418 (window-gated) | **oldsrv** | runs when the oldsrv slot is free · ⛔ never with 384 / 361 |
