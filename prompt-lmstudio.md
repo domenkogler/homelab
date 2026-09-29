@@ -38,6 +38,13 @@ may not take timed numbers (`probe-speed`, `probe-ctx` timings) — you would be
 answering you. Read-only state and `/v1/models` are fine. Either run the timed legs from a session on a
 remote model, or hand them to the owner.
 
+**Measured for you so you do not rediscover it:** the Windows seat has **Python 3.13.13 + PyYAML
+6.0.3** at `C:\Users\domen\AppData\Local\Programs\Python\Python313\python.exe` (verified from WSL
+interop on 2026-09-29), so `python scripts\laptop-llm.py …` runs natively — the driver's stdlib-only
+core plus `yaml` is all it needs. If a future run finds it missing, `pip install pyyaml` is the whole
+fix; do not route the driver through `wsl python3` to avoid that, because then it is reading Windows
+paths (`D:\llm\models`) from the guest, which is how a file check starts lying.
+
 ## Non-negotiables
 
 * **Worktree before writes** (§6, README §4):
