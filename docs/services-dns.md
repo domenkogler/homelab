@@ -14,9 +14,10 @@ tags: [services, dns, technitium, pihole]
 > **Linked from:** `services.md`, `network-dns.md`
 
 > **Status: 🟢 live** — the **VPS primary** Technitium is seeded and its zone + split-horizon records are
-> verified; the **Pi tertiary** (`dns-pi.kogler.si`) is live; **oldsrv's secondary** still needs seeding via
-> the same `technitium-seed` role once its admin endpoint is reachable.
-> **Pi-hole is retired** — ad blocking runs in Technitium ([§Blocking](#blocking--retired-pi-hole)).
+> verified; the **Pi tertiary** (`dns-pi.kogler.si`) is live; the **oldsrv secondary** is seeded by the same
+> `technitium-seed` role (the `playbooks/dns-seed.yml` re-seed ran green on all three instances 2026-09-29).
+> **Pi-hole is retired** — the design puts ad blocking in Technitium ([§Blocking](#blocking--retired-pi-hole));
+> ⚠ **no block lists are configured on any instance today** (measured 2026-09-29), so nothing is being blocked.
 > Deploy progress: [`deployment-tasks.md`](../deployment-tasks.md).
 
 ---
@@ -38,6 +39,10 @@ tags: [services, dns, technitium, pihole]
 - **Tertiary — Raspberry Pi** (`pi.kogler.si`): web UI at `dns-pi.kogler.si` through the Pi `traefik-ha` edge
   (the container publishes :5380 on the host) so it stays reachable when oldsrv is down. Port/record detail:
   [network-dns.md](network-dns.md).
+- **Resolver upstream (HD-476, live 2026-09-29):** the **Pi** instance is the only one given public forwarders
+  (`1.1.1.1` + `9.9.9.9`), because the Home VLAN asks it first and it was chasing every cold name from the root
+  servers on ARM (fan-out p50 143 ms → 60 ms). Value + rationale: [network-dns.md](network-dns.md)
+  §Resolver upstream.
 
 > **Seeding is add-only (⚠ known gap).** The `technitium-seed` role calls `zones/records/add` and never
 > deletes, so a retired service can leave an orphan record on the primary. Track and prune those explicitly —
@@ -48,6 +53,12 @@ tags: [services, dns, technitium, pihole]
 Ad blocking is **Technitium Advanced Blocking** (per-client groups, multiple block-list formats) running on
 the reliable VPS/Pi DNS tier — not an oldsrv container. Rationale + the decision:
 [services-rejected.md](services-rejected.md).
+
+⚠ **Live state 2026-09-29 (HD-476): nothing is blocked.** The API read of the Pi tertiary and the VPS primary
+shows `enableBlocking = true` / `blockingType = NxDomain` but `blockListUrls = null` and **no client custom
+options**, i.e. no lists and no per-subnet groups anywhere. The per-subnet policy in
+[network-dns.md](network-dns.md) §Per-Subnet DNS Policy is therefore design-only until lists/groups land
+(reconcile: HD-476).
 
 Two facts worth keeping if it is ever re-enabled:
 - A forwarder in front of Technitium must **conditionally forward the local domain to the Technitium

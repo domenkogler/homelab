@@ -102,6 +102,29 @@ dns_tertiary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi')
 # Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== Pi Home VLAN IP, SSOT-derived).
 technitium_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
+# Resolver upstreams for the Technitium tier (HD-476, live 2026-09-29).
+# BEFORE: every instance ran `forwarders = null`, i.e. each cold public name was chased from
+# the ROOT SERVERS by whichever instance answered, with dnssecValidation=true +
+# qnameMinimization=true and resolverTimeout 1500 x resolverRetries 2 as the per-name ceiling.
+# Measured on the Pi (the instance VLAN 10 asks FIRST): 40-way browser-style fan-out p50 143 ms
+# vs oldsrv 74 ms vs 1.1.1.1 46 ms; sequential cold p50 ~49 ms. Forwarding removes the chase.
+# WHY TWO UPSTREAMS: with forwarders set, Technitium queries ALL of them in parallel (fastest
+# wins) but does NOT fall back to root recursion when they fail (open vendor request
+# TechnitiumSoftware/DnsServer#481 = "forward-first" is not implemented), so one upstream
+# would make public resolution depend on that one operator. Two = independent networks,
+# operators and blocking policies.
+# ⛔ NEVER point these at the router's `/ip dns` (its own upstream is this same resolver chain
+# -> forwarding loop AND oldsrv/the VPS back in the answer path) or at oldsrv itself: the Pi is
+# the HA-primary DNS on purpose and must not depend on the HA standby (HD-477 context).
+# HA IS UNAFFECTED EITHER WAY: `ha.kogler.si` and the rest of `kogler.si` are answered
+# AUTHORITATIVELY (aa flag proven live 2026-09-29) from each instance's own primary zone, so an
+# upstream is never consulted for them — dead upstreams cannot break HA/DNS-name resolution.
+# Placement is opt-in per instance via `technitium_forwarders` on the docker_services entry
+# (unset == forwarders cleared == root-chase, which is still the state on the VPS/oldsrv).
+dns_resolver_upstreams:
+  - "1.1.1.1"   # Cloudflare — anycast, DNSSEC-validating
+  - "9.9.9.9"   # Quad9 — different network + operator + blocking policy
+
 # ==== Spark (DGX GB10) — reserved node IPs, SSOT-derived (HD-359/HD-337) ====
 # spark.kogler.si shares the nas/oldsrv pattern: Home (VLAN 10) = SSH + inference endpoint,
 # Mgmt (VLAN 99) = management plane. No literals — the network_static_hosts rows are the source.

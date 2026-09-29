@@ -28,9 +28,9 @@ WSL Debian primary, ext4 (repo runs from the WSL Debian primary, not Windows). `
 5. ⏳ **HD-470** — the VPS's own state has one copy on one disk (id re-minted 2026-09-28; it had collided with 469).
 6. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists now, only the age probe is owed.
 7. ⏳ Cockpit/seat cluster → `prompt-361.md` (brief carried rows 361 · 411 · 442 · 443 · 444 · 445 · 446 · 465).
-8. Owner-gated tails (exact steps in the rows): 377(a) Grafana render re-do · 444 phone-crossing drill · 418 restart window · 06 UPS drill · 47 federation join · 454 power-path buy/accept call.
+8. Owner-gated tails (exact steps in the rows): 377(a) Grafana render re-do · 444 phone-crossing drill · 418 restart window · 06 UPS drill · 47 federation join · 454 power-path buy/accept call · **476** the forwarders yes-or-no for the VPS primary + oldsrv secondary (they still root-chase and they are first for guest/mgmt/iot/media + the tailnet chain).
 
-Unbriefed open rows (no session launches from them; the rows live in [todo.md](todo.md) + [todo-table.md](todo-table.md) §B): 360 · 402 · 103 · 238 · 421 · 459 · 461 · 448 · **472**. Whoever takes the VPS-hygiene residue forms the next **VPS + nas** lane (HD-471 + HD-472 + HD-421 + HD-103 are now one Docling cluster, all converging the `docling` container alone); before touching ANY Authentik OIDC client read [docs/services-authentik.md](docs/services-authentik.md) §Blueprint authoring notes facts 7 + 9.
+Unbriefed open rows (no session launches from them; the rows live in [todo.md](todo.md) + [todo-table.md](todo-table.md) §B): 360 · 402 · 103 · 238 · 421 · 459 · 461 · 448 · **472** · **477** (make the DNS resolver actually float with the VIP — the premise is already measured green, the row carries the three gates). Whoever takes the VPS-hygiene residue forms the next **VPS + nas** lane (HD-471 + HD-472 + HD-421 + HD-103 are now one Docling cluster, all converging the `docling` container alone); before touching ANY Authentik OIDC client read [docs/services-authentik.md](docs/services-authentik.md) §Blueprint authoring notes facts 7 + 9.
 
 ---
 
