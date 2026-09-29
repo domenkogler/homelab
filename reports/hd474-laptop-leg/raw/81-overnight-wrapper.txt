@@ -1,0 +1,18 @@
+01:01:37 === wrapper up; waiting for the 32k job to finish ===
+01:01:37 ctx32k finished: 10600 words -> ACCEPTED prompt_tokens=31809 prefill_wall=915s gpu=23.92 GiB
+ 21000 words -> HTTP400 {"error":"Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message wall=0s gpu=23.96 GiB
+01:01:37 === cutover to llmster daemon (owner installed 0.0.25-1) ===
+01:01:37 Stopped the server on port 1234.
+01:01:38 SUCCESS: The process with PID 46584 (child process of PID 37744) has been terminated.
+SUCCESS: The process with PID 29524 (child process of PID 46236) has been terminated.
+SUCCESS: The process with 
+01:01:58 after kill, lms status: LM Studio is not running
+01:02:02 llmster started (PID: 45904).
+Waking up LM Studio service...
+01:02:03 daemon up: llmster v0.0.25+1 is running (PID: 45904)
+01:02:03 Success! Server is now running on port 1234
+01:02:18 lms ls after cutover: BEDDING                                             PARAMS    ARCH          SIZE         DEVICE    
+text-embedding-multilingual-e5-large-instruct@f16     335M      BERT          1.13 GB      Local     
+text-embedding-multilingual-e5-large-instruct@q8_0    335M      BERT          603.10 MB    Local     
+text-embedding-nomic-embed-text-v1.5                            Nomic BERT    84.11 MB     Local
+01:02:18 === running HD-477 ===

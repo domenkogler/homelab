@@ -1,0 +1,4 @@
+prompt=2176 tok  TTFT=0.41s  completion=200 tok  finish=length  wall=11.6s
+prefill: 5287 tok/s   decode: 17.8 tok/s (56 ms/token)
+prompt=2176 tok  TTFT=0.43s  completion=297 tok  finish=stop  wall=17.2s
+prefill: 5065 tok/s   decode: 17.7 tok/s (57 ms/token)

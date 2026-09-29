@@ -1,0 +1,3 @@
+=== boundary sweep: image-first, max_tokens 2048 ===
+ 1280px .jpg ( 314785 B)  HTTP400 {"error":"terminated"}
+      -> reloading

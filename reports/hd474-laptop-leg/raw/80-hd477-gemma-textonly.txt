@@ -1,0 +1,33 @@
+
+===== PHASE 0  what is on disk / indexed  (01:02:19) =====
+king up 135.60 GB of disk space.
+
+LLM                                   PARAMS      ARCH          SIZE         DEVICE    
+gemma-4-26b-a4b-it-qat                128x2.6B    gemma4        15.44 GB     Local     
+gemma-4-26b-a4b-textonly              26B-A4B     gemma4        16.80 GB     Local     
+gemma-4-31b-it                        31B         gemma4        19.89 GB     Local     
+google/gemma-4-26b-a4b (1 variant)    26B-A4B     gemma4        17.99 GB     Local     
+google/gemma-4-e4b (1 variant)        7.5B        gemma4        6.33 GB      Local     
+openai/gpt-oss-20b (1 variant)        20B         gpt-oss       12.11 GB     Local     
+qwen/qwen3.5-9b (1 variant)           9B          qwen35        6.55 GB      Local     
+qwen/qwen3.6-27b (2 variants)         27B         qwen35        17.48 GB     Local     
+qwen2.5-coder-3b-instruct             3B          Qwen2         1.93 GB      Local     
+qwen3-vl-30b-a3b-instruct             30B-A3B     qwen3vlmoe    18.80 GB     Local     
+whisper-large-v3-turbo                                          475.64 MB    Local     
+
+EMBEDDING                                             PARAMS    ARCH          SIZE         DEVICE    
+text-embedding-multilingual-e5-large-instruct@f16     335M      BERT          1.13 GB      Local     
+text-embedding-multilingual-e5-large-instruct@q8_0    335M      BERT          603.10 MB    Local     
+text-embedding-nomic-embed-text-v1.5                            Nomic BERT    84.11 MB     Local     
+
+
+
+===== PHASE 1  vision-enabled weights @32768 (the certified leg) - baseline  (01:02:19) =====
+idle before load 3.00 GiB | after load 19.78 GiB
+ps: g-vision-32k    google/gemma-4-26b-a4b    IDLE      17.99 GB    32768      1           Local        
+
+===== PHASE 2  text-only variant @32768 - what does the projector cost?  (01:02:56) =====
+idle before 2.09 GiB | after load 18.74 GiB  (delta vs phase 1 is the projector + ViT cost)
+ps: g-text-32k    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
+
+===== PHASE 3  context ladder on the text-only variant  (01:03:22) =====

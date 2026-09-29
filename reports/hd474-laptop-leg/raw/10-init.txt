@@ -1,0 +1,47 @@
+== laptop serving leg init (catalogue is the SSOT) ==
+settings written (backup: C:\Users\domen\.lmstudio\settings.json.bak-20260929-212419). NOT committed: settings.json carries an HF token (õ6).
+The property '_warning' cannot be found on this object. Verify that the property exists.
+At D:\source\domenkogler\homelab-wt-hd474\scripts\win\lmstudio-llm.ps1:177 char:13
++         if ($p._warning) { $warn = "  ? $($p._warning)" }
++             ~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], PropertyNotFoundException
+    + FullyQualifiedErrorId : PropertyNotFoundStrict
+ 
+preset: homelab-agent-unified.json (ctx 32768, kv f16, FA False, MTP False)
+The property '_warning' cannot be found on this object. Verify that the property exists.
+At D:\source\domenkogler\homelab-wt-hd474\scripts\win\lmstudio-llm.ps1:177 char:13
++         if ($p._warning) { $warn = "  ? $($p._warning)" }
++             ~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], PropertyNotFoundException
+    + FullyQualifiedErrorId : PropertyNotFoundStrict
+ 
+preset: homelab-agent-unified-64k.json (ctx 65536, kv q8_0, FA True, MTP False)
+The property '_warning' cannot be found on this object. Verify that the property exists.
+At D:\source\domenkogler\homelab-wt-hd474\scripts\win\lmstudio-llm.ps1:177 char:13
++         if ($p._warning) { $warn = "  ? $($p._warning)" }
++             ~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], PropertyNotFoundException
+    + FullyQualifiedErrorId : PropertyNotFoundStrict
+ 
+preset: homelab-agent-unified-mtp.json (ctx 32768, kv f16, FA False, MTP True)
+The property '_warning' cannot be found on this object. Verify that the property exists.
+At D:\source\domenkogler\homelab-wt-hd474\scripts\win\lmstudio-llm.ps1:177 char:13
++         if ($p._warning) { $warn = "  ? $($p._warning)" }
++             ~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (:) [], PropertyNotFoundException
+    + FullyQualifiedErrorId : PropertyNotFoundStrict
+ 
+preset: homelab-fim-coder-3b.json (ctx 8192, kv q8_0, FA True, MTP False)
+Restart LM Studio to list new presets. settings.json itself stays out of git.
+vision projector not in the library: D:\llm\models\unsloth\Qwen3.6-35B-A3B-MTP-GGUF\mmproj-BF16.gguf
+Fetch it once (LM Studio search  unsloth/Qwen3.6-35B-A3B-MTP-GGUF, mmproj-BF16.gguf) and re-run. This script never 
+downloads ~20 GB as a side effect of switching profiles.
+At D:\source\domenkogler\homelab-wt-hd474\scripts\win\lmstudio-llm.ps1:121 char:9
++         throw "vision projector not in the library: $($Profile.mmproj ...
++         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : OperationStopped: (vision projecto...ching profiles.:String) [], RuntimeException
+    + FullyQualifiedErrorId : vision projector not in the library: D:\llm\models\unsloth\Qwen3.6-35B-A3B-MTP-GGUF\mmpr 
+   oj-BF16.gguf
+    Fetch it once (LM Studio search  unsloth/Qwen3.6-35B-A3B-MTP-GGUF, mmproj-BF16.gguf) and re-run. This script neve 
+   r downloads ~20 GB as a side effect of switching profiles.
+ 

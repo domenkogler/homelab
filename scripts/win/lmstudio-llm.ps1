@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 <#
 .SYNOPSIS
     The applier for the laptop's LM Studio serving leg (HD-474) — the Windows counterpart of
@@ -34,8 +34,20 @@ param(
     [switch]$AllowUncertified
 )
 
-$ErrorActionPreference = 'Strict'
+# 'Strict' is not an ActionPreference value (it belongs to Set-StrictMode below): as committed this
+# line threw on EVERY invocation of the applier (HD-474, measured 2026-09-29). 'Stop' is not the
+# repair either — measured on this box `lms` writes stdout only when it succeeds (version 530 B
+# out/0 B err, ls 1222 B/0 B) and stderr + rc!=0 when it fails (nosuchcmd 0 B/35 B/rc 1), and this
+# script pipes every lms call with 2>&1: under 'Stop' the first failing `lms load` would raise a
+# NativeCommandError INSTEAD of reaching the script's own explicit throw, i.e. the diagnostic the
+# script was written to print would never print. Strictness here comes from Set-StrictMode plus
+# those explicit throws, so 'Continue' (the default) is the honest value.
+$ErrorActionPreference = 'Continue'
 Set-StrictMode -Version 2.0
+# The driver reads a UTF-8 catalogue and prints ⚠/→/—; a Windows PowerShell child inherits the
+# cp1252 console codec and died with UnicodeDecodeError before the gate could speak (HD-474,
+# measured 2026-09-29). The driver now forces UTF-8 itself; this is the same belt on the child env.
+$env:PYTHONUTF8 = '1'
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Driver   = Join-Path $RepoRoot 'scripts\laptop-llm.py'
 

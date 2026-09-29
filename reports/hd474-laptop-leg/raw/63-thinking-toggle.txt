@@ -1,0 +1,4 @@
+baseline                  : prompt=31 out=183 content='391' reasoning=yes
+chat_template_kwargs off  : prompt=31 out=167 content='391' reasoning=yes
+template_kwargs off       : prompt=31 out=226 content='391' reasoning=yes
+enable_thinking top-level : prompt=31 out=190 content='391' reasoning=yes

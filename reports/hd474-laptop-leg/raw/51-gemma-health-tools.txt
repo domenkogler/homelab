@@ -1,0 +1,6 @@
+### probe-health
+OK http://127.0.0.1:1234/v1 model=agent-gemma-26b :: ''
+
+### probe-tools
+tools probe errored (this is a result, not a crash): HTTPError: HTTP Error 400: Bad Request
+rc=1

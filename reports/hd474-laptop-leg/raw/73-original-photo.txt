@@ -1,0 +1,18 @@
+SURVIVED 77s  prompt_tokens=4060 completion=227
+CONTENT:
+This is a close-up view of a network rack containing various networking equipment and cables.
+
+On the left are two white patch panels labeled "CAT6" with ports numbered 1-24. In the center is a white MikroTik router switch, model CRS328-24P-4S+RM. A black device in the middle has green LED lights indicating activity on its ports.
+
+To the right are several devices: a white Netgear wireless access point with two antennas; a black HP server or computer with a blue power light and an "hp" logo; and a small USB drive labeled "AERIS".
+
+Cables of various colors (white, red, orange, green, blue) connect to the equipment. Some cables are bundled together.
+
+The text that is legible includes:
+- CAT6
+- MikroTik
+- CRS328-24P-4S+RM
+- Netgear
+- hp
+- AERIS
+- PATCH CABLE 4PAIR ISO/IEC11801 TIA/EIA568B

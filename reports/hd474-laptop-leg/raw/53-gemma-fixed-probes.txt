@@ -1,0 +1,7 @@
+### probe-health (fixed reader)
+OK http://127.0.0.1:1234/v1 model=agent-gemma-26b [reasoning] :: 'The user said "Reply'  <-- reasoning model: content is empty BY DESIGN, output is in reasoning_content
+
+### probe-tools (fixed request)
+tool_calls: [{"type": "function", "id": "HIh7eP2bnrQNjdaYOLxBwLKr8SP4nRnt", "function": {"name": "run_shell", "arguments": "{\"command\":\"ls /tmp\"}"}}]
+→ tool_probe: passed
+rc=0

@@ -1,0 +1,2 @@
+ 10600 words -> ACCEPTED prompt_tokens=31809 prefill_wall=915s gpu=23.92 GiB
+ 21000 words -> HTTP400 {"error":"Engine protocol predict request returned 400: {\"error\":{\"code\":400,\"message wall=0s gpu=23.96 GiB

@@ -1,0 +1,51 @@
+Streaming logs from LM Studio
+
+[2026-09-29 22:32:09][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listLoaded] Listing loaded models
+[2026-09-29 22:32:09][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listLoaded] Listing loaded models
+[2026-09-29 22:32:09][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"oiLwtkpoblgPYEwjHiB/mX7z"}
+[2026-09-29 22:32:09][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"oiLwtkpoblgPYEwjHiB/mX7z"}
+[2026-09-29 22:32:09][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=unloadModel] Unloading model: fim-coder-3b
+[2026-09-29 22:32:11][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listDownloadedModels] Listing downloaded models
+[2026-09-29 22:32:11][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=loadModel] Loading model: qwen2.5-coder-3b-instruct
+[2026-09-29 22:32:11][DEBUG][LMSAuthenticator][Client=lms-cli][Endpoint=loadModel] Found 1 model(s) for key: qwen2.5-coder-3b-instruct
+[2026-09-29 22:32:11][DEBUG] 0.00.071.476 I srv  llama_server: initializing ...
+0.00.071.553 I srv  init_listene: The UI is disabled
+0.00.071.555 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+[2026-09-29 22:32:11][DEBUG] 0.00.089.086 I srv    load_model: loading model 'C:\Users\domen\.lmstudio\models\lmstudio-community\Qwen2.5-Coder-3B-Instruct-GGUF\Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf'
+[2026-09-29 22:32:12][DEBUG] 0.00.594.881 W load: control-looking token: 128247 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+[2026-09-29 22:32:13][DEBUG] 0.01.708.424 I cmn          init: llama threadpool init, n_threads = 9
+[2026-09-29 22:32:13][DEBUG] 0.01.797.350 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'
+[2026-09-29 22:32:13][DEBUG] 0.01.801.742 I srv  llama_server: model loaded
+0.01.801.749 I srv  llama_server: listening on http://127.0.0.1:50302
+[2026-09-29 22:32:13][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"1A4Kf9J7YBdpUXrnHqja4IQH"}
+[2026-09-29 22:32:38][DEBUG] Received request: POST to /v1/chat/completions with body [Sensitive]
+[2026-09-29 22:32:38][INFO][fim-coder-3b] Running chat completion on conversation with 1 messages.
+[2026-09-29 22:32:38][DEBUG] 0.26.920.489 I slot get_availabl: id  3 | task -1 | selected slot by LRU, t_last = -1
+0.26.920.543 I slot launch_slot_: id  3 | task 0 | processing task, is_child = 0
+[2026-09-29 22:32:38][INFO][fim-coder-3b] Prompt processing progress: 0.0%
+[2026-09-29 22:32:38][INFO][fim-coder-3b] Prompt processing progress: 100.0%
+[2026-09-29 22:32:38][DEBUG] 0.27.052.990 I slot print_timing: id  3 | task 0 | prompt eval time =     101.28 ms /    31 tokens (    3.27 ms per token,   306.09 tokens per second)
+0.27.052.996 I slot print_timing: id  3 | task 0 |        eval time =      31.11 ms /     2 tokens (   31.11 ms per token,    32.14 tokens per second)
+0.27.052.997 I slot print_timing: id  3 | task 0 |       total time =     132.39 ms /    33 tokens
+0.27.052.998 I slot print_timing: id  3 | task 0 |    graphs reused =          1
+0.27.053.033 I slot      release: id  3 | task 0 | stop processing: n_tokens = 32, truncated = 0
+[2026-09-29 22:32:38][INFO][fim-coder-3b] Model generated tool calls: [Sensitive]
+[2026-09-29 22:32:38][INFO][fim-coder-3b] Generated prediction: [Sensitive]
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listLoaded] Listing loaded models
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listLoaded] Listing loaded models
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"1A4Kf9J7YBdpUXrnHqja4IQH"}
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"1A4Kf9J7YBdpUXrnHqja4IQH"}
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=unloadModel] Unloading model: fim-coder-3b
+[2026-09-29 22:33:24][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listDownloadedModels] Listing downloaded models
+[2026-09-29 22:33:24][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=loadModel] Loading model: qwen2.5-coder-3b-instruct
+[2026-09-29 22:33:24][DEBUG][LMSAuthenticator][Client=lms-cli][Endpoint=loadModel] Found 1 model(s) for key: qwen2.5-coder-3b-instruct
+[2026-09-29 22:33:24][DEBUG] 0.00.062.317 I srv  llama_server: initializing ...
+0.00.062.405 I srv  init_listene: The UI is disabled
+0.00.062.407 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+[2026-09-29 22:33:24][DEBUG] 0.00.075.188 I srv    load_model: loading model 'C:\Users\domen\.lmstudio\models\lmstudio-community\Qwen2.5-Coder-3B-Instruct-GGUF\Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf'
+[2026-09-29 22:33:25][DEBUG] 0.00.589.328 W load: control-looking token: 128247 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+[2026-09-29 22:33:26][DEBUG] 0.01.711.303 I cmn          init: llama threadpool init, n_threads = 9
+[2026-09-29 22:33:26][DEBUG] 0.01.797.983 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'
+[2026-09-29 22:33:26][DEBUG] 0.01.802.527 I srv  llama_server: model loaded
+0.01.802.534 I srv  llama_server: listening on http://127.0.0.1:52126
+[2026-09-29 22:33:26][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"DKjomIQ1cdlMqE59ZoOUXfkS"}

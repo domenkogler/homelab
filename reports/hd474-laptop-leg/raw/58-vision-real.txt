@@ -1,0 +1,7 @@
+made 1280x960
+
+A small resized copy (314785 bytes):
+   {"ok": false, "HTTP": 400, "body": "{\"error\":\"terminated\"}"}
+
+B full 50 MP photo (10641623 bytes), the one that crashed before:
+   {"ok": false, "HTTP": 400, "body": "{\"error\":\"Engine protocol predict request failed: fetch failed\"}"}

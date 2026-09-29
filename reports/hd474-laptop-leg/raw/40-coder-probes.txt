@@ -1,0 +1,30 @@
+### probe-health
+OK http://127.0.0.1:1234/v1 model=fim-coder-3b :: 'OK.'
+
+### probe-fim (cursor-shaped, D: weights)
+  python-bridge  PASS  bridged the gap
+      bridged text: '  + c  + d  + e  + f  + g  + h  + i  + j  + k  + l'
+  def-body       FAIL  did not supply the bridging text '3.14'
+      bridged text: '\n    return 2 * r\n\ndef main():\n    radius = float(input("Enter the radius of the circle: "))\n    print(f"The area of the'
+
+FIM probe: 1/2 passed. Not a reliable infiller on this load — the FIM row
+  changes model (the -Python-FIM pair named in docs/hardware-workstation.md:64), and the doc
+  claim is recorded as tested rather than assumed.
+
+## MECHANISM (22:5x, decisive)
+Three surfaces tested on the SAME gap (prefix 'x = a ', suffix ' + b'):
+  raw gap, no template                 -> '  + c  + d ...'   (continues, ignores suffix)
+  <|im_start|>fim_prefix..fim_suffix..fim_middle -> 'x = c <|im_start|> + d<|fim_middle...' (ECHOES control tokens)
+  instruction+PREFIX/SUFFIX fences      -> '```python\nx = a + b\n```'  (CORRECT, 3/3)
+Same for dict gap: raw=filler, fim-tmpl='<|fim_suffix>}<|fim_mid...', instr='8080}'.
+=> LM Studio 0.4.25 serves /v1/completions with NO chat template applied to the raw string, and
+   these GGUF weights do not have the FIM tokens registered as control tokens: the model RECEIVES
+   '...fim_prefix...' as literal text and reproduces it. This is the literal cause of the
+   original probe's "echoed the cursor" verdict - it was REAL, just mis-attributed.
+=> Both sides of the doc contradiction were describing a different surface:
+   - docs/hardware-workstation.md:64 "Instruct variants do not do it" -> TRUE for the raw/FIM-token surface.
+   - Qwen's card "chat-template FIM on Instruct" -> TRUE only when a template+instruction wraps it
+     (shape B), which is exactly what Continue's tab provider sends.
+=> HD-401 gate 5 trigger latency MEASURED: 444 / 454 / 521 ms at ~40 prompt tokens. Sub-second holds
+   at this shape; must be re-measured at a real context (not a 40-token toy).
+=> /v1/tokenize is NOT served by LM Studio (Unexpected endpoint) - cannot inspect token ids here.

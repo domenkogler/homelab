@@ -1,0 +1,3 @@
+vision probe FAILED to load the image: HTTPError: HTTP Error 400: Bad Request
+  That is the answer the gate needs: an imported GGUF whose projector the engine cannot
+  attach behaves EXACTLY like a text-only model, except the client advertises images.
