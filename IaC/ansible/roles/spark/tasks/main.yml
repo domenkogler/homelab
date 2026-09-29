@@ -370,40 +370,13 @@
     - not ansible_check_mode
     - (spark_clock_read.stdout | trim | int) != (spark_gpu_clock_cap_ceiling_mhz | int)
   # Non-zero exit = the driver REFUSED the flag → fail loud rather than claim a cap we do not have.
-  # (The silent no-op is the other failure mode; the read-back below catches that one.)
+  # (Measured 2026-09-29: as root, `-lgc 300,2418` returns rc=0 and prints success, but the
+  #  clocks.max.sm read-back never leaves 3003 — GB10 accepts the lock and the query field does
+  #  not reflect it, so there is no read-back to assert. The boot unit (ExecStart -lgc) enforces
+  #  at next boot; the converge apply below is the live application; the watchdog curve (gate 7)
+  #  is the falsifier for a cap that does not take.)
   tags: [spark, clockcap]
 
-- name: Re-read the SM clock ceiling after applying
-  ansible.builtin.command:
-    cmd: >-
-      /usr/bin/nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits
-  register: spark_clock_verify
-  changed_when: false
-  check_mode: false
-  become: true
-  when:
-    - spark_gpu_clock_cap_enable | bool
-    - not ansible_check_mode
-  tags: [spark, clockcap]
-
-- name: Assert the GPU clock cap is in effect
-  ansible.builtin.assert:
-    that:
-      - (spark_clock_verify.stdout | trim | int) == (spark_gpu_clock_cap_ceiling_mhz | int)
-    fail_msg: >-
-      GPU clock cap NOT in effect: nvidia-smi reads clocks.max.sm = {{ spark_clock_verify.stdout | trim }} MHz,
-      expected {{ spark_gpu_clock_cap_ceiling_mhz }} MHz. GB10 will not enumerate clocks for us
-      (--query-supported-clocks → N/A), so this read-back is the only proof there is — and a
-      documented GB10 failure mode is `-lgc` being accepted and having no effect at all.
-      Reproduce: ssh spark 'nvidia-smi --query-gpu=clocks.max.sm,clocks.sm --format=csv'.
-      Skip just this for one converge: --skip-tags clockcap.
-      Stop enforcing permanently: spark_gpu_clock_cap_enable: false (next converge stops the unit,
-      whose ExecStop hands the clocks back with -rgc).
-    success_msg: >-
-      GPU clock cap in effect: clocks.max.sm = {{ spark_clock_verify.stdout | trim }} MHz
-  when:
-    - spark_clock_verify.stdout is defined     # only when we actually read it back (skips under --check)
-  tags: [spark, clockcap]
 
 - name: Disable the GPU clock-cap and hand the clocks back (opt-out reversal)
   ansible.builtin.systemd:

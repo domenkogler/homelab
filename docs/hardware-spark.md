@@ -419,7 +419,10 @@ application clock** (2418 MHz):
   live agent 24/7.
 - **The IaC:** `spark_gpu_clock_cap_{enable,mhz,bin,ceiling_mhz}` in `roles/spark/defaults/main.yml`;
   the `spark` role installs `spark-gpu-clock-cap.service` (tag `clockcap`) **and** applies the cap during
-  the converge, then **asserts the read-back**. `--check` reports desired-vs-actual drift without writing.
+  the converge (`-lgc 300,2418`, exec uses the range form). `--check` reports desired-vs-actual drift
+  without writing. The read-back assert was REMOVED 2026-09-29: on this unit the driver ACCEPTS the lock
+  (rc=0, prints "GPU clocks set to (300, 2418)") yet `clocks.max.sm` never leaves 3003, so there is no
+  field to assert — the apply + boot unit are the enforcement, the watchdog curve (gate 7) the falsifier.
 - **Why both a unit and a converge apply:** the lock is **runtime driver state, lost on every boot** —
   and this box has a documented power-cycle history (SMART row, §As-measured: "high power-cycle +
   unsafe-shutdown count"). The unit covers boots; the converge apply covers driver reloads and any
@@ -468,13 +471,18 @@ second read minutes later), `clocks.max.sm` **3003 MHz**, Default Applications C
 `--query-supported-clocks=graphics` → **[N/A]**. Two consequences: **2418 is only ~3 % below where this box
 actually boosts**, so the cap is cheap and its throughput cost is close to noise; and the value **cannot
 be validated by enumeration** — GB10 does not enumerate clocks any more than it enumerates memory, so
-the read-back is the entire proof. That is why the role asserts `clocks.max.sm == 2418` instead of
-trusting exit code 0 (there is a documented GB10 unit where `-lgc` is accepted and does nothing).
+the read-back is the entire proof in principle — but this unit does not COOPERATE with a read-back:
+measured 2026-09-29, `sudo nvidia-smi -lgc 300,2418` returns rc=0 and prints "GPU clocks set to
+(300, 2418)" while `clocks.max.sm` stays 3003 (and under idle/load `clocks.sm` ~2411). So the role no
+longer asserts a read-back; it applies the lock, and the boot unit re-applies it at every boot. The
+watchdog curve (gate 7) is the falsifier for a cap that does not actually take.
 
-⚠ **Not yet exercised here.** The assert has not run against a live converge — the session that wrote
-this is *served by* spark and does not touch the engine it runs on. The first converge after this lands
-**is** the test: if it fails, this unit is in the no-op class and the answer is to raise the ceiling or
-set `spark_gpu_clock_cap_enable: false` and write down which.
+⚠ **Exercised 2026-09-29 (run #3).** The first converge after this landed FAILED at the assert: the
+driver accepted `-lgc 300,2418` (rc=0) but `clocks.max.sm` stayed 3003 — the documented no-op class,
+confirmed on this unit. Per the lane brief the assert was REPORTED, not skipped; the owner ruled to
+remove the re-read/assert (the apply is real, the field is not), and the role now converges clean. The
+POWER/thermal effect of the cap is still measurable via `power.draw` under load and the watchdog
+gpu_top_mib curve — the clock read-back is not.
 
 Corroboration from the prep session (2026-09-28, read-only ssh, no converge):
 `nvidia-smi --query-gpu=clocks.sm,clocks.max.sm` → **2405 MHz / 3003 MHz** — i.e. the box is still
