@@ -32,7 +32,7 @@
 | **The pool ceiling was not an OOM guard.** A profile that changes the **weights** changes the fixed cost; NVFP4’s core is 88.6 GB vs the AWQ lane’s whole measured 81 GiB. Every vLLM profile now declares `fixed_cost_bytes` and the gate asserts `fixed + pool ≤ 104,113,000,000 B` (= MemTotal − 6.9 GiB held at engine start − the certified **17.78 GiB** worst `usable`). `fast` therefore runs an **11 GB** pool, not 16.5 GB. | gate + catalogue + canary | same |
 | **The gate is proven without the box.** Item 22 of `validate-all.sh` extracts the role’s own regexes + the constants, runs every profile and breeds a canary per invariant; both canaries are also refused by the real `ansible.builtin.assert` tasks (run against localhost). | `bash scripts/validate-all.sh` | `scripts/check_spark_llm_gate.py` |
 | **SGLang facts** (file-backed PLE #37068, the ~93k/174k pools, `--mem-fraction-static 0.80` vs the earlyoom threshold, the ~55-minute table re-write, CDI-only docker GPU access, thinking cannot be turned off). | in the `fast-sglang` catalogue comments + [docs/hardware-spark.md](docs/hardware-spark.md) §DGX Spark host limits | SGLang’s own DGX Spark cookbook pages |
-| **The clock cap is IaC that has never converged.** Read-only on 2026-09-28: `clocks.max.sm = 3003 MHz`, i.e. **uncapped** — so every timed number already in the repo is pre-cap, and your first converge is what installs the ceiling (and its assert is what proves the ceiling works on this unit). | measured | [`spark/reports/hd469-reasoning/README.md`](spark/reports/hd469-reasoning/README.md) |
+| **The clock cap CONVERGED (run #3, 2026-09-29 15:45) and has no read-back.** The assert installed by run #2 failed that converge while the converge had in fact applied the cap: `clocks.max.sm` is a **capability** field (3003 lock or no lock) and `clocks.applications.graphics` reads 2418 because that **is** the default app clock — no field on this driver reflects a `-lgc` range lock. Owner ruling: the re-read/assert is gone (`043ff4a`), the role re-issues the lock every converge with `changed_when: false`. ⇒ the regime of a measurement window is proven only by **sustained `clocks.sm` under load** (2496–2515 pre-cap, ~2411 capped), which run #3 never recorded — so **the under-cap baseline is still owed** and no number in the repo is a certified under-cap number. | measured 2026-09-29 + log | [`spark/reports/hd469-reasoning/README.md`](spark/reports/hd469-reasoning/README.md) · [docs/hardware-spark.md](docs/hardware-spark.md) §GPU clock cap |
 
 **The Qwen3.8-27B question** the owner raised is answered and moved out of this brief: it is a
 **second served model**, never a value of `spark_llm_profile` — the vendor's measured GB10 grid, the
@@ -99,23 +99,28 @@ python3 scripts/validate-docker-services.py --only spark-ai    # renders, YAML p
 python3 scripts/spark-llm-probe.py matrix                      # every profile, no token needed
 ```
 
-**1 · Prove the certified lane, and install the clock cap, in ONE converge.** `spark_llm_profile`
-stays `reasoning`; the branch carries `roles/spark`’s `clockcap` unit for the first time, so this
-converge is both the refactor check and the cap check.
+**1 · Prove the certified lane, and take the baseline the last run only claimed.** `spark_llm_profile`
+stays `reasoning`; the `clockcap` unit converged on 2026-09-29, so this is the refactor check plus the
+baseline that run #3 wrote into the row without writing into its evidence directory.
 ```bash
 # --no-pull is deliberate: a session worktree has no upstream, so the runner would
 # otherwise refuse (uncommitted) or converge the wrong commit. Read the NOTE it prints.
 nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/hd469-reasoning.log 2>&1 &
 tail -f /tmp/hd469-reasoning.log          # poll, do not block a tool timeout on it
 ```
-Expect: gate summary `certified: true`; the container is **not** recreated for cosmetic reasons; the
-`clockcap` assert passes (if it fails, this unit is in the documented `-lgc`-is-accepted-and-does-nothing
-class — report it, do not `--skip-tags clockcap` and carry on). Then, **from a session that is not
-served by spark**:
+Expect: gate summary `certified: true`; the container is **not** recreated for cosmetic reasons;
+`clockcap` reports `ok` **not** `changed` (the apply is `changed_when: false` by design — a `changed`
+it cannot observe would be noise, and the old dead-field gate made every converge report one). Then,
+**from a session that is not served by spark**, with the clock trace running across the whole window:
 ```bash
+ssh spark 'nvidia-smi --query-gpu=timestamp,clocks.sm,power.draw,temperature.gpu,clocks_event_reasons.active --format=csv -l 5' >/tmp/hd469-baseline-clocks-$(date +%H%M).log 2>&1 &
 python3 scripts/spark-llm-probe.py --base-url https://llm.ts.kogler.si/v1 all --profile reasoning
-ssh spark 'nvidia-smi --query-gpu=clocks.sm,clocks.max.sm,power.draw,temperature.gpu --format=csv'  # must read 2418
+awk '/MemAvailable|CmaFree/' /proc/meminfo   # at BOTH ends of the window
+ssh spark 'curl -s localhost:8000/metrics | grep -E "num_preemptions_total|prefix_cache|spec_decode"'
 ```
+Paste the **raw** outputs into `spark/reports/hd469-reasoning/` — that directory, not the row, is what
+makes the baseline exist. One log file per converge attempt (`-$(date +%H%M)`): run #3's failed first
+converge was erased when the retry truncated `/tmp/hd469-reasoning.log`.
 Baseline to compare against (run #1, pre-cap): `health` 200, thinking OFF emits no reasoning,
 `ctx 262144` answered at 258,863 prompt tokens, `concurrent 4` all 200, `RestartCount=0`. **This run
 is the under-cap baseline from now on**; anything older is history, not an A/B arm. If this step
@@ -183,30 +188,34 @@ files are workstation-owned and carry the bearer: propose the diff, let the owne
 
 ## Timed measurements: read the clock regime, do not assume it
 
-* **Verify at both ends of every timed window:**
-  `ssh spark 'nvidia-smi --query-gpu=clocks.sm,clocks.max.sm,power.draw,temperature.gpu --format=csv'`
-  must read `clocks.max.sm = 2418` once the cap has converged. It read **3003** on 2026-09-28, i.e.
-  the ceiling is not on the box until step 1 lands. If it still does not read 2418 after a successful
-  converge, that is a **host finding for the report**, not something to fix by hand mid-run: the role
-  owns that state, and an ad-hoc `-lgc`/`-rgc` inside a measurement window destroys the thing you are
-  measuring.
+* **Verify at both ends of every timed window — and know that the read-back cannot do it.**
+  `nvidia-smi --query-gpu=clocks.max.sm` **stays 3003 with the cap on** (it is a capability field), and
+  a spot `clocks.sm` read 2405 both pre-cap and post-cap, so neither proves the regime. What does:
+  a `--format=csv -l 5` `clocks.sm` trace **running across** the window, under load, pasted into the
+  report (2496–2515 = uncapped, ~2411 = capped). The cap is IaC-owned; an ad-hoc `-lgc`/`-rgc` inside a
+  measurement window destroys the thing you are measuring — never reach for it.
 * The cap sits at the **default application clock** (~3 % under where this unit actually boosts — it
   read 2496–2515 MHz), so pre-cap figures (≈11 tok/s decode, 17,008 tok/s re-prefill, `SM_CLOCK`
-  2509 MHz) stay roughly comparable — but “roughly” is not “identically”: the first under-cap run is
-  the baseline. **One regime per A/B**: if the cap is missing on one arm, the A/B is void.
+  2509 MHz) stay roughly comparable — but “roughly” is not “identically”: **the under-cap baseline has
+  still never been recorded** (run #3 asserted one and left no measurement), so until it exists there
+  is no under-cap arm to compare against at all. **One regime per A/B**: no trace, no comparison.
 * **GB10 will not validate a clock value for you:** `--query-supported-clocks=graphics` → `[N/A]`,
-  `-pl` is unsupported, and every temperature target reads `N/A` — a graphics-clock ceiling is the
-  *entire* software control surface on this SoC, and the read-back is the only proof. Details + the
-  `SW Power Capping` counter: [docs/hardware-spark.md](docs/hardware-spark.md) §GPU clock cap.
+  `-pl` is unsupported, every temperature target reads `N/A`, **and every clock read-back field is
+  either a capability (3003) or a default mirror (2418)** — a graphics-clock ceiling is the *entire*
+  software control surface on this SoC and sustained `clocks.sm` under load is the only proof. Details
+  + the `SW Power Capping` counter: [docs/hardware-spark.md](docs/hardware-spark.md) §GPU clock cap.
 
 ## Report + commit
 
 Write the run into `spark/reports/hd469-<profile>/` (commands, timestamps, `MemAvailable` **and
-`CmaFree`** — the metric is `usable = MemAvailable − CmaFree`, `clocks.sm`/`clocks.max.sm`/power/temp
-at the **start and end** of each timed window, preemption + prefix-hit + `vllm:spec_decode_*` counters
-from `/metrics`, the engine’s own `Available KV cache memory` / `GPU KV cache size` lines, probe
-output) and cite it from the catalogue — `certified_evidence:` takes a **link to that directory**,
-never prose, and never a projected slot count.
+`CmaFree`** — the metric is `usable = MemAvailable − CmaFree` — at **both ends**, the sustained
+`clocks.sm`/power/temp **trace** across each timed window (`-l 5`, not a spot read: `clocks.max.sm`
+proves nothing here), preemption + prefix-hit + `vllm:spec_decode_*` counters **captured from
+`/metrics`**, the engine’s own `Available KV cache memory` / `GPU KV cache size` lines, probe output
+**verbatim**) and cite it from the catalogue — `certified_evidence:` takes a **link to that
+directory**, never prose, and never a projected slot count. ⚠ **A row may not cite an evidence
+directory for a number that directory does not contain** — run #3 did exactly that for the reasoning
+baseline and the claim was retracted in that directory on 2026-09-29.
 
 Already fixed for you, so do not re-do it: `hd469-graded/README.md` no longer has `(link TBD)`,
 `Post-boot graded: TBD`, criteria-in-place-of-measurements in rows 3–7, the 2→7 numbering jump, or

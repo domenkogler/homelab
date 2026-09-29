@@ -296,11 +296,20 @@
 # WHY TWO HALVES: the lock is RUNTIME driver state — it does NOT survive a boot, and this box has a
 # documented history of hard power-cycles (SMART row, same doc). So: the unit covers boot, the
 # converge apply covers everything else (driver reload, a hand-run `-rgc`, a skipped unit).
-# WHY VERIFY: measured on this unit 2026-09-28 — clocks.sm 2496 MHz, clocks.max.sm 3003 MHz,
-# Default Applications Clocks 2418 MHz, and `--query-supported-clocks=graphics` → **[N/A]**: GB10
-# does not enumerate clocks any more than it enumerates memory, so a value cannot be validated up
-# front. There is also a documented GB10 unit where `-lgc` is accepted and does nothing. The
-# read-back below is therefore the whole contract, and it is loud.
+# WHY THE CONVERGE CANNOT PROVE THE CAP: measured 2026-09-28 (pre-cap) clocks.sm 2496 / clocks.max.sm
+# 3003 / Default Applications Clocks 2418, and `--query-supported-clocks=graphics` → **[N/A]**: GB10
+# does not enumerate clocks any more than it enumerates memory. Re-measured 2026-09-29 AFTER a
+# successful `-lgc 300,2418` (rc=0, prints "GPU clocks set to (300, 2418)"): `clocks.max.sm` is still
+# 3003 — it is a CAPABILITY field, not the enforced limit — and `clocks.applications.graphics` reads
+# 2418 only because 2418 IS the default application clock, so it reads 2418 with the lock and without
+# it. NO nvidia-smi field reflects a -lgc range lock on this driver, so an in-band read-back assert
+# cannot be written: the one that existed until 2026-09-29 asserted a dead field and FAILED a converge
+# that had in fact applied the cap (owner ruling `043ff4a`; docs/hardware-spark.md §GPU clock cap,
+# docs/services-rejected.md).
+# WHAT DOES PROVE IT: sustained clocks.sm UNDER LOAD — this unit boosts to 2496-2515 pre-cap and sat
+# at ~2411 capped. Sample it in a bench window from a session NOT served by spark (rule 0):
+#   ssh spark 'nvidia-smi --query-gpu=timestamp,clocks.sm,power.draw,temperature.gpu,clocks_event_reasons.active --format=csv -l 5'
+# A memory / watchdog curve says NOTHING about clocks — never call gate 7 the cap's falsifier.
 - name: Reject a bare clock value (range form only)
   ansible.builtin.assert:
     that:
@@ -337,25 +346,30 @@
     - not ansible_check_mode
   tags: [spark, clockcap]
 
-- name: Read the SM clock ceiling
+- name: Read the GPU clock state (informational — no field reflects a -lgc lock on GB10)
   ansible.builtin.command:
     cmd: >-
-      /usr/bin/nvidia-smi --query-gpu=clocks.max.sm --format=csv,noheader,nounits
+      /usr/bin/nvidia-smi --query-gpu=clocks.sm,clocks.max.sm,clocks.applications.graphics
+      --format=csv,noheader,nounits
   register: spark_clock_read
   changed_when: false
-  # Read-only → run it even under --check, so --check can REPORT drift instead of hiding it.
+  # Read-only → run it under --check too, so --check prints the observed state instead of hiding it.
+  # CONTEXT ONLY: clocks.max.sm is a capability field (reads 3003 lock or no lock) and
+  # clocks.applications.graphics mirrors its default (2418) either way. NEVER gate on these.
   check_mode: false
   become: true
   when: spark_gpu_clock_cap_enable | bool
   tags: [spark, clockcap]
 
-- name: Report clock-cap drift under --check
+- name: Report the GPU clock state under --check (context, not drift)
   ansible.builtin.debug:
     msg: >-
-      GPU clock cap: desired ceiling {{ spark_gpu_clock_cap_ceiling_mhz }} MHz, target currently
-      reads {{ spark_clock_read.stdout | trim }} MHz
-      {{ '→ would APPLY' if (spark_clock_read.stdout | trim | int) != (spark_gpu_clock_cap_ceiling_mhz | int)
-         else '→ already in effect' }} (no change made; --check)
+      GPU clock cap: desired lock {{ spark_gpu_clock_cap_mhz }} (ceiling
+      {{ spark_gpu_clock_cap_ceiling_mhz }} MHz); target reads clocks.sm / clocks.max.sm /
+      clocks.applications.graphics = {{ spark_clock_read.stdout | trim }}. No drift verdict is
+      derivable from those fields on GB10, so none is claimed. The apply re-issues the lock on every
+      real converge; proof of the cap is sustained clocks.sm UNDER LOAD (2496-2515 pre-cap, ~2411
+      capped), sampled in a bench window — not here.
   when:
     - spark_gpu_clock_cap_enable | bool
     - ansible_check_mode
@@ -368,13 +382,14 @@
   when:
     - spark_gpu_clock_cap_enable | bool
     - not ansible_check_mode
-    - (spark_clock_read.stdout | trim | int) != (spark_gpu_clock_cap_ceiling_mhz | int)
+  # Idempotence CANNOT be reported here. Gating on a read field is a trap: the dead `clocks.max.sm`
+  # gate that lived here until 2026-09-29 was permanently true, so this task reported `changed` on
+  # EVERY converge (--check claimed drift forever, and "changed=0" stopped meaning anything). With no
+  # read-back available, the honest form is: re-issue unconditionally, and say we cannot observe it.
+  changed_when: false
   # Non-zero exit = the driver REFUSED the flag → fail loud rather than claim a cap we do not have.
-  # (Measured 2026-09-29: as root, `-lgc 300,2418` returns rc=0 and prints success, but the
-  #  clocks.max.sm read-back never leaves 3003 — GB10 accepts the lock and the query field does
-  #  not reflect it, so there is no read-back to assert. The boot unit (ExecStart -lgc) enforces
-  #  at next boot; the converge apply below is the live application; the watchdog curve (gate 7)
-  #  is the falsifier for a cap that does not take.)
+  # That is the half of the failure mode this task CAN see. The silent-no-op half is falsified only by
+  # sustained clocks.sm under load in a bench window (header) — never by the gate-7 memory curve.
   tags: [spark, clockcap]
 
 

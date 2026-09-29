@@ -91,7 +91,19 @@ python3 scripts/spark-llm-probe.py --base-url https://llm.kogler.si/v1 all --pro
 nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/hd469-rollback.log 2>&1 &
 ```
 
-Clock regime: cap applied by the run (clocks.sm 2411 at start, 305 idle at end;
-`clocks.max.sm` field dead on this unit — see doc). MemAvailable/CmaFree at
-window end: 122,741,948 / 5,658,828 kB → usable ≈ 117.1 GB. No timed number in
-this report was taken by a spark-served session.
+Clock regime: the converge **applied** the cap (`/tmp/hd469-fast.log` header `Converging 8f6698b`,
+stamp 16:33, the `clockcap` apply task ran) — but this report's numbers carry an **assumed**, not a
+measured, regime: no sustained-under-load `clocks.sm` trace was captured, and `clocks.sm` read 2405 in
+the **pre-cap** probe too, so a spot reading cannot prove 2418 was holding
+([hardware-spark.md §GPU clock cap](../../docs/hardware-spark.md)). Anyone A/B-ing these `fast` numbers
+against `reasoning` must re-sample the regime in the same window. `clocks.max.sm` is a capability field
+and stays 3003 either way. MemAvailable/CmaFree at window end: 122,741,948 / 5,658,828 kB →
+usable ≈ 117.1 GB (one end only — both ends next time).
+
+⚠ Two capture gaps, so the next run does not repeat them: the probe leg here ran against
+`https://llm.kogler.si/v1` while the brief names `https://llm.ts.kogler.si/v1` — record which endpoint
+leg, or the number is not attributable across legs. And "zero preemptions / OOMKilled=false" was read
+out of **logs**; the `/metrics` counters the brief asks for (`num_preemptions_total`, prefix hits,
+`vllm:spec_decode_*`) were never captured, so gate 7's pool claim rests on the boot line alone
+(pool size ✓) and **not** on a memory curve (never run). No timed number in this report was taken by a
+spark-served session.

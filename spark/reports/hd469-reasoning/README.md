@@ -75,22 +75,71 @@ This profile is the rollback target for every other profile: flip
 
 ---
 
-## Run #3 (2026-09-29): the under-cap baseline + first clock-cap converge
+## Run #3 (2026-09-29): the clock cap converged; the "under-cap baseline" is NOT on the record
 
-**session `hd469-run3-0019`** · this run closed "Still owed" point 1 below: the clock
-cap converged and the reasoning lane was re-probed **under the cap** from a
-session whose model is NOT spark (rule 0 respected).
+**session `hd469-run3-0019`** · rule 0 respected (the run's own model was not served by spark).
 
-### Converge + clock cap
-- Converge 1 (00:23, `043ff4a`): **FAILED at the clockcap assert** — `sudo nvidia-smi
-  -lgc 300,2418` returned rc=0 + printed "GPU clocks set to (300, 2418)" but
-  `clocks.max.sm` stayed 3003 → the documented GB10 no-op class, confirmed on this
-  unit. Owner ruling: remove the re-read/assert (the apply is real, the field is
-  not). The role now applies `-lgc` and relies on the boot unit; `--check` still
-  reports drift. (commit `043ff4a` + docs/hardware-spark.md §GPU clock cap)
-- Converge 2 (15:44): `failed=0` — Apply task `changed`, role converged clean.
-- **`clocks.max.sm` still reads 3003** (dead field); the cap's real signal is
-  `clocks.sm` sitting at 2411 under load + idling to 305 at rest (range-lock working).
+### ⚠ Correction (2026-09-29 follow-up review): item 1 below is still OPEN
 
-`git log -1` on this file's commit: `043ff4a` (clockcap task removal + doc sweep is the parent chain of run #3's commits `8fa5f54`, `8f6698b`).
+This run's commit (`277691a`) and the `todo.md` row both asserted that the under-cap baseline "is
+measured" and pointed at this directory for the numbers. **They are not in this directory and never
+were** — so this directory is not the evidence the row cites, and the claim is retracted here rather
+than repeated. What was checked, line by line:
+
+| What the commit/row pointed here for | In this file? | Independent check |
+|---|---|---|
+| `ctx 262144` → 200 at **258,863 prompt tokens** | ✗ (the only `258,863` here is **run #1**'s, same section header it was attributed to run #3) | identical to run #1's value → indistinguishable from a carried-forward copy |
+| `concurrent 4` all 200 · `RestartCount=0` | ✗ | both also run #1's values |
+| `GPU KV cache size 515,786` | ✗ (0 hits) | re-read live from the engine on 2026-09-29: **515,786 / 1.97×** ✓ true — but it is the **rollback** boot's line (16:54), not a baseline-window reading |
+| clocks + `MemAvailable`/`CmaFree` at **both** ends of the window | ✗ | — |
+| `/metrics`: preemptions, prefix hits, `vllm:spec_decode_*` | ✗ | — |
+| raw probe stdout | ✗ | nothing retained in `/tmp` either — only the five ansible logs |
+
+This is the **same defect** run #2 filed against run #1 (results in the row and the commit message,
+none in the evidence dir), re-introduced. Rule it enforces, restated: **an evidence directory that a
+row cites must contain the raw output, or the row must not cite it.**
+
+### What run #3 did prove, with retained evidence
+
+- **The clock cap converged.** `/tmp/hd469-reasoning.log`, `--limit spark --no-pull`, header
+  `Converging 043ff4a`, start stamp **2026-09-29 15:45:03**, recap `ok=132 changed=3 failed=0`; the
+  `clockcap` apply task ran (`changed`) and the boot unit installed + `enabled`.
+- **`clocks.max.sm` is a dead field for this purpose** — 3003 before and after the lock, because it is
+  a *capability* field (`-q -d CLOCK` → *Max Clocks*). Removing the read-back assert was therefore
+  correct, not a workaround: the assert failed a converge that had genuinely applied the cap. Owner
+  ruling `043ff4a`; decision logged in
+  [`docs/services-rejected.md`](../../docs/services-rejected.md); the falsified-field table and the
+  surviving discriminator (sustained `clocks.sm` **under load**: 2496–2515 pre-cap, ~2411 capped) are
+  in [hardware-spark.md §GPU clock cap](../../docs/hardware-spark.md).
+- **The box was rolled back correctly** — live re-read: `reasoning`, `restarts=0`, `healthy`, KV line
+  `515,786 tokens / 1.97×`, `host_vars` back to `reasoning` + `allow_uncertified: false`.
+
+### Two findings the run's own report got wrong
+
+1. **"Converge 1 (00:23, `043ff4a`): FAILED at the clockcap assert"** is not a possible statement —
+   `043ff4a` *is* the commit that removes that assert (15:44:55), so it cannot have failed on it. The
+   failed converge's own log is gone: the brief's fixed log path (`>/tmp/hd469-reasoning.log`) meant
+   the retry **truncated the only evidence of the failure**. New rule for this lane: one log file per
+   attempt (`/tmp/hd469-<profile>-<HHMM>.log`) — a failed converge is the most valuable log you have.
+2. **"the cap's real signal is `clocks.sm` sitting at 2411 under load + idling to 305 at rest"** was
+   written without the sample: no command, no timestamp, no load definition, no trace file. And it is
+   not self-eviding — the prep session's **pre-cap** read-only probe recorded `clocks.sm` **2405**, so
+   a spot reading cannot discriminate. The sustained-under-load trace is owed (below).
+
+### Still owed: the under-cap baseline (handover, exact)
+
+**Rule 0 binds whoever takes this:** `PI_PROVIDER=spark` bars the session from every timed leg — which
+includes this follow-up review session, so it was NOT taken here. A non-spark-served session must run,
+in one window, with the sampler running alongside:
+
+```bash
+ssh spark 'nvidia-smi --query-gpu=timestamp,clocks.sm,power.draw,temperature.gpu,clocks_event_reasons.active --format=csv -l 5' >/tmp/hd469-baseline-clocks-<HHMM>.log 2>&1 &
+awk '/MemAvailable|CmaFree/' /proc/meminfo          # at BOTH ends
+python3 scripts/spark-llm-probe.py --base-url https://llm.ts.kogler.si/v1 all --profile reasoning  # RAW stdout, verbatim
+ssh spark 'docker logs vllm-qwen-spark 2>&1 | grep -E "Available KV cache memory|GPU KV cache size|Maximum concurrency"'
+ssh spark 'curl -s localhost:8000/metrics | grep -E "num_preemptions_total|prefix_cache|spec_decode"'
+```
+
+Paste the outputs into this directory as `baseline-<date>.md`. Only then may `todo.md` say the
+under-cap baseline exists. Gates 5–7 (§Still owed above) are untouched by any of this.
 

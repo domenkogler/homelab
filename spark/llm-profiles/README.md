@@ -102,8 +102,12 @@ restart loop, stop the loop before it eats the pool:
   1.70–1.89× on this model, not 2× — the constant that was in `group_vars/spark.yml` until
   2026-09-28 said 2× and over-promised every fp8 number by ~18 %. The engine's own
   `Available KV cache memory` / `GPU KV cache size` boot-log pair is the number of record.
-- A clock regime that was never read is not a regime. Every timed number must carry
-  `nvidia-smi --query-gpu=clocks.sm,clocks.max.sm` **at both ends** of the window: the box's
-  `clockcap` role is IaC that has not been converged yet (as of 2026-09-28 the box reads
-  `clocks.max.sm = 3003`, i.e. uncapped), and GB10 has no thermal lever to fall back on
+- A clock regime that was never read is not a regime — and **on this box no nvidia-smi field proves
+  the cap**. The `clockcap` role converged 2026-09-29 15:45, but `clocks.max.sm` is a *capability*
+  field that reads **3003 with the lock on**, and `clocks.sm` read **2405 both before and after** the
+  cap at low load, so neither end of a window can be certified from a spot reading. What a timed
+  number must carry is the **sustained** trace plus memory at both ends:
+  `ssh spark 'nvidia-smi --query-gpu=timestamp,clocks.sm,power.draw,temperature.gpu,clocks_event_reasons.active --format=csv -l 5'`
+  across the window (the discriminator is **2496–2515 MHz pre-cap vs ~2411 capped, under load**) and
+  `MemAvailable` − `CmaFree` at both ends. GB10 has no thermal lever to fall back on
   ([docs/hardware-spark.md](../../docs/hardware-spark.md) §GPU clock cap).
