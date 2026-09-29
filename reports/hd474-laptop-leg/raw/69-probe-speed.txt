@@ -1,0 +1,5 @@
+wall 14.6s | prompt 1816 tok (125 t/s) | completion 128 tok (8.8 t/s)
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+--- run 2: agent-shaped prompt (~4k tok) ---
+wall 12.8s | prompt 1375 tok (107 t/s) | completion 128 tok (10.0 t/s)

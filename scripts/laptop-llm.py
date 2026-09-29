@@ -39,6 +39,18 @@ try:
 except ImportError:
     sys.exit("FATAL: needs pyyaml — sudo apt-get install -y python3-yaml")
 
+# The CONTRACTED seat is Windows-native (owner 2026-09-29), and on Win11 a plain
+# `python scripts\laptop-llm.py …` runs with the console/locale codec = cp1252. Measured live
+# 2026-09-29 (HD-474): that made this driver die before it could say anything — UnicodeDecodeError
+# reading the UTF-8 catalogue, and UnicodeEncodeError printing '⚠'/'→'. Every
+# scripts/win/lmstudio-llm.ps1 call therefore failed in its FIRST catalogue read. UTF-8 is forced
+# in both directions here rather than trusting the caller to export PYTHONUTF8=1.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+    except (AttributeError, ValueError):    # redirected / closed streams
+        pass
+
 HERE = Path(__file__).resolve().parent
 SPEC = HERE / "laptop-llm" / "profiles.yml"
 PI_SPEC = HERE / "pi-config" / "models-spec.yml"
@@ -76,7 +88,8 @@ def expand(spec, cfg):
 
 
 def load(path=SPEC):
-    cfg = yaml.safe_load(Path(path).read_text())
+    # encoding explicit: profiles.yml is UTF-8 and the Windows seat's default codec is not.
+    cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     cfg["_dir"] = str(Path(path).resolve().parent)
     return cfg
 
@@ -344,6 +357,22 @@ def _post(base, path, payload, token, timeout):
         return json.loads(r.read().decode())
 
 
+def msg_text(msg):
+    """Read what the model actually said. This server (developer.separateReasoningContentInAPI)
+    puts a reasoning model's output in reasoning_content and leaves content EMPTY until it is
+    done thinking, so a probe that reads only content reports silence from a healthy server.
+    Returns (text, kind) where kind is 'content' or 'reasoning'."""
+    c = (msg.get("content") or "").strip()
+    if c:
+        return c, "content"
+    r = (msg.get("reasoning_content") or "").strip()
+    if r:
+        return r, "reasoning"
+    if msg.get("tool_calls"):
+        return json.dumps(msg["tool_calls"])[:120], "tool_calls"
+    return "", "empty"
+
+
 def cmd_probe_health(cfg, a):
     base = server_base(cfg)
     try:
@@ -355,8 +384,16 @@ def cmd_probe_health(cfg, a):
         print("  check: server running · port · 'Expose server to network' ON · Defender rule for the")
         print("  WSL/NAT subnet · Windows firewall profile for that network being Private")
         return 2
-    print(f"OK {base} model={a.model} :: "
-          f"{(d.get('choices') or [{}])[0].get('message', {}).get('content','')!r}")
+    msg = (d.get("choices") or [{}])[0].get("message", {})
+    txt, kind = msg_text(msg)
+    if kind == "empty":
+        print(f"WARN {base} answered but returned NOTHING in content OR reasoning_content "
+              f"(model={a.model}). Server is up; the reply is empty. Try a larger --timeout / "
+              f"max_tokens, or check the template.")
+        return 0
+    note = "  <-- reasoning model: content is empty BY DESIGN, output is in reasoning_content" \
+        if kind == "reasoning" else ""
+    print(f"OK {base} model={a.model} [{kind}] :: {txt[:120]!r}{note}")
     return 0
 
 
@@ -395,39 +432,110 @@ def cmd_probe_ctx(cfg, a):
     return 0
 
 
+# A cursor-shaped infill, not a continuation. The gap is ONE token wide and only the middle
+# resolves it: 'x = a ' + <GAP> + ' + b' must be bridged by '+ '. Nothing else in the file
+# supplies that token, so a model that merely continues prose cannot pass.
+FIM_CASES = [
+    dict(name="python-bridge", prefix="x = a ", suffix=" + b",
+         must_contain="+", must_not_contain=("x = a", "a  + b")),
+    dict(name="def-body", prefix="def area(r):\n    return ", suffix="\n\ndef perim(r):",
+         must_contain="3.14", must_not_contain=("def area",)),
+]
+
+
+def fim_self_test():
+    """A test that cannot fail is not evidence (CONVENTIONS §6). The original merged probe failed a
+    PERFECT completion because its detector treated a plain blank line as a control-token echo, and
+    it never tested infill at all (prefix only = continuation). These canaries breed one WRONG verdict
+    per failure shape and refuse a classifier that lets any of them through."""
+    bad = 0
+    good = ["+ b", "3.14 * r * r"]
+    print("fim self-test (each line is a canary that MUST be caught):")
+    # 1 a good bridge must PASS
+    for t, c in zip(good, FIM_CASES):
+        ok = _fim_verdict(t, c)[0]
+        print(f"  good bridge {c['name']:<14} {'caught' if ok else 'MISSED'}")
+        bad += 0 if ok else 1
+    # 2 echoing the cursor / re-printing the whole file must FAIL
+    for t, c in [("x = a " + " + b", FIM_CASES[0]), ("def area(r):\n    return 0", FIM_CASES[1])]:
+        ok = _fim_verdict(t, c)[0]
+        print(f"  echo          {c['name']:<14} {'caught' if not ok else 'MISSED'}")
+        bad += 0 if not ok else 1
+    # 3 empty must FAIL
+    ok = _fim_verdict("", FIM_CASES[0])[0]
+    print(f"  empty completion {'caught' if not ok else 'MISSED'}")
+    bad += 0 if not ok else 1
+    # 4 control-token echo must FAIL
+    ok = _fim_verdict("<|" + "fim_middle" + "|>", FIM_CASES[0])[0]
+    print(f"  control token  echo      {'caught' if not ok else 'MISSED'}")
+    bad += 0 if not ok else 1
+    print(f"\nfim self-test: {6-bad}/6 verdicts correct")
+    return 1 if bad else 0
+
+
+def _fim_verdict(txt, case):
+    """(passed, why). Deliberately narrow: it asks whether the completion BRIDGES the gap, and it
+    only calls it an echo when the completion repeats the prefix/suffix or leaks a control token —
+    never on 'blank line', which is ordinary code."""
+    if not txt or not txt.strip():
+        return False, "empty completion"
+    low = txt
+    for tok in ("<|", "[INST]", "```"):
+        if tok in low:
+            return False, f"leaked control/markup token {tok!r}"
+    for rep in (case["must_not_contain"] or ()):
+        if rep in low:
+            return False, f"repeated the handed text {rep!r} (echo, not infill)"
+    if case["must_contain"] not in low:
+        return False, f"did not supply the bridging text {case['must_contain']!r}"
+    return True, "bridged the gap"
+
+
 def cmd_probe_fim(cfg, a):
     """docs/hardware-workstation.md:64 demands a FIM-trained model and says Instruct variants "do
     not do it"; Qwen2.5-Coder's own card documents chat-template FIM on Instruct. Settle the
-    disagreement with a cursor-shaped completion instead of an argument."""
+    disagreement with a cursor-shaped infill instead of an argument.
+
+    Rewritten 2026-09-29 (HD-474): the merged version sent a PREFIX ONLY, which measures
+    continuation and cannot answer the question, and its detector counted a blank line as a
+    control-token echo, so a correct completion was reported as FAIL. Measured on this box: the
+    model completed 'def is_palindrome' perfectly and the probe called it an echo."""
+    if a.self_test:
+        return fim_self_test()
     prof = dig(cfg, f"profiles.{a.profile}") or {}
     m = dig(cfg["models"], prof.get("model")) or {}
-    prefix = ('def is_palindrome(s):\n'
-              '    """Return True if s reads the same backwards."""\n    ')
-    try:
-        d = _post(server_base(cfg), "/completions",
-                  {"model": a.model or m.get("identifier"), "prompt": prefix, "max_tokens": 64,
-                   "temperature": 0.0, "stop": ["\ndef ", "\nclass "]}, a.token or "lmstudio", a.timeout)
-    except Exception as e:
-        print(f"FIM probe could not reach the server: {type(e).__name__}: {e}")
-        return 2
-    txt = (d.get("choices") or [{}])[0].get("text", "")
-    NL = chr(10)
-    specials = ["<|" + "im_start" + "|>", "<|" + "fim_prefix" + "|>", "```", NL + NL]
-    echoed = any(t in txt for t in specials)
-    looks = bool(txt.strip()) and not echoed
-    print(f"prompt tokens: {d.get('usage', {})}")
-    print("completion[:200]: " + repr(txt[:200]))
+    model = a.model or m.get("identifier")
+    passes, results = 0, []
+    for case in FIM_CASES:
+        # Both shapes: the raw cursor gap, and the chat-template FIM form the model card documents.
+        prompt = a.prompt_tmpl.format(prefix=case["prefix"], suffix=case["suffix"]) if a.prompt_tmpl \
+            else case["prefix"] + case["suffix"]
+        try:
+            d = _post(server_base(cfg), "/completions",
+                      {"model": model, "prompt": prompt, "max_tokens": 32, "temperature": 0.0,
+                       "stop": [case["suffix"]] if case["suffix"] else None},
+                      a.token or "lmstudio", a.timeout)
+        except Exception as e:
+            print(f"FIM probe could not reach the server: {type(e).__name__}: {e}")
+            return 2
+        txt = (d.get("choices") or [{}])[0].get("text", "")
+        # the server echoes nothing; strip the prompt we know it received
+        body = txt.replace(prompt, "")
+        ok, why = _fim_verdict(body, case)
+        passes += 1 if ok else 0
+        results.append((case["name"], ok, why, body))
+        print(f"  {case['name']:<14} {'PASS' if ok else 'FAIL'}  {why}")
+        print(f"      bridged text: {body[:120]!r}")
     print()
-    if looks:
-        print("FIM probe: the model continued the body without echoing the cursor or a control token.")
-        print("  It is USABLE for insert, but docs/hardware-workstation.md:64 is about a model TRAINED")
-        print("  for FIM: judge whether it stops at a dedent and whether it invented the signature it")
-        print("  was handed. Then MEASURE trigger latency (HD-401 gate 5: sub-second is an assumption,")
-        print("  and a slow trigger makes a tab model a toy). Set fim_probe: passed only after that.")
+    if passes == len(FIM_CASES):
+        print(f"FIM probe: {passes}/{len(FIM_CASES)} cursor-shaped infills bridged correctly. The model DOES")
+        print("  infill on these weights — Qwen's card is right and docs/hardware-workstation.md:64's")
+        print("  'Instruct variants do not do it' is wrong for this quantised pair. Still measure trigger")
+        print("  latency before trusting it (HD-401 gate 5), then set fim_probe: passed.")
         return 0
-    print("FIM probe: the model echoed the cursor / a control token instead of completing. This file is")
-    print("  not serving FIM — get the -Python-FIM variant (docs/hardware-workstation.md:64) and update")
-    print("  the model row. A filler tab is exactly what decision #28's follow-up was written to avoid.")
+    print(f"FIM probe: {passes}/{len(FIM_CASES)} passed. Not a reliable infiller on this load — the FIM row")
+    print("  changes model (the -Python-FIM pair named in docs/hardware-workstation.md:64), and the doc")
+    print("  claim is recorded as tested rather than assumed.")
     return 1
 
 
@@ -436,11 +544,25 @@ def cmd_probe_tools(cfg, a):
         "name": "run_shell", "description": "Run a shell command on the user's machine.",
         "parameters": {"type": "object", "properties": {"command": {"type": "string"}},
                        "required": ["command"]}}}
+    # tool_choice is NOT sent on purpose: LM Studio 0.4.25 rejects tool_choice:"auto" with HTTP 400
+    # (measured 2026-09-29), and a probe that reports that 400 as "the model cannot use tools" takes
+    # a WORKING capability out of the client contract. Omitting it is also the honest test - the
+    # harness does not pin the choice either.
+    payload = {"model": a.model, "messages": [{"role": "user", "content": "List the files in /tmp."}],
+               "tools": [t for t in (a.tool or [])] or [tool], "max_tokens": 128, "stream": False}
     try:
-        d = _post(server_base(cfg), "/chat/completions",
-                  {"model": a.model, "messages": [{"role": "user", "content": "List the files in /tmp."}],
-                   "tools": [a.tool] or [tool], "tool_choice": "auto", "max_tokens": 128, "stream": False},
-                  a.token or "lmstudio", a.timeout)
+        d = _post(server_base(cfg), "/chat/completions", payload, a.token or "lmstudio", a.timeout)
+    except urllib.error.HTTPError as e:
+        body = ""
+        try:
+            body = e.read().decode("utf-8", "replace")[:300]
+        except Exception:
+            pass
+        print(f"tools probe: server rejected the REQUEST with HTTP {e.code}: {body}")
+        print("  That is a contract error on the SERVER, not a verdict on the model. Do NOT set")
+        print("  tool_probe: failed from this - fix the request shape and re-run. (HD-474 measured")
+        print("  exactly this with tool_choice, while the same model produced valid tool_calls.)")
+        return 3
     except Exception as e:
         print(f"tools probe errored (this is a result, not a crash): {type(e).__name__}: {e}")
         return 1
@@ -517,7 +639,7 @@ def cmd_probe_client(cfg, a):
     if not PI_SPEC.exists():
         print(f"client drift: SKIP — {PI_SPEC} not found")
         return 0
-    spec = yaml.safe_load(PI_SPEC.read_text())
+    spec = yaml.safe_load(PI_SPEC.read_text(encoding="utf-8"))
     # providers/models are LISTS keyed by `id` in that spec (a list keeps render order, which the
     # file declares to be part of the contract) — so look them up by id, never by mapping key.
     prov = next((x for x in (spec.get("providers") or []) if x.get("id") == a.provider), None)
@@ -570,6 +692,15 @@ def cmd_probe_client(cfg, a):
     print(f"client drift: PASS — {a.provider}/{a.model} matches profile '{act}' "
           f"(contextWindow={want['contextWindow']}, maxTokens={want['maxTokens']}, "
           f"input={want['input']}, reasoning={want['reasoning']})")
+    return 0
+
+
+def cmd_baseurl(cfg, _a):
+    """The endpoint the clients must use, resolved exactly the way the probes resolve it. The
+    Windows applier's Get-Api (called by `init`) already invoked `laptop-llm.py baseurl`, but the
+    command existed only as the internal server_base() helper — so `init` threw AFTER writing
+    settings.json and the presets, i.e. a half-applied init. Measured 2026-09-29 (HD-474)."""
+    print(server_base(cfg))
     return 0
 
 
@@ -651,6 +782,11 @@ def main():
             s.add_argument("--image", required=True)
         if name == "probe-fim":
             s.add_argument("--profile", default=dig(load(), "active"))
+            s.add_argument("--self-test", action="store_true",
+                           help="breed wrong verdicts and refuse any detector that passes them")
+            s.add_argument("--prompt-tmpl", default=None,
+                           help="prompt shape; {prefix} and {suffix} are substituted. Default is the "
+                                "raw cursor gap; pass the chat-template FIM form to test that surface.")
         s.set_defaults(fn=fn)
 
     c = sub.add_parser("probe-client")
@@ -658,6 +794,7 @@ def main():
     c.add_argument("--provider", default=cli.get("pi_provider", "laptop-lmstudio"))
     c.add_argument("--model", default=cli.get("pi_model", "local"))
     c.set_defaults(fn=cmd_probe_client)
+    sub.add_parser("baseurl").set_defaults(fn=cmd_baseurl)
     sub.add_parser("presets").set_defaults(fn=cmd_presets)
     sub.add_parser("settings").set_defaults(fn=cmd_settings)
     ap.add_argument("--json", action="store_true")

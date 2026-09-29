@@ -1,0 +1,4 @@
+prompt tokens: 2176   TTFT(first stream chunk): 0.19 s
+prefill approx: 11304 t/s
+decode (differenced 64->295 tok): 75.6 tok/s over 3.1s
+wall a=14.0s b=17.0s

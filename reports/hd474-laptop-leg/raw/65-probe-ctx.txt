@@ -1,0 +1,20 @@
+  [  16384] OK
+  [  24576] OK
+  [  28672] OK
+  [  30720] OK
+  [  31744] OK
+  [  32256] OK
+  [  32512] OK
+  [  32640] OK
+  [  32704] OK
+  [  32736] OK
+  [  32752] OK
+  [  32760] OK
+  [  32764] OK
+  [  32766] OK
+  [  32767] OK
+  [  32768] OK
+
+usable completion tokens at a 32768-token context: 32768
+→ if that is under a profile's num_ctx, LOWER num_ctx in profiles.yml and re-render pi's
+  models.json. Never trust the marketing window (docs/spark-llm-profiles.md).

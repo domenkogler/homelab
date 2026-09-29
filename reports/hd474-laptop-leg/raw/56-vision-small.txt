@@ -1,0 +1,4 @@
+reply: ''
+usage: {"prompt_tokens": 111, "completion_tokens": 80, "total_tokens": 191, "completion_tokens_details": {"reasoning_tokens": 77}}
+→ If it described the image, set vision_probe: passed on that profile. Then check WHERE it
+  ran: a CPU-side vision tower costs tens of seconds per image, which is a different answer.

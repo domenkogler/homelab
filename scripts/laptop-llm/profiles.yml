@@ -22,7 +22,10 @@ version: 1
 
 # ── THE DIAL ────────────────────────────────────────────────────────────────────────────
 # Valid names are exactly the keys of `profiles`. Uncertified ones need allow_uncertified: true.
-active: agent-unified
+# Changed 2026-09-29 (HD-474, owner): the certified agent leg is Gemma 4 26B A4B. It was
+# already on disk (no 21 GB fetch), its KV is the same 20 KiB/token as the Qwen3.6 row, and
+# it leaves ~11 GiB of carve margin where Qwen3.6 left ~8.75.
+active: agent-gemma-26b
 allow_uncertified: false
 
 # ── HOST FACTS (the gate's ceiling reads these; §10 numbers are owner-set/measured) ──────
@@ -43,13 +46,20 @@ host:
 # ── RUNTIME (CONVENTIONS §7: a version belongs in git, never in an app's auto-update) ────
 runtime:
   engine: lmstudio
-  # ⚠ OPEN PIN: LM Studio auto-updates and the repo has no pin trail for it (no Renovate
-  # datasource; group_vars/all/versions.yml is the docker-image ledger). `lms version` printed
-  # an ANSI banner instead of a bare version on this box and 0.4.25-1 sits in
-  # %LOCALAPPDATA%\lm-studio-updater\pending\, so the installed version is not knowable offline.
-  # null = the gate refuses to CERTIFY any profile until a version is recorded here. Loud, not
-  # silent (the HD-426 lesson: an unproven pin is a broken pin).
-  version: null
+  # PINNED 2026-09-29 (HD-474 certification run), read three ways and all three agree:
+  #   * C:\Program Files\LM Studio\resources\app\package.json  -> "version": "0.4.25+1"   (this is
+  #     the string the in-app About dialog prints)
+  #   * LM Studio.exe VersionInfo FileVersion/ProductVersion    -> 0.4.25+1 / 0.4.25.0
+  #   * HKLM/HKCU Uninstall DisplayVersion                      -> 0.4.25+1
+  # It is NOT knowable from the CLI: `lms version` prints an ANSI banner + "CLI commit: 69d945a"
+  # and never the app version, which is why this pin was open before this run. LM Studio still
+  # auto-updates (no Renovate datasource here — group_vars/all/versions.yml is the docker-image
+  # ledger), so a version bump must come HERE first, in the same change, or the gate refuses.
+  # The thing that LOOKED like a pending update is this same build: %LOCALAPPDATA%\lm-studio-updater\
+  # pending\LM-Studio-0.4.25-1-win32-x64.exe, sha512 in update-info.json — 0.4.25-1 == 0.4.25+1.
+  # Nothing was updated; the number below is the number that ran the probes.
+  version: "0.4.25+1"
+  lms_cli_commit: "69d945a"                        # what `lms version` does print (separate artifact)
   lms: '%USERPROFILE%\.lmstudio\bin\lms.exe'      # present, measured 2026-09-28
   settings: '%USERPROFILE%\.lmstudio\settings.json'
   presets: '%USERPROFILE%\.lmstudio\config-presets'   # the Modelfile equivalent (JSON per model)
@@ -150,8 +160,21 @@ models:
     # paper → the fim_probe in scripts/laptop-llm.py settles it with a real cursor-shaped
     # completion. If the probe says the model echoes the cursor, go get the
     # -Python-FIM variant (docs:64) and update this row; do not ship a filler tab.
-    fim_surface: chat-template
-    fim_probe: pending
+    # RESOLVED 2026-09-29 (HD-474) - the two papers were describing DIFFERENT SURFACES.
+    # Measured on these D: weights, same cursor gap, three shapes:
+    #   1 raw /v1/completions gap, no template ......... continues and IGNORES the suffix
+    #   2 literal <|fim_prefix|>/<|fim_suffix|>/<|fim_middle|> markers in the string  echoes
+    #     them back verbatim - LM Studio does not template a raw completions prompt and these
+    #     GGUF weights do not carry the FIM tokens as control tokens, so the model is handed
+    #     the markers as ordinary text and repeats them
+    #   3 instruction + PREFIX/SUFFIX code fences (what Continue's tab provider actually
+    #     sends) ..... correct infill, 3/3, e.g. 'x = a + b'
+    # => docs/hardware-workstation.md 64 ('Instruct variants do not do it') is TRUE for the
+    #    raw/marker surface; Qwen's card is TRUE for the templated surface. Both were right
+    #    about different things, which is why the argument never closed.
+    fim_surface: instruction-fenced
+    fim_probe: passed
+    fim_evidence: 'reports/hd474-laptop-leg/raw/40-coder-probes.txt'
 
   # The 23.03 GiB file that started this: text-only, whatever the model page says.
   qwen36-35b-a3b-opus-distilled:
@@ -171,6 +194,39 @@ models:
     kv_basis: 'same published hybrid config as qwen36-35b-a3b-mtp'
     on_disk: true
     path: 'D:\llm\models\hesamation--Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-GGUF\Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled.Q5_K_M.gguf'
+
+  # Vision + long context with NOTHING to download: weights and the projector are already in the
+  # library (owner's 2026-05 pulls). Numbers below are read from the GGUF header of the file on
+  # D:, measured 2026-09-29, NOT from the model card.
+  gemma4-26b-a4b:
+    upstream: 'lmstudio-community/gemma-4-26B-A4B-it-GGUF'
+    quant: Q4_K_M
+    weights_bytes: 16796015040            # the file as it sits on D: (15.64 GiB)
+    mmproj_bytes: 1194827744              # mmproj-gemma-4-26B-A4B-it-BF16.gguf (1.11 GiB)
+    # HYBRID SLIDING-WINDOW ARCH, and the header is the only honest source for it.
+    # 30 layers; gemma4.attention.sliding_window_pattern = [1,1,1,1,1,0, ...] so 5 layers are
+    # GLOBAL (5, 11, 17, 23, 29) and 25 are bounded by sliding_window = 1024. Only the 5 global
+    # layers carry per-token KV, and THEY use head_count_kv = 2 with key_length 512 (the windowed
+    # layers use 8 heads x 256 and are window-bounded). So:
+    #     2 * 5 global * 2 kv-heads * 512 * 2 B = 20 480 B/token = 20 KiB
+    # which is the SAME 20 KiB/token the Qwen3.6 row derives by a different route (Gated DeltaNet).
+    # Do not copy the 240 KiB figure you get by multiplying 30 layers x 8 heads x 256 - that
+    # assumes every layer holds full-sequence KV at the wider head count, and it is 12x wrong.
+    kv_bytes_per_token: 20480
+    # The windowed layers are not free, they are just BOUNDED: 25 layers x 2 x 8 heads x 256 x 2 B
+    # x 1024-token window = 200 MiB per sequence, constant with context length. Counted as state.
+    state_bytes_per_sequence: 209715200
+    native_context_window: 262144
+    active_params: '~3.8B of 25.2B (128 experts, 8 routed + shared)'
+    vision: mmproj
+    mmproj_path: 'D:\llm\models\lmstudio-community\gemma-4-26B-A4B-it-GGUF\mmproj-gemma-4-26B-A4B-it-BF16.gguf'
+    vision_evidence: 'mmproj-gemma-4-26B-A4B-it-BF16.gguf sits beside the weights in the library (verified on disk 2026-09-29)'
+    kv_basis: 'gemma4 GGUF header on D: (sliding_window_pattern, head_count_kv, key_length 512 / key_length_swa 256, sliding_window 1024) - read from the file 2026-09-29'
+    on_disk: true
+    path: 'D:\llm\models\lmstudio-community\gemma-4-26B-A4B-it-GGUF\gemma-4-26B-A4B-it-Q4_K_M.gguf'
+    # Sampling comes from the file too: general.sampling.temp 1.0 / top_p 0.95 / top_k 64.
+    fim_surface: null
+    fim_probe: not-applicable
 
 # ── PROFILES ────────────────────────────────────────────────────────────────────────────
 # Each profile resolves a model + an engine config + a CLIENT contract. The client_* fields are
@@ -236,6 +292,37 @@ profiles:
       model — a speculative decoder that never accepts a draft costs you the verify pass.
     certified_evidence: null
 
+  # The owner's chosen agent leg (2026-09-29). Text + vision from one resident model, and the
+  # cheapest leg on this box: nothing to fetch, and ~11 GiB of carve margin at 32k.
+  # Budget (binary GiB): 15.64 weights + 1.11 projector + 0.62 KV(f16, 32k) + 0.20 window state
+  # + 3.25 held floor = 20.83 of 32 GiB => +11.17 margin. The floor is the MEASURED idle desktop
+  # reading (3.12 GiB on 2026-09-29) rounded UP, not the 3.00 the file used to claim.
+  agent-gemma-26b:
+    label: 'Gemma 4 26B A4B Q4_K_M + mmproj, f16 KV, 32k - text AND vision, nothing to download'
+    model: gemma4-26b-a4b
+    num_ctx: 32768
+    kv_cache_type: f16
+    flash_attention: false
+    mtp: false                            # no MTP story for this family; that is the trade vs Qwen3.6
+    offload_layers: max
+    env_extra: {}
+    reasoning_surface: binary
+    client_context_window: 32768
+    client_max_tokens: 8192
+    input: [text, image]
+    sampling_params: {temperature: 1.0, top_p: 0.95, top_k: 64}   # from general.sampling.* in the file
+    capabilities: [tool]
+    tool_probe: pending
+    vision_probe: pending
+    certified: false
+    uncertified_reason: >-
+      Not yet booted. Open: tool-call reliability on gemma4 under llama.cpp Vulkan, whether the
+      5-global-layer / 25-sliding-window hybrid actually RECALLS at 32k (a bounded window can serve
+      a long context and still remember like a short one - probe-ctx measures length, not recall),
+      image prefill cost on 16 CU, and tok/s at ~3.8B active where the Qwen rows assumed ~3B.
+    certified_evidence: null
+
+
   # The 64k arm — the ONLY place a quantized KV cache earns its keep: q8_0 saves 0.63 GiB here
   # (1.25 → 0.63), which is what makes 64k fit with margin. Same weights, same projector.
   # Budget: 18.63 + 0.93 + 0.63 KV + 0.06 + 3.00 = 23.25 of 32 ⇒ 8.75 GiB margin.
@@ -282,7 +369,8 @@ profiles:
     sampling_params: {temperature: 0.2, top_p: 0.9, top_k: 40}
     capabilities: [insert]                # Continue vendor, NOT a pi chat model
     tool_probe: not-applicable
-    fim_probe: pending                    # must pass before this row means anything
+    fim_probe: passed                     # 2026-09-29 surface-dependent; see fim_surface +
+                                        # fim_evidence. ONLY on the instruction-fenced shape.
     certified: false
     uncertified_reason: >-
       docs/hardware-workstation.md:64 requires a FIM-trained model and claims Instruct variants

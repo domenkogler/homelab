@@ -1,0 +1,2 @@
+=== probe-health ===
+OK http://127.0.0.1:1234/v1 model=fim-coder-3b :: 'OK.'

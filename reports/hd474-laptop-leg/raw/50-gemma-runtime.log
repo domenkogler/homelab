@@ -1,0 +1,14 @@
+Streaming logs from LM Studio
+
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.00.079.504 I srv  llama_server: initializing ...
+0.00.079.587 I srv  init_listene: The UI is disabled
+0.00.079.587 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.00.088.707 I srv    load_model: loading model 'D:\llm\models\lmstudio-community\gemma-4-26B-A4B-it-GGUF\gemma-4-26B-A4B-it-Q4_K_M.gguf'
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.01.611.697 W load: control-looking token:     50 '<|tool_response>' was not control-type; this is probably a bug in the model. its type will be overridden
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.01.612.174 W load: control-looking token:    212 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.01.668.938 W load: special_eog_ids contains '<|tool_response>', removing '</s>' token from EOG list
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.14.438.271 I cmn          init: llama threadpool init, n_threads = 9
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.26.701.753 I srv    load_model: loaded multimodal model, 'D:/llm/models/lmstudio-community/gemma-4-26B-A4B-it-GGUF/mmproj-gemma-4-26B-A4B-it-BF16.gguf'
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.26.808.945 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 32768, kv_unified = 'true'
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) agent-gemma-26b pid=11648 0.26.821.278 I srv  llama_server: model loaded
+0.26.821.287 I srv  llama_server: listening on http://127.0.0.1:56910

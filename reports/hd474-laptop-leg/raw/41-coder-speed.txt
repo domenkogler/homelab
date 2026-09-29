@@ -1,0 +1,5 @@
+GPU peak during coder load: 5391.15234375 MiB
+### probe-speed @ ~2k-token prompt
+wall 2.5s | prompt 750 tok (296 t/s) | completion 50 tok (19.7 t/s)
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.

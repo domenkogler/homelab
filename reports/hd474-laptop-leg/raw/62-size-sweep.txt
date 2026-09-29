@@ -1,0 +1,5 @@
+  320px (  34591 B): OK prompt=124 content='NOTHING LEGIBLE'
+  640px ( 106036 B): OK prompt=174 content='NOTHING LEGIBLE'
+  896px ( 180741 B): OK prompt=310 content=''
+ 1120px ( 255833 B): OK prompt=458 content=''
+1600 missing

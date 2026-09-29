@@ -1,0 +1,7 @@
+=== probe-fim (driver, /v1/completions) ===
+prompt tokens: {'prompt_tokens': 18, 'completion_tokens': 64, 'total_tokens': 82}
+completion[:200]: ' return s == s[::-1]\n\n# Test cases\nprint(is_palindrome("racecar"))  # Output: True\nprint(is_palindrome("hello"))   # Output: False\nprint(is_palindrome("madam"))   # Output: True\nprint(is_palindrome("p'
+
+FIM probe: the model echoed the cursor / a control token instead of completing. This file is
+  not serving FIM — get the -Python-FIM variant (docs/hardware-workstation.md:64) and update
+  the model row. A filler tab is exactly what decision #28's follow-up was written to avoid.

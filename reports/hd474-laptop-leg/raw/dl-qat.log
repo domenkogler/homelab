@@ -1,0 +1,4 @@
+Fetching 3 files:   0%|          | 0/3 [00:00<?, ?it/s]Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed. Falling back to regular HTTP download. For better performance, install the package with: `pip install huggingface_hub[hf_xet]` or `pip install hf_xet`
+Xet Storage is enabled for this repo, but the 'hf_xet' package is not installed. Falling back to regular HTTP download. For better performance, install the package with: `pip install huggingface_hub[hf_xet]` or `pip install hf_xet`
+Fetching 3 files:  33%|███▎      | 1/3 [00:00<00:00,  2.10it/s]Fetching 3 files:  67%|██████▋   | 2/3 [03:36<02:07, 127.54s/it]Fetching 3 files: 100%|██████████| 3/3 [03:36<00:00, 72.32s/it] 
+DONE D:\llm\models\unsloth\gemma-4-26B-A4B-it-qat-GGUF 217s

@@ -1,0 +1,11 @@
+Streaming logs from LM Studio
+
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) fim-coder-3b pid=17088 0.00.062.317 I srv  llama_server: initializing ...
+0.00.062.405 I srv  init_listene: The UI is disabled
+0.00.062.407 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) fim-coder-3b pid=17088 0.00.075.188 I srv    load_model: loading model 'C:\Users\domen\.lmstudio\models\lmstudio-community\Qwen2.5-Coder-3B-Instruct-GGUF\Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf'
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) fim-coder-3b pid=17088 0.00.589.328 W load: control-looking token: 128247 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) fim-coder-3b pid=17088 0.01.711.303 I cmn          init: llama threadpool init, n_threads = 9
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) fim-coder-3b pid=17088 0.01.797.983 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'
+[DEBUG] llama.cpp-win-x86_64-vulkan-avx2@2.47.0 (llama.cpp) fim-coder-3b pid=17088 0.01.802.527 I srv  llama_server: model loaded
+0.01.802.534 I srv  llama_server: listening on http://127.0.0.1:52126

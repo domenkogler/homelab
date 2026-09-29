@@ -1,0 +1,20 @@
+Streaming logs from LM Studio
+
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listLoaded] Listing loaded models
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listLoaded] Listing loaded models
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"1A4Kf9J7YBdpUXrnHqja4IQH"}
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"1A4Kf9J7YBdpUXrnHqja4IQH"}
+[2026-09-29 22:33:21][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=unloadModel] Unloading model: fim-coder-3b
+[2026-09-29 22:33:24][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=listDownloadedModels] Listing downloaded models
+[2026-09-29 22:33:24][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=loadModel] Loading model: qwen2.5-coder-3b-instruct
+[2026-09-29 22:33:24][DEBUG][LMSAuthenticator][Client=lms-cli][Endpoint=loadModel] Found 1 model(s) for key: qwen2.5-coder-3b-instruct
+[2026-09-29 22:33:24][DEBUG] 0.00.062.317 I srv  llama_server: initializing ...
+0.00.062.405 I srv  init_listene: The UI is disabled
+0.00.062.407 I srv  init_listene: Use --ui/--no-ui (or deprecated --webui/--no-webui) to enable/disable
+[2026-09-29 22:33:24][DEBUG] 0.00.075.188 I srv    load_model: loading model 'C:\Users\domen\.lmstudio\models\lmstudio-community\Qwen2.5-Coder-3B-Instruct-GGUF\Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf'
+[2026-09-29 22:33:25][DEBUG] 0.00.589.328 W load: control-looking token: 128247 '</s>' was not control-type; this is probably a bug in the model. its type will be overridden
+[2026-09-29 22:33:26][DEBUG] 0.01.711.303 I cmn          init: llama threadpool init, n_threads = 9
+[2026-09-29 22:33:26][DEBUG] 0.01.797.983 I srv    load_model: initializing, n_slots = 4, n_ctx_slot = 8192, kv_unified = 'true'
+[2026-09-29 22:33:26][DEBUG] 0.01.802.527 I srv  llama_server: model loaded
+0.01.802.534 I srv  llama_server: listening on http://127.0.0.1:52126
+[2026-09-29 22:33:26][INFO][LMSAuthenticator][Client=lms-cli][Endpoint=getModelInfo] Getting descriptor for specifier: {"type":"instanceReference","instanceReference":"DKjomIQ1cdlMqE59ZoOUXfkS"}
