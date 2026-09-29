@@ -59,6 +59,7 @@ xfs:
   directories:
     - kv_cache
     - ples_int4
+    - ples_nvfp4     # NVFP4 PLE tables (fast profile) — same child-dir contract as ples_int4 (HD-469)
     - vllm_cache
     - triton_cache
     - models        # weights (AWQ/PLE/…) — on XFS, never EXT4 (1TB layout, HD-359)
