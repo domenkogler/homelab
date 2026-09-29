@@ -72,3 +72,25 @@ reading, and the first under-cap run of this lane is the baseline from then on.
 This profile is the rollback target for every other profile: flip
 `spark_llm_profile: reasoning`, `spark_llm_allow_uncertified: false`, converge **detached**
 (~20 min cold boot). No override, no download.
+
+---
+
+## Run #3 (2026-09-29): the under-cap baseline + first clock-cap converge
+
+**session `hd469-run3-0019`** · this run closed "Still owed" point 1 below: the clock
+cap converged and the reasoning lane was re-probed **under the cap** from a
+session whose model is NOT spark (rule 0 respected).
+
+### Converge + clock cap
+- Converge 1 (00:23, `043ff4a`): **FAILED at the clockcap assert** — `sudo nvidia-smi
+  -lgc 300,2418` returned rc=0 + printed "GPU clocks set to (300, 2418)" but
+  `clocks.max.sm` stayed 3003 → the documented GB10 no-op class, confirmed on this
+  unit. Owner ruling: remove the re-read/assert (the apply is real, the field is
+  not). The role now applies `-lgc` and relies on the boot unit; `--check` still
+  reports drift. (commit `043ff4a` + docs/hardware-spark.md §GPU clock cap)
+- Converge 2 (15:44): `failed=0` — Apply task `changed`, role converged clean.
+- **`clocks.max.sm` still reads 3003** (dead field); the cap's real signal is
+  `clocks.sm` sitting at 2411 under load + idling to 305 at rest (range-lock working).
+
+`git log -1` on this file's commit: `043ff4a` (clockcap task removal + doc sweep is the parent chain of run #3's commits `8fa5f54`, `8f6698b`).
+

@@ -97,3 +97,20 @@ number** — take `Available KV cache memory` + `GPU KV cache size` from the con
   dtype change must not skip** (MTP acceptance bf16-vs-fp8, and parity against the model's
   own noise floor rather than a needle run):
   [`../../llm-profiles/README.md`](../../llm-profiles/README.md).
+
+---
+
+## Re-derivation 2026-09-29 (run #3, session `hd469-run3-0019`)
+
+`scripts/spark-fp8-image-probe.py --tag-filter 'qwen|flash'` re-run, read-only (~40 s,
+no GPU, local image by ID). **Verdict: `BLOCKED-ON-IMAGE` (exit 0)** — nothing changed
+under us:
+
+- `vllm.__version__` = `0.1.dev20073+g8e685d198` (the pinned day-0 build)
+- `qsa.py:70` declares `supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = ["auto", "bfloat16"]`
+- `qsa.py:109` and `:188` raise `"Qwen3.8-Flash-Next QSA requires a BF16 main KV cache"`
+- `IS_FP8` / `fp8_e4m3` markers: **absent**
+- fp8 plumbing (`kv_quant_mode`) present but the read path is not
+
+So `graded` remains an **engine-pin question (todo HD-473)**, not a config flip. The
+`graded` half of the HD-469 lane is complete: no box work, no risk, a pass.
