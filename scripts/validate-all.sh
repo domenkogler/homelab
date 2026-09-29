@@ -130,6 +130,23 @@
 #                                     every authored profile, then breeds a canary per invariant and
 #                                     REFUSES a canary that passes — a gate that cannot fail is not a
 #                                     gate (CONVENTIONS §6). PyYAML-only: no Ansible, no network, no box
+#  23. laptop-llm.py gate --self-test — HD-474: the laptop serving-leg invariants must be
+#                                     PROVEN OFFLINE, same rule as item 22. The deploy-time `gate`
+#                                     is EXPECTED to fail on an unprobed box (uncertified profiles,
+#                                     an unpinned LM Studio auto-updater, pending probes), so what is
+#                                     committed as a hard gate is the canary self-test: 13 canaries,
+#                                     one per invariant, each must FAIL. A budget that exceeds the
+#                                     iGPU carve, a client window above num_ctx, an image claim on a
+#                                     GGUF with no projector on disk, q8_0 KV without flash attention
+#                                     (llama.cpp silently ignores it), MTP+mmproj (unsupported
+#                                     together) and `certified: true` without evidence each get a
+#                                     canary. Stdlib + PyYAML, no server, no token, no Windows.
+#  24. laptop-llm.py probe-client       — HD-474: the client contract may not drift AHEAD of the
+#                                     engine. Compares providers.laptop-lmstudio in models-spec.yml
+#                                     against the ACTIVE profile (contextWindow / maxTokens / input
+#                                     / reasoning). Offline: no request leaves the box. Skips itself
+#                                     on a host the provider is not scoped to (`hosts:`), so CI and
+#                                     the oldsrv cockpit are unaffected.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -295,6 +312,16 @@ $PY scripts/check_merge_markers.py --self-test
 
 echo "== check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries) =="
 $PY scripts/check_spark_llm_gate.py
+
+echo "== laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE) =="
+# Deliberately NOT the deploy-time `gate`: on a box whose probes have never run, that gate fails
+# on purpose (uncertified profiles + unpinned auto-updating engine). The hard gate is the canary
+# self-test — the invariants must be proven to bite. See scripts/README.md.
+$PY scripts/laptop-llm.py gate --self-test
+
+echo "== laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine) =="
+# Offline drift check against models-spec.yml; self-skips off the scoped host (`hosts:`).
+$PY scripts/laptop-llm.py probe-client
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
 # HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.

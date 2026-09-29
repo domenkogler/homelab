@@ -1,0 +1,329 @@
+# =====================================================================
+# Laptop LLM serving profiles — THE CATALOGUE + THE DIAL  (HD-474)
+#
+# Runtime: LM Studio only (owner decision 2026-09-28). It is already installed, it already
+# reads D:\llm\models, and it is the only runtime on this box that loads these mmproj vision
+# files today. On Win11 the wrapper is not a speed variable for this APU: LM Studio's ROCm
+# engines do not support gfx1150 (lmstudio-bug-tracker #883/#1903) and Ollama's Windows AMD
+# list is discrete cards only, so both wrappers end up on the SAME Vulkan engine.
+#
+# Shape mirrors spark's dial (IaC/ansible/group_vars/spark.yml §spark_llm_profiles + the
+# spark_llm_profile var in host_vars): ONE var picks the engine config, a gate refuses anything
+# that cannot fit or cannot boot, and the CLIENT window is part of the profile so the harness
+# cannot 400 mid-session unless someone edits this file wrongly. The laptop is not
+# Ansible-managed (§5 targets the Docker fleet), so this file is the SSOT and the appliers are
+# scripts/laptop-llm.py + scripts/win/lmstudio-llm.ps1.
+#
+# NOTHING IS HARDCODED IN THE SCRIPTS — no profile name, no path, no model identifier.
+#   python3 scripts/laptop-llm.py matrix    # every profile, offline, no token
+#   python3 scripts/laptop-llm.py gate      # the invariants + their canaries, offline
+# =====================================================================
+version: 1
+
+# ── THE DIAL ────────────────────────────────────────────────────────────────────────────
+# Valid names are exactly the keys of `profiles`. Uncertified ones need allow_uncertified: true.
+active: agent-unified
+allow_uncertified: false
+
+# ── HOST FACTS (the gate's ceiling reads these; §10 numbers are owner-set/measured) ──────
+host:
+  # BIOS "UMA video memory / GPU DRAM" carve, changed by the owner 2026-09-28. This is the whole
+  # VRAM budget: on these APUs the ROCm path sees ONLY this aperture (no GTT fallback, measured
+  # 60 % slower when exceeded) and the Vulkan path allocates from it too. A model that does not
+  # fit here does not run slowly — it runs on the CPU or fails to load.
+  gpu_carve_bytes: 34359738368            # 32 GiB
+  # Held back for the desktop compositor, the WSL2 guest and activation/compute buffers.
+  # ⏳ UNMEASURED on this box: lower it only with a number read from Task Manager's GPU
+  # "Dedicated GPU memory" peak during a real load, not from a guess.
+  held_floor_bytes: 3221225472            # 3 GiB
+  model_library: 'D:\llm\models'          # LM Studio's own downloadsFolder — one library, no copies
+  lmstudio_home: '%USERPROFILE%\.lmstudio'
+  evidence: 'docs/hardware-workstation.md §Platform (measured on-device 2026-09-27) + owner-set carve 2026-09-28'
+
+# ── RUNTIME (CONVENTIONS §7: a version belongs in git, never in an app's auto-update) ────
+runtime:
+  engine: lmstudio
+  # ⚠ OPEN PIN: LM Studio auto-updates and the repo has no pin trail for it (no Renovate
+  # datasource; group_vars/all/versions.yml is the docker-image ledger). `lms version` printed
+  # an ANSI banner instead of a bare version on this box and 0.4.25-1 sits in
+  # %LOCALAPPDATA%\lm-studio-updater\pending\, so the installed version is not knowable offline.
+  # null = the gate refuses to CERTIFY any profile until a version is recorded here. Loud, not
+  # silent (the HD-426 lesson: an unproven pin is a broken pin).
+  version: null
+  lms: '%USERPROFILE%\.lmstudio\bin\lms.exe'      # present, measured 2026-09-28
+  settings: '%USERPROFILE%\.lmstudio\settings.json'
+  presets: '%USERPROFILE%\.lmstudio\config-presets'   # the Modelfile equivalent (JSON per model)
+  api_port: 1234                          # REST + OpenAI-compatible endpoint, one port
+  # Keys the applier owns inside settings.json. It is NOT git-tracked as-is: it carries
+  # hfDownloadToken/useHFProxy, so copying it into git would be a secret leak (§6).
+  settings_keys:
+    downloadsFolder: '{host.model_library}'
+    defaultContextLength: null            # per-preset only; a global default hides a bad preset
+  # MTP = multi-token-prediction speculative decoding (LM Studio 0.4.14+). Two measured
+  # upstream limits decide whether it is ever on:
+  #   * unsloth's own README: "--mmproj is not yet supported with MTP" → MTP and vision are
+  #     MUTUALLY EXCLUSIVE in one load. One model can do both jobs, but not in the same load.
+  #   * lmstudio-bug-tracker #1951: MTP "failing to initialize" / zero gain on the 35B MoE in
+  #     0.4.14 beta, while the dense 9B gets 40-60 %. So on THIS architecture MTP is a maybe.
+  mtp:
+    default: false
+    conflict: vision
+  amd_notes: >-
+    gfx1150 (Radeon 890M, Strix Point), Win11 + WSL2. Engine choice here is Vulkan, not ROCm.
+    Measured backend split for gfx1150 (gfx1150-bench, CPU=iGPU in one SoC): Vulkan wins token
+    generation (+24-48 % on quantized models), ROCm wins prefill (+4-37 %) — and ROCm is not
+    available for this APU on Windows. The two levers that DO exist are the model family (MoE
+    with ~3B active, not dense) and the Linux-only `power_dpm_force_performance_level=high`
+    finding (~2× decode, llama.cpp discussion #27051), which needs bare metal or vfio.
+
+# ── KV factor table (declared approximation of the engine's quantized-KV options) ────────
+# Multiplier on bf16 bytes/token. The gate re-derives every profile's KV from the model row ×
+# num_ctx × this factor, so a profile that claims q8_0 but is loaded as f16 is a budget lie.
+#
+# WHY f16 IS THE DEFAULT HERE, AND WHY THAT IS NOT AN OVERSPEND
+# This architecture is cheap per token: only the 10 full-attention layers of 40 hold a KV cache
+# (layout 10 × (3 × Gated DeltaNet → 1 × Gated Attention)), at 2 KV heads × head_dim 256 →
+# 20 480 B/token, i.e. 20 KiB — NOT the 96 KiB/token the docs quote for the older
+# Qwen3-30B-A3B family (48 layers, 4 KV heads × 128). So at 32k:
+#     f16 0.63 GiB   |   q8_0 0.31 GiB   |   q4_0 0.19 GiB      (of an 18.6 GiB weight load)
+# Quantizing saves ~0.3 GiB — 1.6 % of a 20 GiB budget whose scarce half is the weights. What it
+# costs: llama.cpp only honours a quantized KV cache when flash attention is on, Vulkan FA on a
+# hybrid-GDN arch is UNPROVEN here, and long-context recall under a quantized cache is an
+# accuracy question nobody has answered on this box. Cheaper to keep the honest default and
+# spend q8_0 only where it actually buys window (the 64k arm and up).
+# The same logic says the FIM leg gains nothing from q8_0 (0.29 → 0.15 GiB) while putting an FA
+# dependency on the latency-critical tab path — kept as the owner chose, flagged in its row.
+kv_factor:
+  f16: {factor: 1.00, requires: null}
+  q8_0: {factor: 0.50, requires: flash_attention}
+  q4_0: {factor: 0.30, requires: flash_attention}
+
+# ── THE MODELS (structure from the published configs; LM Studio's load log confirms) ─────
+models:
+
+  # Text + vision in ONE model, per the owner's 2026-09-28 choice. Vision is real at the FILE
+  # level here: the repo ships mmproj-BF16.gguf and mmproj-F32.gguf beside the weights.
+  qwen36-35b-a3b-mtp:
+    upstream: 'unsloth/Qwen3.6-35B-A3B-MTP-GGUF'
+    quant: Q4_K_M
+    # 4-bit lands at ~20 GB for this family (unsloth's own hardware table: 3-bit 16 GB /
+    # 4-bit 20 GB / 6-bit 25 GB / 8-bit 31 GB / BF16 56 GB).
+    weights_bytes: 20000000000
+    mmproj_bytes: 1000000000              # mmproj-BF16.gguf
+    # HYBRID architecture — this is where a copy-paste of the Qwen3-30B number goes wrong.
+    # Published config: 40 layers, layout 10 × (3 × Gated DeltaNet → 1 × Gated Attention), so
+    # only the 10 full-attention layers hold a KV cache; those are 16 Q / **2 KV** heads with
+    # head_dim **256**. 2 × 10 × 2 × 256 × 2 B = 20 480 B/token = 20 KiB/token. The 30 linear
+    # layers hold a constant recurrent state per sequence instead (order ~tens of MiB, not per
+    # token), which is why this family tolerates long windows on a ~90 GB/s bus.
+    kv_bytes_per_token: 20480
+    state_bytes_per_sequence: 67108864    # 64 MiB, ⏳ derived-order estimate — confirm from the load log
+    native_context_window: 262144
+    active_params: '~3B of 35B (256 experts, 8 routed + 1 shared)'
+    vision: mmproj
+    # The fetch target layout scripts/win/lmstudio-llm.ps1 creates under the library. Before the
+    # file exists the preset is incomplete, and `presets` warns instead of emitting a blind model.
+    mmproj_path: 'D:\llm\models\unsloth\Qwen3.6-35B-A3B-MTP-GGUF\mmproj-BF16.gguf'
+    vision_evidence: 'unsloth/Qwen3.6-35B-A3B-MTP-GGUF ships mmproj-BF16.gguf + mmproj-F32.gguf (repo file list, 2026-09-28)'
+    kv_basis: 'published Qwen/Qwen3.6-35B-A3B config (40L, 10 full-attn, 2 KV heads, head_dim 256) — confirm against the engine load log'
+    on_disk: false                         # NOT in D:\llm\models as of 2026-09-28: ~21 GB to fetch once
+
+  # The FIM leg. Already on disk (1.80 GiB, lmstudio-community).
+  qwen25-coder-3b-fim:
+    upstream: 'lmstudio-community/Qwen2.5-Coder-3B-Instruct-GGUF'
+    quant: Q4_K_M
+    weights_bytes: 1929903072             # measured size of the on-disk file
+    mmproj_bytes: 0
+    # Qwen2 arch: 36 layers, 2 KV heads, head_dim 128 → 2 × 36 × 2 × 128 × 2 = 36 864 B/token.
+    kv_bytes_per_token: 36864
+    state_bytes_per_sequence: 0
+    native_context_window: 32768
+    active_params: 'dense 3B'
+    vision: none
+    vision_evidence: null
+    kv_basis: 'Qwen2.5-3B config (36L / 2 KV heads / head_dim 128); docs/hardware-workstation.md independently quotes ≈36 KiB/token and "3B ≈ 1.8 GB + 0.3 GB KV @8k" — the same arithmetic'
+    on_disk: true
+    path: 'D:\llm\models\lmstudio-community\Qwen2.5-Coder-3B-Instruct-GGUF\Qwen2.5-Coder-3B-Instruct-Q4_K_M.gguf'
+    # ⚠ docs/hardware-workstation.md:64 (decision #28 follow-up) says the FIM leg needs a
+    # FIM-trained model and that "Instruct and VL variants do not do it". Qwen2.5-Coder's own
+    # model card documents FIM through the chat template on the Instruct model. Unresolved on
+    # paper → the fim_probe in scripts/laptop-llm.py settles it with a real cursor-shaped
+    # completion. If the probe says the model echoes the cursor, go get the
+    # -Python-FIM variant (docs:64) and update this row; do not ship a filler tab.
+    fim_surface: chat-template
+    fim_probe: pending
+
+  # The 23.03 GiB file that started this: text-only, whatever the model page says.
+  qwen36-35b-a3b-opus-distilled:
+    upstream: 'hesamation/Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-GGUF'
+    quant: Q5_K_M
+    weights_bytes: 24729132224
+    mmproj_bytes: 0
+    kv_bytes_per_token: 20480             # same hybrid arch as the row above
+    state_bytes_per_sequence: 67108864
+    native_context_window: 262144
+    active_params: '~3B active (qwen35moe)'
+    vision: none
+    vision_evidence: >-
+      MEASURED 2026-09-28: the header carries architecture qwen35moe and NO *.vision.* keys,
+      and the directory holds no sibling mmproj-*.gguf. Owner confirmed the same conclusion.
+      Kept as a text-only alternative arm, not as a vision model.
+    kv_basis: 'same published hybrid config as qwen36-35b-a3b-mtp'
+    on_disk: true
+    path: 'D:\llm\models\hesamation--Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-GGUF\Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled.Q5_K_M.gguf'
+
+# ── PROFILES ────────────────────────────────────────────────────────────────────────────
+# Each profile resolves a model + an engine config + a CLIENT contract. The client_* fields are
+# what scripts/pi-config/models-spec.yml and Continue's config must carry: a client window above
+# num_ctx is exactly the defect prompt-llm.md §6 warns about (pi 400s mid-session).
+profiles:
+
+  # Default. Text + vision from one resident model, which is what removes the
+  # docs/hardware-workstation.md:137 "unload the agent, load the VL model" dance.
+  # Budget (binary GiB, what the script prints): 18.63 weights + 0.93 projector + 0.63 KV(f16,
+  # 32k) + 0.06 GDN state + 3.00 held floor = 23.25 of 32 GiB ⇒ 8.75 GiB margin. f16 KV is the
+  # default for the reason in the kv_factor header: 0.31 GiB of savings is not worth an
+  # unproven flash-attention dependency on a Vulkan/hybrid-GDN combination.
+  agent-unified:
+    label: 'Qwen3.6-35B-A3B Q4_K_M + mmproj, f16 KV, 32k — text AND vision in one load'
+    model: qwen36-35b-a3b-mtp
+    num_ctx: 32768
+    kv_cache_type: f16
+    flash_attention: false
+    mtp: false                            # MUST stay false here: --mmproj and MTP conflict
+    offload_layers: max                   # LM Studio's GPU-offload slider
+    env_extra: {}
+    reasoning_surface: binary
+    client_context_window: 32768
+    client_max_tokens: 8192
+    input: [text, image]
+    sampling_params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+    capabilities: [tool]
+    tool_probe: pending
+    vision_probe: pending                 # one real image; the ONLY thing that makes input:[image] true
+    certified: false
+    uncertified_reason: >-
+      Never booted on this box. Open: tool-call reliability of this build, image prefill cost on
+      16 CU (HD-401 gate 4 — "mmproj offloaded to iGPU" is assumed nowhere), and the fact that
+      the weights are not on disk yet (~21 GB one-time fetch into the library).
+    certified_evidence: null
+
+  # Faster text arm, MTP speculative decoding on, vision unavailable in this load.
+  # The two profiles are the same model: switching is an engine config change, not a download,
+  # and never a second resident model (OLLAMA_MAX_LOADED_MODELS does not exist here — LM Studio
+  # caps loaded models in its own settings; the applier asserts one loaded model at a time).
+  agent-unified-mtp:
+    label: 'Qwen3.6-35B-A3B Q4_K_M, MTP speculative decoding ON — text only (--mmproj unsupported with MTP)'
+    model: qwen36-35b-a3b-mtp
+    num_ctx: 32768
+    kv_cache_type: f16
+    flash_attention: false
+    mtp: true
+    mtp_draft_tokens: 2                   # unsloth's own example uses --spec-draft-n-max 2
+    offload_layers: max
+    env_extra: {}
+    reasoning_surface: binary
+    client_context_window: 32768
+    client_max_tokens: 8192
+    input: [text]
+    sampling_params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+    capabilities: [tool]
+    tool_probe: pending
+    certified: false
+    uncertified_reason: >-
+      lmstudio-bug-tracker #1951: MTP "failing to initialize" with ZERO speedup on the 35B MoE
+      in 0.4.14 beta (the dense 9B got 40-60 %). Enable it only after a measured A/B on this
+      model — a speculative decoder that never accepts a draft costs you the verify pass.
+    certified_evidence: null
+
+  # The 64k arm — the ONLY place a quantized KV cache earns its keep: q8_0 saves 0.63 GiB here
+  # (1.25 → 0.63), which is what makes 64k fit with margin. Same weights, same projector.
+  # Budget: 18.63 + 0.93 + 0.63 KV + 0.06 + 3.00 = 23.25 of 32 ⇒ 8.75 GiB margin.
+  agent-unified-64k:
+    label: 'Qwen3.6-35B-A3B Q4_K_M + mmproj, q8_0 KV, 64k — UNCERTIFIED (KV quant unproven here)'
+    model: qwen36-35b-a3b-mtp
+    num_ctx: 65536
+    kv_cache_type: q8_0
+    flash_attention: true                 # q8_0 KV is honoured only with FA on; UNPROVEN on Vulkan+GDN
+    mtp: false
+    offload_layers: max
+    env_extra: {}
+    reasoning_surface: binary
+    client_context_window: 65536
+    client_max_tokens: 8192
+    input: [text, image]
+    sampling_params: {temperature: 0.6, top_p: 0.95, top_k: 20}
+    capabilities: [tool]
+    tool_probe: pending
+    vision_probe: pending
+    certified: false
+    uncertified_reason: 'q8_0 KV accuracy never measured on this model, and it requires flash attention, which is unproven for this arch on Vulkan; 64k prefill latency never measured on 16 CU.'
+    certified_evidence: null
+
+  # FIM stays SEPARATE by design (decision #28: the laptop's legs are FIM + visual judgment;
+  # generation is spark's or external). It is also the only profile that may be resident
+  # *alongside* a text profile: 1.8 GiB + 0.15 GiB KV is nothing, but the docs warn three
+  # resident models leak slots, and LM Studio unloads on switch anyway.
+  fim-coder-3b:
+    label: 'Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV, 8k — Continue tab completion'
+    model: qwen25-coder-3b-fim
+    num_ctx: 8192
+    kv_cache_type: q8_0                   # owner's choice 2026-09-28; saves 0.15 GiB (0.29 → 0.15)
+    flash_attention: true                 # required by the KV quant — and it puts an FA dependency
+                                          # on the tab-completion path for 0.15 GiB. f16 is the
+                                          # safer default here; flip this back if tab latency moves.
+    mtp: false
+    offload_layers: max
+    env_extra: {}
+    reasoning_surface: none
+    client_context_window: 8192           # Continue's contextMessageLimit must stay under this
+    client_max_tokens: 1024
+    input: [text]
+    sampling_params: {temperature: 0.2, top_p: 0.9, top_k: 40}
+    capabilities: [insert]                # Continue vendor, NOT a pi chat model
+    tool_probe: not-applicable
+    fim_probe: pending                    # must pass before this row means anything
+    certified: false
+    uncertified_reason: >-
+      docs/hardware-workstation.md:64 requires a FIM-trained model and claims Instruct variants
+      "do not do it"; Qwen2.5-Coder's card documents chat-template FIM on Instruct. Unresolved
+      on paper — run scripts/laptop-llm.py probe-fim against a real Continue-shaped cursor.
+      Trigger latency must also be measured (HD-401 gate 5: sub-second is an assumption). And the
+      q8_0 KV the owner asked for needs flash attention for a 0.15 GiB saving on the latency-
+      critical path — measure both, then pick.
+    certified_evidence: null
+
+# ── vision_policy (measured 2026-09-28 — why "it has vision files" is not proof) ─────────
+# * A GGUF carries vision EITHER fused in the one file OR as a sibling mmproj-*.gguf. Read the
+#   keys, never the model page: the local 35B-A3B Q5_K_M has NEITHER, so there was nothing to
+#   "split" and nothing to load.
+# * LM Studio loads the projector (llama.cpp --mmproj) and it works for these arches today.
+# * Ollama does not have a projector instruction at all — the documented Modelfile set is FROM,
+#   PARAMETER, TEMPLATE, SYSTEM, ADAPTER, LICENSE, MESSAGE. `ADAPTER mmproj` 500s (#15346), two
+#   FROM lines hang (#17491), and the qwen35moe arch was unknown to its vendored llama.cpp
+#   (#14730/#15898) until PR #15899 + #16031 (llama-server as the sole GGUF engine). So the
+#   split-file route is plausible at a recent Ollama and unproven here — another reason the
+#   runtime is LM Studio.
+# * MTP and --mmproj do not coexist yet (unsloth README), so vision costs the MTP speedup.
+vision_policy:
+  allow_probeless_image_claim: false
+
+# ── client contract pointers (what probe-client drift-checks against) ────────────────────
+# The pi provider row and the Continue rows live in scripts/pi-config/models-spec.yml — ONE spec
+# for every client (HD-388). This block only names WHERE the laptop's rows are so the drift check
+# can find them without hardcoding identifiers in the script.
+client:
+  pi_provider: laptop-lmstudio
+  pi_model: qwen/qwen3.6-35b-a3b-mtp
+
+# ── reuse_contract: why nothing downloads twice ─────────────────────────────────────────
+# 1. ONE library, one home. settings.json.downloadsFolder points at D:\llm\models, which is
+#    where the 152 GB GGUF library already lives. LM Studio dedupes by content within a session
+#    and never re-derives what is already on disk; LM Studio and any future runtime read the
+#    same files, so "install" is an idempotent file move, not a download.
+# 2. HOME IS C:\Users\domen\.lmstudio but the *weight bytes* live on D:. A Windows reinstall or
+#    a profile reset can therefore never orphan 150 GB of models — the pointer file
+#    .lmstudio-home-pointer is the only thing that has to come back.
+# 3. The applier verifies-by-size against the library manifest before fetching anything, so a
+#    partial download is reported instead of silently re-fetched, and a finished download is
+#    reported as already-there.

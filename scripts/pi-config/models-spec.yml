@@ -127,6 +127,64 @@ providers:
           # write down why they differ.
           capabilities: [tool, reasoning]
 
+  # The laptop's own LM Studio leg (HD-474). `hosts:` scopes it: the renderer drops any provider
+  # whose host list does not match the machine rendering, because this same spec also renders the
+  # cockpit on oldsrv (HD-409) — where http://127.0.0.1:1234 is THAT machine's own loopback. A dead
+  # provider in the picker is worse than no provider, and a provider rendered onto the wrong box is
+  # exactly the silent-drift class HD-388 exists to kill.
+  #
+  # baseUrl is loopback ON PURPOSE. WSL2 runs networkingMode=mirrored (written by
+  # scripts/win/lmstudio-llm.ps1) so 127.0.0.1:1234 from the Linux seat IS the Windows host. The
+  # alternative — the NAT gateway address — is an IP literal that moves when the NAT range moves,
+  # and a spec holding a moving IP is how a laptop breaks on a Tuesday. `laptop-llm.py probe-health`
+  # fails loudly if mirrored mode is not on; it never guesses an address.
+  #
+  # The engine ceiling, the KV budget and the thinking surface all live in
+  # scripts/laptop-llm/profiles.yml; `laptop-llm.py probe-client` FAILS if this block drifts from
+  # the active profile. These numbers are declared, not yet measured on this box — the profile row
+  # carries uncertified_reason and the gate refuses to certify the leg until the probes pass.
+  - id: laptop-lmstudio
+    description: local LM Studio server on the admin laptop (iGPU, 32 GiB carve) — loopback, no cost
+    hosts: [domenp14s]
+    baseUrl: http://127.0.0.1:1234/v1
+    api: openai-completions
+    # The server ignores this; pi still requires a non-empty value before it will call a model.
+    # 14 chars, under check_secrets.py's ignorable() floor (<16), and it is a placeholder rather
+    # than a credential: there is no vault item because a loopback listener has nothing to keep
+    # secret. If the server is ever exposed beyond loopback, it gets a real token and a `credential:`.
+    apiKey: lmstudio-local
+    compat:
+      supportsUsageInStreaming: true
+      supportsFinishReason: true
+      maxTokensField: max_tokens
+      supportsDeveloperRole: true
+      supportsReasoningEffort: false
+      supportsStrictMode: false
+    models:
+      - id: qwen/qwen3.6-35b-a3b-mtp
+        name: Local Qwen3.6-35B-A3B Q4_K_M + vision (laptop iGPU, 32k)
+        # reasoning true: a reasoning build whose surface is UNMEASURED here. profiles.yml records
+        # it per arm (binary for the doc-named model, always-on-unmeasured for distilled ones).
+        # ⏳ probe-tools + probe-vision are pending, so this row is UNCERTIFIED by its own rules —
+        # and `input: [text, image]` is only honest once probe-vision passes on the projector.
+        reasoning: true
+        input: [text, image]
+        contextWindow: 32768
+        maxTokens: 8192
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        continue: {capabilities: [tool]}
+      - id: qwen/qwen2.5-coder-3b-instruct
+        name: Local Qwen2.5-Coder-3B (laptop iGPU, FIM, 8k)
+        reasoning: false
+        input: [text]
+        contextWindow: 8192
+        maxTokens: 1024
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        # Continue's tab-completion model, NOT a pi chat model: `insert`, and it must never be
+        # picked as a harness brain. This is the laptop's half of decision #28
+        # (docs/hardware-workstation.md §Leg 1); the other half, generation, stays spark's.
+        continue: {capabilities: [insert]}
+
 # pi's provider auth file (vendor `pi-auth`). Same rule as everywhere else in this repo: the spec
 # NAMES the item, the renderer resolves the value at render time, no key material in git.
 # Proven 2026-09-23: both vault `credential` values hash-match what the laptop's live auth.json

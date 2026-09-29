@@ -31,6 +31,7 @@ tags: [hardware, ai, workstation, strix-point, fim, vision, gpu]
 | LLVM target | **unconfirmed.** AMD's support matrix lists `gfx1150` and `gfx1151` together with no per-APU mapping, and the `gfx1151` recorded here was inherited from the wrong SoC. Confirm on-device (`rocminfo`, or the llama.cpp build log) before it drives a build or a driver pin |
 | Memory | **64.0 GB** — 2 × 32 GB **DDR5-5600 SODIMM** (`FormFactor=12`, `TotalWidth=DataWidth=64`, `ConfiguredClockSpeed=5600`) ⇒ dual-channel 128-bit ⇒ **≈89.6 GB/s peak** (~2.9× below the 256 GB/s previously claimed, and **not** the soldered LPDDR5x / 256-bit fabric those figures came from) |
 | Memory visible | **55.6 GB to Windows** (⇒ ≈8.4 GB firmware/BIOS reserved — not a 32 GB carve-out); WSL2 guest `MemTotal` **27.2 GiB** (undocumented 50 % default; `.wslconfig` carries only `networkingMode=Nat`); host free at idle **30.4 GB** with `vmmemWSL` at **2.72 GB** |
+  **⚠ Superseded 2026-09-28:** the owner has since set the UMA carve to **32 GiB**, so this row's “⇒ ≈8.4 GB reserved — not a 32 GB carve-out” is the measurement of the OLD setting and must not be quoted as current. Re-measure `MemTotal` in Windows and in the WSL2 guest before re-deriving the ledger (32 GiB carved is no longer “free” host RAM). See §Served leg.
 | Driver | `32.0.22024.19001`, one video controller. WMI `AdapterRAM` reads 4 GiB because the property is **capped at 4 GiB** — it is not a VRAM reading, do not quote it |
 | NPU | XDNA2 (Ryzen AI) — **explicitly not used** (§NPU: out of the AI tier) |
 | OS | **Windows 11 Pro** + **WSL2** (kernel `6.6.114.1-microsoft-standard-WSL2`, Debian 13 guest). The SSH alias contract for both `~/.ssh/config` files lives in [`network-vpn.md`](network-vpn.md) §The laptop alias contract |
@@ -109,6 +110,71 @@ weights** — a transplanted embedding would still spend spark's KV. There is no
 Also worth weighing before building anything: much frontend signal is better as **text** (DOM subtree,
 computed styles, console/network errors, axe violations) — cheap, deterministic, prefix-cacheable. Vision
 earns its place on *visual* judgment.
+
+## Served leg — LM Studio as the runtime (HD-474, owner decision 2026-09-28)
+
+**Decision:** the laptop serves its models from **LM Studio only** — both legs, and the FIM model
+too. This closes the wrapper question the earlier drafts left open, and it was decided on
+measurement, not preference.
+
+**Why not Ollama, with the receipts:** on Windows neither wrapper has a ROCm path for this APU
+(Ollama's Windows AMD list is discrete RX/PRO cards; LM Studio's ROCm engines report the same,
+lmstudio-bug-tracker #883/#1903), so both end up on the **same llama.cpp Vulkan engine** and the
+wrapper buys ~0 tokens/s. Ollama also carries two measured traps specific to this silicon: integrated
+GPUs are skipped unless `OLLAMA_IGPU_ENABLE=1`, and 0.30+ dropped gfx1150 from the allow-list, which
+runs the model **on the CPU** while still answering 200 (ollama #16690 → PR #16701). Decisive
+instead: **vision.** LM Studio loads `--mmproj` for these arches today; Ollama's Modelfile has no
+projector instruction at all (the documented set is FROM/PARAMETER/TEMPLATE/SYSTEM/ADAPTER/LICENSE/
+MESSAGE), `ADAPTER mmproj` 500s (#15346), two `FROM` lines hang (#17491), and `qwen35moe` was unknown
+to its vendored llama.cpp (#14730/#15898) until PR #15899 + #16031. LM Studio already reads the
+152 GB library on `D:` — one library, zero duplicate bytes.
+
+**The two legs, now from one runtime** (the catalogue is `scripts/laptop-llm/profiles.yml`; the
+budget, the gate and the probes are `scripts/laptop-llm.py`; the applier is
+`scripts/win/lmstudio-llm.ps1`):
+
+| Profile | Model | Window | Budget against the 32 GiB carve |
+|---------|-------|--------|---------------------------------|
+| `agent-unified` | Qwen3.6-35B-A3B Q4_K_M **+ mmproj** | 32k f16 KV | 18.63 + 0.93 + 0.62 + 0.06 + 3.00 floor = **23.25** ⇒ +8.75 margin |
+| `agent-unified-mtp` | same weights, MTP speculative decoding | 32k | **no vision in this load** — see the conflict below |
+| `agent-unified-64k` | same + mmproj, q8_0 KV (needs flash attention) | 64k | 23.25 ⇒ +8.75 |
+| `fim-coder-3b` | Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV | 8k | 1.80 + 0.14 + floor = **4.94** |
+
+**Ledger correction — this family's KV is 20 KiB/token, not 96.** §Memory & residency's
+“≈96 KiB/token” is right for **Qwen3-30B-A3B** (48 layers, 4 KV heads × 128 head_dim).
+Qwen3.6-35B-A3B is **hybrid**: 40 layers in 10 × (3 × Gated DeltaNet → 1 × Gated Attention), so
+only **10** layers hold a KV cache, at 2 KV heads × head_dim 256 ⇒ `2×10×2×256×2 = 20 480 B/token`.
+The 30 linear layers hold a **constant** recurrent state per sequence instead. Consequence: a 32k
+window costs 0.62 GiB, and q8_0 KV only saves 0.31 GiB — which is why `agent-unified` keeps **f16
+KV**: llama.cpp honours a quantized KV cache **only with flash attention on**, FA-on-Vulkan for this
+arch is unproven, and 1.6 % of the budget is not worth an unproven dependency plus an unmeasured
+recall risk. `agent-unified-64k` is where q8_0 earns its keep (it halves a 1.25 GiB KV).
+
+**MTP and vision cannot share a load.** Unsloth's own README: “`--mmproj` is not yet supported with
+MTP” — so `agent-unified-mtp` is text-only by construction, and lmstudio-bug-tracker #1951 reports
+MTP failing to initialise on the 35B **MoE** (the dense 9B got 40–60 %). MTP stays off until an A/B
+on this box shows an actual gain.
+
+**What is NOT yet true (⏳, and the gate enforces it):** `runtime.version` is `null` — LM Studio
+auto-updates and 0.4.25-1 was sitting in `lm-studio-updater\pending\`, so there is no pin to certify
+against (§7). The Q4_K_M weights are **not on `D:` yet** (≈21 GB one-time fetch; the applier reports
+it rather than silently downloading). `tool_probe`, `vision_probe`, `fim_probe` are all `pending`, so
+`gate` **fails** on this box today — correct, not broken. The FIM row also carries a live
+contradiction: this doc's §Leg 1 requires a FIM-trained model and says Instruct variants “do not do
+it”, while Qwen2.5-Coder's own card documents chat-template FIM on Instruct — `probe-fim` settles it
+with a cursor-shaped completion instead of an argument.
+
+**Client contract:** `providers.laptop-lmstudio` in `scripts/pi-config/models-spec.yml`, scoped by the
+new `hosts:` key so it renders **only** on this laptop and never into the oldsrv cockpit (HD-409). Its
+`baseUrl` is loopback, which requires `networkingMode=mirrored` in `/etc/wsl.conf`; the NAT gateway
+address is deliberately not written down, because an IP that moves is how this breaks later.
+`laptop-llm.py probe-client` fails if the client's `contextWindow`/`maxTokens`/`input` drift ahead of
+the active profile — the pi-side 400 mid-session class.
+
+**Carve-out note (supersedes the ≈8.4 GB line above):** the BIOS UMA carve is now **32 GiB**. That
+buys **residency**, never bandwidth — the ≈89.6 GB/s ceiling is untouched, so a dense model is still
+bandwidth-bound and the MoE-A3B family is still the only one that answers (§Leg 2). It also removes
+~24 GB from what Windows and the WSL2 guest can use; re-measure before trusting any ledger number.
 
 ## NPU: out of the AI tier
 
