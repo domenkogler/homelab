@@ -146,6 +146,13 @@ providers:
   - id: laptop-lmstudio
     description: local LM Studio server on the admin laptop (iGPU, 32 GiB carve) — loopback, no cost
     hosts: [domenp14s]
+    # Native Windows only, and this is the load-bearing line of the whole client contract (owner
+    # decision 2026-09-29, after the first draft assumed WSL): WSL2 on this box stays
+    # networkingMode=Nat because it is configured that way deliberately, so 127.0.0.1 inside the
+    # Linux guest is the GUEST. Local models are therefore served to pi.dev running ON Win11, and
+    # this provider must not render into the WSL picker, where it would be a dead endpoint. Hostname
+    # alone cannot tell the two seats apart — both report DomenP14s — hence a flag, not a name.
+    native_only: true
     baseUrl: http://127.0.0.1:1234/v1
     api: openai-completions
     # The server ignores this; pi still requires a non-empty value before it will call a model.

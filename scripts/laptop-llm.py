@@ -299,15 +299,13 @@ def server_base(cfg, from_wsl=None):
     port = dig(cfg, "runtime.api_port", 1234)
     if from_wsl is None:
         from_wsl = os.name == "posix"
-    # Two topologies reach the Windows host from the Linux seat and they are NOT interchangeable:
-    #   mirrored mode (what scripts/win/lmstudio-llm.ps1 configures, and what the pi/Continue spec
-    #     declares) → the Windows host IS 127.0.0.1, stable across reboots and WSL restarts;
-    #   Nat mode (this box's setting when I found it: default gw 172.17.0.1) → the host is the
-    #     DEFAULT GATEWAY and localhost is the Linux guest itself.
-    # So: TRY loopback first and use it only if something is actually listening — proving the path
-    # beats configuring a hope. Otherwise discover the gateway; never hardcode it, because a
-    # hardcoded NAT address is a Tuesday-afternoon outage. probe-client accepts either, and the
-    # message tells the operator which mode they are actually in.
+    # The CONTRACTED seat is Windows-native (owner, 2026-09-29): pi.dev on Win11 talks to
+    # 127.0.0.1:1234 and /etc/wsl.conf is not touched — Nat mode is there deliberately. This function
+    # is the DEBUG path for the other seat, and the rule still holds: probe loopback first and use it
+    # only if something answers, else DISCOVER the gateway, never hardcode it (a written-down NAT
+    # address is a Tuesday-afternoon outage). A gateway answer from WSL means "exposed to network" is
+    # on and the Nat route works; it does NOT make the WSL seat supported — models-spec says
+    # `native_only: true`, and probe-client honours that.
     if from_wsl and not _listening("127.0.0.1", port):
         try:
             out = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True).stdout
@@ -317,6 +315,16 @@ def server_base(cfg, from_wsl=None):
         except Exception:
             pass
     return f"http://127.0.0.1:{port}/v1"
+
+
+def _in_wsl():
+    """/proc/version is the documented guest marker — and the ONLY reliable one here, because both
+    seats of this laptop report the same hostname (`DomenP14s`), which is why the spec carries
+    `native_only:` instead of a second host name."""
+    try:
+        return "microsoft" in open("/proc/version").read().lower()
+    except OSError:
+        return False
 
 
 def _listening(host, port, timeout=0.35):
@@ -517,10 +525,17 @@ def cmd_probe_client(cfg, a):
         print(f"client drift: FAIL — provider '{a.provider}' is not in {PI_SPEC.name} (yet). "
               "The renderer needs a `hosts:` row for it or the laptop renders without it.")
         return 1
-    if prov.get("hosts") and not any(str(h).lower() in str(__import__("socket").gethostname()).lower()
-                                    for h in prov["hosts"]):
+    import socket
+    if prov.get("hosts") and socket.gethostname().lower() not in [str(h).lower() for h in prov["hosts"]]:
         print(f"client drift: SKIP — provider '{a.provider}' is scoped to hosts={prov['hosts']}, "
-              f"this host is {__import__('socket').gethostname()!r}")
+              f"this host is {socket.gethostname()!r}")
+        return 0
+    if prov.get("native_only") and _in_wsl():
+        # The seat decision (owner, 2026-09-29): local models are served to pi.dev ON Win11, and
+        # /etc/wsl.conf stays as it is on purpose. So a probe run from the Linux guest is not measuring
+        # a supported path — say so instead of failing a contract that was never addressed to it.
+        print(f"client drift: SKIP — provider '{a.provider}' is native_only and this is WSL2. The "
+              "contract lives on the Windows seat; run this probe there (pi.dev on Win11).")
         return 0
     m = next((x for x in (prov.get("models") or []) if x.get("id") == a.model), None)
     if not m:
