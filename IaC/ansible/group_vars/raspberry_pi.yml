@@ -42,7 +42,13 @@ ha_primary_peer_priority: 90  # failback peer mode — below standby (100/120), 
 #     and fill the USB by-id into host_vars/pi.kogler.si.yml.
 docker_services:
   - { name: home-assistant-primary, template_dir: home-assistant-primary }
-  - { name: technitium-secondary,  template_dir: technitium, instance: secondary-pi }
+  # HD-476: the Pi is the resolver VLAN 10 asks FIRST, so it is the instance that carries the
+  # public upstream. Forwarding is the Pi-only knob: the VPS primary + oldsrv secondary are
+  # seeded with `forwarders=` empty (unchanged, still root-chase) until they are opted in too.
+  # Value + the full rationale (why two, why never the router/oldsrv): dns_resolver_upstreams
+  # in group_vars/all/main.yml; behaviour + measurements: docs/network-dns.md §Resolver upstream.
+  - { name: technitium-secondary,  template_dir: technitium, instance: secondary-pi,
+      technitium_forwarders: "{{ dns_resolver_upstreams }}" }
   - { name: traefik-ha,            template_dir: traefik-ha, enabled: "{{ ha_edge_enabled }}" }   # HA edge, VIP-bound (oldsrv-down gap)
   # Dozzle remote agent — exposes pi's containers to the oldsrv LAN log hub (llogs.kogler.si)
   # over the Home VLAN (:7007, LAN-only bind — never WAN). HD-343 ride-along 2026-09-15.

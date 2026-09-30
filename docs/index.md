@@ -72,7 +72,7 @@ docs/
 ├── network-vlans.md                       VLAN table, subnets, firewall rules
 ├── network-migration-inventory.md         Flat-LAN→VLAN device migration table (Phase 1.5 cutover)
 ├── network-addresses-generated.md         IP address plan — SSOT (generated from IaC; never hand-edited)
-├── network-dns.md                         DNS tier: split-horizon resolution, per-subnet behavior
+├── network-dns.md                         DNS tier: split-horizon resolution, per-subnet behavior, resolver upstream (forwarders)
 ├── network-vpn.md                         WireGuard (S2S), Headscale mesh
 ├── assets/Network-Devices.canvas          Device wiring & interconnections  ⚠️ WIP
 ├── network-rack.md                        Rack layout → assets/Rack.canvas
@@ -92,7 +92,7 @@ docs/
 ├── services.md                            Index: catalog legend, networks, domains → services-*.md stack docs
 ├── services-media.md                      Media: Jellyfin, Seerr, SeerrNG, Navidrome, Immich, *arr + storage/import
 ├── services-downloads.md                  Usenet/torrent ingress (SABnzbd, qBittorrent, gluetun)
-├── services-dns.md                        DNS services (Technitium authoritative + Advanced Blocking)
+├── services-dns.md                        DNS services (Technitium authoritative; Advanced Blocking designed — ⚠ no lists live)
 ├── services-utilities.md                  Utility sidekicks (n8n, signal-cli, PairDrop, Stirling)
 ├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup) · **Homelable topology dashboard (HD-45)** · ~~Metabase~~ retired 2026-09-14 → future oldsrv
 ├── observability.md                        Observability domain — stack, alerting, retention

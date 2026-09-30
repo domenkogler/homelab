@@ -51,6 +51,70 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 | IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking. Cloud-IoT devices with `wan_allow` still resolve through this row — they gain WAN egress only, never a DNS bypass. IoT plain `:53` is dst-nat'd to the **Pi tertiary** (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). |
 | Guest (30) | Guest-Group | Standard public (1.1.1.1) | No filtering needed |
 
+> ⚠ **The Group / Upstream-Filter columns above are DESIGN, not live state (measured 2026-09-29, HD-476).**
+> Read over the API on the Pi tertiary **and** the VPS primary: `blockListUrls = null` (blocking is enabled,
+> `blockingType = NxDomain`, but there is not a single list), **no client custom options exist at all** —
+> which is the mechanism Technitium uses for per-subnet upstreams — and `logQueries = false` on both, with no
+> `/var/log/technitium/dns` on the Pi. So what enforces per-VLAN behaviour today is the **router-side**
+> per-VLAN / per-MAC `:53` dst-nat (HD-182/HD-326), which chooses *which resolver answers*, not the upstream
+> filter. Consequence: the Kids (Cloudflare Families) and IoT (Quad9) rows and the Home ad-blocking row are
+> **not implemented on the DNS tier**, and the per-device query visibility this doc cites as the reason for
+> Pi-first (and for the IoT dst-nat) **cannot be observed at all**. ⏳ HD-476 carries the reconcile.
+
+---
+
+## Resolver upstream (forwarders) — HD-476
+
+✅ **live on the Pi tertiary 2026-09-29** — `forwarders = 1.1.1.1 + 9.9.9.9`, `forwarderProtocol = Udp`,
+`concurrentForwarding = true`. The VPS primary and the oldsrv secondary are seeded with `forwarders`
+**empty** on purpose (still root-chase); opting them in is an open ⏳ in HD-476, not an oversight.
+
+**What changed.** Every instance ran `forwarders = null`, so whichever instance a client asked had to chase
+each cold public name from the **root servers** — with `dnssecValidation = true` and `qnameMinimization = true`
+both on and `resolverTimeout 1500 × resolverRetries 2` as the per-name ceiling. The Pi is the instance the
+Home VLAN asks first, on ARM, so it paid the most:
+
+| Measured from the admin laptop, 2026-09-29 | Pi root-chase | Pi + forwarders | oldsrv | 1.1.1.1 direct |
+|---|---|---|---|---|
+| 40-way browser-style fan-out, p50 / max | **143 / 162 ms** | **60 / 86 ms** | 74 / 80 ms | 46 / 55 ms |
+| same fan-out, total wall clock | 190 ms | 91 ms | 85 ms | 62 ms |
+| 120 sequential cold lookups, p50 | 49 ms | 38 ms | 50 ms | 32 ms |
+
+**Why the HA requirement is untouched — this was the acceptance question.** Forwarders are an **egress** knob:
+they change what the resolver asks outward, never which address clients ask or whether that address floats.
+`ha.kogler.si`, `dns-pi.kogler.si` and the rest of `kogler.si` are answered **authoritatively** from the
+instance's own primary zone (the `aa` flag was re-proven on the Pi after the change), so an upstream is never
+consulted for them and dead upstreams cannot break HA name resolution. WAN egress was *already* a dependency
+of the old design — root, TLD and authoritative servers are all internet-resident — so nothing LAN-local got
+weaker, and oldsrv is no more in the answer path than it was before.
+
+**Why exactly TWO upstreams.** With forwarders set, Technitium queries all of them in parallel (fastest wins)
+and does **not** fall back to root recursion when they fail — "forward-first" is an open vendor request
+([TechnitiumSoftware/DnsServer#481](https://github.com/TechnitiumSoftware/DnsServer/issues/481)), not a
+feature. One upstream would therefore make public resolution depend on a single operator; Cloudflare + Quad9
+are separate networks, operators and block policies. DNSSEC validation stays observable end to end: a forward
+through the Pi returns the `ad` bit for a validated name, same as the forwarder itself.
+
+⛔ **Never** point `dns_resolver_upstreams` at the router's `/ip dns` — its own upstream is this same resolver
+chain, so that is a forwarding loop that also puts oldsrv/VPS back into the answer path — and not at oldsrv
+either: the Pi is the Home VLAN's first resolver precisely so the HA-primary tier does not depend on the HA
+standby (that requirement is why the ordering is not "fastest first"; see **HD-477** for the VIP question).
+
+**SSOT:** the list is `dns_resolver_upstreams` in [`group_vars/all/main.yml`](../IaC/ansible/group_vars/all/main.yml);
+the per-instance opt-in is `technitium_forwarders` on the Pi's `docker_services` entry in
+[`group_vars/raspberry_pi.yml`](../IaC/ansible/group_vars/raspberry_pi.yml); the API task is
+`Technitium: set resolver upstream (forwarders) from SSOT` in
+[`technitium-seed.yml`](../IaC/ansible/roles/docker_services/tasks/technitium-seed.yml). It is **declarative**:
+an instance without the flag gets `forwarders=` cleared every seed (empty → readback stays `null`, proven a
+no-op rather than an API error). Push with `bash scripts/ansible-run.sh playbooks/dns-seed.yml [--limit …]`;
+the 2026-09-29 run proved the task drives the value — the forwarders were cleared by hand first and the
+converge restored them (`failed=0`, all three hosts).
+
+⚠ **Still un-owned by IaC:** the rest of the resolver's tuning is live-state product default that no role
+sets — `resolverTimeout` / `resolverRetries`, `maxConcurrentResolutionsPerCore`, `cacheMaximumEntries = 10000`,
+`dnssecValidation`, `qnameMinimization`, `serveStale`, `logQueries`. Forwarders removed the dominant cost; the
+rest stays UI-and-memory until the seed owns it.
+
 ---
 
 ## Per-Instance Split-Horizon (HD-350/HD-352)
@@ -94,8 +158,13 @@ Client → Technitium (DHCP-pushed chain, see below)
 
 - **Resolver chain pushed by DHCP (RouterOS caps `dns-server` at 3 values — a 4th is silently dropped,
   so the router IP is deliberately NOT in the list):**
-  - **Home VLAN 10:** **Pi tertiary → VPS primary → oldsrv secondary** (HD-334) — Home resolves via the
-    Pi, which gives per-device query visibility in the Pi's log and makes per-MAC filtering work.
+  - **Home VLAN 10:** **Pi tertiary → VPS primary → oldsrv secondary** (HD-334) — the durable reason is
+    **HA-independence**: HA's primary runs on the Pi and the standby on oldsrv, so Home must keep resolving
+    with oldsrv down, and the resolver must never sit behind the standby. ⚠ The reason this bullet used to
+    give — *per-device query visibility in the Pi's log* — **is not delivered**: `logQueries = false` on the
+    Pi (measured 2026-09-29), so the Pi's query log does not exist (HD-476). Note the pushed address is the
+    Pi's **node IP** (`dns_tertiary_ip`), not the VIP: the resolver does **not** currently float with HA —
+    see **HD-477**.
   - **All other VLANs (guest/mgmt/iot/media):** **VPS primary → oldsrv secondary → Pi tertiary** — they
     are not per-device filtered.
   - The router's `/ip dns` is the **implicit** last resort via its own upstream (the same chain first +

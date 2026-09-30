@@ -148,6 +148,33 @@
       # recursion posture self-managing - NO manual UI step required.
       failed_when: _tech_acl.json is not defined or _tech_acl.json.status not in ['ok', 'error']
 
+    # HD-476 (live 2026-09-29): the resolver UPSTREAM (forwarders). Declarative — every
+    # instance is driven from SSOT on every seed: an instance whose docker_services entry
+    # carries `technitium_forwarders` gets them, an instance without gets them CLEARED
+    # (`forwarders=` empty -> readback stays null, i.e. a proven no-op on the VPS/oldsrv).
+    # WHY IT MATTERS: with no forwarders Technitium chases every cold public name from the ROOT
+    # servers itself (dnssecValidation + qnameMinimization on, resolverTimeout 1500 x retries 2)
+    # — measured on the Pi (first resolver for VLAN 10): 40-way fan-out p50 143 ms -> 60 ms after
+    # forwarding. All forwarders are queried in parallel (concurrentForwarding, pinned here) and
+    # there is NO root-recursion fallback once they are set (vendor issue #481), hence TWO
+    # independent upstreams in dns_resolver_upstreams. The local `kogler.si` zone is answered
+    # authoritatively and NEVER reaches a forwarder (aa flag proven live) — so this knob cannot
+    # affect HA name resolution. Placement policy lives in group_vars, not here (CONVENTIONS §3).
+    - name: "Technitium: set resolver upstream (forwarders) from SSOT ({{ svc.name }})"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/settings/set?token={{ _tech_token }}"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          forwarders: "{{ svc.technitium_forwarders | default([]) | join(',') }}"
+          forwarderProtocol: "Udp"
+          concurrentForwarding: 'true'
+      register: _tech_fwd
+      no_log: true
+      changed_when: false
+      # 'error' tolerated for the same idempotency reason as the ACL task above.
+      failed_when: _tech_fwd.json is not defined or _tech_fwd.json.status not in ['ok', 'error']
+
     - name: "Technitium: ensure split-horizon A records"
       ansible.builtin.uri:
         url: "{{ _tech_api }}/api/zones/records/add?token={{ _tech_token }}"
