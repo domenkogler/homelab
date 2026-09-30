@@ -120,7 +120,11 @@ technitium_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # AUTHORITATIVELY (aa flag proven live 2026-09-29) from each instance's own primary zone, so an
 # upstream is never consulted for them — dead upstreams cannot break HA/DNS-name resolution.
 # Placement is opt-in per instance via `technitium_forwarders` on the docker_services entry
-# (unset == forwarders cleared == root-chase, which is still the state on the VPS/oldsrv).
+# (unset == forwarders cleared == root-chase). ALL THREE carry the flag since 2026-09-30 (owner
+# call): the two that were still chasing measured p50 39 ms (tail 116) on the VPS and 85 ms (tail
+# 208) on oldsrv across 12 cold disjoint names, vs ~15-20 ms forwarded — same list for all three,
+# because the point of two upstreams is independence, not per-site tuning (concurrentForwarding
+# already takes the fastest).
 dns_resolver_upstreams:
   - "1.1.1.1"   # Cloudflare — anycast, DNSSEC-validating
   - "9.9.9.9"   # Quad9 — different network + operator + blocking policy

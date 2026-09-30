@@ -42,7 +42,12 @@ docker_services:
   # + tailnet; dedicated dns-servers overlay pinned to dns_primary_ip (172.25.0.2),
   # host :53 published. Web UI at dns.kogler.si (Forward-Auth) via the subdomain label.
   # oldsrv (secondary) + Pi (tertiary) keep the home-LAN failure-domain split.
-  - { name: technitium,     template_dir: technitium, subdomain: dns, public: true, enabled: true }
+  # HD-476 (owner call 2026-09-30): forwards to the SSOT upstreams instead of chasing every cold
+  # public name from the root — this instance is FIRST for guest/mgmt/iot/media + the tailnet chain,
+  # so its chase tail (root→TLD→auth, serialised) was the fleet's. Egress-only: no client-facing
+  # address changes, and `*.kogler.si` stays authoritative so HA name resolution cannot ride it.
+  - { name: technitium,     template_dir: technitium, subdomain: dns, public: true, enabled: true,
+      technitium_forwarders: "{{ dns_resolver_upstreams }}" }
   # db_role_sync (2026-08-23 incident): postgres images apply POSTGRES_PASSWORD ONLY at
   # first cluster init — a rotated 1Password db item re-renders compose envs but the persisted
   # cluster keeps the OLD role password (forgejo/renovate crash-loop precedent). Opt-in per

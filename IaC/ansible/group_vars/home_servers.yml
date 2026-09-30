@@ -214,7 +214,11 @@ docker_services:
   #   secondary, no web-UI labels — the dns.kogler.si UI lives on the VPS primary),
   #   TERTIARY = Pi (raspberry_pi.yml). LAN DHCP chain + router rules + tailnet
   #   headscale nameservers all list VPS-primary first (see docs/network-dns.md).
-  - { name: technitium,      template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}" }
+  # HD-476 (owner call 2026-09-30): forwards to the same SSOT upstreams as the primary and the Pi
+  # (one list, not per-instance lists — rejected alternative in docs/network-rejected.md). Egress-only
+  # knob; behaviour + measurements: docs/network-dns.md §Resolver upstream.
+  - { name: technitium,      template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}",
+      technitium_forwarders: "{{ dns_resolver_upstreams }}" }
   # RETIRED 2026-09-10 (network-dns.md): Main-Group ad-blocking moved to Technitium
   # Advanced Blocking (kept the filter on the reliable VPS/Pi DNS tier instead of
   # oldsrv). Entry kept `enabled: false` so the deploy loop tears the container down
