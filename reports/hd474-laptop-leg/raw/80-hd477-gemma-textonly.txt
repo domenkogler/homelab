@@ -31,3 +31,75 @@ idle before 2.09 GiB | after load 18.74 GiB  (delta vs phase 1 is the projector 
 ps: g-text-32k    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
 
 ===== PHASE 3  context ladder on the text-only variant  (01:03:22) =====
+
+===== PHASE 0  what is on disk / indexed  (01:34:40) =====
+king up 135.60 GB of disk space.
+
+LLM                                   PARAMS      ARCH          SIZE         DEVICE    
+gemma-4-26b-a4b-it-qat                128x2.6B    gemma4        15.44 GB     Local     
+gemma-4-26b-a4b-textonly              26B-A4B     gemma4        16.80 GB     Local     
+gemma-4-31b-it                        31B         gemma4        19.89 GB     Local     
+google/gemma-4-26b-a4b (1 variant)    26B-A4B     gemma4        17.99 GB     Local     
+google/gemma-4-e4b (1 variant)        7.5B        gemma4        6.33 GB      Local     
+openai/gpt-oss-20b (1 variant)        20B         gpt-oss       12.11 GB     Local     
+qwen/qwen3.5-9b (1 variant)           9B          qwen35        6.55 GB      Local     
+qwen/qwen3.6-27b (2 variants)         27B         qwen35        17.48 GB     Local     
+qwen2.5-coder-3b-instruct             3B          Qwen2         1.93 GB      Local     
+qwen3-vl-30b-a3b-instruct             30B-A3B     qwen3vlmoe    18.80 GB     Local     
+whisper-large-v3-turbo                                          475.64 MB    Local     
+
+EMBEDDING                                             PARAMS    ARCH          SIZE         DEVICE    
+text-embedding-multilingual-e5-large-instruct@f16     335M      BERT          1.13 GB      Local     
+text-embedding-multilingual-e5-large-instruct@q8_0    335M      BERT          603.10 MB    Local     
+text-embedding-nomic-embed-text-v1.5                            Nomic BERT    84.11 MB     Local     
+
+
+
+===== PHASE 1  vision-enabled weights @32768 (the certified leg) - baseline  (01:34:41) =====
+idle before load 2.15 GiB | after load 19.81 GiB
+ps: g-vision-32k    google/gemma-4-26b-a4b    IDLE      17.99 GB    32768      1           Local        
+
+===== PHASE 2  text-only variant @32768 - what does the projector cost?  (01:35:15) =====
+idle before 2.15 GiB | after load 18.81 GiB  (delta vs phase 1 is the projector + ViT cost)
+ps: g-text-32k    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
+
+===== PHASE 3  context ladder on the text-only variant  (01:35:42) =====
+HD-477 run START 2026-09-30 01:49:09 (python 3.13.13, only_from=3)
+PHASE 0 skipped by argv
+PHASE 1 skipped by argv
+PHASE 2 skipped by argv
+
+===== PHASE 3  context ladder on the text-only variant  (01:49:09) =====
+ 32768: loaded gpu=18.87 GiB (idle before load was 2.21) | cold ACCEPTED prompt_tokens=20816 wall=359s | gpu after 18.88 GiB
+ 32768: warm/cache probe ACCEPTED prompt_tokens=2616 wall=23s
+ 49152: loaded gpu=19.18 GiB (idle before load was 2.21) | cold ACCEPTED prompt_tokens=20816 wall=899s | gpu after 19.26 GiB
+ 49152: warm/cache probe ACCEPTED prompt_tokens=2616 wall=23s
+ 65536: loaded gpu=19.31 GiB (idle before load was 2.28) | cold ACCEPTED prompt_tokens=20816 wall=277s | gpu after 19.33 GiB
+ 65536: warm/cache probe ACCEPTED prompt_tokens=2616 wall=19s
+
+===== PHASE 4  recall probe at ~28k tokens of REAL prose (acceptance is not memory)  (02:17:19) =====
+recall probe: prompt_tokens=31761 wall=1984s answered='' KR-7391-QX present in answer: False
+recall usage: {"prompt_tokens": 31761, "completion_tokens": 64, "total_tokens": 31825, "completion_tokens_details": {"reasoning_tokens": 61}}
+
+IDENTIFIER       MODEL                       STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL
+g-text-recall    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
+
+
+
+HD-477 run finished 2026-09-30 02:50:52
+HD-477 run START 2026-09-30 02:55:10 (python 3.13.13, only_from=4)
+PHASE 0 skipped by argv
+PHASE 1 skipped by argv
+PHASE 2 skipped by argv
+PHASE 3 skipped by argv
+
+===== PHASE 4  recall probe at ~28k tokens of REAL prose (acceptance is not memory)  (02:55:10) =====
+recall probe: prompt_tokens=28984 wall=1658s answer='KR-7391-QX' needle_found=True
+recall usage: {"prompt_tokens": 28984, "completion_tokens": 391, "total_tokens": 29375, "completion_tokens_details": {"reasoning_tokens": 378}}
+
+IDENTIFIER       MODEL                       STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL
+g-text-recall    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
+
+
+
+HD-477 run finished 2026-09-30 03:23:15

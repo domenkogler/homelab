@@ -1,0 +1,429 @@
+---
+title: 1Password CLI & SSH Agent — runner setup
+role: reference
+domain: deployment
+status: active
+tags: [deployment, secrets, 1password, ssh]
+---
+# 1Password CLI & SSH Agent — WSL runner setup
+
+> **Role:** Reference — how the WSL Ansible runner authenticates to 1Password: the CLI
+> Service Account token (for `community.general.onepassword` secret lookups) and the SSH
+> agent for key-based host access. Covers only the **runner** side; the vault/item naming
+> conventions live in [`deployment-secrets.md`](deployment-secrets.md).
+> **Links to:** `deployment-secrets.md`, `deployment-ansible.md`, `deployment.md`
+> **Linked from:** `index.md`, `deployment-secrets.md`
+
+Ansible resolves every secret via
+`lookup('community.general.onepassword', '<item>', field='<field>', vault=op_vault)`
+on the **control host** (the WSL Debian runner). That lookup authenticates to 1Password
+using a **Service Account token**, not an interactive login.
+
+### Credential source — TWO service accounts
+Both items live in the **`Homelab-ansible`** vault itself (`op vault list` returns exactly that
+one vault), both re-issued:
+
+| Item | Scope | Who uses it |
+|---|---|---|
+| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) any CI runner that resolves the vault (HD-315's `vault-gate`; Phase 0/5 of [../deployment-tasks.md](../deployment-tasks.md) store `op_api` as a runner secret — renew it there after every rotation, or CI's vault access starts 403-ing) |
+| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted) |
+
+> **Superseded design (kept for the record, do not re-implement):** this section used to say the
+> runner token was item **`Service Account Auth Token: ansible`** in a separate **Private vault**,
+> and that an `op_api` item in `Homelab-ansible` was *"intentionally NOT created"*. That is no
+> longer how it works — the control-node token IS an `op_api` item in the main vault, and there is
+> no second vault. Verified by `op vault list` + `op item list --vault Homelab-ansible`.
+
+### Where a token is installed (the whole list)
+| Host / system | Token | Source of truth |
+|---|---|---|
+| **`oldsrv` — the on-site control node** (seeds 2026-09-22, proving logs 2026-09-23) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` on the laptop — the value never crossed a prompt or a shell history |
+| **control node (rescue)** — this WSL Debian laptop. No longer "the only place `ansible-playbook` is run interactively" (HD-407 closed that), and it stays installed as the door you open when the on-site runner is the thing that is broken | `op_api`… **nominally** — see the two-token finding below | `~/.config/op/homelab-sa-token` (0600) |
+| **Forgejo CI runner** (the `vault-gate` job + any playbook it runs) | `op_api` | a Forgejo secret |
+| **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
+| home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
+| **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
+| **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
+
+| Where | length | hash prefix |
+|---|---|---|
+| laptop `~/.config/op/homelab-sa-token` | 850 | `be1939305745` |
+| `op://Homelab-ansible/op_api/credential` (the item the docs call the source of truth) | 850 | `adc2aada8f6e` |
+| oldsrv `~/.config/op/homelab-sa-token` | 850 | `adc2aada8f6e` — matches the vault item |
+
+So the laptop's installed token is **not** the token the vault says is canonical, and both work.
+Consequence, stated plainly: **rotating or deleting `op_api` does not revoke the laptop's token.**
+An SA token that exists only on a disk and in no vault item is invisible to every procedure written
+against the vault, which is the same class of defect as `oldsrv-rsync` (HD-416) in a different
+subsystem. ⏳ Decide deliberately: either re-seat the laptop from `op read` and let the vault item be
+the single mint point, or mint/record the second token as its own vault item with a named consumer.
+Not this lane's call — it is a credential-revocation decision, and revoking the wrong one locks the
+rescue runner out of the vault.
+
+### Rotating the control-node token
+`scripts/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
+rotation it prints *"token already stored"* and changes nothing. Rotate with:
+```bash
+read -rsp "new op_api token: " T && printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' "$T" \
+  > ~/.config/op/homelab-sa-token && unset T && chmod 600 ~/.config/op/homelab-sa-token \
+  && set -a && . ~/.config/op/homelab-sa-token && set +a && op whoami
+```
+**Trap that bites every time:** an already-running shell keeps exporting the OLD value, and the
+environment beats the file. `op whoami` returning `403 … You aren't authorized to access this
+resource` with a freshly-written file means exactly that — re-`source` the file (or open a new
+shell). Verify a rotation took effect by **hash**, never by printing the value.
+### Installed location (runner)
+```bash
+~/.config/op/homelab-sa-token      # 0600, one line: export OP_SERVICE_ACCOUNT_TOKEN='...'
+```
+- Sourced from `~/.bashrc` (`[ -f ... ] && source ...`).
+- Ansible's `community.general.onepassword` lookup reads `OP_SERVICE_ACCOUNT_TOKEN`
+  at run time — so it is non-interactive (no `op signin` / 2FA prompt).
+
+### Service account scope
+The service account must have **read access to the `Homelab-ansible` vault** (where the secret
+items live) plus any private vault holding runner credentials. Verify:
+```bash
+op vault list                      # should list Homelab-ansible (and the private vault)
+op whoami                          # shows User Type: SERVICE_ACCOUNT
+```
+
+### Install on a fresh runner (repo bootstrap convention)
+```bash
+mkdir -p ~/.config/op
+umask 077
+printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' 'PASTE_TOKEN' > ~/.config/op/homelab-sa-token
+chmod 600 ~/.config/op/homelab-sa-token
+[ -f ~/.config/op/homelab-sa-token ] && source ~/.config/op/homelab-sa-token
+grep -q "homelab-sa-token" ~/.bashrc || \
+  printf '\n[ -f %s ] && source %s\n' "$HOME/.config/op/homelab-sa-token" "$HOME/.config/op/homelab-sa-token" >> ~/.bashrc
+```
+
+Hosts are reached over SSH as `ansible-admin` (or the per-host `ansible_user`).
+Two identity models are in use on the runner:
+
+- **WSL local key:** `~/.ssh/id_ed25519` — used to reach the VPS (`vps.kogler.si` /
+  `159.195.111.66`). Its public key is installed in each host's `~/.ssh/authorized_keys`
+  for `ansible-admin`. (Committed `ansible-admin`/`domen_ssh` keys are the repo
+  convention; on hosts lacking them, the runner's local key was authorized to unblock.)
+- **1Password SSH agent** (repo-preferred, `deployment-secrets.md` -> "SSH Key
+  Separation"): private keys never on disk, served on demand via `IdentityAgent`.
+  Requires `~/.ssh/config` + `~/.ssh/<name>.pub` reference files + the 1Password SSH
+  agent socket. **This runner currently uses the plain WSL key** (no `~/.ssh/config`);
+  the 1Password SSH agent setup is the intended end state.
+
+Discovered the hard way during a VPS SSH restore (HD-209). Each of these produces an auth-shaped error with a non-auth cause:
+
+- **Vault allowlist:** the desktop agent serves ONLY vaults listed in 1Password's agent
+  config `agent.toml` (Windows: `%LOCALAPPDATA%\1Password\config\ssh\agent.toml`; each
+  vault gets an `[[ssh-keys]] vault = "<vault>"` block). `Homelab-ansible` MUST be added
+  or its SSH items (`domen_ssh`, `ansible-admin_ssh`) are invisible to `ssh`.
+- **Keep the offered-key count small:** hosts run `maxauthtries 3` (HD-154); every
+  agent-served key burns one offer. Disable "Use with SSH agent" on unused items so
+  plain `ssh ansible-admin@vps.kogler.si` reaches the right key within 3 tries.
+- **Pub-hint + agent refusal:** pointing `IdentityFile` at a `.pub` served by the agent works
+  (e.g. `IdentityFile ~/.ssh/ansible-admin_ssh.pub` + `IdentitiesOnly`); if the vault is NOT
+  allowlisted in `agent.toml`, the agent refuses the key and `ssh` misreports it as
+  `Load key … invalid format` — the toml fix above is the real solution, not a client bug.
+- **Laptop convenience (owner-set):** `~/.ssh/config` carries TWO aliases,
+  both `User ansible-admin` (the only SSH user), differing only by the presented key via
+  `.pub` hint + `IdentitiesOnly yes`: `vps-ansible` → runner identity (`ansible-admin_ssh.pub`),
+  `vps` → personal interactive identity (`domen_ssh.pub`). Item names are vault
+  identities, NOT usernames. The human account is `domen` (HD-443: sanctioned fleet-wide, being landed by IaC); `domen_ssh` is the item name, never a login.
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| `error: could not find session token for account` | `OP_SERVICE_ACCOUNT_TOKEN` not exported in this shell — source `~/.bashrc` (interactive shell only) |
+| `"<item>" isn't an item in the "Homelab-ansible" vault` | Item missing (not an auth failure) — create it in 1Password, or check the exact name/field |
+| `Unable to sign in to 1Password. Missing required parameters` | Token absent — install/export `OP_SERVICE_ACCOUNT_TOKEN` |
+| `op vault list` only shows some vaults | Service account lacks read grant on the needed vault |
+| `Permission denied (publickey)` to a host | Runner's SSH key not authorized in that host's `authorized_keys` |
+| `invalid JSON provided` / `invalid JSON in piped input` on `op item create/edit` | Non-TTY stdin: op interprets piped input as a JSON item template. Run with `< /dev/null` in scripts, ansible shell tasks, ssh one-liners, cron (provisioner + secret-egress glue precedents, Phase 1 2026-08-22) |
+| **Secret VALUE leaked into chat/transcript via `op item get --reveal`** | Rotate the affected secret immediately (see Output hygiene above); if it's a shared Authentik client (`headscale_api`), regenerate the provider client_secret in Authentik, `op item edit` the 1P item, and re-render the consuming services; **never** inspect further in plaintext |
+| `Failed to change ownership of the temporary files` | `acl` package (`setfacl`) missing on the target host — added to the `common` role prereqs |
+| **`op item edit` returns `error: an HTTP error occurred … 404` right after clearing a field** | **Spurious (op CLI 2.39).** The write has ALREADY been applied — the 404 is the CLI's post-edit re-read hitting a stale revision. **Re-read the item to confirm the new state instead of retrying**, and never treat it as "nothing happened" — that class of failure only repeats the clear or corrupts the field ordering (live 2026-09-17, the `dsh` credential clear) |
+| `op item get <item>` prints something like `REDACTED`/a hint where a value should be, and a comparison "fails" | `op item get` **without `--reveal`** returns a non-secret hint string, not the value — so any equality test against an expected secret is false by construction. Add `--reveal` (and keep the output out of transcripts per §Output hygiene), or compare a `sha256` of the revealed value instead of the value itself |
+
+> **Secrets rule (CONVENTIONS §6):** never put token/item values in docs or git. This file
+> documents *where* and *how*; the values stay in 1Password and the `0600` runner file.
+>
+> **Output hygiene (CONVENTIONS §2, HD-234):** when a probe/rotation touches a secret, print
+> **lengths / prefixes / item IDs / hashes only** — never a full value. `op item get … --reveal`
+> into a shell that echoes to a session/transcript log is how live client_secrets leak into
+> chat (HD-233 incident). Rotating a shared Authentik client: regenerate the secret in the
+> provider ORM (providers don't expose `generate_client_id`; `authentik.lib.generators` has
+> `generate_id`/`generate_key`/`generate_code_fixed_length`), persist to the 1P item, then
+> re-render the consuming services (headscale + headplane read `headscale_api`) and verify —
+> full step-by-step (incl. the `docker cp`-broken + `op --template`-stdin gotchas) lives in
+> [`services-authentik.md`](services-authentik.md) *Rotating a shared Authentik OIDC client secret* runbook.
+
+---
+title: Subscription Renewal Reminder Workflow (n8n)
+domain: services
+role: detail
+status: active
+tags: [services, n8n, subscriptions, automation]
+---
+# n8n — Subscription Renewal Reminder Workflow (infrastructure)
+
+> **Role:** Detail — the n8n workflow that turns `group_vars/subscriptions.yml` renewal dates into push reminders (Signal/SMTP), complementing the always-on Homepage tiles + calendar widget.
+> **Links to:** `subscription.md`, `services-ai.md` (n8n on the VPS)
+> **Linked from:** `index.md`
+
+> **Status:** 🚧 Infrastructure-prepared, NOT live. Create this workflow in the n8n
+> UI (`auto.kogler.si`) **after deployment** (point 3: wait until CalDAV/Signal/SMTP
+> are live). Do not enable until those channels are wired.
+>
+> This workflow turns `group_vars/subscriptions.yml` renewal dates into a **push
+> reminder** via Signal (and/or SMTP email), complementing the always-on Homepage
+> tiles + calendar widget. It is the third consumer of the single `subscriptions`
+> SSOT.
+
+## Goal
+Periodically (e.g. daily) scan the subscription list; for any subscription whose
+`valid_until` is within `reminder_days` (default 30), send a reminder.
+
+Single source of truth: **`group_vars/subscriptions.yml`** — same data the Homepage
+tiles and calendar widget render from. No separate copy.
+
+- **Option A (recommended, true SSOT):** a scheduled Ansible/render step (or a
+  webhook from the `docker_services` post-deploy hook / `render-docs.yml`) POSTs the
+  `subscriptions` list (or a pre-computed `renewals` view) to an n8n **webhook**.
+  The workflow listens and acts on the incoming JSON. Zero duplication.
+- **Option B (fallback):** the workflow holds a small static copy of the
+  `renewals` to alert on. Simpler, but drifts from IaC — avoid unless Option A is
+  not feasible.
+
+## Suggested nodes
+1. **Schedule Trigger** — cron, daily (e.g. `0 8 * * *` Europe/Ljubljana).
+2. **HTTP Request / Webhook** — fetch the renewals JSON (Option A payload).
+3. **Code (filter)** — keep entries where `days_to_renewal <= reminder_days` and
+   `status == active` and `valid_until` is set. Compute `days_to_renewal`.
+4. **SMTP / Signal send** — one notification per due renewal (or an aggregate
+   digest). Use the existing `signal-api` (`signal-internal_api`) and/or the SMTP
+   relay (`smtp_login` / `smtp_login`) — same channels Grafana alerting
+   already uses (see `deployment-secrets.md`).
+5. **(optional)** IFrame/card update is NOT needed — Homepage calendar widget
+   already shows upcoming dates visually.
+
+## Notification message (Slovenian, family-facing)
+```
+⏰ Obnovitev: {{ name }} · {{ cost }} €/mesec · do {{ valid_until }}
+({{ days_to_renewal }} dni)
+```
+
+## Channels / secrets
+| Channel | Node | Secret (1Password `Homelab-ansible`) |
+|---------|------|------------------------------|
+| Signal | `@signal-cli` / HTTP to `signal-api` | `signal-internal_api` (token), `signal_api` (phone) |
+| Email  | SMTP (`mail-eu.smtp2go.com:2525` STARTTLS) | `smtp_login` / `smtp_login` |
+
+## Rollout checklist (post-deploy)
+- [ ] CalDAV (kSuite, HD-30) live → populate `calendar_url` in `subscriptions.yml`
+      (unlocks the Homepage calendar widget too).
+- [ ] Confirm Signal + SMTP relay reachable from n8n (`services-internal`).
+- [ ] Create the webhook + workflow in n8n UI per this spec.
+- [ ] Enable the Schedule Trigger; test with a deliberately imminent date.
+- [ ] Wire Option A data feed (post-deploy hook or scheduled render) so n8n reads
+      the live `subscriptions` SSOT, not a copy.
+
+---
+title: Backup & Disaster Recovery
+role: detail
+domain: deployment
+cross_cutting: true
+status: active
+tags: [deployment, backup, zfs, kopia]
+---
+# Backup & Disaster Recovery
+
+> **Role:** Detail (cross-cutting) — LAST document. Dual-layer backup (ZFS + Kopia), DR scenarios, restore drills.
+> **Links to:** `hardware-nas.md`, `deployment-secrets.md`
+> **Linked from:** `deployment.md`, `index.md`
+
+```
+nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
+  (mirror)             incremental,        (RAIDZ2, SilverStone via miniSAS)
+                       hourly sends
+```
+
+- ZFS snapshots are instantaneous, immutable, cheap (only changed blocks)
+- `zfs send/recv`: block-level incremental — 10–50× faster than file-level scan for TB-scale
+- **Scope:** ONLY `tank/data/*` (services, db-dumps) — retained archives. (The old `immich`/`documents`
+  datasets were trimmed HD-151 — the live Box + Kopia is recovery.) The media library
+  (`bulk/media`) is intentionally **NOT snapshotted or replicated** — it is redownloadable, see
+  [`services.md`](services.md) / [`storage.md`](storage.md)
+- Snapshot schedule: data datasets hourly (24), daily (7), weekly (4), monthly (3); photo/dump datasets
+  stay hourly (photos change by upload, dumps daily); snapshotting unbacked media is pure churn
+- Replication: syncoid timer checks every 15 min, sends when a new source snapshot exists (≈ hourly)
+- Managed via **sanoid/syncoid**, run by **systemd timers** (sanoid.timer + syncoid.timer) — not raw cron; gives journaling, randomized schedules, and failure tracking
+
+Configs, DB dumps, service state, face thumbnails, and VPS/oldsrv local state go off-site via Kopia —
+**local sources only, never NAS mounts**, so off-site backup keeps working while the NAS is fully down.
+Kopia targets the **backup Box over SSH/SFTP (port 23)** — the Hetzner Storage Box supports **SSH/SFTP
+only, NOT S3** (HD-31/HD-135); iDrive e2 S3 was dropped.
+
+The **oldsrv agent runs containerized** (HD-191/HD-204): it connects to `kopia-server` on the VPS over
+**HTTPS on the WG S2S tunnel** (HD-318a) — **kopia 0.23.x rejects `http://`**, so the server serves a
+persisted self-signed cert and the agent pins its stable SHA-256 fingerprint from the
+`kopia-server_fingerprint` item. A cert that is regenerated per start makes every agent pin wrong at the
+next restart — persist it, pin the fingerprint. — server port 51515 is bound **only to the VPS tunnel address**
+(`wg_s2s_vps.ip`, never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays
+scoped by the S2S ACL (HD-155). Agent sources are oldsrv-local, read-only: `/opt/*` configs,
+`/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume.
+
+> ✅ **Status: the oldsrv `kopia-agent` connects over HTTPS + fingerprint pin and takes snapshots**
+> (`/opt/*` configs + signal-cli state; retention labels send them offsite to the backup Box). The
+> fingerprint is seeded by a **VPS-only** task (`kopia-fingerprint-sync.yml`) — an agent-side task cannot
+> produce it, which is why the pin used to be permanently missing.
+>
+> **HD-318a — kopia's server-auth model needs TWO things to agree:** the client's `user@host` identity must
+> exist BOTH in the htpasswd (allowed `user@hostname` entries) AND as a repo user (`kopia server users add`)
+> whose password equals the **repo master password** (what the client passes to `connect --password`). A
+> non-repo-password user is `access denied` **at the session stage even with a matching htpasswd entry** —
+> the confusing part is that the earlier stages succeed. The boot script writes both htpasswd entries and
+> idempotently provisions the repo user. **Compose interpolation gotcha in the same file:** the command block
+> must be `$$`-escaped, or single-`$` interpolation mangles the credential at parse time.
+> `user@host` identity to exist BOTH in the htpasswd (`--htpasswd-file` = allowed `user@hostname` entries) AND as a
+> repo user (`kopia server users add`) whose password equals the **repo master password** (the client's `connect
+> --password`) — a non-repo-password user is `access denied` at the session stage even with a matching htpasswd
+> entry. The kopia-server boot script now writes both htpasswd entries (server admin + `kopia_agent_user`) and
+> idempotently provisions/re-seeds the repo user (`kopia server users add/set` with `KOPIA_PASSWORD`). The compose
+> command block is `$$`-escaped (single-`$` compose interpolation was mangling the credential at parse time).
+
+> **Kopia-server first-run gate (HD-271-followup):** the server's first-run
+> bootstrap (`kopia repository create sftp`) must be gated on **`repository.config`** (kopia's
+> repo-connection file) — NOT `config.json` (an unrelated technitium zone file). With the wrong gate
+> and a repo already on the backup Box, every boot re-ran `create` → `found existing data in storage
+> location` → `set -e` exit → crash-loop. Gate on `/app/config/repository.config` (create only when
+> absent) and the server starts against the existing repo (maintenance/GC run normally).
+
+```
+tiredofit/db-backup (local scratch) →  Kopia agent (VPS + oldsrv) →  Hetzner Storage Box (backup) SSH/SFTP :23
+   + service state + face thumbs       (encrypted, dedup)       (far-DC: Helsinki/Falkenstein — SB-Backup HEL1-BX186)
+```
+
+> **Off-site (HD-29/31): two Hetzner Storage Boxes.** **Live** box (nearest DC) serves
+> Immich originals **+ encoded-video** and the family SMB/WebDAV drives (CIFS, **not S3** — HD-135); **backup** box (far DC) hosts the Kopia repo.
+> **iDrive e2 dropped** (Hetzner cheaper per TB + SMB/WebDAV; single-provider risk accepted).
+>
+> **Box identifiers (Hetzner Storage Box console → robot.hetzner.com):**
+>
+> | Box | Hetzner identifier | Location | Purpose |
+> |-----|--------------------|----------|---------|
+> | **live** | **SB-Data** · `FSN1-BX2190` | **Falkenstein, Germany** (`eu-central`) | originals store (Immich + OpenCloud over CIFS/WebDAV, `//u653411.../backup`) |
+> | **backup** | **SB-Backup** · `HEL1-BX186` | **Helsinki, Finland** (`eu-central`) | Kopia off-site repo (SSH/SFTP :23) |
+
+DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then pushed to
+`tank/data/db-dumps` for the ZFS path — the two layers are independent.
+
+| | ZFS send/recv | Kopia |
+|---|---|---|
+| **Scope** | User data (`tank/data/*` → `bulk/data/*`) | Configs, DB dumps, service state, face thumbnails, **live Box originals + encoded-video (CIFS, HD-135)** |
+| **Speed** | Block-level incremental (very fast) | File-level with dedup |
+| **Encryption** | Optional (ZFS native) | Client-side (before leaving) |
+| **Target** | nas `bulk` pool (local) | Hetzner Storage Box (backup), far DC (off-site) |
+| **Recovery** | Instant `zfs rollback` / `zfs recv` back | Kopia restore from cloud |
+
+| Data | Location | Method | Target |
+|------|----------|--------|--------|
+| PostgreSQL DBs — **Authentik, Forgejo, Immich, Zipline** (HD-112), **LiteLLM runtime** (HD-247: `STORE_MODEL_IN_DB` ⇒ the DB holds keys/models/spend) — all on the **VPS** via `db-backup` `DB01–03` + `DB05–06` | VPS NVMe | ⚠ **daily dumps, ONE copy, on the same disk as the databases** — see §VPS-side coverage gap. The documented `→ tank/data/db-dumps (ZFS)` push and the Kopia snapshot of the dump volume **do not exist** | *(intended: ZFS `tank/data/db-dumps` + Storage Box via Kopia — **not live**)* |
+| **`lan-litellm-db` on oldsrv** (the LAN inference gateway's Postgres) | oldsrv | **dump job now exists (HD-468, 2026-09-28)**: `storage-push-db-dumps.sh` runs `pg_dumpall` inside `lan-litellm-db`, gzip-tests the dump, refuses to ship an empty one, and rsyncs with owner/group preservation OFF — the export is `root_squash,anonuid=1005`, so `rsync -a` could only ever die on `chown` (rc 23). Local retention 14, no `--delete` on the NAS side (sanoid owns retention) | oldsrv `/srv/dumps` → `tank/data/db-dumps` (ZFS) |
+| **Matrix server state + signing identity + media store** (HD-49) — tuwunel: RocksDB room/user state, the **server signing key** + key-notary data, the E2EE key-backup, `media/` and `archive/` | VPS NVMe `/srv/docker/matrix` (single bind → `/var/lib/tuwunel`) | **Nothing backs it up today** — the path is not in any snapshot because there is no VPS-side Kopia client (§VPS-side coverage gap). Note there is **no separate key file to archive**: `database_path` is the data dir and probing it finds no `*.pem`/keystore file, so the signing identity lives inside the same RocksDB store as the rooms | *(pending the VPS client; then one row covers all of it)* — see §Matrix: what one path buys and what it does not |
+| **RustDesk server keypair + client registrations** (HD-412) — `/srv/docker/rustdesk-server/data` | VPS NVMe | **Primary restore is 1Password `rustdesk_login`, not a snapshot** (the s6 unit re-seeds `/data/id_ed25519*` from `KEY_PUB`/`KEY_PRIV` when absent, so wiping the dir + re-converging restores the identity and enrolled clients keep working). The snapshot only has to cover `db_v2.sqlite3` (client/peer registrations) — losing it re-prompts devices, it does not lock anyone out | 1P (identity) + Kopia once the VPS client exists (registrations) |
+| **Qdrant** vector store (`/srv/docker/qdrant`), HD-267/268 | VPS NVMe | **rebuildable cache** (docs/services-ai.md §5b) — snapshot/export via Qdrant REST `/snapshots` + Kopia-backed host bind; **not** a db-backup Postgres dump | `tank/data/services` (ZFS) + Hetzner Storage Box (Kopia) — *intended; same VPS-client caveat* |
+| Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
+| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **AI harness (pi-dev + DSH) workspaces** (`/srv/docker/pi-dev/workspace`, `/srv/docker/dsh/workspace`, HD-268c); **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | ⚠ **the push fails every night** — `push-services` dumps `forgejo`/`n8n` containers that exist only on the VPS while the unit is installed on oldsrv (**HD-468**) — + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) — ⚠ the oldsrv unit that named these containers was REMOVED 2026-09-28 (HD-468): they are vps-side, and the vps dump is ONE copy on ONE disk until HD-191 gives that host a client |
+| **Zipline file payloads** (`/srv/docker/zipline/uploads` — datasource; HD-112) | VPS NVMe | **Kopia-EXCLUDED by design**: anonymous dropzone drops self-destruct at ≤ 6h TTL (guestbin quota-bounded); private-account files are owner-managed | — *(ephemeral/regenerable-by-design — observability-TSDB precedent)*. The metadata DB IS dumped (`db-backup` DB05). |
+| Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
+| Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
+| Immich **originals + encoded-video** (photos/videos) | **live Hetzner Box** (CIFS `//u653411.../backup`, VPS) | **live tier** (HD-135) | backed by **Kopia → backup Box** (off-site) **+ the Immich DB** (albums/faces/tags) — D3. *Supersedes the MinIO/S3-originals plan (HD-131 D1).* |
+| Immich **face thumbnails** | **VPS** NVMe `/srv/docker/immich/upload/thumbs` (measured 1.2 MB; immich-server/-postgres/-valkey all run there) — **not** oldsrv, which runs only the immich-ml leg and holds no user data | ⚠ **unbacked**: the oldsrv `push-face-thumbs` unit named a path that does not exist there and was REMOVED 2026-09-28 (**HD-468**); the VPS has no push path (**HD-191**) — + Kopia covers VPS NVMe where the tree actually is | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
+| **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
+
+> **Victoria observability (HD-342):** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed** (owner decision — reverses the old "regenerable, NOT backed up" doctrine for Prometheus 30d/Loki 14d). They live on the **VPS NVMe** (HD-135 backend placement) at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds). ⚠ **The snapshooting client for these — and for every other `/srv/docker` path on the VPS — does not exist yet: §VPS-side coverage gap. Until it does, "Kopia-backed" in this section is the policy, not the state.**
+
+- The VPS runs `kopia-server` — the **repository endpoint** that other hosts' agents push through (the
+  repository itself is remote: `KOPIA_SFTP_*` in `/opt/kopia-server/docker-compose.yml`). oldsrv has run
+  its own `kopia-agent` container since HD-102 and is what makes the home-side coverage real.
+- The VPS has **no backup client of its own**: no `kopia` binary, no client config (`/root/.config/kopia`
+  absent), no `kopia-agent` container in the registry. Every "Kopia-backed" / "nightly push" claim in this
+  file about a **VPS path** is therefore policy-ahead-of-state (CONVENTIONS §3 calls this out by name).
+- Measured consequences: `db-backup` keeps **767 MB of daily SQL dumps (oldest 2026-08-24) in one docker
+  volume on the VPS NVMe** — the only copy of the Authentik/Forgejo/Immich/Zipline/LiteLLM state; the
+  storage box mounted at `/mnt/storagebox` holds only `music`, so the intended `→ tank/data/db-dumps`
+  push has never run; nothing under `/srv/docker/*` (Matrix, Headscale, CrowdSec, n8n, OpenCloud,
+  Grafana, docling model cache, …) is in any off-site snapshot.
+- **What a VPS NVMe loss costs today, honestly:** every VPS-hosted Postgres (Authentik = the IdP, so
+  SSO for the whole homelab; Forgejo = the Git state that `deployment.md` calls the source of truth;
+  Immich metadata; Zipline; LiteLLM keys/spend/models), the Matrix federation identity, Headscale
+  (the tailnet control plane), CrowdSec decisions, n8n/OpenCloud/Grafana state. Configs and IaC survive
+  (Git + Forgejo mirror), so the rebuild is mechanical — but the **data** is not covered.
+
+**The fix is small and already precedented:** oldsrv's `kopia-agent` (include list = `/opt`,
+`/srv/dumps`, `/srv/docker/immich/upload`, one docker volume) is the shape. A VPS-side agent needs
+`/opt`, the `db-backup` dump volume and the `/srv/docker/*` service-state dirs. Until that lands, the
+scope rows above stay written as *policy* and HD-49/HD-102/HD-238 stay open — adding a Matrix or
+RustDesk row to an include list that has no client to attach to would only make the doc more fiction.
+
+- **One bind covers the server identity.** `tuwunel.toml` sets `database_path = /var/lib/tuwunel` →
+  `/srv/docker/matrix`, and that directory holds RocksDB state + `media/` + `archive/`; there is no
+  separate `*.pem`/keystore file (probed), so the **signing key that other servers trust is inside the
+  same store as the room state**. Snapshotting one path therefore restores identity *and* history
+  together — and a partial restore (state without media, or an older state than the media) leaves
+  events pointing at missing attachments, so restore the pair as one unit.
+- **Losing it without a snapshot is the externally-coupled class** (same shape as `rustdesk_login`):
+  a fresh server generates a new signing key, other servers keep the old one in their key-notary caches,
+  and rooms federated with those servers keep rejecting it. Recovery = re-federate under a new key and
+  wait out notary expiry; there is no "re-enrol" button. This is why the row belongs to the *policy*
+  section and not to "rebuildable".
+- **Client-side E2EE room keys are out of scope of any server backup.** The server only stores the
+  encrypted key *backup* (inside the same store); a client that has never restored its backup loses
+  history regardless of what the server snapshot contains. Say so in the family-facing runbook rather
+  than implying the server snapshot recovers readable history.
+
+> **Excluded — media + *arr scratch:** `bulk/media` (library **and** `downloads/`) is partially or fully
+> redownloadable via usenet/torrents, so the whole dataset is **unbacked** — no sanoid snapshots, no
+> syncoid, no Kopia. Immich thumbs/encoded-video and ML weights are regenerable, also excluded (face
+> thumbnails are the one exception — see above).
+
+- `push-db-dumps` — **two stacked defects.** `rsync -a` cannot chown onto an export mounted
+  `root_squash,anonuid=1005` (rc 23 every night), **and there was no producer at all** — `/srv/dumps`
+  was an empty directory, so fixing only the rsync flags would have produced a green timer shipping
+  nothing. Both fixed, and the fix is **two units because one run user cannot serve both halves**:
+  `push-db-dumps.service` → `storage-push-db-dumps.sh` runs **as `svc-backup`** (docker group, owns
+  `/srv/dumps`), dumps every Postgres in `storage_push_db_dumps_pg`, gzip-tests it and fails on an empty
+  dump; `push-db-dumps-push.service` → `storage-push-db-dumps-push.sh` runs **as root**, asserts the
+  target really is the `nas.kogler.si:/tank/data` mount, copies with owner/group preservation off and
+  then confirms a fresh file exists on the far side. The timer arms the push unit, which
+  `Requires=`/`After=` the producer, so a failed dump cannot be papered over by pushing yesterday's file.
+  No `--delete` — retention belongs to sanoid, not to a copy job.
+
+**Why the push half is root and not `svc-backup`, since it looks like a privilege regression:** the
+  export maps root to `anonuid=1005` (`media`), and the target directory is `drwxr-xr-x media:media`,
+  so `media` is the only identity the export accepts writes from. Running the push as `svc-backup` was
+  tried first and measured: `rsync [receiver] mkstemp … Permission denied (13)`. Least-privilege and
+  this export's identity model are in genuine conflict; the resolution is to make only the half that
+  needs the docker socket unprivileged, and to say so in both unit files so nobody "harmonises" them
+  back into one user and reintroduces the failure.
+- `push-services` — it ran `docker exec forgejo` / `docker exec n8n`, and **neither container exists on
+  oldsrv** (`group_vars/vps.yml` owns both). Removed. Skipping the missing containers so it could exit 0
+  was the available shortcut and is exactly the fake-green this repo forbids, so the leg went away.
+- `push-face-thumbs` — same class: its source does not exist on oldsrv, which runs only the immich **ml**
+  leg; the thumb tree is on the VPS (measured 1.2 MB). Removed, and this table's "Location" cell for face
+  thumbnails — which said oldsrv — corrected.
+
+**The asymmetry worth more than the three fixes:** nas exports `/tank/data`, `/bulk/media` and
+`/bulk/data/immich-thumbs` each to a single `/32` — **oldsrv's own address, and nothing else**
+(the export lines are in `roles/storage/templates/exports.j2`; the address itself is in
+[network-addresses-generated.md](network-addresses-generated.md)). The VPS cannot push to the NAS over NFS
+at all today, which is why its `db-backup` dumps (Postgres for Authentik/Forgejo/Immich/Zipline/LiteLLM,
+plus the forgejo archive and n8n sqlite that used to be this unit's payload) sit as a single copy on a
+single disk. Closing **HD-191** is what makes those legs real; editing these units again is not.
+
+```
+── ZFS path (user data, local) ──
+1. sanoid snapshots `tank/data/*` (services, db-dumps) — hourly(24)+daily(7)+weekly(4)+monthly(3)
+2. syncoid replicates `tank/data/*` → `bulk/data/*` via zfs send/recv (≈ hourly incremental)
+3. `bulk` retains the same snapshot schedules independently (rollback target of its own)
+4. `bulk/media` → no snapsh

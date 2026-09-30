@@ -16,3 +16,213 @@ text-embedding-multilingual-e5-large-instruct@f16     335M      BERT          1.
 text-embedding-multilingual-e5-large-instruct@q8_0    335M      BERT          603.10 MB    Local     
 text-embedding-nomic-embed-text-v1.5                            Nomic BERT    84.11 MB     Local
 01:02:18 === running HD-477 ===
+=== wrapper: run started by session/hd474-win11-certify-2 at 2026-09-29T23:34:40Z ===
+
+===== PHASE 0  what is on disk / indexed  (01:34:40) =====
+king up 135.60 GB of disk space.
+
+LLM                                   PARAMS      ARCH          SIZE         DEVICE    
+gemma-4-26b-a4b-it-qat                128x2.6B    gemma4        15.44 GB     Local     
+gemma-4-26b-a4b-textonly              26B-A4B     gemma4        16.80 GB     Local     
+gemma-4-31b-it                        31B         gemma4        19.89 GB     Local     
+google/gemma-4-26b-a4b (1 variant)    26B-A4B     gemma4        17.99 GB     Local     
+google/gemma-4-e4b (1 variant)        7.5B        gemma4        6.33 GB      Local     
+openai/gpt-oss-20b (1 variant)        20B         gpt-oss       12.11 GB     Local     
+qwen/qwen3.5-9b (1 variant)           9B          qwen35        6.55 GB      Local     
+qwen/qwen3.6-27b (2 variants)         27B         qwen35        17.48 GB     Local     
+qwen2.5-coder-3b-instruct             3B          Qwen2         1.93 GB      Local     
+qwen3-vl-30b-a3b-instruct             30B-A3B     qwen3vlmoe    18.80 GB     Local     
+whisper-large-v3-turbo                                          475.64 MB    Local     
+
+EMBEDDING                                             PARAMS    ARCH          SIZE         DEVICE    
+text-embedding-multilingual-e5-large-instruct@f16     335M      BERT          1.13 GB      Local     
+text-embedding-multilingual-e5-large-instruct@q8_0    335M      BERT          603.10 MB    Local     
+text-embedding-nomic-embed-text-v1.5                            Nomic BERT    84.11 MB     Local     
+
+
+
+===== PHASE 1  vision-enabled weights @32768 (the certified leg) - baseline  (01:34:41) =====
+idle before load 2.15 GiB | after load 19.81 GiB
+ps: g-vision-32k    google/gemma-4-26b-a4b    IDLE      17.99 GB    32768      1           Local        
+
+===== PHASE 2  text-only variant @32768 - what does the projector cost?  (01:35:15) =====
+idle before 2.15 GiB | after load 18.81 GiB  (delta vs phase 1 is the projector + ViT cost)
+ps: g-text-32k    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
+
+===== PHASE 3  context ladder on the text-only variant  (01:35:42) =====
+Traceback (most recent call last):
+  File "D:\source\domenkogler\homelab-wt-hd474\reports\hd474-laptop-leg\raw\hd477_run.py", line 178, in <module>
+    run()
+    ~~~^^
+  File "D:\source\domenkogler\homelab-wt-hd474\reports\hd474-laptop-leg\raw\hd477_run.py", line 137, in run
+    say("%6d: loaded gpu=%.2f GiB (idle was %.2f) | %s" %
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        (ctx, gpu_gib(), b2, accept(words)), flush=True)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: say() got an unexpected keyword argument 'flush'
+=== restart with fixed driver, phases 3-4 only, 2026-09-29T23:49:09Z ===
+HD-477 run START 2026-09-30 01:49:09 (python 3.13.13, only_from=3)
+PHASE 0 skipped by argv
+PHASE 1 skipped by argv
+PHASE 2 skipped by argv
+
+===== PHASE 3  context ladder on the text-only variant  (01:49:09) =====
+ 32768: loaded gpu=18.87 GiB (idle before load was 2.21) | cold ACCEPTED prompt_tokens=20816 wall=359s | gpu after 18.88 GiB
+ 32768: warm/cache probe ACCEPTED prompt_tokens=2616 wall=23s
+ 49152: loaded gpu=19.18 GiB (idle before load was 2.21) | cold ACCEPTED prompt_tokens=20816 wall=899s | gpu after 19.26 GiB
+ 49152: warm/cache probe ACCEPTED prompt_tokens=2616 wall=23s
+ 65536: loaded gpu=19.31 GiB (idle before load was 2.28) | cold ACCEPTED prompt_tokens=20816 wall=277s | gpu after 19.33 GiB
+ 65536: warm/cache probe ACCEPTED prompt_tokens=2616 wall=19s
+
+===== PHASE 4  recall probe at ~28k tokens of REAL prose (acceptance is not memory)  (02:17:19) =====
+recall probe: prompt_tokens=31761 wall=1984s answered='' KR-7391-QX present in answer: False
+recall usage: {"prompt_tokens": 31761, "completion_tokens": 64, "total_tokens": 31825, "completion_tokens_details": {"reasoning_tokens": 61}}
+
+IDENTIFIER       MODEL                       STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL
+g-text-recall    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
+
+
+
+HD-477 run finished 2026-09-30 02:50:52
+=== chain: recall re-run then certify, 2026-09-30T00:55:10Z ===
+HD-477 run START 2026-09-30 02:55:10 (python 3.13.13, only_from=4)
+PHASE 0 skipped by argv
+PHASE 1 skipped by argv
+PHASE 2 skipped by argv
+PHASE 3 skipped by argv
+
+===== PHASE 4  recall probe at ~28k tokens of REAL prose (acceptance is not memory)  (02:55:10) =====
+recall probe: prompt_tokens=28984 wall=1658s answer='KR-7391-QX' needle_found=True
+recall usage: {"prompt_tokens": 28984, "completion_tokens": 391, "total_tokens": 29375, "completion_tokens_details": {"reasoning_tokens": 378}}
+
+IDENTIFIER       MODEL                       STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL
+g-text-recall    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local        
+
+
+
+HD-477 run finished 2026-09-30 03:23:15
+=== recall done, starting certify 2026-09-30T01:23:15Z ===
+
+===== CERTIFY RUN 2026-09-30 03:23:15 (python 3.13.13) =====
+runtime: [38;5;166m   __   __  ___  ______          ___        _______   ____[0m | [38;5;214m  / /  /  |/  / / __/ /___ _____/ (_)__    / ___/ /  /  _/[0m | [38;5;226m / /__/ /|_/ / _\ \/ __/ // / _  / / 
+
+--- unload --all ---
+Unloading "g-text-recall"...
+Unloaded 1 model.
+--- lms load gemma-4-26b-a4b-textonly --gpu max -c 32768 --identifier agent-gemma-26b -y --parallel 1 ---
+idle before load: 2.28 GiB dedicated
+[?25lLoading gemma-4-26b-a4b-textonly 0% ⠋[?25lLoading gemma-4-26b-a4b-textonly 0% ⠙[?25lLoading gemma-4-26b-a4b-textonly 2% ⠙[?25lLoading gemma-4-26b-a4b-textonly 2% ⠹[?25lLoading gemma-4-26b-a4b-textonly 2% ⠸[?25lLoading gemma-4-26b-a4b-textonly 4% ⠸[?25lLoading gemma-4-26b-a4b-textonly 4% ⠼[?25lLoading gemma-4-26b-a4b-textonly 6% ⠼[?25lLoading gemma-4-26b-a4b-textonly 6% ⠴[?25lLoading gemma-4-26b-a4b-textonly 7% ⠴[?25lLoading gemma-4-26b-a4b-textonly 7% ⠦[?25lLoading gemma-4-26b-a4b-textonly 7% ⠧[?25lLoading gemma-4-26b-a4b-textonly 9% ⠧[?25lLoading gemma-4-26b-a4b-textonly 9% ⠇[?25lLoading gemma-4-26b-a4b-textonly 11% ⠇[?25lLoading gemma-4-26b-a4b-textonly 11% ⠏[?25lLoading gemma-4-26b-a4b-textonly 12% ⠏[?25lLoading gemma-4-26b-a4b-textonly 12% ⠋[?25lLoading gemma-4-26b-a4b-textonly 12% ⠙[?25lLoading gemma-4-26b-a4b-textonly 14% ⠙[?25lLoading
+loaded in 17s | agent-gemma-26b    gemma-4-26b-a4b-textonly    IDLE      16.80 GB    32768      1           Local
+/v1/models serves: ['agent-gemma-26b']
+dedicated after load: 18.94 GiB (delta 16.65 GiB)
+
+$ "python scripts/laptop-llm.py" probe-health --model agent-gemma-26b
+OK http://127.0.0.1:1234/v1 model=agent-gemma-26b [reasoning] :: 'The user said "Reply'  <-- reasoning model: content is empty BY DESIGN, output is in reasoning_content
+[exit 0] is the seat even reachable
+
+$ "python scripts/laptop-llm.py" probe-tools --model agent-gemma-26b
+tool_calls: [{"type": "function", "id": "KNhEB73mr0XAvoU2YHC4frXNq1LNK1zF", "function": {"name": "run_shell", "arguments": "{\"command\":\"ls /tmp\"}"}}]
+→ tool_probe: passed
+[exit 0] tool_probe for agent-gemma-26b
+
+$ "python scripts/laptop-llm.py" probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label cold-1.8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-1800.txt --timeout 2400
+[cold-1.8k] prompt shape: cold-1.8k (8100 chars)
+  wall 34.1s | TTFT 11.57s | prompt 0 tok | completion 0 tok | decode 0.0 t/s | prefill n/a
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0] cold shape 1.8k
+
+$ "python scripts/laptop-llm.py" probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label warm-1.8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-1800.txt --timeout 2400
+[warm-1.8k] prompt shape: warm-1.8k (8100 chars)
+  wall 23.3s | TTFT 0.52s | prompt 0 tok | completion 0 tok | decode 0.0 t/s | prefill n/a
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0] same prompt again: prefix cache
+
+$ "python scripts/laptop-llm.py" probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label cold-8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-8000.txt --timeout 2400
+[cold-8k] prompt shape: cold-8k (36000 chars)
+  wall 284.8s | TTFT 259.15s | prompt 0 tok | completion 0 tok | decode 0.0 t/s | prefill n/a
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0] cold shape 8k
+
+$ "python scripts/laptop-llm.py" probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label warm-8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-8000.txt --timeout 2400
+[warm-8k] prompt shape: warm-8k (36000 chars)
+  wall 25.9s | TTFT 0.63s | prompt 10610 tok | completion 256 tok | decode 10.1 t/s | 16969 t/s prefill (prompt_tokens / TTFT)
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0] same prompt again: prefix cache
+
+$ "python scripts/laptop-llm.py" probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label cold-24k --prompt-file reports/hd474-laptop-leg/raw/87-shape-24000.txt --timeout 2400
+[cold-24k] prompt shape: cold-24k (108000 chars)
+  wall 1837.5s | TTFT 1806.83s | prompt 31137 tok | completion 256 tok | decode 8.3 t/s | 17 t/s prefill (prompt_tokens / TTFT)
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0] cold shape 24k
+
+$ "python scripts/laptop-llm.py" probe-vision --model agent-gemma-26b --image D:\source\domenkogler\homelab-wt-hd474\reports\hd474-laptop-leg\raw\rack1120fits.jpg --expect crs328 --timeout 600
+image rack1120fits.jpg (0.3 MB) -> model=agent-gemma-26b max_tokens=1024
+vision probe: HTTP 400 after 0s: {
+    "error": {
+        "message": "The provided messages contain images, but agent-gemma-26b does not support image inputs.",
+        "type": "invalid_request_error",
+        "param": "messages",
+  
+  That is a CONTRACT/server error, not a verdict on the model's eyes. Do NOT set
+  vision_probe: failed from it - fix the request shape and re-run.
+[exit 3] text-only leg MUST fail this
+
+$ "python scripts/laptop-llm.py" probe-vision --model no-such-model-here --image D:\source\domenkogler\homelab-wt-hd474\reports\hd474-laptop-leg\raw\rack1120fits.jpg --timeout 120
+image rack1120fits.jpg (0.3 MB) -> model=no-such-model-here max_tokens=1024
+vision probe: HTTP 400 after 0s: {
+    "error": {
+        "message": "The provided messages contain images, but agent-gemma-26b does not support image inputs.",
+        "type": "invalid_request_error",
+        "param": "messages",
+  
+  That is a CONTRACT/server error, not a verdict on the model's eyes. Do NOT set
+  vision_probe: failed from it - fix the request shape and re-run.
+[exit 3] expect exit 3 = contract error, not a vision verdict
+
+--- unload --all ---
+Unloading "agent-gemma-26b"...
+Unloaded 1 model.
+--- lms load qwen3-vl-30b-a3b-instruct --gpu max -c 32768 --identifier vision-qwen3vl-30b -y --parallel 1 ---
+idle before load: 2.28 GiB dedicated
+[?25lLoading qwen3-vl-30b-a3b-instruct 0% ⠋[?25lLoading qwen3-vl-30b-a3b-instruct 0% ⠙[?25lLoading qwen3-vl-30b-a3b-instruct 2% ⠙[?25lLoading qwen3-vl-30b-a3b-instruct 2% ⠹[?25lLoading qwen3-vl-30b-a3b-instruct 4% ⠹[?25lLoading qwen3-vl-30b-a3b-instruct 4% ⠸[?25lLoading qwen3-vl-30b-a3b-instruct 4% ⠼[?25lLoading qwen3-vl-30b-a3b-instruct 6% ⠼[?25lLoading qwen3-vl-30b-a3b-instruct 6% ⠴[?25lLoading qwen3-vl-30b-a3b-instruct 7% ⠴[?25lLoading qwen3-vl-30b-a3b-instruct 7% ⠦[?25lLoading qwen3-vl-30b-a3b-instruct 9% ⠦[?25lLoading qwen3-vl-30b-a3b-instruct 9% ⠧[?25lLoading qwen3-vl-30b-a3b-instruct 9% ⠇[?25lLoading qwen3-vl-30b-a3b-instruct 11% ⠇[?25lLoading qwen3-vl-30b-a3b-instruct 11% ⠏[?25lLoading qwen3-vl-30b-a3b-instruct 12% ⠏[?25lLoading qwen3-vl-30b-a3b-instruct 12% ⠋[?25lLoading qwen3-vl-30b-a3b-instruct 14% ⠋[?25lLoading qwen3-vl-30b-a3b-instruct
+loaded in 28s | vision-qwen3vl-30b    qwen3-vl-30b-a3b-instruct    IDLE      18.80 GB    32768      1           Local
+/v1/models serves: ['vision-qwen3vl-30b']
+dedicated after load: 23.12 GiB (delta 20.83 GiB)
+
+$ "python scripts/laptop-llm.py" probe-tools --model vision-qwen3vl-30b
+tool_calls: [{"type": "function", "id": "b8u6J2tNT2VNsuQIdH78NPuPPqwxeqxg", "function": {"name": "run_shell", "arguments": "{\"command\":\"ls /tmp\"}"}}]
+→ tool_probe: passed
+[exit 0] tool_probe for vision-qwen3vl-30b
+
+$ "python scripts/laptop-llm.py" probe-vision --model vision-qwen3vl-30b --image D:\source\domenkogler\homelab-wt-hd474\reports\hd474-laptop-leg\raw\original8160.jpg --expect crs328 --timeout 900
+image original8160.jpg (10.6 MB) -> model=vision-qwen3vl-30b max_tokens=1024
+reply [content] after 71.9s: 'CAT6\n1 2 3 4 5 6 7 8\n9 10 11 12 13 14 15 16\n17 18 19 20 21 22 23 24\n\nCAT6\n1 2 3 4 5 6 7 8\n9 10 11 12 13 14 15 16\n17 18 19 20 21 22 23 24\n\nMicroTik\nCloud Router Switch\nCRS326-24P-2S+RM\n\nF21\n\nhp'
+usage: {"prompt_tokens": 4042, "completion_tokens": 161, "total_tokens": 4203, "completion_tokens_details": {"reasoning_tokens": 0}}
+  image cost: 4042 prompt_tokens in 71.9s = 56.3 t/s effective (prefill-dominated). Record this - HD-401 gate 4 is 'where did the tower run', and a
+  CPU-side tower shows up here as tens of seconds per image.
+VERDICT FAIL: reply does not contain ['crs328'] - only the image can supply it
+→ keep `image` OUT of that profile's input list. The gate refuses the claim, and a client
+  that advertises eyes it does not have fails silently instead of loudly.
+[exit 1] the real rack photo at full resolution
+
+$ "python scripts/laptop-llm.py" probe-vision --model vision-qwen3vl-30b --image D:\source\domenkogler\homelab-wt-hd474\reports\hd474-laptop-leg\raw\rack1120fits.jpg --expect crs328 --timeout 600
+image rack1120fits.jpg (0.3 MB) -> model=vision-qwen3vl-30b max_tokens=1024
+reply [content] after 13.6s: 'CAT6\n1 2 3 4 5 6 7 8\n9 10 11 12 13 14 15 16\n17 18 19 20 21 22 23 24\nCAT6\n1 2 3 4 5 6 7 8\n9 10 11 12 13 14 15 16\n17 18 19 20 21 22 23 24\nCAT6\n1 2 3 4 5 6 7 8\n9 10 11 12 13 14 15 16\n17 18 19 20 21 22 23 24\nHP'
+usage: {"prompt_tokens": 937, "completion_tokens": 200, "total_tokens": 1137, "completion_tokens_details": {"reasoning_tokens": 0}}
+  image cost: 937 prompt_tokens in 13.6s = 69.1 t/s effective (prefill-dominated). Record this - HD-401 gate 4 is 'where did the tower run', and a
+  CPU-side tower shows up here as tens of seconds per image.
+VERDICT FAIL: reply does not contain ['crs328'] - only the image can supply it
+→ keep `image` OUT of that profile's input list. The gate refuses the claim, and a client
+  that advertises eyes it does not have fails silently instead of loudly.
+[exit 1] the resized variant, for comparison
+
+$ lms ps
+IDENTIFIER            MODEL                        STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL
+vision-qwen3vl-30b    qwen3-vl-30b-a3b-instruct    IDLE      18.80 GB    32768      1           Local
+===== CERTIFY RUN FINISHED 2026-09-30 04:02:45 =====
+=== CHAIN FINISHED 2026-09-30T02:02:45Z ===

@@ -22,8 +22,12 @@ def rd(f, t, trace=None):
         if L > 1 << 24:
             raise AssertionError("implausible string length %d at %d" % (L, f.tell()))
         return f.read(L).decode("utf-8", "replace")
-    if t == 9:                                    # array: elem_type + count + elems
-        (it,) = struct.unpack("<B", f.read(1))
+    if t == 9:                                    # array: elem_type(u32) + count(u64) + elems
+        # FIXED 2026-09-30: the element type is a uint32, NOT a uint8 (GGUF v3 spec). Reading one
+        # byte here desynced the stream by 3 and made the reader stop at the first array key -
+        # which is why `general.architecture`'s block looked fine but the Qwen-VL header printed
+        # an empty metadata set. Symptom to remember: "implausible string length" inside an array.
+        (it,) = struct.unpack("<I", f.read(4))
         (c,) = struct.unpack("<Q", f.read(8))
         if c > 1 << 20:
             raise AssertionError("implausible array count %d at %d" % (c, f.tell()))
@@ -66,7 +70,8 @@ def header(path, trace=0):
                 if t == 8:
                     val = _str(f, wide)
                 elif t == 9:
-                    (it,) = struct.unpack("<B", f.read(1))
+                    # elem_type is uint32 (see rd() above): a uint8 read here desyncs every offset.
+                    (it,) = struct.unpack("<I", f.read(4))
                     (c,) = struct.unpack("<Q", f.read(8))
                     val = [_str(f, wide) if it == 8 else struct.unpack(SIMPLE[it], f.read(struct.calcsize(SIMPLE[it])))[0] for _ in range(c)]
                 else:
@@ -100,6 +105,10 @@ if __name__ == "__main__":
         print("  arch=%s tensors=%s nkv=%s" % (arch, d.get("_tensors"), d.get("_nkv")))
         KEEP = ("context_length", "head_count", "block_count", "sliding", "attention.type",
                 "key_length", "value_length", "quantization", "expert", "feed_forward",
-                "rope_type", "hidden_size", "vae", "is_unique")
+                "rope_type", "hidden_size", "vae", "is_unique", "sampling", "vision",
+                "image_min_pixels", "image_max_pixels", "patch_size", "merge_size")
         meta = {k: v for k, v in d.items() if any(s in k.lower() for s in KEEP)}
         print(json.dumps(meta, indent=1, default=str))
+        if d.get("_parse_stopped_at"):
+            print("  !! header parse stopped early at %r - the numbers above are TRUNCATED, not the"
+                  " whole file" % d["_parse_stopped_at"])

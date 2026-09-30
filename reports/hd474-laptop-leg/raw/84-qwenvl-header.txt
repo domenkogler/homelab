@@ -1,0 +1,18 @@
+== Qwen3-VL-30B-A3B-Instruct-UD-Q4_K_XL.gguf 17.72 GB
+  arch=qwen3vlmoe tensors=579 nkv=48
+{
+ "general.sampling.top_k": 20,
+ "general.sampling.top_p": 0.800000011920929,
+ "general.sampling.temp": 0.699999988079071,
+ "qwen3vlmoe.block_count": 48,
+ "qwen3vlmoe.context_length": 262144,
+ "qwen3vlmoe.feed_forward_length": 6144,
+ "qwen3vlmoe.attention.head_count": 32,
+ "qwen3vlmoe.attention.head_count_kv": 4,
+ "qwen3vlmoe.expert_used_count": 8,
+ "qwen3vlmoe.attention.key_length": 128,
+ "qwen3vlmoe.attention.value_length": 128,
+ "qwen3vlmoe.expert_count": 128,
+ "qwen3vlmoe.expert_feed_forward_length": 768,
+ "general.quantization_version": 2
+}

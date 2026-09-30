@@ -97,11 +97,38 @@ def in_wsl() -> bool:
         return False
 
 
+def host_norm(host) -> str:
+    """One normaliser for host scoping, shared with scripts/laptop-llm.py (it imports this file).
+
+    WHY this exists (measured 2026-09-30, HD-474): the laptop's `socket.gethostname()` is
+    `Domen_P14s`, while every spec and doc row wrote `domenp14s`. A case-insensitive equality is not
+    enough when the two spellings differ by a SEPARATOR, and the failure was silent in both
+    directions: the renderer dropped the provider from the picker (a dead provider is worse than
+    none, which is the very rule `hosts:` exists to protect), and `probe-client` SKIPped instead of
+    checking the drift it exists to check. `--host DomenP14s` on the command line masked it.
+    So: lowercase, first label only (FQDN vs short name), and drop `_`/`-`/`.` separators, which are
+    hostname decoration rather than identity. `domen_p14s`, `DomenP14s`, `DOMEN-P14S` and
+    `domenp14s.kogler.si` all normalise to `domenp14s`.
+    It cannot make two DIFFERENT machines match (`oldsrv` stays `oldsrv`), which is the property the
+    scope is actually guarding."""
+    s = str(host).strip().lower().split(".")[0]
+    return "".join(c for c in s if c.isalnum())
+
+
+def host_matches(host, allowed) -> bool:
+    """Is `host` one of `allowed`? See host_norm for why this is not a lowercase set membership."""
+    want = host_norm(host)
+    return bool(want) and any(want == host_norm(a) for a in (allowed or []))
+
+
 def scope_skip(p: dict, host: str) -> str | None:
     """Why this provider must NOT be rendered here, or None to render it.
 
     Two INDEPENDENT scopes, because the laptop has two seats that report the same hostname:
-      `hosts:`        which MACHINE (case-insensitive: Windows says `DomenP14s`, §8 wants lowercase,
+      `hosts:`        which MACHINE. Case AND separator insensitive: this laptop reports
+                      `Domen_P14s` from socket.gethostname() while the spec row says `domenp14s`, and
+                      plain lower() equality silently dropped the provider from the picker
+                      (host_norm() carries the whole story; §8 wants lowercase),
                       and a case mismatch would silently drop a provider);
       `native_only:`  which SEAT on that machine. The laptop's LM Studio listener is loopback and
                       WSL2 runs networkingMode=Nat here ON PURPOSE, so 127.0.0.1 inside the guest is
@@ -111,8 +138,9 @@ def scope_skip(p: dict, host: str) -> str | None:
     reproducing the previous output. Why this is a property of the provider row rather than a
     per-host spec file: §15 forbids the second copy, and HD-388's whole point is ONE spec."""
     allowed = p.get("hosts")
-    if allowed and str(host).lower() not in [str(a).lower() for a in allowed]:
-        return f"hosts={allowed} does not include '{host}'"
+    if allowed and not host_matches(host, allowed):
+        return (f"hosts={allowed} does not include '{host}' (compared as "
+                f"'{host_norm(host)}' vs {[host_norm(a) for a in allowed]})")
     if p.get("native_only") and in_wsl():
         return ("native_only: true but this is WSL2 — with networkingMode=Nat, 127.0.0.1 here is the "
                 "Linux guest, so this endpoint would be dead in the picker")

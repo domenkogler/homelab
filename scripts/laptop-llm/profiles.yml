@@ -36,8 +36,13 @@ host:
   # fit here does not run slowly — it runs on the CPU or fails to load.
   gpu_carve_bytes: 34359738368            # 32 GiB
   # Held back for the desktop compositor, the WSL2 guest and activation/compute buffers.
-  # ⏳ UNMEASURED on this box: lower it only with a number read from Task Manager's GPU
-  # "Dedicated GPU memory" peak during a real load, not from a guess.
+  # MEASURED, twice, with the PDH counter
+  #   \GPU Adapter Memory(luid_0x00000000_0x0001a051_phys_0)\Dedicated Usage
+  # in bytes: idle desktop UNDER a load reads 2.15-2.21 GiB (2026-09-30, raw/80 phases 1-3) and
+  # 3.12 GiB on 2026-09-29. The CONSTANT STAYS 3.00 GiB: the desktop figure is the floor, but
+  # activation/compute buffers land on top of it during generation, and this number is only ever
+  # moved by a measured reading (CONVENTIONS: never move a budget constant to make a check pass).
+  # Lowering it to the 2.15 reading would buy 0.85 GiB of window and hide a real allocation.
   held_floor_bytes: 3221225472            # 3 GiB
   model_library: 'D:\llm\models'          # LM Studio's own downloadsFolder — one library, no copies
   lmstudio_home: '%USERPROFILE%\.lmstudio'
@@ -150,6 +155,7 @@ models:
     native_context_window: 32768
     active_params: 'dense 3B'
     vision: none
+    identifier: 'qwen2.5-coder-3b-instruct'      # what `lms ls` reports (1.93 GB, indexed)
     vision_evidence: null
     kv_basis: 'Qwen2.5-3B config (36L / 2 KV heads / head_dim 128); docs/hardware-workstation.md independently quotes ≈36 KiB/token and "3B ≈ 1.8 GB + 0.3 GB KV @8k" — the same arithmetic'
     on_disk: true
@@ -219,12 +225,83 @@ models:
     native_context_window: 262144
     active_params: '~3.8B of 25.2B (128 experts, 8 routed + shared)'
     vision: mmproj
+    identifier: 'google/gemma-4-26b-a4b'          # what `lms ls` reports; the agent leg does NOT use
+                                          # this row - it loads the no-mmproj twin above
     mmproj_path: 'D:\llm\models\lmstudio-community\gemma-4-26B-A4B-it-GGUF\mmproj-gemma-4-26B-A4B-it-BF16.gguf'
     vision_evidence: 'mmproj-gemma-4-26B-A4B-it-BF16.gguf sits beside the weights in the library (verified on disk 2026-09-29)'
     kv_basis: 'gemma4 GGUF header on D: (sliding_window_pattern, head_count_kv, key_length 512 / key_length_swa 256, sliding_window 1024) - read from the file 2026-09-29'
     on_disk: true
     path: 'D:\llm\models\lmstudio-community\gemma-4-26B-A4B-it-GGUF\gemma-4-26B-A4B-it-Q4_K_M.gguf'
     # Sampling comes from the file too: general.sampling.temp 1.0 / top_p 0.95 / top_k 64.
+    fim_surface: null
+    fim_probe: not-applicable
+
+  # The SAME WEIGHT BYTES, loaded without the projector. `lms load` has no vision flag in 0.4.25
+  # (--gpu --identifier -c -y --parallel --ttl --estimate-only --speculative-* are all of them) and
+  # the adapter attaches simply because a sibling mmproj-*.gguf sits in the folder - so the only way
+  # to take the vision tower off the agent leg is a folder WITHOUT the file. Made with
+  # `lms import --hard-link`: zero extra disk (verified - same inode as the row above,
+  # 5764607523036758544, both 16 796 015 040 B), and `lms ls` indexes it as
+  # `gemma-4-26b-a4b-textonly`. WHY: images belong to the Qwen leg (owner ruling 2026-09-29), and
+  # this Gemma build KILLS THE ENGINE on any image whose long side exceeds ~1120 px, so advertising
+  # eyes here is a crash button, not a feature. Projector cost measured at 32k idle: 1.11 GiB.
+  gemma4-26b-a4b-textonly:
+    upstream: 'domen/gemma-4-26b-a4b-textonly'          # hard-linked copy of the row above
+    quant: Q4_K_M
+    weights_bytes: 16796015040            # same bytes, same inode as gemma4-26b-a4b (15.64 GiB)
+    mmproj_bytes: 0                       # THE POINT OF THE ROW: no adapter, no ViT, no crash path
+    kv_bytes_per_token: 20480             # identical architecture, so identical KV arithmetic
+    state_bytes_per_sequence: 209715200
+    native_context_window: 262144
+    active_params: '~3.8B of 25.2B (128 experts, 8 routed + shared)'
+    vision: none
+    mmproj_path: null
+    identifier: 'gemma-4-26b-a4b-textonly'   # what `lms ls` reports and `lms load` accepts
+    vision_evidence: >-
+      NONE by construction, not by omission. The folder holds no mmproj-*.gguf. Measured ceiling of
+      the sibling vision row: images with a long side above ~1120 px kill the engine
+      (STATUS_STACK_BUFFER_OVERRUN 3221226505, server answers {"error":"terminated"}) on TWO weight
+      files, so this leg is text-only by evidence as well as by budget
+      (reports/hd474-laptop-leg/raw/62,64,66 + the must-fail probe in raw/88-certify.txt).
+    kv_basis: 'same gemma4 GGUF header as gemma4-26b-a4b (5 global layers x 2 KV heads x 512) - the
+      weights are the same file'
+    on_disk: true
+    path: 'D:\llm\models\domen\gemma-4-26b-a4b-textonly\gemma-4-26B-A4B-it-Q4_K_M.gguf'
+    fim_surface: null
+    fim_probe: not-applicable
+
+  # THE VISION LEG (HD-476, owner ruling 2026-09-29: two legs, one GPU - Gemma thinks, this one
+  # looks). Numbers are read from the GGUF header of the file on D: with
+  # reports/hd474-laptop-leg/raw/gguf_hdr.py (qwen3vlmoe, 48 blocks, 4 KV heads, key_length 128,
+  # context_length 262144, NO sliding window, NO vision keys in the main file - the tower lives in
+  # the sibling mmproj) and measured on this engine, not from the model page.
+  qwen3vl-30b-a3b:
+    upstream: 'unsloth/Qwen3-VL-30B-A3B-Instruct-GGUF'
+    quant: UD-Q4_K_XL
+    weights_bytes: 17715664608            # 16.50 GiB, measured on D: (17.72 GB decimal)
+    mmproj_bytes: 1087039168              # mmproj-BF16.gguf, 1.01 GiB (NOT mmproj-F32, 2.29 GB)
+    # 48 layers x 4 KV heads x head_dim 128, no sliding window:
+    #     2 (K+V) * 48 * 4 * 128 * 2 B = 98 304 B/token = 96 KiB
+    # which is 5x Gemma's 20 KiB/token and the reason this leg is the one that cannot share the
+    # carve: 96 KiB x 32 768 = 3.0 GiB of KV, and nothing else fits next to it.
+    kv_bytes_per_token: 98304
+    state_bytes_per_sequence: 0           # dense-attention MoE: every layer's cost is per token
+    native_context_window: 262144
+    active_params: '~3B of 30B (128 experts, 8 routed; header: expert_used_count 8)'
+    vision: mmproj
+    mmproj_path: 'D:\llm\models\unsloth\Qwen3-VL-30B-A3B-Instruct-GGUF\mmproj-BF16.gguf'
+    vision_evidence: >-
+      MEASURED 2026-09-30 on this engine: the untouched 8160x6120 / 10.6 MB rack photo was accepted
+      (prompt_tokens 4060, engine still IDLE afterwards) and OCR'd 'CRS328-24P-4S+RM', 'CAT6' and
+      'PATCH CABLE 4PAIR ISO/IEC11801 TIA/EIA568B' - corroborated against
+      docs/network-rack.md, which lists that exact model string. That is ground truth, not a
+      caption. Every size that kills the Gemma leg (1280x960, 2000x160, 8160x6120) this one takes.
+      reports/hd474-laptop-leg/raw/72,73 + the re-run in raw/88-certify.txt.
+    kv_basis: 'qwen3vlmoe GGUF header on D: (block_count 48, attention.head_count_kv 4,
+      attention.key_length 128, no sliding-window key) - read from the file 2026-09-30'
+    on_disk: true
+    identifier: 'qwen3-vl-30b-a3b-instruct'
+    path: 'D:\llm\models\unsloth\Qwen3-VL-30B-A3B-Instruct-GGUF\Qwen3-VL-30B-A3B-Instruct-UD-Q4_K_XL.gguf'
     fim_surface: null
     fim_probe: not-applicable
 
@@ -292,36 +369,105 @@ profiles:
       model — a speculative decoder that never accepts a draft costs you the verify pass.
     certified_evidence: null
 
-  # The owner's chosen agent leg (2026-09-29). Text + vision from one resident model, and the
-  # cheapest leg on this box: nothing to fetch, and ~11 GiB of carve margin at 32k.
-  # Budget (binary GiB): 15.64 weights + 1.11 projector + 0.62 KV(f16, 32k) + 0.20 window state
-  # + 3.25 held floor = 20.83 of 32 GiB => +11.17 margin. The floor is the MEASURED idle desktop
-  # reading (3.12 GiB on 2026-09-29) rounded UP, not the 3.00 the file used to claim.
+  # MEASURED 2026-09-30 (raw/90-speed.txt, `probe-speed --ttft` against real repo prose, thinking
+  # ON because this server cannot switch it off, max_tokens 256):
+  #   prompt_tokens   cold TTFT   prefill    decode    warm TTFT (prefix-cache hit)
+  #   2 462           9.63 s      256 t/s    21.1 t/s  0.30 s
+  #  10 610          69.42 s      153 t/s    18.3 t/s  0.38 s
+  #  31 137        1806.83 s       17 t/s     8.3 t/s  (not run)
+  # Two things that are not in any model card: decode FALLS with context (21 -> 18 -> 8 t/s), and
+  # cold prefill of the SAME 10 610-token prompt measured 259 s once and 69 s another time - 3.7x,
+  # corroborating raw/80's 277-899 s spread. Plan around the prefill, not the page.
+  # The owner's chosen agent leg (2026-09-29), CERTIFIED BY MEASUREMENT 2026-09-30 (HD-474/477).
+  # TEXT-ONLY, and that is an evidence decision, not a simplification: this Gemma build dies
+  # (engine exit 3221226505 = STATUS_STACK_BUFFER_OVERRUN, server {"error":"terminated"}) on any
+  # image whose long side exceeds ~1120 px, reproduced on two weight files and on a 2000x160 strip
+  # that has a QUARTER of the pixels of a passing 1280x960 - so the trigger is max side length, and
+  # the failure mode is a dead runtime, not a refused request. Images go to `vision-qwen3vl-30b`.
+  # Loading the hard-linked no-mmproj copy is what makes the budget honest: the projector would
+  # otherwise cost 1.11 GiB resident for a capability the profile does not advertise.
+  # Budget (binary GiB): 15.64 weights + 0 projector + 0.62 KV(f16, 32k) + 0.20 window state
+  # + 3.00 held floor = 19.46 of 32 GiB => +12.54 margin. MEASURED against that: 18.87 GiB of PDH
+  # dedicated GPU memory with a 2.21 GiB idle desktop under it (raw/80 phase 3), i.e. 16.66 GiB of
+  # model - the arithmetic was 0.2 GiB pessimistic, which is the right direction to be wrong.
   agent-gemma-26b:
-    label: 'Gemma 4 26B A4B Q4_K_M + mmproj, f16 KV, 32k - text AND vision, nothing to download'
-    model: gemma4-26b-a4b
+    label: 'Gemma 4 26B A4B Q4_K_M, TEXT-ONLY (no projector), f16 KV, 32k - the agent leg'
+    model: gemma4-26b-a4b-textonly
     num_ctx: 32768
     kv_cache_type: f16
     flash_attention: false
     mtp: false                            # no MTP story for this family; that is the trade vs Qwen3.6
     offload_layers: max
+    parallel: 1                           # measured load shape (`--parallel 1`); one sequence
     env_extra: {}
     reasoning_surface: binary
     client_context_window: 32768
     client_max_tokens: 8192
-    input: [text, image]
+    input: [text]                         # see the 1120 px ruling above; do not add image here
     sampling_params: {temperature: 1.0, top_p: 0.95, top_k: 64}   # from general.sampling.* in the file
     capabilities: [tool]
-    tool_probe: pending
-    vision_probe: pending
-    certified: false
-    uncertified_reason: >-
-      Not yet booted. Open: tool-call reliability on gemma4 under llama.cpp Vulkan, whether the
-      5-global-layer / 25-sliding-window hybrid actually RECALLS at 32k (a bounded window can serve
-      a long context and still remember like a short one - probe-ctx measures length, not recall),
-      image prefill cost on 16 CU, and tok/s at ~3.8B active where the Qwen rows assumed ~3B.
-    certified_evidence: null
+    tool_probe: passed                    # 2026-09-30 on THIS load: well-formed tool_calls, no
+                                          # tool_choice sent (0.4.25 400s on it) - raw/88-certify
+    vision_probe: not-applicable          # input is [text]. Not a shrug: the SERVER enforces it.
+                                          # probe-vision against this load returns HTTP 400
+                                          # "agent-gemma-26b does not support image inputs" in 0 s
+                                          # because no projector is attached - the loud failure.
+    certified: true                       # HD-474, 2026-09-30: tools, three real prompt shapes,
+                                          # recall at 28 984 tokens, and the image ceiling measured
+    uncertified_reason: null
+    certified_evidence: 'reports/hd474-laptop-leg (raw/62-80, raw/88-certify.txt, raw/90-speed.txt)'
 
+  # THE VISION LEG (HD-476). Same GPU, same carve, NEVER resident at the same time as the agent leg:
+  # 96 KiB/token means 32k alone is 3.0 GiB of KV on top of 16.50 GiB of weights and 1.01 GiB of
+  # projector, and the adapter only attaches to a load that has room for it.
+  # Budget: 16.50 + 1.01 + 3.00 KV(f16, 32k) + 0 + 3.00 floor = 23.51 of 32 GiB => +8.49 margin.
+  # Measured PDH dedicated memory at this load: 23.92 GiB of a ~24 GiB adapter (raw/ctx32k.out),
+  # which is why the rule is one resident model, not "two fit".
+  # COST OF AN IMAGE, from the same capture: the untouched 8160x6120 rack photo = 4060 prompt_tokens
+  # and 66 s, i.e. image prefill at 61.2 t/s. A full-resolution photo does not belong in a long
+  # conversation: 8 of them are a third of the window and ~9 minutes of prefill.
+  # COST OF AN IMAGE, measured again 2026-09-30 (raw/88, raw/91, raw/92): 4042-4060 prompt_tokens
+  # and 61-72 s for the untouched 8160x6120 photo, 937 tokens / 13.6 s for the 1120 px variant.
+  # AND THE CACHE RULE that came out of raw/92: asking the SAME question twice on the same image
+  # costs 2.0 s the second time, while any NEW question re-pays the full ~60 s - because the text
+  # part sits BEFORE the image in the message, so changing it invalidates the cached image tokens.
+  # A cascade that asks several questions of one photo must put the image first, or freeze the
+  # question; otherwise it pays prefill per question. docs/hardware-workstation.md §Leg 2 seam 1.
+  vision-qwen3vl-30b:
+    label: 'Qwen3-VL-30B-A3B-Instruct UD-Q4_K_XL + mmproj-BF16, f16 KV, 32k - the vision leg'
+    model: qwen3vl-30b-a3b
+    num_ctx: 32768
+    kv_cache_type: f16                    # owner declined q8_0 here (2026-09-30), and q8_0 would
+                                          # need flash_attention, unproven for this arch on Vulkan
+    flash_attention: false
+    mtp: false                            # MTP and --mmproj do not coexist (unsloth README)
+    offload_layers: max
+    parallel: 1
+    env_extra: {}
+    reasoning_surface: none               # Instruct build: no thinking channel
+    client_context_window: 32768
+    client_max_tokens: 8192
+    input: [text, image]
+    sampling_params: {temperature: 0.7, top_p: 0.8, top_k: 20}   # general.sampling.* in the GGUF
+    capabilities: [tool]
+    tool_probe: passed                    # 2026-09-30, raw/88-certify.txt
+    vision_probe: passed                  # 2026-09-30: it SEES the rack (CAT6 x3, the 1..24 port
+                                          # numbering, 'Cloud Router Switch', a CRS3xx model) on the
+                                          # untouched 8160x6120 photo, 4042-4060 prompt_tokens in
+                                          # 61-72 s. SEE ALSO THE TRANSCRIPTION CAVEAT BELOW - it
+                                          # does not read a part number reliably.
+    vision_caveat: >-
+      NOT a transcription instrument at the SKU level, measured not assumed: asked the same
+      targeted question five times (three at the file's sampling, twice greedy at temperature 0)
+      it answered 'CRS326-24G-2S+RM' five times and 'CRS326-24P-2S+RM' once, while
+      docs/network-rack.md U15 records 'CRS328-24P-4S+' with a label photo behind it
+      (docs/assets/images/CRS328.png). Greedy agreement rules out sampling noise, so this is
+      perception, not luck. The 2026-09-29 note that it OCR'd CRS328 verbatim is therefore NOT
+      reproducible and the doc's label photo, not the model, stays the authority. Use this leg for
+      judgment and structure; verify any transcribed identifier against the inventory.
+    certified: true                       # HD-476, 2026-09-30
+    uncertified_reason: null
+    certified_evidence: 'reports/hd474-laptop-leg (raw/68,72,73, ctx32k.out, raw/88-certify.txt, raw/91,92)'
 
   # The 64k arm — the ONLY place a quantized KV cache earns its keep: q8_0 saves 0.63 GiB here
   # (1.25 → 0.63), which is what makes 64k fit with margin. Same weights, same projector.
@@ -395,6 +541,13 @@ profiles:
 # * MTP and --mmproj do not coexist yet (unsloth README), so vision costs the MTP speedup.
 vision_policy:
   allow_probeless_image_claim: false
+  # MEASURED CEILING (2026-09-30, raw/62,64,66 + this session's re-run): the gemma4 vision tower on
+  # this Vulkan build dies above ~1120 px on the LONG SIDE - 320/640/896/1120 answer, 1280 and even
+  # a 2000x160 strip kill the engine. It is not the quant, not the file, not the pixel count. The
+  # qwen3vl tower takes 8160x6120 untouched. So a client that can pick either leg must be told the
+  # rule in the contract: images at a Gemma leg need a resize first, and this box does not have a
+  # Gemma leg any more - `agent-gemma-26b` is input: [text] precisely so that the crash is not
+  # reachable from the picker.
 
 # ── client contract pointers (what probe-client drift-checks against) ────────────────────
 # The pi provider row and the Continue rows live in scripts/pi-config/models-spec.yml — ONE spec
@@ -402,7 +555,11 @@ vision_policy:
 # can find them without hardcoding identifiers in the script.
 client:
   pi_provider: laptop-lmstudio
-  pi_model: qwen/qwen3.6-35b-a3b-mtp
+  # Must name the row for the ACTIVE profile: probe-client drift-checks the active profile against
+  # THIS row, and pi 400s mid-session when the two disagree. Switching the dial means switching this
+  # pointer in the same commit. The row id is the profile name because that is what `--identifier`
+  # makes the server serve; the vision leg's row is `vision-qwen3vl-30b` (one GPU, one resident leg).
+  pi_model: agent-gemma-26b
 
 # ── reuse_contract: why nothing downloads twice ─────────────────────────────────────────
 # 1. ONE library, one home. settings.json.downloadsFolder points at D:\llm\models, which is

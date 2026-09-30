@@ -81,3 +81,72 @@ only "what is true on this box right now".
   D: free was 191 GB at 00:57.
 * Untracked junk in the repo, leave alone: `nul`, `docs/assets/images/20260812_185130.jpg`.
 * The rack photo used for vision evidence is copied to `raw/original8160.jpg` so the worktree is self-contained.
+
+
+## FINAL STATE — 2026-09-30 ~04:55Z (overnight run, by `pi` on spark/qwen3.8-flash-next)
+
+Lane **closed on the GPU side**. Worktree `D:\source\domenkogler\homelab-wt-hd474`,
+branch `session/hd474-win11-certify-2`. **Nothing committed, nothing pushed** — the owner said
+"work in your own worktree, dont commit", so `git commit` never ran here.
+
+### Rules honoured
+
+| Rule | How |
+|---|---|
+| Rule 0 — the model taking numbers must not be served by the laptop | this session is served by remote `spark`; `lms ps` before every timed block, recorded in `raw/88-certify.txt` and `raw/90-speed.txt` |
+| Rule 1 — the session that wakes up finishes the job | the 2026-09-29 log ended mid-phase; I found the real cause (a `TypeError` in the logger, not the owner's kill) and finished phases 3–4 + the 49k/65k ladder |
+| GPU idle before you trust a number | `lms ps` + PDH idle baseline (2.15–2.28 GiB) captured before every load; one leg resident, `unload --all` between legs |
+| Never lower a constant to get green | `ceiling_bytes` and `held_floor_bytes` untouched; the gate's invariants untouched; the pre-existing `check_merge_markers` self-test failure left for the owner |
+| A probe that cannot fail is not evidence | `gate --self-test` 13/13, `probe-vision --self-test` 6/6, `probe-fim --self-test` 6/6, `render-pi-config.py --self-test` 3/3, and the new residency check was **watched failing** (vision leg loaded, agent row named) before it was watched passing |
+
+### What the record now says (the short version)
+
+- **Recall at 32k passes.** 28 984-token prompt, needle at 92 % depth, returned verbatim.
+- **Decode is not a constant:** 21.1 / 18.3 / 8.3 t/s at 2 462 / 10 610 / 31 137 tokens.
+- **Cold prefill is not even repeatable:** 259.15 s vs 69.42 s for identical 10 610-token bytes.
+- **The projector costs 1.00–1.11 GiB** and `--jails 0` does not load at all.
+- **Gemma is text-only** and the server enforces it (`400 "does not support image inputs"`, 0 s).
+- **The endpoint does not police the `model` field** — silent substitution, proven; `probe-client`
+  now checks `/v1/models`.
+- **The vision leg sees but does not transcribe** — five greedy passes, `CRS326-24G-2S+RM`, against
+  the rack doc's `CRS328-24P-4S+`. This corrected claims in `todo.md` HD-476,
+  `docs/hardware-workstation.md` and `docs/services-ai.md` #28.
+- **Ask a photo once:** same question 2.0 s, new question ~60 s (image sits behind the text).
+
+### Validators (last state)
+
+| Check | Result |
+|---|---|
+| `python -X utf8 scripts/laptop-llm.py gate` | **PASS** (13 invariants, active=agent-gemma-26b) — green unaided |
+| `gate --self-test` / `probe-vision --self-test` / `probe-fim --self-test` | 13/13 · 6/6 · 6/6 |
+| `probe-client` (live, agent leg resident) | **PASS** + residency confirmed (`['agent-gemma-26b']`) |
+| `check_todo_done` / `check_md_tables` / `check_placeholders` / `check_secrets` | OK · OK (152 files) · OK (797) · OK (1202) |
+| `render-pi-config.py --self-test` | 3/3 |
+| `render-pi-config.py check --host Domen_P14s` | **blocked**: `op` account not signed in — human step |
+| `bash scripts/validate-all.sh` (git-bash) | one failure: `check_merge_markers.py --self-test`, **pre-existing on clean `main`**, deliberately untouched |
+| `wsl.exe -d Debian -- bash scripts/validate-all.sh` | **could not run**: a Windows-created worktree's `.git` pointer is `gitdir: D:/source/...`, which git inside WSL cannot resolve, so `guard-session.sh` correctly refused ("not inside a git work tree"). Debian also has no PyYAML. Trap recorded in `raw/93-wsl-validate-all.txt`; the git-bash run above is the reference |
+
+### Engine state left behind
+
+`lms unload --all` — as found (nothing loaded). To bring the agent leg up:
+`powershell -File scripts\win\lmstudio-llm.ps1 switch -Profile agent-gemma-26b`.
+
+### The four things I did not get to
+
+1. **`render-pi-config.py --check`** — needs `op signin`. The client contract is verified by
+   `probe-client` (field-level) and **not** by a byte-level render diff. Do not call this lane green
+   on the subset.
+2. **`--jails 0` memory test** — the load fails ("Missing multimodal projector"), so the question
+   "does the ViT reserve VRAM with no vision slot" is answered NO by the loader rather than by a
+   counter. Recorded in `raw/79-no-jails.txt`.
+3. **A cropped full-res photo** to see whether the SKU misread is a resolution problem or a
+   perception floor. Until then the rack doc's label photo is the authority.
+4. **Q4_K_S → does `budget` stay honest for the vision leg at 32k with two images in context** —
+   the arithmetic (23.51 GiB declared) has never been exercised with an image resident in the KV.
+
+### Note for whoever picks this up
+
+The injected reminder to "read `skills/md-tables/SKILL.md` before writing a markdown table" points
+at a file that **does not exist on this box** (`~/.pi/agent/skills` has only mikrotik, platform-env,
+shelly; the repo has no `skills/`). The repo's real equivalent is `scripts/check_md_tables.py`,
+which I ran after every doc edit.
