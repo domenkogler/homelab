@@ -1,0 +1,32 @@
+
+===== SPEED RUN 2026-09-30 04:18:17 model=agent-gemma-26b shapes=['1.8k', '8k'] =====
+
+$ python scripts/laptop-llm.py probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label cold-1.8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-1800.txt --timeout 2400
+[cold-1.8k] prompt shape: cold-1.8k (8100 chars)
+  wall 21.8s | TTFT 9.63s | prompt 2462 tok | completion 256 tok | decode 21.1 t/s | 256 t/s prefill (cold prompt)
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0]
+
+$ python scripts/laptop-llm.py probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label warm-1.8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-1800.txt --timeout 2400
+[warm-1.8k] prompt shape: warm-1.8k (8100 chars)
+  wall 12.5s | TTFT 0.30s | prompt 2462 tok | completion 256 tok | decode 21.0 t/s | 8088 t/s first-token on a WARM prompt = PREFIX-CACHE HIT, not prefill
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0]
+
+$ python scripts/laptop-llm.py probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label cold-8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-8000.txt --timeout 2400
+[cold-8k] prompt shape: cold-8k (36000 chars)
+  wall 83.4s | TTFT 69.42s | prompt 10610 tok | completion 256 tok | decode 18.3 t/s | 153 t/s prefill (cold prompt)
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0]
+
+$ python scripts/laptop-llm.py probe-speed --model agent-gemma-26b --ttft --max-tokens 256 --label warm-8k --prompt-file reports/hd474-laptop-leg/raw/87-shape-8000.txt --timeout 2400
+[warm-8k] prompt shape: warm-8k (36000 chars)
+  wall 14.3s | TTFT 0.38s | prompt 10610 tok | completion 256 tok | decode 18.4 t/s | 28152 t/s first-token on a WARM prompt = PREFIX-CACHE HIT, not prefill
+  Record engine, template, thinking state and KV setting with this number — HD-469 run #2:
+  a score without its configuration is not evidence.
+[exit 0]
+
+===== SPEED RUN FINISHED 2026-09-30 04:20:30 =====

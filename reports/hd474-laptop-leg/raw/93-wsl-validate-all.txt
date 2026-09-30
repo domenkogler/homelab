@@ -1,0 +1,27 @@
+== guard-session.sh --validate-mode (session-discipline hard gate, HD-253) ==
+guard-session: not inside a git work tree — cannot apply the session-discipline guard
+
+--- analyst note (same session, immediately after) ---
+
+The capture above is the WHOLE run. Debian's validate-all.sh got as far as its first gate and
+stopped, and the reason is a cross-OS trap worth recording rather than re-discovering:
+
+  $ cat .git
+  gitdir: D:/source/domenkogler/homelab/.git/worktrees/homelab-wt-hd474
+
+A linked worktree's `.git` pointer file contains a WINDOWS path. Git inside WSL cannot resolve
+`D:/...`, so `git rev-parse --is-inside-work-tree` fails and `guard-session.sh` correctly refuses
+("not inside a git work tree") instead of silently validating nothing. Consequences:
+
+  * The Debian validator suite cannot run against a Windows-created worktree. Not a repo bug and
+    not a config bug - it is how `git worktree add` writes the pointer on Windows.
+  * The reference validator run for this lane is therefore the git-bash one (real bash, real
+    Python 3.13.13 + PyYAML 6.0.3): see README §5, one failure, pre-existing
+    (`check_merge_markers.py --self-test`, reproduces on clean `main`).
+  * WSL Debian also has NO PyYAML on its system python (python3 3.13.5, `import yaml` ->
+    ModuleNotFoundError), so even a main-checkout run there could not execute `laptop-llm.py gate`
+    or `render-pi-config.py`. Installing into the system interpreter is a machine change nobody
+    asked for, so it was not done.
+
+The guard's behaviour is correct and should be praised, not worked around: it refuses to certify a
+tree it cannot see.

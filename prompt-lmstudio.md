@@ -1,5 +1,7 @@
 # `prompt-lmstudio.md` — Lane brief · certify the laptop's two serving legs (HD-474 / HD-476 / HD-477) · runs on **Win11**
 
+> **STATUS 2026-09-30, overnight run — lane closed on the GPU side.** Worktree `D:\source\domenkogler\homelab-wt-hd474`, branch `session/hd474-win11-certify-2`, **nothing committed** (the owner asked for the worktree to be left for review). Both legs are `certified: true`, `gate` is green unaided (13 invariants, 13/13 canaries fire), `probe-client` PASSes against a live server, recall passed at 28 984 tokens, and the three prompt shapes are measured. Report: [`reports/hd474-laptop-leg/README.md`](reports/hd474-laptop-leg/README.md). Three claims **in this brief** did not survive the box and are corrected below: §0's "the gate list **is** the task list" (a green gate coexisted with a client audit that had never run), §1's `--host DomenP14s` (the box reports `Domen_P14s`), and §2.B's "`probe-tools` already passes" (it passed for the harness, not for the profile flag).
+
 > **Entry:** the owner says **"read prompt-lmstudio and run it"** — you are the operator, running
 > **on the laptop, in Windows** (`pi.dev` on Win11), because that is where the engine lives.
 > The catalogue, the arithmetic, the gate, the applier and the client contract are merged
@@ -27,7 +29,7 @@
 | **Measured numbers (this engine, this carve).** Gemma: decode **17.5–17.8 t/s** (engine agrees: `17.54 / 17.46`), cold prefill **~250 t/s** at 1.8–2.2k tokens, warm **TTFT 0.4 s** on a prefix-cache hit (`f_sim_best = 1.000`), GPU dedicated **+16.78 GiB** at `-c 32768 --parallel 1` with the projector. Qwen-VL: decode **23.84 t/s**, **image prefill 61.2 t/s** (66 s for one full-res photo), `31 809` tokens **accepted** at `-c 32768 --parallel 1` but at **915 s of prefill**, `23.92 GiB`. | measured | `raw/69–73`, `raw/ctx32k.out` |
 | **KV math that decides window size.** Qwen3-VL and Qwen3-30B-A3B-2507 both: 48 layers × 4 KV heads × head_dim 128, **no sliding window** = **96 KiB/token** at f16 → 32k costs **3.0 GiB**; both train at **262 144**, this box never gets near it. Gemma's hybrid (30 layers, **5 global**, sliding 1024) is ~**10–20 KiB/token marginal** → window is cheap, which is why *it* is the long-context leg. | header-read | `raw/gguf_keys.py` (works over an HTTP range request — no download needed) |
 | **The text-only Gemma variant exists and costs nothing on disk.** `lms load` has **no** vision flag (`--gpu --identifier -c -y --parallel --ttl --estimate-only --speculative-*` are all of them) and the adapter attaches because it sits in the folder, so the variant was imported with `lms import --hard-link` → indexes as **`gemma-4-26b-a4b-textonly`**, 16.80 GB, **same inode**. Projector cost measured: **1.11 GiB resident at idle** (the mmproj file itself; the ViT adds ~nothing until an image arrives). | measured | HD-477, `raw/80-hd477-gemma-textonly.txt` |
-| **`gate` today has exactly three complaints, all on `agent-gemma-26b`:** `vision_probe=pending`, `tool_probe=pending`, `certified=false`. Nothing else. That list **is** the task list. | measured | `python scripts/laptop-llm.py gate` |
+| **`gate` today has exactly three complaints, all on `agent-gemma-26b`:** `vision_probe=pending`, `tool_probe=pending`, `certified=false`” — and they are closed, but **“nothing else” was the wrong half**: a green gate was not evidence the laptop was ready. The gate read placeholder model keys as real ones, and `probe-client` SKIPped forever because the spec's hostname did not match the hostname Windows reports. Both are fixed; `gate` now passes unaided and `probe-client` passes against a live server | measured | `python scripts/laptop-llm.py gate` |
 | **The seat is Windows-native** (owner 2026-09-29). Local models serve **pi.dev on Win11**; WSL2 stays `networkingMode=Nat` on purpose, `providers.laptop-lmstudio` carries `native_only: true`. Never "fix" a WSL probe by reconfiguring the guest. | merged | [scripts/pi-config/models-spec.yml](scripts/pi-config/models-spec.yml) |
 | **LM Studio's server ignores `chat_template_kwargs` / `enable_thinking`** (all four spellings tested; reasoning persisted). `--chat-template-kwargs` is a *llama-server* flag. **Consequence:** thinking is on by default, so any probe with a small `max_tokens` gets its budget eaten by `reasoning_content` and returns **empty `content`** — which is a test bug, not a model failure. Budget **≥ 1024** for anything on a reasoning model. | measured | `raw/63-thinking-toggle.txt` |
 
@@ -80,7 +82,7 @@ model `qwen3-vl-30b-a3b-instruct` (`unsloth/Qwen3-VL-30B-A3B-Instruct-GGUF`, fil
 `parallel: 1`, `capabilities: [tool]`, `input: [text, image]`, and the measured facts in the row:
 `23.84 t/s`, image prefill `61.2 t/s`, `23.92 GiB` at 32k, one full-res photo = `4060` tokens.
 Run `probe-vision` against **the real rack photo at its real size** (this is the leg that can take it)
-and `probe-tools` (already passes), then certify. The budget row must add: **96 KiB/token**, so a 32k
+and `probe-tools` (**it passed for the harness, not for the profile flag** — a passing probe and a red gate were both true at once; `passed` on both legs now), then certify. The budget row must add: **96 KiB/token**, so a 32k
 vision leg holds **3.0 GiB of KV** — no room for a second resident model.
 
 **C · Wire the client — LAST, never first (HD-474).**
@@ -88,7 +90,10 @@ vision leg holds **3.0 GiB of KV** — no room for a second resident model.
 ```powershell
 python scripts\laptop-llm.py budget --profile agent-gemma-26b
 python scripts\laptop-llm.py gate
-python scripts\render-pi-config.py pi --host DomenP14s --check     # drift only, writes nothing
+python scripts\render-pi-config.py pi --host Domen_P14s --check    # drift only, writes nothing
+#   ^ this line used to read `--host domenp14s`. The box reports `Domen_P14s`; `render()` matched hostnames
+#     exactly, matched nothing, and returned a config with NO laptop-lmstudio provider - silently. Fixed:
+#     host_norm()/host_matches() canonicalise (`Domen_P14s` == `domenp14s`) and an unknown host is loud.
 python scripts\laptop-llm.py probe-client                          # must PASS, not SKIP
 ```
 
@@ -137,6 +142,11 @@ checkout), signed commit, merge **only if green**. Then sweep every claim the ru
   `PYTHONUTF8=1` in child envs. The driver and `.ps1` already carry the Windows encoding fixes
   (UTF-8 `read_text`, stdout/stderr reconfigure, `.ps1` saved with a BOM for PS 5.1,
   `$ErrorActionPreference = 'Continue'`) — do not "tidy" them away.
+
+- **The endpoint does not police the `model` field.** With only the vision leg resident, a chat request naming `no-such-model-here` was answered — `'PONG'`, 0.4 s — **by the resident model**. So a stale row in `models-spec.yml`, or the wrong leg loaded, is not a 400: you are silently served the other model. Images are the one path that IS policed (`400 "does not support image inputs"` in 0 s). `probe-client` now reads `/v1/models` and FAILs when the row it certifies is not resident — that check is load-bearing, delete it and the contract goes quiet again.
+- **A vision answer is not a transcription.** Five asks of one rack photo — three at the file's sampling, two greedy at `temperature 0` — all returned `CRS326-24G-2S+RM` where `docs/network-rack.md` says `CRS328-24P-4S+` behind a label photo. Greedy agreement rules out sampling noise. Use the leg for judgment; never let it overwrite an inventory string, and do not re-derive the old "it OCR'd it verbatim" claim (§HD-476) — it is not reproducible.
+- **Ask a photo once, or ask it identically.** Same question again = 2.0 s; any *new* question = ~60 s again, because the text precedes the image in the message and invalidates the cached image tokens. Put the image first in multi-question seams.
+- **`flush=True` is not a `log()` kwarg.** The 2026-09-29 ladder died with `TypeError: 'flush' is an invalid keyword argument for BufferedWriter.write` one step into its most expensive phase; the raw log ended mid-run and the next session read that silence as a decision. Log unbuffered (`LOG.flush()` per line), and never interpret a missing measurement as a negative result.
 
 ## Non-negotiables
 

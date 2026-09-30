@@ -1,0 +1,15 @@
+
+===== VISION REPEAT 2026-09-30 04:09:11 =====
+resident now: IDENTIFIER            MODEL                        STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL | vision-qwen3vl-30b    qwen3-vl-30b-a3b-instruct    IDLE      18.80 GB    32768      1   
+
+--- 1. unknown model id, TEXT only: does the server substitute the resident model? ---
+ANSWERED for a model that does not exist: content='PONG' reasoning='' wall=0.4s
+-> SILENT SUBSTITUTION confirmed: a wrong id in models-spec.yml does not 400, it answers from whatever is resident. The client contract cannot rely on the server to police it.
+
+--- 2. the same targeted question, three times, full-resolution rack photo ---
+pass 1: 'CRS326-24G-2S+RM'  (prompt_tokens=4060 completion_tokens=15 wall=61.1s)
+pass 2: 'CRS326-24G-2S+RM'  (prompt_tokens=4060 completion_tokens=15 wall=1.9s)
+pass 3: 'CRS326-24G-2S+RM'  (prompt_tokens=4060 completion_tokens=15 wall=2.1s)
+
+docs/network-rack.md U15 says: 'MikroTik CRS328-24P-4S+ Switch' (label photo docs/assets/images/CRS328.png).
+===== VISION REPEAT FINISHED 2026-09-30 04:10:17 =====

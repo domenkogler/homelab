@@ -133,25 +133,33 @@ providers:
   # provider in the picker is worse than no provider, and a provider rendered onto the wrong box is
   # exactly the silent-drift class HD-388 exists to kill.
   #
-  # baseUrl is loopback ON PURPOSE. WSL2 runs networkingMode=mirrored (written by
-  # scripts/win/lmstudio-llm.ps1) so 127.0.0.1:1234 from the Linux seat IS the Windows host. The
-  # alternative — the NAT gateway address — is an IP literal that moves when the NAT range moves,
-  # and a spec holding a moving IP is how a laptop breaks on a Tuesday. `laptop-llm.py probe-health`
-  # fails loudly if mirrored mode is not on; it never guesses an address.
+  # baseUrl is loopback ON PURPOSE. WSL2 runs networkingMode=Nat and that is deliberate (owner
+  # 2026-09-29): 127.0.0.1 inside the Linux guest is the GUEST, so this provider is `native_only`
+  # and serves pi.dev running ON Win11. The alternative — the NAT gateway address — is an IP literal
+  # that moves when the NAT range moves, and a spec holding a moving IP is how a laptop breaks on a
+  # Tuesday. `laptop-llm.py probe-health` fails loudly if the server is not on loopback; it never
+  # guesses an address, and nothing here reconfigures /etc/wsl.conf to make a WSL probe pass.
   #
   # The engine ceiling, the KV budget and the thinking surface all live in
   # scripts/laptop-llm/profiles.yml; `laptop-llm.py probe-client` FAILS if this block drifts from
-  # the active profile. These numbers are declared, not yet measured on this box — the profile row
-  # carries uncertified_reason and the gate refuses to certify the leg until the probes pass.
+  # the active profile. The two laptop rows below are MEASURED legs as of 2026-09-30
+  # (HD-474/HD-476) — the windows each one actually booted, with the tok/s, TTFT and GiB behind them
+  # in reports/hd474-laptop-leg/README.md. The FIM row stays declared-but-unmeasured for now.
   - id: laptop-lmstudio
     description: local LM Studio server on the admin laptop (iGPU, 32 GiB carve) — loopback, no cost
+    # MEASURED on the seat 2026-09-30: `socket.gethostname()` returns `Domen_P14s`. It is written
+    # `domenp14s` here because host_norm() (render-pi-config.py) ignores case and `_`/`-`/`.` — and
+    # because before that matcher existed, this row's spelling did not match the machine and BOTH
+    # the renderer (provider dropped) and probe-client (SKIP instead of a check) failed silently.
     hosts: [domenp14s]
     # Native Windows only, and this is the load-bearing line of the whole client contract (owner
     # decision 2026-09-29, after the first draft assumed WSL): WSL2 on this box stays
     # networkingMode=Nat because it is configured that way deliberately, so 127.0.0.1 inside the
     # Linux guest is the GUEST. Local models are therefore served to pi.dev running ON Win11, and
     # this provider must not render into the WSL picker, where it would be a dead endpoint. Hostname
-    # alone cannot tell the two seats apart — both report DomenP14s — hence a flag, not a name.
+    # alone cannot tell the two seats apart — both report `Domen_P14s` (measured 2026-09-30; this
+    # line used to say `DomenP14s`, and that one underscore is why host_norm() exists) — hence a
+    # flag, not a name.
     native_only: true
     baseUrl: http://127.0.0.1:1234/v1
     api: openai-completions
@@ -168,17 +176,40 @@ providers:
       supportsReasoningEffort: false
       supportsStrictMode: false
     models:
-      - id: qwen/qwen3.6-35b-a3b-mtp
-        name: Local Qwen3.6-35B-A3B Q4_K_M + vision (laptop iGPU, 32k)
-        # reasoning true: a reasoning build whose surface is UNMEASURED here. profiles.yml records
-        # it per arm (binary for the doc-named model, always-on-unmeasured for distilled ones).
-        # ⏳ probe-tools + probe-vision are pending, so this row is UNCERTIFIED by its own rules —
-        # and `input: [text, image]` is only honest once probe-vision passes on the projector.
+      # TWO ROWS, ONE GPU. The served id is the PROFILE NAME in scripts/laptop-llm/profiles.yml
+      # (`lms load ... --identifier <profile>`), because /v1/models must list exactly what pi sends
+      # and a hand-kept identifier is a second copy that drifts. JIT loading is OFF on this install,
+      # so only the RESIDENT leg answers: the picker shows both rows and exactly one of them is dead
+      # until `lmstudio-llm.ps1 switch -Profile <name>` moves the GPU. That trade is deliberate — a
+      # dead row is loud (400 "model not loaded"), a silently-wrong one is not. The expensive mistake
+      # is sending an image to the text row, so the rule is written where the picker is described:
+      # docs/hardware-workstation.md §Served leg.
+      - id: agent-gemma-26b
+        name: Local Gemma 4 26B A4B (laptop iGPU, text-only, 32k)
+        # reasoning true: gemma4 thinks into reasoning_content and this server cannot switch thinking
+        # off (chat_template_kwargs / enable_thinking are IGNORED by LM Studio 0.4.25 — all four
+        # spellings measured 2026-09-30). A client that budgets 80 tokens gets an EMPTY `content`
+        # back and concludes the model is broken. It is not: budget >= 1024.
+        # input [text] ONLY — not because the weights are blind, but because this build dies
+        # (STATUS_STACK_BUFFER_OVERRUN, engine exit 3221226505) on any image whose long side exceeds
+        # ~1120 px. Image input here would be a crash button, so the client is not given one.
         reasoning: true
+        input: [text]
+        contextWindow: 32768
+        maxTokens: 8192
+        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        continue: {capabilities: [tool]}
+      - id: vision-qwen3vl-30b
+        name: Local Qwen3-VL-30B-A3B-Instruct (laptop iGPU, vision, 32k)
+        reasoning: false
         input: [text, image]
         contextWindow: 32768
         maxTokens: 8192
         cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
+        # COST OF AN IMAGE, measured on this engine: the untouched 8160x6120 rack photo = 4060
+        # prompt_tokens and 66 s of prefill (61.2 t/s). This leg takes everything the Gemma leg
+        # cannot, but eight full-resolution photos are a third of this window and ~9 minutes of
+        # prefill — describe once, freeze the text (docs/hardware-workstation.md §Leg 2, seam rule 1).
         continue: {capabilities: [tool]}
       - id: qwen/qwen2.5-coder-3b-instruct
         name: Local Qwen2.5-Coder-3B (laptop iGPU, FIM, 8k)

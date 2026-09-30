@@ -16,7 +16,8 @@
 
 .EXAMPLE
     powershell -File scripts\win\lmstudio-llm.ps1 init
-    powershell -File scripts\win\lmstudio-llm.ps1 switch -Profile agent-unified
+    powershell -File scripts\win\lmstudio-llm.ps1 switch -Profile agent-gemma-26b
+    powershell -File scripts\win\lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b
     powershell -File scripts\win\lmstudio-llm.ps1 status
     powershell -File scripts\win\lmstudio-llm.ps1 verify
 
@@ -52,7 +53,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $Driver   = Join-Path $RepoRoot 'scripts\laptop-llm.py'
 
 function Invoke-Catalogue {
-    param([string[]]$DriverArgs)
+    param([string[]]$DriverArgs, [switch]$AllowFail)
     # The repo's python normally lives in WSL on this box. Try a native python first, then WSL, and
     # report which one answered — a Windows python without pyyaml and a WSL python fail differently,
     # and "python3 not found" from the wrong one wastes an afternoon.
@@ -64,7 +65,12 @@ function Invoke-Catalogue {
         $out = & $exe @argv 2>&1
         $txt = ($out | Out-String)
         if ($LASTEXITCODE -ne 0 -and $txt -match "No such file or directory|can't open file") { continue }
-        if ($LASTEXITCODE -ne 0) { throw "laptop-llm.py $($DriverArgs -join ' ') exited $LASTEXITCODE :`n$txt" }
+        # -AllowFail is for the calls whose NONZERO EXIT IS THE PRODUCT. `gate` exists to print why
+        # a profile is refused; wrapping that in a PowerShell RuntimeException buried the very text
+        # the operator came to read, and stopped `gate` ever reaching its own --self-test (measured
+        # 2026-09-30 while the agent leg was still uncertified).
+        if ($LASTEXITCODE -ne 0 -and -not $AllowFail) { throw "laptop-llm.py $($DriverArgs -join ' ') exited $LASTEXITCODE :`n$txt" }
+        if ($LASTEXITCODE -ne 0) { return ($txt.TrimEnd() + "`n[catalogue exited $LASTEXITCODE — that is a result, not a crash]") }
         return $txt
     }
     throw "No usable python3 / python / wsl python3. The catalogue driver is Python."
@@ -173,8 +179,10 @@ function Set-Presets {
         }
         $f = Join-Path $dir "homelab-$($prop.Name).json"
         $body | ConvertTo-Json | Set-Content $f -Encoding UTF8
+        # StrictMode 2.0 throws on a property that is not there, and _warning is emitted only for
+        # the rows that need it — so ask the object before reading it.
         $warn = ''
-        if ($p._warning) { $warn = "  ⚠ $($p._warning)" }
+        if ($p.PSObject.Properties.Name -contains '_warning') { $warn = "  ⚠ $($p._warning)" }
         Write-Host "preset: homelab-$($prop.Name).json (ctx $($p.contextLength), kv $($p.kvCacheType), FA $([bool]$p.flashAttention), MTP $([bool]$p.speculativeDecodingMTP))$warn"
     }
     Write-Host "Restart LM Studio to list new presets. settings.json itself stays out of git."
@@ -183,8 +191,9 @@ function Set-Presets {
 switch ($Command) {
 
   'gate' {
-    Write-Host (Invoke-Catalogue @('gate'))
-    Write-Host (Invoke-Catalogue @('gate','--self-test'))
+    # Both lines print even when the gate is red — see Invoke-Catalogue -AllowFail.
+    Write-Host (Invoke-Catalogue @('gate') -AllowFail)
+    Write-Host (Invoke-Catalogue @('gate','--self-test') -AllowFail)
   }
 
   'presets' { Set-Presets }
@@ -214,8 +223,11 @@ The driver could not answer on loopback from here, so it fell back to the discov
     $lms = Get-Lms
     Write-Host "`nlms: $(& $lms version 2>&1 | Select-Object -Last 1)"
     Write-Host "⚠ Record that version in profiles.yml runtime.version — the gate refuses to certify an unpinned engine (§7)."
-    Write-Host "`nNext: run the probes from WSL (probe-health, probe-tools, probe-vision, probe-fim, probe-ctx), then"
-    Write-Host "      record tok/s + the load log's KV line in docs/hardware-workstation.md, then set certified: true."
+    Write-Host "`nNext: run the probes against the loaded profile - probe-health, probe-tools, probe-vision,"
+    Write-Host "      probe-fim, probe-ctx, probe-speed (see"
+    Write-Host "      reports/hd474-laptop-leg/raw/88_certify.py for a driver that runs them in order), record"
+    Write-Host "      tok/s + the PDH dedicated-memory figure, then set certified: true in"
+    Write-Host "      scripts/laptop-llm/profiles.yml and re-run 'gate'."
   }
 
   'switch' {
@@ -228,41 +240,67 @@ The driver could not answer on loopback from here, so it fell back to the discov
     # (docs/hardware-workstation.md §Memory & residency: two fit, three leak slots) and LM Studio
     # does not guarantee eviction order if you load-then-unload.
     Write-Host "unload --all"; & $lms unload --all 2>&1 | ForEach-Object { "  $_" }
-    $argv = @('load', $p.identifier, '--pub', '--gpu', 'max', '--context', $p.contextLength)
+
+    # The load line, verified against `lms load --help` on 0.4.25 (HD-474, 2026-09-30). The previous
+    # draft of this line read `--pub --context <N>`, and NEITHER flag exists in 0.4.25 - `switch`
+    # could never have worked. The whole accepted set is:
+    #   --gpu --identifier -c -y --parallel --ttl --estimate-only --speculative-*
+    # so: context is `-c`, there is no `--pub` (publishing is the server's job), and `-y` is
+    # MANDATORY because an unmatched or ambiguous key otherwise hangs on an interactive TTY picker -
+    # which in an unattended run is an hour of nothing, not an error. `--identifier <servedId>` is
+    # what makes the client contract true: /v1/models must list exactly the id models-spec.yml names.
+    # There is deliberately NO mmproj flag: `lms load` has no vision switch. The projector attaches
+    # because the mmproj-*.gguf sits beside the weights (asserted by Assert-Library above), which is
+    # also why the text-only agent leg loads a folder WITHOUT that file instead of a flag combo.
+    if (-not $p.loadable) { throw "profile '$($p.name)' is not loadable: $($p._warning)" }
+    $argv = @('load', $p.identifier, '--gpu', 'max', '-c', $p.contextLength,
+              '--identifier', $p.servedId, '-y')
+    if ($p.parallel) { $argv += @('--parallel', $p.parallel) }
     Write-Host "load: $($argv -join ' ')"
     & $lms @argv 2>&1 | ForEach-Object { "  $_" }
     if ($LASTEXITCODE -ne 0) { throw "lms load failed (exit $LASTEXITCODE)" }
     & $lms server start 2>&1 | ForEach-Object { "  $_" }
+    # Prove the thing the client is about to rely on (CONVENTIONS §6: prove, do not reason).
+    $ps = & $lms ps 2>&1 | Out-String
+    if ($ps -notmatch [regex]::Escape($p.servedId)) {
+        throw "loaded but the server does not list '$($p.servedId)' - models-spec.yml names that id, " +
+              "so pi would 400. `lms ps` said:`n$ps"
+    }
+    Write-Host ("serving id: " + (($ps -split "`n" | Where-Object { $_ -match $p.servedId }) -join '').Trim())
     Write-Host "`nverify with: powershell -File scripts\win\lmstudio-llm.ps1 verify"
   }
 
   'status' {
     $lms = Get-Lms
     Write-Host "== lms ls =="; & $lms ls 2>&1 | ForEach-Object { "  $_" }
+    Write-Host "`n== lms ps =="; & $lms ps 2>&1 | ForEach-Object { "  $_" }
     $base = (Get-Api) -replace '/v1$',''
     try {
         $m = Invoke-RestMethod -Uri "$base/v1/models" -TimeoutSec 5
         Write-Host "`n== served models ($base) =="
         $m.data | ForEach-Object { "  $($_.id)" }
+        Write-Host "  (JIT loading is OFF on this install, so this list is exactly the RESIDENT set -"
+        Write-Host "   a model that is indexed but not loaded is invisible to the client by design.)"
     } catch { Write-Warning "server not reachable at $base — start it (LM Studio Local Server, or 'lms server start')" }
   }
 
   'verify' {
     $p = Get-ProfileConfig -Name $Profile
-    Write-Host "profile: $($p.name)  expects ctx $($p.contextLength) kv $($p.kvCacheType) FA $([bool]$p.flashAttention) MTP $([bool]$p.speculativeDecodingMTP)"
+    Write-Host "profile: $($p.name)  expects ctx $($p.contextLength) kv $($p.kvCacheType) FA $([bool]$p.flashAttention) MTP $([bool]$p.speculativeDecodingMTP) serving-as $($p.servedId)"
     Write-Host (Invoke-Catalogue @('budget','--profile',$p.name))
     # The load-time clamp is what actually bounds the window, so verify it and never trust the
     # number in the spec — spark's probe found 20 468 usable against a nominal 32 768 (HD-376).
-    Write-Host (Invoke-Catalogue @('probe-client'))
+    Write-Host (Invoke-Catalogue @('probe-client') -AllowFail)
     Write-Host @"
 
-Still to prove on this box (each one is a profile field, not a hope):
-  probe-health   the seat can reach the server at all
-  probe-ctx      the real usable window at load-time contextLength
-  probe-tools    capabilities: [tool] — 'tool_probe: passed'
-  probe-vision   input: [image] + WHERE the projector ran — 'vision_probe: passed'
-  probe-fim      whether Coder-3B-Instruct really does FIM (docs:64 says no, Qwen's card says yes)
-  probe-speed    tok/s + TTFT at the agent's real prompt shape (HD-401 gate 3)
+What this profile still owes is exactly what 'gate' refuses - it reads tool_probe, vision_probe,
+fim_probe and certified out of the catalogue, so 'gate' cannot go stale the way a hardcoded list
+here did (this block used to claim probe-fim was an open question after it had passed).
+
+    python scripts\laptop-llm.py gate          # the debt, in the catalogue's own words
+    python scripts\laptop-llm.py probe-speed --model $($p.servedId) --ttft --prompt-file ...
+                                               # the tok/s claim is a DOC number, not a gate
+                                               # invariant (HD-401 gate 3), so measure it anyway
 "@
   }
 }
