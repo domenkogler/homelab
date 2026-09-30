@@ -59,15 +59,24 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 > per-VLAN / per-MAC `:53` dst-nat (HD-182/HD-326), which chooses *which resolver answers*, not the upstream
 > filter. Consequence: the Kids (Cloudflare Families) and IoT (Quad9) rows and the Home ad-blocking row are
 > **not implemented on the DNS tier**, and the per-device query visibility this doc cites as the reason for
-> Pi-first (and for the IoT dst-nat) **cannot be observed at all**. ⏳ HD-476 carries the reconcile.
+> Pi-first (and for the IoT dst-nat) **cannot be observed at all**.
+> **Reconciled 2026-09-30 (owner call):** the *capability* stays intended, so the table is labelled
+> design/pending rather than deleted, and each unenforced claim now owns a row — **HD-480** client groups +
+> block lists (the mechanism itself, and with it the Home ad-blocking row), **HD-481** Kids → Cloudflare
+> Families `1.1.1.3`, **HD-482** IoT → Quad9 upstream **and** `logQueries` on the Pi (the visibility HD-334
+> and the IoT dst-nat both cite as their purpose). Until those land: nothing in the Group / Upstream-Filter
+> columns is enforced, and the visibility claim must not be written up as achieved anywhere.
 
 ---
 
 ## Resolver upstream (forwarders) — HD-476
 
-✅ **live on the Pi tertiary 2026-09-29** — `forwarders = 1.1.1.1 + 9.9.9.9`, `forwarderProtocol = Udp`,
-`concurrentForwarding = true`. The VPS primary and the oldsrv secondary are seeded with `forwarders`
-**empty** on purpose (still root-chase); opting them in is an open ⏳ in HD-476, not an oversight.
+✅ **live on all THREE instances 2026-09-30** — `forwarders = 1.1.1.1 + 9.9.9.9`, `forwarderProtocol = Udp`,
+`concurrentForwarding = true` on the VPS primary, the oldsrv secondary and the Pi tertiary. The Pi leg landed
+2026-09-29; the other two on the owner's **2026-09-30 call** (option A1: both, **one shared list** —
+per-instance lists declined, [`network-rejected.md`](network-rejected.md) 2026-09-30). Nothing is seeded with
+`forwarders` empty any more; the flag is what carries it, and an instance that ever loses the flag reverts to
+root-chase on the next seed by design.
 
 **What changed.** Every instance ran `forwarders = null`, so whichever instance a client asked had to chase
 each cold public name from the **root servers** — with `dnssecValidation = true` and `qnameMinimization = true`
@@ -79,6 +88,28 @@ Home VLAN asks first, on ARM, so it paid the most:
 | 40-way browser-style fan-out, p50 / max | **143 / 162 ms** | **60 / 86 ms** | 74 / 80 ms | 46 / 55 ms |
 | same fan-out, total wall clock | 190 ms | 91 ms | 85 ms | 62 ms |
 | 120 sequential cold lookups, p50 | 49 ms | 38 ms | 50 ms | 32 ms |
+
+**The other two legs, measured on their own box (2026-09-30).** The pass above measured the Pi from the laptop
+and left the VPS unmeasured; the owner's yes-or-no needed that number, so both remaining instances were
+probed on the host, **before** the change and again after it, 12 cold disjoint domains per target:
+
+| Measured on the box itself, 2026-09-30 | root-chase p50 / tail | 1.1.1.1 direct p50 | after the change (fresh disjoint set) |
+|---|---|---|---|
+| VPS primary | **39 ms / 116 ms** | 15 ms | **~18 ms**, max 48 ms |
+| oldsrv secondary | **85 ms / 208 ms** | ~16 ms | **~40 ms**, max 132 ms |
+
+The residual tail after the change is the *forwarder's* cold cache for that name, not our chase depth.
+
+**How to tell root-chase from forwarding without the admin API (reusable, read-only).**
+`dig @<instance> o-o.myaddr.l.google.com TXT` returns the source address Google saw. A root-chasing instance
+returns **its own egress** — measured pre-change: VPS `159.195.111.66`, oldsrv `193.77.156.222`. A forwarding
+one returns the forwarder's — measured post-change: VPS `66.185.117.247`, oldsrv `162.158.246.12` (a
+Cloudflare range). The Pi cannot be probed this way (that box ships neither `dig` nor `nslookup`); its state
+rests on the 2026-09-29 hand-clear → re-seed cycle instead.
+
+⚠ **Method trap that makes a chase look fast:** `<random>.example.com` is **not** a cold probe — the
+`example.com` glue is already cached, so the whole chase collapses to one hop and reads 0–4 ms. Use disjoint
+*real* domains, and a **different set per target**, or the second target is reading the first one's cache.
 
 **Why the HA requirement is untouched — this was the acceptance question.** Forwarders are an **egress** knob:
 they change what the resolver asks outward, never which address clients ask or whether that address floats.
@@ -101,19 +132,30 @@ either: the Pi is the Home VLAN's first resolver precisely so the HA-primary tie
 standby (that requirement is why the ordering is not "fastest first"; see **HD-477** for the VIP question).
 
 **SSOT:** the list is `dns_resolver_upstreams` in [`group_vars/all/main.yml`](../IaC/ansible/group_vars/all/main.yml);
-the per-instance opt-in is `technitium_forwarders` on the Pi's `docker_services` entry in
-[`group_vars/raspberry_pi.yml`](../IaC/ansible/group_vars/raspberry_pi.yml); the API task is
+the per-instance opt-in is `technitium_forwarders` on **each** instance's `docker_services` entry —
+[`group_vars/vps.yml`](../IaC/ansible/group_vars/vps.yml) (primary),
+[`group_vars/home_servers.yml`](../IaC/ansible/group_vars/home_servers.yml) (oldsrv secondary) and
+[`group_vars/raspberry_pi.yml`](../IaC/ansible/group_vars/raspberry_pi.yml) (tertiary); the API task is
 `Technitium: set resolver upstream (forwarders) from SSOT` in
 [`technitium-seed.yml`](../IaC/ansible/roles/docker_services/tasks/technitium-seed.yml). It is **declarative**:
 an instance without the flag gets `forwarders=` cleared every seed (empty → readback stays `null`, proven a
 no-op rather than an API error). Push with `bash scripts/ansible-run.sh playbooks/dns-seed.yml [--limit …]`;
 the 2026-09-29 run proved the task drives the value — the forwarders were cleared by hand first and the
-converge restored them (`failed=0`, all three hosts).
+converge restored them (`failed=0`, all three hosts). The 2026-09-30 run (`--check` first, then detached)
+landed the two new legs `failed=0` with `changed=0` and **no container touched**: the key is read **only** by
+that API task, never by
+[`templates/docker_services/technitium/docker-compose.yml.j2`](../IaC/ansible/templates/docker_services/technitium/docker-compose.yml.j2),
+so the render cannot change — proven by `started=` timestamps unchanged afterwards (VPS 2026-09-03,
+oldsrv 2026-09-27, Pi 2026-09-03, all `restarts=0`). Internal answers stayed authoritative on every instance
+re-checked (`llm.kogler.si` → spark's Home address, `ha.kogler.si` → `ha_vip`, flags `qr aa`), on loopback **and**
+on the LAN address alike.
 
 ⚠ **Still un-owned by IaC:** the rest of the resolver's tuning is live-state product default that no role
 sets — `resolverTimeout` / `resolverRetries`, `maxConcurrentResolutionsPerCore`, `cacheMaximumEntries = 10000`,
 `dnssecValidation`, `qnameMinimization`, `serveStale`, `logQueries`. Forwarders removed the dominant cost; the
-rest stays UI-and-memory until the seed owns it.
+rest stays UI-and-memory until the seed owns it — registered as **HD-483** (and note the overlap: `logQueries`
+is also what **HD-482** needs, so whoever takes 483 should not set it to a value that silently closes or
+reopens that claim).
 
 ---
 

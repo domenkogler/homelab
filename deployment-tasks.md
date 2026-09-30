@@ -479,15 +479,26 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [ ] **HD-288** — `sunshine` deployment tail on oldsrv (the enable decision is resolved in IaC; the deploy +
       verify is not). · [hardware-gpu.md](docs/hardware-gpu.md)
 - [x] **HD-399** — `technitium-seed` made `--check`-safe: the seed block is gated `not ansible_check_mode`. **Done + proved 2026-09-22** by A/B on the same command (`home_servers.yml --limit oldsrv.kogler.si --check --tags docker_services`, off-box): before `ok=59 changed=0 failed=1` (aborted at `Technitium: extract session token`), after `ok=64 changed=0 failed=0` with the login `skipping`. ⚠ The class has an OPEN third instance one role earlier — `roles/tailscale-node`'s `tailscale ip -4` read (lane 414's file); the named form to run meanwhile is in the owning doc. · [deployment-ansible.md](docs/deployment-ansible.md) §Dry-run Mode
-- [x] **HD-476** — Technitium **resolver upstream** landed on the Pi tertiary (2026-09-29): `dns_resolver_upstreams`
+- [x] **HD-476** — Technitium **resolver upstream** landed on the Pi tertiary (2026-09-29), then on all three
+      instances (2026-09-30): `dns_resolver_upstreams`
       (1.1.1.1 + 9.9.9.9) in `group_vars/all/main.yml`, opt-in `technitium_forwarders` on the Pi's service entry,
       declarative API task in `technitium-seed.yml` (an instance without the flag is seeded with `forwarders`
       CLEARED). Applied with `playbooks/dns-seed.yml` — `--limit raspberry_pi` then `--limit vps:home_servers`,
       `failed=0` on all three hosts — and the task was proven to *drive* the value: the forwarders were cleared
       by hand first and the converge restored them. ⚠ The same pass measured the DNS tier against its own doc:
       **no block lists, no client custom options, `logQueries=false`** on both the Pi tertiary and the VPS primary,
-      so the per-subnet filtering and the per-device query log the docs describe are **not active** (open ⏳ in
-      HD-476). Rationale + measurements: [network-dns.md](docs/network-dns.md) §Resolver upstream.
+      so the per-subnet filtering and the per-device query log the docs describe are **not active** — registered
+      2026-09-30 as **HD-480/481/482** (+ **HD-483** for the unowned tuning, **HD-484** for oldsrv's own
+      `1.1.1.1` resolver, which is what stops the AI seat on that box naming `llm.kogler.si`).
+      ✅ **2026-09-30 — the remaining two legs landed on the owner's call (A1: VPS primary + oldsrv secondary,
+      one shared list; per-instance lists rejected):** `technitium_forwarders` added to both service entries,
+      `playbooks/dns-seed.yml` run `--check` first then detached, `failed=0` on all three and `changed=0`, with
+      **no container recreated** — the key is read only by the API task, never by the technitium compose template,
+      proved by `started=` 2026-09-03 (VPS) / 2026-09-27 (oldsrv) / 2026-09-03 (Pi), all `restarts=0`. Cold-name
+      cost measured on each box: VPS p50 **39 ms (tail 116) → ~18 ms**, oldsrv **85 ms (tail 208) → ~40 ms**;
+      state proven without the admin API by the egress-signature probe (own IP before → Cloudflare range after),
+      and internal answers stayed authoritative (`qr aa`) on loopback **and** the LAN address alike. Rationale +
+      measurements: [network-dns.md](docs/network-dns.md) §Resolver upstream.
 - [ ] **HD-133** — subscription renewal reminders (SSOT `subscriptions.yml`) driving Homepage + calendar + n8n. · [subscription.md](docs/subscription.md)
 - [ ] **HD-238** — write the oldsrv→VPS DR runbook for the non-GPU services (an imperative procedure, not prose). ✅ **Written 2026-09-21**: backup.md §Runbook — restore the non-GPU tier on a replacement VPS + §Restore drill (yearly) + a VPS-loss row in §Recovery Paths. ⏳ Owner: schedule/run the drill (its tick needs the dated result) and decide the per-service fail-over-vs-accept-loss table. · [backup.md](docs/backup.md)
 - [ ] **HD-45** — network dashboard / who-is-on-network (re-scoped 2026-09-09). · [observability.md](docs/observability.md)
