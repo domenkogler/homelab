@@ -1,0 +1,53 @@
+
+===== CROP PROBE 2026-09-30 21:23:36 =====
+model=vision-qwen3vl-30b temperature=0.0 max_tokens=64
+question: Read the MODEL NUMBER of the rack-mount switch label in this image, exactly as printed. If no switch label is visible in this image, answer with exactly: NOT VISIBLE
+resident: IDENTIFIER            MODEL                        STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL | vision-qwen3vl-30b    qwen3-vl-30b-a3b-instruct    IDLE   
+96-tile-r0c0.jpg     1236 KB  prompt= 4065  67.6s  -> 'CRS328-24P-4S-RM'
+96-tile-r0c1.jpg     1235 KB  prompt= 4065  65.7s  -> 'NOT VISIBLE'
+96-tile-r0c2.jpg     1248 KB  prompt= 4065  65.4s  -> 'NOT VISIBLE'
+96-tile-r1c0.jpg     1333 KB  prompt= 4065  65.4s  -> 'NOT VISIBLE'
+96-tile-r1c1.jpg     1318 KB  prompt= 4065  66.6s  -> 'NOT VISIBLE'
+96-tile-r1c2.jpg     1309 KB  prompt= 4065  64.9s  -> 'NOT VISIBLE'
+96-full-fifth.jpg     403 KB  prompt= 1983  20.6s  -> 'NOT VISIBLE'
+expected if readable: docs/network-rack.md U15 = 'MikroTik CRS328-24P-4S+ Switch' (label photo docs/assets/images/CRS328.png)
+previous full-frame answers (raw/91/92, temperature 0 and default): CRS326-24G-2S+RM x5, CRS326-24P-2S+RM x1
+===== CROP PROBE FINISHED 2026-09-30 21:30:32 =====
+
+===== CROP PROBE 2026-09-30 21:32:10 =====
+model=vision-qwen3vl-30b temperature=0.0 max_tokens=64
+question: Read the MODEL NUMBER of the rack-mount switch label in this image, exactly as printed. If no switch label is visible in this image, answer with exactly: NOT VISIBLE
+resident: IDENTIFIER            MODEL                        STATUS    SIZE        CONTEXT    PARALLEL    DEVICE    TTL | vision-qwen3vl-30b    qwen3-vl-30b-a3b-instruct    IDLE   
+96-tile-r0c0.jpg     1236 KB  prompt= 4065  1.0s  -> 'CRS328-24P-4S-RM'
+96-tile-r0c0.jpg     1236 KB  prompt= 4065  0.8s  -> 'CRS328-24P-4S-RM'
+96-tile-r0c0.jpg     1236 KB  prompt= 4065  0.8s  -> 'CRS328-24P-4S-RM'
+CRS328.png           1004 KB  prompt=  528  3.9s  -> 'CRS328-24P-4S+RM'
+CRS328.png           1004 KB  prompt=  528  0.6s  -> 'CRS328-24P-4S+RM'
+expected if readable: docs/network-rack.md U15 = 'MikroTik CRS328-24P-4S+ Switch' (label photo docs/assets/images/CRS328.png)
+previous full-frame answers (raw/91/92, temperature 0 and default): CRS326-24G-2S+RM x5, CRS326-24P-2S+RM x1
+===== CROP PROBE FINISHED 2026-09-30 21:32:17 =====
+
+--- analyst note (same session) ---
+
+VERDICT: framing/pixel-allocation, NOT a perception floor. The leg transcribes the SKU exactly when
+the label fills the frame, and it does not invent one when there is no label.
+
+  * docs/assets/images/CRS328.png (the repo's own label photo, a KNOWN answer): 'CRS328-24P-4S+RM'
+    twice, character-perfect against docs/network-rack.md U15 INCLUDING the '+' after 4S, 528
+    prompt_tokens, 3.9 s cold / 0.6 s cached.
+  * 96-tile-r0c0.jpg (top-left quarter of the rack photo): 'CRS328-24P-4S-RM' four times, greedy,
+    stable; loses only the '+'.
+  * the other five tiles: 'NOT VISIBLE'. Five correct refusals is the result that makes the first
+    two credible - the model is not decorating empty frame with a plausible SKU.
+  * the whole frame shrunk to 1632x1224: 'NOT VISIBLE'. Shrinking is strictly worse.
+  * cost saturates: 8160x6120 = 4042-4060 tokens; a 3264x3672 quarter = 4065 (THE SAME CAP);
+    1120 px variant = 937; label closeup = 528. Past ~3 MP you pay the cap and lose detail.
+    So: CROP, do not shrink. Tokens are capped either way; detail per target scales with the
+    target's share of the frame.
+  * repeats of an identical image+question cost 0.6-1.0 s vs 65 s cold (prefix cache covers the
+    image tokens), confirming raw/92's rule.
+
+The six non-reading crops were deleted after analysis: 96_crop.ps1 regenerates them deterministically
+from the committed original8160.jpg, and 7 MB of derived bulk in git would be a worse record than a
+script that reproduces them. 96-tile-r0c0.jpg is kept because it is the artifact that changed the
+conclusion.

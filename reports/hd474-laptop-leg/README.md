@@ -142,8 +142,9 @@ Three things fall out that no model card mentions:
 | KV arithmetic | 2 × 48 × 4 × 128 × 2 B = **98 304 B/token = 96 KiB** → 32 k = **3.0 GiB** (5× Gemma's 20 KiB) | header, not the model card |
 | Decode | **23.84 t/s** — faster than the agent leg | `raw/68` |
 | Boot + image cost | `lms load … -c 32768 --identifier vision-qwen3vl-30b -y --parallel 1` ready in **28 s**, **23.12 GiB** dedicated under a 2.28 GiB desktop. 8160×6120 photo: **4042–4060 prompt_tokens, 61–72 s** (≈56–66 t/s); 1120 px variant **937 tokens / 13.6 s** | `raw/68`, `raw/73`, `raw/88` |
-| **It sees; it does not transcribe** | the switch model number was asked **five times** (3 at the file's sampling, 2 greedy at `temperature 0`): **`CRS326-24G-2S+RM`** every time (once `…24P-2S+RM`), while `docs/network-rack.md` U15 records **`CRS328-24P-4S+`** with a label photo behind it. It did read `CAT6` ×3, the 1–24 port numbering, `Cloud Router Switch`, a CRS3xx family, and "24,8" for Ethernet/SFP ports. Greedy agreement rules out sampling noise, so this is perception | `raw/91`, `raw/92` |
-| Which corrects the 2026-09-29 claim | "OCR'd `CRS328-24P-4S+RM` verbatim, corroborated against the rack doc" is **not reproducible**. The label photo stays the authority; the vision leg does not get to overwrite an inventory string | `raw/91` vs `raw/73` |
+| **It transcribes — when the target fills the frame** | Settled by cropping the same photo into a 2×3 grid chosen without looking at it, plus a known-answer control (`docs/assets/images/CRS328.png`, the repo's own label photo). Result: the wide 8160×6120 frame reads **`CRS326-24G-2S+RM`** five greedy times; the top-left quarter reads **`CRS328-24P-4S-RM`** four times; the label photo reads **`CRS328-24P-4S+RM`** — character-perfect against `docs/network-rack.md` U15, `+` included, for **528 tokens in 3.9 s**. Five of the other five tiles answered **`NOT VISIBLE`**, so it does not decorate empty frame with a plausible SKU | `raw/96-crop-probe.txt` |
+| So the earlier "perception floor" reading was wrong | Written at 04:12Z from `raw/91`/`raw/92` and overturned by `raw/96` at 21:30Z: greedy agreement across five wide-frame answers proved the answer was *stable*, not that it was *perceived*. The correct statement is a pixel-allocation limit with a known fix, not a broken organ — and the 2026-09-29 "OCR'd it verbatim" claim stays corrected either way, because it was never reproducible **on the frame it claimed** | `raw/91`, `raw/92`, `raw/96` |
+| **CROP, do not shrink (the cost rule)** | Image tokens **saturate**: full frame **4042–4060**, a 3264×3672 quarter **4065** — the same cap; 1120 px variant **937**; label closeup **528**. Past ~3 MP you pay the cap and discard detail, so a crop costs the same and reads. Shrinking was tested and is strictly worse: whole frame at 1/5 → `NOT VISIBLE` | `raw/96` |
 | **The image-cache rule** | same question twice on one image costs **2.0 s** the second time; **any new question re-pays ~60 s** — the text part precedes the image in the message, so changing it invalidates the cached image tokens. Ask several things of one photo → put the image first or freeze the question | `raw/92` |
 | 32 k window | **31 809 tokens accepted in 915 s**, **23.92 GiB** dedicated; over-window requests refused in 0 s (clean 400, no crash) | `raw/ctx32k.out` |
 | Budget | 16.50 + 1.01 + 3.00 KV + 0 + 3.00 floor = **23.51 of 32 GiB**, margin +8.49 | `laptop-llm.py budget` |
@@ -228,14 +229,14 @@ the same kind of claim this repo refuses to accept from a model.
 | D6 | `raw/gguf_hdr.py` read a GGUF array's element type as `uint8` | The reader desynced at the first array key and printed an **empty** metadata set for the Qwen-VL file — i.e. the KV arithmetic looked unreadable and would have been copied from the model card instead | Element type is `uint32`; the header now parses all 48 keys and `98 304 B/token` is derived from the file (`raw/84-qwenvl-header.txt`) |
 | D7 | `scripts/pi-config/models-spec.yml` named `qwen/qwen3.6-35b-a3b-mtp` as the laptop's row while the dial was on `agent-gemma-26b` | The contract pointed at a model that is not on disk and never booted; pi would have 400'd on the first call. Nothing caught it because `probe-client` SKIPped (D2) | Rows are now the two legs that exist, keyed by **served identifier = profile name** (`--identifier <profile>`), with the image-size and one-resident rules written next to them |
 | D8 | **LM Studio's endpoint does not police the `model` field.** With only the vision leg resident, a chat request naming `no-such-model-here` was answered — `'PONG'`, 0.4 s — **by the resident model** | A wrong or stale row in `models-spec.yml`, or the wrong leg loaded, is not a 400: the harness is silently served a DIFFERENT MODEL than the picker claims. (Images *are* policed: 400 *"does not support image inputs"* in 0 s — so the text-only leg fails loudly, which is the half of the contract that already worked.) This invalidated a claim this very report was about to make ("a dead row is loud") | `probe-client` now reads `/v1/models` and FAILs when the row it is certifying is not resident. Proven by the real transition: FAIL with the vision leg loaded → PASS after `switch -Profile agent-gemma-26b` |
-| D9 | The repo's own claim that the vision leg "OCR'd `CRS328-24P-4S+RM` verbatim" was **not reproducible** | Not a code defect — a measurement claim that would have propagated into `network-rack.md` and been trusted. The new strict verdict (`--expect`, D4) is what caught it: five greedy passes all answered `CRS326-24G-2S+RM` | Recorded in §4 and in the profile row as `vision_caveat`: the leg judges structure and reads label *text*, it does not transcribe identifiers. The label photo stays the authority |
+| D9 | The repo's own claim that the vision leg "OCR'd `CRS328-24P-4S+RM` verbatim" was **not reproducible on the frame it named** | Not a code defect — a measurement claim that would have propagated into `network-rack.md` and been trusted. The new strict verdict (`--expect`, D4) is what caught it: five greedy passes on that frame answered `CRS326-24G-2S+RM`. **The evening follow-up (`raw/96`) refined the cause**: a blind quarter-crop read `CRS328-24P-4S-RM` and the known-answer label photo read it perfectly, so the limit is pixel allocation, not sight — the claim was still unreproducible *as written*, and the strict verdict was still right to fire | Recorded in §4, §6b and the profile row as `vision_caveat`, with the operative rule: **crop, do not shrink**, and re-ask of a crop before believing a disagreement |
 
 ### 6b · Things this run measured that contradict what this repo (or the previous session) said
 
 | Claim before | Measured |
 |---|---|
 | "`probe-client` must PASS, not SKIP" was assumed achievable | On this box it could not: the hostname mismatch (D2) made it SKIP forever |
-| Vision leg OCR'd the switch SKU and corroborated the rack doc | Five greedy passes: `CRS326-24G-2S+RM`. Not sampling noise. The doc's label photo wins |
+| Vision leg OCR'd the switch SKU and corroborated the rack doc | On that frame, five greedy passes said `CRS326-24G-2S+RM` — so the claim was corrected. Then `raw/96` cropped the photo and the SAME leg read `CRS328-24P-4S-RM`, and read the label photo character-perfect with the `+`. Both halves are true: the 09-29 claim was unreproducible **as written**, and the leg is not blind — it is frame-limited |
 | "Two resident models fit, three do not" (§Memory & residency) | **One** 30B-class leg fits: the vision leg alone is 23.12–23.92 GiB of a ~24 GiB adapter |
 | Decode ≈ 17.5 t/s, one number for the box | 21.1 / 18.3 / 8.3 t/s at 2.5 k / 10.6 k / 31 k tokens of context |
 | Cold prefill ~250 t/s (small) — implied stable | At 10.6 k tokens the same prompt cost 259 s once and 69 s another time; at 20.8 k, 277–899 s across three loads |
@@ -268,7 +269,21 @@ the same kind of claim this repo refuses to accept from a model.
 
 ---
 
-## 8 · State left behind
+## 8 · Coordination notes for the next session (written 2026-09-30 evening)
+
+**9a · One duplicate row id is still live: `HD-477`.** `todo.md` carries this lane's *"Gemma text-only load + larger context"* **and** the DNS lane's *"The DNS resolver does NOT float with the VIP"* under the same number, with nothing complaining. When this section was written (21:30Z) `HD-476` was duplicated too; the DNS lane reconciled that itself while this change sat in review — it closed its own row (`71b27efe`) and moved the reconcile to `HD-480`…`HD-484`, so **`HD-476` is unambiguously this lane's vision leg again**. The mechanism is recorded once, as a guard gap, at **HD-485** (*"`check_todo_done.py` is not duplicate-ID aware"*) — do not re-implement it here. The shape of the failure, so it is not re-blamed on a person: a lane branched from a base that lacked the other lane's already-pushed commit, both derived max+1, and `git merge` had no opinion. Until `HD-477` is reconciled, match these rows **by subject text, never by `grep '^| HD-477'`**, and do not cite `HD-477` meaning the laptop leg.
+
+**9b · What the evening session (`raw/96`) changed.** The vision leg's inability to read the rack SKU
+was reported here at 04:12Z as a perception limit and is now corrected to a frame/pixel-allocation
+limit with a measured workaround (crop, don't shrink; token cost saturates ~4.1 k). `todo.md`,
+`profiles.yml`, `docs/hardware-workstation.md` and `docs/services-ai.md` #28 all carried the earlier
+wording and were updated in the same change. Lesson worth keeping: **greedy agreement proves
+stability, not perception** — the way to test a reading you distrust is to change what is in the
+frame, and to feed it one image whose answer you already know.
+
+---
+
+## 9 · State left behind
 
 * Worktree **`D:\source\domenkogler\homelab-wt-hd474`**, branch `session/hd474-win11-certify-2`.
   The branch name from the brief (`session/hd474-win11-certify`) already exists **and is merged**
