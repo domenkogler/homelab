@@ -1,0 +1,96 @@
+== guard-session.sh --validate-mode (session-discipline hard gate, HD-253) ==
+== guard-session.sh --self-test (sandboxed guard fixture, HD-253) ==
+guard-session: ok: primary+main+DIRTY (pre-edit guard) → refused
+guard-session: ok: primary+main+DIRTY (validate gate) → refused
+guard-session: ok: refusal prints remediation command with live timestamp
+guard-session: ok: primary+main+CLEAN (pre-edit guard — editing IS the violation) → refused
+guard-session: ok: clean-main merge-station exemption (validate) → silent pass
+guard-session: ok: session worktree branch≠main, dirty (pre-edit guard) → passed
+guard-session: ok: session worktree branch≠main, dirty (validate gate) → passed
+guard-session: ok: detached HEAD pass-through → passed
+guard-session: SELFTEST OK: all guard cases passed (fixture removed)
+== guarded-converge.sh --self-test (post-converge liveness verdict, HD-436) ==
+self-test ok: healthy-flat → green (samples=3 restartcount=0 stable)
+self-test ok: crash-loop → red (liveness defects: restartcount-was-climbing 0->1@2 restartcount-was-climbing 1->2@3)
+self-test ok: both-extra-records → red (liveness defects: app-probe rc=1@1 app-probe rc=1@2)
+self-test ok: down → red (liveness defects: not-running@1)
+self-test ok: unhealthy → red (liveness defects: health=unhealthy@1)
+self-test ok: empty-input → red (no samples read — the probe measured nothing)
+self-test ok: single-true-sample → green (samples=1 restartcount=0 stable)
+SELFTEST OK: the verdict accepts liveness and refuses the crash-loop shape
+== validate-docker-services.py ==
+PASS: 78 docker_services templates valid
+== validate_blueprints.py ==
+PASS D:\source\domenkogler\homelab-wt-20260930-2117\IaC\ansible\templates\docker_services\authentik\blueprints\ks-forward-auth.yml
+PASS D:\source\domenkogler\homelab-wt-20260930-2117\IaC\ansible\templates\docker_services\authentik\blueprints\ks-oidc.yml
+OK: all blueprints valid
+== check_doc_ips.py ==
+OK: no internal IP literals outside docs/network-addresses-generated.md
+== check_traefik_host_rules.py ==
+OK: no whitespace inside any Host() matcher or quoted certificate path
+== validate_doc_templates.py ==
+===== network-addresses.md.j2 rendered OK (8824 bytes) =====
+===== inventory.md.j2 rendered OK (13155 bytes) =====
+== validate-secrets.py ==
+OK: no literal credentials in group_vars/host_vars/role defaults/templates
+== check_doc_map.py ==
+OK: 83 docs/ in Document Map; 98 canonical files scanned; all links resolve
+== check_generated_suffix.py ==
+OK: 4 generated docs carry the -generated suffix; no hand-authored doc wrongly carries it
+== check_vault_name.py ==
+OK: no bare 'Homelab' vault references in 455 scanned files
+== check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated) ==
+OK: 67 deploy-gated item(s) all open in todo.md; every tick dated; no status prose in blocks
+== check_runbook_purity.py (runbook = imperative procedure only) ==
+OK: runbook is procedure-only (1916 lines, 9 phases aligned with the ledger)
+== check_vault_docs.py (every IaC-read vault item is documented) ==
+OK: all 79 IaC-referenced vault items are documented in deployment-secrets.md
+== check_placeholders.py ==
+OK: no placeholder tokens outside designated files (797 files scanned)
+== check_todo_done.py (CONVENTIONS §4(a) done-row sweep) ==
+INFO: 6 decided/rejected/superseded row(s) still in todo.md — the owning <domain>-rejected.md decision log is the owner, not the backlog:
+  - HD-476: rejected/superseded; consider moving to the decision log
+  - HD-04: rejected/superseded; consider moving to the decision log
+  - HD-17: rejected/superseded; consider moving to the decision log
+  - HD-337: rejected/superseded; consider moving to the decision log
+  - HD-264: rejected/superseded; consider moving to the decision log
+  - HD-474: rejected/superseded; consider moving to the decision log
+OK: 106 todo.md rows scanned; 104 open ROWs, 7 HDs in prompt.md; no fully-done rows / stale prompt claims (CONVENTIONS §4)
+== check_todo_done.py --self-test (marker grammar: glyphs or UPPERCASE words, never prose) ==
+OK: check_todo_done self-test passed (22 marker-grammar cases, 6 row-classification cases)
+== check_secrets.py (secret shapes in the tracked tip, archive members included) ==
+OK: no secret shapes in 1209 files (index + untracked; archive members scanned too)
+== check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity) ==
+OK: split-horizon seed contract holds (43 records × 3 instances)
+== check_self_converge_guard.py (HD-413 guardrail completeness, static) ==
+[detected] 6 guarded role(s) justified by behaviour: cockpit, network, storage, tailscale-node, vps-hardening, wireguard
+[exempt] 6 role(s) exempt by written argument: ai_diag, cifs, common, home_assistant, nut, spark
+OK: self-converge guard covers 6 lockout role(s) (cockpit, network, storage, tailscale-node, vps-hardening, wireguard) across 5 guarded play(s); fail-loud, controller-side identity, tag parity intact
+== testdata/check-vault-items/run.sh (scanner self-test, HD-244/245) ==
+== testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime) ==
+SKIP: ansible-playbook not functional on this host — self-converge guard fixture runs under WSL/CI
+== portability sweep (bash -n + python3 -m py_compile, HD-256) ==
+OK: all bash/sh scripts pass bash -n
+OK: all scripts/*.py compile under python3
+== sync-skills.sh --check --strict (skill drift gate, HD-254) ==
+  comparing repo skills/  <->  deployed (/c/Users/domen/.pi/agent/skills)
+  OK: repo skills == deployed (no drift, no encoding violations)
+== check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow) ==
+OK: 27 Prometheus/Loki mentions (floor 27) — no regrowth of the retired backend names (HD-404/HD-342)
+== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) ==
+OK: self-test — regrowth is counted, removal is counted, and FLOOR is not below the corpus it guards (HD-404)
+== knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project) ==
+OK: self-test — the emitter reader sees every address field, an address outside the ETS project is caught, a clean render is not (HD-439)
+== check_md_tables.py (HD-417: no table row wider than its header) ==
+OK: 152 markdown file(s) — no table row is wider than its header (HD-417)
+== check_md_tables.py --self-test (HD-417 cell-count canary) ==
+OK: self-test — a widened row (stray pipe, even inside a code span, or a swallowed newline) is caught; escaped pipes and short rows are not (HD-417)
+== check_iac_backend_strings.py (HD-404: retired-backend names may not regrow) ==
+OK: 27 Prometheus/Loki mentions (floor 27) — no regrowth of the retired backend names (HD-404/HD-342)
+== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) ==
+OK: self-test — regrowth is counted, removal is counted, and FLOOR is not below the corpus it guards (HD-404)
+== check_merge_markers.py (HD-453: no conflict markers in tracked files) ==
+OK: no merge-conflict markers in tracked files (HD-453)
+== check_merge_markers.py --self-test (HD-453 canary) ==
+FAIL: check_merge_markers.py self-test — 1 problem(s):
+  - canary conflict_divider_only.txt: marker NOT detected (gate would stay green)

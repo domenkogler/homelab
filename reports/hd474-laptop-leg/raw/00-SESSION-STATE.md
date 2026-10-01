@@ -150,3 +150,47 @@ The injected reminder to "read `skills/md-tables/SKILL.md` before writing a mark
 at a file that **does not exist on this box** (`~/.pi/agent/skills` has only mikrotik, platform-env,
 shelly; the repo has no `skills/`). The repo's real equivalent is `scripts/check_md_tables.py`,
 which I ran after every doc edit.
+
+---
+
+## EVENING SESSION — 2026-09-30 ~21:30Z (`session/rack-sku-crop-20260930`, worktree `homelab-wt-20260930-2117`)
+
+Two owner-asked items, both small, one of which overturned this report's own morning conclusion.
+
+**`nul` deleted** from the primary checkout (0-byte Windows junk from a `2>nul`, dated 2026-09-19). One of
+the two untracked files that made `guard-session.sh` refuse `validate-all` there; the other,
+`docs/assets/images/20260812_185130.jpg`, is the owner's call (possibly the source of
+`original8160.jpg`).
+
+**The SKU question, closed by `raw/96`.** Morning's conclusion ("the vision leg sees but does not
+transcribe; perception, not sampling") was **wrong**, and the way it was wrong is the lesson: five greedy
+answers proved *stability*, and stability was read as *sight*. Cutting the same photo into a 2×3 grid
+chosen without looking at it settled it in one pass —
+
+| input | tokens | answer |
+|---|---|---|
+| whole 8160×6120 frame (`raw/91`, `raw/92`) | 4042–4060 | `CRS326-24G-2S+RM` ×5 |
+| top-left quarter `96-tile-r0c0.jpg` | 4065 | **`CRS328-24P-4S-RM`** ×4 |
+| other five tiles | 4065 | `NOT VISIBLE` (correct — no label in frame) |
+| whole frame at 1/5 | 1983 | `NOT VISIBLE` (shrinking is strictly worse) |
+| `docs/assets/images/CRS328.png` (known answer) | **528** | **`CRS328-24P-4S+RM`, perfect, `+` included**, 3.9 s |
+
+Image tokens **saturate at ~4.1 k**: the full frame and a 3264×3672 quarter cost the same. So the rule for
+any seam reading small text is **crop, never shrink** — a crop is free relative to the big photo and it
+reads. Docs updated in the same change: `docs/hardware-workstation.md`, `docs/services-ai.md` #28,
+`prompt-lmstudio.md`, the profile's `vision_caveat`, and the vision todo row. The 2026-09-29 "OCR'd it
+verbatim" claim stays corrected — it was never reproducible *on the frame it named*.
+
+**Kept / deleted artifacts:** `96_crop.ps1`, `96_probe.py`, `96-crop-probe.txt` and `96-tile-r0c0.jpg`
+committed; the other six crops deleted — `96_crop.ps1` regenerates them from the committed photo, and 7 MB
+of derived JPEGs in git is a worse record than a deterministic script.
+
+**Engine left unloaded** (`lms unload --all`), as found.
+
+**Blocker worth not rediscovering:** the oldsrv/VPS clone probe for the missing `20b49f4` (cited by the
+`zone_kogler_si` row) could not run: `SSH_AUTH_SOCK` is empty in git-bash, so ssh offers only `.pub` files
+and auth fails (`Permission denied (publickey)`). Same root cause as the signing failure earlier in the
+day. Run it from a shell where the 1Password agent is visible.
+
+**Also still standing, unchanged:** the `HD-476`/`HD-477` duplicate row ids (see report §8) — this session
+deliberately minted no new references to either id for the laptop legs.

@@ -457,15 +457,23 @@ profiles:
                                           # 61-72 s. SEE ALSO THE TRANSCRIPTION CAVEAT BELOW - it
                                           # does not read a part number reliably.
     vision_caveat: >-
-      NOT a transcription instrument at the SKU level, measured not assumed: asked the same
-      targeted question five times (three at the file's sampling, twice greedy at temperature 0)
-      it answered 'CRS326-24G-2S+RM' five times and 'CRS326-24P-2S+RM' once, while
-      docs/network-rack.md U15 records 'CRS328-24P-4S+' with a label photo behind it
-      (docs/assets/images/CRS328.png). Greedy agreement rules out sampling noise, so this is
-      perception, not luck. The 2026-09-29 note that it OCR'd CRS328 verbatim is therefore NOT
-      reproducible and the doc's label photo, not the model, stays the authority. Use this leg for
-      judgment and structure; verify any transcribed identifier against the inventory.
-    certified: true                       # HD-476, 2026-09-30
+      Transcribes correctly WHEN THE TARGET FILLS THE FRAME; loses it in a wide frame. Settled by
+      cropping rather than by arguing (raw/96-crop-probe.txt): the untouched 8160x6120 rack photo
+      read 'CRS326-24G-2S+RM' five greedy times, but a top-left quarter of the SAME photo read
+      'CRS328-24P-4S-RM' four times and the repo's own label photo
+      (docs/assets/images/CRS328.png, a known answer) read 'CRS328-24P-4S+RM' character-perfect,
+      '+' included, for 528 tokens in 3.9 s. Five of the six other tiles answered 'NOT VISIBLE',
+      so it does not decorate empty frame with a plausible SKU. The rule that comes out of this is
+      about pixels, not trust: image token cost SATURATES (full frame 4042-4060 tokens, a 3264x3672
+      quarter 4065 - the same cap; 1120 px variant 937; label closeup 528), so CROP rather than
+      SHRINK; past ~3 MP you pay the cap and throw away the detail you paid for. Shrinking was
+      tested and is strictly worse (whole frame at 1/5: 'NOT VISIBLE'). Practical: still verify a
+      transcribed identifier against the inventory, and when a reading disagrees, re-ask of a crop
+      before believing either answer.
+    certified: true                       # certified by measurement 2026-09-30 (laptop vision leg;
+                                          # the todo row id is pending renumber - the laptop lane's
+                                          # HD-476/477 collide with the DNS lane's; see the report
+                                          # §8 for the collision note before citing either id.
     uncertified_reason: null
     certified_evidence: 'reports/hd474-laptop-leg (raw/68,72,73, ctx32k.out, raw/88-certify.txt, raw/91,92)'
 

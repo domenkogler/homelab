@@ -87,18 +87,29 @@ which is *faster* than the agent leg's decode at the same depth (18.3 t/s at a 1
 dead and dense-4B is no longer needed as a fast-round-trip fallback — the MoE is the fast one here.
 
 **What vision actually costs on this box** (`raw/68`, `raw/72`, `raw/73`, `raw/88`, `raw/91`,
-`raw/92`): the untouched **8160×6120 / 10.6 MB** rack photo is accepted as-is — **4042–4060
+`raw/92`, `raw/96`): the untouched **8160×6120 / 10.6 MB** rack photo is accepted as-is — **4042–4060
 prompt_tokens, 61–72 s**, i.e. **image prefill at ~56–66 t/s** — and the engine is still IDLE
-afterwards. It sees: `CAT6` three times, the 1–24 patch-panel numbering, `Cloud Router Switch`, a
-`CRS3xx` model. **It is not a transcription instrument, and that is a measurement, not a hunch**:
-asked for the switch's model number five times — three at the file's sampling, twice greedy at
-`temperature 0` — it answered `CRS326-24G-2S+RM` every single time, while
-[network-rack.md](network-rack.md) U15 records `CRS328-24P-4S+` with a label photo behind it.
-Greedy agreement rules out sampling noise, so this is perception. **This corrects the 2026-09-29
-note here that it OCR'd `CRS328-24P-4S+RM` verbatim and thereby corroborated the rack doc: that
-result is not reproducible, and the label photo — not the model — stays the authority.** Use the leg
-for judgment (is the label legible, which slot is occupied, what is plugged in); verify any
-transcribed identifier against the inventory. A 32k window of this model is **3.0 GiB of KV** (96
+afterwards. It reads the scene: `CAT6` three times, the 1–24 patch-panel numbering, `Cloud Router
+Switch`, a `CRS3xx` model.
+
+**It transcribes correctly when the target fills the frame, and that had to be measured twice to get
+right.** Five greedy asks of the whole photo returned `CRS326-24G-2S+RM` while
+[network-rack.md](network-rack.md) U15 records `CRS328-24P-4S+` — which was first read here as a
+perception limit. Cropping settled it: the photo was cut into a 2×3 grid chosen **without looking at
+it**, and the top-left quarter read **`CRS328-24P-4S-RM`** four times (greedy, stable), while five of
+the other tiles answered **`NOT VISIBLE`** — no invented SKU in empty frame. The decisive control was
+the repo's own label photo, an image whose answer is already known:
+[`assets/images/CRS328.png`](assets/images/CRS328.png) came back **`CRS328-24P-4S+RM`,
+character-perfect including the `+`, for 528 tokens in 3.9 s**. So the limit is **pixel allocation,
+not sight**, and the 2026-09-29 claim that it OCR'd the SKU verbatim stays corrected for a different
+reason: it was never reproducible *on the frame it claimed*.
+
+**CROP, do not shrink.** Image tokens **saturate** — full frame 4042–4060, a 3264×3672 quarter
+**4065** (the same cap), the 1120 px variant 937, the label closeup 528 — so a crop costs what the
+huge photo already cost and returns detail, while shrinking is strictly worse (whole frame at one
+fifth: `NOT VISIBLE`). Past ~3 MP you are paying the cap and discarding what you paid for. Practical
+rule for any seam that reads small text off a large photo: send the region, not the frame, and when a
+reading disagrees with the inventory, re-ask of a crop before believing either answer. A 32k window of this model is **3.0 GiB of KV** (96
 KiB/token) and the whole load measures **23.92 GiB**, so nothing else is resident while it runs.
 
 **Ask a photo once, or ask it the same way twice.** Re-asking the *identical* question on the same
