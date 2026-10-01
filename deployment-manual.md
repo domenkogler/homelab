@@ -1949,7 +1949,13 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    user.email` + the signing pointer in step 4 (the signing key needs a human `op` sign-in; the read-scope SA
    cannot read it).
 
-9. **Stop / roll back:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
+9. **Update / stop / roll back.** **Update:** the cockpit's own Update button, or by hand as `domen` with
+   the Node dir on PATH — `pi install npm:@ygncode/pi-web@beta`. The updater restarts `pi-web.service`
+   itself and leaves the drop-in directory alone; re-check anyway — `systemctl --user show pi-web.service
+   -p Environment` must still print the `pi-on-path` PATH, since an update that rewrote the fragment
+   without it returns the 500 signature again. **Updating pi-web does not update `pi`** (that is a separate
+   `npm install -g @earendil-works/pi-coding-agent` against the same prefix).
+   **Stop:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
    --now pi-web.service`, then remove the drop-in to return to the installer's loopback-only default.
    To undo only the PATH fix, delete `pi-on-path.conf` and `systemctl --user daemon-reload &&
    systemctl --user restart pi-web.service` — the symptom returns as `GET /api/models` → HTTP 500

@@ -902,6 +902,13 @@ against the rendered `models.json`), it is simply a **symlink** (`bin/pi ->
 symlink. The version gap is now measured rather than inferred: **seat pi 0.87.1 + pi-web beta.36** (beta.38
 available) vs **laptop pi 0.99.2**.
 
+✅ **2026-10-01, later the same hour — the seat self-updated on the phone.** The UI's Update button is what
+the missing PATH had been killing; with the drop-in in place it ran end-to-end and the seat is now
+**pi-web beta.38**. Two facts worth keeping: the updater **restarts `pi-web.service` itself** and leaves the
+drop-in directory untouched (`Environment=PATH=…` still in effect after the restart, `NRestarts=0`), and
+**updating pi-web does not update `pi`** — the harness is still 0.87.1, which is exactly HD-484's remaining
+tail.
+
 ✅ **2026-10-01 — the seat's harness defaults are landed too** (HD-484's last seat-local half):
 `~/.pi/agent/settings.json` now carries the whole [pi-harness.md](pi-harness.md) §5 block
 (`defaultProvider`/`defaultModel` = spark, `defaultThinkingLevel: off`, timeouts, compaction) with the
