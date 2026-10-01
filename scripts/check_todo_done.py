@@ -11,6 +11,12 @@ This linter catches the recurring drift where a session marks a row ✅ but forg
 the §4(a) delete step, leaving a *done* row in the backlog (2026-09-08 sweep:
 HD-198 was exactly this — done + no tail, only removed by manual audit).
 
+It is also the duplicate-ID gate (HD-485): a lane branched from a base that lacked the
+earlier push re-derives `max+1`, two rows reach main with one id, and the merge reports no
+conflict because the two rows sit in **different module sections** — only an id-aware check
+can see it. It also prints the minting evidence (highest id ever used + the next mintable id),
+so a session mints from the registry instead of guessing.
+
 What is flagged (exit 1):
   * fully_done — a row whose body carries a completion marker (✅, ✔, DONE,
     LIVE, COMPLETE, CLOSED, RESOLVED, VERIFIED) for the row's own outcome, and
@@ -93,6 +99,8 @@ _DONE_MARKER_RE = re.compile(f"[{_GLYPHS}]|\\b(?:{'|'.join(_PROMPT_DONE_MARKERS)
 # ("**Superseded note (2026-09-03):** …", "superseded by decisions #24/#25"), so this one
 # stays case-INSENSITIVE. Word boundaries still apply, so "unsuperseded" cannot match.
 _REJECT_RE = re.compile(r"\b(?:REJECTED|SUPERSEDED)\b", re.IGNORECASE)
+# Markdown link TARGETS only — `[text](path)` -> `text`. A path is a filename, never a claim.
+_LINK_TARGETS_RE = re.compile(r"\]\(([^)]*)\)")
 # If any of these appear in the text AFTER the final completion marker, the row
 # has remaining open work → keep (never a fully-done violation).
 _REMAIN = re.compile(
@@ -110,6 +118,21 @@ _PROMPT_OPEN = re.compile(
 )
 # Every HD reference in prompt.md (whole-word).
 _HD_RE = re.compile(r"HD-(\d+[A-Za-z]?)")
+# A row id split into its NUMERIC STEM + letter suffix. The duplicate gate keys on the stem, so a
+# suffixed row collides with its bare parent and a human decides which of the two is really the
+# sub-task. Measured 2026-10-01: the first pair this caught (HD-336 / HD-336b) turned out to be TWO
+# independent rows, so the collision itself is the finding, not a false alarm to be suppressed.
+_STEM_RE = re.compile(r"^(\d+)([A-Za-z]*)$")
+
+# Ids where a letter-suffixed row is a GENUINE sub-task of the same-numbered parent, so the
+# pair is legal. EMPTY, and measured rather than assumed (2026-10-01): `grep -o '^| HD-[0-9]+[A-Z]'
+# todo.md` finds no letter-suffixed row except the HD-336b one, so today the gate has no exemption
+# to make. Sub-ID notation is common in prose (HD-318a/c/d appear 19 times) but NEVER headed a row
+# — `git log -S '| HD-318a' -- todo.md` is empty — so no legal pair has ever been exercised here.
+# That is why the self-test breeds one (HD-900 + HD-900z) instead of trusting the registry: an
+# exemption path with no live case is exactly the untested branch that rots. Adding a stem here
+# REQUIRES its reason in the comment next to it.
+SUBTASK_PAIRS: frozenset[str] = frozenset()
 
 
 def _rows() -> list[tuple[str, str]]:
@@ -125,6 +148,57 @@ def _rows() -> list[tuple[str, str]]:
             continue
         out.append((ident.removeprefix("HD-"), line))
     return out
+
+
+def _mint_evidence() -> tuple[int, str]:
+    """(highest numeric id ever used, next mintable id) — derived from todo.md, never typed.
+
+    CONVENTIONS §4 derived-values ban: a session must mint from evidence, not by guessing
+    `max+1`. Gaps are deliberately NOT reported — closed rows are deleted (§4(a)), so the registry
+    is mostly holes: measured 2026-10-01, 373 of the 489 ids below the top are absent and every one
+    of them is intentional. Printing them would invite a mint into a retired id. `highest` counts
+    letter-suffixed rows too, so a lane that minted HD-488z cannot also mint HD-488.
+    """
+    stems = {int(m.group(1)) for ident, _ in _rows() if (m := _STEM_RE.match(ident))}
+    if not stems:
+        return 0, "1"
+    highest = max(stems)
+    return highest, str(highest + 1)
+
+
+def find_duplicate_ids(subtasks: frozenset[str] = SUBTASK_PAIRS) -> list[tuple[str, list[tuple[int, int, str]]]]:
+    """Duplicate numeric row ids: [(stem, [(line_no, col, full_id), ...])], sorted by stem.
+
+    Keyed on the NUMERIC STEM, so a letter-suffixed row collides with its bare parent. That is
+    deliberate, not a false positive (HD-336 / HD-336b, found by the first run of this gate):
+    a `<n><letter>` id was only ever meant for a genuine sub-task of one parent, and HD-336b
+    ("CrewAI pilot") says in its own text that it does not gate HD-336 ("agent memory") —
+    independent work wearing a sub-ID's clothes, which is what makes the pair ambiguous at
+    renumber time. The second instance of this class (HD-476/HD-477) cost two docs + IaC
+    reference sweeps.
+
+    A row that is a REAL sub-task of one parent (one outcome genuinely split in two, the way
+    HD-318 was split in prose) is legitimate and is resolved by adding the stem to `SUBTASK_PAIRS`,
+    which records WHY the pair is legal — the exemption must be an assertion with a reason, never a
+    silent widening of the gate. `grep -o '^| HD-[0-9]*' | sort | uniq -d` cannot make this
+    distinction at all (it truncates any `<n>a` to `<n>`), which is why that recipe stays a hint and
+    this gate is the verdict.
+
+    `col` is 1-based: a row lives inside a one-line table cell, so the line number alone does
+    not locate it once a section holds several rows.
+    """
+    seen: dict[str, list[tuple[int, int, str]]] = {}
+    for lineno, line in enumerate(TODO.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.startswith("| HD-"):
+            continue
+        ident = line.split("|")[1].strip().removeprefix("HD-")
+        m = _STEM_RE.match(ident)
+        if not m or len(line.split("|")) < 4:
+            continue
+        seen.setdefault(m.group(1), []).append((lineno, line.index(f"HD-{ident}") + 1, ident))
+    dups = [(stem, hits) for stem, hits in sorted(seen.items(), key=lambda kv: int(kv[0]))
+            if len(hits) > 1 and stem not in subtasks]
+    return dups
 
 
 def _last_marker(text: str) -> int:
@@ -144,7 +218,12 @@ def classify(body: str) -> str:
     tail = body[last:]
 
     # Reject/supersede rows: never a violation, always INFO-only.
-    if _REJECT_RE.search(tail):
+    # Link TARGETS are stripped first: `docs/network-rejected.md` is a filename, and since the
+    # reject test is case-insensitive a pointer to the decision log read as a claim that the row
+    # ITSELF was rejected (measured 2026-10-01 on HD-487 — an open row reported as decided). Same
+    # class as the marker-grammar rule below: prose that merely CONTAINS a marker is not a claim.
+    # Link TEXT is kept, because "**Rejected** — see the log" is a real claim.
+    if _REJECT_RE.search(_LINK_TARGETS_RE.sub("", tail)):
         return "rejected_info"
 
     # Any ⏳ anywhere → deploy-gated / backlog, keep (a title ⏳ is real open work).
@@ -266,8 +345,26 @@ def main() -> int:
 
     open_ids = _open_todo_ids()
     prompt_done, prompt_contra, prompt_info = scan_prompt(open_ids)
+    dups = find_duplicate_ids()
 
     bad = False
+    if dups:
+        bad = True
+        print(
+            f"FAIL: {len(dups)} HD id(s) head more than one todo.md row — one id, one outcome, "
+            "so a duplicate makes a row uncloseable and invisible (HD-485; two live instances "
+            "2026-09-30, HD-476 and HD-477):"
+        )
+        for stem, hits in dups:
+            where = ", ".join(f"todo.md:{ln}:{col} = HD-{fid}" for ln, col, fid in hits)
+            print(f"  - HD-{stem}: {len(hits)} rows — {where}")
+        print(
+            "  Rule: match on the row's SUBJECT TEXT, never `^| HD-<n>` (a duplicated row gives "
+            "two hits). Re-number the later claimant across EVERY file type, then re-run "
+            "`grep -rhoE 'HD-[0-9]{3}'` immediately before committing — the collision window is "
+            "minutes, not days. A genuine sub-task row is exempt via SUBTASK_PAIRS (with its "
+            "reason written next to the entry); unrelated work must be re-numbered, not suffixed."
+        )
     if fully_done:
         bad = True
         print(
@@ -311,12 +408,19 @@ def main() -> int:
         for e in prompt_info:
             print(f"  - {e}")
 
+    highest, nxt = _mint_evidence()
+    print(
+        f"MINT: highest HD id ever used = {highest}; next mintable id = HD-{nxt} "
+        "— mint from this line, not from a guess (CONVENTIONS §4 derived-values ban; gaps below "
+        "the top are retired ids, never reuse them)"
+    )
+
     if bad:
         print("\nSee CONVENTIONS.md §4 (post-task housekeeping) + todo.md §0.")
         return 1
 
     print(
-        f"OK: {len(rows)} todo.md rows scanned; {len(open_ids)} open ROWs, "
+        f"OK: {len(rows)} todo.md rows scanned; no duplicate row ids; {len(open_ids)} open ROWs, "
         f"{len({_HD_RE.search(l).group(1) for l in PROMPT.read_text(encoding='utf-8').splitlines() if _HD_RE.search(l)})} HDs in prompt.md; "
         "no fully-done rows / stale prompt claims (CONVENTIONS §4)"
     )
@@ -371,6 +475,12 @@ def _self_test() -> int:
     for s in ("**Superseded note (2026-09-03):** the path moved", "superseded by decisions #24/#25"):
         if not _REJECT_RE.search(s):
             fails.append(f"decision-log prose no longer nudges: {s!r}")
+    # A decision-log LINK is not a rejection of the row (HD-487, 2026-10-01). Both halves: the
+    # link alone must classify as open work, the same link PLUS a real claim must still nudge.
+    if classify("⏳ Implement + converge off-box · [network-rejected.md](docs/network-rejected.md)") != "keep":
+        fails.append("a link to *-rejected.md was read as a claim that the row is rejected")
+    if classify("✅ decision REJECTED · [network-rejected.md](docs/network-rejected.md)") != "rejected_info":
+        fails.append("link-stripping also swallowed a real REJECTED claim next to the link")
     # Row-level vs prompt-level vocabularies differ on purpose (measured, not taste):
     # a rejected ladder inside a row's text is not a claim that the row is finished.
     _rej = "⛔ **Ladder #10 (LMCache KV offload) is REJECTED**"
@@ -391,13 +501,74 @@ def _self_test() -> int:
         got = classify(body)
         if got != want:
             fails.append(f"classify({body!r}) = {got}, expected {want}")
+    # ── Duplicate-ID gate (HD-485). The canary writes into todo.md and restores it from a
+    # byte-for-byte snapshot in `finally`: the assertion "the gate sees the duplicate" is only
+    # evidence if a crash cannot leave a fabricated row in the backlog.
+    import tempfile
+    import os
+
+    dup_row = ("| HD-476 | 2 | AI | 1 | canary second claimant — ⏳ a tail so it is not "
+               "also flagged fully_done · [x](docs/index.md) |\n")
+    sub_row = ("| HD-900z | 2 | AI | 1 | canary sub-ID — ⏳ tail · [x](docs/index.md) |\n")
+
+    def _dup_gate(payload: str, subtasks: frozenset[str] = frozenset()) -> list[str]:
+        """Run the gate over an injected registry — for the cases that cannot be bred in the
+        real file: an id duplicated ACROSS module sections (the shape that crossed a merge with
+        no conflict), and a sub-ID pair that must be exempted only when registered as such."""
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False, encoding="utf-8") as fh:
+            fh.write(f"| HD-900 | 2 | AI | 1 | canary parent — ⏳ tail · [x](docs/index.md) |\n"
+                     + payload)
+            tmp = Path(fh.name)
+        try:
+            global TODO
+            saved, TODO = TODO, tmp
+            try:
+                return [stem for stem, _ in find_duplicate_ids(subtasks)]
+            finally:
+                TODO = saved
+        finally:
+            os.unlink(tmp)
+
+    try:
+        original = TODO.read_bytes()
+    except OSError as exc:  # the canary needs the real registry; a missing one is a hard error
+        fails.append(f"cannot read todo.md for the duplicate-ID canary: {exc}")
+        original = None
+
+    if original is not None:
+        try:
+            lines = original.decode("utf-8").splitlines(keepends=True)
+            # Insert after the LAST row line, so the canary lands in the final module section —
+            # a different section from every real HD-476 row, which is the shape that hid it.
+            idx = max(i for i, ln in enumerate(lines) if ln.startswith("| HD-")) + 1
+            mutated = "".join(lines[:idx]) + dup_row + "".join(lines[idx:])
+            if "476" not in _dup_gate(mutated):
+                fails.append("duplicate-ID gate missed a second row heading HD-476 "
+                             "(the exact failure that reached main twice)")
+            # Proof the canary is load-bearing, not decorative: without the injected row the
+            # same file must NOT report 476, else the check would pass on any registry.
+            if "476" in _dup_gate("".join(lines)):
+                fails.append("canary is not discriminating: HD-476 already duplicated in todo.md "
+                             "on main — investigate before trusting this self-test")
+            # Un-registered sub-ID → flagged. Registered → silent. Both halves, or the
+            # exemption is a hole nobody tested.
+            if "900" not in _dup_gate(sub_row):
+                fails.append("unregistered sub-ID HD-900z under HD-900 was not flagged")
+            if "900" in _dup_gate(sub_row, frozenset({"900"})):
+                fails.append("SUBTASK_PAIRS exemption does not silence the pair it registers "
+                             "— the exemption path is untested and would be a silent hole")
+        except Exception as exc:  # never leave the registry mutated, never swallow the reason
+            fails.append(f"duplicate-ID canary could not run: {type(exc).__name__}: {exc}")
+        finally:
+            TODO.write_bytes(original)
+
     if fails:
         print(f"FAIL: check_todo_done self-test — {len(fails)} case(s):")
         for f in fails:
             print(f"  - {f}")
         return 1
     n = len(_ST_NOT_DONE) + len(_ST_DONE) + len(_ST_REJECT) + len(_ST_NOT_REJECT)
-    print(f"OK: check_todo_done self-test passed ({n} marker-grammar cases, 6 row-classification cases)")
+    print(f"OK: check_todo_done self-test passed ({n} marker-grammar cases, 8 row-classification cases)")
     return 0
 
 

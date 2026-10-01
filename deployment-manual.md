@@ -170,6 +170,35 @@ there is no `domen` account on managed hosts.
 ✔ Once a provisioned host exists (Phase 0.5): `ssh vps whoami` and `ssh vps-ansible whoami` both
 return `ansible-admin` with no password prompt.
 
+### 0.4a Debian/WSL-side GitHub SSH auth + commit signing `[MANUAL]` *(one-time per machine)*
+
+Requires a **human** 1Password session — a Service Account cannot read the `Private` vault, and the
+signing + auth keys live there. One-time per account, so skip it when `ssh-add -l` already lists two
+identities:
+
+```bash
+export XDG_RUNTIME_DIR=/run/user/$(id -u)               # [MANUAL] if your shell inherited another
+                                                        # user's runtime dir (a `su` from the runner
+                                                        # identity leaves it at /run/user/<other-uid>,
+                                                        # mode 700 → op cannot start its daemon and
+                                                        # sign-in can never succeed)
+op account add --address https://my.1password.eu        # [MANUAL] interactive, prompts for email
+eval "$(op signin --account my)"                        # [MANUAL] password + secret key + 2FA; the
+                                                        # token is a per-shell variable, so sign in
+                                                        # in the SAME shell as the next line
+bash scripts/git-bootstrap.sh --ssh-auth                # idempotent; pulls the keys, ssh-adds them,
+                                                        # sets user.signingkey + gpg.format=ssh + gpgsign=true
+```
+
+✔-evidence: `ssh-add -l` lists two identities, `git config --global --get user.signingkey` prints a
+`ssh-ed25519 …` string, and `git cat-file commit HEAD | grep -c gpgsig` returns `1` on a test commit.
+
+⚠ **Do not verify with `git log -1 --format='%G?'` on a machine that has no
+`gpg.ssh.allowedSignersFile`** (CONVENTIONS §6 names that command): without the file git prints
+`error: gpg.ssh.allowedSignersFile needs to be configured` and reports **`N` for every commit, signed
+or not** — the check reads a signed history as unsigned. Use the `grep -c gpgsig` form above, or
+configure the allowed-signers file first.
+
 ### 0.4b Windows-side GitHub SSH auth + commit signing `[MANUAL]` *(one-time)*
 
 ```powershell

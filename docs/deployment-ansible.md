@@ -1322,3 +1322,15 @@ search ts.kogler.si kogler.si
 which is what lets playbooks connect **direct** to `.99` device addresses. The Pi-99 ProxyJump hop
 (`scripts/ansible-network-hop.sh`) predates it and is obsolete — kept only as a fallback. Laptop alias SSOT:
 [network-vpn.md](network-vpn.md) §The laptop alias contract.
+
+**`%G?` is not a signing check without an allowed-signers file.** CONVENTIONS §6 tells a session to verify
+a signed commit with `git log -1 --format='%G?'`, and on a WSL runner that has no `gpg.ssh.allowedSignersFile`
+git prints `error: gpg.ssh.allowedSignersFile needs to be configured and exist for ssh signature
+verification` and answers **`N` for every commit** — measured on the 20 most recent commits, all of which
+carry a real `gpgsig` SSH signature block. The consequence is worse than a useless check: it presents a
+correctly signed history as unsigned, so a session can conclude that signing is broken (or was never
+configured) and "fix" it by committing unsigned. Two reliable forms that need no extra config:
+`git cat-file commit HEAD | grep -c gpgsig` (1 = a signature block is present) and
+`git verify-commit HEAD` once the allowed-signers file exists. The file maps the signing key to the
+identity git may accept, per `man git-config` `gpg.ssh.allowedSignersFile`; until it is populated, treat
+`%G?` as unknown, never as negative.

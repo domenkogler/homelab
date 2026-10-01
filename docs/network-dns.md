@@ -48,8 +48,8 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 | Management | — | Local system | Infrastructure isolation |
 | Home (10) | Main-Group | **Technitium Advanced Blocking** (ad-block lists, per-client groups, multiple block-list formats) | Aggressive ad-blocking on the reliable DNS tier (VPS/Pi). The two kids tablets are **per-MAC dst-nat'd to the Kids-Group resolver** (HD-326): router NAT redirects their `:53` to Technitium, which applies the Kids-Group policy. |
 | Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering — the VLAN-40 hijack (HD-182) covers the (currently unused for Wi-Fi) Kids VLAN; the Home-VLAN kids tablets get the same policy via the per-MAC dst-nat (HD-326) |
-| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking. Cloud-IoT devices with `wan_allow` still resolve through this row — they gain WAN egress only, never a DNS bypass. IoT plain `:53` is dst-nat'd to the **Pi tertiary** (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). |
-| Guest (30) | Guest-Group | Standard public (1.1.1.1) | No filtering needed |
+| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking. **No ad block lists here (owner ruling 2026-10-01):** appliance firmware is the flakiest thing on the network and shares CDN/IP ranges with ad-serving endpoints, so the IoT tier gets malware blocking at the resolver and nothing more. Cloud-IoT devices with `wan_allow` still resolve through this row — they gain WAN egress only, never a DNS bypass. IoT plain `:53` is dst-nat'd to the **Pi tertiary** (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). |
+| Guest (30) | Guest-Group | Same as Home | **Owner ruling 2026-10-01: Guest inherits the Home block set** — the same protection for unmanaged guest devices, and one group fewer to maintain. (Was "Standard public (1.1.1.1) / no filtering needed".) |
 
 > ⚠ **The Group / Upstream-Filter columns above are DESIGN, not live state (measured 2026-09-29, HD-476).**
 > Read over the API on the Pi tertiary **and** the VPS primary: `blockListUrls = null` (blocking is enabled,
@@ -66,6 +66,30 @@ VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.
 > Families `1.1.1.3`, **HD-482** IoT → Quad9 upstream **and** `logQueries` on the Pi (the visibility HD-334
 > and the IoT dst-nat both cite as their purpose). Until those land: nothing in the Group / Upstream-Filter
 > columns is enforced, and the visibility claim must not be written up as achieved anywhere.
+
+### The tier policy the owner ruled (2026-10-01) — what HD-480/481/482/483 build against
+
+The owner answered the four open questions, so the shape is now decided and the rows carry only the
+implementation. **This is the ruling; the rows do not restate it.**
+
+| # | Question | Ruling |
+|---|---|---|
+| 1 | Which block lists for **Home** | **Hagezi `multi` + one privacy list** (the light curated set). Not `multi+`/PRO: the owner's own tailnet traffic resolves through this tier, so false positives are self-inflicted. Lists are `https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/multi.txt` + `…/adblock/privacy.txt` |
+| 2 | **Kids** scope | **VLAN 40 AND the two Home-VLAN kids tablets.** The per-MAC `:53` dst-nat (HD-326) is already live and lands on a group that does not exist; the tablets are the actual children, so VLAN-only would leave the doc's claim false. Upstream = **Cloudflare Families `1.1.1.3`**, never a block list — Families answers `NXDOMAIN` for the whole family-blocked set, which is the enforcement |
+| 3 | **IoT** | **Quad9 upstream, no block lists** (see the table row above for why) |
+| 4 | **Guest** | **Same as Home** |
+| 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought |
+
+⚠ **Two consequences of ruling 1 the owner should keep in view** (accepted with the ruling, recorded so a
+later session does not "discover" them): (a) Home clients, **away clients and tailnet clients all resolve
+through the VPS primary** (`dns_primary_ip` is the VPS's public address), so Home block lists apply to the
+operator's own VPN traffic too; (b) acceptance is therefore per-**instance**, not per-VLAN — a list loaded
+on one of the three instances is a fleet policy with three failure modes (HD-483 is the drift-proofing half
+of exactly that).
+
+⛔ **Acceptance is a device, not a `dig`** (HD-481): an unsupervised device on each path fails to resolve a
+filtered name while `kogler.si` still resolves. And because the Kids mechanism is an *upstream*, prove it by
+answering-authority, not by an `NXDOMAIN` that a caching layer could have produced from a stale entry.
 
 ---
 

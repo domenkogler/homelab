@@ -28,9 +28,38 @@ WSL Debian primary, ext4 (repo runs from the WSL Debian primary, not Windows). `
 5. ⏳ **HD-470** — the VPS's own state has one copy on one disk (id re-minted 2026-09-28; it had collided with 469).
 6. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists now, only the age probe is owed.
 7. ⏳ Cockpit/seat cluster → `prompt-361.md` (brief carried rows 361 · 411 · 442 · 443 · 444 · 445 · 446 · 465).
-8. Owner-gated tails (exact steps in the rows): 377(a) Grafana render re-do · 444 phone-crossing drill · 418 restart window · 06 UPS drill · 47 federation join · 454 power-path buy/accept call · **480/481** the DNS filtering intent — which block lists for Home, and whether Kids filtering covers VLAN-40 only or the two Home-VLAN tablets too (✅ **476** answered 2026-09-30: all three Technitium instances now forward — VPS cold-name p50 39 → ~18 ms, oldsrv 85 → ~40 ms).
+8. Owner-gated tails (exact steps in the rows): 377(a) Grafana render re-do · 444 phone-crossing drill · 418 restart window · 06 UPS drill · 47 federation join · 454 the human's own buy decision (§2b) · ✅ **480/481** the DNS filtering intent CLOSED 2026-10-01 (§2b) · ✅ **476** answered 2026-09-30: all three Technitium instances now forward — VPS cold-name p50 39 → ~18 ms, oldsrv 85 → ~40 ms.
 
-Unbriefed open rows (no session launches from them; the rows live in [todo.md](todo.md) + [todo-table.md](todo-table.md) §B): 360 · 402 · 103 · 238 · 421 · 459 · 461 · 448 · **472** · **477** (make the DNS resolver actually float with the VIP — the premise is already measured green, the row carries the three gates) · **484** (what is LEFT of it is the seat's pi version bump — both halves the row existed for are CLOSED + LIVE 2026-10-01: the DNS leg (`llm.kogler.si` resolves, engine leg proven from the box), and the seat's pi defaults, where the phone's `no model available` / `Update failed: exec: "pi" …` turned out to be one missing systemd drop-in, not a missing pi install — A/B + the traps in [docs/services-ai.md](docs/services-ai.md) §9b-1) · **488** (the same host-resolver class on the Pi, where two docs already work around it, plus nas/spark unmeasured) · **487** (finish oldsrv's config-manager decision — the role renders networkd units on a box where networkd is disabled and names a NIC it does not have; lockout-class, so it runs off-box with the self-converge guardrail) · **485** (`check_todo_done.py` is not duplicate-ID aware — the reason the DNS lane minted from 480). Whoever takes the VPS-hygiene residue forms the next **VPS + nas** lane (HD-471 + HD-472 + HD-421 + HD-103 are now one Docling cluster, all converging the `docling` container alone); before touching ANY Authentik OIDC client read [docs/services-authentik.md](docs/services-authentik.md) §Blueprint authoring notes facts 7 + 9.
+Unbriefed open rows (no session launches from them; the rows live in [todo.md](todo.md) + [todo-table.md](todo-table.md) §B): 360 · 402 · 103 · 238 · 421 · 459 · 461 · 448 · **472** · **477** (make the DNS resolver actually float with the VIP — the premise is already measured green, the row carries the three gates) · **484** (what is LEFT of it is the seat's pi version bump — both halves the row existed for are CLOSED + LIVE 2026-10-01: the DNS leg (`llm.kogler.si` resolves, engine leg proven from the box), and the seat's pi defaults, where the phone's `no model available` / `Update failed: exec: "pi" …` turned out to be one missing systemd drop-in, not a missing pi install — A/B + the traps in [docs/services-ai.md](docs/services-ai.md) §9b-1) · **488** (the same host-resolver class on the Pi, where two docs already work around it, plus nas/spark unmeasured) · **487** (finish oldsrv's config-manager decision — the role renders networkd units on a box where networkd is disabled and names a NIC it does not have; lockout-class, so it runs off-box with the self-converge guardrail) Whoever takes the VPS-hygiene residue forms the next **VPS + nas** lane (HD-471 + HD-472 + HD-421 + HD-103 are now one Docling cluster, all converging the `docling` container alone); before touching ANY Authentik OIDC client read [docs/services-authentik.md](docs/services-authentik.md) §Blueprint authoring notes facts 7 + 9.
+
+## 2b. Ruled by the owner on 2026-10-01 (implementation is unblocked — the rows carry the work, this names the decisions)
+
+Recorded once in the owning docs; this is the pointer, not a second copy. SSOT:
+[network-dns.md](docs/network-dns.md) §The tier policy the owner ruled + the seven rows appended to
+[network-rejected.md](docs/network-rejected.md).
+
+| Row | Waited on | Now ruled |
+|---|---|---|
+| **480** | Which block lists, and whether ad-blocking rides the tier away + tailnet clients use | **Hagezi `multi` + `privacy`, Home tier.** It *does* ride the operator's own VPN traffic — `dns_primary_ip` is the VPS, so Home/away/tailnet all resolve through it |
+| **481** | Kids scope: VLAN 40 only, or the tablets too | **VLAN 40 AND the two Home-VLAN tablets**, upstream Cloudflare Families `1.1.1.3` — an upstream, not a block list, because Families answers `NXDOMAIN` for the whole family-blocked set and that IS the enforcement |
+| **482** | Query-log retention + readers; IoT posture | **`logQueries` on the Pi tertiary only, 14 days, root-readable, no per-device dashboard.** **IoT = Quad9, no block lists** (appliance firmware shares CDN ranges with ad endpoints) |
+| **483** | Follows 480/482 | **Guest inherits the Home set**; `logQueries` belongs to 482 — one key, one owner, or 483 becomes the drift it exists to end |
+| **487** | Which config manager owns oldsrv | **Keep NetworkManager** — render the NM profile from SSOT, delete the dead netd renders + `netd_phys_name`. Still lockout-class: it writes the leg the converge rides |
+| **488** | Does `bootstrap_dns_servers` keep two lifetimes | **No — two vars**: `bootstrap_dns_servers` (boot) + `host_resolver_dns` (steady state) |
+| **454** | Buy an out-of-band path for oldsrv, or accept | **Accept on-record now**; the purchase stays a human call and is never an AI task |
+| **465** | Which node owns Cockpit | **oldsrv** — load-bearing, not taste: `pi-oldsrv.ts.kogler.si` (the pi-web seat) and `cockpit-nas.ts.kogler.si` are both served by oldsrv's own `websecure-ts` listener |
+
+⛔ **The seat constraint that came with these rulings:** `pi-oldsrv.ts.kogler.si` must keep working over the
+tailnet. It is a headscale **MagicDNS `extra_record`** answered client-side (`tailnet_ts_only_subdomains` in
+`group_vars/vps.yml`), **not** a Technitium record — so the DNS lane must not touch it, and anything that
+changes the MagicDNS answer set is HD-435/436 work, not this lane's. Acceptance for the DNS lane: the seat
+still loads **with Technitium stopped** — the only proof it gained no new dependency.
+
+**Sequencing, so a lane does not have to re-derive it:** 480/481/482/483 are **one lane, one writer** on
+`technitium-seed.yml` + one `group_vars` block, converging `dns-pi` **once**; **488** joins that same Pi
+converge (measure nas/spark first — both unmeasured); **477 runs after** the policy exists, because it changes
+what DHCP *offers* while 480/481 change what the resolver *answers*, and both at once makes a failure
+unattributable; **487 runs alone** in its own window (oldsrv, lockout-class, and it is the seat's host).
 
 ---
 

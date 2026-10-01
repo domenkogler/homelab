@@ -187,6 +187,12 @@ bash scripts/guard-session.sh --self-test
 echo "== guarded-converge.sh --self-test (post-converge liveness verdict, HD-436) =="
 bash scripts/guarded-converge.sh --self-test
 
+echo "== git-bootstrap.sh --self-test (each 1Password refusal state says the right thing) =="
+# HD-485 runner lesson: one grep of `op vault list` was answering three different questions, so
+# the script told a signed-in operator to sign in, on a loop. The fixtures are throwaway and the
+# children run under a sandbox HOME/SRC, so this is offline and side-effect-free.
+bash scripts/git-bootstrap.sh --self-test
+
 echo "== validate-docker-services.py =="
 $PY scripts/validate-docker-services.py
 

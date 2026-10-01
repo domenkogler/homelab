@@ -32,6 +32,80 @@
 # =====================================================================
 set -euo pipefail
 
+if [ "${1:-}" = "--self-test" ]; then
+  SELF=$(cd "$(dirname "$0")" && pwd)/git-bootstrap.sh
+  TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
+  # SANDBOX, not decoration: a child that gets PAST the vault check goes on to write
+  # $HOME/.ssh/github_signing and rewrite the clone's `origin` URL. So HOME and SRC are both
+  # redirected and the "repo" is a throwaway `git init` — nothing under the real $HOME or the
+  # real clone is reachable from here.
+  mkdir -p "$TMP/home" "$TMP/src"
+  git init -q "$TMP/src/homelab"
+  run() { PATH="$1:$PATH" HOME="$TMP/home" SRC="$TMP/src" \
+              XDG_RUNTIME_DIR="/run/user/$(id -u)" OP_VAULT="${3:-Private}" \
+              bash "$SELF" --ssh-auth 2>&1 || true; }
+  mk() { mkdir -p "$TMP/$1"; printf '#!/bin/sh\ncase "$1 $2" in\n%s\nesac\n' "$2" > "$TMP/$1/op"; chmod +x "$TMP/$1/op"; }
+  ACCT='"account list") echo "SHORTHAND    URL"; echo "my           https://my.1password.eu"; exit 0;;'
+  # signed out — op refuses, but the account IS on disk (real op lists accounts either way)
+  mk signedout "  \"vault list\") echo '[ERROR] You are not currently signed in.' >&2; exit 1;;
+    $ACCT"
+  # no account configured at all — real op says THIS, not "not signed in", and the branch order
+  # depends on the difference (my first fixture faked the wrong message and the test went red)
+  mk noacct "  \"vault list\") echo '[ERROR] No accounts configured for use with 1Password CLI.' >&2; exit 1;;
+    \"account list\") exit 0;;"
+  # a witness `op` for the runtime-dir guard: if the script reaches it, the guard did not fire first
+  mk noop "  *) echo 'OP-WAS-CALLED'; exit 0;;"
+  # signed in as the WRONG identity: answers fine, sees one non-target vault = the SA signature
+  mk wrongvault "  \"vault list\") echo 'ID                            NAME'
+    echo 'spye2s5pmfzj367xunpydznf3m    Homelab-ansible'; exit 0;;
+    $ACCT"
+  # canary fixture: the target vault IS visible, but the key read fails — proves the vault check
+  # is live (the child gets past it) while stopping before anything could be written as a key
+  mk vaultok "  \"vault list\") echo 'Homelab-ansible'; exit 0;;
+    $ACCT
+    \"read\") exit 1;;"
+  fails=0
+  check() { # <fixture> <expected> <must-not-say>
+    out=$(run "$TMP/$1" "" "${3:-}")
+    printf '%s' "$out" | grep -qi "$2" \
+      || { echo "SELFTEST FAIL [$1]: expected /$2/ — got: $(printf '%s' "$out" | tail -3)"; fails=$((fails+1)); }
+    if [ -n "${4:-}" ] && printf '%s' "$out" | grep -qi "$4"; then
+      echo "SELFTEST FAIL [$1]: must NOT say /$4/ — a misreporting diagnostic sent the operator into an 'op signin' loop"
+      fails=$((fails+1))
+    fi
+  }
+  check signedout   "has no session"              ""  "no human 1Password account"
+  check noacct      "no human 1Password account"  ""
+  check wrongvault  "vault is NOT among"          ""  "has no session"
+  # the runtime-dir guard must fire BEFORE any op call. PATH keeps a real shell (a bare
+  # PATH=/nonexistent breaks `bash` itself, which is how the first draft of this case failed) and
+  # supplies a witness op: reaching it would print OP-WAS-CALLED.
+  out=$(run "$TMP/noop" "" "")
+  out=$(PATH="$TMP/noop:/usr/bin:/bin" HOME="$TMP/home" SRC="$TMP/src" XDG_RUNTIME_DIR="/run/user/999999" \
+        bash "$SELF" --ssh-auth 2>&1 || true)
+  printf '%s' "$out" | grep -qi "XDG_RUNTIME_DIR is" \
+    || { echo "SELFTEST FAIL [xdg-guard]: expected the runtime-dir refusal — got: $(printf '%s' "$out" | tail -2)"; fails=$((fails+1)); }
+  printf '%s' "$out" | grep -q "OP-WAS-CALLED" \
+    && { echo "SELFTEST FAIL [xdg-guard]: the guard let the script reach op first"; fails=$((fails+1)); }
+  # canary: with the target vault visible the refusal must DISAPPEAR (a check that always fires
+  # would pass all three assertions above while checking nothing)
+  out=$(run "$TMP/vaultok" "" "Homelab-ansible")
+  if printf '%s' "$out" | grep -qi "vault is NOT among"; then
+    echo "SELFTEST FAIL [canary]: the vault check refuses a vault it can see — the check is dead"
+    fails=$((fails+1))
+  fi
+  if [ -e "$TMP/home/.ssh/github_signing" ] && [ -s "$TMP/home/.ssh/github_signing" ]; then
+    echo "SELFTEST FAIL [sandbox]: a non-empty key file escaped into the sandbox home"
+    fails=$((fails+1))
+  fi
+  if [ "$fails" = 0 ]; then
+    echo "SELFTEST OK: git-bootstrap refuses each state with the right message (5 cases, sandboxed)"
+    exit 0
+  fi
+  exit 1
+fi
+
+
 SRC="${SRC:-$HOME/source}"
 REPO="${REPOPATH:-$SRC/homelab}"
 REMOTE="${REMOTE:-https://github.com/domenkogler/homelab.git}"
@@ -90,6 +164,11 @@ fi
 
 # --- SSH auth + commit signing (HD-265): opt-in, idempotent, CLI-only ----------
 # Requires a HUMAN 1Password sign-in (a Service Account can't read the Private vault).
+# --- --self-test: the three refusal states, each bred by a fixture -------------
+# Why this exists rather than a prose note: the ORIGINAL failure was a message that described the
+# wrong state ("no human 1Password account configured" while `op account list` showed one, because
+# one grep was answering two questions). A diagnostic that misreports is worse than none — it sent
+# the operator to re-run `op signin` in a loop. So each state gets a fixture and an assertion.
 if [ "$SSH_AUTH" = 1 ]; then
   echo "==> SSH auth/signing setup (CLI-only; needs a human 'op' sign-in)"
   command -v op >/dev/null 2>&1 || { echo "FAIL: op not installed — run scripts/bootstrap-runner.sh first" >&2; exit 1; }
@@ -100,17 +179,52 @@ if [ "$SSH_AUTH" = 1 ]; then
   #    via 'op account add --address <id>' + 'op signin' (interactive, ~30 min session).
   #    Allow override via OP_ACCOUNT (the human account shorthand or sign-in address).
   ACC="${OP_ACCOUNT:-}"
-  if ! op vault list 2>/dev/null | grep -qi "^.*\bPrivate\b"; then
-    echo "==> Need a human session that can read the Private vault."
-    if [ -z "$ACC" ]; then
-      echo "FAIL: no human 1Password account configured. Run:"
-      echo "    op account add --address https://my.1password.eu   # then op signin"
+  # Preflight the runtime dir BEFORE anything touches `op`: the CLI needs to write its daemon
+  # pid/socket under $XDG_RUNTIME_DIR, and a session that inherited another user's (a `su` from the
+  # ansible runner identity leaves it pointing at /run/user/<other-uid>, mode 700) fails with
+  # `couldn't start daemon: … permission denied`. Sign-in can then NEVER succeed, and the real
+  # reason is a file permission, so nothing downstream can diagnose it.
+  WANT_XDG="/run/user/$(id -u)"
+  if [ "${XDG_RUNTIME_DIR:-}" != "$WANT_XDG" ]; then
+    echo "FAIL: XDG_RUNTIME_DIR is '${XDG_RUNTIME_DIR:-<unset>}', but this shell runs as uid $(id -u)." >&2
+    echo "      1Password CLI cannot start its daemon there, so 'op signin' cannot work. Fix it first:"
+    echo "        export XDG_RUNTIME_DIR=$WANT_XDG" >&2
+    exit 1
+  fi
+
+  # Three states, three messages — collapsed into one they lie. Measured 2026-10-01: a signed-in
+  # human session that could see only `Homelab-ansible` got reported as "no account configured",
+  # then as "no session token", and both sent the operator off to re-sign-in forever.
+  # NB: greps $OP_VAULT, not a literal 'Private' — the vault name is overridable, so a correct
+  # `OP_VAULT=<other> --ssh-auth` used to be refused by a hardcoded test.
+  VAULT_SEEN="$(op vault list 2>&1)" || true
+  if ! printf '%s' "$VAULT_SEEN" | grep -qi "\b${OP_VAULT}\b"; then
+    echo "==> Need a session that can read the '$OP_VAULT' vault (override with OP_VAULT=<name>)."
+    # ORDER MATTERS: test the session text we already hold BEFORE `op account list`, because that
+    # subcommand's table header is a version/locale-fragged string — keying on it first made a plain
+    # signed-out state print "no account configured" (caught by the fixture matrix, not by reading).
+    if printf '%s' "$VAULT_SEEN" | grep -qi "not currently signed in\|not signed in"; then
+      echo "FAIL: an account IS configured, but this context has no session." >&2
+      printf '%s\n' "$VAULT_SEEN" | sed 's/^/      op: /' >&2 || true
+      echo "      Sign in IN THIS SHELL (an interactive password/2FA prompt cannot be answered from"
+      echo "      a non-interactive context):"
+      echo '        eval "$(op signin --account '"${ACC:-my}"')"'
+      echo "      then re-run: bash scripts/git-bootstrap.sh --ssh-auth" >&2
+      exit 1
+    fi
+    if ! op account list 2>/dev/null | grep -qi "SHORTHAND\|1password"; then
+      echo "FAIL: no human 1Password account configured on this machine. Run:"
+      echo "    op account add --address https://my.1password.eu   # then: eval \"\$(op signin)\""
       echo "  or set OP_ACCOUNT=<account-shorthand-or-address> and re-run." >&2
       exit 1
     fi
-    op signin --account "$ACC" >/dev/null 2>&1 || true
-    op vault list 2>/dev/null | grep -q "^.*\bPrivate\b" || {
-      echo "FAIL: still can't read the Private vault after op signin --account '$ACC'." >&2; exit 1; }
+    echo "FAIL: signed in, but the '$OP_VAULT' vault is NOT among the vaults this identity can see." >&2
+    printf '%s\n' "$VAULT_SEEN" | sed 's/^/      op: /' >&2 || true
+    echo "      A read-scope Service Account sees exactly one vault and cannot read the private one,"
+    echo "      so a visible-but-wrong vault list means the SERVICE ACCOUNT is answering, not the human"
+    echo "      session. Check this context: env | grep -c OP_SERVICE_ACCOUNT_TOKEN"
+    echo "      (unset it here, or sign in as the human account that holds '$OP_VAULT')." >&2
+    exit 1
   fi
 
   SSH_DIR="$HOME/.ssh"; mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
