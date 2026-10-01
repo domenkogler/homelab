@@ -1,4 +1,4 @@
-# `prompt-lmstudio.md` — Lane brief · certify the laptop's two serving legs (HD-474 / HD-476 / HD-477) · runs on **Win11**
+# `prompt-lmstudio.md` — Lane brief · certify the laptop's two serving legs (HD-474 / HD-476 / HD-486) · runs on **Win11**
 
 > **STATUS 2026-09-30, overnight run — lane closed on the GPU side.** Worktree `D:\source\domenkogler\homelab-wt-hd474`, branch `session/hd474-win11-certify-2`, **nothing committed** (the owner asked for the worktree to be left for review). Both legs are `certified: true`, `gate` is green unaided (13 invariants, 13/13 canaries fire), `probe-client` PASSes against a live server, recall passed at 28 984 tokens, and the three prompt shapes are measured. Report: [`reports/hd474-laptop-leg/README.md`](reports/hd474-laptop-leg/README.md). Three claims **in this brief** did not survive the box and are corrected below: §0's "the gate list **is** the task list" (a green gate coexisted with a client audit that had never run), §1's `--host DomenP14s` (the box reports `Domen_P14s`), and §2.B's "`probe-tools` already passes" (it passed for the harness, not for the profile flag).
 
@@ -12,10 +12,10 @@
 > [README.md](README.md) §0 + §1 → [CONVENTIONS.md](CONVENTIONS.md) §6 (secrets) / §7 (pins) / §15 (SSOT) →
 > [docs/hardware-workstation.md](docs/hardware-workstation.md) §Served leg + §Memory & residency →
 > [scripts/laptop-llm/profiles.yml](scripts/laptop-llm/profiles.yml) (top to bottom — it *is* the spec) →
-> the `HD-474` / `HD-476` / `HD-477` rows in [todo.md](todo.md) §2 →
+> the `HD-474` / `HD-476` / `HD-486` rows in [todo.md](todo.md) §2 →
 > [`reports/hd474-laptop-leg/`](reports/hd474-laptop-leg/) `raw/00-SESSION-STATE.md`.
 >
-> **Linked from:** [todo.md](todo.md) HD-474 · HD-476 · HD-477 ·
+> **Linked from:** [todo.md](todo.md) HD-474 · HD-476 · HD-486 ·
 > [docs/hardware-workstation.md](docs/hardware-workstation.md) · [prompt.md](prompt.md)
 
 ## 0 · Already settled — do not spend your window re-deriving it
@@ -28,7 +28,7 @@
 | **Qwen3-VL eats what Gemma cannot.** It answered the untouched **8160×6120 / 10.6 MB rack photo** (`prompt_tokens=4060`, engine still IDLE afterwards) and OCR'd `CRS328-24P-4S+RM` + `CAT6` + `PATCH CABLE 4PAIR ISO/IEC11801 TIA/EIA568B` — corroborated against [docs/network-rack.md](docs/network-rack.md), which lists that exact model string. That is ground truth, not a caption. | measured | `raw/73-original-photo.txt` |
 | **Measured numbers (this engine, this carve).** Gemma: decode **17.5–17.8 t/s** (engine agrees: `17.54 / 17.46`), cold prefill **~250 t/s** at 1.8–2.2k tokens, warm **TTFT 0.4 s** on a prefix-cache hit (`f_sim_best = 1.000`), GPU dedicated **+16.78 GiB** at `-c 32768 --parallel 1` with the projector. Qwen-VL: decode **23.84 t/s**, **image prefill 61.2 t/s** (66 s for one full-res photo), `31 809` tokens **accepted** at `-c 32768 --parallel 1` but at **915 s of prefill**, `23.92 GiB`. | measured | `raw/69–73`, `raw/ctx32k.out` |
 | **KV math that decides window size.** Qwen3-VL and Qwen3-30B-A3B-2507 both: 48 layers × 4 KV heads × head_dim 128, **no sliding window** = **96 KiB/token** at f16 → 32k costs **3.0 GiB**; both train at **262 144**, this box never gets near it. Gemma's hybrid (30 layers, **5 global**, sliding 1024) is ~**10–20 KiB/token marginal** → window is cheap, which is why *it* is the long-context leg. | header-read | `raw/gguf_keys.py` (works over an HTTP range request — no download needed) |
-| **The text-only Gemma variant exists and costs nothing on disk.** `lms load` has **no** vision flag (`--gpu --identifier -c -y --parallel --ttl --estimate-only --speculative-*` are all of them) and the adapter attaches because it sits in the folder, so the variant was imported with `lms import --hard-link` → indexes as **`gemma-4-26b-a4b-textonly`**, 16.80 GB, **same inode**. Projector cost measured: **1.11 GiB resident at idle** (the mmproj file itself; the ViT adds ~nothing until an image arrives). | measured | HD-477, `raw/80-hd477-gemma-textonly.txt` |
+| **The text-only Gemma variant exists and costs nothing on disk.** `lms load` has **no** vision flag (`--gpu --identifier -c -y --parallel --ttl --estimate-only --speculative-*` are all of them) and the adapter attaches because it sits in the folder, so the variant was imported with `lms import --hard-link` → indexes as **`gemma-4-26b-a4b-textonly`**, 16.80 GB, **same inode**. Projector cost measured: **1.11 GiB resident at idle** (the mmproj file itself; the ViT adds ~nothing until an image arrives). | measured | HD-486, `raw/80-hd477-gemma-textonly.txt` |
 | **`gate` today has exactly three complaints, all on `agent-gemma-26b`:** `vision_probe=pending`, `tool_probe=pending`, `certified=false`” — and they are closed, but **“nothing else” was the wrong half**: a green gate was not evidence the laptop was ready. The gate read placeholder model keys as real ones, and `probe-client` SKIPped forever because the spec's hostname did not match the hostname Windows reports. Both are fixed; `gate` now passes unaided and `probe-client` passes against a live server | measured | `python scripts/laptop-llm.py gate` |
 | **The seat is Windows-native** (owner 2026-09-29). Local models serve **pi.dev on Win11**; WSL2 stays `networkingMode=Nat` on purpose, `providers.laptop-lmstudio` carries `native_only: true`. Never "fix" a WSL probe by reconfiguring the guest. | merged | [scripts/pi-config/models-spec.yml](scripts/pi-config/models-spec.yml) |
 | **LM Studio's server ignores `chat_template_kwargs` / `enable_thinking`** (all four spellings tested; reasoning persisted). `--chat-template-kwargs` is a *llama-server* flag. **Consequence:** thinking is on by default, so any probe with a small `max_tokens` gets its budget eaten by `reasoning_content` and returns **empty `content`** — which is a test bug, not a model failure. Budget **≥ 1024** for anything on a reasoning model. | measured | `raw/63-thinking-toggle.txt` |
@@ -40,7 +40,7 @@ fine. Hand timed legs to the owner or run the session off a remote model, and sa
 
 ## 1 · The overnight job is **yours to run** — nothing is measuring right now
 
-The previous session aborted its own HD-477 run at 01:16 on the owner's instruction, so the GPU is
+The previous session aborted its own HD-486 run at 01:16 (numbered `HD-477` when it ran) on the owner's instruction, so the GPU is
 free and the ladder is **incomplete**. Do not assume any of it ran; run it yourself:
 
 ```powershell

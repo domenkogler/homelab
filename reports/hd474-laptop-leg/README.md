@@ -1,4 +1,4 @@
-# HD-474 / HD-476 / HD-477 — the laptop's two serving legs, certified by measurement
+# HD-474 / HD-476 / HD-486 — the laptop's two serving legs, certified by measurement
 
 **Box:** `Domen_P14s` (measured `socket.gethostname()`; the docs said `DomenP14s` — see §Defects).
 AMD Ryzen AI 9 HX PRO 370, Radeon 890M (`gfx1150` family), 32 GiB BIOS UMA carve, Win11 Pro.
@@ -32,7 +32,7 @@ activation/compute buffers. It was not lowered to buy window margin.
 
 ---
 
-## 2 · HD-477 — the projector, the window ladder, and recall
+## 2 · HD-486 (was `HD-477`) — the projector, the window ladder, and recall
 
 Driver: [`raw/hd477_run.py`](raw/hd477_run.py), log [`raw/80-hd477-gemma-textonly.txt`](raw/80-hd477-gemma-textonly.txt).
 
@@ -271,7 +271,7 @@ the same kind of claim this repo refuses to accept from a model.
 
 ## 8 · Coordination notes for the next session (written 2026-09-30 evening)
 
-**9a · One duplicate row id is still live: `HD-477`.** `todo.md` carries this lane's *"Gemma text-only load + larger context"* **and** the DNS lane's *"The DNS resolver does NOT float with the VIP"* under the same number, with nothing complaining. When this section was written (21:30Z) `HD-476` was duplicated too; the DNS lane reconciled that itself while this change sat in review — it closed its own row (`71b27efe`) and moved the reconcile to `HD-480`…`HD-484`, so **`HD-476` is unambiguously this lane's vision leg again**. The mechanism is recorded once, as a guard gap, at **HD-485** (*"`check_todo_done.py` is not duplicate-ID aware"*) — do not re-implement it here. The shape of the failure, so it is not re-blamed on a person: a lane branched from a base that lacked the other lane's already-pushed commit, both derived max+1, and `git merge` had no opinion. Until `HD-477` is reconciled, match these rows **by subject text, never by `grep '^| HD-477'`**, and do not cite `HD-477` meaning the laptop leg.
+**9a · The duplicate `HD-477` is reconciled: the laptop row is now HD-486.** Two rows carried `HD-477` through a merge with nothing complaining — this lane's *"Gemma text-only load + larger context"* and the DNS lane's *"The DNS resolver does NOT float with the VIP"*. **The DNS lane keeps 477**: it is cited by `network-dns.md` (twice), `network-rejected.md` and `IaC/ansible/group_vars/all/main.yml`, and it is still active work, while every inbound reference to the laptop row sat inside this lane's own files. The laptop row therefore moved to the number `scripts/next-hd.sh` granted (`HD-486`), and its `todo.md` row carries that provenance in the tail. Earlier the same evening `HD-476` had the same problem, resolved from the other side: the DNS lane closed its row and minted `HD-480`…`HD-484`, which is why `HD-476` now reads unambiguously as this lane's vision leg. **Two things this does not fix.** The class of failure stays open as `HD-485` (*"`check_todo_done.py` is not duplicate-ID aware"*) — nothing stops two lanes branching from different bases and taking the same number again. And the raw captures keep the old digits in their filenames (`raw/80-hd477-gemma-textonly.txt`, `raw/hd477_run.py`), because a log that silently renames itself stops being evidence.
 
 **9b · What the evening session (`raw/96`) changed.** The vision leg's inability to read the rack SKU
 was reported here at 04:12Z as a perception limit and is now corrected to a frame/pixel-allocation
