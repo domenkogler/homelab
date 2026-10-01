@@ -159,6 +159,82 @@ reopens that claim).
 
 ---
 
+## Host-side resolver — what a box asks its OWN `/etc/resolv.conf` (HD-484)
+
+✅ **live on oldsrv 2026-10-01** (`home_servers.yml --tags nm-resolver` → `changed=2 failed=0`, then
+`changed=0` on the re-run). Everything above this section is about what an *instance* asks outward.
+This is the other axis: which resolver **the host itself** asks. Every home host inherited
+`bootstrap_dns_servers` (`1.1.1.1`) — sound at boot, because a box that hosts the DNS tier must not need
+it to boot, and disqualifying for the running box: oldsrv could not name one split-horizon service of
+its own while the instance it hosts answered every one of them. The AI seat on that box therefore had an
+engine endpoint it could not reach (`getent` empty, `curl` rc=6) — see
+[services-ai.md](services-ai.md) §9b-1.
+
+Measured 2026-10-01, `dig llm.kogler.si @<target>` **on oldsrv**:
+
+| Resolver the box was asked to use        | Reply                       | Verdict                                                            |
+|------------------------------------------|-----------------------------|--------------------------------------------------------------------|
+| own instance (`dns_secondary_ip`)        | spark's Home address        | ✅ authoritative (`qr aa`), also on loopback                        |
+| Pi tertiary (`dns_tertiary_ip`)          | spark's Home address        | ✅ authoritative — the rung that survives the local instance dying  |
+| VPS primary (`dns_primary_ip`)           | **nothing**                 | ⛔ correct, and load-bearing: see below                             |
+| `1.1.1.1` (what was configured)          | nothing internal            | ⛔ the defect                                                       |
+
+**The converged pair** is `host_resolver_dns` in
+[`host_vars/oldsrv.kogler.si.yml`](../IaC/ansible/host_vars/oldsrv.kogler.si.yml) — own instance first,
+Pi tertiary second, both SSOT-derived — applied by the `nm-resolver` leg of `roles/network`. There is
+deliberately **no third rung**: the VPS primary is authoritative for the public view only, so as a
+home host's resolver it answers `NXDOMAIN` for exactly the names this exists to resolve, and glibc
+compares nothing — it takes the first reply it gets. A public/VPS fallback is therefore worse than a
+timeout. ⛔ **HD-477** (float the resolver with the VIP) *replaces the first entry*, it does not add
+one; the two rows must agree, not race.
+
+**Two states, not one — converge both.** NetworkManager has an on-disk profile (`dns=a;b;`, keyfile
+semicolon form) and a committed `/etc/resolv.conf` (`nameserver a`). They are not the same fact, and a
+compare on the first alone stays green on a box whose second never landed. The role reads both, writes
+only on profile drift, re-commits whenever the **applied** state is wrong (so a half-applied box
+self-heals), and asserts the file at the end.
+
+**NetworkManager owns oldsrv's uplink; systemd-networkd does not run there.** Measured 2026-10-01:
+`NetworkManager` enabled+active, `systemd-networkd` **disabled and inactive**, and the rendered
+`20-eno1.*` units name an interface this box does not have (the live Home parent is the same interface
+`ha_keepalived_interface` names). Two docs used to say "networkd renders and NM wins the race for
+`resolv.conf`" — wrong in the way that matters: there is no race, the netd path is inert, and the fix
+had to go through the installer's NM profile (`Wired connection 1`, written on disk **without** the
+`.nmconnection` suffix the Pi/spark keyfiles carry). The unfinished config-manager decision is
+**HD-487**; `netd_phys_name: eno1` and those dead unit files are its evidence, not this row's.
+
+**Session-safe mechanism — `device reapply`, never `connection up`.** `connection modify` writes the
+profile; the file is rewritten only when NM re-commits it. `connection up` tears the interface down and
+re-activates it — that is the leg the converge, and every ssh into the box, rides. `device reapply` re-
+commits without dropping the link: proven the same run (the converge that changed the resolver ran over
+that leg and the session survived; the link read `UP` with the same address afterwards).
+
+⚠ **Three traps, each measured the hard way on 2026-10-01:**
+
+1. `nmcli connection modify` and `nmcli device reapply` are **refused to a plain user** (rc=1
+   `Insufficient privileges`, rc=6 `not authorized`). A hand test needs `sudo`; a converge does not,
+   because `playbooks/home_servers.yml` is `become: true`.
+2. `--tags <anything>` **skips "Gathering Facts"**, so a role that needs a fact must gather it itself.
+   The first draft of this leg had an empty reapply target on exactly the scoped form it ships to be
+   run with (`--tags nm-resolver`).
+3. This repo runs `inject_facts_as_vars = False` (`ansible.cfg`, HD-231): the top-level
+   `ansible_default_ipv4` var **does not exist** — read `ansible_facts['default_ipv4']`.
+
+**Verify (read-only, no secrets):**
+
+```bash
+ssh oldsrv 'grep -v "^#" /etc/resolv.conf; getent hosts llm.kogler.si'
+bash scripts/ansible-run.sh playbooks/home_servers.yml \
+     --limit oldsrv.kogler.si --tags nm-resolver --check --no-pull   # prints on-disk | applied | wanted
+```
+
+⛔ **Same class, other boxes — HD-486.** The Pi is documented as running `1.1.1.1` too, and two places
+already *depend* on it being broken: `scripts/README.md`'s guarded-converge row ("measure from the VIP
+address, not by name: the Pi's `resolv.conf` is 1.1.1.1") and HD-465's procedure ("Pi read-back proves
+nothing"). `nas` and `spark` are unmeasured.
+
+---
+
 ## Per-Instance Split-Horizon (HD-350/HD-352)
 
 ✅ **live on all three instances** (VPS primary + oldsrv secondary + Pi tertiary).

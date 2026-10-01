@@ -23,6 +23,34 @@ home_ip: "{{ oldsrv_home_ip }}"     # VLAN 10 (Home) node IP (VRRP anchor) — S
 # (dns_primary_ip = VPS public, dns_secondary_ip = oldsrv, dns_tertiary_ip = Pi).
 # oldsrv is the SECONDARY now (the old dns_primary_ip host var was removed — it would
 # shadow the Group Var on this host and reintroduce the stale oldsrv-primary value).
+
+# ==== HD-484: this box's OWN resolver (what lands in /etc/resolv.conf) ====
+# Why a separate var from bootstrap_dns_servers: `1.1.1.1` was right at boot (a box that HOSTS
+# the DNS tier must not need it to boot) and wrong for the running box — with it, oldsrv could not
+# name a single split-horizon service of its own (`getent hosts llm.kogler.si` empty, `curl` rc=6)
+# while the Technitium instance ON this box answered that name authoritatively. Measured 2026-10-01:
+# own instance and the Pi tertiary both answer the LAN-only names AND forward upstream (since HD-476);
+# the VPS primary answers the LAN-only names NOT AT ALL (it is authoritative for the public view only
+# — docs/network-dns.md §Per-Instance Split-Horizon), so it is deliberately absent from this list.
+# Order: own instance first (no hop, it is authoritative for this zone), the Pi tertiary as the rung
+# that keeps this box naming things while its own container is down or still booting.
+# ⛔ HD-477 (the resolver floating with the VIP) replaces the FIRST target, it does not add one —
+# the two rows must agree, not race.
+# Rendered as ONE comma-joined string on purpose: nmcli wants that form, and a single template that
+# references two scalars cannot leave an unrendered `{{ … }}` in a live profile.
+host_resolver_dns: "{{ [dns_secondary_ip, dns_tertiary_ip] | join(',') }}"
+
+# The NetworkManager profile that ACTUALLY owns this box's uplink (installer-created; IaC modifies it,
+# it does not render it — roles/network HD-314 already did the same for ipv4.dhcp-client-id).
+# ⛔ This is NOT netd_phys_name: systemd-networkd here is disabled + inactive, its rendered 20-eno1.*
+# units are inert, and `eno1` is not even this box's NIC (the live Home parent is enp0s31f6, see
+# ha_keepalived_interface below). That half-open ownership is its own row (HD-487), not a thing to
+# "fix" by pointing this var at the netd unit name.
+nm_oldsrv_profile: "Wired connection 1"
+# ⚠ The keyfile on disk is the BARE profile name — the installer wrote it WITHOUT the `.nmconnection`
+# suffix the Pi/spark keyfiles carry, so this path cannot be built by suffixing the profile name.
+# A wrong path fails loud at the slurp (file not found), never silently.
+nm_oldsrv_profile_path: "{{ nm_keyfile_dir }}/{{ nm_oldsrv_profile }}"
 ansible_user: ansible-admin        # created by preseed post_install.sh
 homelab_mode: desktop
 # NUT: UPS CLIENT (slave to nas) — delayed so alerts flush before powerdown

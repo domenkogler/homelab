@@ -139,7 +139,7 @@
       Details: deployment-ansible.md §Self-converge guardrail.
   vars:
     homelab_guard_role: network
-    homelab_guard_tags: [network, netd, nm-pi, nm-pi-mgmt, dhcp-client, hosts, base]
+    homelab_guard_tags: [network, netd, nm-pi, nm-pi-mgmt, nm-resolver, dhcp-client, hosts, base]
     homelab_guard_check_safe: true
     homelab_guard_self: >-
       {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
@@ -152,7 +152,7 @@
       {{ (homelab_guard_self | bool)
          and (homelab_guard_selected | bool)
          and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
-  tags: [always, network, netd, nm-pi, nm-pi-mgmt, dhcp-client, hosts, base]
+  tags: [always, network, netd, nm-pi, nm-pi-mgmt, nm-resolver, dhcp-client, hosts, base]
 
 - name: HD-413 | Refuse the storage role against the control node it is run from
   ansible.builtin.assert:

@@ -10,6 +10,10 @@
 #   5. nas/oldsrv (systemd-networkd, desktop/VPS class): static dual-home — physical .network
 #      (VLAN-10 Home address + default route), a VLAN-99 tagged sub-interface (.netdev) + its
 #      .network (Mgmt address, connected route only). Session-safe: additive addresses.
+#      ⚠ On oldsrv these units are INERT in practice (NetworkManager owns the uplink and
+#      systemd-networkd is disabled there) — open row HD-487 owns that half-finished decision.
+#   6. oldsrv host-side resolver (HD-484): the box's own /etc/resolv.conf -> the DNS tier it hosts,
+#      written through the NetworkManager profile that really owns that uplink (nmcli, needs become).
 - name: Refuse network runs as ai-debug or unknown users
   assert:
     that:
@@ -171,14 +175,210 @@
       - nmcli
       - connection
       - modify
-      - "Wired connection 1"
+      - "{{ nm_oldsrv_profile }}"
       - ipv4.dhcp-client-id
       - mac
   when:
     - dhcp_client_optin
     - inventory_hostname == 'oldsrv.kogler.si'
+    - nm_oldsrv_profile is defined
   changed_when: false
   tags: [network, dhcp-client]
+
+# ---- Host-side resolver: the DNS tier, not the public bootstrap (HD-484) -------------------
+# oldsrv is NetworkManager-managed (NM active; systemd-networkd disabled + inactive, so the
+# netd units rendered above are inert on this box) and the profile that owns the uplink is the
+# installer's `Wired connection 1` — the same profile HD-314 modifies just above. Its ipv4.dns was
+# `1.1.1.1,1.0.0.1` (= bootstrap_dns_servers), which made every split-horizon name unresolvable ON
+# THE BOX: the AI seat's engine endpoint `llm.kogler.si` returned getent-empty / curl rc=6 while the
+# Technitium instance running on that very box answered it with `qr aa` (measured 2026-10-01, and
+# 2026-09-30 for the bypassed-resolver leg — everything downstream of DNS already worked).
+# Target pair + the reason the VPS primary is excluded: host_resolver_dns in
+# host_vars/oldsrv.kogler.si.yml; prose: docs/network-dns.md §Host-side resolver.
+#
+# ⚠ Session-safety, the reason this is `device reapply` and not `connection up`: `modify` only
+# rewrites the on-disk profile, and only the re-commit rewrites /etc/resolv.conf. `connection up`
+# tears the interface down and re-activates it — that is the leg this converge (and every ssh into
+# the box) rides. `device reapply` re-commits the changed profile WITHOUT dropping the link.
+# ⚠ Both calls need root: as a plain user NetworkManager refuses them (measured rc=1 "Insufficient
+# privileges" / rc=6 "not authorized"), which the hand-test hits but a converge does not, because
+# playbooks/home_servers.yml runs the play with become: true.
+
+- name: HD-484 | Gather the one network fact this block needs
+  # NOT decoration — the fix for a bug the first --check run caught: `--tags <anything>` SKIPS the
+  # implicit "Gathering Facts" task, so on the scoped converge form this block is meant to be applied
+  # with (`--tags nm-resolver`, `--tags network`) ansible_default_ipv4 was UNDEFINED and the reapply
+  # target was empty. `setup` is a read-only module, so it also runs under --check and the state line
+  # below reports the real device there.
+  ansible.builtin.setup:
+    filter: ansible_default_ipv4
+  when:
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Take the uplink interface from the gathered facts
+  # ⚠ `ansible_default_ipv4` as a TOP-LEVEL var does not exist in this repo: IaC/ansible/ansible.cfg
+  # sets `inject_facts_as_vars = False` (HD-231), so facts are read as `ansible_facts[...]` and the
+  # prefix is stripped inside that dict. That, plus the --tags/facts interaction above, is why the
+  # first two --check runs of this block came back with an empty interface.
+  ansible.builtin.set_fact:
+    nm_resolver_iface: "{{ (ansible_facts['default_ipv4']['interface']) | default('') }}"
+  when:
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+- name: HD-484 | Assert the host resolver target is real addresses, not an unrendered template
+  # Fail-loud guard, not decoration: host_resolver_dns is built by templating two SSOT scalars into
+  # one comma-joined string. If either name ever stops resolving in the var chain, the string that
+  # would reach the live profile is a literal `{{ … }}` — which nmcli would accept happily and which
+  # would cost this box ALL name resolution. The shape test is the thing that cannot pass quietly.
+  ansible.builtin.assert:
+    that:
+      - host_resolver_dns is match('^[0-9]+(\.[0-9]+){3}(,[0-9]+(\.[0-9]+){3})*$')
+      - nm_resolver_iface | default('') | length > 0
+    fail_msg: >-
+      HD-484 cannot proceed on {{ inventory_hostname }}: want a comma-joined IPv4 pair in
+      host_resolver_dns (host_vars/oldsrv.kogler.si.yml: dns_secondary_ip + dns_tertiary_ip) and the
+      uplink interface from ansible_facts['default_ipv4'], and got resolver='{{ host_resolver_dns }}'
+      iface='{{ nm_resolver_iface | default('<undefined>') }}'. Either half would leave this box
+      unable to name anything.
+    quiet: true
+  when:
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Read the NM profile that owns the uplink (on-disk desired state)
+  # Read with slurp, not `nmcli -g`: slurp is a check-mode-safe read-only module, so `--check` shows
+  # the state that is REALLY on the box without the role needing a `check_mode: false` escape — and
+  # scripts/check_self_converge_guard.py refuses a lockout role that writes under --check while
+  # claiming check_safe (it said exactly that about the first draft of this block).
+  ansible.builtin.slurp:
+    path: "{{ nm_oldsrv_profile_path }}"
+  register: nm_host_resolver_profile
+  changed_when: false
+  when:
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Read /etc/resolv.conf (applied state)
+  ansible.builtin.slurp:
+    path: /etc/resolv.conf
+  register: nm_host_resolver_file
+  changed_when: false
+  when:
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Derive wanted / on-disk / applied resolver state
+  # Two DIFFERENT states are in play and the change converges both: the profile on disk (`dns=a;b;`,
+  # semicolon-delimited keyfile form) and what NetworkManager has actually committed to
+  # /etc/resolv.conf (`nameserver a`). Comparing only the first would leave a half-applied box green
+  # forever; comparing only the second would re-run nmcli every converge.
+  ansible.builtin.set_fact:
+    nm_resolver_wanted: "{{ host_resolver_dns }}"
+    nm_resolver_on_disk: >-
+      {{ (nm_host_resolver_profile.content | default('') | b64decode).splitlines()
+         | select('search', '^dns=') | join('') | regex_replace('^dns=', '')
+         | split(';') | reject('equalto', '') | list | join(',') }}
+    nm_resolver_applied: >-
+      {{ (nm_host_resolver_file.content | default('') | b64decode).splitlines()
+         | select('search', '^nameserver') | map('regex_replace', '^nameserver\s+', '')
+         | list | join(',') }}
+  when:
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Report resolver state (context on every run; under --check this is the whole verdict)
+  ansible.builtin.debug:
+    msg: >-
+      {{ nm_oldsrv_profile }} on {{ nm_resolver_iface | default('no-default-route-fact') }}:
+      on-disk '{{ nm_resolver_on_disk | default('?') }}' | applied '{{ nm_resolver_applied | default('?') }}'
+      | wanted '{{ nm_resolver_wanted | default('?') }}'{{ ' (--check: nothing written)' if ansible_check_mode else '' }}
+  when:
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Point the host resolver at the DNS tier
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - connection
+      - modify
+      - "{{ nm_oldsrv_profile }}"
+      - ipv4.dns
+      - "{{ host_resolver_dns }}"
+      - ipv4.ignore-auto-dns
+      - "yes"
+  register: nm_host_resolver_set
+  when:
+    - not ansible_check_mode
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+    - nm_resolver_on_disk != host_resolver_dns
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Re-commit the profile so resolv.conf actually changes (device reapply — no link drop)
+  # Gated on the APPLIED state, not on "did the modify change": that is what makes a half-applied box
+  # (profile written, reapply refused by an earlier run) self-heal instead of sitting RED forever.
+  # Runs immediately after the modify, in the same task list: a handler would flush at the END of the
+  # play, i.e. AFTER the read-back below, which would then prove nothing (assert and act in one run —
+  # the scripts/README.md guarded-converge lesson).
+  ansible.builtin.command:
+    argv:
+      - nmcli
+      - device
+      - reapply
+      - "{{ nm_resolver_iface }}"
+  when:
+    - not ansible_check_mode
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+    - nm_resolver_applied != host_resolver_dns
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Re-read /etc/resolv.conf after the re-commit
+  ansible.builtin.slurp:
+    path: /etc/resolv.conf
+  register: nm_host_resolver_after
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
+
+- name: HD-484 | Assert every resolver address is live in /etc/resolv.conf
+  # rc=0 on `modify` only proves the profile on disk was written, and a soft `device reapply` CAN be
+  # refused. The file — not the command — is the evidence (CONVENTIONS §6: a test that cannot fail is
+  # not evidence; while the OLD pair still sits in this file the loop below is RED for every item).
+  # Skipped under --check on purpose: nothing was written, so the file legitimately holds the OLD
+  # state and asserting on it would be a lie in either direction — the --check verdict is the debug
+  # line above.
+  ansible.builtin.assert:
+    that:
+      - item in resolv_after
+    fail_msg: >-
+      nameserver {{ item }} is not in /etc/resolv.conf on {{ inventory_hostname }} — the profile was
+      written but NetworkManager did not re-commit it. Actual file:
+      {{ resolv_after }}
+      Manual re-apply: nmcli device reapply {{ nm_resolver_iface | default('<uplink>') }}
+      Rollback (back to the bootstrap pair): nmcli connection modify '{{ nm_oldsrv_profile }}' ipv4.dns
+      1.1.1.1,1.0.0.1 && nmcli device reapply {{ nm_resolver_iface | default('<uplink>') }}
+    quiet: true
+  vars:
+    resolv_after: "{{ (nm_host_resolver_after.content | default(nm_host_resolver_file.content | default('')) | b64decode) }}"
+  loop: "{{ host_resolver_dns.split(',') }}"
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - nm_oldsrv_profile is defined
+    - host_resolver_dns is defined
+  tags: [network, nm-resolver]
 # Load the profile into NetworkManager (idempotent: `load` then `up` the connection).
 # HD-311 (b): tagged Mgmt sub-interface (eth0.99) — SAME Windows of correctness as pi-eth0:
 # render-only on pi.kogler.si; never on another host. The Mgmt plane is ONLY reachable via
