@@ -803,7 +803,7 @@ service in this fleet follows:
 
 | Surface | Runtime | Bind | Auth | Why not the house style |
 |---|---|---|---|---|
-| **pi-web** (HD-409) | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled | **owner decision 2026-09-23: loopback only**, on `cockpit_pi_web_port`, published as **`https://pi-oldsrv.ts.kogler.si`** by oldsrv's OWN `websecure-ts` listener on `traefik-internal` (`network_mode: host` reaches the host loopback). No LAN socket, no `0.0.0.0`, no VPS edge, no WG S2S hop. It used to bind the `tailscale0` address — plain HTTP, no cert, and unreachable from every other node in the fleet (`no matching peer`) | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
+| **pi-web** (HD-409) | `~/.pi/agent/bin/pi-web` (28 MB Go binary, installed as a **pi package**: `pi install npm:@ygncode/pi-web@beta`), systemd **user** unit `pi-web.service` under `domen`, linger enabled, two drop-ins: `loopback-bind.conf` + `pi-on-path.conf` (the unit must be told where `pi` lives — it shells out to it) | **owner decision 2026-09-23: loopback only**, on `cockpit_pi_web_port`, published as **`https://pi-oldsrv.ts.kogler.si`** by oldsrv's OWN `websecure-ts` listener on `traefik-internal` (`network_mode: host` reaches the host loopback). No LAN socket, no `0.0.0.0`, no VPS edge, no WG S2S hop. It used to bind the `tailscale0` address — plain HTTP, no cert, and unreachable from every other node in the fleet (`no matching peer`) | `PI_WEB_TOKEN` from `~/.config/pi-web/env` (0600). `?token=` → 302; no token → **401**. A non-loopback bind without a token is refused by the binary unless `-insecure` | A container would mount the whole home tree of the session it watches; the point of the cockpit is to read `~/.pi/agent/sessions/`, so the container boundary would be theatre. `domen` is the blast radius, and it is the account that already owns the sessions |
 | **Paseo** (HD-411) | ⏳ **not installed** (parked 2026-09-23 with a full resume sequence in the row) — planned as `@getpaseo/cli` under the same account | would use `paseo_port` (6767, upstream's default) on the same tailnet bind | its own `PASEO_PASSWORD` | Same reasoning — and the reason it stayed parked is that its acceptance needs a hand on the phone, so nothing I could verify end-to-end tonight |
 
 **Deliberately NOT behind gateway-auth (decision).** The row allowed "a second host network + gateway-auth
@@ -868,16 +868,54 @@ systemd-networkd units **and** NetworkManager, and NM wins". Measured 2026-10-01
 **disabled and inactive** there — no race, the netd renders are inert and name an interface the box does not
 have. The half-finished config-manager decision is **HD-487**.
 
-**What is still owed on the seat (HD-484's remaining tail), and it is all seat-local:**
-`~/.pi/agent/settings.json` holds **only** `{"packages": ["npm:@ygncode/pi-web@beta"]}` — none of
-[pi-harness.md](pi-harness.md) §5 — so the picker default is a cloud model and, with no
-`defaultThinkingLevel: off`, the engine thinks every turn (measured above); render it from the spec rather
-than hand-editing it. ⚠ And re-derive before quoting versions: a `find` over `/home/domen` (depth 9, as
-`domen`) on 2026-10-01 found **no `pi` binary and no `pi-coding-agent` package** — what is there is
-`~/.pi/agent/bin/pi-web` (unit `pi-web.service`, loopback listener) plus the rendered `models.json` /
-`auth.json`. So both the "pi **0.87.1** there against **0.99.1** on the laptop" version gap and the
-`pi --list-models` line recorded above (measured 2026-09-23) need re-measuring against what is actually
-installed now. Harness-side packaging stays **HD-445**/**HD-446**.
+**Measured 2026-10-01 — the phone's "no model available" and "Update failed" were one defect: the unit had no
+`pi` on PATH.** First real client on the cockpit (HD-444's phone) reached the seat and got an empty model
+picker. Root cause, measured on the box: `pi-web` is a Go binary that **shells out to `pi`** for the model
+list, every chat turn, and its own self-update — and **no flag overrides that path** (`pi-web -h` offers only
+`-host -p -token/-insecure -o -version`). A systemd **user** unit gets no login shell, so it never sees
+`~/.profile`: `/proc/<pi-web>/environ` read `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`, while
+`pi` lives inside the pinned Node tarball (`~/.local/share/pi-node/node-v22.23.2-linux-x64/bin/pi`). The
+failure is not subtle once you ask the API itself — A/B on the live unit, one restart each way:
+
+| `pi-on-path.conf` drop-in | `GET /api/models` | `POST /api/check-update` |
+|---|---|---|
+| absent | **HTTP 500** — `{"error":"pi executable not found: exec: "pi": executable file not found in $PATH"}` | 200 (it reads the registry, never runs pi) |
+| present | 200, **419 models**, `spark \| spark/qwen3.8-flash-next \| 262144 \| 16384 \| reasoning true` | 200, `beta.36 → beta.38` pending |
+
+Three traps fell out of it, all recorded in the runbook step that now prevents them
+([../deployment-manual.md](../deployment-manual.md) Phase 4c):
+
+- **The Node bin dir must be on PATH, not just `pi`.** `bin/pi` is a symlink to `dist/bundle/cli.js` whose
+  shebang is `#!/usr/bin/env node`; with only a `pi` symlink reachable, the call dies as `env: 'node':
+  No such file or directory`. A `~/.local/bin/pi` shim is therefore the wrong fix (and `~/.local/bin` is not
+  on a user unit's PATH either — `.profile` is a login-shell file).
+- **`?token=` is a cookie handshake, so it is useless for an API probe.** It answers 302 and sets a cookie;
+  a bare `curl …/api/models?token=…` gets that 302 and no JSON. Drive it with a cookie jar (`-c`/`-b`).
+- **A `gsub` on a `-F:` field that starts with a space erases the field.** The runbook's derive-the-port
+  line printed empty for exactly this reason (`$2` = `" 31415 …"`, the match starts at character 1, so the
+  whole field is deleted — `sub` is as wrong as `gsub` here). Replaced with a whitespace `awk`/`sed` form.
+
+**Correction to the claim this section carried from the same day:** it said a `find` over `/home/domen`
+found **no `pi` binary and no `pi-coding-agent` package**. It did not — `pi` **is** installed (0.87.1, run
+against the rendered `models.json`), it is simply a **symlink** (`bin/pi ->
+../lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js`), and a `-type f` find cannot see a
+symlink. The version gap is now measured rather than inferred: **seat pi 0.87.1 + pi-web beta.36** (beta.38
+available) vs **laptop pi 0.99.2**.
+
+✅ **2026-10-01 — the seat's harness defaults are landed too** (HD-484's last seat-local half):
+`~/.pi/agent/settings.json` now carries the whole [pi-harness.md](pi-harness.md) §5 block
+(`defaultProvider`/`defaultModel` = spark, `defaultThinkingLevel: off`, timeouts, compaction) with the
+workstation key `packages` preserved, so the phone's session starts on the local engine instead of a cloud
+model and stops thinking every turn. It is hand-written from §5 **by design**: `render-pi-config.py` has no
+settings vendor and `models-spec.yml` states the boundary — the spec renders the *model contract*, never
+settings. What the picker offers is still 419 rows (openrouter 386 · opencode-go 30 · entrim 2 · **spark 1**)
+— the defaults decide the first turn, not the list length.
+
+**What is still owed on the seat (HD-484's remaining tail):** the pi-version bump itself (seat 0.87.1 →
+the laptop's 0.99.2 — the seat pins its npm prefix inside the Node tarball, so it is one `npm i -g` + a
+re-read of §5), and the packaging that keeps all of this out of hand-keeping: **HD-445** (no role owns the
+unit/drop-ins/env — including the `pi-on-path.conf` above) and **HD-446** (the missing
+`scripts/install-pi-debian.sh`, whose trap list this measurement just grew).
 
 ### 9c. Ecosystem constraints (verified from primary sources)
 
