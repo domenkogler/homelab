@@ -228,7 +228,7 @@ bash scripts/ansible-run.sh playbooks/home_servers.yml \
      --limit oldsrv.kogler.si --tags nm-resolver --check --no-pull   # prints on-disk | applied | wanted
 ```
 
-⛔ **Same class, other boxes — HD-486.** The Pi is documented as running `1.1.1.1` too, and two places
+⛔ **Same class, other boxes — HD-488.** The Pi is documented as running `1.1.1.1` too, and two places
 already *depend* on it being broken: `scripts/README.md`'s guarded-converge row ("measure from the VIP
 address, not by name: the Pi's `resolv.conf` is 1.1.1.1") and HD-465's procedure ("Pi read-back proves
 nothing"). `nas` and `spark` are unmeasured.
