@@ -308,7 +308,7 @@ spark_sglang_image: ""
 # has somewhere to put the result, and a mutable alias on the serving path is a bare
 # `latest` under §7. A rebuild that yields a different ID is a RE-PIN (its own commit), not
 # something to paper over — the pin change is the review surface.
-spark_vllm_ultrafast_image: ""
+spark_vllm_ultrafast_image: "sha256:4900c13edab97dd8deb5f429456ae72e3c093cbacb3381f98feb10788f379d92"   # built 2026-10-02 (role's deliberate fail printed it); built FROM iter6c sha256:54759ef1b961..., which sits on the pinned base sha256:fc120ece..., see §7
 spark_vllm_ultrafast_tag: "qwen38-flash-dgx:iter6d-20260910"   # build output tag, never served
 
 # The immutable provenance of what gets built. `build.sh --run` re-verifies eleven md5s +
