@@ -226,7 +226,13 @@ def _load_ssot_ctx():
                 except Exception:
                     pass
             ctx[k] = v
-        elif k in ("spark_llm_profiles", "spark_llm_engine_entrypoints", "spark_llm_overlays"):
+        elif k in ("spark_llm_profiles", "spark_llm_engine_entrypoints", "spark_llm_overlays",
+                   # HD-489: the funnel's shared argv/env fragments + the second artifact
+                   # root map. Lists/dicts are dropped unless named here, and the arms
+                   # reference these fragments by flag — so an arm would render with the
+                   # piecewise/graph args SILENTLY missing rather than failing. Load them.
+                   "spark_llm_ultrafast_cudagraph_args", "spark_llm_ultrafast_diag_args",
+                   "spark_llm_ple_mmap_env", "spark_models_roots"):
             # HD-469 (LLM profile switch): the profile catalogue + engine entrypoint map +
             # PLE overlay list are NATIVE dicts/lists here, not stringified. They are
             # Jinja-free by design (every engine value a literal; paths are composed in

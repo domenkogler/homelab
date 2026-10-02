@@ -40,13 +40,38 @@
     Ansible render and the offline validator mock) — a Jinja-valued alias such as
     `spark_llm: "{{ spark_llm_profiles[...] }}"` survives Ansible but arrives here as
     a stringified dict under scripts/validate-docker-services.py. #}
+{#  HD-489 path/flag composition. Every host path a profile can point at is resolved HERE,
+    from plain scalar profile keys (image | models_root | ple_host_root | ple_host_base),
+    because a Jinja expression written INSIDE spark_llm_profiles is stringified by the
+    offline validator (the note above). A profile therefore names a COORDINATE and never a
+    path. roles/spark-llm-profile validates every one of these names before this file runs,
+    so an unknown name is a gate refusal with a remediation, not a rendered garbage path. #}
+{% if profile.image == 'ultrafast' %}
+{%   set engine_image = spark_vllm_ultrafast_image %}
+{% elif profile.image == 'sglang' %}
+{%   set engine_image = spark_sglang_image %}
+{% else %}
+{%   set engine_image = spark_vllm_image %}
+{% endif %}
+{% set model_host_dir = (spark_models_dir_os if profile.models_root == 'os' else spark_models_dir) ~ '/' ~ profile.model_subdir %}
+{% if profile.ple_host_root == 'os' %}
+{%   set ple_host_dir = spark_models_dir_os %}
+{% elif profile.ple_host_base == 'mount' %}
+{%   set ple_host_dir = spark_xfs_mount %}
+{% else %}
+{%   set ple_host_dir = spark_models_dir %}
+{% endif %}
+{% set command_extra = [] %}
+{% if profile.cudagraph_piecewise %}{%   set command_extra = command_extra + spark_llm_ultrafast_cudagraph_args %}{% endif %}
+{% if profile.prompt_tokens_details %}{%   set command_extra = command_extra + spark_llm_ultrafast_diag_args %}{% endif %}
+{% if profile.never_evict_prompt %}{%   set command_extra = command_extra + ['--never-evict-kv-cache-prompt-includes', profile.never_evict_prompt, '--never-evict-kv-cache-max-fraction', profile.never_evict_max_fraction] %}{% endif %}
+{% set command_extra = command_extra + profile.args_extra | default([]) %}
 services:
   vllm-engine:
-{% if profile.engine == 'vllm' %}
-    image: "{{ spark_vllm_image }}"
-{% else %}
-    image: "{{ spark_sglang_image }}"     # empty until the arm64 digest is verified — the gate refuses before this renders
-{% endif %}
+    # image comes from profile.image → the pins in group_vars/all/versions.yml (HD-489).
+    # `ultrafast` resolves EMPTY until the patched lineage's image ID is pinned there, and
+    # the gate refuses the profile long before this line renders (never a mutable tag).
+    image: "{{ engine_image }}"
     container_name: "{{ spark_vllm_container }}"
     cap_drop:
       - ALL
@@ -79,8 +104,29 @@ services:
       # (spark/ansible/group_vars/spark_nodes.yml + the primitive-ai card).
       - VLLM_PLE_QUANT_DIR={{ profile.ple_container_dir }}
 {% endif %}
+{% if profile.ple_offload %}
+      # The primitive-ai CPU-offload trio. Rendered ONLY for profiles that use that PLE
+      # strategy: the upstream mmap path (ple_mmap: true, the ar-*/v16b arms) reads its table
+      # off NVMe through the patched ple_layer.py, and rendering BOTH mechanisms at once is
+      # how two PLE implementations fight over one mount. The gate additionally refuses a
+      # profile that declares ple_mmap AND ple_overlay: they patch the same file.
       - VLLM_PLE_CPU_OFFLOAD={{ spark_vllm_cpu_offload }}
       - VLLM_PLE_OFFLOAD_READY_TIMEOUT={{ spark_vllm_ple_offload_ready_timeout }}
+{% endif %}
+{% if profile.ple_mmap %}
+      # Upstream PLE-from-disk knobs (one SSOT list: spark_llm_ple_mmap_env). PREWARM=1 is
+      # why health_start_period is 2400s on these arms, not the certified lane's 1200s.
+{%   for e in spark_llm_ple_mmap_env %}
+      - {{ e }}
+{%   endfor %}
+{% endif %}
+{% if profile.draft_vocab %}
+      # Reduced MTP draft vocabulary (ids outside the slice score -inf at DRAFT time only;
+      # the target still verifies every token, so output is not biased — only accepted
+      # length moves). The bind target is fixed by the patch; the file is repo-owned and
+      # sha256-pinned, and roles/spark-artifacts verifies the 65,536-line count.
+      - VLLM_MTP_DRAFT_VOCAB={{ spark_draft_vocab_container }}
+{% endif %}
 {% endif %}
       - OMP_NUM_THREADS={{ spark_vllm_omp_num_threads }}
       - SAFETENSORS_FAST_GPU=1
@@ -102,8 +148,10 @@ services:
       - {{ e }}
 {% endfor %}
     volumes:
-      # Model (read-only) — XFS /mnt/spark_nvme/models/<profile's checkpoint>
-      - {{ spark_models_dir }}/{{ profile.model_subdir }}:/model:ro
+      # Model (read-only) — <profile models_root>/<profile model_subdir>. `os` = the root
+      # partition (345 G free measured 2026-10-02), so the ~130 GB upstream checkpoint needs
+      # no room carved out of XFS and NOTHING has to be deleted for it (HD-489).
+      - {{ model_host_dir }}:/model:ro
 {% if profile.ple_overlay %}
       # PLE overlay patches (read-only) — on the XFS data partition. Mapping =
       # spark_llm_overlays (group_vars), the SAME list the profile gate stats.
@@ -112,8 +160,11 @@ services:
 {% endfor %}
 {% endif %}
 {% if profile.ple_host_subdir | length > 0 %}
-      # Quantized PLE tables (read-only) — the sidecar the overlay gathers from.
-      - {{ spark_xfs_mount }}/{{ profile.ple_host_subdir }}:{{ profile.ple_container_dir }}:ro
+      # Quantized PLE tables (INT4/NVFP4 sidecar) or the FP8 mmap table (read-only).
+      - {{ ple_host_dir }}/{{ profile.ple_host_subdir }}:{{ profile.ple_container_dir }}:ro
+{% endif %}
+{% if profile.draft_vocab %}
+      - {{ spark_draft_vocab_host_file }}:{{ spark_draft_vocab_container }}:ro
 {% endif %}
       # KV Cache (read-write, on XFS)
       - {{ spark_xfs_mount }}/kv_cache:/data/kv_cache
@@ -226,14 +277,22 @@ services:
       - --reasoning-parser
       - qwen3
       - --tool-call-parser
-      - qwen3_coder
+      - {{ profile.tool_call_parser }}
       - --enable-auto-tool-choice
       - --override-generation-config
-      - '{"temperature":1,"top_p":0.95,"top_k":20}'
+      - {{ profile.generation_config_override }}
+{% if profile.get('spec_config') %}
+      # Merged speculative config (HD-489: block rejection + probabilistic draft sampling,
+      # as upstream publishes them). to_json keeps dict order deterministic, so the render
+      # diff of an arm flip is exactly one line.
+      - --speculative-config
+      - {{ profile.spec_config | to_json }}
+{% elif (profile.spec_tokens | int) > 0 %}
       - --speculative-config
       - '{"method": "{{ spark_vllm_spec_method }}", "num_speculative_tokens": {{ spark_vllm_spec_tokens }}}'
-{% for a in profile.args_extra | default([]) %}
-      # profile-specific (profile {{ spark_llm_profile }} · args_extra)
+{% endif %}
+{% for a in command_extra %}
+      # profile-specific (profile {{ spark_llm_profile }} · composed flags + args_extra)
       - {{ a }}
 {% endfor %}
 {% else %}
@@ -262,7 +321,7 @@ services:
       - --reasoning-parser
       - qwen3
       - --tool-call-parser
-      - qwen3_coder
+      - {{ profile.tool_call_parser }}
 {% for a in profile.args_extra | default([]) %}
       # profile-specific (profile {{ spark_llm_profile }} · args_extra)
       - {{ a }}

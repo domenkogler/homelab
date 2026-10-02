@@ -148,6 +148,11 @@
 #                                     on a host the provider is not scoped to (`hosts:`), so CI and
 #                                     the oldsrv cockpit are unaffected.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
+
+#  25. spark-llm-render-matrix.py       — HD-489: every authored profile must RENDER offline.
+#                                     16 arms × the same docker-compose.yml.j2 the engine
+#                                     boots from, with the parity assertions that keep the
+#                                     four certified lanes byte-identical to what serves today.
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
 set -euo pipefail
@@ -312,6 +317,13 @@ $PY scripts/check_merge_markers.py --self-test
 
 echo "== check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries) =="
 $PY scripts/check_spark_llm_gate.py
+
+echo "== spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate) =="
+# The gate proves the ARITHMETIC; this proves the RENDER. A profile can satisfy every
+# invariant and still render an engine that boots for 20 minutes and then cannot find its
+# PLE table, because the catalogue references images and host roots by NAME and only the
+# compose template turns those names into paths. Runs the real template, offline, per arm.
+$PY scripts/spark-llm-render-matrix.py
 
 echo "== laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE) =="
 # Deliberately NOT the deploy-time `gate`: on a box whose probes have never run, that gate fails

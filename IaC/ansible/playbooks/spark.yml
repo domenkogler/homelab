@@ -30,5 +30,13 @@
     - spark           # NVMe p2 → XFS for PLE/KV + headroom assert (gated by spark_partition_enable)
     - spark-llm-profile  # HD-469 read-only gate: which LLM config is about to boot (profile exists, KV math closes, artifacts staged, uncertified override)
     - spark-artifacts # GENERAL artifact store on XFS: weights + PLE overlays + INT4 tables (manifest spark_artifacts, HD-359)
+    # HD-489: builds the patched vLLM lineage (image ID pinned by hand in versions.yml) and
+    # converts the T80 drafter directory. Opt-in: `spark_ultrafast_build: false` in
+    # group_vars/spark.yml, so a normal converge never clones-and-builds by accident; run it
+    # deliberately with `--tags spark-ultrafast-build` in an artifact window. Ordered BEFORE
+    # docker_services because the compose render needs the image ID to already be pinned.
+    - role: spark-ultrafast-build
+      when: spark_ultrafast_build | bool
+      tags: [spark-ultrafast-build]
     - monitoring      # Alloy node exporter → VPS Victoria backend (per-node model)
     - docker_services # spark-ai (vLLM B1 + llm-d router) via the spark group_vars; deploy-gated by `enabled`

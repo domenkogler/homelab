@@ -1,0 +1,180 @@
+---
+# role: spark-ultrafast-build — build the patched lineage + the T80 drafter directory.
+# Order = cheapest failure first; every fail_msg names the file or var to change.
+# Heavy steps run ASYNC with polling: a killed build (tool timeout, dropped SSH) is worse
+# than no build, and a full converge already has to be launched detached (README §4.6).
+
+- name: Assert the provenance pins exist
+  ansible.builtin.assert:
+    that:
+      - spark_ultrafast_upstream_repo | length > 0
+      - (spark_ultrafast_upstream_commit | length) == 40
+      - spark_vllm_ultrafast_tag | length > 0
+      - spark_ultrafast_src_dir | length > 0
+    fail_msg: >-
+      The HD-489 provenance pins are not usable:
+      commit='{{ spark_ultrafast_upstream_commit }}' (must be a full 40-char sha — a branch
+      or a short sha would rebuild "whatever upstream means now", which is the mutable-alias
+      failure CONVENTIONS §7 exists to prevent),
+      tag='{{ spark_vllm_ultrafast_tag }}'. Pins: group_vars/all/versions.yml.
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Ensure the build-input directory exists
+  ansible.builtin.file:
+    path: "{{ spark_ultrafast_src_dir | dirname }}"
+    state: directory
+    mode: "0775"
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Check out the pinned upstream recipe
+  ansible.builtin.git:
+    repo: "{{ spark_ultrafast_upstream_repo }}"
+    dest: "{{ spark_ultrafast_src_dir }}"
+    version: "{{ spark_ultrafast_upstream_commit }}"
+    force: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: spark_uf_git
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Read back the checked-out commit
+  ansible.builtin.command:
+    cmd: git rev-parse HEAD
+    chdir: "{{ spark_ultrafast_src_dir }}"
+  changed_when: false
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: spark_uf_head
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Assert the checkout is exactly the pinned commit
+  ansible.builtin.assert:
+    that:
+      - spark_uf_head.stdout | trim == spark_ultrafast_upstream_commit
+    fail_msg: >-
+      {{ spark_ultrafast_src_dir }} is at {{ spark_uf_head.stdout | trim }}, not the pinned
+      {{ spark_ultrafast_upstream_commit }}. The build's own source-hash gates would still
+      refuse a modified tree, but a checkout that is not the pin means the provenance claim
+      in versions.yml is not the thing that ran. Resolve it deliberately: bump the pin in
+      its own commit, or reset the checkout.
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Ask whether the built image ID is already present
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ spark_vllm_ultrafast_image if spark_vllm_ultrafast_image | length > 0 else spark_vllm_ultrafast_tag }}"
+  changed_when: false
+  failed_when: false
+  register: spark_uf_inspect
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Print the build plan before building anything
+  when: not (spark_uf_inspect.rc == 0 and spark_vllm_ultrafast_image | length > 0)
+  ansible.builtin.command:
+    cmd: bash recipe/build/image/build.sh --print
+    chdir: "{{ spark_ultrafast_src_dir }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  register: spark_uf_plan
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Show the build plan
+  when: spark_uf_plan.stdout is defined and spark_uf_plan.stdout | length > 0
+  ansible.builtin.debug:
+    msg: "{{ spark_uf_plan.stdout_lines }}"
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Build the patched image lineage (async — upstream's own build.sh)
+  # --network none per upstream: the build compiles nothing from the network, and a build
+  # that silently fetches something is not the build whose hashes were verified.
+  when: not (spark_uf_inspect.rc == 0 and spark_vllm_ultrafast_image | length > 0)
+  ansible.builtin.command:
+    cmd: bash recipe/build/image/build.sh --run
+    chdir: "{{ spark_ultrafast_src_dir }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  async: 7200
+  poll: 60
+  register: spark_uf_build
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Re-read the built image ID
+  ansible.builtin.command:
+    cmd: "docker image inspect --format '{{ '{{' }}.Id{{ '}}' }}' {{ spark_vllm_ultrafast_tag }}"
+  changed_when: false
+  register: spark_uf_built
+  tags: [spark, spark-ultrafast-build, llm]
+
+# The pin is written by a HUMAN, in its own commit. This role deliberately does not edit
+# group_vars: an image ID that pins itself because a playbook ran is an unreviewed pin, and
+# the whole value of §7 is that the pin change is the review surface.
+- name: Refuse to continue while the built image ID is unpinned
+  when: spark_vllm_ultrafast_image | length == 0
+  ansible.builtin.fail:
+    msg: >-
+      Lineage built. Its immutable ID is {{ spark_uf_built.stdout | trim }}.
+      Record it as spark_vllm_ultrafast_image in IaC/ansible/group_vars/all/versions.yml
+      (one commit, note the parent digest it was built FROM), then the `ultrafast` profiles
+      unlock by themselves and roles/spark-llm-profile stops refusing them. Until then the
+      build tag {{ spark_vllm_ultrafast_tag }} exists on the box but is NEVER served — a tag
+      is a mutable alias (CONVENTIONS §7).
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Assert the built image matches the pinned ID
+  when: spark_vllm_ultrafast_image | length > 0
+  ansible.builtin.assert:
+    that:
+      - spark_uf_built.stdout | trim == spark_vllm_ultrafast_image
+    fail_msg: >-
+      The lineage tagged {{ spark_vllm_ultrafast_tag }} has ID
+      {{ spark_uf_built.stdout | trim }}, but versions.yml pins
+      {{ spark_vllm_ultrafast_image }}. Either the tag was rebuilt (the rebuild is a NEW
+      artifact and needs its own pin commit — docker rebuilds are not byte-reproducible) or
+      the pin is stale. Do NOT retag to make this pass.
+  tags: [spark, spark-ultrafast-build, llm]
+
+# ---- The T80 dense-MTP drafter directory (tier 3 inputs) ----
+# Converted, not downloaded: nine drafter modules at group size 32 out of the AR-hybrid
+# checkpoint (+4.8 GiB). Upstream's builder self-tests first (three CPU test suites), then
+# refuses to run twice, verifies its own sha256s of the base index, and writes
+# dense-mtp-build-report.json — which is the marker the `built` artifact kind checks.
+- name: Check whether the drafter directory was already built
+  ansible.builtin.stat:
+    path: "{{ spark_models_dir_os }}/{{ spark_ultrafast_drafter_subdir }}/{{ spark_ultrafast_drafter_marker }}"
+  register: spark_uf_drafter
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Convert the T80 drafter directory (async)
+  when: not spark_uf_drafter.stat.exists
+  ansible.builtin.command:
+    cmd: bash recipe/build/model/build.sh --run
+    chdir: "{{ spark_ultrafast_src_dir }}"
+  environment:
+    MODELS_ROOT: "{{ spark_models_dir_os }}"
+    MODEL_DIR: "{{ spark_models_dir_os }}/{{ spark_ultrafast_base_subdir }}"
+    OUT_DIR: "{{ spark_models_dir_os }}/{{ spark_ultrafast_drafter_subdir }}"
+    IMAGE: "{{ spark_vllm_ultrafast_tag }}"
+  become: true
+  become_user: "{{ ansible_user }}"
+  async: 3600
+  poll: 30
+  register: spark_uf_drafter_build
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Assert the drafter conversion left its report
+  ansible.builtin.stat:
+    path: "{{ spark_models_dir_os }}/{{ spark_ultrafast_drafter_subdir }}/{{ spark_ultrafast_drafter_marker }}"
+  register: spark_uf_drafter2
+  failed_when: not spark_uf_drafter2.stat.exists
+  tags: [spark, spark-ultrafast-build, llm]
+
+- name: Summary
+  ansible.builtin.debug:
+    msg:
+      - "upstream pin   : {{ spark_ultrafast_upstream_commit }}"
+      - "checkout       : {{ spark_ultrafast_src_dir }} @ {{ spark_uf_head.stdout | trim }}"
+      - "built image    : {{ spark_uf_built.stdout | trim }} (tag {{ spark_vllm_ultrafast_tag }}, served only via the ID pin)"
+      - "versions.yml pin: {{ spark_vllm_ultrafast_image | default('', true) if spark_vllm_ultrafast_image | length > 0 else '(EMPTY — profiles stay gated until the ID above is recorded)' }}"
+      - "drafter dir    : {{ spark_models_dir_os }}/{{ spark_ultrafast_drafter_subdir }}"
+  tags: [spark, spark-ultrafast-build, llm]

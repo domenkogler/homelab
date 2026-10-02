@@ -76,9 +76,16 @@ def read_key():
     return out.stdout.strip()
 
 
+def servable(profiles):
+    """The servable subset of the catalogue: HD-489 keys beginning with `_` are YAML merge
+    anchors of shared defaults, not profiles. Selecting one would probe a config that was
+    never meant to boot, and listing them in the matrix would hide the real rows."""
+    return {k: v for k, v in (profiles or {}).items() if not k.startswith("_")}
+
+
 def profile_spec(name):
     """Engine expectations straight from the IaC SSOT (no operator-typed numbers)."""
-    profiles = catalogue().get("spark_llm_profiles") or {}
+    profiles = servable(catalogue().get("spark_llm_profiles"))
     if name not in profiles:
         die(f"profile '{name}' not in {SPARK_VARS.relative_to(ROOT)} "
             f"(valid: {', '.join(sorted(profiles))})")
@@ -141,7 +148,8 @@ def print_profile_rows(specs, cat, active=None):
         mark = "  ← ACTIVE (spark_llm_profile)" if name == active else ""
         print(f"\n  {name}{mark}")
         print(f"    label          = {spec.get('label')}")
-        print(f"    engine / model = {engine} / {spec.get('model_subdir')}")
+        print(f"    engine / model = {engine} / {spec.get('model_subdir')}"
+              f"  [image {spec.get('image', spec.get('engine'))}]")
         print(f"    ctx / seqs     = {spec.get('max_model_len')} / {spec.get('max_num_seqs')}")
         print(f"    reasoning      = {spec.get('reasoning_surface')}")
         print(f"    client ctx     = {spec.get('client_context_window')} "
@@ -395,7 +403,8 @@ def main():
         # operator runs BEFORE picking a profile; the authoritative version of the checks
         # is scripts/check_spark_llm_gate.py (wired into validate-all.sh).
         cat = catalogue()
-        print_profile_rows(cat["spark_llm_profiles"], cat, active=active_profile(cat))
+        print_profile_rows(servable(cat["spark_llm_profiles"]), cat,
+                           active=active_profile(cat))
         return 0
 
     if a.cmd == "profile":

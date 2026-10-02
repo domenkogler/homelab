@@ -66,6 +66,7 @@
   # "--exclude 'ple-bf16-*' + index trim dropping the ngram_embedding entries").
   ansible.builtin.command: >
     {{ spark_hf_cli }} download {{ item.repo_id }}
+    {% if item.revision is defined %}--revision {{ item.revision }} {% endif %}
     {% for x in item.exclude | default([]) %}--exclude "{{ x }}" {% endfor %}
     --local-dir {{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}
   args:
@@ -188,6 +189,160 @@
     # gate rejecting the profile on a nested store.
   become: "{{ spark_artifacts_become | default(false) }}"
   loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+# ── HD-489 kinds: repo-root / asset / built ─────────────────────────────
+# The upstream (v16b) artifacts do not all fit the shapes this role was written for, and
+# inventing a flag per shape inside one task is how a role stops being readable:
+#   * repo-root — the FP8 PLE table ships at the REPO ROOT, so the `tables` kind's
+#     --include "<subdir>/*" + flatten pair (an artifact of the primitive-ai repos' layout)
+#     does not apply. The marker file's NAME carries the revision, which is what makes a
+#     pin bump re-stage automatically instead of silently serving the old table; a second
+#     marker with stable content is what roles/spark-llm-profile reads to compare the
+#     staged revision against versions.yml (a pin you never verify is a hope, §7).
+#   * asset — a repo-owned runtime input (the draft-vocabulary slice, 143 KB). It is on the
+#     SERVING path, so it is vendored in-tree, sha256-pinned, decompressed here, and its
+#     line count is verified because the engine silently mis-drafts on a truncated list.
+#   * built — an artifact that is CONVERTED, not downloaded (the T80 drafter directory,
+#     built by roles/spark-ultrafast-build). Declaring it here is what lets a profile name
+#     it in artifact_sets and have the gate refuse a boot where the conversion never ran.
+- name: Download a whole HF repo at its root (repo-root, revision-pinned)
+  ansible.builtin.command: >
+    {{ spark_hf_cli }} download {{ item.repo_id }}
+    {% if item.revision is defined %}--revision {{ item.revision }} {% endif %}
+    --local-dir {{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}
+  args:
+    creates: "{{ (item.local_dir | default(spark_xfs_mount)) }}/{{ item.subdir | default('') }}/.hf-staged-{{ item.revision | default('main') }}"
+  environment:
+    HF_HUB_ENABLE_HF_TRANSFER: "{{ '1' if spark_hf_transfer else '0' }}"
+    HF_HOME: "{{ spark_xfs_mount }}/hf-home"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'repo-root') | list }}"
+  loop_control:
+    label: "{{ item.repo_id }}@{{ item.revision | default('main') }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Write the per-revision staging marker (its NAME is the idempotency key)
+  ansible.builtin.copy:
+    dest: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}/.hf-staged-{{ item.revision | default('main') }}"
+    content: "{{ item.repo_id }}@{{ item.revision | default('main') }}
+"
+    mode: "0644"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'repo-root') | list }}"
+  loop_control:
+    label: "{{ item.repo_id }}@{{ item.revision | default('main') }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Write the stable provenance marker the profile gate reads
+  # Fixed NAME + revision in the CONTENT: the gate can ask "does the staged table name the
+  # pinned revision?" without knowing the revision, and a pin bump rewrites this file (the
+  # copy module compares content), which is what makes drift visible instead of silent.
+  ansible.builtin.copy:
+    dest: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir | default('') }}/.hf-staged"
+    content: "{{ item.repo_id }}@{{ item.revision | default('main') }}
+"
+    mode: "0644"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'repo-root') | list }}"
+  loop_control:
+    label: "{{ item.repo_id }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Stage a repo-owned runtime asset and verify its hash (asset)
+  ansible.builtin.copy:
+    src: "{{ item.src }}"
+    dest: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.dest }}"
+    mode: "0644"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'asset') | list }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Read back the staged asset's SHA-256
+  ansible.builtin.stat:
+    path: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.dest }}"
+    checksum_algorithm: sha256
+    get_checksum: true
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'asset') | list }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  register: spark_asset_stat
+  become: "{{ spark_artifacts_become | default(false) }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Fail when a staged asset does not match its pin
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+      - item.stat.checksum == (item.item.sha256 | default('<undeclared>'))
+    fail_msg: >-
+      A staged asset does not match the sha256 pinned in group_vars/all/versions.yml:
+      {{ (item.item.local_dir | default(spark_xfs_mount)) }}/{{ item.item.dest }} is
+      {{ item.stat.checksum if item.stat.exists else 'MISSING' }}, expected
+      {{ item.item.sha256 | default('<undeclared>') }}. The vendored file and the pin
+      disagree — do NOT re-hash and move on: this file is bind-mounted into the engine.
+  loop: "{{ spark_asset_stat.results }}"
+  loop_control:
+    label: "{{ item.item.dest }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Decompress the asset and verify the entry count (draft vocabulary = 65,536 ids)
+  # The engine reads the plain file; a truncated or wrong-length list is not an error at
+  # boot, it is a silently different draft distribution (upstream's launcher checks the same
+  # number before it will start, so the recipe's own precondition is enforced here too).
+  ansible.builtin.command:
+    argv: ["bash", "-c", "gunzip -c '{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.dest }}' > '{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.dest | regex_replace('\\.gz$', '') }}' && wc -l < '{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.dest | regex_replace('\\.gz$', '') }}'"]
+  args:
+    creates: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.dest | regex_replace('\\.gz$', '') }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'asset') | list }}"
+  loop_control:
+    label: "{{ item.dest }}"
+  become: "{{ spark_artifacts_become | default(false) }}"
+  register: spark_asset_lines
+  when: item.expect_lines is defined
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Fail when the decompressed asset has the wrong line count
+  when: spark_asset_lines.results | length > 0
+  ansible.builtin.assert:
+    that:
+      - (item.stdout | default('0') | trim | int) == (item.item.expect_lines | int)
+    fail_msg: >-
+      {{ item.item.dest }} decompressed to {{ item.stdout | default('?') | trim }} lines;
+      the recipe requires {{ item.item.expect_lines }}. Refusing to serve a vocabulary
+      slice that is not the one upstream measured.
+  loop: "{{ spark_asset_lines.results | rejectattr('skipped', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.item.dest }}"
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Verify a CONVERTED artifact exists (built)
+  # The drafter directory is produced by roles/spark-ultrafast-build; a profile naming it
+  # must not be able to boot a box where that conversion never ran.
+  ansible.builtin.stat:
+    path: "{{ item.local_dir | default(spark_xfs_mount) }}/{{ item.subdir }}/{{ item.marker }}"
+  loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'built') | list }}"
+  loop_control:
+    label: "{{ item.subdir }}"
+  register: spark_built_stat
+  tags: [spark, spark-artifacts, artifacts]
+
+- name: Fail when a converted artifact was never built
+  when: spark_built_stat.results | length > 0
+  ansible.builtin.assert:
+    that:
+      - item.stat.exists
+    fail_msg: >-
+      {{ item.item.local_dir | default(spark_xfs_mount) }}/{{ item.item.subdir }}/{{ item.item.marker }}
+      is missing: the artifact is BUILT, not downloaded. Run
+      `--tags spark-ultrafast-build` (roles/spark-ultrafast-build) in the artifact window
+      first — it converts the drafter modules out of the base checkpoint and writes this
+      report as its proof.
+  loop: "{{ spark_built_stat.results }}"
+  loop_control:
+    label: "{{ item.item.subdir }}"
   tags: [spark, spark-artifacts, artifacts]
 
 # ── Verify the store ─────────────────────────────────────────────────────
