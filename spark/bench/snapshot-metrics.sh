@@ -22,6 +22,12 @@ curl -sf "$METRICS_URL" > "$FILE" || { echo "ERROR: cannot reach $METRICS_URL" >
 
 get() { grep -E "^${1}\b" "$FILE" 2>/dev/null | tail -1 | awk '{print $2}' || true; }
 
+# sumget() — sum EVERY series of a labelled counter. `vllm:request_success_total` carries
+# finish_reason=, so `tail -1` (what get() does) would silently pick ONE finish reason and
+# report a delta of 2/8 for a leg that ran 8. HD-489 needs that counter to prove the window
+# was exclusive, so it has to be a sum, not a pick.
+sumget() { grep -E "^${1}\b" "$FILE" 2>/dev/null | awk '{s+=$2; n++} END{if(n) printf "%.0f", s; else print ""}' || true; }
+
 PREEMPT=$(get 'vllm:num_preemptions_total')
 GPU_CACHE=$(get 'vllm:kv_cache_usage_perc')
 ACCEPTED=$(get 'vllm:spec_decode_num_accepted_tokens_total')
@@ -30,6 +36,16 @@ PROMPT_TOK=$(get 'vllm:prompt_tokens_total')
 GEN_TOK=$(get 'vllm:generation_tokens_total')
 RUNNING=$(get 'vllm:num_requests_running')
 WAITING=$(get 'vllm:num_requests_waiting')
+
+# HD-489 pin-arm counters. u4-pin / v16b-pin exist to move these and nothing here carried them.
+# RECOMP_TOK is the primary one: `request_prefill_kv_computed_tokens` counts the prompt tokens
+# the engine actually had to RE-COMPUTE, i.e. the re-prefill a prompt-KV pin is supposed to buy
+# back. prefix-cache hit RATIO is only a proxy for it (see spark/reports/hd489-pin-premise/).
+PFX_HITS=$(sumget 'vllm:prefix_cache_hits_total')
+PFX_QUERIES=$(sumget 'vllm:prefix_cache_queries_total')
+PROMPT_CACHED=$(sumget 'vllm:prompt_tokens_cached_total')
+RECOMP_TOK=$(sumget 'vllm:request_prefill_kv_computed_tokens_sum')
+REQ_SUCCESS=$(sumget 'vllm:request_success_total')
 
 # MTP acceptance ratio (guard div-by-zero)
 ACCEPT_RATIO="n/a"
@@ -51,11 +67,17 @@ fi
 # Emit machine-readable values for the runner script (KEY=value lines)
 cat > "$OUT_DIR/metrics-${TS}-${SAFE_LABEL}.env" <<EOF
 TS=${TS}
+TS_ISO=$(date -u +%FT%TZ)
 PREEMPT=${PREEMPT:-}
 GPU_CACHE=${GPU_CACHE:-}
 ACCEPTED=${ACCEPTED:-}
 DRAFT=${DRAFT:-}
 PROMPT_TOK=${PROMPT_TOK:-}
 GEN_TOK=${GEN_TOK:-}
+PFX_HITS=${PFX_HITS:-}
+PFX_QUERIES=${PFX_QUERIES:-}
+PROMPT_CACHED=${PROMPT_CACHED:-}
+RECOMP_TOK=${RECOMP_TOK:-}
+REQ_SUCCESS=${REQ_SUCCESS:-}
 EOF
 echo "$OUT_DIR/metrics-${TS}-${SAFE_LABEL}.env"

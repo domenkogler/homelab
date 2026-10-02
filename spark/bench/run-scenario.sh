@@ -4,11 +4,15 @@
 # power sampling, and automatic CSV append to bench/results.csv
 #
 # Usage:
-#   ./run-scenario.sh <STEP_ID> <C1|C2|C3|S1-N> [seed] [--router] [--warm]
+#   ./run-scenario.sh <STEP_ID> <C1|C2|C2L|C3|S1-N> [seed] [--router] [--warm] \
+#                     [--profile <arm>] [--client <who-ran-it>]
 #
 #   STEP_ID   free-form tag matching the ladder, e.g. B1, step5-32k
 #   C1        prefill-heavy : 32k in / 512 out,  concurrency 1
 #   C2        decode        :  1k in / 512 out,  concurrency 1
+#   C2L       long decode   :  1k in / 1k out,   concurrency 1, 12 prompts — sized so one leg
+#             spans >3 cold scrape intervals (180 s), which is what makes the VICTORIAMETRICS
+#             histogram corroboration admissible for that row (see cold_ok below)
 #   C3        concurrent    :  8k in / 1k out,   concurrency 3  (NOTE: only for the S3/NVFP4 lane)
 #   S1-N      S1 stability sweep probe (§6a) : ONE session at ~90% of ctx, conc 1 (defaults 32k/512/1)
 #             S1N_IN/S1N_OUT/S1N_NUM_PROMPTS/S1N_CONC override ; run ONLY right after a util/ctx restart
@@ -16,24 +20,43 @@
 #             reuse the same seed with --warm to measure warm-prefix TTFT
 #   --router  target llm-d router :8080 instead of engine :8000
 #   --warm    skip prefix-flush caveat; reuses prompts (cache-hit measurement)
+#   --profile HD-489 ONLY: the funnel arm this leg measured (u1-patch, u3-s8, ar-mmap, v16b…). Record
+#             it. All 16 arms serve the SAME model_name (a client anchor that must not move), so the
+#             engine cannot tell the arms apart — the row is the only place the arm identity lives.
+#   --client  who ran the leg. Defaults to <hostname>/agent:<PI_MODEL>, and PI_MODEL is exactly the
+#             point: Rule 0 (spark/llm-profiles/README.md) forbids a session served by spark/… from
+#             producing timed numbers, and this column is how a later reader can invalidate such a
+#             row instead of re-measuring the box to find out who ran it.
+#
+# Windows: every row carries vm_start_utc / vm_end_utc. Feed them to vm-window.sh to cross-check
+# the leg against the engine's own counters in VictoriaMetrics. That cross-check also catches a
+# contaminated window (another client's traffic inside it): the row's req_ok_delta must equal N.
 #
 # Env:  BENCH_DIR (default: dir of this script), VLLM_CONTAINER (default vllm-qwen-spark)
 # ============================================================================
 set -euo pipefail
 
-STEP="${1:?usage: run-scenario.sh <STEP_ID> <C1|C2|C3> [seed] [--router] [--warm]}"
-SCENARIO="${2:?scenario required: C1|C2|C3}"
+STEP="${1:?usage: run-scenario.sh <STEP_ID> <C1|C2|C2L|C3> [seed] [--router] [--warm] [--profile <arm>] [--client <id>]}"
+SCENARIO="${2:?scenario required: C1|C2|C2L|C3}"
 shift 2 || true
 SEED=42
 ROUTER=0
 WARM=0
-for a in "$@"; do
-  case "$a" in
+PROFILE="${PROFILE:-unlabelled}"
+# Commas would break the CSV row, and both strings end up in it verbatim.
+PROFILE=$(printf '%s' "$PROFILE" | tr -d ',')
+CLIENT=$(printf '%s/%s' "${BENCH_CLIENT:-$(hostname -s 2>/dev/null || echo unknown)}" \
+         "agent:${PI_MODEL:-none}" | tr -d ',')
+while [ $# -gt 0 ]; do
+  case "$1" in
     --router) ROUTER=1 ;;
     --warm)   WARM=1 ;;
-    [0-9]*)   SEED="$a" ;;
-    *) echo "unknown arg $a" >&2; exit 1 ;;
+    --profile) PROFILE=$(printf '%s' "${2:?--profile needs the arm name, e.g. u1-patch}" | tr -d ','); shift ;;
+    --client)  CLIENT=$(printf '%s' "${2:?--client needs an id}" | tr -d ','); shift ;;
+    [0-9]*)   SEED="$1" ;;
+    *) echo "unknown arg $1" >&2; exit 1 ;;
   esac
+  shift
 done
 
 BENCH_DIR="${BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
@@ -41,7 +64,11 @@ CONTAINER="${VLLM_CONTAINER:-vllm-qwen-spark}"
 PORT=$(( ROUTER ? 8080 : 8000 ))
 HOST_URL="http://localhost:${PORT}"
 RAW="$BENCH_DIR/raw"; mkdir -p "$RAW"
-CSV="$BENCH_DIR/results.csv"
+# v2 ON PURPOSE (HD-489): the header gained profile / client / window / prefix-recompute /
+# memory-at-rest columns. Appending new-schema rows into the old results.csv would let a reader
+# join a decode number to the wrong column, which is worse than a missing file. The old file
+# stays untouched as the pre-HD-489 record.
+CSV="${RESULTS_CSV:-$BENCH_DIR/results-v2.csv}"
 TS=$(date -u +%Y%m%d-%H%M%S)
 # RUN_TS is IMMUTABLE run identity. TS gets clobbered by `source`-ing the
 # snapshot-metrics .env (it exports its own TS=), which broke copy/parse/CSV
@@ -55,6 +82,10 @@ RUN_TS="$TS"
 case "$SCENARIO" in
   C1) IN=${C1_IN:-32768}; OUT=${C1_OUT:-512}; N=${C1_N:-8}; CONC=${C1_CONC:-1} ;;
   C2) IN=${C2_IN:-1024}; OUT=${C2_OUT:-512}; N=${C2_N:-8}; CONC=${C2_CONC:-1} ;;
+  # C2L: the same decode shape as C2, long enough (12 x 1k out) that ONE leg spans >3 cold
+  # scrape intervals. The vllm:* latency histograms land at 60 s (HD-420 hot/cold split), so a
+  # 20 s leg has no VM-side corroboration at all — the row records that as cold_ok=no.
+  C2L) IN=${C2L_IN:-1024}; OUT=${C2L_OUT:-1024}; N=${C2L_N:-12}; CONC=${C2L_CONC:-1} ;;
   # C3 default 12x8k@c3 OOM-kills the box on GB10 unified memory (2026-09-15).
   # Safe variant: 6 prompts x 8k @ conc 2 fits ~27 GiB host headroom.
   C3) IN=${C3_IN:-8192}; OUT=${C3_OUT:-1024}; N=${C3_N:-6}; CONC=${C3_CONC:-2} ;;
@@ -89,13 +120,49 @@ if command -v awk >/dev/null 2>&1; then
   echo ">>> host usable memory: ${_usable} GiB (floor ${USABLE_FLOOR_GIB} GiB, gauge = MemAvailable − CmaFree)"
 fi
 
-echo ">>> [$STEP] $SCENARIO seed=$SEED conc=$CONC endpoint=:$PORT warm=$WARM start=$TS"
+echo ">>> [$STEP] $SCENARIO profile=$PROFILE client=$CLIENT seed=$SEED conc=$CONC endpoint=:$PORT warm=$WARM start=$TS"
+
+# CONTAINER IDENTITY — fail here, not in the numbers (HD-489). `vllm-engine` is the COMPOSE
+# SERVICE name; the container is IaC `spark_vllm_container`, which resolves to
+# spark_llm_profiles[<profile>].container (group_vars/spark.yml), and the ultrafast arms may
+# run under a different one. A wrong name is the SAME silent-no-op class as the 401-exits-0
+# defect below: inspect fails, the API key reads empty, every request 401s, and a bench that
+# exits 0 still prints a throughput line for a run that measured nothing.
+if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER" 2>/dev/null || echo false)" != "true" ]; then
+  echo "ERROR: container '$CONTAINER' is not running (compose service 'vllm-engine' != container name;" >&2
+  echo "       the name is IaC spark_vllm_container -> spark_llm_profiles[spark_llm_profile].container)." >&2
+  echo "       Pass VLLM_CONTAINER=<name> for the arm you are measuring." >&2
+  exit 6
+fi
 
 # --- 1. metrics BEFORE -------------------------------------------------------
 BEFORE_ENV=$(bash "$BENCH_DIR/snapshot-metrics.sh" "before-${STEP}-${SCENARIO}-${SEED}" >/dev/null; ls -t "$RAW"/metrics-*-before*.env | head -1)
 # shellcheck disable=SC1090
 source "$BEFORE_ENV"
+B_EPOCH=$(date +%s); B_ISO="${TS_ISO:-}"
 B_PREEMPT="${PREEMPT:-0}"; B_GEN="${GEN_TOK:-0}"; B_ACC="${ACCEPTED:-0}"; B_DR="${DRAFT:-0}"
+B_PFXH="${PFX_HITS:-0}"; B_PFXQ="${PFX_QUERIES:-0}"; B_CACHE="${PROMPT_CACHED:-0}"
+B_RECOMP="${RECOMP_TOK:-0}"; B_OK="${REQ_SUCCESS:-0}"
+
+# --- 1b. state AT REST (§6.2: the seqs=8 / piecewise arms strand memory in the one pool) ----
+# A stranding delta is uninterpretable without a rest baseline, so take it here — before the
+# power sampler, before any request. Per-pid nvidia-smi UNDER-COUNTS the engine by ~10 GiB on
+# this box (docs/hardware-spark.md §Unified-memory budget), so the column is labelled what it
+# is (engine-pid MiB / all-pid MiB) and the engine's own `Available KV cache memory` line is
+# the authoritative one — recorded alongside it.
+AT_REST="$RAW/atrest-${RUN_TS}-${STEP}-${SCENARIO}.txt"
+{
+  date -u +%FT%TZ
+  nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits 2>/dev/null \
+    || echo "nvidia-smi: unavailable"
+  awk '/^MemAvailable:/{a=$2}/^CmaFree:/{c=$2}END{printf "usable_gib %.1f\n",(a-c)/1048576}' /proc/meminfo 2>/dev/null || true
+  docker logs "$CONTAINER" 2>&1 | tr '\r' '\n' \
+    | grep -oE 'Available KV cache memory: [0-9.]+ [A-Za-z]+' | tail -1 || true
+} > "$AT_REST" 2>&1
+ENGINE_PID=$(docker inspect -f '{{.State.Pid}}' "$CONTAINER" 2>/dev/null || true)
+MEM_AT_REST=$(awk -F',' -v p="${ENGINE_PID:-0}" 'NF>=2 && $2+0>0 {t+=$2; if ($1+0==p+0) e+=$2} END{printf "%d/%d", e+0, t+0}' "$AT_REST" 2>/dev/null || echo "?")
+USABLE_REST=$(awk '/^usable_gib/{print $2}' "$AT_REST" 2>/dev/null || true)
+KV_AVAIL=$(grep -oE 'Available KV cache memory: .*' "$AT_REST" 2>/dev/null | tail -1 | sed 's/^Available KV cache memory: //' | tr ' ' '_' || true)
 
 # --- 2. power sampler (Wh per 1k output tokens) ------------------------------
 POWER_LOG="$RAW/power-${RUN_TS}-${STEP}-${SCENARIO}.csv"
@@ -163,12 +230,19 @@ AFTER_ENV=$(bash "$BENCH_DIR/snapshot-metrics.sh" "after-${STEP}-${SCENARIO}-${S
 # shellcheck disable=SC1090
 source "$AFTER_ENV"
 A_PREEMPT="${PREEMPT:-0}"; A_GEN="${GEN_TOK:-0}"; A_ACC="${ACCEPTED:-0}"; A_DR="${DRAFT:-0}"
+A_PFXH="${PFX_HITS:-0}"; A_PFXQ="${PFX_QUERIES:-0}"; A_CACHE="${PROMPT_CACHED:-0}"
+A_RECOMP="${RECOMP_TOK:-0}"; A_OK="${REQ_SUCCESS:-0}"
+A_ISO="${TS_ISO:-}"
 
-# Floats from Prometheus (vLLM counters are float) — integer $(( )) would choke.
-_preempt_delta=$(awk -v a="${A_PREEMPT:-0}" -v b="${B_PREEMPT:-0}" 'BEGIN{printf "%.0f", a-b}')
-_gen_delta=$(awk -v a="${A_GEN:-0}" -v b="${B_GEN:-0}" 'BEGIN{printf "%.0f", a-b}')
-PREEMPT_DELTA=$_preempt_delta
-GEN_DELTA=$_gen_delta
+# Float deltas from Prometheus (vLLM counters are float) — integer $(( )) would choke.
+fdelta(){ awk -v a="${1:-0}" -v b="${2:-0}" 'BEGIN{printf "%.0f", a-b}'; }
+PREEMPT_DELTA=$(fdelta "$A_PREEMPT" "$B_PREEMPT")
+GEN_DELTA=$(fdelta "$A_GEN" "$B_GEN")
+PFXH_DELTA=$(fdelta "$A_PFXH" "$B_PFXH")
+PFXQ_DELTA=$(fdelta "$A_PFXQ" "$B_PFXQ")
+CACHE_DELTA=$(fdelta "$A_CACHE" "$B_CACHE")
+RECOMP_DELTA=$(fdelta "$A_RECOMP" "$B_RECOMP")
+OK_DELTA=$(fdelta "$A_OK" "$B_OK")
 # MTP acceptance ratio — float-safe (guard d>0; awk div-by-zero is a hard fail under set -u/e)
 if [[ "${A_DR:-0}" != "${B_DR:-0}" && "${A_DR:-0}" != "0" && "${A_DR:-0}" != "0.0" ]]; then
   _acc_delta=$(awk -v a="${A_ACC:-0}" -v b="${B_ACC:-0}" 'BEGIN{printf "%.3f", a-b}')
@@ -201,9 +275,26 @@ fi
 DEC_PER_STREAM="n/a"
 [[ -n "${OUT_THR:-}" ]] && DEC_PER_STREAM=$(awk -v o="$OUT_THR" -v c="$CONC" 'BEGIN{printf "%.1f", o/c}')
 
-# --- 6. append CSV row -------------------------------------------------------
-[[ -f "$CSV" ]] || echo "step,ts,scenario,seed,endpoint,ttft_p50_ms,ttft_p99_ms,itl_p50_ms,itl_p99_ms,dec_tok_s_per_stream,out_throughput_total,total_throughput,duration_s,preempt_delta,gen_tok_delta,mtp_accept,mean_power_W,wh_per_1k_out,warm" >> "$CSV"
-echo "${STEP},${RUN_TS},${SCENARIO},${SEED},:$PORT,${TTFT_P50:-},${TTFT_P99:-},${ITL_P50:-},${ITL_P99:-},${DEC_PER_STREAM},${OUT_THR:-},${TOT_THR:-},${DURATION},${PREEMPT_DELTA},${GEN_DELTA},${MTP_RATIO},${MEAN_W},${WH_PER_1K},${WARM}" >> "$CSV"
+# --- 6. window verdicts + append CSV row -------------------------------------
+# cold_ok: is this row long enough for the 60 s VictoriaMetrics histograms to corroborate it?
+# Anything under 180 s (3 cold scrapes) has no usable VM-side quantile — say so IN THE ROW
+# rather than letting a later join invent one.
+COLD_OK=no; [ "${DURATION:-0}" -ge 180 ] && COLD_OK=yes
+# flag: the window-exclusivity test. request_success must move by exactly N; more means
+# somebody else's traffic is inside the window and every counter delta on this row is theirs too.
+# (The engine cannot separate arms by label — model_name is a client anchor — so this is the only
+# exclusivity proof available, and it is cheap.)
+FLAG="ok"
+if [ "${OK_DELTA:-0}" != "$N" ]; then FLAG="contaminated:req_ok_delta=${OK_DELTA:-?}_expected=${N}"; fi
+if [ "${PREEMPT_DELTA:-0}" != "0" ]; then FLAG="${FLAG};preempt_delta=${PREEMPT_DELTA}"; fi
 
-echo ">>> done. ttft_p50=${TTFT_P50:-?}ms ttft_p99=${TTFT_P99:-?}ms itl_p50=${ITL_P50:-?}ms dec/stream=${DEC_PER_STREAM} total_out=${OUT_THR:-?} tok/s preempts=+${PREEMPT_DELTA} mtp=${MTP_RATIO} power=${MEAN_W}W wh/1k=${WH_PER_1K}"
+[[ -f "$CSV" ]] || echo "step,ts,scenario,profile,client,seed,endpoint,warm,vm_start_utc,vm_end_utc,duration_s,cold_ok,ttft_p50_ms,ttft_p99_ms,itl_p50_ms,itl_p99_ms,dec_tok_s_per_stream,out_throughput_total,total_throughput,req_ok_delta,preempt_delta,gen_tok_delta,pfx_hit_delta,pfx_query_delta,cached_tok_delta,recomp_tok_delta,mtp_accept,mem_at_rest_engine_over_all_mib,usable_at_rest_gib,kv_avail_gib,mean_power_W,wh_per_1k_out,flag" >> "$CSV"
+echo "${STEP},${RUN_TS},${SCENARIO},${PROFILE},${CLIENT},${SEED},:$PORT,${WARM},${B_ISO},${A_ISO},${DURATION},${COLD_OK},${TTFT_P50:-},${TTFT_P99:-},${ITL_P50:-},${ITL_P99:-},${DEC_PER_STREAM},${OUT_THR:-},${TOT_THR:-},${OK_DELTA},${PREEMPT_DELTA},${GEN_DELTA},${PFXH_DELTA},${PFXQ_DELTA},${CACHE_DELTA},${RECOMP_DELTA},${MTP_RATIO},${MEM_AT_REST:-?},${USABLE_REST:-?},${KV_AVAIL:-?},${MEAN_W},${WH_PER_1K},${FLAG}" >> "$CSV"
+
+echo ">>> done. profile=${PROFILE} ttft_p50=${TTFT_P50:-?}ms ttft_p99=${TTFT_P99:-?}ms itl_p50=${ITL_P50:-?}ms dec/stream=${DEC_PER_STREAM} total_out=${OUT_THR:-?} tok/s"
+echo ">>>      window=${B_ISO}..${A_ISO} (${DURATION}s, cold_ok=${COLD_OK}) ok_delta=${OK_DELTA:-?}/$N preempts=+${PREEMPT_DELTA} mtp=${MTP_RATIO} power=${MEAN_W}W wh/1k=${WH_PER_1K}"
+echo ">>>      pin: recomputed_tokens=+${RECOMP_DELTA} prefix_hits=+${PFXH_DELTA} queries=+${PFXQ_DELTA} cached=+${CACHE_DELTA}"
+echo ">>>      at rest: engine/all pid MiB=${MEM_AT_REST:-?} usable=${USABLE_REST:-?} GiB KV_avail=${KV_AVAIL:-?} (detail: $AT_REST)"
+[ "$FLAG" = "ok" ] || echo ">>>      FLAG=${FLAG}  <-- do NOT quote this row as arm-vs-arm evidence"
+echo ">>>      cross-check it: bash vm-window.sh --csv $CSV --ts $RUN_TS"
 echo ">>> appended to $CSV"
