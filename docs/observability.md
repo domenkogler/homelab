@@ -824,6 +824,27 @@ the exclusions avoid:
 | Scheduler / preemption | `vllm:num_requests_waiting`, `vllm:num_requests_waiting_by_reason{reason=…}` ×2, `vllm:num_preemptions_total` |
 | load (the Monitor's other two numbers) | `node_load1`, `node_load5` |
 
+**Amended 2026-10-02 (HD-489) — three latency histogram families join the hot set.** This is the
+one thing the owner scope above explicitly excluded ("everything else (latency, histograms) stays
+at 60 s"), and the reason is that the scope was drawn for *panels*: the HD-489 funnel measures
+per-arm TTFT / ITL / TPOT, and a 20 s decode leg moves each `_bucket{}` line at most once, so a
+window rate has no second point to differentiate. Measured on the live store that day:
+`rate(vllm:time_to_first_token_seconds_bucket[1m])` evaluated over a real window returned **EMPTY**
+for TTFT p50/p95 while every 5 s counter resolved; with the padded leg window it returns
+`p50 4.58 s / p95 29.0 s`, and TPOT p50 `0.0375 s` agrees with `rate(vllm:generation_tokens_total[1m])`
+= 26.3 tok/s from the other side — two independent paths, one number, which is the point of having
+both.
+
+Cost, **DERIVED** from the measured table below (not measured again): the three `_bucket` families
+are 63 series on this engine (read off `/metrics`: TTFT 23 + ITL 20 + TPOT 20), so 60 s → 5 s is
+12× sampling on 63 series ≈ **+11.6 rows/s ≈ +120 MB/yr ≈ +2.5 MB/day wire** — the small side of
+the same curve the table already prices (50 series ≈ +95 MB/yr), and nowhere near the blanket
+1,745-series case that plateaus at retention. `_sum`/`_count` of those families stay at 60 s.
+Revert = delete the three names from `hot_vllm` in `roles/monitoring/templates/alloy.river.j2`;
+both jobs emit the one string, so hot/cold stay disjoint and no query or alert changes.
+⚠ **Deploy-gated:** this is Alloy config — until the spark monitoring converge runs, the store
+still holds those three at 60 s and `spark/bench/vm-window.sh` corroboration stays cold.
+
 ⏳ **The work, in order (HD-420):**
 
 1. **Split spark's scrapes into hot + cold jobs** in `roles/monitoring/templates/alloy.river.j2`, gated on the

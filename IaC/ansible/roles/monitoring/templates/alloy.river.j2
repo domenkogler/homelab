@@ -33,7 +33,23 @@
 // bookkeeping (`up`, scrape_samples_*), so `up{job="alloy"}` and the scrape_* series are
 // emitted by the COLD job alone and never duplicate.
 {% set hot_host = 'node_cpu_seconds_total;idle|node_load(?:1|5);|node_memory_(?:CmaFree|MemAvailable|MemFree|MemTotal|Buffers|Cached|Shmem|SwapCached)_bytes;' %}
-{% set hot_vllm = 'vllm:(?:generation_tokens_total|kv_cache_usage_perc|num_preemptions_total|num_requests_running|num_requests_waiting|num_requests_waiting_by_reason|prefix_cache_hits_total|prefix_cache_queries_total|prompt_tokens_by_source_total|prompt_tokens_cached_total|prompt_tokens_total)' %}
+// HD-489 added the three LATENCY histogram families to the hot set. WHY: the funnel measures
+// per-arm TTFT / ITL / TPOT, and at 60 s those three are unusable for a short leg — a 20 s
+// decode leg moves each `_bucket{}` line AT MOST once, so a window rate had no second point
+// to differentiate. Measured on 2026-10-02: `rate(vllm:time_to_first_token_seconds_bucket[1m])`
+// evaluated over a live window returned EMPTY for TTFT p50/p95 while the 5 s counters resolved.
+// WHAT IT COSTS (DERIVED from the measured table in docs/observability.md §What resolution
+// costs, not guessed): the three `_bucket` families are 63 series on this engine (measured
+// from /metrics: TTFT 23 + ITL 20 + TPOT 20); 63 series going 60 s → 5 s is 12x sampling on
+// 63 series ≈ +11.6 rows/s ≈ +120 MB/yr ≈ +2.5 MB/day wire. The 50-series case in that table
+// is +95 MB/yr, so this is the small side of the same curve — deliberately NOT every spark
+// series (1,745 @ 5 s ≈ +3.4 GB, where the curve plateaus at the 365 d retention).
+// `_sum`/`_count` for these families STAY COLD on purpose: the quantiles read buckets, and the
+// means are recoverable from the cold pair. Only `_bucket` names are listed, and the relabel
+// regex is fully anchored, so that is exact rather than aspirational.
+// REVERT: delete the three names below — one string, emitted by BOTH jobs, so hot and cold
+// stay disjoint by construction and no dashboard query or alert rule changes either way.
+{% set hot_vllm = 'vllm:(?:generation_tokens_total|kv_cache_usage_perc|num_preemptions_total|num_requests_running|num_requests_waiting|num_requests_waiting_by_reason|prefix_cache_hits_total|prefix_cache_queries_total|prompt_tokens_by_source_total|prompt_tokens_cached_total|prompt_tokens_total|time_to_first_token_seconds_bucket|inter_token_latency_seconds_bucket|request_time_per_output_token_seconds_bucket)' %}
 {% endif %}
 
 // ---- Host metrics (node_exporter replacement) ----
@@ -491,9 +507,11 @@ prometheus.scrape "vllm" {
 }
 
 // HD-420 cold half: the 60 s engine job drops the hot names, so the 5 s job is their only
-// source. Everything the panels do NOT name (the 309 request-completion-driven `_bucket{}`
-// histogram lines, request_success, time-to-first-token histograms …) stays at 60 s — that
-// exclusion is what makes the change ~95 MB/yr instead of ~3.4 GB (docs §What resolution costs).
+// source. Everything the hot set does NOT name stays at 60 s — that exclusion is what made
+// the change ~95 MB/yr instead of ~3.4 GB (docs §What resolution costs). Amended by HD-489:
+// 63 of the request-completion-driven `_bucket{}` lines (TTFT / ITL / TPOT) are now HOT, so
+// the cold set is the remaining ~220 bucket lines plus request_success and every other
+// histogram family; the per-family cost basis is at the `hot_vllm` definition.
 prometheus.relabel "vllm_cold" {
     rule {
         source_labels = ["__name__"]
@@ -503,8 +521,9 @@ prometheus.relabel "vllm_cold" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
-// HD-420 hot half: the same endpoint at 5 s, keeping the 11 `vllm:` names the nine panels
-// read (15 series with the source=/reason= label values). No engine change is involved:
+// HD-420 hot half: the same endpoint at 5 s, keeping the `vllm:` names the panels read (15
+// series with the source=/reason= label values) plus the three HD-489 latency histogram
+// families. No engine change is involved:
 // measured, `vllm:generation_tokens_total` advanced on every one of 17 consecutive 1 s
 // scrapes, so VLLM_LOG_STATS_INTERVAL is the LOG heartbeat, not a publication cap.
 prometheus.scrape "vllm_hot" {
