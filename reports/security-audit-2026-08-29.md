@@ -6,7 +6,7 @@
 > (persisted-token `expiring=False`) + HD-154 (VPS hardening) + HD-155
 > (Home↔VPS tunnel) + HD-186 (DOCKER-USER / published-port bypass).
 > **Linked from:** [full-audit-2026-08-29.md](full-audit-2026-08-29.md)
-> (the 5-track repo audit), [audit-approach.md](../audit-approach.md).
+> (the 5-track repo audit), audit-approach.md (ephemeral, deleted).
 > **Audit date:** 2026-08-29
 > **Repo commit:** c9baf09
 > **Methodology:** parent inline execution (same context as the 5-track
@@ -373,7 +373,7 @@ Device "wg-s2s" does not exist.
 ```
 
 The `wg-s2s` interface is **NOT up on the VPS**. The `peer_public_key`
-in group_vars/all.yml defaults to empty string (`wg_s2s_router_public_key`,
+in group_vars/all/ defaults to empty string (`wg_s2s_router_public_key`,
 `lookup('vars', ..., default='')` — HD-271 fail-closed at playbook
 render time, but the role needs the key set to actually bring the
 interface up).

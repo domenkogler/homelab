@@ -309,7 +309,7 @@ VictoriaLogs for central search.
 - **WireGuard AllowedIPs gotcha (the reason this class of failure is invisible):** WireGuard **silently
   drops any inner packet whose source IP is not in the peer's `AllowedIPs`**. The syslog packets are
   sourced from the **router's own tunnel address** (`wg_s2s_vps.router_ip`), so that /32 MUST be in
-  `wg_s2s_vps.allowed_ips` (`group_vars/all.yml`, the single SSOT consumed by both tunnel sides per
+  `wg_s2s_vps.allowed_ips` (`group_vars/all/`, the single SSOT consumed by both tunnel sides per
   HD-200) — otherwise the tunnel looks perfectly healthy (handshake + big transfer counters, all `10.10.*`
   traffic flowing) while every log packet dies inside the tunnel. **Re-render the VPS `wg-s2s.conf` and
   re-run the `wg-ensure-s2s-peer` oneshot whenever that list changes.** Diagnosing this class needs a

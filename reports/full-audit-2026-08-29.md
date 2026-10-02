@@ -4,12 +4,12 @@
 > the 5 lane artifacts). This report consolidates findings across
 > tracks A (Docs), B (IaC), C (Scripts), D (Conformance), E (Live).
 > **Linked from:** [audit-orchestrator.js](../audit-orchestrator.js),
-> [audit-approach.md](../audit-approach.md), [audit.md](../../audit.md).
+> audit-approach.md (ephemeral, deleted), [audit.md](../../audit.md).
 > **Audit date:** 2026-08-29
 > **Repo commit:** c9baf09
 > **Methodology:** parent inline execution (the audit's parallel
 > lane architecture failed on OpenRouter rate-limits; see
-> [audit-approach.md](../audit-approach.md) for the full deviation
+> audit-approach.md (ephemeral, deleted) for the full deviation
 > rationale). All 5 track reports were produced by the parent itself
 > with read-only access.
 
@@ -158,7 +158,7 @@ a fix list, per audit.md).
 
 3. **Audit methodology deviation.** The 5-lane parallel pattern
    from `audit.md §3b` failed on OpenRouter rate-limits (see
-   [audit-approach.md](../audit-approach.md) §2 for the full attempt
+   audit-approach.md (ephemeral, deleted) §2 for the full attempt
    log). The parent fell back to inline execution. For the next
    audit cycle, the lane architecture may need either (a) a
    different provider pool per lane (the other instance uses

@@ -48,7 +48,7 @@
 ## First action
 
 Re-read the live engine config off the box **and** from `group_vars/spark.yml`, confirm they agree, and confirm the
-watchdog is not mid-recycle (HD-395 is in [`prompt-420.md`](prompt-420.md) — if that lane has merged, the baseline
+watchdog is not mid-recycle (HD-395 is in prompt-420 (brief not in tree; lane closed) — if that lane has merged, the baseline
 rule may already have changed; say which version you benched on).
 
 ## Lane rules (Wave 3 — pair with [`prompt-384.md`](prompt-384.md) **only**, and only in an open bench window)
@@ -59,7 +59,7 @@ rule may already have changed; say which version you benched on).
 * **Never touches:** `prompt.md` / `todo-table.md` (O2) — the third file that rule used to name, `prompt-next.md`,
   is deleted 2026-09-22;
   `IaC/ansible/roles/monitoring/**` + `templates/docker_services/spark-dcgm/**` +
-  `roles/spark/files/spark-oom-watchdog.sh` (all [`prompt-420.md`](prompt-420.md) — ⛔ **never the same wave as 420**:
+  `roles/spark/files/spark-oom-watchdog.sh` (all prompt-420 (brief not in tree; lane closed) — ⛔ **never the same wave as 420**:
   both converge spark, and a bench under a changed scrape cadence is not the certified measurement);
   `roles/router/**` (414); `docs/services-ai.md` + `roles/docker_services/**` (384); the frozen archives and
   generated `*-generated.md`.

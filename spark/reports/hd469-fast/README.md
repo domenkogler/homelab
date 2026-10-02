@@ -95,7 +95,7 @@ Clock regime: the converge **applied** the cap (`/tmp/hd469-fast.log` header `Co
 stamp 16:33, the `clockcap` apply task ran) — but this report's numbers carry an **assumed**, not a
 measured, regime: no sustained-under-load `clocks.sm` trace was captured, and `clocks.sm` read 2405 in
 the **pre-cap** probe too, so a spot reading cannot prove 2418 was holding
-([hardware-spark.md §GPU clock cap](../../docs/hardware-spark.md)). Anyone A/B-ing these `fast` numbers
+([hardware-spark.md §GPU clock cap](../../../docs/hardware-spark.md)). Anyone A/B-ing these `fast` numbers
 against `reasoning` must re-sample the regime in the same window. `clocks.max.sm` is a capability field
 and stays 3003 either way. MemAvailable/CmaFree at window end: 122,741,948 / 5,658,828 kB →
 usable ≈ 117.1 GB (one end only — both ends next time).

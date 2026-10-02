@@ -1,6 +1,6 @@
 ---
 # docker_services role defaults
-# SSOT for variables: all IPs/CIDRs come from group_vars/all.yml -> network_ranges.
+# SSOT for variables: all IPs/CIDRs come from group_vars/all/ -> network_ranges.
 # This file holds only role-internal knobs and data.
 
 # Base directory for all Docker Compose projects.

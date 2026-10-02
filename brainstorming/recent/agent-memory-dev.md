@@ -72,7 +72,7 @@ Več
 
 message time: 2026-09-04 00:00:00
 
-zdaj uporabljam readme.md kjer so linki do conventions.md, scripts/readme.md, docs/index.md, IaC/index.md Ter osnovni opis projekta, Ansible managed Homelab, z opisom vseh nodov: pi, nas, srv, VPS, ter todo.md.vedno začnem prompt z: read readme.md and do xxx. in tako potem lahko uspešno začnem sejo. kaj bi potem pridobil z agent-memory.dev?
+zdaj uporabljam readme.md kjer so linki do conventions.md, scripts/README.md, docs/index.md, IaC/README.md Ter osnovni opis projekta, Ansible managed Homelab, z opisom vseh nodov: pi, nas, srv, VPS, ter todo.md.vedno začnem prompt z: read readme.md and do xxx. in tako potem lahko uspešno začnem sejo. kaj bi potem pridobil z agent-memory.dev?
 
 ---
 
@@ -92,7 +92,7 @@ Trenutno morate agenta ob vsakem začetku seje ročno usmeriti, naj prebere vaš
 
 2\. Drastično zmanjšanje porabe žetonov (Token Efficiency)
 
-Vaš Homelab projekt bo rasel. Ko bodo vaše datoteke `IaC/index.md`, dnevniki sprememb in pretekli ukazi postali obsežni, bo agent ob vsakem branju celotne strukture porabil ogromno žetonov (_tokens_).
+Vaš Homelab projekt bo rasel. Ko bodo vaše datoteke `IaC/README.md`, dnevniki sprememb in pretekli ukazi postali obsežni, bo agent ob vsakem branju celotne strukture porabil ogromno žetonov (_tokens_).
 
 -   **Z agent-memory.dev:** Orodje ne naloži celotnega projekta v kontekstno okno. Namesto tega uporablja hibridno iskanje (kombinacijo ključnih besed, vektorskega iskanja in grafa znanja). Če agentu rečete _"Dodaj nov Docker vsebnik na NAS"_, bo iz spomina potegnil **samo specifične podatke o NAS nodu in pripadajoče konvencije**, ostale (npr. podatke o VPS) pa bo pustil zunaj. S tem lahko prihranite tudi do **92 % vhodnih žetonov**.
 
@@ -146,7 +146,7 @@ Tukaj je natančen opis, kako deluje v vašem primeru z Ansible in Markdown dato
 
 Ko orodje zaženete v svojem projektu, ustvari celovit indeks celotne mape:
 
--   **Markdown (`.md`) datoteke:** Sistem jih prebere kot **"Kontekstualni in dokumentacijski spomin"**. Razume povezave (npr. da `readme.md` kaže na `IaC/index.md`) in si ustvari miselni graf vaših navodil.
+-   **Markdown (`.md`) datoteke:** Sistem jih prebere kot **"Kontekstualni in dokumentacijski spomin"**. Razume povezave (npr. da `readme.md` kaže na `IaC/README.md`) in si ustvari miselni graf vaših navodil.
 -   **Ansible (`.yml` ali `.yaml`) datoteke:** Sistem jih ne obravnava le kot navaden tekst, ampak kot **strukturo kode**. Prepozna vaše Ansible _playbooke_, _role_, spremenljivke (`group_vars`) in naloge. Prepozna simbole in odvisnosti – na primer, kateri `tasks/main.yml` se izvede na katerem nodu (`pi`, `nas`, `srv`).
 
 2\. Zakaj je to VEČ kot le običajen RAG?
@@ -579,7 +579,7 @@ Baza spomina ne nadomešča vašega SSOT, ampak shranjuje **efemerno (minljivo) 
 V ročnem sistemu se pogosto zgodi, da po uspešnem Ansible deploymentu pozabite posodobiti `todo.md` ali dopisati novo konvencijo. Tukaj nastopi **sinhronizacija**:
 
 -   **Dvosmerno učenje:** Agentmemory ves čas spremlja vaše SSOT datoteke. Če vi ročno spremenite `conventions.md` v Forgejo, bo spominski strežnik to spremembo zaznal, jo indeksiral in posodobil svoj notranji graf znanja.
--   **Proaktivno opominjanje:** Ker si agent v svojem epizodnem spominu zapomni, kaj sta delala, vas bo ob koncu seje opozoril: _"Opazil sem, da sva uspešno nastavila VPS tunel, vendar to še ni zapisano v IaC/index.md. Želiš, da posodobim to SSOT datoteko?"_
+-   **Proaktivno opominjanje:** Ker si agent v svojem epizodnem spominu zapomni, kaj sta delala, vas bo ob koncu seje opozoril: _"Opazil sem, da sva uspešno nastavila VPS tunel, vendar to še ni zapisano v IaC/README.md. Želiš, da posodobim to SSOT datoteko?"_
 
 Grafični prikaz: Kako sodelujeta SSOT in Agent Memory
 

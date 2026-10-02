@@ -104,7 +104,7 @@ drift, never cosmetic noise.
 5. **Dead/orphan scripts**: any script not referenced by the gate/README/owning docs (e.g. leftover `collect-*.ps1` siblings, superseded helpers) → propose retire/move (A3 style: only with a decision, never silent).
 
 ### Track D — Cross-cutting conformance (sample-based)
-1. **Secret hygiene**: `bash scripts/check-vault-name.py` + `validate-secrets.py` green on the worktree; a human grep for the B5 placeholder tokens + any raw `password:`/`token:` literal in group_vars/templates (gate checks; the audit adds a second human layer).
+1. **Secret hygiene**: `bash scripts/check_vault_name.py` + `validate-secrets.py` green on the worktree; a human grep for the B5 placeholder tokens + any raw `password:`/`token:` literal in group_vars/templates (gate checks; the audit adds a second human layer).
 2. **Lifecycle conformance**: open HD rows map to owning docs; `⏳` tails exist only where `deployment-tasks.md` has a matching deploy-gated checklist; no fully-done row still living in todo (should be owning-doc + git-history record); no row whose ⏳ is stale vs the owning-doc ✅ lines.
 3. **Service-onboarding (CONVENTIONS §5)**: for a sample of 3 enabled services (e.g. a recent on-board like crowdsec-web-ui, a core like traefik/authentik, and one still-⏳ like renovate) — walk the 10-step checklist and report which steps are done/gapped.
    **Onboarding Rubric** (per service):

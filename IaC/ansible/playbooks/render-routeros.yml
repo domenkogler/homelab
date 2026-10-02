@@ -15,7 +15,7 @@
 #   `rm -rf IaC/router/rendered`) so no artifact carries an old secret. Rendered files are
 #   regenerable on demand — deleting is always safe.
 #
-#   * Static IPs / VLANs come from IaC/ansible/group_vars/all.yml (SSOT).
+#   * Static IPs / VLANs come from IaC/ansible/group_vars/all/ (SSOT).
 #   * Secrets (PPPoE login, MikroTik admin password) are resolved from the
 #     `Homelab-ansible` 1Password vault at render time and NEVER stored in the repo.
 #
@@ -45,7 +45,7 @@
     # Router / switch Management-plane IPs (from network_static_hosts, all.yml).
     router99: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', '==', 'router') | list | first }}"
     switch99: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', '==', 'switch') | list | first }}"
-    # NOTE: timezone + bootstrap_dns_servers come from group_vars/all.yml (inventory-visible
+    # NOTE: timezone + bootstrap_dns_servers come from group_vars/all/ (inventory-visible
     # for localhost) — do NOT re-declare here or you get a recursion loop.
     # CAPsMAN SSID list lives in group_vars/router.yml (router-host var, NOT loaded for localhost) —
     # pulled explicitly so capsman_steady-state.rsc renders.
@@ -73,7 +73,7 @@
     # ap-dnevna / ap-spare) instead of the generic 'ap' (owner request 2026-09-02).
     # AP list from SSOT network_static_hosts (vlan==99, name~ap-*).
     ap_hosts: "{{ network_static_hosts | selectattr('vlan', '==', 99) | selectattr('name', 'match', '^ap-') | list }}"
-    # AP MAC -> IP reservations are read from group_vars/all.yml (SSOT) inside the
+    # AP MAC -> IP reservations are read from group_vars/all/ (SSOT) inside the
     # ap_initial template loop — no per-AP literals here.
   tasks:
     - name: Ensure rendered output directory exists

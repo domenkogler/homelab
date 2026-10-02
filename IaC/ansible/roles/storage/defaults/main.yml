@@ -16,7 +16,7 @@ storage_allow_pool_create: false
 # ---------------------------------------------------------------------
 # zfs_exporter — host binary on nas (no Docker), mirrors roles/nut nut_exporter.
 # Metrics: zfs_pool_allocated / zfs_pool_size / zfs_pool_health per pool.
-# Scrape job + port in alloy.river.j2 / group_vars/all.yml (zfs_exporter_port).
+# Scrape job + port in alloy.river.j2 / group_vars/all/ (zfs_exporter_port).
 # ---------------------------------------------------------------------
 zfs_exporter: true
 zfs_exporter_release: "v2.4.1"    # pinned — verified linux-amd64 asset; bump deliberately
@@ -29,7 +29,7 @@ zfs_exporter_pools:
 
 # NFS topology.
 storage_nfs_server: nas.kogler.si   # resolved via /etc/hosts (network role)
-# NFS export client — single SSOT source: group_vars/all.yml → network_ranges
+# NFS export client — single SSOT source: group_vars/all/ → network_ranges
 # (`nfs-clients`, rendered to docs/network-addresses-generated.md). Least privilege:
 # only oldsrv's Home-VLAN IP may mount the exports.
 storage_nfs_clients: "{{ (network_ranges | selectattr('name', 'equalto', 'nfs-clients') | map(attribute='cidr') | first) }}"

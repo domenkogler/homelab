@@ -5,7 +5,7 @@
 # store below, which serves the synced wildcard pair pulled from the VPS issuer
 # into ./certs → /etc/traefik/certs (Pi ha-cert-sync / oldsrv traefik-cert-pull).
 # File names come from the shared `wildcard_cert_file` / `wildcard_cert_key_file`
-# vars (group_vars/all.yml) so the VPS issuer, the pull timers and this config can
+# vars (group_vars/all/) so the VPS issuer, the pull timers and this config can
 # never drift. Routers stay TLS-valid even when WAN/ACME is down (last synced copy).
 #
 # On the ISSUER (VPS) this renders to a comment-only file: ACME issues per-router

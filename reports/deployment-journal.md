@@ -176,7 +176,7 @@
 - Plan ref: Phase 1 step 2 (`ansible-playbook -i inventory.ini playbooks/vps.yml`), run from the true-zero WSL runner via `%TEMP%\homelab-deploy\vps-run.sh` wrapper (activates venv + sources SA token + exports `ANSIBLE_CONFIG`/`ANSIBLE_ROLES_PATH`). **Every fix below is committed and permanent — a future re-run needs NONE of them again; this list is the record of why they exist.**
 - **Attempt 0 (dry-run `--check`)** failed on two setup gaps, both fixed before the real run:
   - ansible.cfg ignored (world-writable /mnt dir) → wrapper exports `ANSIBLE_CONFIG` + `ANSIBLE_ROLES_PATH` explicitly (wrapper-level workaround; NTFS DrvFs mounts always look 0777 — no repo change needed).
-  - `group_vars/all.yml` silently shadowed by `group_vars/all/` directory → moved to `all/main.yml`, consumers re-pointed (**HD-210**, closed).
+  - `group_vars/all/` silently shadowed by `group_vars/all/` directory → moved to `all/main.yml`, consumers re-pointed (**HD-210**, closed).
 - **Attempt 1** — FAILED at `common`: apt module in check mode needs python3-apt pre-installed (minimal image). Check-mode artifact only → real run auto-installs; no defect.
 - **Attempt 2** — FAILED at `docker`: `deb822_repository` needs remote `python3-debian`. Fix (permanent): added `python3-debian` + `python3-apt` to `roles/common/tasks/system.yml` prerequisites.
 - **Attempt 3** — FAILED at `docker_services`: the op-CLI fail-closed guard probed the REMOTE host for `op`; lookups resolve on the CONTROL node. Fix: guard task gained `delegate_to: localhost` + `run_once: true` + `become: false`.
@@ -881,7 +881,7 @@
 
 - Decision (owner): **Option A — pi & oldsrv dual-homed (trunk 10+99, mgmt 99 addr + home 10 addr);
   nas single-Home (VLAN 10) with iLO4 on 99.** No live gear touched — IaC/SSOT + doc reconciliation only.
-- Verified SSOT `group_vars/all.yml` already models pi/oldsrv/nas dual; migration inventory lists
+- Verified SSOT `group_vars/all/` already models pi/oldsrv/nas dual; migration inventory lists
   pi/oldsrv trunk 10+99, nas Home. Router role skips VLAN-99 DHCP (pools/net/servers `id not in [1,99]`)
   and reserves only AP MACs → all 99 hosts are static IPs from preseed/host_vars. Option A holds without
   reservation churn.

@@ -12,7 +12,7 @@
 ## D.1 Secret hygiene (audit.md §2.4.1)
 
 **Verified:**
-- `bash scripts/check-vault-name.py` — not in the gate (this is
+- `bash scripts/check_vault_name.py` — not in the gate (this is
   `check_vault_name.py` which IS in the gate) — green: "no bare
   'Homelab' vault references in 326 scanned files".
 - `validate-secrets.py` green: "no literal credentials in

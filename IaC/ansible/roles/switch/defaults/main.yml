@@ -25,12 +25,12 @@ switch_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'switch') |
 # Router (RB4011) management IP — derived from network_static_hosts (name=router, vlan=99)
 router_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'router') | selectattr('vlan', '==', 99) | map(attribute='ip') | list | first) }}"
 
-# VLANs — derived view of the SSOT network_vlans (group_vars/all.yml), HD-200.
+# VLANs — derived view of the SSOT network_vlans (group_vars/all/), HD-200.
 # Role-default fallback only; group_vars/switch.yml carries the same derivation,
 # so a VLAN edit touches all.yml alone (audit H2 / iac-changes §2).
 switch_vlans: "{{ network_vlans }}"
 
-# SSOT-derived subnet lookup keyed by VLAN id (from group_vars/all.yml network_vlans) —
+# SSOT-derived subnet lookup keyed by VLAN id (from group_vars/all/ network_vlans) —
 # same derivation as the router role defaults; used by the service lockdown
 # (available-from=) + INPUT-chain mgmt rules (HD-304).
 vlan_subnets: "{{ dict(network_vlans | map(attribute='id') | zip(network_vlans | map(attribute='subnet'))) }}"

@@ -208,7 +208,7 @@ within docs/IaC. No new finding.
 
 - **IaC actual:** 18 roles (per `ls IaC/ansible/roles/`), 58
   compose templates (per `ls IaC/ansible/templates/docker_services/`).
-- **docs/CONVENTIONS.md:** doesn't quote counts directly.
+- **`CONVENTIONS.md`** (repo root): doesn't quote counts directly.
 - **audit.md §2.2.2:** says "19 roles" (5-track audit
   found this is 18, flagged as drift in the audit prompt
   itself).

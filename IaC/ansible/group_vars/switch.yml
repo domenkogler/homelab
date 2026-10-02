@@ -30,7 +30,7 @@ routeros_expected_identity: "switch.kogler.si"
 
 switch_port_map:
   # AP ports (VLAN 99, Management) - PoE enabled
-  # MAC addresses from network_static_hosts in group_vars/all.yml
+  # MAC addresses from network_static_hosts in group_vars/all/
   # NOTE (2026-09-03 fix): APs do per-SSID VLAN tagging on their CAP bridge, so their
   # switch ports must ALSO carry the wifi VLANs (10 Home / 20 IOT) TAGGED — see the
   # wifi_ports list below; the converge rsc adds them as tagged members of those VLANs.
@@ -116,7 +116,7 @@ wifi_ports:
   - ether12   # ap-spalnica
   - ether11   # ap-dnevna
 
-# VLAN list — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all.yml), HD-200:
+# VLAN list — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all/), HD-200:
 # switch consumers use id + name only, so the full SSOT dicts pass through
 # unchanged; no literal duplicate to drift (audit H2 / iac-changes §2).
 switch_vlans: "{{ network_vlans }}"

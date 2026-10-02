@@ -398,8 +398,8 @@ Client → Technitium (DHCP-pushed chain, see below)
 - **Per-device DNS visibility + control-plane records (HD-334):** the seed loop also carries
   `vpn.kogler.si` / `home.kogler.si` / `dns.kogler.si` → the right split-horizon targets (VPS public IP for
   the control plane / home login) on **every** instance. ·
-  [roles/router/tasks/main.yml](IaC/ansible/roles/router/tasks/main.yml) (dhcp dns-server chain) ·
-  [technitium-seed.yml](IaC/ansible/roles/docker_services/tasks/technitium-seed.yml)
+  [roles/router/tasks/main.yml](../IaC/ansible/roles/router/tasks/main.yml) (dhcp dns-server chain) ·
+  [technitium-seed.yml](../IaC/ansible/roles/docker_services/tasks/technitium-seed.yml)
 - ***arr stack (every instance → oldsrv Traefik edge):** `seerr`, `sonarr`, `radarr`, `lidarr`, `prowlarr`,
   `bazarr`, `sab`, `torrent`, `media`, `profilarr`, `logs` (all `*.kogler.si`). Recyclarr has no hostname
   (scheduled worker, no UI). All are **internal-only** — no public (Cloudflare) record, WAN-blocked

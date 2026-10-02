@@ -2,7 +2,7 @@
 # Pi-uses-NetworkManager (network-rejected.md 2026-09-01, HD-307): RPi OS ships NM (no
 # systemd-networkd active), so the `network` role configures eth0 here.
 # SSOT: the Home address + gateway come from host_vars ansible_host + network_static_hosts,
-# the resolver from bootstrap_dns_servers (public until Technitium lands — see group_vars/all.yml) —
+# the resolver from bootstrap_dns_servers (public until Technitium lands — see group_vars/all/) —
 # never literals.
 # The Mgmt IP does NOT belong on the untagged parent: ether10 is pvid=10 (untagged = Home),
 # so an untagged Mgmt address is unreachable from the tagged Mgmt plane and its connected

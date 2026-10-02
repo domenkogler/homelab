@@ -11,7 +11,7 @@
 ### IaC folder
 | File | Status |
 |------|--------|
-| `IaC/ansible/group_vars/all.yml` | ✅ Scanned |
+| `IaC/ansible/group_vars/all/` | ✅ Scanned |
 | `IaC/ansible/group_vars/home_servers.yml` | ✅ Scanned |
 | `IaC/ansible/group_vars/router.yml` | ✅ Scanned |
 | `IaC/ansible/group_vars/network.yml` | ✅ Scanned |
@@ -272,7 +272,7 @@ This preserves the Companion app flow while still getting IP-level threat blocki
 
 ### 🟡 MEDIUM — KOPS-005: Traefik uses `latest` image tag
 
-**Files:** `IaC/ansible/group_vars/all.yml`, `IaC/ansible/templates/docker_services/traefik/docker-compose.yml.j2`
+**Files:** `IaC/ansible/group_vars/all/`, `IaC/ansible/templates/docker_services/traefik/docker-compose.yml.j2`
 
 **Severity:** MEDIUM (Supply Chain / Rollback Risk)
 

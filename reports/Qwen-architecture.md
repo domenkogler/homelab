@@ -320,7 +320,7 @@ route that skips Forward-Auth. One template change fixes 5+ findings.
 
 **Root cause:** Service image tags default to `latest` or mutable aliases via Jinja2 fallback:
 ```yaml
-image: traefik/traefik:{{ traefik_version }}          # group_vars/all.yml: latest
+image: traefik/traefik:{{ traefik_version }}          # group_vars/all/: latest
 image: ghcr.io/goauthentik/server:{{ authentik_version | default('latest') }}
 image: ollama/ollama:rocm                               # mutable alias, not versioned
 image: jevolk/tuwunel:latest                             # obscure single-dev project
@@ -658,7 +658,7 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 |--------|--------|-------|
 | Role count | 15 roles shipped, 1 TODO (proxmox) | Well-organized, clear separation of concerns |
 | Inventory | Clean groups matching physical topology | router/switch/home_servers/storage/raspberry_pi/vps |
-| SSOT enforcement | `group_vars/all.yml` has network_static_hosts, vlan_subnets, ha_vip | Templates derive IPs from this list — good |
+| SSOT enforcement | `group_vars/all/` has network_static_hosts, vlan_subnets, ha_vip | Templates derive IPs from this list — good |
 | Idempotency | assert guards, `state: present`, docker compose pull before up | Good pattern throughout |
 | Tags per service | Each docker_services loop item tagged `{item.name}` | Enables targeted `--tags` deploys |
 | Fail-closed admin guard | Every role asserts `ansible_user in ansible_admin_users` | AI debug user cannot run playbooks |
@@ -683,7 +683,7 @@ When a route skips Forward-Auth, it also loses CrowdSec entirely. Six services h
 | ID | D | Item | Source | Why Now |
 |----|---|------|--------|---------|
 | **HD-60** | 2 | Create `crowdsec-only@file` middleware chain in `middlewares.yml.j2`; apply to ha, jellyfin, seerr, matrix, element-web routes | KOPS-004/018/025/047 | Eliminates Flaw A entirely. One template change fixes 6 findings. Zero operational risk |
-| **HD-61** | 1 | Pin `traefik_version` to specific semver tag (e.g., `v3.3`) in `group_vars/all.yml`. Set explicit versions for all services defaulting to `latest` | KOPS-005/013 | Traefik is single ingress point for ALL services. `latest` = unknown revision on every restart |
+| **HD-61** | 1 | Pin `traefik_version` to specific semver tag (e.g., `v3.3`) in `group_vars/all/`. Set explicit versions for all services defaulting to `latest` | KOPS-005/013 | Traefik is single ingress point for ALL services. `latest` = unknown revision on every restart |
 | **HD-72** | 2 | Replace HA primary `privileged: true` + `network_mode: host` with targeted `devices:` + `cap_add:`. Remove from compose template | KOPS-014 | Full root on smart-home controller = cgroup escape + keepalived control + VRRP manipulation |
 | HD-03 | 5 | Network redo: VLAN segmentation deploy on RB4011 + CRS328 | todo.md | Cannot safely expose services to internet without inter-VLAN firewall. Current flat network defeats all isolation |
 | HD-04 | 5 | Pi redo: HAOS → Debian + HA Container | todo.md | Required for VRRP/keepalived on Pi. Blocks failover mechanism. Dependent on HD-03 (network redo) |

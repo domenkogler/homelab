@@ -4,7 +4,7 @@
 # Creates a systemd-networkd WireGuard interface (`wg-s2s`) on the VPS, peered with the
 # home RB4011. The VPS reaches the home `site` (10.10.0.0/16) + `wg-vps-services` through
 # this peer, which lets VPS-hosted Prometheus scrape home targets (nut/zfs/ha_vip/ICMP)
-# and lets cross-host app backends route home. See defaults/main.yml + group_vars/all.yml
+# and lets cross-host app backends route home. See defaults/main.yml + group_vars/all/
 # `wg_s2s_vps` + `network-vpn.md`.
 
 - name: Assert wireguard only runs on the VPS (router side is RouterOS/router role)
@@ -24,7 +24,7 @@
       - wg_s2s_vps.local_ip | length > 0
       - wg_s2s_vps.router_ip | length > 0
     fail_msg: >-
-      group_vars/all.yml must define `wg_s2s_vps` (10.255.40.0/30: VPS .2, router .1).
+      group_vars/all/ must define `wg_s2s_vps` (10.255.40.0/30: VPS .2, router .1).
   tags: wireguard
 
 - name: Assert the router public key is populated (fail-closed, HD-65/HD-91)

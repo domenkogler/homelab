@@ -7,7 +7,7 @@
 > **Linked from:** [full-audit-2026-08-29.md](full-audit-2026-08-29.md)
 > (this session's first cut), [security-audit-2026-08-29.md](security-audit-2026-08-29.md),
 > [consistency-audit-2026-08-29.md](consistency-audit-2026-08-29.md),
-> [audit-approach.md](../audit-approach.md), [audit.md](../../audit.md).
+> audit-approach.md (ephemeral, deleted), [audit.md](../../audit.md).
 > **Audit date:** 2026-08-29
 > **Repo commit:** c9baf09 (current HEAD; the other session's report
 > claimed 969597d, which is the commit immediately before this — they
@@ -413,7 +413,7 @@ Their **findings that are correct** (despite the wrong counts):
 ## §5 Consolidated action plan (use `next-hd.sh` at write time)
 
 Per CONVENTIONS §1: "**Backlog IDs** `HD-<number>` ... next free =
-**max(HD)+1 in [todo.md](todo.md)** — a hand-entered 'next free' here
+**max(HD)+1 in [todo.md](../todo.md)** — a hand-entered 'next free' here
 went stale within one week; never re-type it". The HD numbers in
 this report are **illustrative** — both the other session and
 my original report proposed HD-275..286 numbers, but with

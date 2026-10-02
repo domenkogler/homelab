@@ -6,7 +6,7 @@
 #       (cold/bulk, sequential reads) — via the Immich storage template (a DB/UI setting
 #       at deploy, configured on the VPS after first deploy, NOT compose env).
 #     * ML on oldsrv GPU — IMMICH_MACHINE_LEARNING_URL = {{ immich_ml_url }}
-#       (SSOT-derived in group_vars/all.yml; cross-host over the WG S2S tunnel,
+#       (SSOT-derived in group_vars/all/; cross-host over the WG S2S tunnel,
 #       HD-184 — Docker DNS cannot resolve across hosts; immich-ml publishes
 #       :3003 bound to oldsrv's Home IP).
 #   Supersedes the older "originals on S3/MinIO" plan — the live Box is CIFS, not S3.

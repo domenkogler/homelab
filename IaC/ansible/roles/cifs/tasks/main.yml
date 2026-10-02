@@ -20,7 +20,7 @@
       - livebox_cifs.mount_point | length > 0
       - livebox_cifs.cifs_share | length > 0
     fail_msg: >-
-      group_vars/all.yml must define `livebox_cifs` (mount_point, cifs_share).
+      group_vars/all/ must define `livebox_cifs` (mount_point, cifs_share).
   tags: cifs
 
 - name: Install CIFS/SMB client utilities
