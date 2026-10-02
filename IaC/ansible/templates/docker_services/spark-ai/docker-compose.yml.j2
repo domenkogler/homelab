@@ -280,13 +280,13 @@ services:
       - {{ profile.tool_call_parser }}
       - --enable-auto-tool-choice
       - --override-generation-config
-      - {{ profile.generation_config_override | to_json }}
+      - '{{ profile.generation_config_override }}'
 {% if profile.get('spec_config') %}
       # Merged speculative config (HD-489: block rejection + probabilistic draft sampling,
       # as upstream publishes them). to_json keeps dict order deterministic, so the render
       # diff of an arm flip is exactly one line.
       - --speculative-config
-      - {{ profile.spec_config | to_json }}
+      - '{{ profile.spec_config | to_json }}'
 {% elif (profile.spec_tokens | int) > 0 %}
       - --speculative-config
       - '{"method": "{{ spark_vllm_spec_method }}", "num_speculative_tokens": {{ spark_vllm_spec_tokens }}}'
