@@ -34,7 +34,7 @@ Then apply `crowdsec-only@file` to every route that skips Forward-Auth:
 
 ## 2. Pin Traefik version
 
-**What:** `traefik_version: latest` in `group_vars/all.yml`.
+**What:** `traefik_version: latest` in `group_vars/all/`.
 
 **Fix:** One line:
 ```yaml
@@ -131,7 +131,7 @@ For extra safety, add pre-render asserts:
 | # | Change | Time | Risk Eliminated | Files |
 |---|--------|------|-----------------|-------|
 | 1 | Split CrowdSec from Forward-Auth | ~30 min | Entire Flaw A class (6 internet-facing services with zero WAF) | `middlewares.yml.j2` + 6 compose templates |
-| 2 | Pin Traefik version | ~30 sec | Supply-chain / silent regression on single ingress point | `group_vars/all.yml` |
+| 2 | Pin Traefik version | ~30 sec | Supply-chain / silent regression on single ingress point | `group_vars/all/` |
 | 3 | Remove Signal host port + review others | ~2 min | Account impersonation via LAN; infra intel leakage | Signal, Prometheus, Sunshine, Technitium templates |
 | 4 | Uncomment immich DB backup | ~2 min | Irretrievable metadata loss on Postgres failure | `db-backup/docker-compose.yml.j2` |
 | 5 | Fix Loki schema date | ~5 sec | Complete log blindness | `loki/loki.yaml.j2` |

@@ -7,7 +7,7 @@
 > guides, generated-doc accuracy (4 docs).
 > **Methodology:** parent (this session) executed the track inline; the
 > `audit-orchestrator.js` lane architecture failed on OpenRouter rate-limits
-> (see [audit-approach.md](../audit-approach.md)).
+> (see audit-approach.md (ephemeral, deleted)).
 > **Read-only:** no docs/IaC/scripts mutated.
 
 ---
@@ -19,7 +19,7 @@
   > FAIL: 1 link(s) across repo .md do not resolve:
   >   - audit-approach.md -> [reports/full-audit-2026-08-29.md] (.../reports/full-audit-2026-08-29.md)
 - The 1 broken link is a **forward reference** in my own
-  [audit-approach.md](../audit-approach.md) to the report this audit is
+  audit-approach.md (ephemeral, deleted) to the report this audit is
   producing. Self-resolving once the report is written. Status:
   **TRANSIENT — will close when this report is committed.**
 - Independent scan of the Document Map (basename-based, since the map is a

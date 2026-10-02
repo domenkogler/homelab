@@ -4,7 +4,7 @@
 # Every `*_version` image pin for ALL hosts lives here, in ONE file,
 # so Renovate docker datasource updates + the version review are a
 # single sheet (HD-156, HD-134/KOPS-030). Loaded for the implicit
-# `all` Ansible group (every managed host) alongside group_vars/all.yml.
+# `all` Ansible group (every managed host) alongside group_vars/all/.
 # Keep infrastructure/network/identity vars in all.yml, NOT here.
 
 # ==== Edge / identity ====

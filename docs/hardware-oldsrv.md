@@ -64,7 +64,7 @@ tags: [hardware, oldsrv, docker]
 | Samsung SSD 970 EVO 1TB | 12,943 h | 48.8 TB | 98% | ✅ (⚠️ 87°C temp sensor 2) |
 | Samsung SSD 960 EVO 500GB | 11,360 h | 30.5 TB | 100% | ✅ (⚠️ 226 unsafe shutdowns) |
 
-> Full CPU-Z data dump: [`assets/references/DOMENPC-cpuz.txt`](assets/references/DOMENPC-cpuz.txt)
+> Full CPU-Z data dump: [`reports/DOMENPC-cpuz.txt`](../reports/DOMENPC-cpuz.txt)
 
 ---
 

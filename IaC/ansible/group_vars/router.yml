@@ -13,7 +13,7 @@ routeros_expected_identity: "router.kogler.si"
 # stays false — self-signed, private mgmt VLAN). HD-161 Part B.
 # routeros_tls: true
 
-# VLAN map — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all.yml), HD-200:
+# VLAN map — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all/), HD-200:
 # the only literal VLAN list lives in all.yml; the router adds just the unused
 # VLAN 1 Blackhole stub (every consumer loop filters it via
 # selectattr('unused', 'undefined')). A VLAN edit touches all.yml only — the old
@@ -116,11 +116,11 @@ wireguard_s2s_vps:
   # VPS public key (VPS's OWN distinct key `wg_password_vps`, NOT shared — HD-285 fix),
   # needed for the router peer. Fail-closed when unset at deploy; router and VPS each
   # hold their own private key (`wg_password` / `wg_password_vps`) and derive their own
-  # pubkey — pinned in group_vars/all.yml (`wg_s2s_router_public_key` / `wg_s2s_vps_public_key`).
+  # pubkey — pinned in group_vars/all/ (`wg_s2s_router_public_key` / `wg_s2s_vps_public_key`).
   vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key', default='') }}"  # HD-271: lookup default — no `in vars` membership (internal vars dict deprecated at 2.24)
   # LEAST-ACCESS (HD-155): the router accepts from the VPS peer only the scoped home
   # targets (exporter/VIP/probe + oldsrv backends) + wg-vps-services — NOT the whole
-  # `site` /16. DERIVED from the SSOT list `wg_s2s_vps.allowed_ips` (group_vars/all.yml,
+  # `site` /16. DERIVED from the SSOT list `wg_s2s_vps.allowed_ips` (group_vars/all/,
   # HD-200): one list, two consumers (VPS-side wg interface + RouterOS peer
   # allowed-address), so the two sides can no longer drift (iac-changes §8).
   # Edit the list in all.yml only.
@@ -130,7 +130,7 @@ wireguard_s2s_vps:
 # WireGuard is site-to-site ONLY — user devices use Headscale, not road-warrior.
 headscale_subnet: "100.64.0.0/10"
 # Resolver addresses (PRIMARY VPS / SECONDARY oldsrv / TERTIARY Pi) are defined once
-# in group_vars/all.yml (dns_primary_ip / dns_secondary_ip / dns_tertiary_ip, HD-299)
+# in group_vars/all/ (dns_primary_ip / dns_secondary_ip / dns_tertiary_ip, HD-299)
 # and consumed here by the router role (DHCP chain + forward rules + Kids redirect).
 # ==== CAPsMAN WiFi map (HD-228 / network-vlans.md SSID mapping) ====
 # SSOT for cfg names/SSIDs/VLANs/passphrase items. Items must exist in

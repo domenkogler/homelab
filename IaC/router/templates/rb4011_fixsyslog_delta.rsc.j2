@@ -4,7 +4,7 @@
 # Root-cause note (2026-09-08): the HD-313 "zero UDP/514" blocker on the RB4011 was
 # NOT a RouterOS logging fault — it was the VPS-side WireGuard peer AllowedIPs missing
 # the router's own wg-s2s address (`wg_s2s_vps.router_ip`; SSOT `wg_s2s_vps.allowed_ips`
-# in group_vars/all.yml). WireGuard silently drops inner packets whose source IP is not
+# in group_vars/all/). WireGuard silently drops inner packets whose source IP is not
 # in the peer's AllowedIPs, so every syslog packet (src-address=wg-s2s) died at the VPS
 # tunnel endpoint. Fix = the SSOT list; verified end-to-end 2026-09-08.
 #

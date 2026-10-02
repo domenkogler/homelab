@@ -150,6 +150,14 @@
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 
 #  25. spark-llm-render-matrix.py       — HD-489: every authored profile must RENDER offline.
+#  26. check_doc_path_refs.py            — HD-490: every local path a doc or IaC comment cites
+#                                     resolves to something in the tree (621 files, 539 targets).
+#                                     Links resolve from the containing file, bare paths from the repo
+#                                     root; generated-doc templates resolve from the document
+#                                     render-docs.yml puts them into. Globs, placeholders, the frozen
+#                                     archives, git-ignored generated files and prose that says the
+#                                     file is missing are exempt, each for a stated reason.
+#                                     `--self-test` breeds a dangling ref and refuses a green run.
 #                                     16 arms × the same docker-compose.yml.j2 the engine
 #                                     boots from, with the parity assertions that keep the
 #                                     four certified lanes byte-identical to what serves today.
@@ -317,6 +325,16 @@ $PY scripts/check_merge_markers.py --self-test
 
 echo "== check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries) =="
 $PY scripts/check_spark_llm_gate.py
+
+echo "== check_doc_path_refs.py (HD-490: a path a doc cites must exist) =="
+# Docs and IaC comments cite several hundred paths between them, and until this item existed
+# nothing in the repo looked at a single one of them — which is how a lane brief shipped
+# `scripts/llm_serving_bench.py`, a tool that was never in the tree, as if it were the harness
+# for a 20-minute boot leg. First run: 47 stale citations, all fixed.
+$PY scripts/check_doc_path_refs.py
+
+echo "== check_doc_path_refs.py --self-test (HD-490 canary) =="
+$PY scripts/check_doc_path_refs.py --self-test
 
 echo "== spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate) =="
 # The gate proves the ARITHMETIC; this proves the RENDER. A profile can satisfy every

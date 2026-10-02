@@ -6,7 +6,7 @@
 #   Pi ha-cert-sync precedent). Routers without an explicit certResolver (db-spark, llm) fall
 #   back to this store, so every name route on this edge gets TLS.
 #   File names come from the shared wildcard_cert_file / wildcard_cert_key_file vars
-#   (group_vars/all.yml) so the issuer, the pull timer and this config can never drift.
+#   (group_vars/all/) so the issuer, the pull timer and this config can never drift.
 #   HD-389: also serve the *.ts.kogler.si wildcard pair (same traefik-tailnet pattern) so the
 #   .ts twin names (llm.ts.kogler.si / db-spark.ts.kogler.si) terminate this edge with a valid
 #   cert when the VPS tailnet edge TLS-in-TLS-forwards them (live 404/502: spark only routed

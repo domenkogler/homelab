@@ -5,7 +5,7 @@
 # Purpose: Full final state for the switch — import on a device that already ran
 #          crs328_initial.rsc (or run after a reset). Idempotent-ish: `/set` safe,
 #          `/add` errors on duplicates (re-import = "already have" messages OK).
-#          Authored from the SSOT (group_vars/all.yml + router.yml).
+#          Authored from the SSOT (group_vars/all/ + router.yml).
 # How:     Upload + /import switch-converge.rsc in a WinBox terminal
 #          (or via SSH: scp to deviceFiles then /import).
 # =============================================================================

@@ -108,9 +108,9 @@ row cites must contain the raw output, or the row must not cite it.**
   a *capability* field (`-q -d CLOCK` → *Max Clocks*). Removing the read-back assert was therefore
   correct, not a workaround: the assert failed a converge that had genuinely applied the cap. Owner
   ruling `043ff4a`; decision logged in
-  [`docs/services-rejected.md`](../../docs/services-rejected.md); the falsified-field table and the
+  [`docs/services-rejected.md`](../../../docs/services-rejected.md); the falsified-field table and the
   surviving discriminator (sustained `clocks.sm` **under load**: 2496–2515 pre-cap, ~2411 capped) are
-  in [hardware-spark.md §GPU clock cap](../../docs/hardware-spark.md).
+  in [hardware-spark.md §GPU clock cap](../../../docs/hardware-spark.md).
 - **The box was rolled back correctly** — live re-read: `reasoning`, `restarts=0`, `healthy`, KV line
   `515,786 tokens / 1.97×`, `host_vars` back to `reasoning` + `allow_uncertified: false`.
 

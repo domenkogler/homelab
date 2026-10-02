@@ -6,7 +6,7 @@
 #   explicit certResolver fall back to this store, so every route below
 #   (stats/logs/csui/sec/traefik/auto and their *.ts.kogler.si twins) gets TLS.
 #   File names come from the shared wildcard_cert_file / wildcard_cert_key_file
-#   vars (group_vars/all.yml) so the issuer, the dumper and this config can
+#   vars (group_vars/all/) so the issuer, the dumper and this config can
 #   never drift.
 tls:
   certificates:

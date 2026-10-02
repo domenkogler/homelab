@@ -1029,7 +1029,7 @@ spark_llm_profiles:
     fixed_cost_bytes: 78300000000
     fixed_cost_basis: "VENDOR-PUBLISHED + the T80 drafter allowance (~2 GB), NOT measured here — the one arm whose published numbers (74.1 / 212.2 tok/s, 52.33 ms step) this arm must reproduce before any of OUR claims are worth anything"
     uncertified_reason: >-
-      The reproduction arm: run upstream's own method (docs/BENCHMARKS.md: fastest of three
+      The reproduction arm: run upstream's own method (spark/BENCHMARK-PLAN.md: fastest of three
       rounds, shared 9,600-token cached prefix, completion tokens/s) and compare to their
       published table. If we cannot reproduce their numbers on identical settings, no
       comparison in this lane means anything. Never run it with an agent session attached

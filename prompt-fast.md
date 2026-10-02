@@ -4,7 +4,7 @@
 > This session ran on a pi served by `spark/qwen3.8-flash-next`, so it could author the
 > funnel and prove it OFFLINE — and it did. Every minute number in this lane comes from a
 > client OUTSIDE the loop: the WSL runner (`http://spark.kogler.si:8000/v1`), or
-> `scripts/llm_serving_bench.py` on a box that is not the engine. See
+> ``spark-llm-probe.py … ctx <max_model_len>` + `concurrent <max_num_seqs>` (gates 3–4) and the `vllm:spec_decode_*` counters read from `/metrics` (gate 8)` on a box that is not the engine. See
 > [docs/services-ai.md](docs/services-ai.md) §0.
 
 ## What this lane is
@@ -53,8 +53,7 @@ The funnel is 16 profiles: 4 already certified (untouched), 12 arms. The dial is
    (`--never-evict-kv-cache-max-fraction` is a fraction OF THE POOL).
 4. **Legs** — tier 1 first (`u1-patch`, `u2-blk`, `u3-s8` — AWQ weights, already staged, so
    one build and no download separates them from the certified lane), then tier 2 (`ar-*`),
-   then tier 3 (`v16b*`). Each leg: `scripts/llm_serving_bench.py` +
-   `spark/llm-profiles/acceptance/`, and the leg log must record **per-pid GPU memory at
+   then tier 3 (`v16b*`). Each leg: `spark-llm-probe.py … ctx <max_model_len>` + `concurrent <max_num_seqs>` (gates 3–4) and the `vllm:spec_decode_*` counters read from `/metrics` (gate 8) + the gate ladder in `spark/llm-profiles/README.md` (gates 0–9), and the leg log must record **per-pid GPU memory at
    rest** for the seqs=8/piecewise arms (§6.2: oversized capture strands memory in the one
    pool; the engine's own `Available KV cache memory` line is authoritative).
 5. **Fidelity gates before any speed claim** — Slovenian accepted-length (the draft
@@ -77,7 +76,7 @@ The funnel is 16 profiles: 4 already certified (untouched), 12 arms. The dial is
   `ple_layer.py`), and no arm ships without its PLE table mounted where its env says.
 * Retire by measurement, not by affection: arms that lose get deleted in a commit that
   names what beat them. Keepers become `certified: true` only after
-  `spark/llm-profiles/acceptance/` passes on the box.
+  `the gate ladder in `spark/llm-profiles/README.md` (gates 0–9)` passes on the box.
 
 ## Definition of done
 
@@ -86,3 +85,20 @@ Two or three profiles survive, one of them `certified: true` and re-proven end-t
 §LLM serving profiles + [docs/services-ai.md](docs/services-ai.md) §9 re-measured against
 the survivor — plus a paragraph in `docs/services-ai-rejected.md` for every arm that lost
 and the number that killed it.
+
+## Correction: there is no standalone bench harness
+
+This brief first cited `scripts/llm_serving_bench.py` and `spark/llm-profiles/acceptance/`.
+**Neither exists** — invented names, found by the operator on 2026-10-02, which is exactly
+the failure mode a dangling reference creates (a reader plans a leg around a tool that is not
+there). The real harness is the gate ladder in
+[`spark/llm-profiles/README.md`](spark/llm-profiles/README.md): `scripts/spark-llm-probe.py`
+(`matrix` / `profile` / `health` / `reasoning` / `ctx` / `concurrent`),
+`scripts/check_spark_llm_gate.py`, `scripts/validate-docker-services.py --only spark-ai`, the
+15-prompt accuracy battery captured in `spark/resources/R2-nvfp4.md` §B, and
+`spark-oom-watchdog` samples for the memory curve. Evidence lands under `spark/reports/`.
+
+⛔ **There is no timed-throughput tool in this repo.** Throughput and TTFT numbers for this
+funnel therefore come from either (a) gate 3/4 probe runs with timestamps recorded by hand in
+the leg report, or (b) a harness this lane has to write. If it writes one, it is a deliverable
+of HD-489 and lands in `scripts/` with the rest — not as a citation of something imaginary.

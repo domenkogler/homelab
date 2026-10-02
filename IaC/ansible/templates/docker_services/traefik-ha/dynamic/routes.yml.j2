@@ -92,7 +92,7 @@ http:
 # Wildcard *.kogler.si cert pair, pulled from the VPS `traefik` (the single ACME
 # issuer, HD-178/HD-181/HD-204; Cloudflare DNS-01) by the ha-cert-sync timer.
 # File names come from the shared
-# `wildcard_cert_file` / `wildcard_cert_key_file` vars in group_vars/all.yml so the
+# `wildcard_cert_file` / `wildcard_cert_key_file` vars in group_vars/all/ so the
 # VPS issuer, the pull timer and this config can never drift.
 # Offline-safe: both routes stay TLS-valid even when WAN/ACME is down.
 tls:

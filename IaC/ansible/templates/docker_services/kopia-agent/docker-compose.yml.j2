@@ -102,7 +102,7 @@ services:
       - /srv/docker/kopia-agent/config:/app/config
       - /srv/docker/kopia-agent/cache:/app/cache
     environment:
-      # VPS peer address on the wg-s2s /30 (SSOT: group_vars/all.yml wg_s2s_vps.ip).
+      # VPS peer address on the wg-s2s /30 (SSOT: group_vars/all/ wg_s2s_vps.ip).
       KOPIA_SERVER_ADDR: "{{ wg_s2s_vps.ip }}:51515"
       # HD-318a: kopia 0.23.x only connects to https:// servers; the self-signed
       # kopia-server cert lives under /srv/docker/kopia-server/config/tls.crt and is

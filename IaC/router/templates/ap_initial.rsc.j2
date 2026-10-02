@@ -18,7 +18,7 @@
 # =============================================================================
 
 # Static DHCP reservations the Ansible `router` role adds (AP MAC -> Management IP),
-# sourced from group_vars/all.yml (SSOT):
+# sourced from group_vars/all/ (SSOT):
 {% for ap in network_static_hosts if ap.name.startswith('ap-') and ap.vlan == mgmt.id %}
 #   {{ ap.name }}  {{ ap.mac | default('TBD') }}  -> {{ ap.ip }}
 {% endfor %}

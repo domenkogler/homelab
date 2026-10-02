@@ -6,7 +6,7 @@
 > templates/docker_services,playbooks/*}.
 > **Methodology:** parent (this session) executed the track inline; the
 > `audit-orchestrator.js` lane architecture failed on OpenRouter rate-limits
-> (see [audit-approach.md](../audit-approach.md)).
+> (see audit-approach.md (ephemeral, deleted)).
 > **Read-only:** no IaC mutated. Live VPS probes via `ssh ansible-admin@vps.kogler.si`
 > (read-only — no converges, no `op item edit`).
 
@@ -247,7 +247,7 @@ service is converged (HD-159 has the live-verify task).
 ## B.8 Ansible idempotency check (audit.md §2.2.8)
 
 **Verified (live, read-only):**
-- `ansible-playbook -i IaC/ansible/inventory.ini IaC/ansible/playbooks/site.yml
+- `ansible-playbook -i IaC/ansible/inventory.ini IaC/ansible/playbooks/all.yml
   --check --diff --limit vps` was not run end-to-end (out of scope for this
   audit session — full --check on a 33-service stack is a 5–10 min
   operation that should be a separate "drift detection" task, not a

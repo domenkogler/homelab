@@ -9,14 +9,14 @@
 #     kopia-server-internal_api (API Credential: username=<server-admin-user@host>, credential=<password>)
 #                              — server auth (HD-59/HD-318a): replaces `--without-password`. The htpasswd
 #                              gets BOTH the generic admin entry AND the per-client user@host the backup
-#                              agent presents (`kopia_agent_user`, group_vars/all.yml — see the boot script).
+#                              agent presents (`kopia_agent_user`, group_vars/all/ — see the boot script).
 #                              The repo user (`kopia server users add`) password MUST equal the repo master
 #                              password (kopia quirk, verified live 2026-09-08); password is written
 #                              plaintext to server.htpasswd at 0600.
 #   Backup-box SFTP connection (NOT a secret item): SSH-key auth via `Hertzner-SB-Backup` (1Password connection
-#   ref); host/user/port/path from `kopia_sftp_*` in group_vars/all.yml. No kopia-sftp_api item, and the legacy
+#   ref); host/user/port/path from `kopia_sftp_*` in group_vars/all/. No kopia-sftp_api item, and the legacy
 #   kopia-s3_api (iDrive e2 S3) is retired.
-#   Config vars (group_vars/all.yml):
+#   Config vars (group_vars/all/):
 #     kopia_sftp_host, kopia_sftp_port, kopia_sftp_user (backup box u653424, port 23)
 #
 #   Reach (HD-191): the oldsrv agent connects over the WG S2S tunnel — :51515 is
@@ -142,7 +142,7 @@ services:
     environment:
       KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"
       # Backup box SFTP connection (Hetzner Storage Box backup, u653424, port 23, SSH-key auth).
-      # kopia_sftp_* values in group_vars/all.yml; NO kopia-s3_api anymore (iDrive dropped, HD-31).
+      # kopia_sftp_* values in group_vars/all/; NO kopia-s3_api anymore (iDrive dropped, HD-31).
       KOPIA_SFTP_USER: "{{ kopia_sftp_user | default('u653424') }}"
       KOPIA_SFTP_HOST: "{{ kopia_sftp_host | default('u653424.your-storagebox.de') }}"
       KOPIA_SFTP_PORT: "{{ kopia_sftp_port | default(23) }}"

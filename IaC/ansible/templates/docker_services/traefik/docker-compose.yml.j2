@@ -12,7 +12,7 @@
 #   - Issuer only: ACME state lives in ./acme/acme.json (persisted; renewals survive
 #     restarts); the `certs-dumper` sidecar extracts the wildcard pair into ./certs with
 #     EXACTLY `{{ wildcard_cert_file }}` / `{{ wildcard_cert_key_file }}`
-#     (vars in group_vars/all.yml, shared with all consumers) → /opt/traefik/certs/.
+#     (vars in group_vars/all/, shared with all consumers) → /opt/traefik/certs/.
 #     Consumer pull timers read these two files; never rename/move them.
 #   - File provider watches ./dynamic (cockpit role drops cockpit.yml here on oldsrv;
 #     this file's routes.yml holds the takeover `ha` route; tls.yml = consumer store).

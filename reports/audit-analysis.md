@@ -188,23 +188,23 @@ item," follow these rules exactly:
   (do not reuse an ID already present in `todo.md`):
 
   1. **HD-60** `crowdsec-only` middleware chain → apply to self-auth'd routes
-     (D2, P1) · [`docs/services-traefik.md`](docs/services-traefik.md)
+     (D2, P1) · [`docs/services-traefik.md`](../docs/services-traefik.md)
   2. **HD-61** pin image tags, Traefik first (`traefik_version: latest` today)
-     (D1, P1) · [`docs/deployment-compose.md`](docs/deployment-compose.md)
+     (D1, P1) · [`docs/deployment-compose.md`](../docs/deployment-compose.md)
   3. **HD-62** remove/unbind host ports (signal `8080:8080`; prometheus; technitium;
-     sunshine) (D2, P1) · [`docs/deployment-compose.md`](docs/deployment-compose.md)
+     sunshine) (D2, P1) · [`docs/deployment-compose.md`](../docs/deployment-compose.md)
   4. **HD-63** uncomment immich DB backup + opencloud tar (host default `immich-postgres`;
      the stale `db-backup` comment says `immich-db` — real service is `immich-postgres`)
-     (D2, P1) · [`docs/backup.md`](docs/backup.md)
+     (D2, P1) · [`docs/backup.md`](../docs/backup.md)
   5. **HD-64** fix loki schema `from: 2026-01-01` → `2025-01-01`/current
-     (D1, P1) · [`docs/observability.md`](docs/observability.md)
+     (D1, P1) · [`docs/observability.md`](../docs/observability.md)
   6. **HD-65** fail-loud on missing secrets — remove `default('')` (pihole `WEBPASSWORD`)
-     (D2, P2) · [`docs/deployment-secrets.md`](docs/deployment-secrets.md)
+     (D2, P2) · [`docs/deployment-secrets.md`](../docs/deployment-secrets.md)
 
   (If AUD-06 already claims any of HD-60+, coordinate so IDs do not collide.)
 - **Row template — copy `todo.md`'s exact table format:**
   ```
-  | HD-60 | 2 | AI | open | **crowdsec-only middleware chain** — add `crowdsec-only@file` to `middlewares.yml.j2`; apply to every self-auth'd route (ha, jellyfin, seerr, matrix, chat, ha-standby). ROI · source qwen. · [services-traefik.md](docs/services-traefik.md) |
+  | HD-60 | 2 | AI | open | **crowdsec-only middleware chain** — add `crowdsec-only@file` to `middlewares.yml.j2`; apply to every self-auth'd route (ha, jellyfin, seerr, matrix, chat, ha-standby). ROI · source qwen. · [services-traefik.md](../docs/services-traefik.md) |
   ```
   Insert each row under the **correct Priority section** (P1 items → `## Priority 1`), then
   **update the header tally** line `**Status: NN open · NN done** · **Total: NN**` to match

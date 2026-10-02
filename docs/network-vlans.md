@@ -258,7 +258,7 @@ DHCP is handled entirely by the **RB4011 router** on each VLAN interface. This e
 
 DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
 
-Static DHCP reservations (SSOT: `group_vars/all.yml` → `network_static_hosts`, applied by
+Static DHCP reservations (SSOT: `group_vars/all/` → `network_static_hosts`, applied by
 `roles/router` + `rb4011_converge.rsc.j2`; live verification via the RouterOS API):
 
 - **Pi** (`pi`): static on BOTH legs (dual-home, HD-307/HD-311) — Home VLAN on `dhcp-10` + Mgmt VLAN on
@@ -343,4 +343,4 @@ dynamic address until the lease turns over.
 > the renderable `ap_lockdown_delta.rsc.j2` (running APs). The AP also carries its own **INPUT firewall**
 > (established/related → bridge → DHCP → drop) gating mgmt services to Mgmt VLAN + `trusted-admin`, like
 > the router and switch — `available-from=` alone is not a guard (HD-304 Part 2 parity).
-> · [ap_initial.rsc.j2](IaC/router/templates/ap_initial.rsc.j2) · [ap_lockdown_delta.rsc.j2](IaC/router/templates/ap_lockdown_delta.rsc.j2)
+> · [ap_initial.rsc.j2](../IaC/router/templates/ap_initial.rsc.j2) · [ap_lockdown_delta.rsc.j2](../IaC/router/templates/ap_lockdown_delta.rsc.j2)

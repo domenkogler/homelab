@@ -31,7 +31,7 @@
       delegate_to: localhost
       run_once: true
 
-    - name: Render docs/network-addresses-generated.md from group_vars/all.yml SSOT
+    - name: Render docs/network-addresses-generated.md from group_vars/all/ SSOT
       ansible.builtin.template:
         src: "{{ playbook_dir }}/../templates/network-addresses.md.j2"
         dest: "{{ playbook_dir }}/../../../docs/network-addresses-generated.md"

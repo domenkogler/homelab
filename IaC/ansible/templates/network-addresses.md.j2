@@ -1,14 +1,14 @@
 {{ ansible_managed | comment }}
-<!-- Network address plan — auto-generated from IaC/ansible/group_vars/all.yml. -->
-<!-- Do NOT hand-edit. Change group_vars/all.yml and re-render. -->
+<!-- Network address plan — auto-generated from IaC/ansible/group_vars/all/. -->
+<!-- Do NOT hand-edit. Change group_vars/all/ and re-render. -->
 <!-- Re-render (Windows / no Ansible):  python scripts/render_network_addresses.py -->
 <!-- Re-render (Ansible / Linux / CI):   ansible-playbook IaC/ansible/playbooks/render-docs.yml -i IaC/ansible/inventory.ini -->
-<!-- Source of truth: IaC/ansible (group_vars/all.yml, host_vars) -->
+<!-- Source of truth: IaC/ansible (group_vars/all/, host_vars) -->
 
 # Network Addresses — SSOT
 
 > **Source of truth:** IaC/ansible. Addresses are hand-edited only in
-> `group_vars/all.yml` (`network_vlans`, `network_static_hosts`, `network_ranges`)
+> `group_vars/all/` (`network_vlans`, `network_static_hosts`, `network_ranges`)
 > and the host_vars; this page is a generated view. See also
 > [`services.md`](services.md) for the Traefik URL / accessibility mapping.
 
