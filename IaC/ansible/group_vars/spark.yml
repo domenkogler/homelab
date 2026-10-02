@@ -882,10 +882,11 @@ spark_llm_profiles:
       num_speculative_tokens: 3
       rejection_sample_method: block
       draft_sample_method: probabilistic
-    never_evict_prompt: CHANGEME-PIN-SUBSTRING
+    never_evict_prompt: "# Global instructions (loaded at every session start by pi)"
+    never_evict_max_fraction: "0.03"
     artifact_sets: [b1-awq, ple-int4]
     fixed_cost_bytes: 86900000000
-    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); the pin cap (0.25) is charged INSIDE the declared pool, so it cannot raise the host hold"
+    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); the pin cap (0.03) is charged INSIDE the declared pool, so it cannot raise the host hold"
     uncertified_reason: >-
       The never-evict patch lets a prompt substring PIN its KV blocks (≤ 25 % of the pool by
       default), which is the direct answer to the 0 %-prefix-hit re-prefill we measure on
@@ -1089,7 +1090,8 @@ spark_llm_profiles:
       draft_sample_method: probabilistic
     cudagraph_piecewise: true
     prompt_tokens_details: true
-    never_evict_prompt: CHANGEME-PIN-SUBSTRING
+    never_evict_prompt: "# Global instructions (loaded at every session start by pi)"
+    never_evict_max_fraction: "0.03"
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
     fixed_cost_bytes: 78300000000
