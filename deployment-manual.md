@@ -1805,7 +1805,9 @@ Progress lives in [deployment-tasks.md](deployment-tasks.md), knowledge in the o
 
 Native host processes under the unprivileged `domen` account — **not** containers, **not** behind
 gateway-auth. Rationale, the auth decision and what is unproven: [`docs/services-ai.md`](docs/services-ai.md)
-§9b-1. Ports come from `group_vars/all/main.yml` (`cockpit_pi_web_port: 31415`, `paseo_port: 31416`) —
+§9b-1. Ports come from `group_vars/all/main.yml` (`cockpit_pi_web_port`, `paseo_port` — read them, never
+restate them here; this line used to hard-code `paseo_port: 31416`, a number the SSOT explicitly freed,
+and it stayed true in prose for weeks after the var moved to 6767: HD-404 class) —
 **no role owns these unit files yet**, so keeping the numbers in step below is a hand step, not a converge.
 Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as `domen`.
 
@@ -1826,7 +1828,15 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    export PATH=/home/domen/.local/share/pi-node/node-v22.23.2-linux-x64/bin:$PATH
    sudo -u domen env PATH=$PATH npm install -g @earendil-works/pi-coding-agent && sudo -u domen env PATH=$PATH pi --version
    sudo -u domen env PATH=$PATH pi install npm:@ygncode/pi-web@beta    # → ~/.pi/agent/bin/pi-web + ~/.config/systemd/user/pi-web.service
+   # Stable name for the tarball: the cockpit's unit points at `current/bin` (step 6), so a later Node
+   # bump re-points this one link instead of editing a unit file.
+   sudo -u domen ln -sfn /home/domen/.local/share/pi-node/node-v22.23.2-linux-x64 \
+                         /home/domen/.local/share/pi-node/current
    ```
+   `npm -g` installs **inside the tarball**, so `pi` is a **symlink**
+   (`bin/pi -> ../lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js`) — `pi --version`
+   above is the proof it runs; a `-type f find` will not see it, and neither will the cockpit's unit
+   until step 6 hands it the PATH.
 3. **Create the sessions directory BEFORE starting it** — the binary exits 1 (`sessions directory not
    found`) rather than creating it, and pi only makes it on its first run:
    `sudo -u domen mkdir -p /home/domen/.pi/agent/sessions`
@@ -1842,6 +1852,13 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    rm -f /tmp/oldsrv-models.json /tmp/oldsrv-auth.json
    sudo -u domen env PATH=$PATH pi --list-models | head    # proves the render is what pi reads
    ```
+   **The seat's `~/.pi/agent/settings.json` is NOT rendered** — `render-pi-config.py` has no settings
+   vendor and `scripts/pi-config/models-spec.yml` states that boundary on purpose (the spec renders the
+   model contract, never someone's editor settings). Write it from the reference block in
+   [`docs/pi-harness.md`](docs/pi-harness.md) §5 (`defaultProvider`/`defaultModel` = spark,
+   `defaultThinkingLevel: off`, the prefill timeouts, compaction) and **keep the workstation keys the
+   installer wrote** (`packages` — that is what keeps pi-web installed as a pi package). Without it the
+   seat defaults to a **cloud** model and thinks every turn; the phone's session inherits both.
 5. **Set the token** in `/home/domen/.config/pi-web/env` as `PI_WEB_TOKEN=...` (dir 700, file 600, owner
    `domen`). A non-loopback bind is impossible without it — the binary refuses unless you pass `-insecure`,
    which you must not do here. The vault item and its minting rule:
@@ -1853,18 +1870,30 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    `tailscale0` bind, and the tailnet ACL + TLS + `PI_WEB_TOKEN` are the only way in. Placement + rationale:
    [docs/services-ai.md](docs/services-ai.md) §9b-1. **Derive the port; never paste it** (it has an SSOT var):
    ```bash
-   PORT=$(sudo awk -F: '/^cockpit_pi_web_port:/{gsub(/[ #].*/,"",$2); print $2}' \
+   PORT=$(awk '/^cockpit_pi_web_port:/{print $2; exit}' \
           /home/ansible-admin/source/homelab/IaC/ansible/group_vars/all/main.yml)
    echo "bind = 127.0.0.1:$PORT"
    sudo mkdir -p /home/domen/.config/systemd/user/pi-web.service.d
    printf '[Service]\nExecStart=\nExecStart=/home/domen/.pi/agent/bin/pi-web -host 127.0.0.1 -p %s\n' "$PORT" \
      | sudo tee /home/domen/.config/systemd/user/pi-web.service.d/loopback-bind.conf
    sudo rm -f /home/domen/.config/systemd/user/pi-web.service.d/tailnet-bind.conf   # superseded by loopback-bind
+   # Drop-in 2 — without it the cockpit cannot see `pi` (HD-484, live 2026-10-01). It must exist BEFORE the
+   # first start, not after the first complaint.
+   printf '[Service]\nEnvironment=PATH=/home/domen/.local/share/pi-node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\n' \
+     | sudo tee /home/domen/.config/systemd/user/pi-web.service.d/pi-on-path.conf
    sudo chown -R domen:domen /home/domen/.config/systemd/user
    sudo loginctl enable-linger domen                    # user units must run with no session attached
    sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user daemon-reload
    sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user enable --now pi-web.service
    ```
+   **Why drop-in 2 is not optional:** `pi-web` shells out to `pi` for the model list,
+   every chat turn and its own self-update, and no flag overrides that path (`pi-web -h` = `-host -p
+   -token/-insecure -o -version`). A systemd **user** unit gets no login shell, so `~/.profile` never runs
+   and the unit's PATH stays `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`, while `pi` lives inside
+   the Node tarball — every send died with `exec: "pi": executable file not found in $PATH` and the phone's
+   picker showed no model. It must be the **Node bin dir**: `bin/pi`'s shebang is `#!/usr/bin/env node`, so
+   a lone `pi` symlink (and `~/.local/bin`, which a user unit does not get anyway) is not enough — that
+   variant fails as `env: 'node': No such file or directory`.
    Remove the old `tailnet-bind.conf` drop-in: the router proxies to loopback, so a daemon still bound to the
    `tailscale0` address leaves a healthy-looking listener next to a 404ing URL.
 7. **Verify** (the 401/302 pair is the whole auth contract):
@@ -1872,6 +1901,14 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    ss -ltnp "( sport = :$PORT )"                        # 127.0.0.1:$PORT and NOTHING else — no LAN socket
    curl -s -o /dev/null -w 'no-token %{http_code}\n'  "http://127.0.0.1:$PORT/"                                       # → 401
    curl -s -o /dev/null -w 'token %{http_code}\n'     "http://127.0.0.1:$PORT/?token=$(sudo cut -d= -f2- /home/domen/.config/pi-web/env)"  # → 302
+   ```
+   Then the model leg, with a **cookie jar** (`?token=` is a handshake that 302s and sets a cookie — a bare
+   `curl /api/models?token=…` gets the 302, not the JSON):
+   ```bash
+   TOK=$(sudo cut -d= -f2- /home/domen/.config/pi-web/env); J=$(mktemp -d)
+   curl -s -c "$J/cj" -o /dev/null "http://127.0.0.1:$PORT/?token=$TOK"
+   curl -s -b "$J/cj" "http://127.0.0.1:$PORT/api/models" | python3 -c 'import json,sys; m=json.load(sys.stdin)["models"]; print(len(m), [x for x in m if x.get("provider")=="spark"])' ; rm -rf "$J"
+   # → 4xx/5xx here, or {"error":"pi executable not found: …"}, = the pi-on-path.conf drop-in above is missing
    ```
    Then the edge, on this box (loopback reaches the tailnet listener, so this proves TLS + router + backend
    in one call without leaving home):
@@ -1912,5 +1949,14 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    user.email` + the signing pointer in step 4 (the signing key needs a human `op` sign-in; the read-scope SA
    cannot read it).
 
-9. **Stop / roll back:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
+9. **Update / stop / roll back.** **Update:** the cockpit's own Update button, or by hand as `domen` with
+   the Node dir on PATH — `pi install npm:@ygncode/pi-web@beta`. The updater restarts `pi-web.service`
+   itself and leaves the drop-in directory alone; re-check anyway — `systemctl --user show pi-web.service
+   -p Environment` must still print the `pi-on-path` PATH, since an update that rewrote the fragment
+   without it returns the 500 signature again. **Updating pi-web does not update `pi`** (that is a separate
+   `npm install -g @earendil-works/pi-coding-agent` against the same prefix).
+   **Stop:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
    --now pi-web.service`, then remove the drop-in to return to the installer's loopback-only default.
+   To undo only the PATH fix, delete `pi-on-path.conf` and `systemctl --user daemon-reload &&
+   systemctl --user restart pi-web.service` — the symptom returns as `GET /api/models` → HTTP 500
+   `{"error":"pi executable not found: …"}`.
