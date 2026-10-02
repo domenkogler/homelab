@@ -18,7 +18,16 @@ LABEL="${1:?usage: accuracy-gate.sh <CONFIG_LABEL>}"
 BENCH_DIR="${BENCH_DIR:-$(cd "$(dirname "$0")" && pwd)}"
 OUT_DIR="$BENCH_DIR/accuracy/$LABEL"; mkdir -p "$OUT_DIR"
 URL="${VLLM_URL:-http://localhost:8000}/v1/chat/completions"
-MODEL="${MODEL_NAME:-/model}"
+MODEL="${MODEL_NAME:-spark/qwen3.8-flash-next}"
+CONTAINER="${VLLM_CONTAINER:-vllm-qwen-spark}"
+
+# HD-489 bearer-locked engine (HD-370): read the API key from the running
+# container's own argv (docker inspect .Config.Cmd), the same source run-scenario.sh
+# uses — never hardcode, never commit, never print. A key-less curl 401s.
+API_KEY="$(docker inspect "$CONTAINER" --format '{{join .Config.Cmd " "}}' 2>/dev/null \
+  | awk '{for(i=1;i<NF;i++) if($i=="--api-key") print $(i+1)}')"
+AUTH=()
+[ -n "${API_KEY:-}" ] && AUTH=(-H "Authorization: Bearer $API_KEY")
 
 declare -A PROMPTS=(
   [code-fib]="Write a Python function computing the nth Fibonacci number with memoization. Then show the first 10 values as a comment."
@@ -39,7 +48,7 @@ for key in "${ORDER[@]}"; do
   echo ">>> [$key]"
   PROMPT=$(printf '%s' "${PROMPTS[$key]}")
   BODY=$(jq -n --arg m "$MODEL" --arg p "$PROMPT" '{model:$m, messages:[{role:"user",content:$p}], max_tokens:1024, temperature:0}')
-  if curl -sf -X POST "$URL" -H "Content-Type: application/json" -d "$BODY" \
+  if curl -sf -X POST "$URL" -H "Content-Type: application/json" -d "$BODY" ${AUTH[@]+"${AUTH[@]}"} \
       -o "$OUT_DIR/${key}.json"; then
     jq -r '.choices[0].message.content // .error.message // "EMPTY"' "$OUT_DIR/${key}.json" > "$OUT_DIR/${key}.out" 2>/dev/null || echo "PARSE-ERROR" > "$OUT_DIR/${key}.out"
     head -c 200 "$OUT_DIR/${key}.out"; echo; echo "---"
