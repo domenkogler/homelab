@@ -64,7 +64,7 @@
 {% set command_extra = [] %}
 {% if profile.cudagraph_piecewise %}{%   set command_extra = command_extra + spark_llm_ultrafast_cudagraph_args %}{% endif %}
 {% if profile.prompt_tokens_details %}{%   set command_extra = command_extra + spark_llm_ultrafast_diag_args %}{% endif %}
-{% if profile.never_evict_prompt %}{%   set command_extra = command_extra + ['--never-evict-kv-cache-prompt-includes', profile.never_evict_prompt, '--never-evict-kv-cache-max-fraction', profile.never_evict_max_fraction] %}{% endif %}
+{% if profile.never_evict_prompt %}{%   set command_extra = command_extra + ['--never-evict-kv-cache-prompt-includes', "'" ~ profile.never_evict_prompt ~ "'", '--never-evict-kv-cache-max-fraction', "'" ~ profile.never_evict_max_fraction ~ "'"] %}{% endif %}
 {% set command_extra = command_extra + profile.args_extra | default([]) %}
 services:
   vllm-engine:
