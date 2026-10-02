@@ -177,3 +177,13 @@ picks the substring. Both make `roles/spark-llm-profile` REFUSE the profile;
 **What upstream does NOT change**: it runs `--kv-cache-dtype auto`, so `fp8` KV and `graded`
 stay blocked here, and its `gpu_mem=0.01` measures the PLE table leaving the CUDA pool — it is
 not headroom for a bigger pool. Do not quote it as such.
+
+**Delivery surface for this lane** (the leg report is ephemeral; CONVENTIONS §audit reports):
+raw evidence per leg in `deliverables/spark-llm/HD-489/` — bench JSON, the engine's own
+`Available KV cache memory` line, per-pid GPU memory at rest, the accepted-length trace
+(including the Slovenian set), the pinned image ID + build report. Durable findings fold into
+[hardware-spark.md](hardware-spark.md) §LLM serving profiles (measured numbers),
+[services-ai.md](services-ai.md) §9 (client-facing numbers),
+[services-ai-rejected.md](services-ai-rejected.md) (one paragraph per retired arm + the number
+that killed it), `spark/llm-profiles/acceptance/` (evidence for whatever turns
+`certified: true`) — and the todo row is deleted when the lane closes live, not before.
