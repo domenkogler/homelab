@@ -280,7 +280,7 @@ services:
       - {{ profile.tool_call_parser }}
       - --enable-auto-tool-choice
       - --override-generation-config
-      - {{ profile.generation_config_override }}
+      - {{ profile.generation_config_override | to_json }}
 {% if profile.get('spec_config') %}
       # Merged speculative config (HD-489: block rejection + probabilistic draft sampling,
       # as upstream publishes them). to_json keeps dict order deterministic, so the render
