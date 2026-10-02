@@ -54,6 +54,25 @@ Every script here is part of one of three groups: **validation** (the fail-close
 
 ---
 
+## Adjacent tooling that is NOT under `scripts/` — indexed here because this file is the dispatcher's answer to "find a script"
+
+The HD-489 near-miss, 2026-10-02: a brief searched `scripts/`, found no throughput tool, and wrote
+**"there is no timed-throughput tool in this repo"** into itself and into the `todo.md` queue as a
+prerequisite in front of the first timed leg. The tool has been in the tree since before the brief
+was written, under `spark/bench/`. A tool no index reaches does not exist for the next reader, so
+these rows exist. (The other two `spark/bench` scripts live beside them: `run-scenario.sh` and
+`vm-window.sh`, below.)
+
+| Tool | What it is | Owning spec |
+|---|---|---|
+| [`../spark/bench/run-scenario.sh`](../spark/bench/run-scenario.sh) | **The timed instrument for spark LLM legs** — one scenario per call (`C1` prefill 32k/512 · `C2` decode 1k/512 · `C2L` long decode 1k/1k x 12, the one long enough for the store to corroborate · `C3` concurrent · `S1-N` sweep probe), driving `vllm bench serve` inside the engine container and appending ONE row per leg to `results-v2.csv`: TTFT and ITL p50/p99, per-stream decode tok/s, MTP acceptance, preemption / generation-token / prefix-cache / **recompute**-token deltas, memory at rest, mean W and Wh per 1k output tokens, the leg's UTC window, `cold_ok`, `req_ok_delta` (the window-exclusivity proof) and a `flag` column that prints `contaminated` out loud. `--profile <arm>` and `--client <who>` exist because the engine cannot tell arms or operators apart: all 16 HD-489 arms serve one `model_name`, and Rule 0 forbids a spark-served session from producing timed numbers. Refuses a zero-load run (the 401-exits-0 defect), refuses a container that is not running, scrubs the bearer at the point of write. | [`../spark/llm-profiles/README.md`](../spark/llm-profiles/README.md), [`../docs/hardware-spark.md`](../docs/hardware-spark.md), [`../docs/deployment-ai-stack-secrets.md`](../docs/deployment-ai-stack-secrets.md) |
+| [`../spark/bench/vm-window.sh`](../spark/bench/vm-window.sh) | **Cross-check one leg against VictoriaMetrics** — re-reads the engine's own counters over the leg's window (from the results CSV by `--ts`, or `--start/--end`) against the row's snapshot deltas; verdicts window exclusivity (`request_success` must move by exactly N) and **refuses** cold-histogram corroboration under 180 s, because a 60 s-cold quantile over a 20 s leg is other people's traffic. `--dry-run` prints the PromQL and touches nothing, so it is testable off the box. VM creds come from 1Password `victoria-metrics_api` into a 0600 curl config — never argv, never printed. | [`../docs/observability.md`](../docs/observability.md) §Scrape cadence, [`../spark/reports/hd489-pin-premise/README.md`](../spark/reports/hd489-pin-premise/README.md) |
+| [`../spark/bench/snapshot-metrics.sh`](../spark/bench/snapshot-metrics.sh) | Before/after `/metrics` snapshot for a leg, emitted as a `KEY=value` env file the runner sources. `sumget()` exists because `request_success_total` carries `finish_reason=` — summing every series is the only correct read, and `tail -1` would report 2 of 8 requests. | same |
+| [`../spark/bench/stress-oom.sh`](../spark/bench/stress-oom.sh) · [`stability-overnight.sh`](../spark/bench/stability-overnight.sh) · [`stability-supervise.sh`](../spark/bench/stability-supervise.sh) · [`run-sanity.sh`](../spark/bench/run-sanity.sh) | The guard and stability half of the same harness: the `usable = MemAvailable − CmaFree` guard that stops the engine instead of letting the kernel pick the victim, the overnight sweep and its supervisor (bundles refuse to publish an archive whose payload contains a secret shape), and the preflight. Produced `spark/reports/stability/`. | [`../docs/hardware-spark.md`](../docs/hardware-spark.md) §Unified-memory budget, [`../docs/spark-incidents.md`](../docs/spark-incidents.md) |
+| [`../spark/bench/accuracy-gate.sh`](../spark/bench/accuracy-gate.sh) | The accuracy half — the battery a **speed claim must pass first**. HD-489 step 5: "a decode win that fails the Slovenian leg is not a win". | [`../spark/llm-profiles/README.md`](../spark/llm-profiles/README.md) gate 6, [`../spark/resources/R2-nvfp4.md`](../spark/resources/R2-nvfp4.md) §B |
+
+---
+
 ## Renderers (IaC / SSOT → generated docs)
 
 > Direction of truth is **IaC → generated MD** (never the reverse). These write `*-generated.md` files

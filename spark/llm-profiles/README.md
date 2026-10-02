@@ -35,6 +35,17 @@ whether it will survive an agent session.
 > numbers are not**. Hand the timed legs to a session on a different model, or take them
 > from a headless run. Record which session ran which leg, in the report.
 
+> **Where timed numbers come from.** Not from `scripts/spark-llm-probe.py`: its `ctx` and
+> `concurrent` legs report wall time and latency with no token normalisation, so they can prove a
+> profile *holds* a depth and cannot answer a throughput claim. Timed legs are
+> [`../bench/run-scenario.sh`](../bench/run-scenario.sh) — TTFT and ITL p50/p99, per-stream decode
+> tok/s, MTP acceptance, Wh per 1k output tokens, one CSV row per leg — stamped with `--profile
+> <arm>` and `--client <who>`, and cross-checked by
+> [`../bench/vm-window.sh`](../bench/vm-window.sh) over the leg's window. The store cannot separate
+> the arms by label (`model_name` is a client anchor that must not move), so the leg's UTC window IS
+> the attribution and `req_ok_delta == N` is the proof the window was the leg's alone. Rule 0 binds
+> whoever *produces* the window; reading the store is legal from any session.
+
 
 ## Gate order (each step is a command, not a vibe)
 

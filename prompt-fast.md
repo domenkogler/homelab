@@ -49,11 +49,21 @@ The funnel is 16 profiles: 4 already certified (untouched), 12 arms. The dial is
    accident). Then convert the drafter (`recipe/build/model/build.sh --run`, no GPU).
 3. **Author `v16b-pin`'s substring** — the `CHANGEME` in `never_evict_prompt` is the mark of
    a human decision, not a bug: pick a literal substring of the harness system prompt
-   (`scripts/pi-config/`), and say in the commit what fraction of the pool it can pin
+   and say in the commit what fraction of the pool it can pin
    (`--never-evict-kv-cache-max-fraction` is a fraction OF THE POOL).
+   ⚠ **This step points at the wrong file.** It said `scripts/pi-config/` for the harness system
+   prompt; that directory holds only `models-spec.yml`. The literals actually sent to the engine
+   are pi's built-in system prompt (`pi-coding-agent/dist/core/system-prompt.js`) plus this repo's
+   `pi-agent/AGENTS.md`, and parts of it are per-session (model name, cwd) — so quote from a
+   **captured request**, not from a repo file, or the pin matches nothing. It is also a PAIR of
+   decisions: the arms inherit `never_evict_max_fraction: "0.25"` from the `_x` anchor, and at a
+   16 GB pool that pins ≈ 129 k tokens permanently (≈ 31,027 B/token), competing with the drafter's
+   KV on `v16b-pin`. Re-derive the fraction in the commit; do not inherit it silently.
 4. **Legs** — tier 1 first (`u1-patch`, `u2-blk`, `u3-s8` — AWQ weights, already staged, so
    one build and no download separates them from the certified lane), then tier 2 (`ar-*`),
-   then tier 3 (`v16b*`). Each leg: `spark-llm-probe.py … ctx <max_model_len>` + `concurrent <max_num_seqs>` (gates 3–4) and the `vllm:spec_decode_*` counters read from `/metrics` (gate 8) + the gate ladder in `spark/llm-profiles/README.md` (gates 0–9), and the leg log must record **per-pid GPU memory at
+   then tier 3 (`v16b*`). **Timed numbers come from `spark/bench/run-scenario.sh`** (`C2` decode,
+   `C1` prefill, `C2L` when the leg must be corroborable from the store) — see the correction
+   below; the probe is not a throughput instrument. Each leg also runs: `spark-llm-probe.py … ctx <max_model_len>` + `concurrent <max_num_seqs>` (gates 3–4) and the `vllm:spec_decode_*` counters read from `/metrics` (gate 8) + the gate ladder in `spark/llm-profiles/README.md` (gates 0–9), and the leg log must record **per-pid GPU memory at
    rest** for the seqs=8/piecewise arms (§6.2: oversized capture strands memory in the one
    pool; the engine's own `Available KV cache memory` line is authoritative).
 5. **Fidelity gates before any speed claim** — Slovenian accepted-length (the draft
@@ -86,7 +96,10 @@ Two or three profiles survive, one of them `certified: true` and re-proven end-t
 the survivor — plus a paragraph in `docs/services-ai-rejected.md` for every arm that lost
 and the number that killed it.
 
-## Correction: there is no standalone bench harness
+## Correction 1 (2026-10-02): the two cited tool names were invented
+
+> ⚠ Read **Correction 2** at the foot of this brief too. This one was right about the two names
+> and then over-corrected into claiming the repo has no timed instrument at all, which is false.
 
 This brief first cited `scripts/llm_serving_bench.py` and `spark/llm-profiles/acceptance/`.
 **Neither exists** — invented names, found by the operator on 2026-10-02, which is exactly
@@ -98,7 +111,31 @@ there). The real harness is the gate ladder in
 15-prompt accuracy battery captured in `spark/resources/R2-nvfp4.md` §B, and
 `spark-oom-watchdog` samples for the memory curve. Evidence lands under `spark/reports/`.
 
-⛔ **There is no timed-throughput tool in this repo.** Throughput and TTFT numbers for this
-funnel therefore come from either (a) gate 3/4 probe runs with timestamps recorded by hand in
-the leg report, or (b) a harness this lane has to write. If it writes one, it is a deliverable
-of HD-489 and lands in `scripts/` with the rest — not as a citation of something imaginary.
+## Correction 2 (2026-10-02): the timed instrument DOES exist — it is `spark/bench/`
+
+The paragraph this section closed with read **"there is no timed-throughput tool in this repo"**,
+and `todo.md` carried that as a step-(0) prerequisite in front of leg 1. It was wrong, and it was
+wrong the same way the invented names above were: someone searched `scripts/`, found nothing, and
+reported absence.
+
+The instrument is [`spark/bench/run-scenario.sh`](spark/bench/run-scenario.sh), in the tree since
+before this brief existed. It drives `vllm bench serve` inside the engine container and records
+**TTFT p50/p99, ITL p50/p99, per-stream decode tok/s, the MTP acceptance ratio, preemption and
+generation-token deltas, and Wh per 1k output tokens** — one CSV row per leg, immutable run
+identity, bearer scrubbed at the point of write (the reason it is in
+[deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §the leak). Around it:
+`snapshot-metrics.sh` (before/after `/metrics`), `stress-oom.sh` (the usable-memory guard),
+`stability-overnight.sh` and `accuracy-gate.sh` (the fidelity half — step 5 of this brief already
+had a tool). Nothing needed writing; the funnel's real problem was that the harness was indexed
+nowhere a reader would look — not the dispatcher, not `scripts/README.md`, not the gate ladder.
+All three now reach it.
+
+What HD-489 added instead: **arm identity** (`--profile`, and a `profile` CSV column — all 16 arms
+serve one `model_name`, so a row was previously the only place an arm could exist), the pin arms'
+**recompute counters**, **memory at rest** for the §6.2 stranding rule, a **Rule 0 client stamp**
+(`--client`, defaulting to hostname + `PI_MODEL`, so a spark-served leg can be invalidated later
+instead of the box re-measured to find out who ran it), and
+[`spark/bench/vm-window.sh`](spark/bench/vm-window.sh) — the VictoriaMetrics cross-check over a
+leg's window. The store already holds every `vllm:` counter this funnel needs, gate 8's
+`spec_decode_*` included, for 365 days; what it cannot do is attribute a series to an arm, so the
+window is the attribution and `req_ok_delta == N` is the proof the window was the leg's alone.

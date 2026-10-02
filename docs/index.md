@@ -43,6 +43,7 @@ tags: [index, dispatcher, ai]
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md`, `../todo.md` |
 | **Switch / certify a spark LLM config (reasoning · graded · fast · fast-sglang)** | [`spark-llm-profiles.md`](spark-llm-profiles.md) | `hardware-spark.md` (pool budget), `pi-harness.md` (measured reasoning surface), `../spark/llm-profiles/README.md` (certify gate), `../todo.md` |
+| **Measure spark LLM speed (throughput · TTFT · power) or run a profile leg** | [`../spark/bench/run-scenario.sh`](../spark/bench/run-scenario.sh) — **the** timed instrument; it was missed once by a brief that searched only `scripts/` (HD-489, 2026-10-02) | `../spark/llm-profiles/README.md` (the gate ladder it feeds), `../spark/bench/vm-window.sh` + `observability.md` §Scrape cadence (what VictoriaMetrics keeps, at what resolution, and what it cannot attribute), `hardware-spark.md` §Unified-memory budget, `deployment-ai-stack-secrets.md` (the bearer-scrub rule this harness carries) |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook, HD-105), `hardware-gpu.md` |
 | **Triage an AI-plane candidate / check past rejections (RAG, memory, gateways, harnesses)** | [`services-ai-rejected.md`](services-ai-rejected.md) — append-only decision log | `services-ai.md`, `services-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Decide where an AI leg runs (generation vs client-side FIM/vision vs pinned services)** | [`hardware-workstation.md`](hardware-workstation.md) (client-side tier) + [`services-ai.md`](services-ai.md) §9 decision #28 | `hardware-spark.md` (text-only engine), `hardware-gpu.md` (8 GiB ledger), `pi-harness.md` |
@@ -169,6 +170,14 @@ docs/
 ```
 
 > **First-class tracked components outside `docs/`:**
+> - [`spark/bench/`](../spark/bench/) — the spark LLM **timed-instrument** harness: `run-scenario.sh`
+>   (per-leg TTFT/ITL/decode-tok-s/power), `vm-window.sh` (the VictoriaMetrics cross-check over a
+>   leg's window), `snapshot-metrics.sh`, `stress-oom.sh` + the stability sweeps, and
+>   `accuracy-gate.sh`. On-box tooling driven over `ssh spark`, not an Ansible-managed service, so it
+>   lives outside `scripts/` — which is precisely why a brief that searched only `scripts/` concluded
+>   the repo had no throughput tool and put a nonexistent prerequisite in front of leg 1. Indexed in
+>   [`scripts/README.md`](../scripts/README.md) §Adjacent tooling; the ladder that consumes it is
+>   [`spark/llm-profiles/README.md`](../spark/llm-profiles/README.md).
 > - [`client/office-bridge/`](../client/office-bridge/) — native Windows/COM **Office MCP bridge** SSOT
 >   package (HD-106–111): version-pinned, Renovate-tracked (`pip_requirements`), deployed per-client over
 >   the Headscale tunnel by `install.ps1`/`update.ps1` — **NOT an Ansible-managed server service** (Ansible
