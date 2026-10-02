@@ -9,9 +9,13 @@
       - spark_llm_profile is defined
       - spark_llm_profile | length > 0
       - spark_llm_profile in spark_llm_profiles
+      - not (spark_llm_profile is match('^_'))
     fail_msg: >-
       spark_llm_profile='{{ spark_llm_profile | default('<unset>', true) }}' is not a known
-      profile. Valid: {{ spark_llm_profiles.keys() | sort | join(' | ') }}
+      profile. Valid: {{ spark_llm_profiles | dict2items | rejectattr('key', 'match', '^_') | map(attribute='key') | sort | join(' | ') }}
+      (definitions: IaC/ansible/group_vars/spark.yml §LLM SERVING PROFILES;
+      the dial: IaC/ansible/host_vars/spark.kogler.si.yml). A key beginning with `_` is a
+      MERGE ANCHOR of shared defaults (HD-489), not a servable profile.
       (definitions: IaC/ansible/group_vars/spark.yml §LLM SERVING PROFILES;
       the dial: IaC/ansible/host_vars/spark.kogler.si.yml).
   tags: [spark, spark-llm-profile, llm]
@@ -26,15 +30,137 @@
       - spark_llm.model_subdir | length > 0
       - spark_llm.max_model_len | int > 0
       - spark_llm.max_num_seqs | int > 0
-      - (spark_llm_image_pins[spark_llm.engine] | default('')) | length > 0
+      - (spark_llm_image_resolved | default('')) | length > 0
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' is not servable as authored:
       engine='{{ spark_llm.engine | default('<unset>') }}',
-      image='{{ spark_llm_image_pins[spark_llm.engine] | default('<unset>') }}'.
-      An EMPTY image means the engine image has no digest pin yet — CONVENTIONS §7
-      forbids pulling a floating tag. Pin it in group_vars/all/versions.yml after
-      registry-verifying the arm64 manifest, and record the verification in
+      image='{{ spark_llm.image | default('<unset>') }}' →
+      '{{ spark_llm_image_resolved | default('<unresolved>') }}'.
+      An EMPTY image means the engine image has no pin yet — CONVENTIONS §7 forbids a
+      floating tag or a mutable alias on the serving path. For `ultrafast` (HD-489) empty is
+      the DESIGNED state until roles/spark-ultrafast-build has produced the patched lineage
+      and the image ID it printed is recorded in group_vars/all/versions.yml (the ID is
+      immutable; the build tag is a mutable alias and is never served). For `sglang`: verify
+      the arm64 manifest, take the digest, pin it, and record the verification in
       docs/hardware-spark.md §LLM serving profiles in the same change.
+  tags: [spark, spark-llm-profile, llm]
+
+
+# ---- Resolve what the profile NAMES into what it POINTS AT (HD-489) ----
+# The compose template composes the same three values from the same plain scalar keys
+# (`image`, `models_root`, `ple_host_base`+`ple_host_root`). The gate resolves them FIRST:
+# it must refuse a bad name with a remediation rather than let a rendered path fail 20
+# minutes into a boot, and the staged-artifact asserts at the foot of this file must stat
+# THE PATHS THIS PROFILE NAMES — not always the XFS store, which is what made the upstream
+# arms (their checkpoint lives on `/`) silently pass a check for files they never use.
+- name: Resolve the profile's image pin and host roots
+  ansible.builtin.set_fact:
+    spark_llm_image_resolved: "{{ spark_llm_profile_images[spark_llm.image] }}"
+    spark_llm_model_host_dir: >-
+      {{ (spark_models_dir_os if spark_llm.models_root == 'os' else spark_models_dir)
+         ~ '/' ~ spark_llm.model_subdir }}
+    spark_llm_ple_host_dir: >-
+      {{ spark_models_dir_os if spark_llm.ple_host_root == 'os'
+         else (spark_xfs_mount if spark_llm.ple_host_base == 'mount' else spark_models_dir) }}
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the profile's coordinates name something this repo defines
+  ansible.builtin.assert:
+    that:
+      - spark_llm.image in spark_llm_profile_images
+      - spark_llm.models_root in ['xfs', 'os']
+      - spark_llm.ple_host_root in ['xfs', 'os']
+      - spark_llm.ple_host_base in ['mount', 'models']
+      - (spark_llm.ple_host_root != 'os') or (spark_llm.ple_host_base == 'models')
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' names a coordinate this repo does not define:
+      image={{ spark_llm.image }} (valid: {{ spark_llm_profile_images.keys() | sort | join(' | ') }}
+      — each one is a PIN in group_vars/all/versions.yml, never a path and never a tag),
+      models_root={{ spark_llm.models_root }} / ple_host_root={{ spark_llm.ple_host_root }}
+      (xfs = {{ spark_xfs_mount }} · os = {{ spark_models_dir_os }}, the root partition:
+      345 G free measured 2026-10-02, which is where the upstream arms live so that nothing
+      staged on XFS has to be deleted to make room for them),
+      ple_host_base={{ spark_llm.ple_host_base }} (mount = under the XFS mount root, as the
+      primitive-ai tables are; models = under the models dir. On `os` only `models` means
+      anything — there is no second mount root there).
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- One PLE mechanism, and a complete one (HD-489) ----
+# The primitive-ai sidecar works by BIND-MOUNTING ple_layer_quant.py over
+# .../qwen3_8_flash_next/nvidia/ple_layer.py; the upstream mmap patch APPENDS its hook to
+# that same file, and VLLM_PLE_MMAP=1 is read by that hook. Claiming both is not belt and
+# braces — the behaviour is then decided by mount order. And an mmap arm that omits its
+# table subdir renders VLLM_PLE_MMAP_DIR=/ple-table with NOTHING mounted there: the exact
+# bug scripts/spark-llm-render-matrix.py was written to catch at render time, refused here
+# at converge time, and bred as a canary in scripts/check_spark_llm_gate.py.
+- name: Assert the profile uses one PLE mechanism and a complete one
+  when: spark_llm.engine == 'vllm'
+  ansible.builtin.assert:
+    that:
+      - not ((spark_llm.ple_mmap | bool) and (spark_llm.ple_overlay | bool))
+      - (not (spark_llm.ple_mmap | bool)) or (spark_llm.ple_host_subdir | length > 0)
+      - (not (spark_llm.ple_mmap | bool)) or (not (spark_llm.ple_offload | bool))
+      - (not (spark_llm.ple_mmap | bool)) or (spark_llm.ple_container_dir == '/ple-table')
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' claims PLE mechanisms inconsistently:
+      ple_mmap={{ spark_llm.ple_mmap }} ple_overlay={{ spark_llm.ple_overlay }}
+      ple_offload={{ spark_llm.ple_offload }}
+      ple_host_subdir='{{ spark_llm.ple_host_subdir }}'
+      ple_container_dir='{{ spark_llm.ple_container_dir }}'.
+      The overlay bind-mounts over the file the mmap hook is appended to, so the two are
+      mutually exclusive; an mmap arm needs its table subdir (mounted at /ple-table, the
+      path VLLM_PLE_MMAP_DIR points at) and must not also render the primitive-ai
+      CPU-offload env.
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- A placeholder must never reach the engine argv ----
+# --never-evict-kv-cache-prompt-includes pins every KV block whose prompt contains the
+# substring, up to --never-evict-kv-cache-max-fraction of the POOL. A placeholder matches
+# nothing (an invisible no-op that still costs a 20-minute boot to notice); a substring
+# chosen too loosely pins a quarter of the pool to one prompt shape. Both are worse than a
+# refusal, so the pin arms SHIP with CHANGEME and are refused until a human authors the
+# substring from the harness system prompt they actually run.
+- name: Assert no profile ships a placeholder into the engine argv
+  ansible.builtin.assert:
+    that:
+      - "'CHANGEME' not in (spark_llm.never_evict_prompt | default(''))"
+      - "'CHANGEME' not in (spark_llm.args_extra | default([]) | join(' '))"
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' still carries a CHANGEME placeholder
+      (never_evict_prompt='{{ spark_llm.never_evict_prompt | default('') }}'). Replace it
+      with a LITERAL substring of the system prompt the harness actually sends
+      (scripts/pi-config/ → the pi system prompt), and record why that substring is the
+      one worth pinning. This is a human-decision gate, not a bug to delete.
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- Free space on the root the artifacts ACTUALLY live on (HD-489) ----
+# One `df`, read-only, on the models root only when the profile uses the root partition.
+# `/` is the mount /opt/homelab sits on (docs/hardware-spark.md §Partition layout: p2 = the
+# live root), so df on `/` is the honest measure; df on a not-yet-staged path would fail.
+- name: Read free space on the root partition
+  ansible.builtin.command:
+    argv: ["df", "-P", "-B1", "/"]
+  changed_when: false
+  register: spark_llm_df_os
+  when:
+    - spark_llm.engine == 'vllm'
+    - spark_llm.models_root == 'os'
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the root partition still has room for this profile's artifacts
+  when:
+    - spark_llm.engine == 'vllm'
+    - spark_llm.models_root == 'os'
+  ansible.builtin.assert:
+    that:
+      - (spark_llm_df_os.stdout_lines | last).split()[3] | int >= (spark_llm_os_min_free_bytes | int)
+    fail_msg: >-
+      The root partition has {{ ((spark_llm_df_os.stdout_lines | last).split()[3] | int / 1e9) | round(1) }} GB
+      free; profile '{{ spark_llm_profile }}' needs {{ (spark_llm_os_min_free_bytes | int / 1e9) | round(0) }} GB
+      (spark_llm_os_min_free_bytes, group_vars/spark.yml). Free space is not a knob to turn
+      until a gate passes: stage less, or free a store — but never delete a staged set
+      another profile still names (spark_artifact_sets says who uses what), and never lower
+      the floor to make this line green.
   tags: [spark, spark-llm-profile, llm]
 
 # ---- KV-pool arithmetic (docs/hardware-spark.md §Unified-memory budget) ----
@@ -184,15 +310,21 @@
 
 # ---- Artifacts: never download implicitly, never boot without ----
 - name: Stat the profile's model dir
+  # Resolved path (spark_llm_model_host_dir), because the upstream arms keep their
+  # checkpoint on `/` — a stat of the XFS path would approve an arm whose weights are
+  # elsewhere, or refuse one whose weights are staged exactly where it points.
   ansible.builtin.stat:
-    path: "{{ spark_models_dir }}/{{ spark_llm.model_subdir }}/config.json"
+    path: "{{ spark_llm_model_host_dir }}/config.json"
   register: spark_llm_model_stat
   when: not spark_llm_profile_skip_artifact_check | bool
   tags: [spark, spark-llm-profile, llm]
 
 - name: Stat the profile's PLE table dir
   ansible.builtin.stat:
-    path: "{{ spark_xfs_mount }}/{{ spark_llm.ple_host_subdir }}/META.json"
+    # Marker comes from the profile: the primitive-ai tables ship META.json, the
+    # repo-root-downloaded FP8 table is marked by roles/spark-artifacts with .hf-staged
+    # (which also records the revision, so the next assert can compare it to the pin).
+    path: "{{ spark_llm_ple_host_dir }}/{{ spark_llm.ple_host_subdir }}/{{ spark_llm.ple_staged_marker | default('META.json') }}"
   register: spark_llm_ple_stat
   when:
     - not spark_llm_profile_skip_artifact_check | bool
@@ -211,19 +343,43 @@
     - spark_llm.ple_overlay | bool
   tags: [spark, spark-llm-profile, llm]
 
+- name: Read the staged PLE table's provenance marker
+  ansible.builtin.slurp:
+    src: "{{ spark_llm_ple_host_dir }}/{{ spark_llm.ple_host_subdir }}/{{ spark_llm.ple_staged_marker }}"
+  register: spark_llm_ple_marker
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.ple_mmap | bool
+    - spark_llm_ple_stat.stat.exists | default(false)
+  failed_when: false
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Compare the staged PLE revision with the pin in versions.yml
+  ansible.builtin.set_fact:
+    spark_llm_ple_revision_ok: >-
+      {{ (spark_ple_fp8_revision in (spark_llm_ple_marker.content | b64decode))
+         if (spark_llm_ple_marker.content is defined) else false }}
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.ple_mmap | bool
+  tags: [spark, spark-llm-profile, llm]
+
 - name: Fail when the profile's artifacts are not staged yet
   when: not spark_llm_profile_skip_artifact_check | bool
   ansible.builtin.assert:
     that:
       - spark_llm_model_stat.stat.exists
       - (spark_llm.ple_host_subdir | default('') | length == 0) or (spark_llm_ple_stat.stat.exists | default(false))
+      - (not (spark_llm.ple_mmap | bool)) or (spark_llm_ple_revision_ok | default(true) | bool)
       - (not (spark_llm.ple_overlay | bool)) or (((spark_llm_overlay_stat.results | default([])) | selectattr('stat.exists', 'equalto', true) | list | length) == (spark_llm_overlays | length))
     fail_msg: >-
-      Profile '{{ spark_llm_profile }}' expects artifacts that are not on the XFS
-      store: model='{{ spark_models_dir }}/{{ spark_llm.model_subdir }}'
-      (config.json {{ 'present' if spark_llm_model_stat.stat.exists else 'MISSING' }}),
-      PLE tables='{{ spark_xfs_mount }}/{{ spark_llm.ple_host_subdir | default('(none)') }}',
-      overlays={{ spark_llm.ple_overlay | bool }}.
+      Profile '{{ spark_llm_profile }}' expects artifacts that are not staged:
+      model='{{ spark_llm_model_host_dir }}' (config.json
+      {{ 'present' if spark_llm_model_stat.stat.exists else 'MISSING' }}),
+      PLE='{{ spark_llm_ple_host_dir }}/{{ spark_llm.ple_host_subdir | default('(none)') }}'
+      (marker {{ spark_llm.ple_staged_marker | default('META.json') }}),
+      overlays={{ spark_llm.ple_overlay | bool }},
+      pinned-revision-match={{ spark_llm_ple_revision_ok | default('n/a') }}.
       Downloads are EXPLICIT by design (84 GB + 1 G link). Stage them first:
       ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark
       --tags spark-artifacts -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
@@ -235,9 +391,10 @@
   ansible.builtin.debug:
     msg:
       - "profile          : {{ spark_llm_profile }} — {{ spark_llm.label }}"
-      - "engine / image   : {{ spark_llm.engine }} / {{ spark_llm_image_pins[spark_llm.engine] }}"
-      - "model            : {{ spark_models_dir }}/{{ spark_llm.model_subdir }}"
-      - "PLE              : {{ spark_llm.ple_container_dir or '(none)' }} (host {{ spark_xfs_mount }}/{{ spark_llm.ple_host_subdir or '(none)' }}, overlay={{ spark_llm.ple_overlay | bool }})"
+      - "engine / image   : {{ spark_llm.engine }} / {{ spark_llm.image }} → {{ spark_llm_image_resolved }}"
+      - "model            : {{ spark_llm_model_host_dir }}"
+      - "PLE              : {{ spark_llm.ple_container_dir or '(none)' }} (host {{ spark_llm_ple_host_dir }}/{{ spark_llm.ple_host_subdir or '(none)' }}, overlay={{ spark_llm.ple_overlay | bool }}, mmap={{ spark_llm.ple_mmap | bool }})"
+      - "spec / pin       : {{ spark_llm.spec_config | default('spec_tokens=' ~ spark_llm.spec_tokens) }} / never-evict='{{ spark_llm.never_evict_prompt or '(off)' }}'"
       - "ctx / seqs       : {{ spark_llm.max_model_len }} / {{ spark_llm.max_num_seqs }}"
       - "KV               : {{ spark_llm.kv_cache_dtype }}, {{ spark_llm.kv_cache_memory }} B = {{ (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | default(1) | int) if spark_llm.kv_cache_dtype in spark_llm_kv_bytes_per_token else '?' }} slots"
       - "device hold     : fixed {{ spark_llm.fixed_cost_bytes | default('(undeclared — sglang sizes by mem-fraction)') }} + pool {{ spark_llm.kv_cache_memory }} ≤ ceiling {{ spark_llm_device_hold_ceiling_bytes }}"

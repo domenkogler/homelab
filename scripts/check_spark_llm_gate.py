@@ -37,6 +37,7 @@ except ImportError:  # pragma: no cover
 ROOT = Path(__file__).resolve().parent.parent
 CATALOGUE = ROOT / "IaC" / "ansible" / "group_vars" / "spark.yml"
 ROLE = ROOT / "IaC" / "ansible" / "roles" / "spark-llm-profile" / "tasks" / "main.yml"
+VERSIONS = ROOT / "IaC" / "ansible" / "group_vars" / "all" / "versions.yml"
 
 # The SGLang invariants, keyed by the flag each one reads. The role's pattern is matched
 # to the key by the flag LITERAL, so renaming a flag here is a loud failure, not a silent
@@ -48,6 +49,11 @@ SGLANG_CHECKS = {
 }
 FAILS = []
 NOTES = []
+# Resolved in main(): {profile.image name: the pin string from versions.yml}. Built by
+# reading spark_llm_profile_images (the name→pin map) and resolving each Jinja reference
+# against versions.yml — so a NEW image name with no pin, or a pin renamed in versions.yml,
+# shows up as an empty entry here and the `image-pin` invariant fails it. Nothing is re-typed.
+PIN_PINS = {}
 
 
 def fail(msg):
@@ -80,6 +86,21 @@ def patterns_from_role():
     if "spark_llm.engine == 'sglang'" not in text:
         print("ERROR: the role no longer gates anything on engine == 'sglang'", file=sys.stderr)
         sys.exit(2)
+    # HD-489: every one of these is an invariant this script ALSO checks. If the role stops
+    # containing it, the catalogue could go green HERE while the real converge stopped
+    # refusing it — the drift direction that actually matters, so it is fatal here.
+    for marker, why in [
+        ("spark_llm_profile_images", "resolves profile.image to a versions.yml PIN"),
+        ("ple_host_subdir | length > 0", "refuses an mmap arm whose PLE table is not mounted"),
+        ("ple_mmap | bool) and (spark_llm.ple_overlay", "refuses mmap + overlay together"),
+        ("'CHANGEME' not in", "refuses a placeholder prompt-pin substring"),
+        ("spark_llm_os_min_free_bytes", "checks free space on the root the artifacts use"),
+    ]:
+        if marker not in text:
+            print(f"ERROR: {ROLE.relative_to(ROOT)} no longer contains {marker!r}, but this "
+                  f"script still proves it is refused ({why}). Change both or neither.",
+                  file=sys.stderr)
+            sys.exit(2)
     return pats
 
 
@@ -133,12 +154,77 @@ def vllm_verdicts(profile, cat):
         out["host-floor"] = (hold <= hold_ceil,
                              f"fixed {fc} + pool {pool} = {hold} B > the host-floor ceiling {hold_ceil} B")
     out["_projection"] = f"{slots} slots = {slots / window:.2f} × the {window} window"
+
+    # ---- HD-489: a profile now NAMES things, not only carries numbers ----
+    # The four original invariants all ask "does the memory arithmetic close". The ultra-fast
+    # funnel turned a profile into a set of COORDINATES (which image, which partition, which
+    # PLE mechanism, which prompt-pin substring), and each has a failure mode arithmetic
+    # cannot see: an unknown image name, a table not mounted where the env says it is, both
+    # PLE mechanisms claimed at once, a placeholder shipped into argv, a fixed cost invented
+    # rather than measured.
+    GATED = out.setdefault("_gated", [])
+    img = profile.get("image")
+    out["image-pin"] = (img in PIN_PINS,
+                        f"profile.image={img!r} is not a name in spark_llm_profile_images "
+                        f"(known: {', '.join(sorted(PIN_PINS))})")
+    if img in PIN_PINS and not PIN_PINS[img]:
+        # An EMPTY pin is not a broken profile, it is an ARM THAT CANNOT BOOT YET: the
+        # `ultrafast` pin stays empty until the built image ID is recorded (CONVENTIONS §7
+        # forbids serving a mutable tag). The role refuses it at converge time; here it is
+        # reported as GATED — neither a permanent red nor an invisible state.
+        GATED.append(f"{img}: no image ID pinned in versions.yml yet \u2014 the gate refuses it")
+    coords = {profile.get("models_root"), profile.get("ple_host_root"),
+              profile.get("ple_host_base")}
+    out["coordinates"] = (None not in coords and coords <= {"xfs", "os", "mount", "models"},
+                          f"models_root={profile.get('models_root')} "
+                          f"ple_host_root={profile.get('ple_host_root')} "
+                          f"ple_host_base={profile.get('ple_host_base')} \u2014 valid: xfs|os "
+                          "and mount|models")
+    out["ple-mechanism"] = (
+        not (profile.get("ple_mmap") and profile.get("ple_overlay")),
+        "ple_mmap and ple_overlay both claim .../qwen3_8_flash_next/nvidia/ple_layer.py "
+        "(bind-mount over it vs hook appended to it) \u2014 mount order would decide behaviour")
+    out["ple-mmap-table"] = (
+        not profile.get("ple_mmap")
+        or (bool(profile.get("ple_host_subdir"))
+            and profile.get("ple_container_dir") == "/ple-table"
+            and not profile.get("ple_offload")),
+        f"mmap arm incomplete: subdir={profile.get('ple_host_subdir')!r} "
+        f"container={profile.get('ple_container_dir')!r} offload={profile.get('ple_offload')} "
+        "\u2014 VLLM_PLE_MMAP_DIR points at /ple-table, so the table must be mounted there "
+        "and the primitive-ai CPU-offload env must not render with it")
+    pin_txt = str(profile.get("never_evict_prompt") or "") + " " + " ".join(
+        str(a) for a in (profile.get("args_extra") or []))
+    # A CHANGEME prompt-pin is a bug in a CERTIFIED lane and an honest GATE in an uncertified
+    # arm: the pin arms are authored with the placeholder on purpose, because the substring
+    # has to come from the harness prompt a human actually runs. The role refuses BOTH cases
+    # at converge time; here only the certified one is a failure, so an arm awaiting a human
+    # decision reads as GATED rather than as a permanent red.
+    placeholder = "CHANGEME" in pin_txt
+    out["pin-placeholder"] = ((not placeholder) or not profile.get("certified"),
+                              "a CHANGEME prompt-pin substring pins nothing (an invisible "
+                              "no-op) or everything (a pool leak) \u2014 author the literal")
+    if placeholder and not profile.get("certified"):
+        GATED.append("never_evict_prompt is a CHANGEME placeholder \u2014 author the substring")
+    basis = str(profile.get("fixed_cost_basis") or "")
+    out["cost-labelled"] = (
+        (basis.split()[0].rstrip(":,") if basis.split() else "")
+        in ("MEASURED", "DERIVED", "VENDOR-PUBLISHED", "VENDOR"),
+        f"fixed_cost_basis must lead with MEASURED | DERIVED | VENDOR-PUBLISHED, got "
+        f"{basis[:52]!r} \u2014 an unlabelled cost is a number nobody can re-check")
+    cap = int(profile.get("max_cudagraph_capture_size", 0) or 0)
+    out["cudagraph-cap"] = (cap <= 0 or cap <= int(profile["max_num_seqs"]),
+                            f"capture cap {cap} > max_num_seqs {profile['max_num_seqs']} "
+                            "\u2014 graphs above the decode batch are unreachable and strand "
+                            "memory in the single pool (HD-380)")
     return out
 
 
 def verdict_table(cat, pats, label):
     print(f"\n[{label}] every profile under the invariants the role asserts")
     for name, prof in cat["spark_llm_profiles"].items():
+        if name.startswith("_"):
+            continue          # HD-489 merge anchor of shared defaults, not a servable profile
         engine = prof.get("engine")
         verdicts = (vllm_verdicts(prof, cat) if engine == "vllm"
                     else sglang_verdicts(prof, pats))
@@ -147,6 +233,9 @@ def verdict_table(cat, pats, label):
             cells.append(f"{key}={'✓' if passed else '✗'}")
             if not passed and label == "catalogue":
                 fail(f"{name}/{engine}/{key}: {verdicts[key][1]}")
+        for gated in verdicts.get("_gated") or []:
+            cells.append("GATED")
+            NOTES.append(f"{name}: {gated}")
         extra = verdicts.get("_projection", "")
         print(f"  ·  {name:12s} {engine:6s} " + " ".join(cells) + (f"   ({extra})" if extra else ""))
         if extra and label == "catalogue":
@@ -164,6 +253,21 @@ def canary(cat, pats):
         ("pool-ceiling", lambda p: p.update(kv_cache_memory="18000000000")),
         ("pool-holds-window", lambda p: p.update(kv_cache_memory="100000000")),
         ("dtype-known", lambda p: p.update(kv_cache_dtype="nvfp4-kv")),
+        # HD-489. Shapes the arithmetic lets through and the coordinates must refuse, each
+        # bred from the CERTIFIED lane so the breach is the only difference from a green row.
+        ("image-pin", lambda p: p.update(image="whatever-is-latest")),
+        ("coordinates", lambda p: p.update(models_root="nfs")),
+        ("ple-mechanism", lambda p: p.update(ple_mmap=True, ple_overlay=True)),
+        ("ple-mmap-table", lambda p: p.update(ple_mmap=True, ple_overlay=False,
+                                              ple_offload=False, ple_host_subdir="")),
+        ("ple-mmap-table", lambda p: p.update(ple_mmap=True, ple_overlay=False,
+                                              ple_offload=True,
+                                              ple_host_subdir="ple-table-fp8",
+                                              ple_container_dir="/ple-table")),
+        ("pin-placeholder", lambda p: p.update(never_evict_prompt="CHANGEME-PIN-SUBSTRING",
+                                               certified=True)),
+        ("cost-labelled", lambda p: p.update(fixed_cost_basis="guessed from the brochure")),
+        ("cudagraph-cap", lambda p: p.update(max_cudagraph_capture_size=16)),
     ]
     for expect, mutate in vllm_breaches:
         prof = copy.deepcopy(cat["spark_llm_profiles"]["reasoning"])
@@ -199,14 +303,26 @@ def canary(cat, pats):
                  f"{prof['args_extra'][-6:]}")
 
 
+def build_pin_pins(cat, versions):
+    """{image name: pin} — resolved through the Jinja reference each map value holds."""
+    out = {}
+    for name, ref in (cat.get("spark_llm_profile_images") or {}).items():
+        m = re.fullmatch(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}", str(ref).strip())
+        out[name] = str(versions.get(m.group(1), "")) if m else str(ref)
+    return out
+
+
 def main():
     cat = load_yaml(CATALOGUE)
     pats = patterns_from_role()
     for key in ("spark_llm_profiles", "spark_llm_kv_bytes_per_token",
-                "spark_llm_pool_ceiling_bytes", "spark_llm_device_hold_ceiling_bytes"):
+                "spark_llm_pool_ceiling_bytes", "spark_llm_device_hold_ceiling_bytes",
+                "spark_llm_profile_images"):
         if key not in cat:
             print(f"ERROR: {key} missing from {CATALOGUE.relative_to(ROOT)}", file=sys.stderr)
             return 2
+    global PIN_PINS
+    PIN_PINS = build_pin_pins(cat, load_yaml(VERSIONS))
     print(f"role patterns under test: {len(set(pats))}")
     verdict_table(cat, pats, "catalogue")
     canary(cat, pats)

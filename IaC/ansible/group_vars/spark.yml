@@ -52,6 +52,43 @@ docker_services:
 spark_xfs_mount: /mnt/spark_nvme
 spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1TB layout, HD-359)
 spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
+# ---- Second artifact root (HD-489) ----
+# The upstream (v16b) stack wants ~130 GB of NEW checkpoint+table bytes and the XFS store
+# carries 184.7 G free (measured 2026-10-02: `df` 504 G total / 319 G used). The alternative
+# was deleting the 135 GB RadixArk NVFP4 set that only the gate-blocked `fast-sglang` profile
+# uses — i.e. paying a permanent re-download for temporary headroom. Measured instead:
+# spark's root partition (`/`, ext4, nvme0n1p2) has 345 G free, so tier-2 artifacts land
+# there and NOTHING is deleted. The XFS-only note on `spark_models_dir` above is a CAPACITY
+# statement from the 1 TB carve (HD-359/HD-363), not a filesystem ruling — docs/hardware-spark.md
+# §Partition layout records p2 as the live root. A profile names which root it lives on via
+# `models_root`, and the gate free-space floor is checked on THAT root, not on XFS.
+spark_models_dir_os: /opt/homelab/models
+# Floor the profile gate asserts on that partition before an `os`-rooted arm boots: the
+# upstream checkpoint (~130 GB) plus its table plus room for the drafter conversion to
+# write. Measured free space 2026-10-02: 345 GB. A breach means the store filled up — the
+# remedy is to free space, never to lower the floor (roles/spark-llm-profile).
+spark_llm_os_min_free_bytes: 150000000000
+# The upstream build inputs/outputs (roles/spark-ultrafast-build). The drafter directory is
+# CONVERTED out of the base checkpoint (nine dense MTP modules at group size 32), never
+# downloaded — which is why the profile names it as a `built` artifact set and the gate
+# checks the builder's own report file instead of a download marker.
+spark_ultrafast_base_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+spark_ultrafast_drafter_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32
+spark_ultrafast_drafter_marker: dense-mtp-build-report.json
+# Opt-in switch for the build role. false = the role is skipped on a normal converge: it
+# clones a third-party repository and builds an image on this box, so it runs when NAMED
+# (`--tags spark-ultrafast-build` with this flipped, or -e spark_ultrafast_build=true),
+# not because a converge happened to touch spark.
+spark_ultrafast_build: false
+spark_models_roots:
+  xfs: "{{ spark_models_dir }}"
+  os: "{{ spark_models_dir_os }}"
+# Upstream clone + built-image build tree (roles/spark-ultrafast-build). Kept off the data
+# store on purpose: it is build input, not serving data, and it must survive artifact pruning.
+spark_ultrafast_src_dir: /opt/homelab/ultrafast-src
+spark_draft_vocab_dir: "{{ spark_xfs_mount }}/draft_vocab"
+spark_draft_vocab_host_file: "{{ spark_draft_vocab_dir }}/draft-vocab-ids-K65536.txt"
+spark_draft_vocab_container: /draft-vocab/ids.txt
 # PLE overlay bind-mounts (HD-469: ONE list, read by BOTH the spark-ai template and
 # the roles/spark-llm-profile staged-artifacts gate — three mounts duplicated in two
 # places is how a gate starts approving a render that cannot boot). Source file
@@ -142,6 +179,49 @@ spark_artifact_sets:
       subdir: "ples_nvfp4"
       # Same nesting shape as ple-int4 above (child dir + role-side flatten).
       local_dir: "{{ spark_xfs_mount }}/ples_nvfp4"
+
+  # ---- HD-489 tier-2 artifacts (upstream v16b stack) — the / partition, NOT XFS ----
+  ar-hybrid:
+    # Saren/Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid: the int4/int8/fp8 HYBRID target the
+    # upstream recipe measures. NOT a fourth quantization of "our" weights — it is the
+    # upstream lane's target, and it pairs with the FP8 table + the FP8-hybrid dispatch
+    # patch, which is why it arrives as one artifact set with ple-fp8.
+    - repo_id: "Saren/Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid"
+      kind: weights
+      revision: "{{ spark_ar_hybrid_revision }}"
+      local_dir: "{{ spark_models_dir_os }}"
+      subdir: "Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid"
+  ple-fp8:
+    # The FP8 n-gram table the mmap path reads from disk (VLLM_PLE_MMAP_DIR). Ships at the
+    # repo ROOT, not under a subdir — hence kind: repo-root (the `tables` kind's --include +
+    # flatten shape is an artifact of the primitive-ai repos' layout, not a universal).
+    - repo_id: "Saren/Qwen3.8-Flash-Next-ple-table-fp8"
+      kind: repo-root
+      revision: "{{ spark_ple_fp8_revision }}"
+      local_dir: "{{ spark_models_dir_os }}"
+      subdir: "ple-table-fp8"
+  draft-vocab:
+    # Repo-owned runtime input (65,536 ids, gz 143 KB), sha256-pinned in versions.yml.
+    # It is on the SERVING path (bind-mounted :ro into every v16b-class boot), so it is
+    # vendored in-tree and never fetched at deploy time.
+    - kind: asset
+      src: ultrafast/draft-vocab-ids-K65536.txt.gz
+      sha256: "{{ spark_draft_vocab_sha256 }}"
+      local_dir: "{{ spark_draft_vocab_dir }}"
+      dest: "draft-vocab-ids-K65536.txt.gz"
+      decompress: true
+      expect_lines: 65536
+
+  mtpdense-t80:
+    # NOT a download — roles/spark-ultrafast-build CONVERTS nine drafter modules out of
+    # ar-hybrid at group size 32 (+4.8 GiB). It is declared as an artifact set anyway so the
+    # profile gate's staged-artifact check covers it exactly like a download: the marker is
+    # the builder's own report file, so a profile that names this set cannot boot on a box
+    # where the conversion never ran.
+    - kind: built
+      local_dir: "{{ spark_models_dir_os }}"
+      subdir: "{{ spark_ultrafast_drafter_subdir }}"
+      marker: "{{ spark_ultrafast_drafter_marker }}"
 
 # The manifest the role iterates (flat list, same item shape as before).
 spark_artifacts: "{{ spark_artifact_sets | dict2items | selectattr('key', 'in', spark_artifacts_fetch) | map(attribute='value') | flatten }}"
@@ -275,6 +355,23 @@ spark_llm_profiles:
     # weights changes the POOL, not just the label.
     fixed_cost_bytes: 86900000000
     fixed_cost_basis: "MEASURED from the engine boot log (docs/hardware-spark.md §Unified-memory budget)"
+    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
+    # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
+    # template hardcoded before the funnel arms needed them per-profile, so the render
+    # is unchanged and the HD-469 parity guard still holds for this lane.
+    image: base
+    models_root: xfs
+    tool_call_parser: qwen3_coder
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
+    ple_offload: true
+    ple_host_base: mount
+    ple_host_root: xfs
+    ple_staged_marker: META.json
+    cudagraph_piecewise: false
+    prompt_tokens_details: false
+    never_evict_prompt: ""
+    ple_mmap: false
+    draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
     certified: true
     certified_evidence: "spark/reports/hd469-reasoning/README.md · spark/reports/stability/README.md · docs/hardware-spark.md §Unified-memory budget"
@@ -326,7 +423,26 @@ spark_llm_profiles:
     client_context_window: 262144
     client_max_tokens: 16384
     fixed_cost_bytes: 86900000000      # = the `reasoning` lane: same weights, same engine
-    fixed_cost_basis: "inherited from reasoning (weights unchanged); fp8 KV changes the pool, not the fixed cost"
+    fixed_cost_basis: "DERIVED: inherited from reasoning \u2014 the weights are unchanged, so
+      the measured 87.8 GB stands; the fp8 saving is upstream-published and deliberately NOT
+      claimed here (docs/hardware-spark.md \u00a7fp8 KV cache: still unmeasured on this box)"
+    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
+    # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
+    # template hardcoded before the funnel arms needed them per-profile, so the render
+    # is unchanged and the HD-469 parity guard still holds for this lane.
+    image: base
+    models_root: xfs
+    tool_call_parser: qwen3_coder
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
+    ple_offload: true
+    ple_host_base: mount
+    ple_host_root: xfs
+    ple_staged_marker: META.json
+    cudagraph_piecewise: false
+    prompt_tokens_details: false
+    never_evict_prompt: ""
+    ple_mmap: false
+    draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
     certified: false
     uncertified_reason: >-
@@ -404,6 +520,23 @@ spark_llm_profiles:
     # boot of this profile, then correct THIS field — never the ceiling.
     fixed_cost_bytes: 92100000000
     fixed_cost_basis: "DERIVED 2026-09-28: reasoning's measured 86.9 GB + 5.2 GB NVFP4 core-weight delta"
+    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
+    # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
+    # template hardcoded before the funnel arms needed them per-profile, so the render
+    # is unchanged and the HD-469 parity guard still holds for this lane.
+    image: base
+    models_root: xfs
+    tool_call_parser: qwen3_coder
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
+    ple_offload: true
+    ple_host_base: mount
+    ple_host_root: xfs
+    ple_staged_marker: META.json
+    cudagraph_piecewise: false
+    prompt_tokens_details: false
+    never_evict_prompt: ""
+    ple_mmap: false
+    draft_vocab: false
     artifact_sets: [nvfp4-mixed, ple-nvfp4]
     certified: false
     uncertified_reason: >-
@@ -567,6 +700,23 @@ spark_llm_profiles:
     reasoning_surface: always-on-effort-unmeasured
     client_context_window: 262144
     client_max_tokens: 16384
+    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
+    # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
+    # template hardcoded before the funnel arms needed them per-profile, so the render
+    # is unchanged and the HD-469 parity guard still holds for this lane.
+    image: sglang
+    models_root: xfs
+    tool_call_parser: qwen3_coder
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
+    ple_offload: true
+    ple_host_base: mount
+    ple_host_root: xfs
+    ple_staged_marker: META.json
+    cudagraph_piecewise: false
+    prompt_tokens_details: false
+    never_evict_prompt: ""
+    ple_mmap: false
+    draft_vocab: false
     artifact_sets: [nvfp4-radixark]
     certified: false
     uncertified_reason: >-
@@ -580,6 +730,446 @@ spark_llm_profiles:
       competes with the certified engine for the same 121.62 GiB pool. The file-backed
       table (#37068) is the vendor's own fix for (1 Spark, weights) and is already
       authored below.
+
+  # ══════════════════════════════════════════════════════════════════════════════
+  # HD-489 · THE ULTRA-FAST MATRIX (screening funnel, upstream v16b lineage)
+  # ══════════════════════════════════════════════════════════════════════════════
+  # WHY SO MANY: the upstream recipe (github.com/dime-online/qwen3.8-Flash-DGX-UltraFast,
+  # Apache-2.0) publishes 74.1 tok/s single-stream and 2,213–4,016 tok/s cold prefill on one
+  # GB10 by changing SIX things at once (patch lineage, target weights, PLE strategy, spec
+  # method, draft vocabulary, batch/cudagraph shape). Adopting it wholesale would teach us
+  # nothing about WHICH of the six earns the speed, and this catalogue exists to make weight
+  # changes pay for themselves in pool arithmetic — so the arms below change ONE thing each,
+  # in tiers priced by what they cost to stage:
+  #   tier 1  u*/nv-*      0 new GB (AWQ + INT4 + NVFP4 are already on disk)   ~1 boot each
+  #   tier 2  ar-*         ~130 GB onto `/` (spark_models_dir_os), nothing deleted
+  #   tier 3  v16b-*       + the T80 drafter directory (+4.8 GiB, built not downloaded)
+  # Keep-few rule (docs/spark-llm-profiles.md §The funnel): arms are SCORED, not kept — a
+  # loser is deleted from this catalogue and recorded in docs/services-ai-rejected.md. Only
+  # an arm that clears gates 0–7 (spark/llm-profiles/README.md) becomes `certified: true`.
+  #
+  # EVERY arm here is UNCERTIFIED behind spark_llm_allow_uncertified, and every one of them
+  # names `image: ultrafast`, whose pin is EMPTY in versions.yml ⇒ the gate refuses ALL of
+  # them until the patched lineage has been built and its image ID recorded. Authored ≠
+  # bootable, and that is the design (the fast-sglang precedent).
+  #
+  # `_x` is a YAML MERGE ANCHOR, not a profile (the `_` prefix is the skip convention in
+  # scripts/spark-llm-probe.py + scripts/check_spark_llm_gate.py; the gate's valid-name list
+  # filters it too). It carries the values every arm shares, so an arm below reads as its
+  # DELTA. The four arms above it are deliberately untouched — `reasoning` must keep
+  # rendering byte-identically (HD-469 parity guard), and an anchor rewrite of it would put
+  # that guard at risk for no information.
+  _x: &u_x
+    engine: vllm
+    container: vllm-qwen-spark        # SAME container name as the certified lane on purpose:
+    image: ultrafast                  # a flip RECREATES the service, it never orphans one.
+    served_name: spark/qwen3.8-flash-next   # HD-370 anchors are non-negotiable: served id,
+    models_root: xfs                  # port, bearer, service name. Upstream serves `qwen`
+    max_model_len: 262144             # on :8000 with NO --api-key and `-p 8000:8000` on all
+    max_num_batched_tokens: 4096      # interfaces; we keep the contract and take only the
+    max_num_seqs: 4                   # engine work. (docs/spark-llm-profiles.md §Client
+    max_cudagraph_capture_size: 4     # contract.)
+    kv_cache_dtype: auto              # arms never try fp8 KV: the parent build's qsa.py
+    kv_cache_memory: "16000000000"    # declares [auto, bfloat16] (HD-473), and the upstream
+    enforce_eager: false              # recipe itself passes --kv-cache-dtype auto.
+    distributed_executor_backend: mp
+    spec_method: mtp
+    spec_tokens: 3
+    tool_call_parser: qwen3_coder     # ours, not upstream's qwen3_xml — the pi tool-calling
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # surface is
+    reasoning_surface: binary         # certified against THIS (docs/pi-harness.md §2).
+    client_context_window: 262144
+    client_max_tokens: 16384
+    ple_offload: true                 # render the primitive-ai CPU-offload env trio
+    ple_overlay: false
+    ple_host_base: mount              # PLE host path = (mount|models) root
+    ple_host_root: xfs                  #   + "/" + ple_host_subdir; two plain flags on
+    ple_host_subdir: ""                 #   purpose: a Jinja value INSIDE this dict is
+    ple_container_dir: ""               #   stringified by validate-docker-services.py, so
+    ple_staged_marker: ""               #   the template composes paths, profiles declare
+    cudagraph_piecewise: false          #   coordinates. (The HD-469 note at the foot of
+    prompt_tokens_details: false        #   this file is the reason.)
+    never_evict_prompt: ""
+    never_evict_max_fraction: "0.25"
+    ple_mmap: false                   # the upstream disk-mmap PLE path (mutually exclusive
+    draft_vocab: false                # with ple_overlay: both own `ple_layer.py`)
+    env_extra: []
+    args_extra: []
+    memory_limit: "105G"
+    health_start_period: 1200s
+    certified: false
+
+  # ── tier 1 · the patch lineage, on weights we already own (0 new GB) ──────────
+  u1-patch:
+    <<: *u_x
+    label: "HD-489 t1 — patched vLLM lineage + certified AWQ/INT4 stack (isolates the patch stack)"
+    model_subdir: Qwen3.8-Flash-Next-AWQ
+    ple_overlay: true
+    ple_host_subdir: ples_int4
+    ple_container_dir: /ples_int4
+    artifact_sets: [b1-awq, ple-int4]
+    # Same weights as the certified lane ⇒ the measured fixed cost carries over. What this
+    # arm is for: read the engine's OWN 'Available KV cache memory' line on the first boot
+    # and replace this number if the patched build's non-KV allocation moved.
+    fixed_cost_bytes: 86900000000
+    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); re-read from this profile's own boot log"
+    uncertified_reason: >-
+      Isolation arm: identical weights/argv to `reasoning` on the PATCHED build, so its only
+      claim is "the patch stack, alone, changes X". ⚠ Interaction the gate enforces: the
+      primitive-ai INT4 overlay bind-mounts over .../qwen3_8_flash_next/nvidia/ple_layer.py,
+      which is the SAME file the PLE-mmap patch appends its hook to — with ple_overlay: true
+      the mmap hook is shadowed and VLLM_PLE_MMAP is inert. That is intended here (PLE stays
+      the INT4 path so the arm changes one thing); the mmap path is measured in tier 2.
+    certified_evidence: ""
+
+  u2-blk:
+    <<: *u_x
+    label: "HD-489 t1 — u1-patch + block rejection sampling (spec method, one delta)"
+    model_subdir: Qwen3.8-Flash-Next-AWQ
+    ple_overlay: true
+    ple_host_subdir: ples_int4
+    ple_container_dir: /ples_int4
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    artifact_sets: [b1-awq, ple-int4]
+    fixed_cost_bytes: 86900000000
+    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights)"
+    uncertified_reason: >-
+      Delta vs u1-patch = the speculative-config rejection method only. Block rejection is
+      what lets upstream claim the drafter cannot bias output, so it is also the arm that
+      keeps the Slovenian draft-vocab question answerable later.
+    certified_evidence: ""
+
+  u3-s8:
+    <<: *u_x
+    label: "HD-489 t1 — u2-blk + 8 concurrent seqs + piecewise CUDA graphs (batch/shape, one delta)"
+    model_subdir: Qwen3.8-Flash-Next-AWQ
+    ple_overlay: true
+    ple_host_subdir: ples_int4
+    ple_container_dir: /ples_int4
+    max_num_seqs: 8
+    max_cudagraph_capture_size: 8
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    cudagraph_piecewise: true
+    prompt_tokens_details: true
+    artifact_sets: [b1-awq, ple-int4]
+    fixed_cost_bytes: 86900000000
+    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); ⚠ 8 seqs + capture-8 is exactly the term HD-380 measured as STRANDED graph memory — this arm must record `nvidia-smi --query-compute-apps` per-pid MiB at REST or the delta is uninterpretable"
+    uncertified_reason: >-
+      Upstream runs --max-num-seqs 8; our house value is 4 because capture sizes above the
+      decode batch are unreachable and strand memory in the single pool (docs/spark-incidents.md,
+      HD-380). Here capture is raised WITH the batch, so the HD-380 invariant still holds —
+      but the aggregate-vs-per-stream trade-off on OUR workload (agent-shaped, 2–4 sessions)
+      is unmeasured, and the pool is shared with the host.
+    certified_evidence: ""
+
+  u4-pin:
+    <<: *u_x
+    label: "HD-489 t1 — u2-blk + prompt-KV pinning (our 0 %-prefix-hit lever, on the AWQ lane)"
+    model_subdir: Qwen3.8-Flash-Next-AWQ
+    ple_overlay: true
+    ple_host_subdir: ples_int4
+    ple_container_dir: /ples_int4
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    never_evict_prompt: CHANGEME-PIN-SUBSTRING
+    artifact_sets: [b1-awq, ple-int4]
+    fixed_cost_bytes: 86900000000
+    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); the pin cap (0.25) is charged INSIDE the declared pool, so it cannot raise the host hold"
+    uncertified_reason: >-
+      The never-evict patch lets a prompt substring PIN its KV blocks (≤ 25 % of the pool by
+      default), which is the direct answer to the 0 %-prefix-hit re-prefill we measure on
+      every long session (docs/hardware-spark.md §Unified-memory budget: 162 k-token session,
+      0 % hit, 17,008 tok/s re-prefill). ⚠ AUTHORED WITH A PLACEHOLDER ON PURPOSE: the gate
+      refuses any args_extra containing CHANGEME, because a pinned substring that matches
+      nothing is an invisible no-op and one that matches everything is a pool leak. Fill it
+      with a literal substring of the harness system prompt (scripts/pi-config), not a guess.
+    certified_evidence: ""
+
+  nv-patch:
+    <<: *u_x
+    label: "HD-489 t1 — patched lineage on the NVFP4 weights (HD-475's JIT question, 0 new GB)"
+    model_subdir: Qwen3.8-Flash-Next-mixed-NVFP4-FP8
+    ple_host_subdir: ples_nvfp4
+    ple_container_dir: /ples_nvfp4
+    kv_cache_memory: "11000000000"      # = the `fast` lane's pool: NVFP4 weights pay out of
+    artifact_sets: [nvfp4-mixed, ple-nvfp4]   # the SAME pool (R2-nvfp4.md §B)
+    # ⚠ NOT a copy of `fast`: `fast` carries VLLM_GDN_DECODE_KERNEL=triton, which is what
+    # made it 502 at 262k (HD-475). This arm boots the patched build WITHOUT that env — if
+    # the fla shmem/warps patches are what HD-475 needed, THIS is where it shows.
+    fixed_cost_bytes: 92100000000
+    fixed_cost_basis: "DERIVED 2026-09-28 (`fast`'s basis: reasoning's 86.9 GB + the 5.2 GB NVFP4 core-weight delta) — verified within boot-log resolution by run #3 (pool printed 354,248 tokens ≈ 11 GB)"
+    uncertified_reason: >-
+      HD-475's fix is authored as a code change on `fast`; this arm is the independent read
+      of the same question (do the upstream GDN/FLA patches remove the at-inference kernel
+      JIT that cost run #3 its gate 3?) on weights + tables already staged. Two arms, one
+      question — whichever lands first is the answer, the other becomes the control.
+    certified_evidence: ""
+
+  # ── tier 2 · the upstream target + FP8 PLE mmap (~130 GB onto `/`) ────────────
+  ar-mmap:
+    <<: *u_x
+    label: "HD-489 t2 — AutoRound-hybrid target + FP8 PLE table from disk, spec OFF"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false                  # the primitive-ai CPU-offload env is the INT4 path;
+    ple_overlay: false                  # this is the OTHER PLE strategy (mmap the FP8 table
+    ple_host_base: models               # off NVMe), so the offload trio must NOT render and
+    ple_host_root: os                   # the table mounts beside its checkpoint on `/`.
+    ple_host_subdir: ple-table-fp8      # ⚠ LOAD-BEARING: `ple_container_dir` alone would
+    ple_container_dir: /ple-table       #   render VLLM_PLE_MMAP_DIR=/ple-table with NOTHING
+    ple_staged_marker: ".hf-staged"     #   mounted there — scripts/spark-llm-render-matrix.py
+    ple_mmap: true                      #   refuses that render (it caught exactly this).
+    spec_tokens: 0                      # no drafter directory exists for this checkpoint
+    health_start_period: 2400s          # PREWARM reads the whole table at boot
+    max_model_len: 262144
+    artifact_sets: [ar-hybrid, ple-fp8]
+    fixed_cost_bytes: 76300000000
+    fixed_cost_basis: "VENDOR-PUBLISHED, NOT measured here: upstream v16b reports ~71 GiB model residency with 16 GB KV and a 16.5 GiB low-water. Replace with OUR engine's 'Available KV cache memory' line on first boot — do not inherit `reasoning`'s 86.9 GB, these are different weights"
+    uncertified_reason: >-
+      Baseline of the tier-2 ladder with speculative decode OFF (the drafter-free checkpoint
+      has no T80 drafter directory, and inventing an MTP config for it would silently change
+      two things at once). Everything downstream of this arm adds exactly one thing.
+    certified_evidence: ""
+
+  ar-blk:
+    <<: *u_x
+    label: "HD-489 t2 — ar-mmap + in-checkpoint MTP-3 with block rejection"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s
+    artifact_sets: [ar-hybrid, ple-fp8]
+    fixed_cost_bytes: 76300000000
+    fixed_cost_basis: "VENDOR-PUBLISHED, NOT measured here (see ar-mmap)"
+    uncertified_reason: "Delta vs ar-mmap = speculative decode ON. If MTP cannot initialise against this checkpoint the boot failure IS the finding — record it, do not force a drafter."
+    certified_evidence: ""
+
+  ar-dv:
+    <<: *u_x
+    label: "HD-489 t2 — ar-blk + the 65,536-id draft-vocabulary slice"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    draft_vocab: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s
+    artifact_sets: [ar-hybrid, ple-fp8, draft-vocab]
+    fixed_cost_bytes: 76300000000
+    fixed_cost_basis: "VENDOR-PUBLISHED, NOT measured here (see ar-mmap)"
+    uncertified_reason: >-
+      The draft-vocab patch makes every draft pass read a SLICE of the output head (ids
+      outside the slice get logit -inf ⇒ zero draft probability; the target still verifies
+      every token, so output quality is preserved and only accepted-length moves). The slice
+      was selected from ENGLISH PROSE AND SOURCE CODE. This arm exists to measure what that
+      costs US on Slovenian input, which upstream has never measured and ships no tool to
+      re-select for (docs/spark-llm-profiles.md §Draft-vocab risk).
+    certified_evidence: ""
+
+  # ── tier 3 · the promoted upstream config, and its two isolations ─────────────
+  v16b:
+    <<: *u_x
+    label: "HD-489 t3 — FIDELITY arm: upstream v16b as published (drafter + slice + 8 seqs + 8192)"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32   # BUILT, not
+    ple_offload: false                  # downloaded: roles/spark-ultrafast-build converts
+    ple_overlay: false                  # nine drafter modules at group size 32 (+4.8 GiB)
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    draft_vocab: true
+    max_num_seqs: 8
+    max_cudagraph_capture_size: 8
+    max_num_batched_tokens: 8192        # upstream's value; our house value is 4096 (HD-381)
+    spec_config:                        # — v16b-s4 is that delta, measured
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    cudagraph_piecewise: true
+    prompt_tokens_details: true
+    health_start_period: 2400s
+    artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
+    fixed_cost_bytes: 78300000000
+    fixed_cost_basis: "VENDOR-PUBLISHED + the T80 drafter allowance (~2 GB), NOT measured here — the one arm whose published numbers (74.1 / 212.2 tok/s, 52.33 ms step) this arm must reproduce before any of OUR claims are worth anything"
+    uncertified_reason: >-
+      The reproduction arm: run upstream's own method (docs/BENCHMARKS.md: fastest of three
+      rounds, shared 9,600-token cached prefix, completion tokens/s) and compare to their
+      published table. If we cannot reproduce their numbers on identical settings, no
+      comparison in this lane means anything. Never run it with an agent session attached
+      (rule 0) and never with a spark-served operator model.
+    certified_evidence: ""
+
+  v16b-s4:
+    <<: *u_x
+    label: "HD-489 t3 — v16b with OUR batch shape (4 seqs / capture 4 / 4096-token chunks)"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    draft_vocab: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    cudagraph_piecewise: true
+    prompt_tokens_details: true
+    health_start_period: 2400s
+    artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
+    fixed_cost_bytes: 78300000000
+    fixed_cost_basis: "VENDOR-PUBLISHED + T80 allowance, NOT measured here (see v16b)"
+    uncertified_reason: >-
+      One delta vs v16b: the batch/shape terms this repo chose for OOM reasons (HD-380
+      stranded capture, HD-381 slab ceiling at 16,384-token prefills). Answers "does the
+      speed survive the settings that keep this box alive?" — the question that decides
+      whether the recipe is adoptable here at all.
+    certified_evidence: ""
+
+  v16b-pin:
+    <<: *u_x
+    label: "HD-489 t3 — v16b-s4 + prompt-KV pinning (the long-session re-prefill lever, full stack)"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    draft_vocab: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    cudagraph_piecewise: true
+    prompt_tokens_details: true
+    never_evict_prompt: CHANGEME-PIN-SUBSTRING
+    health_start_period: 2400s
+    artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
+    fixed_cost_bytes: 78300000000
+    fixed_cost_basis: "VENDOR-PUBLISHED + T80 allowance, NOT measured here (see v16b)"
+    uncertified_reason: "Same CHANGEME gate as u4-pin (a placeholder substring is an invisible no-op). On this arm the pin also competes with the drafter's KV, so record prefix-hit rate from /metrics across a real session, not a synthetic one."
+    certified_evidence: ""
+
+# ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
+# Piecewise CUDA graphs + the splitting-op list, as upstream ships it (compact JSON: no
+# spaces, so one list item == one argv word for the compose `command:` block). The list is
+# ONE var because a re-typed 12-element op list is exactly the kind of copy that silently
+# drifts from the kernel names in a future image (CONVENTIONS §2 pointers/lists).
+spark_llm_ultrafast_cudagraph_args:
+  - "-cc.cudagraph_mode=PIECEWISE"
+  - '-cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen3_8_flash_next_ple_short_conv","vllm::qwen3_8_flash_next_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::sparse_attn_indexer","vllm::ple_mmap_lookup"]'
+# Prompt-token detail accounting: the ONLY in-band source of per-request prefill token counts
+# (prefill_tok_s = prompt_tokens / TTFT), which every cold-prefill number in this lane needs.
+spark_llm_ultrafast_diag_args:
+  - "--enable-prompt-tokens-details"
+# The upstream mmap knobs (recipe/config/v16b/env + serve.sh pins), one SSOT list. Each is a
+# plain non-secret string ⇒ quoted, not `>-` (CONVENTIONS §3 applies that rule to 1P values).
+spark_llm_ple_mmap_env:
+  - "VLLM_PLE_MMAP=1"
+  - "VLLM_PLE_MMAP_DIR=/ple-table"
+  - "VLLM_PLE_MMAP_WORKERS=32"
+  - "VLLM_PLE_MMAP_PREWARM=1"
+  - "VLLM_PLE_MMAP_PREFETCH=0"
+  - "VLLM_PLE_MMAP_MADV_RANDOM=1"
+  - "VLLM_PLE_MMAP_FAST_ROWS=16"
+  - "VLLM_PLE_MMAP_CHUNK=8"
+  - "VLLM_PLE_MMAP_FAST_PATH=1"
+  - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
+  - "VLLM_DRAFTER_EXPERTS_FP8=1"
+  - "QWEN38NEXT_LOW_LATENCY_GEMM=1"
+  - "QWEN38NEXT_LLG_PDL=0"
+  - "VLLM_VERIFY_TOPK_TRITON=1"
+  - "VLLM_KEEP_DRAFT_BLOCKS=1"
+  - "VLLM_MARLIN_USE_ATOMIC_ADD=1"
+  - "VLLM_USE_DEEP_GEMM=0"
+  - "VLLM_FP8_HYBRID=1"
+
+# ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
+# Plain LISTS at top level, on purpose: a Jinja expression inside `spark_llm_profiles` is
+# stringified by scripts/validate-docker-services.py (see the note at the foot of this file),
+# so profiles reference these by a FLAG and the template composes them. One definition each:
+# a re-typed 12-element splitting-op list is exactly the copy that silently drifts from the
+# kernel names in a future image (CONVENTIONS §2 pointers/lists).
+# Piecewise CUDA graphs + the splitting-op list, as upstream ships it. Compact JSON (no
+# spaces) so ONE list item == ONE argv word in the compose `command:` block.
+spark_llm_ultrafast_cudagraph_args:
+  - "-cc.cudagraph_mode=PIECEWISE"
+  - '-cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen3_8_flash_next_ple_short_conv","vllm::qwen3_8_flash_next_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::sparse_attn_indexer","vllm::ple_mmap_lookup"]'
+# Prompt-token detail accounting: the ONLY in-band source of per-request prefill token counts
+# (prefill_tok_s = prompt_tokens / TTFT), which every cold-prefill number in this lane needs.
+spark_llm_ultrafast_diag_args:
+  - "--enable-prompt-tokens-details"
+# The upstream mmap knobs (recipe/config/v16b/env + the flags serve.sh pins), one SSOT list.
+# Plain non-secret strings ⇒ quoted scalars, not `>-` (that rule is for 1P values).
+# ⚠ VLLM_FP8_HYBRID + the drafter-expert flag only MEAN anything on the patched build (they
+# dispatch through vllm_fp8_hybrid.py, which the lineage installs); on the base image they
+# are inert. Rendered only when the profile declares ple_mmap: true.
+spark_llm_ple_mmap_env:
+  - "VLLM_PLE_MMAP=1"
+  - "VLLM_PLE_MMAP_DIR=/ple-table"
+  - "VLLM_PLE_MMAP_WORKERS=32"
+  - "VLLM_PLE_MMAP_PREWARM=1"
+  - "VLLM_PLE_MMAP_PREFETCH=0"
+  - "VLLM_PLE_MMAP_MADV_RANDOM=1"
+  - "VLLM_PLE_MMAP_FAST_ROWS=16"
+  - "VLLM_PLE_MMAP_CHUNK=8"
+  - "VLLM_PLE_MMAP_FAST_PATH=1"
+  - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
+  - "VLLM_DRAFTER_EXPERTS_FP8=1"
+  - "QWEN38NEXT_LOW_LATENCY_GEMM=1"
+  - "QWEN38NEXT_LLG_PDL=0"
+  - "VLLM_VERIFY_TOPK_TRITON=1"
+  - "VLLM_KEEP_DRAFT_BLOCKS=1"
+  - "VLLM_MARLIN_USE_ATOMIC_ADD=1"
+  - "VLLM_USE_DEEP_GEMM=0"
+  - "VLLM_FP8_HYBRID=1"
 
 # Resolve the active profile. Unknown profile name = undefined key = the render
 # aborts (fail-loud); roles/spark-llm-profile names the valid list up front.
@@ -599,6 +1189,16 @@ spark_llm_engine_entrypoints:
 # validator's one-level resolution.
 spark_llm_image_pins:
   vllm: "{{ spark_vllm_image }}"
+  sglang: "{{ spark_sglang_image }}"
+
+# Profile-referenced image pins (HD-489). A profile names a LOGICAL image, never a pin:
+# CONVENTIONS §7 keeps every pin in group_vars/all/versions.yml, and this map is the only
+# place a name becomes a reference. `ultrafast` is EMPTY until the patched lineage is built
+# and its image ID recorded — and an empty pin IS the gate (the spark_sglang_image
+# precedent): roles/spark-llm-profile refuses the profile before anything renders.
+spark_llm_profile_images:
+  base: "{{ spark_vllm_image }}"
+  ultrafast: "{{ spark_vllm_ultrafast_image }}"
   sglang: "{{ spark_sglang_image }}"
 
 # Resolve the active profile for roles (roles/spark-llm-profile reads this as a real

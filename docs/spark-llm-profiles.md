@@ -133,3 +133,47 @@ gate for an uncertified profile is
 [`spark/llm-profiles/README.md`](../spark/llm-profiles/README.md); the operator handoff for the whole
 sequence is [`prompt-llm.md`](../prompt-llm.md). Timed legs (`ctx`, `concurrent`, anything feeding a
 tok/s claim) must be run **from a session whose model is not spark** — see the gate README's rule 0.
+
+---
+
+## 7. The ultra-fast funnel (HD-489)
+
+Upstream [qwen3.8-Flash-DGX-UltraFast](https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast)
+v16b (Apache-2.0, pinned `0c391a3` in `group_vars/all/versions.yml`) arrives as **12 candidate
+arms on this dial**, not as a second stack. Lane brief: [../prompt-fast.md](../prompt-fast.md).
+
+**A profile now NAMES things instead of hardcoding them** — `image: base|ultrafast|sglang`,
+`models_root: xfs|os`, `ple_host_base: mount|models`, one PLE mechanism (`ple_overlay` XOR
+`ple_mmap`). The compose template is the only place those names become paths, so a profile has
+one representation and the gate can refuse a bad name with a remediation. Shared defaults live
+in the `_x` merge anchor (keys starting with `_` are anchors, not profiles — the gate, the
+checker, the probe and the render matrix all refuse to treat them as servable).
+
+**Tiers** (each arm is `certified: false` until it wins a leg):
+
+- **tier 1** `u1-patch` · `u2-blk` · `u3-s8` · `u4-pin` — the patch stack on the AWQ weights
+  already staged on XFS. Cheapest to test, and the control that says whether upstream's +15 %
+  is the patches or the weights.
+- **tier 1b** `nv-patch` — NVFP4 + patches, to see whether the patches rescue that quant.
+- **tier 2** `ar-mmap` · `ar-blk` · `ar-dv` — upstream's AutoRound W4A16 hybrid + the FP8 PLE
+  table served by mmap (`VLLM_PLE_MMAP=1`, 4.25 GB resident instead of ~48 GB in the pool).
+- **tier 3** `v16b` · `v16b-s4` · `v16b-pin` — the recipe as published (`seqs=8`, piecewise
+  CUDA graphs, T80 drafter, 65 536-id draft vocabulary), a seqs=4 control for the client
+  contract, and the never-evict prompt pin.
+- **tier 4** — certification of whatever survives; the rest is deleted.
+
+**Why the arms live on `/`**: XFS had 185 G free and holds 505 GB of certified weights plus
+two candidates nobody wants to re-download. The root partition measured 345 G free
+(2026-10-02), so `spark_models_dir_os: /opt/homelab/models` takes the ~130 GB AR-hybrid
+checkpoint and the FP8 table. **Nothing was deleted to make room**, and the gate asserts a
+150 GB floor on that partition before an `os`-rooted arm boots.
+
+**Two gates are open on purpose.** `spark_vllm_ultrafast_image` is empty until a human records
+the ID the build prints, and `v16b-pin`'s `never_evict_prompt` is a `CHANGEME` until a human
+picks the substring. Both make `roles/spark-llm-profile` REFUSE the profile;
+`scripts/spark-llm-render-matrix.py` and `scripts/check_spark_llm_gate.py` print them as
+`GATED` rather than letting an authored-but-unrunnable arm read as either green or broken.
+
+**What upstream does NOT change**: it runs `--kv-cache-dtype auto`, so `fp8` KV and `graded`
+stay blocked here, and its `gpu_mem=0.01` measures the PLE table leaving the CUDA pool — it is
+not headroom for a bigger pool. Do not quote it as such.

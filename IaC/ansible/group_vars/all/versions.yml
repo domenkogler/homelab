@@ -291,6 +291,47 @@ spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1
 # same change (fluid-tag first-pin rule, §7) — then the gate opens by itself.
 spark_sglang_image: ""
 
+# ==== Spark ultra-fast profile matrix (HD-489) — the upstream patch-lineage pins ====
+# Source: github.com/dime-online/qwen3.8-Flash-DGX-UltraFast (Apache-2.0), the recipe for
+# Qwen3.8-Flash-Next on GB10. Its promoted config (v16b) is a vLLM PATCH LINEAGE built on
+# the SAME parent digest we already pin above (`…@sha256:fc120ece…be05bf8`, verified
+# 2026-10-02 by reading recipe/build/image/build.sh + Dockerfile.iter6c): the parent line
+# in build.sh is byte-identical to spark_vllm_image. That identity is why this lane is
+# cheap — no new base layers, no new engine family, ~20 text-only patch steps on an image
+# that is already on the box.
+#
+# WHY AN EMPTY PIN (CONVENTIONS §7): the patched build has no registry digest, because it
+# is built here. `spark_sglang_image` is the precedent — an empty pin IS the gate: it makes
+# every `image: ultrafast` profile refuse to converge until a human has built the lineage
+# and recorded the image ID it produced. The served reference is always the ID (immutable),
+# NEVER the tag: the tag `qwen38-flash-dgx:iter6d-20260910` exists only so `docker build`
+# has somewhere to put the result, and a mutable alias on the serving path is a bare
+# `latest` under §7. A rebuild that yields a different ID is a RE-PIN (its own commit), not
+# something to paper over — the pin change is the review surface.
+spark_vllm_ultrafast_image: ""
+spark_vllm_ultrafast_tag: "qwen38-flash-dgx:iter6d-20260910"   # build output tag, never served
+
+# The immutable provenance of what gets built. `build.sh --run` re-verifies eleven md5s +
+# two sha256s of its own patch sources and refuses the build on a mismatch, so pinning the
+# commit is what makes "we built what they measured" a checkable claim rather than a hope.
+spark_ultrafast_upstream_repo: "https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast.git"
+spark_ultrafast_upstream_commit: "0c391a3e74b6a775cfe248691ca7fd855b1876a5"   # 2026-09-28, registry-checked in the clone
+
+# Upstream artifact revisions (their Quick start pins — a revision, not a moving branch).
+spark_ar_hybrid_revision: "8b82f0b7abe3d1150a7827d298c75e86267636ae"      # AutoRound W4A16 int4/int8/fp8-hybrid target
+spark_ple_fp8_revision: "50511b0a41aa1d34b8beb7e5d4bb06a0b650dc14"        # FP8 PLE n-gram table (the mmap path)
+
+# Two hashes this lane depends on beyond the revision pin:
+#  * the draft-vocabulary slice is a RUNTIME input on the serving path (bind-mounted into
+#    every v16b-class boot), so it is vendored in-tree and hashed rather than fetched;
+#    65,536 ids, English/code-selected — see docs/spark-llm-profiles.md §Draft-vocab risk.
+#  * the drafter build reads the base checkpoint's two index tensors; upstream sha256-checks
+#    them before converting, and so do we (roles/spark-artifacts), or we would silently
+#    build a T80 drafter on top of an artifact that is not the one they measured.
+spark_draft_vocab_sha256: "07696bf7eb9c1fdcc1d5ac7724192e523853d4a211ae973a370c7d8f3100927c"
+spark_ar_hybrid_index_sha256: "4da5d411d90f4b2d89d4e13fdf201516f6f877cb70a06aec3c1d4fd61509571f"
+spark_ar_hybrid_extra_tensors_sha256: "e9e4786a8ef584c9cb112b0a2ce7063cb72db8e002694888d2a36d440edad83d"
+
 # DCGM exporter (HD-379) — the ONLY source of GPU util/temp/power/energy/SM-clock/XID on the
 # GB10 (no nvidia hwmon chip; nvidia-smi has no metric endpoint). Multi-arch manifest; ARM64
 # verified + digest taken from spark's own image store 2026-09-16, where the same digest was run

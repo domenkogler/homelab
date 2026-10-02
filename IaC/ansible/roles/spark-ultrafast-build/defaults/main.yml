@@ -1,0 +1,30 @@
+---
+# role: spark-ultrafast-build — build the upstream patched-vLLM lineage + convert the
+# T80 dense-MTP drafter directory (HD-489, the ultra-fast profile matrix).
+#
+# WHY A ROLE AND NOT A KIND IN spark-artifacts: spark-artifacts is the GENERAL store
+# (manifest → HF repo → dir). This is not a download — it is a two-part BUILD whose inputs
+# are (a) a pinned git checkout of the upstream recipe and (b) an artifact spark-artifacts
+# already staged, and whose outputs are (a) a locally built IMAGE identified by an immutable
+# ID and (b) a converted checkpoint directory. It is also the only part of the lane that
+# runs code from a third-party repository on this box, so it gets its own tag
+# (`--tags spark-ultrafast-build`) and its own audit surface, exactly like the artifacts
+# tag exists so nothing heavy happens implicitly.
+#
+# SAFETY PROPERTIES (each one is here because the alternative cost somebody a box):
+#   * Nothing here boots an engine, touches the GPU, or publishes a port. `docker build
+#     --network none` and `docker run --rm --network none --memory 8g --entrypoint python3`
+#     are upstream's own commands (recipe/build/image/build.sh, recipe/build/model/build.sh).
+#   * It never stops, restarts or removes a container it did not create — and it creates
+#     none that persist (`--rm`).
+#   * Upstream's build.sh re-verifies eleven md5s + two sha256s of its patch sources and
+#     CPU-self-tests the result; we do not re-implement that, we run it and refuse to
+#     continue when it fails. Provenance is the pinned commit in versions.yml.
+#   * The image is PINNED BY ID (CONVENTIONS §7: a tag is a mutable alias, and this tag is
+#     local-only). The FIRST build therefore FAILS on purpose after printing the ID: a human
+#     records it in group_vars/all/versions.yml in its own commit. No lane of this size gets
+#     to pin itself by accident.
+#
+# DEPLOY-GATED like the rest of the lane: every profile that needs this output references
+# `image: ultrafast`, whose pin is empty until the ID above lands, so roles/spark-llm-profile
+# refuses them all until then (docs/spark-llm-profiles.md §The funnel).
