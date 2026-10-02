@@ -20,6 +20,24 @@
       the dial: IaC/ansible/host_vars/spark.kogler.si.yml).
   tags: [spark, spark-llm-profile, llm]
 
+# ---- Resolve what the profile NAMES into what it POINTS AT (HD-489) ----
+# The compose template composes the same three values from the same plain scalar keys
+# (`image`, `models_root`, `ple_host_base`+`ple_host_root`). The gate resolves them FIRST:
+# it must refuse a bad name with a remediation rather than let a rendered path fail 20
+# minutes into a boot, and the staged-artifact asserts at the foot of this file must stat
+# THE PATHS THIS PROFILE NAMES — not always the XFS store, which is what made the upstream
+# arms (their checkpoint lives on `/`) silently pass a check for files they never use.
+- name: Resolve the profile's image pin and host roots
+  ansible.builtin.set_fact:
+    spark_llm_image_resolved: "{{ spark_llm_profile_images[spark_llm.image] }}"
+    spark_llm_model_host_dir: >-
+      {{ (spark_models_dir_os if spark_llm.models_root == 'os' else spark_models_dir)
+         ~ '/' ~ spark_llm.model_subdir }}
+    spark_llm_ple_host_dir: >-
+      {{ spark_models_dir_os if spark_llm.ple_host_root == 'os'
+         else (spark_xfs_mount if spark_llm.ple_host_base == 'mount' else spark_models_dir) }}
+  tags: [spark, spark-llm-profile, llm]
+
 - name: Assert the profile is complete and its engine is servable
   ansible.builtin.assert:
     that:
@@ -45,24 +63,6 @@
       docs/hardware-spark.md §LLM serving profiles in the same change.
   tags: [spark, spark-llm-profile, llm]
 
-
-# ---- Resolve what the profile NAMES into what it POINTS AT (HD-489) ----
-# The compose template composes the same three values from the same plain scalar keys
-# (`image`, `models_root`, `ple_host_base`+`ple_host_root`). The gate resolves them FIRST:
-# it must refuse a bad name with a remediation rather than let a rendered path fail 20
-# minutes into a boot, and the staged-artifact asserts at the foot of this file must stat
-# THE PATHS THIS PROFILE NAMES — not always the XFS store, which is what made the upstream
-# arms (their checkpoint lives on `/`) silently pass a check for files they never use.
-- name: Resolve the profile's image pin and host roots
-  ansible.builtin.set_fact:
-    spark_llm_image_resolved: "{{ spark_llm_profile_images[spark_llm.image] }}"
-    spark_llm_model_host_dir: >-
-      {{ (spark_models_dir_os if spark_llm.models_root == 'os' else spark_models_dir)
-         ~ '/' ~ spark_llm.model_subdir }}
-    spark_llm_ple_host_dir: >-
-      {{ spark_models_dir_os if spark_llm.ple_host_root == 'os'
-         else (spark_xfs_mount if spark_llm.ple_host_base == 'mount' else spark_models_dir) }}
-  tags: [spark, spark-llm-profile, llm]
 
 - name: Assert the profile's coordinates name something this repo defines
   ansible.builtin.assert:
