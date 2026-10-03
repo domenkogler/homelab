@@ -859,9 +859,10 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
-    ple_dispatch: true   # LOAD-BEARING for AR-hybrid boot (A4 fix)
-    max_num_seqs: 4   # restored to known-good seqs (8 crash-looped the AR loader)
-    kv_cache_memory: "16000000000"   # restored to certified 16 GB (known-good)
+    ple_dispatch: true
+    pool_ceiling_bytes: 20000000000   # owner test allowance (certified global stays 16 GiB)   # LOAD-BEARING for AR-hybrid boot (A4 fix)
+    max_num_seqs: 8   # owner test 20GB+8seqs (2026-10-03): conc 8
+    kv_cache_memory: "20000000000"   # owner test 20GB+8seqs (2026-10-03)
 
     enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
     spec_config:
