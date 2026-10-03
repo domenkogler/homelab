@@ -289,8 +289,14 @@ services:
       - --tool-call-parser
       - {{ profile.tool_call_parser }}
       - --enable-auto-tool-choice
+{% if profile.generation_config_override | default('') | string | trim | length > 0 %}
+      # Per-client temperature is the default now (HD-489 tail): the override is only
+      # rendered when a profile actually declares one. An EMPTY override would crash
+      # argv-parse in this build ("Value '' cannot be converted") — measured on the
+      # 2026-10-03 seqs=8/temp converge — so the flag is omitted entirely when empty.
       - --override-generation-config
       - '{{ profile.generation_config_override }}'
+{% endif %}
 {% if profile.get('spec_config') %}
       # Merged speculative config (HD-489: block rejection + probabilistic draft sampling,
       # as upstream publishes them). to_json keeps dict order deterministic, so the render
