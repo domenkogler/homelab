@@ -224,9 +224,10 @@ def main():
     if strict:
         print("\n--strict: every profile renders, parses, and carries a non-empty image pin.")
     else:
-        print("\nAll profiles render and parse. Empty `ultrafast` image pins are the DESIGNED "
-              "state until the built image ID lands in versions.yml (roles/spark-llm-profile "
-              "refuses those profiles until then).")
+        print("\nAll profiles render and parse.")
+        print("The `ultrafast` image pin is RECORDED (versions.yml:311, sha256:4900c13e…); the")
+        print("only empty pin left is `fast-sglang` (spark_sglang_image) — its designed gate. "
+              "roles/spark-llm-profile refuses those profiles until a pin lands.")
     return 0
 
 

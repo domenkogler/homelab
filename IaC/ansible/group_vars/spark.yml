@@ -792,7 +792,10 @@ spark_llm_profiles:
     never_evict_prompt: ""
     never_evict_max_fraction: "0.25"
     ple_mmap: false                   # the upstream disk-mmap PLE path (mutually exclusive
-    draft_vocab: false                # with ple_overlay: both own `ple_layer.py`)
+    ple_dispatch: false               # with ple_overlay: both own `ple_layer.py`); A4 split:
+                                      # kernel-dispatch env (spark_llm_ple_dispatch_env) renders
+                                      # only when an arm opts in
+    draft_vocab: false                # (ple_overlay XOR ple_mmap; draft slice for v16b*)
     env_extra: []
     args_extra: []
     memory_limit: "105G"
@@ -966,7 +969,15 @@ spark_llm_profiles:
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8]
     fixed_cost_bytes: 76300000000
-    fixed_cost_basis: "VENDOR-PUBLISHED, NOT measured here (see ar-mmap)"
+    # HD-489 tail A3: replaced the VENDOR-PUBLISHED number with a MEASURED one, derived from
+    # THIS box's boot log (the only derivation reproducible from a committed artifact):
+    #   boot log 2026-10-03: "Model loading took 68.35 GiB memory"  ≈  73.4e9 B
+    #   (so fixed + 16 GB pool = 89.4e9 B, still inside the 104.113e9 B host-floor ceiling)
+    # Disagreement he kept in writing: the engine-pid-at-rest derivation
+    #   (nvidia-smi pid MiB − engine-printed 14.9 GiB KV = 88,921 − 15,290 ≈ 73.6 GiB ≈ 79.0e9 B)
+    # reads ~+6 GB higher because nvidia-smi under-counts via the ~10 GiB warning at
+    # docs/spark-llm-profiles.md §A3; both are recorded, the BOOT LOG is the one chosen.
+    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log: 'Model loading took 68.35 GiB' ≈ 73.4e9 B; pid-at-rest derivation reads ~79e9 B — the +6 GB is documented (docs/spark-llm-profiles.md §A3)"
     uncertified_reason: "Delta vs ar-mmap = speculative decode ON. If MTP cannot initialise against this checkpoint the boot failure IS the finding — record it, do not force a drafter."
     certified_evidence: ""
 
@@ -1128,13 +1139,12 @@ spark_llm_ple_mmap_env:
   - "VLLM_PLE_MMAP_FAST_PATH=1"
   - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
   - "VLLM_DRAFTER_EXPERTS_FP8=1"
-  - "QWEN38NEXT_LOW_LATENCY_GEMM=1"
-  - "QWEN38NEXT_LLG_PDL=0"
-  - "VLLM_VERIFY_TOPK_TRITON=1"
-  - "VLLM_KEEP_DRAFT_BLOCKS=1"
-  - "VLLM_MARLIN_USE_ATOMIC_ADD=1"
-  - "VLLM_USE_DEEP_GEMM=0"
-  - "VLLM_FP8_HYBRID=1"
+# HD-489 A4: the KERNEL-DISPATCH knobs are split OUT of the table set (they live in
+# spark_llm_ple_dispatch_env below and render only when a profile opts in via
+# `ple_dispatch: true`). The funnel compared tier 2/3 arms (which rendered this whole
+# bundle) against tier-1 arms (which rendered none of it) — the +68 % was
+# "weights + table + ~7 dispatch knobs" vs "weights + table", a confound. VLLM_FP8_HYBRID is
+# only meaningful on the patched build; it is inert on the base image.
 
 # ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
 # Plain LISTS at top level, on purpose: a Jinja expression inside `spark_llm_profiles` is
@@ -1156,18 +1166,7 @@ spark_llm_ultrafast_diag_args:
 # ⚠ VLLM_FP8_HYBRID + the drafter-expert flag only MEAN anything on the patched build (they
 # dispatch through vllm_fp8_hybrid.py, which the lineage installs); on the base image they
 # are inert. Rendered only when the profile declares ple_mmap: true.
-spark_llm_ple_mmap_env:
-  - "VLLM_PLE_MMAP=1"
-  - "VLLM_PLE_MMAP_DIR=/ple-table"
-  - "VLLM_PLE_MMAP_WORKERS=32"
-  - "VLLM_PLE_MMAP_PREWARM=1"
-  - "VLLM_PLE_MMAP_PREFETCH=0"
-  - "VLLM_PLE_MMAP_MADV_RANDOM=1"
-  - "VLLM_PLE_MMAP_FAST_ROWS=16"
-  - "VLLM_PLE_MMAP_CHUNK=8"
-  - "VLLM_PLE_MMAP_FAST_PATH=1"
-  - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
-  - "VLLM_DRAFTER_EXPERTS_FP8=1"
+spark_llm_ple_dispatch_env:
   - "QWEN38NEXT_LOW_LATENCY_GEMM=1"
   - "QWEN38NEXT_LLG_PDL=0"
   - "VLLM_VERIFY_TOPK_TRITON=1"

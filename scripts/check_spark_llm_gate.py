@@ -49,11 +49,14 @@ SGLANG_CHECKS = {
 }
 FAILS = []
 NOTES = []
+# HD-489 A4: the split env lists, read from the catalogue once. `vllm_verdicts` references
+# SPLIT_LISTS to disprove the old confound (mmap_env only plumbs the table; dispatch_env is
+# separate). Nothing is re-typed here — read from the SSOT YAML like the pin map.
+SPLIT_LISTS = {}
 # Resolved in main(): {profile.image name: the pin string from versions.yml}. Built by
 # reading spark_llm_profile_images (the name→pin map) and resolving each Jinja reference
 # against versions.yml — so a NEW image name with no pin, or a pin renamed in versions.yml,
 # shows up as an empty entry here and the `image-pin` invariant fails it. Nothing is re-typed.
-PIN_PINS = {}
 
 
 def fail(msg):
@@ -193,6 +196,19 @@ def vllm_verdicts(profile, cat):
         f"container={profile.get('ple_container_dir')!r} offload={profile.get('ple_offload')} "
         "\u2014 VLLM_PLE_MMAP_DIR points at /ple-table, so the table must be mounted there "
         "and the primitive-ai CPU-offload env must not render with it")
+    out["ple-dispatch"] = (
+        not profile.get("ple_dispatch") or profile.get("ple_mmap"),
+        "ple_dispatch: true on a non-mmap arm renders kernel-dispatch env ("
+        "QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID) without the mmap table they dispatch "
+        "for \u2014 the A4 confound; dispatch requires ple_mmap")
+    # the table set and the dispatch set after the A4 split (check_spark_llm_gate reads
+    # both lists and asserts they are disjoint and the dispatch set is the A4 dispatch knobs)
+    mb = SPLIT_LISTS.get("ple_mmap_env") or []
+    dp = SPLIT_LISTS.get("ple_dispatch_env") or []
+    out["a4-split"] = (
+        bool(mb) and bool(dp) and set(mb).isdisjoint(set(dp)),
+        f"mmap_env {mb} vs dispatch_env {dp} \u2014 A4 requires the sets to be separate",
+    )
     pin_txt = str(profile.get("never_evict_prompt") or "") + " " + " ".join(
         str(a) for a in (profile.get("args_extra") or []))
     # A CHANGEME prompt-pin is a bug in a CERTIFIED lane and an honest GATE in an uncertified
@@ -268,6 +284,10 @@ def canary(cat, pats):
                                                certified=True)),
         ("cost-labelled", lambda p: p.update(fixed_cost_basis="guessed from the brochure")),
         ("cudagraph-cap", lambda p: p.update(max_cudagraph_capture_size=16)),
+        ("ple-dispatch", lambda p: p.update(ple_dispatch=True)),   # dispatch on a non-mmap arm
+        # A4 canary: empty the mmap table set → a4-split must FAIL (a catalogue reading no
+        # table knobs while arms claim ple_mmap is exactly the confound this split deletes)
+        ("a4-split", lambda p: SPLIT_LISTS.__setitem__("ple_mmap_env", [])),
     ]
     for expect, mutate in vllm_breaches:
         prof = copy.deepcopy(cat["spark_llm_profiles"]["reasoning"])
@@ -321,8 +341,12 @@ def main():
         if key not in cat:
             print(f"ERROR: {key} missing from {CATALOGUE.relative_to(ROOT)}", file=sys.stderr)
             return 2
-    global PIN_PINS
+    global PIN_PINS, SPLIT_LISTS
     PIN_PINS = build_pin_pins(cat, load_yaml(VERSIONS))
+    SPLIT_LISTS = {
+        "ple_mmap_env": [str(x) for x in (cat.get("spark_llm_ple_mmap_env") or [])],
+        "ple_dispatch_env": [str(x) for x in (cat.get("spark_llm_ple_dispatch_env") or [])],
+    }
     print(f"role patterns under test: {len(set(pats))}")
     verdict_table(cat, pats, "catalogue")
     canary(cat, pats)

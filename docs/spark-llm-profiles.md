@@ -33,8 +33,10 @@ certified worst `usable` — which is what makes a weight change a POOL change.
 its own bound (≈905k, 3.45 ×), so no profile on this box claims four concurrent full
 windows any more: `reasoning` and `fast` hold **1.97 ×** and **1.35 ×**, and four full
 windows need fp8 KV, i.e. HD-473. **Never quote a projection where the engine prints the
-number** — the authoritative pair is the boot log's `Available KV cache memory` +
-`GPU KV cache size` lines, and `certified_evidence:` cites a report holding those, never a
+number** — with `--kv-cache-memory-bytes` the engine SKIPS memory profiling, so the
+authoritative pair is the boot log's `Initial free memory` + `GPU KV cache size` lines
+(the `Available KV cache memory` line only exists on the memory-profiling path, which this
+config does not use), and `certified_evidence:` cites a report holding those, never a
 calculated figure.
 
 ### What the gate refuses (`IaC/ansible/roles/spark-llm-profile`, runs before `spark-artifacts`)
@@ -168,11 +170,13 @@ two candidates nobody wants to re-download. The root partition measured 345 G fr
 checkpoint and the FP8 table. **Nothing was deleted to make room**, and the gate asserts a
 150 GB floor on that partition before an `os`-rooted arm boots.
 
-**Two gates are open on purpose.** `spark_vllm_ultrafast_image` is empty until a human records
-the ID the build prints, and `v16b-pin`'s `never_evict_prompt` is a `CHANGEME` until a human
-picks the substring. Both make `roles/spark-llm-profile` REFUSE the profile;
-`scripts/spark-llm-render-matrix.py` and `scripts/check_spark_llm_gate.py` print them as
-`GATED` rather than letting an authored-but-unrunnable arm read as either green or broken.
+**Two gates were open on purpose; one is now closed.** `spark_vllm_ultrafast_image` was empty
+until a human recorded the ID the build prints — **closed 2026-10-02**: `versions.yml:311` pins
+the built image `sha256:4900c13e…` (built from iter6c `sha256:54759ef1…` on the pinned base
+`sha256:fc120ece…`). The remaining gate is `v16b-pin`'s `never_evict_prompt`, still a
+`CHANGEME` until a human picks the substring. Both make `roles/spark-llm-profile` REFUSE the
+profile; `scripts/spark-llm-render-matrix.py` and `scripts/check_spark_llm_gate.py` print them
+as `GATED` rather than letting an authored-but-unrunnable arm read as either green or broken.
 
 **What upstream does NOT change**: it runs `--kv-cache-dtype auto`, so `fp8` KV and `graded`
 stay blocked here, and its `gpu_mem=0.01` measures the PLE table leaving the CUDA pool — it is
@@ -180,10 +184,18 @@ not headroom for a bigger pool. Do not quote it as such.
 
 **Delivery surface for this lane** (the leg report is ephemeral; CONVENTIONS §audit reports):
 raw evidence per leg in `spark/reports/HD-489/` — bench JSON, the engine's own
-`Available KV cache memory` line, per-pid GPU memory at rest, the accepted-length trace
-(including the Slovenian set), the pinned image ID + build report. Durable findings fold into
+`Initial free memory` + `GPU KV cache size` lines, per-pid GPU memory at rest, the
+accepted-length trace (including the Slovenian set), the pinned image ID + build report.
+Durable findings fold into
 [hardware-spark.md](hardware-spark.md) §LLM serving profiles (measured numbers),
 [services-ai.md](services-ai.md) §9 (client-facing numbers),
 [services-ai-rejected.md](services-ai-rejected.md) (one paragraph per retired arm + the number
 that killed it), `the gate ladder in `spark/llm-profiles/README.md` (gates 0–9)` (evidence for whatever turns
 `certified: true`) — and the todo row is deleted when the lane closes live, not before.
+
+**Winner so far: `ar-blk`** — the AutoRound-hybrid weights + FP8 PLE disk-mmap + in-checkpoint
+MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}`. Measured
+2026-10-03: C2L decode **39.7 tok/s** (cold_ok=yes, 324 s window), TTFT p50 ~0.7 s, ITL p50
+~65 ms, MTP accept 49–55 %, 0 preemptions — the funnel's fastest arm so far; declared winner
+and live on the box ([`spark/reports/hd489-ar-blk/README.md`](../spark/reports/hd489-ar-blk/README.md)).
+Still `certified: false` until this lane's gates (incl. gates 5–7) pass.

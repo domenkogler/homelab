@@ -114,9 +114,19 @@ services:
       - VLLM_PLE_OFFLOAD_READY_TIMEOUT={{ spark_vllm_ple_offload_ready_timeout }}
 {% endif %}
 {% if profile.ple_mmap %}
-      # Upstream PLE-from-disk knobs (one SSOT list: spark_llm_ple_mmap_env). PREWARM=1 is
-      # why health_start_period is 2400s on these arms, not the certified lane's 1200s.
+      # Upstream PLE-from-disk TABLE knobs (one SSOT list: spark_llm_ple_mmap_env). PREWARM=1
+      # is why health_start_period is 2400s on these arms, not the certified lane's 1200s.
+      # The KERNEL-DISPATCH knobs live in spark_llm_ple_dispatch_env and render only when
+      # the profile opts in via `ple_dispatch: true` — they are the seven knobs that
+      # confounded the funnel (A4), and an arm must be able to run the table WITHOUT them.
 {%   for e in spark_llm_ple_mmap_env %}
+      - {{ e }}
+{%   endfor %}
+{% endif %}
+{% if profile.get('ple_dispatch') %}
+      # HD-489 A4: the kernel-dispatch env set (QWEN38NEXT_* / VLLM_*_GEMM / VLLM_FP8_HYBRID…).
+      # Rendered ONLY when the profile opts in — this is the knob set B9 drops and B10 re-takes.
+{%   for e in spark_llm_ple_dispatch_env %}
       - {{ e }}
 {%   endfor %}
 {% endif %}
