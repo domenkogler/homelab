@@ -206,7 +206,9 @@
     that:
       - spark_llm.fixed_cost_bytes is defined
       - (spark_llm.fixed_cost_bytes | int) > 0
-      - (spark_llm.fixed_cost_bytes | int) + (spark_llm.kv_cache_memory | int) <= (spark_llm_device_hold_ceiling_bytes | int)
+      # Per-profile host floor: a profile may declare its OWN device_hold_ceiling_bytes;
+      # the certified global is the default. (HD-489 tail: each profile is independent.)
+      - (spark_llm.fixed_cost_bytes | int) + (spark_llm.kv_cache_memory | int) <= (spark_llm.device_hold_ceiling_bytes | default(spark_llm_device_hold_ceiling_bytes) | int)
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' does not leave the certified host floor:
       fixed_cost={{ spark_llm.fixed_cost_bytes | default('<unset>') }} B +

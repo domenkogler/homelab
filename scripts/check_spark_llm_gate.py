@@ -137,7 +137,7 @@ def vllm_verdicts(profile, cat):
     """The numeric invariants the role asserts for a vLLM profile."""
     per_tok = cat["spark_llm_kv_bytes_per_token"]
     pool_ceil = int(profile.get("pool_ceiling_bytes") or cat["spark_llm_pool_ceiling_bytes"])
-    hold_ceil = int(cat["spark_llm_device_hold_ceiling_bytes"])
+    hold_ceil = int(profile.get("device_hold_ceiling_bytes") or cat["spark_llm_device_hold_ceiling_bytes"])
     dtype = profile["kv_cache_dtype"]
     pool = int(profile["kv_cache_memory"])
     window = int(profile["max_model_len"])

@@ -354,6 +354,9 @@ spark_llm_profiles:
     # ceiling above — that arithmetic IS the certification, and it is why changing the
     # weights changes the POOL, not just the label.
     fixed_cost_bytes: 86900000000
+
+    pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
+    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor (spark_llm_device_hold_ceiling_bytes default)
     fixed_cost_basis: "MEASURED from the engine boot log (docs/hardware-spark.md §Unified-memory budget)"
     # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
     # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
@@ -423,6 +426,9 @@ spark_llm_profiles:
     client_context_window: 262144
     client_max_tokens: 16384
     fixed_cost_bytes: 86900000000      # = the `reasoning` lane: same weights, same engine
+
+    pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
+    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor (spark_llm_device_hold_ceiling_bytes default)
     fixed_cost_basis: "DERIVED: inherited from reasoning \u2014 the weights are unchanged, so
       the measured 87.8 GB stands; the fp8 saving is upstream-published and deliberately NOT
       claimed here (docs/hardware-spark.md \u00a7fp8 KV cache: still unmeasured on this box)"
@@ -519,6 +525,9 @@ spark_llm_profiles:
     # the engine's `Available KV cache memory` + the watchdog's worst `usable_gib` over one
     # boot of this profile, then correct THIS field — never the ceiling.
     fixed_cost_bytes: 92100000000
+
+    pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
+    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor (spark_llm_device_hold_ceiling_bytes default)
     fixed_cost_basis: "DERIVED 2026-09-28: reasoning's measured 86.9 GB + 5.2 GB NVFP4 core-weight delta"
     # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
     # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
@@ -770,7 +779,9 @@ spark_llm_profiles:
     max_num_seqs: 4                   # engine work. (docs/spark-llm-profiles.md §Client
     max_cudagraph_capture_size: 4     # contract.)
     kv_cache_dtype: auto              # arms never try fp8 KV: the parent build's qsa.py
-    kv_cache_memory: "16000000000"    # declares [auto, bfloat16] (HD-473), and the upstream
+    kv_cache_memory: "16000000000"
+    pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB default (spark_llm_pool_ceiling_bytes); a profile overrides for its own test
+    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor default (spark_llm_device_hold_ceiling_bytes)    # declares [auto, bfloat16] (HD-473), and the upstream
     enforce_eager: false              # recipe itself passes --kv-cache-dtype auto.
     distributed_executor_backend: mp
     spec_method: mtp
