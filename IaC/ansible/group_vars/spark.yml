@@ -931,6 +931,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table       #   render VLLM_PLE_MMAP_DIR=/ple-table with NOTHING
     ple_staged_marker: ".hf-staged"     #   mounted there — scripts/spark-llm-render-matrix.py
     ple_mmap: true                      #   refuses that render (it caught exactly this).
+    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report) — eager skips graph capture
     spec_tokens: 0                      # no drafter directory exists for this checkpoint
     health_start_period: 2400s          # PREWARM reads the whole table at boot
     max_model_len: 262144
@@ -956,6 +957,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
+    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
     spec_config:
       method: mtp
       num_speculative_tokens: 3
@@ -981,6 +983,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
+    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
     draft_vocab: true
     spec_config:
       method: mtp
