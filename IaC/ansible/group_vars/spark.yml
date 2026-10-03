@@ -859,6 +859,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
+    ple_dispatch: true   # LOAD-BEARING for AR-hybrid boot (A4 fix)
     max_num_seqs: 4   # restored to known-good seqs (8 crash-looped the AR loader)
     kv_cache_memory: "16000000000"   # restored to certified 16 GB (known-good)
 
