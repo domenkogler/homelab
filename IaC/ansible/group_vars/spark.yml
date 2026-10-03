@@ -971,6 +971,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
+    ple_dispatch: true   # RESTORED 2026-10-03: the 7 dispatch knobs (VLLM_FP8_HYBRID etc.) are LOAD-BEARING for AR-hybrid boot (A4 split removed them -> MergedColumnParallelLinear.data crash)
     max_num_seqs: 4   # restored to known-good seqs (8 crash-looped the AR loader)
     kv_cache_memory: "16000000000"   # restored to certified 16 GB (known-good)
 
