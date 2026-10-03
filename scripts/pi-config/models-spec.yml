@@ -185,7 +185,7 @@ providers:
       # is sending an image to the text row, so the rule is written where the picker is described:
       # docs/hardware-workstation.md §Served leg.
       - id: agent-gemma-26b
-        name: Local Gemma 4 26B A4B (laptop iGPU, text-only, 32k)
+        name: Local Gemma 4 26B A4B (laptop iGPU, text-only, 150k)
         # reasoning true: gemma4 thinks into reasoning_content and this server cannot switch thinking
         # off (chat_template_kwargs / enable_thinking are IGNORED by LM Studio 0.4.25 — all four
         # spellings measured 2026-09-30). A client that budgets 80 tokens gets an EMPTY `content`
@@ -195,7 +195,15 @@ providers:
         # ~1120 px. Image input here would be a crash button, so the client is not given one.
         reasoning: true
         input: [text]
-        contextWindow: 32768
+        contextWindow: 150016
+        # Raised from 32768 on 2026-10-03 (owner). It must equal `num_ctx` in
+        # scripts/laptop-llm/profiles.yml — that equality is what `laptop-llm.py probe-client` exists
+        # to enforce, because a client window above the engine window is a mid-session 400.
+        # 150016, not 150000: llama.cpp rounds up and `lms ps` reports 150016.
+        # Cost of the row, in the two currencies that matter: 21.42 GiB of the 32 GiB carve (measured,
+        # PDH Dedicated Usage), and PREFILL — cold prefill of >=20k tokens measured 359 / 899 / 277 s
+        # across three loads of the same prompt (docs/hardware-workstation.md), while a prefix-cache
+        # hit is 0.3 s. So 150k is cheap to HOLD and slow to FILL: keep the resident prefix stable.
         maxTokens: 8192
         cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
         continue: {capabilities: [tool]}

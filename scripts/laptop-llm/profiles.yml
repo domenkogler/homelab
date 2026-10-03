@@ -26,7 +26,12 @@ version: 1
 # already on disk (no 21 GB fetch), its KV is the same 20 KiB/token as the Qwen3.6 row, and
 # it leaves ~11 GiB of carve margin where Qwen3.6 left ~8.75.
 active: agent-gemma-26b
-allow_uncertified: false
+# true SINCE 2026-10-03: the owner raised the agent leg from 32 768 to 150 016 tokens. The HD-474
+# certificate was issued AT 32k (recall needle at 28 984 tokens = 92 % of THAT window), so carrying
+# `certified: true` over a 4.6x larger window would be the gate vouching for a measurement that was
+# never taken. The dial stays usable while the two owed numbers are collected (needle at >= 90 % of
+# 150 016, and the cold-prefill ladder at the new window) — flip it back to false the moment they land.
+allow_uncertified: true
 
 # ── HOST FACTS (the gate's ceiling reads these; §10 numbers are owner-set/measured) ──────
 host:
@@ -391,9 +396,19 @@ profiles:
   # dedicated GPU memory with a 2.21 GiB idle desktop under it (raw/80 phase 3), i.e. 16.66 GiB of
   # model - the arithmetic was 0.2 GiB pessimistic, which is the right direction to be wrong.
   agent-gemma-26b:
-    label: 'Gemma 4 26B A4B Q4_K_M, TEXT-ONLY (no projector), f16 KV, 32k - the agent leg'
+    label: 'Gemma 4 26B A4B Q4_K_M, TEXT-ONLY (no projector), f16 KV, 150k - the agent leg'
     model: gemma4-26b-a4b-textonly
-    num_ctx: 32768
+    # 150 016, not 150 000: llama.cpp rounds the request up to a multiple of 32 and `lms ps` reports
+    # 150016, so this is the number the engine actually serves - writing 150000 here would put a
+    # number in the catalogue that no load ever produced. Owner asked for 150k on 2026-10-03.
+    # MEASURED at this window (PDH Dedicated Usage, same box, same weights): 21.42 GiB, against
+    # 19.17 GiB at 32 768 => +2.25 GiB over 117 248 tokens = 20 650 B/token, which confirms
+    # kv_bytes_per_token = 20 480 from the header and REFUTES `lms load --estimate-only`, which
+    # predicts 27.96 GiB here (~83 KiB/token, 4x pessimistic). Plan by the PDH counter, not the
+    # estimator: by the estimator 262 144 does not fit, by the counter it costs ~5 GiB of KV.
+    # What the bigger window does NOT buy: prefill. See docs/hardware-workstation.md - 20 816 tokens
+    # measured 359 / 899 / 277 s across three loads, so a cold 150k turn is the cost being accepted.
+    num_ctx: 150016
     kv_cache_type: f16
     flash_attention: false
     mtp: false                            # no MTP story for this family; that is the trade vs Qwen3.6
@@ -401,7 +416,8 @@ profiles:
     parallel: 1                           # measured load shape (`--parallel 1`); one sequence
     env_extra: {}
     reasoning_surface: binary
-    client_context_window: 32768
+    client_context_window: 150016         # == num_ctx; models-spec.yml must carry the SAME number
+                                          # or pi compacts early (smaller) or 400s (larger)
     client_max_tokens: 8192
     input: [text]                         # see the 1120 px ruling above; do not add image here
     sampling_params: {temperature: 1.0, top_p: 0.95, top_k: 64}   # from general.sampling.* in the file
@@ -412,10 +428,17 @@ profiles:
                                           # probe-vision against this load returns HTTP 400
                                           # "agent-gemma-26b does not support image inputs" in 0 s
                                           # because no projector is attached - the loud failure.
-    certified: true                       # HD-474, 2026-09-30: tools, three real prompt shapes,
-                                          # recall at 28 984 tokens, and the image ceiling measured
-    uncertified_reason: null
-    certified_evidence: 'reports/hd474-laptop-leg (raw/62-80, raw/88-certify.txt, raw/90-speed.txt)'
+    certified: false                      # the 32k certificate does not transfer to 150k. Everything
+                                          # HD-474 proved (tool calls, three prompt shapes, the image
+                                          # ceiling) is window-independent and still stands; what is
+                                          # unproven is behaviour AT this depth.
+    uncertified_reason: >-
+      Window raised 32 768 -> 150 016 on 2026-10-03 by owner request. Memory is measured and fits
+      (21.42 GiB of the 32 GiB carve); what is owed before this row goes green again: (a) a recall
+      needle at >= 90 % of 150 016 tokens, 3/3 - HD-474's 28 984-token pass was 92 % of the OLD
+      window and says nothing about 135 k; (b) the cold-prefill ladder at the new window, because
+      HD-486's 359 / 899 / 277 s spread is the price this profile now accepts on a cache miss.
+    certified_evidence: 'reports/hd474-laptop-leg (raw/62-80, raw/88-certify.txt, raw/90-speed.txt) — measured at num_ctx 32768; 150016 load memory measured 2026-10-03 (PDH 21.42 GiB, lms ps CONTEXT 150016)'
 
   # THE VISION LEG (HD-476). Same GPU, same carve, NEVER resident at the same time as the agent leg:
   # 96 KiB/token means 32k alone is 3.0 GiB of KV on top of 16.50 GiB of weights and 1.01 GiB of

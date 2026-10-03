@@ -194,7 +194,7 @@ measured failure, not taste: this Gemma build kills the engine on an image whose
 
 | Profile | Model | Window | Budget against the 32 GiB carve (declared → measured) |
 |---------|-------|--------|----------------------------------------------------------|
-| **`agent-gemma-26b`** (active) | Gemma 4 26B A4B Q4_K_M, **text-only** — a hard-linked folder with NO mmproj in it | 32k f16 KV | 15.64 + 0 projector + 0.62 KV + 0.20 state + 3.00 floor = **19.46** ⇒ +12.54 margin · **measured 18.87 GiB** of PDH dedicated memory under a 2.21 GiB idle desktop |
+| **`agent-gemma-26b`** (active) | Gemma 4 26B A4B Q4_K_M, **text-only** — a hard-linked folder with NO mmproj in it | 150 016 f16 KV | 15.64 + 0 projector + 2.86 KV + 0.20 state + 3.00 floor = **21.70** ⇒ +10.30 margin · **measured 21.42 GiB** of PDH dedicated memory under a 2.21 GiB idle desktop |
 | **`vision-qwen3vl-30b`** | Qwen3-VL-30B-A3B-Instruct UD-Q4_K_XL **+ mmproj-BF16** | 32k f16 KV | 16.50 + 1.01 + 3.00 KV + 0 + 3.00 floor = **23.51** ⇒ +8.49 margin · **measured 23.92 GiB** at 32k (`raw/ctx32k.out`) |
 | `fim-coder-3b` | Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV | 8k | 1.80 + 0.14 + floor = **4.94** (FIM probe passed; trigger latency still unmeasured) |
 | `agent-unified` / `-mtp` / `-64k` | Qwen3.6-35B-A3B Q4_K_M — **weights not on `D:`** (~21 GB) | 32k / 64k | declared only. Nothing measured here certifies them, and the agent leg now beats `agent-unified` on margin without a download |
@@ -234,10 +234,22 @@ second way: one **10 610-token** prompt measured **259.15 s** on one load and **
 (`raw/88` vs `raw/90`) — same bytes, same weights, same window. What IS monotonic is
 memory, and it is cheap: **18.87 → 19.18 → 19.31 GiB** across 32k → 49k → 65k, i.e. ~0.4 GiB per
 +16 k tokens ≈ 24 KiB/token, which lands on the predicted 20 KiB/token from the header arithmetic.
-So the reason `client_context_window` stays **32 768** is latency and variance you can feel, not a
+So the reason `client_context_window` stayed **32 768** for a week was latency and variance you can feel, not a
 GiB you are out of — and recall at that depth is not the problem either: a needle buried at 92 % of
 a 28 984-token prompt came back verbatim (`raw/80` phase 4). (For scale: the previous session's cold
 31.2 k turn took 13+ min before it was killed, and the Qwen-VL leg took 915 s for 31 809 tokens.)
+
+**The estimator is ~4x pessimistic on this arch, and that is the difference between "cannot" and
+"fits".** `lms load --estimate-only` prices this model at ~83 KiB/token: 21.29 GiB at 65 536, 26.47
+at 131 072, **36.82 GiB at 262 144 - which is the tool saying the native window does not fit the
+carve.** The PDH counter disagrees. Same weights, two fresh loads on 2026-10-03: **19.17 GiB at
+32 768 and 21.42 GiB at 150 016**, a delta of 2.25 GiB over 117 248 tokens = **20 650 B/token**, the
+header arithmetic's 20 480 to within 1 %. Memory was never the constraint, and the estimator's "no"
+is a question, not a verdict. That is what let the owner take the agent leg to
+**`num_ctx 150016`** on 2026-10-03 (`lms ps` reports 150016, llama.cpp rounding 150 000 up); the
+price is paid in the currency this section is about, so `allow_uncertified: true` stands on the dial
+until two numbers land - a recall needle at >= 90 % of the new window (HD-474's 28 984-token pass was
+92 % of the OLD one) and the cold-prefill ladder at it.
 
 **Ledger correction — this family's KV is 20 KiB/token, not 96.** §Memory & residency's
 “≈96 KiB/token” is right for **Qwen3-30B-A3B** (48 layers, 4 KV heads × 128 head_dim).
@@ -314,11 +326,13 @@ counter, not inferred from host RAM** — is: **one 30B-class leg fits, two do n
 `offloaded N/N layers` line is absent at verbosity 3 on this Vulkan build, so it proves nothing here.
 Idle desktop under a load reads **2.15–3.12 GiB** (two days of readings), the text-only Gemma leg at
 32k reads **18.87 GiB**, the same weights with the projector **19.81 GiB**, and the Qwen-VL leg at 32k
-**23.92 GiB** of a ~24 GiB adapter.
+**23.92 GiB** of the 32 GiB carve (the 2026-09-28 UMA change: 64 GiB of RAM in two sticks, 31.6 GiB
+visible to Windows, the rest is the iGPU's island — so the carve is a real dedicated pool and the
+desktop/WSL2 cannot compete with a load for it).
 
 | Resident set | Footprint | Verdict |
 |---|---|---|
-| one agent leg: `agent-gemma-26b` (text-only, 32k) | 15.64 weights + 0.62 KV + 0.20 window state, **18.87 GiB measured** under a 2.21 GiB desktop | **this is the resident default.** ~5 GiB of adapter headroom left, and it is not enough for another 30B-class model |
+| one agent leg: `agent-gemma-26b` (text-only, 150 016) | 15.64 weights + 2.86 KV + 0.20 window state, **21.42 GiB measured on 2026-10-03** (19.17 GiB at the old 32 768) | **this is the resident default.** ~10.6 GiB of the carve left. It is still not room for a second 30B-class model, and the arithmetic above was 0.28 GiB pessimistic — the same direction it was wrong in at 32k |
 | one vision leg instead: `vision-qwen3vl-30b` (32k) | 16.50 + 1.01 mmproj + **3.00 KV** (96 KiB/token), **23.92 GiB measured** | fits ALONE. It **replaces** the agent leg for the duration of a vision session; it does not join it |
 | `fim-coder-3b` alongside either | ~1.93 + 0.14 KV | the only thing small enough to share, and LM Studio unloads on switch anyway — the applier keeps it one-at-a-time |
 
