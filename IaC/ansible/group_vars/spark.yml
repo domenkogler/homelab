@@ -972,8 +972,8 @@ spark_llm_profiles:
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
     max_num_seqs: 8
-    kv_cache_memory: "25000000000"   # HD-489 tail owner test: 25 GB pool (3.07x)
-    pool_ceiling_bytes: 25000000000   # ar-blk-only ceiling (owner test 2026-10-03); reasoning stays 16 GiB
+    kv_cache_memory: "20000000000"   # HD-489 tail owner test: 20 GB pool (2.46x)
+    pool_ceiling_bytes: 20000000000   # ar-blk-only ceiling (owner test 2026-10-03); reasoning stays 16 GiB
     enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
     spec_config:
       method: mtp
