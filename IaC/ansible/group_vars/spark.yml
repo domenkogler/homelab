@@ -979,6 +979,79 @@ spark_llm_profiles:
     # docs/spark-llm-profiles.md §A3; both are recorded, the BOOT LOG is the one chosen.
     fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log: 'Model loading took 68.35 GiB' ≈ 73.4e9 B; pid-at-rest derivation reads ~79e9 B — the +6 GB is documented (docs/spark-llm-profiles.md §A3)"
     uncertified_reason: "Delta vs ar-mmap = speculative decode ON. If MTP cannot initialise against this checkpoint the boot failure IS the finding — record it, do not force a drafter."
+    uncertified_reason: "Delta vs ar-mmap = speculative decode ON. If MTP cannot initialise against this checkpoint the boot failure IS the finding — record it, do not force a drafter."
+    certified_evidence: ""
+
+  # ── B9 (HD-489 tail): ar-blk WITHOUT the A4 kernel-dispatch env ──────────────
+  # Same checkpoint + FP8 mmap table + spec as ar-blk, but ple_dispatch: false ⇒ the
+  # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered. Answers the B9
+  # question: if 39.7 survives without the dispatch knobs, the win is the checkpoint
+  # (and the quality risk is real); if it falls to ~25, the win is env (B10 becomes the
+  # cheap certified path). Owner-gated: must boot with allow_uncertified, one variable.
+  ar-blk-lean:
+    <<: *u_x
+    label: "HD-489 tail B9 — ar-blk with the dispatch env REMOVED (A4 isolation)"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: false
+    enforce_eager: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s
+    artifact_sets: [ar-hybrid, ple-fp8]
+    fixed_cost_bytes: 76300000000
+    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log (same as ar-blk): 'Model loading took 68.35 GiB' ≈ 73.4e9 B"
+    uncertified_reason: "B9 A4 isolation: identical to ar-blk EXCEPT the 7 kernel-dispatch env are removed. Owner-gated boot: set spark_llm_allow_uncertified: true, converge detached, C2+C2L, compare to ar-blk's 39.7 tok/s C2L."
+    certified_evidence: ""
+
+  # ── B10 (HD-489 tail): AWQ on the winner's machinery (awq-mmap) ─────────────
+  # The owner's question: AWQ W4A16 (the certified lane's weights) served from the
+  # patched lineage + the FP8 PLE mmap table + the dispatch bundle — does eager AWQ
+  # + the bundle beat or approach ar-blk (39.7 C2L)? Pre-flight done (brief §B10):
+  # ple-table-fp8 DOES carry …ple.ple_embedding.ngram_embedding.shard_0…130.weight
+  # (33 shards, +1024 fp8 expert weight_scale_inv) — unlike ples_nvfp4, so nv-patch
+  # died; ples_int4 is a different layout (weight_i4 + weight_scale) the mmap loader
+  # cannot read. The FP8 table is the trained n-gram tensor, not AR-specific — its
+  # loader pairs with VLLM_FP8_HYBRID: plausible-and-unverified, not nonsense. The
+  # checkpoint↔table pairing is OWNER-GATED: nothing ties a checkpoint to a PLE table,
+  # and models_root is per-profile, so AWQ-on-xfs with a table on os renders happily
+  # and mis-pairs (or dies) at boot.
+  awq-mmap:
+    <<: *u_x
+    label: "HD-489 tail B10 — AWQ W4A16 + FP8 PLE mmap + dispatch bundle (owner's question)"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-AWQ
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: true
+    enforce_eager: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s
+    artifact_sets: [b1-awq, ple-fp8]
+    fixed_cost_bytes: 86900000000
+    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log (AWQ weights, same as reasoning): 'Model loading took 68.35 GiB' ≈ 73.4e9 B — re-read from its own boot anyway"
+    uncertified_reason: "B10: AWQ W4A16 + patched lineage + FP8 PLE mmap + dispatch knobs (ple_dispatch: true). Owner-gated: checkpoint↔table pairing + allow_uncertified. If it boots and its eager AWQ + bundle lands 22–28 tok/s, the quality-fallback costs ~30 % speed, not ~40 %."
     certified_evidence: ""
 
   ar-dv:

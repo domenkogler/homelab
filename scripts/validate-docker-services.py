@@ -232,7 +232,7 @@ def _load_ssot_ctx():
                    # reference these fragments by flag — so an arm would render with the
                    # piecewise/graph args SILENTLY missing rather than failing. Load them.
                    "spark_llm_ultrafast_cudagraph_args", "spark_llm_ultrafast_diag_args",
-                   "spark_llm_ple_mmap_env", "spark_models_roots"):
+                   "spark_llm_ple_mmap_env", "spark_llm_ple_dispatch_env", "spark_models_roots"):
             # HD-469 (LLM profile switch): the profile catalogue + engine entrypoint map +
             # PLE overlay list are NATIVE dicts/lists here, not stringified. They are
             # Jinja-free by design (every engine value a literal; paths are composed in

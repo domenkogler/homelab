@@ -209,6 +209,11 @@ def vllm_verdicts(profile, cat):
         bool(mb) and bool(dp) and set(mb).isdisjoint(set(dp)),
         f"mmap_env {mb} vs dispatch_env {dp} \u2014 A4 requires the sets to be separate",
     )
+    out["ple-dispatch-lean"] = (
+        not profile.get("ple_dispatch") or profile.get("ple_mmap"),
+        "ar-blk-lean must render WITHOUT the dispatch env (B9 isolation) — an arm that "
+        "opts into dispatch is NOT the A4 control",
+    )
     pin_txt = str(profile.get("never_evict_prompt") or "") + " " + " ".join(
         str(a) for a in (profile.get("args_extra") or []))
     # A CHANGEME prompt-pin is a bug in a CERTIFIED lane and an honest GATE in an uncertified

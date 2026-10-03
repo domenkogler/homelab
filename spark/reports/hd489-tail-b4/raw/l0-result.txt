@@ -1,0 +1,2 @@
+conc=1: n=30 token-identical=12 diff=18 flake 60.0%
+conc=2: n=30 token-identical=9 diff=21 flake 70.0%
