@@ -134,7 +134,7 @@ def kv_slots(spec, cat):
     hold = (int(fc) + pool) if fc else None
     checks = {
         "pool≥window": slots >= window or pool == 0,
-        "pool≤ceiling": pool <= int(cat["spark_llm_pool_ceiling_bytes"]),
+        "pool≤ceiling": pool <= int(profile.get("pool_ceiling_bytes") or cat["spark_llm_pool_ceiling_bytes"]),
         "host-floor": (hold is None and pool == 0) or (hold is not None
                         and hold <= int(cat["spark_llm_device_hold_ceiling_bytes"])),
     }

@@ -293,7 +293,7 @@ spark_llm_kv_bytes_per_token:
 # bf16 pool ceiling: "16 GiB is the practical bf16 ceiling — do not raise it
 # further" (docs/hardware-spark.md:301). Expressed in the same decimal bytes the
 # governor takes, so the gate compares like with like.
-spark_llm_pool_ceiling_bytes: 25000000000     # 25e9 B — OWNER-AUTHORIZED test 2026-10-03 (ar-blk 25GB pool + seqs8); a RE-CERT of the certified 16 GiB ceiling — revert if the watchdog hour fails. Do not treat as certified until the combined test's memory-curve evidence lands.
+spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling. Per-profile overrides (e.g. ar-blk's pool_ceiling_bytes) extend it for a PROFILE ONLY; this global stays 16 GiB (hardware-spark.md:301 do-not-raise).
 
 # ---- The host floor, as an arithmetic gate (HD-469 run #2) -----------------
 # The pool ceiling alone is NOT the OOM guard: a profile that changes the WEIGHTS changes
@@ -962,6 +962,7 @@ spark_llm_profiles:
     ple_mmap: true
     max_num_seqs: 8
     kv_cache_memory: "25000000000"   # HD-489 tail owner test: 25 GB pool (3.07x)
+    pool_ceiling_bytes: 25000000000   # ar-blk-only ceiling (owner test 2026-10-03); reasoning stays 16 GiB
     enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
     spec_config:
       method: mtp
