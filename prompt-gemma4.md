@@ -1,243 +1,167 @@
-# Overnight, unattended: laptop Gemma 4 drives the spark `fast` benches
+# Overnight unattended: Gemma 4 (laptop) benches spark `fast`, then `reasoning`
 
-> **Role:** the whole prompt for ONE unattended overnight run. The driver is the laptop's local
-> **Gemma 4 26B A4B (LM Studio, `http://127.0.0.1:1234/v1`)**; the engine under test is **spark**
-> (`https://llm.kogler.si/v1`, profile `fast`). Nothing here needs any other file read first.
+> **Role:** the entire prompt for one unattended overnight run (laptop driver → spark benches).
 > **Linked from:** [`prompt-remaining-bench.md`](prompt-remaining-bench.md) §Runner seat.
 
----
+Driver = you: laptop LM Studio Gemma 4 26B (`127.0.0.1:1234`) — never a bench target. Engine under test
+= spark `https://llm.kogler.si/v1`, model `spark/qwen3.8-flash-next` (same id on every profile).
+`fast` = live winner: ctx 262,144, seqs 8, KV 25 GB = 805,749 slots = 3.07× window. `reasoning` = AWQ
+lane, seqs 4, 16 GB. Read nothing else; every command here is complete.
 
-## 0. The six rules (read once, obey all night)
+**Rules.** (1) Never stop, never ask: a leg you can't finish gets one line `BLOCKED: <why> — <log>` in
+`RESULTS.md`, then the NEXT leg. (2) Max 2 retries per leg. (3) One leg at a time, never overlapping.
+(4) Edit nothing but your evidence dir; no IaC, no constants, no ceilings, no restart, no reboot. FAIL
+and BLOCKED are results. (5) Never write the bearer anywhere — only its length (32). (6) Order: verify →
+MMLU@8 → gate4 → depth → fp8 → flip to `reasoning` + same suite + McNemar → converge back to `fast` →
+commit. Budgets: 5m/5h/20m/45m/15m/3h/45m. Hit a budget → `pkill -f evaluate_from_apiX`, log
+`BLOCKED: budget`, next leg (the eval resumes per category). The converge-back and the commit are never
+skipped.
 
-1. **Never stop, never ask.** You are unattended. If a leg cannot be completed, append one line to
-   `RESULTS.md` — `BLOCKED: <why> — <log path>` — and **start the next leg**. No question, no wait.
-2. **Retry a leg at most twice.** Third failure = `BLOCKED`, move on.
-3. **One leg at a time.** Never overlap legs (a leg's numbers are only valid on an idle engine).
-4. **Change nothing except your evidence dir.** No IaC edits, no profile flip, no constant, no
-   ceiling, no `docker restart`, no reboot. A `FAIL`/`BLOCKED` **is** a result — record and cross.
-5. **Never paste a secret into a file, a log or a commit.** The bearer is read at runtime (§1.3) and
-   only its length may be printed.
-6. **Order is fixed:** Leg 0 converge → **Leg 1 MMLU @ conc 8** → Leg 2 → Leg 3 → Leg 4 → Leg 5 finish.
-   Never start Leg 1 before Leg 0 says the engine is healthy (a converge mid-eval kills the requests).
-
-Time budget: 0 ≤ 40 min · 1 ≤ 6 h · 2 ≤ 20 min · 3 ≤ 45 min · 4 ≤ 15 min. If Leg 1 is still running at
-the end of its budget, stop it (`pkill -f evaluate_from_apiX`) — it **resumes** next time — and cross
-to Leg 2.
-
----
-
-## 1. Config of record + setup (do it in this order)
-
-| thing | value |
-|---|---|
-| profile under test | `fast` (certified winner, ex-`ar-blk`) |
-| container / model id | `vllm-qwen-spark` · `spark/qwen3.8-flash-next` |
-| engine window / seqs | 262,144 tok · `max_num_seqs: 8` |
-| KV pool | 25,000,000,000 B = **805,749 slots = 3.07 ×** window |
-| endpoint | `https://llm.kogler.si/v1` (401 without key, 200 with) |
-| driver model | laptop LM Studio Gemma 4 26B, ctx 32,768 — **never a bench target** (Rule 0 clean: the driver's model is not the engine under test) |
-
-### 1.1 Worktree (CONVENTIONS §6 — never edit in the main checkout)
+## 1. Setup
 
 ```bash
-cd ~/source/homelab && git fetch -q origin 2>/dev/null; git log --oneline -1
-WT=../homelab-wt-$(date +%Y%m%d-%H%M)
-git worktree add "$WT" -b session/hd489-overnight-$(date +%H%M) && cd "$WT"
-git status --short          # must be empty
-```
-If `git worktree add` says the path exists: **do not delete anything** — use a new `$(date +%H%M)`.
-
-### 1.2 Legs run from the repo, so make sure the winner's config is what you think it is
-
-```bash
-grep -n "spark_llm_profile:" IaC/ansible/host_vars/spark.kogler.si.yml   # expect: spark_llm_profile: fast
-python3 scripts/spark-llm-probe.py profile fast 2>&1 | tail -25          # local leg: repo only, no key, no network
-```
-
-### 1.3 The bearer (runtime only, never written down)
-
-```bash
-export TS=$(date +%Y%m%d-%H%M)
-export EV=spark/reports/hd489-overnight-$TS URL=https://llm.kogler.si/v1
+cd ~/source/homelab && git log --oneline -1
+WT=../homelab-wt-$(date +%Y%m%d-%H%M); git worktree add "$WT" -b session/hd489-$(date +%H%M) && cd "$WT"
+export TS=$(date +%Y%m%d-%H%M) EV=spark/reports/hd489-overnight-$TS URL=https://llm.kogler.si/v1
 mkdir -p "$EV/raw"
 export OPENAI_API_KEY="$(op item get spark-llm_api --vault Homelab-ansible --fields label=credential --reveal)"
-# fallback if op is unavailable (same 32-char value, already on this laptop):
 [ -n "$OPENAI_API_KEY" ] || export OPENAI_API_KEY="$(python3 -c "import json,os;print(json.load(open(os.path.expanduser('~/.pi/agent/models.json')))['providers']['spark']['apiKey'])")"
-echo "bearer len=${#OPENAI_API_KEY} (value not printed)"          # expect 32
-curl -s -o /dev/null -w 'endpoint http=%{http_code}\n' -H "Authorization: Bearer $OPENAI_API_KEY" "$URL/models"
-echo "runner=$(hostname)/${PI_MODEL:-lmstudio-gemma-26b}  engine=spark/fast  TS=$TS" | tee "$EV/raw/seat.txt"
+echo "bearer len=${#OPENAI_API_KEY}"; curl -s -o /dev/null -w 'endpoint http=%{http_code}\n' -H "Authorization: Bearer $OPENAI_API_KEY" "$URL/models"
+echo "runner=$(hostname)/${PI_MODEL:-lmstudio-gemma} TS=$TS" | tee "$EV/raw/seat.txt"
 ```
-`endpoint http=200` required before any leg. `401` → one retry of §1.3, then `BLOCKED: endpoint` and
-**skip to Leg 5** (nothing can be measured).
+Worktree path exists → new `$(date +%H%M)`, never delete another session's. Need `200`: `401` → retry
+once, else `BLOCKED: endpoint` and jump to §8.
 
----
-
-## 2. Leg 0 — the spark converge (FIRST; ≤ 40 min)
-
-Purpose: land whatever the repo says onto the box, so tonight's numbers belong to the config we ship.
-If nothing changed, Ansible re-renders and does **not** reboot the engine — that is the expected green.
-**Tonight it will reboot**: `fast` gained the `--never-evict-kv-cache-*` arguments, so the compose
-changes and the container is recreated (~15–20 min boot: 549 s weights, the KV line at ~+10 min). Wait
-for it; Leg 1 must not start against a half-booted engine.
+## 2. Verify what is live (≤5 min, read-only — do NOT converge first, the model is already loaded)
 
 ```bash
-# 0.1 read-only: what the box serves now vs what the repo renders
-ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' /opt/spark-ai/docker-compose.yml" | tee "$EV/raw/leg0-live-before.txt"
-# 0.2 converge DETACHED — never in a foreground shell (HD-370: a killed converge leaves siblings Exited)
-nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull > "/tmp/hd489-converge-$TS.log" 2>&1 &
-sleep 300; tail -25 "/tmp/hd489-converge-$TS.log"          # repeat the tail every 5 min, cap 40 min
+ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' /opt/spark-ai/docker-compose.yml" | tee "$EV/raw/live.txt"
+ssh spark "docker inspect vllm-qwen-spark --format 'started={{.State.StartedAt}} restarts={{.RestartCount}}'" | tee -a "$EV/raw/live.txt"
+python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast health 2>&1 | tail -8 | tee "$EV/raw/health.log"
 ```
+Want `25000000000` / `8` / `restarts=0` / green → go to §3. Wrong pool or seqs or `restarts>0` → the
+premise is broken: converge (`nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark
+--no-pull >/tmp/cg-$TS.log 2>&1 &`, `tail -25 /tmp/cg-$TS.log` every 5 min, ≤40 min), then re-check once.
+`ssh spark` dead → `BLOCKED: spark leg`, run §3–§6 anyway (endpoint only), skip §6, note it first.
 
-When the log ends (`failed=0` expected), verify what is actually serving:
+## 3. MMLU-Pro mini on `fast`, concurrency 8 (the priority; ≤5 h)
+
+1,400 items (14×100, CoT). Per-category loop = a crash costs one category; re-running a category
+resumes it. `-n 8` matches seqs 8 — never higher.
 
 ```bash
-ssh spark "docker inspect vllm-qwen-spark --format '{{.State.StartedAt}} restarts={{.RestartCount}}'"
-ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' /opt/spark-ai/docker-compose.yml" | tee "$EV/raw/leg0-live-after.txt"
-ssh spark "docker logs vllm-qwen-spark --since 60m 2>&1 | grep -m3 -e 'GPU KV cache size' -e 'Initial free memory'"
-python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast health 2>&1 | tail -12 | tee "$EV/raw/leg0-health.log"
-```
-
-**Acceptance:** log `failed=0`, `restarts=0`, KV line present, health green, and the rendered pool =
-`25000000000` / seqs `8`. → `PASS` (+ the `GPU KV cache size` number).
-
-**Cross rules:**
-* the playbook fails on an **assert** (pool ceiling, host floor, uncertified, artifact staging) →
-  `BLOCKED: gate — <the assert's fail_msg first line>` from the log, change NOTHING, Leg 1 on the live engine;
-* the playbook fails because the **tree is dirty / no upstream** → `BLOCKED: tree`, re-check §1.1 once, else continue;
-* a reboot did happen and the engine is not healthy after 40 min → `BLOCKED: engine down`, **do not
-  restart it**, still run Leg 1 (it will `BLOCKED` fast) then Leg 2–4, then finish — the log is the finding.
-
----
-
-## 3. Leg 1 — MMLU-Pro mini, **concurrency 8** (the priority; ≤ 6 h)
-
-1,400 items = 14 categories × 100, CoT mandatory, machine-scored. Per-category loop = a crash costs one
-category, and **re-running a category resumes it** (already-scored `question_id`s are skipped).
-
-```bash
-test -f /tmp/mmlu-pro-harness/mini_test.json && sha256sum /tmp/mmlu-pro-harness/mini_test.json | tee "$EV/raw/leg1-mini-sha.txt"
-# expected e67bad86a84e25bc90f475cd7fc004fa23fca2c562c8b7acc9b38fb07e6c0c4d
-# missing / wrong sha / no venv  -> BLOCKED: harness — do NOT download anything overnight -> Leg 2
-
+sha256sum /tmp/mmlu-pro-harness/mini_test.json | tee "$EV/raw/sha.txt"    # expect e67bad86a84e25bc90f475cd7fc004fa23fca2c562c8b7acc9b38fb07e6c0c4d
 export OUT=~/mmlu-eval-fast-$TS && mkdir -p "$OUT"
-# Side-witness, free while 1,400 real items run: the engine's OWN prefix-cache counters. The KV pin
-# only helps if it ENGAGES, and the two earlier pin arms proved only that a SYNTHETIC prompt never
-# engages it (spark/reports/hd489-u4-pin, hd489-v16b-pin). This is the delta of real traffic.
-ssh spark "curl -sf localhost:8000/metrics" | grep -E '^vllm:prefix_cache_(hits|queries)_total' > "$EV/raw/leg1-metrics-before.txt"
 for s in business law psychology biology chemistry history other health economics math physics "computer science" philosophy engineering; do
-  echo "=== $s $(date -u +%FT%TZ)" >> "$EV/raw/leg1.log"
+  echo "=== $s $(date -u +%FT%TZ)" >> "$EV/raw/mmlu-fast.log"
   MMLU_PRO_MINI=/tmp/mmlu-pro-harness/mini_test.json NO_COLOR=1 TERM=dumb \
-    /tmp/mmlu-venv/bin/python /tmp/mmlu-pro-harness/evaluate_from_apiX.py \
-      --url "$URL" -m spark/qwen3.8-flash-next -n 8 -a "$s" -o "$OUT" \
-      --retry 2 --retry_wrong 2 </dev/null >> "$EV/raw/leg1.log" 2>&1
-  python3 -c "import json,sys;print('$s items='+str(len(json.load(open(sys.argv[1])))))" "$OUT/${s}_result.json" >> "$EV/raw/leg1.log" 2>&1 || echo "BLOCKED: $s" >> RESULTS.md
+    /tmp/mmlu-venv/bin/python /tmp/mmlu-pro-harness/evaluate_from_apiX.py --url "$URL" \
+    -m spark/qwen3.8-flash-next -n 8 -a "$s" -o "$OUT" --retry 2 --retry_wrong 2 </dev/null >> "$EV/raw/mmlu-fast.log" 2>&1
 done
-ssh spark "curl -sf localhost:8000/metrics" | grep -E '^vllm:prefix_cache_(hits|queries)_total' > "$EV/raw/leg1-metrics-after.txt"
-python3 - "$EV/raw/leg1-metrics-before.txt" "$EV/raw/leg1-metrics-after.txt" <<'PY' | tee -a "$EV/raw/leg1-accuracy.txt"
-import sys
-rd = lambda p: {l.split()[0].split('{')[0].split('}')[0]: float(l.split()[-1]) for l in open(p) if l.startswith('vllm:')}
-b, a = rd(sys.argv[1]), rd(sys.argv[2])
-dq = a.get('vllm:prefix_cache_queries_total', 0) - b.get('vllm:prefix_cache_queries_total', 0)
-dh = a.get('vllm:prefix_cache_hits_total', 0) - b.get('vllm:prefix_cache_hits_total', 0)
-print(f"prefix_cache delta over Leg 1: queries={dq:.0f} hits={dh:.0f} "
-      f"hit_rate={(dh/dq*100 if dq else 0):.2f} % — the never-evict/prefix witness: 0 hits across "
-      f"1,400 real requests IS the finding (the pin does not engage), not a failure")
-PY
 ```
-
-Throughput check at the 30-min mark (one item ≈ 800 output tokens at ~40 tok/s ⇒ **expect ≥ 2 items/min**):
+No mini file / wrong sha / no venv → `BLOCKED: harness`, download nothing, next leg. At 30 min check
+`items done:` below — under 60 → `pkill -f evaluate_from_apiX`, `BLOCKED: throughput`, next leg.
 
 ```bash
-python3 - <<'PY'
-import glob,json,os
-n=sum(len(json.load(open(f))) for f in glob.glob(os.path.expanduser(os.environ["OUT"]+"/*_result.json")))
-print("items done:",n)
-PY
-```
-Under 60 items after 30 min ⇒ `BLOCKED: throughput (<n> items/30min)`, `pkill -f evaluate_from_apiX`, Leg 2.
-`-n 8` is the whole point (it matches `max_num_seqs=8`); **never** raise it — 8 streams already fit the
-pool 100k tokens each.
-
-**Score it** (the harness' own `compute_accuracy.py` wants a dir of `*_result.json` only and
-random-guesses unparsed answers — use the summaries, and report the extraction-failure rate):
-
-```bash
-OUT="$OUT" python3 - <<'PY' | tee "$EV/raw/leg1-accuracy.txt"
-import glob,json,os
-d=os.environ["OUT"]; c=w=null=tot=0
-for f in sorted(glob.glob(d+"/*_summary.json")):
+OUT="$OUT" python3 - <<'PY' | tee "$EV/raw/acc-fast.txt"
+import glob,json,os; d=os.environ["OUT"]; c=w=null=tot=0
+for f in glob.glob(d+"/*_summary.json"):
     t=json.load(open(f)).get("total",{}); c+=t.get("corr",0); w+=t.get("wrong",0)
-for f in sorted(glob.glob(d+"/*_result.json")):
-    for e in json.load(open(f)):
-        tot+=1; null+= 1 if e.get("pred") is None else 0
-print(f"items={tot} correct={c} wrong={w} acc={c/max(1,c+w)*100:.2f} %  extraction_fail={null}/{tot} ({null/max(1,tot)*100:.2f} %)")
+for f in glob.glob(d+"/*_result.json"):
+    for e in json.load(open(f)): tot+=1; null+= e.get("pred") is None
+print(f"arm=fast n={tot} acc={c/max(1,c+w)*100:.2f} % extraction_fail={null/max(1,tot)*100:.2f} %")
+print("items done:",tot)
 PY
 ```
-**Acceptance:** `acc=%` + `extraction_fail` + `n`, and the mini sha. Record the pins beside it: harness
-`TIGER-AI-Lab/MMLU-Pro @ f418b116`, engine `fast`, `-n 8`, `--retry 2 --retry_wrong 2`, `--client` seat
-from `raw/seat.txt`.
+Record accuracy + extraction_fail + n beside: harness `MMLU-Pro @ f418b116`, `-n 8`, `--retry 2
+--retry_wrong 2`.
 
----
-
-## 4. Leg 2 — gate 4: concurrency 8 on `fast` (≤ 20 min)
-
-The old B2 evidence is a `seqs=4` box; the winner now batches 8, so gate 4 must be re-proven at 8.
+## 4. Gate 4 — concurrency on `fast` (≤20 min)
 
 ```bash
-python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast concurrent 1 2>&1 | tee "$EV/raw/leg2-solo.log" | tail -6
-python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast concurrent 8 2>&1 | tee "$EV/raw/leg2-c8.log" | tail -6
+python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast concurrent 1 2>&1 | tee "$EV/raw/g4-solo.log" | tail -5
+python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast concurrent 8 2>&1 | tee "$EV/raw/g4-c8.log" | tail -5
 ```
-**Acceptance:** `200s=8/8` and the `max` latency ≤ 3 × the solo median (`PASS / FAIL` with the three
-numbers). Any `429`/timeout ⇒ `FAIL`, not `BLOCKED` — that is a finding about the config, keep it.
+PASS = `200s=8/8` and slowest ≤ 3× solo median. A 429/timeout is FAIL (a finding), not BLOCKED.
 
----
-
-## 5. Leg 3 — depth at the real workload (≤ 45 min)
+## 5. Depth (≤45 min)
 
 ```bash
-python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast ctx 163840 2>&1 | tee "$EV/raw/leg3-p50.log" | tail -8
-python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast ctx 236000 2>&1 | tee "$EV/raw/leg3-p95.log" | tail -8
+python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast ctx 163840 2>&1 | tee "$EV/raw/d163k.log" | tail -6
+python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast ctx 236000 2>&1 | tee "$EV/raw/d236k.log" | tail -6
 ```
-**Acceptance:** HTTP 200 and `prompt_tokens ≥ 80 %` of the ask, on both. 236k may legitimately preempt —
-record `preempt` if the probe prints it; do not retry a preemption.
+PASS = HTTP 200 and `prompt_tokens ≥ 80 %` of the ask, both. 236k may preempt: record it, don't retry.
 
----
-
-## 6. Leg 4 — fp8 KV re-probe on the pinned image (≤ 15 min, no GPU)
+## 6. fp8 image probe (≤15 min, no GPU)
 
 ```bash
-python3 scripts/spark-fp8-image-probe.py 2>&1 | tee "$EV/raw/leg4-fp8.log" | tail -25
+python3 scripts/spark-fp8-image-probe.py 2>&1 | tee "$EV/raw/fp8.log" | tail -20
 ```
-**Acceptance:** it prints a verdict (`REACHABLE` / `BLOCKED-ON-IMAGE` / `UNDECIDED`) with the digest.
-`BLOCKED-ON-IMAGE` is the known answer (B6, 2026-10-03) — a `REACHABLE` here is news worth a line.
-It refuses to run while a converge is in progress: if that is why it failed, wait 5 min, once, then cross.
+Want a verdict + digest. `BLOCKED-ON-IMAGE` = the known answer. Refuses during a converge: wait 5 min
+once, then cross.
 
----
+## 7. Second arm: `reasoning` (≤3 h — all `fast` legs must be in)
 
-## 7. Leg 5 — finish (≤ 10 min)
-
-`RESULTS.md`, one line per leg, `PASS|FAIL|BLOCKED` + the number + the path. No prose, no diagnosis —
-then the machine-readable tail, so the morning reader never has to open a log to see the shape:
+Both quantisations were timed; no public suite ever ran on both. Flip, run the same items at ITS seqs,
+then the paired test (unpaired diffs prove nothing here). `reasoning` is certified — no override.
 
 ```bash
-{ echo "# Overnight run $TS"; echo "seat: $(cat "$EV/raw/seat.txt")";
-  ssh spark "docker inspect vllm-qwen-spark --format 'engine started={{.State.StartedAt}} restarts={{.RestartCount}}'";
-  grep -h -e 'items=' -e 'acc=' -e 'prefix_cache delta' "$EV"/raw/leg1-accuracy.txt "$EV"/raw/leg1.log 2>/dev/null | tail -6; } >> RESULTS.md
-git add -A "$EV" RESULTS.md && git commit -s -m "test(spark-llm): HD-489 overnight unattended run $TS — Leg 0 converge + MMLU-Pro mini @ conc 8 + gate 4 + depth + fp8 re-probe" && git log --oneline -1
+N=$(python3 -c "import yaml;print(yaml.safe_load(open('IaC/ansible/group_vars/spark.yml'))['spark_llm_profiles']['reasoning']['max_num_seqs'])")
+nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull -e spark_llm_profile=reasoning >/tmp/cg-reasoning-$TS.log 2>&1 &
+sleep 300; tail -20 /tmp/cg-reasoning-$TS.log          # every 5 min, ≤40 min (~20 min boot)
+python3 scripts/spark-llm-probe.py --base-url "$URL" --profile reasoning health 2>&1 | tail -6 | tee "$EV/raw/health-reasoning.log"
+export OUT2=~/mmlu-eval-reasoning-$TS && mkdir -p "$OUT2"
+for s in business law psychology biology chemistry history other health economics math physics "computer science" philosophy engineering; do
+  MMLU_PRO_MINI=/tmp/mmlu-pro-harness/mini_test.json NO_COLOR=1 TERM=dumb \
+    /tmp/mmlu-venv/bin/python /tmp/mmlu-pro-harness/evaluate_from_apiX.py --url "$URL" \
+    -m spark/qwen3.8-flash-next -n "$N" -a "$s" -o "$OUT2" --retry 2 --retry_wrong 2 </dev/null >> "$EV/raw/mmlu-reasoning.log" 2>&1
+done
 ```
-Do **not** merge to `main`, do not remove the worktree — the parent session merges. Then stop.
+Not healthy in 40 min → `BLOCKED: reasoning boot`, no re-converge, go to §8 (it restores `fast`).
+Partial is fine: the test scores only what both arms have.
 
----
+```bash
+OUTA="$OUT" OUTB="$OUT2" python3 - <<'PY' | tee "$EV/raw/mcnemar.txt"
+import glob,json,os; from math import comb
+def load(d):
+    m={}
+    for f in glob.glob(d+"/*_result.json"):
+        for e in json.load(open(f)):
+            if e.get("pred") is not None: m[e["question_id"]]=(e["pred"]==e["answer"])
+    return m
+A,B=load(os.environ["OUTA"]),load(os.environ["OUTB"]); k=A.keys()&B.keys()
+b=sum(1 for q in k if A[q] and not B[q]); c=sum(1 for q in k if B[q] and not A[q]); n=b+c
+p=0.0 if n==0 else min(1.0,2*sum(comb(n,i) for i in range(min(b,c)+1))*0.5**n)
+print(f"n_paired={len(k)} acc_fast={sum(A[q] for q in k)/max(1,len(k))*100:.2f} % acc_reasoning={sum(B[q] for q in k)/max(1,len(k))*100:.2f} % discordants b={b} c={c} p={p:.4g}")
+print("rule (pre-registered): <=2 pts keep | 3-5 pts decide on the pi-harness tasks | >5 pts speed win void")
+PY
+```
+Report `n_paired` FIRST; under ~300 paired items resolves nothing below ~20 points.
 
-## 8. Do NOT (each of these has already cost this lab a number or a box)
+## 8. Converge back to `fast` — LAST (≤45 min), then commit
 
-* Do not run anything against `127.0.0.1:1234` (that is the driver's own model — Rule 0) or against the
-  laptop's 32k window at all.
-* Do not raise `spark_llm_pool_ceiling_bytes`, `…_device_hold_ceiling_bytes` or `fixed_cost_bytes` to
-  make a leg pass — those constants **are** the certification.
-* Do not add `--max-tokens` / `--n` variations, seeds, or a second `-n 8` run in parallel to "speed it up".
-* Do not use `spark.kogler.si/v1` (that path 302-redirects to `/`; `llm.kogler.si` is the API router) and
-  do not open an SSH tunnel unless §1.3's check fails — if you must: `ssh -N -f -L 8000:127.0.0.1:8000 spark`
-  and use `http://127.0.0.1:8000/v1` with `--token-env OPENAI_API_KEY`.
-* Do not run SWE-bench task containers on spark, do not touch `spark_llm_profile`, do not reboot.
-* Do not delete or `git clean` anything you did not create in this run.
+The box must end as the repo renders it (`fast`; this also installs the `--never-evict-*` pair). It
+recreates the container: ~15–20 min boot.
+
+```bash
+nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/cg-back-$TS.log 2>&1 &
+sleep 300; tail -20 /tmp/cg-back-$TS.log          # every 5 min, ≤40 min
+ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' -e 'never-evict' /opt/spark-ai/docker-compose.yml" > "$EV/raw/live-after.txt"
+ssh spark "docker logs vllm-qwen-spark --since 60m 2>&1 | grep -m2 -e 'GPU KV cache size' -e 'Initial free memory'" >> "$EV/raw/live-after.txt"
+python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast health 2>&1 | tail -6 | tee "$EV/raw/health-final.log"
+{ echo "# run $TS"; cat "$EV/raw/seat.txt"; grep -h -e 'arm=' -e 'n_paired=' "$EV"/raw/acc-fast.txt "$EV"/raw/mcnemar.txt 2>/dev/null; } >> RESULTS.md
+git add -A "$EV" RESULTS.md && git commit -s -m "test(spark-llm): HD-489 overnight run $TS — fast suite + reasoning arm + McNemar, box left on fast"
+```
+PASS = `failed=0`, `restarts=0`, KV line, health green, `25000000000`/`8`. Never leave it on
+`reasoning`. An assert in the log → `BLOCKED: gate — <first line>`, change NOTHING. Not healthy 40 min
+after a reboot → `BLOCKED: engine down` on the FIRST line of `RESULTS.md`, do not restart it. Do not
+merge to `main`, do not remove the worktree — the parent merges. Then stop.
+
+## 9. Never
+
+bench `127.0.0.1:1234` or the laptop's 32k window · raise `spark_llm_pool_ceiling_bytes`,
+`…_device_hold_ceiling_bytes`, `fixed_cost_bytes`, or `-n` above an arm's own `max_num_seqs` · run two
+legs at once · converge before §3–§6 are done · use `spark.kogler.si/v1` (302 to `/`; if §1's check
+fails, `ssh -N -f -L 8000:127.0.0.1:8000 spark` then `http://127.0.0.1:8000/v1` + `--token-env
+OPENAI_API_KEY`) · run SWE-bench containers on spark · touch `spark_llm_profile` outside §7 · delete or
+`git clean` anything you did not create.
