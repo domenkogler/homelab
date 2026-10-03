@@ -362,7 +362,7 @@ spark_llm_profiles:
     image: base
     models_root: xfs
     tool_call_parser: qwen3_coder
-    generation_config_override: '{"top_k":20,"top_p":0.95}'   # NO temperature: client-owned; non-empty keeps AR-load happy
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
     ple_offload: true
     ple_host_base: mount
     ple_host_root: xfs
@@ -433,7 +433,7 @@ spark_llm_profiles:
     image: base
     models_root: xfs
     tool_call_parser: qwen3_coder
-    generation_config_override: '{"top_k":20,"top_p":0.95}'   # NO temperature: client-owned; non-empty keeps AR-load happy
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
     ple_offload: true
     ple_host_base: mount
     ple_host_root: xfs
@@ -527,7 +527,7 @@ spark_llm_profiles:
     image: base
     models_root: xfs
     tool_call_parser: qwen3_coder
-    generation_config_override: '{"top_k":20,"top_p":0.95}'   # NO temperature: client-owned; non-empty keeps AR-load happy
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
     ple_offload: true
     ple_host_base: mount
     ple_host_root: xfs
@@ -707,7 +707,7 @@ spark_llm_profiles:
     image: sglang
     models_root: xfs
     tool_call_parser: qwen3_coder
-    generation_config_override: '{"top_k":20,"top_p":0.95}'   # NO temperature: client-owned; non-empty keeps AR-load happy
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
     ple_offload: true
     ple_host_base: mount
     ple_host_root: xfs
@@ -776,7 +776,7 @@ spark_llm_profiles:
     spec_method: mtp
     spec_tokens: 3
     tool_call_parser: qwen3_coder     # ours, not upstream's qwen3_xml — the pi tool-calling
-    generation_config_override: '{"top_k":20,"top_p":0.95}'   # NO temperature: client-owned   # surface is
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
     reasoning_surface: binary         # certified against THIS (docs/pi-harness.md §2).
     client_context_window: 262144
     client_max_tokens: 16384
@@ -980,7 +980,7 @@ spark_llm_profiles:
     # docs/spark-llm-profiles.md §A3; both are recorded, the BOOT LOG is the one chosen.
     fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log: 'Model loading took 68.35 GiB' ≈ 73.4e9 B; pid-at-rest derivation reads ~79e9 B — the +6 GB is documented (docs/spark-llm-profiles.md §A3)"
     uncertified_reason: "Delta vs ar-mmap = speculative decode ON. If MTP cannot initialise against this checkpoint the boot failure IS the finding — record it, do not force a drafter."
-    generation_config_override: '{"top_k":20,"top_p":0.95}'   # NO temperature: client-owned (HD-489 tail); non-empty so AR-load stays healthy
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
     certified_evidence: ""
 
   # ── B9 (HD-489 tail): ar-blk WITHOUT the A4 kernel-dispatch env ──────────────
