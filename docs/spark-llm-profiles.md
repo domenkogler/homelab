@@ -164,19 +164,43 @@ checker, the probe and the render matrix all refuse to treat them as servable).
   contract, and the never-evict prompt pin.
 - **tier 4** — certification of whatever survives; the rest is deleted.
 
+**The winner's name is `fast`, not `ar-blk` (2026-10-03, owner decision).** `spark_llm_profile` is
+`fast`, and the name was taken from the retired NVFP4 lane (now a rejected-log row, superseded by
+HD-475 if anyone ever wants that quant back). Everything above this line keeps the funnel's
+historical arm names — the reports under `spark/reports/hd489-*` are dated evidence and are not
+renamed. What `fast` renders today differs from the arm that won: pool `25 GB` (per-profile
+`pool_ceiling_bytes`, so the certified 16 GiB global still binds every other profile) and
+`max_num_seqs: 8`, both owner-tested on 2026-10-03 — **gate 4 at conc 8 is owed on that shape**
+(`spark/reports/hd489-tail-b2/` measured the 16 GB / 4-seq config).
+
 **Why the arms live on `/`**: XFS had 185 G free and holds 505 GB of certified weights plus
 two candidates nobody wants to re-download. The root partition measured 345 G free
 (2026-10-02), so `spark_models_dir_os: /opt/homelab/models` takes the ~130 GB AR-hybrid
 checkpoint and the FP8 table. **Nothing was deleted to make room**, and the gate asserts a
 150 GB floor on that partition before an `os`-rooted arm boots.
 
-**Two gates were open on purpose; one is now closed.** `spark_vllm_ultrafast_image` was empty
+**Two gates were open on purpose; both are closed now.** `spark_vllm_ultrafast_image` was empty
 until a human recorded the ID the build prints — **closed 2026-10-02**: `versions.yml:311` pins
 the built image `sha256:4900c13e…` (built from iter6c `sha256:54759ef1…` on the pinned base
-`sha256:fc120ece…`). The remaining gate is `v16b-pin`'s `never_evict_prompt`, still a
-`CHANGEME` until a human picks the substring. Both make `roles/spark-llm-profile` REFUSE the
-profile; `scripts/spark-llm-render-matrix.py` and `scripts/check_spark_llm_gate.py` print them
-as `GATED` rather than letting an authored-but-unrunnable arm read as either green or broken.
+`sha256:fc120ece…`). The other was `v16b-pin`'s `never_evict_prompt` — **closed 2026-10-03** by
+removing it as a per-arm choice altogether: `spark_llm_never_evict_prompt` in `group_vars/spark.yml`
+is now the ONE value (the operator's pi global-instructions text, inlined because the offline render
+gate mocks `lookup()` and would happily render `<secret:file>` green), aliased by **every** profile as
+`*nev`, with `spark_llm_never_evict_max_fraction` as the shared cap and `u4-pin`/`v16b-pin` keeping
+their recorded `0.03` override. Two things came out of wiring it:
+
+* the compose template passed the value as `"'" ~ prompt ~ "'"`, so **argv received the quote
+  characters inside the string** — the engine matched `'<text>'`, found nothing, and the pin was an
+  invisible no-op. It is `| to_json` now, which is also the only form that survives a multi-line
+  value in the `- {{ a }}` emission. `scripts/spark-llm-render-matrix.py` asserts the rendered
+  argument is BYTE-EQUAL to the declared text (presence was never the risk; the flag rendered).
+* what the pin is worth is still UNMEASURED — `u4-pin`/`v16b-pin` both measured a synthetic bench
+  that never engages it, so the honest claim is "authored, gated, rendering, unproven". Proof =
+  prefix-cache hits from `/metrics` across a real session, never another synthetic leg (§6 rule).
+
+Both made `roles/spark-llm-profile` REFUSE the profile; `scripts/spark-llm-render-matrix.py` and
+`scripts/check_spark_llm_gate.py` print them as `GATED` rather than letting an authored-but-unrunnable
+arm read as either green or broken.
 
 **What upstream does NOT change**: it runs `--kv-cache-dtype auto`, so `fp8` KV and `graded`
 stay blocked here, and its `gpu_mem=0.01` measures the PLE table leaving the CUDA pool — it is
