@@ -160,7 +160,12 @@ AT_REST="$RAW/atrest-${RUN_TS}-${STEP}-${SCENARIO}.txt"
     | grep -oE 'Available KV cache memory: [0-9.]+ [A-Za-z]+' | tail -1 || true
 } > "$AT_REST" 2>&1
 ENGINE_PID=$(docker inspect -f '{{.State.Pid}}' "$CONTAINER" 2>/dev/null || true)
-MEM_AT_REST=$(awk -F',' -v p="${ENGINE_PID:-0}" 'NF>=2 && $2+0>0 {t+=$2; if ($1+0==p+0) e+=$2} END{printf "%d/%d", e+0, t+0}' "$AT_REST" 2>/dev/null || echo "?")
+# HD-489 tail A1: the atrest file is `nvidia-smi --query-compute-apps=pid,used_memory`, so
+# col 1 = PID, col 2 = MiB. The old awk summed col 2 and matched col 1 against the engine PID
+# but LABELLED the pair `engine/all` — which the u2/u3/u1 reports then misread as MiB pairs and
+# turned a PID swap into a fake "+40 GB stranding". Print the columns UNDER THEIR REAL NAMES:
+# the engine row is spelled `pid <PID>` so a later reader cannot confuse the two numbers.
+MEM_AT_REST=$(awk -F',' -v p="${ENGINE_PID:-0}" 'NF>=2 && $2+0>0 {if ($1+0==p+0) e=$2} END{printf "engine_pid %d mib", e+0}' "$AT_REST" 2>/dev/null || echo "?")
 USABLE_REST=$(awk '/^usable_gib/{print $2}' "$AT_REST" 2>/dev/null || true)
 KV_AVAIL=$(grep -oE 'Available KV cache memory: .*' "$AT_REST" 2>/dev/null | tail -1 | sed 's/^Available KV cache memory: //' | tr ' ' '_' || true)
 

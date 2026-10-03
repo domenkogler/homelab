@@ -1,0 +1,5 @@
+endpoint http://localhost:8000/v1  bearer len=32 (value not printed)
+  models: ['spark/qwen3.8-flash-next']
+  PASS  ctx 262144: http=200 prompt=258863 (asked≈262144, body 1.1 MB) completion=24 134.2s 
+
+1/1 probes passed

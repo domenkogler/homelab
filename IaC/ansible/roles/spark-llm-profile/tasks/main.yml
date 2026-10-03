@@ -173,7 +173,10 @@
     that:
       - spark_llm.kv_cache_dtype in spark_llm_kv_bytes_per_token
       - (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | int) >= (spark_llm.max_model_len | int)
-      - (spark_llm.kv_cache_memory | int) <= (spark_llm_pool_ceiling_bytes | int)
+      # Per-profile ceiling (HD-489 tail): a profile may declare its OWN pool_ceiling_bytes
+      # to test a larger pool (e.g. fast's 20e9) WITHOUT moving the certified global 16 GiB
+      # that still gates every other profile. The global remains the default + the cert.
+      - (spark_llm.kv_cache_memory | int) <= (spark_llm.pool_ceiling_bytes | default(spark_llm_pool_ceiling_bytes) | int)
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' KV math does not close:
       pool={{ spark_llm.kv_cache_memory }} B at dtype={{ spark_llm.kv_cache_dtype }}
@@ -202,7 +205,9 @@
     that:
       - spark_llm.fixed_cost_bytes is defined
       - (spark_llm.fixed_cost_bytes | int) > 0
-      - (spark_llm.fixed_cost_bytes | int) + (spark_llm.kv_cache_memory | int) <= (spark_llm_device_hold_ceiling_bytes | int)
+      # Per-profile host floor: a profile may declare its OWN device_hold_ceiling_bytes;
+      # the certified global is the default. (HD-489 tail: each profile is independent.)
+      - (spark_llm.fixed_cost_bytes | int) + (spark_llm.kv_cache_memory | int) <= (spark_llm.device_hold_ceiling_bytes | default(spark_llm_device_hold_ceiling_bytes) | int)
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' does not leave the certified host floor:
       fixed_cost={{ spark_llm.fixed_cost_bytes | default('<unset>') }} B +

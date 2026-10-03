@@ -1,0 +1,5 @@
+endpoint http://localhost:8000/v1  bearer len=32 (value not printed)
+  models: ['spark/qwen3.8-flash-next']
+  PASS  concurrency 4: 200s=4/4 wall=2.7s lat min/med/max=2.6/2.6/2.7s
+
+1/1 probes passed

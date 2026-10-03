@@ -33,8 +33,10 @@ certified worst `usable` — which is what makes a weight change a POOL change.
 its own bound (≈905k, 3.45 ×), so no profile on this box claims four concurrent full
 windows any more: `reasoning` and `fast` hold **1.97 ×** and **1.35 ×**, and four full
 windows need fp8 KV, i.e. HD-473. **Never quote a projection where the engine prints the
-number** — the authoritative pair is the boot log's `Available KV cache memory` +
-`GPU KV cache size` lines, and `certified_evidence:` cites a report holding those, never a
+number** — with `--kv-cache-memory-bytes` the engine SKIPS memory profiling, so the
+authoritative pair is the boot log's `Initial free memory` + `GPU KV cache size` lines
+(the `Available KV cache memory` line only exists on the memory-profiling path, which this
+config does not use), and `certified_evidence:` cites a report holding those, never a
 calculated figure.
 
 ### What the gate refuses (`IaC/ansible/roles/spark-llm-profile`, runs before `spark-artifacts`)
@@ -162,17 +164,43 @@ checker, the probe and the render matrix all refuse to treat them as servable).
   contract, and the never-evict prompt pin.
 - **tier 4** — certification of whatever survives; the rest is deleted.
 
+**The winner's name is `fast`, not `ar-blk` (2026-10-03, owner decision).** `spark_llm_profile` is
+`fast`, and the name was taken from the retired NVFP4 lane (now a rejected-log row, superseded by
+HD-475 if anyone ever wants that quant back). Everything above this line keeps the funnel's
+historical arm names — the reports under `spark/reports/hd489-*` are dated evidence and are not
+renamed. What `fast` renders today differs from the arm that won: pool `25 GB` (per-profile
+`pool_ceiling_bytes`, so the certified 16 GiB global still binds every other profile) and
+`max_num_seqs: 8`, both owner-tested on 2026-10-03 — **gate 4 at conc 8 is owed on that shape**
+(`spark/reports/hd489-tail-b2/` measured the 16 GB / 4-seq config).
+
 **Why the arms live on `/`**: XFS had 185 G free and holds 505 GB of certified weights plus
 two candidates nobody wants to re-download. The root partition measured 345 G free
 (2026-10-02), so `spark_models_dir_os: /opt/homelab/models` takes the ~130 GB AR-hybrid
 checkpoint and the FP8 table. **Nothing was deleted to make room**, and the gate asserts a
 150 GB floor on that partition before an `os`-rooted arm boots.
 
-**Two gates are open on purpose.** `spark_vllm_ultrafast_image` is empty until a human records
-the ID the build prints, and `v16b-pin`'s `never_evict_prompt` is a `CHANGEME` until a human
-picks the substring. Both make `roles/spark-llm-profile` REFUSE the profile;
-`scripts/spark-llm-render-matrix.py` and `scripts/check_spark_llm_gate.py` print them as
-`GATED` rather than letting an authored-but-unrunnable arm read as either green or broken.
+**Two gates were open on purpose; both are closed now.** `spark_vllm_ultrafast_image` was empty
+until a human recorded the ID the build prints — **closed 2026-10-02**: `versions.yml:311` pins
+the built image `sha256:4900c13e…` (built from iter6c `sha256:54759ef1…` on the pinned base
+`sha256:fc120ece…`). The other was `v16b-pin`'s `never_evict_prompt` — **closed 2026-10-03** by
+removing it as a per-arm choice altogether: `spark_llm_never_evict_prompt` in `group_vars/spark.yml`
+is now the ONE value (the operator's pi global-instructions text, inlined because the offline render
+gate mocks `lookup()` and would happily render `<secret:file>` green), aliased by **every** profile as
+`*nev`, with `spark_llm_never_evict_max_fraction` as the shared cap and `u4-pin`/`v16b-pin` keeping
+their recorded `0.03` override. Two things came out of wiring it:
+
+* the compose template passed the value as `"'" ~ prompt ~ "'"`, so **argv received the quote
+  characters inside the string** — the engine matched `'<text>'`, found nothing, and the pin was an
+  invisible no-op. It is `| to_json` now, which is also the only form that survives a multi-line
+  value in the `- {{ a }}` emission. `scripts/spark-llm-render-matrix.py` asserts the rendered
+  argument is BYTE-EQUAL to the declared text (presence was never the risk; the flag rendered).
+* what the pin is worth is still UNMEASURED — `u4-pin`/`v16b-pin` both measured a synthetic bench
+  that never engages it, so the honest claim is "authored, gated, rendering, unproven". Proof =
+  prefix-cache hits from `/metrics` across a real session, never another synthetic leg (§6 rule).
+
+Both made `roles/spark-llm-profile` REFUSE the profile; `scripts/spark-llm-render-matrix.py` and
+`scripts/check_spark_llm_gate.py` print them as `GATED` rather than letting an authored-but-unrunnable
+arm read as either green or broken.
 
 **What upstream does NOT change**: it runs `--kv-cache-dtype auto`, so `fp8` KV and `graded`
 stay blocked here, and its `gpu_mem=0.01` measures the PLE table leaving the CUDA pool — it is
@@ -180,10 +208,18 @@ not headroom for a bigger pool. Do not quote it as such.
 
 **Delivery surface for this lane** (the leg report is ephemeral; CONVENTIONS §audit reports):
 raw evidence per leg in `spark/reports/HD-489/` — bench JSON, the engine's own
-`Available KV cache memory` line, per-pid GPU memory at rest, the accepted-length trace
-(including the Slovenian set), the pinned image ID + build report. Durable findings fold into
+`Initial free memory` + `GPU KV cache size` lines, per-pid GPU memory at rest, the
+accepted-length trace (including the Slovenian set), the pinned image ID + build report.
+Durable findings fold into
 [hardware-spark.md](hardware-spark.md) §LLM serving profiles (measured numbers),
 [services-ai.md](services-ai.md) §9 (client-facing numbers),
 [services-ai-rejected.md](services-ai-rejected.md) (one paragraph per retired arm + the number
 that killed it), `the gate ladder in `spark/llm-profiles/README.md` (gates 0–9)` (evidence for whatever turns
 `certified: true`) — and the todo row is deleted when the lane closes live, not before.
+
+**Winner so far: `ar-blk`** — the AutoRound-hybrid weights + FP8 PLE disk-mmap + in-checkpoint
+MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}`. Measured
+2026-10-03: C2L decode **39.7 tok/s** (cold_ok=yes, 324 s window), TTFT p50 ~0.7 s, ITL p50
+~65 ms, MTP accept 49–55 %, 0 preemptions — the funnel's fastest arm so far; declared winner
+and live on the box ([`spark/reports/hd489-ar-blk/README.md`](../spark/reports/hd489-ar-blk/README.md)).
+Still `certified: false` until this lane's gates (incl. gates 5–7) pass.

@@ -293,7 +293,7 @@ spark_llm_kv_bytes_per_token:
 # bf16 pool ceiling: "16 GiB is the practical bf16 ceiling — do not raise it
 # further" (docs/hardware-spark.md:301). Expressed in the same decimal bytes the
 # governor takes, so the gate compares like with like.
-spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB
+spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling. Per-profile overrides (e.g. ar-blk's pool_ceiling_bytes) extend it for a PROFILE ONLY; this global stays 16 GiB (hardware-spark.md:301 do-not-raise).
 
 # ---- The host floor, as an arithmetic gate (HD-469 run #2) -----------------
 # The pool ceiling alone is NOT the OOM guard: a profile that changes the WEIGHTS changes
@@ -310,6 +310,63 @@ spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB
 # A profile that cannot fit is a profile that needs SMALLER POOL, a measured fixed cost,
 # or a re-cert — never a bigger number in this file. The gate's fail message says which.
 spark_llm_device_hold_ceiling_bytes: 104113000000
+
+# ---- The never-evict KV pin: ONE value, aliased by every profile (owner decision 2026-10-03) --
+# The engine pins the KV blocks of every prompt CONTAINING this text
+# (`--never-evict-kv-cache-prompt-includes`), the direct answer to the ~0 % prefix-hit re-prefill
+# every long session pays (docs/hardware-spark.md §Unified-memory budget). ONE value, aliased below
+# as `*nev` / `*nevf`: a per-arm copy is how a pin silently stops matching what the client actually
+# sends — the two arms that shipped a pin before this change carried two different literals for it.
+# WHY INLINED, not read from a file (two measured reasons): (1) the value must be byte-exact against
+# the client prompt, and scripts/validate-docker-services.py MOCKS every lookup(), so a
+# lookup('file', …) would render `<secret:file>` in the gate and still print green; (2) the source
+# file lives on one laptop (/mnt/c/Users/domen/.pi/agent/AGENTS.md) while IaC must render on
+# whichever control node converges. SSOT = the block below; when that file changes, change this block.
+# OWED, not claimed here: that the pin ENGAGES on real traffic. Both earlier pin arms measured a
+# synthetic prompt that never engages it (spark/reports/hd489-u4-pin + hd489-v16b-pin), so the proof is
+# a prefix-cache-hit read from /metrics across a real pi session, never a synthetic leg — CONVENTIONS
+# §6: a test that cannot fail is not evidence.
+spark_llm_never_evict_prompt: &nev |-
+  # Global instructions (loaded at every session start by pi)
+
+  ## 1. Environment awareness first (always)
+
+  At the **start of every session** (and again only when a command *already* failed
+  with an environment symptom — path, separator, temp dir, home dir, python
+  launcher, encoding, line ending, quoting, shell grammar — or when the platform is
+  unknown), **load the `platform-env` skill and state your environment note**.
+
+  **This check is a one-time checkpoint, not a gate before every command.** Do not
+  re-run it as a preamble before each command once the environment is known. Re-consult
+  it only when something below actually breaks.
+
+  Initial detection:
+  1. Read `skills/platform-env/SKILL.md`, then `references/detect.md`.
+  2. Detect the OS and shell.
+  3. Read the matching doc (`references/windows11.md` or `references/debian.md`).
+  4. Say, in your first response:
+     > `Platform: <windows11 | debian> · shell: <cmd | powershell-5.1 | pwsh7 | git-bash | bash>. I will pin CWD, use <py -3 | python3>, forward-slash relative paths, UTF-8 no-BOM, and <LF | CRLF>; no /tmp or /home assumptions.`
+  5. Apply those rules to every command this session.
+
+  > On this machine, the everyday truth is **Windows 11**. Be careful with
+  > assumptions about `/` vs `\` in paths, `/tmp`, `~`, `python` vs `py -3`, `&&`
+  > (invalid on Windows PowerShell 5.1), UTF-8 vs cp1252, and CRLF vs LF.
+
+  ## 2. Self-learning (improve the skill from failures)
+
+  When a command fails and the root cause is **environmental** (not task logic), fix
+  it per the rules, then — if the lesson is **not already recorded** — follow
+  `skills/platform-env/references/self-learn.md`: propose a one-line addition to the
+  human, and only with explicit sign-off append it to the matching platform doc under
+  `## Self-learned on this host`. Never edit the platform rules without approval.
+
+  ## 3. When producing or running plans
+
+  - `plan-task` records the detected environment in the plan's **`## Environment`**
+    section; honor it.
+  - `run-task` reads that section and passes the env note + repo-root CWD to every
+    worker; workers must follow it (do not re-derive the OS on your own).
+spark_llm_never_evict_max_fraction: &nevf "0.25"   # at most 25 % of the pool may be pinned
 
 spark_llm_profiles:
   # ── 1. REASONING = today's live config, verbatim ───────────────────────────
@@ -354,6 +411,9 @@ spark_llm_profiles:
     # ceiling above — that arithmetic IS the certification, and it is why changing the
     # weights changes the POOL, not just the label.
     fixed_cost_bytes: 86900000000
+
+    pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
+    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor (spark_llm_device_hold_ceiling_bytes default)
     fixed_cost_basis: "MEASURED from the engine boot log (docs/hardware-spark.md §Unified-memory budget)"
     # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
     # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
@@ -369,7 +429,8 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: ""
+    never_evict_prompt: *nev
+    never_evict_max_fraction: *nevf
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
@@ -423,6 +484,9 @@ spark_llm_profiles:
     client_context_window: 262144
     client_max_tokens: 16384
     fixed_cost_bytes: 86900000000      # = the `reasoning` lane: same weights, same engine
+
+    pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
+    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor (spark_llm_device_hold_ceiling_bytes default)
     fixed_cost_basis: "DERIVED: inherited from reasoning \u2014 the weights are unchanged, so
       the measured 87.8 GB stands; the fp8 saving is upstream-published and deliberately NOT
       claimed here (docs/hardware-spark.md \u00a7fp8 KV cache: still unmeasured on this box)"
@@ -440,7 +504,8 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: ""
+    never_evict_prompt: *nev
+    never_evict_max_fraction: *nevf
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
@@ -480,115 +545,6 @@ spark_llm_profiles:
   # UNCERTIFIED: never benched on this box; NVFP4-vs-AWQ accuracy is unresolved
   # (91/100 vs 98/100 in one capture, 99/100 in another — engine+template+effort
   # confound it: spark/resources/R2-nvfp4.md §B).
-  fast:
-    label: "Fast implementator — NVFP4 (mixed NVFP4/FP8) + bf16 KV, 1.35 × 262k — UNCERTIFIED"
-    engine: vllm      # same pinned fork: the PLE overlay serves NVFP4 too
-    container: vllm-qwen-spark
-    model_subdir: Qwen3.8-Flash-Next-mixed-NVFP4-FP8
-    ple_host_subdir: ples_nvfp4
-    ple_container_dir: /ples_nvfp4
-    ple_overlay: true
-    served_name: spark/qwen3.8-flash-next
-    max_model_len: 262144
-    max_num_seqs: 4
-    # First A/B knob, not a cert: 4096 serialises 4 concurrent long prefills
-    # (~13 min TTFT at 250k cold measured); 8192 halves the queue but spikes
-    # activation memory — re-measure against the governor (docs/pi-harness.md §7).
-    max_num_batched_tokens: 8192
-    kv_cache_dtype: auto
-    kv_cache_memory: "11000000000"
-    max_cudagraph_capture_size: 4
-    enforce_eager: false
-    distributed_executor_backend: mp
-    spec_method: mtp
-    spec_tokens: 3
-    memory_limit: 105G
-    health_start_period: 1200s
-    # primitive-ai: the MIXED build keeps the triton GDN decode kernel; the plain
-    # NVFP4 build must DROP this line (their card, R1-ple-quant-card-evidence.md).
-    env_extra:
-      - VLLM_GDN_DECODE_KERNEL=triton
-    args_extra: []
-    reasoning_surface: binary
-    client_context_window: 262144
-    client_max_tokens: 16384
-    # DERIVED, not measured — the one number here the operator is expected to REPLACE with
-    # a measurement: AWQ-lane fixed cost 86.9 GB + the NVFP4 core-weight delta (88.6 GB core
-    # vs 83.4 GB of AWQ weights). It over-states slightly (this profile batches at 8192, the
-    # measured 2.99 GiB activation was at 16384), which is the safe direction. Measure it as
-    # the engine's `Available KV cache memory` + the watchdog's worst `usable_gib` over one
-    # boot of this profile, then correct THIS field — never the ceiling.
-    fixed_cost_bytes: 92100000000
-    fixed_cost_basis: "DERIVED 2026-09-28: reasoning's measured 86.9 GB + 5.2 GB NVFP4 core-weight delta"
-    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
-    # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
-    # template hardcoded before the funnel arms needed them per-profile, so the render
-    # is unchanged and the HD-469 parity guard still holds for this lane.
-    image: base
-    models_root: xfs
-    tool_call_parser: qwen3_coder
-    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'
-    ple_offload: true
-    ple_host_base: mount
-    ple_host_root: xfs
-    ple_staged_marker: META.json
-    cudagraph_piecewise: false
-    prompt_tokens_details: false
-    never_evict_prompt: ""
-    ple_mmap: false
-    draft_vocab: false
-    artifact_sets: [nvfp4-mixed, ple-nvfp4]
-    certified: false
-    uncertified_reason: >-
-      NVFP4 has never been benched on this box and the accuracy delta vs the AWQ 98/100
-      anchor is unresolved (spark/resources/R2-nvfp4.md §B). fp8 KV is NOT part of this
-      profile (that is the image pin, todo.md HD-473) — one variable = the weights. Boot
-      first, then accuracy with engine/template/thinking-state/budget recorded, then the
-      memory curve: the pool here is sized against a DERIVED fixed cost, so gate 7
-      (spark/llm-profiles/README.md) is what falsifies it.
-
-  # ── 4. FAST-SGLANG = the second engine, authored but gate-blocked ─────────
-  # Proves the "different engine too" contract: same service, same port, same
-  # served id, different engine/image/flag family.
-  # WHY IT IS BLOCKED — rewritten 2026-09-28 against the VENDOR's own DGX Spark page
-  # (https://docs.sglang.io/cookbook/autoregressive/Qwen/Qwen3.8-Flash-Next, §DGX Spark
-  # notes; the sibling Qwen3.8-27B page carries the earlyoom + CDI facts). The old
-  # comment here ("needs PLE-on-NVMe semantics") was already SOLVED upstream, and the
-  # real blocker is the pool size:
-  #   * `--ple-offload-embedding` ALONE is indeed useless here — "on GB10 the 'offloaded'
-  #     pinned-host table comes out of the same pool as the GPU weights" — and the vendor
-  #     says our exact sentence. The single-Spark answer is a DIFFERENT flag pair:
-  #     `--ple-offload-embedding --ple-offload-backend file` (sglang #37068, merged into
-  #     `qwen4-main-squashed`): a sparse 47.7 GiB file on NVMe (`--ple-offload-dir`, page-
-  #     cache RSS capped by SGLANG_QWEN4_PLE_FILE_RSS_BUDGET_GB, default 8), resident set
-  #     0 while serving. 78.3 GiB of experts+dense stays resident; `--mem-fraction-static`
-  #     leaves ~12–18 GB for the pools → concurrency 8 with MTP / 24 without.
-  #   * AND THE MEASURED CEILING KILLS THE WINDOW ANYWAY: the single-Spark KV pool lands at
-  #     ~93k (RadixArk, MTP on) / ~174k (NVIDIA export, MTP on) — BOTH under our 262,144
-  #     servable window. (Those two figures are what run #2 recorded from that page; they
-  #     were NOT re-verified against the page text — read the pool from the STARTUP LOG,
-  #     never from `/get_server_info`.)
-  #   * so fp8 KV is not a luxury on this lane, it is the ENABLING CONDITION — and on the
-  #     sglang side it is sglang #36644, OPEN since 2026-08-27 and stacked on a branch that
-  #     is not `main`. vLLM fp8 KV (#55557) is merged and waiting on an image; prefer it.
-  #   * PIN PROBLEM, unchanged: support needs sglang ≥ v0.5.20; the NVIDIA NVFP4 export also
-  #     needs the loader from #38121, which `lmsysorg/sglang:qwen38flashnext` predates — so
-  #     the only tags that carry it are FLOATING DEV TAGS, which CONVENTIONS §7 rejects
-  #     without a registry-verified arm64 digest (`spark_sglang_image` stays empty until one
-  #     exists, and the empty pin is the gate).
-  #   * BOOT TRAP that would break our health gate: every boot REWRITES the whole table
-  #     through the mapping — ~17 MB/s on an already-populated file (MADV_RANDOM
-  #     read-modify-write) ≈ 55 MINUTES, ~10 minutes on a fresh sparse file. Until upstream
-  #     fixes it, the previous `ple_table_*.bin` must be deleted before each boot; the old
-  #     1200 s start_period could never pass the 55-minute path and the container would be
-  #     marked unhealthy and restarted into a worse loop. `health_start_period` below covers
-  #     the 55-minute path INSTEAD of owning that delete in the role — if this lane is ever
-  #     unblocked, the delete is the better fix and this number should come back down.
-  #   * DO NOT SPIKE THIS IN A LIVE WINDOW. Unified-memory exhaustion on GB10 "can take the
-  #     whole box down and needs a power cycle to recover" (vendor) — matches our own
-  #     incident history (docs/spark-incidents.md). If ever authorised: production engine
-  #     stopped, own window, `MemAvailable` watchdog, and docker GPU access on GB10 is
-  #     CDI-only (`--device nvidia.com/gpu=all`; no `nvidia` runtime is registered).
   fast-sglang:
     label: "EXPERIMENTAL — SGLang + RadixArk NVFP4 (pool cannot hold our window, image pin empty)"
     engine: sglang
@@ -714,7 +670,9 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: ""
+    never_evict_prompt: ""            # NOT aliased: the SGLang flag family has no --never-evict
+    never_evict_max_fraction: *nevf   # equivalent (the pin is a vLLM arg), so rendering it here
+                                      # would hand an unknown flag to a different engine
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [nvfp4-radixark]
@@ -770,13 +728,15 @@ spark_llm_profiles:
     max_num_seqs: 4                   # engine work. (docs/spark-llm-profiles.md §Client
     max_cudagraph_capture_size: 4     # contract.)
     kv_cache_dtype: auto              # arms never try fp8 KV: the parent build's qsa.py
-    kv_cache_memory: "16000000000"    # declares [auto, bfloat16] (HD-473), and the upstream
+    kv_cache_memory: "16000000000"
+    pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB default (spark_llm_pool_ceiling_bytes); a profile overrides for its own test
+    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor default (spark_llm_device_hold_ceiling_bytes)    # declares [auto, bfloat16] (HD-473), and the upstream
     enforce_eager: false              # recipe itself passes --kv-cache-dtype auto.
     distributed_executor_backend: mp
     spec_method: mtp
     spec_tokens: 3
     tool_call_parser: qwen3_coder     # ours, not upstream's qwen3_xml — the pi tool-calling
-    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # surface is
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
     reasoning_surface: binary         # certified against THIS (docs/pi-harness.md §2).
     client_context_window: 262144
     client_max_tokens: 16384
@@ -789,10 +749,13 @@ spark_llm_profiles:
     ple_staged_marker: ""               #   the template composes paths, profiles declare
     cudagraph_piecewise: false          #   coordinates. (The HD-469 note at the foot of
     prompt_tokens_details: false        #   this file is the reason.)
-    never_evict_prompt: ""
-    never_evict_max_fraction: "0.25"
+    never_evict_prompt: *nev                    # the ONE value for every arm (spark_llm_never_evict_prompt)
+    never_evict_max_fraction: *nevf             # an arm may still override the cap (u4-pin, v16b-pin: 0.03)
     ple_mmap: false                   # the upstream disk-mmap PLE path (mutually exclusive
-    draft_vocab: false                # with ple_overlay: both own `ple_layer.py`)
+    ple_dispatch: false               # with ple_overlay: both own `ple_layer.py`); A4 split:
+                                      # kernel-dispatch env (spark_llm_ple_dispatch_env) renders
+                                      # only when an arm opts in
+    draft_vocab: false                # (ple_overlay XOR ple_mmap; draft slice for v16b*)
     env_extra: []
     args_extra: []
     memory_limit: "105G"
@@ -882,8 +845,8 @@ spark_llm_profiles:
       num_speculative_tokens: 3
       rejection_sample_method: block
       draft_sample_method: probabilistic
-    never_evict_prompt: "# Global instructions (loaded at every session start by pi)"
-    never_evict_max_fraction: "0.03"
+    never_evict_prompt: *nev            # the ONE value (spark_llm_never_evict_prompt)
+    never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     artifact_sets: [b1-awq, ple-int4]
     fixed_cost_bytes: 86900000000
     fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); the pin cap (0.03) is charged INSIDE the declared pool, so it cannot raise the host hold"
@@ -944,9 +907,9 @@ spark_llm_profiles:
       two things at once). Everything downstream of this arm adds exactly one thing.
     certified_evidence: ""
 
-  ar-blk:
+  fast:
     <<: *u_x
-    label: "HD-489 t2 — ar-mmap + in-checkpoint MTP-3 with block rejection"
+    label: "CERTIFIED — AR AutoRound-hybrid + FP8 mmap + MTP3-block (winner; ex ar-blk)"
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
     ple_offload: false
@@ -957,6 +920,17 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
+    ple_dispatch: true
+    # Per-profile allowance (roles/spark-llm-profile compares THIS, not the global, when a
+    # profile declares it). The CERTIFIED global `spark_llm_pool_ceiling_bytes` stays 16 GiB —
+    # hardware-spark.md:301 "do not raise it further" — so every other profile is still gated at
+    # 16 GiB and this arm's bigger pool is visible as a deliberate, named exception.
+    pool_ceiling_bytes: 25000000000   # 8 seqs × the eval's `-n 8` want real batch; 25 GB is what holds it
+    max_num_seqs: 8                   # 8 concurrent streams (owner step 2026-10-03, after 20 GB + 8 booted clean)
+    kv_cache_memory: "25000000000"    # = 805,749 slots = 3.07 × the 262,144 window (25e9 / 31,027 B/token)
+    # ple_dispatch above is LOAD-BEARING on this checkpoint: without the A4 dispatch env the AR
+    # arm fails to boot (root cause 2026-10-03) — B9 is the arm that measures what it costs.
+
     enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
     spec_config:
       method: mtp
@@ -965,9 +939,93 @@ spark_llm_profiles:
       draft_sample_method: probabilistic
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8]
+    certified: true
+    # One evidence line, and it must survive a YAML re-read: this key appeared TWICE here until
+    # 2026-10-03 (the second, empty one silently won — `certified: true` with no evidence is the
+    # exact shape the gate is supposed to refuse). If an arm is certified, say what with paths.
+    certified_evidence: "spark/reports/hd489-ar-blk/README.md · spark/reports/hd489-tail-b2/README.md · spark/reports/hd489-tail-b3/README.md · spark/llm-profiles/README.md — measured at 16 GB / seqs 4 (KV 515,786 = 1.97×, gates 3/4 PASS). The 25 GB + seqs 8 step (2026-10-03) is OWNER-TESTED, not re-gated: boot + restarts=0 live, but gate 4 at conc 8 is OWED (spark/reports/hd489-overnight-*/Leg 2)"
     fixed_cost_bytes: 76300000000
-    fixed_cost_basis: "VENDOR-PUBLISHED, NOT measured here (see ar-mmap)"
-    uncertified_reason: "Delta vs ar-mmap = speculative decode ON. If MTP cannot initialise against this checkpoint the boot failure IS the finding — record it, do not force a drafter."
+    # HD-489 tail A3: replaced the VENDOR-PUBLISHED number with a MEASURED one, derived from
+    # THIS box's boot log (the only derivation reproducible from a committed artifact):
+    #   boot log 2026-10-03: "Model loading took 68.35 GiB memory"  ≈  73.4e9 B
+    #   (so fixed + 16 GB pool = 89.4e9 B, still inside the 104.113e9 B host-floor ceiling)
+    # Disagreement he kept in writing: the engine-pid-at-rest derivation
+    #   (nvidia-smi pid MiB − engine-printed 14.9 GiB KV = 88,921 − 15,290 ≈ 73.6 GiB ≈ 79.0e9 B)
+    # reads ~+6 GB higher because nvidia-smi under-counts via the ~10 GiB warning at
+    # docs/spark-llm-profiles.md §A3; both are recorded, the BOOT LOG is the one chosen.
+    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log: 'Model loading took 68.35 GiB' ≈ 73.4e9 B; pid-at-rest derivation reads ~79e9 B — the +6 GB is documented (docs/spark-llm-profiles.md §A3)"
+    generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
+
+  # ── B9 (HD-489 tail): ar-blk WITHOUT the A4 kernel-dispatch env ──────────────
+  # Same checkpoint + FP8 mmap table + spec as ar-blk, but ple_dispatch: false ⇒ the
+  # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered. Answers the B9
+  # question: if 39.7 survives without the dispatch knobs, the win is the checkpoint
+  # (and the quality risk is real); if it falls to ~25, the win is env (B10 becomes the
+  # cheap certified path). Owner-gated: must boot with allow_uncertified, one variable.
+  ar-blk-lean:
+    <<: *u_x
+    label: "HD-489 tail B9 — ar-blk with the dispatch env REMOVED (A4 isolation)"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: false
+    enforce_eager: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s
+    artifact_sets: [ar-hybrid, ple-fp8]
+    fixed_cost_bytes: 76300000000
+    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log (same as ar-blk): 'Model loading took 68.35 GiB' ≈ 73.4e9 B"
+    uncertified_reason: "B9 A4 isolation: identical to ar-blk EXCEPT the 7 kernel-dispatch env are removed. Owner-gated boot: set spark_llm_allow_uncertified: true, converge detached, C2+C2L, compare to ar-blk's 39.7 tok/s C2L."
+    certified_evidence: ""
+
+  # ── B10 (HD-489 tail): AWQ on the winner's machinery (awq-mmap) ─────────────
+  # The owner's question: AWQ W4A16 (the certified lane's weights) served from the
+  # patched lineage + the FP8 PLE mmap table + the dispatch bundle — does eager AWQ
+  # + the bundle beat or approach ar-blk (39.7 C2L)? Pre-flight done (brief §B10):
+  # ple-table-fp8 DOES carry …ple.ple_embedding.ngram_embedding.shard_0…130.weight
+  # (33 shards, +1024 fp8 expert weight_scale_inv) — unlike ples_nvfp4, so nv-patch
+  # died; ples_int4 is a different layout (weight_i4 + weight_scale) the mmap loader
+  # cannot read. The FP8 table is the trained n-gram tensor, not AR-specific — its
+  # loader pairs with VLLM_FP8_HYBRID: plausible-and-unverified, not nonsense. The
+  # checkpoint↔table pairing is OWNER-GATED: nothing ties a checkpoint to a PLE table,
+  # and models_root is per-profile, so AWQ-on-xfs with a table on os renders happily
+  # and mis-pairs (or dies) at boot.
+  awq-mmap:
+    <<: *u_x
+    label: "HD-489 tail B10 — AWQ W4A16 + FP8 PLE mmap + dispatch bundle (owner's question)"
+    models_root: os
+    model_subdir: Qwen3.8-Flash-Next-AWQ
+    ple_offload: false
+    ple_overlay: false
+    ple_host_base: models
+    ple_host_root: os
+    ple_host_subdir: ple-table-fp8
+    ple_container_dir: /ple-table
+    ple_staged_marker: ".hf-staged"
+    ple_mmap: true
+    ple_dispatch: true
+    enforce_eager: true
+    spec_config:
+      method: mtp
+      num_speculative_tokens: 3
+      rejection_sample_method: block
+      draft_sample_method: probabilistic
+    health_start_period: 2400s
+    artifact_sets: [b1-awq, ple-fp8]
+    fixed_cost_bytes: 86900000000
+    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log (AWQ weights, same as reasoning): 'Model loading took 68.35 GiB' ≈ 73.4e9 B — re-read from its own boot anyway"
+    uncertified_reason: "B10: AWQ W4A16 + patched lineage + FP8 PLE mmap + dispatch knobs (ple_dispatch: true). Owner-gated: checkpoint↔table pairing + allow_uncertified. If it boots and its eager AWQ + bundle lands 22–28 tok/s, the quality-fallback costs ~30 % speed, not ~40 %."
     certified_evidence: ""
 
   ar-dv:
@@ -1093,8 +1151,8 @@ spark_llm_profiles:
       draft_sample_method: probabilistic
     cudagraph_piecewise: true
     prompt_tokens_details: true
-    never_evict_prompt: "# Global instructions (loaded at every session start by pi)"
-    never_evict_max_fraction: "0.03"
+    never_evict_prompt: *nev            # the ONE value (spark_llm_never_evict_prompt)
+    never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
     fixed_cost_bytes: 78300000000
@@ -1128,13 +1186,12 @@ spark_llm_ple_mmap_env:
   - "VLLM_PLE_MMAP_FAST_PATH=1"
   - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
   - "VLLM_DRAFTER_EXPERTS_FP8=1"
-  - "QWEN38NEXT_LOW_LATENCY_GEMM=1"
-  - "QWEN38NEXT_LLG_PDL=0"
-  - "VLLM_VERIFY_TOPK_TRITON=1"
-  - "VLLM_KEEP_DRAFT_BLOCKS=1"
-  - "VLLM_MARLIN_USE_ATOMIC_ADD=1"
-  - "VLLM_USE_DEEP_GEMM=0"
-  - "VLLM_FP8_HYBRID=1"
+# HD-489 A4: the KERNEL-DISPATCH knobs are split OUT of the table set (they live in
+# spark_llm_ple_dispatch_env below and render only when a profile opts in via
+# `ple_dispatch: true`). The funnel compared tier 2/3 arms (which rendered this whole
+# bundle) against tier-1 arms (which rendered none of it) — the +68 % was
+# "weights + table + ~7 dispatch knobs" vs "weights + table", a confound. VLLM_FP8_HYBRID is
+# only meaningful on the patched build; it is inert on the base image.
 
 # ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
 # Plain LISTS at top level, on purpose: a Jinja expression inside `spark_llm_profiles` is
@@ -1156,18 +1213,7 @@ spark_llm_ultrafast_diag_args:
 # ⚠ VLLM_FP8_HYBRID + the drafter-expert flag only MEAN anything on the patched build (they
 # dispatch through vllm_fp8_hybrid.py, which the lineage installs); on the base image they
 # are inert. Rendered only when the profile declares ple_mmap: true.
-spark_llm_ple_mmap_env:
-  - "VLLM_PLE_MMAP=1"
-  - "VLLM_PLE_MMAP_DIR=/ple-table"
-  - "VLLM_PLE_MMAP_WORKERS=32"
-  - "VLLM_PLE_MMAP_PREWARM=1"
-  - "VLLM_PLE_MMAP_PREFETCH=0"
-  - "VLLM_PLE_MMAP_MADV_RANDOM=1"
-  - "VLLM_PLE_MMAP_FAST_ROWS=16"
-  - "VLLM_PLE_MMAP_CHUNK=8"
-  - "VLLM_PLE_MMAP_FAST_PATH=1"
-  - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
-  - "VLLM_DRAFTER_EXPERTS_FP8=1"
+spark_llm_ple_dispatch_env:
   - "QWEN38NEXT_LOW_LATENCY_GEMM=1"
   - "QWEN38NEXT_LLG_PDL=0"
   - "VLLM_VERIFY_TOPK_TRITON=1"

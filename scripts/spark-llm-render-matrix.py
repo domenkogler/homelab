@@ -144,7 +144,10 @@ def main():
     profiles = [k for k in cat["spark_llm_profiles"] if not k.startswith("_")]
 
     if dump:
-        print(render(env, ctx, dump))
+        # render() needs the catalogue too (it resolves the profile's own keys into the flat
+        # spark_vllm_* aliases the template reads) — `--dump` shipped calling it without `cat`,
+        # so the mode that exists precisely to inspect one arm died on a TypeError.
+        print(render(env, ctx, dump, cat))
         return 0
 
     bad = []
@@ -190,6 +193,14 @@ def main():
             bad.append(f"{name}: prompt_tokens_details: true but the flag is absent")
         if want.get("never_evict_prompt") and not f["evict"]:
             bad.append(f"{name}: never_evict_prompt set but the flags are absent")
+        if want.get("never_evict_prompt") and f["evict_arg"] != str(want["never_evict_prompt"]):
+            # The bug this catches: the flag rendering PRESENT (the check above stays green)
+            # while the value reaches argv altered — hand-quoted (`'<text>'`) or re-wrapped —
+            # so the engine matches nothing and the pin is an invisible no-op. Byte-equality,
+            # not presence, is what a substring-pin lives on (CONVENTIONS §6).
+            got, wantv = f["evict_arg"], str(want["never_evict_prompt"])
+            bad.append(f"{name}: rendered pin != declared never_evict_prompt "
+                       f"(len {len(got)} vs {len(wantv)}, head {got[:24]!r} vs {wantv[:24]!r})")
         eng = want.get("engine", "vllm")
         ple = (f["ple"].split(":")[0] if f["ple"] else "")[len("/mnt/spark_nvme"):][:34] or "-"
         print(f"{name:11} {('ultrafast' if want.get('image')=='ultrafast' else want.get('image','base')):11} "
@@ -224,9 +235,10 @@ def main():
     if strict:
         print("\n--strict: every profile renders, parses, and carries a non-empty image pin.")
     else:
-        print("\nAll profiles render and parse. Empty `ultrafast` image pins are the DESIGNED "
-              "state until the built image ID lands in versions.yml (roles/spark-llm-profile "
-              "refuses those profiles until then).")
+        print("\nAll profiles render and parse.")
+        print("The `ultrafast` image pin is RECORDED (versions.yml:311, sha256:4900c13e…); the")
+        print("only empty pin left is `fast-sglang` (spark_sglang_image) — its designed gate. "
+              "roles/spark-llm-profile refuses those profiles until a pin lands.")
     return 0
 
 
