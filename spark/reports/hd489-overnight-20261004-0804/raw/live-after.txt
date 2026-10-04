@@ -1,0 +1,20 @@
+#     vllm   → --kv-cache-memory-bytes governor, --reasoning-parser, --speculative-config
+#     sglang → --mem-fraction-static / --max-total-tokens pool semantics, NEXTN spec
+--
+      - --max-num-seqs
+      - "8"
+--
+      # --kv-cache-memory-bytes (= bytes int) — the PRIMARY dial on GB10.
+      # In this build, kv_cache_memory_bytes IGNORES gpu_memory_utilization entirely
+--
+      - --kv-cache-memory-bytes
+      - "25000000000"
+--
+      - --never-evict-kv-cache-prompt-includes
+      # profile-specific (profile fast · composed flags + args_extra)
+--
+      - --never-evict-kv-cache-max-fraction
+      # profile-specific (profile fast · composed flags + args_extra)
+(Worker pid=162) INFO 10-04 22:28:01 [gpu_worker.py:621] Initial free memory 114.62 GiB, reserved 23.28 GiB memory for KV Cache as specified by kv_cache_memory_bytes config and skipped memory profiling. This does not respect the gpu_memory_utilization config. Only use kv_cache_memory_bytes config when you want manual control of KV cache memory size. If OOM'ed, check the difference of initial free memory between the current run and the previous run where kv_cache_memory_bytes is suggested and update it correspondingly.
+(EngineCore pid=131) INFO 10-04 22:28:02 [kv_cache_utils.py:2262] GPU KV cache size: 806,269 tokens, Maximum concurrency for 262,144 tokens per request: 3.08x
+restarts=0

@@ -1,0 +1,12 @@
+#     vllm   → --kv-cache-memory-bytes governor, --reasoning-parser, --speculative-config
+#     sglang → --mem-fraction-static / --max-total-tokens pool semantics, NEXTN spec
+--
+      - --max-num-seqs
+      - "8"
+--
+      # --kv-cache-memory-bytes (= bytes int) — the PRIMARY dial on GB10.
+      # In this build, kv_cache_memory_bytes IGNORES gpu_memory_utilization entirely
+--
+      - --kv-cache-memory-bytes
+      - "25000000000"
+started=2026-10-03T20:39:05.526937488Z restarts=0
