@@ -637,6 +637,20 @@ black hole with extra steps.
 7. **HA's one URL is the plain `ha.kogler.si`** — see [network-vpn.md](network-vpn.md) §Tailnet boundary.
    The `.ts` twin stays as a free alias.
 
+⚠ **Measured 2026-10-05, and it decides the workstation half of this refactor: the two planes are disjoint — no
+single *forwarded* answer covers both.** From one box, one interface, both nameservers probed directly: MagicDNS
+(`100.100.100.100`) answers the `.ts` `extra_records` — both `pi-oldsrv.ts.kogler.si` and
+`cockpit-nas.ts.kogler.si` resolve to oldsrv's tailnet address — and **nothing** for the plain names, while
+Technitium answers the plain names (→ oldsrv / vps / spark, addresses in
+[network-addresses-generated.md](network-addresses-generated.md)) and **NXDOMAIN** for the whole
+`*.ts.kogler.si` namespace (authority `kogler.si` SOA serial 45, negative TTL 900) — the public zone carries no `ts`
+dlegation, so no forwarder anywhere can answer that plane. Three consequences, in dependency order: a forwarder-only
+client can never resolve `.ts` (which is why the phone and the Windows side of a laptop work and a WSL seat does not
+— same tailnet, same ACL, different resolver stack); a routing-domain split would buy that one plane by breaking the
+other, which is **HD-432**'s decided *no*, so it stays decided; and the only sanctioned workstation-side remedy is
+the **generated alias artifact** derived from `zone_kogler_si` below (**HD-436**) — never a hand-typed `hosts` entry,
+and never an unversioned per-box resolver drop-in, which is the fourth source this refactor exists to delete.
+
 ### `zone_kogler_si` — the zone as one derived list (HD-436)
 
 The zone's membership is currently maintained in **three** places (the Technitium seed's inline record

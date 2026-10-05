@@ -924,6 +924,33 @@ re-read of §5), and the packaging that keeps all of this out of hand-keeping: *
 unit/drop-ins/env — including the `pi-on-path.conf` above) and **HD-446** (the missing
 `scripts/install-pi-debian.sh`, whose trap list this measurement just grew).
 
+**Measured 2026-10-05 — the seat is reachable from the laptop over the tailnet, and the seat trails the laptop.**
+Two halves, both read from this workstation:
+
+- **Reachability is now proven from a real peer.** `curl https://pi-oldsrv.ts.kogler.si/` from the Windows side of
+  the laptop returned **401 served from oldsrv's tailnet address** with the Let's Encrypt `*.ts.kogler.si` pair validating *without*
+  `-k`, and the same name forced onto the node address from WSL answered **401 on `/api/models`** as well — so the
+  ACL (`domen@kogler.si → tag:dev:443`), oldsrv's own `websecure-ts` listener and the loopback backend all work.
+  The name itself resolved **on Windows and nowhere in WSL**, and that gap is DNS-only: the `.ts` plane is answered
+  by the client's own netmap, the mechanism is [network-dns.md](network-dns.md) §The answer-plane model, the
+  sanctioned remedy is **HD-436**'s generated alias artifact, and **HD-432** already ruled out a routing-domain
+  split. ⛔ A hand-typed `hosts` entry is the forbidden form — that doc's drift table names that violation.
+- **The seat trails the laptop and nothing owned the gap** → registered as **HD-493**: seat `packages:` is
+  `[@ygncode/pi-web@beta]` against the laptop's `pi-web-access` · `pi-subagents` · `pi-deepseek-optimized` ·
+  `context-mode@1.0.169`; seat `defaultThinkingLevel: medium` against §5's `high` (owner 2026-10-05); seat commits
+  unsigned (`user.signingkey`/`commit.gpgsign` unset, `%G?` = `N`); `skills/` deployed on **neither** seat
+  (`scripts/sync-skills.sh --check` → "deploy target missing"); `tmux` absent on oldsrv (HD-445's package call);
+  seat clone 1 behind with a leftover `homelab-wt-20261001-1315-1315` worktree. **Versions, corrected as measured
+  (the paragraph above is stale):** seat **pi 0.99.2 + pi-web beta.38**, laptop **pi 1.0.2**. The seat's model leg
+  is right, though — `pi --list-models` there prints `spark │ spark/qwen3.8-flash-next │ 262.1K`.
+- **And the seat has no SSH door** → **HD-492**. `sshd -T` on oldsrv: `allowusers ansible-admin` + `ai-debug`,
+  `passwordauthentication no`, `kbdinteractive no`, and **no `/home/domen/.ssh/authorized_keys`**, so the seat
+  account the HD-443 ruling already names cannot log in; the laptop's `Host oldsrv-domen` block disables the one
+  method oldsrv accepts (`PubkeyAuthentication no` + `PreferredAuthentications keyboard-interactive,password`) and
+  the WSL twin has no such block at all. Read-back: `ssh oldsrv-domen` → `Permission denied (publickey)` while the
+  `ProxyJump vps` hop itself succeeds. ⛔ Port 22 is not granted on the tailnet (`tag:dev:443` only), so this door
+  rides the VPS jump.
+
 ### 9c. Ecosystem constraints (verified from primary sources)
 
 
