@@ -13,7 +13,10 @@ row closes, tell the parent: **this brief dies in the parent's cleanup commit** 
 
 **Converge host:** **oldsrv** (`roles/cockpit/**`, `/opt/traefik-internal`, the seat units). One converge in flight,
 detached, **never `--diff`** (O3). **nas / pi are read-back only.**
-⛔ Never in the same wave as [prompt-384.md](prompt-384.md) or [prompt-357.md](prompt-357.md) — same oldsrv slot.
+⛔ Never in the same wave as [prompt-384.md](prompt-384.md) or [prompt-357.md](prompt-357.md) — same oldsrv slot — and
+never beside [prompt-pi.md](prompt-pi.md), which is **this lane's seat-shaped cut** (it carries HD-442–446's ordering for
+the seat move): **run one of the two, not both**. Also never in the window of **HD-487** (oldsrv lockout-class — it edits
+the leg the converge rides).
 
 **Design SSOTs:** [docs/security.md](docs/security.md) (cockpit `maint`, the grant rulings) ·
 [docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes · [docs/services-ai.md](docs/services-ai.md) §9b (the
