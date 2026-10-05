@@ -134,9 +134,16 @@ def kv_slots(spec, cat):
     hold = (int(fc) + pool) if fc else None
     checks = {
         "pool≥window": slots >= window or pool == 0,
-        "pool≤ceiling": pool <= int(profile.get("pool_ceiling_bytes") or cat["spark_llm_pool_ceiling_bytes"]),
+        # Per-profile ceiling wins when the profile declares one (`fast`'s 20 GB / 112.7e9
+        # measured exception); the certified global still binds every profile that stays quiet
+        # about it. Read from `spec` — the resolved profile dict. A 2026-10-03 refactor made
+        # these constants per-profile and this line kept naming a `profile` variable that is not
+        # in scope: `profile <name>` died with a NameError, while check_spark_llm_gate.py stayed
+        # green because it re-derives the same math independently. That divergence IS the point —
+        # a probe that cannot run proves nothing, and its own gate could not see it.
+        "pool≤ceiling": pool <= int(spec.get("pool_ceiling_bytes") or cat["spark_llm_pool_ceiling_bytes"]),
         "host-floor": (hold is None and pool == 0) or (hold is not None
-                        and hold <= int(profile.get("device_hold_ceiling_bytes") or cat["spark_llm_device_hold_ceiling_bytes"])),
+                        and hold <= int(spec.get("device_hold_ceiling_bytes") or cat["spark_llm_device_hold_ceiling_bytes"])),
     }
     return bpt, slots, hold, checks
 
@@ -420,8 +427,13 @@ def main():
         print(f"  {'bytes/token':22s}= {bpt:,} (from spark_llm_kv_bytes_per_token — not hardcoded)")
         print(f"  {'kv slots':22s}= {slots:,} ({slots / spec['max_model_len']:.2f} × full window)")
         if hold is not None:
-            print(f"  {'device hold':22s}= {hold:,} B vs ceiling "
-                  f"{int(cat['spark_llm_device_hold_ceiling_bytes']):,} B")
+            # Same per-profile-then-global resolution the role asserts (tasks/main.yml:235);
+            # printing the global here showed 104.113e9 against a 112.7e9 that was actually
+            # gating — a row that reads as a BREACH while the check says OK.
+            hold_ceil = int(spec.get("device_hold_ceiling_bytes")
+                            or cat["spark_llm_device_hold_ceiling_bytes"])
+            print(f"  {'device hold':22s}= {hold:,} B vs ceiling {hold_ceil:,} B"
+                  f"{'  (per-profile)' if spec.get('device_hold_ceiling_bytes') else '  (global)'}")
         for k, v in checks.items():
             print(f"  {'gate mirror ' + k:22s}= {'OK' if v else 'BREACH'}")
         print("  NOTE: slots is a PROJECTION. The number of record is the engine's own")

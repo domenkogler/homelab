@@ -166,6 +166,11 @@
   ansible.builtin.command:
     argv: ["df", "-P", "-B1", "/"]
   changed_when: false
+  # A pure read, and it MUST run under --check: a `command` task is skipped there, so the
+  # assert below resolved `(undefined | last)` and the play died inside its own fail_msg with
+  # "No last item, sequence was empty" instead of reporting the disk question. A guard that
+  # crashes in check mode is worse than no guard — it reads as a disk verdict and is one.
+  check_mode: false
   register: spark_llm_df_os
   when:
     - spark_llm.engine == 'vllm'
