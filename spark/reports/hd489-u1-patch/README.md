@@ -45,7 +45,7 @@ off for this non-pin arm).
 
 - **Decode 17.9 tok/s (C2) / 20.9 (C2L) per stream** on the patched build with AWQ weights.
   The certified `reasoning` baseline (same weights, base image) is the comparison — see the funnel
-  table in `docs/spark-llm-profiles.md` / `docs/hardware-spark.md` §LLM serving profiles.
+  table in `docs/spark-llm-profiles.md` / `docs/hardware-spark.md` §Bench + engine selection.
 - 1.97× window is servable; zero preemptions at conc=1.
 - The isolated-patch decode here is the number tier-2 `ar-*` and tier-3 `v16b` arms must beat.
 

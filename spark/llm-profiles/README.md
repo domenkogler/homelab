@@ -90,6 +90,81 @@ Sets are named in `spark_artifact_sets`; a profile lists the sets it needs in `a
 `model.safetensors.index.json` — without the trim vLLM asks for shards that were never fetched
 (the primitive-ai recipe: [R1-ple-quant-card-evidence.md](../resources/R1-ple-quant-card-evidence.md)).
 
+## Measuring "is it as smart?" across two quantisations (the paired design)
+
+Two quantisations of one architecture on one engine lineage ⇒ **paired designs are valid and unpaired ones are not.**
+Every rule below was bought with a number already in this repo.
+
+* **L0 — self-consistency floor, run it FIRST.** 30 prompts × 2 at `temperature 0`, under the winner's real
+  `spec{mtp,3,block}` + `enforce_eager`, at conc 1 **and** conc 2. If one build is not token-identical to itself, that flake
+  rate is the floor of every comparison. **Measured on `fast` 2026-10-05: 60–70 % flake, because the served
+  `generation_config` override carries `temperature: 1` — so token identity is meaningless on this build and only
+  distributional/paired comparisons count.** A needle run is NOT a noise-floor measurement (one 32k run measured 14 % vs
+  25 % miss, p = 0.67).
+* **L1 — noise floor, then delta** = gate 9 (`prompt_logprobs=1, temperature 0` per position; `new − old` must sit inside
+  `old − old` from the same build). Keep the long-reasoning battery: the reference fp8 implementation went **6/6 → 2/6 on
+  long reasoning while the needles still passed**.
+* **L2 — verifiable answers, scored by a machine, never by reading:** exact-match math with a boxed answer; the 15-prompt
+  local-knowledge battery over **this repo** as corpus (`spark/resources/R2-nvfp4.md` §B); JSON-schema-strict extraction;
+  tool-call items carrying a real `tools` schema (every HD-489 tool-call item came back `EMPTY` because the probe sent no
+  schema); a Slovenian set scored exact-match plus a 2-rubric annotator; short code tasks with a `pytest` oracle.
+* **L3 — end-to-end:** the [pi-harness.md §3](../../docs/pi-harness.md) task list on both profiles. That score is the
+  certified lane's anchor — a profile that wins tok/s and loses tasks is not a win.
+* **Statistics.** Paired binary items ⇒ **McNemar exact test**; report `n`, both discordant cells and a 95 % CI. Minimum `n`
+  for 80 % power at α = 0.05 two-sided at a ~10 % discordance rate: **5 pts → 314 · 3 pts → 873 · 2 pts → 1,963**. The
+  10-prompt battery resolves nothing below ~20 points. **Pre-register the pass rule before running:** `Δ ≤ 2 pts → keep`,
+  `3–5 pts → decide on L3`, `> 5 pts → the speed win is void`.
+* **Confound ledger, printed in every row of every table:** image digest · checkpoint + revision · `tool_call_parser`
+  (ours is `qwen3_coder`, not upstream's `qwen3_xml`) · `enable_thinking` **and** `thinking_token_budget` (top-level
+  `reasoning_effort` is accepted-and-**ignored** on this build — re-measure it with `probe … effort high`) ·
+  `override_generation_config` · seed · `--client` · sustained `clocks.sm`. The 91 ↔ 98 ↔ 99 spread in our own captures came
+  from these, not from quant.
+* **Anti-Goodhart:** keep a held-out slice nobody tunes on, plus canary items with known-impossible answers. On `fast`,
+  `enforce_eager` and block rejection do not change the output distribution ⇒ the entire quality delta is the **AutoRound
+  int4/int8/fp8-hybrid checkpoint**; our only prior on that axis is that AWQ keeps attention bf16 and the quant that does not
+  scored 91 vs 98 (another capture scored 99/100 on SGLang — the honest caveat is that the spread is confound, not signal).
+
+### Public suites (the axis with statistical power)
+
+Both are **machine-scored and paired**, which turns "10/10 outputs looked fine" into a McNemar test. Same CSV discipline and
+the same identity columns (`--profile`, `--client`, window) as a timed leg; raw predictions under
+`spark/reports/hd489-eval-<suite>-<arm>/`.
+
+| suite | what it is | n | wall-clock on `fast` (39.7 tok/s, decode-bound) | resolves |
+|---|---|---|---|---|
+| **MMLU-Pro mini** | 14-domain reasoning MCQ, 10 options; **CoT mandatory** (direct drops up to 19 %), 100/domain, fixed seed | 1,400 | ~8 h conc 1, ~2–3 h conc 3 **per arm** | ~3 pts |
+| MMLU-Pro full | same, every item | 12,032 | ~67 h conc 1, ~17 h conc 4 | ~2 pts |
+| **SWE-bench Verified** | 500 real merged-PR issues, graded by the repo's own tests | 500 | ~5 h conc 1 single-shot (~3 h conc 2) **per arm** + 2–4 h grading (+1–2 h first image pulls) · ~18 h agentic | ~4 pts |
+
+```bash
+python evaluate_from_apiX.py --url https://llm.kogler.si/v1 -m spark/qwen3.8-flash-next \
+       -n 3 -o eval_results/ --retry 2 --retry_wrong 2          # -n is the ONLY concurrency knob
+python compute_accuracy.py -p eval_results/generative/ai2OKIQASolver_results.json
+swebench infer verified -m <endpoint-model> -o preds -w 2      # generate against spark …
+swebench eval  verified -p preds --run-id <profile>-<date> -j 4 # … grade in Docker ELSEWHERE, never on spark
+```
+
+Rules that keep the number honest: **pin the revision** of harness + dataset in `group_vars/all/versions.yml` (for MMLU-Pro
+use a **post-2026-01-18** revision — the leading-space-in-options fix, which is exactly what would move a re-quantised model
+and read as a quality delta); **run the harness OFF spark** (SWE-bench executes untrusted repo code, and the aarch64 prebuilt
+task images need `--task-repo` + Buildx rebuilds) — which also satisfies rule 0 by construction; **report the
+extraction-failure rate beside the score** (a quant that changes answer format looks like accuracy loss);
+**CoT state is a confound, not a setting**; and **comparisons, never absolutes** — public items live in pretraining corpora
+and the suite itself carries mis-annotated items, so a 74 vs 72 means nothing without the discordant cells. Neither suite
+contains a token of Slovenian, which is why the repo-local and Slovenian axes stay.
+
+### Which seat may take which leg
+
+Rule 0 reduces to one test: **the runner's own model must not be the engine under test.** Stamp every leg with `--client`
+(`run-scenario.sh` defaults it to hostname + `PI_MODEL`) — that stamp is what makes the rule checkable afterwards, so never
+override it. A **laptop-local** runner (`agent-gemma-26b`: 32,768 window, ~250 t/s prefill) is a legitimate *driver* — it is
+off spark, so rule 0 holds by construction and it costs nothing — but the mandatory reading for this repo
+(README + CONVENTIONS + `docs/index.md` + this gate doc + `docs/spark-llm-profiles.md` + this table) is **≈ 40 k tokens, i.e.
+it does not fit that leg**: a laptop-local session executes any of this with its own contract already evicted. Give such a
+child ONE deliverable, a verbatim command, an acceptance format that can FAIL, and a ~10 min cap; never let one author a
+profile delta or a verdict. Suite costs on that seat: MMLU-Pro smoke-100 ≈ 1.5 h (fits), mini-1,400 ≈ 21.6 h, full ≈ 185 h,
+SWE-bench ≈ 20 h single-shot / ~135 h agentic and **mostly invalid** (Verified contexts run 15–40 k against a 32 k window).
+
 ## Rollback
 
 `spark_llm_profile: reasoning` + converge (detached). `reasoning` needs no override, its artifacts

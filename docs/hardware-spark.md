@@ -556,8 +556,11 @@ research + verdicts: [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resour
 
 > **Since HD-469 those benchmark lanes and the DEPLOYED config are the same dial.** The S-lanes above are
 > bench shapes; the configs this box can actually boot are the Ansible profiles (`spark_llm_profile` →
-> `spark_llm_profiles`): `reasoning` = the S1 shape that is live and certified, `graded` = S1 with fp8 KV,
-> `fast` = the S2/S3 NVFP4 lane, `fast-sglang` = the S5-shaped SGLang lane (gate-blocked). Catalogue,
+> `spark_llm_profiles`): `reasoning` = the S1 shape, live as the rollback target; `graded` = S1 with fp8 KV
+> (⛔ blocked on the image → HD-473); **`fast` = the live winner** — since 2026-10-03 that name carries the HD-489
+> AR-hybrid arm (`ar-blk`), **not** the S2/S3 NVFP4 lane it named during HD-469 (that lane is a rejected-log row →
+> HD-475), so never infer a checkpoint from the profile name; `fast-sglang` = the S5-shaped SGLang lane
+> (gate-blocked). Catalogue,
 > KV/quant arithmetic, the certifying gate and the client-contract split:
 > [spark-llm-profiles.md](spark-llm-profiles.md); certification procedure:
 > [`../spark/llm-profiles/README.md`](../spark/llm-profiles/README.md).

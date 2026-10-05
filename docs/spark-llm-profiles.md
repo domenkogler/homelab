@@ -142,7 +142,8 @@ tok/s claim) must be run **from a session whose model is not spark** — see the
 
 Upstream [qwen3.8-Flash-DGX-UltraFast](https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast)
 v16b (Apache-2.0, pinned `0c391a3` in `group_vars/all/versions.yml`) arrives as **12 candidate
-arms on this dial**, not as a second stack. Lane brief: [../prompt-fast.md](../prompt-fast.md).
+arms on this dial**, not as a second stack. Lane brief: [../prompt-remaining-bench.md](../prompt-remaining-bench.md)
+(the funnel itself is measured and closed; the tail is what is left).
 
 **A profile now NAMES things instead of hardcoding them** — `image: base|ultrafast|sglang`,
 `models_root: xfs|os`, `ple_host_base: mount|models`, one PLE mechanism (`ple_overlay` XOR
@@ -170,8 +171,11 @@ HD-475 if anyone ever wants that quant back). Everything above this line keeps t
 historical arm names — the reports under `spark/reports/hd489-*` are dated evidence and are not
 renamed. What `fast` renders today differs from the arm that won: pool `25 GB` (per-profile
 `pool_ceiling_bytes`, so the certified 16 GiB global still binds every other profile) and
-`max_num_seqs: 8`, both owner-tested on 2026-10-03 — **gate 4 at conc 8 is owed on that shape**
-(`spark/reports/hd489-tail-b2/` measured the 16 GB / 4-seq config).
+`max_num_seqs: 8`, both owner-tested on 2026-10-03. Gate 4 at conc 8 on that shape is **measured PASS**
+(`spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log` — 8/8 200s in 3.0 s, 2.7 s median); it is a
+short-prompt batch probe, so it proves the batch shape serves and stays in budget, not throughput under
+batch. What that shape still owes is **gate 5 (the needle at depth)** and a working day of watchdog
+`usable` samples.
 
 **Why the arms live on `/`**: XFS had 185 G free and holds 505 GB of certified weights plus
 two candidates nobody wants to re-download. The root partition measured 345 G free
@@ -216,18 +220,34 @@ raw evidence per leg in `spark/reports/HD-489/` — bench JSON, the engine's own
 `Initial free memory` + `GPU KV cache size` lines, per-pid GPU memory at rest, the
 accepted-length trace (including the Slovenian set), the pinned image ID + build report.
 Durable findings fold into
-[hardware-spark.md](hardware-spark.md) §LLM serving profiles (measured numbers),
+[hardware-spark.md](hardware-spark.md) §Bench + engine selection (measured numbers),
 [services-ai.md](services-ai.md) §9 (client-facing numbers),
 [services-ai-rejected.md](services-ai-rejected.md) (one paragraph per retired arm + the number
-that killed it), `the gate ladder in `spark/llm-profiles/README.md` (gates 0–9)` (evidence for whatever turns
+that killed it), [spark/llm-profiles/README.md](../spark/llm-profiles/README.md) (the gate ladder, 0–9 — evidence for whatever turns
 `certified: true`) — and the todo row is deleted when the lane closes live, not before.
 
-**Winner so far: `ar-blk`** — the AutoRound-hybrid weights + FP8 PLE disk-mmap + in-checkpoint
-MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}`. Measured
-2026-10-03: C2L decode **39.7 tok/s** (cold_ok=yes, 324 s window), TTFT p50 ~0.7 s, ITL p50
-~65 ms, MTP accept 49–55 %, 0 preemptions — the funnel's fastest arm so far; declared winner
-and live on the box ([`spark/reports/hd489-ar-blk/README.md`](../spark/reports/hd489-ar-blk/README.md)).
-Still `certified: false` until this lane's gates (incl. gates 5–7) pass.
+### The timed instrument (a correction that cost a lane, 2026-10-02)
+
+The timed legs of this funnel run through [`spark/bench/run-scenario.sh`](../spark/bench/run-scenario.sh),
+which drives `vllm bench serve` inside the engine container and writes one CSV row per leg (TTFT and ITL
+p50/p99, per-stream decode tok/s, MTP acceptance, preemption/generation-token deltas, Wh per 1k output
+tokens, arm identity via `--profile`, the Rule-0 client stamp via `--client`). Around it:
+`snapshot-metrics.sh` (before/after `/metrics`), `vm-window.sh` (the VictoriaMetrics cross-check and the
+only way to attribute a series to a leg), `stress-oom.sh`, `stability-overnight.sh`, `accuracy-gate.sh`.
+
+Two absences were asserted from a `scripts/`-only search and both were false — there is no
+`scripts/llm_serving_bench.py` and no `spark/llm-profiles/acceptance/`, and the follow-on claim that
+"the repo has no timed-throughput tool" was wrong the same way. **A tool no index reaches does not exist
+for the next reader**, which is why `docs/index.md`, `scripts/README.md` §Adjacent tooling and this
+section all name `spark/bench/`; a search that stops at `scripts/` is not an absence proof.
+
+**Winner: arm `ar-blk`, dial name `fast`** — the AutoRound-hybrid weights + FP8 PLE disk-mmap +
+in-checkpoint MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}`.
+Measured 2026-10-03: C2L decode **39.7 tok/s** (cold_ok=yes, 324 s window), TTFT p50 ~0.7 s, ITL p50
+~65 ms, MTP accept 49–55 %, 0 preemptions ([`spark/reports/hd489-ar-blk/README.md`](../spark/reports/hd489-ar-blk/README.md)).
+It is `certified: true` on the 16 GB / seqs-4 shape (gates 3–4 measured, `hd489-tail-b2`/`-b3`) and on the
+25 GB / seqs-8 shape it runs today (gate 4 at conc 8, `hd489-overnight-20261004-0804`); what no
+certificate covers is **gate 5 — the needle at depth**, owed for the whole box since HD-469.
 
 ### Never-evict prompt pin — REJECTED (2026-10-05)
 

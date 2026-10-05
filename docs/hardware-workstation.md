@@ -297,6 +297,30 @@ second opinion.
 contract that was never addressed to it. The drift check itself compares
 `contextWindow`/`maxTokens`/`input` against the ACTIVE profile — pi's 400-mid-session class.
 
+**Tool traps (`lms` / LM Studio 0.4.25+1, measured 2026-09-29/30) — every one of these cost a session an hour:**
+
+* **`lms load <key> --gpu max -c <N> --identifier <name> -y`.** It is **`-c`**, not `--context`; 0.4.25 has **no** `--pub`,
+  `--kv-cache-type`, `--threads`, `--chat-template`, `--batch-size` or `--temperature` (verified against `load --help`).
+  **`-y` is mandatory** — without it an unmatched key hangs on an interactive TTY picker.
+* **A folder you place by hand is NOT indexed** — `lms ls` does not rescan. Use
+  `lms import --hard-link --user-repo <u>/<repo> [--dry-run]` (or restart the service). JIT loading is **off**, so
+  `/v1/models` lists only resident models and the client must load explicitly.
+* **`lms get <resolve-url>` fetches the whole repo** — it pulled `mmproj-F32.gguf` (2.29 GB) twice when asked for
+  `mmproj-BF16`. For exact files use `huggingface_hub.snapshot_download(..., allow_patterns=[...])`; LM Studio's own
+  downloader runs ~50 Mbps on a 1 Gbps link where the hub library saturates it (17.7 GB in 214 s). unsloth's commands use
+  **mmproj-BF16**, never F32.
+* **`/v1/tokenize` is not served**, so any probe that estimates tokens at chars/4 is guessing: a run of `xxxx` tokenizes at
+  ~2:1 and `word word word` at ~3 tokens/word — which made two probes test half, and three times, the window they claimed.
+  Word-shape prompts and always report **`usage.prompt_tokens`**, never your own estimate.
+* **`/api/v0/fim/completions` was removed in 0.4.25** — FIM rides the chat template (`fim_surface: instruction-fenced`).
+* **A 4xx is a *contract* error, not a model-capability failure.** `tool_choice:"auto"` 400s because the server rejects the
+  field; "no models loaded" is not a projector failure; `{"error":"terminated"}` **is** the crash signature. `probe-tools` /
+  `probe-vision` distinguish the classes — keep that distinction.
+* **`flush=True` is not a `log()` kwarg.** A ladder died one step into its most expensive phase with
+  `TypeError: 'flush' is an invalid keyword argument for BufferedWriter.write`, the raw log ended mid-run, and the next
+  session read that silence as a decision. Log unbuffered (`LOG.flush()` per line), and never interpret a missing
+  measurement as a negative result.
+
 **Carve-out note (supersedes the ≈8.4 GB line above):** the BIOS UMA carve is now **32 GiB**. That
 buys **residency**, never bandwidth — the ≈89.6 GB/s ceiling is untouched, so a dense model is still
 bandwidth-bound and the MoE-A3B family is still the only one that answers (§Leg 2). It also removes

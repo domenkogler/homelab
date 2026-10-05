@@ -1,10 +1,12 @@
 # HD-489 — overnight run 20261004-0804: the `fast` suite, and the `reasoning` arm that never booted
 
-**Why this exists.** [`prompt-gemma4.md`](../../../prompt-gemma4.md) is the unattended-overnight
-brief: MMLU-Pro-mini on the served engine at `-n 8`, the gate legs that were still owed on the new
-25 GB / `max_num_seqs 8` shape, an fp8 re-probe, then the `reasoning` arm and the paired McNemar
-against it. This is the evidence directory for run `20261004-0804`, executed by
-`runner=DomenP14s/external-model` (raw files in `raw/`, verbatim).
+**Why this exists.** The unattended-overnight run-sheet (MMLU-Pro-mini on the served engine at
+`-n 8`, the gate legs still owed on the new 25 GB / `max_num_seqs 8` shape, an fp8 re-probe, then the
+`reasoning` arm and the paired McNemar against it) lived in `prompt-gemma4.md`; that brief is retired
+and the run-sheet now lives in
+[`prompt-remaining-bench.md`](../../../prompt-remaining-bench.md) §Overnight driver. This is the
+evidence directory for run `20261004-0804`, executed by `runner=DomenP14s/external-model` (raw files
+in `raw/`, verbatim).
 
 **Rule 0 status.** Every timed leg was taken by the external runner against
 `https://llm.kogler.si/v1`; the session that wrote this directory ran no leg. Bearer values were
@@ -69,7 +71,7 @@ python3 - <<'EOF'
 import csv; rows=list(csv.DictReader(open('raw/mmlu-fast-items.csv')))
 c=sum(int(r['correct']) for r in rows); print(len(rows),'items', c, f'{100*c/len(rows):.2f} %')
 EOF
-# the reasoning arm, when it is owed (prompt-gemma4.md §7), then pair on question_id:
+# the reasoning arm, when it is owed (prompt-remaining-bench.md §Overnight driver), then pair on question_id:
 #   b = {id: correct} for each arm; McNemar's exact test on (b_a=1,b_b=0) vs (b_a=0,b_b=1)
 ```
 

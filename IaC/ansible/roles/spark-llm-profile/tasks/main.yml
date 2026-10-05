@@ -60,7 +60,7 @@
       and the image ID it printed is recorded in group_vars/all/versions.yml (the ID is
       immutable; the build tag is a mutable alias and is never served). For `sglang`: verify
       the arm64 manifest, take the digest, pin it, and record the verification in
-      docs/hardware-spark.md §LLM serving profiles in the same change.
+      docs/hardware-spark.md §Bench + engine selection in the same change.
   tags: [spark, spark-llm-profile, llm]
 
 

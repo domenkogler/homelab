@@ -287,7 +287,7 @@ spark_vllm_image: "vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1
 # x86 RTX PRO 6000). roles/spark-llm-profile refuses any profile whose image resolves
 # empty, so flipping spark_llm_profile to `fast-sglang` fails loud instead of pulling
 # a floating tag. To unblock: verify the arm64 manifest + take the digest, pin it
-# HERE, record the verification in docs/hardware-spark.md §LLM serving profiles in the
+# HERE, record the verification in docs/hardware-spark.md §Bench + engine selection in the
 # same change (fluid-tag first-pin rule, §7) — then the gate opens by itself.
 spark_sglang_image: ""
 

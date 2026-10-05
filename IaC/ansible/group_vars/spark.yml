@@ -258,7 +258,7 @@ spark_headless: true
 # render key; the flat `spark_vllm_*` names below stay as PASS-THROUGHS of the
 # ACTIVE profile because two non-template consumers read them
 # (roles/spark/files/spark-oom-watchdog.sh + spark-oom-watchdog.service.j2) and
-# because docs/hardware-spark.md §LLM serving profiles + docs/pi-harness.md
+# because docs/hardware-spark.md §Bench + engine selection + docs/pi-harness.md
 # cite them as the live-value pointer. Do not re-hardcode a value in either
 # place — edit the profile entry.
 #
@@ -928,7 +928,7 @@ spark_llm_profiles:
     # One evidence line, and it must survive a YAML re-read: this key appeared TWICE here until
     # 2026-10-03 (the second, empty one silently won — `certified: true` with no evidence is the
     # exact shape the gate is supposed to refuse). If an arm is certified, say what with paths.
-    certified_evidence: "spark/reports/hd489-ar-blk/README.md · spark/reports/hd489-tail-b2/README.md · spark/reports/hd489-tail-b3/README.md · spark/llm-profiles/README.md — measured at 16 GB / seqs 4 (KV 515,786 = 1.97×, gates 3/4 PASS). The 25 GB + seqs 8 step (2026-10-03) is OWNER-TESTED, not re-gated: boot + restarts=0 live, but gate 4 at conc 8 is OWED (spark/reports/hd489-overnight-*/Leg 2)"
+    certified_evidence: "spark/reports/hd489-ar-blk/README.md · spark/reports/hd489-tail-b2/README.md · spark/reports/hd489-tail-b3/README.md · spark/llm-profiles/README.md — measured at 16 GB / seqs 4 (KV 515,786 = 1.97×, gates 3/4 PASS). The 25 GB + seqs 8 step (2026-10-03): gate 4 at conc 8 measured PASS in spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log (8/8, 3.0 s wall) — a short-prompt batch probe. OWED on this shape: gate 5 (needle at depth, 3/3) + one working day of watchdog `usable` samples."
     fixed_cost_bytes: 76300000000
     # HD-489 tail A3: replaced the VENDOR-PUBLISHED number with a MEASURED one, derived from
     # THIS box's boot log (the only derivation reproducible from a committed artifact):
@@ -937,8 +937,8 @@ spark_llm_profiles:
     # Disagreement he kept in writing: the engine-pid-at-rest derivation
     #   (nvidia-smi pid MiB − engine-printed 14.9 GiB KV = 88,921 − 15,290 ≈ 73.6 GiB ≈ 79.0e9 B)
     # reads ~+6 GB higher because nvidia-smi under-counts via the ~10 GiB warning at
-    # docs/spark-llm-profiles.md §A3; both are recorded, the BOOT LOG is the one chosen.
-    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log: 'Model loading took 68.35 GiB' ≈ 73.4e9 B; pid-at-rest derivation reads ~79e9 B — the +6 GB is documented (docs/spark-llm-profiles.md §A3)"
+    # docs/hardware-spark.md §Unified-memory budget & OOM governance; both are recorded, the BOOT LOG is the one chosen.
+    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log: 'Model loading took 68.35 GiB' ≈ 73.4e9 B; pid-at-rest derivation reads ~79e9 B — the +6 GB is documented (docs/hardware-spark.md §Unified-memory budget & OOM governance)"
     generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
 
   # ── B9 (HD-489 tail): ar-blk WITHOUT the A4 kernel-dispatch env ──────────────
