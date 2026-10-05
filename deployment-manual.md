@@ -1885,7 +1885,8 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    vendor and `scripts/pi-config/models-spec.yml` states that boundary on purpose (the spec renders the
    model contract, never someone's editor settings). Write it from the reference block in
    [`docs/pi-harness.md`](docs/pi-harness.md) §5 (`defaultProvider`/`defaultModel` = spark,
-   `defaultThinkingLevel: off`, the prefill timeouts, compaction) and **keep the workstation keys the
+   `defaultThinkingLevel` — **take its value from §5, this line is a pointer not a second source**, the
+   prefill timeouts, compaction) and **keep the workstation keys the
    installer wrote** (`packages` — that is what keeps pi-web installed as a pi package). Without it the
    seat defaults to a **cloud** model and thinks every turn; the phone's session inherits both.
 5. **Set the token** in `/home/domen/.config/pi-web/env` as `PI_WEB_TOKEN=...` (dir 700, file 600, owner

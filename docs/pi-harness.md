@@ -244,7 +244,7 @@ row stays open until it happens.
 {
   "defaultProvider": "spark",
   "defaultModel": "spark/qwen3.8-flash-next",
-  "defaultThinkingLevel": "off",
+  "defaultThinkingLevel": "high",
   "showCacheMissNotices": true,
   "httpIdleTimeoutMs": 900000,
   "retry": {
@@ -270,9 +270,29 @@ source and the file is hand-written per machine; the earlier wording "render set
 oldsrv's seat (the §5 block + `packages`, live 2026-10-01 — before that the seat held `{"packages": […]}`
 only, so its picker defaulted to a cloud model and thought every turn).
 
+**2026-10-05 — `defaultThinkingLevel` flipped `off` → `high` (owner ruling; supersedes the HD-376 value).**
+HD-376 chose `off` to make invisible thinking *stop*; this is the opposite call, so it is recorded as a
+re-decision, not an edit. What the flip actually does, read off pi's own resolver and compat code rather
+than inferred from a UI label: the startup level comes from **settings.json only**
+(`modelThinkingLevels["<provider>/<modelId>"]` → `defaultThinkingLevel` → pi's built-in `medium`) —
+**models.json has no default-thinking field**; its `ModelDefinitionSchema` carries `reasoning` /
+`thinkingLevelMap` / `samplingParams*`, which decide which levels *exist* and what each *sends*, never
+which one starts a session. And because §4's `thinkingLevelMap` nulls every level except `off`/`high`,
+**`high` is the only ON level this model has** — `medium`/`xhigh` clamp *up* to it — so `high` is the one
+correct spelling of "thinking on by default". Cost, in the currencies §2 already measured: every turn now
+sends `chat_template_kwargs.enable_thinking: true` plus `thinking_token_budget: 8192`
+(`thinkingBudgets.high`); the controlled-but-off path spent none, the *uncontrolled* template spent
+23–121 hidden reasoning tokens/turn, thinking-on decode is ~11 tok/s, and reasoning tokens occupy blocks
+in the shared ~262k KV pool — so a long turn is minutes and a concurrent lane feels it (§6). Rows with
+`reasoning: false` (the laptop's vision + FIM legs) are untouched; pi clamps them to `off`.
+**Seat state, measured 2026-10-05:** the Win11 seat already carried `high`, the WSL seat carried `off` —
+the two halves of one laptop had silently divided, and the `--check` drift gate cannot see it because
+settings.json sits deliberately outside the render. Both now read `high`. ⏳ oldsrv's cockpit seat
+(`domen`, 0600, not readable with the runner key) has **not** been re-read — verify before relying on it.
+
 | Setting | Value | Why on this box |
 |---------|-------|-----------------|
-| `defaultThinkingLevel` | `off` | preserves the pre-change behavior, but now it actually reaches the engine (saves ~20–120 hidden reasoning tokens + latency per turn) |
+| `defaultThinkingLevel` | `high` (was `off` from HD-376 until 2026-10-05) | thinking ON from the first turn: `enable_thinking: true` + the 8192-token `thinkingBudgets.high` cap. `high` is the only ON level the §4 map leaves, so any other spelling clamps to this anyway. HD-376's saving (≈20–120 hidden reasoning tokens/turn) is now a deliberate cost — see the note above |
 | `compaction.reserveTokens` | 16384 | pi compacts when context > `contextWindow − reserveTokens` = **245,760**; this is the "use the whole window" dial |
 | `compaction.keepRecentTokens` | 32768 (default 20000) | larger verbatim tail survives a compaction — cheaper to keep when the window is 262k |
 | `httpIdleTimeoutMs` | 900000 (default 300000) | a cold prefill of a large prompt emits no tokens until the first token; the 5-min default can kill the turn mid-prefill |
