@@ -13,10 +13,12 @@ row closes, tell the parent: **this brief dies in the parent's cleanup commit** 
 
 **Converge host:** **oldsrv** (`roles/cockpit/**`, `/opt/traefik-internal`, the seat units). One converge in flight,
 detached, **never `--diff`** (O3). **nas / pi are read-back only.**
-⛔ Never in the same wave as [prompt-384.md](prompt-384.md) or [prompt-357.md](prompt-357.md) — same oldsrv slot — and
-never beside [prompt-pi.md](prompt-pi.md), which is **this lane's seat-shaped cut** (it carries HD-442–446's ordering for
-the seat move): **run one of the two, not both**. Also never in the window of **HD-487** (oldsrv lockout-class — it edits
-the leg the converge rides).
+⛔ Never in the same wave as [prompt-384.md](prompt-384.md) or [prompt-357.md](prompt-357.md) — same oldsrv slot. Also
+never in the window of **HD-487** (oldsrv lockout-class — it edits the leg the converge rides).
+✅ **2026-10-05: the seat-shaped cut (the pi-dev-seat lane) closed and its brief is gone**, so the oldsrv slot is no longer
+contested by it. It took **445** and **446** with it and left **442**/**443** with owner-gated tails — which changes what is
+left *here*: this lane's seat-adjacent residue is now the phone drill (**444**, owner) and **411**/**465**, not the cockpit
+role or the installer.
 
 **Design SSOTs:** [docs/security.md](docs/security.md) (cockpit `maint`, the grant rulings) ·
 [docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes · [docs/services-ai.md](docs/services-ai.md) §9b (the
