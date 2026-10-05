@@ -187,16 +187,21 @@ removing it as a per-arm choice altogether: `spark_llm_never_evict_prompt` in `g
 is now the ONE value (the operator's pi global-instructions text, inlined because the offline render
 gate mocks `lookup()` and would happily render `<secret:file>` green), aliased by **every** profile as
 `*nev`, with `spark_llm_never_evict_max_fraction` as the shared cap and `u4-pin`/`v16b-pin` keeping
-their recorded `0.03` override. Two things came out of wiring it:
+their recorded `0.03` override. **That ONE value is EMPTY since 2026-10-05 — the mechanism was
+measured and rejected** ([§Never-evict prompt pin — REJECTED](#never-evict-prompt-pin--rejected-2026-10-05));
+the alias, the cap and both asserts are kept so a re-decide is one line in one place. Two things
+came out of wiring it:
 
 * the compose template passed the value as `"'" ~ prompt ~ "'"`, so **argv received the quote
   characters inside the string** — the engine matched `'<text>'`, found nothing, and the pin was an
   invisible no-op. It is `| to_json` now, which is also the only form that survives a multi-line
   value in the `- {{ a }}` emission. `scripts/spark-llm-render-matrix.py` asserts the rendered
   argument is BYTE-EQUAL to the declared text (presence was never the risk; the flag rendered).
-* what the pin is worth is still UNMEASURED — `u4-pin`/`v16b-pin` both measured a synthetic bench
-  that never engages it, so the honest claim is "authored, gated, rendering, unproven". Proof =
-  prefix-cache hits from `/metrics` across a real session, never another synthetic leg (§6 rule).
+* what the pin is worth was UNMEASURED for two days — `u4-pin`/`v16b-pin` both measured a synthetic
+  bench that never engages it, so the honest claim was "authored, gated, rendering, unproven".
+  Proof = prefix-cache hits from `/metrics` across a real session, never another synthetic leg
+  (§6 rule). **Measured 2026-10-05 on live sessions: it buys nothing here → REJECTED**
+  ([§Never-evict prompt pin — REJECTED](#never-evict-prompt-pin--rejected-2026-10-05)).
 
 Both made `roles/spark-llm-profile` REFUSE the profile; `scripts/spark-llm-render-matrix.py` and
 `scripts/check_spark_llm_gate.py` print them as `GATED` rather than letting an authored-but-unrunnable
@@ -223,3 +228,53 @@ MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilist
 ~65 ms, MTP accept 49–55 %, 0 preemptions — the funnel's fastest arm so far; declared winner
 and live on the box ([`spark/reports/hd489-ar-blk/README.md`](../spark/reports/hd489-ar-blk/README.md)).
 Still `certified: false` until this lane's gates (incl. gates 5–7) pass.
+
+### Never-evict prompt pin — REJECTED (2026-10-05)
+
+`--never-evict-kv-cache-prompt-includes <text>` (up to `--never-evict-kv-cache-max-fraction` of the
+pool) pins the KV blocks of every prompt CONTAINING that text. It was authored as the answer to the
+"~0 % prefix-hit re-prefill every long session pays" note. **Decision: off, all profiles, all arms**
+— `spark_llm_never_evict_prompt: ""`; the compose `{% if %}` therefore renders neither flag.
+
+What killed it is the engine's own instrumentation, read on the live box over 13 h of real pi
+sessions after the 2026-10-04 22:16 UTC boot (owner counter-source: `/metrics` + `docker logs`):
+
+| signal | value | reading |
+|---|---|---|
+| `[never-evict] holding … blocks` log lines | **none** | `log_never_evict_pin()` prints only when `reserved > 0`; the pin reserved **nothing** all day |
+| `vllm:num_preemptions_total` | **0** | nothing was ever evicted, so the pin's precondition never occurred |
+| `prompt_tokens_by_source{local_cache_hit}` | **95.1 %** | plain prefix caching, no help needed |
+| recomputed share (`local_compute`) | **4.9 %** | vs the pre-pin baseline **3.70 % (24 h) / 4.57 % (7 d)** measured in [`spark/reports/hd489-pin-premise/README.md`](../spark/reports/hd489-pin-premise/README.md) — the number never moved |
+| armed-but-unmatched | every request | the needle is the operator's pi global-instructions text; the client serving sessions (WSL pi, `PI_PROVIDER=spark`) loads no `AGENTS.md` at all (`install-pi-wsl.sh` never ran there), so no request carried it |
+
+The causal agent was the **pool**, not the pin: 25 GB = 3.08 × the 262,144-token window is what lets
+a long session keep its own prefix resident. And the mechanism is not free — pinned blocks leave
+`get_num_free_blocks()`, which drives admission control, so up to 25 % of the pool (142 of 569
+blocks ≈ 0.20 M tokens ≈ 0.77 × one window) can be held out for one prompt shape, to the benefit of
+the client that matches the marker and the cost of every other stream sharing the GPU.
+
+**The lineage rule (this is what actually burned the box).** The patch exists ONLY in the built
+ultrafast lineage: `4900c13e…` declares the pair in `vllm/engine/arg_utils.py`, `config/cache.py`
+and `v1/core/block_pool.py`; the pinned base `fc120ece…` (vLLM `0.1.dev20073+g8e685d198`) has **no
+such argument**. When the 2026-10-03 "ONE value for every profile" change aliased the pin into
+`reasoning`/`graded` (`image: base`), a flip to `reasoning` wrote argv `api_server` cannot parse →
+exit at parse → Docker restart-loop, **`restarts=105`** before the overnight run restored `fast`
+(evidence: `spark/reports/hd489-overnight-20261004-0804/`). The gate was green the whole time,
+because nothing compared the flag to the image. So:
+
+* `spark_llm_never_evict_capable_images: [ultrafast]` is the SSOT for which lineage may carry the
+  flag, and both `roles/spark-llm-profile` and `scripts/check_spark_llm_gate.py` refuse a non-empty
+  pin anywhere else (canary-proven); `scripts/spark-llm-render-matrix.py` fails a render that puts
+  the flag on an uncapable image.
+* A needle is matched as a **token subsequence** (`tokenizer.encode(marker)` minus the first and
+  last token, then `_contains_subseq` over the prompt) — all-or-nothing, no partial matching: one
+  edited character anywhere in a multi-file concatenation stops the whole pin, silently, while the
+  boot log still prints `armed`.
+* The pin is single-slot: each matching request **replaces** the pinned set, so concurrent sessions
+  evict each other's pin — a second reason it is the wrong tool for a mixed-traffic box.
+
+**Re-arm conditions** (a re-decide needs an exception note per §8.3): a needle proven to be a
+byte-substring of a prompt a REAL session sends (not a synthetic bench), on a lineage listed in
+`spark_llm_never_evict_capable_images`, with the before/after read off
+`prompt_tokens_by_source` + `num_preemptions_total` across matched windows. Re-open it if the
+recomputed share climbs past ~10 % or a preemption appears.

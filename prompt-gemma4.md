@@ -46,13 +46,20 @@ premise is broken: converge (`nohup bash scripts/ansible-run.sh playbooks/spark.
 
 ## 3. MMLU-Pro mini on `fast`, concurrency 8 (the priority; ≤5 h)
 
-1,400 items (14×100, CoT). Per-category loop = a crash costs one category; re-running a category
-resumes it. `-n 8` matches seqs 8 — never higher.
+1,400 items exist; the owner subset is **5 × 100** (CoT): other, health, computer science, math,
+biology — slowest-first below, so a budget cut costs the least-valuable tail. Per-category loop = a
+crash costs one category; re-running a category resumes it. `-n 8` matches seqs 8 — never higher.
+
+> ⚠ **`fast` is already measured — do not spend the night re-running it.** Run 20261004-0804 produced
+> all 14 categories at 89.63 % (n=1398) and the owner subset at **89.20 %** (n=500, ±1.4 pts);
+> the data is in `~/mmlu-eval-fast-20261004-0804/` and the McNemar script scores only the
+> `A.keys() & B.keys()` intersection, so a `reasoning`-arm pass over these 5 categories pairs
+> against it. Re-run §3 only if the engine, weights or the harness changed.
 
 ```bash
 sha256sum /tmp/mmlu-pro-harness/mini_test.json | tee "$EV/raw/sha.txt"    # expect e67bad86a84e25bc90f475cd7fc004fa23fca2c562c8b7acc9b38fb07e6c0c4d
 export OUT=~/mmlu-eval-fast-$TS && mkdir -p "$OUT"
-for s in business law psychology biology chemistry history other health economics math physics "computer science" philosophy engineering; do
+for s in other health "computer science" math biology; do   # owner subset 2026-10-05, slowest first
   echo "=== $s $(date -u +%FT%TZ)" >> "$EV/raw/mmlu-fast.log"
   MMLU_PRO_MINI=/tmp/mmlu-pro-harness/mini_test.json NO_COLOR=1 TERM=dumb \
     /tmp/mmlu-venv/bin/python /tmp/mmlu-pro-harness/evaluate_from_apiX.py --url "$URL" \
@@ -105,13 +112,18 @@ once, then cross.
 Both quantisations were timed; no public suite ever ran on both. Flip, run the same items at ITS seqs,
 then the paired test (unpaired diffs prove nothing here). `reasoning` is certified — no override.
 
+> 2026-10-04's attempt to flip this lane crash-looped the engine (`restarts=105`): the never-evict
+> flag was aliased into every profile and this lane's `base` image has no such argument. That pin is
+> REJECTED and renders on no profile now (docs/services-ai-rejected.md), so the flip is clean — a
+> `reasoning` boot failure after this change is a real finding, not the pin.
+
 ```bash
 N=$(python3 -c "import yaml;print(yaml.safe_load(open('IaC/ansible/group_vars/spark.yml'))['spark_llm_profiles']['reasoning']['max_num_seqs'])")
 nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull -e spark_llm_profile=reasoning >/tmp/cg-reasoning-$TS.log 2>&1 &
 sleep 300; tail -20 /tmp/cg-reasoning-$TS.log          # every 5 min, ≤40 min (~20 min boot)
 python3 scripts/spark-llm-probe.py --base-url "$URL" --profile reasoning health 2>&1 | tail -6 | tee "$EV/raw/health-reasoning.log"
 export OUT2=~/mmlu-eval-reasoning-$TS && mkdir -p "$OUT2"
-for s in business law psychology biology chemistry history other health economics math physics "computer science" philosophy engineering; do
+for s in other health "computer science" math biology; do   # same 5-category subset, same order
   MMLU_PRO_MINI=/tmp/mmlu-pro-harness/mini_test.json NO_COLOR=1 TERM=dumb \
     /tmp/mmlu-venv/bin/python /tmp/mmlu-pro-harness/evaluate_from_apiX.py --url "$URL" \
     -m spark/qwen3.8-flash-next -n "$N" -a "$s" -o "$OUT2" --retry 2 --retry_wrong 2 </dev/null >> "$EV/raw/mmlu-reasoning.log" 2>&1
@@ -140,13 +152,15 @@ Report `n_paired` FIRST; under ~300 paired items resolves nothing below ~20 poin
 
 ## 8. Converge back to `fast` — LAST (≤45 min), then commit
 
-The box must end as the repo renders it (`fast`; this also installs the `--never-evict-*` pair). It
-recreates the container: ~15–20 min boot.
+The box must end as the repo renders it (`fast`). The `--never-evict-*` pair is NOT part of that
+render any more — the pin was REJECTED 2026-10-05 (`docs/services-ai-rejected.md`), so a correct
+converge-back shows NEITHER flag; finding one is the finding. It recreates the container: ~15–20 min
+boot.
 
 ```bash
 nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/cg-back-$TS.log 2>&1 &
 sleep 300; tail -20 /tmp/cg-back-$TS.log          # every 5 min, ≤40 min
-ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' -e 'never-evict' /opt/spark-ai/docker-compose.yml" > "$EV/raw/live-after.txt"
+ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' -e 'never-evict' /opt/spark-ai/docker-compose.yml" > "$EV/raw/live-after.txt"   # never-evict: expect NO hit (rejected)
 ssh spark "docker logs vllm-qwen-spark --since 60m 2>&1 | grep -m2 -e 'GPU KV cache size' -e 'Initial free memory'" >> "$EV/raw/live-after.txt"
 python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast health 2>&1 | tail -6 | tee "$EV/raw/health-final.log"
 { echo "# run $TS"; cat "$EV/raw/seat.txt"; grep -h -e 'arm=' -e 'n_paired=' "$EV"/raw/acc-fast.txt "$EV"/raw/mcnemar.txt 2>/dev/null; } >> RESULTS.md

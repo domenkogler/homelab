@@ -47,18 +47,17 @@ The funnel is 16 profiles: 4 already certified (untouched), 12 arms. The dial is
    **It then FAILS on purpose** and prints the image ID → record it in
    `group_vars/all/versions.yml` in its own commit (CONVENTIONS §7: no lane pins itself by
    accident). Then convert the drafter (`recipe/build/model/build.sh --run`, no GPU).
-3. **Author `v16b-pin`'s substring** — the `CHANGEME` in `never_evict_prompt` is the mark of
-   a human decision, not a bug: pick a literal substring of the harness system prompt
-   and say in the commit what fraction of the pool it can pin
-   (`--never-evict-kv-cache-max-fraction` is a fraction OF THE POOL).
-   ⚠ **This step points at the wrong file.** It said `scripts/pi-config/` for the harness system
-   prompt; that directory holds only `models-spec.yml`. The literals actually sent to the engine
-   are pi's built-in system prompt (`pi-coding-agent/dist/core/system-prompt.js`) plus this repo's
-   `pi-agent/AGENTS.md`, and parts of it are per-session (model name, cwd) — so quote from a
-   **captured request**, not from a repo file, or the pin matches nothing. It is also a PAIR of
-   decisions: the arms inherit `never_evict_max_fraction: "0.25"` from the `_x` anchor, and at a
-   16 GB pool that pins ≈ 129 k tokens permanently (≈ 31,027 B/token), competing with the drafter's
-   KV on `v16b-pin`. Re-derive the fraction in the commit; do not inherit it silently.
+3. **Never-evict pin: SKIP — REJECTED 2026-10-05.** This step used to ask for a human-authored
+   `never_evict_prompt` substring. The mechanism was measured on live sessions and dropped
+   (0 blocks held, 0 preemptions, 95.1 % prefix-cache hits, recomputed share unchanged at 4.9 %;
+   [`spark/reports/hd489-never-evict-off/README.md`](spark/reports/hd489-never-evict-off/README.md)
+   · [`docs/services-ai-rejected.md`](docs/services-ai-rejected.md)), and
+   `spark_llm_never_evict_prompt` is `""` for every profile. Do NOT author a substring: the flag
+   exists only in the patched `ultrafast` lineage, so arming a `base`-image profile crash-loops the
+   engine (`reasoning` restarts=105, 2026-10-04) — the role and
+   `scripts/check_spark_llm_gate.py` now refuse that shape via
+   `spark_llm_never_evict_capable_images`. A re-decide needs an §8.3 exception note and a needle
+   proven against a captured real request.
 4. **Legs** — tier 1 first (`u1-patch`, `u2-blk`, `u3-s8` — AWQ weights, already staged, so
    one build and no download separates them from the certified lane), then tier 2 (`ar-*`),
    then tier 3 (`v16b*`). **Timed numbers come from `spark/bench/run-scenario.sh`** (`C2` decode,

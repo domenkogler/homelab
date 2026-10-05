@@ -20,7 +20,10 @@ WHAT IT PROVES (and the canary that makes it fail-able):
     + table mounted, the legacy literal --speculative-config line);
   * an arm whose image pin is EMPTY is reported as GATED (that is the designed state of the
     `ultrafast` arms until versions.yml carries the built image ID), and `--strict` turns
-    that into a failure so a half-finished lane cannot be merged as if it were deployable.
+    that into a failure so a half-finished lane cannot be merged as if it were deployable;
+  * NO profile renders the REJECTED never-evict flags, and a render that put them on an image
+    lineage without the patch is a failure — that argv aborts api_server at parse and the
+    container restart-loops (`reasoning` restarts=105, 2026-10-04; docs/services-ai-rejected.md).
 
 Usage:
   scripts/spark-llm-render-matrix.py            # table of every profile
@@ -142,6 +145,9 @@ def main():
     env, ctx = vds.build_env(), compose_ctx(vds)
     cat = yaml.safe_load(SPARK_VARS.read_text(encoding="utf-8"))
     profiles = [k for k in cat["spark_llm_profiles"] if not k.startswith("_")]
+    # Image lineages whose build carries the --never-evict-kv-cache-* patch (SSOT: the
+    # catalogue). Read it here rather than re-typing it, same rule as the pin map.
+    CAPABLE = [str(x) for x in (cat.get("spark_llm_never_evict_capable_images") or [])]
 
     if dump:
         # render() needs the catalogue too (it resolves the profile's own keys into the flat
@@ -151,6 +157,11 @@ def main():
         return 0
 
     bad = []
+    rendered_pin = []   # must stay empty: the pin is REJECTED (docs/services-ai-rejected.md)
+    if "spark_llm_never_evict_capable_images" not in cat:
+        bad.append("catalogue declares no spark_llm_never_evict_capable_images — the pin/lineage "
+                   "check below would read an EMPTY list and pass whatever it renders (fail-loud, "
+                   "CONVENTIONS §6/§7)")
     print(f"{'profile':11} {'image':11} {'model host path':46} {'ple':34} "
           f"{'seqs':4} {'pool':12} {'ovl':3} {'mmap':4} {'cc':2} {'pin':3} notes")
     for name in profiles:
@@ -165,6 +176,8 @@ def main():
             print(f"{name:11} RENDER FAIL: {str(e)[:110]}")
             continue
         f = facts(doc)
+        if f["evict"]:
+            rendered_pin.append(name)
         gated = not f["image"]
         notes = []
         if gated:
@@ -201,6 +214,14 @@ def main():
             got, wantv = f["evict_arg"], str(want["never_evict_prompt"])
             bad.append(f"{name}: rendered pin != declared never_evict_prompt "
                        f"(len {len(got)} vs {len(wantv)}, head {got[:24]!r} vs {wantv[:24]!r})")
+        if f["evict"] and want.get("image") not in CAPABLE:
+            # The pin is REJECTED (docs/services-ai-rejected.md) and its argument exists only in
+            # the patched lineage — so rendering it at all on another image is the bug that took
+            # reasoning to restarts=105 (api_server exits at argument parse; ~20 min per attempt,
+            # 2026-10-04). Here a rendered pin is a FAILURE, never a feature.
+            bad.append(f"{name}: renders --never-evict-kv-cache-* on image "
+                       f"{want.get('image')!r}, which is not in "
+                       f"spark_llm_never_evict_capable_images ({', '.join(CAPABLE) or 'EMPTY'})")
         eng = want.get("engine", "vllm")
         ple = (f["ple"].split(":")[0] if f["ple"] else "")[len("/mnt/spark_nvme"):][:34] or "-"
         print(f"{name:11} {('ultrafast' if want.get('image')=='ultrafast' else want.get('image','base')):11} "
@@ -222,6 +243,10 @@ def main():
          r["spec"] == '{"method": "mtp", "num_speculative_tokens": 3}'),
         ("reasoning keeps qwen3_coder + full window",
          r["parser"] == "qwen3_coder" and r["ctx"] == "262144"),
+        # Asserted, not assumed: a pin that silently came back would render here and boot a
+        # fork-only flag that reasoning's image cannot even parse (2026-10-04, restarts=105).
+        ("no profile renders the rejected never-evict flags" + (f" (rendered on: {', '.join(rendered_pin)})" if rendered_pin else ""),
+         not rendered_pin),
     ]:
         print(("  ok   " if ok else "  FAIL ") + what)
         if not ok:

@@ -97,6 +97,8 @@ def patterns_from_role():
         ("ple_host_subdir | length > 0", "refuses an mmap arm whose PLE table is not mounted"),
         ("ple_mmap | bool) and (spark_llm.ple_overlay", "refuses mmap + overlay together"),
         ("'CHANGEME' not in", "refuses a placeholder prompt-pin substring"),
+        ("spark_llm_never_evict_capable_images", "refuses a prompt-pin on an image lineage "
+         "whose build has no --never-evict-kv-cache-* argument"),
         ("spark_llm_os_min_free_bytes", "checks free space on the root the artifacts use"),
     ]:
         if marker not in text:
@@ -176,6 +178,18 @@ def vllm_verdicts(profile, cat):
         # forbids serving a mutable tag). The role refuses it at converge time; here it is
         # reported as GATED — neither a permanent red nor an invisible state.
         GATED.append(f"{img}: no image ID pinned in versions.yml yet \u2014 the gate refuses it")
+    # The never-evict pin was REJECTED 2026-10-05 (docs/services-ai-rejected.md), so this
+    # invariant guards a flag that is OFF everywhere: it must stay armed, because the shape it
+    # refuses already happened for real — reasoning (image base) got the pair in argv, api_server
+    # exited at parse, and the container crash-looped to restarts=105 with this gate green.
+    pin_lit = str(profile.get("never_evict_prompt") or "")
+    capable = [str(x) for x in (cat.get("spark_llm_never_evict_capable_images") or [])]
+    out["pin-lineage"] = (
+        not pin_lit or img in capable,
+        f"never_evict_prompt set on image={img!r}, which is not in "
+        f"spark_llm_never_evict_capable_images ({', '.join(capable) or 'EMPTY'}) — the "
+        "--never-evict-kv-cache-* arguments exist only in the patched lineage, so anywhere else "
+        "the engine dies at argument parse (live: reasoning restarts=105, 2026-10-04)")
     coords = {profile.get("models_root"), profile.get("ple_host_root"),
               profile.get("ple_host_base")}
     out["coordinates"] = (None not in coords and coords <= {"xfs", "os", "mount", "models"},
@@ -287,6 +301,11 @@ def canary(cat, pats):
                                               ple_container_dir="/ple-table")),
         ("pin-placeholder", lambda p: p.update(never_evict_prompt="CHANGEME-PIN-SUBSTRING",
                                                certified=True)),
+        # The pin is OFF everywhere now, so this invariant has no live example: breed the exact
+        # shape that crash-looped the box (a real-looking substring on a base-image profile) and
+        # require the refusal.
+        ("pin-lineage", lambda p: p.update(
+            never_evict_prompt="# Global instructions (loaded at every session start by pi)")),
         ("cost-labelled", lambda p: p.update(fixed_cost_basis="guessed from the brochure")),
         ("cudagraph-cap", lambda p: p.update(max_cudagraph_capture_size=16)),
         ("ple-dispatch", lambda p: p.update(ple_dispatch=True)),   # dispatch on a non-mmap arm
@@ -342,7 +361,7 @@ def main():
     pats = patterns_from_role()
     for key in ("spark_llm_profiles", "spark_llm_kv_bytes_per_token",
                 "spark_llm_pool_ceiling_bytes", "spark_llm_device_hold_ceiling_bytes",
-                "spark_llm_profile_images"):
+                "spark_llm_profile_images", "spark_llm_never_evict_capable_images"):
         if key not in cat:
             print(f"ERROR: {key} missing from {CATALOGUE.relative_to(ROOT)}", file=sys.stderr)
             return 2

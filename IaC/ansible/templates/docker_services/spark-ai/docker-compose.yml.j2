@@ -69,7 +69,12 @@
    matches `'<text>'` and the pin is an invisible no-op; and the real value is a multi-line block
    (the operator's pi global instructions), which only survives the `- {{ a }}` emission as a
    properly escaped scalar. scripts/spark-llm-render-matrix.py proves the rendered argument is
-   byte-equal to the declared text — the check that would have caught the quote version. #}
+   byte-equal to the declared text — the check that would have caught the quote version.
+   STATUS 2026-10-05: the mechanism is REJECTED (docs/services-ai-rejected.md), so every profile
+   resolves never_evict_prompt to "" and this branch renders NOTHING. It stays because the flag is
+   a one-line re-decide, and because a profile that set it on an image WITHOUT the patch would
+   crash-loop the engine (reasoning restarts=105, 2026-10-04) — roles/spark-llm-profile and
+   check_spark_llm_gate.py refuse that shape via spark_llm_never_evict_capable_images. #}
 {% if profile.never_evict_prompt %}{%   set command_extra = command_extra + ['--never-evict-kv-cache-prompt-includes', profile.never_evict_prompt | to_json, '--never-evict-kv-cache-max-fraction', profile.never_evict_max_fraction | to_json] %}{% endif %}
 {% set command_extra = command_extra + profile.args_extra | default([]) %}
 services:

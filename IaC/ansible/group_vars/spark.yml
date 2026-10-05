@@ -311,62 +311,40 @@ spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling
 # or a re-cert — never a bigger number in this file. The gate's fail message says which.
 spark_llm_device_hold_ceiling_bytes: 104113000000
 
-# ---- The never-evict KV pin: ONE value, aliased by every profile (owner decision 2026-10-03) --
-# The engine pins the KV blocks of every prompt CONTAINING this text
-# (`--never-evict-kv-cache-prompt-includes`), the direct answer to the ~0 % prefix-hit re-prefill
-# every long session pays (docs/hardware-spark.md §Unified-memory budget). ONE value, aliased below
-# as `*nev` / `*nevf`: a per-arm copy is how a pin silently stops matching what the client actually
-# sends — the two arms that shipped a pin before this change carried two different literals for it.
-# WHY INLINED, not read from a file (two measured reasons): (1) the value must be byte-exact against
-# the client prompt, and scripts/validate-docker-services.py MOCKS every lookup(), so a
-# lookup('file', …) would render `<secret:file>` in the gate and still print green; (2) the source
-# file lives on one laptop (/mnt/c/Users/domen/.pi/agent/AGENTS.md) while IaC must render on
-# whichever control node converges. SSOT = the block below; when that file changes, change this block.
-# OWED, not claimed here: that the pin ENGAGES on real traffic. Both earlier pin arms measured a
-# synthetic prompt that never engages it (spark/reports/hd489-u4-pin + hd489-v16b-pin), so the proof is
-# a prefix-cache-hit read from /metrics across a real pi session, never a synthetic leg — CONVENTIONS
-# §6: a test that cannot fail is not evidence.
-spark_llm_never_evict_prompt: &nev |-
-  # Global instructions (loaded at every session start by pi)
-
-  ## 1. Environment awareness first (always)
-
-  At the **start of every session** (and again only when a command *already* failed
-  with an environment symptom — path, separator, temp dir, home dir, python
-  launcher, encoding, line ending, quoting, shell grammar — or when the platform is
-  unknown), **load the `platform-env` skill and state your environment note**.
-
-  **This check is a one-time checkpoint, not a gate before every command.** Do not
-  re-run it as a preamble before each command once the environment is known. Re-consult
-  it only when something below actually breaks.
-
-  Initial detection:
-  1. Read `skills/platform-env/SKILL.md`, then `references/detect.md`.
-  2. Detect the OS and shell.
-  3. Read the matching doc (`references/windows11.md` or `references/debian.md`).
-  4. Say, in your first response:
-     > `Platform: <windows11 | debian> · shell: <cmd | powershell-5.1 | pwsh7 | git-bash | bash>. I will pin CWD, use <py -3 | python3>, forward-slash relative paths, UTF-8 no-BOM, and <LF | CRLF>; no /tmp or /home assumptions.`
-  5. Apply those rules to every command this session.
-
-  > On this machine, the everyday truth is **Windows 11**. Be careful with
-  > assumptions about `/` vs `\` in paths, `/tmp`, `~`, `python` vs `py -3`, `&&`
-  > (invalid on Windows PowerShell 5.1), UTF-8 vs cp1252, and CRLF vs LF.
-
-  ## 2. Self-learning (improve the skill from failures)
-
-  When a command fails and the root cause is **environmental** (not task logic), fix
-  it per the rules, then — if the lesson is **not already recorded** — follow
-  `skills/platform-env/references/self-learn.md`: propose a one-line addition to the
-  human, and only with explicit sign-off append it to the matching platform doc under
-  `## Self-learned on this host`. Never edit the platform rules without approval.
-
-  ## 3. When producing or running plans
-
-  - `plan-task` records the detected environment in the plan's **`## Environment`**
-    section; honor it.
-  - `run-task` reads that section and passes the env note + repo-root CWD to every
-    worker; workers must follow it (do not re-derive the OS on your own).
-spark_llm_never_evict_max_fraction: &nevf "0.25"   # at most 25 % of the pool may be pinned
+# ---- The never-evict KV pin: REJECTED 2026-10-05 — the ONE value is now EMPTY, so the flag
+# never renders into any profile's argv. Keep reading this block before re-arming it.
+# WHAT IT WAS: `--never-evict-kv-cache-prompt-includes <text>` pins the KV blocks of every
+# prompt CONTAINING that text (up to `--never-evict-kv-cache-max-fraction` of the pool), aimed
+# at the "0 % prefix-hit re-prefill" the long-session note used to carry. ONE value, aliased
+# below as `*nev` / `*nevf`, because a per-arm copy is how a pin silently stops matching what
+# the client sends.
+# WHY IT IS OFF (measured on the live box, 13 h of real pi sessions after the 2026-10-04 boot;
+# docs/spark-llm-profiles.md §Never-evict prompt pin, docs/services-ai-rejected.md):
+#   · the pin held 0 blocks — the engine's own `[never-evict] holding …` line never printed;
+#   · 0 preemptions, 95.1 % of prompt tokens served from prefix cache, recomputed share 4.9 %,
+#     against the 3.70 % (24 h) / 4.57 % (7 d) baseline the pre-pin report already measured —
+#     the 25 GB pool (3.08 × the window) is what cured the re-prefill, not the pin;
+#   · the marker is the operator's pi global-instructions text, and the client actually serving
+#     sessions (WSL pi, PI_PROVIDER=spark) loads no AGENTS.md at all, so no request since boot
+#     carried the needle. A pin aimed at a prompt nobody sends is decoration.
+# THE TRAP THAT ENDED IT: the patch exists ONLY in the built ultrafast lineage. The base digest
+# has no such argument, so arming a `base` profile writes argv api_server cannot parse and the
+# container crash-loops (~20 min per attempt) — live: reasoning restarts=105, overnight run
+# 20261004-0804. That is why the lineage list below exists and why both the role and
+# scripts/check_spark_llm_gate.py now refuse a pin on an unpatched image.
+# TO RE-ARM (a re-decide needs an exception note, CONVENTIONS §8.3): put the literal back here
+# (inlined because scripts/validate-docker-services.py mocks every lookup(), so a
+# lookup('file', …) would render `<secret:file>` and pass the gate green), prove the needle is a
+# byte-substring of a prompt a REAL session sends — not a synthetic bench leg — and move the arm
+# onto a lineage in spark_llm_never_evict_capable_images.
+spark_llm_never_evict_prompt: &nev ""
+spark_llm_never_evict_max_fraction: &nevf "0.25"   # unused while the pin is empty; kept so a re-decide is one line
+# Image lineages whose build actually carries the --never-evict-kv-cache-* argparse patch.
+# MEASURED 2026-10-05 in the images themselves: ultrafast (sha256:4900c13e…) declares the pair
+# in vllm/engine/arg_utils.py + config/cache.py + v1/core/block_pool.py; base (sha256:fc120ece…,
+# vLLM 0.1.dev20073+g8e685d198) has no such argument. A profile with a non-empty pin whose
+# image is not listed here is refused by roles/spark-llm-profile AND check_spark_llm_gate.py.
+spark_llm_never_evict_capable_images: [ultrafast]
 
 spark_llm_profiles:
   # ── 1. REASONING = today's live config, verbatim ───────────────────────────
@@ -429,8 +407,10 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: *nev
-    never_evict_max_fraction: *nevf
+    never_evict_prompt: *nev        # "" — REJECTED 2026-10-05. This lane renders image: base,
+    never_evict_max_fraction: *nevf   # whose build has no --never-evict-kv-cache-* argument: a
+                                      # non-empty pin here aborts api_server at parse and the
+                                      # container crash-loops (restarts=105, 2026-10-04).
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
@@ -504,8 +484,10 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: *nev
-    never_evict_max_fraction: *nevf
+    never_evict_prompt: *nev        # "" — REJECTED 2026-10-05. This lane renders image: base,
+    never_evict_max_fraction: *nevf   # whose build has no --never-evict-kv-cache-* argument: a
+                                      # non-empty pin here aborts api_server at parse and the
+                                      # container crash-loops (restarts=105, 2026-10-04).
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
@@ -749,7 +731,10 @@ spark_llm_profiles:
     ple_staged_marker: ""               #   the template composes paths, profiles declare
     cudagraph_piecewise: false          #   coordinates. (The HD-469 note at the foot of
     prompt_tokens_details: false        #   this file is the reason.)
-    never_evict_prompt: *nev                    # the ONE value for every arm (spark_llm_never_evict_prompt)
+    never_evict_prompt: *nev                    # "" — the ONE value for every arm, now EMPTY (rejected;
+                                      #   docs/services-ai-rejected.md). The role +
+                                      #   check_spark_llm_gate.py refuse to arm it on a
+                                      #   spark_llm_never_evict_capable_images-absent image.
     never_evict_max_fraction: *nevf             # an arm may still override the cap (u4-pin, v16b-pin: 0.03)
     ple_mmap: false                   # the upstream disk-mmap PLE path (mutually exclusive
     ple_dispatch: false               # with ple_overlay: both own `ple_layer.py`); A4 split:
@@ -845,7 +830,7 @@ spark_llm_profiles:
       num_speculative_tokens: 3
       rejection_sample_method: block
       draft_sample_method: probabilistic
-    never_evict_prompt: *nev            # the ONE value (spark_llm_never_evict_prompt)
+    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     artifact_sets: [b1-awq, ple-int4]
     fixed_cost_bytes: 86900000000
@@ -1151,7 +1136,7 @@ spark_llm_profiles:
       draft_sample_method: probabilistic
     cudagraph_piecewise: true
     prompt_tokens_details: true
-    never_evict_prompt: *nev            # the ONE value (spark_llm_never_evict_prompt)
+    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]

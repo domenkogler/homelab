@@ -113,13 +113,18 @@
       CPU-offload env.
   tags: [spark, spark-llm-profile, llm]
 
-# ---- A placeholder must never reach the engine argv ----
+# ---- The never-evict prompt pin: REJECTED 2026-10-05, and both asserts below stay armed ----
 # --never-evict-kv-cache-prompt-includes pins every KV block whose prompt contains the
-# substring, up to --never-evict-kv-cache-max-fraction of the POOL. A placeholder matches
-# nothing (an invisible no-op that still costs a 20-minute boot to notice); a substring
-# chosen too loosely pins a quarter of the pool to one prompt shape. Both are worse than a
-# refusal, so the pin arms SHIP with CHANGEME and are refused until a human authors the
-# substring from the harness system prompt they actually run.
+# substring, up to --never-evict-kv-cache-max-fraction of the POOL. The mechanism was measured
+# and dropped (docs/services-ai-rejected.md): it held 0 blocks across 13 h of real sessions
+# while prefix caching alone served 95.1 % of prompt tokens with 0 preemptions. Every profile
+# now inherits an EMPTY spark_llm_never_evict_prompt, so the template renders neither flag.
+# The asserts are NOT the pin's tests — they are the two ways this flag has already cost a
+# boot, and they must keep firing if anyone re-arms it:
+#   · a placeholder matches nothing (invisible no-op) or everything (a pool leak);
+#   · the argument exists ONLY in the patched image lineage — on any other image api_server
+#     exits at parse time and the container crash-loops. Live: reasoning restarts=105,
+#     overnight run 20261004-0804. scripts/check_spark_llm_gate.py canary-proves both.
 - name: Assert no profile ships a placeholder into the engine argv
   ansible.builtin.assert:
     that:
@@ -131,6 +136,26 @@
       with a LITERAL substring of the system prompt the harness actually sends
       (scripts/pi-config/ → the pi system prompt), and record why that substring is the
       one worth pinning. This is a human-decision gate, not a bug to delete.
+  tags: [spark, spark-llm-profile, llm]
+
+# ---- A pin is only legal on an image lineage whose build carries the patch ----
+# The failure this refuses happened for real: `spark_llm_profile=reasoning` renders
+# image=base, whose vLLM has no --never-evict-kv-cache-* argument, so the pair landed in argv,
+# api_server exited at parse time, and Docker restart-looped the engine (restarts=105 before a
+# human stopped it) — ~20 min of boot per attempt, and the gate was green the whole time because
+# nothing compared the flag to the image. Spark-adjacent rule: a flag the image cannot parse is
+# a profile bug, not a runtime condition.
+- name: Assert a prompt-pin is never armed on an image lineage that lacks the patch
+  ansible.builtin.assert:
+    that:
+      - "not (spark_llm.never_evict_prompt | default('')) or spark_llm.image in spark_llm_never_evict_capable_images"
+    fail_msg: >-
+      Profile '{{ spark_llm_profile }}' sets never_evict_prompt but its image
+      '{{ spark_llm.image }}' is not in spark_llm_never_evict_capable_images
+      ({{ spark_llm_never_evict_capable_images | join(', ') }}). --never-evict-kv-cache-* exists
+      ONLY in the patched lineage: on any other image it aborts the engine at argument parse and
+      the container crash-loops. Leave the pin empty (the REJECTED default, see
+      docs/services-ai-rejected.md) or move the arm onto a capable image.
   tags: [spark, spark-llm-profile, llm]
 
 # ---- Free space on the root the artifacts ACTUALLY live on (HD-489) ----
