@@ -1,98 +1,69 @@
-# `prompt-376.md` — Lane brief · prove spark's long context, then give the lanes a window (HD-376 · HD-400 · HD-359/HD-367 ladder tails · HD-380)
+# `prompt-376.md` — Lane brief · prove spark's long context, then give the harness a window (HD-376 · HD-400 · HD-359/HD-367 ladder tails · HD-380)
 
-> **Role:** the **spark engine lane** — the measurements that stand between "certified for casual chat" and
-> "trusted for agentic max-context", plus the engine-mode question. **Wave 3.** It needs an **owner bench window**:
-> detached runs only, **never with an agent session attached**, and **never driven from a session whose own model is
-> spark** (incidents #3 + #6 — the chain's preflight refuses to start unless in-flight is 0 for exactly this reason).
-> This brief also **absorbs the stale `prompt-next.md`** handoff (2026-09-15, deleted by the parent 2026-09-22 per
-> [prompt.md](prompt.md) §4 O7): its §3 pending-tests list is row 1 of this lane.
-> Start with [README.md](README.md) §0 → §1 mandatory context → [prompt.md](prompt.md) **§4 (orchestrator mode)** →
-> this file → [`spark/BENCHMARK-PLAN.md`](spark/BENCHMARK-PLAN.md) §6/§6a/§9 → the rows in [todo.md](todo.md) §2 (spark).
-> **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
->
-> **Lane contract (orchestrator mode — the authority is [prompt.md](prompt.md) §4, which OVERRIDES parts of
-> README §4 and CONVENTIONS §6 at items O1–O8; where §4 is silent, README + CONVENTIONS stand and outrank this
-> brief).** One session, one worktree, one branch; the parent creates them (`../homelab-wt-<YYYYMMDD>-<HHMM>` /
-> `session/376-spark-<YYYYMMDD>-<HHMM>`). **You hold the spark converge slot** (O3) and every long run is
-> **detached** (`nohup … &` + log + poll). Owner gate → **park and continue** (O4): without a bench window, write the
-> exact command sequence into the row tail and do the repo-side work only. Close-out =
-> `docs/hardware-spark.md` + `spark/*` + row tails + signed commit + `bash scripts/validate-all.sh` green **in this
-> worktree** → **stop**.
+> **Role:** dispatch note for **one** lane session on the **spark** engine. **The rows are the authority** for what is
+> missing and how to do it: [todo.md](todo.md) HD-376 · HD-400 · HD-359 · HD-367 · HD-380. This file carries the contract,
+> the order of work, the hard floor and the traps — nothing else. History lives in the owning docs and in git.
+> **Linked from:** [prompt.md](prompt.md) §3 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
 
-## Rows
+**Contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O8), which overrides README §4 / CONVENTIONS §6 at the
+items it numbers. One session, one worktree, one branch, one brief. Never edit `prompt.md` or `todo-table.md` (O2); edit
+**only your own `todo.md` rows**. **You hold the spark converge slot** (O3) and every long run is **detached**
+(`nohup … &` + log + poll). Owner gate → **park and continue** (O4): with no bench window, write the exact command sequence
+into the row tail and do the repo-side work only. Close-out = `docs/hardware-spark.md` + `spark/**` + row tails + signed
+commit + `bash scripts/validate-all.sh` green **in this worktree** → **stop**.
 
-| # | HD | Action | Gate / note |
-|---|----|--------|-------------|
-| 1 | **HD-376** | **The 262k needle test** (long-context *correctness*, not just "did not crash"), then promote the **`spark-lane` 64k profile**, then measure parent-vs-lane KV contention | ⚠ The corruption trap **≥120k on sm_12x** is documented (sglang#36806 / #36845) — needle-test **every** profile. A 262k session ≈ **56 %** of the OLD pool, which is *why* agent lanes need a smaller window. Absorbs `prompt-next.md` §3 items 1–3: needle at 262k, the **tool-call EMPTY** fix (`--enable-auto-tool-choice` registers nothing — it blocks agentic work), and a **true 3×87k-token fill** (the concurrent gate used ~100 tok prompts) |
-| 2 | **HD-400** | **Proposed, bench-gated, NOT applied:** `--limit-mm-per-prompt '{"image": 0, "video": 0}'` (≡ `--language-model-only`) ± `--mm-processor-cache-gb 0` | ⚠ **It is not a speed change** — no image tokens ⇒ the ViT never executes ⇒ C2 decode expected **flat**; the win is memory on the boot-bound side (ViT ≈0.5–1 GiB + the 4 GiB mm-cache default), where **1 GiB ≈ 32.2k KV tokens**. ⚠ the comma form `image=0,video=0` **errors** on current vLLM (#39687) — JSON only; module-skipping on disable is per-model-implementation upstream (#21943) — **measure on the pinned fork**. Spend the freed GiB in a **separate** row. Consequence accepted upstream: an image part becomes a hard **400** — weigh it in HD-384 · [hardware-workstation.md](docs/hardware-workstation.md) |
-| 3 | **HD-359 / HD-367** | The ladder tails that remain: the **S2/S3 NVFP4 × SGLang** lane (weights-download IaC exists in `roles/spark-artifacts`; missing = manifest entries + SGLang compose + harness param) | Accuracy-anchor 98/100 is **AWQ-only**; NVFP4 is a throughput play, so it is accuracy-gated too. ⛔ **Ladder #10 (LMCache KV offload) is REJECTED 2026-09-20** — it silently corrupts shared-prefix output for hybrid GDN models on this hardware class (its own #4247/#4701, fix unmerged). Not open work, not to be re-proposed |
-| 4 | **HD-380** | Passive: watch `samples.csv` for a curve growing **> 2 GiB/h** under traffic that does not return at idle — that, and only that, re-arms C3 — plus the never-measured prefix-cache / preemption check across the 16 GiB raise | Certified state is stable; this is a standing watch, not a fix. `--enforce-eager` (C3) stays **off on measurement**, not on deferral |
+**This lane needs an owner bench window:** detached runs only, **never with an agent session attached**, and never driven
+from a session whose own model is spark (rule 0 — the chain's preflight refuses to start unless in-flight is 0).
+⛔ Never in the same wave as [prompt-llm.md](prompt-llm.md) (both converge spark, and a bench under a changed scrape
+cadence is not the certified measurement); pair with [prompt-384.md](prompt-384.md) **only** inside an open bench window.
 
-## ⛔ The hard floor (each of these has cost an outage or a wedge)
+**Read first:** [spark/BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §6/§6a/§9 ·
+[spark/llm-profiles/README.md](spark/llm-profiles/README.md) (rule 0 + the gate ladder) ·
+[docs/hardware-spark.md](docs/hardware-spark.md) §Unified-memory budget · [docs/pi-harness.md](docs/pi-harness.md) §2.
 
-* **Never raise `gpu_memory_utilization` above 0.82** — 0.84+ crashes the engine during serve and can **wedge the
-  host** (power-cycle recovers). **Never raise ctx above 262,144** — startup validation rejects; an override needs
-  YaRN + a needle test.
-* **SSOT = live**: the certified config is `spark_vllm_kv_cache_memory: "16000000000"` (16 GiB pool, 515,786 tok,
-  1.97× @262k) — **do not converge spark back to the pre-cert 8.2 GiB**, and re-read the live values from
-  `group_vars/spark.yml`, **not** from the §9 bench table (that records what was benched, not what is live).
-* **16 GiB is the bf16 ceiling**; idle `usable` is **18.5 GiB** (`MemAvailable − CmaFree`, CRIT 8 / WARN 12), so
-  anything new installed on spark spends a **6.5 GiB margin**, and more KV is `--kv-cache-dtype fp8`'s job, not
-  Linux's reserve.
-* **Cold prefill is NVMe-bound** (~465 MB/s → ~13 min TTFT for the first max-fill request after a restart; warm
-  repeat ≈ 1640 tok/s). Plan the window around that; `docker stop` is **intentional** so `unless-stopped` will not
-  bring the engine back ([`spark/stability-test.md`](spark/stability-test.md) §5).
-* **Decision #28 stands:** spark is the **text-only** generation tier; token-level split inference is
-  **unbuildable**, not merely expensive. The RX 7600 takes no vision-LLM leg · [services-ai.md](docs/services-ai.md) §9 #28.
+## Order of work
+
+| # | Row | Do | Gate / note |
+|---|-----|----|-------------|
+| 1 | **HD-376** | The **262k needle test**, then promote the **`spark-lane` 64k profile** into IaC, then measure parent-vs-lane KV contention | Needle-test **every** profile at the depth it serves (the ≥120k corruption trap on sm_12x: sglang#36806 / #36845). A 262k session ≈ 56 % of the OLD pool — which is *why* agent lanes need a smaller window. Also owed: the tool-call **EMPTY** fix and a true 3×87k-token fill (HD-367's row carries both) |
+| 2 | **HD-400** | Decide the text-only engine mode: `--limit-mm-per-prompt '{"image": 0, "video": 0}'` (≡ `--language-model-only`), optionally `--mm-processor-cache-gb 0` | **Proposed, bench-gated, NOT applied.** It is not a speed change — no image tokens ⇒ the ViT never runs ⇒ decode expected flat; the win is **memory** on the boot-bound side (ViT ≈0.5–1 GiB + the 4 GiB mm-cache default; 1 GiB ≈ 32.2k KV tokens). ⚠ the comma form `image=0,video=0` **errors** on the pinned vLLM (#39687) — JSON only; module-skipping is per-model-implementation (#21943), so measure on the pinned build. An image part becomes a hard **400** — weigh it in HD-476 |
+| 3 | **HD-359 / HD-367** | The ladder tails: the **S2/S3 × SGLang** lane (weights IaC exists in `roles/spark-artifacts`; missing = manifest entries + SGLang compose + harness param) | Accuracy anchor is AWQ-only; NVFP4 is a throughput play, so it is accuracy-gated too. ⛔ Ladder #10 (LMCache KV offload) is **REJECTED** — it corrupts shared-prefix output for hybrid GDN models on this hardware (its own #4247/#4701, fix unmerged). Not open work, not to be re-proposed |
+| 4 | **HD-380** | Passive watch: `samples.csv` growing **> 2 GiB/h** under traffic that does not return at idle re-arms C3 — plus the never-measured prefix-cache / preemption check across the pool raise | A standing watch, not a fix. `--enforce-eager` (C3) stays off **on measurement**, not on deferral |
+
+## ⛔ The hard floor (each line cost an outage or a power-cycle)
+
+* **SSOT = live.** Read the engine's real values from `IaC/ansible/group_vars/spark.yml` (and off the box), **not** from a
+  bench table — a bench table records what was benched, not what is live. The certified global pool ceiling is 16 GiB; the
+  live `fast` profile runs a larger pool under a **named per-profile** `pool_ceiling_bytes`, so never "restore" a pool size.
+* Never raise `max_model_len` above **262,144** (startup validation rejects; an override needs YaRN + a needle test).
+  `gpu_memory_utilization` is **gone from this build** — `--kv-cache-memory-bytes` owns the pool; a dead config line is not a knob.
+* **Never raise a profile's `fixed_cost_bytes` or the host-floor ceiling to make a gate pass** — the measurement is the
+  thing to change, not the constant ([docs/spark-llm-profiles.md](docs/spark-llm-profiles.md) §The gate).
+* **Cold prefill is NVMe-bound** (first max-fill request after a restart ≫ a warm repeat). Plan the window around it.
+  `docker stop` of the engine is **intentional** in the watchdog path — `unless-stopped` will not bring it back
+  ([spark/stability-test.md](spark/stability-test.md) §5); if you stop it, you own restarting it via converge.
+* **Decision #28 stands:** spark is the **text-only** generation tier; token-level split inference is unbuildable, not
+  merely expensive ([docs/services-ai.md](docs/services-ai.md) §9 #28).
 
 ## First action
 
-Re-read the live engine config off the box **and** from `group_vars/spark.yml`, confirm they agree, and confirm the
-watchdog is not mid-recycle (HD-395 is in prompt-420 (brief not in tree; lane closed) — if that lane has merged, the baseline
-rule may already have changed; say which version you benched on).
+Re-read the live engine config **off the box** *and* from `group_vars/spark.yml`, confirm they agree, and confirm no
+converge or watchdog recycle is in flight ([docs/hardware-spark.md](docs/hardware-spark.md)); say which build/render you
+are benching, or the numbers are unattributable.
 
-## Lane rules (Wave 3 — pair with [`prompt-384.md`](prompt-384.md) **only**, and only in an open bench window)
+## Owns / never touches
 
-* **Owns:** `IaC/ansible/roles/spark/**`, `IaC/ansible/roles/spark-artifacts/**`, `IaC/ansible/group_vars/spark.yml`,
-  `spark/**` (bench plans, harness scripts, `reports/**`), `docs/hardware-spark.md`,
-  `docs/hardware-gpu.md` **for spark's side**, and **your own `todo.md` rows**.
-* **Never touches:** `prompt.md` / `todo-table.md` (O2) — the third file that rule used to name, `prompt-next.md`,
-  is deleted 2026-09-22;
-  `IaC/ansible/roles/monitoring/**` + `templates/docker_services/spark-dcgm/**` +
-  `roles/spark/files/spark-oom-watchdog.sh` (all prompt-420 (brief not in tree; lane closed) — ⛔ **never the same wave as 420**:
-  both converge spark, and a bench under a changed scrape cadence is not the certified measurement);
-  `roles/router/**` (414); `docs/services-ai.md` + `roles/docker_services/**` (384); the frozen archives and
-  generated `*-generated.md`.
-
-## Row state 2026-09-28 — landed, do not redo (condensed; full records in the cited docs)
-
-- **359** — IaC host + `roles/spark` + artifact store LIVE (weights 169G + overlays + INT4 tables staged on XFS,
-  4 live-run defects fixed); DGX OS first boot DONE (all 4 sleep targets masked — headless auto-suspend is the
-  L2-blackout cause; runbook Phase 5). Remaining chain = the row's ⏳.
-- **367** — mgmt-leg dual-home LIVE on the SINGLE NIC (VLAN-99 tagged, mgmt ping 0.5 ms, default route stays
-  Home); llm-d REMOVED (it is a Kubernetes stack, the router image was never public; LiteLLM fronts vLLM);
-  S1 blockers fixed (no numactl under the hardened container; mount the WHOLE `/root/.cache`; `--swap-space`
-  does not exist in the pinned build; `--quantization awq` mismatched `compressed-tensors` weights — dropped).
-  S1 sweep VERDICT: usable for casual/chat now — max servable util **0.82**, max ctx **262,144** native
-  (300k rejected at startup), 250k@95% with 0 preemptions; C3 once OOMed the HOST at 02:50 → harness defaults
-  C3→6x8k@c2 + `MEM_FLOOR_GB` preflight. Dashboards closed (`spark.kogler.si:11000` 200).
-- **376** — harness window/thinking block APPLIED on the workstation (probe table + the parallel-lane rule —
-  the KV pool is ONE shared ~262k budget, `max_num_seqs: 4` → lanes need their own profile — in
-  [pi-harness.md](docs/pi-harness.md)); `max_model_len 262144` IS the servable ceiling — the "273k" number is
-  KV slots / bandwidth, never put it in a client; `pi-dev` re-point CLOSED as moot (HD-386 parked + decision #26).
-- **380** — governor term LIVE: `--max-cudagraph-capture-size 4` (per-pid 105,477→96,235 MiB, MemAvailable
-  16.7→22.2 GiB; root defect: graphs captured [1..32] while decode caps at 4); `spark-oom-watchdog` LIVE and
-  self-proved; bench harness de-noised — **any bench number taken after `spark-llm_api` landed is invalid until
-  re-run** (401s exited 0); ~13 GiB stays unprofiled but the observed peak is bounded → C3 `--enforce-eager`
-  trigger NOT met, stays off on measurement; idle-recycle term OFF by owner decision; the "idle ratchet" was
-  RETRACTED by HD-381.
-- **400** — nothing landed (proposal + acceptance spec stay in the row).
+**Owns:** `IaC/ansible/roles/spark/**`, `roles/spark-artifacts/**`, `IaC/ansible/group_vars/spark.yml`, `spark/**` (bench
+plans, harness, `reports/**`), `docs/hardware-spark.md`, `docs/hardware-gpu.md` **for spark's side**, your own `todo.md` rows.
+**Never:** `prompt.md` / `todo-table.md` (O2); `roles/monitoring/**`, `templates/docker_services/spark-dcgm/**`,
+`roles/spark/files/spark-oom-watchdog.sh` (unowned by any live brief — read the row before touching, and never change the
+scrape cadence mid-bench); `roles/router/**`; `docs/services-ai.md` + `roles/docker_services/**`
+([prompt-384.md](prompt-384.md)); the frozen archives and generated `*-generated.md`.
 
 ## Acceptance
 
-Needle-test results **per profile** with the depth that failed or passed recorded (a pass at 32k is not a pass at
-262k) · the `spark-lane` 64k profile in IaC with the contention measurement quoted · HD-400's before/after memory
-table **or** an explicit "not applied, and here is the number that decided it" · the S2/S3 verdict written into
-[BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §9 · nothing converged over the certified values without a diff shown ·
-closed rows deleted, others trimmed · `bash scripts/validate-all.sh` green **in this worktree** → **stop**
-([docs/orchestration.md](docs/orchestration.md) §4).
+Needle results **per profile** with the depth that failed or passed (a pass at 32k is not a pass at 262k) · the
+`spark-lane` 64k profile in IaC with the contention measurement quoted · HD-400's before/after memory table **or** an
+explicit "not applied, and here is the number that decided it" · the S2/S3 verdict written into
+[spark/BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §9 · nothing converged over the certified values without a diff shown ·
+closed rows deleted, others trimmed · `bash scripts/validate-all.sh` green **in this worktree** → **stop**.

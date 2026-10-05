@@ -1,68 +1,49 @@
-# `prompt-357.md` — Lane brief · make the launchpad and the home edge tell the truth (HD-357 · HD-17 + HD-217 · HD-358 · + HD-418 window-gated)
+# `prompt-357.md` — Lane brief · the family-facing surface (HD-357 · HD-17 + HD-217 · HD-358 · HD-418)
 
-> **Role:** one lane for the **family-facing surface**: the tiles that are dead, the failover button that is rendered
-> nowhere, and the two hand-offs that still need a human to paste a key. **Wave 4** — and its old gate is
-> **gone**: the jellyfin publish this lane waited on (**HD-419**, lane 414 row 6b) shipped + verified 2026-09-22, so the
-> tile has an endpoint to point at. What still orders the lane is the **oldsrv converge slot** (§4 O3), not a dependency.
-> Start with [README.md](README.md) §0 → §1 mandatory context → [prompt.md](prompt.md) **§4 (orchestrator mode)** →
-> this file → the rows in [todo.md](todo.md) §2 (Network / platform, AI / Office).
-> **Linked from:** [prompt.md](prompt.md) §2 + §4 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
->
-> **Lane contract (orchestrator mode — the authority is [prompt.md](prompt.md) §4, which OVERRIDES parts of
-> README §4 and CONVENTIONS §6 at items O1–O8; where §4 is silent, README + CONVENTIONS stand and outrank this
-> brief).** One session, one worktree, one branch, one brief; the parent creates them
-> (`../homelab-wt-<YYYYMMDD>-<HHMM>` / `session/357-launchpad-<YYYYMMDD>-<HHMM>`).
-> **Never edit `prompt.md` or `todo-table.md`** (O2); edit **your own `todo.md` rows only**. **You hold the oldsrv
-> converge slot** (O3): one converge in flight, detached, **no `--diff`**. Owner gate → **park and continue** (O4):
-> the HD-418 HA restart and the visual sign-off are the owner's — park them with the exact action. Close-out = owning
-> docs + row tails + signed commit + `bash scripts/validate-all.sh` green **in this worktree** → **stop**.
+> **Role:** dispatch note for **one** lane session. **The rows are the authority** for what is missing and how to do it:
+> [todo.md](todo.md) HD-357 · HD-17 · HD-217 · HD-358 · HD-418. This file carries the lane contract, the order of work and
+> where to look — nothing else. History lives in the owning docs and in git.
+> **Linked from:** [prompt.md](prompt.md) §3 · [todo.md](todo.md) · [todo-table.md](todo-table.md)
 
-## Rows
+**Contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O8) — it overrides README §4 / CONVENTIONS §6 at the
+items it numbers. One session, one worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`), one branch
+(`session/357-launchpad-<YYYYMMDD>-<HHMM>`), one brief. Never edit `prompt.md` or `todo-table.md` (O2); edit **only your own
+`todo.md` rows**. Owner gate → **park and continue** (O4), naming the exact blocked action. Close-out = owning doc + row
+tails + signed commit + `bash scripts/validate-all.sh` green **in this worktree** → **stop**; the parent merges.
 
-| # | HD | Action | Gate / note |
-|---|----|--------|-------------|
-| 1 | **HD-357** | Wire the Homepage tiles/widgets to the **verified** endpoints (home edge + VPS edge): Jellyfin and Seerr are dead, Immich is stuck "Soon" (bug #6) | Endpoints and route tables are **final** — this is wiring, not architecture. **HD-419 shipped 2026-09-22**: `media.kogler.si` answers **200** through the home edge with jellyfin published on **loopback** (`services-traefik.md`), so verify the tile **through the edge**, never from the container |
-| 2 | **HD-17 + HD-217** | Render the **IP-only** failover button (`homepage_failover_button`) — `ha-failover-api` has been active on oldsrv since 2026-09-08, only the render is missing | ⛔ the RFUSB path is obsolete (**HD-18 rejected**); one failover button, IP-only · [services-traefik.md](docs/services-traefik.md) |
-| 3 | **HD-358** | Record the Seerr → \*arr API-key + URL hand-off as a runbook step, and **prefer automating it in IaC** over documenting it (bug #7) | Home edge is up; the manual step is exactly the class README §4.8 says the doing session writes down — or removes |
-| 4 | **HD-418** *(window-gated)* | `ha_trusted_proxies` += `oldsrv_home_ip`, so the **standby** HA edge stops answering `400` to anything oldsrv proxies | ⛔ The fix **restarts the smart-home controller** → it runs only in a planned window the owner names (O4). Decided 2026-09-21; **park it with the exact change staged** if no window is open · [smart-home-rejected.md](docs/smart-home-rejected.md) |
+**Converge host:** **oldsrv** `docker_services` — one converge in flight, detached, **never `--diff`** (O3).
+⛔ Never in the same wave as [prompt-384.md](prompt-384.md) or [prompt-361.md](prompt-361.md): all three converge oldsrv.
 
-## ⛔ No-re-decide list
+## Order of work
 
-* **Placement and endpoints are settled** — the home edge (`traefik-internal` on oldsrv) and the VPS edge exist; the
-  tile layout is the accessibility SSOT in [services.md](docs/services.md). Do not re-plan the launchpad.
-* **`media.kogler.si` is not a 502 any more** — **HD-419 shipped 2026-09-22** (loopback publish), so the tile is
-  wiring, not a blocked wait. ⚠ Verifying it found the **same 502 shape on `seerr` / `sonarr`** and the rest of the
-  home-hosted group; that has **no row yet** and is not this lane's to fix — record what you see in
-  [services-traefik.md](docs/services-traefik.md) and leave it.
-* **HD-316's visual pass is the owner's eye** ([todo-table.md](todo-table.md) §A2). Land the wiring, hand over the
-  eyeball, and leave the row with a ⏳ tail — do not declare a tile "working" from a `curl 200`.
-* **No new public listeners.** The family surface rides the existing edge and middleware tiers.
+| # | Row | Do | Where the detail lives |
+|---|-----|----|------------------------|
+| 1 | **HD-357** | Wire the Homepage tiles/widgets to the endpoints that answer **today**, through the edge | `IaC/ansible/templates/homepage_services.yaml.j2` + `homepage_widgets.yaml.j2` **as rendered** — fix the template, never the live file. Tile layout SSOT: [docs/services.md](docs/services.md) |
+| 2 | **HD-17 + HD-217** | Render the **IP-only** failover button (`homepage_failover_button`) | [docs/smart-home-failover.md](docs/smart-home-failover.md) · ⛔ the RFUSB path is obsolete (HD-18 rejected the stick) |
+| 3 | **HD-358** | Close the Seerr → \*arr API-key + URL hand-off — **prefer automating it in IaC** over documenting it | [docs/services-media.md](docs/services-media.md); any step a human will repeat earns a [deployment-manual.md](deployment-manual.md) line in the same commit (O6) |
+| 4 | **HD-418** | `ha_trusted_proxies` += `oldsrv_home_ip`. ⛔ It **restarts the smart-home controller** → only in an owner-named window; if no window is open, park it with the change staged (O4) | [docs/smart-home.md](docs/smart-home.md) · [docs/smart-home-rejected.md](docs/smart-home-rejected.md) |
 
-## First action
+## Traps
 
-Read `IaC/ansible/templates/homepage_services.yaml.j2` and `homepage_widgets.yaml.j2` **as rendered**, then diff each
-tile against the endpoint that actually answers today (the home edge first, then the VPS edge). Fix the template, not
-the live file — the render is the SSOT.
+- Verify a tile **through the edge** — the home edge (`traefik-internal` on oldsrv) first, then the VPS edge — never from
+  the container. `media.kogler.si` answers 200 through the home edge since HD-419 (jellyfin published on **loopback**).
+- ⛔ No new public listeners: the family surface rides the existing edge + middleware tiers.
+- A `curl 200` is not a working tile — the visual pass is the **owner's eye** ([todo-table.md](todo-table.md) §A2). Land the
+  wiring, hand over the eyeball, leave the row a ⏳ tail.
+- If you find the old 502 shape on other home-hosted services, **record it in** [docs/services-traefik.md](docs/services-traefik.md)
+  and leave it — it is not this lane's row.
 
-## Lane rules (Wave 4 — runs alone: its old sibling `prompt-394` closed and its brief is deleted)
+## Owns / never touches
 
-* **Owns:** `IaC/ansible/templates/homepage_services.yaml.j2`, `IaC/ansible/templates/homepage_widgets.yaml.j2`,
-  `IaC/ansible/templates/docker_services/{homepage,seerr,seerrng,jellyfin}/**`,
-  `IaC/ansible/templates/docker_services/traefik-internal/dynamic/routes.yml.j2` **for the routes your tiles need**,
-  `IaC/ansible/roles/home_assistant/**` (HD-418 only), your own keys in `IaC/ansible/group_vars/all/main.yml`,
-  `docs/{services.md,services-media.md,services-traefik.md}`, and **your own `todo.md` rows**.
-* **Never touches:** `prompt.md` / `todo-table.md` (O2); `roles/router/**`, `roles/tailscale-node/**`,
-  `templates/docker_services/{headscale,technitium,traefik-tailnet}/**` and the **v6/filter** work in
-  `traefik-internal` (lane 414's scoped-IPv6/filter work is **closed 2026-09-22** and folded into the converge
-  template — do not re-cut it); `docs/{services-ai*,pi-harness,1password,deployment-*}.md` +
-  `scripts/**` (lanes 384 / 407); `roles/monitoring/**` (420); `docs/{services-admin,security,services-vps}.md`
-  (412); the frozen archives and generated `*-generated.md`.
-* ⛔ **Never the same wave as `prompt-407` / `prompt-384` / `prompt-414`** — all converge oldsrv.
+**Owns:** the `homepage_*` templates, `templates/docker_services/{homepage,seerr,seerrng,jellyfin}/**`, the
+`traefik-internal` routes your tiles need, `roles/home_assistant/**` (HD-418 only), your keys in
+`IaC/ansible/group_vars/all/main.yml`, `docs/{services,services-media,services-traefik}.md`, your own `todo.md` rows.
+**Never:** `prompt.md` / `todo-table.md` (O2); `roles/router/**`, `roles/tailscale-node/**`,
+`templates/docker_services/{headscale,technitium,traefik-tailnet}/**` and the v6/filter work in `traefik-internal`
+(the answer-plane lane, [prompt-436.md](prompt-436.md)); `roles/monitoring/**`; the frozen archives and generated `*-generated.md`.
 
 ## Acceptance
 
-Every launchpad tile either renders live data or is removed with a word in the row · the failover button renders with
-the IP-only form and the ⛔ RFUSB note is reflected in the doc · the Seerr→\*arr step is either automated in IaC or
-written as imperative procedure in [deployment-manual.md](deployment-manual.md) (O6) · closed rows deleted, others
-trimmed with an exact ⏳ tail · `bash scripts/validate-all.sh` green **in this worktree** → **stop**
-([prompt.md](prompt.md) §4).
+Every tile renders live data or is removed with a word in the row · the failover button renders in its IP-only form ·
+the Seerr hand-off is automated in IaC **or** written as imperative procedure · closed rows deleted, others trimmed to an
+exact ⏳ tail · `bash scripts/validate-all.sh` green **in this worktree** → **stop** ([docs/orchestration.md](docs/orchestration.md) §4).
