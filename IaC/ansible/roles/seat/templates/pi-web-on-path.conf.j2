@@ -1,0 +1,12 @@
+{# roles/cockpit seat.yml — drop-in 2 of 2 (HD-445): the PATH a USER unit never gets.
+   pi-web shells out to `pi` for the model list, every chat turn and its own
+   self-update; no flag overrides the binary path. A systemd USER unit gets no login
+   shell, so ~/.profile is never read and the unit's PATH is the sbin/bin defaults.
+   `pi` is an npm -g symlink inside the pinned Node tarball and its shebang is
+   `#!/usr/bin/env node`, so the NODE BIN DIR must be on PATH — a lone `pi` symlink
+   (or ~/.local/bin) fails with `env: node: not found`. Measured 2026-10-01: every
+   chat send died `exec: "pi": executable file not found in $PATH` and
+   GET /api/models answered 500 with the same string. `current` is a stable symlink,
+   so a Node bump re-points one link and this file stays correct. #}
+[Service]
+Environment=PATH={{ seat_pi_node_bin }}:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin

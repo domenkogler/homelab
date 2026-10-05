@@ -1,0 +1,8 @@
+{# roles/cockpit seat.yml — drop-in 1 of 2 (HD-445): bind loopback only.
+   ExecStart= with no argument CLEARS the unit's ExecStart; the second line replaces
+   it. Without the reset the flags would be appended to the base ExecStart and systemd
+   would refuse the unit. The port is the same seat_pi_web_port the Traefik
+   pi-oldsrv-ts-backend service points at — one variable, both halves (§2 SSOT). #}
+[Service]
+ExecStart=
+ExecStart={{ seat_home }}/{{ seat_pi_web_bin }} -host {{ seat_bind }} -p {{ seat_pi_web_port }}

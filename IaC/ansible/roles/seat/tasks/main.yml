@@ -1,0 +1,151 @@
+---
+# =====================================================================
+# roles/seat — the pi CODING SEAT plane on this host (HD-445, 2026-10-05).
+#
+# Before this file, the seat was hand-kept on oldsrv: the pi-web user unit, its
+# two drop-ins, the token env file and linger existed only on the box, so a
+# rebuild of oldsrv lost the cockpit silently and `--check` could not see any of
+# it (the row's own words: "a rebuild of oldsrv today loses the cockpit
+# silently"). The route+bind half landed 2026-09-28 (pi-oldsrv-ts router +
+# loopback :31415); this file converges the host side.
+#
+# THE TWO DROP-INS ARE NOT OPTIONAL, AND THEY ARE NOT REDUNDANT:
+#   * loopback-bind.conf — re-declares ExecStart with -host/-p so the cockpit
+#     binds loopback only and is reachable exclusively through the Traefik
+#     router (tailnet-only by construction).
+#   * pi-on-path.conf — pi-web shells out to `pi` for the model list, every chat
+#     turn and its own self-update, and a systemd USER unit gets no login shell,
+#     so it never sees ~/.profile. Without the Node bin dir on the unit's PATH
+#     every send dies with `exec: "pi": executable file not found in $PATH` —
+#     what a phone reported on 2026-10-01, and `pi`'s shebang is
+#     `#!/usr/bin/env node`, so a lone `pi` symlink is not enough.
+# Rendering ONE of them and not the other reproduces exactly that incident.
+#
+# What stays OUT of this file, deliberately:
+#   * the pi harness itself (pinned Node tarball, the pi npm package, the pi-web
+#     package, ~/.pi/agent/skills, the rendered model contract) — that is
+#     scripts/install-pi-debian.sh (HD-446), and the assert below refuses to
+#     enable a unit whose binary is missing instead of inventing one;
+#   * settings.json — pi-harness.md §5 is its source and there is no renderer by
+#     design (§1), so no template here may write it;
+#   * the Traefik route — roles/cockpit/templates/cockpit-routes.yml.j2 (the cockpit role
+#     owns the route; this role owns the host side of the seat).
+# =====================================================================
+
+- name: seat | Assert the seat user exists (roles/access owns the account)
+  ansible.builtin.getent:
+    database: passwd
+    key: "{{ seat_user }}"
+  register: seat_getent
+  failed_when: seat_getent.ansible_facts.getent_passwd[seat_user] is not defined
+
+- name: seat | Carry the seat uid for the user-scoped systemctl calls
+  ansible.builtin.set_fact:
+    # getent_passwd[user] is [/etc/passwd field 2..7] minus the name:
+    # [passwd, uid, gid, gecos, home, shell] — home is index 4. Index 3 is the GECOS
+    # field, which on this fleet is a real name ("Domen Kogler,,,") and produced a
+    # path like /home/domen/Domen Kogler,,,/.pi/... on the first try. Prove the shape
+    # rather than counting separators.
+    seat_uid: "{{ seat_getent.ansible_facts.getent_passwd[seat_user][1] }}"
+    seat_home: "{{ seat_getent.ansible_facts.getent_passwd[seat_user][4] }}"
+
+- name: seat | Check the cockpit binary the unit will exec
+  # `pi install npm:@ygncode/pi-web` writes ~/.pi/agent/bin/pi-web; a unit pointing
+  # at a missing binary would restart-loop under Restart=on-failure and the failure
+  # would look like a Traefik problem from outside.
+  ansible.builtin.stat:
+    path: "{{ seat_home }}/{{ seat_pi_web_bin }}"
+  register: seat_bin
+
+- name: seat | Refuse to render a unit whose binary is absent
+  ansible.builtin.assert:
+    that: seat_bin.stat.exists
+    fail_msg: >-
+      {{ seat_home }}/{{ seat_pi_web_bin }} does not exist — the cockpit
+      package is not installed for {{ seat_user }}. Run
+      `bash scripts/install-pi-debian.sh --cockpit` as {{ seat_user }}
+      (HD-446) and re-converge; do NOT create the file by hand.
+
+- name: seat | Ensure the seat package set
+  # tmux belongs here as a package DECISION (the row's point: not a hand
+  # `apt install` on a production host that nothing re-asserts).
+  ansible.builtin.apt:
+    name: "{{ seat_packages }}"
+    state: present
+
+- name: seat | Render the pi-web user unit
+  ansible.builtin.template:
+    src: pi-web.service.j2
+    dest: "{{ seat_unit_dir }}/pi-web.service"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0644"
+  notify: seat | reload and restart pi-web
+
+- name: seat | Render BOTH drop-ins — the loopback bind
+  ansible.builtin.template:
+    src: pi-web-loopback-bind.conf.j2
+    dest: "{{ seat_unit_dir }}/pi-web.service.d/loopback-bind.conf"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0644"
+  notify: seat | reload and restart pi-web
+
+- name: seat | Render BOTH drop-ins — the unit PATH that finds `pi`
+  ansible.builtin.template:
+    src: pi-web-on-path.conf.j2
+    dest: "{{ seat_unit_dir }}/pi-web.service.d/pi-on-path.conf"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0644"
+  notify: seat | reload and restart pi-web
+
+- name: seat | Render the token env file
+  # The token is the cockpit-pi-web_api credential (HD-361 minted it with the same
+  # bearer the Traefik middleware chain uses). 0600 + never a literal (§6).
+  ansible.builtin.template:
+    src: pi-web-env.j2
+    dest: "{{ seat_home }}/.config/pi-web/env"
+    owner: "{{ seat_user }}"
+    group: "{{ seat_user }}"
+    mode: "0600"
+    lstrip_blocks: true
+  no_log: true
+  notify: seat | reload and restart pi-web
+
+- name: seat | Read the linger state
+  # check_mode: false — a read that reports "not changed" in check mode is fine;
+  # the point is that check mode must not claim linger is already on.
+  ansible.builtin.command: loginctl show-user {{ seat_user }} -p Linger
+  register: seat_linger
+  changed_when: false
+  check_mode: false
+
+- name: seat | Enable linger (the seat survives logout, so it survives a reboot)
+  # A user unit without linger does not run before the first login — the cockpit
+  # would be down after every reboot until a human signed in at the console.
+  ansible.builtin.command: loginctl enable-linger {{ seat_user }}
+  when: "'Linger=yes' not in seat_linger.stdout"
+
+# Handlers run at the END of a play, so without this the proof below would read the
+# PRE-reload unit — the exact "the file is right, the daemon never reloaded" state.
+- name: seat | Apply the unit handlers before proving
+  meta: flush_handlers
+
+- name: seat | Prove the running unit carries the PATH that finds `pi`
+  # Read-after-write proof of the ONE property that broke the phone path, taken from
+  # the LIVE unit rather than the file: a drop-in that exists but was never reloaded
+  # proves nothing (the `enable --now` lesson from Phase 4c — enabling does not
+  # restart a running unit, only `restart` does).
+  ansible.builtin.command: systemctl --user cat pi-web.service
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ seat_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ seat_uid }}/bus"
+  changed_when: false
+  when: not ansible_check_mode
+  register: seat_unit_live
+  failed_when: >-
+    (seat_unit_live.rc | default(1)) != 0
+    or seat_pi_node_bin not in (seat_unit_live.stdout | default(''))

@@ -25,6 +25,8 @@
     ansible_ssh_common_args: "-o ProxyJump=vps"
   roles:
     - common          # ansible-admin user guard + sudoers + trixie sources + hardening (canonical)
+    - role: access    # HD-443: accounts + authorized_keys + the AllowUsers gate
+      tags: [access]
     - network         # DHCP client-id=mac + netd units (dual-homed mgmt/home) — same as nas/oldsrv/pi
     - docker
     - spark           # NVMe p2 → XFS for PLE/KV + headroom assert (gated by spark_partition_enable)

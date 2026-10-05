@@ -1,0 +1,6 @@
+# {{ ansible_managed }}
+# roles/cockpit seat.yml — the cockpit token (never a literal, §6). The same bearer
+# the pi-oldsrv-ts router's middleware chain validates, so the phone and the seat
+# agree (HD-361 minted it with that pairing; HD-442 found the stale-token mint trap).
+# 0600, and the task runs no_log so a --diff cannot print it (O3 secret-dump class).
+PI_WEB_TOKEN={{ lookup('community.general.onepassword', seat_pi_web_vault_item, field='credential', vault=op_vault) }}

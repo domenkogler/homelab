@@ -56,6 +56,16 @@ if ! command -v op >/dev/null 2>&1; then
   echo "FATAL: op CLI not found" >&2; exit 1
 fi
 
+# HD-442: `[ -r /etc/op/provision-token ]` above proves the file exists, not that the
+# credential still works — that posture is how a stale token survived eight green
+# converges while every vault write from this host failed. One read-only list call turns
+# the whole class into a loud failure here instead of a silent no-write downstream.
+if ! op item list --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null; then
+  echo "FATAL: /etc/op/provision-token is not accepted by the vault (existence != validity, HD-442)." >&2
+  echo "       Re-converge the token (roles/docker_services/tasks/op-provision-token.yml); do NOT re-run this glue." >&2
+  exit 1
+fi
+
 MASTER_KEY="$(op item get litellm_api --reveal --fields credential --vault "$OP_VAULT" 2>/dev/null)"
 if [ -z "${MASTER_KEY:-}" ]; then
   echo "FATAL: litellm_api empty/unreadable — cannot administer keys" >&2; exit 1
@@ -181,11 +191,26 @@ PYEOF
 
 # vault_write <item> <value> : edit existing item, else create api-credential item
 vault_write() {
-    local item="$1" val="$2"
-    if op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null; then
-        op item edit "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null
+    # HD-442: the rc of every op call is load-bearing. Two ways this used to lie:
+    #   * a 403 on `op item get` read as "the item does not exist" and fell through to
+    #     `op item create` — minting a phantom item beside the real one (HD-441 class);
+    #   * an `op item edit`/`create` failure was swallowed, and the caller logged
+    #     "created … minted + stored" from its own stdout anyway (Ansible's
+    #     `changed_when: "'created' in stdout"` then reported success).
+    # The key was ALWAYS minted server-side, so a swallowed write = a live key with no
+    # vault record. Return non-zero and let the caller exit.
+    local item="$1" val="$2" get_rc=0
+    op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null || get_rc=$?
+    if [ "$get_rc" -eq 0 ]; then
+        op item edit "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null \
+            || { log "FATAL: vault EDIT of '$item' failed — the minted key is live but unrecorded" >&2; return 1; }
+    elif op item list --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null; then
+        # get failed AND the vault is readable => genuinely absent: create it.
+        op item create --category "API Credential" --title "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null \
+            || { log "FATAL: vault CREATE of '$item' failed — the minted key is live but unrecorded" >&2; return 1; }
     else
-        op item create --category "API Credential" --title "$item" --vault "$OP_VAULT" "credential=$val" >/dev/null </dev/null
+        log "FATAL: cannot read '$item' (rc $get_rc) and the vault is unreadable — refusing to write" >&2
+        return 1
     fi
 }
 
@@ -212,7 +237,11 @@ for spec in "${KEYS[@]}"; do
             exit 3
         fi
         [ -n "$sk" ] || { log "empty sk minted for '$alias'" >&2; exit 3; }
-        vault_write "$item" "$sk"
+        if ! vault_write "$item" "$sk"; then
+            # rc 5 = minted-but-unstored: the loudest state this script can be in.
+            log "ABORT(rc5): '$alias' was minted server-side but NOT stored in '$item' — see the vault_write error above"
+            exit 5
+        fi
         log "created $alias ($item): minted + stored (len $(printf '%s' "$sk" | wc -c))"
     fi
 done

@@ -19,3 +19,7 @@
 # VLAN-10 row is for scp/rsync/humans — measured 2026-09-19: the group var alone is enough
 # for a converge, because it is passed on the ssh command line.)
 ansible_ssh_common_args: "-o ProxyJump=vps"
+
+# ==== SSH access (roles/access, HD-443) ====
+# nas runs roles/ai_diag → the restricted ai-debug account is converged here too.
+access_accounts_extra: "{{ [access_account_ai_debug] }}"

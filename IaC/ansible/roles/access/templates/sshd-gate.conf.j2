@@ -1,0 +1,16 @@
+# {{ ansible_managed }}
+# Homelab SSH admission gate — roles/access (HD-443/HD-492). This PATH replaced
+# the one-off file written by IaC/host/post_install.sh; the filename is
+# load-bearing because sshd keeps the FIRST value it reads, so a gate that sorts
+# later than this one is silently ignored (HD-208). Do not add a second gate file.
+#
+# AllowUsers is an ALLOW LIST, not a comment: a name missing here cannot log in
+# even with a valid key, and a name listed with no key is inert. The converge
+# identity ({{ ansible_admin_users | join(', ') }}) is asserted present by
+# roles/access/tasks/main.yml BEFORE this file is installed — that is the
+# HD-413 lockout guard, so a missing admin name fails the run instead of the box.
+PasswordAuthentication {{ 'yes' if access_password_auth else 'no' }}
+PermitRootLogin {{ 'yes' if access_permit_root_login else 'no' }}
+PubkeyAuthentication yes
+LogLevel {{ access_log_level }}
+AllowUsers {{ access_admitted | sort | join(' ') }}

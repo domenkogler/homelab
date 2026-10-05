@@ -1,0 +1,79 @@
+# =====================================================================
+# SSH access inventory — the grant SSOT for accounts, keys and sshd admission
+# (HD-443 grant plumbing + HD-492 the seat's SSH door, seat lane 2026-10-05).
+#
+# WHY THIS FILE EXISTS: users, authorized_keys and the AllowUsers gate were
+# written ONCE by IaC/host/post_install.sh / IaC/host/pi/first-boot-config.sh
+# and never converged again — the HD-445 class (hand-kept glue on a live host).
+# Today they live here and a converge owns them.
+#
+# PLACEMENT RULING (docs/deployment-secrets.md §Who is authorized where, 2026-09-25):
+# the `domen_ssh` key is fleet-wide under the `domen` account, NOT under
+# `ansible-admin`. The `ansible-admin_ssh` key stays the converge key.
+# `access_key_moves` below is the mechanical form of that ruling: the key is
+# placed on `domen` everywhere, and only then removed from `ansible-admin`
+# (the role places before it removes — a removed key without a placed key is
+# the HD-413 lockout shape).
+# =====================================================================
+
+# The base set every managed host converges. `ai-debug` is NOT here: it exists
+# only where roles/ai_diag runs (the home tier), so adding it to the VPS would
+# open a door nothing uses. See group_vars/home_servers.yml.
+access_accounts_base:
+  - name: ansible-admin
+    role: converge
+    shell: /bin/bash
+    vault_item: ansible-admin_ssh
+    key_comment: ansible            # matches the preseed-era line, so the first
+    ssh_admit: true                 # converge does not churn the comment column
+  - name: domen
+    role: human seat
+    shell: /bin/bash
+    vault_item: domen_ssh
+    key_comment: domen-seat
+    ssh_admit: true
+    # Ruled 2026-09-25 (deployment-secrets.md §Who is authorized where): the seat is a
+    # REAL account — sudo group, password-authenticated, never NOPASSWD. Membership is
+    # inert until a password exists (owner step, HD-443: set `domen` in the vault), and
+    # append: true keeps whatever groups the OS or another role already gave it.
+    groups: [sudo]
+
+# Defined ONCE here, referenced by the groups that run roles/ai_diag. It is NOT
+# in the base set: the VPS and spark have no ai_diag dispatcher, so an ai-debug
+# account there would be a door nothing uses.
+access_account_ai_debug:
+  name: ai-debug
+  role: AI diagnostics, no sudo
+  shell: /bin/bash
+  vault_item: ai_ssh
+  key_comment: openrouter_ai        # the preseed-era comment on nas + oldsrv
+  ssh_admit: true
+  # Comma-glued, no spaces — sshd drops an option list with spaces in it.
+  key_options: restrict,no-agent-forwarding,no-port-forwarding,no-X11-forwarding,from="10.10.0.0/16"
+
+access_accounts: "{{ access_accounts_base }}"
+
+# Accounts sshd must admit that this role does NOT manage (transitional).
+# Never a place to park a grant — a name here must carry its own removal trigger.
+access_admit_extra: []
+
+# Documented key MOVES (HD-443): place on the target account (above), then
+# remove from the old one. Set to [] to stage a placement without the move.
+access_key_moves:
+  - account: ansible-admin
+    vault_item: domen_ssh
+    reason: "domen_ssh lives under domen, ruled 2026-09-25 (deployment-secrets.md)"
+
+# The admission gate. The PATH IS LOAD-BEARING: sshd keeps the FIRST value it
+# reads, so a drop-in that sorts later than the existing one is silently ignored
+# (found live on netcup 2026-08-21 → HD-208). Converging the SAME path
+# post_install.sh wrote is therefore the only takeover that works.
+access_sshd_gate: /etc/ssh/sshd_config.d/00-homelab-hardening.conf
+# Legacy variants of the same gate; removed once the managed file is in place.
+access_sshd_legacy_gates:
+  - /etc/ssh/sshd_config.d/50-homelab-hardening.conf
+access_password_auth: false
+access_permit_root_login: false
+access_log_level: VERBOSE
+# The unit name differs by distro family (Debian: ssh, Ubuntu: ssh.service alias).
+access_ssh_service: ssh

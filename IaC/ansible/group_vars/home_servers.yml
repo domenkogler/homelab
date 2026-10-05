@@ -419,3 +419,8 @@ litellm_scoped_keys:
   # The SIMPLE QUERIER tier (decision #26) is what lands here — the harnesses above never
   # do. First record has landed 2026-09-26 (home-assistant, HD-384); docling and the
   # owui tier are deliberately NOT here yet, and why is written on the HD-384 row.
+
+# ==== SSH access (roles/access, HD-443) ====
+# The home tier runs roles/ai_diag, so it also converges the restricted ai-debug
+# account. Defined once in group_vars/all/access.yml; referenced, never copied.
+access_accounts_extra: "{{ [access_account_ai_debug] }}"

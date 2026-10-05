@@ -1,0 +1,162 @@
+---
+# =====================================================================
+# roles/access — who EXISTS, which key may open which account, and who sshd
+# ADMITS. Inventory SSOT: group_vars/all/access.yml.
+# (HD-443 grant plumbing · HD-492 the seat's SSH door — seat lane 2026-10-05)
+#
+# WHY A ROLE: accounts, authorized_keys and the AllowUsers gate were written
+# once by IaC/host/post_install.sh (and IaC/host/pi/first-boot-config.sh on the
+# Pi) and never converged again, so `--check` could not see reality and a rebuild
+# silently lost the grants — the HD-445 class, in the security plane.
+#
+# THE SAFETY PROPERTY (HD-413 lockout set), mechanical not editorial:
+#   1. a key is PLACED before it is REMOVED from an old account (task order —
+#      the "moves" leg runs last);
+#   2. the converge identity is asserted admitted BEFORE the gate is written,
+#      so a mistake fails here rather than locking the fleet;
+#   3. `sshd -t -f` validates the rendered file before it is installed, and the
+#      handler validates again before the reload, so a broken file never reaches
+#      the live daemon;
+#   4. this role is deliberately NOT in the HD-413 self-converge guard set
+#      (playbooks/tasks/self-converge-guard.yml): every change it can make is
+#      additive for the converge identity, and property 2 refuses to write a file
+#      that would exclude the runner — adding it to the guard would only create a
+#      false "safe on the box it runs on" signal.
+#
+# THIRD-PARTY KEYS ARE NOT TOUCHED: the module runs non-exclusive, so grants
+# owned by other roles (ha-sync on nas/oldsrv/vps, traefik-cert-sync on the VPS)
+# survive; they remain named in docs/deployment-secrets.md §Who is authorized
+# where and in scripts/check_ssh_grants.py's named set.
+# =====================================================================
+
+- name: access | Refuse a run that is not an admin identity
+  ansible.builtin.assert:
+    that: (ansible_user_id | default(ansible_user)) in ansible_admin_users
+    fail_msg: >-
+      roles/access must run as one of {{ ansible_admin_users | join(', ') }} —
+      it edits the sshd admission gate it then has to prove.
+
+- name: access | Build the account list and the admitted set
+  ansible.builtin.set_fact:
+    access_accounts_live: "{{ access_accounts + (access_accounts_extra | default([])) }}"
+    # The gate admits: every managed account flagged ssh_admit, plus the
+    # transitional names in access_admit_extra (each must carry its own trigger).
+    access_admitted: >-
+      {{ ((access_accounts + (access_accounts_extra | default([])))
+          | selectattr('ssh_admit', 'equalto', true) | map(attribute='name') | list)
+         + (access_admit_extra | default([])) | unique }}
+
+- name: access | Read the public half of every grant key ONCE
+  # One `op` spawn per unique vault item, not per account × host — the
+  # docker_services lookup-cost lesson (deploy-service.yml:329).
+  ansible.builtin.set_fact:
+    access_pubkeys: >-
+      {{ access_pubkeys | default({}) | combine({
+           item: lookup('community.general.onepassword', item, field='public_key', vault=op_vault) }) }}
+  loop: >-
+    {{ ((access_accounts | map(attribute='vault_item') | list)
+        + (access_accounts_extra | default([]) | map(attribute='vault_item') | list)
+        + (access_key_moves | map(attribute='vault_item') | list)) | unique }}
+
+- name: access | Ensure the accounts exist
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    shell: "{{ item.shell }}"
+    create_home: true
+    state: present
+  loop: "{{ access_accounts_live }}"
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: access | Extend group membership where the inventory asks for it
+  # A separate task, not `groups: omit` in the one above: with append=true the
+  # module refuses a run where `groups` is omitted (measured: "append is True but
+  # all of the following are missing: groups"), and groups: [] would WIPE the
+  # existing membership of every account that carries none. append=true only ever
+  # adds.
+  ansible.builtin.user:
+    name: "{{ item.name }}"
+    groups: "{{ item.groups }}"
+    append: true
+  loop: "{{ access_accounts_live | selectattr('groups', 'defined') | list }}"
+  loop_control:
+    label: "{{ item.name }} in {{ item.groups | join(',') }}"
+
+- name: access | Grant each account its vault key (PLACE first)
+  # Non-exclusive: adds/refreshes ONE line, never rewrites the file.
+  # key_options are comma-glued with no spaces — a space after a comma makes
+  # sshd drop the whole option set (standby.yml:253 lesson), which would silently
+  # widen the AI key's source restriction.
+  ansible.builtin.authorized_key:
+    user: "{{ item.name }}"
+    key: "{{ access_pubkeys[item.vault_item] }}"
+    path: "/home/{{ item.name }}/.ssh/authorized_keys"
+    manage_dir: true
+    exclusive: false
+    state: present
+    key_options: "{{ item.key_options | default(omit) }}"
+    comment: "{{ item.key_comment | default(omit) }}"
+  loop: "{{ access_accounts_live }}"
+  loop_control:
+    label: "{{ item.name }} <= {{ item.vault_item }}"
+
+- name: access | Assert the gate will still admit the converge identity
+  # Before the template task: this single line is the HD-413 protection.
+  ansible.builtin.assert:
+    that: ansible_admin_users | difference(access_admitted) | length == 0
+    fail_msg: >-
+      refusing to write {{ access_sshd_gate }} — it would admit
+      [{{ access_admitted | join(' ') }}] and exclude
+      [{{ ansible_admin_users | difference(access_admitted) | join(' ') }}].
+      Fix group_vars/all/access.yml; never bypass this assert.
+
+- name: access | Render the sshd admission gate
+  ansible.builtin.template:
+    src: sshd-gate.conf.j2
+    dest: "{{ access_sshd_gate }}"
+    owner: root
+    group: root
+    mode: "0644"
+    validate: /usr/sbin/sshd -t -f %s
+  notify: reload sshd
+
+- name: access | Remove superseded legacy gate files
+  # A second gate file is how a stale AllowUsers keeps winning
+  # (first-match-wins, HD-208).
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: "{{ access_sshd_legacy_gates | default([]) }}"
+  when: item != access_sshd_gate
+
+- name: access | Retire keys whose placement moved to another account
+  # Deliberately the LAST mutating task: the placement above already landed, so
+  # a move can never leave a key on no account (HD-413 order).
+  ansible.builtin.authorized_key:
+    user: "{{ item.account }}"
+    key: "{{ access_pubkeys[item.vault_item] }}"
+    path: "/home/{{ item.account }}/.ssh/authorized_keys"
+    exclusive: false
+    state: absent
+  loop: "{{ access_key_moves | default([]) }}"
+  loop_control:
+    label: "{{ item.vault_item }} off {{ item.account }}"
+
+- name: access | Prove the live daemon admits the converge identity
+  # --check wrote nothing, so this proof only runs after a real converge.
+  ansible.builtin.command: /usr/sbin/sshd -T
+  register: access_sshd_live
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: access | Assert the live AllowUsers still admits the converge identity
+  ansible.builtin.assert:
+    that: >-
+      (access_sshd_live.stdout | regex_findall('(?m)^allowusers (.+)$') | join(' ')
+       | split(' ') | intersect(ansible_admin_users) | length) > 0
+    fail_msg: >-
+      sshd -T after the change admits
+      [{{ access_sshd_live.stdout | regex_findall('(?m)^allowusers (.+)$') | join(' ') }}]
+      — none of {{ ansible_admin_users | join(', ') }}. Keep the session open and
+      fix the gate NOW (docs/security.md HD-413 rescue).
+  when: not ansible_check_mode

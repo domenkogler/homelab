@@ -27,6 +27,8 @@
     # Keep base roles FIRST (common/docker/hardening/network/cifs/wg precede services).
     - role: common
       tags: [common, base]
+    - role: access           # HD-443: accounts + authorized_keys + the AllowUsers gate.
+      tags: [access, base]   # `base` so a scoped `--tags base` run cannot skip the gate
     - role: docker
       tags: [docker, base]
     - role: vps-hardening

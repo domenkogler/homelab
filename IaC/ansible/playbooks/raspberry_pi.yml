@@ -9,6 +9,8 @@
       ansible.builtin.import_tasks: tasks/self-converge-guard.yml
   roles:
     - common
+    - role: access     # HD-443: ansible-admin + domen grants; Pi keeps `admin` admitted
+      tags: [access]   # while it is still used (host_vars/pi.kogler.si.yml)
     - ai_diag        # restricted diagnostic dispatcher for ai-debug (as other hosts)
     - network
     - nut             # UPS client (Pi) — after network

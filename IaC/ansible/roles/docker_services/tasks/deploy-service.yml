@@ -548,6 +548,21 @@
   no_log: true
   tags: "{{ svc.name }}"
 
+# HD-442: the twin at op-provision-token.yml probes VALIDITY after writing; this leg
+# wrote the file and moved on, so a revoked token here read as a healthy host-side
+# provisioner. Existence is not validity — one read-only list call makes the difference
+# between a failed task and eight green converges that wrote nothing.
+- name: "Probe the bootstrap-keys provision token is accepted ({{ svc.name }}, HD-442)"
+  when: svc.bootstrap_keys | default(false)
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      export OP_SERVICE_ACCOUNT_TOKEN="$(cat /etc/op/provision-token)"
+      op item list --vault "{{ op_vault }}" >/dev/null
+    executable: /bin/bash
+  changed_when: false
+  tags: "{{ svc.name }}"
+
 - name: "Render LiteLLM bootstrap-keys glue ({{ svc.name }})"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.template:

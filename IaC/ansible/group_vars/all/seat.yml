@@ -1,0 +1,18 @@
+# =====================================================================
+# The pi CODING SEAT (roles/seat, HD-445) — placement + shape.
+# The seat plane's design SSOT is docs/services-ai.md §9b-1; this file only says
+# WHERE the seat is and WHAT it is made of. Off by default: the seat is a
+# placement, enabled per host (oldsrv today, host_vars/oldsrv.kogler.si.yml).
+# =====================================================================
+seat_enable: false
+seat_user: domen                      # the account itself is roles/access's (HD-443/492)
+seat_bind: 127.0.0.1                  # loopback only: peers reach the cockpit through the
+                                      # pi-oldsrv-ts router, never a LAN interface
+seat_pi_web_port: "{{ cockpit_pi_web_port }}"   # one port value, two consumers (IaC §2)
+seat_pi_node_bin: "/home/{{ seat_user }}/.local/share/pi-node/current/bin"
+seat_unit_dir: "/home/{{ seat_user }}/.config/systemd/user"
+seat_pi_web_bin: ".pi/agent/bin/pi-web"   # written by `pi install npm:@ygncode/pi-web`
+seat_pi_web_vault_item: cockpit-pi-web_api  # token source; never a literal (§6)
+# tmux is a package DECISION of the seat, not a hand `apt install` on a production host.
+seat_packages:
+  - tmux

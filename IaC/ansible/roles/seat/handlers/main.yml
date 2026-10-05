@@ -1,0 +1,22 @@
+---
+# seat role handlers. `tags: always` because handlers are tag-filtered like tasks
+# (roles/network precedent) — without it a scoped `--tags cockpit` run would write the
+# seat unit files and skip the restart: the exact half-converged state behind the
+# 2026-10-01 "no model available" report.
+- name: seat | reload and restart pi-web
+  listen: seat | reload and restart pi-web
+  become: true
+  become_user: "{{ seat_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ seat_uid }}"
+    DBUS_SESSION_BUS_ADDRESS: "unix:path=/run/user/{{ seat_uid }}/bus"
+  ansible.builtin.shell: |
+    set -euo pipefail
+    systemctl --user daemon-reload
+    systemctl --user enable pi-web.service
+    # `enable --now` does NOT restart an already-running unit — the act is `restart`
+    # (deployment-manual.md Phase 4c lesson, found by performing the phase).
+    systemctl --user restart pi-web.service
+    systemctl --user is-active --quiet pi-web.service
+  changed_when: true
+  tags: always

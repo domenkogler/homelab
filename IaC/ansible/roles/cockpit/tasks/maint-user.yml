@@ -206,12 +206,18 @@
     cmd: id -nG {{ cockpit_maint_user }}
   register: cockpit_maint_id
   changed_when: false
+  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+                      # stdout, and the contract assert below then reports a violation
+                      # that does not exist on the box. Read-only, so check mode may run it.
 
 - name: HD-361 | Read back the installed shadow hash
   ansible.builtin.command:
     cmd: getent shadow {{ cockpit_maint_user }}
   register: cockpit_maint_shadow
   changed_when: false
+  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+                      # stdout, and the contract assert below then reports a violation
+                      # that does not exist on the box. Read-only, so check mode may run it.
   no_log: true
 
 - name: HD-361 | Read back how far {{ cockpit_maint_user }} can escalate
@@ -219,6 +225,9 @@
     cmd: sudo -l -U {{ cockpit_maint_user }}
   register: cockpit_maint_sudo
   changed_when: false
+  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+                      # stdout, and the contract assert below then reports a violation
+                      # that does not exist on the box. Read-only, so check mode may run it.
   become: true
   failed_when: false # `sudo -l` exits non-zero for a user with no sudoers entry; the assert reads the text
 
@@ -232,6 +241,9 @@
     executable: /bin/bash
   register: cockpit_sshd_allowusers
   changed_when: false
+  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+                      # stdout, and the contract assert below then reports a violation
+                      # that does not exist on the box. Read-only, so check mode may run it.
   become: true
 
 - name: HD-361 | Read back the gate line and the password stack as line numbers
@@ -246,6 +258,9 @@
     executable: /bin/bash
   register: cockpit_pam_stack
   changed_when: false
+  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+                      # stdout, and the contract assert below then reports a violation
+                      # that does not exist on the box. Read-only, so check mode may run it.
 
 # THE ACCEPTANCE TEST, i.e. the only check that answers why this account exists at all:
 # does `maint` + the vault password actually get a Cockpit session? Everything above proves the

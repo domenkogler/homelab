@@ -18,6 +18,8 @@
       ansible.builtin.import_tasks: tasks/self-converge-guard.yml
   roles:
     - common
+    - role: access     # HD-443: accounts + authorized_keys + AllowUsers gate (nas)
+      tags: [access]
     - ai_diag
     - network
     - storage        # ZFS: import tank/bulk, datasets+props, sanoid/syncoid, NFS exports (docs/storage.md)

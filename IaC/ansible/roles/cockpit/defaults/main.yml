@@ -34,3 +34,4 @@ cockpit_maint_verify_login: true
 # comment, not a control — and any local password holder gets a :9090 session (on oldsrv that
 # includes `domen`, who is in `sudo`). Flip to false only as a deliberate, temporary unlock.
 cockpit_maint_pam_gate: true
+

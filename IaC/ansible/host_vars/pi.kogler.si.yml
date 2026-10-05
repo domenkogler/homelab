@@ -48,3 +48,13 @@ tailscale_node_expected_ip: "{{ tailnet_pi_ip }}"
 # because `raspberrymatic` is not in the Pi deploy loop (group_vars/raspberry_pi.yml).
 # If the RFUSB is added later, set homematic_usb_by_id to the stable /dev/serial/by-id path
 # of the physical stick (NOT /dev/ttyACM0, which can renumber) and re-add the service (KOPS-040/HD-79).
+# ==== SSH access (roles/access, HD-443) ====
+# `admin` is still admitted while it is still USED: 126 accepted logins in the 14
+# days before this change (all from the operator's `Host pi` → `User admin` alias,
+# the same consumer that made the 2026-09-28 retirement attempt revert). The alias
+# moved to `domen` in the same lane; removal trigger = zero `admin` acceptances in
+# `journalctl -u ssh`, then drop this line AND the account (deployment-secrets.md
+# §Who is authorized where, reversible-sequence steps 3-5). Key stays neutralized
+# (dated comment-out marker) until then — IaC never managed `admin`, so a converge
+# will not silently re-add it.
+access_admit_extra: ['admin']

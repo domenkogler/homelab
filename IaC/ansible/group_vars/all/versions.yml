@@ -362,3 +362,19 @@ spark_dcgm_exporter_image: "nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:
 # ⚠ 1.1.16 has no `-b/--bind` (1.1.17+); that flag is the future lever for binding ONE address
 # instead of all interfaces — see services-admin.md §Exposure.
 rustdesk_server_version: "1.1.16"
+
+# ==== pi HOST seats (bare-Debian installs: scripts/install-pi-debian.sh, HD-446) ====
+# The CONTAINER pins above (pi_dev_*) are not these: a host seat installs the pinned
+# official Node TARBALL under ~/.local/share/pi-node/, because Debian 13's apt candidate
+# is Node 20.19.2 while pi declares engines node>=22.19.0 — an apt-based seat is a
+# harness that cannot start (measured on oldsrv 2026-09-23). Both seats (laptop +
+# oldsrv) run exactly this shape, so one pin pair covers both (HD-484: they must not
+# drift, and the row's own history is two versions of "the seat is behind").
+pi_host_node_version: "22.23.2"                # nodejs.org tarball, verified live on both seats 2026-10-05
+pi_host_npm_package: "@earendil-works/pi-coding-agent"
+pi_host_npm_version: "1.0.3"                   # npm dist-tag `latest` (verified 2026-10-05); seat was 0.99.2, laptop 1.0.2
+pi_host_web_npm_package: "@ygncode/pi-web"
+pi_host_web_npm_version: "0.0.1-beta.38"       # the observed version behind the mutable `beta` tag (§7 MUST-pin
+                                               # exception: the cockpit self-updates inside @beta from the phone —
+                                               # HD-484 live evidence beta.36 -> beta.38 — so pinning the string in
+                                               # the seat's settings packages would stop that path working)

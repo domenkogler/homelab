@@ -1,0 +1,194 @@
+#!/usr/bin/env bash
+# =====================================================================
+# install-pi-debian.sh — pi.dev bootstrap for a bare-Debian HOST pi seat (HD-446)
+#
+# Purpose: bring a clean Debian 13 box (or a fresh user account on one — the
+#   oldsrv cockpit seat `domen` is the reference target) to the SAME pi harness
+#   this repo's other seat runs: pinned Node, the pinned pi coding-agent, the
+#   rendered model contract/auth, the repo skills, and (optionally) the web
+#   cockpit. Rebuildable instead of remembered: the seat must survive a rebuild
+#   without a session having to remember what was hand-installed.
+#
+# SIBLING, NOT FORK (the row's own trap): [`install-pi-wsl.sh`](install-pi-wsl.sh)
+#   is the WSL shape — `/mnt/c`, drive letters, a Windows-side mirror. Nothing
+#   here reads /mnt or a Windows path. What the two DO share is the deploy
+#   direction (repo -> ~/.pi/agent) and the package list.
+#
+# WHY NOT `apt install nodejs` (measured on oldsrv, the reason this row exists):
+#   pi declares `engines.node >= 22.19.0`; Debian 13's apt candidate is Node
+#   20.19.2 — an apt-based install produces a harness that cannot start. The
+#   pinned official tarball under ~/.local/share/pi-node/ is the shape BOTH the
+#   laptop and the oldsrv seat actually use, so this script installs that shape.
+#
+# Usage (run AS the seat user, on the seat):
+#   bash scripts/install-pi-debian.sh              # full: node + pi + config + skills
+#   bash scripts/install-pi-debian.sh --pi-only    # pinned node + pi, no config sync
+#   bash scripts/install-pi-debian.sh --config-only# skills/AGENTS/prompts + model contract
+#   bash scripts/install-pi-debian.sh --cockpit    # + the pi-web cockpit package
+#   bash scripts/install-pi-debian.sh --check      # report only, write nothing (exit 1 on drift)
+#
+# Pins: read from the SSOT `IaC/ansible/group_vars/all/versions.yml` (§7 — one
+#   file per pin). A missing pin ABORTS; there is no inline default (§7 fail-loud).
+# Env overrides: REPO, PI_SEAT_ROOT (default $HOME/.local/share/pi-node).
+#
+# Requires: curl, xz, tar, git. `--config-only`/full also needs 1Password access
+#   on the machine running it (render-pi-config.py resolves credentials at render
+#   time); without it, render on a machine that has access and use --out + scp.
+# Owner: seat lane (prompt-pi.md, HD-446). Record in docs/pi-harness.md §1.
+# =====================================================================
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+PI_SEAT_ROOT="${PI_SEAT_ROOT:-$HOME/.local/share/pi-node}"
+VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
+NODE_BIN_DIR="$PI_SEAT_ROOT/current/bin"
+PROFILE_MARK="# pi-seat node (install-pi-debian.sh)"
+
+say()  { printf '\n== %s\n' "$*"; }
+info() { printf '    %s\n' "$*"; }
+err()  { printf '    ERROR: %s\n' "$*" >&2; }
+
+require_cmds() {
+  for c in "$@"; do
+    command -v "$c" >/dev/null 2>&1 || { err "missing '$c' — apt install $c"; exit 1; }
+  done
+}
+
+# ---- pins from the SSOT (fail-loud: no default, §7) -----------------------
+pin() {
+  local v
+  v="$(grep -E "^${1}:" "$VERSIONS" 2>/dev/null | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')"
+  [ -n "$v" ] || { err "pin '$1' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here"; exit 1; }
+  printf '%s' "$v"
+}
+NODE_V="$(pin pi_host_node_version)"
+PI_PKG="$(pin pi_host_npm_package)"
+PI_V="$(pin pi_host_npm_version)"
+WEB_PKG="$(pin pi_host_web_npm_package)"
+WEB_V="$(pin pi_host_web_npm_version)"
+
+MODE="${1:-full}"
+
+# ---- node: pinned official tarball, never apt ----------------------------
+node_pinned_ok() {
+  [ -x "$NODE_BIN_DIR/node" ] && "$NODE_BIN_DIR/node" -v 2>/dev/null | grep -qx "v${NODE_V}"
+}
+install_node() {
+  if node_pinned_ok; then info "node ${NODE_V} already pinned at $PI_SEAT_ROOT/current"; return 0; fi
+  if command -v node >/dev/null 2>&1; then
+    info "PATH node is $(command -v node) -> $(node -v) (apt node 20.x cannot run pi: engines >= 22.19.0)"
+  fi
+  require_cmds curl tar xz
+  local tarball="node-v${NODE_V}-linux-x64.tar.xz" url="https://nodejs.org/dist/v${NODE_V}/${tarball}"
+  say "fetching pinned node ${NODE_V}"
+  mkdir -p "$PI_SEAT_ROOT"
+  TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' RETURN
+  curl -fsSL --retry 3 -o "$TMP/$tarball" "$url"
+  curl -fsSL --retry 3 -o "$TMP/SHASUMS256.txt" "https://nodejs.org/dist/v${NODE_V}/SHASUMS256.txt"
+  ( cd "$TMP" && grep " ${tarball}\$" SHASUMS256.txt | sha256sum -c - ) \
+    || { err "checksum mismatch for $tarball — refusing to install"; exit 1; }
+  rm -rf "$PI_SEAT_ROOT/v${NODE_V}"
+  mkdir -p "$PI_SEAT_ROOT/v${NODE_V}"
+  tar -xJf "$TMP/$tarball" -C "$PI_SEAT_ROOT/v${NODE_V}" --strip-components=1
+  ln -sfn "$PI_SEAT_ROOT/v${NODE_V}" "$PI_SEAT_ROOT/current"
+  info "node ${NODE_V} installed, current -> v${NODE_V}"
+}
+export PATH="$NODE_BIN_DIR:$PATH"
+
+# ---- PATH persistence (idempotent; a systemd USER unit never reads this) --
+persist_path() {
+  # BOTH files, and know which shell reads which (measured on the seat 2026-10-05):
+  #   interactive non-login  (`ssh seat` then type pi)  -> ~/.bashrc
+  #   login shell            (`bash -l`, some consoles)  -> ~/.profile
+  #   NON-interactive non-login (`ssh seat 'pi …'`)      -> NEITHER. Debian's .bashrc
+  #     returns early for non-interactive shells, so a one-shot remote pi call must use
+  #     the absolute path (or `bash -lic`). This is the same split a systemd USER unit
+  #     has — that one is solved by roles/seat's Environment=PATH drop-in, not here.
+  local f
+  for f in "$HOME/.bashrc" "$HOME/.profile"; do
+    [ -e "$f" ] || continue
+    grep -qF "$PROFILE_MARK" "$f" && { info "PATH block already in $(basename "$f")"; continue; }
+    { printf '\n%s\nexport PATH="%s:$PATH"\n' "$PROFILE_MARK" "$NODE_BIN_DIR"; } >> "$f"
+    info "appended the node bin dir to $(basename "$f")"
+  done
+  info "NOTE: neither file is read by a systemd user unit — that needs roles/seat's Environment=PATH drop-in"
+}
+
+# ---- pi + packages -------------------------------------------------------
+install_pi() {
+  say "installing ${PI_PKG}@${PI_V} into the pinned prefix"
+  npm_config_prefix="$PI_SEAT_ROOT/current" npm install -g --no-fund --no-audit "${PI_PKG}@${PI_V}" >/dev/null \
+    || { err "npm install -g ${PI_PKG}@${PI_V} failed"; exit 1; }
+  command -v pi >/dev/null 2>&1 || { err "pi not on PATH after install"; exit 1; }
+  info "pi $(pi --version 2>&1 | head -1)"
+}
+install_cockpit() {
+  say "installing the web cockpit package"
+  # TRAP: the pi-web binary exits 1 unless ~/.pi/agent/sessions already exists.
+  mkdir -p "$HOME/.pi/agent/sessions"
+  pi install "npm:${WEB_PKG}@${WEB_V}" 2>&1 | tail -2 || { err "pi install ${WEB_PKG} failed"; exit 1; }
+  info "cockpit package ${WEB_PKG}@${WEB_V} (live tag now resolves ${WEB_V}; the seat has self-updated inside @beta before — see HD-484)"
+  check_cockpit_unit
+}
+check_cockpit_unit() {
+  # pi's shebang is `#!/usr/bin/env node` and a systemd USER unit gets no login
+  # PATH, so the unit needs the node bin dir handed to it. The DROP-IN IS OWNED BY
+  # IaC/ansible/roles/cockpit — never hand-write it here (that is the HD-445 class).
+  command -v systemctl >/dev/null 2>&1 || return 0
+  systemctl --user cat pi-web.service >/dev/null 2>&1 || { info "no pi-web user unit yet (roles/cockpit renders it)"; return 0; }
+  if systemctl --user cat pi-web.service 2>/dev/null | grep -q "Environment=PATH="; then
+    info "pi-web unit carries Environment=PATH= (good)"
+  else
+    err "pi-web unit has NO Environment=PATH= — every chat send will die with: exec: \"pi\": executable file not found in \$PATH"
+    err "remediation: converge roles/cockpit (renders pi-on-path.conf), do not hand-write the drop-in"
+    return 1
+  fi
+}
+
+# ---- config: rendered model contract + repo skills ------------------------
+install_config() {
+  say "model contract + auth (RENDERED — never a copied laptop file, HD-388)"
+  mkdir -p "$HOME/.pi/agent/sessions" "$HOME/.pi/agent/skills" "$HOME/.pi/agent/prompts"
+  if python3 "$REPO/scripts/render-pi-config.py" --vendor all; then
+    info "models.json + auth.json rendered"
+  else
+    err "render failed — this host needs 1Password access. Render elsewhere and ship it:"
+    err "  python3 scripts/render-pi-config.py --vendor all --out /tmp/models.json && scp /tmp/models.json <seat>:.pi/agent/models.json"
+    return 1
+  fi
+  say "repo skills -> ~/.pi/agent/skills (repo is SSOT, HD-254)"
+  bash "$REPO/scripts/sync-skills.sh" --push || err "sync-skills.sh --push reported problems"
+  say "AGENTS.md + prompt templates"
+  [ -f "$REPO/pi-agent/AGENTS.md" ] && install -m 0644 "$REPO/pi-agent/AGENTS.md" "$HOME/.pi/agent/AGENTS.md" && info "AGENTS.md deployed"
+  [ -d "$REPO/pi-agent/prompts" ] && { mkdir -p "$HOME/.pi/agent/prompts"; install -m 0644 "$REPO"/pi-agent/prompts/*.md "$HOME/.pi/agent/prompts/" 2>/dev/null || true; }
+  info "settings.json is NOT written here: docs/pi-harness.md §5 is its source (§1: no renderer exists by design)"
+}
+
+# ---- check mode ----------------------------------------------------------
+check() {
+  local bad=0
+  say "check (write nothing)"
+  node_pinned_ok && info "node: pinned ${NODE_V} OK" || { err "node: pinned ${NODE_V} NOT at $NODE_BIN_DIR"; bad=1; }
+  if command -v pi >/dev/null 2>&1; then
+    local pv; pv="$(pi --version 2>&1 | head -1 | tr -d '[:space:]')"
+    [ "$pv" = "$PI_V" ] && info "pi: ${pv} == pin" || { err "pi: ${pv} != pin ${PI_V}"; bad=1; }
+  else err "pi: not on PATH"; bad=1; fi
+  python3 "$REPO/scripts/render-pi-config.py" --vendor all --check >/dev/null 2>&1 \
+    && info "models.json + auth.json match the spec" || { err "model contract drift (or not rendered)"; bad=1; }
+  bash "$REPO/scripts/sync-skills.sh" --check 2>&1 | tail -2
+  [ -d "$HOME/.pi/agent/sessions" ] && info "sessions dir present" || { err "~/.pi/agent/sessions missing (pi-web exits 1 without it)"; bad=1; }
+  check_cockpit_unit || bad=1
+  say "check: $([ $bad -eq 0 ] && echo GREEN || echo 'DRIFT — see ERROR lines')"
+  return $bad
+}
+
+case "$MODE" in
+  --check)      check ;;
+  --pi-only)    require_cmds curl tar xz git; install_node; persist_path; install_pi ;;
+  --config-only) install_config ;;
+  --cockpit)    require_cmds curl tar xz git; install_node; persist_path; install_pi; install_config; install_cockpit ;;
+  full|"")      require_cmds curl tar xz git; install_node; persist_path; install_pi; install_config ;;
+  *)            err "unknown option: $MODE"; echo "  use: (none) | --pi-only | --config-only | --cockpit | --check" >&2; exit 2 ;;
+esac
+say "done"

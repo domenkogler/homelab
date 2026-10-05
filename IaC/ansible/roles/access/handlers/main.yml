@@ -1,0 +1,15 @@
+---
+# roles/access handlers. `tags: always` is load-bearing: handlers are tag-filtered
+# like tasks, so without it a `--tags access` run would write the gate and silently
+# skip the reload (HD-220 / HD-361 finding, roles/network + roles/docker precedent).
+#
+# Pre-install validation is NOT here — the template task runs
+# `validate: /usr/sbin/sshd -t -f %s` on the candidate file, so a broken gate never
+# reaches the filesystem, and `tasks/main.yml` proves the live daemon still admits
+# the converge identity after the run (the HD-413 property).
+
+- name: reload sshd
+  ansible.builtin.systemd_service:
+    name: "{{ access_ssh_service }}"
+    state: reloaded
+  tags: always
