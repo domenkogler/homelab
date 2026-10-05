@@ -34,6 +34,7 @@ Same failure class, escalating evidence. Summary row per incident; full narrativ
 | 7 | 2026-09-16 23:26 | serve, **one light pi session**, KV 43–59 %, prefix hit 94 %, engine 0 % util at kill | `global_oom` ×9 23:23:28→23:26:00: `torch_shm_manag`, `dozzle`, **`traefik`**, `nvidia-smi`, `dashboard-servi`/`dashboard-admin`, `fwupd`, `cups-browsed`, `colord` — engine itself survived; `CmaFree` **8.81 GiB** inside `MemAvailable` 10.45 GiB → **1.64 GiB** actually claimable | engine `Exited (137)`; host wedge + LLM outage; load avg 36.4 | C1+C2 (HD-381) applied; **gauge correction → B** |
 | 8 | 2026-09-17 14:55 | serve, same profile, 1 h 34 m after boot | `global_oom` ×3 14:55:31: **`python3` = engine PID-1 (`oom_score_adj=-500`)**, `dcgm-exporter`, `alloy`; `Node 0 Normal free:9.63 GiB` was **`free_cma:9.58 GiB`**, `all_unreclaimable? yes` | engine top-pid **frozen at 109,785 MiB for 4+ min before the kill** (allocator stall, not a burst); PSI full **92.5** | C1+C2 converged 15:28Z (same boot) |
 | 6 | 2026-09-16 22:15 | **agent session ~162k tok + stress step A6 (16k × conc 2)** | **NO kernel OOM** (last kill 20:22Z) — bench guard ran `docker stop`; engine `Exited (137)` | avail **21.5 → 12.6 GiB in ~22 s**; watchdog WARN 22:13:49 → CRIT 22:15:22 (avail 18.6, PSI 27.2); **~14 min outage** because `unless-stopped` ignores an intentional stop | **HD-380** — capture-size cap + watchdog + self-healing guard + zero-load bench assertion |
+| 9 | 2026-10-05 08:38–09:22 | serve, `fast` @ **25 GB** pool · **no kernel OOM, host up 17 days** | `journalctl -k` over 72 h: **zero** `oom-killer` / `Killed process`; only `NVRM NV_ERR_NO_MEMORY` samples | **not a kill at all** — the watchdog's enforcer restarted the engine on purpose: `CRIT-ENFORCED usable=7.94GiB psi_full=0.0` @ 09:22:41Z after three 600 s in-flight deferrals; `RestartCount=0`, `OOMKilled=false`, `ExitCode=0` | **HD-494** — pool 25→20 GB, `fixed_cost_bytes` corrected to the measured 92.13e9 B, enforcement **hysteresis** (`SPARK_OOM_REARM_GIB`) |
 
 ## Incident #3 — the self-referential OOM (2026-09-16)
 
@@ -225,6 +226,45 @@ engine-first) is a lottery, and that the cage cannot protect the host (invariant
 
 ---
 
+## Incident #9 — the box was never killed: a REST state inside the CRIT band (2026-10-05)
+
+**The symptom was "spark crashed", and nothing crashed.** Host up 17 days, `RestartCount=0`,
+`OOMKilled=false`, `ExitCode=0`, and 72 h of kernel log with no `oom-killer` line at all. What
+actually happened: `spark-oom-watchdog`'s enforcing governor (HD-381 term B) read CRIT, deferred
+three times for in-flight traffic, and restarted the engine on purpose at **09:22:41Z**. Read
+`state/enforce.log` before believing any crash story — the rule in `hardware-spark.md` §*Cold start
+is SLOW* worked exactly as intended, and the incident is a **sizing** failure wearing a **fault** mask.
+
+```
+08:38:39Z  CRIT snapshot   usable 3.43 GiB   ← MemAvailable 8.20, CmaFree 4.77, psi_full 12.3
+08:48–09:19 CRIT ×4        usable 7.55-7.99  psi_full 0.0   (three 600 s in-flight deferrals)
+09:22:41Z  CRIT-ENFORCED   usable 7.94  → docker restart vllm-qwen-spark   (~20 min cold start)
+09:23:00Z  the gauge jumps to 117.03 GiB     ← the jump IS the measurement: the engine held 109.09 GiB
+09:37 →    usable pinned 7.76-7.99 GiB, psi_full 0.0, "suppressed by enforce cooldown" every 5 min
+09:52:41Z  cooldown expires ⇒ the next restart is already scheduled; the lane armed off `no-enforce` 09:54:32Z
+```
+
+Two findings, both durable:
+
+1. **The engine's real non-KV footprint is 92.13e9 B, not the declared 76.3e9 B.** The pool passed
+   its own gate on paper while the box had no host floor: declared `fixed + pool` = 101.3e9 B ≤
+   104.113e9 B, measured hold = **117.13e9 B** — **12.13 GiB over the certified ceiling**, which is
+   exactly what "usable 7.9 GiB" is. Ledger + derivation: `hardware-spark.md` §*The fixed cost,
+   MEASURED*.
+2. **A CRIT reading can be a REST state, not an excursion.** The value did not fall to 7.9; it
+   *lived* there with zero PSI stall, so the enforcer held a standing order to restart once per
+   cooldown. A restart cannot fix a rest value — the cold load re-derives the same one. Hence
+   hysteresis (fire once, re-arm at WARN 12 GiB) rather than a lower threshold: see
+   [`services-rejected.md`](services-rejected.md) and invariant 7 below.
+
+The 08:38 excursion deserves its own note, because it is the number that invites "just lower
+CRIT": usable fell to **3.43 GiB** while `MemAvailable` sat at a *normal* 8.20 GiB — the dip is
+`CmaFree` rising 0.15 → 4.77 GiB (the device taking CMA pages under traffic) and `psi_full` reached
+12.3 %. It needed no action because `wait_for_idle` deferred and traffic moved on, not because
+3.4 GiB is comfortable: 1.8 GiB below it is the measured kill point (§§ #7/#8).
+
+---
+
 ## Cross-incident invariants
 
 1. **`OOMKilled: false` / `ExitCode: 0` every time** — Docker never sees it (global OOM, not cgroup).
@@ -242,6 +282,12 @@ engine-first) is a lottery, and that the cage cannot protect the host (invariant
    **Not** `MemFree − CmaFree` — that is inverted here (0.74 GiB idle vs 2.17 GiB at a kill).
 6. **The engine's non-KV footprint grows with traffic and never returns** (#7/#8) — flat at idle, so a
    restart is the only reset, and only removing the allocation mechanism bounds the peak.
+7. **A CRIT reading is not always an emergency** (#9) — it can be the box's REST state, and then a
+   restart only rebuilds the same number after a ~20 min cold load. Tell them apart by trend and
+   corroboration: a value *pinned* below CRIT for tens of minutes at `psi_full` ≈ 0 is a budget that
+   was never sized; a value *falling* through CRIT with PSI climbing is the event the enforcer
+   exists for. One planned restart, then a human — an enforcer that cannot tell the two becomes a
+   restart loop that reads as a flaky engine (HD-494 hysteresis).
 
 ---
 

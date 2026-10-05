@@ -99,6 +99,18 @@ INTERVAL="${SPARK_OOM_INTERVAL:-15}"          # seconds between samples
 WARN_GIB="${SPARK_OOM_WARN_GIB:-12}"          # was 24 on raw MemAvailable
 CRIT_GIB="${SPARK_OOM_CRIT_GIB:-8}"           # was 16 on raw MemAvailable; death at 1.6
 PSI_CRIT="${SPARK_OOM_PSI_CRIT:-25}"          # PSI memory full avg10 (%)
+# Hysteresis on the ENFORCEMENT only (HD-494). An enforced CRIT restart LATCHES the enforcer
+# off until the gauge is back above this value, so a box whose REST state sits below CRIT
+# cannot be restarted once per cooldown forever. Measured reason (2026-10-05, live): with the
+# `fast` profile's 25 GB pool the rest value was usable 7.76-7.99 GiB — a steady state, not an
+# excursion — with psi_full 0.0, and the enforcer read it as a standing emergency: one
+# CRIT-ENFORCED restart at 09:22:41Z, then "suppressed by enforce cooldown" on every 5-min
+# tick with the gauge pinned at the same number, i.e. the next restart was already scheduled.
+# Fire once, then make it a human problem. Snapshots, WARN/CRIT alerts and the sampler are
+# NOT latched — the box stays loud; only the restart is held.
+# Default = WARN, the same invariant the pool ceiling is derived from: a profile is "fixed"
+# when its rest state clears the WARN band, not merely the CRIT trigger.
+REARM_GIB="${SPARK_OOM_REARM_GIB:-$WARN_GIB}"
 RING_ROWS="${SPARK_OOM_RING_ROWS:-20000}"     # ~3.5 days at 15 s
 KEEP_SNAPS="${SPARK_OOM_KEEP_SNAPS:-20}"
 WARN_COOLDOWN="${SPARK_OOM_WARN_COOLDOWN:-900}"    # s
@@ -184,7 +196,11 @@ mem_avail_gib() { mem_field MemAvailable; }
 cma_free_gib()  { mem_field CmaFree; }
 
 # THE budget metric (see the gauge correction in the header).
+# SPARK_OOM_USABLE_OVERRIDE injects the gauge — SELF-TEST ONLY (same shape as
+# SPARK_OOM_UNIT_ENV_OVERRIDE below), so C7 can drive the hysteresis gate over a usable sweep
+# offline. Never set it in production: the enforcer would then act on a number nobody measured.
 usable_gib() {
+  if [ -n "${SPARK_OOM_USABLE_OVERRIDE:-}" ]; then printf '%s\n' "$SPARK_OOM_USABLE_OVERRIDE"; return 0; fi
   awk '/^MemAvailable:/{a=$2} /^CmaFree:/{c=$2} END{printf "%.2f", (a-c)/1048576}' /proc/meminfo 2>/dev/null
 }
 
@@ -472,6 +488,11 @@ restart_engine() { # $1 = tag, $2 = reason
     || act_log "$tag: docker restart FAILED/rc=$?"
   date +%s > "$STATE_DIR/last_enforce"
   echo "$tag" > "$STATE_DIR/last_enforce_tag"
+  # HD-494 hysteresis: an ENFORCED restart latches the enforcer off until the gauge re-arms.
+  # RECYCLE restarts deliberately do NOT latch — recycling is opportunistic and fires at idle,
+  # where usable is high by construction; latching there would switch CRIT protection off
+  # without ever having used it.
+  if [ "$tag" = "CRIT-ENFORCED" ]; then st_write hysteresis_latch "$(date +%s) $reason"; fi
 }
 
 # Count enforced restarts inside the rate-limit window. Kept as a plain timestamp list
@@ -506,12 +527,44 @@ wait_for_idle() {
   return 1
 }
 
+# ---- hysteresis on the enforcement (HD-494) -----------------------------------------
+# The latch is ONE file: "<epoch> <reason>". It is written by an enforced CRIT restart and
+# cleared the first time the gauge is back at/above REARM_GIB. Read-only text for `status`.
+hysteresis_text() {
+  local f="$STATE_DIR/hysteresis_latch" use
+  if [ ! -s "$f" ]; then
+    echo "armed (no latch — enforcement allowed at the next CRIT)"
+  else
+    use=$(usable_gib)
+    if awk -v u="${use:-0}" -v r="$REARM_GIB" 'BEGIN{exit !(u>=r)}'; then
+      echo "re-arming now: usable ${use} >= ${REARM_GIB} GiB, was latched at $(head -1 "$f")"
+    else
+      echo "LATCHED OFF since $(head -1 "$f") — no engine restart until usable >= ${REARM_GIB} GiB (now ${use})"
+    fi
+  fi
+}
+# 0 = enforcement allowed, 1 = refused (logged). Placed BEFORE the cooldown/rate/wait checks so
+# a latched box does not burn a 600 s in-flight drain on a restart it is not going to issue.
+hysteresis_gate() { # $1 = reason
+  local f="$STATE_DIR/hysteresis_latch" line use
+  [ -s "$f" ] || return 0
+  line=$(head -1 "$f"); use=$(usable_gib)
+  if awk -v u="${use:-0}" -v r="$REARM_GIB" 'BEGIN{exit !(u>=r)}'; then
+    act_log "hysteresis: usable=${use}GiB >= re-arm ${REARM_GIB}GiB — enforcement re-armed (was latched: ${line})"
+    rm -f "$f"
+    return 0
+  fi
+  act_log "CRIT suppressed by hysteresis: usable=${use}GiB < re-arm ${REARM_GIB}GiB (latched: ${line}) — engine NOT restarted; the REST state is below CRIT, so repeat restarts cannot fix it (HD-494, docs/hardware-spark.md §Unified-memory budget) — re-derive the budget instead: ${1:-}"
+  return 1
+}
+
 # CRIT action: planned restart instead of a kernel kill that takes Traefik/dashboard/
 # alloy/dcgm with it (invariants #1/#3) and wedges the box.
 enforce_crit() { # $1 = reason
   local reason="$1"
   [ "$ENFORCE" = "1" ] || { act_log "CRIT (observe-only): $reason"; return 0; }
   [ -e "$NO_ENFORCE_FILE" ] && { act_log "CRIT (arm-off, $NO_ENFORCE_FILE exists): $reason"; return 0; }
+  hysteresis_gate "$reason" || return 0
   cooldown_ok enforce "$ENFORCE_COOLDOWN" || { act_log "CRIT suppressed by enforce cooldown: $reason"; return 0; }
   enforce_rate_ok || { act_log "CRIT suppressed by enforce rate limit (${ENFORCE_MAX}/${ENFORCE_WINDOW}s): $reason"; return 0; }
   wait_for_idle || { act_log "CRIT NOT enforced: still ${ENFORCE_WAIT_MAX}s of in-flight traffic — $reason"; return 0; }
@@ -562,7 +615,8 @@ config_drift_note() {
   # invocation enforces/reports — comparing the raw env name against itself would always agree).
   for pair in SPARK_OOM_ENFORCE:ENFORCE SPARK_OOM_RECYCLE:RECYCLE \
               SPARK_OOM_RECYCLE_GROW_GIB:RECYCLE_GROW_GIB SPARK_OOM_RECYCLE_IDLE_S:RECYCLE_IDLE_S \
-              SPARK_OOM_WARN_GIB:WARN_GIB SPARK_OOM_CRIT_GIB:CRIT_GIB; do
+              SPARK_OOM_WARN_GIB:WARN_GIB SPARK_OOM_CRIT_GIB:CRIT_GIB \
+              SPARK_OOM_REARM_GIB:REARM_GIB; do
     uvar=${pair%%:*}; svar=${pair##*:}
     got=$(printf '%s' "$ue" | tr ' ' '\n' | sed -n "s|^${uvar}=||p")
     want=$(eval "printf '%s' \"\${$svar:-}\"")
@@ -581,7 +635,13 @@ config_drift_note() {
 # also how the persistence-across-a-unit-restart property is proved. `docker` here is a file
 # append: the test can never touch a real engine.
 # It is written to be RED-able, and the mutants are recorded HERE because the delivery note that
-# used to carry them is deleted: C1 dies if the `/health`-200 or the settle gate in baseline_tick
+# used to carry them is deleted: C7 dies if the hysteresis_gate call is dropped from
+# enforce_crit, if its usable/REARM comparison is inverted, if the latch is never cleared, or
+# if a RECYCLE restart latches it (HD-494: an enforced restart must not be re-armable while the
+# REST state is below CRIT — that is the 2026-10-05 restart-loop failure mode). C7b is the case
+# that kills the "gate call dropped from enforce_crit" mutant: with the cooldown zeroed, a
+# dropped call restarts twice, so `restarts = 1` cannot pass by accident.
+# C1 dies if the `/health`-200 or the settle gate in baseline_tick
 # is dropped, or if bl_commit stores the first read instead of the max; C2 dies if a low read may
 # down-ratchet the committed baseline; C3 dies if the growth/idle comparison in check_idle_recycle
 # is inverted (a guard that cannot fire IS the bug); C4 dies if the `in_flight` ERR proof or the
@@ -759,6 +819,66 @@ STUB
     *) bad "C5 margin verdict missing with RECYCLE=1: got '$(margin_line 1)'" ;;
   esac
 
+  # C7 — hysteresis (HD-494): an enforced restart may not become a standing restart-loop.
+  #      Killed by: dropping the `hysteresis_gate` call in enforce_crit, inverting the
+  #      usable/REARM comparison (it would then cry when the budget IS fixed and fire when it
+  #      is not), never clearing the latch (protection switched off permanently), or latching on
+  #      a RECYCLE restart (which would disarm CRIT protection without ever using it).
+  hyst_line() { # $1 = injected usable; echoes ARMED / LATCHED from the real gate
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_STUB_DIR="$st" \
+        SPARK_OOM_REARM_GIB=12 SPARK_OOM_CRIT_GIB=8 SPARK_OOM_USABLE_OVERRIDE="$1" \
+        bash "$SELF_SRC" _hysteresis 2>/dev/null | tail -1
+  }
+  restart_stubbed() { # $1 = tag — restart_engine through the stub PATH (never real docker)
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_STUB_DIR="$st" \
+        SPARK_OOM_KEEP_SNAPS=2 SPARK_OOM_USABLE_OVERRIDE="${2:-7.80}" \
+        bash "$SELF_SRC" _restart "$1" "C7 probe" >/dev/null 2>&1
+  }
+  new_case
+  expect_eq "C7 no latch ⇒ enforcement armed" "$(hyst_line 7.80)" "ARMED"
+  restart_stubbed CRIT-ENFORCED
+  expect_eq "C7 an enforced restart restarted the engine once" "$(restarts)" "1"
+  [ -s "$tmp/base/state/hysteresis_latch" ] && ok "C7 the enforced restart wrote the latch" \
+    || bad "C7 enforced restart left no latch"
+  expect_eq "C7 latched at a below-WARN usable ⇒ refuse" "$(hyst_line 7.80)" "LATCHED"
+  expect_eq "C7 refusing did not restart the engine"  "$(restarts)" "1"
+  restart_stubbed RECYCLE 7.80
+  expect_eq "C7 still latched after a RECYCLE restart" "$(hyst_line 7.80)" "LATCHED"
+  if grep -q 'hysteresis' "$tmp/base/state/enforce.log" 2>/dev/null; then
+    ok "C7 the refusal is logged with a reason"
+  else
+    bad "C7 the latch was silent in enforce.log"
+  fi
+  expect_eq "C7 usable at/above WARN re-arms" "$(hyst_line 12.00)" "ARMED"
+  [ -s "$tmp/base/state/hysteresis_latch" ] && bad "C7 latch survived re-arming" \
+    || ok "C7 re-arming cleared the latch"
+  expect_eq "C7 armed again at the same low usable ⇒ allowed" "$(hyst_line 7.80)" "ARMED"
+
+  # C7b — the same property on the PATH THAT ACTUALLY DECIDES: enforce_crit itself, with the
+  # cooldown zeroed so a second call cannot be excused by the cooldown. Without the gate call
+  # this is two restarts seconds apart — precisely the 2026-10-05 live loop.
+  enforce_stubbed() { # drive the REAL enforce_crit with the stub PATH + an idle engine
+    env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_STUB_DIR="$st" \
+        SPARK_OOM_KEEP_SNAPS=2 SPARK_OOM_ENFORCE=1 SPARK_OOM_ENFORCE_COOLDOWN=0 \
+        SPARK_OOM_ENFORCE_MAX=5 SPARK_OOM_ENFORCE_WINDOW=7200 \
+        SPARK_OOM_REARM_GIB=12 SPARK_OOM_CRIT_GIB=8 SPARK_OOM_USABLE_OVERRIDE=7.80 \
+        bash "$SELF_SRC" _enforce "usable=7.80GiB psi_full=0.0 (crit 8GiB / 25%)" >/dev/null 2>&1
+  }
+  new_case
+  seed 200 true 92343 0                      # healthy + idle: enforce_crit may act
+  enforce_stubbed
+  expect_eq "C7b first CRIT below the floor ⇒ one planned restart" "$(restarts)" "1"
+  enforce_stubbed; enforce_stubbed
+  expect_eq "C7b a below-floor REST state does NOT restart twice" "$(restarts)" "1"
+  if grep -q 'suppressed by hysteresis' "$tmp/base/state/enforce.log" 2>/dev/null; then
+    ok "C7b the loop was refused out loud"
+  else
+    bad "C7b no hysteresis refusal in enforce.log — the loop is still open"
+  fi
+  expect_eq "C7b re-armed above WARN, the enforcer is live again" \
+    "$(hyst_line 12.00; enforce_stubbed; restarts)" "ARMED
+2"
+
   # C6 — the readout must not contradict the deploy: a manual invocation whose environment
   #      differs from the running unit's must SAY so (sudo does not inherit unit Environment=).
   drift_line() { # $1 = SPARK_OOM_RECYCLE for this shell, $2 = the fake unit value
@@ -775,7 +895,7 @@ STUB
   expect_eq "C6 agreement stays silent" "$(drift_line 0 0)" ""
 
   printf 'self-test: %d assertions, %d failed ⇒ %s\n' "$((pass+fail))" "$fail" \
-    "$([ "$fail" -eq 0 ] && echo 'ALL PASS (6/6 cases)' || echo RED)"
+    "$([ "$fail" -eq 0 ] && echo 'ALL PASS (8/8 cases)' || echo RED)"
   rm -rf "$tmp"
   [ "$fail" -eq 0 ]
 }
@@ -802,6 +922,7 @@ case "${1:-sample-loop}" in
     echo "          margin: $(margin_verdict)"
     echo "in flight: $(in_flight)"
     echo "governor: enforce=$ENFORCE (cooldown ${ENFORCE_COOLDOWN}s, max ${ENFORCE_MAX}/${ENFORCE_WINDOW}s, arm-off file $NO_ENFORCE_FILE) recycle=$RECYCLE (+${RECYCLE_GROW_GIB} GiB / ${RECYCLE_IDLE_S}s idle)"
+    echo "hysteresis: $(hysteresis_text) (re-arm at ${REARM_GIB} GiB = WARN ${WARN_GIB}; HD-494)"
     config_drift_note
     [ -s "$STATE_DIR/enforce.log" ] && { echo "governor actions:"; tail -5 "$STATE_DIR/enforce.log"; }
     echo "samples: $(wc -l < "$SAMPLES" 2>/dev/null || echo 0) rows in $SAMPLES"
@@ -840,6 +961,12 @@ case "${1:-sample-loop}" in
     ;;
   enforce-status) echo "see status" ;;
   _tick) _tick_body ;;
+  # Self-test-only entry points: the governor functions are driven through a PROCESS so the
+  # docker/nvidia-smi/curl stubs on PATH are in force. Calling them directly from self_test()
+  # would run the REAL docker — the author's rule, and the reason `tick` exists.
+  _restart) restart_engine "${2:-CRIT-ENFORCED}" "${3:-self-test probe}" ;;
+  _enforce) enforce_crit "${2:-self-test CRIT}" ;;   # self-test only (C7b): the real enforce_crit
+  _hysteresis) if hysteresis_gate "probe"; then echo ARMED; else echo LATCHED; fi ;;   # self-test only (C7)
   _margin) margin_verdict ;;
   _drift) config_drift_note ;;
   rebaseline) # operator action: drop the committed baseline and re-acquire from scratch

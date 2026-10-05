@@ -95,6 +95,17 @@ spark_oom_watchdog_enforce_cooldown: 1800     # s between enforced restarts
 spark_oom_watchdog_enforce_max: 2             # enforced restarts per window
 spark_oom_watchdog_enforce_window: 7200       # s
 spark_oom_watchdog_enforce_wait_max: 600      # s to wait for in-flight drain
+# Hysteresis on the ENFORCEMENT (HD-494, 2026-10-05). An enforced CRIT restart latches the
+# enforcer off until the gauge is back above this value — one planned restart, then a human
+# problem, instead of a restart every ENFORCE_COOLDOWN while the REST state sits below CRIT.
+# Live failure mode it closes: `fast` at a 25 GB pool rested at usable 7.76-7.99 GiB with
+# psi_full 0.0, so CRIT was a standing condition and the enforcer had a restart permanently
+# queued (one CRIT-ENFORCED at 09:22:41Z, then "suppressed by enforce cooldown" every 5 min).
+# Snapshots, the sampler and the HD-375 WARN/CRIT alerts are NOT latched — only the restart is.
+# Default = warn_gib: a profile counts as fixed when its rest state clears the WARN band, the
+# same invariant `device_hold_ceiling_bytes` is derived from (hardware-spark.md §Unified-memory
+# budget). Set it to crit_gib to get the pre-HD-494 behaviour of firing on every CRIT edge.
+spark_oom_watchdog_rearm_gib: "{{ spark_oom_watchdog_warn_gib }}"
 # Idle-recycling of the cumulative allocator term (flat at idle, +21 GiB / ~30 min of
 # light agent traffic, never returned): recycle when the engine sits baseline + N GiB
 # and has been idle for the configured time.

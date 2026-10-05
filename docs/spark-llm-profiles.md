@@ -29,6 +29,16 @@ bytes (the certified practical bf16 ceiling) and `spark_llm_device_hold_ceiling_
 104,113,000,000 B — MemTotal − 6.9 GiB held by OS/driver at engine start − the **17.78 GiB**
 certified worst `usable` — which is what makes a weight change a POOL change.
 
+> ⚠ **Both constants in that ceiling are now known to be wrong for the AR-hybrid checkpoint, and
+> HD-494 measured by how much** (2026-10-05): the non-engine term is **4.93e9 B**, not 6.9 GiB, and
+> the 17.78 GiB "worst usable" belongs to the AWQ/16 GiB lane. Measured on the box, `fast`'s real
+> non-KV hold is **92.13e9 B**, not the 76.3e9 its boot log implied — which is how a 25 GB pool
+> passed this gate while the host had no reserve at all. `fast` therefore carries its own
+> `device_hold_ceiling_bytes: 112.70e9` (measured: MemTotal − 4.93e9 − a 12 GiB WARN reserve), a
+> named exception that leaves every other profile gated at 104,113,000,000. Re-deriving the global
+> from the measured OS term is owed. Ledger: [hardware-spark.md](hardware-spark.md) §The fixed
+> cost, MEASURED.
+
 "4 × 262k" was an *fp8 pool* claim built on the wrong constant; with the right one it fails
 its own bound (≈905k, 3.45 ×), so no profile on this box claims four concurrent full
 windows any more: `reasoning` and `fast` hold **1.97 ×** and **1.35 ×**, and four full
@@ -169,12 +179,21 @@ checker, the probe and the render matrix all refuse to treat them as servable).
 `fast`, and the name was taken from the retired NVFP4 lane (now a rejected-log row, superseded by
 HD-475 if anyone ever wants that quant back). Everything above this line keeps the funnel's
 historical arm names — the reports under `spark/reports/hd489-*` are dated evidence and are not
-renamed. What `fast` renders today differs from the arm that won: pool `25 GB` (per-profile
+renamed. What `fast` renders today differs from the arm that won: pool **`20 GB`** (per-profile
 `pool_ceiling_bytes`, so the certified 16 GiB global still binds every other profile) and
-`max_num_seqs: 8`, both owner-tested on 2026-10-03. Gate 4 at conc 8 on that shape is **measured PASS**
-(`spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log` — 8/8 200s in 3.0 s, 2.7 s median); it is a
-short-prompt batch probe, so it proves the batch shape serves and stays in budget, not throughput under
-batch. What that shape still owes is **gate 5 (the needle at depth)** and a working day of watchdog
+`max_num_seqs: 8`. It stepped up to 25 GB on 2026-10-03 and back down to 20 GB on **2026-10-05
+(HD-494)**: 25 GB bought 0.61 extra windows and cost the host its entire reserve — `usable` RESTED
+at 7.76-7.99 GiB and the watchdog restarted the engine for a steady state, not an incident
+([spark-incidents.md](spark-incidents.md) §Incident #9). 20 GB is the largest pool the MEASURED
+fixed cost leaves inside a 12 GiB reserve (`pool_max` = 20.64 GB): 644,599 slots = 2.46 × the
+262,144 window, 80,575 tokens/stream at the seqs-8 ceiling — and it is the shape 05012de booted
+clean with gates green.
+
+Gate 4 at conc 8 on the 25 GB shape is **measured PASS**
+(`spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log` — 8/8 200s in 3.0 s, 2.7 s median); it
+is a short-prompt batch probe, so it proves the batch shape serves and stays in budget, not
+throughput under batch. The 20 GB revert re-opens that leg (it was taken at 25 GB), and what the
+shape still owes either way is **gate 5 (the needle at depth)** and a working day of watchdog
 `usable` samples.
 
 **Why the arms live on `/`**: XFS had 185 G free and holds 505 GB of certified weights plus
@@ -266,7 +285,10 @@ serving this box (WSL pi) loads no `AGENTS.md`. Counter values, commands and the
 in [`spark/reports/hd489-never-evict-off/README.md`](../spark/reports/hd489-never-evict-off/README.md).
 
 The causal agent was the **pool**, not the pin: 25 GB = 3.08 × the 262,144-token window is what lets
-a long session keep its own prefix resident. And the mechanism is not free — pinned blocks leave
+a long session keep its own prefix resident. (The pool is 20 GB = 2.46 × since HD-494 on 2026-10-05
+— still more than the two concurrent full-window sessions the owner's day actually runs, and the
+measurement that retired the pin stands: it was capacity doing the work, not the flag.) And the
+mechanism is not free — pinned blocks leave
 `get_num_free_blocks()`, which drives admission control, so up to 25 % of the pool (142 of 569
 blocks ≈ 0.20 M tokens ≈ 0.77 × one window) can be held out for one prompt shape, to the benefit of
 the client that matches the marker and the cost of every other stream sharing the GPU.

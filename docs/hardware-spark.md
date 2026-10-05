@@ -92,7 +92,10 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > idle recycle is **off** (owner decision 2026-09-23, §Unified-memory budget), so a young `StartedAt` you
 > did not cause is **signal, not noise**: read `state/enforce.log` (an `ENFORCE:`/`RECYCLE:` line names
 > the watchdog) before assuming a crash — see §Unified-memory budget and
-> [`../spark/stability-test.md`](../spark/stability-test.md).
+> [`../spark/stability-test.md`](../spark/stability-test.md). Since HD-494 an enforced restart also
+> **latches the enforcer off** until `usable` is back above the WARN band (12 GiB), so "it restarted
+> itself on the hour" is no longer a possible steady state: one planned restart, then the budget is a
+> human problem (live precedent: [spark-incidents.md](spark-incidents.md) §Incident #9).
 
 > **The idle-recycle baseline WAS a boot-time coin-flip (HD-395 — fixed and live-proven; the term is now
 > OFF by owner decision).** The guard recycled at *first-post-boot top-pid + 8 GiB after 1800 s idle*, but
@@ -217,10 +220,24 @@ will not give an unmovable `GFP_KERNEL` request (`Node 0 Normal free:9.63 GiB` w
 
 ```
 usable_gib = MemAvailable − CmaFree       # THE budget metric
-  WARN  < 8 GiB      CRIT < 4 GiB        # + PSI memory (full avg10) as confirmation only
+  WARN < 12 GiB      CRIT < 8 GiB         # + PSI memory (full avg10) as confirmation only
+  re-arm (hysteresis) ≥ 12 GiB            # HD-494: one enforced restart, then wait for the budget fix
   kills observed at   1.64 / 1.62 GiB
   healthy idle measured 26.13 GiB usable (CmaFree 0.13 GiB)
 ```
+
+(The `WARN 8 / CRIT 4` pair this block used to carry is the **pre-HD-381** raw-`MemAvailable` pair on
+the corrected gauge — what actually runs is 12 / 8, in `roles/spark/defaults/main.yml` and the
+`HD-375` alert rules, which are kept identical on purpose.)
+
+> ⚠ **CRIT 8 is not a tuning knob, and "we dipped below it and survived" is not evidence**
+> (HD-494, 2026-10-05, asked and answered in
+> [`services-rejected.md`](services-rejected.md)). 8 was chosen from three measured numbers, not
+> taste: healthy idle 26-30 GiB, **the instant of death 1.6 GiB**, and the lowest value a 60 s
+> scrape ever recorded inside a kill window, **5.01 GiB**. A trigger at 5 therefore sits *below the
+> last sample the monitoring path can see*, and the action it guards is not instant — up to 600 s
+> of in-flight drain, then `docker restart`, and the memory returns only when the ~20 min reload
+> finishes. Lead time is the whole design; the number that buys it is 8.
 
 `MemAvailable` is not merely optimistic here — it **inflates as pressure rises**, because squeezing the GPU
 carve grows `CmaFree` and CMA counts as available. Any threshold on this box is therefore expressed in
@@ -261,6 +278,37 @@ then went **88,773 → 109,785 MiB (avail 24.5 → 9.6 GiB)** under ~30 min of *
    the largest transient on this box. Loop: big context → ~82 % KV occupancy → own prefix blocks evicted →
    0 % hit → full re-prefill → spike. Sizing for "casual/chat" occupancy (peak 15.5 %, max 36,800 tok) is
    **not** representative of agentic use.
+
+### The fixed cost, MEASURED — and why a 25 GB pool left the box no host floor (HD-494, 2026-10-05)
+
+The host-floor gate (`roles/spark-llm-profile`) adds a profile's declared `fixed_cost_bytes` to its
+KV pool and compares the sum to `spark_llm_device_hold_ceiling_bytes`. On 2026-10-05 that gate was
+**green on a box with no reserve at all**, because the declared fixed cost was a weight-load log
+line, not a measurement of what the process ends up pinning:
+
+| term | B | GiB | how it is known |
+|---|---|---|---|
+| `MemTotal` | 130.594e9 | 121.63 | `/proc/meminfo` |
+| **engine hold, measured** | **117.134e9** | **109.09** | `MemAvailable` 7.94 → 117.03 GiB across the 09:22:45Z restart — the incident-#6 method |
+| ├ the 25 GB KV pool | 25.000e9 | 23.28 | `--kv-cache-memory-bytes 25000000000` |
+| └ **non-KV fixed cost** | **92.134e9** | **85.81** | hold − pool |
+| `fixed_cost_bytes` as declared | 76.300e9 | 71.06 | boot-log derivation (`Model loading took 68.35 GiB`) |
+| **undeclared gap** | **15.834e9** | **14.75** | the difference, and the whole incident |
+| non-engine use at engine start | 4.934e9 | 4.60 | `MemTotal − MemAvailable` 15 s after the restart (`cached` then 5.43 GiB) — vs the **6.9 GiB** the global ceiling assumes |
+
+So the engine sits **12.13 GiB over the certified 104.113e9 ceiling** at a 25 GB pool, and "usable
+7.9 GiB" is that overflow, measured from the other side. The same model run backwards predicts the
+box: `130.594e9 − 4.934e9 − 92.134e9 − 25e9 = 8.53e9 B` = **7.94 GiB**, against the 7.76-7.99 GiB
+observed all morning — the ledger is validated against the machine, not merely balanced.
+
+**The rule that falls out of it:** the pool is capped by what the *fixed cost* leaves over, and on
+this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 − 92.13e9 = 20.64 GB`.
+With `reserve` = the watchdog's WARN band (12 GiB, i.e. "the rest state must not even sit in the
+WARN band"), **20 GB is the largest 1-GB-rounded pool this profile may use**, and `fast` is set to
+it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seqs=8` ceiling).
+The per-profile `device_hold_ceiling_bytes: 112.70e9` is a **measured exception, not a re-cert**:
+every other profile stays gated at the global 104.113e9, and re-certifying the global on the
+measured 4.93e9 OS term is the ⏳ half of HD-494.
 
 ### Boot-floor numbers (the baselines future curves compare against)
 
@@ -330,6 +378,12 @@ Certified state and its costs, stated plainly:
   preflight gate on **`usable = MemAvailable − CmaFree`** at a **16 GiB** floor — the same gauge as the
   watchdog and the alert rules. Guards that read raw `MemAvailable` would fire on a healthy box at usable
   18.5 and read healthy at 10.4 GiB, which is where the real kills happened.
+- **Since HD-469 the pool is per-profile, so the line above is the `reasoning`/`graded` value, not "the
+  live value".** What renders comes from `spark_llm_profiles[spark_llm_profile].kv_cache_memory`
+  (`host_vars/spark.kogler.si.yml` picks the profile — today `fast`); `fast` renders **20 GB** as of
+  2026-10-05 (was 25 GB; the 25 GB step left no host floor — §*The fixed cost, MEASURED* above), and
+  the 16 GiB certified ceiling still binds every profile that does not declare its own. Catalogue +
+  the host-floor gate: [spark-llm-profiles.md](spark-llm-profiles.md).
 
 ### KV-cache persistence across restarts (LMCache) — REJECTED (2026-09-20)
 

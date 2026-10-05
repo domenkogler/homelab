@@ -19,6 +19,8 @@ Environment=SPARK_OOM_ENFORCE_COOLDOWN={{ spark_oom_watchdog_enforce_cooldown }}
 Environment=SPARK_OOM_ENFORCE_MAX={{ spark_oom_watchdog_enforce_max }}
 Environment=SPARK_OOM_ENFORCE_WINDOW={{ spark_oom_watchdog_enforce_window }}
 Environment=SPARK_OOM_ENFORCE_WAIT_MAX={{ spark_oom_watchdog_enforce_wait_max }}
+# HD-494 hysteresis: an enforced restart latches the enforcer off until the gauge is back here
+Environment=SPARK_OOM_REARM_GIB={{ spark_oom_watchdog_rearm_gib }}
 # Idle-recycling of the cumulative (never-returned) allocator term
 Environment=SPARK_OOM_RECYCLE={{ 1 if spark_oom_watchdog_recycle | bool else 0 }}
 Environment=SPARK_OOM_RECYCLE_GROW_GIB={{ spark_oom_watchdog_recycle_grow_gib }}
