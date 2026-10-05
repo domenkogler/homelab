@@ -1,0 +1,5 @@
+endpoint https://llm.kogler.si/v1  bearer len=32 (value not printed)
+  models: ['spark/qwen3.8-flash-next']
+  PASS  ctx 163840: http=200 prompt=161813 (asked≈163840, body 0.7 MB) completion=24 77.3s 
+
+1/1 probes passed

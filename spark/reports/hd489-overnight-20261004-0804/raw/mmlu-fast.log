@@ -1,0 +1,127 @@
+=== business 2026-10-04T06:07:24Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: business
+
+Terminal not available - running in non-interactive mode
+=== law 2026-10-04T06:59:49Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: law
+
+Terminal not available - running in non-interactive mode
+=== business 2026-10-04T06:59:57Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: business
+
+Terminal not available - running in non-interactive mode
+=== law 2026-10-04T07:00:30Z
+=== psychology 2026-10-04T07:00:30Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: law
+Assigned subjects: psychology
+
+Terminal not available - running in non-interactive mode
+
+Terminal not available - running in non-interactive mode
+=== biology 2026-10-04T07:00:37Z
+=== psychology 2026-10-04T07:00:37Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: psychology
+Assigned subjects: biology
+
+Terminal not available - running in non-interactive mode
+
+Terminal not available - running in non-interactive mode
+=== law 2026-10-04T07:00:56Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: law
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for law: 88.00% (88/100)
+=== psychology 2026-10-04T09:36:44Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: psychology
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for psychology: 93.00% (93/100)
+=== biology 2026-10-04T10:20:11Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: biology
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for biology: 95.00% (95/100)
+=== chemistry 2026-10-04T10:50:25Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: chemistry
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for chemistry: 94.00% (94/100)
+=== history 2026-10-04T11:59:19Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: history
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for history: 78.00% (78/100)
+=== other 2026-10-04T12:55:58Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: other
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for other: 80.00% (80/100)
+=== health 2026-10-04T13:53:53Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: health
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for health: 84.00% (84/100)
+=== economics 2026-10-04T14:52:17Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: economics
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for economics: 92.00% (92/100)
+=== math 2026-10-04T15:12:38Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: math
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for math: 95.00% (95/100)
+=== physics 2026-10-04T15:52:08Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: physics
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for physics: 97.00% (97/100)
+=== computer science 2026-10-04T16:36:18Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: computer science
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for computer science: 92.00% (92/100)
+=== philosophy 2026-10-04T17:29:12Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: philosophy
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for philosophy: 90.00% (90/100)
+=== engineering 2026-10-04T18:44:59Z
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Assigned subjects: engineering
+
+Terminal not available - running in non-interactive mode
+
+  Final Accuracy for engineering: 87.00% (87/100)
+DONE 2026-10-04T21:36:16Z

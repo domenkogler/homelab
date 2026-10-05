@@ -9,7 +9,7 @@ Driver = you: laptop LM Studio Gemma 4 26B (`127.0.0.1:1234`) — never a bench 
 lane, seqs 4, 16 GB. Read nothing else; every command here is complete.
 
 **Rules.** (1) Never stop, never ask: a leg you can't finish gets one line `BLOCKED: <why> — <log>` in
-`RESULTS.md`, then the NEXT leg. (2) Max 2 retries per leg. (3) One leg at a time, never overlapping.
+`RESULTS.md` inside `$EV`, then the NEXT leg. (2) Max 2 retries per leg. (3) One leg at a time, never overlapping.
 (4) Edit nothing but your evidence dir; no IaC, no constants, no ceilings, no restart, no reboot. FAIL
 and BLOCKED are results. (5) Never write the bearer anywhere — only its length (32). (6) Order: verify →
 MMLU@8 → gate4 → depth → fp8 → flip to `reasoning` + same suite + McNemar → converge back to `fast` →
@@ -159,12 +159,12 @@ sleep 300; tail -20 /tmp/cg-back-$TS.log          # every 5 min, ≤40 min
 ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' -e 'never-evict' /opt/spark-ai/docker-compose.yml" > "$EV/raw/live-after.txt"   # never-evict: expect NO hit (rejected)
 ssh spark "docker logs vllm-qwen-spark --since 60m 2>&1 | grep -m2 -e 'GPU KV cache size' -e 'Initial free memory'" >> "$EV/raw/live-after.txt"
 python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast health 2>&1 | tail -6 | tee "$EV/raw/health-final.log"
-{ echo "# run $TS"; cat "$EV/raw/seat.txt"; grep -h -e 'arm=' -e 'n_paired=' "$EV"/raw/acc-fast.txt "$EV"/raw/mcnemar.txt 2>/dev/null; } >> RESULTS.md
-git add -A "$EV" RESULTS.md && git commit -s -m "test(spark-llm): HD-489 overnight run $TS — fast suite + reasoning arm + McNemar, box left on fast"
+{ echo "# run $TS"; cat "$EV/raw/seat.txt"; grep -h -e 'arm=' -e 'n_paired=' "$EV"/raw/acc-fast.txt "$EV"/raw/mcnemar.txt 2>/dev/null; } >> "$EV/RESULTS.md"
+git add -A "$EV" && git commit -s -m "test(spark-llm): HD-489 overnight run $TS — fast suite + reasoning arm + McNemar, box left on fast"
 ```
 PASS = `failed=0`, `restarts=0`, KV line, health green, `25000000000`/`8`. Never leave it on
 `reasoning`. An assert in the log → `BLOCKED: gate — <first line>`, change NOTHING. Not healthy 40 min
-after a reboot → `BLOCKED: engine down` on the FIRST line of `RESULTS.md`, do not restart it. Do not
+after a reboot → `BLOCKED: engine down` on the FIRST line of `$EV/RESULTS.md`, do not restart it. Do not
 merge to `main`, do not remove the worktree — the parent merges. Then stop.
 
 ## 9. Never

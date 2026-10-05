@@ -1,0 +1,36 @@
+# MMLU-Pro mini · arm fast · run 20261004-0804 · derived from ~/mmlu-eval-fast-20261004-0804/*_result.json
+# correct = pred == answer (exact letter); null = extraction failed (pred empty)
+# wall = derived from result-file mtimes (per-category loop, one category per process)
+
+category            corr    n     acc  null  wall_h
+
+biology               95  100  95.00%     0  0.50
+business              88   98  89.80%     0  (first: start 06:07:24Z)
+chemistry             94  100  94.00%     2  1.15
+computer science      92  100  92.00%     0  0.88
+economics             92  100  92.00%     0  0.34
+engineering           87  100  87.00%     5  2.85
+health                84  100  84.00%     1  0.97
+history               78  100  78.00%     1  0.94
+law                   88  100  88.00%     0  2.88
+math                  95  100  95.00%     0  0.66
+other                 80  100  80.00%     2  0.97
+philosophy            90  100  90.00%     1  1.26
+physics               97  100  97.00%     0  0.74
+psychology            93  100  93.00%     0  0.72
+
+TOTAL               1253 1398  89.63%    12  14.87
+
+subset (owner 2026-10-05: computer science, math, other, health, biology):
+  computer science      92  100  92.00%  wall 0.88 h
+  math                  95  100  95.00%  wall 0.66 h
+  other                 80  100  80.00%  wall 0.97 h
+  health                84  100  84.00%  wall 0.97 h
+  biology               95  100  95.00%  wall 0.50 h
+  SUBSET TOTAL         446  500  89.20%  wall 3.98 h
+  1 sigma on the subset (binomial, n=500): ±1.39 pts
+
+MMLU-Pro mini sha256: e67bad86a84e25bc90f475cd7fc004fa23fca2c562c8b7acc9b38fb07e6c0c4d (raw/sha.txt)
+window: first category start 2026-10-04T06:07:24Z → DONE 2026-10-04T21:36:16Z (raw/mmlu-fast.log) — 15.48 h wall
+per-item CoT text is NOT here (2.0 MB on the runner at ~/mmlu-eval-fast-20261004-0804/, ephemeral);
+what is here is what a paired McNemar needs: (question_id, correct) for all 1398 items.

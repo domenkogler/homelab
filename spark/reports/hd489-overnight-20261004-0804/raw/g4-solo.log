@@ -1,0 +1,5 @@
+endpoint https://llm.kogler.si/v1  bearer len=32 (value not printed)
+  models: ['spark/qwen3.8-flash-next']
+  PASS  concurrency 1: 200s=1/1 wall=1.5s lat min/med/max=1.5/1.5/1.5s
+
+1/1 probes passed

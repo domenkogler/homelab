@@ -67,7 +67,8 @@ docker run --rm --network none --entrypoint /bin/sh \
 So the 2026-10-03 "ONE value aliased by every profile" change made `spark_llm_profile=reasoning`
 render `--never-evict-kv-cache-*` into a build that has no such argument: `api_server` exits at
 parse, Docker restart-loops the engine. Live cost, from the overnight run's own
-evidence (`RESULTS.md` on branch `session/hd489-0803`, run id `20261004-0804`): **`restarts=105`**,
+evidence ([`spark/reports/hd489-overnight-20261004-0804/README.md`](../hd489-overnight-20261004-0804/README.md)):
+**`restarts=105`**,
 box restored to `fast` by the run's converge-back. The gate was green throughout — it checked that
 the pin rendered, never which image would receive it. Hence
 `spark_llm_never_evict_capable_images: [ultrafast]` plus a new assert in

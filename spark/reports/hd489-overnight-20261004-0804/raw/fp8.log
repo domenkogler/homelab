@@ -1,0 +1,48 @@
+
+── Leg A · registry (read-only, anonymous) ─────────────────────────────
+pinned image (versions.yml): vllm/vllm-openai:qwen38-flash-next@sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
+  pin parses as repo=vllm/vllm-openai tag=qwen38-flash-next digest=sha256:fc120ece0a38…
+  tags matching /qwen/ in the first 5 page(s): 11, newest:
+    2026-08-26T13:06:10.219275Z  qwen38-flash-next                            sha256:fc120ece0a38…  [amd64, arm64]
+    2026-08-26T13:04:17.794978Z  qwen38-flash-next-arm64-cu130                sha256:3b0e188ffceb…  [arm64]
+    2026-08-26T13:04:08.124964Z  qwen38-flash-next-x86_64-cu130               sha256:0aea30240f3e…  [amd64]
+    2026-08-26T13:03:39.406709Z  qwen38-flash-next-arm64-cu129                sha256:bc0b67593374…  [arm64]
+    2026-08-26T13:03:23.926481Z  qwen38-flash-next-x86_64-cu129               sha256:f16a96245c0a…  [amd64]
+    2026-08-12T14:58:07.241684Z  qwen38                                       sha256:4a2f33a88422…  [amd64, arm64]
+    2026-08-12T14:57:47.854864Z  qwen38-cu129                                 sha256:3879c346b086…  [amd64, arm64]
+    2026-08-12T14:56:21.590732Z  qwen38-x86_64-cu130                          sha256:d392f621bb3e…  [amd64]
+    2026-08-12T14:56:19.167201Z  qwen38-arm64-cu130                           sha256:541e0e475418…  [arm64]
+    2026-08-12T14:56:16.484411Z  qwen38-x86_64-cu129                          sha256:93655f82abea…  [amd64]
+    2026-08-12T14:56:13.899952Z  qwen38-arm64-cu129                           sha256:fb1621314d2a…  [arm64]
+  qwen38-flash-next: last_updated=2026-08-26T13:06:10.219275Z full_digest=sha256:fc120ece0a38… architectures=[amd64, arm64] (2 entries)  ← IS our pin
+      · amd64/linux sha256:0aea30240f3e… size=8634450611
+      · arm64/linux sha256:3b0e188ffceb… size=9702868146
+  qwen38-flash-next-arm64-cu130: last_updated=2026-08-26T13:04:17.794978Z full_digest=sha256:3b0e188ffceb… architectures=[arm64] (1 entries)
+      · arm64/linux sha256:3b0e188ffceb… size=9702868146
+
+── Leg B · the image's own source (no GPU, no writes, NO PULL) ─────────
+  what this box actually runs for that ref: arm64/linux   (versions.yml claims multi-arch; THIS is what spark executes)
+  docker run --rm -m 4g --entrypoint sh <image> -c '…grep 5 marks…'
+  VLLM_DIR=/usr/local/lib/python3.12/dist-packages/vllm
+  QSA_FILES=/usr/local/lib/python3.12/dist-packages/vllm/models/qwen3_8_flash_next/nvidia/qsa.py
+  vllm.__version__ = 0.1.dev20073+g8e685d198
+  HIT  supported_kv_cache_dtypes: 1 line(s)
+        70:    supported_kv_cache_dtypes: ClassVar[list[CacheDType]] = ["auto", "bfloat16"]
+  —    IS_FP8: 0 line(s)
+  HIT  BF16 main KV: 2 line(s)
+        109:                "Qwen3.8-Flash-Next QSA requires a BF16 main KV cache"
+        188:                "Qwen3.8-Flash-Next QSA requires a BF16 main KV cache"
+  —    fp8_e4m3: 0 line(s)
+  HIT  kv_quant_mode: 2 line(s)
+        52:    get_kv_quant_mode,
+        344:            kv_quant_mode=get_kv_quant_mode(self.kv_cache_dtype),
+  DECLARED supported_kv_cache_dtypes = ["auto", "bfloat16"]
+
+── Verdict ─────────────────────────────────────────────────────────────
+BLOCKED-ON-IMAGE — the pinned build carries no fp8 main-KV read path.
+  · `graded` is therefore an ENGINE-PIN question (todo.md HD-473), not a config
+    flip; it stays uncertified and nothing on this box needs to change.
+  · fp8 KV merged upstream as vllm#55557 (2026-09-16) and is NOT in vLLM v0.30.0;
+    the only refs that can carry it are a rebuilt qwen38-flash-next tag or a
+    nightly — and CONVENTIONS §7 needs a REGISTRY-VERIFIED ARM64 digest of it.
+  · if Leg A above printed no arm64 entry, that is the finding, verbatim.

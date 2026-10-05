@@ -257,7 +257,7 @@ and `v1/core/block_pool.py`; the pinned base `fc120ece…` (vLLM `0.1.dev20073+g
 such argument**. When the 2026-10-03 "ONE value for every profile" change aliased the pin into
 `reasoning`/`graded` (`image: base`), a flip to `reasoning` wrote argv `api_server` cannot parse →
 exit at parse → Docker restart-loop, **`restarts=105`** before the overnight run restored `fast`
-(evidence: `spark/reports/hd489-overnight-20261004-0804/`). The gate was green the whole time,
+(evidence: [`spark/reports/hd489-overnight-20261004-0804/`](../spark/reports/hd489-overnight-20261004-0804/README.md)). The gate was green the whole time,
 because nothing compared the flag to the image. So:
 
 * `spark_llm_never_evict_capable_images: [ultrafast]` is the SSOT for which lineage may carry the

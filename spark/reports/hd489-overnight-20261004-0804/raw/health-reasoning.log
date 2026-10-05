@@ -1,0 +1,2 @@
+ERROR: /models → HTTP 502: Bad Gateway
+endpoint https://llm.kogler.si/v1  bearer len=32 (value not printed)

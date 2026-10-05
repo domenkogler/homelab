@@ -29,6 +29,12 @@ Thumbs.db
 # Logs
 *.log
 logs/
+# …except evidence logs under spark/reports: there a `.log` IS the record, and the blanket rule
+# above silently untracked nine of the fourteen raw files from the HD-489 overnight run
+# (spark/reports/hd489-overnight-20261004-0804/) — every gate, depth, fp8 and health line, saved
+# only because the worktree still held them. The 19 `.log` files already tracked under
+# spark/reports/stability/ show force-adding was the habit; this makes it the rule.
+!reports/**/raw/*.log
 
 # Temporary files
 *.tmp
