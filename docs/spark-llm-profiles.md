@@ -237,15 +237,13 @@ pool) pins the KV blocks of every prompt CONTAINING that text. It was authored a
 — `spark_llm_never_evict_prompt: ""`; the compose `{% if %}` therefore renders neither flag.
 
 What killed it is the engine's own instrumentation, read on the live box over 13 h of real pi
-sessions after the 2026-10-04 22:16 UTC boot (owner counter-source: `/metrics` + `docker logs`):
-
-| signal | value | reading |
-|---|---|---|
-| `[never-evict] holding … blocks` log lines | **none** | `log_never_evict_pin()` prints only when `reserved > 0`; the pin reserved **nothing** all day |
-| `vllm:num_preemptions_total` | **0** | nothing was ever evicted, so the pin's precondition never occurred |
-| `prompt_tokens_by_source{local_cache_hit}` | **95.1 %** | plain prefix caching, no help needed |
-| recomputed share (`local_compute`) | **4.9 %** | vs the pre-pin baseline **3.70 % (24 h) / 4.57 % (7 d)** measured in [`spark/reports/hd489-pin-premise/README.md`](../spark/reports/hd489-pin-premise/README.md) — the number never moved |
-| armed-but-unmatched | every request | the needle is the operator's pi global-instructions text; the client serving sessions (WSL pi, `PI_PROVIDER=spark`) loads no `AGENTS.md` at all (`install-pi-wsl.sh` never ran there), so no request carried it |
+sessions after the 2026-10-04 22:16 UTC boot: the `[never-evict] holding …` line never printed, so the
+pin reserved nothing (`log_never_evict_pin()` prints only when `reserved > 0`; the boot-time `armed:`
+line is not match evidence); `num_preemptions_total` **0**; prefix caching already served **95.1 %** of
+prompt tokens; recomputed share **4.9 %** against the pre-pin **3.70 % (24 h) / 4.57 % (7 d)** baseline;
+and the needle — the operator's pi global instructions — appeared in no request, because the client
+serving this box (WSL pi) loads no `AGENTS.md`. Counter values, commands and the attribution checks are
+in [`spark/reports/hd489-never-evict-off/README.md`](../spark/reports/hd489-never-evict-off/README.md).
 
 The causal agent was the **pool**, not the pin: 25 GB = 3.08 × the 262,144-token window is what lets
 a long session keep its own prefix resident. And the mechanism is not free — pinned blocks leave

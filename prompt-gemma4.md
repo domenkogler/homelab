@@ -50,11 +50,9 @@ premise is broken: converge (`nohup bash scripts/ansible-run.sh playbooks/spark.
 biology — slowest-first below, so a budget cut costs the least-valuable tail. Per-category loop = a
 crash costs one category; re-running a category resumes it. `-n 8` matches seqs 8 — never higher.
 
-> ⚠ **`fast` is already measured — do not spend the night re-running it.** Run 20261004-0804 produced
-> all 14 categories at 89.63 % (n=1398) and the owner subset at **89.20 %** (n=500, ±1.4 pts);
-> the data is in `~/mmlu-eval-fast-20261004-0804/` and the McNemar script scores only the
-> `A.keys() & B.keys()` intersection, so a `reasoning`-arm pass over these 5 categories pairs
-> against it. Re-run §3 only if the engine, weights or the harness changed.
+> ⚠ **`fast` is already measured on this subset — do not re-run it.** The data is in
+> `~/mmlu-eval-fast-20261004-0804/`; McNemar scores only the key intersection, so a `reasoning` pass
+> over these 5 categories pairs against it. Re-run this leg only if engine, weights or harness changed.
 
 ```bash
 sha256sum /tmp/mmlu-pro-harness/mini_test.json | tee "$EV/raw/sha.txt"    # expect e67bad86a84e25bc90f475cd7fc004fa23fca2c562c8b7acc9b38fb07e6c0c4d
@@ -112,10 +110,9 @@ once, then cross.
 Both quantisations were timed; no public suite ever ran on both. Flip, run the same items at ITS seqs,
 then the paired test (unpaired diffs prove nothing here). `reasoning` is certified — no override.
 
-> 2026-10-04's attempt to flip this lane crash-looped the engine (`restarts=105`): the never-evict
-> flag was aliased into every profile and this lane's `base` image has no such argument. That pin is
-> REJECTED and renders on no profile now (docs/services-ai-rejected.md), so the flip is clean — a
-> `reasoning` boot failure after this change is a real finding, not the pin.
+> The 2026-10-04 crash-loop on this lane (`restarts=105`) came from the never-evict flag on its
+> `base` image; the pin is REJECTED and renders nowhere (`docs/services-ai-rejected.md`), so a
+> `reasoning` boot failure now is a real finding, not the pin.
 
 ```bash
 N=$(python3 -c "import yaml;print(yaml.safe_load(open('IaC/ansible/group_vars/spark.yml'))['spark_llm_profiles']['reasoning']['max_num_seqs'])")
@@ -152,10 +149,9 @@ Report `n_paired` FIRST; under ~300 paired items resolves nothing below ~20 poin
 
 ## 8. Converge back to `fast` — LAST (≤45 min), then commit
 
-The box must end as the repo renders it (`fast`). The `--never-evict-*` pair is NOT part of that
-render any more — the pin was REJECTED 2026-10-05 (`docs/services-ai-rejected.md`), so a correct
-converge-back shows NEITHER flag; finding one is the finding. It recreates the container: ~15–20 min
-boot.
+The box must end as the repo renders it (`fast`) — which no longer includes the `--never-evict-*`
+pair (rejected: `docs/services-ai-rejected.md`); finding one is the finding. It recreates the
+container: ~15–20 min boot.
 
 ```bash
 nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/cg-back-$TS.log 2>&1 &

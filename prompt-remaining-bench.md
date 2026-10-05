@@ -271,10 +271,8 @@ spark** (`/home/ansible-admin/bench/`); only `B1` is committed. Either commit th
 scrubs the bearer at the point of write) or stop citing CSV rows in reports. Thin dirs:
 `hd489-nv-patch`, `hd489-pin-premise`, `hd489-tier3-drafter` have `raw=0`; `hd489-v16b-pin` has 2.
 Stale text to fix in the same commit family: `docs/spark-llm-profiles.md` §7 still says the two
-deliberate gates are open (image pin recorded `versions.yml:311`; `never_evict_prompt` authored
-`spark.yml:1096`) — **the second half is closed differently than predicted: the pin was REJECTED
-outright 2026-10-05** (`spark/reports/hd489-never-evict-off/README.md`), the value is `""` for every
-profile and §7 of that doc now carries the decision; the HD-489 `todo.md` row is fully stale and cites **`hardware-spark.md`
+deliberate gates are open (image pin recorded `versions.yml:311`; the `never_evict_prompt` half is
+now a rejection — `docs/services-ai-rejected.md`); the HD-489 `todo.md` row is fully stale and cites **`hardware-spark.md`
 §LLM serving profiles, which does not exist** (third occurrence of the dangling-reference class this
 lane already filed twice); and `prompt.md:44` still says "⛔ no timed-throughput tool in `scripts/`",
 which Correction 2 already refuted.
@@ -284,10 +282,7 @@ which Correction 2 already refuted.
 Do not raise `spark_llm_pool_ceiling_bytes` or `fixed_cost_bytes` as a side effect of a leg — each is a
 certified constant with its own evidence. Do not attempt fp8 KV by editing a container; the probe first,
 then a dial. Do not vendor the AGPL overlay patch, do not hand-edit site-packages, do not add a
-`never_evict` pin anywhere — the mechanism is REJECTED for every profile (2026-10-05: it held 0
-blocks across 13 h of live sessions while 95.1 % of prompt tokens were already cache hits, and on a
-`base`-image profile the flag crash-loops the engine; u4-pin/v16b-pin measured it neutral on the
-TTFT tail).
+`never_evict` pin anywhere — the mechanism is REJECTED (`docs/services-ai-rejected.md`).
 Do not re-run arms already in the rejected log without an exception note (§8.3). Do not delete `ar-blk`'s
 artifacts (`ar-hybrid`, `ple-fp8`) — 120 G on `/`, gate floor 150 G, and it is the live config. Do not
 delete the AWQ + `ples_int4` artifacts: `reasoning` is the rollback target. Do **not** run SWE-bench

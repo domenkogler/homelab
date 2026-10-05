@@ -47,17 +47,10 @@ The funnel is 16 profiles: 4 already certified (untouched), 12 arms. The dial is
    **It then FAILS on purpose** and prints the image ID → record it in
    `group_vars/all/versions.yml` in its own commit (CONVENTIONS §7: no lane pins itself by
    accident). Then convert the drafter (`recipe/build/model/build.sh --run`, no GPU).
-3. **Never-evict pin: SKIP — REJECTED 2026-10-05.** This step used to ask for a human-authored
-   `never_evict_prompt` substring. The mechanism was measured on live sessions and dropped
-   (0 blocks held, 0 preemptions, 95.1 % prefix-cache hits, recomputed share unchanged at 4.9 %;
-   [`spark/reports/hd489-never-evict-off/README.md`](spark/reports/hd489-never-evict-off/README.md)
-   · [`docs/services-ai-rejected.md`](docs/services-ai-rejected.md)), and
-   `spark_llm_never_evict_prompt` is `""` for every profile. Do NOT author a substring: the flag
-   exists only in the patched `ultrafast` lineage, so arming a `base`-image profile crash-loops the
-   engine (`reasoning` restarts=105, 2026-10-04) — the role and
-   `scripts/check_spark_llm_gate.py` now refuse that shape via
-   `spark_llm_never_evict_capable_images`. A re-decide needs an §8.3 exception note and a needle
-   proven against a captured real request.
+3. **Never-evict pin: nothing to author — the mechanism is REJECTED**
+   (`docs/services-ai-rejected.md`). `spark_llm_never_evict_prompt` is `""` on every profile and the
+   flag renders nowhere; a non-empty value is refused by the role and by `check_spark_llm_gate.py`
+   (lineage rule: `docs/spark-llm-profiles.md` §Never-evict prompt pin).
 4. **Legs** — tier 1 first (`u1-patch`, `u2-blk`, `u3-s8` — AWQ weights, already staged, so
    one build and no download separates them from the certified lane), then tier 2 (`ar-*`),
    then tier 3 (`v16b*`). **Timed numbers come from `spark/bench/run-scenario.sh`** (`C2` decode,
