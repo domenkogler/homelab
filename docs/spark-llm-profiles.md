@@ -179,7 +179,10 @@ checker, the probe and the render matrix all refuse to treat them as servable).
 `fast`, and the name was taken from the retired NVFP4 lane (now a rejected-log row, superseded by
 HD-475 if anyone ever wants that quant back). Everything above this line keeps the funnel's
 historical arm names — the reports under `spark/reports/hd489-*` are dated evidence and are not
-> ✅ **Deployed 2026-10-05 14:26 CEST.** The engine's own boot line is the number of record and it confirms the projection: > `GPU KV cache size: 644,732 tokens, Maximum concurrency for 262,144 tokens per request: 2.46x` against a projected 644,599 (0.02 % off), > with `--kv-cache-memory-bytes 20000000000` on the running container, `restarts=0`, `/health` 200, and `MemAvailable` 21.4 GB at rest where the > 25 GB shape rested at 7.9 GB. Gate 4 at conc 8 and gate 5 are owed again on this shape (both were taken at 25 GB) — `fast`'s > `certified_evidence` says so, and a certification that quietly inherits the previous shape's evidence is the failure mode §7 refuses.
+> ✅ **Deployed 2026-10-05 14:26 CEST.** The engine's own boot line is the number of record and it confirms the projection:
+> `GPU KV cache size: 644,732 tokens, Maximum concurrency for 262,144 tokens per request: 2.46x` against a projected 644,599 (0.02 % off),
+> with `--kv-cache-memory-bytes 20000000000` on the running container, `restarts=0`, `/health` 200, and `MemAvailable` 21.4 GB on a cold box — settling to **9.83–9.90 GiB `usable`** 90 minutes in, inside the 12 GiB WARN band and above CRIT, which is the number a lane should use for this shape ([hardware-spark.md](hardware-spark.md) §Unified-memory budget). Enforcement is still armed OFF by the by-hand `no-enforce` flag → [todo.md](../todo.md) HD-494.9 GB. Gate 4 at conc 8 and gate 5 are owed again on this shape (both were taken at 25 GB) — `fast`'s
+> `certified_evidence` says so, and a certification that quietly inherits the previous shape's evidence is the failure mode §7 refuses.
 
 renamed. What `fast` renders today differs from the arm that won: pool **`20 GB`** (per-profile
 `pool_ceiling_bytes`, so the certified 16 GiB global still binds every other profile) and

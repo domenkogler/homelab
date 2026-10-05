@@ -47,7 +47,10 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
 [todo-table.md](todo-table.md) §B): 360 · 103 · 238 · 421 · 459 · 461 · 448 · **472** · **477** (make the resolver actually
 float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class on the Pi, where two docs already
-work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box).
+work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (spark's
+20 GB KV pool is LIVE and measured; what is left is two watchdog calls — the by-hand `no-enforce` flag is
+still touched, so enforcement is OFF, and `SPARK_OOM_REARM_GIB` is unset while `usable` rests inside WARN;
+**spark** slot, engine restarts per flip).
 
 **Owner rulings (2026-10-01)** — 480 · 481 · 482 · 483 · 487 · 488 · 454 · 465 — are recorded **once** in the owning docs
 ([network-dns.md](docs/network-dns.md) §The tier policy the owner ruled + [network-rejected.md](docs/network-rejected.md))

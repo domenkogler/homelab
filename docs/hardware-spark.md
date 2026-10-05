@@ -303,6 +303,16 @@ observed all morning — the ledger is validated against the machine, not merely
 
 **The rule that falls out of it:** the pool is capped by what the *fixed cost* leaves over, and on
 this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 − 92.13e9 = 20.64 GB`.
+
+> **Measured against the box, 90 min into the 20 GB shape (2026-10-05 14:00Z):** `usable` rests at
+> **9.83–9.90 GiB** (`MemAvailable` 13.9 − `CmaFree` 4.03), i.e. **inside the WARN band (< 12), above
+> CRIT (8)** — not the 12.60 GiB the ledger above predicts. Two readings of that 2.7 GiB gap, both kept:
+> the model's OS term is a 15-second post-restart sample (4.93e9) while a served box carries more, and
+> `CmaFree` itself moved from 0.13 GiB at boot to 4.03 GiB once the engine was serving. The verdict is
+> unchanged — no enforcement fires at REST, which was the point of the change — but a lane must not read
+> "pool_max 20.64 GB" as "12 GiB of reserve at rest": on this checkpoint the reserve at rest is ~9.9 GiB.
+> This is also why `SPARK_OOM_REARM_GIB` matters (→ HD-494): with it unset, REARM defaults to WARN=12,
+> so a latch at this resting point would never re-arm by itself.
 With `reserve` = the watchdog's WARN band (12 GiB, i.e. "the rest state must not even sit in the
 WARN band"), **20 GB is the largest 1-GB-rounded pool this profile may use**, and `fast` is set to
 it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seqs=8` ceiling).
