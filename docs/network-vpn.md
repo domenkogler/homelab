@@ -683,6 +683,7 @@ Two rules decide every block:
 | `nas`, `….1.10` | Home | `vps` | the group var AND the alias must both carry the jump |
 | `oldsrv`, `….1.30` | Home | `vps` | `ssh oldsrv` = the **Home** address; mgmt access is `oldsrv99` |
 | `spark`, `….1.40` | Home | `vps` | the precedent both the play and the group var copy |
+| `oldsrv-domen` | Home | `vps` | **the coding seat** (HD-492): the same leg and the same jump as `oldsrv`, but `User domen` with `IdentityFile ~/.ssh/domen_ed25519` + `IdentitiesOnly yes`. Key-only — `PasswordAuthentication` stays `no` by policy, so a block that offers a password method (the Windows twin did) can never work. There is no tailnet-direct form: the ACL grants `tag:dev:443`, not 22 |
 | `pi99`, `oldsrv99`, `nas99`, `router`, `switch`, `ap-spalnica`, `ap-dnevna`, `ap-spare` | Mgmt (VLAN 99) | **none — never add one** | on-site admin paths only (decision A); `oldsrv99`/`nas99` are the explicit on-site legs |
 
 Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and

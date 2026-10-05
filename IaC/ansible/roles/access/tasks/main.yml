@@ -17,11 +17,10 @@
 #   3. `sshd -t -f` validates the rendered file before it is installed, and the
 #      handler validates again before the reload, so a broken file never reaches
 #      the live daemon;
-#   4. this role is deliberately NOT in the HD-413 self-converge guard set
-#      (playbooks/tasks/self-converge-guard.yml): every change it can make is
-#      additive for the converge identity, and property 2 refuses to write a file
-#      that would exclude the runner — adding it to the guard would only create a
-#      false "safe on the box it runs on" signal.
+#   4. the role IS in the HD-413 self-converge guard set: since oldsrv is itself a
+#      control node (HD-407), a seat-local converge can target the box it runs from,
+#      and a dropped AllowUsers name cuts that session. The guard refuses that
+#      pairing; property 2 protects a mistake, the guard protects an intent.
 #
 # THIRD-PARTY KEYS ARE NOT TOUCHED: the module runs non-exclusive, so grants
 # owned by other roles (ha-sync on nas/oldsrv/vps, traefik-cert-sync on the VPS)

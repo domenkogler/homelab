@@ -1900,8 +1900,14 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    `tailscale0` bind, and the tailnet ACL + TLS + `PI_WEB_TOKEN` are the only way in. Placement + rationale:
    [docs/services-ai.md](docs/services-ai.md) §9b-1. **Derive the port; never paste it** (it has an SSOT var):
    ```bash
+   # HD-445's owed fix (2026-10-05): this derive printed NOTHING on oldsrv — the clone on
+   # that box is /home/domen/source/homelab, and the path below was the laptop's admin
+   # clone. An empty PORT renders `bind = 127.0.0.1:`, i.e. a unit that fails at exec
+   # three steps later. Try both clone paths, then REFUSE rather than render nothing.
    PORT=$(awk '/^cockpit_pi_web_port:/{print $2; exit}' \
-          /home/ansible-admin/source/homelab/IaC/ansible/group_vars/all/main.yml)
+          /home/domen/source/homelab/IaC/ansible/group_vars/all/main.yml \
+          /home/ansible-admin/source/homelab/IaC/ansible/group_vars/all/main.yml 2>/dev/null)
+   [ -n "$PORT" ] || { echo "FATAL: no repo clone at either path — pull the repo; do NOT type the port by hand (IaC SSOT)"; exit 1; }
    echo "bind = 127.0.0.1:$PORT"
    sudo mkdir -p /home/domen/.config/systemd/user/pi-web.service.d
    printf '[Service]\nExecStart=\nExecStart=/home/domen/.pi/agent/bin/pi-web -host 127.0.0.1 -p %s\n' "$PORT" \
@@ -1914,7 +1920,16 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    sudo chown -R domen:domen /home/domen/.config/systemd/user
    sudo loginctl enable-linger domen                    # user units must run with no session attached
    sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user daemon-reload
-   sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user enable --now pi-web.service
+   sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user enable pi-web.service
+   # HD-445's other owed fix: `enable --now` does not restart an ALREADY-RUNNING unit, so a
+   # re-run of this phase left the new drop-ins on disk while the live process kept the old
+   # Environment=PATH= — green `is-enabled`, broken chat, and `--check` cannot see any of it.
+   # `restart` is correct whether or not the unit was up.
+   sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user restart pi-web.service
+   # and PROVE the live unit rather than the files (the check `--check` structurally cannot do):
+   sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user cat pi-web.service \
+     | grep -Fq "Environment=PATH=/home/domen/.local/share/pi-node/current/bin" \
+     || { echo "FATAL: files on disk, old environment in memory — daemon-reload did not happen"; exit 1; }
    ```
    **Why drop-in 2 is not optional:** `pi-web` shells out to `pi` for the model list,
    every chat turn and its own self-update, and no flag overrides that path (`pi-web -h` = `-host -p

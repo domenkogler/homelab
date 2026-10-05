@@ -746,6 +746,25 @@ grant has to be named here or removed. The four hand-made-but-live keys (`ha-syn
 give them items and stop hand-making them, or accept that revocation depends on remembering
 where they live. HD-416 is the gate for that.
 
+**✅ Converged 2026-10-05 (roles/access, seat lane) — the inventory stopped being a list.**
+The accounts, their `authorized_keys` and the `AllowUsers` gate were written once by
+`IaC/host/post_install.sh` and never re-asserted; they now come from
+`IaC/ansible/group_vars/all/access.yml` and a converge owns them:
+
+| Fact | Live state after the converge (measured per host, fingerprints verified with `ssh-keygen -lf`) |
+|---|---|
+| `domen_ssh` placement | the `domen` account on **vps · oldsrv · nas · pi · spark** (the 2026-09-25 ruling, executed), and **removed from `ansible-admin`** on all five — place-then-remove is task order in the role, so no host ever had the key on neither account |
+| `ansible-admin_ssh` | unchanged on every host — the converge key; the role asserts `ansible_admin_users` stays inside `AllowUsers` BEFORE it writes the gate (the HD-413 guard is also in `self-converge-guard.yml`) |
+| `ai_ssh` | oldsrv + nas only (where `roles/ai_diag` runs). ⚠ On oldsrv the `from="10.10.0.0/16"` restriction this table always described **was not on the live line** — post_install's placeholder substitution missed it, so the AI key was source-unrestricted there until this converge. Zero `ai-debug` acceptances in 30 d on either host, so the tightening broke nothing |
+| Pi `admin` | **neutralized, not deleted**: 67 accepted logins in 14 d, every one from the laptop through the `vps` jump — i.e. the operator's own `Host pi` alias, which now uses `domen`. The key line carries a `# RETIRED-20261005` marker with a copy at `authorized_keys.disabled-20261005`; delete trigger = zero `admin` acceptances in `journalctl -u sshd`, then drop `access_admit_extra` from `host_vars/pi.kogler.si.yml` and remove the account |
+| spark `admin` | exists, has no `~/.ssh` at all and is not admitted → inert; not a grant, so nothing here names it |
+
+**Third-party grants survive by construction**: the role writes non-exclusively, so
+`ha-sync@pi.kogler.si` (oldsrv/nas/vps) and the two `traefik-cert-sync@*` keys on the VPS
+are untouched and stay named by their owning roles. `scripts/check_ssh_grants.py` now NAMES
+the `domen_ssh` → `domen` grant instead of reporting it absent — it was green before this
+change *because* the grant did not exist (§the auditor's exit code).
+
 ## AI Diagnostics Access (`ai-diag`)
 
 For disk-failure forensics, `ai-debug` gets **exactly one** sudo entry — a locked-down dispatcher, never a shell:

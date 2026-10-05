@@ -280,6 +280,42 @@
          and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
   tags: [always, cockpit]
 
+- name: HD-413 | Refuse the access role against the control node it is run from
+  ansible.builtin.assert:
+    that:
+      - not (homelab_guard_block | bool)
+    fail_msg: >-
+      HD-413 SELF-CONVERGE GUARD — refusing to run the 'access' role against
+      '{{ inventory_hostname }}', which is the machine running this playbook
+      (control plane '{{ homelab_controller_host }}'). roles/access re-renders the
+      AllowUsers admission gate and rewrites authorized_keys: a name missing from that
+      one line cannot log in even with a valid key, so a converge CAN remove the SSH
+      account it is being run from. The role also asserts that the converge identity stays
+      inside the gate (tasks/main.yml, BEFORE the template task) — but an assert protects a
+      mistake, not a deliberate removal, so this guard stays the outer layer. The names that
+      must survive are `ansible_admin_users` in roles/access/defaults/main.yml. Off-box: run this leg from a controller
+      that is not the target. Check mode of this role IS allowed: nothing in it carries
+      `check_mode: false`.
+      Tags requested: {{ ansible_run_tags | join(',') }}.
+      Details: deployment-ansible.md §Self-converge guardrail + docs/deployment-secrets.md
+      §Who is authorized where (the reversible-sequence steps).
+  vars:
+    homelab_guard_role: access
+    homelab_guard_tags: [access, base]
+    homelab_guard_check_safe: true
+    homelab_guard_self: >-
+      {{ homelab_controller_host == (inventory_hostname | lower).split('.')[0] }}
+    homelab_guard_selected: >-
+      {{ homelab_guard_role in ansible_play_role_names
+         and (('all' in ansible_run_tags)
+              or ('untagged' in ansible_run_tags)
+              or ((homelab_guard_tags | intersect(ansible_run_tags)) | length > 0)) }}
+    homelab_guard_block: >-
+      {{ (homelab_guard_self | bool)
+         and (homelab_guard_selected | bool)
+         and not ((ansible_check_mode | bool) and (homelab_guard_check_safe | bool)) }}
+  tags: [always, access, base]
+
 - name: HD-413 | Refuse vps-hardening (nftables + sshd) against the control node it is run from
   ansible.builtin.assert:
     that:

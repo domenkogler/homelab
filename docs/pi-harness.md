@@ -302,6 +302,17 @@ settings.json sits deliberately outside the render. Both now read `high`. ⏳ ol
 
 ---
 
+**Both carriers are now real, and the block matches (2026-10-05, HD-493).** The seat's file held the
+§5 block's *shape* but `defaultThinkingLevel: medium` — the owner's ruling of the same date says
+`high`, and the seat now reads `high` with the rest of the block written **from this section**, not
+copied off the laptop (§1: no renderer exists for this file by design, and §5 is the source; the
+seat's extra `modelThinkingLevels`/`theme`/`lastChangelogVersion`-class keys are workstation state
+and stayed). The host-side bootstrap that used to be a WSL-only script is a sibling now:
+[`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) (HD-446) installs the pinned
+Node tarball + the pinned pi for a bare Debian seat and reads its pins from
+`IaC/ansible/group_vars/all/versions.yml` — the same `pi_host_*` pins that keep the two seats from
+drifting again (§9: the seat trailing the laptop is the failure this pair exists to prevent).
+
 ## 6. KV-pool contention — the parallel-lane rule (read before running subagents)
 
 The pool is **one shared budget of ~262–268k token slots** (`spark_vllm_kv_cache_memory`), while

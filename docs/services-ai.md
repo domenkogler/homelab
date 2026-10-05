@@ -951,6 +951,26 @@ Two halves, both read from this workstation:
   `ProxyJump vps` hop itself succeeds. ⛔ Port 22 is not granted on the tailnet (`tag:dev:443` only), so this door
   rides the VPS jump.
 
+- **The seat moved onto the box (2026-10-05, seat lane: HD-442/443/445/446/484/492/493).** What
+  §9b-1 described as hand-kept is now converged, and the seat is reachable the way a seat has to be:
+  `ssh oldsrv-domen` lands a `domen@oldsrv` shell key-only (HD-492 — `domen` was admitted by nobody
+  and had no `authorized_keys`), the pi-web unit + BOTH drop-ins + the token env + linger + `tmux`
+  render from vars via **roles/seat** (HD-445 — its own role, not `roles/cockpit` tasks, because the
+  maint-console leg carries a vault-vs-box credential divergence that must stay a hard failure:
+  rotating a console credential is an owner act, never a side effect of converging a seat), and a
+  bare-Debian rebuild is a script now, not a memory (**scripts/install-pi-debian.sh**, HD-446).
+  Both seats run **pi 1.0.3** on the same pinned Node 22.23.2 tarball, the seat's `settings.json`
+  carries the [pi-harness.md](pi-harness.md) §5 block verbatim (`defaultThinkingLevel: high`, the
+  900 s idle timeout, the 16 k/32 k compaction pair, the 8 k thinking budget) and a smoke turn on
+  the spark leg answered, so "the seat moved" is measured, not inferred.
+  ⚠ **PATH splits by shell kind, and the seat is on the wrong side of both**: interactive shells get
+  Node from `~/.bashrc`/`~/.profile` (which is why `ssh seat` works and `bash -l` sometimes does not),
+  a **systemd USER unit gets neither** — that is what `pi-on-path.conf` exists for. A one-shot
+  `ssh oldsrv-domen 'pi …'` reads neither file: use the absolute path. Neither may be "fixed" by
+  copying a laptop `settings.json` (§1: settings have no renderer by design; §5 is the source).
+  Still open, and named in `todo.md`: seat commits are unsigned — the sign key lives in the `Private`
+  vault, which the read-scope SA token cannot reach, so that leg needs the owner's hand.
+
 ### 9c. Ecosystem constraints (verified from primary sources)
 
 
