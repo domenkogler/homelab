@@ -263,6 +263,16 @@ CRIT": usable fell to **3.43 GiB** while `MemAvailable` sat at a *normal* 8.20 G
 12.3 %. It needed no action because `wait_for_idle` deferred and traffic moved on, not because
 3.4 GiB is comfortable: 1.8 GiB below it is the measured kill point (§§ #7/#8).
 
+**Follow-up (2026-10-06) — the fix was authored, not deployed.** The 14:26 "deployed" converge put
+the engine on 20 GB but left `/usr/local/bin/spark-oom-watchdog.sh` at the 2026-09-23 build (no
+hysteresis, `grep -c REARM_GIB` = 0) and the unit without `SPARK_OOM_REARM_GIB`, while the
+by-hand `no-enforce` flag kept the governor off. So between the incident and 2026-10-06 01:05 the
+box ran with **neither** the corrected pool *nor* the latch: one 25 GB-shaped boot would have been
+the next CRIT restart. Converged with `--tags watchdog` (hash now equals the tree, unit env carries
+`SPARK_OOM_REARM_GIB=12`) and the flag removed with `usable` at 13.27 GiB; `status` reads
+`hysteresis: armed (no latch)`. Lesson for every live claim in this repo: read the artifact on the
+box, not the commit message (CONVENTIONS §6).
+
 ---
 
 ## Cross-incident invariants

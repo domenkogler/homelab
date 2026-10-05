@@ -61,10 +61,28 @@ global OOM that Docker reports as `OOMKilled: false`) · CUDA-graph capture cap 
 `max_num_seqs` (HD-380) · for SGLang: `--mem-fraction-static` > 0.80 (0.85 = DGX OS's
 earlyoom threshold), `--max-total-tokens` below the advertised window, and
 `--ple-offload-embedding` without `--ple-offload-backend file` · profile **not certified**
-without `spark_llm_allow_uncertified: true` · artifacts not staged. It never downloads
+without `spark_llm_allow_uncertified: true` · **a checkpoint that is not the checkpoint the
+profile names**, and **a checkpoint/PLE-table combination that was never weighed** (both below)
+· artifacts not staged. It never downloads
 anything: big weights are an explicit `--tags spark-artifacts -e
 spark_artifacts_fetch='[…]'` act, and the profile flip refuses until they land (the
 `spark_artifact_sets` names in the catalogue are the opt-in list).
+
+**The checkpoint ↔ PLE-table tie (HD-489 tail B10, 2026-10-06).** A profile names a checkpoint
+(`model_subdir` + `models_root`) AND a PLE sidecar (`ple_host_subdir` + `ple_host_root`), and the
+two coordinates are independent — so nothing structural said the table beside the weights was the
+table those weights were built for. Two asserts close it:
+
+| assert | what it reads | what it refuses |
+|---|---|---|
+| `spark_llm_checkpoints` + "the staged checkpoint is the checkpoint this profile names" | the staged `config.json`'s own `quantization_config` (`quant_method`, and `weight_format` for compressed-tensors builds) | a directory whose contents disagree with the name the profile gives it — the failure a per-profile `models_root` makes invisible |
+| `spark_llm_ple_pairing` | the registry in `group_vars/spark.yml`, one entry per (table → checkpoint) with a graded basis: `CERTIFIED` · `MEASURED` · `UNVERIFIED` · `REFUSED` · `MEASURED-BAD` | an unweighed pair, an unregistered checkpoint, an ungraded basis, an arm whose pair is `REFUSED`/`MEASURED-BAD`, and a **certified** profile standing on an `UNVERIFIED` pair |
+
+Live history for both: `awq-mmap` was authored with `models_root: os`, pointing at
+`/opt/homelab/models/Qwen3.8-Flash-Next-AWQ` — a path that has never existed, because `b1-awq`
+ stages AWQ on XFS (the FP8 *table* legitimately lives on `/`). The arm rendered `ok` in the matrix
+and could not converge. And the FP8 table's pairing with AWQ is the open question B10 exists to
+answer, so it is recorded as `UNVERIFIED` rather than remembered in a comment.
 
 **The gate is proven without the box.**
 [`scripts/check_spark_llm_gate.py`](../scripts/check_spark_llm_gate.py) (validate-all item 22)
@@ -181,8 +199,20 @@ HD-475 if anyone ever wants that quant back). Everything above this line keeps t
 historical arm names — the reports under `spark/reports/hd489-*` are dated evidence and are not
 > ✅ **Deployed 2026-10-05 14:26 CEST.** The engine's own boot line is the number of record and it confirms the projection:
 > `GPU KV cache size: 644,732 tokens, Maximum concurrency for 262,144 tokens per request: 2.46x` against a projected 644,599 (0.02 % off),
-> with `--kv-cache-memory-bytes 20000000000` on the running container, `restarts=0`, `/health` 200, and `MemAvailable` 21.4 GB on a cold box — settling to **9.83–9.90 GiB `usable`** 90 minutes in, inside the 12 GiB WARN band and above CRIT, which is the number a lane should use for this shape ([hardware-spark.md](hardware-spark.md) §Unified-memory budget). Enforcement is still armed OFF by the by-hand `no-enforce` flag → [todo.md](../todo.md) HD-494.9 GB. Gate 4 at conc 8 and gate 5 are owed again on this shape (both were taken at 25 GB) — `fast`'s
+> with `--kv-cache-memory-bytes 20000000000` on the running container, `restarts=0`, `/health` 200, and `MemAvailable` 21.4 GB on a cold box — settling to **9.83–9.90 GiB `usable`** 90 minutes in, inside the 12 GiB WARN band and above CRIT, which is the number a lane should use for this shape ([hardware-spark.md](hardware-spark.md) §Unified-memory budget). Gate 4 at conc 8 and gate 5 are owed again on this shape (both were taken at 25 GB) — `fast`'s
 > `certified_evidence` says so, and a certification that quietly inherits the previous shape's evidence is the failure mode §7 refuses.
+>
+> ⚠ **That converge did NOT deploy the watchdog half of HD-494, and the row said it had.** Found
+> 2026-10-06 while preparing the B10 boot: on the box `/usr/local/bin/spark-oom-watchdog.sh` was
+> still the 2026-09-23 build (`grep -c REARM_GIB` = 0, sha `4c95c486…` vs the tree's `5b271deb…`)
+> and `/etc/systemd/system/spark-oom-watchdog.service` dated from Sep 23, so no hysteresis existed
+> and `SPARK_OOM_REARM_GIB` was absent from the unit environment. The engine dial landed; the
+> protection did not. **Now deployed** (`--tags watchdog`, `ok=17 changed=3 failed=0`, hash matches
+> the tree, unit env carries `SPARK_OOM_REARM_GIB=12`) and **enforcement is ARMED**: the by-hand
+> `/mnt/spark_nvme/oom-watchdog/no-enforce` flag was removed 2026-10-06 01:05 with `usable` resting
+> at 13.27 GiB and `status` printing `hysteresis: armed (no latch)` → [todo.md](../todo.md) HD-494.
+> The durable lesson is the one CONVENTIONS §6 already states about tests: an authored fix is not a
+> deployed fix — read the artifact on the box (hash, unit env, `status`), not the commit.
 
 renamed. What `fast` renders today differs from the arm that won: pool **`20 GB`** (per-profile
 `pool_ceiling_bytes`, so the certified 16 GiB global still binds every other profile) and

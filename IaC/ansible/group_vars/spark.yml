@@ -273,9 +273,16 @@ spark_headless: true
 # Gate: profiles marked `certified: false` refuse to converge unless
 # `spark_llm_allow_uncertified: true` is set explicitly. Gate role:
 # roles/spark-llm-profile (runs before spark-artifacts + docker_services).
+# HOW AN UNCERTIFIED BOOT IS AUTHORISED (HD-489, 2026-10-06): as a PER-RUN extra var, never as a
+# committed value — the committed state must never carry a standing override, or the next ordinary
+# converge of anything else on this host silently inherits permission to boot an uncertified arm:
+#   -e spark_llm_profile=awq-mmap -e spark_llm_allow_uncertified=true
+# The converge-back that ends a bench run omits both, which is what returns the box to `fast`
+# (prompt-remaining-bench.md §Overnight run). Writing `true` into host_vars is the shape that
+# leaves an arm bootable by whoever converges the host next.
 # ============================================================================
 spark_llm_profile: reasoning
-spark_llm_allow_uncertified: false
+spark_llm_allow_uncertified: false    # committed OFF; a bench run grants it per-converge with -e
 
 # Measured on THIS box — the KV-pool boot-gate arithmetic (docs/hardware-spark.md
 # §Unified-memory budget: "KV pool = 19.04 GiB → 658,902 tokens (30.3 KiB/token)").
@@ -345,6 +352,55 @@ spark_llm_never_evict_max_fraction: &nevf "0.25"   # unused while the pin is emp
 # vLLM 0.1.dev20073+g8e685d198) has no such argument. A profile with a non-empty pin whose
 # image is not listed here is refused by roles/spark-llm-profile AND check_spark_llm_gate.py.
 spark_llm_never_evict_capable_images: [ultrafast]
+
+# ---- Checkpoint identity + the PLE pairing table (HD-489 tail B10, 2026-10-06) ----------
+# WHY these two maps exist. A profile names TWO artifacts — a checkpoint (`model_subdir`) and a
+# PLE sidecar/table (`ple_host_subdir`) — and until now NOTHING tied them: the gate proved each
+# path resolves and each revision matches its pin, but never that the table beside the weights is
+# the table those weights were built for. `models_root` is per-profile, so the two can land on
+# different partitions and a mis-pair renders green and dies (or worse, serves) at boot. This was
+# not hypothetical: `awq-mmap` pointed `models_root: os` at a checkpoint that is staged on XFS
+# (`/mnt/spark_nvme/models/Qwen3.8-Flash-Next-AWQ`), and the FP8 table it names was trained
+# against the AutoRound-hybrid target, not against AWQ.
+# So the tie is asserted twice, and neither half can be skipped:
+#   * `spark_llm_checkpoints` says what each checkpoint DIRECTORY IS, read from the staged
+#     `config.json` itself (quant_method + weight format). roles/spark-llm-profile re-reads it at
+#     converge: a directory whose contents disagree with its name is refused, which is what the
+#     per-profile `models_root` makes invisible.
+#   * `spark_llm_ple_pairing` says, per table, which checkpoints may stand beside it, with the
+#     evidence keyword the claim rests on: CERTIFIED (measured boots) | MEASURED (booted, not
+#     certified) | UNVERIFIED (plausible, never booted — an uncertified arm's honest state) |
+#     REFUSED | MEASURED-BAD (an arm that must NOT boot, and the reason). An unlisted pair, an
+#     unknown checkpoint or an unrecognised keyword is a REFUSAL in both the role and
+#     scripts/check_spark_llm_gate.py (invariant `ple-pairing`, with its canaries).
+# Same keyword discipline as `cost-labelled` above: the claim carries its own grade.
+spark_llm_checkpoints:
+  Qwen3.8-Flash-Next-AWQ:
+    quant_method: compressed-tensors
+    weight_format: pack-quantized
+    basis: "MEASURED 2026-10-06 from the staged config.json on spark (wtdcode AWQ W4A16)"
+  Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid:
+    quant_method: gptq
+    basis: "MEASURED 2026-10-06 from the staged config.json on spark (Saren AutoRound-hybrid)"
+  Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32:
+    quant_method: gptq
+    basis: "MEASURED 2026-10-06: the built g32 drafter variant of the same AR target"
+  Qwen3.8-Flash-Next-mixed-NVFP4-FP8:
+    quant_method: compressed-tensors
+    weight_format: float-quantized
+    basis: "MEASURED 2026-10-06 from the staged config.json (primitive-ai mixed NVFP4; also\n      carries an nvfp4-pack-quantized group)"
+
+spark_llm_ple_pairing:
+  ple-table-fp8:
+    Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid: "CERTIFIED — the live `fast` winner (ex ar-blk) and every ar-* arm booted this pair; spark/reports/hd489-ar-blk/"
+    Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32: "MEASURED — booted as the v16b arms (same AR target, built drafter); spark/reports/hd489-v16b/"
+    Qwen3.8-Flash-Next-AWQ: "UNVERIFIED — the HD-489 B10 question itself: the FP8 table DOES carry the trained n-gram tensor (33 shards, pre-flight in the brief) and its loader pairs with VLLM_FP8_HYBRID, but no boot has ever paired it with AWQ. Owner-gated pair + allow_uncertified."
+    Qwen3.8-Flash-Next-mixed-NVFP4-FP8: "REFUSED — the FP8 mmap path dispatches through VLLM_FP8_HYBRID against the AR expert layout; nothing measures it on NVFP4 weights, and the NVFP4 lane's own table is ples_nvfp4."
+  ples_int4:
+    Qwen3.8-Flash-Next-AWQ: "CERTIFIED — the live `reasoning` lane since HD-359 (primitive-ai PLE-quant built over the AWQ lane); spark/reports/stability/"
+    Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid: "REFUSED — an INT4 overlay over an AR-hybrid checkpoint is a different expert layout with no measured boot; the AR lane's table is ple-table-fp8."
+  ples_nvfp4:
+    Qwen3.8-Flash-Next-mixed-NVFP4-FP8: "MEASURED-BAD — HD-489 pre-flight: ples_nvfp4 carries NO trained n-gram tensor, which is why the nv-patch arm died. Kept listed so the refusal carries its reason instead of being an absent row."
 
 spark_llm_profiles:
   # ── 1. REASONING = today's live config, verbatim ───────────────────────────
@@ -1008,15 +1064,33 @@ spark_llm_profiles:
   # (33 shards, +1024 fp8 expert weight_scale_inv) — unlike ples_nvfp4, so nv-patch
   # died; ples_int4 is a different layout (weight_i4 + weight_scale) the mmap loader
   # cannot read. The FP8 table is the trained n-gram tensor, not AR-specific — its
-  # loader pairs with VLLM_FP8_HYBRID: plausible-and-unverified, not nonsense. The
-  # checkpoint↔table pairing is OWNER-GATED: nothing ties a checkpoint to a PLE table,
-  # and models_root is per-profile, so AWQ-on-xfs with a table on os renders happily
-  # and mis-pairs (or dies) at boot.
+  # loader pairs with VLLM_FP8_HYBRID: plausible-and-unverified, not nonsense.
+  # THE PAIRING IS NOW ASSERTED, not remembered (2026-10-06, this change). The checkpoint and the
+  # table are tied in TWO places: the static registry `spark_llm_ple_pairing` (this arm's pair
+  # reads UNVERIFIED, the honest word for the question being asked) and the staged checkpoint's
+  # own `config.json` quantization, re-read at converge. The second is what caught this arm's
+  # authoring bug: `models_root: os` named /opt/homelab/models/Qwen3.8-Flash-Next-AWQ, a path that
+  # has never existed — the AWQ checkpoint is staged on XFS (`b1-awq` → spark_models_dir) while
+  # the FP8 TABLE legitimately lives on `/`. `models_root` is the CHECKPOINT's coordinate and
+  # `ple_host_root` the TABLE's; they may differ, and only reading what is actually in the
+  # directory separates "wrong store" from "right store" (gate invariant `ple-pairing` + the
+  # role's staged-identity assert).
   awq-mmap:
     <<: *u_x
     label: "HD-489 tail B10 — AWQ W4A16 + FP8 PLE mmap + dispatch bundle (owner's question)"
-    models_root: os
+    models_root: xfs               # the CHECKPOINT's store: `b1-awq` stages AWQ on XFS. This was
+                                   # `os` when the arm was authored (2026-10-03) — a path that has
+                                   # never existed, so the converge's staged-artifact stat refused
+                                   # the arm and it could not boot at all. The TABLE stays on `/`.
     model_subdir: Qwen3.8-Flash-Next-AWQ
+    kv_cache_memory: "14000000000"  # 14 GB, not the anchor's 16. This arm inherits the AWQ lane's
+                                   # fixed cost (86.9e9), and that ledger carries NO term for the
+                                   # FP8 mmap table's resident set (HD-489 B5: ~4 GB pinned out of
+                                   # the 47.7 GiB table). 86.9 + 16 = 102.9 GB leaves 1.2 GB under
+                                   # the 104.113 GB floor — the same shape HD-494 measured as a
+                                   # 12 GiB overage. The pool is not this arm's variable (single-
+                                   # stream decode; 14 GB = 451k slots = 1.72 × the window), so the
+                                   # margin is bought where it costs nothing.
     ple_offload: false
     ple_overlay: false
     ple_host_base: models
@@ -1036,7 +1110,7 @@ spark_llm_profiles:
     artifact_sets: [b1-awq, ple-fp8]
     fixed_cost_bytes: 86900000000
     fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log (AWQ weights, same as reasoning): 'Model loading took 68.35 GiB' ≈ 73.4e9 B — re-read from its own boot anyway"
-    uncertified_reason: "B10: AWQ W4A16 + patched lineage + FP8 PLE mmap + dispatch knobs (ple_dispatch: true). Owner-gated: checkpoint↔table pairing + allow_uncertified. If it boots and its eager AWQ + bundle lands 22–28 tok/s, the quality-fallback costs ~30 % speed, not ~40 %."
+    uncertified_reason: "B10: AWQ W4A16 + patched lineage + FP8 PLE mmap + dispatch knobs (ple_dispatch: true). The checkpoint↔table pairing is now ASSERTED (spark_llm_ple_pairing says UNVERIFIED for exactly this pair; the role re-reads the staged config.json) — the owner gate that remains is the boot itself + -e spark_llm_allow_uncertified=true per run. If it boots and its eager AWQ + bundle lands 22-28 tok/s, the quality-fallback costs ~30 % speed, not ~40 %."
     certified_evidence: ""
 
   ar-dv:

@@ -100,6 +100,10 @@ def patterns_from_role():
         ("spark_llm_never_evict_capable_images", "refuses a prompt-pin on an image lineage "
          "whose build has no --never-evict-kv-cache-* argument"),
         ("spark_llm_os_min_free_bytes", "checks free space on the root the artifacts use"),
+        ("spark_llm_ple_pairing", "refuses a checkpoint/PLE-table combination nobody weighed "
+         "(HD-489 tail B10)"),
+        ("spark_llm_checkpoints", "refuses a staged checkpoint whose own config.json disagrees "
+         "with the checkpoint the profile names"),
     ]:
         if marker not in text:
             print(f"ERROR: {ROLE.relative_to(ROOT)} no longer contains {marker!r}, but this "
@@ -247,6 +251,45 @@ def vllm_verdicts(profile, cat):
         in ("MEASURED", "DERIVED", "VENDOR-PUBLISHED", "VENDOR"),
         f"fixed_cost_basis must lead with MEASURED | DERIVED | VENDOR-PUBLISHED, got "
         f"{basis[:52]!r} \u2014 an unlabelled cost is a number nobody can re-check")
+    # ---- HD-489 tail B10: the checkpoint \u2194 PLE-table pairing (2026-10-06) ----
+    # A profile names TWO artifacts and `models_root`/`ple_host_root` are per-profile, so nothing
+    # structural ties them: an unweighed pair renders green here and dies, or silently serves the
+    # wrong lane, at boot. spark_llm_ple_pairing is the decision record and the role re-reads the
+    # staged checkpoint's own config.json at converge; here the DECISION is what is proved, per
+    # arm. REFUSED / MEASURED-BAD are reported GATED, not red: those arms are authored records of
+    # combinations that must NOT boot, and the role refuses them \u2014 a permanent red here would
+    # only teach everyone to ignore the matrix.
+    ck_name = str(profile.get("model_subdir") or "")
+    ck_reg = cat.get("spark_llm_checkpoints") or {}
+    pair_reg = cat.get("spark_llm_ple_pairing") or {}
+    table = str(profile.get("ple_host_subdir") or "")
+    BOOTABLE = ("CERTIFIED", "MEASURED", "UNVERIFIED")
+    KEYWORDS = BOOTABLE + ("REFUSED", "MEASURED-BAD")
+    if not table:
+        out["ple-pairing"] = (True, "no PLE table/overlay armed \u2014 nothing to pair")
+    else:
+        entry = str((pair_reg.get(table) or {}).get(ck_name, ""))
+        kw = entry.split(" ")[0] if entry else ""
+        if ck_name not in ck_reg:
+            out["ple-pairing"] = (False, f"checkpoint {ck_name!r} is not registered in "
+                                        f"spark_llm_checkpoints \u2014 its quantization has never been "
+                                        f"measured, so no pairing claim about it can be checked")
+        elif not entry:
+            out["ple-pairing"] = (False, f"pair ({table} \u2194 {ck_name}) is absent from "
+                                        f"spark_llm_ple_pairing \u2014 a combination nobody weighed. "
+                                        f"Nothing on the box ties a checkpoint to a PLE table.")
+        elif kw not in KEYWORDS:
+            out["ple-pairing"] = (False, f"pair ({table} \u2194 {ck_name}) basis must lead with "
+                                        f"{' | '.join(KEYWORDS)}, got {entry[:48]!r} \u2014 same "
+                                        f"discipline as fixed_cost_basis")
+        elif kw == "UNVERIFIED" and profile.get("certified"):
+            out["ple-pairing"] = (False, f"CERTIFIED profile stands on an UNVERIFIED pair "
+                                        f"({table} \u2194 {ck_name}) \u2014 measure it or move the arm")
+        elif kw in ("REFUSED", "MEASURED-BAD"):
+            out["ple-pairing"] = (True, f"{kw} \u2014 {entry}")
+            GATED.append(f"{profile.get('label', '?')}: converge REFUSES this pair \u2014 {entry[:96]}")
+        else:
+            out["ple-pairing"] = (True, f"{kw} pair ({table} \u2194 {ck_name})")
     cap = int(profile.get("max_cudagraph_capture_size", 0) or 0)
     out["cudagraph-cap"] = (cap <= 0 or cap <= int(profile["max_num_seqs"]),
                             f"capture cap {cap} > max_num_seqs {profile['max_num_seqs']} "
@@ -309,6 +352,12 @@ def canary(cat, pats):
         ("cost-labelled", lambda p: p.update(fixed_cost_basis="guessed from the brochure")),
         ("cudagraph-cap", lambda p: p.update(max_cudagraph_capture_size=16)),
         ("ple-dispatch", lambda p: p.update(ple_dispatch=True)),   # dispatch on a non-mmap arm
+        # HD-489 tail B10. Each breach is bred from the CERTIFIED lane so the pairing is the only
+        # difference: the class these catch is "renders green, dies at boot" \u2014 an unweighed
+        # combination, an unmeasured checkpoint, or a certified arm standing on a question.
+        ("ple-pairing", lambda p: p.update(ple_host_subdir="ple-table-never-weighed")),
+        ("ple-pairing", lambda p: p.update(model_subdir="Qwen3.8-Flash-Next-Whoever-Quantized-This")),
+        ("ple-pairing", lambda p: p.update(ple_host_subdir="ple-table-fp8")),
         # A4 canary: empty the mmap table set → a4-split must FAIL (a catalogue reading no
         # table knobs while arms claim ple_mmap is exactly the confound this split deletes)
         ("a4-split", lambda p: SPLIT_LISTS.__setitem__("ple_mmap_env", [])),

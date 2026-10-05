@@ -313,6 +313,13 @@ this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 �
 > "pool_max 20.64 GB" as "12 GiB of reserve at rest": on this checkpoint the reserve at rest is ~9.9 GiB.
 > This is also why `SPARK_OOM_REARM_GIB` matters (→ HD-494): with it unset, REARM defaults to WARN=12,
 > so a latch at this resting point would never re-arm by itself.
+> **Live state, 2026-10-06:** the 2026-10-05 14:26 converge deployed the engine half of HD-494 but not
+> the watchdog half — the script on the box was still the 2026-09-23 build and its unit carried no
+> `SPARK_OOM_REARM_GIB`, so hysteresis existed only in the tree. Converged with `--tags watchdog`:
+> script sha now equals the tree, the unit env carries `SPARK_OOM_REARM_GIB=12`, and with the by-hand
+> `no-enforce` flag removed `status` reports `hysteresis: armed (no latch)` at `usable` 13.27 GiB.
+> Verify a watchdog claim on this host by reading the box (`sha256sum`, `systemctl show -p Environment
+> --value spark-oom-watchdog.service`, `spark-oom-watchdog.sh status`), never by reading the commit.
 With `reserve` = the watchdog's WARN band (12 GiB, i.e. "the rest state must not even sit in the
 WARN band"), **20 GB is the largest 1-GB-rounded pool this profile may use**, and `fast` is set to
 it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seqs=8` ceiling).

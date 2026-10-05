@@ -399,7 +399,109 @@
     - spark_llm.ple_mmap | bool
   tags: [spark, spark-llm-profile, llm]
 
-- name: Fail when the profile's artifacts are not staged yet
+# ---- Tie the checkpoint to what its name claims, and to the PLE table beside it (B10) ----
+# A profile names a checkpoint DIRECTORY and a PLE table DIRECTORY, and `models_root`/`ple_host_root`
+# are per-profile — so the two can sit on different partitions, and until 2026-10-06 nothing read
+# what was actually INSIDE the checkpoint dir. Live consequence: `awq-mmap` carried
+# `models_root: os` for a checkpoint that `b1-awq` stages on XFS, and the FP8 table it mounts was
+# trained against the AutoRound-hybrid target. A stat of config.json cannot tell AWQ from AR-hybrid
+# from NVFP4; the checkpoint's own `config.json.quantization_config` can, and it is the one fact
+# about the directory that is not a claim the profile makes about itself. Same lesson as the
+# root-partition `df` above: this read is `check_mode: false`, because a guard that is skipped in
+# --check reports a verdict it never took.
+- name: Read the staged checkpoint's own quantization
+  ansible.builtin.slurp:
+    src: "{{ spark_llm_model_host_dir }}/config.json"
+  register: spark_llm_checkpoint_cfg
+  failed_when: false
+  check_mode: false
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.engine == 'vllm'
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Resolve what the staged checkpoint actually is
+  # ONE fact, read from the directory instead of asserted by the profile: the parsed
+  # `quantization_config` of the staged config.json. '__unread__' when config.json is absent —
+  # the staged-artifact assert at the foot of this file owns that case in its own words, and the
+  # identity assert below stays quiet about it (no double-reporting of one missing file).
+  ansible.builtin.set_fact:
+    spark_llm_checkpoint_qc: >-
+      {{ (spark_llm_checkpoint_cfg.content | b64decode | from_json).get('quantization_config')
+         if spark_llm_checkpoint_cfg.content is defined else '__unread__' }}
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.engine == 'vllm'
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the staged checkpoint is the checkpoint this profile names
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.engine == 'vllm'
+    - spark_llm_model_stat.stat.exists | default(false)
+  ansible.builtin.assert:
+    that:
+      - spark_llm.model_subdir in spark_llm_checkpoints
+      - spark_llm_checkpoint_qc is mapping
+      - (spark_llm_checkpoint_qc | default({}, true)).get('quant_method', 'none')
+        == spark_llm_checkpoints[spark_llm.model_subdir].quant_method
+      - (spark_llm_checkpoints[spark_llm.model_subdir].weight_format is not defined)
+        or ((spark_llm_checkpoints[spark_llm.model_subdir].weight_format)
+            in (((spark_llm_checkpoint_qc | default({}, true)).get('config_groups') or {})
+                .values() | map(attribute='format') | list))
+    fail_msg: >-
+      Checkpoint identity FAIL for '{{ spark_llm_profile }}': the profile names
+      '{{ spark_llm.model_subdir }}' at '{{ spark_llm_model_host_dir }}', and what is staged there
+      reads quant_method={{ (spark_llm_checkpoint_qc.get('quant_method') if spark_llm_checkpoint_qc is mapping
+                            else 'NONE (a checkpoint with no quantization_config — measure it and register it)') }}
+      formats={{ ((spark_llm_checkpoint_qc.get('config_groups') or {}).values()) | map(attribute='format') | list
+                 if spark_llm_checkpoint_qc is mapping else 'n/a' }};
+      spark_llm_checkpoints says
+      {{ spark_llm_checkpoints.get(spark_llm.model_subdir, 'UNREGISTERED — a checkpoint this repo does not describe: measure its staged config.json and add it, do not bend a profile to match a guess') }}.
+      A directory is not its name. `models_root`/`model_subdir` are per-profile, so pointing at
+      another quantization's store renders green and then either dies at boot or, worse, silently
+      measures the wrong lane (HD-489 tail B10, 2026-10-06: `awq-mmap` carried `models_root: os`
+      for weights that `b1-awq` stages on XFS). Fix the profile, or stage what it names — NEVER
+      edit spark_llm_checkpoints to agree with a directory nobody measured.
+    success_msg: >-
+      Checkpoint identity OK for '{{ spark_llm_profile }}': {{ spark_llm.model_subdir }} reads
+      quant_method={{ (spark_llm_checkpoint_qc | default({}, true)).get('quant_method', 'none') }}
+      at {{ spark_llm_model_host_dir }}.
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Assert the PLE table this profile arms is declared to pair with that checkpoint
+  # The registry IS the decision record: a pair that was never weighed is absent, and an absent
+  # pair must not boot. `REFUSED` / `MEASURED-BAD` entries exist so a refusal carries its reason
+  # instead of being a missing row; CERTIFIED / MEASURED / UNVERIFIED are bootable, and a
+  # CERTIFIED profile may not stand on an UNVERIFIED pair.
+  when:
+    - not spark_llm_profile_skip_artifact_check | bool
+    - spark_llm.engine == 'vllm'
+    - spark_llm.ple_host_subdir | default('') | length > 0
+  vars:
+    pair: >-
+      {{ spark_llm_ple_pairing.get(spark_llm.ple_host_subdir, {})
+              .get(spark_llm.model_subdir, 'UNLISTED — never weighed') }}
+  ansible.builtin.assert:
+    that:
+      - not pair.startswith('UNLISTED')
+      - (pair.split(' ')[0]) in ['CERTIFIED', 'MEASURED', 'UNVERIFIED', 'REFUSED', 'MEASURED-BAD']
+      - not (pair.startswith('REFUSED') or pair.startswith('MEASURED-BAD'))
+      - (not (spark_llm.certified | bool)) or (not pair.startswith('UNVERIFIED'))
+    fail_msg: >-
+      PLE pairing refused for '{{ spark_llm_profile }}': table '{{ spark_llm.ple_host_subdir }}'
+      beside checkpoint '{{ spark_llm.model_subdir }}' is recorded as: {{ pair }}.
+      spark_llm_ple_pairing (group_vars/spark.yml) is the ONLY place a checkpoint/table
+      combination is decided — record the decision there WITH ITS EVIDENCE, and in
+      docs/services-ai-rejected.md when the answer is no (CONVENTIONS §8.3 re-decide ban).
+      Nothing on the box ties a checkpoint to a PLE table, so an unweighed pair renders green and
+      then dies at boot — or silently serves the wrong lane.
+    success_msg: >-
+      PLE pairing OK for '{{ spark_llm_profile }}': {{ spark_llm.ple_host_subdir }} ↔
+      {{ spark_llm.model_subdir }} — {{ pair[:110] }}{{ '…' if pair | length > 110 else '' }}
+  tags: [spark, spark-llm-profile, llm]
+
+- name: Fail when the profile's artifacts are not staged yet ----
   when: not spark_llm_profile_skip_artifact_check | bool
   ansible.builtin.assert:
     that:
