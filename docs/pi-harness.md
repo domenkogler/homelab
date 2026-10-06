@@ -303,8 +303,12 @@ set — a visibly flatter picture than the laptop's seat in the same session. Fi
 **The boundary did not move.** `render-pi-config.py --vendor` still has no settings vendor and
 `models-spec.yml` still forbids `theme` in the spec, so this stays a hand-written per-machine key with
 this section as its source — the drift gate remains blind to it, exactly the blindness that let the
-`defaultThinkingLevel` halves divide above. ⏳ the WSL seat's `theme` key is unread from the cockpit
-(another machine, an owner session); confirm it reads `dark` before calling the seats matched.
+`defaultThinkingLevel` halves divide above. **Closed 2026-10-06: the laptop seats (Win11 + WSL) read
+`dark` too — owner-REPORTED, not measured.** There is no oldsrv→laptop leg (`domenp14s` is a `hosts:`
+label for the renderer, not an ssh target), so nothing on this box can read that half, and §5 has no
+renderer to check it with either. So the honest state is: both carriers matched at rest on this date,
+and if they diverge again the only detector is a human running `grep '"theme"' ~/.pi/agent/settings.json`
+on each machine — which is the standing cost of keeping this key outside the render.
 
 | Setting | Value | Why on this box |
 |---------|-------|-----------------|
@@ -315,7 +319,7 @@ this section as its source — the drift gate remains blind to it, exactly the b
 | `retry.provider.timeoutMs` | 1800000 | same reason, per-request ceiling (SDK default is far below a 200k cold prefill) |
 | `showCacheMissNotices` | `true` | server-side `--enable-prefix-caching` is the only reason a 200k turn is cheap — the notice shows when the harness broke a cached prefix |
 | `thinkingBudgets` | 1k/2k/4k/8k | only applied when thinking is ON (needs `thinkingTokenBudgetField`); bounds what "high" can spend |
-| `theme` | `dark` (absent on the oldsrv seat until 2026-10-06) | `dark` is terminal-independent, and absence is not neutral: it selects pi's `system` theme, which paints from the terminal's own palette — over the seat's SSH leg (`COLORTERM` unset) that lands on the 256-color approximation, so the cockpit and the laptop did not match. Still NOT rendered (§1, `models-spec.yml`) |
+| `theme` | `dark` (absent on the oldsrv seat until 2026-10-06) | `dark` is terminal-independent, and absence is not neutral: it selects pi's `system` theme, which paints from the terminal's own palette — over the seat's SSH leg (`COLORTERM` unset) that lands on the 256-color approximation, so the cockpit and the laptop did not match. All three seats read `dark` at rest 2026-10-06; the laptop half is owner-reported, not measured. Still NOT rendered (§1, `models-spec.yml`) |
 
 ---
 
