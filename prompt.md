@@ -45,6 +45,9 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 7. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed.
 8. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
    442–446 block **445**/**446** closed 2026-10-05 with the seat lane, **442**/**443** keep owner-gated tails).
+   **901** joins this cluster: the oldsrv seat now reads `Homelab-ansible` and signs its own commits
+   agent-free; left is role-owning the seat's git plumbing (a rebuild still loses signing silently) and
+   finishing its venv (no ansible → the playbook syntax gate is skipped on that box).
 9. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 

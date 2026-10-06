@@ -132,7 +132,7 @@ have a runner secret; do not wire a secret for a holder that is not there.
 | `netcup-vps_login` | netcup root/OS credential | Homelab (human) vault *(owner decision 2026-08-22 — consolidated with the other netcup-* logins; former break-glass-vault plan dropped)* | ✓ |
 | `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Homelab (human) vault | ✓ |
 | `spark_login` | DGX Spark (GB10) first-boot `admin` account — the DGX OS setup-wizard password; console/KVM break-glass on a headless box. Not consumed by Ansible (the automation identity is `ansible-admin`). | Homelab (human) vault | ✓ |
-| `GitHub auth` / `GitHub sign` | the laptop's GitHub SSH + commit-signing keys, served by the 1Password **desktop** app over the Windows named pipe (HD-265) | Homelab (human) vault | ✓ |
+| `GitHub auth` / `GitHub sign` | GitHub SSH + commit-signing keys. Served on the Win11 desktop by the 1Password **desktop** app over the Windows named pipe, and pulled with `op read` on Debian seats/runners by `scripts/git-bootstrap.sh --ssh-auth` (HD-265/HD-901) | `Homelab-ansible` — moved out of the human vault so the read-scope service account can reach them and a headless seat can sign with no interactive sign-in | ✓ |
 
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
 > `qdrant_db`/`onlyoffice_db`/`zipline_db`/`litellm_db`, the secrets `authentik_password`/`nut_password`/
