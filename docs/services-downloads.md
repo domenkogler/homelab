@@ -58,6 +58,18 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
   [Media Stack → Storage & Import](services-media.md#storage-import-media-arr).
 - **Hardlink import** into `media/` is performed by Sonarr/Radarr/Lidarr in the media stack; downloads
   dir is transient scratch and pruned after import.
+- ⚠ **SABnzbd's first-run wizard defaults BOTH folder fields to its own config bind** — `/config/Downloads/{incomplete,complete}`
+  (2026-10-06, live). That path is writable and looks harmless, but it is `/srv/docker/sabnzbd/config` on
+  the **local NVMe**, while the \*arrs mount the NAS share at `/downloads`; so the grab succeeds, the
+  arr cannot see the file at all, and the import dies as "input file does not exist". It also breaks the
+  hardlink invariant twice over: `downloads` and `media` are the **same NFS mount** (`fstype=nfs` on both,
+  verified), which is the whole TRaSH condition, whereas `/srv/docker` is `ext2/ext3` and would force a
+  copy even if the paths matched. Set them to `/downloads/incomplete` + `/downloads/complete` (SAB runs
+  as `storage_uid`, and `/downloads/complete` is writable by it — tested), then give each category a
+  **relative** dir (`movies`, `tv`, `music`) so files land in `/downloads/complete/<cat>`, which is what
+  the arrs read. Proof it is right: a completed grab is visible from the host at
+  `/mnt/nas/media/downloads/complete/<cat>` and the arr logs the import as **Hardlink**, not Copy.
+  ⚠ Not pinned in IaC — an ini value the wizard owns; a fresh install re-defaults it to the local disk.
 
 ### SABnzbd's own door: `host_whitelist` (HD-496, 2026-10-06)
 
@@ -84,10 +96,24 @@ so an edit made while it runs is silently undone — and the write keeps whateve
 reads the ini **as `storage_uid`**: the file is `0600 media:media` and the container runs `cap_drop: ALL`
 without `DAC_OVERRIDE`, so even `-u root` is refused.
 
-Two things this does NOT fix, both found in the same sweep and both on the download path:
-the instance had **0 `[[servers]]`** (no Usenet provider at all — that is Eweka.nl,
-[`subscriptions.yml`](../IaC/ansible/group_vars/subscriptions.yml)) and **0 `[[categories]]`**, so even
-with the door open nothing lands in `downloads/complete/<cat>`. · [services-media.md](services-media.md) §Request → import wiring
+Two things worth recording from the same sweep — one finding and one **measurement mistake of mine**,
+because a wrong probe in the SSOT is worse than no probe.
+
+⚠ **Do not grep `sabnzbd.ini` for `[[servers]]` or `[[categories]]`.** SABnzbd 5.x names each
+subsection **after the item**, so a correctly configured instance reads `0` for both patterns — which is
+how I came to report "no Usenet provider, no categories" on an instance that had a server and five
+categories. The real structure is `[[news.eweka.nl]]`, `[[movies]]`, `[[tv]]`, `[[audio]]`,
+`[[software]]`, `[[*]]`; the honest probe is:
+
+```bash
+docker exec -u 1005 sabnzbd grep -o '^\[\[[^]]*\]\]' /config/sabnzbd.ini | sort | uniq -c
+```
+
+What the download path was actually missing (and still is until it is set): **`[misc] dir` is empty**,
+which leaves the completed folder on SAB's local config bind — see §Landing & Import above. The
+categories exist but every one has an empty `dir`, and there is an **`audio`** category where this
+stack's layout says `music`, so Lidarr's client category must either be pointed at `audio` or a `music`
+category added. · [services-media.md](services-media.md) §Request → import wiring · [subscriptions.yml](../IaC/ansible/group_vars/subscriptions.yml)
 
 ## Related
 - [Media stack](services-media.md) — the *arr pipeline + storage layout this feeds
