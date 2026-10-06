@@ -122,19 +122,41 @@ manual boot before WoL re-arms; with battery ride-down the master never cuts, so
 
 - **NUT master on nas — ✅ live:** `usbhid-ups` (USB), `upsd`, `nut_exporter`, `upssched-cmd` notify —
   the `nut` role in [`deployment-ansible.md`](deployment-ansible.md). `upsc powerwalker@localhost` answers.
-- **NUT clients on oldsrv + Pi — ⚠ NOT protected** (slave mode is *authored*: client `upsmon`, a secret-free
-  `upssched-cmd`, charge-threshold shutdown via the upssched poll, HD-06) but neither client can reach the
-  master today: both fail with `Connection refused` because the master never binds its LAN listener
-  (HD-467). Per-host policy (oldsrv 75 % charge + pre-flush, nas/Pi critical-only) is therefore untested.
-- **How to prove a client leg — the read that does not lie:** `systemctl is-active nut-monitor` stays `active`
-  while upsmon cannot reach the master (it retries forever), so a unit result is never evidence here. The
-  evidence is `upsc powerwalker@nas.kogler.si ups.status` **on the client** plus, on the master, the journal
-  line `User upsmon@<client-ip> logged into UPS [powerwalker]`.
+- **NUT clients on oldsrv + Pi — ✅ protected (2026-10-07, HD-467).** The slave mode was always
+  authored (client `upsmon`, a secret-free `upssched-cmd`, charge-threshold shutdown via the
+  upssched poll, HD-06); what was missing was the leg — both got `Connection refused` because
+  the master never bound its LAN listener. Proven live on the day the listener was fixed:
+  nas's journal `User upsmon@<oldsrv Home address> logged into UPS [powerwalker]` **and** the same line
+  for `<Pi Home address>`, with `upsc powerwalker@nas.kogler.si ups.status` answering
+  `OL…` on oldsrv and on the Pi. Per-host policy (oldsrv 75 % charge + pre-flush, nas/Pi
+  critical-only) is now actually exercised — but still **untested under a real mains loss**,
+  which is HD-06's drill (owner-gated).
+- **How to prove a client leg — the read that does not lie:** `systemctl is-active nut-monitor`
+  stays `active` while upsmon cannot reach the master (it retries forever), so a unit result is never evidence here.
+  The evidence is `upsc powerwalker@nas.kogler.si ups.status` **on the client** plus, on the master, the journal
+  line `User upsmon@<client-ip> logged into UPS [powerwalker]`. Since HD-467 the nut role **runs both reads in
+  every converge**: the client leg asserts (fail-loud, escape hatch `-e nut_require_master_leg=false`),
+  and the master asserts the socket is really bound.
 - **`upsd` binds every `LISTEN` address once, at start-up:** if the address is not configured on the interface
   yet it logs `not listening on <addr> port 3493` and keeps serving on what it got — so `upsd.conf` can carry a
   LAN listener that `ss -lntp` proves absent, and remote clients get `Connection refused` with nothing
-  reporting it. Naming a `LISTEN` address is also **not** an authorization statement: remote access needs the
-  explicit `ACCEPT … / REJECT` ACL in the same file, which is not written today.
+  reporting it. That is exactly what happened from **2026-09-14**: nas takes its Home address from DHCP and the
+  distro `nut-server.service` orders only after `network.target` (= "configured", not "address assigned"), so the
+  boot won the race and the unit never retried in 23 days. Fixed in two halves, both in the nut role:
+  a `nut-server.service.d/10-network-online.conf` drop-in (`Wants=`/`After=network-online.target`, provided on
+  nas by the enabled `NetworkManager-wait-online`), and a converge-time **prove-the-socket-and-repair** task —
+  read `ss`, restart `nut-server` **once** if a declared address is missing, read again, then assert. The read
+  runs with `check_mode: false` so `--check` reports the real state instead of a hopeful one.
+- **`LISTEN` is the whole access-control story on NUT 2.8 — there is no ACL to declare.** An earlier reading of
+  this defect asked for an `ACCEPT … / REJECT` pair in the same change; the installed **nut-server 2.8.1-5**
+  proves that model is gone: it logs `ACCEPT in upsd.conf is no longer supported - switch to LISTEN` (and the
+  same for `REJECT`) and **ignores both keywords** — measured on nas 2026-10-07, so writing them is a startup
+  warning plus a false sense of restriction, not defense-in-depth. Exposure is therefore *which addresses upsd
+  listens on* and privilege is *`upsd.users`* (the `upsmon` identity the slaves authenticate as + the read-only
+  `nut_exporter` slave, both vault-backed). What an unauthenticated Home-VLAN peer gets is nothing — an
+  unauthenticated `GET VAR` reads no data back, upsd answers nothing before `LOGIN`. A per-**address**
+  restriction inside the subnet is a firewall decision on nas, never a re-add of those keywords; the nut role
+  now fails the converge when upsd reports an ignored keyword, so the class cannot come back silently.
 - **Metrics + alerts (⏳ verify):** UPS metrics/alerts into VictoriaMetrics + Grafana
   ([`observability.md`](observability.md)) — Critical on battery charge/runtime, Warning on-battery, Info on
   transitions. **Metric shape is settled:** the exporter is DRuggeri `nut_exporter` v3, served on

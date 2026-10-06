@@ -49,6 +49,38 @@
   when: nut_mode == 'master'
   notify: restart nut services
 
+# HD-467 — the ordering half of the fix. nas gets its Home address from DHCP and the
+# distro unit orders only after network.target, which means "configured", not "address
+# assigned". upsd binds each LISTEN ONCE at start-up, so a boot that wins the race leaves
+# the master serving loopback only forever — live proof: `not listening on <the Home address> port
+# 3493` from 2026-09-14 with the unit never restarted since, while `ip addr` shows the
+# address present now. network-online.target is provided here by NetworkManager-wait-online
+# (both enabled on nas), so this drop-in is what actually waits for the lease.
+- name: Create the nut-server drop-in directory (master)
+  file:
+    path: /etc/systemd/system/nut-server.service.d
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  when: nut_mode == 'master'
+  notify: restart nut services
+
+- name: Order nut-server after the network is actually up (master)
+  copy:
+    content: |
+      # managed by Ansible — nut role (HD-467): upsd binds every LISTEN once at start-up,
+      # so it must not start before the Home-VLAN address exists.
+      [Unit]
+      Wants=network-online.target
+      After=network-online.target
+    dest: /etc/systemd/system/nut-server.service.d/10-network-online.conf
+    owner: root
+    group: root
+    mode: '0644'
+  when: nut_mode == 'master'
+  notify: restart nut services
+
 - name: Configure /etc/nut/upsd.conf (master)
   template:
     src: upsd.conf.j2
@@ -303,6 +335,126 @@
     enabled: true
     daemon_reload: true
   when: nut_mode == 'client'
+
+# --- HD-467: prove the listener is actually bound, and repair it in the SAME run ---
+# A `systemctl is-active nut-server` result is never evidence here (the unit stays active
+# while serving loopback only), and a template task that renders a LISTEN line proves even
+# less. Assert and act together: read the socket set, restart ONCE if a declared address is
+# missing, read again, then fail loud. `flush_handlers` first so a config change that
+# notified a restart is not double-restarted by the repair path.
+- name: Apply pending NUT restarts before proving the listener
+  meta: flush_handlers
+
+- name: Read the socket set upsd actually bound (master)
+  shell: ss -lnt | awk 'NR>1 && $4 ~ /:3493$/ {print $4}'
+  args:
+    executable: /bin/bash
+  register: _nut_bind
+  changed_when: false
+  check_mode: false
+  when: nut_mode == 'master'
+
+- name: Restart nut-server once when a declared LISTEN address is absent (master)
+  systemd:
+    name: nut-server
+    state: restarted
+    daemon_reload: true
+  register: _nut_rebind
+  when:
+    - nut_mode == 'master'
+    - not ansible_check_mode
+    - nut_listen_ip not in _nut_bind.stdout
+
+- name: Re-read the socket set after the one repair restart (master)
+  shell: ss -lnt | awk 'NR>1 && $4 ~ /:3493$/ {print $4}'
+  args:
+    executable: /bin/bash
+  register: _nut_bind2
+  changed_when: false
+  check_mode: false
+  when:
+    - nut_mode == 'master'
+    - _nut_rebind is not skipped
+
+- name: Note that check mode cannot exercise the repair (master)
+  debug:
+    msg: >-
+      check mode: {{ nut_listen_ip }}:3493 is NOT bound right now, so the real run will
+      restart nut-server once and re-read. Bound sockets were
+      [{{ _nut_bind.stdout.split() | join(' ') }}].
+  when:
+    - nut_mode == 'master'
+    - ansible_check_mode
+    - nut_listen_ip not in _nut_bind.stdout
+
+- name: Assert every declared LISTEN address is bound (master)
+  assert:
+    that:
+      - nut_listen_ip in (_nut_bind2.stdout | default(_nut_bind.stdout))
+    fail_msg: >-
+      upsd is not listening on {{ nut_listen_ip }}:3493 even after one restart — bound
+      sockets were [{{ (_nut_bind2.stdout | default(_nut_bind.stdout)).split() | join(' ') }}].
+      Every remote NUT consumer is getting Connection refused (HD-467).
+  when:
+    - nut_mode == 'master'
+    - not ansible_check_mode
+
+# Tripwire for the ACL class (HD-467): a row asked for an ACCEPT/REJECT list here, and on
+# NUT 2.8 those keywords are accepted by the parser and IGNORED — the only trace is a
+# start-up line. Without this check, a well-intentioned re-add would render, converge green,
+# and restrict nothing.
+- name: Read for upsd's "keyword ignored" start-up lines (master)
+  shell: |
+    start="$(systemctl show -p ExecMainStartTimestamp --value nut-server 2>/dev/null)"
+    # Only THIS start counts: the lines are emitted at upsd start, so an older boot-line
+    # would make the tripwire fire on a tree that no longer writes the keyword.
+    [ -z "$start" ] || [ "$start" = "n/a" ] && start="-2 min"
+    journalctl -u nut-server --since "$start" --no-pager 2>/dev/null | grep -c "no longer supported" || true
+  args:
+    executable: /bin/bash
+  register: _nut_ignored_kw
+  changed_when: false
+  check_mode: false
+  when: nut_mode == 'master'
+
+- name: Assert upsd ignored no config keyword (master)
+  assert:
+    that:
+      - _nut_ignored_kw.stdout | int == 0
+    fail_msg: >-
+      upsd reported {{ _nut_ignored_kw.stdout }} "no longer supported" line(s) this boot: this
+      tree writes a keyword the installed NUT parses but ignores — the restriction it looks like
+      is not in force. On 2.8 exposure = LISTEN addresses, privilege = upsd.users (HD-467).
+  when: nut_mode == 'master'
+
+# --- HD-467: the client-side read that does not lie ---
+# upsmon retries forever and `is-active nut-monitor` stays `active` across a dead master,
+# so the only client-side proof is a real query. Fail-loud by default (nut_require_master_leg);
+# the escape hatch is a per-run -e, never a committed false.
+- name: Query the master from the client (client)
+  command: upsc powerwalker@{{ nut_host }} ups.status
+  register: _nut_leg
+  until: _nut_leg.rc == 0
+  retries: 3
+  delay: 5
+  changed_when: false
+  failed_when: false
+  check_mode: false        # a pure read — --check must be able to judge the real leg
+  when: nut_mode == 'client'
+
+- name: Assert the client reaches the master (client)
+  assert:
+    that:
+      - _nut_leg.rc == 0
+      - _nut_leg.stdout | trim | length > 0
+    fail_msg: >-
+      upsc powerwalker@{{ nut_host }} failed on {{ inventory_hostname }} (rc={{ _nut_leg.rc }},
+      stdout='{{ _nut_leg.stdout | trim }}', stderr='{{ _nut_leg.stderr | trim }}') — this host is
+      NOT UPS-protected whatever `systemctl is-active nut-monitor` says (HD-467). For a
+      deliberately-offline converge pass -e nut_require_master_leg=false.
+  when:
+    - nut_mode == 'client'
+    - nut_require_master_leg | bool
 
 # --- Verify UPS visibility (master; non-destructive) ---
 - name: List USB devices (master — confirm the UPS HID is present)

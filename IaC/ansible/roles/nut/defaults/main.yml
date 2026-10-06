@@ -7,10 +7,31 @@
 # Master endpoint used by clients.
 nut_host: nas.kogler.si
 
+# The master's own name in `network_static_hosts` — the upsd LISTEN address derives from
+# that table, never from a typed IP (CONVENTIONS §2).
+nut_master_name: nas
+
+# ⚠ There is deliberately NO per-client allow-list var here. NUT 2.8 removed ACCEPT/REJECT
+# from upsd.conf (the installed 2.8.1 logs `ACCEPT/REJECT in upsd.conf is no longer
+# supported - switch to LISTEN` and ignores them), so exposure = the LISTEN addresses above
+# and privilege = upsd.users identities, both already declared. A per-address restriction
+# inside the subnet is a firewall decision on nas, not a NUT one — see
+# docs/hardware-ups.md §Monitoring & shutdown — implementation state (HD-467).
+
+# Fail-loud switch on the client-side remote leg (`upsc powerwalker@<master>`).
+# Default true: a client converge that cannot reach the master is exactly the blindness
+# HD-467 was filed for, so it must break the run rather than log a warning. Escape hatch
+# for a deliberately-offline converge: `-e nut_require_master_leg=false` (per run, never
+# committed as a standing false).
+nut_require_master_leg: true
+
 # --- Master (usbhid-ups, USB HID to the PowerWalker VFI ICT/ICR IoT 3000) ---
 nut_driver: usbhid-ups
 nut_serial: auto
-nut_listen_ip: 10.10.1.10        # nas Home-VLAN IP — upsd listens here (intra-VLAN)
+# nas Home-VLAN IP — upsd listens here (intra-VLAN). Derived from the address SSOT
+# (HD-467): the old literal `10.10.1.10` was a second copy of the table row, and the row
+# is what the router's DHCP reservation is keyed on.
+nut_listen_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', nut_master_name) | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
 # --- Per-host shutdown delay (seconds) — set in host_vars ---
 # shutdown_delay_seconds: 0      # nas/ha power down immediately

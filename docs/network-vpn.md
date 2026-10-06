@@ -689,6 +689,19 @@ Two rules decide every block:
 Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and
 `C:\Users\domen\.ssh\config` (Windows OpenSSH).
 
+**A third copy exists, and it is deliberately NOT a laptop copy: the oldsrv seat's own `~/.ssh/config`** — the box
+this repo is authored on (HD-445 cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
+Home address and carry **no `ProxyJump`**: on-site a jump would hairpin through the VPS for no benefit, and
+`ssh nas` / `ssh pi` complete directly in under a second. Only the `Host vps` block is machine-managed there
+([`scripts/seed-runner-ssh.sh`](../scripts/seed-runner-ssh.sh), HD-407) plus the marker-delimited `Host github.com`
+block from [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) (HD-449) — the host aliases are
+hand-kept, which is exactly why they belong to this table: **a rebuilt seat that runs only the seeder gets `vps`
+and `spark` and silently has no `nas` / `pi`** (measured 2026-10-07: every `ssh nas|pi|oldsrv` from that seat died
+with `Host key verification failed`, which is a missing-alias-and-key symptom, not a dead host — trap 1 above).
+Ansible never reads this file: the jump it needs travels in `ansible_ssh_common_args` (`group_vars/storage.yml`,
+`raspberry_pi.yml`, …), so a seat alias never changes how a converge reaches a host — direct aliases are a human
+and `scp`/`rsync` convenience, the same role the `Host <ip>` blocks serve on the laptop.
+
 ### The tailnet is not observable from the VPS host
 
 **There is no `tailscale` CLI on the VPS** — its tailnet presence is the `traefik-tailnet` container's

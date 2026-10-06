@@ -1,5 +1,31 @@
 # managed by Ansible — nut role (master)
 # Listen on loopback + the nas Home-VLAN IP (intra-VLAN to clients on VLAN 10).
+#
+# HD-467 (2026-10-07): a LISTEN line is only half of a remote leg, and the other half is
+# NOT an ACL. Two conditions had to hold before a client could reach the master; today
+# neither did:
+#   1. the address must be configured on an interface BEFORE upsd starts. upsd binds every
+#      LISTEN once at start-up, logs `not listening on <addr> port 3493` and keeps serving
+#      on whatever it got. nas takes its Home-VLAN address from DHCP and the distro unit orders only
+#      after network.target (= "configured", not "address assigned"), so the boot won the
+#      race and never retried — live proof: that line from 2026-09-14 with the unit never
+#      restarted since, while `ip addr` shows the address present now. The fix is the
+#      nut-server network-online drop-in deployed by tasks/main.yml, plus the
+#      prove-bind-and-repair task that makes the same failure impossible to sit on.
+#   2. authorization. THIS FILE CANNOT EXPRESS IT ANY MORE on the installed NUT: upsd 2.8.1
+#      prints `ACCEPT in upsd.conf is no longer supported - switch to LISTEN` (and the same
+#      for REJECT) and ignores both keywords — measured on nas at the converge that first
+#      added them, so writing them is not defense-in-depth, it is a startup warning and a
+#      lie. The model in 2.8 is: **exposure = the addresses you LISTEN on, privilege =
+#      upsd.users**. Both halves are already declared: this file listens on the Home leg only,
+#      and upsd.users carries the two vault-backed identities (the `upsmon` user the slaves
+#      authenticate as, and the read-only `nut_exporter` slave). A per-ADDRESS restriction
+#      inside the subnet is therefore a firewall decision on nas, not a NUT one — never
+#      re-add ACCEPT/REJECT here to "narrow" it.
+# What the open port does and does not give a Home-VLAN peer is measured, not assumed: an
+# unauthenticated `GET VAR` reads NOTHING back (upsd answers no data before LOGIN), so the
+# exposure is an open TCP port + a connection slot out of MAXCONN, not a data leak.
+# The listen address derives from `network_static_hosts` (CONVENTIONS §2 — no literals).
 LISTEN 127.0.0.1 3493
 LISTEN {{ nut_listen_ip }} 3493
 MAXCONN 16

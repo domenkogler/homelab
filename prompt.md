@@ -40,17 +40,16 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 3. ⏳ **HD-436** — the transport lane's hinge: the derived `zone_kogler_si` list is already on `main`; switch the two
    consumers that still hand-author (`vps.yml`'s two subdomain lists, `roles/cloudflare_dns/vars`
    `cloudflare_dns_records`). Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
-4. ⏳ **HD-467** — P1: `upsd` binds loopback only, so no home host is UPS-protected and nothing can see a mains loss.
-5. ⏳ **HD-471** — P1, head of the VPS-hygiene lane: Docling answers HTTP 200 with **empty markdown** for every real scan;
+4. ⏳ **HD-471** — P1, head of the VPS-hygiene lane: Docling answers HTTP 200 with **empty markdown** for every real scan;
    fix + warm-up + a memory limit, then re-POST a real scan and read `status`, never the HTTP code.
-6. ⏳ **HD-470** — the VPS's own state has one copy on one disk.
-7. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed.
-8. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
+5. ⏳ **HD-470** — the VPS's own state has one copy on one disk.
+6. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed.
+7. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
    the 442–444 block, whose rows keep owner-gated tails).
    ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently). The seat's
    **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
    playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself.
-9. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
+8. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
