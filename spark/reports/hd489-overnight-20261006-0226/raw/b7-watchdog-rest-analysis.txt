@@ -1,0 +1,15 @@
+watchdog REST-window analysis — samples.csv 2026-10-02T21:02:04Z .. 2026-10-06T09:53:41Z (20,000 rows @ ~15 s; gauge = MemAvailable - CmaFree; epoch col0 verified against the watchdog's own last_WARN/last_CRIT stamps and enforce.log)
+
+context: the 2026-10-05 sustained sub-CRIT run + 09:22:41Z enforcement is ALREADY documented as Incident #9 (commit 2de2877d; "the 25 GB pool left no host floor"). The checks below separate the two days.
+
+facts:
+- restarts>0 rows (col 12): 1,978 — ALL inside 2026-10-02T23:46Z..2026-10-04T22:16Z (never-evict crash-loop era, restarts=105, col max 117). Zero since.
+- usable<8 rows: 294 in total — 292 belong to Oct-5 (Incident #9 pattern: 08:48:58Z..10:50:36Z, incl. the single 3.43 GiB instant at 08:38:39Z), TWO belong to Oct-6: 09:41:12Z (5.92) and 08:38:39Z (19.56? no) — verified: the only 3.43 row is Oct-5T08:38:39Z (epoch 1791189519).
+- Oct-6 09:40-09:42Z sequence: usable 20.02 (09:40:57Z) -> 5.92 (09:41:12Z) -> 110.4 (09:41:28Z, engine memory released). CRIT-ENFORCED by enforce.log at 09:41:29Z, docker restart 09:41:33Z, engine healthy from ~09:52Z, steady ~43 GiB after; app-level RestartCount stays 0 (docker restart does not bump it).
+- Oct-6 08:00-10:00Z MINIMUM usable = 5.92 (that one burst); the whole morning session ran >= 19.5 GiB otherwise — the 20 GB + device_hold regime has REAL host floor vs yesterday's 7.5-8.0 sustained.
+- rest-only windows (no client traffic): all samples 12-46 GiB; the only WARN (11.76 GiB @ 2026-10-05T22:56:44Z) = the reasoning-flip compose-up spike.
+
+VERDICT B7 + HD-494 item 3:
+- "hysteresis latch never fires at REST": TRUE — the two enforcements in the dataset (Oct-5 09:22:41Z, Oct-6 09:41:29Z) both fired under live client traffic, never at rest.
+- LIVE OBSERVATION for the owner (second occurrence of the Incident-#9 pattern, milder): on the 20 GB era a single heavy prefill mid-session still produced a sub-15 s burst to 5.92 GiB -> CRIT-ENFORCED restart of the live engine at 09:41:29Z, self-healed. The sustained sub-CRIT breathing is gone (Oct-5's 2 h at 7.5-8.0), so the HD-494 headroom fix holds; only the transient burst remains un-conserved — reserve evidence for HD-494 item 4's re-derive.
+- "one working day of usable": still ACCRUING on the current fast boot (2026-10-06 09:41:33Z; healthy since 09:52Z; expect ~2026-10-07 09:52Z).

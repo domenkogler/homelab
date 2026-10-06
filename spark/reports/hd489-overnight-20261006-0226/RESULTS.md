@@ -111,3 +111,26 @@ Seat recap: engine under test = spark · runner = oldsrv LAN, PI_MODEL=deepseek-
 legs stamped `--client oldsrv` · harness rows on spark ~/bench/results-v2.csv.
 BLOCKED/PARKED: none. Owner gates exercised via the brief's documented per-run -e only; IaC untouched (worktree
 diff is this evidence directory alone).
+
+## B7 + HD-494 item 3 (post-night quick legs) — 2026-10-06
+
+- **gate 4 at conc 2 (the B7 probe half)**: PASS — 200s=2/2, wall 2.0 s, lat 1.9/2.0/2.0 s,
+  usable 21.20 -> 21.19 GiB, preempts 0.0 — `raw/b7-conc2.log`, `raw/b7-pre.txt`, `raw/b7-post.txt`
+- **watchdog REST-window analysis**: `raw/b7-watchdog-rest-analysis.txt` (20,000 samples, epoch-verified against the
+  watchdog's own stamps). "Latch never fires at REST": TRUE — the two enforcements in the dataset
+  (2026-10-05 09:22:41Z, 2026-10-06 09:41:29Z) both fired under live client traffic; rest windows are 12–46 GiB,
+  restarts=0; the only restarts>0 rows are the Oct 2–4 never-evict crash-loop era.
+- **LIVE OBSERVATION (2nd occurrence of the Incident-#9 pattern, milder):** at **09:41:12/29Z** a single heavy prefill
+  mid-session burst usable 20.0 → 5.92 GiB (sub-15 s) → CRIT-ENFORCED engine restart 09:41:33Z → self-healed,
+  steady ~43 GiB since, app restarts=0. The Oct-5 sustained-sub-CRIT signature (2 h at 7.5–8.0 GiB, Incident #9,
+  "the 25 GB pool left no host floor") did NOT recur today — the 20 GB + device_hold regime held the morning session
+  ≥19.5 GiB — only the transient burst remains un-conserved (reserve evidence for HD-494 item 4's re-derive).
+  Details in `raw/b7-watchdog-rest-analysis.txt`.
+- The B7 "one working day" half is still accruing on the 09:41:33Z fast boot (expect ~2026-10-07 09:52Z).
+
+## Post-night note — the box was NOT left as-at 09:20Z (added 2026-10-06)
+
+After this report's final 09:20Z health PASS, the watchdog CRIT-ENFORCED an engine restart at **09:41:29Z**
+(the live-session burst above; engine self-healed, healthy since 09:52Z, restarts=0, argv unchanged `fast`
+20 GB/8). Every claim in Steps 1–4 stands; the only addition is that the governor fired once under the
+owner's morning session and the box came back on its own.

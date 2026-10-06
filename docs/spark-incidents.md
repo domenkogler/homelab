@@ -273,6 +273,15 @@ the next CRIT restart. Converged with `--tags watchdog` (hash now equals the tre
 `hysteresis: armed (no latch)`. Lesson for every live claim in this repo: read the artifact on the
 box, not the commit message (CONVENTIONS §6).
 
+**Second occurrence (2026-10-06 09:41Z) — transient, not REST.** On the fixed regime (20 GB pool +
+hysteresis+REARM, live since 01:05Z) the same morning-traffic class held the session at **≥19.5 GiB usable**
+(the sustained CRIT band of finding 2 did NOT recur) until a single sub-15 s burst: usable 20.02 → 5.92 GiB
+at 09:41:12Z (vLLM loggers: 1 running, 800–1500 tok/s prefill — a live session, not rest), CRIT-ENFORCED at
+09:41:29Z after one in-flight-drain deferral, `docker restart` 09:41:33Z, engine healthy from ~09:52Z,
+steady ~43 GiB after. The transient burst (prefill activations on the 20 GB pool) remains un-conserved by the
+device_hold re-derive — reserve evidence for HD-494 item 4 — and it is **not** a leak (anon returned in
+<15 s) and **not** the REST-band condition Incident #9 diagnosed. The governor behaved as designed both times.
+
 ---
 
 ## Cross-incident invariants

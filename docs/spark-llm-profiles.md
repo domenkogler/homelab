@@ -299,9 +299,30 @@ section all name `spark/bench/`; a search that stops at `scripts/` is not an abs
 in-checkpoint MTP-3 with block rejection, `enforce_eager: true`, `spec{mtp,3,block,probabilistic}`.
 Measured 2026-10-03: C2L decode **39.7 tok/s** (cold_ok=yes, 324 s window), TTFT p50 ~0.7 s, ITL p50
 ~65 ms, MTP accept 49–55 %, 0 preemptions ([`spark/reports/hd489-ar-blk/README.md`](../spark/reports/hd489-ar-blk/README.md)).
-It is `certified: true` on the 16 GB / seqs-4 shape (gates 3–4 measured, `hd489-tail-b2`/`-b3`) and on the
-25 GB / seqs-8 shape it runs today (gate 4 at conc 8, `hd489-overnight-20261004-0804`); what no
-certificate covers is **gate 5 — the needle at depth**, owed for the whole box since HD-469.
+It is `certified: true` on the 16 GB / seqs-4 shape (gates 3–4 measured, `hd489-tail-b2`/`-b3`), on the
+25 GB / seqs-8 shape (gate 4 at conc 8, `hd489-overnight-20261004-0804`), and on the live **20 GB / seqs-8
+shape since HD-494 (gate 4 at conc 8 and gate 2 + the needle, `hd489-overnight-20261006-0226`)**.
+
+### HD-489 tail evidence closed 2026-10-06 — the needle, the paired quality check, the AWQ fallback cost
+
+Three numbers the certificate lacked are now measured (evidence dir
+[`spark/reports/hd489-overnight-20261006-0226/`](../spark/reports/hd489-overnight-20261006-0226/RESULTS.md), raw committed):
+
+* **gate 5 — the needle at depth: PASS 3/3.** The pi global-instructions marker (`pi-agent/AGENTS.md`, 552 tok,
+  needle seq 550) planted at ~90 % depth of a **241.2k-token** filler (92 % of the 262,144 window) is recalled
+  verbatim 3/3, judged by the token-subsequence rule with the engine's own tokenizer in the container
+  (each response 553 tok). `num_preemptions_total` delta **+0** across all six 236–241k legs; gate-4 conc 8 on
+  the 20 GB shape also PASS (8/8, slowest 2.7 s).
+* **B1 `reasoning` control legs + paired McNemar — KEEP.** `reasoning` booted healthy (restarts=0) and the
+  owner's 5-category MMLU-Pro-mini subset (500 items, 100 % question_id-paired with the committed `fast` arm)
+  scores fast **89.20 %** vs reasoning **89.40 %**, Δ=−0.20 pts, p=1.000 (discordant 9/10, n=500). Pre-registered
+  rule (Δ≤2 keep) ⇒ **no measurable quality deficit; the `fast` speed win stands.**
+* **B10 — AWQ on the winner's machinery: eager AWQ + FP8-PLE-mmap bundle boots healthy at 14 GB (engine's own
+  KV 450,604 tok = 1.72×) and decodes C2L **27.6 tok/s** vs `fast`'s certified 39.7 ⇒ the quality fallback costs
+  ~30 %, not ~40 %** (inside the predicted 22–28 band, above the 23.6 with-graphs ceiling); TTFT p50 ~0.82 s,
+  ITL p50 ~91 ms, MTP accept 46–53 %, 0 preemptions, usable 21.2→21.2 GiB, sustained clocks trace committed.
+  The pairing registry row `ple-table-fp8 ↔ Qwen3.8-Flash-Next-AWQ` stays **UNVERIFIED** until gates 6/8/9
+  (accuracy battery, MTP acceptance, quality noise floor) run on the arm.
 
 ### Never-evict prompt pin — REJECTED (2026-10-05)
 
