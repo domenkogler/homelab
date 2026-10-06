@@ -181,6 +181,23 @@
 #                                     IP, a name moving between the plain and `.ts` namespaces, a
 #                                     consumer that answers nothing, and a golden field silently dropped
 #                                     from a row. `--self-test` proves it refuses all five.
+#  29. install-tmux-conf.sh --self-test + --check --strict — seat terminal-harness gate
+#                                     (HD-496): repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND the
+#                                     config actually TAKES EFFECT. The "and" is the whole item: a tmux
+#                                     config that errors mid-load leaves the options at their DEFAULTS
+#                                     while the caller gets exit 0 and empty stderr, so a byte-compare
+#                                     of two identical files can sit next to a seat with no mouse and
+#                                     no clipboard (measured six ways, docs/pi-harness.md §5b). The
+#                                     self-test therefore mutates FIXTURES, not the checker: seven
+#                                     canaries, two of them a byte-identical SSOT/target pair that is
+#                                     inert by construction (one bad command mid-file; the nested
+#                                     wrapped if-shell that broke the live seat) — a `cmp` says SAME on
+#                                     both and the gate must still go RED. Plus the OSC 52 canary: same
+#                                     fixture with the `Ms` override stripped must emit NOTHING, or the
+#                                     emission arm is passing for the wrong reason. Drift check guarded
+#                                     like items 13/27: with no ~/.tmux.conf on the host it SKIPs (a
+#                                     stateless runner has no seat here); ineffectiveness fails in every
+#                                     mode because it is a defect, not a seat state.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
@@ -426,6 +443,20 @@ if [ -d "$HOME/.pi/agent/extensions" ]; then
   bash scripts/sync-extensions.sh --check --strict
 else
   echo "SKIP: no ~/.pi/agent/extensions on this host — extension gate runs where pi is configured (deploy: sync-extensions.sh --push)"
+fi
+
+echo "== install-tmux-conf.sh (HD-496: repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND effective) =="
+# The self-test runs everywhere: it is sandboxed in a temp dir, starts its own throwaway
+# servers on private sockets, and touches no real ~/.tmux.conf. It exists because a tmux
+# config that fails mid-load returns 0 and leaves the defaults standing — so the ONLY
+# proof is loading the file and reading the options back, which is what these canaries
+# do (and what caught this script's own first bug: `-eq 1` against a failure COUNT also
+# matches the SKIP code 2, which made the inert canaries pass).
+bash scripts/install-tmux-conf.sh --self-test
+if [ -f "$HOME/.tmux.conf" ]; then
+  bash scripts/install-tmux-conf.sh --check --strict
+else
+  echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
 fi
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="

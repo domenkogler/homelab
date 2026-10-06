@@ -28,6 +28,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 | `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`) was the last hand-kept credential file on the client; proven byte-identical to the render 2026-09-23 |
 | `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`, HD-409) | this doc is the reference copy (§5) — deliberately NOT rendered: theme/packages/`lastChangelogVersion` are machine-local, and `models-spec.yml` says so out loud. The seat got its block written from §5 on 2026-10-01 (HD-484), preserving the installer's `packages` key |
 | `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/sync-skills.sh`](../scripts/sync-skills.sh), `extensions/` via [`../scripts/sync-extensions.sh`](../scripts/sync-extensions.sh) (HD-254 family; the Debian seat had **no** extension step at all until 2026-10-06, so it carried whatever was hand-placed) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
+| `~/.tmux.conf` (the seat's terminal harness) | repo [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → installed by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh) | git (the SSOT) — **not** the file in `$HOME`; it carries a `managed-by:` line so an installed copy is nameable, and a foreign `~/.tmux.conf` is a REFUSAL rather than a silent overwrite. Mouse + OSC 52 clipboard: **§5b**. Not yet called by the seat installer (the row in [`../todo.md`](../todo.md) keeps that) |
 | spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT, HD-374) |
 
 - The harness talks **directly to the spark edge** (`llm.kogler.si`, HD-370), not through LiteLLM. That
@@ -369,6 +370,108 @@ answerable from an extension, and this section is the only place that fact is wr
   prompt is gone), not "which seat". The WSL marker is available (`/proc/version` carries `microsoft`, which
   `laptop-llm.py` already reads) and deliberately NOT used here: a second host-identity signal invented in
   a footer would drift from the one `host_norm()` owns.
+
+## 5b. The seat's terminal harness — tmux mouse + OSC 52 clipboard (2026-10-06)
+
+pi runs inside tmux on the Debian seats (HD-445's package call put `tmux` on oldsrv), and two things a
+session touches every minute are **terminal-level, not pi-level**: the mouse and the clipboard. Repo
+SSOT [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → `~/.tmux.conf`, installed and *proved*
+by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh), drift-gated by
+[`../scripts/README.md`](../scripts/README.md) → validate-all item 29.
+
+| Action | Result on the seat |
+|---|---|
+| click pane / click status / drag border | focus pane / switch window / resize pane |
+| drag text, double- or triple-click | selection → tmux buffer **and** the outer clipboard |
+| wheel in a shell pane | history scroll (`history-limit 100000`, 5 lines/notch) |
+| wheel over a TUI that grabs the mouse (pi, vim, htop) | passed through raw — tmux never intercepts it |
+| `prefix m` | toggle mouse off/on without editing the file — the escape hatch when capture gets in the way |
+| SHIFT held while dragging | the outer terminal's own selection, bypassing tmux |
+
+### Why the installer loads the file instead of comparing it
+
+`cmp` proves the right bytes are on disk. It cannot prove tmux obeyed them, and the failure mode is
+silent: **a config that errors mid-load leaves the options at their DEFAULTS and the caller still gets
+exit 0 with empty stderr** (tmux reports a config failure as a client *message*; a detached
+`new-session` has no client to print it to). Measured on tmux 3.5a, six fixtures, each loaded with
+`tmux -L <sock> -f <conf> new-session -d` and read back with `tmux show -g …`:
+
+| fixture appended to a working config | reads back | verdict |
+|---|---|---|
+| *(nothing — the SSOT as-is)* | `mouse on`, `history-limit 100000`, `mode-keys vi` | EFFECTIVE |
+| block opened at end of a line, closed on its own line | same | EFFECTIVE |
+| backslash-continued command | same | EFFECTIVE |
+| one bad command (`select-pane -t = extra extra extra`) | `mouse off`, `2000`, `emacs` | **INERT** |
+| unknown command | same defaults | **INERT** |
+| nested wrapped `if-shell { } { }` (what actually broke this seat) | same defaults | **INERT** |
+| unterminated quote at the end | `mouse on`, `mode-keys emacs` | **PARTIAL** |
+
+Two conclusions, both load-bearing: **which part** of a file survives an error is not predictable from
+the parser (last row — a later option applied while an earlier one did not), and a static "looks like a
+bad block" rule cannot be written honestly, because the first two wrapped shapes load fine while the
+nested one does not. So the gate starts a throwaway server on a private socket and **reads the options
+back** — and its own canaries mutate the fixture, not the checker (CONVENTIONS §6: a test that cannot
+fail is not evidence). That mechanism earned its keep immediately: the load probe's first version
+tested `-eq 1` on a raw failure *count*, so two failed assertions read as `2` — which is also the SKIP
+code — and the inert canaries went green. They are what found it.
+
+### The clipboard leg — OSC 52, measured
+
+oldsrv is headless: no `xclip`, no `xsel`, no `wl-clipboard`, and the clipboard lives on the machine
+you typed into. The only path is an **OSC 52 escape sequence written to the outer terminal through
+SSH**, which tmux emits only when the client terminal is credited with the capability — either by
+tmux's built-in terminal-NAME table (`xterm*`/`vte`: credited; `screen`, `tmux`, `vt220`, `linux`: not)
+or by an `Ms` terminfo capability. **No terminfo entry on this box carries `Ms`** — `infocmp -1 <term>`
+shows none for `xterm-256color`, `screen-256color`, `tmux-256color`, `vt100`, `vt220` or `linux` — so the
+SSOT's `terminal-overrides ',*:Ms=\E]52;%p1%s;%p2%s\7'` is what earns the sequence on a
+non-`xterm`-classified seat:
+
+| probe client `TERM` | `Ms` override present | OSC 52 sequences on the wire |
+|---|---|---|
+| `xterm-256color` | yes | 1 |
+| `screen-256color` | yes | **1** |
+| `screen-256color` | no | **0** ← the canary |
+| `vt100` | no | 0 |
+
+Three facts that are easy to get wrong, each measured here rather than assumed:
+
+- **A `set-buffer` emits nothing.** Only a **selection** (`copy-mode` → `begin-selection` →
+  `copy-selection-and-cancel`, i.e. what a mouse drag or `y` does) produces the sequence. A probe built
+  on `set-buffer` reports a working clipboard no user can reach.
+- **`#{client_termfeatures}` is a belief about the terminal's NAME, not a capability read.** Its
+  `clipboard` flag tracked the wire in every row above, then lied under the script's own feet: a probe
+  client with `TERM=tmux-256color` reports no `clipboard` while tmux emits OSC 52 for it. The gate reads
+  the **bytes** (attach a `script(1)` pty client, capture, grep for `\033]52;`); the flag is printed as
+  information only.
+- **`set-clipboard on`, not the default `external`**: `external` lets tmux's own commands and key
+  bindings set the outer clipboard but ignores one written by a program running *inside* tmux, and a
+  coding agent is exactly such a program.
+
+### Apply and verify
+
+```bash
+bash scripts/install-tmux-conf.sh --check          # SSOT vs ~/.tmux.conf + load probe (report-only)
+bash scripts/install-tmux-conf.sh --push           # install; a foreign ~/.tmux.conf is a REFUSAL (+ --force, backup kept)
+bash scripts/install-tmux-conf.sh --reload         # install + source into the RUNNING server + read it back
+bash scripts/install-tmux-conf.sh --verify         # load probe + OSC 52 emission on the wire + live server
+```
+
+`--check` exits 0 on drift unless `--strict` (the `sync-skills.sh`/`sync-extensions.sh` contract: the
+gate owns the decision to fail), but an **ineffective** config fails in every mode — that is a defect,
+not a seat state. `--self-test` runs seven canaries (rest green, missing, drift, foreign-refusal +
+backup, **two inert-config arms that are byte-identical by construction**, the `Ms` removal, and
+`set-clipboard off`) and is wired into `validate-all.sh` item 29.
+
+End-to-end by hand, the way a person notices it: select text with the mouse in a tmux pane, then paste
+it on the machine you are sitting at. If nothing arrives, the seat's config is fine and the **outer
+terminal is refusing OSC 52** — `xterm` needs the `allowWindowOps: true` resource; VTE ≥ 0.60, kitty,
+wezterm, foot and alacritty accept by default. Nothing inside tmux can fix that leg, which is why it is
+the ⏳ tail of the row in [`../todo.md`](../todo.md) and not a bug in the script.
+
+**Not wired yet:** neither [`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) nor
+[`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) calls this installer, so a freshly
+bootstrapped seat still gets no `~/.tmux.conf` — the same gap HD-446 closed for extensions. Run it once
+per seat until that step lands.
 
 ## 6. KV-pool contention — the parallel-lane rule (read before running subagents)
 

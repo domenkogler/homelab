@@ -59,7 +59,10 @@ float with the VIP — premise measured green, the row carries the three gates a
 work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (only the
 re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — and HD-380's
 `gpu_top_mib` growth check are left, the gate-7 window accruing since 11:19Z; the gate-4/gate-5 legs closed inside the
-**spark** slot of the HD-489 tail lane, so do not open a second writer there).
+**spark** slot of the HD-489 tail lane, so do not open a second writer there) · **496** (the tmux seat harness: one
+owner act — mouse-drag text inside a tmux pane on oldsrv and paste it where you typed, which is the OSC 52 leg no in-repo
+probe can reach — plus one `--push` wired into `install-pi-debian.sh`; mechanism and traps in
+[docs/pi-harness.md](docs/pi-harness.md) §5b, do not edit `~/.tmux.conf` by hand).
 
 **Every DNS lane must obey this and no row can re-derive it** — it is in **HD-480's row**:
 480/481/482/483 are one lane with one writer on `technitium-seed.yml`, converging `dns-pi` **once**
