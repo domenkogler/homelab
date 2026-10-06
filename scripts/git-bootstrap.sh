@@ -19,7 +19,7 @@
 #
 # SSH auth + commit signing (HD-265, op CLI-only, no desktop app):
 #   if `--ssh-auth` (or OP_SSH_AUTH=1) is passed, this idempotently
-#   • requires a session that can READ the vault holding the keys — since HD-901 that is
+#   • requires a session that can READ the vault holding the keys — since HD-495 that is
 #     `Homelab-ansible`, so the Phase-0 read-scope Service Account token is enough and no
 #     interactive `op signin` is needed (it used to be the blocker: the keys sat in `Private`,
 #     which an SA cannot read, which is what made seat signing owner-gated),
@@ -61,10 +61,10 @@ if [ "${1:-}" = "--self-test" ]; then
   # signed in as the WRONG identity: answers fine, sees one vault that is NOT the target.
   # ⚠ Two ways this case goes vacuous; both were measured here, not reasoned about:
   #  1. The decoy may not be the target vault. It used to be `Homelab-ansible` while the target was
-  #     `Private`; HD-901 moved the target, so the fixture would then show the very vault it claims
+  #     `Private`; HD-495 moved the target, so the fixture would then show the very vault it claims
   #     is invisible. Verified: with the decoy set to the target, this case goes RED (rc 1).
   #  2. `run()` must NOT default OP_VAULT itself. It carried `${3:-Private}`, which pinned every
-  #     refusal case to the pre-HD-901 default — with that pin in place the SAME mutation stayed
+  #     refusal case to the pre-HD-495 default — with that pin in place the SAME mutation stayed
   #     GREEN, i.e. the harness was testing a default the script no longer has. It now passes
   #     `${3:-}` so the child resolves its own production default.
   mk wrongvault "  \"vault list\") echo 'ID                            NAME'
@@ -124,7 +124,7 @@ GITUSER="${GITUSER:-domenkogler}"
 GITEMAIL="${GITEMAIL:-domen@kogler.si}"
 MODE="${1:-}"
 
-# HD-265 SSH auth + signing (CLI-only, no desktop app). HD-901 (2026-10-06, owner): both
+# HD-265 SSH auth + signing (CLI-only, no desktop app). HD-495 (2026-10-06, owner): both
 # GitHub keys moved from the `Private` vault into `Homelab-ansible`, so the read-scope
 # Service Account token a Phase-0 runner already carries can pull them — a human `op signin`
 # is no longer part of this path on any Debian seat. `Private` still works as an override for a
@@ -176,9 +176,9 @@ else
   echo "==> On branch: $current"
 fi
 
-# --- SSH auth + commit signing (HD-265/HD-901): opt-in, idempotent, CLI-only ----
+# --- SSH auth + commit signing (HD-265/HD-495): opt-in, idempotent, CLI-only ----
 # Needs a session that can read $OP_VAULT. That is either the read-scope SA token (the normal
-# runner/seat case since HD-901) or a human sign-in — whichever can see the vault wins.
+# runner/seat case since HD-495) or a human sign-in — whichever can see the vault wins.
 # --- --self-test: the three refusal states, each bred by a fixture -------------
 # Why this exists rather than a prose note: the ORIGINAL failure was a message that described the
 # wrong state ("no human 1Password account configured" while `op account list` showed one, because

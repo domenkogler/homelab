@@ -604,7 +604,7 @@ Phase 4c step 8. It exists since 2026-09-28 and both directions work over the se
 key; it was never cloned through the runner's read-only HTTPS store, which is the thing the
 decision forbids.
 
-**The seat can author since 2026-10-06 (HD-901) — and here is what was actually in the way.**
+**The seat can author since 2026-10-06 (HD-495) — and here is what was actually in the way.**
 Measured 2026-09-28: `domen` had no global git config at all (no `user.name`/`user.email`, no
 `gpg.format=ssh`, no `user.signingkey`), and the blocker named at the time — the signing key sits in
 the `Private` vault, which a read-scope service account cannot read, so it needs a human `op signin`
@@ -629,7 +629,7 @@ autoload block covers the agent case for interactive shells (`/run/user/$UID/ope
 and the clone are ad-hoc state on a converged host — the same shape HD-445 complains about for the cockpit
 units — so a rebuild of oldsrv loses the seat's credential silently and only re-running
 `scripts/seed-seat-deploy-key.sh` restores it. Nothing in the converge proves it is there.
-HD-901 widened the same hole rather than closing it: `~/.gitconfig`, `~/.ssh/{github_signing,github_auth,allowed_signers}`
+HD-495 widened the same hole rather than closing it: `~/.gitconfig`, `~/.ssh/{github_signing,github_auth,allowed_signers}`
 and the three `~/.bashrc` Phase-0 blocks (token source, `SSH_AUTH_SOCK`, HD-300 autoload) are now also
 hand-planted host state, and a rebuild silently loses seat **signing**, not just push. The fix is
 IaC, not a runbook line: everything there is derivable from `Homelab-ansible`, so a converge can render
@@ -741,7 +741,7 @@ interactive control node and the laptop runner stays installed — the wording m
 proof, and the laptop is also the rescue door (it is dual-stack-blind, which cuts both ways).
 
 **Commit authorship does not move with the runner — as a policy, not a capability.** CONVENTIONS
-§6/HD-265 signs every commit with `github_signing`; since HD-901 that item sits in `Homelab-ansible`,
+§6/HD-265 signs every commit with `github_signing`; since HD-495 that item sits in `Homelab-ansible`,
 so a read-scope service account on ANY Debian host can pull it and a headless seat can sign with no
 agent in the loop. What still keeps authorship off a converge runner is the reason the rule was
 written — a tree that every converge executes must not also be a commit surface (HD-449), not a

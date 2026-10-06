@@ -133,9 +133,9 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   live timestamp (`git worktree add ../homelab-wt-YYYYMMDD-HHMM`). **Primary definition:** the primary
   checkout is a **merge station only** — all edits happen on a session branch inside a session worktree;
   main receives only fast-forward merges of committed, green results.
-- **Commit signing (HD-265/270/901):** every commit is signed (`commit.gpgsign=true`, `gpg.format=ssh`).
+- **Commit signing (HD-265/270/495):** every commit is signed (`commit.gpgsign=true`, `gpg.format=ssh`).
   The signing + auth halves are the `GitHub sign` / `GitHub auth` SSH_KEY items in the **`Homelab-ansible`**
-  vault — moved out of `Private` on 2026-10-06 (HD-901) precisely so a read-scope Service Account can pull
+  vault — moved out of `Private` on 2026-10-06 (HD-495) precisely so a read-scope Service Account can pull
   them: on any Debian seat that means **no human `op signin` and no desktop app**, which is what used to
   make seat signing owner-gated. `user.signingkey` carries the **key-file path** when the key is
   passphrase-free — that form signs with no agent at all, so pi, cron and converge shells work; the

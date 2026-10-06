@@ -198,7 +198,7 @@ echo "      The key generated above is THROWAWAY. The managed hosts authorize th
 echo "      vault-canonical ansible-admin_ssh key — that is the one to pull."
 echo "   2. To make this machine AUTHOR commits, run:"
 echo "        bash scripts/git-bootstrap.sh --ssh-auth"
-echo "      HD-265 signs every commit with github_signing; since HD-901 that item lives in"
+echo "      HD-265 signs every commit with github_signing; since HD-495 that item lives in"
 echo "      Homelab-ansible, so the read-scope SA token installed above is enough - no op"
 echo "      sign-in, no desktop app. Converge-only hosts may skip it entirely"
 echo "      (docs/deployment-ansible.md - Runner placement)."

@@ -33,6 +33,20 @@ set -u
 SRC_REPO="$(cd "$(dirname "$0")/.." && pwd)"
 DEFAULT_FILES="todo.md"
 GIT_SCAN=1  # also scan `git log -S 'HD-'` for closed rows (widest superset)
+# RESERVED ids — HD tokens that are TOOL FIXTURE TEXT or a documented mis-mint, not backlog ids.
+# This exists because the tree scan is deliberately wide, and a wide scan reads a tool's own
+# canary as evidence: `check_todo_done.py` writes literal `HD-900` / `HD-900z` rows into a
+# throwaway copy of todo.md to breed a duplicate-id collision (its self-test, lines around the
+# `canary parent` fixture). Measured 2026-10-06: max came out 900 and this script handed out
+# **HD-901** while the real top of the registry was HD-494 — a 400-number jump, into an id no row
+# ever held. The renamed-to-HD-495 work is that session; 901 is reserved too so no later run
+# re-mints the same phantom out of the two commit messages that still name it.
+# Keep this list in sync with the canary comment in scripts/check_todo_done.py; env-overridable
+# so a test can prove the filter is load-bearing (`RESERVED_IDS='' bash scripts/next-hd.sh --max`
+# → the 900 comes back). Note the `${VAR-default}`, NOT `${VAR:-default}`: an explicitly empty
+# value must mean "no filtering", which `:-` cannot express — it silently re-applies the default
+# and turns the mutation test into a pass that proves nothing (measured on first try here).
+RESERVED_IDS="${RESERVED_IDS-900 901}"
 # Did the CALLER restrict the scan set? Test BEFORE defaulting FILES, or the default assignment
 # below makes every run look "restricted" and silently disables the tree scan — which is exactly how
 # this patch failed its first test run (it printed 451, the very collision it was written to catch).
@@ -75,6 +89,10 @@ extract_ids() {
     # CI/debug scoping and must keep meaning "exactly these files".
     [ "${FILES_RESTRICTED:-0}" = "0" ] && scan_tree
   } | grep -oE '[0-9]+' |
+    # drop reserved ids (fixture text / mis-mints) before the max is taken — see RESERVED_IDS above.
+    # awk, not `grep -f <(...)`: an empty RESERVED_IDS must be a PASS-THROUGH, and an empty pattern
+    # file would instead delete every candidate and make the script fail as though no HD existed.
+    awk -v reserved="${RESERVED_IDS}" 'BEGIN{split(reserved,a," ");for(i in a)skip[a[i]+0]=1} !skip[$1+0]' |
     sort -n | uniq   # numerically sorted, deduped; empty-safe
 }
 

@@ -132,6 +132,12 @@ _STEM_RE = re.compile(r"^(\d+)([A-Za-z]*)$")
 # That is why the self-test breeds one (HD-900 + HD-900z) instead of trusting the registry: an
 # exemption path with no live case is exactly the untested branch that rots. Adding a stem here
 # REQUIRES its reason in the comment next to it.
+#
+# ⚠ `HD-900` is TOOL FIXTURE TEXT, never a backlog id, and it must therefore stay listed in
+# `RESERVED_IDS` in scripts/next-hd.sh: that script scans the whole tracked tree on purpose, so it
+# reads these fixture rows as evidence. Measured 2026-10-06 — it reported max 900 and minted HD-901
+# for real work while the registry top was HD-494. This file's own MINT line is immune (it reads
+# todo.md rows only), which is why the two tools disagreed and nothing downstream noticed.
 SUBTASK_PAIRS: frozenset[str] = frozenset()
 
 

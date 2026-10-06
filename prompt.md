@@ -15,7 +15,7 @@
 WSL Debian primary, ext4 (the repo runs from the WSL Debian primary, not Windows). `python3`/bash/LF/UTF-8 no-BOM.
 Secrets → 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders. Multi-line bash heredocs with
 backslashes/backticks get mangled through `bash -c` — write script bodies to a temp file and run them.
-**Signed-commit gotcha:** keys `~/.ssh/github_signing` / `github_auth`, both in `Homelab-ansible` (HD-901), so
+**Signed-commit gotcha:** keys `~/.ssh/github_signing` / `github_auth`, both in `Homelab-ansible` (HD-495), so
 `git-bootstrap.sh --ssh-auth` needs no `op signin`. On the **oldsrv seat** `user.signingkey` is the key FILE, not
 `key::<pub>` — the `key::` form needs `SSH_AUTH_SOCK` and fails `Couldn't get agent socket?` in a non-interactive
 shell, which is how an agent runs here. `Couldn't find key in agent` on a `key::` config →
@@ -45,7 +45,7 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 7. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed.
 8. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
    442–446 block **445**/**446** closed 2026-10-05 with the seat lane, **442**/**443** keep owner-gated tails).
-   **901** joins this cluster: the oldsrv seat now reads `Homelab-ansible` and signs its own commits
+   **495** joins this cluster: the oldsrv seat now reads `Homelab-ansible` and signs its own commits
    agent-free; left is role-owning the seat's git plumbing (a rebuild still loses signing silently) and
    finishing its venv (no ansible → the playbook syntax gate is skipped on that box).
 9. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
