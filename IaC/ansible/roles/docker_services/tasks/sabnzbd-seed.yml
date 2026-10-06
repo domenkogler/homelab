@@ -77,6 +77,31 @@
     _sab_wl_missing: "{{ _sab_wl_want | difference(_sab_wl_have) }}"
   tags: [docker_services, sabnzbd_seed]
 
+# --check first: reading drift does not need SAB stopped, and stopping a working downloader on a
+# hunch is not how this file behaves. The script prints CHANGED / "OK already" for both options.
+# Rendered then run — the same shape as the LiteLLM bootstrap glue (deploy-service.yml), because
+# `script:` needs a real file on the controller and this helper is templated with the wanted paths.
+- name: "sabnzbd-seed: render the folder helper"
+  ansible.builtin.template:
+    src: sabnzbd-folders.py.j2      # role templates/ dir
+    dest: /usr/local/sbin/sabnzbd-folders.py
+    mode: '0700'
+  changed_when: false
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: check the completed/temporary folder drift (no write, no restart)"
+  ansible.builtin.command:
+    cmd: /usr/local/sbin/sabnzbd-folders.py {{ sabnzbd_ini_host_path }} --check
+  register: _sab_folders_check
+  changed_when: false
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: is a folder change needed?"
+  ansible.builtin.set_fact:
+    _sab_folders_drift: "{{ 'CHANGED' in _sab_folders_check.stdout | default('') }}"
+    _sab_folders_need: "{{ _sab_folders_check.stdout | default('') }}"
+  tags: [docker_services, sabnzbd_seed]
+
 # SAB rewrites sabnzbd.ini when it exits cleanly, so an edit made while it runs is silently undone at
 # the next stop → stop, edit, start. And the edit MUST go through the HOST PATH, not `docker exec`:
 # exec needs a RUNNING container, so a stop-then-exec seed fails at the edit task and leaves the
@@ -85,8 +110,8 @@
 # The play runs become:true and lineinfile preserves the file's uid/gid + 0600, so root edits it in
 # place without taking ownership away from the `media` owner the container writes as.
 # `always:` restarts even if the edit blows up, so a failed seed cannot strand the downloader.
-- name: "sabnzbd-seed: apply the whitelist (stop → edit on the host path → start)"
-  when: _sab_wl_missing | length > 0
+- name: "sabnzbd-seed: apply the ini drift (stop → edit on the host path → start)"
+  when: ( _sab_wl_missing | length > 0 ) or ( _sab_folders_drift | bool )
   block:
     - name: "sabnzbd-seed: stop SABnzbd"
       ansible.builtin.command:
@@ -98,13 +123,23 @@
         path: "{{ sabnzbd_ini_host_path }}"
         regexp: '^host_whitelist\s*='
         line: "host_whitelist = {{ (_sab_wl_have + _sab_wl_missing) | unique | join(', ') }}"
+      when: _sab_wl_missing | length > 0
+
+    # Section-safe on purpose: a lineinfile on '^dir *=' would also match every CATEGORY's `dir = ""`
+    # line and point five categories at the same folder. The helper only edits [misc].
+    - name: "sabnzbd-seed: set the completed + temporary folders in [misc]"
+      ansible.builtin.command:
+        cmd: /usr/local/sbin/sabnzbd-folders.py {{ sabnzbd_ini_host_path }}
+      register: _sab_folders_apply
+      changed_when: "'CHANGED' in _sab_folders_apply.stdout | default('')"
+      when: _sab_folders_drift | bool
   always:
     - name: "sabnzbd-seed: start SABnzbd (always — a failed edit must not strand the downloader)"
       ansible.builtin.command:
         cmd: docker start {{ sabnzbd_container_name }}
       changed_when: false
       failed_when: false
-      when: _sab_wl_missing | length > 0
+      when: ( _sab_wl_missing | length > 0 ) or ( _sab_folders_drift | bool )
   tags: [docker_services, sabnzbd_seed]
 
 - name: "sabnzbd-seed: prove the edge name is now accepted (Host probe, no credentials)"
@@ -126,5 +161,7 @@
     msg: >-
       host_whitelist {{ 'unchanged (all of ' ~ _sab_wl_want | join(', ') ~ ' already present)'
                        if _sab_wl_missing | length == 0
-                       else 'extended with ' ~ _sab_wl_missing | join(', ') ~ ' — SABnzbd restarted once' }}
+                       else 'extended with ' ~ _sab_wl_missing | join(', ') }}
+      · folders {{ 'unchanged' if not ( _sab_folders_drift | bool ) else ( _sab_folders_apply.stdout | default('') ) }}
+      · {{ 'no restart needed' if ( _sab_wl_missing | length == 0 and not ( _sab_folders_drift | bool ) ) else 'SABnzbd restarted once' }}
   tags: [docker_services, sabnzbd_seed]

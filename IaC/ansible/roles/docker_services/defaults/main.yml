@@ -164,6 +164,14 @@ arr_seed_apps:
 # `sabnzbd`) — measured 2026-10-06, the blocker behind "SAB answers 403 to everything".
 # The seed writes the UNION of what is in the ini and this list, so the image's own entry survives.
 sabnzbd_container_name: sabnzbd
+# Completed/temporary folders inside the container. SAB's own UI cannot set these (its "Default Base
+# Folder" is `/config`, derived from `--config-file /config`, and the picker browses only inside it),
+# so the ini is the door — see templates/sabnzbd-folders.py.j2. Keys are ini option names in [misc]:
+# `dir` = completed, `temp_dir` = incomplete. Both live on the NAS share so the *arrs can import them
+# and TRaSH hardlinking stays possible.
+sabnzbd_folder_ini:
+  dir: /downloads/complete
+  temp_dir: /downloads/incomplete
 # The ini on the HOST path (the compose binds it at /config). The seed edits it there while the
 # container is stopped — `docker exec` needs a running container, so the host path is the only door.
 sabnzbd_ini_host_path: /srv/docker/{{ sabnzbd_container_name }}/config/sabnzbd.ini

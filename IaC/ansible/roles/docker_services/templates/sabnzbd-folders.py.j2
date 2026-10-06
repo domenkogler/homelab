@@ -1,0 +1,68 @@
+#!/usr/bin/env python3
+"""sabnzbd-folders.py — set SABnzbd's [misc] dir + temp_dir, section-safely (HD-496).
+
+Rendered from sabnzbd-folders.py.j2 by the docker_services role and run with
+`ansible.builtin.script` (the play runs become:true, so it can write the 0600 ini; the file's
+uid/gid + mode survive because this rewrites it in place and never chowns).
+
+LINE-BASED ON PURPOSE. configparser would re-serialise the whole file, and SABnzbd's ini carries
+name-keyed subsections — `[[news.eweka.nl]]`, `[[movies]]`, `[[tv]]`, `[[audio]]`, `[[*]]` — which a
+generic parser flattens into the wrong shape. A naive `lineinfile` is ALSO wrong here: `^dir *=`
+matches every category's `dir = ""` line, so it would rewrite all five category dirs to the same
+absolute path. Only lines inside `[misc]` are ever touched, and only the first of each.
+
+Why these two lines are worth owning in IaC (measured 2026-10-06): SAB's UI "Default Base Folder" is
+`/config` and cannot be changed — it is derived from `--config-file /config`, which the container
+command passes — and the folder picker under it browses only inside that base. Left alone, SAB keeps
+writing completed downloads to `/config/Downloads/complete` = `/srv/docker/sabnzbd/config` on the
+LOCAL disk, where the *arrs cannot see them (they mount the NAS share at `/downloads`) and where the
+hardlink import is impossible anyway: downloads + media are one NFS mount, `/srv/docker` is ext4.
+Absolute paths in the ini are the supported way to point outside the base folder.
+"""
+import sys
+
+INIFILE = sys.argv[1]
+CHECK = "--check" in sys.argv[2:]  # report drift without writing (the seed needs this to decide
+                                   # whether it is allowed to stop SABnzbd at all)
+WANT = {{ sabnzbd_folder_ini | to_json }}
+
+with open(INIFILE, encoding="utf-8", errors="surrogateescape") as fh:
+    lines = fh.read().split("\n")
+
+out, in_misc, done = [], False, {key: False for key in WANT}
+for line in lines:
+    if line.startswith("["):
+        # Leaving [misc]: append anything that had no line of its own.
+        if in_misc:
+            for key, value in WANT.items():
+                if not done[key]:
+                    out.append("%s = %s" % (key, value))
+                    done[key] = True
+        in_misc = (line.strip() == "[misc]")
+        out.append(line)
+        continue
+    if in_misc and "=" in line and line.split("=")[0].strip() in WANT:
+        key = line.split("=")[0].strip()
+        if not done[key]:
+            out.append("%s = %s" % (key, WANT[key]))
+            done[key] = True
+            continue
+        # A second line for the same option inside [misc] would be a malformed file; keep it and
+        # let SAB decide rather than inventing a second value.
+    out.append(line)
+
+# [misc] was the last section in the file (never happens today, but the loop above only appends on
+# section boundaries).
+if in_misc:
+    for key, value in WANT.items():
+        if not done[key]:
+            out.append("%s = %s" % (key, value))
+            done[key] = True
+
+if out != lines:
+    if not CHECK:
+        with open(INIFILE, "w", encoding="utf-8", errors="surrogateescape") as fh:
+            fh.write("\n".join(out))
+    print("CHANGED %s" % {k: WANT[k] for k in WANT})
+else:
+    print("OK already: %s" % {k: WANT[k] for k in WANT})
