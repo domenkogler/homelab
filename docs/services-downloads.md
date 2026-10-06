@@ -115,6 +115,33 @@ categories exist but every one has an empty `dir`, and there is an **`audio`** c
 stack's layout says `music`, so Lidarr's client category must either be pointed at `audio` or a `music`
 category added. · [services-media.md](services-media.md) §Request → import wiring · [subscriptions.yml](../IaC/ansible/group_vars/subscriptions.yml)
 
+### Which half of Prowlarr to trust: indexers synced, download clients per-arr (HD-496, 2026-10-06)
+
+Asked directly: *should we drop Prowlarr and register indexers in each arr instead?* No — measured, the
+half that works is the half worth centralising:
+
+| Measured on the three arrs | Result |
+| --- | --- |
+| Indexers | `NZBgeek (Prowlarr)` present in Sonarr, Radarr **and** Lidarr — sync is healthy |
+| Download clients | `[]` in all three — nothing wired, because Prowlarr's SAB form will not save |
+
+So the fault is one form in one component, not the model. Splitting by function costs little and keeps
+the working half intact:
+
+- **Indexers stay in Prowlarr** — one list, one credential, one place where an indexer's tags/penalties
+  and app-profile reach all three arrs. Registering per-arr means editing NZBGeek three times forever
+  and losing the flag that Gate 4 of HD-496 checks ("is this indexer Prowlarr-managed?").
+- **Download clients are added directly in each arr** while SAB 5 / Prowlarr disagree: Radarr → Category
+  `movies`, Sonarr → `tv`, Lidarr → `music` (SAB ships `audio`; add a `music` category or point Lidarr at
+  `audio`). Each arr's own form validates differently and accepts these.
+- ⚠ **Then do not add a download client in Prowlarr at all.** Adding one there and keeping the arr-side
+  entries yields *two* SAB clients per arr, and the arrs round-robin grabs across enabled clients —
+  the failure mode is downloads landing in the wrong folder at random, which is a miserable thing to
+  debug six weeks from now.
+- Cost, stated plainly: SAB's host/port/API key now live in **three** configs instead of one, so an API
+  key rotation is three edits. Revisit by pulling a Prowlarr build that speaks `get_cats`; if it saves
+  with a category, delete the three arr-side clients **first**, then sync from Prowlarr.
+
 ### SABnzbd 5 moved its categories endpoint; Prowlarr 2.5.2 still asks the old way (HD-496, 2026-10-06)
 
 Prowlarr → Download Clients → SABnzbd refuses to save: **"Category does not exist"**, for *every* value
