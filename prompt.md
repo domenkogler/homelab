@@ -47,10 +47,13 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 7. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed.
 8. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
    the 442–444 block, whose rows keep owner-gated tails).
-   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently) and finish
-   its venv (no ansible → the playbook syntax gate is skipped on that box).
+   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently). The seat's
+   **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
+   playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself.
 9. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
-   window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
+   window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word ·
+   the **laptop seats** still need one `bash scripts/sync-extensions.sh --push` (footer seat identity lands on the
+   cockpit only; nothing on oldsrv can reach the laptop to check — [pi-harness.md](docs/pi-harness.md) §5a).
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
 [todo-table.md](todo-table.md) §B): 360 · 103 · 238 · 421 · 459 · 461 · 448 · **472** · **477** (make the resolver actually

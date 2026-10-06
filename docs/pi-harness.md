@@ -27,7 +27,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 | `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Was: "this doc is the reference copy" (HD-388 closed that). Rendered on **two** machines as of 2026-09-23: the laptop, and oldsrv's cockpit account `domen` (HD-409) — so the harness is no longer "admin workstation only", and the second machine got its contract from `--out` + scp rather than a copied file |
 | `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`) was the last hand-kept credential file on the client; proven byte-identical to the render 2026-09-23 |
 | `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`, HD-409) | this doc is the reference copy (§5) — deliberately NOT rendered: theme/packages/`lastChangelogVersion` are machine-local, and `models-spec.yml` says so out loud. The seat got its block written from §5 on 2026-10-01 (HD-484), preserving the installer's `packages` key |
-| `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by [`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) | git (repo → `~/.pi/agent`) |
+| `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/sync-skills.sh`](../scripts/sync-skills.sh), `extensions/` via [`../scripts/sync-extensions.sh`](../scripts/sync-extensions.sh) (HD-254 family; the Debian seat had **no** extension step at all until 2026-10-06, so it carried whatever was hand-placed) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
 | spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT, HD-374) |
 
 - The harness talks **directly to the spark edge** (`llm.kogler.si`, HD-370), not through LiteLLM. That
@@ -334,6 +334,30 @@ carried no `theme` key at all, see the note above). The host-side bootstrap that
 Node tarball + the pinned pi for a bare Debian seat and reads its pins from
 `IaC/ansible/group_vars/all/versions.yml` — the same `pi_host_*` pins that keep the two seats from
 drifting again (§9: the seat trailing the laptop is the failure this pair exists to prevent).
+
+## 5a. Seat identity — which box the footer names (2026-10-06)
+
+Three seats run this harness (Win11, WSL Debian, the oldsrv cockpit) and **pi has no setting for footer
+content** — `settings.md` §Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else,
+and the default footer shows folder / model / context / cost. So "which machine am I typing to" is only
+answerable from an extension, and this section is the only place that fact is written down.
+
+- **The extension:** [`../pi-agent/extensions/host-status.ts`](../pi-agent/extensions/host-status.ts)
+  calls `ctx.ui.setStatus("host", …)` on `session_start` — `session_start` is what fires after `/new` and
+  a session switch, which is where the footer gets rebuilt. **`setStatus` and not `setFooter`** on
+  purpose: `setFooter` replaces pi's line, and this file would then own the token/cost/context math
+  forever (pi's own `examples/extensions/custom-footer.ts` demonstrates that debt).
+- **Deploy direction:** repo `pi-agent/extensions/` is SSOT → `bash scripts/sync-extensions.sh --push`.
+  Both installers call it now, and `validate-all.sh` item 27 drift-gates it. A **deployed-only**
+  extension (`remote-bash.ts` on the Windows host — `sshpass.exe`, drive-letter paths) is deliberately
+  NOT drift: it is reported `LOCAL`, never deleted, never imported.
+- **Proven, not assumed:** with the file in `~/.pi/agent/extensions/`, `pi --mode rpc` with an empty
+  stdin emits
+  `{"type":"extension_ui_request","method":"setStatus","statusKey":"host","statusText":"@ oldsrv"}`.
+- ⏳ **The WSL seat has not been synced from the repo yet** (another machine; no oldsrv→laptop leg, so
+  nothing here can check it). One command there: `bash scripts/sync-extensions.sh --push` — after which
+  its footer reads its own `hostname()`, which is the same token the model spec uses as its `hosts:`
+  label (`docs/hardware-workstation.md` §Leg 1), so the footer names the leg rather than a nickname.
 
 ## 6. KV-pool contention — the parallel-lane rule (read before running subagents)
 
