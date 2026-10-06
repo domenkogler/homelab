@@ -59,6 +59,36 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
 - **Hardlink import** into `media/` is performed by Sonarr/Radarr/Lidarr in the media stack; downloads
   dir is transient scratch and pruned after import.
 
+### SABnzbd's own door: `host_whitelist` (HD-496, 2026-10-06)
+
+SABnzbd runs a DNS-rebinding guard of its own, in front of Authentik and in front of its API key: the
+incoming `Host:` must appear in `host_whitelist` or it answers **403 "Access denied - Hostname
+verification failed"**. A fresh install whitelists **one** name — the container's short id — so on this
+host both doors were shut, and each presented as somebody else's fault:
+
+* the UI (`sab.kogler.si`) shows the hostname-check page — Traefik forwards the original Host, and that
+  name is not in the list, so **Authentik never gets a chance to be the answer**; and
+* a **Prowlarr download client pointed at `sabnzbd:8080` can never be saved** (Prowlarr sends
+  `Host: sabnzbd`) — which reads as a bad API key and sent one debugging session re-pasting keys.
+
+Separating the two walls takes one credential-free probe from the host against the container:
+`Host: 127.0.0.1:8080` → `200 {"version":"5.1.1"}` (guard satisfied, so anything after that IS auth),
+while `Host: sab.kogler.si` / `Host: sabnzbd` → the hostname-check text.
+
+**Seeded by `roles/docker_services/tasks/sabnzbd-seed.yml`** (`--tags sabnzbd_seed`), because there is no
+lighter door: the linuxserver image translates no `SABNZBD__*` env (no `/etc/cont-init.d`, nothing
+greppable in `/app`), and SABnzbd has **no config-write API** — `GET /api?mode=config&name=…` answers
+`{"status":false,"error":"not implemented"}`. So the seed unions the wanted names into the ini between
+`docker stop` and `docker start` — the ordering matters, SABnzbd rewrites `sabnzbd.ini` on a clean exit,
+so an edit made while it runs is silently undone — and the write keeps whatever was already there. It
+reads the ini **as `storage_uid`**: the file is `0600 media:media` and the container runs `cap_drop: ALL`
+without `DAC_OVERRIDE`, so even `-u root` is refused.
+
+Two things this does NOT fix, both found in the same sweep and both on the download path:
+the instance had **0 `[[servers]]`** (no Usenet provider at all — that is Eweka.nl,
+[`subscriptions.yml`](../IaC/ansible/group_vars/subscriptions.yml)) and **0 `[[categories]]`**, so even
+with the door open nothing lands in `downloads/complete/<cat>`. · [services-media.md](services-media.md) §Request → import wiring
+
 ## Related
 - [Media stack](services-media.md) — the *arr pipeline + storage layout this feeds
 - [Store](storage.md) — ZFS layout, `bulk/media` dataset

@@ -157,6 +157,17 @@ arr_seed_apps:
       name: Music
       defaultMetadataProfileId: 1             # "Standard" — the live value, not an invention
 
+# ---- SABnzbd hostname whitelist (HD-496) — what tasks/sabnzbd-seed.yml reconciles ----
+# SABnzbd rejects any `Host:` it does not recognise with 403 "Access denied - Hostname verification
+# failed". The shipped value holds only the container's short id, so BOTH doors into it were closed:
+# the UI behind Traefik (which forwards `sab.kogler.si`) and Prowlarr's client (which sends
+# `sabnzbd`) — measured 2026-10-06, the blocker behind "SAB answers 403 to everything".
+# The seed writes the UNION of what is in the ini and this list, so the image's own entry survives.
+sabnzbd_container_name: sabnzbd
+sabnzbd_host_whitelist:
+  - sabnzbd                      # the overlay name Prowlarr / any container-side consumer sends
+  - "sab.{{ domain_public }}"    # the edge name Traefik passes through as Host
+
 # ---- HD-258: bulk 1Password pre-pass item sets (per-template map) ----
 # The compose/config templates reference `vault: {name: {field}}` items which
 # fetch-vault-pass.yml + scripts/op-vault-export.py fetch ONCE per item (one op

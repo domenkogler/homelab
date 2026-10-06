@@ -302,6 +302,26 @@
     loop_var: svc_entry
   tags: [docker_services, arr_seed]
 
+# HD-496: SABnzbd's DNS-rebinding guard refuses every Host this stack uses (the shipped whitelist holds
+# only the container id), so the UI shows "Hostname verification failed" and a Prowlarr download client
+# pointed at sabnzbd:8080 can never be saved. No env translation in the image, no config API — the ini
+# is the only automatable door. Restart only on drift; autopsy in tasks/sabnzbd-seed.yml.
+- name: "Seed the SABnzbd host whitelist (HD-496)"
+  ansible.builtin.include_tasks:
+    file: sabnzbd-seed.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') == 'sabnzbd'
+    - scope_is_all or svc_entry.name in scope_list
+    - not ansible_check_mode
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, sabnzbd_seed]
+
 # DNS self-heal (2026-09-15): the seed tail above ONLY runs when a converge's deploy loop
 # includes a technitium instance — a deploy-SCOPED converge (docker_services_scope=<svc>)
 # silently skips it (live llogs gap: Pi zone lacked the record -> ERR_NAME_NOT_RESOLVED).

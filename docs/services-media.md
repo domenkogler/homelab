@@ -17,6 +17,11 @@ tags: [services, media, arr, photos, streaming]
 > VPS; the **music library** lives on the Hetzner Storage Box.
 > ⏳ **Open:** immich's whole-collection ML import (a separate task), and Tube Archivist, which is
 > **disabled** until its Elasticsearch `path.repo` problem is fixed (§Music Pillar).
+> ⚠ **Found 2026-10-06 while wiring the download leg: SABnzbd was unreachable by anything in this
+> stack** — its `host_whitelist` shipped with only the container id, so the UI answered "Hostname
+> verification failed" and a Prowlarr client at `sabnzbd:8080` could not be saved. Seeded by
+> `tasks/sabnzbd-seed.yml`; the why-and-why-not-env autopsy is in
+> [services-downloads.md](services-downloads.md) §SABnzbd's own door.
 > ⏳ **Prowlarr holds 0 indexers and 0 synced apps (measured 2026-10-06), so no request can be
 > searched end-to-end** — the request half of this stack is live (§Request → import wiring) and the
 > acquisition half is not. · [todo.md](../todo.md) HD-496
@@ -113,7 +118,7 @@ Jellyfin's box. Verified from inside the containers, not from the docs:
 | From → To | Address the form needs | Measured |
 |---|---|---|
 | Seerr/SeerrNG → Sonarr / Radarr / Lidarr | `sonarr:8989` · `radarr:7878` · `lidarr:8686` | 302 / 302 / 200 (`/`), API 200 with the key |
-| Prowlarr → SABnzbd | `sabnzbd:8080` | 403 without the SAB API key (reachable) |
+| **Prowlarr → SABnzbd** | `sabnzbd:8080` | **403 — but NOT the API key**: SAB's own DNS-rebinding guard refuses `Host: sabnzbd`. Re-measured 2026-10-06 against the container without any credential, which separates the two walls: `Host: sab.kogler.si` and `Host: sabnzbd` → *"Access denied - Hostname verification failed"*, while `Host: 127.0.0.1:8080` / the container IP → `200 {"version":"5.1.1"}`. **Fixed by `tasks/sabnzbd-seed.yml`** (the shipped whitelist holds only the container id); a client still unsavable after that IS an API-key problem. |
 | **Prowlarr → qBittorrent** | **`gluetun:8080`** — qBittorrent is `network_mode: service:gluetun`, so it owns no netns and **`qbittorrent:8080` does not connect** (`code=000`) | `gluetun:8080` → 200 |
 
 **The three values every *arr form needs, and where each is true:**

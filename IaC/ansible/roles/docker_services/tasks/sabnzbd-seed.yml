@@ -1,0 +1,126 @@
+---
+# sabnzbd-seed.yml — keep SABnzbd's `host_whitelist` big enough to be reached (HD-496)
+# Included ONCE from docker_services/main.yml, gated on `template_dir == 'sabnzbd'` + the deploy
+# scope + `not ansible_check_mode` (it drives the live container; deployment-ansible.md §Dry-run).
+#
+# WHY THIS EXISTS (measured on oldsrv 2026-10-06, it was blocking the whole indexer lane):
+#   SABnzbd runs its own DNS-rebinding guard: it compares the incoming `Host:` header against
+#   `host_whitelist` and answers **403 "Access denied - Hostname verification failed"** to anything
+#   it does not recognise. The shipped value carries ONE entry — the container's own short id — so
+#   every name this stack actually uses is refused. Probed from the host against the container, all
+#   four without an API key so the failure is unambiguous:
+#
+#     Host: 127.0.0.1:8080   → {"version":"5.1.1"}        (passes — SAB's own loopback default)
+#     Host: <container-ip>   → {"version":"5.1.1"}        (passes)
+#     Host: sab.kogler.si    → hostname-check FAIL        (Traefik preserves the original Host)
+#     Host: sabnzbd          → hostname-check FAIL        (Prowlarr's overlay call → 403 forever)
+#
+#   Consequences that read as somebody else's bug: the UI at `sab.kogler.si` shows the hostname-check
+#   page no matter what Authentik does, and a Prowlarr download client pointed at `sabnzbd:8080`
+#   cannot be saved no matter how many times the API key is re-pasted. Both walls are this one value.
+#
+# WHY A FILE SEED AND NOT COMPOSE ENV: the linuxserver image ships no `SABNZBD__*` translation
+# (no `/etc/cont-init.d`, and `grep -rl 'SABNZBD__' /app /usr/bin /etc/cont-init.d` → nothing), so
+# env is not a lever here. And SABnzbd exposes NO config-write API — `GET /api?mode=config&name=…`
+# answers `{"status":false,"error":"not implemented"}` — so the UI (which is itself behind the very
+# wall this seeds) is the only other door. Editing the ini is therefore the only automatable path,
+# per CONVENTIONS/README "if the AI can do it, it belongs in IaC".
+#
+# Safety: the write is the UNION of what is there and what we need — the container-id entry the
+# image wrote is never dropped, and neither is anything an owner added by hand. SABnzbd rewrites
+# sabnzbd.ini on a clean exit, so the edit happens between stop and start, and a run that needs no
+# change restarts nothing.
+
+- name: "sabnzbd-seed: assert the inputs"
+  ansible.builtin.assert:
+    that:
+      - sabnzbd_host_whitelist | length > 0
+      - sabnzbd_container_name | trim | length > 0
+    fail_msg: >-
+      sabnzbd_host_whitelist / sabnzbd_container_name are empty
+      (roles/docker_services/defaults/main.yml). An empty list would leave SAB answering
+      403 to the edge and to Prowlarr, which is the bug this file seeds.
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: read the current host_whitelist"
+  # The ini is 0600 media:media and the container has no DAC_OVERRIDE, so even `-u root` gets
+  # Permission denied — read it AS ITS OWNER (storage_uid), which is the only working uid here.
+  ansible.builtin.shell:
+    cmd: >-
+      docker exec -u {{ storage_uid }} {{ sabnzbd_container_name }}
+      sh -c 'grep -m1 "^host_whitelist" /config/sabnzbd.ini | cut -d= -f2-'
+    executable: /bin/bash
+  register: _sab_wl
+  changed_when: false
+  failed_when:
+    - _sab_wl.rc != 0
+    - "'no such container' not in _sab_wl.stderr | default('')"
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: fail when the container is not up"
+  ansible.builtin.assert:
+    that:
+      - _sab_wl.rc == 0
+    fail_msg: >-
+      `docker exec {{ sabnzbd_container_name }}` failed ({{ _sab_wl.stderr | default('') | trim }}).
+      The container must exist before its whitelist can be seeded — fix the stack first.
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: compute current vs wanted (union — never drop an existing entry)"
+  ansible.builtin.set_fact:
+    _sab_wl_have: "{{ _sab_wl.stdout | default('') | split(',') | map('trim') | select() | list }}"
+    _sab_wl_want: "{{ sabnzbd_host_whitelist | map('trim') | select() | list }}"
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: is a change needed?"
+  ansible.builtin.set_fact:
+    _sab_wl_missing: "{{ _sab_wl_want | difference(_sab_wl_have) }}"
+  tags: [docker_services, sabnzbd_seed]
+
+# SAB rewrites sabnzbd.ini when it exits cleanly, so an edit made while it runs is silently undone
+# at the next stop. Stop → write → start is the only ordering that survives.
+- name: "sabnzbd-seed: stop SABnzbd"
+  ansible.builtin.command:
+    cmd: docker stop {{ sabnzbd_container_name }}
+  when: _sab_wl_missing | length > 0
+  changed_when: true
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: write the union into host_whitelist"
+  ansible.builtin.shell:
+    cmd: >-
+      docker exec -u {{ storage_uid }} {{ sabnzbd_container_name }}
+      sh -c 'sed -i "s/^host_whitelist[ \t]*=.*/host_whitelist = {{ (_sab_wl_have + _sab_wl_missing) | unique | join(", ") }}/" /config/sabnzbd.ini'
+    executable: /bin/bash
+  when: _sab_wl_missing | length > 0
+  changed_when: true
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: start SABnzbd"
+  ansible.builtin.command:
+    cmd: docker start {{ sabnzbd_container_name }}
+  when: _sab_wl_missing | length > 0
+  changed_when: true
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: prove the edge name is now accepted (Host probe, no credentials)"
+  # 403 that still says "Hostname verification failed" = the seed did not take. Anything else
+  # (401 / an API error / a login page) means the guard is satisfied and the next wall is auth,
+  # which is a different problem with a different owner.
+  ansible.builtin.shell:
+    cmd: >-
+      docker exec {{ sabnzbd_container_name }} sh -c
+      'curl -s -m 6 -H "Host: sab.{{ domain_public }}" http://127.0.0.1:8080/ 2>&1 | head -c 120'
+    executable: /bin/bash
+  register: _sab_probe
+  changed_when: false
+  failed_when: "'Hostname verification failed' in _sab_probe.stdout | default('')"
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: record what it took"
+  ansible.builtin.debug:
+    msg: >-
+      host_whitelist {{ 'unchanged (all of ' ~ _sab_wl_want | join(', ') ~ ' already present)'
+                       if _sab_wl_missing | length == 0
+                       else 'extended with ' ~ _sab_wl_missing | join(', ') ~ ' — SABnzbd restarted once' }}
+  tags: [docker_services, sabnzbd_seed]
