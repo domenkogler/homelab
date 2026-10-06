@@ -134,3 +134,16 @@ After this report's final 09:20Z health PASS, the watchdog CRIT-ENFORCED an engi
 (the live-session burst above; engine self-healed, healthy since 09:52Z, restarts=0, argv unchanged `fast`
 20 GB/8). Every claim in Steps 1–4 stands; the only addition is that the governor fired once under the
 owner's morning session and the box came back on its own.
+
+## B7 — CLOSED (2026-10-06, owner instruction: "close B7 now, it was long enough yesterday")
+
+gate 4 conc 2 = PASS (raw/b7-conc2.log). The "working day of watchdog usable" calendar item is closed by
+owner decision with the following recorded evidence:
+- watchdogs samples (Oct 2-6, epoch-verified): every rest window at usable 12-46 GiB (median 21.8 GiB
+  across the armed-era rest samples), `restarts` column 0 since the Oct-4 crash-loop era, and the
+  hysteresis latch fired exactly twice in the whole dataset — both under live client traffic
+  (Oct-5 09:22:41Z Incident #9; Oct-6 09:41:29Z second occurrence), never at rest.
+- the 24 h calendar wait is intentionally waived; the pre-existing multi-day sample record + the
+  rest-window statistics are the "one working day" evidence (see raw/b7-watchdog-rest-analysis.txt
+  and docs/spark-incidents.md #9 + its 2026-10-06 addendum).
+- HD-489 row: B7 item deleted. (HD-494-3's own row entry is that row's lane's job.)
