@@ -199,6 +199,37 @@ else
 fi
 export PYTHONUTF8=1
 
+# Activate the runner venv when this host has one (2026-10-06). WHY this exists: the Python
+# validators import jinja2 + PyYAML at module scope, and on a Debian/WSL seat those arrive ONLY as
+# pip deps of `pip install ansible` inside ~/ansible-venv (bootstrap-runner.sh §3) — dpkg has never
+# carried python3-jinja2/python3-yaml here. The venv enters PATH through the
+# `source ~/ansible-venv/bin/activate` line bootstrap-runner.sh appends to ~/.bashrc, and a
+# NON-interactive shell never reaches that line: ~/.bashrc's own interactivity guard returns first.
+# Measured consequence: from cron/pi/a converge the gate died at validate-docker-services.py line 26
+# (`from jinja2 import ...` ModuleNotFoundError) while the SAME commit run from an interactive shell
+# went green two hours earlier, and the ansible --syntax-check half degraded to SKIP for the same
+# reason (ansible-playbook lives in the same bin/). That is "validates on my machine" in a gate, and
+# a green-red-per-invocation gate is not a gate. Sourced exactly like ansible-run.sh; NEVER required,
+# so a bare CI runner keeps its system python3 instead of failing on a missing venv.
+if [ "$PY" = "python3" ] && [ -f "$HOME/ansible-venv/bin/activate" ]; then
+  # shellcheck disable=SC1091
+  . "$HOME/ansible-venv/bin/activate"
+  echo "launcher: ~/ansible-venv activated — python3=$(command -v python3) ansible-playbook=$(command -v ansible-playbook || echo absent)"
+fi
+
+# Preflight, before 20 validators can fail one at a time: the interpreter chosen above must carry
+# what the validators import at module scope. Without this the first signal is a traceback fifteen
+# steps deep, which reads like a broken validator rather than a missing venv (that is precisely how
+# the 2026-10-06 incident got misread).
+if ! "$PY" -c "import jinja2, yaml" >/dev/null 2>&1; then
+  echo "FAIL: launcher '$PY' has no jinja2/PyYAML — the Python validators cannot run." >&2
+  echo "      On a Debian/WSL runner both arrive as pip deps of ansible inside ~/ansible-venv:" >&2
+  echo "        bash scripts/bootstrap-runner.sh          # or: source ~/ansible-venv/bin/activate" >&2
+  echo "      On a bare CI host:  python3 -m pip install jinja2 PyYAML" >&2
+  echo "      Refusing to continue: a gate that cannot import is not a gate." >&2
+  exit 1
+fi
+
 echo "== guard-session.sh --validate-mode (session-discipline hard gate, HD-253) =="
 bash scripts/guard-session.sh --validate-mode
 
