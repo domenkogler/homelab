@@ -169,9 +169,17 @@ sabnzbd_container_name: sabnzbd
 # so the ini is the door — see templates/sabnzbd-folders.py.j2. Keys are ini option names in [misc]:
 # `dir` = completed, `temp_dir` = incomplete. Both live on the NAS share so the *arrs can import them
 # and TRaSH hardlinking stays possible.
+# SABnzbd 5.x names these `complete_dir` (completed) and `download_dir` (temporary). NOT `dir`/
+# `temp_dir` — those were the SAB 3.x names; writing them silently does nothing (the first version of
+# this seed did exactly that and the completed 24 GB landed on the local NVMe). Paths are absolute,
+# because the picker UI can only express paths under the base folder `/config`.
 sabnzbd_folder_ini:
-  dir: /downloads/complete
-  temp_dir: /downloads/incomplete
+  complete_dir: /downloads/complete
+  download_dir: /downloads/incomplete
+# Wrong-section or wrong-generation keys to strip from [misc] so a stale value cannot shadow a real
+# one. Removal is scoped to [misc] — `dir` also appears per CATEGORY (`[[movies]]` etc.) and those
+# must survive untouched.
+sabnzbd_folder_ini_drop: [dir, temp_dir]
 # The ini on the HOST path (the compose binds it at /config). The seed edits it there while the
 # container is stopped — `docker exec` needs a running container, so the host path is the only door.
 sabnzbd_ini_host_path: /srv/docker/{{ sabnzbd_container_name }}/config/sabnzbd.ini

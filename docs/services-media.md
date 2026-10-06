@@ -78,7 +78,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Three NFS exports:** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share), `tank/data` →
   `/mnt/nas/data` (immutable user data) and `bulk/data/immich-thumbs` → `/mnt/nas/thumbs` (push target) —
   two pools, three exports.
-- **Import = hardlink** for **movies/TV** (Sonarr/Radarr: `Use Hardlinks` ON) — instant, zero-space, atomic. **Music** is the **Lidarr → copy-import** exception (HD-354): the music library lives on the Hetzner Storage Box as Navidrome's primary, and hardlinks can't cross hosts — so Lidarr **copies** music (2× temporary space accepted), then the Box refresh picks it up. `docs/storage.md` §Store tiering owns the layout.
+- **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — measured `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the **Lidarr → copy-import** exception (HD-354): the music library lives on the Hetzner Storage Box as Navidrome's primary, and hardlinks can't cross hosts — so Lidarr **copies** music (2× temporary space accepted), then the Box refresh picks it up. `docs/storage.md` §Store tiering owns the layout.
 - **Media is not backed up** (movies/TV) — no sanoid snapshots, no syncoid, no Kopia; lost media is re-fetched via
   usenet/torrents. **Music is the exception**: the library lives on the live Box (cold/bulk tier, box-side + Kopia
   coverage per [`storage.md`](storage.md)).

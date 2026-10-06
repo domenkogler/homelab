@@ -25,12 +25,16 @@ INIFILE = sys.argv[1]
 CHECK = "--check" in sys.argv[2:]  # report drift without writing (the seed needs this to decide
                                    # whether it is allowed to stop SABnzbd at all)
 WANT = {{ sabnzbd_folder_ini | to_json }}
+DROP = {{ sabnzbd_folder_ini_drop | default([]) | to_json }}
 
 with open(INIFILE, encoding="utf-8", errors="surrogateescape") as fh:
     lines = fh.read().split("\n")
 
-out, in_misc, done = [], False, {key: False for key in WANT}
+out, in_misc, done, dropped = [], False, {key: False for key in WANT}, set()
 for line in lines:
+    if in_misc and "=" in line and line.split("=")[0].strip() in DROP:
+        dropped.add(line.split("=")[0].strip())
+        continue  # stale/wrong-generation key inside [misc] — never read, so never leave it shadowing
     if line.startswith("["):
         # Leaving [misc]: append anything that had no line of its own.
         if in_misc:
@@ -63,6 +67,6 @@ if out != lines:
     if not CHECK:
         with open(INIFILE, "w", encoding="utf-8", errors="surrogateescape") as fh:
             fh.write("\n".join(out))
-    print("CHANGED %s" % {k: WANT[k] for k in WANT})
+    print("CHANGED set=%s dropped=%s" % ({k: WANT[k] for k in WANT}, sorted(dropped) or "none"))
 else:
     print("OK already: %s" % {k: WANT[k] for k in WANT})

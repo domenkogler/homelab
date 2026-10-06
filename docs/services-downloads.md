@@ -68,8 +68,11 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
   as `storage_uid`, and `/downloads/complete` is writable by it — tested), then give each category a
   **relative** dir (`movies`, `tv`, `music`) so files land in `/downloads/complete/<cat>`, which is what
   the arrs read. Proof it is right: a completed grab is visible from the host at
-  `/mnt/nas/media/downloads/complete/<cat>` and the arr logs the import as **Hardlink**, not Copy.
-  ⚠ Not pinned in IaC — an ini value the wizard owns; a fresh install re-defaults it to the local disk.
+  `/mnt/nas/media/downloads/complete/<cat>` and the arr imports without the "path does not exist" error.
+  ⚠ **The ini keys are `complete_dir` and `download_dir` — NOT `dir` / `temp_dir`.** Writing the old names
+  "succeeds" (the lines sit in the file, SAB never reads them) and downloads keep landing on the local
+  disk — see §SABnzbd 5's folder options below. Both keys are owned in IaC now via
+  `sabnzbd_folder_ini` / `sabnzbd_folder_ini_drop` in `roles/docker_services/defaults/main.yml`.
 
 ### SABnzbd's own door: `host_whitelist` (HD-496, 2026-10-06)
 
@@ -158,6 +161,58 @@ docker exec $c curl -s -H "X-Api-Key: $k" http://127.0.0.1:$p/api/$api/downloadc
 API responses, so `len=8` is the redaction placeholder, not the stored value. Judging "is the key set?"
 by that string wastes time; the `Test` call above is the answer.
 
+### SABnzbd 5's folder options are `complete_dir` / `download_dir` — the old names are inert (HD-496, 2026-10-06)
+
+The first version of `sabnzbd-seed.yml` wrote `dir` and `temp_dir` into `[misc]`, re-checked them as
+"present", reported **OK already**, and still downloaded to `/config/Downloads` on the local NVMe. Read
+the running image and the reason is plain:
+
+```python
+# /app/sabnzbd/sabnzbd/cfg.py  (SABnzbd 5.1.1)
+download_dir = OptionDir(...)      # ini: [misc] download_dir  = temporary / incomplete
+complete_dir = OptionDir(...)      # ini: [misc] complete_dir  = completed
+```
+
+`dir`/`temp_dir` were the **SAB 3-era names**. SAB does not reject them — it keeps unrecognised keys
+verbatim when it rewrites the ini, so the file ended up holding both the live
+`complete_dir = Downloads/complete` (line 39) and my dead `dir = /downloads/complete` (line 177). That is
+the failure shape that costs a week: **the value you wrote is in the file, and nothing happens.**
+
+Consequence, as it actually happened: a 24 GB movie completed into
+`/srv/docker/sabnzbd/config/Downloads/complete` and Radarr logged once a minute, forever —
+`Import failed, path does not exist or is not accessible by Radarr: /config/Downloads/complete/…` —
+because Radarr mounts the NAS at `/downloads` and cannot see a path inside SAB's config bind. The file
+itself was fine: 23.7 GB MKV with a valid Matroska header. The `.rar`/`.txt` beside it are split volumes
+and a PAR2 recovery file, **already unpacked** — nobody should be extracting those by hand, and if a
+grab ever shows only `.rar`s, that is SAB's unpack step failing, not a missing manual step.
+
+- Fixed in IaC: `sabnzbd_folder_ini = {complete_dir: /downloads/complete, download_dir: /downloads/incomplete}`
+  plus `sabnzbd_folder_ini_drop = [dir, temp_dir]`, so dead keys cannot shadow live ones. Removal is
+  scoped to `[misc]`, because `dir` legitimately appears per category (`[[movies]]`, `[[tv]]`, …).
+- The proof that these two keys were the whole story: the same release, re-grabbed, went
+  `/downloads/incomplete` → `/downloads/complete/movies/…` and imported.
+- ⚠ Diagnostic trap that bit twice: reading the ini **inside** the container needs `docker exec -u 1005`
+  (it is `0600`, owned by `media`). As root you get `Permission denied` → an empty key variable → and a
+  keyless `/api` call then logs `API key missing, please enter the API key …` in SAB and fires a
+  notification that reads exactly like an arr misconfiguration. When that warning appears, check the
+  user-agent and source in the log line before trusting it: `curl/8.x` from `::1`/`::ffff:127.0.0.1` is
+  a shell probe, not Radarr.
+
+### End-to-end run, first success (2026-10-06 21:02)
+
+`Seerr request → Radarr add + search → Prowlarr → NZBGeek → SABnzbd (Eweka) → /downloads/complete/movies
+→ import → /media/movies`: 24.4 GB, ~10 min at ~50 MB/s, imported at 21:03, `hasFile=true`, queue drained.
+
+The imported file ends with **one link**, because SAB's completed copy is cleaned up after Radarr links
+it — so link count alone is not the test. The switch is `copyUsingHardlinks` in `mediamanagement`,
+measured **`true` in all three arrs**; current builds no longer expose a "Use Hardlinks" toggle, so grep
+for the key, not the label.
+
+⚠ **A completed import is not yet a visible movie.** The file lives on **NFS**, and Jellyfin's real-time
+monitoring does not reliably see writes through an NFS client, so a library can lag until
+**Dashboard → Libraries → Scan All Libraries**. Order of investigation for "it downloaded but I can't see
+it": `Radarr hasFile` → file present at `/mnt/nas/media/media/movies/…` → library scan. Only then Jellyfin.
+
 ### NZBGeek returns its *recent* feed instead of your query (HD-496, 2026-10-06)
 
 Symptom, from the first two real requests: Seerr approves → Sonarr adds both series, monitored → Sonarr
@@ -170,7 +225,7 @@ none of them the requested show, every one rejected as `Unknown Series` or `X ma
 series with TVDB ID: <someone else>`. Identical results for different queries = **the indexer is serving
 its recent-items feed and ignoring the search parameter**, and the arr is correctly refusing them.
 
-Why: the indexer in Prowlarr is a **generic Newznab definition** — `definitionId=None`, fields
+Why, for **TV**: the indexer in Prowlarr is a **generic Newznab definition** — `definitionId=None`, fields
 `baseUrl / apiPath / apiKey` only, `apiPath = /api` on `https://api.nzbgeek.info`. NZBGeek's old newznab
 surface is deprecated and does not honour `q`/`imdbid`/`tvmaze` filters the way the arrs call it, so every
 query degrades to "latest 100". Prowlarr ships a **built-in NZBGeek definition** (Torznab-based) for
@@ -182,6 +237,8 @@ nzbgeek.info → Save → **Test**. Then verify at the arr rather than in Prowla
 ignoring the query. Log into nzbgeek.info once while you are there — a deliberately wrong key in
 testing returned `error code=107 "Account Flagged - Logon To View Reason"`, which is about that attempt,
 but a flagged account produces the same "search returns junk" shape for a different reason.
+
+**Measured afterwards, and it narrows this claim:** `t=movie&imdbid=…` **does** work — Radarr processed 173 releases for a real request and grabbed one, so the indexer is not dead and the Usenet leg is proven end-to-end for movies. What fails is the **TV** path (`t=tvsearch`, and the `TVDbId`-based form Sonarr uses), which comes back unfiltered.
 
 ⚠ Two probes of mine were artifacts and are named so they do not become folklore: (1) `GET
 /api/v1/search?term=…` on Prowlarr returned the same 100 releases for every term, which looks like the
