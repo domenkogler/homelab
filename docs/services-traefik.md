@@ -31,12 +31,12 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > Every `*-backend` in `routes.yml.j2` (seerr, seerrng, sonarr, radarr, lidarr, prowlarr, bazarr, profilarr, sab,
 > torrent) has its own `*_url` var in `group_vars/all/main.yml`, and the seerr/seerrng (both :5055 inside) and
 > torrent/sab (both :8080 inside) splits get distinct host ports — but `*_bind` resolves to
-> `{{ oldsrv_home_ip }}`, because that is what the containers actually own: `jellyfin 10.10.1.30:8096`,
+> `oldsrv_home_ip`, because that is what the containers actually own: `jellyfin oldsrv_home_ip:8096`,
 > `bazarr :6767`, `seerr :5055`, `seerrng :5056`, `sabnzbd :8080`, `sonarr :8989`, `slskd :5030`,
-> qbit-via-gluetun `:8082`, and the live `routes.yml` dials those same addresses.
+> qbit-via-gluetun `:8082`, all bound to `oldsrv_home_ip`, and the live `routes.yml` dials those same addresses.
 > ⚠ **This prose used to say "loopback", and the gap between that sentence and the running host caused a
 > three-service outage** (2026-10-06 20:24): a routine `docker_services` converge of radarr/prowlarr/lidarr
-> applied the loopback binds, while the edge still dialed `10.10.1.30:<port>` → `502` on those three hostnames,
+> applied the loopback binds, while the edge still dialed `oldsrv_home_ip:<port>` → `502` on those three hostnames,
 > with `sonarr` (not recreated) still serving `302` next to them. Two rules came out of it: **(a)** the bind
 > address of a routed backend is part of the edge contract — check `docker port <svc>` against the route's URL
 > before concluding an app is down; **(b)** converging a committed state onto a host whose live state came from
