@@ -354,10 +354,21 @@ answerable from an extension, and this section is the only place that fact is wr
 - **Proven, not assumed:** with the file in `~/.pi/agent/extensions/`, `pi --mode rpc` with an empty
   stdin emits
   `{"type":"extension_ui_request","method":"setStatus","statusKey":"host","statusText":"@ oldsrv"}`.
-- ⏳ **The WSL seat has not been synced from the repo yet** (another machine; no oldsrv→laptop leg, so
-  nothing here can check it). One command there: `bash scripts/sync-extensions.sh --push` — after which
-  its footer reads its own `hostname()`, which is the same token the model spec uses as its `hosts:`
-  label (`docs/hardware-workstation.md` §Leg 1), so the footer names the leg rather than a nickname.
+- **Closed on the laptop seat (owner-ran, 2026-10-06 — the only leg nothing here can reach):** one
+  `bash scripts/sync-extensions.sh --push` there, then `/reload`. The footer reads **`@ DomenP14s`**, and the
+  same run took `bash scripts/validate-all.sh` **non-interactively** to `OK: all validators passed` with the
+  `launcher: ~/ansible-venv activated` line — so the launcher fix holds on the second Debian seat too, on a
+  path nothing on oldsrv could have tested.
+- **Bonus invariant, not decoration:** the token the footer prints is the one `host_norm()`
+  (`../scripts/render-pi-config.py`) uses for a provider's `hosts:` scope — `DomenP14s` normalises to the
+  spec row `domenp14s`. HD-474 wrote that normaliser because a case/SEPARATOR mismatch there silently
+  dropped a provider from the picker in both directions; the footer makes that invariant visible, so the
+  wrong machine shows up before it becomes a missing provider.
+- **What it does NOT distinguish is two seats on ONE machine** — Win11 and WSL Debian report the same
+  Windows-derived hostname. It answers "which box" (the cockpit-vs-laptop question over SSH, where the
+  prompt is gone), not "which seat". The WSL marker is available (`/proc/version` carries `microsoft`, which
+  `laptop-llm.py` already reads) and deliberately NOT used here: a second host-identity signal invented in
+  a footer would drift from the one `host_norm()` owns.
 
 ## 6. KV-pool contention — the parallel-lane rule (read before running subagents)
 

@@ -51,9 +51,7 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
    **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
    playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself.
 9. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
-   window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word ·
-   the **laptop seats** still need one `bash scripts/sync-extensions.sh --push` (footer seat identity lands on the
-   cockpit only; nothing on oldsrv can reach the laptop to check — [pi-harness.md](docs/pi-harness.md) §5a).
+   window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
 [todo-table.md](todo-table.md) §B): 360 · 103 · 238 · 421 · 459 · 461 · 448 · **472** · **477** (make the resolver actually
