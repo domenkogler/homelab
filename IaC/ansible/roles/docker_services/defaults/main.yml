@@ -128,6 +128,35 @@ immich_oauth_auto_launch: false                  # keep the native login page re
 immich_oauth_mobile_override_enabled: false      # Authentik accepts app.immich:///oauth-callback (verified 2026-09-25)
 immich_oauth_mobile_redirect_uri: ""
 
+# ---- *arr seed (HD-358) — what tasks/arr-seed.yml reconciles in each app's OWN database ----
+# Root folders are app state, not compose env: a from-zero converge leaves them EMPTY, and Seerr
+# builds its "Root folder" dropdown from GET <app>/rootfolder — with `[]` the dropdown is blank
+# and the Add-server button is disabled with no error anywhere (measured 2026-10-06). The paths
+# below are the CONTAINER-side view (`/mnt/nas/media/media` is bound at /media by every compose
+# in this family — deployment-compose.md §Storage), which is also what Jellyfin's libraries use.
+# `api_base` is per-app ON PURPOSE: Lidarr 3.1 serves /api/v1 and 404s on /api/v3.
+arr_seed_config_dir: /srv/docker              # <dir>/<service>/config/config.xml holds the instance ApiKey
+arr_seed_assert_profiles: true                # false = skip the profile gate (emergency only; say why)
+arr_seed_apps:
+  sonarr:
+    port: 8989
+    api_base: /api/v3
+    root_folders: ['/media/tv']
+    seerr_profile: HD-1080p                   # what Seerr + SeerrNG pin (measured in settings.json)
+  radarr:
+    port: 7878
+    api_base: /api/v3
+    root_folders: ['/media/movies']
+    seerr_profile: HD-1080p
+  lidarr:
+    port: 8686
+    api_base: /api/v1                         # ⚠ NOT /api/v3 — 404 on Lidarr 3.1 (measured 2026-10-06)
+    root_folders: ['/media/music']
+    seerr_profile: Lossless
+    post_extra:                               # Lidarr's RootFolderResource wants these on POST
+      name: Music
+      defaultMetadataProfileId: 1             # "Standard" — the live value, not an invention
+
 # ---- HD-258: bulk 1Password pre-pass item sets (per-template map) ----
 # The compose/config templates reference `vault: {name: {field}}` items which
 # fetch-vault-pass.yml + scripts/op-vault-export.py fetch ONCE per item (one op

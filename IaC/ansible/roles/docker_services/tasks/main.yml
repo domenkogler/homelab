@@ -281,6 +281,27 @@
     loop_var: svc_entry
   tags: [docker_services, immich_seed]
 
+# HD-358: the *arr root folders Seerr needs are APP state (each app's own database), not compose env
+# — so a rebuild leaves them empty and Seerr's Radarr/Sonarr/Lidarr form fails with an EMPTY
+# Root-folder dropdown and a disabled Add button (measured 2026-10-06: radarr + sonarr returned `[]`).
+# Reconcile them idempotently and assert the profile Seerr pins still exists; the profile itself
+# stays Profilarr/Recyclarr-owned. Autopsy + the Lidarr /api/v1 trap: tasks/arr-seed.yml.
+- name: "Seed *arr root folders + assert the Seerr-pinned quality profile (HD-358)"
+  ansible.builtin.include_tasks:
+    file: arr-seed.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') in arr_seed_apps
+    - scope_is_all or svc_entry.name in scope_list
+    - not ansible_check_mode
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, arr_seed]
+
 # DNS self-heal (2026-09-15): the seed tail above ONLY runs when a converge's deploy loop
 # includes a technitium instance — a deploy-SCOPED converge (docker_services_scope=<svc>)
 # silently skips it (live llogs gap: Pi zone lacked the record -> ERR_NAME_NOT_RESOLVED).

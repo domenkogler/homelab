@@ -1,0 +1,143 @@
+---
+# arr-seed.yml — seed the *arr root folders + assert the quality profile Seerr pins (HD-358)
+# Included ONCE PER *arr SERVICE from docker_services/main.yml, gated on
+# `svc.template_dir in arr_seed_apps` + the deploy scope + `not ansible_check_mode`
+# (every task here drives a live API — the same dry-run rule as immich-seed.yml).
+#
+# WHY A SEED TASK AT ALL (measured on oldsrv 2026-10-06, while doing this wiring by hand):
+#   Root folders are APP state — they live in the app's own database, not in compose env, so a
+#   from-zero converge brings the container up with NO root folder. Seerr builds its Radarr/
+#   Sonarr/Lidarr "Root folder" dropdown straight from GET <app>/rootfolder; with `[]` the
+#   dropdown is empty and the **Add server button stays disabled**, with no error anywhere —
+#   the exact wall hit on 2026-10-06 (radarr/sonarr returned `[]`, lidarr already had /media/music).
+#   The same is true of Jellyfin's library folders (see docs/services-media.md).
+#
+# THE API BASE IS NOT SHARED ACROSS THE THREE APPS — measured, not remembered:
+#   radarr 6.3.0  → /api/v3 (200)      sonarr 4.0.19 → /api/v3 (200)
+#   lidarr 3.1.0  → /api/v1 (200); /api/v3 returns **404 with an empty body**, which reads from
+#   the shell as "no root folders" rather than as a wrong URL. Pin it per app in
+#   `arr_seed_apps[].api_base`; never build one URL for "the *arr API".
+#
+# WHY THE KEY COMES FROM THE INSTANCE AND NOT FROM 1Password:
+#   `sonarr_api`/`radarr_api`/`lidarr_api` are the CONSUMER-side copies (recyclarr, lidarr-ydl)
+#   and they demonstrably drift — measured 2026-10-06 by sha256 of the values vs each live
+#   `config.xml` ApiKey: sonarr + radarr match, **lidarr_api does NOT** (the HD-362 placeholder
+#   was never overwritten). Seeding against the vault item would therefore fail on an app that is
+#   otherwise perfectly healthy. Reading the instance's own key keeps the seed about the seed;
+#   the drift is tracked in docs/deployment-secrets.md + the HD-362 tail, not papered over here.
+#
+# What this task does NOT do: it never creates or edits a quality profile. That is Profilarr/
+# Recyclarr's job (docs/services-media.md §Catalog); here a missing pinned profile is a LOUD
+# FAILURE, because Seerr would otherwise keep importing against a profile id that no longer
+# exists. Opt out only with `arr_seed_assert_profiles=false`, and say why in the commit.
+#
+# Idempotence: GET rootfolder, POST only the paths that are absent. Re-running is a no-op.
+
+- name: "arr-seed: assert the seed facts for {{ svc.name }} are defined"
+  ansible.builtin.assert:
+    that:
+      - arr_seed_apps[svc.template_dir].api_base | regex_search('^/api/v[0-9]+$')
+      - arr_seed_apps[svc.template_dir].root_folders | length > 0
+      - arr_seed_apps[svc.template_dir].port | int > 0
+    fail_msg: >-
+      arr_seed_apps.{{ svc.template_dir }} is incomplete
+      (roles/docker_services/defaults/main.yml). The api_base is deliberately an explicit
+      per-app value: Lidarr 3.x answers /api/v1 and 404s on /api/v3, so a shared default
+      would seed the wrong endpoint silently.
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: read the instance API key from its own config.xml"
+  ansible.builtin.slurp:
+    src: "{{ arr_seed_config_dir }}/{{ svc.name }}/config/config.xml"
+  register: _arr_cfg
+  no_log: true
+  failed_when: _arr_cfg.content is not defined
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: extract the key + discover the container IP"
+  ansible.builtin.set_fact:
+    _arr_key: >-
+      {{ (_arr_cfg.content | b64decode) | regex_search('<ApiKey>[^<]*</ApiKey>', '\1') | first | default('') | trim }}
+  no_log: true
+  tags: [docker_services, arr_seed]
+
+# Same discovery shape as immich-seed.yml: docker emits a literal '\n' inside the Go template,
+# so space-delimit the addresses and take the first non-empty field. Host→container routing is
+# live on oldsrv since the docker-orphan-bridge cleanup (HD-318).
+- name: "arr-seed: discover the {{ svc.name }} container IP"
+  ansible.builtin.shell:
+    cmd: >-
+      docker inspect {{ svc.name }}
+      --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+      | tr ' ' '\n' | awk 'NF{print $1; exit}'
+    executable: /bin/bash
+  register: _arr_ip
+  changed_when: false
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: fail when the instance is not reachable"
+  ansible.builtin.assert:
+    that:
+      - _arr_key | length >= 16
+      - _arr_ip.stdout | trim | length > 0
+    fail_msg: >-
+      Cannot seed {{ svc.name }}: {{ 'no ApiKey in ' ~ arr_seed_config_dir ~ '/' ~ svc.name ~ '/config/config.xml'
+      if _arr_key | length < 16 else 'docker inspect returned no container IP' }}.
+      The container must be Up before the seed runs — fix the stack, do not seed blindly.
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: read the live root folders"
+  ansible.builtin.uri:
+    url: "http://{{ _arr_ip.stdout | trim }}:{{ arr_seed_apps[svc.template_dir].port }}{{ arr_seed_apps[svc.template_dir].api_base }}/rootfolder"
+    method: GET
+    headers:
+      X-Api-Key: "{{ _arr_key }}"
+    status_code: 200
+  register: _arr_roots
+  no_log: true
+  failed_when: _arr_roots.json is not defined
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: create the missing root folders"
+  ansible.builtin.uri:
+    url: "http://{{ _arr_ip.stdout | trim }}:{{ arr_seed_apps[svc.template_dir].port }}{{ arr_seed_apps[svc.template_dir].api_base }}/rootfolder"
+    method: POST
+    headers:
+      X-Api-Key: "{{ _arr_key }}"
+    body_format: json
+    # `path` is the whole body for Sonarr/Radarr; Lidarr's RootFolderResource also wants a
+    # display name + the default metadata profile, carried in post_extra (measured live:
+    # /media/music, name "Music", defaultMetadataProfileId 1 = "Standard").
+    body: "{{ {'path': item} | combine(arr_seed_apps[svc.template_dir].post_extra | default({}, true)) }}"
+    status_code: [200, 201]
+  loop: "{{ arr_seed_apps[svc.template_dir].root_folders }}"
+  loop_control:
+    label: "{{ svc.name }}:{{ item }}"
+  when: item not in (_arr_roots.json | default([]) | map(attribute='path') | list)
+  no_log: true
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: read the live quality profiles"
+  ansible.builtin.uri:
+    url: "http://{{ _arr_ip.stdout | trim }}:{{ arr_seed_apps[svc.template_dir].port }}{{ arr_seed_apps[svc.template_dir].api_base }}/qualityprofile"
+    method: GET
+    headers:
+      X-Api-Key: "{{ _arr_key }}"
+    status_code: 200
+  register: _arr_profiles
+  no_log: true
+  failed_when: _arr_profiles.json is not defined
+  when: arr_seed_assert_profiles | bool
+  tags: [docker_services, arr_seed]
+
+- name: "arr-seed: assert the profile Seerr pins still exists"
+  ansible.builtin.assert:
+    that:
+      - arr_seed_apps[svc.template_dir].seerr_profile in (_arr_profiles.json | default([]) | map(attribute='name') | list)
+    fail_msg: >-
+      Profile '{{ arr_seed_apps[svc.template_dir].seerr_profile }}' is gone from {{ svc.name }}.
+      Seerr/SeerrNG pin it by name, so requests would import against a stale id. Profiles are
+      Profilarr/Recyclarr-owned state (docs/services-media.md) — restore it there; do not create
+      one here. `arr_seed_assert_profiles=false` skips this gate, in an emergency only.
+  when: arr_seed_assert_profiles | bool
+  tags: [docker_services, arr_seed]

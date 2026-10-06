@@ -17,6 +17,9 @@ tags: [services, media, arr, photos, streaming]
 > VPS; the **music library** lives on the Hetzner Storage Box.
 > ⏳ **Open:** immich's whole-collection ML import (a separate task), and Tube Archivist, which is
 > **disabled** until its Elasticsearch `path.repo` problem is fixed (§Music Pillar).
+> ⏳ **Prowlarr holds 0 indexers and 0 synced apps (measured 2026-10-06), so no request can be
+> searched end-to-end** — the request half of this stack is live (§Request → import wiring) and the
+> acquisition half is not. · [todo.md](../todo.md) HD-496
 >
 > ✅ **Immich SSO is live 2026-09-25** (`foto.kogler.si` → Authentik). The settings are NOT compose env:
 > Immich v3 has no OAuth env vars, so `roles/docker_services/tasks/immich-seed.yml` PUTs them into the
@@ -95,6 +98,53 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Sabnzbd/Qbittorrent | `sab.`/`torrent.` | built-in Forms auth | downloads (qbitorrent through gluetun) |
 | Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box (moved off nas) |
 | Immich | `foto.` | OIDC → Authentik | photos (VPS) |
+
+## Request → import wiring (Seerr / SeerrNG → *arr → Jellyfin)
+
+> **Status: 🟢 configured + live 2026-10-06** (bootstrap completed through the UIs; the parts IaC can
+> own are seeded by [`tasks/arr-seed.yml`](../IaC/ansible/roles/docker_services/tasks/arr-seed.yml),
+> HD-358). ⏳ What is still missing is upstream of all of it: **indexers** (§Catalog Prowlarr, HD-496).
+
+Every integration form in this family takes the **overlay address** — the container name on
+`services-internal` — never a `*.kogler.si` host. The `Server name` field is a label only; naming a
+Radarr instance `media.kogler.si` is what made the 2026-10-06 config read as if it pointed at
+Jellyfin's box. Verified from inside the containers, not from the docs:
+
+| From → To | Address the form needs | Measured |
+|---|---|---|
+| Seerr/SeerrNG → Sonarr / Radarr / Lidarr | `sonarr:8989` · `radarr:7878` · `lidarr:8686` | 302 / 302 / 200 (`/`), API 200 with the key |
+| Prowlarr → SABnzbd | `sabnzbd:8080` | 403 without the SAB API key (reachable) |
+| **Prowlarr → qBittorrent** | **`gluetun:8080`** — qBittorrent is `network_mode: service:gluetun`, so it owns no netns and **`qbittorrent:8080` does not connect** (`code=000`) | `gluetun:8080` → 200 |
+
+**The three values every *arr form needs, and where each is true:**
+
+| App | API base | Root folder (what the app must be told) | Host path behind it | Profile Seerr pins |
+|---|---|---|---|---|
+| Sonarr 4.0.19 | `/api/v3` | `/media/tv` | `/mnt/nas/media/media/tv` | `HD-1080p` |
+| Radarr 6.3.0 | `/api/v3` | `/media/movies` | `/mnt/nas/media/media/movies` | `HD-1080p` |
+| Lidarr 3.1.0 | **`/api/v1`** | `/media/music` (name `Music`, `defaultMetadataProfileId: 1`) | `/mnt/nas/media/media/music` | `Lossless` |
+
+⚠ **The API bases are not shared.** Lidarr 3.x answers `/api/v1` and returns **404 with an empty
+body** on `/api/v3` — which looks exactly like "this app has no root folders" when probed from a
+shell. There is no such thing as "the \*arr API path"; pin it per app.
+
+⚠ **The failure mode that ate an hour (2026-10-06):** Seerr builds its **Root folder** dropdown from
+`GET <app>/rootfolder`. A freshly deployed app has none, so the dropdown is **empty and the Add-server
+button is disabled with no error anywhere** — Test passes (same key, same URL) and the form just
+refuses to submit. `tasks/arr-seed.yml` now creates the folder when absent, so a rebuild recovers it.
+Profiles are deliberately NOT created there: that is Profilarr/Recyclarr's job (see §Catalog), and
+this repo does not let one tool invent another tool's policy — the seed only asserts the pinned
+profile still exists and fails loudly when it does not.
+
+- **Jellyfin's own library folders** are the same paths seen from the Jellyfin container, which is
+  where its folder picker browses: `/media/movies` + `/media/tv` (the mount is
+  `/mnt/nas/media/media:/media:ro` — **ro**, metadata goes to `/config`; the retired `music` dir is
+  not a library, the music primary is the Storage Box, §Music Pillar). Seerr lists Jellyfin libraries
+  from the API, so a Jellyfin with no library gives Seerr an empty library picker — create the
+  libraries first, then bootstrap Seerr.
+- **Seerr API keys for Jellyfin** are the two owner-minted items `jellyfin-seer_api` /
+  `jellyfin-seerng_api` (app state inside each Seerr's `settings.json`; no IaC consumer) —
+  [deployment-secrets.md](deployment-secrets.md).
 
 ## Navidrome (music.kogler.si) — VPS + Storage Box (HD-354)
 
