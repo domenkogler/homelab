@@ -21,9 +21,12 @@
 # WHY THE KEY COMES FROM THE INSTANCE AND NOT FROM 1Password:
 #   `sonarr_api`/`radarr_api`/`lidarr_api` are the CONSUMER-side copies (recyclarr, lidarr-ydl)
 #   and they demonstrably drift — measured 2026-10-06 by sha256 of the values vs each live
-#   `config.xml` ApiKey: sonarr + radarr match, **lidarr_api does NOT** (the HD-362 placeholder
-#   was never overwritten). Seeding against the vault item would therefore fail on an app that is
-#   otherwise perfectly healthy. Reading the instance's own key keeps the seed about the seed;
+#   `config.xml` ApiKey: on 2026-10-06 sonarr + radarr matched and lidarr_api did NOT (a placeholder that
+#   was never overwritten); it was then deleted during vault de-duplication and re-minted from the live
+#   key, verified 2026-10-07 (32 chars, `X-Api-Key` → system/status = 200). All three match now, and the
+#   drift episode is exactly why the seed does not read the vault: seeding against a consumer-side copy
+#   would fail on an app that is otherwise perfectly healthy. Reading the instance's own key keeps the
+#   seed about the seed;
 #   the drift is tracked in docs/deployment-secrets.md + the HD-362 tail, not papered over here.
 #
 # What this task does NOT do: it never creates or edits a quality profile. That is Profilarr/
