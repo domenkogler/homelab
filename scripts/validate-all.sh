@@ -105,6 +105,12 @@
 #                                     rows) and asserting equality printed 41 findings in 12 files — a gate that
 #                                     shouts gets muted. `--self-test` plants a stray pipe (inside a code span,
 #                                     where it still cuts) and a merged row, and asserts clean tables stay clean
+#                                     Second half (2026-10-06): a row whose FIRST CELL IS A LINK is an identity,
+#                                     so one table may not carry the same link twice — added because
+#                                     scripts/README.md listed install-pi-wsl.sh on two rows with every gate
+#                                     green. Link-keyed only, measured: the loose "any repeated first cell" form
+#                                     prints 58 findings here and would be muted; this form is 0 at rest and
+#                                     still catches the real pair.
 #  21. knx-hass-gen.py --self-test    — HD-439: the KNX generator's own address guard. `--check` (manual, needs
 #                                     xknxproject + the .knxproj) asserts every address the generator emits is
 #                                     PUBLISHED IN THE ETS PROJECT — the one invention risk left is the 19-address
@@ -330,10 +336,10 @@ $PY scripts/check_iac_backend_strings.py --self-test
 echo "== knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project) =="
 $PY scripts/knx-hass-gen.py --self-test
 
-echo "== check_md_tables.py (HD-417: no table row wider than its header) =="
+echo "== check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule) =="
 $PY scripts/check_md_tables.py
 
-echo "== check_md_tables.py --self-test (HD-417 cell-count canary) =="
+echo "== check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary) =="
 $PY scripts/check_md_tables.py --self-test
 
 echo "== check_iac_backend_strings.py (HD-404: retired-backend names may not regrow) =="

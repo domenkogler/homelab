@@ -37,6 +37,27 @@ Run:   python3 scripts/check_md_tables.py            (repo-wide)
        python3 scripts/check_md_tables.py path …     (specific files)
        python3 scripts/check_md_tables.py --self-test
 Exit:  0 = clean, 1 = findings. Wired into `scripts/validate-all.sh`.
+
+## Second rule (2026-10-06): a LINKED row may not be keyed twice in one table
+
+`scripts/README.md` shipped the `install-pi-wsl.sh` row TWICE (l.109 and l.113) and every gate stayed
+green: `check_merge_markers.py` sees only conflict markers, `check_todo_done.py`'s HD-485 duplicate-id
+rule is `todo.md`-only, and this file's width rule compares a row to its OWN HEADER, never a row to
+another row. A dispatcher index that lists one tool twice is how the next reader picks the wrong half
+of them, which is exactly the HD-489 "a tool no index reaches does not exist" failure seen from the
+other side.
+
+Why LINKED keys only, measured before writing the rule: keying on "first cell repeated in one table"
+fired **58 times** across the tree — `docs/network-vlans.md` legitimately repeats `Home (10)` for
+per-subnet rows, `docs/observability.md` repeats `Exporter`, `prompt.md` repeats `**3**` as a priority
+column. A rule that prints 58 findings gets muted in a week; that is HD-417's own lesson, restated.
+Keying on a first cell that IS a markdown link (`[`x`](y)`, optionally a `+`-joined pair of links) is
+**0 findings across the 176 tracked files** at rest — because in this repo a link in column 1 means
+"this row IS that file", which is an identity, not a column value. It catches the real pair (proved
+against `HEAD~1:scripts/README.md`, lines 109/113) and stays silent on the 58. `--self-test` asserts
+BOTH halves: a duplicated linked row must be caught, and a repeated PLAIN first cell (`ok`) plus the
+same link in two DIFFERENT tables must stay green — so the narrowness cannot drift back into an
+assertion-shaped mess, and the per-table scope cannot drift into a per-file one.
 """
 from __future__ import annotations
 
@@ -51,6 +72,10 @@ ROOT = Path(__file__).resolve().parent.parent
 # Raw evidence: never edited to satisfy a formatting gate.
 EXCLUDE = ("reports/", "docs/assets/", "brainstorming/", "node_modules/", ".pi/")
 SEP_RE = re.compile(r"^\s*\|?(?:\s*:?-{2,}:?\s*\|)+\s*$")
+# First cell that IS an identity rather than a value: a markdown link, or two links joined by `+`
+# (the `laptop-llm.py + profiles.yml` dispatcher shape). Deliberately narrow — see the docstring:
+# the loose form ("any repeated first cell") prints 58 findings here and would be muted.
+LINK_KEY_RE = re.compile(r"^(?:\[[^\[\]]*\]\([^()]*\)\s*(?:\+\s*)?)+$")
 
 
 def split_cells(line: str) -> list[str]:
@@ -154,6 +179,25 @@ def scan(files: list[str], root: Path) -> list[str]:
                         f"table for this scanner, which silently UN-CHECKS every row below it — "
                         f"join the row back onto one line: {line.strip()[:100]}")
                     break
+            # One keyed row per table (2026-10-06): a first cell that is a link declares the row's
+            # identity, so the same link twice in one table means the index lists one thing twice.
+            keyed: dict[str, int] = {}
+            for lineno, line in body:
+                cells = split_cells(line)
+                if not cells:
+                    continue
+                key = cells[0].strip()
+                if not LINK_KEY_RE.match(key):
+                    continue
+                if key in keyed:
+                    findings.append(
+                        f"{rel}:{lineno}: duplicates the row at line {keyed[key]} of this table "
+                        f"(same key {key[:70]}). A dispatcher table that lists one target twice is "
+                        f"how the next reader picks the wrong row — merge them into one row "
+                        f"(keep the superset, the row with more owning-spec links) and delete the "
+                        f"other; per-table scope, so the same link in ANOTHER table is fine.")
+                else:
+                    keyed[key] = lineno
     return findings
 
 
@@ -163,13 +207,16 @@ def main() -> int:
     files = [a for a in sys.argv[1:] if not a.startswith("-")] or tracked_md()
     findings = scan(files, ROOT)
     if findings:
-        print(f"FAIL: {len(findings)} markdown table row(s) wider than their own header (HD-417):")
+        print(f"FAIL: {len(findings)} markdown table finding(s) (HD-417 width rule + 2026-10-06 "
+              f"duplicate-key rule):")
         for f in findings:
             print(f"  {f}")
         print("A row that widens is either a stray `|` inside a cell (escape it as `\\|`, including "
-              "inside code spans) or two rows that lost the newline between them.")
+              "inside code spans) or two rows that lost the newline between them. A duplicated key "
+              "means the table lists the same target twice.")
         return 1
-    print(f"OK: {len(files)} markdown file(s) — no table row is wider than its header (HD-417)")
+    print(f"OK: {len(files)} markdown file(s) — no table row is wider than its header, no linked row "
+          f"is keyed twice in one table (HD-417 + duplicate-key rule)")
     return 0
 
 
@@ -199,9 +246,21 @@ FIXTURE = """\
 | wrapped | this row was soft-
 wrapped onto a second line |
 | hidden | this row is below the wrap and would otherwise go UNCHECKED | extra |
+
+| Tool | What | Note |
+|------|------|------|
+| [`dup.md`](dup.md) | listed once | ok |
+| [`other.md`](other.md) | a different target | ok |
+| [`dup.md`](dup.md) | the same target again | must be caught |
+
+| Tool | What | Note |
+|------|------|------|
+| [`dup.md`](dup.md) | same link, DIFFERENT table | must stay green |
 """
 
-EXPECTED = 4  # `a|b` row, the swallowed-newline row, the short separator row, the WRAPPED row
+EXPECTED = 5  # `a|b` row, the swallowed-newline row, the short separator row, the WRAPPED row,
+              # and the duplicated linked key (one per fixture table — the repeat in the SECOND
+              # table is the negative half and must NOT be counted)
 
 
 def self_test() -> int:
@@ -220,6 +279,15 @@ def self_test() -> int:
         if "WRAPPED" not in joined:
             failures.append("the soft-wrapped fixture row was not reported — without it, a wrapped row "
                             "still ends the table and silently un-checks the rows below it")
+        if "duplicates the row at line" not in joined:
+            failures.append("the duplicated linked key was NOT caught — this is the rule that would "
+                            "have caught scripts/README.md listing install-pi-wsl.sh twice")
+        # Negative half of the SAME rule: `| ok | row | here |` already appears twice above, and the
+        # repeated link sits in a SECOND table. Neither may be flagged, or the rule has grown back
+        # into the loose "any repeated first cell" form that prints 58 findings repo-wide.
+        if joined.count("duplicates the row at line") != 1:
+            failures.append("the duplicate-key rule flagged more than the one planted canary — it is "
+                            "over-reaching into repeated non-link keys or into other tables")
         clean = "| A | B | C |\n|---|---|---|\n| `a\\|b` | ok | `c\\|d` |\n| fewer | cells |\n"
         (root / "clean.md").write_text(clean, encoding="utf-8")
         if scan(["clean.md"], root):
@@ -233,7 +301,8 @@ def self_test() -> int:
             print(f"  - {f}")
         return 1
     print("OK: self-test — a widened row (stray pipe, even inside a code span, or a swallowed newline) "
-          "is caught; escaped pipes and short rows are not (HD-417)")
+          "is caught; escaped pipes and short rows are not (HD-417); a linked key duplicated in one "
+          "table is caught while a repeated plain key and the same link in another table stay green")
     return 0
 
 
