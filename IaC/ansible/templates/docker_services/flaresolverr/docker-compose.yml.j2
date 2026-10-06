@@ -30,6 +30,11 @@ services:
     networks:
       - services-internal
     environment:
+      # Pin the port. Upstream's default is 8191, NOT the 8194 every integration guide writes
+      # (`/app/flaresolverr.py: int(os.environ.get('PORT', 8191))`, measured in v3.5.2) — so relying on
+      # the default would leave Prowlarr pointing at a socket that does not exist, and an upstream
+      # default change would move it again. 8194 is what the URL in Prowlarr says.
+      PORT: "8194"
       # warning, not info: the request-level INFO lines are mostly cookie/profile chatter and
       # they bury the one line that matters (a challenge that was NOT solved).
       LOG_LEVEL: "warning"
