@@ -459,7 +459,7 @@ also in §A2 with the reasoning.
 | HD-397 (tail) | 2 | be on-site: the LAN matrix + the `Mgmt99` vNIC linked | close the row |
 | HD-06 · 288 · 194 · 34 / 191 | 1–4 | physical windows: UPS pull → WoL · a router/switch/AP reset · gaming + Moonlight · one edge login/callback · the yearly restore drill | verify state after each; run the pin + Kopia GUI-vs-CLI assessment during the drill |
 | HD-230 · HD-207 | 1 | decide at the drill: which sources get backed up · media rename vs personal-files | the surgical converge + the landing-zone mechanics |
-| HD-362 · HD-57 | 2–3 | the music-pillar 1P values + Lidarr clients · bank tokens (and see HD-354: there is **no local music**, so the pillar's premise is now "if we ever have some") | the last mile on each |
+| HD-362 · HD-57 | 2–3 | the music-pillar placeholder 1P values (`slskd_login`, `soulseek_api` — `lidarr_api` was minted from its instance key 2026-10-07) + Lidarr download-client wiring · bank tokens (and see HD-354: there is **no local music**, so the pillar's premise is now "if we ever have some") | the last mile on each |
 | HD-366 | 2 | **still deliberately untouched by your instruction** — the JupyterLab LAN edge | nothing, unless you ask |
 | OQ-12 · 13 · 14 | 2 | the memory-plane call (central `agentmemory` vs per-seat, Hermes' store, is the embedding leg needed) — the agentmemory probe answered all three on 2026-09-21/22 and decided none of them | a new HD row + the compose/seat work only after your word |
 
