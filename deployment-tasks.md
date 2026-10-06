@@ -455,7 +455,9 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 
 **Deploy-gated verification (Phase 3 — oldsrv):** open rows only; closed ones were deleted here (record =
 owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), HD-44 (ops services), HD-128
-(NVMe by-id), HD-46 (Matrix), HD-58/HD-113 (Stirling/PairDrop) and HD-59 (internal-auth items) all closed.**
+(NVMe by-id), HD-46 (Matrix), HD-58/HD-113 (Stirling/PairDrop), HD-59 (internal-auth items) and
+HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-seed.yml`, live-verified 2026-10-06 with
+`--tags arr_seed` at `changed=0`) all closed.**
 
 - [ ] **HD-57** — Finance stack: the tokens + EB app creation are owner steps; then the n8n import/categorization
       flows, the WG AllowedIPs scope for the :5006 API leg, and the first live verify. · [services-finance.md](docs/services-finance.md)
@@ -471,7 +473,6 @@ owning doc + commit). **HD-100 (LiteLLM), HD-102 (Qdrant), HD-43 (\*arr stack), 
 - [ ] **HD-353** — **[MANUAL, owner]** verify own Jellyfin login at the `seerrng` route. · [services-media.md](docs/services-media.md)
 - [ ] **HD-357** — Homepage tiles: wire the Jellyfin/Seerr/Immich widgets to the verified endpoints (the edge model
       and route tables are final now). · [services.md](docs/services.md)
-- [ ] **HD-358** — record the Seerr → \*arr API-key + URL wiring as an owner step (and consider automating it). · [services-media.md](docs/services-media.md)
 - [ ] **HD-362** — music pillar tails: overwrite the placeholder 1P values with real ones, wire the Lidarr download
       clients in-UI, refresh the Navidrome Box library. **Tube Archivist stays torn down** — re-enabling it requires
       `path.repo` in the ES `elasticsearch.yml` directly first (env-var/`-E` forms destabilize ES bootstrap). · [services-media.md](docs/services-media.md)

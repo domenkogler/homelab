@@ -87,7 +87,9 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   HD-94/HD-131). SMB/NFS ownership on nas must match.
 - **Auth:** *arr / downloader UIs (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, Profilarr, SABnzbd, qBittorrent) = **built-in Forms auth** on the home edge (deliberate reversal of the old "Authentik Forward-Auth, built-in logins disabled" — that served only while WAN/VPS is up; the home edge must survive WAN-out, so each admin tool owns its credentials). Jellyfin + Seerr + SeerrNG = **local login only** (client apps / family request portal would break under forward-auth; Jellyfin SSO dropped — SSO accounts can't fall back to local). API integration between the *arr (Prowlarr↔Sonarr/Radarr, Seerr↔*arr) keeps using API keys, unaffected by UI auth. Dozzle (observability) is also Forward-Auth — see [`observability.md`](observability.md).
 - **Request middleware identity:** Seerr / SeerrNG log in via **Jellyfin** (user/password validated by the Jellyfin API — home-local, works offline, no Authentik). SeerrNG (snapetech/seerrng) is a Seerr fork adding **music** — runs alongside Seerr for now (both point at the same Sonarr/Radarr backends); **books/Readarr dropped** (Readarr effectively unmaintained).
-- **FlareSolverr: deferred** — only if an indexer actually requires Cloudflare bypass.
+- **FlareSolverr: deployed** (`flaresolverr`, overlay-only, no UI/publish) — the condition this line set
+  was met on 2026-10-06 by 1337x.to. Wiring + evidence: [services-downloads.md](services-downloads.md)
+  §The solver's own door; the manual step is [deployment-manual.md](../deployment-manual.md) §P3.6.
 - All *arr subdomains are **internal-only** (not in the public set).
 
 | App | Web UI | Auth | Notes |

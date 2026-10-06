@@ -1607,6 +1607,49 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
 
 ---
 
+### P3.6 Media acquisition wiring — Seerr → Prowlarr → \*arr → SABnzbd `[MANUAL]`
+
+> Design, values and root causes: [services-media.md](docs/services-media.md) §Request → import wiring and
+> [services-downloads.md](docs/services-downloads.md). This section is the order of hands only.
+
+1. **Seed the \*arr root folders + assert the pinned profiles** (idempotent — run it even when the folders
+   look right; a fresh \*arr has none and Seerr's Add-server button is then disabled with **no error**):
+   ```bash
+   bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si \
+        --tags arr_seed -e docker_services_scope="sonarr,radarr,lidarr"
+   ```
+   Evidence: `changed=0 failed=0` on the run, and `GET /api/vN/rootfolder` lists `/media/movies` ·
+   `/media/tv` · `/media/music`.
+2. **Seed SABnzbd's own settings** (host whitelist + completed/temporary folders; the UI cannot set the
+   folders because they resolve against `--config-file /config`):
+   ```bash
+   bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --tags sabnzbd_seed
+   ```
+   Evidence: `docker exec -u 1005 sabnzbd grep -E '^(host_whitelist|complete_dir|download_dir)' /config/sabnzbd.ini`
+   → `sabnzbd` and `sab.kogler.si` whitelisted, `complete_dir = /downloads/complete`,
+   `download_dir = /downloads/incomplete`.
+3. **Seerr + SeerrNG → \*arrs** — Admin → Settings → Services: server `sonarr:8989` · `radarr:7878` ·
+   `lidarr:8686` (overlay names, never `localhost`), API key read from **that instance's own**
+   `/srv/docker/<app>/config/config.xml`, root `/media/tv` · `/media/movies` · `/media/music`, profile
+   `HD-1080p` (`Lossless` on Lidarr).
+4. **Prowlarr → apps** — Settings → Apps: add Sonarr / Radarr / Lidarr at `http://sonarr:8989/` etc. with the
+   same per-instance key. Evidence: each arr lists its indexer as `NZBgeek (Prowlarr)`.
+5. **Prowlarr → FlareSolverr** (only for Cloudflare-gated indexers) — Settings → Indexers → FlareSolverr URL
+   `http://flaresolverr:8194`, save. Evidence: a gated site saves instead of returning
+   `blocked by Cloudflare Protection`.
+6. **Indexers** — add the **built-in NZBGeek** definition. Do not substitute generic Newznab: TV searches then
+   return the site's recent feed and every release is rejected as `Unknown Series`.
+7. **SABnzbd as download client, in each arr** — Radarr `movies` · Sonarr `tv` · Lidarr `music`, host
+   `SABnzbd`, port `8080`, SSL off. Evidence: that arr's own `POST /api/vN/downloadclient/test` → HTTP 200.
+   ⚠ Do **not** also add SABnzbd in Prowlarr: the arrs then round-robin two enabled clients into arbitrary
+   landing folders.
+8. **qBittorrent (torrent leg)** — host `gluetun`, port `8080`; qBittorrent is `network_mode: service:gluetun`
+   and does not bind loopback inside that container, so probe it from a third container (the client
+   registration itself: HD-1082).
+9. **Verify one of each** — request a movie and a series in Seerr, then: SABnzbd history shows the job under
+   `/downloads/complete/<category>/…`, the arr reports the import, the file exists under
+   `/mnt/nas/media/media/{movies,tv}/…`, and Jellyfin serves it.
+
 ## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
 
 > **Depends on:** Phase 1.5 (VLANs / network reachability), Phase 2 (NAS NUT master), Phase 3 (old srv standby, Forgejo). The Pi is the HA **primary** node; oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).

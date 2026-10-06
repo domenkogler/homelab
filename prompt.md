@@ -59,10 +59,10 @@ float with the VIP — premise measured green, the row carries the three gates a
 work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (only the
 re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — and HD-380's
 `gpu_top_mib` growth check are left, the gate-7 window accruing since 11:19Z; the gate-4/gate-5 legs closed inside the
-**spark** slot of the HD-489 tail lane, so do not open a second writer there) · **496** (the tmux seat harness: one
+**spark** slot of the HD-489 tail lane, so do not open a second writer there) · **1085** (the tmux seat harness: one
 owner act — mouse-drag text inside a tmux pane on oldsrv and paste it where you typed, which is the OSC 52 leg no in-repo
 probe can reach — plus one `--push` wired into `install-pi-debian.sh`; mechanism and traps in
-[docs/pi-harness.md](docs/pi-harness.md) §5b, do not edit `~/.tmux.conf` by hand).
+[docs/pi-harness.md](docs/pi-harness.md) §5b, do not edit `~/.tmux.conf` by hand). · **1082** (Prowlarr carries no torrent download client while three torrent indexers are enabled — one registration at `gluetun:8080`, then one traced grab; procedure in [deployment-manual.md](deployment-manual.md) §P3.6) · **1083** (loopback-only publishing for the routed group — an owner call; if taken it is ONE converge of every routed service plus the edge's routes)
 
 **Every DNS lane must obey this and no row can re-derive it** — it is in **HD-480's row**:
 480/481/482/483 are one lane with one writer on `technitium-seed.yml`, converging `dns-pi` **once**
@@ -87,7 +87,7 @@ lane**; never two briefs on one converge host; never a pair marked *never with*.
 | **1 — laptop seat** | [prompt-lmstudio.md](prompt-lmstudio.md) | ⏳ **474** (owner hands: `op signin` → render → `probe-client` PASS) · **476** · **486** (needle at ≥90 % of the 150 016 window + the prefill ladder) | **the laptop, in Windows** — no Ansible converge, no shared host | rule 0 only; can run alongside the spark/oldsrv lanes |
 | **2** | [prompt-384.md](prompt-384.md) | **384 · 403 · 387 · 373 · 249** | oldsrv + VPS `docker_services` | ⛔ never with 357 / 361 (oldsrv slot) |
 | **2** | [prompt-376.md](prompt-376.md) | **376 · 400 · 359 · 367 · 380** | **spark**, owner bench window | with 384 **only** in an open bench window, else alone · ⛔ never with the 469 lane |
-| **3** | [prompt-357.md](prompt-357.md) | **357 · 17 · 217 · 358 · 418** (window-gated) | **oldsrv** | runs when the oldsrv slot is free · ⛔ never with 384 / 361 |
+| **3** | [prompt-357.md](prompt-357.md) | **357 · 17 · 217 · 418** (window-gated) | **oldsrv** | runs when the oldsrv slot is free · ⛔ never with 384 / 361 |
 | **3** | [prompt-436.md](prompt-436.md) | **436 · 435 · 460** | oldsrv + VPS + Cloudflare (no router slot) | owner-present window — it re-renders live edge routing |
 | **3** | [prompt-361.md](prompt-361.md) | **361 · 411 · 442–444 · 465** | **oldsrv** (nas/pi read-back only) | ⛔ never with 384 / 357 (oldsrv slot) |
 

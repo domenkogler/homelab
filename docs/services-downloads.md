@@ -213,6 +213,13 @@ monitoring does not reliably see writes through an NFS client, so a library can 
 **Dashboard → Libraries → Scan All Libraries**. Order of investigation for "it downloaded but I can't see
 it": `Radarr hasFile` → file present at `/mnt/nas/media/media/movies/…` → library scan. Only then Jellyfin.
 
+**The series leg closed the same way (2026-10-06):** *House* S01 → **22/22** episode files, 78 GB under
+`/mnt/nas/media/media/tv/House`, Jellyfin listing it. Two questions that always get asked next, both settled
+by reading the filesystem rather than inferring: SAB's `/downloads/complete` holds **179 KB** after a 22-episode
+batch — the per-release directories remain as empty husks, so nothing is stored twice — and a whole series
+can arrive from **one** Seerr request, which is why episode-level monitoring is worth a look before a
+112-episode show is requested (see the monitoring note in §Landing & Import).
+
 ### NZBGeek returns its *recent* feed instead of your query (HD-496, 2026-10-06)
 
 Symptom, from the first two real requests: Seerr approves → Sonarr adds both series, monitored → Sonarr
@@ -246,6 +253,10 @@ bug above but was **my call** — Prowlarr's search endpoint did not apply `term
 nothing either way; (2) `apiKey: length=0` came from a `sqlite3` read against a **wrong db path**, not
 from a missing key — the key is present, because results do come back from the indexer. Both were re-run
 cleanly before the conclusion above was written down.
+
+**Resolved (same evening):** the built-in **NZBGeek** definition replaced the generic Newznab one and TV
+searches started returning the requested show — `House-S01E09/E10/E11-…` arrived in SABnzbd under category
+`tv`, ~4 GB each, imported on the arr side. The generic-definition diagnosis was right.
 
 ### SABnzbd 5 moved its categories endpoint; Prowlarr 2.5.2 still asks the old way (HD-496, 2026-10-06)
 
@@ -304,12 +315,12 @@ route in Prowlarr — the two knobs it has are global.
 
 What actually moves the needle, in order of how well it fits this stack:
 
-1. **FlareSolverr.** The supported answer, and Prowlarr supports it natively (it runs a real browser, solves
-   the challenge, hands the cookies back). [services-media.md](services-media.md) §Catalog deferred it as
-   *"only if an indexer actually requires Cloudflare bypass"* — this is that moment. Cost: one more container
-   with its own browser to keep patched.
-2. **Drop the CF-gated site.** Three torrent indexers are already registered; a fourth behind a challenge is
-   mostly a maintenance liability.
+1. **FlareSolverr — done, and it works.** Deployed 2026-10-06 (`flaresolverr:v3.5.2`, overlay-only, no UI,
+   no publish; §the solver's own door) and wired in Prowlarr → Settings → Indexers. 1337x.to then **saved
+   successfully**, which is the whole point of the component. Cost: one more container with its own browser
+   to keep patched. Procedure: [deployment-manual.md](../deployment-manual.md) §P3.6.
+2. **Drop the CF-gated site.** Three torrent indexers were already registered; a fourth behind a challenge is
+   mostly a maintenance liability. (Not taken.)
 3. **Route Prowlarr's own HTTP through the tunnel** (Settings → General → Proxy, SOCKS5). Two problems, both
    measured: gluetun's built-in SOCKS5 is **not listening** (`PROXY_*` unset; `socks5h://127.0.0.1:1080`
    refused), and the proxy setting is global — NZBGeek's queries would start leaving from the VPN exit too.
@@ -325,6 +336,28 @@ client. Probe it from a third container.
 Until a torrent client is registered, the three enabled torrent indexers are a source of **failed grabs**,
 not of content: same trap as an indexer with no download client (§Which half of Prowlarr to trust), one layer
 earlier. Nothing here changes the Usenet leg, which is proven end to end (§End-to-end run, first success).
+
+### The solver's own door (HD-1084, 2026-10-06)
+
+`flaresolverr` is **not a website**: no subdomain, no traefik labels, no host publish, no `/config` bind.
+Prowlarr reaches it on the overlay at `http://flaresolverr:8194`. Two properties differ from the fleet's
+conventions and from every integration guide, both measured in the running container:
+
+- **Upstream's default port is 8191**, not 8194 — `/app/flaresolverr.py: int(os.environ.get('PORT', 8191))`.
+  The compose pins `PORT=8194` so the address stored in Prowlarr cannot move under an upstream default change.
+- **`cmd` is `request.get`**; `browser.request.get` is rejected by 3.5.2 (`Request parameter 'cmd' … is invalid`).
+  A solver probe that posts the wrong command fails instantly in ~0.1 s, which looks like a dead container.
+
+Evidence that it earns its place, from the container itself:
+
+```bash
+docker exec flaresolverr curl -s -X POST -H 'Content-Type: application/json' \
+  -d '{"cmd":"request.get","url":"https://1337x.to/","timeout":60000}' http://127.0.0.1:8194/v1
+# → "message": "Challenge solved!" · solution.status 200 · a cf_clearance cookie in the response
+```
+
+It is reachable **only** from the overlay by design: a headless browser that will fetch any URL you point it
+at must not be listening on the LAN.
 
 ## Related
 - [Media stack](services-media.md) — the *arr pipeline + storage layout this feeds
