@@ -142,6 +142,22 @@ the working half intact:
   key rotation is three edits. Revisit by pulling a Prowlarr build that speaks `get_cats`; if it saves
   with a category, delete the three arr-side clients **first**, then sync from Prowlarr.
 
+How it was verified, so the check can be repeated without trusting a screenshot — let the **arr test its
+own client** instead of approximating it:
+
+```bash
+c=$(radarr); p=7878; api=v3            # sonarr/8989/v3, lidarr/8686/v1
+k=$(docker exec $c sed -n 's:.*<ApiKey>\(.*\)</ApiKey>.*:\1:p' /config/config.xml)
+docker exec $c curl -s -H "X-Api-Key: $k" http://127.0.0.1:$p/api/$api/downloadclient
+# GET the client JSON, POST it back to /downloadclient/test → HTTP 200 = the arr reached SAB and
+# authenticated. Measured 2026-10-06: 200 in all three, with tvCategory=tv / movieCategory=movies /
+# musicCategory=music.
+```
+
+⚠ **`apiKey` reads back as 8 characters and that is NOT a broken key** — the arrs redact secret fields in
+API responses, so `len=8` is the redaction placeholder, not the stored value. Judging "is the key set?"
+by that string wastes time; the `Test` call above is the answer.
+
 ### SABnzbd 5 moved its categories endpoint; Prowlarr 2.5.2 still asks the old way (HD-496, 2026-10-06)
 
 Prowlarr → Download Clients → SABnzbd refuses to save: **"Category does not exist"**, for *every* value
