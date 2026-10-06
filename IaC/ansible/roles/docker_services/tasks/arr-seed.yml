@@ -36,7 +36,10 @@
 - name: "arr-seed: assert the seed facts for {{ svc.name }} are defined"
   ansible.builtin.assert:
     that:
-      - arr_seed_apps[svc.template_dir].api_base | regex_search('^/api/v[0-9]+$')
+      # `is match` not `regex_search`: the latter returns the matched STRING, and Ansible
+      # rejects a non-boolean conditional ("derived from value of type 'str'") the moment
+      # this task is reached by a scoped docker_services run rather than --tags arr_seed.
+      - arr_seed_apps[svc.template_dir].api_base is match('^/api/v[0-9]+$')
       - arr_seed_apps[svc.template_dir].root_folders | length > 0
       - arr_seed_apps[svc.template_dir].port | int > 0
     fail_msg: >-
