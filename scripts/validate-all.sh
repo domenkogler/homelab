@@ -182,7 +182,7 @@
 #                                     consumer that answers nothing, and a golden field silently dropped
 #                                     from a row. `--self-test` proves it refuses all five.
 #  29. install-tmux-conf.sh --self-test + --check --strict — seat terminal-harness gate
-#                                     (HD-496): repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND the
+#                                     (HD-1085): repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND the
 #                                     config actually TAKES EFFECT. The "and" is the whole item: a tmux
 #                                     config that errors mid-load leaves the options at their DEFAULTS
 #                                     while the caller gets exit 0 and empty stderr, so a byte-compare
@@ -445,7 +445,7 @@ else
   echo "SKIP: no ~/.pi/agent/extensions on this host — extension gate runs where pi is configured (deploy: sync-extensions.sh --push)"
 fi
 
-echo "== install-tmux-conf.sh (HD-496: repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND effective) =="
+echo "== install-tmux-conf.sh (HD-1085: repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND effective) =="
 # The self-test runs everywhere: it is sandboxed in a temp dir, starts its own throwaway
 # servers on private sockets, and touches no real ~/.tmux.conf. It exists because a tmux
 # config that fails mid-load returns 0 and leaves the defaults standing — so the ONLY

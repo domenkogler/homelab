@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # install-tmux-conf.sh — install AND prove the seat's tmux seat config
-# (repo SSOT `pi-agent/tmux/tmux.conf` → `~/.tmux.conf`). HD-496.
+# (repo SSOT `pi-agent/tmux/tmux.conf` → `~/.tmux.conf`). HD-1085.
 #
 # WHY THIS IS NOT JUST A `cmp` OF THE TWO FILES
 # --------------------------------------------
