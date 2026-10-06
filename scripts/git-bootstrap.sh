@@ -15,15 +15,18 @@
 # Overridable env (bash shorthand):
 #   SRC=$HOME/source · REPO=$SRC/homelab · REPOPATH=$SRC/homelab · REMOTE=<github homelab url>
 #   GITUSER / GITEMAIL (local-to-clone identity)
-#   OP_VAULT=Private · OP_SIGN_ITEM="GitHub sign" · OP_AUTH_ITEM="GitHub auth"
+#   OP_VAULT=Homelab-ansible · OP_SIGN_ITEM="GitHub sign" · OP_AUTH_ITEM="GitHub auth"
 #
 # SSH auth + commit signing (HD-265, op CLI-only, no desktop app):
 #   if `--ssh-auth` (or OP_SSH_AUTH=1) is passed, this idempotently
-#   • ensures a HUMAN `op` sign-in (a Service Account can't read the Private vault),
+#   • requires a session that can READ the vault holding the keys — since HD-901 that is
+#     `Homelab-ansible`, so the Phase-0 read-scope Service Account token is enough and no
+#     interactive `op signin` is needed (it used to be the blocker: the keys sat in `Private`,
+#     which an SA cannot read, which is what made seat signing owner-gated),
 #   • pulls the two GitHub SSH keys (sign + auth) from 1Password into ~/.ssh,
 #   • adds them to the ssh-agent,
 #   • flips origin from HTTPS to SSH (git@github.com), and
-#   • configures commit signing (gpg.format=ssh + user.signingkey from the `key::` form).
+#   • configures commit signing (gpg.format=ssh + user.signingkey; the form is CHOSEN, see 6).
 #   Requires: git, op (Phase-0 prereq of bootstrap-runner.sh). Read-only pull needs no
 #   GitHub auth; push + signing go over SSH with `--ssh-auth`.
 #
@@ -42,7 +45,7 @@ if [ "${1:-}" = "--self-test" ]; then
   mkdir -p "$TMP/home" "$TMP/src"
   git init -q "$TMP/src/homelab"
   run() { PATH="$1:$PATH" HOME="$TMP/home" SRC="$TMP/src" \
-              XDG_RUNTIME_DIR="/run/user/$(id -u)" OP_VAULT="${3:-Private}" \
+              XDG_RUNTIME_DIR="/run/user/$(id -u)" OP_VAULT="${3:-}" \
               bash "$SELF" --ssh-auth 2>&1 || true; }
   mk() { mkdir -p "$TMP/$1"; printf '#!/bin/sh\ncase "$1 $2" in\n%s\nesac\n' "$2" > "$TMP/$1/op"; chmod +x "$TMP/$1/op"; }
   ACCT='"account list") echo "SHORTHAND    URL"; echo "my           https://my.1password.eu"; exit 0;;'
@@ -55,9 +58,17 @@ if [ "${1:-}" = "--self-test" ]; then
     \"account list\") exit 0;;"
   # a witness `op` for the runtime-dir guard: if the script reaches it, the guard did not fire first
   mk noop "  *) echo 'OP-WAS-CALLED'; exit 0;;"
-  # signed in as the WRONG identity: answers fine, sees one non-target vault = the SA signature
+  # signed in as the WRONG identity: answers fine, sees one vault that is NOT the target.
+  # ⚠ Two ways this case goes vacuous; both were measured here, not reasoned about:
+  #  1. The decoy may not be the target vault. It used to be `Homelab-ansible` while the target was
+  #     `Private`; HD-901 moved the target, so the fixture would then show the very vault it claims
+  #     is invisible. Verified: with the decoy set to the target, this case goes RED (rc 1).
+  #  2. `run()` must NOT default OP_VAULT itself. It carried `${3:-Private}`, which pinned every
+  #     refusal case to the pre-HD-901 default — with that pin in place the SAME mutation stayed
+  #     GREEN, i.e. the harness was testing a default the script no longer has. It now passes
+  #     `${3:-}` so the child resolves its own production default.
   mk wrongvault "  \"vault list\") echo 'ID                            NAME'
-    echo 'spye2s5pmfzj367xunpydznf3m    Homelab-ansible'; exit 0;;
+    echo 'nv2tq7d4bfglpe6az3icxuvymk    Personal'; exit 0;;
     $ACCT"
   # canary fixture: the target vault IS visible, but the key read fails — proves the vault check
   # is live (the child gets past it) while stopping before anything could be written as a key
@@ -113,9 +124,12 @@ GITUSER="${GITUSER:-domenkogler}"
 GITEMAIL="${GITEMAIL:-domen@kogler.si}"
 MODE="${1:-}"
 
-# HD-265 SSH auth + signing (CLI-only, no desktop app). Keys live in the user's
-# PRIVATE vault — a Service Account cannot reach it, so a human `op` sign-in is required.
-OP_VAULT="${OP_VAULT:-Private}"
+# HD-265 SSH auth + signing (CLI-only, no desktop app). HD-901 (2026-10-06, owner): both
+# GitHub keys moved from the `Private` vault into `Homelab-ansible`, so the read-scope
+# Service Account token a Phase-0 runner already carries can pull them — a human `op signin`
+# is no longer part of this path on any Debian seat. `Private` still works as an override for a
+# machine that was set up before the move.
+OP_VAULT="${OP_VAULT:-Homelab-ansible}"
 OP_SIGN_ITEM="${OP_SIGN_ITEM:-GitHub sign}"    # spaces kept literal (op read uses raw spaces, not %20)
 OP_AUTH_ITEM="${OP_AUTH_ITEM:-GitHub auth}"    # spaces kept literal (op read uses raw spaces, not %20)
 
@@ -162,21 +176,22 @@ else
   echo "==> On branch: $current"
 fi
 
-# --- SSH auth + commit signing (HD-265): opt-in, idempotent, CLI-only ----------
-# Requires a HUMAN 1Password sign-in (a Service Account can't read the Private vault).
+# --- SSH auth + commit signing (HD-265/HD-901): opt-in, idempotent, CLI-only ----
+# Needs a session that can read $OP_VAULT. That is either the read-scope SA token (the normal
+# runner/seat case since HD-901) or a human sign-in — whichever can see the vault wins.
 # --- --self-test: the three refusal states, each bred by a fixture -------------
 # Why this exists rather than a prose note: the ORIGINAL failure was a message that described the
 # wrong state ("no human 1Password account configured" while `op account list` showed one, because
 # one grep was answering two questions). A diagnostic that misreports is worse than none — it sent
 # the operator to re-run `op signin` in a loop. So each state gets a fixture and an assertion.
 if [ "$SSH_AUTH" = 1 ]; then
-  echo "==> SSH auth/signing setup (CLI-only; needs a human 'op' sign-in)"
+  echo "==> SSH auth/signing setup (CLI-only; needs a session that can read $OP_VAULT)"
   command -v op >/dev/null 2>&1 || { echo "FAIL: op not installed — run scripts/bootstrap-runner.sh first" >&2; exit 1; }
   command -v ssh-add >/dev/null 2>&1 || { echo "FAIL: ssh-add not found" >&2; exit 1; }
 
-  # 1. Human sign-in (idempotent). The SA session sees only Homelab-ansible, so a
-  #    human session must be able to read the Private vault. A human account is configured
-  #    via 'op account add --address <id>' + 'op signin' (interactive, ~30 min session).
+  # 1. Any identity that can read $OP_VAULT is accepted: the SA token (one vault, exactly
+  #    Homelab-ansible) or a human session. A human account, when one is used, is configured via
+  #    'op account add --address <id>' + 'op signin' (interactive, ~30 min session).
   #    Allow override via OP_ACCOUNT (the human account shorthand or sign-in address).
   ACC="${OP_ACCOUNT:-}"
   # Preflight the runtime dir BEFORE anything touches `op`: the CLI needs to write its daemon
@@ -229,7 +244,7 @@ if [ "$SSH_AUTH" = 1 ]; then
 
   SSH_DIR="$HOME/.ssh"; mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
 
-  # 2. Pull the two GitHub keys from the Private vault (raw-space item + field names; see op read docs).
+  # 2. Pull the two GitHub keys from the vault (raw-space item + field names; see op read docs).
   SIGN_KEY="$SSH_DIR/github_signing"
   AUTH_KEY="$SSH_DIR/github_auth"
   echo "==> Reading 'GitHub sign' / 'GitHub auth' private keys from $OP_VAULT"
@@ -283,9 +298,21 @@ EOF
     echo "==> origin already SSH or other: $cur (leaving as-is)"
   fi
 
-  # 6. Signing config (git uses the private key's public half as the signing key).
+  # 6. Signing config. THE FORM IS CHOSEN, NOT HARDCODED (measured 2026-10-06, git 2.47.3, both
+  #    halves in a throwaway repo): `user.signingkey=key::<pub>` asks the ssh-agent and dies in
+  #    every shell without SSH_AUTH_SOCK — `error: Couldn't get agent socket?` + `fatal: failed to
+  #    write commit object` — which is every non-interactive shell (pi, cron, a converge, a cron'd
+  #    `git fetch`). A FILE PATH signs with no agent at all (`%G?` → G). So: unencrypted key →
+  #    file path; passphrase-protected key → the `key::` form, because ssh-keygen would otherwise
+  #    block on a prompt that no non-interactive shell can answer.
   if [ -s "$SIGN_KEY.pub" ]; then
-    git config user.signingkey "key::$(awk '{print $1" "$2}' "$SIGN_KEY.pub")"
+    if ssh-keygen -y -P '' -f "$SIGN_KEY" >/dev/null 2>&1; then
+      git config user.signingkey "$SIGN_KEY"
+      echo "==> commit signing: user.signingkey = the key file (agent-free; works in any shell)"
+    else
+      git config user.signingkey "key::$(awk '{print $1" "$2}' "$SIGN_KEY.pub")"
+      echo "==> commit signing: key:: form — the key has a passphrase, so an agent is REQUIRED"
+    fi
     git config gpg.format ssh
     git config commit.gpgsign true
     # allowed-signers so `git log --show-signature` can VERIFY our own signed commits.
@@ -295,7 +322,9 @@ EOF
       printf '%s namespaces="git" %s\n' "$GITEMAIL" "$(awk '{print $1" "$2}' "$SIGN_KEY.pub")" >> "$ALLOWED"
     fi
     git config gpg.ssh.allowedSignersFile "$ALLOWED"
-    echo "==> commit signing: gpg.format=ssh + GitHub sign key"
+    echo "==> allowed-signers: $ALLOWED (without it git reports N on signed commits)"
+    echo "    note: this writes the CLONE's config; worktrees share it, other repos need"
+    echo "          'git config --global' equivalents (the oldsrv seat carries a global ~/.gitconfig)."
   else
     echo "!! no public half for GitHub sign key — skipping signing config" >&2
   fi

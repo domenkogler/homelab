@@ -42,6 +42,7 @@ one vault), both re-issued:
 | Host / system | Token | Source of truth |
 |---|---|---|
 | **`oldsrv` — the on-site control node** (seeds 2026-09-22, proving logs 2026-09-23) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` on the laptop — the value never crossed a prompt or a shell history |
+| **`oldsrv` SEAT — `domen`, the cockpit/authoring account** (HD-901, 2026-10-06) | `op_api` | `~/.config/op/homelab-sa-token` (0600, owner `domen`), sourced from `~/.bashrc`. Read scope verified: `op vault list` returns `Homelab-ansible` and nothing else. This is what closed "the seat cannot author" in [deployment-ansible.md](deployment-ansible.md) §Runner placement |
 | **control node (rescue)** — this WSL Debian laptop. No longer "the only place `ansible-playbook` is run interactively" (HD-407 closed that), and it stays installed as the door you open when the on-site runner is the thing that is broken | `op_api`… **nominally** — see the two-token finding below | `~/.config/op/homelab-sa-token` (0600) |
 | **Forgejo CI runner** (the `vault-gate` job + any playbook it runs) | `op_api` | a Forgejo secret |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
@@ -49,7 +50,7 @@ one vault), both re-issued:
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
 | **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
 
-### Two live read-scope service-account tokens exist today (measured 2026-09-23, by hash)
+### Two live read-scope values, three installs (hashes re-measured 2026-10-06)
 
 `sha256(token)[:12]`, values never printed — the method the rotation section already prescribes:
 
@@ -58,6 +59,7 @@ one vault), both re-issued:
 | laptop `~/.config/op/homelab-sa-token` | 850 | `be1939305745` |
 | `op://Homelab-ansible/op_api/credential` (the item the docs call the source of truth) | 850 | `adc2aada8f6e` |
 | oldsrv `~/.config/op/homelab-sa-token` | 850 | `adc2aada8f6e` — matches the vault item |
+| **oldsrv seat `~/.config/op/homelab-sa-token`** (`domen`, HD-901) | 850 | `adc2aada8f6e` — matches the vault item, so the seat is an install of the canonical value, not a new mint point |
 
 So the laptop's installed token is **not** the token the vault says is canonical, and both work.
 Consequence, stated plainly: **rotating or deleting `op_api` does not revoke the laptop's token.**
@@ -124,6 +126,26 @@ Two identity models are in use on the runner:
   agent socket. **This runner currently uses the plain WSL key** (no `~/.ssh/config`);
   the 1Password SSH agent setup is the intended end state.
 
+### GitHub signing + auth keys (HD-901) — a third job for the same agent
+
+`GitHub sign` and `GitHub auth` are SSH_KEY items in **`Homelab-ansible`** (moved out of the
+`Private` vault 2026-10-06). Two consequences worth naming, because the whole "seat cannot sign"
+restriction was built on the old location:
+
+- **A read-scope service account can now pull them.** `git-bootstrap.sh --ssh-auth` runs end to end
+  on a headless Debian seat with only `~/.config/op/homelab-sa-token` in the environment — no
+  interactive `op signin`, no desktop app, no 2FA. The `Private` override still works for a machine
+  set up before the move (`OP_VAULT=Private bash scripts/git-bootstrap.sh --ssh-auth`).
+- **Signing does not need the agent at all when the key is passphrase-free.** Proven on the seat
+  (git 2.47.3, both halves): `user.signingkey=/home/domen/.ssh/github_signing` signs with
+  `SSH_AUTH_SOCK` **removed from the environment** (`%G?` → `G`), while `key::<pub>` fails with
+  `error: Couldn't get agent socket?` + `fatal: failed to write commit object`. Every non-interactive
+  shell is in that second class — pi, cron, a converge — so the file path is the seat's form and the
+  `key::` form is only for a passphrase-protected key. Check which one you have with
+  `ssh-keygen -y -P '' -f ~/.ssh/github_signing`; the same test is what `git-bootstrap.sh` now runs to
+  choose the form. Verification needs `gpg.ssh.allowedSignersFile` (see §Troubleshooting), or git
+  reports `N` on a signed commit.
+
 ### Windows-desktop agent notes (interactive laptop access)
 
 Discovered the hard way during a VPS SSH restore (HD-209). Each of these produces an auth-shaped error with a non-auth cause:
@@ -159,6 +181,8 @@ Discovered the hard way during a VPS SSH restore (HD-209). Each of these produce
 | `invalid JSON provided` / `invalid JSON in piped input` on `op item create/edit` | Non-TTY stdin: op interprets piped input as a JSON item template. Run with `< /dev/null` in scripts, ansible shell tasks, ssh one-liners, cron (provisioner + secret-egress glue precedents, Phase 1 2026-08-22) |
 | **Secret VALUE leaked into chat/transcript via `op item get --reveal`** | Rotate the affected secret immediately (see Output hygiene above); if it's a shared Authentik client (`headscale_api`), regenerate the provider client_secret in Authentik, `op item edit` the 1P item, and re-render the consuming services; **never** inspect further in plaintext |
 | `Failed to change ownership of the temporary files` | `acl` package (`setfacl`) missing on the target host — added to the `common` role prereqs |
+| **`Couldn't get agent socket?` then `fatal: failed to write commit object` on `git commit`** | `gpg.format=ssh` with `user.signingkey` in the `key::<pub>` form and **no `SSH_AUTH_SOCK`** in a non-interactive shell (pi, cron, a converge). Set `user.signingkey` to the key FILE when it is passphrase-free — `ssh-keygen -y -P '' -f ~/.ssh/github_signing` answers that question — or export `SSH_AUTH_SOCK=/run/user/$(id -u)/openssh_agent`. Refusing the commit is the correct failure; a silently unsigned commit is not (CONVENTIONS §6, HD-901) |
+| **`git log -1 --format='%G?'` prints `N` on commits you know are signed** | No `gpg.ssh.allowedSignersFile` configured — git cannot verify, so it reports `N` for every commit, signed or not. Use `grep -c '^gpgsig'` over `git cat-file commit HEAD` meanwhile, then set the file (deployment-manual.md §0.4a) |
 | **`op item edit` returns `error: an HTTP error occurred … 404` right after clearing a field** | **Spurious (op CLI 2.39).** The write has ALREADY been applied — the 404 is the CLI's post-edit re-read hitting a stale revision. **Re-read the item to confirm the new state instead of retrying**, and never treat it as "nothing happened" — that class of failure only repeats the clear or corrupts the field ordering (live 2026-09-17, the `dsh` credential clear) |
 | `op item get <item>` prints something like `REDACTED`/a hint where a value should be, and a comparison "fails" | `op item get` **without `--reveal`** returns a non-secret hint string, not the value — so any equality test against an expected secret is false by construction. Add `--reveal` (and keep the output out of transcripts per §Output hygiene), or compare a `sha256` of the revealed value instead of the value itself |
 

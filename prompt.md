@@ -15,7 +15,10 @@
 WSL Debian primary, ext4 (the repo runs from the WSL Debian primary, not Windows). `python3`/bash/LF/UTF-8 no-BOM.
 Secrets → 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders. Multi-line bash heredocs with
 backslashes/backticks get mangled through `bash -c` — write script bodies to a temp file and run them.
-**Signed-commit gotcha:** keys in `~/.ssh/github_signing` / `github_auth`; `Couldn't find key in agent` →
+**Signed-commit gotcha:** keys `~/.ssh/github_signing` / `github_auth`, both in `Homelab-ansible` (HD-901), so
+`git-bootstrap.sh --ssh-auth` needs no `op signin`. On the **oldsrv seat** `user.signingkey` is the key FILE, not
+`key::<pub>` — the `key::` form needs `SSH_AUTH_SOCK` and fails `Couldn't get agent socket?` in a non-interactive
+shell, which is how an agent runs here. `Couldn't find key in agent` on a `key::` config →
 `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`.
 
 **Reachability is settled — read the one SSOT, do not re-derive it:**

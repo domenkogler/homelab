@@ -604,23 +604,36 @@ Phase 4c step 8. It exists since 2026-09-28 and both directions work over the se
 key; it was never cloned through the runner's read-only HTTPS store, which is the thing the
 decision forbids.
 
-**⚠ What the seat still cannot do is AUTHOR.** Measured 2026-09-28: `domen` has no global git
-config at all — no `user.name`/`user.email`, no `gpg.format=ssh`, no `user.signingkey` — and the
-signing key sits in the `Private` vault, which the read-scope service account cannot read (it
-needs a human `op` sign-in). Measured the same minute: `ansible-admin` has no global git config either, so this is
-not a seat-only gap — **nothing on oldsrv is configured to sign or even attribute a commit**, and the HD-407
-decision's "commits on oldsrv are signed and attributed to you" is intent, not state. A commit from the seat today would be unattributed and unsigned, so
-the cockpit can edit and run but must not be treated as a commit surface yet.
-`git-bootstrap.sh --ssh-auth` is the laptop's version of that act and is **not** what the seat
-runs. Unrowed finding for the owner to mint if the cockpit should commit, rather than only edit.
+**The seat can author since 2026-10-06 (HD-901) — and here is what was actually in the way.**
+Measured 2026-09-28: `domen` had no global git config at all (no `user.name`/`user.email`, no
+`gpg.format=ssh`, no `user.signingkey`), and the blocker named at the time — the signing key sits in
+the `Private` vault, which a read-scope service account cannot read, so it needs a human `op signin`
+that a headless seat cannot answer — was correct then and is **obsolete now**: both keys live in
+`Homelab-ansible`. What the seat runs today (measured on the box, not inferred):
+
+| Leg | State on the seat (`domen@oldsrv`) |
+|---|---|
+| Vault read | `~/.config/op/homelab-sa-token` (0600), the canonical `op_api` value — `sha256[:12] adc2aada8f6e`, `len 850`, the same hash the vault item and the runner carry, so the seat is not a fourth mint point |
+| Keys | `~/.ssh/github_signing` + `github_auth` pulled with `op read`, fingerprints equal to the items' `fingerprint` fields, **passphrase-free** (proved with `ssh-keygen -y -P '' -f`, which is also what selects the file-path signing form) |
+| Attribution + signing | a **global** `~/.gitconfig` (worktrees share the clone's config; other repos need global) with `gpg.format=ssh`, `commit.gpgsign=true`, `user.signingkey` = the key file, `gpg.ssh.allowedSignersFile` |
+| Proof | `git verify-commit HEAD` → `Good "git" signature for domen@kogler.si with ED25519 key SHA256:I3kz4JY7…`, and the decoded pubkey inside an existing `gpgsig` header is that same key — the seat signs with the identical key the laptop uses, so history stays continuous. `git log -1 --format='%G?'` → `G` **with `SSH_AUTH_SOCK` unset**, which is the pi/cron case; with a deliberately broken `signingkey` the commit is REFUSED rather than written unsigned |
+
+⚠ **Do not copy the laptop's `key::<pub>` config onto a seat.** That form asks the ssh-agent and dies
+in every shell without `SSH_AUTH_SOCK` — measured: `error: Couldn't get agent socket?` then
+`fatal: failed to write commit object`. The file path needs no agent, and the HD-300 `~/.bashrc`
+autoload block covers the agent case for interactive shells (`/run/user/$UID/openssh_agent`).
+`git-bootstrap.sh --ssh-auth` now makes that choice itself and defaults `OP_VAULT` to
+`Homelab-ansible`, so the laptop path and the seat path are the same command.
 
 **⚠ And none of the seat's git plumbing is role-owned.** `/home/domen/.ssh/{config,known_hosts,github-homelab-deploy_ed25519}`
 and the clone are ad-hoc state on a converged host — the same shape HD-445 complains about for the cockpit
 units — so a rebuild of oldsrv loses the seat's credential silently and only re-running
 `scripts/seed-seat-deploy-key.sh` restores it. Nothing in the converge proves it is there.
-(`user.name`/`user.email`, `gpg.format=ssh`, `user.signingkey` from the `Private` vault — a
-human `op` sign-in, the read-scope SA cannot read it); `git-bootstrap.sh --ssh-auth` is the
-laptop's version of that act and is **not** what the seat runs.
+HD-901 widened the same hole rather than closing it: `~/.gitconfig`, `~/.ssh/{github_signing,github_auth,allowed_signers}`
+and the three `~/.bashrc` Phase-0 blocks (token source, `SSH_AUTH_SOCK`, HD-300 autoload) are now also
+hand-planted host state, and a rebuild silently loses seat **signing**, not just push. The fix is
+IaC, not a runbook line: everything there is derivable from `Homelab-ansible`, so a converge can render
+it and assert it.
 
 **The order is not cosmetic.** `--token-stdin` takes the token on stdin, and stdin can only
 carry one thing — so the script must already be ON oldsrv, which means the repo lands first
@@ -727,10 +740,12 @@ Until step 4 has produced a log on a given box, `docs/1password.md` keeps naming
 interactive control node and the laptop runner stays installed — the wording moves with the
 proof, and the laptop is also the rescue door (it is dual-stack-blind, which cuts both ways).
 
-**Commit authorship does not move with the runner.** CONVENTIONS §6/HD-265 signs every commit
-with `github_signing` from the `Private` vault, which a read-scope service account cannot
-read and a headless host cannot prompt for. A runner on another machine converges; commits
-stay on a signing station.
+**Commit authorship does not move with the runner — as a policy, not a capability.** CONVENTIONS
+§6/HD-265 signs every commit with `github_signing`; since HD-901 that item sits in `Homelab-ansible`,
+so a read-scope service account on ANY Debian host can pull it and a headless seat can sign with no
+agent in the loop. What still keeps authorship off a converge runner is the reason the rule was
+written — a tree that every converge executes must not also be a commit surface (HD-449), not a
+missing credential.
 
 ### Which account, and what keeps the clones on one commit
 

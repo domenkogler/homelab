@@ -170,28 +170,35 @@ there is no `domen` account on managed hosts.
 ✔ Once a provisioned host exists (Phase 0.5): `ssh vps whoami` and `ssh vps-ansible whoami` both
 return `ansible-admin` with no password prompt.
 
-### 0.4a Debian/WSL-side GitHub SSH auth + commit signing `[MANUAL]` *(one-time per machine)*
+### 0.4a Debian-side GitHub SSH auth + commit signing `[MANUAL]` *(one-time per machine)*
 
-Requires a **human** 1Password session — a Service Account cannot read the `Private` vault, and the
-signing + auth keys live there. One-time per account, so skip it when `ssh-add -l` already lists two
-identities:
+Needs a 1Password identity that can read the `Homelab-ansible` vault. On a Phase-0 machine that is the
+installed Service Account token, so **no interactive sign-in is required** — both GitHub keys are
+SSH_KEY items in that vault now (they used to sit in `Private`, which a Service Account cannot read;
+a machine set up before the move still passes `OP_VAULT=Private`). One-time per account, so skip it
+when `ssh-add -l` already lists two identities:
 
 ```bash
 export XDG_RUNTIME_DIR=/run/user/$(id -u)               # [MANUAL] if your shell inherited another
                                                         # user's runtime dir (a `su` from the runner
                                                         # identity leaves it at /run/user/<other-uid>,
                                                         # mode 700 → op cannot start its daemon and
-                                                        # sign-in can never succeed)
-op account add --address https://my.1password.eu        # [MANUAL] interactive, prompts for email
-eval "$(op signin --account my)"                        # [MANUAL] password + secret key + 2FA; the
-                                                        # token is a per-shell variable, so sign in
-                                                        # in the SAME shell as the next line
-bash scripts/git-bootstrap.sh --ssh-auth                # idempotent; pulls the keys, ssh-adds them,
-                                                        # sets user.signingkey + gpg.format=ssh + gpgsign=true
+                                                        # no vault read can ever succeed)
+set -a; . ~/.config/op/homelab-sa-token; set +a         # read-scope SA token (Phase 0); sourced, not
+                                                        # printed — an already-running shell keeps the
+                                                        # OLD value and the environment beats the file
+bash scripts/git-bootstrap.sh --ssh-auth                # idempotent; pulls both keys, ssh-adds them,
+                                                        # sets gpg.format=ssh + gpgsign=true +
+                                                        # allowedSignersFile, and CHOOSES the
+                                                        # user.signingkey form: a passphrase-free key
+                                                        # gets its file path (signs with no agent), a
+                                                        # passphrase-protected one gets `key::<pub>`
 ```
 
-✔-evidence: `ssh-add -l` lists two identities, `git config --global --get user.signingkey` prints a
-`ssh-ed25519 …` string, and `git cat-file commit HEAD | grep -c gpgsig` returns `1` on a test commit.
+✔-evidence: `ssh-add -l` lists two identities, `git config --get user.signingkey` prints a path, and
+`git cat-file commit HEAD | grep -c gpgsig` returns `1` on a test commit. Where commits will be made
+from non-interactive shells (an agent session, cron, a converge), prove that leg too rather than
+assuming it: `env -u SSH_AUTH_SOCK git commit …` must succeed — the `key::` form does not.
 
 ⚠ **Do not verify with `git log -1 --format='%G?'` on a machine that has no
 `gpg.ssh.allowedSignersFile`** (CONVENTIONS §6 names that command): without the file git prints

@@ -133,12 +133,18 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   live timestamp (`git worktree add ../homelab-wt-YYYYMMDD-HHMM`). **Primary definition:** the primary
   checkout is a **merge station only** — all edits happen on a session branch inside a session worktree;
   main receives only fast-forward merges of committed, green results.
-- **Commit signing (HD-265/270):** every commit is signed (`commit.gpgsign=true`, `gpg.format=ssh`,
-  `user.signingkey` = the GitHub-sign key from the `Private` vault, served via the SSH agent). A fresh
-  shell that reports `Couldn't find key in agent` → load the keys once: `ssh-add ~/.ssh/github_signing
-  ~/.ssh/github_auth` (they persist after `git-bootstrap.sh --ssh-auth`). Verify a commit is signed
-  with `git log -1 --format='%G?'` (G = good). Only when re-reading the `Private` vault is needed (new
-  key pull) does a human `op` sign-in apply. See `scripts/README.md` git-bootstrap row + HD-270 doc.
+- **Commit signing (HD-265/270/901):** every commit is signed (`commit.gpgsign=true`, `gpg.format=ssh`).
+  The signing + auth halves are the `GitHub sign` / `GitHub auth` SSH_KEY items in the **`Homelab-ansible`**
+  vault — moved out of `Private` on 2026-10-06 (HD-901) precisely so a read-scope Service Account can pull
+  them: on any Debian seat that means **no human `op signin` and no desktop app**, which is what used to
+  make seat signing owner-gated. `user.signingkey` carries the **key-file path** when the key is
+  passphrase-free — that form signs with no agent at all, so pi, cron and converge shells work; the
+  `key::<pub>` form depends on `SSH_AUTH_SOCK` and fails with `Couldn't get agent socket?` in every
+  non-interactive shell, so keep it for a passphrase-protected key only. A shell reporting
+  `Couldn't find key in agent` → `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth` (they persist after
+  `git-bootstrap.sh --ssh-auth`; HD-300's `~/.bashrc` block re-adds them, agent memory is non-persistent).
+  Verify with `git log -1 --format='%G?'` (**G** = good) — which needs `gpg.ssh.allowedSignersFile`,
+  without which git prints `N` for every commit, signed or not. See `scripts/README.md` git-bootstrap row + HD-270 doc.
 - **A test that cannot fail is not evidence.** Before claiming a fix, write the input that
   differs *only* under the fix and run it; if the check would print the same thing either way,
   it proves nothing. Measured cost of skipping this (2026-09-21): a commit here described a

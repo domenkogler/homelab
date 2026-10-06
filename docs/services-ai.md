@@ -968,8 +968,9 @@ Two halves, both read from this workstation:
   a **systemd USER unit gets neither** — that is what `pi-on-path.conf` exists for. A one-shot
   `ssh oldsrv-domen 'pi …'` reads neither file: use the absolute path. Neither may be "fixed" by
   copying a laptop `settings.json` (§1: settings have no renderer by design; §5 is the source).
-  Still open, and named in `todo.md`: seat commits are unsigned — the sign key lives in the `Private`
-  vault, which the read-scope SA token cannot reach, so that leg needs the owner's hand.
+  Seat commits are signed since 2026-10-06 (HD-901): the sign/auth keys moved into
+  `Homelab-ansible`, so the seat's read-scope SA token pulls them with no owner hand, and
+  `user.signingkey` carries the key FILE, which needs no agent. See CONVENTIONS §6.
 
 ### 9c. Ecosystem constraints (verified from primary sources)
 
