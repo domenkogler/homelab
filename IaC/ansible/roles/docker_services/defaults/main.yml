@@ -187,6 +187,108 @@ sabnzbd_host_whitelist:
   - sabnzbd                      # the overlay name Prowlarr / any container-side consumer sends
   - "sab.{{ domain_public }}"    # the edge name Traefik passes through as Host
 
+# ---- qBittorrent WebUI seed (the torrent leg) — what tasks/qbittorrent-seed.yml reconciles ----
+# WHY THIS IS A SEED AND NOT COMPOSE ENV (measured 2026-10-06, same class as sabnzbd-seed.yml):
+#   1. qBittorrent stores its settings in `qBittorrent.conf` (a Qt .ini), and the linuxserver image
+#      translates exactly TWO env vars — `WEBUI_PORT` and `TORRENTING_PORT`. There is no env for the
+#      WebUI username/password, the save path or the categories, so env is not a lever.
+#   2. Leaving the credential alone is not a neutral default. `WebUI\Password_PBKDF2` empty makes
+#      qbit mint a NEW random 9-character password on EVERY start
+#      (qBittorrent src/app/application.cpp: `getWebUIPassword().isEmpty() ? Password::generate(9)`),
+#      printed to the container log. An *arr download client pointed at it therefore works until the
+#      next recreate and then 401s forever — and a converge recreates. Live proof 2026-10-06: the
+#      conf carried no credential keys at all (mtime = the day the container was first created) and
+#      every WebUI call answered 401.
+#   3. qBittorrent has no config-WRITE API for these values (`app/setPassword` needs the CURRENT
+#      password, which is the random one), so the conf is the only automatable door — write it while
+#      the container is stopped, because qbit rewrites the conf on a clean exit (the sabnzbd ini rule).
+qbit_container_name: qbittorrent
+# The conf + categories file on the HOST path (compose binds config → /config).
+qbit_conf_host_path: /srv/docker/qbittorrent/config/qBittorrent/qBittorrent.conf
+qbit_categories_host_path: /srv/docker/qbittorrent/config/qBittorrent/categories.json
+# Login the *arr download clients use. `admin` is what the image logs as the username; the password
+# is the vault item (`qbittorrent_api`, field `credential`), never rendered into compose.
+qbit_webui_username: admin
+# Save paths INSIDE the container (the compose binds /mnt/nas/media/downloads → /downloads).
+# ⚠ DefaultSavePath must be the COMPLETED dir, not `/downloads/`: qBittorrent does not append the
+# category to the default path, so a flat `/downloads/` writes completed files where no *arr root
+# folder points — the same "Import failed, path does not exist" the Usenet leg hit with SAB's
+# `[misc] complete_dir`. TempPath is the incomplete dir.
+qbit_save_path_completed: /downloads/complete
+qbit_save_path_incomplete: /downloads/incomplete
+# Categories with their OWN save path, so a grab lands in complete/<category> whatever the arr sends.
+# Pre-created here rather than left to the arrs: an arr creates a missing category with an EMPTY
+# save path, and an empty save path means "use the default" — i.e. the flat-`complete/` shape again.
+# Keys are the categories the arrs are configured to send (Radarr movies / Sonarr tv / Lidarr music).
+qbit_categories:
+  movies: /downloads/complete/movies
+  tv: /downloads/complete/tv
+  music: /downloads/complete/music
+
+# ---- The torrent download client in each *arr (HD-496 Gate 3b) ----
+# tasks/arr-client-torrent.yml reconciles ONE qBittorrent client per arr, over that arr's own API,
+# for the same reason arr-seed.yml owns root folders: a download client is APP state (each app's own
+# SQLite), so a from-zero converge would leave three arrs with indexers, a working downloader and
+# nothing connecting the two — the exact "every UI is green, nothing downloads" state HD-496 was
+# opened for. The Usenet client was wired by hand in that lane; this is the torrent half.
+#
+# HOST IS `gluetun`, NOT `qbittorrent` — qBittorrent is `network_mode: service:gluetun` and owns no
+# network namespace, so `qbittorrent:8080` does not resolve/reach anything from the overlay while
+# `gluetun:8080` answers (measured 2026-10-06: code=000 vs 200). Port 8080 is the port INSIDE that
+# namespace; the host publish (qbittorrent_host_port) is only for the browser edge.
+#
+# The field names below are the apps' OWN settings properties (`QBittorrentSettings.cs` in each repo,
+# read 2026-10-07), i.e. the `name` half of the API `fields` array. They differ per app and nothing
+# validates a wrong one: *arr silently drops an unknown field, so `category` on an app that wants
+# `movieCategory` stores nothing, the client grabs with NO category, and the file lands flat in
+# complete/ — SAB's `dir` vs `complete_dir` failure shape. The task therefore READS THE CLIENT BACK
+# and asserts the wanted value actually landed, instead of trusting the POST's 2xx.
+arr_torrent_client:
+  sonarr:
+    port: 8989
+    api_base: /api/v3
+    category_field: tvCategory
+    category: tv
+  radarr:
+    port: 7878
+    api_base: /api/v3
+    category_field: movieCategory
+    category: movies
+  lidarr:
+    port: 8686
+    api_base: /api/v1          # Lidarr 3.1 is /api/v1; /api/v3 404s with an empty body (arr_seed note)
+    category_field: musicCategory
+    category: music
+arr_torrent_client_name: qBittorrent      # the client name shown in each arr
+arr_torrent_client_host: gluetun          # the netns owner — see the note above
+arr_torrent_client_port: 8080
+arr_torrent_client_user: "{{ qbit_webui_username }}"
+arr_torrent_client_item: qbittorrent_api  # vault item holding the WebUI credential (field credential)
+# The non-secret fields the seed writes. `apiKey` is part of the settings class but unused by qBittorrent
+# (it takes basic auth) — it is sent empty so a stale placeholder from an older build cannot shadow it.
+arr_torrent_client_fields:
+  host: "{{ arr_torrent_client_host }}"
+  port: "{{ arr_torrent_client_port }}"
+  useSsl: false
+  urlBase: ""
+  apiKey: ""
+# `type` per field, exactly as the app reports it (measured out of a live GET /downloadclient on Sonarr
+# 4.0.19: textbox / checkbox / password). This is UI metadata about the settings FIELDS — the values
+# come from group_vars and from 1Password, never from here. Keys carry a `_type` suffix so the secrets
+# linter (which flags any `password:`/`apiKey:` key with a literal value) does not read a type NAME as
+# a credential; arr-torrent-client.py strips the suffix before use.
+arr_torrent_client_field_types:
+  host_type: textbox
+  port_type: textbox
+  useSsl_type: checkbox
+  urlBase_type: textbox
+  apiKey_type: textbox
+  username_type: textbox
+  password_type: password
+  tvCategory_type: textbox
+  movieCategory_type: textbox
+  musicCategory_type: textbox
+
 # ---- HD-258: bulk 1Password pre-pass item sets (per-template map) ----
 # The compose/config templates reference `vault: {name: {field}}` items which
 # fetch-vault-pass.yml + scripts/op-vault-export.py fetch ONCE per item (one op
@@ -227,7 +329,7 @@ _template_vault_items:
   pihole: {'pihole_password'}   # RETIRED 2026-09-10 — kept so a future re-enable resolves cleanly
   victoria-metrics: {'victoria-metrics_api'}   # Victoria* basic auth (HD-341/342), HYPHENATED <service>_<type>
   victoria-logs: {'victoria-logs_api'}         # Victoria* basic auth (HD-341/342)
-  qbittorrent: {'privado-vpn_api'}
+  qbittorrent: {'privado-vpn_api', 'qbittorrent_api'}   # qbittorrent_api is NOT a compose reference: the WebUI credential is written into qBittorrent.conf by tasks/qbittorrent-seed.yml, which reads it from the bulk vault dict (the immich-seed precedent) — the derive set is where a missing item fails loudly
   aurral: []   # HD-362 — Aurral config is all IN-UI (Lidarr API, Last.fm, ListenBrainz entered in its first-run setup); no 1P items needed for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows. (NB: was `set()` — a Python set literal that YAML parses as the STRING "set()", polluting the derive item set with per-char fake items → op-vault-export failed on '('.)
   lidarr-ydl: {'lidarr_api'}   # HD-362 — Lidarr API key (compose). Its Web-UI login has NO vault item (measured 2026-10-07: no matching title in the 131-item vault) —
   #   first-run setup, not fetched/required by compose.

@@ -322,6 +322,47 @@
     loop_var: svc_entry
   tags: [docker_services, sabnzbd_seed]
 
+# The torrent leg (HD-496 Gate 3b): qBittorrent answered 401 to everything because its stored WebUI
+# password was EMPTY — which makes qbit mint a fresh random one at every start, so no download client
+# can survive a recreate. No env translation in the image, no usable API door, so the conf is seeded
+# while the container is stopped; the same pass owns the save path + the per-category paths, which are
+# what stop a grab landing flat in /downloads where no root folder points. Autopsy: tasks/qbittorrent-seed.yml.
+- name: "Seed the qBittorrent WebUI credential + save paths (torrent leg)"
+  ansible.builtin.include_tasks:
+    file: qbittorrent-seed.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') == 'qbittorrent'
+    - scope_is_all or svc_entry.name in scope_list
+    - not ansible_check_mode
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, qbittorrent_seed]
+
+# Gate 3b of the acquisition lane: the three arrs carried a Usenet client and ZERO torrent clients, so
+# every torrent indexer Prowlarr synced (Zamunda, LimeTorrents, Nyaa) resolved releases nobody could
+# receive. Registered per-arr, never in Prowlarr — same policy the Usenet half settled. Runs AFTER the
+# qBittorrent seed above, which is what proves the VPN carries the egress.
+- name: "Register the qBittorrent download client in each *arr (torrent leg)"
+  ansible.builtin.include_tasks:
+    file: arr-client-torrent.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') in arr_torrent_client
+    - scope_is_all or svc_entry.name in scope_list
+    - not ansible_check_mode
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, arr_client_seed]
+
 # DNS self-heal (2026-09-15): the seed tail above ONLY runs when a converge's deploy loop
 # includes a technitium instance — a deploy-SCOPED converge (docker_services_scope=<svc>)
 # silently skips it (live llogs gap: Pi zone lacked the record -> ERR_NAME_NOT_RESOLVED).

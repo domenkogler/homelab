@@ -1,0 +1,188 @@
+#!/usr/bin/env python3
+r"""arr-torrent-client.py — register / reconcile the qBittorrent download client in ONE *arr.
+
+Rendered from arr-torrent-client.py.j2 by the docker_services role (tasks/arr-client-torrent.yml).
+
+    arr-torrent-client.py <base_url> <api_base> [--check | --apply | --verify]
+    stdin:  line 1 = that arr's own ApiKey (from its config.xml)
+            line 2 = the qBittorrent WebUI password (from 1Password, field `credential`)
+
+WHY A SCRIPT AND NOT A PATTERN OF `uri:` TASKS: the payload has to be MERGED, not bludgeoned. Reading
+the client back and PUTting it verbatim stores the app's own REDACTED secret (measured: a working key
+reads back as 8 characters), while PUTting a hand-written body resets every option the owner set in the
+UI (seeding limits, content layout, priorities). So: read back, overlay only the fields this file owns
+(re-supplying every secret from the vault AFTER the overlay), and write once. In Jinja that is a
+three-page expression nobody can run offline; in Python it can be tested before it ships.
+
+WHY THE TEST CALL IS THE PROOF: on Sonarr 4.0.19 `POST /api/v3/downloadclient/test` validates and
+TESTS THE BODY IT CARRIES (sending `{}` answers 400 "'Name' must not be empty"; `test/{id}` and
+`test/all` answer 405 — measured 2026-10-07). So posting the body we just stored makes the app itself
+resolve `gluetun`, open the WebUI and authenticate with the credential it now holds. 200 = the leg
+works end to end; 401 = qBittorrent's conf and this client disagree (qbittorrent-seed did not run
+after the last rotation); 000/ refused = the overlay name `gluetun` does not resolve from this arr.
+⚠ Same reason "GET the client, POST it to /test" is a WEAK proof: the redacted secret travels with it.
+For SABnzbd that still passes (SAB answers localhost without a key), which is why the recipe looked
+fine for the Usenet leg; qBittorrent always enforces basic auth, so the shortcut fails here for a
+reason that has nothing to do with the real state.
+
+FIELD NAMES are each app's own QBittorrentSettings properties (host, port, useSsl, urlBase, apiKey,
+username, password, <tv|movie|music>Category). The *arr API silently DROPS a name it does not
+recognise, so a wrong one stores nothing, grabs arrive with no category, and files land flat in
+complete/ where no root folder points — the SAB `dir`/`complete_dir` shape. Hence the read-back below
+asserts the VALUE, never the write's status code.
+"""
+import json
+import sys
+import urllib.error
+import urllib.request
+
+BASE = sys.argv[1].rstrip("/")
+API = sys.argv[2]
+MODE = (sys.argv[3] if len(sys.argv) > 3 else "--apply").lstrip("-")
+if MODE not in ("check", "apply", "verify"):
+    sys.exit("unknown mode %r (want --check | --apply | --verify)" % MODE)
+
+# Non-secret fields this file owns, from group_vars/role defaults, plus this app's category field.
+FIELDS = {{ (arr_torrent_client_fields | combine({arr_torrent_client[svc.template_dir].category_field: arr_torrent_client[svc.template_dir].category})) | to_json }}
+USERNAME = {{ arr_torrent_client_user | to_json }}
+CATEGORY_FIELD = {{ arr_torrent_client[svc.template_dir].category_field | to_json }}
+CATEGORY = {{ arr_torrent_client[svc.template_dir].category | to_json }}
+NAME = {{ arr_torrent_client_name | to_json }}
+# Field `type` as the app itself reports it (measured out of a live /downloadclient response: the
+# literal strings textbox / checkbox / password / select). Only used for fields the app did not already declare.
+# Keys arrive suffixed (`host_type`) so the secrets linter cannot read a type NAME as a credential.
+TYPES = {k[:-5] if k.endswith("_type") else k: v
+         for k, v in {{ arr_torrent_client_field_types | to_json }}.items()}
+
+stdin_lines = sys.stdin.read().split("\n")
+API_KEY = (stdin_lines[0] if stdin_lines else "").strip()
+QBIT_PW = (stdin_lines[1] if len(stdin_lines) > 1 else "").strip()
+if not API_KEY:
+    print("FAIL no arr ApiKey on stdin")
+    sys.exit(1)
+
+wanted = dict(FIELDS)
+wanted["username"] = USERNAME
+if QBIT_PW:
+    wanted["password"] = QBIT_PW
+if MODE in ("apply", "verify") and not QBIT_PW:
+    print("FAIL no qBittorrent password on stdin — refusing to write or test a client with no credential")
+    sys.exit(1)
+
+
+def call(method, path, body=None):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(
+        BASE + API + path, data=data, method=method,
+        headers={"X-Api-Key": API_KEY, "Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=45) as resp:
+            raw = resp.read().decode()
+            return resp.status, (json.loads(raw) if raw.strip() else None)
+    except urllib.error.HTTPError as err:
+        return err.code, err.read().decode()[:300]
+    except (urllib.error.URLError, OSError) as exc:
+        return "unreachable: %s" % exc, None
+
+
+def qbit_of(clients):
+    return [c for c in clients or [] if (c.get("implementation") or "").lower() == "qbittorrent"]
+
+
+status, clients = call("GET", "/downloadclient")
+if status != 200 or not isinstance(clients, list):
+    print("FAIL GET %s/downloadclient -> %s %s" % (BASE + API, status, str(clients)[:200]))
+    sys.exit(1)
+
+found = qbit_of(clients)
+if len(found) > 1:
+    print("FAIL %d qBittorrent clients in this arr (ids %s) — de-duplicate in the UI first: two "
+          "enabled clients of one protocol make the arr round-robin grabs between them"
+          % (len(found), [c.get("id") for c in found]))
+    sys.exit(1)
+existing = found[0] if found else None
+
+if existing:
+    live = {f.get("name"): f.get("value") for f in existing.get("fields", []) if isinstance(f, dict)}
+    types = {f.get("name"): f.get("type") or TYPES.get(f.get("name"), "textBox")
+             for f in existing.get("fields", []) if isinstance(f, dict)}
+    merged = dict(live)
+    merged.update(wanted)          # secrets last, so a redacted read-back value can never survive
+    body = {
+        "id": existing.get("id"),
+        "name": existing.get("name") or NAME,     # never rename a client something else may reference
+        "enable": True,                           # a torrent client nobody enabled downloads nothing
+        "protocol": existing.get("protocol", "torrent"),
+        "priority": existing.get("priority", 1),
+        "removeCompletedDownloads": existing.get("removeCompletedDownloads", True),
+        "removeFailedDownloads": existing.get("removeFailedDownloads", True),
+        "implementation": existing.get("implementation", "QBittorrent"),
+        "appProfileId": existing.get("appProfileId", 1),
+        "tags": existing.get("tags", []),
+        "fields": [{"name": k, "value": v, "type": types.get(k) or TYPES.get(k, "textBox")}
+                   for k, v in merged.items()],
+    }
+    # Password is unreadable by design, so it is not part of the drift question — the test call is.
+    drift = [k for k in wanted if k != "password" and live.get(k) != wanted[k]]
+    if not existing.get("enable"):
+        drift.append("enable")
+    action = "updated" if drift else "unchanged"
+else:
+    body = {
+        "name": NAME, "enable": True, "protocol": "torrent", "priority": 1,
+        "removeCompletedDownloads": True, "removeFailedDownloads": True,
+        "implementation": "QBittorrent", "appProfileId": 1, "tags": [],
+        "fields": [{"name": k, "value": v, "type": TYPES.get(k, "textBox")} for k, v in wanted.items()],
+    }
+    drift = sorted(wanted)
+    action = "registered"
+
+if MODE == "check":
+    print("%s: would %s (%d field(s) differ%s) · %s=%s" % (
+        "CHANGED" if (not existing or drift) else "OK already", action, len(drift),
+        "" if drift else "", CATEGORY_FIELD, wanted[CATEGORY_FIELD]))
+    sys.exit(0)
+
+if MODE == "apply":
+    status, reply = call("PUT" if existing else "POST", "/downloadclient", body)
+    if status not in (200, 201, 202):
+        print("FAIL %s %s/downloadclient -> %s %s"
+              % ("PUT" if existing else "POST", BASE + API, status, str(reply)[:250]))
+        sys.exit(1)
+
+# Re-read and check the VALUE, not the status code (a 2xx means the app parsed the body, nothing more).
+status, after = call("GET", "/downloadclient")
+if status != 200 or not isinstance(after, list):
+    print("FAIL re-read %s/downloadclient -> %s" % (BASE + API, status))
+    sys.exit(1)
+saved = qbit_of(after)
+if len(saved) != 1:
+    print("FAIL expected exactly one qBittorrent client after the write, found %d" % len(saved))
+    sys.exit(1)
+stored = {f.get("name"): f.get("value") for f in saved[0].get("fields", []) if isinstance(f, dict)}
+if stored.get(CATEGORY_FIELD) != CATEGORY:
+    print("FAIL stored %s=%r, wanted %r — the write returned 2xx but the category did not land. That "
+          "is how grabs end up flat in complete/: the field name is wrong for this build, or the app "
+          "renamed it (check QBittorrentSettings.cs for the pinned version)."
+          % (CATEGORY_FIELD, stored.get(CATEGORY_FIELD), CATEGORY))
+    sys.exit(1)
+if not saved[0].get("enable"):
+    print("FAIL the client exists but is disabled — it will never receive a grab")
+    sys.exit(1)
+
+# The app's own judgement, over the values WE hold (never the redacted read-back).
+test_body = dict(saved[0])
+test_body["fields"] = [{"name": k, "value": v,
+                        "type": TYPES.get(k, "textBox")} for k, v in wanted.items()]
+status, reply = call("POST", "/downloadclient/test", test_body)
+if status != 200:
+    print("FAIL the arr's own client test -> %s %s · stored host=%s:%s %s=%s — 401 means qBittorrent's "
+          "conf and this client disagree (run the qbittorrent_seed tag); a refused connection means "
+          "`%s` is not resolvable/reachable from this arr"
+          % (status, str(reply)[:200], stored.get("host"), stored.get("port"),
+             CATEGORY_FIELD, wanted["host"]))
+    sys.exit(1)
+
+print("%s: %s host=%s:%s %s=%s · arr client test HTTP %s" % (
+    "CHANGED" if (MODE == "apply" and (not existing or drift)) else "OK already",
+    action, wanted["host"], wanted["port"], CATEGORY_FIELD, CATEGORY, status))

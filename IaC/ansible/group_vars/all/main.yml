@@ -739,10 +739,13 @@ jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-
 # the VPS/public leg is served by the overlay labels, not these). Each `*-backend` URL in
 # routes.yml.j2 points at the matching `*_url`, never a literal `oldsrv_home_ip:<port>`.
 # Distinct host ports where two containers share an internal port: seerrng 5056 (both
-# listen :5055 inside), torrent 8082 (qBittorrent :8080 inside shares with SABnzbd — 8081
-# is dozzle/llogs). recyclarr has NO publish: it is a scheduled worker with no UI and talks# HD-1083 (2026-10-06): the binds above publish on the HOME IP, not loopback, because that is what
+# listen :5055 inside), torrent 8085 (qBittorrent :8080 inside shares with SABnzbd — 8081
+# is dozzle/llogs, and 8082 is ALREADY TAKEN, see the collision note at qbittorrent_host_port).
+# recyclarr has NO publish: it is a scheduled worker with no UI and talks to
+# sonarr/radarr over the overlay network, not through the edge.
+# HD-1083 (2026-10-06): the binds above publish on the HOME IP, not loopback, because that is what
 # every routed container on oldsrv actually publishes on (measured: jellyfin 10.10.1.30:8096, bazarr
-# :6767, seerr :5055, seerrng :5056, sabnzbd :8080, sonarr :8989, slskd :5030, qbit-via-gluetun :8082).
+# :6767, seerr :5055, seerrng :5056, sabnzbd :8080, sonarr :8989, slskd :5030, qbit-via-gluetun :8085).
 # traefik-internal's live routes file targets those same 10.10.1.30:<port> sockets, so loopback binds
 # here would 502 the whole group unless EVERY routed service plus the edge were re-deployed in one
 # converge. Loopback-only + edge re-render is the better end state (services stop being reachable
@@ -777,7 +780,15 @@ sabnzbd_bind: "{{ oldsrv_home_ip }}"
 sabnzbd_host_port: 8080
 sabnzbd_url: "http://{{ sabnzbd_bind }}:{{ sabnzbd_host_port }}"
 qbittorrent_bind: "{{ oldsrv_home_ip }}"
-qbittorrent_host_port: 8082                    # qBittorrent WebUI listens :8080 inside the gluetun netns; host port split from sabnzbd's 8080
+# qBittorrent WebUI listens :8080 inside the gluetun netns; host port split from sabnzbd's 8080.
+# ⚠ 8082 is NOT free on this host: signal-cli-rest-api publishes {{ oldsrv_home_ip }}:8082:8880
+# (templates/docker_services/signal-cli-rest-api/). The first assignment of torrent→8082 (the
+# *arr front-door change, converged 2026-10-06 13:54) therefore took the port from the Signal
+# gateway — gluetun bound 8082 and `docker-compose@signal-cli-rest-api` failed at 13:55:17, which
+# is an alerting outage dressed up as a media fix. 8085 measured free (8083/8084 are the
+# Victoria* MCP publishes). Any NEW publish here must be checked against EVERY existing
+# `oldsrv_home_ip:` publish in the template tree, not against the neighbouring media ports alone.
+qbittorrent_host_port: 8085
 qbittorrent_url: "http://{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}"
 
 # ==== Tailscale listen port (HD-414) ====

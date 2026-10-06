@@ -1,0 +1,195 @@
+---
+# qbittorrent-seed.yml — give qBittorrent a durable WebUI credential, real save paths, categories.
+# Included ONCE from docker_services/main.yml, gated on `template_dir == 'qbittorrent'` + the deploy
+# scope + `not ansible_check_mode` (it drives the live container; deployment-ansible.md §Dry-run).
+#
+# WHAT WAS MISSING (measured on oldsrv 2026-10-06, the torrent leg of HD-496): qBittorrent answered
+# `401 Unauthorized` to everything and its conf carried NO credential keys at all — mtime Sep 15, the
+# day the container was first built. That is not "auth is off, add the client and it works": with
+# `WebUI\Password_PBKDF2` empty qbit generates a NEW random 9-character password at every start
+# (src/app/application.cpp) and prints it to the container log, so a download client pointed at it
+# works until the next `docker compose up -d` and then 401s forever — and a converge recreates. Every
+# other setting was still the image's default too: `Session\DefaultSavePath=/downloads/` (flat — no
+# *arr root folder points there) and `categories.json` = `{}` (no category, so no per-category path).
+#
+# WHY A FILE SEED AND NOT ENV OR API: the linuxserver image translates exactly two env vars
+# (`WEBUI_PORT`, `TORRENTING_PORT`) — no credential, no paths, no categories. The API path is closed
+# from the outside for the same reason the UI door was: `app/login` needs the credential this file
+# creates, and `app/setPassword` needs the OLD one, which is the random one. So the conf is the door,
+# exactly the sabnzbd-seed.yml shape — and it has to be written while the container is STOPPED,
+# because qBittorrent rewrites `qBittorrent.conf` and `categories.json` on a clean exit and would
+# silently undo an edit made while it runs.
+#
+# Idempotence is a VERIFY, not a presence check: the helper recomputes the stored PBKDF2 hash with
+# its own salt and compares, so a run whose vault value already matches stops nothing, and a rotation
+# rewrites exactly once. `--check` runs first for the same reason sabnzbd-seed runs `--check` — do not
+# stop a working downloader on a hunch.
+
+- name: "qbittorrent-seed: assert the seed facts are defined"
+  ansible.builtin.assert:
+    that:
+      - qbit_container_name | trim | length > 0
+      - qbit_webui_username | trim | length > 0
+      - qbit_save_path_completed | regex_replace('/+$', '') | length > 0
+      - qbit_categories | length > 0
+      - svc.secret_item | default('') | length > 0
+      - svc.secret_item | default('') in (vault | default({}))   # the bulk pre-pass fetched it (HD-258)
+    fail_msg: >-
+      qBittorrent seed inputs are incomplete, or the vault item `{{ svc.secret_item | default('<unset>') }}`
+      was not fetched by the 1P pre-pass. The credential has no default by design: an empty
+      WebUI password is the state that makes qbit regenerate a random one at every start, which is the
+      bug this file exists to close. Add the item to the vault (provision-secrets.py CATALOG) and make
+      sure `_template_vault_items.qbittorrent` lists it.
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: wait for the conf to exist (first start writes it)"
+  # A from-zero build reaches this file the moment after `docker compose up -d`; qBittorrent writes
+  # its conf on that first start. Retry rather than assume, and fail loud if it never appears.
+  ansible.builtin.stat:
+    path: "{{ qbit_conf_host_path }}"
+  register: _qbit_conf_stat
+  until: _qbit_conf_stat.stat.exists
+  retries: 10
+  delay: 3
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: fail when the conf never appeared"
+  ansible.builtin.assert:
+    that:
+      - _qbit_conf_stat.stat.exists
+    fail_msg: >-
+      {{ qbit_conf_host_path }} does not exist after 30 s — qBittorrent has not completed a first
+      start, so there is nothing to seed. Check `docker compose -f /opt/qbittorrent logs qbittorrent`
+      before re-running; do not pre-create the file by hand (Qt writes fields this seed must not guess).
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: render the conf helper"
+  # Rendered then run — the sabnzbd-folders.py precedent: `script:` needs a real file on the target,
+  # and the wanted values come from group_vars. 0700 root: the file itself carries no secret (the
+  # password arrives on stdin), but it does rewrite a downloader's config.
+  ansible.builtin.template:
+    src: qbittorrent-conf.py.j2
+    dest: /usr/local/sbin/qbittorrent-conf.py
+    mode: '0700'
+  changed_when: false
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: check the drift (no write, no restart)"
+  # stdin, not argv: an argv password is readable in `ps` for the life of the process (CONVENTIONS
+  # §3 secret-output hygiene). no_log keeps it out of the run log the same way.
+  ansible.builtin.command:
+    cmd: >-
+      /usr/local/sbin/qbittorrent-conf.py {{ qbit_conf_host_path }} {{ qbit_categories_host_path }} --check
+    stdin: "{{ vault[svc.secret_item].credential }}"
+  no_log: true
+  register: _qbit_check
+  changed_when: false
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: is a change needed?"
+  ansible.builtin.set_fact:
+    _qbit_drift: "{{ 'CHANGED' in _qbit_check.stdout | default('') }}"
+    _qbit_detail: "{{ _qbit_check.stdout | default('') }}"
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: apply the drift (stop → edit on the host path → start)"
+  when: _qbit_drift | bool
+  block:
+    - name: "qbittorrent-seed: stop qBittorrent"
+      ansible.builtin.command:
+        cmd: docker stop {{ qbit_container_name }}
+      changed_when: true
+
+    # Host path, not `docker exec`: exec needs a running container, so a stop-then-exec seed dies at
+    # the edit task and leaves the downloader down (the sabnzbd-seed live lesson). Root writes in
+    # place; the files stay media:media because nothing here chowns.
+    - name: "qbittorrent-seed: write credential + save paths + categories"
+      ansible.builtin.command:
+        cmd: >-
+          /usr/local/sbin/qbittorrent-conf.py {{ qbit_conf_host_path }} {{ qbit_categories_host_path }}
+        stdin: "{{ vault[svc.secret_item].credential }}"
+      no_log: true
+      register: _qbit_apply
+      changed_when: "'CHANGED' in _qbit_apply.stdout | default('')"
+  always:
+    - name: "qbittorrent-seed: start qBittorrent (always — a failed edit must not strand the downloader)"
+      ansible.builtin.command:
+        cmd: docker start {{ qbit_container_name }}
+      changed_when: false
+      failed_when: false
+      when: _qbit_drift | bool
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: prove WebUI auth is actually enforced (unauthenticated call)"
+  # The proof is the NEGATIVE: an unauthenticated API call must be refused. 200 here means auth is off
+  # and the Home VLAN can drive the client anonymously; 000 means the publish is gone. Both are bugs,
+  # and only one of them is the one this seed is supposed to fix.
+  ansible.builtin.shell:
+    cmd: curl -s -o /dev/null -w '%{http_code}' -m 8 {{ qbittorrent_url }}/api/v2/app/version
+    executable: /bin/bash
+  register: _qbit_probe
+  changed_when: false
+  until: _qbit_probe.stdout | default('000') == '401'
+  retries: 10
+  delay: 3
+  failed_when: _qbit_probe.stdout | default('000') != '401'
+  tags: [docker_services, qbittorrent_seed]
+
+# A torrent client behind a dead tunnel is an IP leak, not a download. The two legs are asked the same
+# question, through the same provider: the host over its normal WAN path, and qBittorrent from inside
+# the gluetun netns. Only a DEFINITIVE answer fails the run — both IPs known and equal means the VPN
+# is down and the home IP is peering at the swarm; a missing/unparsable answer is reported, not fatal,
+# because a third-party endpoint must not be able to break a converge (and "inconclusive" is not "ok").
+- name: "qbittorrent-seed: read the host egress IP"
+  ansible.builtin.command:
+    cmd: curl -s -m 12 https://api.ipify.org
+  register: _qbit_egress_host
+  changed_when: false
+  failed_when: false
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: read the egress IP qBittorrent actually presents"
+  # qbit shares gluetun's namespace, so probing the qbit container IS probing the tunnel.
+  ansible.builtin.command:
+    cmd: docker exec {{ qbit_container_name }} curl -s -m 12 https://api.ipify.org
+  register: _qbit_egress_vpn
+  changed_when: false
+  failed_when: false
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: fail if the two egress IPs are the same (VPN not carrying this traffic)"
+  ansible.builtin.assert:
+    that:
+      - not ((_qbit_egress_host.stdout | default('') | trim | length > 0) and
+             (_qbit_egress_vpn.stdout | default('') | trim | length > 0) and
+             (_qbit_egress_host.stdout | trim == _qbit_egress_vpn.stdout | trim))
+    fail_msg: >-
+      qBittorrent egresses at the SAME address as the host ({{ _qbit_egress_host.stdout | trim }}) —
+      gluetun's WireGuard tunnel is not carrying it, so enabling torrents now would expose the home IP.
+      Fix the tunnel (`docker compose -f /opt/qbittorrent logs gluetun`) before adding download clients.
+    success_msg: >-
+      egress differs (host {{ _qbit_egress_host.stdout | default('?') | trim }} vs qbit
+      {{ _qbit_egress_vpn.stdout | default('?') | trim }}) — or one leg did not answer, which is
+      reported below and is NOT a pass.
+  when: _qbit_egress_host.stdout | default('') | trim | length > 0
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: record the egress probe"
+  ansible.builtin.debug:
+    msg: >-
+      egress probe: host={{ _qbit_egress_host.stdout | default('no answer') | trim }}
+      qbit={{ _qbit_egress_vpn.stdout | default('no answer') | trim }}
+      {{ '(INCONCLUSIVE — read gluetun logs, this is not a pass)'
+         if (_qbit_egress_host.stdout | default('') | trim | length == 0
+             or _qbit_egress_vpn.stdout | default('') | trim | length == 0) else '' }}
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: record what it took"
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'seeded: ' ~ _qbit_detail ~ ' · qBittorrent restarted once'
+         if (_qbit_drift | bool)
+         else 'unchanged: ' ~ _qbit_detail ~ ' · no restart' }}
+      · WebUI auth enforced (401 unauthenticated at {{ qbittorrent_url }})
+      · consumers use host {{ qbit_container_name }}'s overlay peer `gluetun:8080`, NOT `qbittorrent:8080`
+  tags: [docker_services, qbittorrent_seed]

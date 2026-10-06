@@ -1,0 +1,133 @@
+---
+# arr-client-torrent.yml — register qBittorrent as a torrent download client in each *arr.
+# Included once per *arr from docker_services/main.yml, gated on `template_dir in arr_torrent_client`
+# + the deploy scope + `not ansible_check_mode` (every task drives a live API).
+#
+# WHY IT IS OWNED HERE: a download client is APP state — it lives in each app's own SQLite, not in
+# compose env — so a from-zero converge leaves three arrs with working indexers, a working downloader
+# and nothing joining them. That is precisely the "every UI is green, nothing downloads" state HD-496
+# was opened for, and it is why the root folders (tasks/arr-seed.yml) and this client are both seeded
+# instead of written into the runbook.
+#
+# POLICY, inherited from the Usenet half of the same lane (docs/services-downloads.md §"Which half of
+# Prowlarr to trust"): download clients are registered IN EACH ARR, never in Prowlarr; indexers stay
+# Prowlarr-synced. Adding the client in Prowlarr too yields two enabled clients of one protocol per
+# arr, and the arrs round-robin grabs between them — random landing folders, discovered weeks later.
+#
+# Ordering: this include sits AFTER qbittorrent-seed.yml on purpose. That seed is what proves the
+# WireGuard tunnel actually carries qBittorrent's egress; enabling a torrent client behind a dead
+# tunnel is an IP leak, not a download.
+#
+# The payload merge, the read-back assert and the app's own test call all live in
+# templates/arr-torrent-client.py.j2 — see its header for why this is a script and not `uri:` tasks.
+
+- name: "arr-torrent-client: assert the seed facts for {{ svc.name }}"
+  ansible.builtin.assert:
+    that:
+      - arr_torrent_client[svc.template_dir].api_base is match('^/api/v[0-9]+$')
+      - arr_torrent_client[svc.template_dir].category | length > 0
+      - arr_torrent_client[svc.template_dir].category_field | length > 0
+      - arr_torrent_client[svc.template_dir].port | int > 0
+      - arr_torrent_client[svc.template_dir].category in (qbit_categories | default({}))
+      - arr_torrent_client_item in (vault | default({}))
+    fail_msg: >-
+      arr_torrent_client.{{ svc.template_dir }} is incomplete, its category has no entry in
+      qbit_categories, or the vault item `{{ arr_torrent_client_item }}` was not fetched by the 1P
+      pre-pass. The category/qbit_categories coupling is deliberate: a client category with no save
+      path of its own is how a grab lands flat in complete/ instead of complete/<category>.
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: extract the instance key"
+  # The instance's own key, not the vault's *_api copy — those are consumer-side copies and they
+  # demonstrably drift (the lidarr_api case is recorded in tasks/arr-seed.yml). The capture group in
+  # the pattern is load-bearing: regex_search without parentheses raises "no such group" (HD-1081).
+  ansible.builtin.set_fact:
+    _tc_key: "{{ (_tc_cfg.content | b64decode) | regex_search('<ApiKey>([^<]*)</ApiKey>', '\\1') | first | default('') | trim }}"
+  no_log: true
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: read the instance config.xml (its ApiKey is the seed's credential)"
+  ansible.builtin.slurp:
+    src: "{{ arr_seed_config_dir }}/{{ svc.name }}/config/config.xml"
+  register: _tc_cfg
+  no_log: true
+  failed_when: _tc_cfg.content is not defined
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: discover the {{ svc.name }} container IP"
+  # Same shape as arr-seed.yml: host→container routing is live on oldsrv since the orphan-bridge
+  # cleanup (HD-318), and this does not depend on the service also having a host publish.
+  ansible.builtin.shell:
+    cmd: >-
+      docker inspect {{ svc.name }}
+      --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+      | tr ' ' '\n' | awk 'NF{print $1; exit}'
+    executable: /bin/bash
+  register: _tc_ip
+  changed_when: false
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: fail when the instance is not reachable"
+  ansible.builtin.assert:
+    that:
+      - _tc_key | length >= 16
+      - _tc_ip.stdout | trim | length > 0
+    fail_msg: >-
+      Cannot seed {{ svc.name }}: {{ 'no ApiKey in ' ~ arr_seed_config_dir ~ '/' ~ svc.name ~ '/config/config.xml'
+      if _tc_key | length < 16 else 'docker inspect returned no container IP' }}. The container must be
+      Up before this seed runs — fix the stack first, do not seed blindly.
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: render the client helper"
+  # Carries no secret in the file itself: the arr key and the qBittorrent password both arrive on
+  # stdin (argv would be readable in `ps` for the life of the process).
+  ansible.builtin.template:
+    src: arr-torrent-client.py.j2
+    dest: "/usr/local/sbin/arr-torrent-client-{{ svc.name }}.py"
+    mode: '0700'
+  changed_when: false
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: check what this arr is missing (read-only)"
+  ansible.builtin.command:
+    cmd: >-
+      /usr/local/sbin/arr-torrent-client-{{ svc.name }}.py
+      http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}{{ arr_torrent_client[svc.template_dir].api_base }}
+      {{ arr_torrent_client[svc.template_dir].api_base }} --check
+    # --check needs only the arr's own key; the qBittorrent password never leaves this host on a check.
+    stdin: "{{ _tc_key }}"
+  no_log: true
+  register: _tc_check
+  changed_when: false
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: remember the drift"
+  ansible.builtin.set_fact:
+    _tc_drift: "{{ 'CHANGED' in _tc_check.stdout | default('') }}"
+    _tc_detail: "{{ _tc_check.stdout | default('') }}"
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: write the client and let the arr test it"
+  # `--apply` also runs the verification legs (read-back assert + the app's own /downloadclient/test),
+  # so an unchanged client is still re-tested every converge — that is what makes a silent vault
+  # rotation fail the next run instead of failing the next download.
+  ansible.builtin.command:
+    cmd: >-
+      /usr/local/sbin/arr-torrent-client-{{ svc.name }}.py
+      http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}{{ arr_torrent_client[svc.template_dir].api_base }}
+      {{ arr_torrent_client[svc.template_dir].api_base }} --apply
+    # Two stdin lines (line 1 = arr key, line 2 = qbit password): joined with a Jinja escape because a
+    # YAML double-quoted scalar would fold a real newline in the middle into a space.
+    stdin: "{{ [ _tc_key, vault[arr_torrent_client_item].credential ] | join('\n') }}"
+  no_log: true
+  register: _tc_apply
+  changed_when: "'CHANGED' in _tc_apply.stdout | default('')"
+  failed_when: _tc_apply.rc != 0
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: summary"
+  ansible.builtin.debug:
+    msg: >-
+      {{ svc.name }}: {{ _tc_apply.stdout | default('?') | trim }}
+      {{ '(no write needed, re-tested only)' if not (_tc_drift | bool) else '' }}
+  tags: [docker_services, arr_client_seed]
