@@ -726,7 +726,7 @@ immich_ml_url: "http://{{ immich_ml_bind }}:3003"   # IMMICH_MACHINE_LEARNING_UR
 # box, so LOOPBACK is enough and it does not hand Jellyfin's own login (and its bypass of
 # the edge's CrowdSec/HSTS posture) to every Home device. Flip `jellyfin_bind` to
 # `{{ oldsrv_home_ip }}` if a client ever needs :8096 directly.
-jellyfin_bind: "127.0.0.1"
+jellyfin_bind: "{{ oldsrv_home_ip }}"
 jellyfin_host_port: 8096                     # host port; the container side stays 8096
 jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-internal's media-backend
 
@@ -740,36 +740,43 @@ jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-
 # routes.yml.j2 points at the matching `*_url`, never a literal `oldsrv_home_ip:<port>`.
 # Distinct host ports where two containers share an internal port: seerrng 5056 (both
 # listen :5055 inside), torrent 8082 (qBittorrent :8080 inside shares with SABnzbd — 8081
-# is dozzle/llogs). recyclarr has NO publish: it is a scheduled worker with no UI and talks
+# is dozzle/llogs). recyclarr has NO publish: it is a scheduled worker with no UI and talks# HD-1083 (2026-10-06): the binds above publish on the HOME IP, not loopback, because that is what
+# every routed container on oldsrv actually publishes on (measured: jellyfin 10.10.1.30:8096, bazarr
+# :6767, seerr :5055, seerrng :5056, sabnzbd :8080, sonarr :8989, slskd :5030, qbit-via-gluetun :8082).
+# traefik-internal's live routes file targets those same 10.10.1.30:<port> sockets, so loopback binds
+# here would 502 the whole group unless EVERY routed service plus the edge were re-deployed in one
+# converge. Loopback-only + edge re-render is the better end state (services stop being reachable
+# directly from the LAN, the edge becomes the only door) — tracked as HD-1083, do not half-apply it.
+
 # to sonarr/radarr over the overlay network, not through the edge.
-sonarr_bind: "127.0.0.1"
+sonarr_bind: "{{ oldsrv_home_ip }}"
 sonarr_host_port: 8989
 sonarr_url: "http://{{ sonarr_bind }}:{{ sonarr_host_port }}"
-radarr_bind: "127.0.0.1"
+radarr_bind: "{{ oldsrv_home_ip }}"
 radarr_host_port: 7878
 radarr_url: "http://{{ radarr_bind }}:{{ radarr_host_port }}"
-lidarr_bind: "127.0.0.1"
+lidarr_bind: "{{ oldsrv_home_ip }}"
 lidarr_host_port: 8686
 lidarr_url: "http://{{ lidarr_bind }}:{{ lidarr_host_port }}"
-prowlarr_bind: "127.0.0.1"
+prowlarr_bind: "{{ oldsrv_home_ip }}"
 prowlarr_host_port: 9696
 prowlarr_url: "http://{{ prowlarr_bind }}:{{ prowlarr_host_port }}"
-bazarr_bind: "127.0.0.1"
+bazarr_bind: "{{ oldsrv_home_ip }}"
 bazarr_host_port: 6767
 bazarr_url: "http://{{ bazarr_bind }}:{{ bazarr_host_port }}"
-seerr_bind: "127.0.0.1"
+seerr_bind: "{{ oldsrv_home_ip }}"
 seerr_host_port: 5055
 seerr_url: "http://{{ seerr_bind }}:{{ seerr_host_port }}"
-seerrng_bind: "127.0.0.1"
+seerrng_bind: "{{ oldsrv_home_ip }}"
 seerrng_host_port: 5056                     # split from seerr — both containers listen :5055 inside
 seerrng_url: "http://{{ seerrng_bind }}:{{ seerrng_host_port }}"
-profilarr_bind: "127.0.0.1"
+profilarr_bind: "{{ oldsrv_home_ip }}"
 profilarr_host_port: 6868
 profilarr_url: "http://{{ profilarr_bind }}:{{ profilarr_host_port }}"
-sabnzbd_bind: "127.0.0.1"
+sabnzbd_bind: "{{ oldsrv_home_ip }}"
 sabnzbd_host_port: 8080
 sabnzbd_url: "http://{{ sabnzbd_bind }}:{{ sabnzbd_host_port }}"
-qbittorrent_bind: "127.0.0.1"
+qbittorrent_bind: "{{ oldsrv_home_ip }}"
 qbittorrent_host_port: 8082                    # qBittorrent WebUI listens :8080 inside the gluetun netns; host port split from sabnzbd's 8080
 qbittorrent_url: "http://{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}"
 
