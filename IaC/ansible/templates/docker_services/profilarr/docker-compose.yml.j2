@@ -28,6 +28,9 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      - "{{ profilarr_bind }}:{{ profilarr_host_port }}:6868"
     volumes:
       - /srv/docker/profilarr/config:/config
     environment:

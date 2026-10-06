@@ -27,6 +27,9 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      - "{{ lidarr_bind }}:{{ lidarr_host_port }}:8686"
     volumes:
       - /srv/docker/lidarr/config:/config
       - /mnt/nas/media/media:/media              # rw — creates music/ folder, hardlink import

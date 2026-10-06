@@ -24,15 +24,17 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > ⚠ **Reachability rule of this edge (measured 2026-09-22, HD-419):** `traefik-internal` runs
 > `network_mode: host`, so a file-provider route can only reach a backend that **publishes a host socket on the
 > address the route names** — container-only port exposure is invisible to it, and the failure is a silent `502`
-> with nothing in the edge's log. Two live cases, both from the same cause: **jellyfin** (now published on
+> with nothing in the edge's log. Two cases, same cause, both now closed: **jellyfin** publishes
 > `{{ jellyfin_bind }}:{{ jellyfin_host_port }}` = **loopback**, which is enough for a host-net edge and keeps
-> Jellyfin's login + its CrowdSec/HSTS bypass off the Home VLAN; `media.kogler.si` 502 → 200) and **still open:**
-> `seerr`/`sonarr` measure `502` through this edge today because 5055/8989 are published on **no** interface,
-> and by inspection the rest of the home-hosted group in `routes.yml.j2` (`radarr`, `lidarr`, `prowlarr`,
-> `bazarr`, `aurral`, `slskd`, `lidarr-ydl`, `sab`, `torrent`) is the same shape. **No row covers the remaining
-> ones** — the earlier reading that "unlike seerr/*arr" those publish was wrong. When one is opened, follow the
-> jellyfin pattern: loopback bind + the `*-backend` URL in `routes.yml.j2` pointed at the same var, never the
-> Home IP unless a cross-host backend genuinely needs it.
+> Jellyfin's login + its CrowdSec/HSTS bypass off the Home VLAN; `media.kogler.si` 502 → 200. **The rest of the
+> home-hosted group now publishes the same way (2026-10-06):** every `*-backend` in `routes.yml.j2` (seerr,
+> seerrng, sonarr, radarr, lidarr, prowlarr, bazarr, profilarr, sab, torrent) points at its own loopback
+> `*_url` var from `group_vars/all/main.yml`, and the seerrng/seerr (both :5055 inside) and
+> torrent/sab (both :8080 inside) splits get distinct host ports. ⚠ **aurral / slskd / lidarr-ydl are NOT in
+> this group and were never routed on any edge** (the old prose here counted them in `routes.yml.j2` — they are
+> not there; they have no route and no split-horizon record to this day). Follow the same pattern if one is
+> ever exposed: loopback bind + the `*-backend` URL pointed at the same var, never the Home IP unless a
+> cross-host backend genuinely needs it.
 
 
 ---
@@ -161,7 +163,13 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
 
 ### Topology (target, HD-349)
 
-- **VPS `traefik-tailnet`** = the **tailnet/WG path** — unchanged, but its route table now ALSO contains the home-hosted backends (media/*arr/seerr/… → `oldsrv_home_ip:<port>` over WG, the media-bridge pattern). This is how the **mobile leg** reaches home-hosted apps: phone → tailnet → VPS edge → WG → `oldsrv_home_ip`. Still Authentik Forward-Auth on the edge, not public.
+- **VPS `traefik-tailnet`** = the **tailnet/WG path** — home-hosted backends (media/*arr/seerr/… →
+  `oldsrv_home_ip:<port>` over WG, the media-bridge pattern) are the **intended** shape but **not yet in the
+  template** (2026-10-06: no *arr/media routers exist on `traefik-tailnet/dynamic/routes.yml.j2`; the tailnet
+  leg of the mobile path stays unserved). ⚠ And they cannot reuse the LAN publishes: those are
+  **loopback-only** (jellyfin rule), and a cross-host edge needs `oldsrv_home_ip`-bound publishes — a
+  deliberate second change, not an oversight of the 2026-10-06 LAN-door fix. Still Authentik Forward-Auth on
+  the edge, not public.
 - **NEW: `traefik-internal` on oldsrv** = the **home-LAN resilience path**. Host-net, entrypoints bound to the home **VIP** (`ha-vip`):80/443 **and** the oldsrv **LAN IP** (`oldsrv_home_ip`):80/443, `net.ipv4.ip_nonlocal_bind=1`. Serves THE FULL route table (home-hosted + VPS-hosted via wg :4443 double-hop). File-provider routes (no Docker-labels — avoids router conflicts, same pattern as traefik-tailnet). Consumer-mode TLS (synced wildcard pair from the VPS issuer via traefik-cert-pull). **No Forward-Auth and no CrowdSec on this edge** — both depend on VPS containers (Authentik, CrowdSec LAPI); including them would fail exactly when this edge must survive (WAN-out). All home services carry **their own local login** (Jellyfin, Seerr, *arr built-in Forms auth).
 - **Pi `traefik-ha`** = the **HA/DNS edge** for the oldsrv-down case — unchanged. Serves `ha` + `dns-pi` → VIP. Stays VIP-bound so it never fights `traefik-internal` for :443 (only the keepalived MASTER owns the VIP).
 - **DNS (home LAN):** home-hosted app names (`media`/`jellyfin`, `seerr`, `seerrng`, *arr, `sab`, `torrent`) point at **oldsrv's LAN IP** on the home Technitium instances (oldsrv secondary + Pi tertiary); **`ha`/`dns-pi` keep pointing at the home VIP**. VPS primary keeps its public records (VPS edge target) for WAN/tailnet; **VPS-hosted names (foto/file/git/…) keep pointing at the VPS public IP on ALL instances** (their backends live on the VPS — the home edge reaches them via wg :4443 double-hop, and WAN clients reach them publicly). This is the only DNS change; tailnet/WAN DNS is unchanged. ⚠ **Not "everything → VIP"**: the VIP normally sits on the Pi, whose edge serves only `ha`/`dns-pi`, so pointing every app at the VIP would regress the normal case. Home-hosted apps point at **oldsrv's LAN IP** because the oldsrv edge serves them.

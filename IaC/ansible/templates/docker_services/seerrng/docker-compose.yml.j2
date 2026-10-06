@@ -34,6 +34,12 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern + the seerrng/seerr host-port split: this container also listens
+      # :5055 inside, so it needs {{ seerrng_host_port }} on the host (seerr took 5055),
+      # and routes.yml.j2 must point seerrng at seerrng-backend (not seerr-backend) —
+      # otherwise seerrng.kogler.si silently serves Seerr.
+      - "{{ seerrng_bind }}:{{ seerrng_host_port }}:5055"
     volumes:
       - /srv/docker/seerrng/config:/app/config
     environment:

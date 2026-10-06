@@ -76,7 +76,7 @@ http:
       entryPoints:
         - websecure
         - websecure-lan
-      service: seerr-backend
+      service: seerrng-backend
       tls: true
     sonarr:
       rule: "Host(`sonarr.kogler.si`)"
@@ -254,39 +254,46 @@ http:
     seerr-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:5055"
+          - url: "{{ seerr_url }}"
+    # seerrng is a SEPARATE container behind its OWN host port ({{ seerrng_host_port }});
+    # it must never share seerr-backend (both listen :5055 inside — the silent-wrong-app bug
+    # this row repaired).
+    seerrng-backend:
+      loadBalancer:
+        servers:
+          - url: "{{ seerrng_url }}"
     sonarr-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:8989"
+          - url: "{{ sonarr_url }}"
     radarr-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:7878"
+          - url: "{{ radarr_url }}"
     lidarr-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:8686"
+          - url: "{{ lidarr_url }}"
     prowlarr-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:9696"
+          - url: "{{ prowlarr_url }}"
     bazarr-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:6767"
+          - url: "{{ bazarr_url }}"
     profilarr-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:6868"
+          - url: "{{ profilarr_url }}"
     sab-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:8080"
+          - url: "{{ sabnzbd_url }}"
     torrent-backend:
       loadBalancer:
         servers:
-          - url: "http://{{ oldsrv_home_ip }}:8080"
+          - url: "{{ qbittorrent_url }}"
     llogs-backend:
       loadBalancer:
         servers:

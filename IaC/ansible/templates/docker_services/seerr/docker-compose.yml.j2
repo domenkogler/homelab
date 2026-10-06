@@ -25,6 +25,11 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      # seerrng (sibling, internal :5055 too) publishes on {{ seerrng_host_port }} — distinct
+      # host ports so the two routes never serve the wrong app.
+      - "{{ seerr_bind }}:{{ seerr_host_port }}:5055"
     volumes:
       - /srv/docker/seerr/config:/app/config
     environment:

@@ -27,6 +27,9 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      - "{{ prowlarr_bind }}:{{ prowlarr_host_port }}:9696"
     volumes:
       - /srv/docker/prowlarr/config:/config
     environment:

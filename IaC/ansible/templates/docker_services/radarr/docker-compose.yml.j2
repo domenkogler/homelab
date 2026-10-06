@@ -30,6 +30,9 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      - "{{ radarr_bind }}:{{ radarr_host_port }}:7878"
     volumes:
       - /srv/docker/radarr/config:/config
       - /mnt/nas/media/media:/media              # rw — creates movies/ folder, hardlink import

@@ -730,6 +730,49 @@ jellyfin_bind: "127.0.0.1"
 jellyfin_host_port: 8096                     # host port; the container side stays 8096
 jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-internal's media-backend
 
+# ==== *arr/downloaders on the home edge (the HD-419 pattern, applied per service) ====
+# traefik-internal runs `network_mode: host` and can only reach a backend that PUBLISHES a
+# host socket on the address the route names — container-only exposure is invisible to it,
+# and the failure is a silent 502. These publishes give each of the old 502s a loopback
+# socket (same bind logic as Jellyfin: the edge is on this box, and a loopback bind keeps
+# each app's OWN login — *arr Forms auth, Seerr/SeerrNG local login — off the Home VLAN;
+# the VPS/public leg is served by the overlay labels, not these). Each `*-backend` URL in
+# routes.yml.j2 points at the matching `*_url`, never a literal `oldsrv_home_ip:<port>`.
+# Distinct host ports where two containers share an internal port: seerrng 5056 (both
+# listen :5055 inside), torrent 8082 (qBittorrent :8080 inside shares with SABnzbd — 8081
+# is dozzle/llogs). recyclarr has NO publish: it is a scheduled worker with no UI and talks
+# to sonarr/radarr over the overlay network, not through the edge.
+sonarr_bind: "127.0.0.1"
+sonarr_host_port: 8989
+sonarr_url: "http://{{ sonarr_bind }}:{{ sonarr_host_port }}"
+radarr_bind: "127.0.0.1"
+radarr_host_port: 7878
+radarr_url: "http://{{ radarr_bind }}:{{ radarr_host_port }}"
+lidarr_bind: "127.0.0.1"
+lidarr_host_port: 8686
+lidarr_url: "http://{{ lidarr_bind }}:{{ lidarr_host_port }}"
+prowlarr_bind: "127.0.0.1"
+prowlarr_host_port: 9696
+prowlarr_url: "http://{{ prowlarr_bind }}:{{ prowlarr_host_port }}"
+bazarr_bind: "127.0.0.1"
+bazarr_host_port: 6767
+bazarr_url: "http://{{ bazarr_bind }}:{{ bazarr_host_port }}"
+seerr_bind: "127.0.0.1"
+seerr_host_port: 5055
+seerr_url: "http://{{ seerr_bind }}:{{ seerr_host_port }}"
+seerrng_bind: "127.0.0.1"
+seerrng_host_port: 5056                     # split from seerr — both containers listen :5055 inside
+seerrng_url: "http://{{ seerrng_bind }}:{{ seerrng_host_port }}"
+profilarr_bind: "127.0.0.1"
+profilarr_host_port: 6868
+profilarr_url: "http://{{ profilarr_bind }}:{{ profilarr_host_port }}"
+sabnzbd_bind: "127.0.0.1"
+sabnzbd_host_port: 8080
+sabnzbd_url: "http://{{ sabnzbd_bind }}:{{ sabnzbd_host_port }}"
+qbittorrent_bind: "127.0.0.1"
+qbittorrent_host_port: 8082                    # qBittorrent WebUI listens :8080 inside the gluetun netns; host port split from sabnzbd's 8080
+qbittorrent_url: "http://{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}"
+
 # ==== Tailscale listen port (HD-414) ====
 # 41641 is tailscaled's DEFAULT, so this is not a change — it is the PIN that keeps it
 # true: on a port conflict tailscaled silently falls back to a random port, which would

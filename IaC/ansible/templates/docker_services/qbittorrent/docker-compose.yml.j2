@@ -23,6 +23,13 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern + the torrent/sab host-port split. qBittorrent has NO own network
+      # (network_mode: service:gluetun), so its WebUI publish lives on the GLUETUN sidecar
+      # (the netns owner) — the WebUI listens :8080 inside the shared netns. Host port
+      # {{ qbittorrent_host_port }} (8081 is dozzle/llogs; 8080 goes to SABnzbd) and the
+      # route's torrent-backend must target {{ qbittorrent_host_port }}, not :8080.
+      - "{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}:8080"
     environment:
       VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` → explicit endpoint (HD-318c)
       VPN_TYPE: wireguard

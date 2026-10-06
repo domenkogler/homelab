@@ -173,6 +173,20 @@ def _load_ssot_ctx():
         # Jellyfin host publish (HD-419) — the plain bind address + host port the jellyfin
         # compose publishes on, so the home edge (network_mode: host) can reach it.
         "jellyfin_bind", "jellyfin_host_port",
+        # *arr/downloaders host publishes (2026-10-06) — same pattern as jellyfin, applied
+        # to the rest of the home-hosted group so the validator's context tracks the SSOT
+        # (HD-189 principle): bind + host port per service, consumed by the compose
+        # `ports:` publish and (as the *_url) by traefik-internal's routes.yml.j2 backends.
+        "sonarr_bind", "sonarr_host_port",
+        "radarr_bind", "radarr_host_port",
+        "lidarr_bind", "lidarr_host_port",
+        "prowlarr_bind", "prowlarr_host_port",
+        "bazarr_bind", "bazarr_host_port",
+        "seerr_bind", "seerr_host_port",
+        "seerrng_bind", "seerrng_host_port",
+        "profilarr_bind", "profilarr_host_port",
+        "sabnzbd_bind", "sabnzbd_host_port",
+        "qbittorrent_bind", "qbittorrent_host_port",
     ):
         if k in data:
             ctx[k] = data[k]

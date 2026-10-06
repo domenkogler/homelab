@@ -27,6 +27,11 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern: traefik-internal runs `network_mode: host`, so it can only reach a
+      # backend that PUBLISHES a host socket — loopback is enough (edge on this box) and
+      # keeps the app's own login off the Home VLAN.
+      - "{{ sonarr_bind }}:{{ sonarr_host_port }}:8989"
     volumes:
       - /srv/docker/sonarr/config:/config
       - /mnt/nas/media/media:/media              # rw — creates tv/ folder, hardlink import

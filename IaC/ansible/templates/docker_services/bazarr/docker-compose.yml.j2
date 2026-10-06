@@ -25,6 +25,10 @@ services:
     networks:
       - traefik-public
       - services-internal
+    ports:
+      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      # (paseo's 6767 binds the TAILNET address — no conflict with this loopback bind.)
+      - "{{ bazarr_bind }}:{{ bazarr_host_port }}:6767"
     volumes:
       - /srv/docker/bazarr/config:/config
       - /mnt/nas/media/media:/media                # rw — writes subtitles next to media
