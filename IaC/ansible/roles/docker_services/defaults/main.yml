@@ -164,6 +164,9 @@ arr_seed_apps:
 # `sabnzbd`) — measured 2026-10-06, the blocker behind "SAB answers 403 to everything".
 # The seed writes the UNION of what is in the ini and this list, so the image's own entry survives.
 sabnzbd_container_name: sabnzbd
+# The ini on the HOST path (the compose binds it at /config). The seed edits it there while the
+# container is stopped — `docker exec` needs a running container, so the host path is the only door.
+sabnzbd_ini_host_path: /srv/docker/{{ sabnzbd_container_name }}/config/sabnzbd.ini
 sabnzbd_host_whitelist:
   - sabnzbd                      # the overlay name Prowlarr / any container-side consumer sends
   - "sab.{{ domain_public }}"    # the edge name Traefik passes through as Host

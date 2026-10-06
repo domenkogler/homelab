@@ -77,30 +77,34 @@
     _sab_wl_missing: "{{ _sab_wl_want | difference(_sab_wl_have) }}"
   tags: [docker_services, sabnzbd_seed]
 
-# SAB rewrites sabnzbd.ini when it exits cleanly, so an edit made while it runs is silently undone
-# at the next stop. Stop → write → start is the only ordering that survives.
-- name: "sabnzbd-seed: stop SABnzbd"
-  ansible.builtin.command:
-    cmd: docker stop {{ sabnzbd_container_name }}
+# SAB rewrites sabnzbd.ini when it exits cleanly, so an edit made while it runs is silently undone at
+# the next stop → stop, edit, start. And the edit MUST go through the HOST PATH, not `docker exec`:
+# exec needs a RUNNING container, so a stop-then-exec seed fails at the edit task and leaves the
+# downloader stopped — exactly what the first run of this file did (2026-10-06: SAB sat at
+# Exited (137) for ~2 min and sab.kogler.si served Bad Gateway while the play aborted mid-block).
+# The play runs become:true and lineinfile preserves the file's uid/gid + 0600, so root edits it in
+# place without taking ownership away from the `media` owner the container writes as.
+# `always:` restarts even if the edit blows up, so a failed seed cannot strand the downloader.
+- name: "sabnzbd-seed: apply the whitelist (stop → edit on the host path → start)"
   when: _sab_wl_missing | length > 0
-  changed_when: true
-  tags: [docker_services, sabnzbd_seed]
+  block:
+    - name: "sabnzbd-seed: stop SABnzbd"
+      ansible.builtin.command:
+        cmd: docker stop {{ sabnzbd_container_name }}
+      changed_when: true
 
-- name: "sabnzbd-seed: write the union into host_whitelist"
-  ansible.builtin.shell:
-    cmd: >-
-      docker exec -u {{ storage_uid }} {{ sabnzbd_container_name }}
-      sh -c 'sed -i "s/^host_whitelist[ \t]*=.*/host_whitelist = {{ (_sab_wl_have + _sab_wl_missing) | unique | join(", ") }}/" /config/sabnzbd.ini'
-    executable: /bin/bash
-  when: _sab_wl_missing | length > 0
-  changed_when: true
-  tags: [docker_services, sabnzbd_seed]
-
-- name: "sabnzbd-seed: start SABnzbd"
-  ansible.builtin.command:
-    cmd: docker start {{ sabnzbd_container_name }}
-  when: _sab_wl_missing | length > 0
-  changed_when: true
+    - name: "sabnzbd-seed: write the union into host_whitelist (host path — the container is stopped)"
+      ansible.builtin.lineinfile:
+        path: "{{ sabnzbd_ini_host_path }}"
+        regexp: '^host_whitelist\s*='
+        line: "host_whitelist = {{ (_sab_wl_have + _sab_wl_missing) | unique | join(', ') }}"
+  always:
+    - name: "sabnzbd-seed: start SABnzbd (always — a failed edit must not strand the downloader)"
+      ansible.builtin.command:
+        cmd: docker start {{ sabnzbd_container_name }}
+      changed_when: false
+      failed_when: false
+      when: _sab_wl_missing | length > 0
   tags: [docker_services, sabnzbd_seed]
 
 - name: "sabnzbd-seed: prove the edge name is now accepted (Host probe, no credentials)"
