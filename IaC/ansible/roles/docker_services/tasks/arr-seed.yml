@@ -57,10 +57,13 @@
   failed_when: _arr_cfg.content is not defined
   tags: [docker_services, arr_seed]
 
+# The capture group in the pattern below is load-bearing: regex_search(value, pattern, '\1')
+# raises "no such group" when the pattern has no parentheses, which aborted the whole converge
+# (a `#` note cannot live inside the `>-` scalar — block scalars are literal text).
 - name: "arr-seed: extract the key + discover the container IP"
   ansible.builtin.set_fact:
     _arr_key: >-
-      {{ (_arr_cfg.content | b64decode) | regex_search('<ApiKey>[^<]*</ApiKey>', '\1') | first | default('') | trim }}
+      {{ (_arr_cfg.content | b64decode) | regex_search('<ApiKey>([^<]*)</ApiKey>', '\1') | first | default('') | trim }}
   no_log: true
   tags: [docker_services, arr_seed]
 
