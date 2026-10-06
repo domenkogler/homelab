@@ -52,7 +52,7 @@ subscriptions:
     reminder_days: 30
     url: https://nzbgeek.info
     icon: fa-newspaper
-    secret: null
+    secret: nzbgeek_api   # vault item created 2026-10-06; Prowlarr's built-in NZBGeek definition authenticates with it
     calendar_url: null
     notify: [signal]
     status: active
@@ -64,7 +64,7 @@ subscriptions:
     reminder_days: 30
     url: https://www.eweka.nl
     icon: fa-download
-    secret: null
+    secret: null          # still owed: no `eweka_login` item in Homelab-ansible (measured 2026-10-07)
     calendar_url: null
     notify: [signal]
     status: active
