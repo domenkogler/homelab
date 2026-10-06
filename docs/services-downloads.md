@@ -158,6 +158,38 @@ docker exec $c curl -s -H "X-Api-Key: $k" http://127.0.0.1:$p/api/$api/downloadc
 API responses, so `len=8` is the redaction placeholder, not the stored value. Judging "is the key set?"
 by that string wastes time; the `Test` call above is the answer.
 
+### NZBGeek returns its *recent* feed instead of your query (HD-496, 2026-10-06)
+
+Symptom, from the first two real requests: Seerr approves → Sonarr adds both series, monitored → Sonarr
+searches `1 active indexer` → `DownloadDecisionMaker | No results found`, SAB queue never fills, nothing
+lands. The request half works; the release half returns garbage.
+
+The proof is in Sonarr's **interactive search**, which reports rejections instead of a bare "no results":
+`GET /api/v3/release?seriesId=<id>` came back with 100 parsed releases for **both** series — *the same 100*,
+none of them the requested show, every one rejected as `Unknown Series` or `X matches an alias for
+series with TVDB ID: <someone else>`. Identical results for different queries = **the indexer is serving
+its recent-items feed and ignoring the search parameter**, and the arr is correctly refusing them.
+
+Why: the indexer in Prowlarr is a **generic Newznab definition** — `definitionId=None`, fields
+`baseUrl / apiPath / apiKey` only, `apiPath = /api` on `https://api.nzbgeek.info`. NZBGeek's old newznab
+surface is deprecated and does not honour `q`/`imdbid`/`tvmaze` filters the way the arrs call it, so every
+query degrades to "latest 100". Prowlarr ships a **built-in NZBGeek definition** (Torznab-based) for
+exactly this; that is what should be used.
+
+**Fix:** Prowlarr → Indexers → Add → **NZBGeek** (the built-in one, not "Newznab") → paste the API key from
+nzbgeek.info → Save → **Test**. Then verify at the arr rather than in Prowlarr: Sonarr → the series →
+*Interactive Search* must list releases carrying **that show's title**; `Unknown Series` means still
+ignoring the query. Log into nzbgeek.info once while you are there — a deliberately wrong key in
+testing returned `error code=107 "Account Flagged - Logon To View Reason"`, which is about that attempt,
+but a flagged account produces the same "search returns junk" shape for a different reason.
+
+⚠ Two probes of mine were artifacts and are named so they do not become folklore: (1) `GET
+/api/v1/search?term=…` on Prowlarr returned the same 100 releases for every term, which looks like the
+bug above but was **my call** — Prowlarr's search endpoint did not apply `term`, so that probe proved
+nothing either way; (2) `apiKey: length=0` came from a `sqlite3` read against a **wrong db path**, not
+from a missing key — the key is present, because results do come back from the indexer. Both were re-run
+cleanly before the conclusion above was written down.
+
 ### SABnzbd 5 moved its categories endpoint; Prowlarr 2.5.2 still asks the old way (HD-496, 2026-10-06)
 
 Prowlarr → Download Clients → SABnzbd refuses to save: **"Category does not exist"**, for *every* value
