@@ -1,0 +1,33 @@
+
+
+Bugs/edge cases:
+
+- `len(xs)` fails if `xs` is a generator/iterator.
+- `len(xs)` can be `0`, causing `ZeroDivisionError`.
+- In Python 2, integer division could truncate the result.
+
+Safer version:
+
+```python
+def avg(xs):
+    total = 0
+    count = 0
+
+    for x in xs:
+        total += x
+        count += 1
+
+    if count == 0:
+        raise ValueError("avg() arg is an empty sequence")
+
+    return total / count
+```
+
+If you only expect lists/tuples and want a minimal fix:
+
+```python
+def avg(xs):
+    if not xs:
+        raise ValueError("avg() arg is an empty sequence")
+    return sum(xs) / len(xs)
+```

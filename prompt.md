@@ -33,9 +33,11 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
    load proves the clock regime on GB10), then `reasoning` gates 5–7. Run it from a session whose own model is **not**
    spark (rule 0). Split out of it: ⏳ **HD-475** (`fast`'s triton fix — code-first) and ⛔ **HD-473**
    (engine pin, upstream-blocked, ~40 s re-check). → [prompt-llm.md](prompt-llm.md)
-2. ⏳ **HD-489 tail** — the winner is live and every leg ran; three certificate items remain: `fast`'s **gate 6** accuracy
-   battery on the live 20 GB shape (never taken) · **read the gate-7 memory-curve day** accruing since 2026-10-06 11:19Z ·
-   then rewrite `fast.certified_evidence` and delete the row. ⛔ B10's gates 6/8/9 were **declined by owner** and B9 · B5 · B8
+2. ⏳ **HD-489 tail** — the winner is live and every leg ran; two certificate items remain: **read the gate-7 memory-curve
+   day** accruing since 2026-10-06 11:19Z · then rewrite `fast.certified_evidence` and delete the row. `fast`'s **gate 6**
+   was taken 2026-10-06 on the live 20 GB shape ([`spark/reports/hd489-tail-gate6-20261006-2349/`](spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md))
+   — PASS, with the battery's `max_tokens 1024` vs reasoning-on confound named in it: deciding that battery budget is an
+   owner call, not a quiet edit to `spark/bench/accuracy-gate.sh`. ⛔ B10's gates 6/8/9 were **declined by owner** and B9 · B5 · B8
    are closed — do not re-run any of them. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
 3. ⏳ **HD-436** — the transport lane's hinge: the derived `zone_kogler_si` list is already on `main`; switch the two
    consumers that still hand-author (`vps.yml`'s two subdomain lists, `roles/cloudflare_dns/vars`

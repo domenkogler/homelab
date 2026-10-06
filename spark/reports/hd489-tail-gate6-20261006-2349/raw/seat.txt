@@ -1,0 +1,18 @@
+2026-10-06 23:49:39Z
+spark
+2026-10-06T11:49:52.286258184Z restarts=0
+--model
+/model
+--
+--max-num-seqs
+8
+--
+--kv-cache-memory-bytes
+20000000000
+--
+--reasoning-parser
+qwen3
+--
+--speculative-config
+{"method":
+health=200

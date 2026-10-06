@@ -1,0 +1,80 @@
+>>> [code-fib]
+EMPTY
+
+---
+>>> [json-extract]
+
+
+{
+  "name": "Ada Lovelace",
+  "date": "March 3rd",
+  "amount": "1,250 EUR"
+}
+
+---
+>>> [math-multistep]
+
+
+The first train has a 1-hour head start, covering 90 km.
+
+Relative speed = 120 − 90 = 30 km/h.
+
+Time to catch up = 90 ÷ 30 = 3 hours after 15:00.
+
+**The second train overtakes the first at 18:00.
+---
+>>> [logic]
+
+
+Yes, because if all bloops are razzies and all razzies are lazzies, then all bloops are lazzies by transitivity.
+
+---
+>>> [code-review]
+
+
+Bugs/edge cases:
+
+- `len(xs)` fails if `xs` is a generator/iterator.
+- `len(xs)` can be `0`, causing `ZeroDivisionError`.
+- In Python 2, integer division could truncate the result.
+
+Safer version:
+
+
+---
+>>> [html-game]
+EMPTY
+
+---
+>>> [summarize]
+
+
+- Photosynthesis transforms light energy into chemical energy within chloroplasts.
+- The Calvin cycle uses ATP and NADPH to convert CO₂ into glucose.
+- Water splitting releases oxygen as a byprodu
+---
+>>> [tool-call]
+EMPTY
+
+---
+>>> [state-tracker]
+
+
+Red. The marble is in the red box.
+
+---
+>>> [long-reasoning]
+
+
+Assume \(\sqrt{2}\) is rational, so \(\sqrt{2}=\frac{a}{b}\) where \(a,b\) are integers with no common factor.
+
+Then
+\[
+2=\frac{a^2}{b^2} \implies a^2=2b^2.
+\]
+So \(a^2\) is even, hence \(a\) is eve
+---
+>>> saved to /tmp/hd489-gate6-20261006-2349/accuracy/fast-20gb-20261006-2349
+>>> diff against baseline:
+    for f in /tmp/hd489-gate6-20261006-2349/accuracy/B1/*.out; do diff $f /tmp/hd489-gate6-20261006-2349/accuracy/fast-20gb-20261006-2349/$(basename $f) | head -20; done
+DONE rc=0
