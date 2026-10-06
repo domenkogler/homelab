@@ -1,0 +1,13 @@
+gate 5 (needle at depth) — tokenizer-subsequence verdict, 2026-06-10 02:40Z
+rule: spark/llm-profiles/README.md — tokenize(marker) minus first/last token,
+      _contains_subseq over the response. Tokenizer = /model AutoTokenizer in the
+      vllm container (docker exec, read-only).
+marker: pi-agent/AGENTS.md (552 tokens; needle seq 550)
+attempt 1: prompt_tokens=241199 MATCH=PASS (response 553 tokens)
+attempt 2: prompt_tokens=241256 MATCH=PASS (response 553 tokens)
+attempt 3: prompt_tokens=241180 MATCH=PASS (response 553 tokens)
+depth: 241.2k / 262144 = 92.0% of window (>= 235000 / 89.6% minimum)
+preemptions: vllm:num_preemptions_total = 0.0 before first S1-N leg and 0.0 after
+             the last needle attempt -> delta +0 across all six 236-241k legs
+             (the one preemption B3 saw at 236k did not reproduce on the live
+             20 GB shape tonight).

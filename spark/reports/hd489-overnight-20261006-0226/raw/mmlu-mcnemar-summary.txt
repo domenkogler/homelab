@@ -1,0 +1,9 @@
+MMLU-Pro-mini reasoning arm + paired McNemar, 2026-10-06
+arm=reasoning profile=reasoning client=oldsrv window=2026-10-06T01:55Z..07:37Z (5h42m wall)
+items=500 correct=447 acc=89.40% extraction_fail=0.40% (2 nulls)
+per-category: biology 94/100 · computer science 92/100 · health 85/100 · math 95/100 · other 81/100
+n_paired=500 (fast committed csv vs reasoning-items.csv; 100% id overlap on the 5 cats)
+fast=89.20% (446/500) reasoning=89.40% (447/500) delta=-0.20 pts
+discordant: b(fast=1,reason=0)=9 c(fast=0,reason=1)=10 n=19; mcnemar exact two-sided p=1.0000
+PREREGISTERED RULE: |delta|<=2 -> keep. VERDICT: keep (no measurable quality deficit; speed win stands as measured)
+caveat: n=500 / 19 discordant resolves ~5+ pts; anything smaller is noise at conc 4

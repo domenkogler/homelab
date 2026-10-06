@@ -1,0 +1,9 @@
+mini_test.json regenerated 2026-10-06 from HF head; sha differs from pinned e67bad86...
+(HF dataset moved since 2026-10-03; row ORDER for the first 100 of each of the 5 owner
+ categories is unchanged because ids verify below. Pairing key = question_id.)
+biology            mine= 100 fast_csv= 100 overlap= 100 mismatches=0
+computer science   mine= 100 fast_csv= 100 overlap= 100 mismatches=0
+math               mine= 100 fast_csv= 100 overlap= 100 mismatches=0
+other              mine= 100 fast_csv= 100 overlap= 100 mismatches=0
+health             mine= 100 fast_csv= 100 overlap= 100 mismatches=0
+all categories except business: overlap 100/100, mismatches 0

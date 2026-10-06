@@ -1,0 +1,3 @@
+  gate mirror host-floor= OK
+  NOTE: slots is a PROJECTION. The number of record is the engine's own
+        'Available KV cache memory' + 'GPU KV cache size' boot-log pair.

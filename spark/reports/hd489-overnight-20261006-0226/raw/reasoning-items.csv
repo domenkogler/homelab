@@ -1,0 +1,501 @@
+question_id,category,correct,pred,answer
+2804,biology,1,B,B
+2805,biology,1,D,D
+2806,biology,1,C,C
+2807,biology,0,A,I
+2808,biology,1,C,C
+2809,biology,1,A,A
+2810,biology,1,F,F
+2811,biology,1,F,F
+2812,biology,1,H,H
+2813,biology,1,D,D
+2814,biology,1,A,A
+2815,biology,1,A,A
+2816,biology,1,G,G
+2817,biology,1,E,E
+2818,biology,1,D,D
+2819,biology,1,C,C
+2820,biology,1,A,A
+2821,biology,0,C,I
+2823,biology,1,J,J
+2824,biology,1,F,F
+2825,biology,1,G,G
+2826,biology,1,J,J
+2827,biology,1,D,D
+2828,biology,1,I,I
+2829,biology,1,E,E
+2830,biology,1,B,B
+2831,biology,1,I,I
+2832,biology,1,A,A
+2833,biology,1,H,H
+2834,biology,1,G,G
+2835,biology,1,E,E
+2836,biology,1,H,H
+2838,biology,1,A,A
+2839,biology,1,H,H
+2840,biology,1,H,H
+2841,biology,1,H,H
+2842,biology,1,E,E
+2843,biology,1,A,A
+2844,biology,1,G,G
+2845,biology,1,B,B
+2846,biology,1,G,G
+2847,biology,1,D,D
+2848,biology,1,F,F
+2849,biology,1,D,D
+2850,biology,1,D,D
+2851,biology,1,A,A
+2852,biology,1,C,C
+2853,biology,1,I,I
+2854,biology,1,A,A
+2855,biology,1,G,G
+2856,biology,1,D,D
+2857,biology,1,I,I
+2858,biology,1,H,H
+2859,biology,1,I,I
+2860,biology,1,C,C
+2861,biology,1,F,F
+2862,biology,0,J,H
+2863,biology,1,H,H
+2864,biology,1,C,C
+2865,biology,1,I,I
+2866,biology,1,C,C
+2867,biology,1,H,H
+2868,biology,1,E,E
+2869,biology,1,I,I
+2870,biology,1,E,E
+2871,biology,1,J,J
+2872,biology,1,A,A
+2873,biology,1,I,I
+2874,biology,1,G,G
+2875,biology,1,D,D
+2876,biology,1,F,F
+2877,biology,1,E,E
+2878,biology,1,A,A
+2879,biology,0,J,F
+2880,biology,1,G,G
+2881,biology,1,F,F
+2882,biology,1,G,G
+2883,biology,1,E,E
+2884,biology,1,F,F
+2885,biology,1,H,H
+2886,biology,1,B,B
+2887,biology,1,I,I
+2888,biology,1,J,J
+2889,biology,1,F,F
+2890,biology,1,E,E
+2891,biology,1,I,I
+2892,biology,1,A,A
+2893,biology,1,J,J
+2894,biology,1,B,B
+2895,biology,1,D,D
+2896,biology,1,G,G
+2897,biology,0,J,E
+2898,biology,1,E,E
+2899,biology,1,G,G
+2900,biology,1,B,B
+2901,biology,1,J,J
+2902,biology,1,H,H
+2903,biology,1,H,H
+2904,biology,0,D,A
+2905,biology,1,A,A
+10356,computer science,1,B,B
+10357,computer science,1,A,A
+10358,computer science,1,A,A
+10359,computer science,1,F,F
+10360,computer science,1,C,C
+10361,computer science,1,G,G
+10362,computer science,1,A,A
+10363,computer science,1,D,D
+10364,computer science,1,D,D
+10365,computer science,0,F,J
+10366,computer science,1,A,A
+10367,computer science,1,F,F
+10368,computer science,1,H,H
+10369,computer science,1,B,B
+10370,computer science,1,B,B
+10371,computer science,1,E,E
+10372,computer science,1,A,A
+10373,computer science,1,D,D
+10374,computer science,1,I,I
+10375,computer science,1,B,B
+10376,computer science,1,A,A
+10377,computer science,1,A,A
+10378,computer science,1,J,J
+10379,computer science,1,A,A
+10380,computer science,1,C,C
+10382,computer science,1,B,B
+10383,computer science,1,J,J
+10384,computer science,1,F,F
+10385,computer science,1,D,D
+10386,computer science,1,I,I
+10387,computer science,1,G,G
+10389,computer science,1,H,H
+10390,computer science,0,C,E
+10391,computer science,1,J,J
+10392,computer science,1,D,D
+10393,computer science,1,B,B
+10394,computer science,1,A,A
+10395,computer science,1,H,H
+10396,computer science,1,A,A
+10397,computer science,0,B,G
+10398,computer science,1,C,C
+10399,computer science,1,B,B
+10400,computer science,1,F,F
+10401,computer science,1,E,E
+10402,computer science,0,,I
+10403,computer science,1,F,F
+10404,computer science,1,E,E
+10405,computer science,1,B,B
+10406,computer science,1,E,E
+10407,computer science,1,E,E
+10408,computer science,1,C,C
+10409,computer science,1,D,D
+10410,computer science,1,G,G
+10411,computer science,1,C,C
+10412,computer science,1,I,I
+10413,computer science,1,C,C
+10414,computer science,1,C,C
+10415,computer science,1,G,G
+10416,computer science,1,H,H
+10418,computer science,1,J,J
+10419,computer science,1,D,D
+10420,computer science,1,J,J
+10421,computer science,0,E,C
+10422,computer science,1,D,D
+10423,computer science,1,F,F
+10424,computer science,1,D,D
+10425,computer science,1,I,I
+10426,computer science,1,E,E
+10427,computer science,1,A,A
+10428,computer science,1,J,J
+10429,computer science,1,H,H
+10430,computer science,1,J,J
+10431,computer science,0,G,I
+10432,computer science,1,I,I
+10433,computer science,1,D,D
+10434,computer science,1,D,D
+10435,computer science,1,A,A
+10436,computer science,1,F,F
+10437,computer science,1,F,F
+10438,computer science,1,A,A
+10439,computer science,1,A,A
+10440,computer science,0,E,F
+10441,computer science,1,B,B
+10442,computer science,1,C,C
+10443,computer science,1,F,F
+10444,computer science,1,H,H
+10445,computer science,1,D,D
+10446,computer science,1,B,B
+10447,computer science,1,H,H
+10448,computer science,1,J,J
+10449,computer science,1,D,D
+10450,computer science,1,G,G
+10451,computer science,1,D,D
+10452,computer science,1,H,H
+10453,computer science,1,G,G
+10454,computer science,1,A,A
+10455,computer science,1,H,H
+10456,computer science,1,G,G
+10457,computer science,1,A,A
+10458,computer science,0,A,D
+6001,health,1,E,E
+6002,health,1,C,C
+6003,health,1,I,I
+6004,health,1,F,F
+6005,health,1,D,D
+6006,health,1,E,E
+6007,health,1,D,D
+6008,health,1,G,G
+6009,health,1,D,D
+6010,health,1,B,B
+6011,health,1,B,B
+6012,health,1,A,A
+6013,health,1,G,G
+6014,health,1,D,D
+6015,health,1,D,D
+6016,health,1,C,C
+6017,health,1,A,A
+6018,health,0,A,H
+6019,health,1,G,G
+6020,health,1,A,A
+6021,health,0,E,C
+6022,health,0,A,E
+6023,health,1,B,B
+6024,health,1,F,F
+6026,health,1,A,A
+6027,health,1,J,J
+6028,health,1,E,E
+6029,health,1,I,I
+6030,health,0,H,G
+6031,health,1,B,B
+6032,health,0,G,A
+6033,health,1,A,A
+6034,health,1,F,F
+6035,health,1,B,B
+6036,health,1,D,D
+6037,health,1,C,C
+6038,health,1,C,C
+6039,health,1,A,A
+6040,health,1,B,B
+6041,health,1,B,B
+6042,health,1,A,A
+6043,health,1,B,B
+6044,health,1,G,G
+6045,health,1,D,D
+6046,health,1,A,A
+6047,health,1,B,B
+6048,health,1,A,A
+6049,health,0,,J
+6050,health,1,I,I
+6051,health,1,F,F
+6052,health,1,G,G
+6053,health,1,D,D
+6054,health,0,H,B
+6055,health,1,G,G
+6056,health,1,I,I
+6057,health,1,D,D
+6058,health,1,G,G
+6059,health,0,E,B
+6060,health,1,C,C
+6061,health,1,I,I
+6062,health,1,E,E
+6063,health,1,A,A
+6064,health,1,E,E
+6065,health,1,B,B
+6066,health,1,E,E
+6067,health,0,C,A
+6068,health,0,A,C
+6069,health,0,J,B
+6070,health,0,F,H
+6071,health,1,I,I
+6072,health,0,A,H
+6073,health,1,J,J
+6074,health,0,D,E
+6075,health,1,F,F
+6076,health,1,H,H
+6077,health,1,B,B
+6078,health,1,H,H
+6079,health,1,I,I
+6080,health,1,H,H
+6081,health,1,B,B
+6082,health,1,A,A
+6083,health,1,B,B
+6085,health,1,H,H
+6086,health,1,A,A
+6087,health,1,D,D
+6088,health,1,A,A
+6089,health,1,B,B
+6090,health,1,F,F
+6091,health,1,F,F
+6092,health,1,G,G
+6093,health,0,E,F
+6094,health,1,D,D
+6095,health,1,C,C
+6096,health,1,C,C
+6097,health,1,G,G
+6098,health,1,C,C
+6099,health,1,H,H
+6100,health,1,H,H
+6101,health,1,G,G
+6102,health,1,E,E
+7687,math,0,A,H
+7688,math,1,H,H
+7689,math,1,C,C
+7690,math,1,H,H
+7691,math,1,B,B
+7692,math,1,D,D
+7693,math,1,J,J
+7694,math,1,J,J
+7695,math,1,I,I
+7696,math,1,G,G
+7697,math,1,A,A
+7698,math,1,H,H
+7699,math,1,E,E
+7700,math,1,A,A
+7701,math,1,F,F
+7702,math,1,A,A
+7703,math,1,B,B
+7704,math,1,F,F
+7705,math,1,D,D
+7706,math,1,J,J
+7707,math,1,D,D
+7708,math,1,B,B
+7709,math,1,F,F
+7710,math,1,F,F
+7711,math,1,B,B
+7712,math,1,A,A
+7713,math,1,B,B
+7714,math,1,B,B
+7715,math,1,E,E
+7716,math,1,F,F
+7717,math,1,G,G
+7718,math,1,D,D
+7719,math,1,G,G
+7720,math,1,E,E
+7721,math,1,F,F
+7722,math,1,F,F
+7723,math,1,E,E
+7724,math,1,E,E
+7725,math,1,J,J
+7726,math,1,J,J
+7727,math,0,J,F
+7728,math,1,H,H
+7729,math,1,A,A
+7730,math,1,A,A
+7731,math,1,E,E
+7732,math,1,G,G
+7733,math,1,F,F
+7734,math,1,B,B
+7735,math,1,F,F
+7736,math,1,A,A
+7737,math,1,F,F
+7738,math,1,C,C
+7739,math,1,C,C
+7740,math,1,D,D
+7741,math,1,E,E
+7742,math,1,G,G
+7743,math,1,B,B
+7744,math,1,D,D
+7745,math,1,H,H
+7746,math,1,H,H
+7747,math,1,C,C
+7748,math,1,C,C
+7749,math,1,F,F
+7750,math,1,F,F
+7751,math,1,I,I
+7752,math,1,D,D
+7753,math,1,B,B
+7754,math,1,B,B
+7755,math,1,F,F
+7756,math,0,D,H
+7757,math,1,G,G
+7758,math,0,G,A
+7759,math,1,C,C
+7760,math,1,F,F
+7761,math,1,H,H
+7762,math,1,D,D
+7763,math,1,C,C
+7764,math,1,G,G
+7765,math,1,D,D
+7766,math,1,D,D
+7767,math,0,D,F
+7768,math,1,E,E
+7769,math,1,D,D
+7770,math,1,J,J
+7771,math,1,I,I
+7772,math,1,J,J
+7773,math,1,E,E
+7774,math,1,E,E
+7775,math,1,G,G
+7776,math,1,B,B
+7777,math,1,B,B
+7778,math,1,I,I
+7779,math,1,G,G
+7780,math,1,G,G
+7781,math,1,F,F
+7782,math,1,D,D
+7783,math,1,F,F
+7784,math,1,D,D
+7785,math,1,G,G
+7786,math,1,E,E
+5059,other,1,C,C
+5060,other,1,C,C
+5061,other,1,B,B
+5062,other,1,G,G
+5063,other,1,F,F
+5064,other,0,F,E
+5065,other,1,F,F
+5066,other,1,G,G
+5067,other,1,F,F
+5069,other,1,B,B
+5070,other,1,B,B
+5071,other,1,D,D
+5072,other,1,F,F
+5073,other,0,A,D
+5074,other,0,D,C
+5075,other,1,A,A
+5076,other,1,B,B
+5077,other,1,A,A
+5078,other,1,D,D
+5079,other,0,B,A
+5080,other,1,I,I
+5081,other,0,H,D
+5082,other,1,A,A
+5083,other,1,H,H
+5084,other,0,A,D
+5085,other,1,A,A
+5086,other,0,F,C
+5087,other,0,I,J
+5088,other,1,E,E
+5089,other,1,I,I
+5090,other,0,H,C
+5091,other,1,A,A
+5092,other,1,B,B
+5093,other,1,C,C
+5094,other,1,C,C
+5095,other,1,D,D
+5096,other,0,A,B
+5097,other,1,C,C
+5098,other,1,F,F
+5099,other,1,B,B
+5100,other,1,H,H
+5101,other,1,A,A
+5102,other,1,H,H
+5103,other,1,J,J
+5104,other,1,I,I
+5105,other,1,I,I
+5106,other,1,A,A
+5107,other,1,D,D
+5108,other,1,C,C
+5109,other,1,H,H
+5110,other,1,B,B
+5111,other,0,A,B
+5112,other,1,A,A
+5113,other,1,J,J
+5114,other,1,A,A
+5115,other,1,E,E
+5116,other,1,A,A
+5117,other,1,C,C
+5118,other,1,J,J
+5119,other,1,F,F
+5120,other,1,C,C
+5121,other,1,H,H
+5122,other,1,C,C
+5123,other,1,B,B
+5124,other,1,G,G
+5125,other,1,I,I
+5126,other,1,F,F
+5127,other,1,C,C
+5128,other,0,D,C
+5129,other,1,B,B
+5130,other,1,A,A
+5131,other,1,F,F
+5132,other,1,D,D
+5133,other,1,F,F
+5134,other,0,E,B
+5135,other,0,B,C
+5136,other,1,D,D
+5137,other,1,F,F
+5138,other,1,E,E
+5139,other,1,I,I
+5140,other,1,D,D
+5141,other,1,H,H
+5142,other,1,C,C
+5143,other,1,E,E
+5144,other,1,A,A
+5145,other,1,A,A
+5146,other,1,B,B
+5147,other,0,A,C
+5148,other,1,C,C
+5149,other,0,C,B
+5150,other,1,C,C
+5151,other,1,C,C
+5152,other,0,B,E
+5153,other,1,G,G
+5154,other,1,C,C
+5155,other,1,J,J
+5156,other,0,D,B
+5157,other,1,D,D
+5158,other,0,D,E
+5159,other,1,G,G

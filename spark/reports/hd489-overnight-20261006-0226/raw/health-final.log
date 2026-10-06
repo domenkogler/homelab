@@ -1,0 +1,4 @@
+  models: ['spark/qwen3.8-flash-next']
+  PASS  health: HTTP 200 body=''
+
+1/1 probes passed

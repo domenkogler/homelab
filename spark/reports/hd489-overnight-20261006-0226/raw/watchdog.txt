@@ -1,0 +1,8 @@
+5b271deb623e5791bf9ede54fd0cc584a9945877a683e4c379840ed8bbb72cfd  IaC/ansible/roles/spark/files/spark-oom-watchdog.sh
+5b271deb623e5791bf9ede54fd0cc584a9945877a683e4c379840ed8bbb72cfd  /usr/local/bin/spark-oom-watchdog.sh
+SPARK_OOM_ENFORCE=1
+SPARK_OOM_REARM_GIB=12
+ls: cannot access '/mnt/spark_nvme/oom-watchdog/no-enforce': No such file or directory
+budget: usable=13.59 GiB  (WARN<12 CRIT<8)  = MemAvailable 13.74 - CmaFree 0.15
+governor: enforce=1 (cooldown 1800s, max 2/7200s, arm-off file /mnt/spark_nvme/oom-watchdog/no-enforce) recycle=1 (+8 GiB / 1800s idle)
+hysteresis: armed (no latch — enforcement allowed at the next CRIT) (re-arm at 12 GiB = WARN 12; HD-494)
