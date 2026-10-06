@@ -64,7 +64,7 @@ subscriptions:
     reminder_days: 30
     url: https://www.eweka.nl
     icon: fa-download
-    secret: null          # still owed: no `eweka_login` item in Homelab-ansible (measured 2026-10-07)
+    secret: eweka_login   # vault item created 2026-10-07; the same login lives in SABnzbd → Config → Servers
     calendar_url: null
     notify: [signal]
     status: active

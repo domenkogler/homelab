@@ -1628,6 +1628,11 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
    Evidence: `docker exec -u 1005 sabnzbd grep -E '^(host_whitelist|complete_dir|download_dir)' /config/sabnzbd.ini`
    → `sabnzbd` and `sab.kogler.si` whitelisted, `complete_dir = /downloads/complete`,
    `download_dir = /downloads/incomplete`.
+   Then the provider itself, which the seed does not own: **Config → Servers → add** — name `news.eweka.nl`,
+   server `news.eweka.nl`, port `563`, connections `16`, **SSL on**, username + password from the `eweka_login`
+   vault item — and run **Test Server**. Reference values from the live instance: `ssl=1`, `connections=16`,
+   `enable=1`. A provider is a Server, never a Prowlarr indexer; a passing Test Server is what keeps a later
+   "search works but the request sits queued" from being misread as an indexer fault.
 3. **Seerr + SeerrNG → \*arrs** — Admin → Settings → Services: server `sonarr:8989` · `radarr:7878` ·
    `lidarr:8686` (overlay names, never `localhost`), API key read from **that instance's own**
    `/srv/docker/<app>/config/config.xml`, root `/media/tv` · `/media/movies` · `/media/music`, profile
