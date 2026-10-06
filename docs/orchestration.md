@@ -99,6 +99,13 @@
    (O7). The 2026-09-22 sweep paid the last scheduled debt: `prompt-405.md`, `prompt-next.md`, `prompt-OV.md` and
    `prompt-agentmemory.md` are gone and no view links a deleted brief.
 5. `git worktree remove` each lane worktree, `git worktree prune`, `git branch -d session/<lane>…` (O8), `git push`.
+   ⚠ **A patch-absorbed branch is not an ancestor, and `-d` cannot tell the two cases apart.** When a lane's work reached
+   `main` through cherry-picks or an earlier rebase, `git cherry -v main <branch>` shows every commit as `-` yet `git branch -d`
+   still refuses — and `-D` is forbidden (O8), so the sweep stalls. The convention-compatible move is `git rebase main <branch>`:
+   git drops the already-applied commits, the branch becomes a true ancestor, and `-d` then succeeds with its proof intact
+   (measured 2026-10-06 on `session/hd469-run3-0019`: 4/4 patches upstream, `-d` refused, rebase → 0 commits ahead → deleted).
+   ⛔ Also: never run that rebase from the merge station — `git rebase main <branch>` **checks the branch out**, turning the
+   primary into an edit context mid-cleanup (`git checkout main` immediately restores it).
 6. Prove the station is clean: primary on `main`, `git status` empty, `git worktree list` shows one entry.
 7. Report: rows closed (= deleted from `todo.md`), rows parked on an owner gate (with the exact blocked
    action), and any row that still has **no** brief — an unbriefed row is not lost, it stays in

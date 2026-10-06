@@ -16,21 +16,20 @@ is **not** needed (no `roles/router/**`). One converge per host, in flight, guar
 **Window: owner-present.** Switching the consumers re-renders **live edge routing** for every tailnet-served app — this is
 the lane the owner's LTE-direct access rides. ⛔ Never pair with another VPS or oldsrv lane.
 
-## Step 1 sits unmerged — start there
+## Step 1 is merged — start at the consumer switch
 
-`session/hd436-zone-derived-wip` (tip `20b49f4`, `validate-all` green **in it**), a few dozen commits behind `main`.
-**First action:** `git worktree list`, then rebase it onto `main` **in a fresh worktree of that branch** and re-run
-`validate-all` — never edit the old worktree in place. It already carries (do not re-do): the derived `zone_kogler_si` in
-`group_vars/all/main.yml` with every entry required to carry `internal` / `ip` / `lan_only` / `tailnet` (none|edge|node|dual)
-/ `ts_router`, so an omitted exposure field fails the build instead of becoming a decision nobody made;
-`scripts/zone_kogler_si_render.py` (all three consumer views from that one list) + the pre-change golden set in
-`scripts/testdata/zone_kogler_si_golden.json`; `scripts/check_dns_seed_drift.py` rewritten to **resolve** the derived loop
-through the render script (it dies on a zero-row loop) with the LAN-only gate as three-way equality;
-`scripts/check_zone_kogler_si_parity.py` wired into `validate-all`; and read-only proof that Ansible evaluates the derived
-vars natively (the `'kogler.si' in zone_kogler_si_lan_only = False` boolean is the whole substring-bug class that once
-dropped the apex, `litellm` and `logs` from the primary).
+The derived `zone_kogler_si` list in `group_vars/all/main.yml` (every entry carries `internal` / `ip` / `lan_only` /
+`tailnet` (none|edge|node|dual) / `ts_router`, so an omitted exposure field fails the build instead of becoming a
+decision nobody made), `scripts/zone_kogler_si_render.py` (all three consumer views from that one list), the pre-change
+golden set in `scripts/testdata/zone_kogler_si_golden.json`, `scripts/check_dns_seed_drift.py` resolving the derived loop
+through the render script (it dies on a zero-row loop, with the LAN-only gate as a three-way equality) and
+`scripts/check_zone_kogler_si_parity.py` in `validate-all` are all **on `main`** — do not re-do them. Two things this
+lane must not re-derive: the golden fixture is a snapshot of the hand-authored sources **at the 2026-09-27 branch point**,
+so a name a consumer gained since then is caught by the dry diff, not by the gate; and
+`capture_zone_kogler_si_golden.py` refuses to re-capture from the derived list, because comparing the list with itself
+would make the parity gate vacuous.
 
-## What is left (the only reasons it is unmerged)
+## What is left
 
 1. **Consumer switch:** `vps.yml`'s two subdomain lists (consumed by headscale's `config.yaml.j2` **and** the
    traefik-internal / traefik-tailnet / traefik-ha / spark-dashboard `dynamic/routes.yml.j2`) and `cloudflare_dns_records`
@@ -41,8 +40,9 @@ dropped the apex, `litellm` and `logs` from the primary).
    same headscale converge. ⛔ `dns.extra_records` and `dns.extra_records_path` are mutually exclusive in pinned headscale
    0.29.3 and a fatal config still reports `Running` — run the guarded converge's **sampled** liveness probe, never a
    one-shot inspect.
-3. **Close-out sweep:** make the branch header comment's claims match reality, update
-   [docs/network-dns.md](docs/network-dns.md) §The answer-plane model, delete rows per lifecycle.
+3. **Close-out sweep:** make the shipped-status claims in
+   [docs/network-dns.md](docs/network-dns.md) §`zone_kogler_si` match what each consumer actually reads, and delete rows
+   per lifecycle. ⛔ "a consumer reads this list" is a claim no gate catches — the next NXDOMAIN does.
 
 ## Traps (measured; each cost a round)
 

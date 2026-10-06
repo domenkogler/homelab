@@ -653,10 +653,11 @@ and never an unversioned per-box resolver drop-in, which is the fourth source th
 
 ### `zone_kogler_si` — the zone as one derived list (HD-436)
 
-The zone's membership is currently maintained in **three** places (the Technitium seed's inline record
+The zone's membership was maintained in **three** places (the Technitium seed's inline record
 list, headscale's `tailnet_subdomains` / `tailnet_ts_only_subdomains` lists, and the public Cloudflare
 set) and a **fourth** exists as unversioned state on a workstation. The refactor deletes all three
-lists by deriving them.
+lists by deriving them. **One of the three is deleted as of 2026-10-06** (step 1 merged — see shipped
+status below); the other two still hand-author, so those planes are doubled and the parity gate holds.
 
 There is already a machine-readable source: the `docker_services` entries in `group_vars` carry
 `name`, `subdomain`, `public:` and `enabled:`, and `docs/services-inventory-generated.md` renders them.
@@ -688,7 +689,21 @@ comparing the four sources, none of which noticed:
 The last row also costs an instrument: a hosts override sits **above** DNS on the one machine you would
 otherwise debug on, so a wrong zone answer becomes invisible exactly where it would have been noticed.
 
-**Shipped status (2026-09-26 — HD-436 is PARTIALLY done, and the difference matters)**:
+**Shipped status (2026-10-06 — HD-436 step 1 MERGED, and PARTIALLY is the accurate word)**:
+
+Step 1 landed on `main` 2026-10-06 (`session/hd436-zone-derived-wip`, rebased over current `main` and
+`validate-all` green **after** the rebase, then FF-merged; the branch is deleted, so `git log -S
+'zone_kogler_si'` is the record). The merge was accepted as **answer-neutral** because the parity gate
+proved it on main's own tree, not by argument — `cloudflare=21, headscale:plain=10,
+headscale:ts_only=14, technitium:primary=35, technitium:secondary=43, technitium:secondary-pi=43`,
+identical to the pre-derivation golden snapshot, with the five RED shapes still refused by
+`--self-test`. ⚠ What the merge did **not** do: the golden snapshot is a snapshot of the hand-authored
+sources **at the branch point (2026-09-27)**, so it cannot prove a name added to main's inline loop
+*after* that date reached the derived list — the rebase's own diff is where such a name would show up,
+and one commit (`c66af0c`, HD-476) did touch this task file in the window. Re-derive the parity
+fixture only as part of the consumer switch, never from the derived list itself
+(`capture_zone_kogler_si_golden.py` refuses to). No converge is owed for step 1: identical answers
+means nothing to push.
 
 | plane | state | what is the source of truth today |
 |---|---|---|

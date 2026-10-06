@@ -29,16 +29,17 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 
-1. ⏳ **HD-469** — spark LLM profile switch: take the **under-cap baseline** (no nvidia-smi field proves the clock regime
-   on GB10 — only a sustained `clocks.sm` trace under load does), then the `reasoning` re-cert. Run it from a session whose
-   own model is **not** spark. Split out of it: ⏳ **HD-475** (the NVFP4 `fast` candidate — code-first) and ⛔ **HD-473**
+1. ⏳ **HD-469** — spark LLM profile switch: take the **under-cap baseline** trace (only a sustained `clocks.sm` trace under
+   load proves the clock regime on GB10), then `reasoning` gates 5–7. Run it from a session whose own model is **not**
+   spark (rule 0). Split out of it: ⏳ **HD-475** (`fast`'s triton fix — code-first) and ⛔ **HD-473**
    (engine pin, upstream-blocked, ~40 s re-check). → [prompt-llm.md](prompt-llm.md)
-2. ⏳ **HD-489 tail** — the winner is live and every leg ran; three certificate items remain: `fast`'s **gate 6** accuracy battery
-   on the live 20 GB shape (never taken) · **read the gate-7 memory-curve day** accruing since 2026-10-06 11:19Z · then rewrite
-   `fast.certified_evidence` and delete the row. B9 (FAIL-BOOT ⇒ the dispatch knobs are constitutive) · B5 (no cliff) · B8
-   (monitoring live) closed in the legs session, and B10's gates 6/8/9 were **declined by owner** — do not re-run any of them. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
-3. ⏳ **HD-436** — the transport lane's hinge: rebase `session/hd436-zone-derived-wip` onto `main`, then switch the last two
-   hand-authoring consumers. Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
+2. ⏳ **HD-489 tail** — the winner is live and every leg ran; three certificate items remain: `fast`'s **gate 6** accuracy
+   battery on the live 20 GB shape (never taken) · **read the gate-7 memory-curve day** accruing since 2026-10-06 11:19Z ·
+   then rewrite `fast.certified_evidence` and delete the row. ⛔ B10's gates 6/8/9 were **declined by owner** and B9 · B5 · B8
+   are closed — do not re-run any of them. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
+3. ⏳ **HD-436** — the transport lane's hinge: the derived `zone_kogler_si` list is already on `main`; switch the two
+   consumers that still hand-author (`vps.yml`'s two subdomain lists, `roles/cloudflare_dns/vars`
+   `cloudflare_dns_records`). Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
 4. ⏳ **HD-467** — P1: `upsd` binds loopback only, so no home host is UPS-protected and nothing can see a mains loss.
 5. ⏳ **HD-471** — P1, head of the VPS-hygiene lane: Docling answers HTTP 200 with **empty markdown** for every real scan;
    fix + warm-up + a memory limit, then re-POST a real scan and read `status`, never the HTTP code.
@@ -60,12 +61,12 @@ re-derive of the global host-floor ceiling — with the 2026-10-06 transient bur
 `gpu_top_mib` growth check are left, the gate-7 window accruing since 11:19Z; the gate-4/gate-5 legs closed inside the
 **spark** slot of the HD-489 tail lane, so do not open a second writer there).
 
-**Owner rulings (2026-10-01)** — 480 · 481 · 482 · 483 · 487 · 488 · 454 · 465 — are recorded **once** in the owning docs
-([network-dns.md](docs/network-dns.md) §The tier policy the owner ruled + [network-rejected.md](docs/network-rejected.md))
-and each row carries its own ruling. **What no row can re-derive and every DNS lane must obey** is now in
-**HD-480's row**: 480/481/482/483 are one lane with one writer on `technitium-seed.yml`, converging `dns-pi` **once**
+**Every DNS lane must obey this and no row can re-derive it** — it is in **HD-480's row**:
+480/481/482/483 are one lane with one writer on `technitium-seed.yml`, converging `dns-pi` **once**
 (HD-488 rides it); **HD-477 runs after**; **HD-487 runs alone**; and the acceptance includes the pi-web seat loading **with
-Technitium stopped**.
+Technitium stopped**. The owner rulings behind it (2026-10-01: 480 · 481 · 482 · 483 · 487 · 488 · 454 · 465) are recorded
+**once** in the owning docs — [network-dns.md](docs/network-dns.md) §The tier policy the owner ruled +
+[network-rejected.md](docs/network-rejected.md).
 
 **Whoever takes the VPS-hygiene residue forms the next VPS + nas lane** — HD-471 + HD-472 + HD-421 + HD-103 are one Docling
 cluster, all converging the `docling` container alone. Before touching ANY Authentik OIDC client, read
