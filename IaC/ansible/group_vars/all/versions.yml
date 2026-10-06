@@ -59,6 +59,10 @@ qbittorrent_version: "5.2.3"               # linuxserver/qbittorrent
 seerr_version: "v3.4.1"                    # seerr/seerr
 seerrng_version: "v3.20.0"                  # snapetech/seerrng — Seerr fork + music (HD-353); registry-verified 2026-09-10 via Docker Hub API (latest stable v3.20.0, active digest; NEVER latest/v3 moving tags). Renovate tracks.
 recyclarr_version: "7.4.0"                 # ghcr.io/recyclarr/recyclarr
+flaresolverr_version: "v3.5.2"                # ghcr.io/flaresolverr/flaresolverr — upstream image only.
+# Not on Docker Hub: `hub.docker.com/v2/repositories/linuxserver/flaresolverr` answers
+# "object not found" (measured 2026-10-06), so the renovate-style scrape has to read GHCR.
+# The upstream tags keep their leading "v" (ghcr tags/list: … v3.5.0, v3.5.1, v3.5.2).
 navidrome_version: "0.63.2"                 # deluan/navidrome (HD-354, VPS); registry-verified 2026-09-10 via Docker Hub API — latest stable semver, no `v` prefix (0.63.2, 2026-07-11; develop/pr tags are NOT pinned). Renovate tracks.
 # ==== Music pillar (HD-362, 2026-09-14) ====
 # Registry-verified tags (2026-09-14). aurral GHCR, slskd Docker Hub, tubearchivist app+es

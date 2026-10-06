@@ -281,6 +281,12 @@ docker_services:
   - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop); + gluetun sidecar in template (now also carries slskd egress — HD-362; edge routes: torrent.)
   - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318 Class-A: image su-execs to uid 1000 (docker top: /app/profilarr runs as domen=1000); config dir must be pre-created 1000-owned (2026-09-15: initially mis-set to 1005, corrected — the app runs as 1000)
   - { name: recyclarr,    template_dir: recyclarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318 Class-A, CORRECTED 2026-09-28: the image's own USER is 1000:1000 (`docker inspect` Config.User), so the 2026-09-15 fix that moved the bind from root to 1005 (`media`) still left /config unwritable — the @daily run died on `Access to the path '/config/cache' is denied`. Scheduled worker, no UI.
+  # HD-1084: Cloudflare solver for Prowlarr. No UI, no subdomain, no host publish — overlay-only,
+  # reached by Prowlarr at http://flaresolverr:8194. Added because 1337x.to cannot be added without it
+  # (`Unable to access 1337x.to, blocked by Cloudflare Protection`); services-media.md §Catalog had
+  # deferred FlareSolverr until an indexer actually demanded a bypass. bind_dirs is empty on purpose:
+  # the container persists nothing, so there is no /srv/docker/flaresolverr/config to pre-create.
+  - { name: flaresolverr, template_dir: flaresolverr, bind_dirs: [] }
 
   # --- Dev AI (HD-355/356) — dsh + pi-dev PARKED (DISABLED) 2026-09-17, HD-386 ---
   # History: MOVED here from the VPS 2026-09-10 (tailscale sidecars removed; UIs were

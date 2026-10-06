@@ -1,0 +1,40 @@
+# flaresolverr docker-compose.yml — Cloudflare challenge solver for Prowlarr indexers (HD-1084)
+#   NO web UI, NO subdomain, NO host publish: Prowlarr reaches it on the overlay at
+#   http://flaresolverr:8194 and nothing else should. Deliberately NOT in the validator's
+#   WEB_SERVICES set — if someone later labels it, that is a wider door, not a fix.
+#   Stateless by design (a headless browser profile per request, nothing persisted), so there
+#   is no /config bind and no bind_dirs on the registry entry.
+#
+# Secrets via 1Password lookup at render: none needed.
+services:
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:{{ flaresolverr_version }}
+    cap_drop:
+      - ALL
+    # SETGID/SETUID: the image starts as root and drops privileges before launching the browser;
+    # without these the entrypoint's privilege drop fails (same reason every other service here
+    # carries them). NET_BIND_SERVICE is deliberately absent — 8194 is not a privileged port.
+    cap_add:
+      - SETGID
+      - SETUID
+    # /run:exec — HD-412: docker's default tmpfs options are noexec, which breaks images that
+    # exec helper binaries out of /run. Keep it, same as the *arr services.
+    tmpfs:
+      - /tmp
+      - /run:exec
+    # The headless browser, not the Python process, is what needs this: docker's default
+    # /dev/shm is 64 MB and Chromium/Firefox fail page loads once the renderer fills it.
+    shm_size: "256m"
+    container_name: flaresolverr
+    restart: unless-stopped
+    networks:
+      - services-internal
+    environment:
+      # warning, not info: the request-level INFO lines are mostly cookie/profile chatter and
+      # they bury the one line that matters (a challenge that was NOT solved).
+      LOG_LEVEL: "warning"
+      BROWSER_TIMEOUT: "20000"
+      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
+networks:
+  services-internal:
+    external: true
