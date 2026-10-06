@@ -88,15 +88,6 @@
 #                                     setext `=` heading; the repo's 50–60-char `=` banners in
 #                                     tracked raw evidence — a first draft matching `^={7,}`
 #                                     reported 78 false positives on its first run)
-#  19. check_iac_backend_strings.py   — HD-404 ratchet: the number of `Prometheus|Loki` mentions
-#                                     under IaC/ansible/{playbooks,group_vars} may not exceed the
-#                                     recorded floor (HD-342 replaced them with VictoriaMetrics +
-#                                     VictoriaLogs; the six stale claims HD-404 fixed were all in
-#                                     that corpus). A RATCHET, not a per-line lie-detector: an
-#                                     assertion-shaped regex caught 2 of the 4 real violations and
-#                                     an allowlist would mute the gate — both measured, both in the
-#                                     script's docstring. `--show` re-derives the count; the
-#                                     self-test refuses a floor red at rest or absurdly loose
 #  19. check_iac_backend_strings.py   — HD-404 ratchet: the count of `Prometheus|Loki` mentions under
 #                                     IaC/ansible/{playbooks,group_vars} may not exceed the recorded
 #                                     floor (HD-342 replaced them with VictoriaMetrics + VictoriaLogs;
@@ -147,22 +138,6 @@
 #                                     / reasoning). Offline: no request leaves the box. Skips itself
 #                                     on a host the provider is not scoped to (`hosts:`), so CI and
 #                                     the oldsrv cockpit are unaffected.
-#  27. check_zone_kogler_si_parity.py — HD-436: deriving the `kogler.si` answer plane from ONE list
-#                                     must not CHANGE an answer. A static contract checker proves a row
-#                                     follows the rules; it cannot see an answer PLANE change: an early
-#                                     draft of the derivation dropped apex/litellm/logs from the primary
-#                                     (a `when` gate comparing `item.name` against a var that resolved to
-#                                     the STRING repr of a list, so `in` became a SUBSTRING test) and
-#                                     `check_dns_seed_drift.py` — which only knew literal inline `loop:`
-#                                     lists — reported '43 records' from the hand-authored era while
-#                                     reading ZERO rows from the derived one. RED on the branch, GREEN on
-#                                     main: a contract gate and the thing it guards can both be blind.
-#                                     This gate diffs derived-vs-golden (the pre-derivation output,
-#                                     captured in scripts/testdata/), fails on a dropped name, a changed
-#                                     IP, a name moving between the plain and `.ts` namespaces, a
-#                                     consumer that answers nothing, and a golden field silently dropped
-#                                     from a row. `--self-test` proves it refuses all five.
-#   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 
 #  25. spark-llm-render-matrix.py       — HD-489: every authored profile must RENDER offline.
 #  26. check_doc_path_refs.py            — HD-490: every local path a doc or IaC comment cites
@@ -185,6 +160,22 @@
 #                                     16 arms × the same docker-compose.yml.j2 the engine
 #                                     boots from, with the parity assertions that keep the
 #                                     four certified lanes byte-identical to what serves today.
+#  28. check_zone_kogler_si_parity.py — HD-436: deriving the `kogler.si` answer plane from ONE list
+#                                     must not CHANGE an answer. A static contract checker proves a row
+#                                     follows the rules; it cannot see an answer PLANE change: an early
+#                                     draft of the derivation dropped apex/litellm/logs from the primary
+#                                     (a `when` gate comparing `item.name` against a var that resolved to
+#                                     the STRING repr of a list, so `in` became a SUBSTRING test) and
+#                                     `check_dns_seed_drift.py` — which only knew literal inline `loop:`
+#                                     lists — reported '43 records' from the hand-authored era while
+#                                     reading ZERO rows from the derived one. RED on the branch, GREEN on
+#                                     main: a contract gate and the thing it guards can both be blind.
+#                                     This gate diffs derived-vs-golden (the pre-derivation output,
+#                                     captured in scripts/testdata/), fails on a dropped name, a changed
+#                                     IP, a name moving between the plain and `.ts` namespaces, a
+#                                     consumer that answers nothing, and a golden field silently dropped
+#                                     from a row. `--self-test` proves it refuses all five.
+#   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
 set -euo pipefail
