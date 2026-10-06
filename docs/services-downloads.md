@@ -115,6 +115,43 @@ categories exist but every one has an empty `dir`, and there is an **`audio`** c
 stack's layout says `music`, so Lidarr's client category must either be pointed at `audio` or a `music`
 category added. · [services-media.md](services-media.md) §Request → import wiring · [subscriptions.yml](../IaC/ansible/group_vars/subscriptions.yml)
 
+### SABnzbd 5 moved its categories endpoint; Prowlarr 2.5.2 still asks the old way (HD-496, 2026-10-06)
+
+Prowlarr → Download Clients → SABnzbd refuses to save: **"Category does not exist"**, for *every* value
+you can type — `movies`, `prowlarr`, `*`, all of them. The field is not wrong and the category is not
+missing. **Prowlarr cannot read SABnzbd's category list at all**, so its validation compares your input
+against an empty list.
+
+Read from both sides (live, 2026-10-06):
+
+| Caller | Endpoint | Answer |
+| --- | --- | --- |
+| Prowlarr 2.5.2 (`SabnzbdProxy.GetConfig`) | `api?mode=config&name=categories&schema=categories` | `not implemented` |
+| SABnzbd 5.1.1's real endpoint | `api?mode=get_cats` | `["*","movies","tv","audio","software"]` |
+
+Why: in SABnzbd 5.x `mode=config` is **no longer a generic config reader** — it dispatches only through
+a fixed name table (`_api_config_table`: `speedlimit`, `set_pause`, `set_apikey`, `regenerate_certs`,
+`test_server`, …); anything else falls through to `not implemented`. Categories now live behind
+`mode=get_cats`. Source, read out of the running image (`/app/sabnzbd/sabnzbd/api.py`):
+
+```python
+if mode == "config" and name in _api_config_table:   # → "not implemented" for name=categories
+```
+
+**Workaround that works today: leave "Default Category" empty.** Prowlarr validates only non-empty
+values, and that field only labels grabs Prowlarr originates itself — the arrs send their own category
+per download, which is where `movies` / `tv` / `music` belong. Expect a "A category is recommended"
+note; it is a warning, not a blocker.
+
+⚠ **And the Host field must be `sabnzbd`, not `localhost`/`127.0.0.1`** — inside the Prowlarr container
+that is Prowlarr's own loopback. Caught in its log: `Unable to connect to SABnzbd … (localhost:8080)
+Connection refused`.
+
+⏳ **Not a workaround, the real fix:** a Prowlarr build that speaks `get_cats`. This stack tracks
+`linuxserver/prowlarr:develop`, so `docker compose pull prowlarr && docker compose up -d prowlarr` may
+already carry it — worth checking before accepting the blank-category shape permanently. Until then
+downloads route correctly (the arrs own the category) but Prowlarr's own grabs have no folder.
+
 ## Related
 - [Media stack](services-media.md) — the *arr pipeline + storage layout this feeds
 - [Store](storage.md) — ZFS layout, `bulk/media` dataset
