@@ -27,10 +27,22 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > with nothing in the edge's log. Two cases, same cause, both now closed: **jellyfin** publishes
 > `{{ jellyfin_bind }}:{{ jellyfin_host_port }}` = **loopback**, which is enough for a host-net edge and keeps
 > Jellyfin's login + its CrowdSec/HSTS bypass off the Home VLAN; `media.kogler.si` 502 → 200. **The rest of the
-> home-hosted group now publishes the same way (2026-10-06):** every `*-backend` in `routes.yml.j2` (seerr,
-> seerrng, sonarr, radarr, lidarr, prowlarr, bazarr, profilarr, sab, torrent) points at its own loopback
-> `*_url` var from `group_vars/all/main.yml`, and the seerrng/seerr (both :5055 inside) and
-> torrent/sab (both :8080 inside) splits get distinct host ports. ⚠ **aurral / slskd / lidarr-ydl are NOT in
+> home-hosted group publishes on the HOME IP, not on loopback (corrected by measurement, HD-1083, 2026-10-06).**
+> Every `*-backend` in `routes.yml.j2` (seerr, seerrng, sonarr, radarr, lidarr, prowlarr, bazarr, profilarr, sab,
+> torrent) has its own `*_url` var in `group_vars/all/main.yml`, and the seerr/seerrng (both :5055 inside) and
+> torrent/sab (both :8080 inside) splits get distinct host ports — but `*_bind` resolves to
+> `{{ oldsrv_home_ip }}`, because that is what the containers actually own: `jellyfin 10.10.1.30:8096`,
+> `bazarr :6767`, `seerr :5055`, `seerrng :5056`, `sabnzbd :8080`, `sonarr :8989`, `slskd :5030`,
+> qbit-via-gluetun `:8082`, and the live `routes.yml` dials those same addresses.
+> ⚠ **This prose used to say "loopback", and the gap between that sentence and the running host caused a
+> three-service outage** (2026-10-06 20:24): a routine `docker_services` converge of radarr/prowlarr/lidarr
+> applied the loopback binds, while the edge still dialed `10.10.1.30:<port>` → `502` on those three hostnames,
+> with `sonarr` (not recreated) still serving `302` next to them. Two rules came out of it: **(a)** the bind
+> address of a routed backend is part of the edge contract — check `docker port <svc>` against the route's URL
+> before concluding an app is down; **(b)** converging a committed state onto a host whose live state came from
+> an **unmerged** branch reverts that state silently. Loopback-only publishing (edge as the only door) is still
+> the target and is tracked as HD-1083 — it must be applied to every routed service *and* the edge in one
+> converge, never to a subset. ⚠ **aurral / slskd / lidarr-ydl are NOT in
 > this group and were never routed on any edge** (the old prose here counted them in `routes.yml.j2` — they are
 > not there; they have no route and no split-horizon record to this day). Follow the same pattern if one is
 > ever exposed: loopback bind + the `*-backend` URL pointed at the same var, never the Home IP unless a
