@@ -359,6 +359,30 @@ docker exec flaresolverr curl -s -X POST -H 'Content-Type: application/json' \
 It is reachable **only** from the overlay by design: a headless browser that will fetch any URL you point it
 at must not be listening on the LAN.
 
+### Reaching SABnzbd's own API (measured 2026-10-07)
+
+Two things make a SABnzbd API probe read as "the API is broken" when nothing is:
+
+- **It publishes on the oldsrv Home-IP only.** `docker port sabnzbd 8080/tcp` → `<oldsrv_home_ip>:8080`, and
+  nothing on loopback — so `curl http://127.0.0.1:8080/api?...` from the host gets HTTP `000` (no connection),
+  which is easy to misread as an auth failure. Dial the Home-IP, or send `Host: sabnzbd` from anything on the
+  overlay.
+- **The API key is not readable by `ansible-admin` on the host.** `/srv/docker/sabnzbd/config/sabnzbd.ini`
+  answers `Permission denied`; read it as the service uid:
+  `docker exec -u <sab_uid> sabnzbd grep -m1 '^api_key' /config/sabnzbd.ini`.
+
+What 5.1.1 answers with a valid key:
+
+| mode | result |
+|---|---|
+| `queue`, `history` | JSON — these are the working state probes |
+| `server` | `{"status":false,"error":"not implemented"}` |
+| `config&name=servers` | `{"status":false,"error":"not implemented"}` |
+
+So **there is no API way to read server/health state on this build** — the same `not implemented` signature the
+categories endpoint has (see the SABnzbd 5 endpoint-drift section above). Provider health is proven by the UI's
+Test Server or by a job that completes, never by a mode that does not exist.
+
 ## Related
 - [Media stack](services-media.md) — the *arr pipeline + storage layout this feeds
 - [Store](storage.md) — ZFS layout, `bulk/media` dataset
