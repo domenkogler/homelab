@@ -352,6 +352,17 @@ services:
 >   plain `- /run`. **Do not over-apply this exception**: the exemption is `linuxserver/*`-specific, not
 >   "s6"-general — a stock s6-overlay image (verified with `rustdesk/rustdesk-server-s6:1.1.16`) runs
 >   `read_only: true` + `cap_drop: ALL` + `tmpfs: /tmp, /run:exec` with no `cap_add` at all.
+>   ⚠ **`cap_drop: ALL` also removes `CAP_CHOWN`, and the linuxserver images need it** (HD-1081). Their init
+>   `chown`s `/run/<app>-temp` to the PUID before dropping privileges; without that capability the chown fails
+>   (`chown: changing ownership of '/run/radarr-temp': Operation not permitted`, followed by the image's own
+>   "**** Permissions could not be set ****" warning) and the directory stays `root:root 0755` while the app
+>   runs as uid 1005. For the ASP.NET-family apps (Sonarr/Radarr/Lidarr/Prowlarr) that directory is `TMPDIR`,
+>   and `Path.GetTempFileName()` is how ASP.NET Core DataProtection persists its **cookie-signing key ring** —
+>   so the app starts, answers its API, and cannot issue a session cookie it can later read: **every login
+>   bounces back to `/login`** with `KeyRingProvider: An error occurred while reading the key ring` in the log.
+>   It looks exactly like a lost password and is not one. Fix by mounting that one path as its own tmpfs
+>   (`- /run/<app>-temp:mode=1777,exec` — verified to land as `drwxrwxrwt`), **not** by handing `CAP_CHOWN`
+>   back: that capability would let the container's root chown files on the `/media` and `/downloads` binds.
 > - **Images whose entrypoint ends in `setpriv`/`su-exec`** (signal-cli-rest-api, profilarr): need
 >   `cap_add CHOWN,SETGID,SETUID` (privilege-drop) and, where a helper persists into a uid-owned volume
 >   (signal-cli `jsonrpc2-helper`), also `DAC_OVERRIDE,FOWNER`.

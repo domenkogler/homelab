@@ -284,6 +284,48 @@ Connection refused`.
 already carry it — worth checking before accepting the blank-category shape permanently. Until then
 downloads route correctly (the arrs own the category) but Prowlarr's own grabs have no folder.
 
+### Torrent indexers: Cloudflare, DNS, and which door the traffic actually uses (HD-1082, 2026-10-06)
+
+Owner added three torrent indexers next to NZBGeek (`LimeTorrents`, `Nyaa.si`, `Zamunda LIFE`) and 1337x.to
+refused to save: `Unable to access 1337x.to, blocked by Cloudflare Protection.` The question that follows is
+always "can we bypass DNS for torrents?" — **DNS is not the lever.** Measured:
+
+```
+1337x.to  via the stack resolver -> 2606:4700:3033::6815:28c1, 2606:4700:3030::ac43:bc43
+1337x.to  via 1.1.1.1            -> 104.21.40.193, 172.67.188.67, 2606:4700:…      # Cloudflare either way
+prowlarr  egress                 -> 193.77.156.222   (oldsrv directly, no tunnel)
+gluetun   egress                 -> 91.148.247.10    (WireGuard exit, §gluetun provider mode)
+```
+
+Both resolvers hand back Cloudflare addresses, so a different resolver only changes **which Cloudflare edge**
+you knock on. The rejection happens one layer up: CF wants a browser-grade TLS/JS fingerprint and a indexer
+client (Torznab/Newznab over plain HTTP) cannot produce one. There is also no per-indexer DNS or per-indexer
+route in Prowlarr — the two knobs it has are global.
+
+What actually moves the needle, in order of how well it fits this stack:
+
+1. **FlareSolverr.** The supported answer, and Prowlarr supports it natively (it runs a real browser, solves
+   the challenge, hands the cookies back). [services-media.md](services-media.md) §Catalog deferred it as
+   *"only if an indexer actually requires Cloudflare bypass"* — this is that moment. Cost: one more container
+   with its own browser to keep patched.
+2. **Drop the CF-gated site.** Three torrent indexers are already registered; a fourth behind a challenge is
+   mostly a maintenance liability.
+3. **Route Prowlarr's own HTTP through the tunnel** (Settings → General → Proxy, SOCKS5). Two problems, both
+   measured: gluetun's built-in SOCKS5 is **not listening** (`PROXY_*` unset; `socks5h://127.0.0.1:1080`
+   refused), and the proxy setting is global — NZBGeek's queries would start leaving from the VPN exit too.
+   Indexers commonly block known VPN ranges, so this can trade one failure for another.
+
+⚠ **The blocker behind the blocker: Prowlarr has no torrent client at all.** `GET /api/v1/downloadclient` →
+`[]`. A torrent indexer can search all it likes; the grab has nowhere to go. qBittorrent itself is fine —
+`GET http://gluetun:8080/` answers **200 from prowlarr and from sonarr** — but note where that probe has to
+run: qBittorrent is `network_mode: service:gluetun`, started with `--webui-port=8080`, and does **not** bind
+loopback inside gluetun, so probing `127.0.0.1:8080` from the gluetun container reads "refused" on a healthy
+client. Probe it from a third container.
+
+Until a torrent client is registered, the three enabled torrent indexers are a source of **failed grabs**,
+not of content: same trap as an indexer with no download client (§Which half of Prowlarr to trust), one layer
+earlier. Nothing here changes the Usenet leg, which is proven end to end (§End-to-end run, first success).
+
 ## Related
 - [Media stack](services-media.md) — the *arr pipeline + storage layout this feeds
 - [Store](storage.md) — ZFS layout, `bulk/media` dataset
