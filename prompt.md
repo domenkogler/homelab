@@ -46,10 +46,9 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 6. ⏳ **HD-470** — the VPS's own state has one copy on one disk.
 7. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed.
 8. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
-   442–446 block **445**/**446** closed 2026-10-05 with the seat lane, **442**/**443** keep owner-gated tails).
-   **495** joins this cluster: the oldsrv seat now reads `Homelab-ansible` and signs its own commits
-   agent-free; left is role-owning the seat's git plumbing (a rebuild still loses signing silently) and
-   finishing its venv (no ansible → the playbook syntax gate is skipped on that box).
+   the 442–444 block, whose rows keep owner-gated tails).
+   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently) and finish
+   its venv (no ansible → the playbook syntax gate is skipped on that box).
 9. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 
@@ -86,7 +85,7 @@ lane**; never two briefs on one converge host; never a pair marked *never with*.
 | **2** | [prompt-376.md](prompt-376.md) | **376 · 400 · 359 · 367 · 380** | **spark**, owner bench window | with 384 **only** in an open bench window, else alone · ⛔ never with the 469 lane |
 | **3** | [prompt-357.md](prompt-357.md) | **357 · 17 · 217 · 358 · 418** (window-gated) | **oldsrv** | runs when the oldsrv slot is free · ⛔ never with 384 / 361 |
 | **3** | [prompt-436.md](prompt-436.md) | **436 · 435 · 460** | oldsrv + VPS + Cloudflare (no router slot) | owner-present window — it re-renders live edge routing |
-| **3** | [prompt-361.md](prompt-361.md) | **361 · 411 · 442–446 · 465** | **oldsrv** (nas/pi read-back only) | ⛔ never with 384 / 357 (oldsrv slot) |
+| **3** | [prompt-361.md](prompt-361.md) | **361 · 411 · 442–444 · 465** | **oldsrv** (nas/pi read-back only) | ⛔ never with 384 / 357 (oldsrv slot) |
 
 Lane sessions: read [docs/orchestration.md](docs/orchestration.md) §4 **first** — it overrides README §4 / CONVENTIONS §6 at
 O1–O8. A lane touches only its own rows + owning docs + runbook lines; `prompt.md` and `todo-table.md` are
