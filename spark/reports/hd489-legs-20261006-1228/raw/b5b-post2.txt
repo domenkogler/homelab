@@ -1,0 +1,8 @@
+vllm:num_preemptions_total{engine="0",model_name="spark/qwen3.8-flash-next"} 0.0
+usable_after 18.46
+--- stress summary ---
+19
+12:04:23 === stress-oom 20261006-120423 | usable_floor=12GiB gauge=MemAvailable-CmaFree psi_max=30% max_rung=1 prefill_in=24576 ===
+12:12:25 STEP B1 x2: in=24576 out=256 conc=2 seed=5013 usable=17.3GiB
+12:13:20 STEP B1 x2: rc=0 ok=2/2 in_tok=49257 after: usable=17.5GiB gpu-top=94023MiB restarts=0 
+12:14:05 PHASE C (idle decay) is PASSIVE: systemctl status spark-oom-watchdog; read the pre-event curve with

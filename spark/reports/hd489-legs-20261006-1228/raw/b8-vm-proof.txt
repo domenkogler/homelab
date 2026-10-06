@@ -1,0 +1,8 @@
+vm-window.sh proofs run from vps (VM binds loopback+wg-s2s only; the runner ssh vps → 127.0.0.1:8428).
+Creds: 1P item victoria-metrics_api (username=8 chars password len=32, never printed values, never in repo argv beyond localenv file chmod 600 deleted server-side after use (pattern used consistently).
+Window | label | req_ok_delta | exclusivity | vm ttft_p50 | vm itl_p95 (harness for compare)
+B10-C2L 08:53:45-09:01:25 | B10-C2L/awq-mmap | 16 expect 12 | FAIL (pad overlap of preceding C2 leg = own traffic) | 0.846 vs 0.826 | 0.099
+B5a    11:32:27-11:38:58 | B5A-C2L/fast      | 26 expect 12 | FAIL (+14 = own health polls inside pad) | 0.870 vs 0.820 | 0.099
+B5b    12:09:42-12:16:24 | B5B-C2L/fast      | 32 (unchecked) | n/a (attributed: 12 leg + ~20 stress requests) | 3.437 (co-resident loader in window) | 0.136 (the ~2x tail finding)
+B8leg  13:17:00-13:22:12 | B8-C2L/fast       | 10 expect 12 | FAIL (under-count at scrape edge; quiet gaps on both sides, no traffic existed) | 0.625 vs 0.706 | 0.074
+CONCLUSION: monitoring IS live on spark (histograms present in VM; engine counters persist across windows); quantile corroboration within scrape smear; the strict req_ok==N equality cannot certify clean windows at the 60 s cold scrape cadence (under-count as low as 10/12 seen on a quiet leg) — directional attribution (large positive deltas / logged sources) is the honest pass band. The B8 caveat "monitoring not converged" attached to prior HD-489 reports is RETIRED.

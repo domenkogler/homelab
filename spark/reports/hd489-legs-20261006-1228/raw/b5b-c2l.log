@@ -1,0 +1,61 @@
+>>> host usable memory: 18.8 GiB (floor 12 GiB, gauge = MemAvailable − CmaFree)
+>>> [B5B-C2L] C2L profile=fast client=oldsrv seed=42 conc=1 endpoint=:8000 warm=0 start=20261006-120942
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_section', 'mrope_interleaved'}
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_section', 'mrope_interleaved'}
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_section', 'mrope_interleaved'}
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_section', 'mrope_interleaved'}
+[transformers] Unrecognized keys in `rope_parameters` for 'rope_type'='default': {'mrope_section', 'mrope_interleaved'}
+Namespace(subparser='bench', bench_type='serve', dispatch_function=<function BenchmarkServingSubcommand.cmd at 0xef8b7c6dd3a0>, trust_remote_code=False, seed=42, num_prompts=12, dataset_name='random', no_stream=False, dataset_path=None, no_oversample=False, skip_chat_template=False, enable_multimodal_chat=False, disable_shuffle=False, custom_output_len=256, custom_ensure_client_side_data=False, spec_bench_output_len=256, spec_bench_category=None, sonnet_input_len=550, sonnet_output_len=150, sonnet_prefix_len=200, sharegpt_output_len=None, timed_trace_chunk_hash_size=16, timed_trace_sec_multiplier=1, timed_trace_label_timestamp='timestamp', timed_trace_label_input_length='input_length', timed_trace_label_output_length='output_length', timed_trace_label_hash_ids='hash_ids', blazedit_min_distance=0.0, blazedit_max_distance=1.0, asr_max_audio_len_sec=inf, asr_min_audio_len_sec=0.0, random_input_len=1024, random_output_len=1024, random_range_ratio='0.0', random_prefix_len=0, random_batch_size=1, no_reranker=False, random_mm_base_items_per_request=1, random_mm_num_mm_items_range_ratio=0.0, random_mm_limit_mm_per_prompt={'image': 255, 'video': 1}, random_mm_bucket_config={(256, 256, 1): 0.5, (720, 1280, 1): 0.5, (720, 1280, 16): 0.0}, hf_subset=None, hf_split=None, hf_name=None, hf_output_len=None, bfcl_categories=None, prefix_repetition_prefix_len=256, prefix_repetition_suffix_len=256, prefix_repetition_num_prefixes=10, prefix_repetition_output_len=128, speed_bench_dataset_subset='qualitative', speed_bench_output_len=4096, speed_bench_category=None, label=None, backend='openai-chat', base_url='http://localhost:8000', host='127.0.0.1', port=8000, endpoint='/v1/chat/completions', header=['Authorization=Bearer «REDACTED:spark-llm_api»'], max_concurrency=1, model='/model', input_len=None, output_len=None, tokenizer=None, tokenizer_mode='auto', use_beam_search=False, logprobs=None, request_rate=inf, burstiness=1.0, probe_request_rate=0.0, disable_tqdm=False, num_warmups=0, profile=False, save_result=True, save_detailed=False, append_result=False, metadata=None, result_dir='/tmp', result_filename='bench-result.json', ignore_eos=False, self_timed=None, percentile_metrics=None, metric_percentiles='99', goodput=None, request_id_prefix='bench-25468193-', top_p=None, top_k=None, min_p=None, temperature=None, frequency_penalty=None, presence_penalty=None, repetition_penalty=None, served_model_name='spark/qwen3.8-flash-next', lora_modules=None, lora_assignment='random', ramp_up_strategy=None, ramp_up_start_rps=None, ramp_up_end_rps=None, ready_check_timeout_sec=0, chat_template_kwargs=None, extra_body=None, skip_tokenizer_init=False, insecure=False, plot_timeline=False, timeline_itl_thresholds='25,50', plot_dataset_stats=False)
+INFO 10-06 12:09:55 [utils.py:90] Sampling input_len from [1024, 1024] and output_len from [1024, 1024]
+  0%|          | 0/12 [00:00<?, ?it/s]WARNING: /tokenize unavailable, skipping alignment.
+WARNING: vllm bench serve no longer sets temperature==0 (greedy) in requests by default. The default will be determined on the server side and can be model/API specific. For the old behavior, include --temperature=0.
+Starting initial single prompt test run...
+Skipping endpoint ready check.
+Starting main benchmark run...
+Traffic request rate: inf
+Burstiness factor: 1.0 (Poisson process)
+Maximum request concurrency: 1
+  8%|▊         | 1/12 [00:36<06:41, 36.48s/it] 17%|█▋        | 2/12 [01:11<05:55, 35.53s/it] 25%|██▌       | 3/12 [01:46<05:16, 35.22s/it] 33%|███▎      | 4/12 [02:38<05:35, 41.96s/it] 42%|████▏     | 5/12 [03:30<05:20, 45.76s/it] 50%|█████     | 6/12 [03:57<03:54, 39.11s/it] 58%|█████▊    | 7/12 [04:18<02:47, 33.43s/it] 67%|██████▋   | 8/12 [04:47<02:07, 31.85s/it] 75%|███████▌  | 9/12 [05:13<01:30, 30.07s/it] 83%|████████▎ | 10/12 [05:40<00:58, 29.01s/it] 92%|█████████▏| 11/12 [06:04<00:27, 27.44s/it]100%|██████████| 12/12 [06:27<00:00, 26.14s/it]100%|██████████| 12/12 [06:27<00:00, 32.27s/it]
+tip: install termplotlib and gnuplot to plot the metrics
+============ Serving Benchmark Result ============
+Successful requests:                     12        
+Failed requests:                         0         
+Maximum request concurrency:             1         
+Benchmark duration (s):                  387.23    
+Total input tokens:                      12917     
+Total generated tokens:                  12288     
+Request throughput (req/s):              0.03      
+Output token throughput (tok/s):         31.73     
+Peak output token throughput (tok/s):    17.00     
+Peak concurrent requests:                2.00      
+Total token throughput (tok/s):          65.09     
+---------------Time to First Token----------------
+Mean TTFT (ms):                          922.48    
+Median TTFT (ms):                        730.24    
+P99 TTFT (ms):                           2584.53   
+-----Time per Output Token (excl. 1st token)------
+Mean TPOT (ms):                          30.64     
+Median TPOT (ms):                        26.14     
+P99 TPOT (ms):                           50.63     
+---------------Inter-token Latency----------------
+Mean ITL (ms):                           80.67     
+Median ITL (ms):                         64.86     
+P99 ITL (ms):                            129.23    
+---------------Speculative Decoding---------------
+Acceptance rate (%):                     52.82     
+Acceptance length:                       2.58      
+Drafts:                                  5494      
+Draft tokens:                            16482     
+Accepted tokens:                         8706      
+Per-position acceptance (%):
+  Position 0:                            73.33     
+  Position 1:                            55.13     
+  Position 2:                            30.00     
+==================================================
+>>> done. profile=fast ttft_p50=730.2440204657614ms ttft_p99=2584.5273546851254ms itl_p50=64.86327992752194ms dec/stream=31.7 total_out=31.732833544557153 tok/s
+>>>      window=2026-10-06T12:09:42Z..2026-10-06T12:16:24Z (401s, cold_ok=yes) ok_delta=25/12 preempts=+0 mtp=0.528 power=32W wh/1k=0.25
+>>>      pin: recomputed_tokens=+146203 prefix_hits=+0 queries=+146203 cached=+0
+>>>      at rest: engine/all pid MiB=engine_pid 0 mib usable=18.7 GiB KV_avail=? (detail: /home/ansible-admin/bench/raw/atrest-20261006-120942-B5B-C2L-C2L.txt)
+>>>      FLAG=contaminated:req_ok_delta=25_expected=12  <-- do NOT quote this row as arm-vs-arm evidence
+>>>      cross-check it: bash vm-window.sh --csv /home/ansible-admin/bench/results-v2.csv --ts 20261006-120942
+>>> appended to /home/ansible-admin/bench/results-v2.csv

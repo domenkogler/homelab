@@ -1,0 +1,4 @@
+usable_before 21.15 GiB
+drop_caches issued rc=0
+usable_after_drop 14.36 GiB
+vllm:num_preemptions_total{engine="0",model_name="spark/qwen3.8-flash-next"} 0.0

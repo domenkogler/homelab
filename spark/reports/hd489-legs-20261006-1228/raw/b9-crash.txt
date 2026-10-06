@@ -1,0 +1,23 @@
+(Worker pid=166) Loading safetensors checkpoint shards:   0% Completed | 0/68 [00:00<?, ?it/s]
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945] WorkerProc failed to start.
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945] Traceback (most recent call last):
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/executor/multiproc_executor.py", line 912, in worker_main
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]     worker = WorkerProc(*args, **kwargs)
+(Worker pid=166) Loading safetensors checkpoint shards:   0% Completed | 0/68 [00:00<?, ?it/s]
+(Worker pid=166) 
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]   File "/usr/local/lib/python3.12/dist-packages/vllm/tracing/otel.py", line 178, in sync_wrapper
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]     return func(*args, **kwargs)
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]            ^^^^^^^^^^^^^^^^^^^^^
+--
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]                  ^^^^^^^^^^
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]   File "/usr/local/lib/python3.12/dist-packages/torch/nn/modules/module.py", line 1967, in __getattr__
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945]     raise AttributeError(
+(Worker pid=166) ERROR 10-06 10:53:08 [multiproc_executor.py:945] AttributeError: 'MergedColumnParallelLinear' object has no attribute 'data'
+(EngineCore pid=128) INFO 10-06 10:53:08 [multiproc_executor.py:469] [shutdown] Executor: waiting for worker exit count=1
+[rank0]:[W1006 10:53:08.539254472 ProcessGroupNCCL.cpp:1624] Warning: WARNING: destroy_process_group() was not called before program exit, which can leak resources. For more info, please see https://pytorch.org/docs/stable/distributed.html#shutdown (function operator())
+(EngineCore pid=128) INFO 10-06 10:53:10 [multiproc_executor.py:476] [shutdown] Executor: all workers exited gracefully
+(EngineCore pid=128) Process EngineCore:
+(EngineCore pid=128) ERROR 10-06 10:53:10 [core.py:1346] EngineCore failed to start.
+(EngineCore pid=128) ERROR 10-06 10:53:10 [core.py:1346] Traceback (most recent call last):
+(EngineCore pid=128) ERROR 10-06 10:53:10 [core.py:1346]   File "/usr/local/lib/python3.12/dist-packages/vllm/v1/engine/core.py", line 1315, in run_engine_core

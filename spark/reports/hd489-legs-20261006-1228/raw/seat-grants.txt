@@ -1,0 +1,6 @@
+seat (declared first line of legs session 2026-10-10... 2026-10-06T10:28:15Z):
+engine under test = spark · runner = oldsrv(hostname=oldsrv) · PI_MODEL=deepseek-ai/DeepSeek-V4-Flash (not spark/... -> rule 0 clean for timed legs)
+owner grants ON RECORD (explicit 2026-10-06 instruction to execute B9, B5, B8 now; B10 skipped per owner instruction, reason recorded in the row tail)
+  B9: -e spark_llm_profile=ar-blk-lean -e spark_llm_allow_uncertified=true per brief grant semantics + owner instruction to run B9 now (A2 parent chores done first)
+  B5: drop_caches (owner-only command) + spark/bench/stress-oom.sh co-resident leg — authorized by owner instruction 'Do B5'
+  B8: spark monitoring converge — authorized by owner instruction 'Do B8'

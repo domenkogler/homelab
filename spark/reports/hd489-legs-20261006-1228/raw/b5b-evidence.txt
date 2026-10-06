@@ -1,0 +1,11 @@
+11:47:41 FATAL: vllm-qwen-spark is not running
+=== containers ===
+exited restarts=0 oom=false stopped=2026-10-06T11:46:09.945345723Z
+=== watchdog last 3 ===
+2026-10-06T11:22:39Z note[baseline]: engine /health answered '000' — baseline acquisition waiting (recycle disarmed)
+2026-10-06T11:30:43Z baseline: /health 200 — settling 120s before measuring (HD-395: the first read is a coin-flip)
+2026-10-06T11:34:46Z baseline COMMITTED engine top-pid = 91827 MiB (n=8, boot floor spread 69191–91827 MiB) | margin: recycle DISABLED by config (SPARK_OOM_RECYCLE=0, owner decision 2026-09-23) — margin not evaluated
+vllm-qwen-spark Exited (137) 3 minutes ago
+dcgm-exporter-spark Up 13 days
+dozzle-agent Up 2 weeks (healthy)
+traefik-spark Up 2 weeks (healthy)

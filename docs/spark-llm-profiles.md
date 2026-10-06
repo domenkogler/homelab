@@ -324,6 +324,17 @@ Three numbers the certificate lacked are now measured (evidence dir
   The pairing registry row `ple-table-fp8 ↔ Qwen3.8-Flash-Next-AWQ` stays **UNVERIFIED** until gates 6/8/9
   (accuracy battery, MTP acceptance, quality noise floor) run on the arm.
 
+**Legs session 2026-10-06:** B9 = **FAIL (BOOT)** — `ar-blk-lean` (the same checkpoint+table without the A4
+`ple_dispatch` env) dies at the first safetensors shard (`AttributeError: 'MergedColumnParallelLinear' object
+has no attribute 'data'`, `hd489-legs-20261006-1228/raw/b9-crash.txt`) — the dispatch knobs are **constitutive**,
+not dialable, so "what the knobs cost" is unmeasurable by deletion; the 39.7 tok/s win stands as-is. B5 = **no
+cliff**: cold page cache (~20 % decode/ITL penalty, no collapse) and co-resident allocator (~20 % decode
+contention, ITL p50 flat at ~65 ms, tail-only p95 ~2×; no preemption, no OOM, no stranding). B8 = monitoring
+**already live** on spark (histograms in VM verified end-to-end from the VPS); vm-window proofs attached; the
+strict `req_ok_delta==N` cold-scrape exclusivity cannot certify even a quiet leg exactly (10/12 seen) — treat
+with its logged source. B10's gates 6/8/9 **declined by owner** (2026-10-06); the pair stays UNVERIFIED.
+All raw + RESULTS: [`spark/reports/hd489-legs-20261006-1228/`](../spark/reports/hd489-legs-20261006-1228/RESULTS.md).
+
 ### Never-evict prompt pin — REJECTED (2026-10-05)
 
 `--never-evict-kv-cache-prompt-includes <text>` (up to `--never-evict-kv-cache-max-fraction` of the
