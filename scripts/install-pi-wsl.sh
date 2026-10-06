@@ -136,14 +136,18 @@ if [ "$MODE" != "--pi-only" ]; then
   done
   info "installed: $(pi list 2>/dev/null | tr '\n' ' ')"
 
-  # Local hand-written extension files (the portable/core set).
-  # `remote-bash.ts` is intentionally NOT copied: it hardcodes Windows sshpass.exe
-  # paths + C:\… (see ~/.pi/agent/extensions/remote-bash.ts) — not portable to WSL.
-  say "deploying local extension files -> ~/.pi/agent/extensions"
+  # Local hand-written extension files: repo pi-agent/extensions/ is the SSOT, deployed
+  # by the sync script — the same discipline the skills loop above uses (HD-254). The
+  # inline `cp -a` this replaces copied silently over drift and could not report it;
+  # the sync script compares byte-exact, blocks on an encoding violation, and does the
+  # one thing a cp cannot: PRESERVE a deployed-only extension. `remote-bash.ts` stays
+  # on the Windows host precisely because it hardcodes sshpass.exe and drive-letter
+  # paths (see ~/.pi/agent/extensions/remote-bash.ts), so it must be left in place and
+  # never pulled back into the repo, where it would break the Debian seats.
+  say "repo extensions -> ~/.pi/agent/extensions (sync-extensions.sh --push)"
   if [ -d "$REPO/pi-agent/extensions" ]; then
-    mkdir -p "$HOME/.pi/agent/extensions"
-    cp -a "$REPO/pi-agent/extensions/". "$HOME/.pi/agent/extensions/" 2>/dev/null || true
-    info "core extensions copied from pi-agent/extensions"
+    bash "$REPO/scripts/sync-extensions.sh" --push \
+      || { echo "error: sync-extensions.sh --push reported problems (drift or encoding)" >&2; exit 1; }
   else
     info "no pi-agent/extensions/ in repo — only pi-package extensions installed"
   fi

@@ -159,6 +159,8 @@ install_config() {
   fi
   say "repo skills -> ~/.pi/agent/skills (repo is SSOT, HD-254)"
   bash "$REPO/scripts/sync-skills.sh" --push || err "sync-skills.sh --push reported problems"
+  say "repo extensions -> ~/.pi/agent/extensions (repo is SSOT; deployed-only files preserved)"
+  bash "$REPO/scripts/sync-extensions.sh" --push || err "sync-extensions.sh --push reported problems"
   say "AGENTS.md + prompt templates"
   [ -f "$REPO/pi-agent/AGENTS.md" ] && install -m 0644 "$REPO/pi-agent/AGENTS.md" "$HOME/.pi/agent/AGENTS.md" && info "AGENTS.md deployed"
   [ -d "$REPO/pi-agent/prompts" ] && { mkdir -p "$HOME/.pi/agent/prompts"; install -m 0644 "$REPO"/pi-agent/prompts/*.md "$HOME/.pi/agent/prompts/" 2>/dev/null || true; }
@@ -177,6 +179,7 @@ check() {
   python3 "$REPO/scripts/render-pi-config.py" --vendor all --check >/dev/null 2>&1 \
     && info "models.json + auth.json match the spec" || { err "model contract drift (or not rendered)"; bad=1; }
   bash "$REPO/scripts/sync-skills.sh" --check 2>&1 | tail -2
+  bash "$REPO/scripts/sync-extensions.sh" --check 2>&1 | tail -2
   [ -d "$HOME/.pi/agent/sessions" ] && info "sessions dir present" || { err "~/.pi/agent/sessions missing (pi-web exits 1 without it)"; bad=1; }
   check_cockpit_unit || bad=1
   say "check: $([ $bad -eq 0 ] && echo GREEN || echo 'DRIFT — see ERROR lines')"

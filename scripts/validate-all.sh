@@ -158,6 +158,15 @@
 #                                     archives, git-ignored generated files and prose that says the
 #                                     file is missing are exempt, each for a stated reason.
 #                                     `--self-test` breeds a dangling ref and refuses a green run.
+#  27. sync-extensions.sh --self-test + --check --strict — extension drift gate (HD-254 family):
+#                                     repo pi-agent/extensions/ must equal ~/.pi/agent/extensions.
+#                                     Deliberately NOT identical to item 13: a DEPLOYED-ONLY extension
+#                                     (remote-bash.ts on the Win11 host — Windows sshpass.exe and
+#                                     drive-letter paths, out of the repo on purpose) is reported as
+#                                     LOCAL and does NOT fail the gate, or the laptop seat would fail
+#                                     forever and the gate would get muted (the HD-417 failure mode). --self-test
+#                                     asserts both halves. Guarded like item 13: with no
+#                                     ~/.pi/agent/extensions on the host, the check SKIPs.
 #                                     16 arms × the same docker-compose.yml.j2 the engine
 #                                     boots from, with the parity assertions that keep the
 #                                     four certified lanes byte-identical to what serves today.
@@ -358,6 +367,19 @@ $PY scripts/laptop-llm.py gate --self-test
 echo "== laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine) =="
 # Offline drift check against models-spec.yml; self-skips off the scoped host (`hosts:`).
 $PY scripts/laptop-llm.py probe-client
+
+echo "== sync-extensions.sh (HD-254 family: repo pi-agent/extensions == deployed) =="
+# Item 13's sibling for hand-written extensions. The self-test runs everywhere (it is
+# sandboxed in a temp dir and touches nothing), because an unchecked drift detector
+# cannot be trusted to keep detecting; the drift check itself is guarded like the skill
+# gate — no ~/.pi/agent/extensions means no pi seat here, so it SKIPs rather than
+# breaking validation on a stateless runner.
+bash scripts/sync-extensions.sh --self-test
+if [ -d "$HOME/.pi/agent/extensions" ]; then
+  bash scripts/sync-extensions.sh --check --strict
+else
+  echo "SKIP: no ~/.pi/agent/extensions on this host — extension gate runs where pi is configured (deploy: sync-extensions.sh --push)"
+fi
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
 # HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.
