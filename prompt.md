@@ -62,7 +62,7 @@ re-derive of the global host-floor ceiling — with the 2026-10-06 transient bur
 **spark** slot of the HD-489 tail lane, so do not open a second writer there) · **1085** (the tmux seat harness: one
 owner act — mouse-drag text inside a tmux pane on oldsrv and paste it where you typed, which is the OSC 52 leg no in-repo
 probe can reach — plus one `--push` wired into `install-pi-debian.sh`; mechanism and traps in
-[docs/pi-harness.md](docs/pi-harness.md) §5b, do not edit `~/.tmux.conf` by hand). · **1082** (Prowlarr carries no torrent download client while three torrent indexers are enabled — one registration at `gluetun:8080`, then one traced grab; procedure in [deployment-manual.md](deployment-manual.md) §P3.6) · **1083** (loopback-only publishing for the routed group — an owner call; if taken it is ONE converge of every routed service plus the edge's routes)
+[docs/pi-harness.md](docs/pi-harness.md) §5b, do not edit `~/.tmux.conf` by hand). · **1082** (Prowlarr carries no torrent download client while three torrent indexers are enabled — one registration at `gluetun:8080`, then one traced grab; procedure in [deployment-manual.md](deployment-manual.md) §P3.6) · **362 tail** (the Lidarr credential is fixed and authenticates, but nobody has pushed an album through `lidarr-ydl` or exercised Aurral's add path since — verify the legs, do not re-litigate the key) · **1083** (loopback-only publishing for the routed group — an owner call; if taken it is ONE converge of every routed service plus the edge's routes)
 
 **Every DNS lane must obey this and no row can re-derive it** — it is in **HD-480's row**:
 480/481/482/483 are one lane with one writer on `technitium-seed.yml`, converging `dns-pi` **once**
