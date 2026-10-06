@@ -218,6 +218,19 @@ def _load_ssot_ctx():
     ):
         if k in hdata:
             ctx[k] = hdata[k]
+    # VPS-only compose vars (HD-471). group_vars/vps.yml is not under all/, and the wholesale
+    # load that spark.yml gets would BREAK this render — vps.yml carries Jinja-valued keys whose
+    # inputs live in other group_vars (grafana_smtp_host → "{{ smtp2go_host }}:…"). So: load the
+    # narrow plain-scalar set straight from the SSOT, never a second typed copy (HD-189 principle).
+    vpy = GROUP_VARS_DIR / "vps.yml"
+    try:
+        vpdata = yaml.safe_load(vpy.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as e:
+        print(f"FAIL: cannot read group_vars/vps.yml ({vpy}): {e}", file=sys.stderr)
+        sys.exit(1)
+    for k in ("docling_memory_limit",):
+        if k in vpdata:
+            ctx[k] = vpdata[k]
     # Spark (DGX GB10, HD-359) — group_vars/spark.yml holds the spark-ai compose
     # render scope (spark_vllm_*/spark_xfs_mount/spark_models_dir/…); load it wholesale
     # the same way as versions.yml so the validator render cannot drift from the real

@@ -14,9 +14,19 @@
 #   below is EMPTY and root-owned while the container runs as uid 1001, so it cannot receive a runtime
 #   download either (reproduced: `PermissionError: /models/hub` from the CLI, which uses HF_HOME=/models).
 #   Consequences: a recreate is safe (nothing to re-pull), but any model/engine not baked into the pin is
-#   unreachable until this bind is chowned (registry `bind_owner_uid: "1001"`) or HF_HOME is repointed —
-#   that is the hard prerequisite in front of HD-402's engine bench. docs/services-ai.md §Where the model
-#   weights actually live.
+#   unreachable until this bind is chowned (registry `bind_owner_uid: "1001"` + `bind_dirs`, both supported
+#   by the `docker_services` role) or HF_HOME is repointed — that is the hard prerequisite in front of
+#   HD-402's engine bench. docs/services-ai.md §Where the model weights actually live.
+#
+#   HD-471 (2026-10-07) — the /cache bind is the actual bug fix, and `/tmp` stays noexec ON PURPOSE.
+#   The layout stage compiles torch-inductor kernels and dlopen()s `torchinductor_*/….main.so`; on the
+#   old shape those landed on the tmpfs, which Docker mounts `noexec`, so EVERY real conversion failed the
+#   layout stage with `failed to map segment from shared object` while the HTTP code stayed 200. Moving
+#   `TORCHINDUCTOR_CACHE_DIR` (+ `TORCH_EXTENSIONS_DIR`, same failure class) onto a 1001-owned bind keeps
+#   the noexec tmpfs the security posture wants — `/tmp:exec` was the rejected alternative, it trades an
+#   OCR bug for a writable-exec-anywhere tmpfs in a read_only container. The VPS root fs is `ext4 rw` with
+#   no noexec, so a bind under /srv/docker is dlopen-able; that is the whole reason it is a bind and not a
+#   volume or tmpfs. /models stays exactly as above (still decorative for weights — HD-421's job).
 services:
   docling:
     image: quay.io/docling-project/docling-serve-cpu:{{ docling_version }}
@@ -24,7 +34,7 @@ services:
       - ALL
     read_only: true
     tmpfs:
-      - /tmp
+      - /tmp          # noexec by Docker default and that is intentional — HD-471 moved the exec need off it
     container_name: docling
     restart: unless-stopped
     networks:
@@ -36,8 +46,22 @@ services:
       DOCLING_SERVE_ENABLE_UI: "false"        # API backend only; UI is a demonstrator
       DOCLING_SERVE_ENABLE_MANAGEMENT_ENDPOINTS: "true"   # /v1/memory for observability
       HF_HOME: /models                        # persist downloaded model weights across restarts
+      # HD-471: keep the compiled kernels on an exec-capable bind, off the noexec tmpfs.
+      TORCHINDUCTOR_CACHE_DIR: /cache/torchinductor
+      TORCH_EXTENSIONS_DIR: /cache/torch_extensions
     volumes:
       - /srv/docker/docling/models:/models     # ⚠ decorative today — empty + not writable by uid 1001; see the header
+      - /srv/docker/docling/cache:/cache       # 1001-owned via the registry's bind_owner_uid/bind_dirs (HD-471)
+    deploy:
+      resources:
+        limits:
+          # Quoted/templated string — compose's schema wants limits.memory as a string (HD-162).
+          # Sized from the measured peak, not guessed: the rapidocr path peaked at 3.263 GiB sampled
+          # and a bench container at 7 GiB was OOM-killed twice while stacking an EasyOCR converter on
+          # the preloaded set (docs/services-ai.md §Operational facts). The host is 16 GB with no swap,
+          # so an uncapped converter is the one shape that takes the VPS down with it — that is what
+          # this ceiling is for, ~1.8× the measured peak.
+          memory: "{{ docling_memory_limit }}"
 networks:
   services-internal:
     external: true

@@ -39,8 +39,9 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 >
 > ⏳ **Open:** HD-384 (scoped-consumer allow-lists), HD-248 (the
 > OWUI instance split), HD-268b (implement `rag-mcp`), HD-267 tails (Qdrant cutover verification, OKF wiki
-> repos), HD-387 (re-measure the thinking parameter through a gateway), HD-471 (Docling returns empty
-> markdown for real scans — `noexec /tmp`), HD-472 (RapidOCR prose-page recall gate).
+> repos), HD-387 (re-measure the thinking parameter through a gateway), HD-472 (RapidOCR prose-page recall gate).
+> Closed since this line was written: HD-471 (empty markdown on real scans — the `noexec /tmp` layout-stage kill,
+> fixed 2026-10-07 by the `/cache` bind, see §Operational facts) and HD-103 (its live conversion gate).
 > Tracked in [`../todo.md`](../todo.md) (`source: services-ai`).
 
 ---
@@ -138,7 +139,7 @@ HD-62; Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **Open WebUI** | chat + RAG UI | `traefik-public` | ONE instance today at `ai.kogler.si`, Authentik OIDC. The public/internal split + per-instance corpus is **HD-248**. |
 | **Qdrant** | hybrid vector store | `db-internal` | Standalone Rust DB (dense + sparse BM25), **independent of OWUI's built-in RAG**, replaces PGVector. Dimension locks at first ingest — **1024**. Keep the snapshot seam (§5b). |
 | **Forgejo (wiki repos)** | knowledge SSOT | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
-| **Docling** | OCR / document understanding | `services-internal` | **CPU on the VPS** (no GPU there). Model stack = layout detector + TableFormer + pluggable OCR; live engine **RapidOCR / onnxruntime (PP-OCRv6 small)** — measured 2026-09-28 from the served log; `easyocr 1.7.2` is installed but never reached, because `OcrAutoModel` prefers rapidocr+onnxruntime (§Docling OCR engine selection). Slovenian is covered: `sl` is a first-class PP-OCRv6 code and the multilingual `rec_small` is baked. ⚠ Its accelerator set is `auto\|cpu\|cuda\|mps\|xpu` — **no Vulkan/ROCm**, so Docling cannot use the RX 7600. ⛔ **It cannot convert a real scan today** — `noexec /tmp` kills the layout stage (**HD-471**), and on light prose the live engine drops whole sentences (**HD-472**). Free lever regardless: `do_ocr=false` per request, but **only for born-digital PDFs** (a scanner's own text layer carries no diacritics). |
+| **Docling** | OCR / document understanding | `services-internal` | **CPU on the VPS** (no GPU there). Model stack = layout detector + TableFormer + pluggable OCR; live engine **RapidOCR / onnxruntime (PP-OCRv6 small)** — measured 2026-09-28 from the served log; `easyocr 1.7.2` is installed but never reached, because `OcrAutoModel` prefers rapidocr+onnxruntime (§Docling OCR engine selection). Slovenian is covered: `sl` is a first-class PP-OCRv6 code and the multilingual `rec_small` is baked. ⚠ Its accelerator set is `auto\|cpu\|cuda\|mps\|xpu` — **no Vulkan/ROCm**, so Docling cannot use the RX 7600. ⛔ **On light prose the live engine drops whole sentences (**HD-472**).** The old ⛔ "cannot convert a real scan" is closed: the `noexec /tmp` layout-stage kill was fixed 2026-10-07 (HD-471, `/cache` bind) and a 300 dpi image-only Slovenian scan now returns `status: success` with real markdown — §Operational facts measured on the way. Free lever regardless: `do_ocr=false` per request, but **only for born-digital PDFs** (a scanner's own text layer carries no diacritics). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models via a LiteLLM scoped key. |
 | **kapa-inspired-rag-mcp** *(stub)* | MCP hybrid reader | `services-internal` | Intended flow: hybrid search in Qdrant → top-20 → rerank via LiteLLM `jina_ai/` → top-5 clean markdown. Not implemented (**HD-268b**) — see the status block. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
@@ -546,23 +547,46 @@ the extra pixels cost nothing at this scale), i.e. raster scale is a per-request
 
 ### Operational facts measured on the way (each is a row, not a footnote)
 
-- **Production converts a real scan to *nothing*.** `POST /v1/convert/file` on the live service returns
+- **Production converted a real scan to *nothing* — FIXED + LIVE 2026-10-07 (HD-471).** `POST /v1/convert/file` on the live service returned
   **HTTP 200 with `status: failure`, empty markdown**, and the layout stage error:
   `OSError: /tmp/torchinductor_default/….main.so: failed to map segment from shared object … /tmp is
-  mounted with noexec`. Cause: the compose runs `read_only: true` + `tmpfs: /tmp`, and Docker mounts
+  mounted with noexec`. Cause: the compose ran `read_only: true` + `tmpfs: /tmp`, and Docker mounts
   tmpfs `noexec` (verified: `tmpfs on /tmp … noexec`), which torch inductor needs for its compiled
   kernels. Canary (a test that could have failed): the same image + same scan in a container with
-  `--tmpfs /tmp:rw,exec` converted both pages fine. Tracked in [todo.md](../todo.md) **HD-471**; the fix
-  shapes are `TORCHINDUCTOR_CACHE_DIR` (and friends) on a writable **bind** — which keeps `/tmp` noexec
-  — or `/tmp:exec`, and it is deploy-gated.
-- **Cold start beats the sync endpoint.** In a fresh container the *first* conversion took ~121 s and
-  the request returned **504** (measured 3×); the second returned in 12 s. Anything that treats docling
-  as a warm service needs a warm-up or the async endpoint.
+  `--tmpfs /tmp:rw,exec` converted both pages fine.
+  **Fix taken (the bind, not the exec-bit):** `TORCHINDUCTOR_CACHE_DIR` + `TORCH_EXTENSIONS_DIR` moved to
+  `/cache`, a host bind pre-created 1001-owned by the role (`bind_owner_uid: "1001"`, `bind_dirs:
+  ['models','cache']` in `group_vars/vps.yml`), so `/tmp` **keeps** its `noexec` tmpfs — the `/tmp:exec`
+  alternative was rejected, it buys an OCR fix by making a `read_only` container's tmpfs writable+executable.
+  The VPS root fs is `ext4 rw` with no `noexec`, which is what makes a bind dlopen-able at all.
+  Live acceptance, 2026-10-07 (converge GREEN, `restarts=0`, `mem=6442450944`):
+  `status: success`, **`md_content` 2021 chars / 317 words**, `layout_score 0.852`, `ocr_score 0.954`,
+  `mean_grade excellent`, `errors: []`, and **zero** `failed to map segment` / `Stage … failed` lines in
+  the container log since the recreate. The test asset is a **derived scan** — `docs/assets/manuals/
+  comtrend-grg-4260-in-neo-smartbox_navodila-za-priklop.pdf` (Slovenian) rasterized at 300 dpi and
+  re-wrapped as an image-only 2-page PDF (0 extractable characters, so OCR is the only path) — chosen over
+  a family document deliberately: same pipeline, no family data leaves the box. **Provenance gap stated:
+  nobody has re-run this on a real scanner/family photo since the fix.** Rebuild the same asset with:
+  `gs -sDEVICE=pnggray -r300 -dFirstPage=1 -dLastPage=2 -o page-%d.png <manual>.pdf`, then an HTML page holding the
+  two `<img>` at native pixel size with `page-break-after: always`, then `libreoffice --headless --convert-to pdf`
+  — and **prove it is a scan** before trusting the run: `gs -sDEVICE=txtwrite -o - out.pdf | wc -c` must be 0.
+- **Cold start beats the sync endpoint — re-measured on the fixed service (2026-10-07).** In a fresh container the *first* conversion took ~121 s and
+  the request returned **504** (measured 3×); the second returned in 12 s. Today the pair is **94.1 s cold /
+  11.2 s warm** (96 s / 14.0 s wall, same document, straight to the container's `services-internal` address, no
+  proxy in the path) — so the cold leg is survivable *when nothing between caller and docling has a shorter
+  timeout*. What is NOT measured is the consumer's own timeout: an Open WebUI/OpenClaw ingest with a <90 s client
+  still eats a cold start after every recreate. Warm-up or the async endpoint belongs to the **caller**, and is
+  worth one measured real ingest before anyone builds machinery for it.
 - **Each distinct options set costs another converter, in RAM.** docling-serve caches a converter per
   options hash; a bench container capped at 7 GiB was **OOM-killed twice** while adding an EasyOCR
   converter on top of the preloaded auto+layout set (rapidocr path peak: 3.263 GiB sampled). The
-  production container has **no memory limit** on a 15 GB host with ~3 GB available and **no swap** —
+  production container had **no memory limit** on a 15 GB host with ~3 GB available and **no swap** —
   so an engine change is also a memory-budget change, to be measured before it is proposed.
+  ✅ **Closed 2026-10-07 (HD-471):** the compose now renders `deploy.resources.limits.memory =
+  {{ docling_memory_limit }}` = **6 GiB** (`group_vars/vps.yml`, ~1.8× the measured 3.263 GiB peak and
+  below the 7 GiB the bench arm died at), read back live as `HostConfig.Memory=6442450944`. The ceiling is
+  a runaway guard, not a working-set reservation — with no swap on the VPS, an uncapped converter is the
+  one shape that takes the host down with it.
 - A bench needs a **throwaway container**, not production: production's `/models` bind cannot take a
   file, the container rootfs is read-only (`docker cp` → `container rootfs is marked read-only`), and
   calling the API from the host needs the container's `services-internal` address (no published port).

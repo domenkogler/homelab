@@ -40,16 +40,15 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 3. ⏳ **HD-436** — the transport lane's hinge: the derived `zone_kogler_si` list is already on `main`; switch the two
    consumers that still hand-author (`vps.yml`'s two subdomain lists, `roles/cloudflare_dns/vars`
    `cloudflare_dns_records`). Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
-4. ⏳ **HD-471** — P1, head of the VPS-hygiene lane: Docling answers HTTP 200 with **empty markdown** for every real scan;
-   fix + warm-up + a memory limit, then re-POST a real scan and read `status`, never the HTTP code.
-5. ⏳ **HD-470** — the VPS's own state has one copy on one disk.
-6. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed.
-7. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
+4. ⏳ **HD-470** — the VPS's own state has one copy on one disk.
+5. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed
+   (and it now also owes the NUT client→master leg probe, the class the 2026-10-07 UPS fix left standing).
+6. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
    the 442–444 block, whose rows keep owner-gated tails).
    ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently). The seat's
    **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
    playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself.
-8. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
+7. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
@@ -70,8 +69,10 @@ Technitium stopped**. The owner rulings behind it (2026-10-01: 480 · 481 · 482
 **once** in the owning docs — [network-dns.md](docs/network-dns.md) §The tier policy the owner ruled +
 [network-rejected.md](docs/network-rejected.md).
 
-**Whoever takes the VPS-hygiene residue forms the next VPS + nas lane** — HD-471 + HD-472 + HD-421 + HD-103 are one Docling
-cluster, all converging the `docling` container alone. Before touching ANY Authentik OIDC client, read
+**Whoever takes the VPS-hygiene residue forms the next VPS + nas lane** — **HD-472 + HD-421** are what is left of the
+Docling cluster (HD-471 + HD-103 closed 2026-10-07: the `/cache` bind is live, a 300 dpi image-only Slovenian scan
+returns `status: success` with real markdown, and the 6 GiB ceiling is read back on the container), still converging
+the `docling` container alone. Before touching ANY Authentik OIDC client, read
 [services-authentik.md](docs/services-authentik.md) §Blueprint authoring notes, facts 7 + 9.
 
 ## 3. Lane map

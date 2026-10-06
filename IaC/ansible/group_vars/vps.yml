@@ -75,7 +75,11 @@ docker_services:
       bootstrap_keys: true,
       db_role_sync: true, db_item: litellm_db, db_pg_container: litellm-db }
   - { name: qdrant, template_dir: qdrant, public: false, enabled: true }  # AI RAG hybrid vector store on db-internal (HD-267/268; replaces PGVector — not postgres, so NO db_role_sync/db_item/db_pg_container)
-  - { name: docling,        template_dir: docling,   public: false, enabled: true }  # OCR (services-internal)
+  - { name: docling,        template_dir: docling,   public: false, enabled: true,   # OCR (services-internal)
+      # HD-471: the `cache` bind carries torch-inductor's compiled kernels, which must be dlopen-able.
+      # The image runs as uid 1001 → Docker would auto-create the host dir root-owned and the layout
+      # stage would fail again, this time with a PermissionError instead of the noexec one.
+      bind_owner_uid: "1001", bind_dirs: ['models', 'cache'] }
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, public: true, enabled: true }
   # === AI dual coding harness (HD-268c → HD-355, 2026-09-10): MOVED to OLDSRV ===
   # The dev-AI tier moved dsh + pi-dev to oldsrv (group_vars/home_servers.yml) and
@@ -168,6 +172,13 @@ docker_services:
   - { name: rustdesk-server, template_dir: rustdesk-server, public: false, enabled: true,
       relay_single_mbps: 24, relay_total_mbps: 48, relay_limit_mbps: 8,
       relay_downgrade_threshold: "0.66", relay_downgrade_start_check_s: 1800 }
+
+# docling-serve memory ceiling (HD-471). String, not int — compose's schema (HD-162).
+# Measured basis in docs/services-ai.md §Operational facts measured on the way: rapidocr path peak
+# 3.263 GiB sampled; a bench container capped at 7 GiB was OOM-killed twice while adding an EasyOCR
+# converter. 6 GiB = ~1.8× the measured peak on a 16 GB VPS with NO swap, so a runaway converter is
+# OOM-killed by its own cgroup instead of taking the host down.
+docling_memory_limit: "6g"
 
 # HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
 # when these flags are true. HD-355 (2026-09-10): dsh + pi-dev MOVED to oldsrv and
