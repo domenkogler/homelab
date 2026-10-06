@@ -224,12 +224,12 @@ fixed cost leaves inside a 12 GiB reserve (`pool_max` = 20.64 GB): 644,599 slots
 262,144 window, 80,575 tokens/stream at the seqs-8 ceiling — and it is the shape 05012de booted
 clean with gates green.
 
-Gate 4 at conc 8 on the 25 GB shape is **measured PASS**
-(`spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log` — 8/8 200s in 3.0 s, 2.7 s median); it
-is a short-prompt batch probe, so it proves the batch shape serves and stays in budget, not
-throughput under batch. The 20 GB revert re-opens that leg (it was taken at 25 GB), and what the
-shape still owes either way is **gate 5 (the needle at depth)** and a working day of watchdog
-`usable` samples.
+Gate 4 at conc 8 is **measured PASS on both shapes** — 25 GB (`spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log`,
+8/8 200s in 3.0 s) and the live 20 GB one (`…/hd489-overnight-20261006-0226/raw/g4-c8.log`, 8/8 in 2.7 s); it is a
+short-prompt batch probe, so it proves the batch shape serves and stays in budget, not throughput under batch.
+**Gate 5 (the needle at depth) closed 2026-10-06** with it — see the tail subsection below; what the live shape still owes is
+`fast`'s **gate 6** accuracy battery (the one bench leg left) plus the host-floor re-derive and the growth check, which are
+[todo.md](../todo.md) HD-494.
 
 **Why the arms live on `/`**: XFS had 185 G free and holds 505 GB of certified weights plus
 two candidates nobody wants to re-download. The root partition measured 345 G free

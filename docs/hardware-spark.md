@@ -326,6 +326,14 @@ it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seq
 The per-profile `device_hold_ceiling_bytes: 112.70e9` is a **measured exception, not a re-cert**:
 every other profile stays gated at the global 104.113e9, and re-certifying the global on the
 measured 4.93e9 OS term is the ⏳ half of HD-494.
+> **The "one working day of samples" gate closed by owner decision (2026-10-06), not by the calendar.** The armed-era rest
+> windows already in `samples.csv` (Oct 2–6, 20,000 samples, epoch-verified against the watchdog's own stamps) are the
+> evidence: every rest window 12–46 GiB (median 21.8 GiB), `restarts` 0 since the Oct-4 crash-loop era, and the hysteresis
+> latch fired exactly twice in the whole record — both times under live client traffic (Incident #9 at 09:22:41Z, and the
+> 2026-10-06 09:41:29Z transient burst), never at rest. The waiver covers the **rest-window** half; the memory-curve half
+> (HD-380's `gpu_top_mib` > 2 GiB/h, gate 7) accrues on the current regime since **2026-10-06 11:19Z** and is read when that
+> window fills, and the global re-derive above stays open. Raw:
+> [`spark/reports/hd489-overnight-20261006-0226/raw/b7-watchdog-rest-analysis.txt`](../spark/reports/hd489-overnight-20261006-0226/raw/b7-watchdog-rest-analysis.txt).
 
 ### Boot-floor numbers (the baselines future curves compare against)
 

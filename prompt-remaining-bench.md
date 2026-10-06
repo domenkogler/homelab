@@ -1,9 +1,10 @@
 # `prompt-remaining-bench.md` — Lane brief · the HD-489 tail: finish the winner's evidence, then certify (HD-489)
 
 > **Role:** dispatch note for **one** lane session. **The row is the authority** for what is missing, in what order and what
-> is forbidden: [todo.md](todo.md) HD-489. **This lane also runs HD-494's two owed legs** (gate 4 at conc 8 on the 20 GB
-> shape, and gate 5) — same box, same slot, same measurements, so HD-494's row stays where it is and only the legs move
-> here (owner-instructed 2026-10-06); this brief still edits **only** its own `todo.md` rows (O2). The funnel itself is measured and closed — `ar-blk` won and runs today as the
+> is forbidden: [todo.md](todo.md) HD-489. **HD-494's two legs in this lane are done** — gate 4 at conc 8 and the gate-5 needle
+> were taken on the live 20 GB shape on 2026-10-06 ([`spark/reports/hd489-overnight-20261006-0226/`](spark/reports/hd489-overnight-20261006-0226/RESULTS.md));
+> re-taking one is only correct after a pool/seqs change. This brief edits **only** its own `todo.md` rows (O2).
+> The funnel itself is measured and closed — `ar-blk` won and runs today as the
 > profile **`fast`** — so this lane produces **evidence, not speed**. Durable method + numbers:
 > [docs/spark-llm-profiles.md](docs/spark-llm-profiles.md) §7 and
 > [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (rule 0, the gate ladder, the paired-quality design, the public
@@ -23,23 +24,27 @@ number reaches a doc.
 
 ## Legs, in value order (the row owns the ⏳ list; this is the how)
 
-Cheapest-information first: **B6 → B9 → B2 → B3 → B1 → the §E suites**.
+What is left: **gate 6 on the live shape → the gate-7 curve read (accruing since 2026-10-06 11:19Z) → the
+`fast.certified_evidence` rewrite**. The 2026-10-06 legs session closed **B9 · B5 · B8** and the owner declined **B10's gates
+6/8/9** ([`spark/reports/hd489-legs-20261006-1228/`](spark/reports/hd489-legs-20261006-1228/RESULTS.md)); keep the closed rows
+below for their commands and pass rules, not as work.
 
 | # | Leg | How | Cost | What it retires |
 |---|-----|-----|------|-----------------|
 | B6 | fp8 KV on the **built** image | `python3 scripts/spark-fp8-image-probe.py` against `spark_vllm_ultrafast_image` (it reads `spark_vllm_image` only — add `--image`, ~10 lines, or run leg B by hand) | no GPU · ~15 min | HD-473's "blocked" verdict was taken on the **base** tag; the ultrafast lineage is newer than vllm#55557. Measured 2026-10-05 on the built pin: **still BLOCKED-ON-IMAGE** — re-derive, do not re-argue |
-| B9 | **weights or knobs?** `ar-blk-lean` | same checkpoint + table, `ple_dispatch: false` → C2 + C2L | 1 boot · ~30 min | ⚠ `ple_dispatch` turned out **load-bearing** (without the A4 dispatch env the AR arm fails to boot, 2026-10-03), so this arm measures the knobs' cost and may not boot — a boot failure is the answer, not a blocker. Highest information per boot |
-| B2 | concurrency on the winner | `spark-llm-probe.py … ctx 262144` then `concurrent <max_num_seqs>`, plus `C3` and a `C2L_CONC=2` | 0 boots · ~30 min | gate 4 — **and HD-494's conc-8 leg, which the 20 GB revert re-opened**. The old PASS was taken at 25 GB (`spark/reports/hd489-overnight-*/raw/g4-c8.log`) and it is a **short-prompt batch probe**: it proves the shape serves, not throughput under batch. Run-sheet: §Overnight run, Step 2 |
-| B3 | depth at the real workload | `C1_IN=163840` (the harness's p50 prompt is 137,821 tok, p95 200,000) + an `S1-N` at `S1N_IN≈236000`, **and the gate-5 needle at ≥90 % depth, 3/3** | 0 boots · ~45 min | C1 at 32k in is not the workload; depth PASSed at 163,840 and 236,000 (1 preemption) — **the needle is the open half**, it is also what HD-494 owes, and agentic work is gated on it. Run-sheet: §Overnight run, Step 2 |
-| B1 | `reasoning` control legs | flip the dial to `reasoning` (`allow_uncertified: false`), run C2/C1/C2L, flip **back** | 2 boots · ~1.5 h | without it every "+X % vs the certified lane" is inferred from the *patched* lineage. Run-sheet: §Overnight run, Step 3 |
-| B5 | page-cache cliff of the mmap table | C2L after `echo 3 > /proc/sys/vm/drop_caches` (owner-only), and C2L while a co-resident container allocates (`spark/bench/stress-oom.sh`) | 0 boots · ~40 min | the winner `preadv`s a 47.7 GiB FP8 table per step and keeps ~4 GB resident. If ITL collapses, the win is conditional on an idle box and must be stated that way |
-| B7 | the pool constant | ~~16.3e9 under `ar-blk`~~ — **moot**: live `fast` runs 25 GB under a named per-profile `pool_ceiling_bytes` | 1 boot | what is owed is the **evidence for that exception**: gate 4 at conc 2 + one working day of watchdog `usable` |
-| B8 | VM corroboration | `spark/bench/vm-window.sh --profile` per leg, after the spark monitoring converge | converge · ~20 min | the "monitoring not converged" caveat on every HD-489 report; `req_ok_delta == N` is the window-exclusivity proof |
-| B10 | AWQ on the winner's machinery (`awq-mmap`) | AWQ weights (on **XFS** — `models_root: xfs`; the `os` this arm used to name has never held AWQ) + `image: ultrafast` + `ple_mmap: true` + block rejection, pool **14 GB** → C2 + C2L. Pre-flight offline: `ple-table-fp8` **does** carry the trained n-gram tensor (33 shards); `ples_nvfp4` does not, `ples_int4` is a layout the mmap loader cannot read | 1 boot · ~1 h | the owner's question: today's AWQ ceiling is 23.6 tok/s **with graphs**; eager AWQ + the bundle is unmeasured. **The gate gap is closed (2026-10-06):** the pair is decided in `spark_llm_ple_pairing` (this one reads UNVERIFIED) and the role re-reads the staged checkpoint's own `config.json` quantization, so a mis-pair is refused at converge instead of dying at boot — invariant `ple-pairing` in the offline matrix, canaries included. Run-sheet: §Overnight run, Step 4 |
+| B9 | **weights or knobs?** `ar-blk-lean` | same checkpoint + table, `ple_dispatch: false` → C2 + C2L | 1 boot · ~30 min | ✅ **CLOSED 2026-10-06 — FAIL (BOOT)**, which is the answer: the lean arm dies at the first safetensors shard (`AttributeError: 'MergedColumnParallelLinear' object has no attribute 'data'`, `hd489-legs-20261006-1228/raw/b9-crash.txt`) on every attempt. `ple_dispatch` is **constitutive**, not dialable, so "what the knobs cost" cannot be measured by deletion and the 39.7 tok/s win stands as-is |
+| B2 | concurrency on the winner | `spark-llm-probe.py … ctx 262144` then `concurrent <max_num_seqs>`, plus `C3` and a `C2L_CONC=2` | 0 boots · ~30 min | ✅ **DONE 2026-10-06 on the 20 GB shape** — conc 8 PASS (8/8, wall 2.7 s, `spark/reports/hd489-overnight-20261006-0226/raw/g4-c8.log`) and conc 2 PASS (`raw/b7-conc2.log`); this closed **HD-494's** conc-8 leg too. Re-take only after a shape change |
+| B3 | depth at the real workload | `C1_IN=163840` (the harness's p50 prompt is 137,821 tok, p95 200,000) + an `S1-N` at `S1N_IN≈236000`, **and the gate-5 needle at ≥90 % depth, 3/3** | 0 boots · ~45 min | ✅ **DONE 2026-10-06** — the needle recalled **3/3** at 92 % of the window with `num_preemptions_total` delta +0 (`raw/g5-verdict.txt`); agentic work is no longer gated on it |
+| B1 | `reasoning` control legs | flip the dial to `reasoning` (`allow_uncertified: false`), run C2/C1/C2L, flip **back** | 2 boots · ~1.5 h | ✅ **DONE 2026-10-06** — booted healthy, 500/500 paired items, McNemar **KEEP** (Δ=−0.20 pts, p=1.000): the `fast` speed win stands. Run-sheet: §Overnight run, Step 3 |
+| B5 | page-cache cliff of the mmap table | C2L after `echo 3 > /proc/sys/vm/drop_caches` (owner-only), and C2L while a co-resident container allocates (`spark/bench/stress-oom.sh`) | 0 boots · ~40 min | ✅ **CLOSED 2026-10-06 — no cliff**: cold page cache ≈ **17–20 %** decode / ITL p50 78.6 ms, no collapse; co-resident allocator ≈ **20 %** decode with ITL p50 flat at ~65 ms and a tail-only ~2× p95; 0 preemptions, no OOM, no stranding (`hd489-legs-20261006-1228/`). State the ~20 % penalties, not a cliff |
+| B7 | the pool constant | ~~16.3e9 under `ar-blk`~~ — **moot**: live `fast` runs **20 GB** under a named per-profile `pool_ceiling_bytes` | 1 boot | ✅ **CLOSED 2026-10-06** — gate 4 at conc 2 PASS + the watchdog rest-window record; the 24 h `usable`-sample wait was closed by owner decision. The global re-derive that removes the exception is **HD-494's** row, not a leg here |
+| B8 | VM corroboration | `spark/bench/vm-window.sh --profile` per leg, after the spark monitoring converge | converge · ~20 min | ✅ **CLOSED 2026-10-06** — monitoring was **already live** on spark, histograms verified in VM end-to-end from the VPS (`raw/b8-vm-proof.txt`). ⚠ The strict `req_ok_delta == N` cold-scrape exclusivity cannot certify even a quiet leg exactly (10/12 seen) — read corroboration with that limitation logged, not as a failed leg |
+| B10 | AWQ on the winner's machinery (`awq-mmap`) | AWQ weights (on **XFS** — `models_root: xfs`; the `os` this arm used to name has never held AWQ) + `image: ultrafast` + `ple_mmap: true` + block rejection, pool **14 GB** → C2 + C2L. Pre-flight offline: `ple-table-fp8` **does** carry the trained n-gram tensor (33 shards); `ples_nvfp4` does not, `ples_int4` is a layout the mmap loader cannot read | 1 boot · ~1 h | the owner's question is answered: the AWQ ceiling was 23.6 tok/s **with graphs**, and the eager bundle measured **C2L 27.6 tok/s ⇒ ~30 %** (2026-10-06, boot + both speed legs). **Its gates 6/8/9 were declined by the owner (2026-10-06)**, so the pairing row stays UNVERIFIED and this arm is not booted again without a new owner instruction. **The gate gap is closed (2026-10-06):** the pair is decided in `spark_llm_ple_pairing` (this one reads UNVERIFIED) and the role re-reads the staged checkpoint's own `config.json` quantization, so a mis-pair is refused at converge instead of dying at boot — invariant `ple-pairing` in the offline matrix, canaries included. Run-sheet: §Overnight run, Step 4 |
 
 **Every leg** carries: `--profile`, `--client`, the leg window, the **sustained `clocks.sm`/power/temperature sampler across
-the whole window** (required by the gate doc; **no committed HD-489 report has one yet** — the `trace()` helper in
-§Overnight run is what supplies it from tonight on), and `MemAvailable − CmaFree` at both ends.
+the whole window** (required by the gate doc; the 2026-10-06 run is the first HD-489 report that carries one —
+`spark/reports/hd489-overnight-20261006-0226/raw/clocks-b10.txt`, 1,934 samples — so every leg keeps using the `trace()`
+helper in §Overnight run), and `MemAvailable − CmaFree` at both ends.
 Write the report under `spark/reports/hd489-tail-<name>/` **with the raw in `raw/`** — an evidence dir a row cites must
 contain the raw. Basis for the estimates: boot 15–20 min (weights 549 s, KV line at +10.2 min); C2 2–4 min, C1 4–11 min,
 C2L 5.5–10 min; prefill ≈ 1,900 tok/s.
@@ -106,10 +111,13 @@ differ: park the boots** (`park: watchdog armed-off / not deployed` in `RESULTS.
 needs no boot), skip Step 3, and leave the exact command in `RESULTS.md` for the owner — an agent does not
 decide to re-arm a governor at 03:00.
 
-### Step 2 — the owed legs on the live shape (0 boots, ~1.5 h): gate 4 + **gate 5** — this is HD-494's debt too
+### Step 2 — ✅ DONE 2026-10-06 (both legs PASS): gate 4 + **gate 5** — this was HD-494's debt too
 
-Box is on `fast` / 20 GB / seqs 8 and nobody has proven it since the 25 GB legs. Take these **first**: they
-cost nothing and they are the two numbers agentic work is gated on.
+Both numbers are in `spark/reports/hd489-overnight-20261006-0226/`; the commands below stay for a **re-take after a shape
+change** (a different pool or `max_num_seqs`), not as an open leg.
+
+Box is on `fast` / 20 GB / seqs 8. Take these **first** when a re-take is owed: they cost nothing and they are the two
+numbers agentic work is gated on.
 
 ```bash
 python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast health 2>&1 | tee "$EV/raw/g1-health.log"
@@ -128,7 +136,7 @@ PASS gate 4 = 8/8 200s with the slowest within 3× solo. PASS gate 5 = the needl
 gate judges, so record it whether or not the recall succeeded. Either leg failing is a finding, not a blocker;
 write the number and move on.
 
-### Step 3 — the `reasoning` arm + the paired McNemar (2 boots, ~6 h)
+### Step 3 — ✅ DONE 2026-10-06 — the `reasoning` arm + the paired McNemar (verdict **KEEP**, Δ=−0.20 pts, p=1.000)
 
 The `fast` half is measured and committed with its McNemar input in
 [`spark/reports/hd489-overnight-20261004-0804/`](spark/reports/hd489-overnight-20261004-0804/README.md) — **do not
@@ -164,14 +172,15 @@ ssh spark "grep -A1 -e '--kv-cache-memory-bytes' -e '--max-num-seqs' -e 'never-e
 python3 scripts/spark-llm-probe.py --base-url "$URL" --profile fast health 2>&1 | tail -6 | tee "$EV/raw/health-final.log"
 ```
 
-### Step 4 — B10: AWQ on the winner's machinery (1 boot, ~1 h + 20 min converge-back)
+### Step 4 — B10: AWQ on the winner's machinery — ✅ booted + measured 2026-10-06; gates 6/8/9 **declined by owner**
 
-The question the owner asked: today's AWQ ceiling is **23.6 tok/s with graphs**, `fast` measures 39.7 C2L — is
-the quality-fallback's speed cost ~30 % or ~40 %? **The gate gap that made this arm undroppable is closed**
-(2026-10-06): the arm's checkpoint lives on XFS (`models_root: xfs` — the `os` it used to name has never held
-AWQ), and a checkpoint↔PLE-table pair is now decided in `spark_llm_ple_pairing`, where
-`ple-table-fp8 ↔ Qwen3.8-Flash-Next-AWQ` is recorded **UNVERIFIED** — this boot, plus gates 6/8/9, is what
-replaces that word. Do not "fix" the registry entry; report what the boot says.
+The question the owner asked is answered: today's AWQ ceiling was **23.6 tok/s with graphs**, `fast` measures 39.7 C2L, and
+the eager bundle measured **27.6 C2L ⇒ the quality fallback costs ~30 %, not ~40 %**. The owner declined the three quality
+gates on 2026-10-06, so this row is closed — the commands below are here only if that ruling is ever revisited.
+
+The pair is decided in `spark_llm_ple_pairing`, where `ple-table-fp8 ↔ Qwen3.8-Flash-Next-AWQ` is recorded **UNVERIFIED** —
+**gates 6/8/9** (accuracy battery, MTP acceptance, quality noise floor) are what replace the word. Do not "fix" the registry
+entry; report what the run says.
 
 ```bash
 python3 scripts/check_spark_llm_gate.py | tail -3                       # must be 0 failures, canaries biting
@@ -225,12 +234,14 @@ the engine under test, or let a laptop-local session author a profile delta at a
 
 ## Definition of done
 
-B1–B3 + B6 + **B9** done with reports and raw in tree · **B10** attempted or explicitly declined with the reason in the row ·
-the needle (gate 5) 3/3 · MMLU-Pro-mini on **both** arms with the pre-registered rule and a verdict in
-[docs/spark-llm-profiles.md](docs/spark-llm-profiles.md) · A-class doc fixes landed · then `certified: true` +
-`certified_evidence:` (links to artifacts, not prose) with `uncertified_reason` dropped, one converge without the override,
-and **the HD-489 row deleted**. The **HD-494** legs this lane carries are done when gate 4 at conc 8 and gate 5 are
-reported on the **20 GB** shape and the result is written into HD-494's row by that row's own lane — this brief changes
-nothing in HD-494's row or docs except by leaving the evidence path behind (O2).
+Done and in tree with raw: **B1–B3**, **B6** (BLOCKED-ON-IMAGE), **B7**, **B9** (FAIL-BOOT), **B5** (no cliff), **B8**
+(monitoring live) and **B10's boot + both speed legs** — the `hd489-overnight-20261006-0226/` and `hd489-legs-20261006-1228/`
+reports plus the `hd489-tail-*` dirs. **B10's gates 6/8/9 are closed as declined-by-owner; do not re-litigate them.**
+What remains: `fast`'s **gate 6** accuracy battery on the live 20 GB shape · the **gate 7** curve read (the window accrues
+since 2026-10-06 11:19Z) · then rewrite `fast`'s `certified_evidence:` to the 20 GB legs it now holds (links to artifacts, not
+prose) — `fast` is already `certified: true` with no `uncertified_reason`, and a converge with no override is on record, so the
+certificate itself is not the open item. Then **delete the HD-489 row**.
+**HD-494's legs this lane carries are closed** (gate 4 at conc 8 and gate 5, reported on the 20 GB shape 2026-10-06 and
+written into HD-494's row by the orchestrator); this brief changes nothing in HD-494's row or docs (O2).
 **Acceptance:** every item returns `PASS / FAIL / BLOCKED / PARKED` + the number + the evidence path;
 a claim with no path counts as not run.

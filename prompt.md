@@ -33,9 +33,10 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
    on GB10 — only a sustained `clocks.sm` trace under load does), then the `reasoning` re-cert. Run it from a session whose
    own model is **not** spark. Split out of it: ⏳ **HD-475** (the NVFP4 `fast` candidate — code-first) and ⛔ **HD-473**
    (engine pin, upstream-blocked, ~40 s re-check). → [prompt-llm.md](prompt-llm.md)
-2. ⏳ **HD-489 tail** — certify the live winner with evidence it does not yet have: gate-5 needle, B9/B10/B1, the paired
-   MMLU-Pro-mini. **B10 (`awq-mmap`, AWQ on the winner's machinery) is one boot from an answer** — the checkpoint↔table
-   assert it owed is armed, so an overnight session can take it with the other legs. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
+2. ⏳ **HD-489 tail** — the winner is live and every leg ran; three certificate items remain: `fast`'s **gate 6** accuracy battery
+   on the live 20 GB shape (never taken) · **read the gate-7 memory-curve day** accruing since 2026-10-06 11:19Z · then rewrite
+   `fast.certified_evidence` and delete the row. B9 (FAIL-BOOT ⇒ the dispatch knobs are constitutive) · B5 (no cliff) · B8
+   (monitoring live) closed in the legs session, and B10's gates 6/8/9 were **declined by owner** — do not re-run any of them. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
 3. ⏳ **HD-436** — the transport lane's hinge: rebase `session/hd436-zone-derived-wip` onto `main`, then switch the last two
    hand-authoring consumers. Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
 4. ⏳ **HD-467** — P1: `upsd` binds loopback only, so no home host is UPS-protected and nothing can see a mains loss.
@@ -54,10 +55,10 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
 [todo-table.md](todo-table.md) §B): 360 · 103 · 238 · 421 · 459 · 461 · 448 · **472** · **477** (make the resolver actually
 float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class on the Pi, where two docs already
-work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (the
-evidence the measured 20 GB shape still owes: gate 4 at conc 8, the gate-5 needle, one working day of watchdog
-`usable` samples, then re-derive the global host-floor ceiling and drop `fast`'s exception — the first two legs run
-inside the **spark** slot of the HD-489 tail lane, so do not open a second writer there).
+work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (only the
+re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — and HD-380's
+`gpu_top_mib` growth check are left, the gate-7 window accruing since 11:19Z; the gate-4/gate-5 legs closed inside the
+**spark** slot of the HD-489 tail lane, so do not open a second writer there).
 
 **Owner rulings (2026-10-01)** — 480 · 481 · 482 · 483 · 487 · 488 · 454 · 465 — are recorded **once** in the owning docs
 ([network-dns.md](docs/network-dns.md) §The tier policy the owner ruled + [network-rejected.md](docs/network-rejected.md))
@@ -78,7 +79,7 @@ lane**; never two briefs on one converge host; never a pair marked *never with*.
 | Wave | Brief | Rows it carries | Converge host | Pairing |
 |---|---|---|---|---|
 | **1 — ready** | [prompt-llm.md](prompt-llm.md) | ⏳ **469** · **473** (⛔ upstream-blocked, 40 s re-check) · **475** | **spark**, engine restarts per flip | ⛔ never with prompt-remaining-bench or prompt-376 (same host) · ⚠ **the operator's model must not be spark** (rule 0) |
-| **1 — ready** | [prompt-remaining-bench.md](prompt-remaining-bench.md) | ⏳ **489** tail + **494**'s gate-4/gate-5 legs | **spark**, boots owner-gated | ⛔ rule 0 — timed legs from a client **outside** the served loop, stamped `--client`. Timed harness = [`spark/bench/run-scenario.sh`](spark/bench/run-scenario.sh) (+ `vm-window.sh`, `snapshot-metrics.sh`, `stress-oom.sh`, `accuracy-gate.sh`); pass/fail ladder = [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (gates 0–9); evidence under `spark/reports/` |
+| **1 — ready** | [prompt-remaining-bench.md](prompt-remaining-bench.md) | ⏳ **489** tail: gate 6 on the live shape + read the gate-7 day (B9 · B5 · B8 closed, B10's gates declined; **494**'s legs landed) | **spark**, boots owner-gated | ⛔ rule 0 — timed legs from a client **outside** the served loop, stamped `--client`. Timed harness = [`spark/bench/run-scenario.sh`](spark/bench/run-scenario.sh) (+ `vm-window.sh`, `snapshot-metrics.sh`, `stress-oom.sh`, `accuracy-gate.sh`); pass/fail ladder = [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (gates 0–9); evidence under `spark/reports/` |
 | **1 — laptop seat** | [prompt-lmstudio.md](prompt-lmstudio.md) | ⏳ **474** (owner hands: `op signin` → render → `probe-client` PASS) · **476** · **486** (needle at ≥90 % of the 150 016 window + the prefill ladder) | **the laptop, in Windows** — no Ansible converge, no shared host | rule 0 only; can run alongside the spark/oldsrv lanes |
 | **2** | [prompt-384.md](prompt-384.md) | **384 · 403 · 387 · 373 · 249** | oldsrv + VPS `docker_services` | ⛔ never with 357 / 361 (oldsrv slot) |
 | **2** | [prompt-376.md](prompt-376.md) | **376 · 400 · 359 · 367 · 380** | **spark**, owner bench window | with 384 **only** in an open bench window, else alone · ⛔ never with the 469 lane |
