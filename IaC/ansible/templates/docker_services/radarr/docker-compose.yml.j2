@@ -19,6 +19,12 @@ services:
     tmpfs:
       - /tmp
       - /run:exec
+      # HD-1081: this image chowns /run/radarr-temp at startup, but cap_drop: ALL above removes
+      # CAP_CHOWN, so that chown fails and the dir stays root:root 0755. ASP.NET Core writes its
+      # DataProtection key ring (the cookie-signing keys) there via TMPDIR, so an unwritable dir
+      # means the app cannot issue a session cookie — every login bounces back to /login. Mount
+      # it 1777 explicitly; no capability has to be given back.
+      - /run/radarr-temp:mode=1777,exec
     container_name: radarr
     restart: unless-stopped
     networks:

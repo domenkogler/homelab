@@ -19,6 +19,9 @@ services:
     tmpfs:
       - /tmp
       - /run:exec
+      # HD-1081: own tmpfs for the app temp dir — the image cannot chown it under cap_drop: ALL,
+      # and ASP.NET DataProtection keys (login cookies) are written there.
+      - /run/prowlarr-temp:mode=1777,exec
     container_name: prowlarr
     restart: unless-stopped
     networks:
