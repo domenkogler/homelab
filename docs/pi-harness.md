@@ -287,8 +287,24 @@ in the shared ~262k KV pool — so a long turn is minutes and a concurrent lane 
 `reasoning: false` (the laptop's vision + FIM legs) are untouched; pi clamps them to `off`.
 **Seat state, measured 2026-10-05:** the Win11 seat already carried `high`, the WSL seat carried `off` —
 the two halves of one laptop had silently divided, and the `--check` drift gate cannot see it because
-settings.json sits deliberately outside the render. Both now read `high`. ⏳ oldsrv's cockpit seat
-(`domen`, 0600, not readable with the runner key) has **not** been re-read — verify before relying on it.
+settings.json sits deliberately outside the render. Both now read `high`. oldsrv's cockpit seat was
+re-read **from the seat itself** on 2026-10-06 (the file is 0600 `domen`, so the runner key cannot see it,
+but an owner session on the box can): the §5 block reads `high` — and `theme` was **absent**, which the
+HD-493 note below wrongly reported as "stayed".
+
+**2026-10-06 — `theme`: the seat carried none, which is why the two seats looked different.**
+pi's default theme is `system`: it queries the terminal's background and 16 ANSI colors and rebuilds its
+palette from the answer, so an unset `theme` key means *the terminal decides*. pi's truecolor hint is
+`COLORTERM=truecolor|24bit` or `TERM=*-direct` (read off `detectCapabilitiesFromEnvironment` in pi's own
+bundle, not inferred from a UI label); the seat's leg is plain SSH with **`COLORTERM` unset** and
+`TERM=xterm-256color` (measured 2026-10-06), so pi gamut-maps the derived palette down to the 256-color
+set — a visibly flatter picture than the laptop's seat in the same session. Fixed on the seat with
+`"theme": "dark"` (pi's built-in terminal-independent palette; `/reload` to apply).
+**The boundary did not move.** `render-pi-config.py --vendor` still has no settings vendor and
+`models-spec.yml` still forbids `theme` in the spec, so this stays a hand-written per-machine key with
+this section as its source — the drift gate remains blind to it, exactly the blindness that let the
+`defaultThinkingLevel` halves divide above. ⏳ the WSL seat's `theme` key is unread from the cockpit
+(another machine, an owner session); confirm it reads `dark` before calling the seats matched.
 
 | Setting | Value | Why on this box |
 |---------|-------|-----------------|
@@ -299,6 +315,7 @@ settings.json sits deliberately outside the render. Both now read `high`. ⏳ ol
 | `retry.provider.timeoutMs` | 1800000 | same reason, per-request ceiling (SDK default is far below a 200k cold prefill) |
 | `showCacheMissNotices` | `true` | server-side `--enable-prefix-caching` is the only reason a 200k turn is cheap — the notice shows when the harness broke a cached prefix |
 | `thinkingBudgets` | 1k/2k/4k/8k | only applied when thinking is ON (needs `thinkingTokenBudgetField`); bounds what "high" can spend |
+| `theme` | `dark` (absent on the oldsrv seat until 2026-10-06) | `dark` is terminal-independent, and absence is not neutral: it selects pi's `system` theme, which paints from the terminal's own palette — over the seat's SSH leg (`COLORTERM` unset) that lands on the 256-color approximation, so the cockpit and the laptop did not match. Still NOT rendered (§1, `models-spec.yml`) |
 
 ---
 
@@ -306,8 +323,9 @@ settings.json sits deliberately outside the render. Both now read `high`. ⏳ ol
 §5 block's *shape* but `defaultThinkingLevel: medium` — the owner's ruling of the same date says
 `high`, and the seat now reads `high` with the rest of the block written **from this section**, not
 copied off the laptop (§1: no renderer exists for this file by design, and §5 is the source; the
-seat's extra `modelThinkingLevels`/`theme`/`lastChangelogVersion`-class keys are workstation state
-and stayed). The host-side bootstrap that used to be a WSL-only script is a sibling now:
+seat's extra `modelThinkingLevels`/`lastChangelogVersion`-class keys are workstation state and stayed —
+this paragraph listed `theme` among them, and that one word was wrong: measured 2026-10-06 the seat
+carried no `theme` key at all, see the note above). The host-side bootstrap that used to be a WSL-only script is a sibling now:
 [`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) (HD-446) installs the pinned
 Node tarball + the pinned pi for a bare Debian seat and reads its pins from
 `IaC/ansible/group_vars/all/versions.yml` — the same `pi_host_*` pins that keep the two seats from
