@@ -107,6 +107,13 @@
     },
     {
       "proxied": "False",
+      "record": "media",
+      "ttl": "300",
+      "type": "CNAME",
+      "value": "vps.kogler.si"
+    },
+    {
+      "proxied": "False",
       "record": "office",
       "state": "",
       "ttl": "300",
@@ -171,7 +178,7 @@
     }
   ],
   "counts": {
-    "cloudflare": 21,
+    "cloudflare": 22,
     "headscale:plain": 10,
     "headscale:ts_only": 28,
     "technitium:primary": 35,

@@ -321,7 +321,10 @@ zone_kogler_si:
   - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }
   - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
   # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
-  - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  # media is PUBLISHED (HD-1095, owner decision 2026-10-07): the VPS edge now routes it to the
+  # home edge over WG S2S, so the public answer is served, not just pointed at. seerr/seerrng are
+  # routed there too but stay UNPUBLISHED — reachable by name only where a resolver is told.
+  - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true, public: true }
   - { name: seerr.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
   - { name: seerrng.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
   - { name: sonarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
