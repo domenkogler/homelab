@@ -53,6 +53,11 @@ USERNAME = {{ arr_torrent_client_user | to_json }}
 CATEGORY_FIELD = {{ arr_torrent_client[svc.template_dir].category_field | to_json }}
 CATEGORY = {{ arr_torrent_client[svc.template_dir].category | to_json }}
 NAME = {{ arr_torrent_client_name | to_json }}
+# The settings class the app instantiates. REQUIRED on POST — Sonarr answers 400 "'Config Contract'
+# must not be empty" without it (measured 2026-10-07), and it is the one field a read-back cannot teach
+# you about a client that does not exist yet. It is also what `implementation` names, so both come from
+# one variable rather than two places that can disagree.
+CONTRACT = {{ arr_torrent_client_contract | to_json }}
 # Field `type` as the app itself reports it (measured out of a live /downloadclient response: the
 # literal strings textbox / checkbox / password / select). Only used for fields the app did not already declare.
 # Keys arrive suffixed (`host_type`) so the secrets linter cannot read a type NAME as a credential.
@@ -121,7 +126,8 @@ if existing:
         "priority": existing.get("priority", 1),
         "removeCompletedDownloads": existing.get("removeCompletedDownloads", True),
         "removeFailedDownloads": existing.get("removeFailedDownloads", True),
-        "implementation": existing.get("implementation", "QBittorrent"),
+        "configContract": existing.get("configContract") or CONTRACT,
+        "implementation": existing.get("implementation") or CONTRACT,
         "appProfileId": existing.get("appProfileId", 1),
         "tags": existing.get("tags", []),
         "fields": [{"name": k, "value": v, "type": types.get(k) or TYPES.get(k, "textBox")}
@@ -136,7 +142,7 @@ else:
     body = {
         "name": NAME, "enable": True, "protocol": "torrent", "priority": 1,
         "removeCompletedDownloads": True, "removeFailedDownloads": True,
-        "implementation": "QBittorrent", "appProfileId": 1, "tags": [],
+        "configContract": CONTRACT, "implementation": CONTRACT, "appProfileId": 1, "tags": [],
         "fields": [{"name": k, "value": v, "type": TYPES.get(k, "textBox")} for k, v in wanted.items()],
     }
     drift = sorted(wanted)

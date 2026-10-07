@@ -270,6 +270,9 @@ arr_torrent_client:
     category_field: musicCategory
     category: music
 arr_torrent_client_name: qBittorrent      # the client name shown in each arr
+# The provider settings class each app loads for this client (Sonarr 400s without it on POST). Same string
+# for all three: every *arr ships the same QBittorrent config contract.
+arr_torrent_client_contract: QBittorrent
 arr_torrent_client_host: gluetun          # the netns owner — see the note above
 arr_torrent_client_port: "{{ qbit_webui_port }}"   # the app's socket port in the shared netns, NOT the host publish
 arr_torrent_client_user: "{{ qbit_webui_username }}"
