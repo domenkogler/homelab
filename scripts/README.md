@@ -162,6 +162,13 @@ inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
       --limit hosts --tags … > /tmp/converge-<host>-<ts>.log 2>&1 &
   # then poll: tail -f /tmp/converge-<host>-<ts>.log → PLAY RECAP
   ```
+  - ⚠ **A detached converge inherits the invocation's checkout, not the directory you `cd` into inside
+    the same command line (live 2026-10-07, HD-1095):** in `cd ../wt-x && nohup A & nohup B &`, the shell
+    backgrounds the **whole** `cd && …` chain for A and runs B in the shell's *original* directory — so B
+    converged the primary checkout at `main` and returned `ok=41 changed=0` for a commit that had just
+    changed that exact service, which reads as "already deployed". `ansible-run.sh` derives `$REPO` from its
+    own path, so the only trace is the `included: /path/…/deploy-service.yml` line in the log: **read that
+    path before believing a `changed=0`**, and launch one detached converge per command.
   `--check` is the only safe foreground form (fast, read-only). If a converge is killed mid-restart, the fix is idempotent: re-run the same playbook (the restart-on-config-change guard restarts the stack cleanly once the sibling containers are up).
 - **Scoped service deploys need BOTH tags (live 2026-09-17, HD-382):** `-e docker_services_scope=<svc>` alone does **not** deploy the service. `deploy-service.yml` tags every task `"{{ svc.name }}"`, so a run with only `--tags docker_services` iterates the loop (the include even prints `included: … item=<svc>`) and then tag-filters **every inner task** — a silent no-op that reports `changed=0/1, failed=0` while the rendered compose stays stale on the host. Correct form: `--tags docker_services,<svc>` (the HD-220 intent as the task comments state). When a scoped run looks suspiciously cheap, verify with `docker inspect` / the rendered file rather than trusting the RECAP.
 - **Never run a `docker_services` converge with `--diff` (secret hygiene, live 2026-09-17):** the 1P bulk pre-pass is `no_log`, but the **template diff of a rendered `docker-compose.yml` is not** — `--check --diff` printed live `LITELLM_MASTER_KEY` / `OPENROUTER_API_KEY` values onto stdout into the run log (CONVENTIONS §6: never print a secret VALUE). `--check` alone stays safe; the *diff* is what leaks. Verify renders from the template or diff the rendered host file with secret lines filtered; purge any log that caught values (`shred -u`) instead of grepping it.
