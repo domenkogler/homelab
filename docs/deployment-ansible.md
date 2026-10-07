@@ -1301,12 +1301,19 @@ for any future speed change, HD-257).
 `~/.ssh/config` `Host github.com` block and no `~/.1password/agent.sock` there. The CLI key-pull path
 (`op` + `SSH_AUTH_SOCK=~/.1password/agent.sock`) is Linux/WSL-only.
 
-**Commit signing resolves by the PUBLIC-KEY STRING, not a file path.** `op-ssh-sign.exe` looks the signing key
+**On the 1Password route, commit signing resolves by the PUBLIC-KEY STRING, not a file path.**
+`op-ssh-sign.exe` looks the signing key
 up by its public-key string (`ssh-ed25519 AAAA…`, the value in `.gitconfig-github`). Setting
 `user.signingkey` to a private-key **file path** makes it parse the private PEM as a public key and fail with
-`error: 1Password: invalid ssh public key`. Keep `user.signingkey` the pub-string the includeIf already sets.
-The `.pub` halves (`github_signing.pub`, `github_auth.pub`) live in Windows `~/.ssh` for the agent lookup; the
-private halves stay in WSL `~/.ssh`.
+`error: 1Password: invalid ssh public key`. Keep `user.signingkey` the pub-string the includeIf already sets
+**— on that route.** The seat default is the other route: `git-bootstrap-win11.sh --git-identity` removes
+`gpg.ssh.program` and points `user.signingkey` at the key FILE (git's own signer), so the two configs are
+opposites and neither is a fix for the other — see
+[deployment-secrets.md](deployment-secrets.md) §What actually raises a 1Password prompt.
+The `.pub` halves (`github_signing.pub`, `github_auth.pub`) live in Windows `~/.ssh` for the agent lookup;
+the private halves are on **both** seats' disks (168-byte PKCS#8 files written by the WSL bootstrap's
+`op read`, measured `C:/Users/domen/.ssh/github_signing` = `BEGIN PRIVATE KEY`) — which is why the
+modal-free route is not a new exposure, only a different path to the same bytes.
 
 **git must be pointed at Windows OpenSSH.** `core.sshCommand = C:/Windows/System32/OpenSSH/ssh.exe`
 (in `.gitconfig-windows`) is what makes git find the named-pipe agent. A leftover

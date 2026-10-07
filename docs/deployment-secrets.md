@@ -624,17 +624,17 @@ After a host reinstall the host key changes — run `ssh-keygen -R nas` (or `-R 
 
 ---
 
-### What actually raises a 1Password prompt on the Win11 seat (measured 2026-10-03)
+### What actually raises a 1Password prompt on the Win11 seat (measured 2026-10-03; the no-modal route became the default 2026-10-07)
 
 Three paths ask, and the timings are the proof — a consent dialog is a 7–12 s wait for a human, a
 credential the machine already holds answers in under a second. Measured on `Domen_P14s`:
 
 | action | path | dialog |
 |---|---|---|
-| `git commit` with the interactive config | `gpg.ssh.program = op-ssh-sign.exe` (`.gitconfig-windows`) | **yes — one per commit** (10 s) |
+| `git commit` on the 1Password route (`git-bootstrap-win11.sh --1password`) | `gpg.ssh.program = op-ssh-sign.exe` (`.gitconfig-windows`) | **yes — one per commit** (10 s) |
 | `git push` / `git fetch` from a new process | `core.sshCommand = C:/Windows/System32/OpenSSH/ssh.exe` → the agent's named pipe | **yes — per application/process** |
 | `op item get <item>` (the HD-388 client render) | the `op` CLI, which authorises the *calling* process (`bash.exe`) | **yes — one per read** (8–12 s) |
-| `git commit` with `user.signingkey` as a **file path** and `gpg.ssh.program` absent | git's own SSH signer | no — 0 s, `%G?` = `G` |
+| `git commit` on the seat default (`--git-identity`: `user.signingkey` a **file path**, `gpg.ssh.program` absent) | git's own SSH signer | no — 0 s, `%G?` = `G` |
 | `git ls-remote` through `C:/Program Files/Git/usr/bin/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none -o BatchMode=yes` | the bundled OpenSSH 10.5p1 | no — 1 s, authenticates |
 
 Why it is per-process: 1Password authorises a key *against a requesting process*, and a harness that
@@ -653,21 +653,33 @@ asked**. Stated plainly for two reasons: it is why the unattended identity below
 exposure, and it is why this laptop's GitHub pair must be inventoried as a disk-resident secret
 wherever the laptop goes.
 
-**Unattended git on Win11 — `~/.gitconfig-nightly`, opt-in through `GIT_CONFIG_GLOBAL`.** A leg that
-runs while nobody is watching has to fail into its log, never wait on a dialog it cannot answer, so
-that config carries `IdentityAgent=none` + `BatchMode=yes` (fail in 15 s) and file-path signing. Two
-traps, both measured, recorded so the next session does not rediscover them: the repo's own
-`.git/config` pins `user.signingkey` to the **public-key string**, and repo config outranks global —
-so the nightly file alone still routes git at an agent (`Couldn't get agent socket?`) and the call
-needs `-c user.signingkey=C:/Users/domen/.ssh/github_signing` as well. And `core.sshCommand` must be
-the **8.3 short path** (`C:/PROGRA~1/Git/usr/bin/ssh.exe`): Git for Windows hands the string to `sh`,
-which drops the quoting around "Program Files" and execs `C:/Program`.
+**Unattended git on Win11 — this is the seat DEFAULT since 2026-10-07, not an opt-in.**
+[`../scripts/git/gitconfig-nightly`](../scripts/git/gitconfig-nightly) is the payload and
+[`../scripts/git-bootstrap-win11.sh`](../scripts/git-bootstrap-win11.sh)` --git-identity` installs it
+to `~/.gitconfig-nightly` and includes it, so no git call on the seat — interactive, subagent, or
+scheduled — can raise a dialog (`--1password` is the opt-back, `--check` prints which route the seat
+will take). It carries `IdentityAgent=none` + `BatchMode=yes` (fail into the log in 15 s) and
+file-path signing, because a leg that runs while nobody is watching must fail rather than wait. Four
+traps, all measured, recorded so the next session does not rediscover them:
+
+* **`gpg.ssh.program` must be ABSENT, not empty.** Git cannot un-set a key from a later include, so
+  the script removes it from `.gitconfig-windows` instead of overriding it; `-c gpg.ssh.program=`
+  (empty) makes git try to spawn `""` → `cannot spawn : No such file or directory` (2026-10-07).
+* **Include order is the mechanism.** The per-remote `includeIf` blocks in `~/.gitconfig` run before
+  this one and `.gitconfig-github` sets `user.signingkey` to the public-key string, so the nightly
+  include is **appended last** — beside `.gitconfig-windows` it loses and signing silently reverts to
+  the agent route. Proven in a fabricated seat carrying that exact `includeIf` block: the commit came
+  out signed (`%G?` = `G`) with no dialog.
+* **The repo's own `.git/config` outranks every global file** and pinned `user.signingkey` to the
+  public-key string, so the file alone was not enough — `--git-identity` rewrites the local pin to the
+  key path (it was `git-bootstrap.sh` that wrote the string form in the first place).
+* **`core.sshCommand` must be the 8.3 short path** (`C:/PROGRA~1/Git/usr/bin/ssh.exe`): Git for Windows
+  hands the string to `sh`, which drops the quoting around "Program Files" and execs `C:/Program`.
 
 The same key-FORM finding that HD-495 established for the oldsrv seat is therefore what works here
-too — the difference is only that on Win11 the repo pins the `key::<pub>` form and must be
-overridden per call. Scripting this into `git-bootstrap-win11.sh` (so a rebuild of the seat does not
-have to be re-derived by hand) is the ⏳ tail recorded in [`../todo.md`](../todo.md) HD-495; the
-manual form is [../deployment-manual.md](../deployment-manual.md) §0.4b.
+too, and it is now scripted rather than hand-planted — closing the ⏳ tail that lived in this section.
+What HD-495 still owes is the `--owner` half, not this. The manual form is
+[../deployment-manual.md](../deployment-manual.md) §0.4b.
 
 ---
 

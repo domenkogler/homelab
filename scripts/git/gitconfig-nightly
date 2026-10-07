@@ -1,0 +1,55 @@
+# =====================================================================
+# gitconfig-nightly — the UNATTENDED git identity for a Win11 pi.dev seat.
+#
+# THIS IS THE SEAT DEFAULT, not an opt-in: scripts/git-bootstrap-win11.sh --git-identity
+# installs this file to ~/.gitconfig-nightly and includes it LAST from ~/.gitconfig, so no
+# git command — interactive, subagent, or scheduled — can raise a 1Password window.
+# The name is historical (it was minted 2026-10-03 for the overnight benches, when it WAS
+# opt-in via GIT_CONFIG_GLOBAL). On 2026-10-07 the owner ruled the modal-free route the
+# default; the 1Password route is now the opt-back:
+#   bash scripts/git-bootstrap-win11.sh --1password
+#
+# WHY IT EXISTS: 1Password authorises an SSH key PER APPLICATION/PROCESS. A harness that
+# starts a fresh shell per command (pi on Win11) is a new process every time, so git blocks
+# on a consent dialog instead of failing into a log. Measured on the Win11 seat 2026-10-03
+# (auth half re-measured 2026-10-07, no dialog at any point):
+#   * signing — git signs from a key FILE when gpg.ssh.program is ABSENT, which is why this
+#     file must not coexist with that key. Proven by a temp repo signing with this config and
+#     verifying `Good "git" signature for github.com with ED25519 key SHA256:I3kz4JY...`.
+#   * auth — `C:/Program Files/Git/usr/bin/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none
+#     -o BatchMode=yes -T git@github.com` answers "Hi domenkogler!" with no agent.
+#     C:/Windows/System32/OpenSSH 9.5p2 (LibreSSL) cannot read these PKCS#8 files ("invalid
+#     format") — precisely why the interactive route reaches the 1Password pipe instead.
+#   * belt — IdentityAgent=none + BatchMode=yes mean a stray git at 03:00 FAILS in ~15 s into
+#     its log. It can never raise a dialog.
+#   * ORDER MATTERS — the per-remote includeIf blocks in ~/.gitconfig run BEFORE this file
+#     (.gitconfig-github sets user.signingkey to the PUBLIC-KEY STRING, which with no
+#     gpg.ssh.program is not a path and signs nothing). Last include wins, so this file is
+#     APPENDED as the final [include] — never placed beside .gitconfig-windows.
+#
+# Keys are the 1Password-vault copies already on this disk in ~/.ssh (the WSL seat uses the
+# same pair). This file changes WHICH PATH git takes, not what is on the machine: delete or
+# rotate those files and this config stops working — that is the off switch.
+#
+# __KEYDIR__ / __GITUSER__ / __GITEMAIL__ are substituted at install time by the script
+# (__KEYDIR__ becomes the Windows-style key dir, e.g. C:/Users/you/.ssh, because git does not
+# expand `~` in user.signingkey / user.signingkey-adjacent sshCommand values).
+# =====================================================================
+[user]
+	name = __GITUSER__
+	email = __GITEMAIL__
+	signingkey = __KEYDIR__/github_signing
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = __KEYDIR__/allowed_signers
+[commit]
+	gpgsign = true
+[tag]
+	gpgsign = true
+[core]
+	# SHORT (8.3) PATH ON PURPOSE: Git for Windows hands sshCommand to sh, which drops the
+	# quoting and execs `C:/Program` -> "No such file or directory" (measured). Same reason
+	# ~/.gitconfig spells the editor C:\PROGRA~1\NOTEPA~1\... . Proof: git ls-remote origin
+	# returns refs, silently.
+	sshCommand = C:/PROGRA~1/Git/usr/bin/ssh.exe -i __KEYDIR__/github_auth -o IdentitiesOnly=yes -o IdentityAgent=none -o BatchMode=yes -o ConnectTimeout=15

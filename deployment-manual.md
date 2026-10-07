@@ -215,26 +215,33 @@ bash scripts/git-bootstrap-win11.sh --ssh-auth      # idempotent
 ✔-evidence: `git ls-remote git@github.com:<owner>/homelab.git HEAD` succeeds over SSH, and a test
 `git commit -S` is signed without a passphrase prompt.
 
-**Only if this seat will run unattended jobs** (bench legs, scheduled tasks): the path above blocks on
-a 1Password consent dialog when nobody is at the keyboard, so give the driver an agent-free identity.
+**The seat default is the modal-free identity** (owner decision — the route above blocks
+whenever nobody is at the keyboard, which is every bench leg, subagent and scheduled task). It signs and
+authenticates from key **files**, so on a seat that has never had them, pull them from the vault once —
+with a human present, since each `op read` is a prompt:
 
-```powershell
-$env:GIT_CONFIG_GLOBAL = "$env:USERPROFILE\.gitconfig-nightly"        # for the driver process only
-git -c user.signingkey="$env:USERPROFILE\.ssh\github_signing" commit -m "..."
-git -c user.signingkey="$env:USERPROFILE\.ssh\github_signing" ls-remote origin HEAD   # proof, ~1 s
+```bash
+umask 077; op read "op://Homelab-ansible/GitHub sign/private key" > ~/.ssh/github_signing
+umask 077; op read "op://Homelab-ansible/GitHub auth/private key" > ~/.ssh/github_auth
 ```
 
-✔-evidence: `git log -1 --format='%G?'` prints `G` and neither command raises a dialog (~0 s / ~1 s).
-Pass `-c user.signingkey=<path>` on EVERY call — the repo's own `.git/config` pins the pubkey-string
-form and repo config outranks global. Why these two switches, the 8.3-short-path trap, and what this
-says about the "keys never on disk" rule: [docs/deployment-secrets.md](docs/deployment-secrets.md)
-§What actually raises a 1Password prompt. Scripting it into `git-bootstrap-win11.sh` is tracked in
-[todo.md](todo.md) HD-495.
+```powershell
+bash scripts/git-bootstrap-win11.sh --git-identity   # idempotent; backs up every file it edits
+```
+
+✔-evidence: `git config --get gpg.ssh.program` prints nothing, `git config --get user.signingkey` prints a
+key **file path**, and `git commit` returns in ~0 s with `git log -1 --format='%G?'` printing `G` and no
+dialog. `--check` prints which route the seat will take; `--1password` opts back into the dialog route
+(and rewrites the local `user.signingkey` pin to the public-key string the agent needs).
+
+Why the payload is included **last**, why the program key must be *absent* rather than empty, the
+8.3-short-path trap, and what this says about the "keys never on disk" rule:
+[docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt.
 
 The Windows desktop side differs from the WSL runner: the 1Password **desktop** app owns the GitHub keys
-(`GitHub sign`, `GitHub auth`) over the Windows named-pipe agent, and signing resolves by the **public-key
-string**, not a file path. Why each config line in the script is what it is — and the two failure modes
-(`invalid ssh public key`, WSL networking wedges) — is in
+(`GitHub sign`, `GitHub auth`) over the Windows named-pipe agent, and on that route signing resolves by
+the **public-key string**, not a file path. Why each config line in the script is what it is — and the
+two failure modes (`invalid ssh public key`, WSL networking wedges) — is in
 [deployment-ansible.md](docs/deployment-ansible.md) §Windows/WSL runner host facts.
 
 ### 0.6 Seed the on-site control node (`oldsrv`, HD-407) `[MANUAL — one-time per box]`
