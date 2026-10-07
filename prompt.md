@@ -77,8 +77,13 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
 3. ⏳ **HD-436** — the transport lane's hinge: the derived `zone_kogler_si` list is already on `main`; switch the two
    consumers that still hand-author (`vps.yml`'s two subdomain lists, `roles/cloudflare_dns/vars`
    `cloudflare_dns_records`). Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
-4. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed
-   (and it now also owes the NUT client→master leg probe, the class the 2026-10-07 UPS fix left standing).
+4. ⏳ **HD-450** — the two silent-failure classes are SERIES now (unit last-result + per-consumer cert age, live on
+   oldsrv + the Pi since 2026-10-07; `homelab_*` read back in VM), so what is owed is narrower than the probe: **(1)**
+   converge the VPS monitoring role so the five new rules reach Grafana, then take the acceptance read — force one unit
+   to fail and see it land in the Signal group; **(2)** spark / nas / VPS still need that exporter converge (VPS slot
+   held); **(3)** leg (c), the NUT client→master **metric**, is untouched — unit results are not "this client can reach
+   the master". Thresholds were re-derived from the measured 90-day pair (WARN 14 d / CRIT 7 d, not 30/14).
+   → [docs/observability.md](docs/observability.md) §Silent-failure hygiene
 5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 442–444 · 465 — the 442–444
    rows keep owner-gated tails).
    ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently). The seat's

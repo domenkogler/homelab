@@ -201,9 +201,12 @@ Radarr's parse 500s with `Could not find a part of the path '/media/movies/<Movi
 whose library folder does not exist yet — create the folder (owned `media:media`) or import once and let
 Radarr make it. That was the first manual-import attempt's failure, not a permission problem.
 
-Finally, a metadata mismatch to fix: Jellyfin shows the file as **The Scarecrows' Wedding** while Radarr
-holds it as *The Wedding (2026) / originalTitle Svadba* (tmdb 1551507). Same file, two identifications —
-one of them is wrong by accident.
+Finally, a metadata mismatch that surfaced on the first torrent and is **resolved by hand (owner,
+2026-10-07)**: Jellyfin showed the file as *The Scarecrows' Wedding* while Radarr holds it as *The Wedding
+(2026) / originalTitle Svadba* (tmdb 1551507) — same file, two identifications, one wrong by accident
+(Jellyfin's own title/ID lookup, not this stack's). Corrected on the Jellyfin side manually; **no IaC owns
+it and nothing here needs to stay standing for it** — the lesson kept is only that a first-run download is
+also the first time two ID databases get to disagree, so an import is worth eyeballing once.
 
 ### qBittorrent's category save paths do nothing unless you turn this one switch on (HD-496, 2026-10-07)
 
