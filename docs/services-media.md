@@ -78,10 +78,12 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Three NFS exports:** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share), `tank/data` →
   `/mnt/nas/data` (immutable user data) and `bulk/data/immich-thumbs` → `/mnt/nas/thumbs` (push target) —
   two pools, three exports.
-- **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — measured `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the **Lidarr → copy-import** exception (HD-354): the music library lives on the Hetzner Storage Box as Navidrome's primary, and hardlinks can't cross hosts — so Lidarr **copies** music (2× temporary space accepted), then the Box refresh picks it up. `docs/storage.md` §Store tiering owns the layout.
+- **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — measured `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the exception — and the leg **does not exist yet** (measured 2026-10-07): Lidarr's root is `/media/music` = nas `bulk/media/media/music` (empty), and neither oldsrv nor the NAS can write the Box — `roles/cifs/tasks/main.yml` asserts the Box mount onto the **VPS only**, and `mount | grep cifs` on oldsrv shows nothing. So the HD-354 prose ("Lidarr copies music to the Box") described a path with no mount behind it. Owner ruled the shape on 2026-10-07: **NAS master + a push leg to the Box** — **HD-1088**. `docs/storage.md` §Store tiering owns the layout.
 - **Media is not backed up** (movies/TV) — no sanoid snapshots, no syncoid, no Kopia; lost media is re-fetched via
-  usenet/torrents. **Music is the exception**: the library lives on the live Box (cold/bulk tier, box-side + Kopia
-  coverage per [`storage.md`](storage.md)).
+  usenet/torrents. ⚠ **Music must not be read as "the exception" any more (HD-1088):** under the ruled shape the FLAC
+  master sits on the NAS in the same not-backed-up tier, and the Box holds a second *serving* copy — the Kopia trail
+  runs to the **backup** box (`kopia_sftp_host`, a different server than the live Box), so nothing snapshots or
+  replicates either copy. A Soulseek FLAC is not re-fetchable the way a movie is; that durability call is `HD-1088`'s.
 - **Owner = neutral shared owner `storage_uid`/`storage_gid` (`media`, 1005)** across all *arr containers
   (linuxserver `PUID/PGID={{ storage_uid }}`/`PGID={{ storage_gid }}`; Jellyfin `user: "{{ storage_uid }}:{{ storage_gid }}"`,
   HD-94/HD-131). SMB/NFS ownership on nas must match.
@@ -98,22 +100,31 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Seerr | `seerr.` | Jellyfin login | family request portal (movies/TV) |
 | SeerrNG | `seerrng.` | Jellyfin login | Seerr fork + music (snapetech/seerrng); alongside Seerr |
 | Aurral | `aurral.` | own login | discovery + Lidarr requests (Last.fm / ListenBrainz history, free) — internal-only |
-| Lidarr-URL-DL | `url-dl.` | own login | YouTube → Lidarr download client (Angrido) — #3 priority |
+| Lidarr-URL-DL | `lidarr-ydl.` | own login | YouTube → Lidarr download client (Angrido) — #3 priority, **audio only** (name ruled 2026-10-07, HD-1087; retires the old `url-dl.` spelling) |
 | Slskd | `slskd.` | own login/token | Soulseek P2P — gluetun sidecar, VPN-locked egress, #2 priority |
 | Tube Archivist | `tube.` | own login | personal YouTube — internal-only; headless yt-dlp |
 | Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr | `<name>.` | built-in Forms auth (home edge) | linuxserver images; API keys for integration |
 | Sabnzbd/Qbittorrent | `sab.`/`torrent.` | built-in Forms auth | downloads (qbitorrent through gluetun) |
-| Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box (moved off nas) |
+| Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box; ⚠ **no door yet: `music.kogler.si` answers nothing** (see §Navidrome) |
 | Immich | `foto.` | OIDC → Authentik | photos (VPS) |
 
-> ⚠ **Three of these names are authored, not reachable (HD-1087, measured 2026-10-07).** `aurral`
-> (`oldsrv_home_ip:3001`), `slskd` (`:5030`) and `lidarr-ydl` (`:5005`) publish host sockets on the box, but `main` carries **no router for them in any edge file and no record in
-> `technitium-seed.yml`** — so `aurral.` / `slskd.` / `url-dl.` resolve nowhere and dial nothing. The
-> patch that gives them a LAN router, split-horizon records and `.ts` twins exists as `18913c6` on
-> `session/arr-door-20261006` (see [services-traefik.md](services-traefik.md) §The tailnet leg that was
-> never merged); it names the downloader `lidarr-ydl.`, while this doc's table says `url-dl.` — decide the
-> name in the same change, since the DNS record, the compose publish and this table all take it from
-> whichever lands first.
+> ⚠ **Three of these names resolve and then 404 (HD-1087, measured 2026-10-07).** `aurral`
+> (`oldsrv_home_ip:3001`), `slskd` (`:5030`) and `lidarr-ydl` (`:5005`) publish host sockets on the box, and
+> `aurral.kogler.si` / `slskd.kogler.si` / `lidarr-ydl.kogler.si` **do answer the oldsrv Home address** (the
+> `oldsrv_home_ip` row of [network-addresses-generated.md](network-addresses-generated.md)) — but nothing **on
+> `main`** authors those records (the patch does, `main` does not), so they are **un-managed live state**, and `main`
+> carries **no router for them in any edge file**: `https://<name>.kogler.si/` returns **404** from the home edge
+> while the control (`lidarr`, `torrent`) returns **200**. The patch that opens the door does exist — `18913c63`, the
+> second commit on `session/arr-door-20261006` — but it was cut before `main` derived the DNS list, so it lands as a
+> **translation, not a rebase**: see [services-traefik.md](services-traefik.md) §The tailnet leg that was never
+> merged. The `.ts` half is ruled **in** by the owner (2026-10-07), and `music` (Navidrome) is not in that patch at
+> all — see §Navidrome below.
+>
+> **Name ruling (owner, 2026-10-07): the downloader is `lidarr-ydl.`** — a neutral `ydl.` was proposed and rejected,
+> because the tool is **music-only**: `angrido/lidarr-downloader` talks only to Lidarr (`LIDARR_URL` /
+> `LIDARR_API_KEY`), searches YouTube for *missing albums*, and hands Lidarr MP3/M4A/Opus at up to 320 kbps — it has
+> no Sonarr wiring, so YouTube **video** never flows through it. Video-from-YouTube is Tube Archivist's job (disabled,
+> see §Music Pillar). The same ruling kills the `url-dl.` spelling wherever it is still written.
 
 ## Request → import wiring (Seerr / SeerrNG → *arr → Jellyfin)
 
@@ -171,8 +182,19 @@ profile still exists and fails loudly when it does not.
 - **Auth:** local logins retained (break-glass + Subsonic clients); the web UI **SSO via Authentik is
   optional** (deploy-gated) — `/rest/*` stays local for Subsonic clients (Symfonium, play:Sub).
 - **Clients:** any Subsonic-compatible app; web at `music.kogler.si` (internal/tailnet — no public record).
-- **Import path:** Lidarr on oldsrv → **copy-import** (hardlinks can't cross hosts once the library is on the
-  Box); `docs/storage.md` owns the tiering/consequence line.
+- **Import path:** **not implemented** — Lidarr keeps its root on the NAS (`/media/music`) and a push leg to the Box
+  is what is owed (**HD-1088**, ruled 2026-10-07); there is no Box mount on oldsrv to import into.
+  `docs/storage.md` owns the tiering/consequence line. Until that leg lands, only files placed on the Box by hand (or
+  by the owner's own SMB mount) reach Navidrome.
+- **⚠ The door does not exist (measured 2026-10-07, HD-354 tail).** `music.kogler.si` is published **nowhere**: no
+  row in `zone_kogler_si` on any of the three Technitium instances, no entry in headscale's extra-record sets, and
+  **no router in any edge file** — not in `traefik-tailnet` (which does route `foto` /
+  `file` / `git`), not in the home `traefik-internal` set — and the container publishes no host port and sets
+  `traefik.enable: "false"`. `dig` returns nothing and `curl` never connects, while the control (`lidarr`) answers
+  `200`. The 2026-09-18 verification checked the container, the Box bind and the scanner — **it never dialed the
+  hostname**, so the ✅ in the row is true of the server and false of the service. Nothing in this pillar is
+  listenable by name until the route + record exist; a Subsonic client pointed at `VPS:4533` directly is the only
+  working path today.
 
 ## Music Pillar — acquisition + discovery (HD-362)
 
@@ -205,7 +227,8 @@ profile still exists and fails loudly when it does not.
   - **slskd** — Soulseek P2P daemon (Soulseek account, free): **gluetun WireGuard sidecar** (same tunnel as
     qBittorrent), **no inbound port → fetch-only** (search + download; no upload credit). Router rate-limit
     **10 MB/s per P2P service** (both slskd + torrent, owner decision). Acquisition **#2**.
-  - **lidarr-ydl** — Lidarr-YouTube-Downloader (Angrido): YouTube search → Lidarr import, **#3**.
+  - **lidarr-ydl** — Lidarr-YouTube-Downloader (Angrido): YouTube search → Lidarr import, **#3** — **audio only**
+    (yt-dlp + the bgutil PO-token sidecar → MP3/M4A/Opus into Lidarr); it has no video path and no Sonarr wiring.
   - **Murglar** — stays a **manual device app** (Android/Desktop; it is a client with **no API**, per
     `Music stack.md` it's removed from the chain — it just downloads to the phone, never auto-triggers).
   - **Aurral** — **music discovery** companion (lklynet/aurral, free): **Last.fm / ListenBrainz** login history

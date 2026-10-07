@@ -4,15 +4,18 @@
 #   app + data live together offsite/independent of home (reliability tier).
 #   Library: /mnt/storagebox/music (live Box, mounted by the cifs role, HD-135);
 #   app data + DB on VPS NVMe (/srv/docker/navidrome/data — Kopia-backed).
-#   Lidarr import: hardlink→copy-import for music (hardlinks can't cross hosts;
-#   music downloads flow oldsrv Lidarr → live Box music/, see storage.md).
+#   Lidarr import: NOT WIRED (measured 2026-10-07). The master library is the Lidarr root on the NAS
+#   (`bulk/media/media/music`); moving finished music into this Box dir is a push leg the owner ruled on
+#   2026-10-07 and is owed by HD-1088 — the old "Lidarr copy-imports onto the Box" line described a path with no
+#   mount behind it (roles/cifs asserts the Box mount onto the VPS only). See storage.md §Store tiering.
 #   Auth: local logins retained (break-glass + Subsonic clients); SSO web UI
 #   OPTIONAL via Authentik (deploy-gated; see services-media.md). /rest/* kept
 #   local for Subsonic clients (not behind forward-auth).
-#   Exposure: INTERNAL-ONLY (no public record; reachable via tailnet/WG + the
-#   VPS internal edge). The home edge (traefik-internal on oldsrv) also serves it:
-#   VPS-backed apps are reached there via the WG-s2s bridge (:4443 → traefik-tailnet)
-#   — uniform 3-edge route set (HD-350). No host port publish (Traefik-only).
+#   Exposure: INTERNAL-ONLY in INTENT — ⚠ **not actually reachable by name today** (measured 2026-10-07:
+#   `dig music.kogler.si` answers nothing and no edge file carries a `music` router, though this file claimed the
+#   uniform 3-edge set covers it — traefik-tailnet routes foto/file/git but not Navidrome, and `traefik.enable` is
+#   false here with no host publish). The route + the split-horizon row are owed by HD-1087; the 3-edge rule
+#   (HD-350) is the shape to apply, not a fact about this service.
 #
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed (Navidrome local admin is created at first-run UI; DB is local

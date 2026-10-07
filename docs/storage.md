@@ -286,7 +286,22 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 **Rule of thumb:** *hot/random/synchronous* on local SSD; *bulk/sequential/cold* on the live Box; *media + local backup* on the NAS.
 
-**Music library → Storage Box (Navidrome on the VPS):** the **music** library lives on the Hetzner Storage Box (**`music/`** on the live Box) as the **primary** for **Navidrome** (VPS-hosted, `music.kogler.si`). Navidrome app + data must live together for the reliability goal (host + data both offsite/independent of home). Consequence: Lidarr's TRaSH **hardlink import** no longer applies to music (hardlinks can't cross hosts) — Lidarr falls back to **copy-import** for the music category (2× temporary space acceptable). The NAS `bulk/media/media/music` copy is retired from the active path.
+**Music: NAS master + a Box serving copy (Navidrome on the VPS) — ruled 2026-10-07, HD-1088.** The FLAC **master** is
+the Lidarr library on the NAS: `bulk/media/media/music` (Lidarr root `/media/music` — measured, empty today). The
+Hetzner Storage Box **`music/`** is the **serving copy** Navidrome reads through its VPS-side CIFS mount
+(`/mnt/storagebox/music` → `/music`, `rw`). ⚠ **What the previous version of this paragraph claimed had no mount
+behind it:** it named the Box the *primary* and had Lidarr "copy-import" onto it, but `roles/cifs/tasks/main.yml`
+asserts the Box mount onto the **VPS only** and neither oldsrv nor the NAS has one — so no `music → Box` leg exists
+anywhere (the Box's `music/` has been empty since the mount went up). The leg is owed by **HD-1088**; until it lands,
+only files the owner places on the Box by hand reach Navidrome.
+
+Two consequences worth stating where the layout is read: **(a)** a push must carry the mountpoint guard and
+read-back that `vps-state-push.sh` carries, and any `--delete` must be bounded (`--max-delete`) — a silent dead mount
+on a *serving* tree means Navidrome serves an empty library while the timer reports green; **(b)** **neither copy is a
+backup** — Kopia's remote is the *backup* box (`kopia_sftp_host`, a different server from the live Box) and `bulk` is
+in the media "redownloadable, not backed up" tier, so a bad delete can reach both. That is acceptable for
+usenet/torrent media and much less so for Soulseek FLAC, which is not reliably re-fetchable: the retention call is
+HD-1088's, not a footnote here.
 
 ---
 
