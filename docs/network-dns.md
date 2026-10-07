@@ -186,7 +186,9 @@ reopens that claim).
 ## Host-side resolver — what a box asks its OWN `/etc/resolv.conf` (HD-484)
 
 ✅ **live on oldsrv 2026-10-01** (`home_servers.yml --tags nm-resolver` → `changed=2 failed=0`, then
-`changed=0` on the re-run). Everything above this section is about what an *instance* asks outward.
+`changed=0` on the re-run) and ✅ **on the Pi 2026-10-08** (`raspberry_pi.yml --tags nm-pi` → keyfile +
+`reload NetworkManager`, `getent llm.kogler.si` went from empty to spark's Home address **on the Pi itself** — the
+leg `scripts/README.md` and HD-465 had each documented a workaround for). Everything above this section is about what an *instance* asks outward.
 This is the other axis: which resolver **the host itself** asks. Every home host inherited
 `bootstrap_dns_servers` (`1.1.1.1`) — sound at boot, because a box that hosts the DNS tier must not need
 it to boot, and disqualifying for the running box: oldsrv could not name one split-horizon service of
@@ -226,6 +228,20 @@ self-heals), and asserts the file at the end.
 had to go through the installer's NM profile (`Wired connection 1`, written on disk **without** the
 `.nmconnection` suffix the Pi/spark keyfiles carry). The unfinished config-manager decision is
 **HD-487**; `netd_phys_name: eno1` and those dead unit files are its evidence, not this row's.
+
+**The Pi needed no nmcli leg, and that is a fact about the two boxes, not a shortcut.** oldsrv's uplink
+profile is installer-owned, so HD-484 had to read/modify/reapply it; the Pi's keyfile is rendered by
+`roles/network` (`pi-eth0.nmconnection.j2`), so the fix was one template line — `dns=` now comes from
+`host_resolver_dns`, with `bootstrap_dns_servers` kept as the fallback for a host that has not defined a
+steady-state pair — and the existing `reload NetworkManager` handler re-committed `/etc/resolv.conf`
+without touching the link (verified with the HD-415 watchdog on `traefik-ha`: GREEN, `RestartCount` 0, HA
+200 through the VIP before and after). Pair on the Pi = own instance first (`dns_tertiary_ip`) then oldsrv,
+same rule as oldsrv, VPS absent for the reason above.
+
+⚠ **`nas` is not in this class and the measurement says so** (2026-10-08): its `resolv.conf` is
+`dns_tertiary_ip, dns_primary_ip, dns_secondary_ip` — Pi, VPS, oldsrv, in that order — so internal names resolve — but the VPS sits between two home
+rungs, which is precisely the rung this design refuses, and `systemd-networkd` is **inactive** there, so
+which manager owns the file is HD-487's open question. Fixing it through this template would be guessing.
 
 **Session-safe mechanism — `device reapply`, never `connection up`.** `connection modify` writes the
 profile; the file is rewritten only when NM re-commits it. `connection up` tears the interface down and
