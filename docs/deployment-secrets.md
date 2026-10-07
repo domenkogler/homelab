@@ -367,7 +367,7 @@ permission to write from an automation path that was designed to be read-only.--
 | `lidarr-url-dl_login` | `username`+`credential` | **Lidarr-YouTube-Downloader** web-UI login — entered in its Settings page at first run; reference-only (not fetched by compose) |
 | `lastfm_login` | `username`+`credential` | **Last.fm** account for Aurral's discovery history (user + API key / password) |
 | `metabrainz_login` | `username`+`credential` | **ListenBrainz** (Metabrainz) account for Aurral's discovery history |
-| `slskd_login` | `username`+`credential` | **Soulseek** account (username/password) for slskd — Soulseek network login; `soulseek_api` token used for the slskd UI auth. NB the item is named `slskd_login` (matches the template + registry); a duplicate `soulseek_login` item exists from an earlier seed and can be deleted. `soulseek_api` is a PLACEHOLDER (created 2026-09-14) — overwrite with the slskd UI token (Options→Web UI→Token, http://10.10.1.30:5030) after deploy.
+| `slskd_login` | `username`+`credential` | **Soulseek** account (username/password) for slskd — Soulseek network login; `soulseek_api` token used for the slskd UI auth. NB the item is named `slskd_login` (matches the template + registry). ⚠ **The duplicate `soulseek_login` had it backwards** (measured 2026-10-07): it held the REAL account (username + password, both len 9) while `slskd_login` held a 5-char username and a generated credential — which is why slskd logged `Not connecting to the Soulseek server; username and/or password invalid` from the day it deployed. The values were copied into `slskd_login` that day, the SSOT name stands, the duplicate may now be deleted — and the password should be **rotated**, because it was displayed while diagnosing this. A "duplicate item" is not evidence of which one is live: compare lengths, not names. `soulseek_api` is a PLACEHOLDER (created 2026-09-14) — overwrite with the slskd UI token (Options→Web UI→Token, http://10.10.1.30:5030) after deploy.
 | `mikrotik-admin_login` | `password` | router + switch + APs — MikroTik RouterOS admin (items RB4011/CRS328/hAP; **shared across all network gear — accepted, HD-165**). One admin password across all gear is an **accepted risk**: every RouterOS management surface binds to the Management VLAN (99) only — router `api`/`www-ssl`/`ssh` (8728/443/22) are `interface=vlan99-mgmt`; switch + APs are L2-only with no WAN egress — so the shared credential never crosses the internet boundary ([network-ops.md](network-ops.md)). Revisit per-gear items only if a gear gains WAN-exposed management or the Mgmt-VLAN INPUT ACL changes. |
 | `pppoe_login` | `password` (`username` = PPPoE user) | router — ISP (Telekom) PPPoE credentials for the egress WAN |
 | `cloudflare_api` | `credential` | ACME **DNS-01** wildcard `*.kogler.si` cert. Token IP filter: use **EXACT addresses only** — CIDR rows (/22, /64) proved unreliable on API-token filters (Wave-3 R5); VPS set = `159.195.111.66` + `2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5` (stable SLAAC), runner = home v4/v6 |
@@ -890,6 +890,14 @@ This ensures no single point of failure: 1Password cloud + paper backup + Git mi
 ---
 
 ## Security Boundaries
+
+> ⚠ **A rendered compose file on a host IS a secret file (live 2026-10-07, from this session's own leak).**
+> The templates substitute vault values at render time, so `grep`-ing `/opt/<svc>/docker-compose.yml` for a
+> key name prints the credential next to it — that is how a Soulseek password and a service token reached a
+> transcript while answering "which env var does this read". Same class as the `--diff` ban in
+> [`scripts/README.md`](../scripts/README.md): `--check` is safe, the *rendered text* is not. Read the
+> **template** for names, and prove what the running app sees with a probe that prints a boolean or a length
+> (`docker exec <c> env | cut -d= -f1`, or its own config API masked through `jq`).
 
 | Boundary | Detail |
 |----------|--------|

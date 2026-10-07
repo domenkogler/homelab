@@ -237,6 +237,13 @@ says it would do.
 
 ### SABnzbd's own door: `host_whitelist` (HD-496, 2026-10-06)
 
+> **Addendum (HD-1087, 2026-10-07) — a new *Host* is a new whitelist entry.** The tailnet twin
+> `sab.ts.kogler.si` is a third name this guard has to know: Traefik preserves the original Host on BOTH
+> legs, so when the `.ts` routers landed the tailnet leg answered **403** while LAN went on answering 200.
+> Now seeded as `sab.{{ tailnet_base_domain }}` in `sabnzbd_host_whitelist`. Read the status code before
+> believing the routing: **403 = the app refused the name, 404 = the edge has no route** — they look like the
+> same complaint and send you to opposite files.
+
 SABnzbd runs a DNS-rebinding guard of its own, in front of Authentik and in front of its API key: the
 incoming `Host:` must appear in `host_whitelist` or it answers **403 "Access denied - Hostname
 verification failed"**. A fresh install whitelists **one** name — the container's short id — so on this

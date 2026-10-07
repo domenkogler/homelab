@@ -57,11 +57,20 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > change** — that coupling is precisely what made the routed group's flip safe. Prove the posture at any time
 > with `ss -ltnp` filtered to the Home address plus one curl per routed hostname; do not trust this sentence.
 >
-> **The tailnet leg and the music trio's door — LANDED IN IaC (HD-1087, translated from the
-> `18913c63` patch; branch closed 2026-10-07).** ⏳ **Deploy-gated:** the routes and records below are
-> authored, not converged. One `oldsrv` `docker_services` converge (traefik-internal hot-reloads its file
-> provider) plus the Technitium seed on the three instances — owner-present, it re-renders live edge routing
-> and the MagicDNS answer set.
+> **The tailnet leg and the music trio's door — LIVE (HD-1087, translated from the `18913c63` patch;
+> branch closed 2026-10-07, converged the same day).** Three legs: the scoped `oldsrv` `docker_services`
+> converge (traefik-internal hot-reloaded its file provider — no recreate, no VIP risk), `dns-seed.yml` across
+> all three Technitium instances, and the VPS headscale extra-record set behind `guarded-converge.sh`
+> (verdict GREEN, `restartcount=0 stable`, so the tailnet control plane was never left down).
+> ✅ **Proven by dialling, not by reading the RECAP:** LAN + `.ts` for all 14 names — the trio **200/200**,
+> the family its own login redirect (302/303/307) on both legs, and **not one 404**, which is what a missing
+> router looks like; MagicDNS (`dig @100.100.100.100` on a tailnet client) answers all 14 `.ts` names →
+> `tailnet_oldsrv_ip` ([network-addresses-generated.md](network-addresses-generated.md)) and **no plain name at all** — the HD-382/389 hairpin trap measured shut rather than assumed;
+> the VPS primary answers the trio NXDOMAIN while `lidarr` answers `159.195.111.66`, which is the `lan_only`
+> choice working as designed. ⚠ One gap the sweep caught and fixed the same day: `sab` answered 200 on LAN and
+> **403 on `.ts`** — SABnzbd's own `host_whitelist` had never been told the twin's Host (403 = the app
+> refusing the name; 404 = no route; the two read alike and mean opposite things). See
+> [services-downloads.md](services-downloads.md) §SABnzbd's own door.
 >
 > **What landed:** LAN routers (`websecure` + `websecure-lan`) and `*-backend` services for `aurral` ·
 > `slskd` · `lidarr-ydl`, dialled through `*_url`/`*_bind`/`*_host_port` (`aurral 3001`, `slskd 5030` — the

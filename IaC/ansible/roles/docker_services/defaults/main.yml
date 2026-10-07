@@ -186,6 +186,12 @@ sabnzbd_ini_host_path: /srv/docker/{{ sabnzbd_container_name }}/config/sabnzbd.i
 sabnzbd_host_whitelist:
   - sabnzbd                      # the overlay name Prowlarr / any container-side consumer sends
   - "sab.{{ domain_public }}"    # the edge name Traefik passes through as Host
+  # HD-1087 (2026-10-07): the `.ts` twin got its own router, and Traefik preserves the original Host on
+  # BOTH legs — measured the same day, `sab.kogler.si` → 200 while `sab.ts.kogler.si` → **403**, which is
+  # this guard refusing the name, not a routing miss (a missing router is a 404). Off-LAN SABnzbd was
+  # therefore the one name in the home set whose tailnet leg silently 403s. UNION-seeded like everything
+  # else in tasks/sabnzbd-seed.yml, so a hand-added entry survives.
+  - "sab.{{ tailnet_base_domain }}"   # the MagicDNS twin's Host on the tailnet leg
 
 # ---- qBittorrent WebUI seed (the torrent leg) — what tasks/qbittorrent-seed.yml reconciles ----
 # WHY THIS IS A SEED AND NOT COMPOSE ENV (measured 2026-10-06, same class as sabnzbd-seed.yml):

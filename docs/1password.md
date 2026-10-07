@@ -171,6 +171,15 @@ Discovered the hard way during a VPS SSH restore (HD-209). Each of these produce
 
 ## 3. Troubleshooting
 
+> ⚠ **Two `op` behaviours that made a routine value-move go wrong (measured 2026-10-07, service-account
+> path on the oldsrv seat).** (1) **`op run` does not resolve `{OP://item/field}` references under a service
+> account** — it passed the literal `{OP://soulseek_login/username}` (30 chars) INTO the target item and then
+> exited 4 with `(404) Not Found`. Reference syntax is a desktop/CLI-session feature; from an SA seat, read
+> the source field into a variable and write it as an ordinary `field=value` argument. (2) **`op item edit`
+> reports `(404) Not Found` and rc=4 even when the write landed** — reproduced twice, re-read both times. So
+> from this seat the exit code of `op item edit` is not evidence: verify by re-reading the item and comparing
+> lengths/booleans (never print values), and be explicit that a "failed" edit may already have applied.
+
 | Symptom | Cause / fix |
 |---------|-------------|
 | `error: could not find session token for account` | `OP_SERVICE_ACCOUNT_TOKEN` not exported in this shell — source `~/.bashrc` (interactive shell only) |

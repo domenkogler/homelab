@@ -108,13 +108,13 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box; ⚠ **no door yet: `music.kogler.si` answers nothing** (see §Navidrome) |
 | Immich | `foto.` | OIDC → Authentik | photos (VPS) |
 
-> ⚠ **These three names have a door in IaC now, and still 404 live (HD-1087, 2026-10-07).** `aurral`
-> (`oldsrv_home_ip:3001`), `slskd` (`:5030`, published by its gluetun sidecar) and `lidarr-ydl` (`:5005`)
-> publish host sockets, and their A records already answer on the home instances **from state nothing on
-> `main` had ever authored** — un-managed live state. The row set now authors them (`lan_only`), adds the LAN
-> routers and the `.ts` twins, and ⏳ waits for the one owner-present `oldsrv` converge that makes any of it
-> real; until then `https://<name>.kogler.si/` still returns **404** from the home edge while `lidarr` returns
-> **200**. Mechanics + the two shape calls: [services-traefik.md](services-traefik.md) §The tailnet leg and the
+> ✅ **The door is live as of 2026-10-07 (HD-1087, converged).** `aurral` (`oldsrv_home_ip:3001`),
+> `slskd` (`:5030`, published by its gluetun sidecar) and `lidarr-ydl` (`:5005`) now resolve from authored
+> rows, route on the home edge and on `.ts`, and answer **200** where they answered 404 for a year — their A
+> records had been live on the home instances all along, un-managed by anything on `main`, and the converge
+> brought `changed=0`: the IaC caught up to the host, not the other way round. ⚠ **`slskd` answers its UI but
+> is not connected to Soulseek** — see the credential/env finding in [`todo.md`](../todo.md) HD-362's tail.
+> Mechanics + the two shape calls: [services-traefik.md](services-traefik.md) §The tailnet leg and the
 > music trio's door.
 >
 > **Name ruling (owner, 2026-10-07): the downloader is `lidarr-ydl.`** — a neutral `ydl.` was proposed and rejected,
