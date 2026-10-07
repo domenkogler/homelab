@@ -463,6 +463,13 @@ echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
 # HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.
 # Requires the Ansible venv (WSL/CI); skipped gracefully on native Windows like the
 # Ansible render path (see scripts/README.md).
+# 23. HD-489/HD-380 gate-7 reader: the bucketing bug this tool exists to prevent was a real
+# false-RED (a naive (max-first)/hours over the live CSV printed 2,663 MiB/h because gpu_top_pid
+# is not always the engine), so the classifier and its "empty window is never a pass" rule are
+# gated here rather than trusted. Read-only over the CSV; synthetic fixtures only.
+echo "== gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak) =="
+python3 spark/bench/gate7-read.py --self-test
+
 # HD-256: like ansible-run.sh, export ANSIBLE_CONFIG + ANSIBLE_ROLES_PATH so the
 # role path resolves when running from the repo root on the Debian/WSL primary
 # (otherwise ansible finds no config here and every `roles: - xxx` fails to resolve).

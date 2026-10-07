@@ -109,6 +109,9 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 > the guard goes silent. There is no value that is right at both ends: the certified peak (96,235 MiB)
 > sits **3.8 GiB** above the committed floor (92,309 MiB), so any margin that clears the peak is
 > unreachable by ordinary traffic and any margin that fires, fires on a healthy engine.
+> **2026-10-06, and the dilemma got sharper:** the peak that was being priced against is stale — the
+> current boot's watchdog curve rests at **99,649 MiB flat for 9 h** after one bounded fill step, so
+> the live trigger (101,283 MiB) is only **1,634 MiB** below where a healthy engine actually sits.
 > **The baseline machine now (kept, even with the term off):** `await-health` → `settling` → `collecting`
 > → `committed` — `/health` 200, then a settle window, then the **max** of N plausible reads inside a span
 > (a read below `spark_oom_watchdog_baseline_min_mib` is refused, which keeps recycle disarmed rather than
@@ -334,6 +337,21 @@ measured 4.93e9 OS term is the ⏳ half of HD-494.
 > (HD-380's `gpu_top_mib` > 2 GiB/h, gate 7) accrues on the current regime since **2026-10-06 11:19Z** and is read when that
 > window fills, and the global re-derive above stays open. Raw:
 > [`spark/reports/hd489-overnight-20261006-0226/raw/b7-watchdog-rest-analysis.txt`](../spark/reports/hd489-overnight-20261006-0226/raw/b7-watchdog-rest-analysis.txt).
+>
+> **The read is a tool now, because the eyeball version was wrong** (2026-10-06):
+> `spark/bench/gate7-read.py` buckets the window by hour **on one `gpu_top_pid`** and separates the
+> two shapes the raw CSV confuses — a `gpu_top_pid` that is sometimes another process produced a
+> spurious 2,663 MiB/h "growth" over the last window, and the real curve's shape is **one bounded
+> step and then flat**. It carries a self-test (8 cases: flat, +3 GiB/h leak, two-pid artifact,
+> empty, too-short, bounded fill, fill-then-still-climbing, recovered spike) and exits non-zero when
+> the gate fails or the window is too small to decide — an empty read never prints a pass.
+> **First partial read (12.24 h of the accruing window, [`spark/reports/hd489-gate7-partial-20261006/`](../spark/reports/hd489-gate7-partial-20261006/RESULTS.md))**:
+> 94,023 → 99,649 MiB via a single +5,626 MiB step at hour +2, then **9 h flat (spread 0 MiB)**,
+> restarts 0, host usable floor 11.73 GiB. So the shape is a bounded fill, not a leak — but the
+> plateau sits **+6,558 MiB above the watchdog's committed 93,091 MiB baseline and only 1,634 MiB
+> under the recycle trigger (101,283 MiB)**, i.e. 3.4 GiB above the "certified peak" the HD-395
+> margin question was priced against. That number belongs to HD-494's ceiling re-derive, and it
+> tightens the recycle-silence assumption; it is not a gate-7 verdict, which still needs the day.
 
 ### Boot-floor numbers (the baselines future curves compare against)
 
