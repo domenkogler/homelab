@@ -119,10 +119,13 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > edge's `*-backend` URLs moved in one converge, acceptance measured on oldsrv (`ss -ltn`: every routed app
 > port on `127.0.0.1`, none on the Home address; edge ladder byte-identical to the pre-change baseline).
 > It had to be every routed service *and* the edge in one converge; a subset is what caused the outage above. **aurral / slskd / lidarr-ydl joined this group on
-> 2026-10-07 (HD-1087)** — LAN routers, `.ts` twins, `*_url` vars and three split-horizon rows, ⏳ pending the
-> oldsrv converge. Until that converge they still 404 exactly as before, so a live 404 is not a routing bug —
-> check `docker exec traefik-internal cat /etc/traefik/dynamic/routes.yml | grep aurral` first.
-> Follow the same pattern for the next one: the `*-backend` URL points at the var, never a literal address.
+> 2026-10-07 (HD-1087) and are LIVE** — LAN routers, `.ts` twins, `*_url` vars and three split-horizon rows,
+> converged the same day (measured: 200 on both legs where they had answered 404 for a year).
+> ⚠ **They are, however, the routed group's remaining publish exception:** `ss -ltnH` on oldsrv shows
+> `3001`/`5005`/`5030` bound to the Home address while the eleven family ports are on `127.0.0.1`, so a LAN
+> device can still reach those three apps beside the edge. That is HD-1083's tail (their compose publishes
+> hard-code the Home IP — a bind-only flip would strand the socket, the `38f918c` class), not an HD-1087 open
+> item. Follow the pattern for the next one: `*-backend` dials the var, never a literal address.
 
 
 ---
