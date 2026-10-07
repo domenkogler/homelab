@@ -235,11 +235,16 @@ qbit_save_path_incomplete: /downloads/incomplete
 # Categories with their OWN save path, so a grab lands in complete/<category> whatever the arr sends.
 # Pre-created here rather than left to the arrs: an arr creates a missing category with an EMPTY
 # save path, and an empty save path means "use the default" — i.e. the flat-`complete/` shape again.
-# Keys are the categories the arrs are configured to send (Radarr movies / Sonarr tv / Lidarr music).
+# Keys are the categories the arrs are configured to send (Radarr movies / Sonarr tv / Lidarr music)
+# PLUS `prowlarr` — the one Prowlarr's OWN download client sends, for a job started in Prowlarr's
+# search UI (an arr-originated grab never touches it; the arrs send their own per-app category).
+# Same rule as the three arr categories: it gets a folder of its own rather than landing flat in
+# complete/ next to the media the arrs are about to import.
 qbit_categories:
   movies: /downloads/complete/movies
   tv: /downloads/complete/tv
   music: /downloads/complete/music
+  prowlarr: /downloads/complete/prowlarr
 
 # ---- Seeding goal (HD-1086, owner ruling 2026-10-07) ----
 # An arr CANNOT hardlink from /downloads to /media: `ln` across the two binds returns **EXDEV** even
@@ -287,6 +292,13 @@ qbit_seeding_helper: /usr/local/sbin/qbittorrent-seeding.py
 # `movieCategory` stores nothing, the client grabs with NO category, and the file lands flat in
 # complete/ — SAB's `dir` vs `complete_dir` failure shape. The task therefore READS THE CLIENT BACK
 # and asserts the wanted value actually landed, instead of trusting the POST's 2xx.
+#
+# PROWLARR IS IN THIS MAP FOR A DIFFERENT REASON THAN THE OTHER THREE. A Prowlarr download client is
+# never synced to the apps — Prowlarr syncs INDEXERS — so this entry governs only a job started from
+# Prowlarr itself (its search UI). It is here because Prowlarr ships three torrent indexers and had
+# no torrent client at all: `GET /api/v1/downloadclient` → one SABnzbd entry (measured 2026-10-07),
+# so a torrent grab from that UI had nowhere to go. Registering it does NOT give the arrs a second
+# torrent client; see services-downloads.md §Which half of Prowlarr to trust.
 arr_torrent_client:
   sonarr:
     port: 8989
@@ -303,7 +315,14 @@ arr_torrent_client:
     api_base: /api/v1          # Lidarr 3.1 is /api/v1; /api/v3 404s with an empty body (arr_seed note)
     category_field: musicCategory
     category: music
-arr_torrent_client_name: qBittorrent      # the client name shown in each arr
+  prowlarr:
+    port: 9696                 # the app's own socket inside its network, NOT the host publish
+    api_base: /api/v1          # Prowlarr 2.5.2 serves /api/v1 (measured 2026-10-07)
+    category_field: category   # ⚠ NOT a per-app field: Prowlarr's QBittorrentSettings has ONE `category`
+                               # ("Default Category", schema default `prowlarr`) — read out of
+                               # GET /api/v1/downloadclient/schema, not remembered
+    category: prowlarr         # must exist in qbit_categories above, or the path does not steer
+arr_torrent_client_name: qBittorrent      # the client name shown in each app
 # POST needs BOTH names and instantiates the first: `configContract` is a SETTINGS class
 # (`QBittorrentSettings`), `implementation` is the PROVIDER class (`QBittorrent`). Confused for one
 # each other on 2026-10-07 and Sonarr answered 500 "No parameterless constructor defined".
@@ -338,6 +357,7 @@ arr_torrent_client_field_types:
   tvCategory_type: textbox
   movieCategory_type: textbox
   musicCategory_type: textbox
+  category_type: textbox       # Prowlarr's single "Default Category" field
 
 # ---- HD-258: bulk 1Password pre-pass item sets (per-template map) ----
 # The compose/config templates reference `vault: {name: {field}}` items which
@@ -390,6 +410,8 @@ _template_vault_items:
   sonarr: {'qbittorrent_api'}
   radarr: {'qbittorrent_api'}
   lidarr: {'qbittorrent_api'}
+  prowlarr: {'qbittorrent_api'}   # same reason and same item as the three arrs — tasks/arr-client-torrent.yml
+                                  # writes this client too, and derive mode fetches per service IN SCOPE
   aurral: []   # HD-362 — Aurral config is all IN-UI (Lidarr API, Last.fm, ListenBrainz entered in its first-run setup); no 1P items needed for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows. (NB: was `set()` — a Python set literal that YAML parses as the STRING "set()", polluting the derive item set with per-char fake items → op-vault-export failed on '('.)
   lidarr-ydl: {'lidarr_api'}   # HD-362 — Lidarr API key (compose). Its Web-UI login has NO vault item (measured 2026-10-07: no matching title in the 131-item vault) —
   #   first-run setup, not fetched/required by compose.

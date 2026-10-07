@@ -310,7 +310,7 @@ the working half intact:
 - **Indexers stay in Prowlarr** — one list, one credential, one place where an indexer's tags/penalties
   and app-profile reach all three arrs. Registering per-arr means editing NZBGeek three times forever
   and losing the flag that Gate 4 of HD-496 checks ("is this indexer Prowlarr-managed?").
-- **Download clients are added directly in each arr** while SAB 5 / Prowlarr disagree: Radarr → Category
+- **Download clients are added directly in each app** while SAB 5 / Prowlarr disagree: Radarr → Category
   `movies`, Sonarr → `tv`, Lidarr → `music` (SAB ships `audio`; add a `music` category or point Lidarr at
   `audio`). Each arr's own form validates differently and accepts these.
 - ⚠ **Keep grabs flowing through the arrs.** Measured 2026-10-07, the live topology is: each arr carries
@@ -322,6 +322,21 @@ the working half intact:
   `/downloads/complete` **without** the `movies`/`tv`/`music` subfolder — invisible to the arr that would
   import it. So: initiate from the arr, and if someone must use Prowlarr's client, set its category or accept
   that its downloads need manual handling.
+- **Decision 2026-10-07 (HD-1090): Prowlarr gets a qBittorrent client too.** The bullet above settled what a
+  Prowlarr client is *good for*; this is the half it left undone. Prowlarr had **one** client — SABnzbd — and
+  three torrent indexers, so a torrent grabbed in its own search UI had nowhere to land (`GET
+  /api/v1/downloadclient` → the SAB entry alone, measured 2026-10-07; the same gap is what
+  §"Torrent indexers" hit two days earlier as "the blocker behind the blocker"). It is owned in the same
+  seed as the arrs (`tasks/arr-client-torrent.yml` + `arr_torrent_client.prowlarr`), not by hand, so a
+  from-zero converge gets it. Its Default Category is **`prowlarr`**, and that name is in `qbit_categories`
+  with a save path of its own — `/downloads/complete/prowlarr` — because a category with no save path of its
+  own is exactly the flat-`complete/` shape this section keeps re-describing. Nothing about the arr-side
+  clients changes: they are still one-per-protocol, and an arr never sees Prowlarr's list.
+
+**What a Prowlarr-originated grab is.** It is a person clicking the download button in Prowlarr's own search
+UI, with no app to route it — so it carries no `movies`/`tv`/`music` category and cannot land in an arr's root
+folder. That is why it gets a folder of its own rather than the arrs' categories, and why "arrs round-robin
+between two torrent clients" was never the risk: only the arrs' own clients are visible to the arrs.
 - Cost, stated plainly: SAB's host/port/API key now live in **three** configs instead of one, so an API
   key rotation is three edits. Revisit by pulling a Prowlarr build that speaks `get_cats`; if it saves
   with a category, delete the three arr-side clients **first**, then sync from Prowlarr.
@@ -342,10 +357,11 @@ docker exec $c curl -s -H "X-Api-Key: $k" http://127.0.0.1:$p/api/$api/downloadc
 API responses, so `len=8` is the redaction placeholder, not the stored value. Judging "is the key set?"
 by that string wastes time; the `Test` call above is the answer.
 
-### Registering a torrent client in an arr: let the app supply the body (HD-496, 2026-10-07)
+### Registering a torrent client in an app: let the app supply the body (HD-496, 2026-10-07)
 
 `arr-client-torrent.yml` + `templates/arr-torrent-client.py.j2` register qBittorrent in Radarr/Sonarr/
-Lidarr. Four things about the *arr API were measured here, three of them by being broken first:
+Lidarr **and — since HD-1090 the same day — Prowlarr**. Four things about the *arr API were measured here,
+three of them by being broken first;
 
 **1 · A new client must be built from `GET /downloadclient/schema`, not from names we remember.** POST
 requires `configContract`, and it is the name of the **settings class** the app instantiates:
@@ -394,6 +410,28 @@ Finally, a seeding-mode trap of the same family: in vault derive mode the runner
 items belonging to services **in scope**, so an arr-only converge did not fetch `qbittorrent_api` while
 the item was registered only under the `qbittorrent` service. The item belongs to the seed logic, not to
 a service's `templates/` directory — declare it on each consumer.
+
+**5 · Prowlarr 2.5.2 is the same API with three differences, all read off the live app (2026-10-07), none
+of them a branch in the helper.**
+
+| | arrs | Prowlarr 2.5.2 |
+| --- | --- | --- |
+| api base / port | `/api/v3` (Lidarr `/api/v1`) on 8989/7878/8686 | `/api/v1` on 9696 |
+| category field | `tvCategory` / `movieCategory` / `musicCategory` | **`category`** — one field, labelled "Default Category", schema default `prowlarr` |
+| resource keys | carries `removeCompletedDownloads` / `removeFailedDownloads` / `appProfileId` | carries **none of the three** (`GET /downloadclient` returns `categories, configContract, enable, fields, id, implementation, implementationName, infoLink, name, priority, protocol, supportsCategories, tags`) |
+
+The third row is why the helper now re-sends those keys **only if the app reported them**: PUTting three
+keys an app does not own is harmless under ASP.NET but it is a lie about the contract. Everything else
+carried over unchanged, including the two proofs that matter — `GET /api/v1/downloadclient/schema` answers
+with a `QBittorrent` entry whose `configContract` is `QBittorrentSettings` (18 entries, both protocols),
+and `POST /api/v1/downloadclient/test` validates **the body it is given**: `{}` → 400 `'Name' must not be
+empty`, `test/1` → **405**, so the same "re-post the client we just stored" proof works here too. Prowlarr's
+qBittorrent fields are `host, port, useSsl, urlBase, apiKey, username, password, category, priority,
+initialState, sequentialOrder, firstAndLast, contentLayout` — the extra select/checkbox fields are left at
+the schema's own defaults, which is what the create path does for the arrs as well.
+
+⚠ Re-read `arr_torrent_client` before copying this to another app: `category` is correct **only** for
+Prowlarr. Pointing an arr at it would store nothing at all and every grab would land flat in `complete/`.
 
 ### SABnzbd 5's folder options are `complete_dir` / `download_dir` — the old names are inert (HD-496, 2026-10-06)
 
@@ -560,16 +598,19 @@ What actually moves the needle, in order of how well it fits this stack:
    refused), and the proxy setting is global — NZBGeek's queries would start leaving from the VPN exit too.
    Indexers commonly block known VPN ranges, so this can trade one failure for another.
 
-⚠ **The blocker behind the blocker: Prowlarr has no torrent client at all.** `GET /api/v1/downloadclient` →
-`[]`. A torrent indexer can search all it likes; the grab has nowhere to go. qBittorrent itself is fine —
-`GET http://gluetun:8080/` answers **200 from prowlarr and from sonarr** — but note where that probe has to
-run: qBittorrent is `network_mode: service:gluetun`, started with `--webui-port=8080`, and does **not** bind
-loopback inside gluetun, so probing `127.0.0.1:8080` from the gluetun container reads "refused" on a healthy
-client. Probe it from a third container.
+⚠ **The blocker behind the blocker was that Prowlarr had no torrent client at all.** `GET
+/api/v1/downloadclient` → `[]`. A torrent indexer can search all it likes; the grab has nowhere to go.
+qBittorrent itself is fine — `GET http://gluetun:8080/` answers **200 from prowlarr and from sonarr** — but
+note where that probe has to run: qBittorrent is `network_mode: service:gluetun`, started with
+`--webui-port=8080`, and does **not** bind loopback inside gluetun, so probing `127.0.0.1:8080` from the
+gluetun container reads "refused" on a healthy client. Probe it from a third container.
 
-Until a torrent client is registered, the three enabled torrent indexers are a source of **failed grabs**,
-not of content: same trap as an indexer with no download client (§Which half of Prowlarr to trust), one layer
-earlier. Nothing here changes the Usenet leg, which is proven end to end (§End-to-end run, first success).
+**Closed for Prowlarr's own grabs on 2026-10-07 (HD-1090)** — `tasks/arr-client-torrent.yml` now registers
+qBittorrent in Prowlarr as well as in the three arrs, with its own `prowlarr` category (§Which half of
+Prowlarr to trust). The arrs were already fixed by HD-496 Gate 3b, so the three enabled torrent indexers
+stopped being a source of failed grabs there first; the ⏳ live verify of the Prowlarr half is the
+`arr_client_seed` converge. Nothing here changes the Usenet leg, which is proven end to end (§End-to-end
+run, first success).
 
 ### The solver's own door (HD-1084, 2026-10-06)
 

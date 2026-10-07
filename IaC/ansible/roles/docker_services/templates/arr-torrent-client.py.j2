@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-r"""arr-torrent-client.py — register / reconcile the qBittorrent download client in ONE *arr.
+r"""arr-torrent-client.py — register / reconcile the qBittorrent download client in ONE app.
 
 Rendered from arr-torrent-client.py.j2 by the docker_services role (tasks/arr-client-torrent.yml).
 
     arr-torrent-client.py <base_url> <api_base> [--check | --apply | --verify]
-    stdin:  line 1 = that arr's own ApiKey (from its config.xml)
+    stdin:  line 1 = that app's own ApiKey (from its config.xml)
             line 2 = the qBittorrent WebUI password (from 1Password, field `credential`)
+
+Runs against Sonarr / Radarr / Lidarr AND Prowlarr (`arr_torrent_client` in group_vars is the gate).
+In Prowlarr the client governs ONLY a job started inside Prowlarr — its download-client list is never
+synced to the apps, Prowlarr syncs indexers — so this is not a second client anywhere.
 
 WHY A SCRIPT AND NOT A PATTERN OF `uri:` TASKS: the payload has to be MERGED, not bludgeoned. Reading
 the client back and PUTting it verbatim stores the app's own REDACTED secret (measured: a working key
@@ -128,15 +132,22 @@ if existing:
         "enable": True,                           # a torrent client nobody enabled downloads nothing
         "protocol": existing.get("protocol", "torrent"),
         "priority": existing.get("priority", 1),
-        "removeCompletedDownloads": existing.get("removeCompletedDownloads", True),
-        "removeFailedDownloads": existing.get("removeFailedDownloads", True),
         "configContract": existing.get("configContract") or CONTRACT,
         "implementation": existing.get("implementation") or IMPLEMENTATION,
-        "appProfileId": existing.get("appProfileId", 1),
         "tags": existing.get("tags", []),
         "fields": [{"name": k, "value": v, "type": types.get(k) or TYPES.get(k, "textBox")}
                    for k, v in merged.items()],
     }
+    # Keys that are NOT part of every app's download-client resource. Send each one only when the app
+    # itself reported it: the Sonarr/Radarr/Lidarr resource carries all three, Prowlarr 2.5.2's carries
+    # NONE of them (measured 2026-10-07 — GET /api/v1/downloadclient returns exactly
+    # categories/configContract/enable/fields/id/implementation/implementationName/infoLink/name/
+    # priority/protocol/supportsCategories/tags). ASP.NET ignores an unknown member, so this is not a
+    # correctness fix — it is the difference between PUTting what the app owns and inventing three keys
+    # it does not have, which is what `appProfileId: 1` was for an app with no such field.
+    for _opt in ("removeCompletedDownloads", "removeFailedDownloads", "appProfileId"):
+        if _opt in existing:
+            body[_opt] = existing[_opt]
     # Password is unreadable by design, so it is not part of the drift question — the test call is.
     drift = [k for k in wanted if k != "password" and live.get(k) != wanted[k]]
     if not existing.get("enable"):

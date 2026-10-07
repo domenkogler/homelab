@@ -1,6 +1,9 @@
 ---
-# arr-client-torrent.yml — register qBittorrent as a torrent download client in each *arr.
-# Included once per *arr from docker_services/main.yml, gated on `template_dir in arr_torrent_client`
+# arr-client-torrent.yml — register qBittorrent as a torrent download client in each app that asks for
+# one: the three arrs AND Prowlarr (HD-1090). Everything below says "arr" and means "the app in scope";
+# the one Prowlarr-specific difference is the category field name (`category`, not `tvCategory`/…), which
+# is data in `arr_torrent_client`, never a branch in this file or the helper.
+# Included once per app from docker_services/main.yml, gated on `template_dir in arr_torrent_client`
 # + the deploy scope + `not ansible_check_mode` (every task drives a live API).
 #
 # WHY IT IS OWNED HERE: a download client is APP state — it lives in each app's own SQLite, not in
@@ -9,10 +12,14 @@
 # was opened for, and it is why the root folders (tasks/arr-seed.yml) and this client are both seeded
 # instead of written into the runbook.
 #
-# POLICY, inherited from the Usenet half of the same lane (docs/services-downloads.md §"Which half of
-# Prowlarr to trust"): download clients are registered IN EACH ARR, never in Prowlarr; indexers stay
-# Prowlarr-synced. Adding the client in Prowlarr too yields two enabled clients of one protocol per
-# arr, and the arrs round-robin grabs between them — random landing folders, discovered weeks later.
+# POLICY (docs/services-downloads.md §"Which half of Prowlarr to trust"): indexers stay Prowlarr-synced,
+# download clients are registered IN EACH APP. That is still true, and it is why this file owns the
+# arrs. What changed 2026-10-07 (HD-1090) is the reason this file used to cite against touching
+# Prowlarr at all: it claimed a Prowlarr client would give the arrs two enabled clients of one protocol
+# and make them round-robin. It cannot — Prowlarr syncs INDEXERS, never download clients, so an arr
+# never sees Prowlarr's list. Prowlarr is therefore in scope for the one thing its own client governs:
+# a job started IN Prowlarr (its search UI), which until now had no torrent client at all and produced
+# failed grabs from three registered torrent indexers.
 #
 # Ordering: this include sits AFTER qbittorrent-seed.yml on purpose. That seed is what proves the
 # WireGuard tunnel actually carries qBittorrent's egress; enabling a torrent client behind a dead

@@ -1662,10 +1662,12 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
    return the site's recent feed and every release is rejected as `Unknown Series`.
 7. **SABnzbd as download client, in each arr** — Radarr `movies` · Sonarr `tv` · Lidarr `music`, host
    `SABnzbd`, port `8080`, SSL off. Evidence: that arr's own `POST /api/vN/downloadclient/test` → HTTP 200.
-   ⚠ Do **not** also add SABnzbd in Prowlarr: the arrs then round-robin two enabled clients into arbitrary
-   landing folders.
-8. **qBittorrent (torrent leg)** — the download client is registered **in each arr** (same rule as SABnzbd,
-   §Which half of Prowlarr to trust in [services-downloads.md](docs/services-downloads.md)): Radarr
+   ⚠ Register it **in the arr**, not only in Prowlarr: Prowlarr syncs indexers and never download clients, so
+   an arr with no client of its own receives nothing, while a client added in Prowlarr governs only a job
+   started in Prowlarr's own UI (services-downloads.md §Which half of Prowlarr to trust).
+8. **qBittorrent (torrent leg)** — the download client is registered **in each arr AND in Prowlarr** (same
+   rule as SABnzbd, §Which half of Prowlarr to trust in [services-downloads.md](docs/services-downloads.md)):
+   Radarr
    `movies` · Sonarr `tv` · Lidarr `music`, host `gluetun`, port `8080`. qBittorrent runs
    `network_mode: service:gluetun`, so `qbittorrent:8080` never resolves — always dial `gluetun:8080`, and
    probe it from a third container, never from inside gluetun.
@@ -1686,15 +1688,18 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
       $ bash scripts/ansible-run.sh playbooks/home_servers.yml \
           --tags docker_services,qbittorrent,qbittorrent_seed -e docker_services_scope="qbittorrent"
       ```
-   c. Register the client in the three arrs:
+   c. Register the client in the three arrs **and in Prowlarr** (Prowlarr's own client serves only a grab
+      started in Prowlarr's search UI; it is never synced to the apps):
       ```console
       $ bash scripts/ansible-run.sh playbooks/home_servers.yml \
-          --tags docker_services,sonarr,radarr,lidarr,arr_client_seed \
-          -e docker_services_scope="sonarr,radarr,lidarr"
+          --tags docker_services,sonarr,radarr,lidarr,prowlarr,arr_client_seed \
+          -e docker_services_scope="sonarr,radarr,lidarr,prowlarr"
       ```
       Success reads `registered host=gluetun:8080 movieCategory=movies · arr client test HTTP 200` — the
-      200 is the arr's own `/downloadclient/test`, so it proves DNS for `gluetun`, reachability of `:8080`
-      and the credential in one line. Re-running must read `OK already: unchanged`.
+      200 is the app's own `/downloadclient/test`, so it proves DNS for `gluetun`, reachability of `:8080`
+      and the credential in one line. Prowlarr's line reads `category=prowlarr` and its grabs belong to
+      `/downloads/complete/prowlarr`, not to the arr categories — that folder must exist as a qBittorrent
+      category with its own save path (`qbit_categories`). Re-running must read `OK already: unchanged`.
    d. ⚠ **Prove the VPN leg before adding any torrent**, and treat "inconclusive" as unsafe: host egress and
       `docker exec gluetun wget -qO- https://api.ipify.org` must differ. An IP leak has no undo.
    e. **Adding a torrent the arrs' indexers cannot search** (e.g. a LimeTorrents movie grab — LimeTorrents is

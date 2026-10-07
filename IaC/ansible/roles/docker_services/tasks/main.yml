@@ -364,9 +364,11 @@
 
 # Gate 3b of the acquisition lane: the three arrs carried a Usenet client and ZERO torrent clients, so
 # every torrent indexer Prowlarr synced (Zamunda, LimeTorrents, Nyaa) resolved releases nobody could
-# receive. Registered per-arr, never in Prowlarr — same policy the Usenet half settled. Runs AFTER the
-# qBittorrent seed above, which is what proves the VPN carries the egress.
-- name: "Register the qBittorrent download client in each *arr (torrent leg)"
+# receive. Registered IN EACH APP — including Prowlarr itself since HD-1090, whose own search UI had the
+# same zero-torrent-client shape; that client governs only Prowlarr-originated grabs, because Prowlarr
+# syncs indexers and never download clients. Runs AFTER the qBittorrent seed above, which is what proves
+# the VPN carries the egress.
+- name: "Register the qBittorrent download client in each app that asks for one (torrent leg)"
   ansible.builtin.include_tasks:
     file: arr-client-torrent.yml
   vars:
