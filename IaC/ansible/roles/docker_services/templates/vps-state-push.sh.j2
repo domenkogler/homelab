@@ -1,0 +1,89 @@
+#!/bin/bash
+# Managed by Ansible — docker_services role ({{ inventory_hostname }}). HD-470: the VPS's own
+# state has ONE copy on ONE disk. This unit moves the payload that `push-services` used to
+# pretend to move, to the Hetzner Storage Box over the CIFS mount the `cifs` role already
+# maintains — the same transport the immich tier uses, so no new mechanism is introduced.
+#
+# Payload (Tier 1 — the classes the row names, all of them single-copy on /dev/vda3 today):
+#   1. the db-backup dump volume (Postgres dumps — Authentik, Forgejo, Immich, Zipline, LiteLLM,
+#      whatever {{ vps_state_push_dumps_src }} holds; rotation stays db-backup's own, this is a
+#      mirror, not a second retention policy);
+#   2. the declarative service state — every /opt/<service>/docker-compose.yml and .env;
+#   3. the n8n sqlite database (n8n runs DB_TYPE: sqlite, so it has NO dump path at all).
+#
+# Deliberately NOT covered here, and said out loud because a coverage table that lies is worse
+# than no table: the media/originals tiers, Matrix/OpenCloud blobs and the Forgejo git repos.
+# Those need their own decision (docs/backup.md), not a quiet omission.
+set -euo pipefail
+
+MOUNT="{{ vps_state_push_mount }}"
+DEST="$MOUNT/{{ vps_state_push_dir }}/{{ inventory_hostname }}"
+DUMPS_SRC="{{ vps_state_push_dumps_src }}"
+N8N_SRC="{{ vps_state_push_n8n_src }}"
+
+# Guard 1 (the HD-450 class, transplanted): if the box is not actually mounted, $MOUNT is an
+# empty directory on the VPS's own disk and every rsync would "succeed" while writing the
+# off-box copy ONTO THE SAME DISK. The mount check is the whole point of the unit, so it runs
+# first and fails LOUD. findmnt --target resolves the mount a path sits on, so a bind over the
+# top of it cannot fake a CIFS fs.
+FS=$(findmnt -n -o FSTYPE --target "$MOUNT" 2>/dev/null | tail -1)   # innermost of the stack
+TYPE=$(stat -f -c %T "$MOUNT" 2>/dev/null || true)                     # statfs magic: smb2 on this box
+# Accepted forms measured here 2026-10-07: findmnt says `cifs` while stat -f says `smb2` (the
+# kernel reports the SMB2 magic for a vers=3 mount), and the mount sits under an autofs layer, so
+# --target prints a STACK (autofs, cifs) — a plain string equality on it was wrong on the first
+# live run. Anything local (ext4/xfs/btrfs/overlayfs) must stop the unit.
+case "${FS:-none}|${TYPE:-none}" in
+    *cifs*|*smb*) : ;;
+    *)
+        echo "FATAL: $MOUNT is not a CIFS/SMB mount (findmnt='${FS:-none}', statfs='${TYPE:-none}')." >&2
+        echo "       The Storage Box mount is down or the role drifted — refusing to write an" >&2
+        echo "       off-box copy onto the VPS's own disk." >&2
+        exit 90 ;;
+esac
+SRC=$(findmnt -n -o SOURCE --target "$MOUNT" 2>/dev/null || true)
+
+if [ ! -d "$DUMPS_SRC" ]; then
+    echo "FATAL: dump source $DUMPS_SRC is missing — db-backup's volume moved or was renamed." >&2
+    exit 92
+fi
+
+install -d "$DEST/dumps" "$DEST/state"
+
+# 1. Postgres dumps. --delete mirrors the source rotation on purpose: a second retention
+#    policy is a second thing that can be wrong, and db-backup already ages its own dumps.
+#    ⚠ CIFS carries no unix symlinks (measured 2026-10-07, first live run: rsync rc 23,
+#    `symlink "latest-pgsql_pgvector_pgvector" ... Input/output error (5)`), and db-backup marks
+#    each DB's newest dump with exactly such a symlink. So the aliases are excluded (and cleaned
+#    off the destination by --delete-excluded) and replaced by a plain LATEST.txt index written
+#    below — the dated filenames carry their own stamps, nothing is lost.
+rsync -a --delete --delete-excluded --exclude='latest-*' --partial \
+      "$DUMPS_SRC/" "$DEST/dumps/"
+
+# 2. Declarative state: compose + env for every service dir under /opt. Anchored excludes so
+#    nothing but those two filenames walks the tree (data does not live here, but a stray
+#    subdirectory must not turn this into a full-disk copy).
+rsync -a --delete --include='*/' --include='docker-compose.yml' --include='.env' \
+      --exclude='*' /opt/ "$DEST/state/opt/"
+
+# 3. n8n sqlite. ⚠ A cold copy of (database.sqlite, -wal, -shm) taken while n8n writes can be
+#    inconsistent; the three files are copied together in one rsync so the pair stays matched,
+#    and this is a KNOWN LIMITATION, not a solved coherency problem — see docs/backup.md. A
+#    consistent dump needs n8n on Postgres or a .backup call the image cannot make (no sqlite3
+#    in the n8n image — measured 2026-10-07).
+if [ -d "$N8N_SRC" ]; then
+    rsync -a --delete --include='database.sqlite*' --exclude='*' "$N8N_SRC/" "$DEST/state/n8n-sqlite/"
+fi
+
+# Read-back, because "rsync exited 0" is not the acceptance criterion — the file has to be
+# readable through the mount afterwards.
+LATEST=$(find "$DEST/dumps" -name '*.sql.zst' -type f -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)
+if [ -z "${LATEST:-}" ] || ! zstd -t "$LATEST" >/dev/null 2>&1; then
+    echo "FATAL: read-back failed — no integrity-passing .sql.zst under $DEST/dumps." >&2
+    exit 91
+fi
+# The alias layer CIFS cannot carry, rebuilt as a plain text index (one newest line per DB).
+find "$DEST/dumps" -name '*_*.sql.zst' -type f -printf '%T@ %P\n' 2>/dev/null \
+  | sort -nr | awk '{p=$2; sub(/_[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]\.sql\.zst$/, "", p); if (!(p in seen)) {print p" -> "$2; seen[p]=1}}' \
+  | sort > "$DEST/dumps/LATEST.txt"
+echo "OK vps-state-push: dumps mirrored + state copied, read-back verified $(basename "$LATEST")"
+echo "   dest=$DEST source=$SRC at $(date -u +%FT%TZ)"

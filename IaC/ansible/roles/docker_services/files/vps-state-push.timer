@@ -1,0 +1,9 @@
+[Unit]
+Description=Daily VPS state push to the Storage Box (HD-470)
+
+[Timer]
+# After db-backup's own fire (measured 2026-10-06: dumps stamped 20:01), before the nightly
+# media churn; Persistent catches a box that was down at the hour.
+OnCalendar=*-*-* 23:15:00
+RandomizedDelaySec=10min
+Persistent=true

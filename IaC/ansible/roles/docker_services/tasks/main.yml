@@ -531,6 +531,48 @@
         enabled: true
         state: started
 
+- name: VPS state push to the Storage Box (HD-470 — the VPS's own state has one copy on one disk)
+  # Present only where db-backup runs (the VPS). The script's own guard exits 90 when the box
+  # mount is down, so a dead mount is a LOUD failed unit rather than a silent same-disk copy —
+  # the HD-450 self-pull lesson, transplanted to a different transport.
+  tags: docker_services
+  when:
+    - scope_is_all
+    - vps_state_push_enabled | default(true) | bool
+    - "'db-backup' in (docker_services | map(attribute='name') | list)"
+  block:
+    - name: Assert the Storage Box mount path is a real path and the dump source is named
+      # Check-mode safe, plain `assert`, no default() (HD-399 rule).
+      ansible.builtin.assert:
+        that:
+          - vps_state_push_mount | length > 0
+          - vps_state_push_dumps_src | length > 0
+          - vps_state_push_mount != '/srv' and vps_state_push_mount != '/'
+        fail_msg: "vps_state_push_mount = {{ vps_state_push_mount }} is unusable — the push target must be the Storage Box mountpoint, never a path on the host disk."
+        quiet: true
+
+    - name: Deploy vps-state-push script
+      ansible.builtin.template:
+        src: vps-state-push.sh.j2
+        dest: /usr/local/sbin/vps-state-push.sh
+        mode: '0755'
+
+    - name: Install vps-state-push systemd units
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "/etc/systemd/system/{{ item }}"
+        mode: '0644'
+      loop:
+        - vps-state-push.service
+        - vps-state-push.timer
+      notify: reload systemd
+
+    - name: Enable + start vps-state-push timer
+      ansible.builtin.systemd:
+        name: vps-state-push.timer
+        enabled: true
+        state: started
+
 - name: Render Homepage config (post-deploy, after all services up)
   when:
     - scope_is_all

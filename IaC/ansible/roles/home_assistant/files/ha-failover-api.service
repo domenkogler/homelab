@@ -1,6 +1,6 @@
 [Unit]
 Description=HA failover trigger API (docs/smart-home-failover.md, HD-17)
-Documentation=docs/smart-home-failover.md
+Documentation=file:/usr/local/sbin/ha-failover-api.py
 After=network-online.target docker.service
 Wants=network-online.target
 

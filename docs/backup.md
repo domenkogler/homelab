@@ -116,14 +116,14 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
-| PostgreSQL DBs — **Authentik, Forgejo, Immich, Zipline** (HD-112), **LiteLLM runtime** (HD-247: `STORE_MODEL_IN_DB` ⇒ the DB holds keys/models/spend) — all on the **VPS** via `db-backup` `DB01–03` + `DB05–06` | VPS NVMe | ⚠ **daily dumps, ONE copy, on the same disk as the databases** — see §VPS-side coverage gap. The documented `→ tank/data/db-dumps (ZFS)` push and the Kopia snapshot of the dump volume **do not exist** | *(intended: ZFS `tank/data/db-dumps` + Storage Box via Kopia — **not live**)* |
+| PostgreSQL DBs — **Authentik, Forgejo, Immich** (`db-backup` `DB01–03`) and **LiteLLM runtime** (HD-247: `STORE_MODEL_IN_DB` ⇒ the DB holds keys/models/spend; block `DB04` **since 2026-10-07** — as `DB06` it was never dumped once, §The slot-numbering rule) — all on the **VPS**. **Zipline has no block at all** (the old `DB05` claim was fiction) | VPS NVMe | daily dumps in the `db-backup` volume, **mirrored off-box every night since 2026-10-07 by `vps-state-push` (§VPS state push, HD-470)** — before that: ONE copy on the same disk as the databases. The documented `→ tank/data/db-dumps (ZFS)` push and a Kopia snapshot of the dump volume still **do not exist** | Hetzner Storage Box `vps-state/vps.kogler.si/dumps` (rsync, **not encrypted at rest**); Kopia still unattached |
 | **`lan-litellm-db` on oldsrv** (the LAN inference gateway's Postgres) | oldsrv | **dump job now exists (HD-468, 2026-09-28)**: `storage-push-db-dumps.sh` runs `pg_dumpall` inside `lan-litellm-db`, gzip-tests the dump, refuses to ship an empty one, and rsyncs with owner/group preservation OFF — the export is `root_squash,anonuid=1005`, so `rsync -a` could only ever die on `chown` (rc 23). Local retention 14, no `--delete` on the NAS side (sanoid owns retention) | oldsrv `/srv/dumps` → `tank/data/db-dumps` (ZFS) |
 | **Matrix server state + signing identity + media store** (HD-49) — tuwunel: RocksDB room/user state, the **server signing key** + key-notary data, the E2EE key-backup, `media/` and `archive/` | VPS NVMe `/srv/docker/matrix` (single bind → `/var/lib/tuwunel`) | **Nothing backs it up today** — the path is not in any snapshot because there is no VPS-side Kopia client (§VPS-side coverage gap). Note there is **no separate key file to archive**: `database_path` is the data dir and probing it finds no `*.pem`/keystore file, so the signing identity lives inside the same RocksDB store as the rooms | *(pending the VPS client; then one row covers all of it)* — see §Matrix: what one path buys and what it does not |
 | **RustDesk server keypair + client registrations** (HD-412) — `/srv/docker/rustdesk-server/data` | VPS NVMe | **Primary restore is 1Password `rustdesk_login`, not a snapshot** (the s6 unit re-seeds `/data/id_ed25519*` from `KEY_PUB`/`KEY_PRIV` when absent, so wiping the dir + re-converging restores the identity and enrolled clients keep working). The snapshot only has to cover `db_v2.sqlite3` (client/peer registrations) — losing it re-prompts devices, it does not lock anyone out | 1P (identity) + Kopia once the VPS client exists (registrations) |
 | **Qdrant** vector store (`/srv/docker/qdrant`), HD-267/268 | VPS NVMe | **rebuildable cache** (docs/services-ai.md §5b) — snapshot/export via Qdrant REST `/snapshots` + Kopia-backed host bind; **not** a db-backup Postgres dump | `tank/data/services` (ZFS) + Hetzner Storage Box (Kopia) — *intended; same VPS-client caveat* |
 | Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
-| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **AI harness (pi-dev + DSH) workspaces** (`/srv/docker/pi-dev/workspace`, `/srv/docker/dsh/workspace`, HD-268c); **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | ⚠ **the push fails every night** — `push-services` dumps `forgejo`/`n8n` containers that exist only on the VPS while the unit is installed on oldsrv (**HD-468**) — + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) — ⚠ the oldsrv unit that named these containers was REMOVED 2026-09-28 (HD-468): they are vps-side, and the vps dump is ONE copy on ONE disk until HD-191 gives that host a client |
-| **Zipline file payloads** (`/srv/docker/zipline/uploads` — datasource; HD-112) | VPS NVMe | **Kopia-EXCLUDED by design**: anonymous dropzone drops self-destruct at ≤ 6h TTL (guestbin quota-bounded); private-account files are owner-managed | — *(ephemeral/regenerable-by-design — observability-TSDB precedent)*. The metadata DB IS dumped (`db-backup` DB05). |
+| Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend → moved into litellm-db Postgres, dumped via db-backup DB06** (HD-247 models-in-DB: the DB is the critical state, `/srv/docker/litellm` keeps only misc app state), **OpenClaw config/state** — HD-104 on the **VPS**; **AI harness (pi-dev + DSH) workspaces** (`/srv/docker/pi-dev/workspace`, `/srv/docker/dsh/workspace`, HD-268c); **Seerr config + `seerr.db`** — HD-130/KOPS-059 on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | ⚠ **the push fails every night** — `push-services` dumps `forgejo`/`n8n` containers that exist only on the VPS while the unit is installed on oldsrv (**HD-468**) — + Kopia | `tank/data/services` (ZFS) + Hetzner Storage Box (backup) — ⚠ the oldsrv unit that named these containers was REMOVED 2026-09-28 (HD-468): they are vps-side, and the vps dump is ONE copy on ONE disk — **changed 2026-10-07 for the VPS half only:** `vps-state-push` mirrors the dumps, every `/opt/*/docker-compose.yml` + `.env` and the n8n sqlite trio to the Storage Box nightly (§VPS state push); the oldsrv half of this row is untouched |
+| **Zipline file payloads** (`/srv/docker/zipline/uploads` — datasource; HD-112) | VPS NVMe | **Kopia-EXCLUDED by design**: anonymous dropzone drops self-destruct at ≤ 6h TTL (guestbin quota-bounded); private-account files are owner-managed | — *(ephemeral/regenerable-by-design — observability-TSDB precedent)*. ⚠ **The metadata DB is NOT dumped** — measured 2026-10-07: no `DB05` block has ever existed in the compose, so HD-112's metadata is uncovered (the row previously claimed the opposite). |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
 | Immich **originals + encoded-video** (photos/videos) | **live Hetzner Box** (CIFS `//u653411.../backup`, VPS) | **live tier** (HD-135) | backed by **Kopia → backup Box** (off-site) **+ the Immich DB** (albums/faces/tags) — D3. *Supersedes the MinIO/S3-originals plan (HD-131 D1).* |
@@ -158,6 +158,57 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 `/opt`, the `db-backup` dump volume and the `/srv/docker/*` service-state dirs. Until that lands, the
 scope rows above stay written as *policy* and HD-49/HD-102/HD-238 stay open — adding a Matrix or
 RustDesk row to an include list that has no client to attach to would only make the doc more fiction.
+
+### VPS state push — what runs now (HD-470, live 2026-10-07)
+
+`vps-state-push.service` + `.timer` (installed by the `docker_services` role on the VPS; daily
+23:15 after db-backup's 20:01 fire, `Persistent=true`, `Nice=10`/`IOSchedulingClass=idle` because
+this box serves production from 16 GB). Payload, in one rsync pass to the box the `cifs` role
+already mounts:
+
+| what | source (measured, not assumed) | on the box |
+|---|---|---|
+| every Postgres dump db-backup keeps | `/var/lib/docker/volumes/db-backup_db-backups/_data` (1.3 GiB, 286 files) | `vps-state/vps.kogler.si/dumps/` |
+| the declarative state of every service | `/opt/*/docker-compose.yml` + `/opt/*/.env` (41 files, 0.2 MiB) | `vps-state/vps.kogler.si/state/opt/` |
+| n8n's database (runs `DB_TYPE: sqlite`, so it has **no dump path**) | `/srv/docker/n8n/data/database.sqlite*` | `state/n8n-sqlite/` |
+
+* **The guard is the point.** If `/mnt/storagebox` is not a CIFS/SMB mount the unit exits **90**
+  instead of rsyncing: a dead mount is an empty directory on the VPS's own disk, and the "off-box
+  copy" would then be a same-disk copy that reports success — the HD-450 self-pull class, same
+  shape, different transport. The test accepts `cifs` from findmnt **or** `smb2` from statfs and
+  reads the *innermost* entry of the mount stack (the box sits under an `autofs` layer; a string
+  equality on `findmnt --target` failed on the first live run for exactly that reason).
+* **CIFS carries no unix symlinks.** db-backup marks each DB's newest dump with a `latest-*`
+  symlink; mirroring them fails `Input/output error (5)` (rsync rc 23). The aliases are excluded
+  and the unit rebuilds the index as a plain `dumps/LATEST.txt`.
+* **Acceptance was read back, not inferred:** 1.3 GiB present through the mount, `zstd -t` of the
+  newest dump inside the unit (exit 91 if that fails), and **a real restore** — the Forgejo dump
+  into a scratch `postgres:16.15-alpine` gave **130 tables against production's 130**.
+* **Restore recipe these dumps actually need** (they are written by pg_dump **18.3** against
+  servers running **16.15**): drop `SET transaction_timeout = 0;` (a PG 18-only GUC — aborts a
+  PG 16 restore at line 12) and the new `\restrict`/`\unrestrict` meta-commands, and `CREATE ROLE
+  <dbuser>` before restoring, or every `OWNER TO` fails. Verified end to end, not theorized.
+* **Still not covered, said plainly:** Matrix/tuwunel (RocksDB state *and* the signing identity),
+  Headscale, CrowdSec decisions, Qdrant, OpenCloud, Grafana, the **Forgejo git repos**, and the
+  immich originals — the box holds only an empty `music/`, so the immich originals are on the VPS
+  disk too (289 MB under `/srv/docker/immich/upload`), which also makes the `cifs` role header's
+  "Immich originals live on the Box" claim stale. And this is rsync to a CIFS share, **not** the
+  encrypted snapshot Kopia would give: the kopia-client gap below is unchanged.
+
+**The slot-numbering rule (found the hard way, 2026-10-07, and it was costing real state).**
+`tiredofit/db-backup` builds one `dbbackup-NN` scheduler per configured block but numbers those
+slots **sequentially from 01**, while each slot's job reads `DB{NN}_*`. With blocks
+`DB01/DB02/DB03/DB06` the fourth slot looked for `DB04_*`, logged `No 'appropriate database type'
+Entered!` on every fire, and dumped **nothing** — so **LiteLLM's keys/models/spend (HD-247,
+classified CRITICAL, irretrievable-metadata) had never been dumped**, weeks after its block was
+added, while `docker ps` showed db-backup "Up" and `backup04-now` was the only command that would
+say so. The same mechanism left a retired `pgvector` block dumping nothing since 2026-08-27. Fix:
+blocks are numbered **contiguously from DB01** — LiteLLM is `DB04` now, and a number is never
+reserved for a database that does not exist yet (a reserved number *is* a broken block). First
+LiteLLM dump in history: `pgsql_litellm_litellm-db_20261007-030224.sql.zst`. **The general rule:
+any component whose config is read once at container init, not at run time, needs its container
+recreated after a config change — and a block that never produces output is a fault, so its
+"did it run today" signal has to be the output, not the unit's `active` state.**
 
 ### Matrix: what one path buys and what it does not
 

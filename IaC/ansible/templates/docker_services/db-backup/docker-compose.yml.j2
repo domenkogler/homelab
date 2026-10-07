@@ -91,15 +91,23 @@ services:
       # irrecoverable metadata, docs/backup.md) AND a non-Postgres store. Therefore it is
       # deliberately NOT a DBxx block here: no pgvector/qdrant Postgres target exists to dump.
       # Its snapshot/state dir is a Kopia-backed host bind (/srv/docker/qdrant); correctness is
-      # restored on loss by re-indexing from the Forgejo OKF wiki repos (services-ai.md §5b). (HD-247): STORE_MODEL_IN_DB means keys/models/spend live HERE,
-      # not in git config — irretrievable-metadata class (KOPS-026); CRITICAL state.
-      # NOTE: DB05 stays reserved for zipline-db (HD-112, lands with its first deploy).
-      DB06_TYPE: postgresql
-      DB06_HOST: litellm-db
-      DB06_PORT: "5432"
-      DB06_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"
-      DB06_PASS: "{{ vault['litellm_db'].password | replace('$','$$') }}"
-      DB06_NAME: litellm
+      # restored on loss by re-indexing from the Forgejo OKF wiki repos (services-ai.md §5b).
+      # HD-247: STORE_MODEL_IN_DB means keys/models/spend live HERE, not in git config —
+      # irretrievable-metadata class (KOPS-026); CRITICAL state.
+      # ⚠ **The block number is a SLOT, not a label — numbers must be CONTIGUOUS from DB01.**
+      # Measured 2026-10-07: the image builds one `dbbackup-NN` scheduler per configured block
+      # but numbers them 01..N in order, while each scheduler reads `DB{NN}_*` — so with blocks
+      # DB01/02/03/**DB06** the fourth scheduler looked for `DB04_*`, logged `No 'appropriate
+      # database type' Entered!` on every fire and dumped NOTHING for LiteLLM for weeks, silently
+      # (this is why the number, not the block, was the bug). A "reserved for later" number is
+      # therefore a broken block: when zipline-db (HD-112) lands it takes the next CONTIGUOUS
+      # number after the last real block, and nothing gets a number before it exists.
+      DB04_TYPE: postgresql
+      DB04_HOST: litellm-db
+      DB04_PORT: "5432"
+      DB04_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"
+      DB04_PASS: "{{ vault['litellm_db'].password | replace('$','$$') }}"
+      DB04_NAME: litellm
 
       # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx
       # block here. Its backup is a tar of the data dir (/srv/docker/opencloud/data,

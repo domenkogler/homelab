@@ -374,3 +374,18 @@ _bulk_op_glue:
   - immich_oidc
   - forgejo_oidc
   - zipline_oidc
+
+# === HD-470: VPS state push to the Hetzner Storage Box =======================
+# The payload below has ONE copy on ONE disk (/dev/vda3) on the VPS. This is the only
+# host-side backup act that runs there; docs/backup.md owns the coverage table.
+# The transport is the CIFS mount the `cifs` role already keeps mounted (HD-135) — no new
+# mechanism, no new credential, and the unit REFUSES to run if that mount is not CIFS,
+# because a dead mount would silently write the "off-box" copy onto the same disk.
+vps_state_push_enabled: true
+vps_state_push_mount: /mnt/storagebox
+# Path on the box, under the mounted share; the host name is appended by the script.
+vps_state_push_dir: vps-state
+# db-backup's dump volume (project-prefixed volume name — measured, not assumed).
+vps_state_push_dumps_src: /var/lib/docker/volumes/db-backup_db-backups/_data
+# n8n runs DB_TYPE: sqlite, so it has no dump path; its sqlite trio is copied as a pair-set.
+vps_state_push_n8n_src: /srv/docker/n8n/data

@@ -1,0 +1,16 @@
+[Unit]
+Description=Push VPS dumps + service state off-box to the Hetzner Storage Box (HD-470)
+Documentation=file:/usr/local/sbin/vps-state-push.sh
+Wants=network-online.target
+After=network-online.target
+# The unit's own guard exits 90 if the mount is not CIFS; this makes systemd wait for the box
+# instead of burning a failed attempt on every boot.
+RequiresMountsFor=/mnt/storagebox
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/vps-state-push.sh
+# This box serves production from 16 GB; a 1.3 GiB mirror must not compete with it.
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=45min

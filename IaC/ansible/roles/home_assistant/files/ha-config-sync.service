@@ -1,6 +1,6 @@
 [Unit]
 Description=Push Pi HA config → oldsrv standby (/opt/home-assistant-standby/config)
-Documentation=docs/smart-home-failover.md
+Documentation=file:/usr/local/sbin/ha-config-sync.sh
 After=network-online.target
 
 [Service]

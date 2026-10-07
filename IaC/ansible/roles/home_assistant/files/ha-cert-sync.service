@@ -1,6 +1,6 @@
 [Unit]
 Description=Sync wildcard certs: VPS traefik issuer → Pi traefik-ha certs (HA edge, offline-safe)
-Documentation=docs/smart-home-failover.md
+Documentation=file:/usr/local/sbin/ha-cert-sync.sh
 After=network-online.target
 
 [Service]
