@@ -58,7 +58,9 @@
   # the same reason the conf seed does: never write to a live app on a hunch.
   ansible.builtin.command:
     cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }} --check"
-  stdin: "{{ vault[svc.secret_item].credential }}"
+    stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module: at task level Ansible dies with
+    # "conflicting action statements: ansible.builtin.command, stdin" — measured, this file aborted a live
+    # converge at exactly this line on 2026-10-07 (nothing was deployed; the failure is parse-time).
   no_log: true
   changed_when: false
   register: _qbit_seed_check
@@ -73,7 +75,7 @@
   # `dir`/`complete_dir` shape). rc 0 with "CHANGED applied and read back" is the only green allowed.
   ansible.builtin.command:
     cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}"
-  stdin: "{{ vault[svc.secret_item].credential }}"
+    stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module — see the note above
   no_log: true
   when: "'CHANGED' in _qbit_seed_check.stdout | default('')"
   changed_when: true
