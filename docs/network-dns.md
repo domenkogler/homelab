@@ -486,7 +486,12 @@ Client → Technitium (DHCP-pushed chain, see below)
 
 ## Single Namespace & Split-Horizon
 
-Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
+Everything uses one namespace **`kogler.si`** (DHCP option 15 — see [network-vlans.md](network-vlans.md) §DHCP for how it is actually delivered, hosts, services).
+
+⚠ **One namespace is not one answer set.** A name has to be *seeded* to be answered: until
+HD-1097 the LAN view carried service names and no host names, so the namespace was intact and the
+bare `\\nas\media` path was held up by a broadcast fallback. §Local Name Resolution records what the
+zone answers today.
 
 - **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs, and auto-creates records from DHCP leases.
 - **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `dns`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
@@ -803,7 +808,31 @@ SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`). Clients on every ot
 
 ## Local Name Resolution & mDNS
 
-- **DHCP lease integration:** Technitium queries the RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. The VPS primary binds the **public** IP; the home secondaries bind the **Home**-VLAN IPs of oldsrv + Pi (per SSOT) — cross-VLAN DNS is permitted by the forward rules above.
+- **Host names in the LAN zone (HD-1097, 2026-10-07).** `nas` / `oldsrv` / `pi` / `router` now carry
+  LAN A records (`internal: true`, `lan_only: true`, `tailnet: none` in `zone_kogler_si`) so a
+  machine is reachable **by name over any link**. Before that the zone answered *service* names
+  only — measured on both home resolvers: `nas.kogler.si` → **NXDOMAIN with the `aa` flag**, while
+  `media.kogler.si` and `cockpit-nas.kogler.si` answered normally. Nothing looked broken because
+  Windows does not need DNS for `\\nas\media`: with no answer it falls through to **LLMNR/NetBIOS
+  broadcast**, which a wired switch port delivers and a Wi-Fi client does not. The measured shape of
+  that gap was the owner's laptop on `Kogler`: mount by IP **works**, mount by name **does not**,
+  Samba itself healthy on both legs (`smbd` + `nmbd` active, ARP entry for the wireless client, TCP
+  445 open both ways). A broadcast fallback that happens to work on one link is not name resolution,
+  which is why the fix is the record plus the suffix (DHCP option 15,
+  [network-vlans.md](network-vlans.md) §DHCP) and not a Wi-Fi setting.
+  - ⛔ `switch` and `ilo` stay unpublished on purpose: their only address is Mgmt-99, which a Home
+    client cannot route to — the answer-must-be-routable rule above. Publishing them would turn a
+    clean `NXDOMAIN` into a black hole.
+  - ⛔ No `hosts` entries as the mechanism (rejected — [network-rejected.md](network-rejected.md)
+    "hosts-file aliases as the answer mechanism"), and no mDNS reflection across VLANs either
+    (rejected, same file). Both would fix exactly this symptom and make every future read of the
+    zone untrustworthy on the one machine you debug with.
+- **DHCP lease integration (⚠ claim corrected 2026-10-07, it was standing as achieved when it was not
+  live):** this section used to say Technitium queries the RouterOS REST API for
+  `/ip/dhcp-server/lease` and auto-creates `*.kogler.si` records. **It does no such thing on this
+  fleet** — no lease-derived records exist for any host name (the NXDOMAIN above), and no instance
+  carries that integration. The LAN answer set is exactly what `zone_kogler_si` seeds. If the
+  integration is ever wanted, it is a decision against that list, not a box to tick.
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs). (RouterOS/Avahi cross-VLAN reflection is rejected — [network-rejected.md](network-rejected.md) mDNS reflection.)
 
 ---

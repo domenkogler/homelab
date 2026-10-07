@@ -247,6 +247,13 @@
       - name: "dhcp-{{ item.id }}"
         interface: "vlan{{ item.id }}-{{ item.name | lower }}"
         address-pool: "pool-vlan{{ item.id }}"
+        # HD-1097 — DHCP option 15 (the search suffix) is NOT set here. There is no `domain=`
+        # property in RouterOS 7 (a `set … domain=` aborts with `Script Error: bad parameter
+        # domain`), so option 15 rides an `/ip dhcp-server option` row referenced by
+        # `dhcp-option`, and `rb4011_converge.rsc.j2` owns both halves: api_modify cannot express
+        # a `[find]` reference, and a second writer of that reference is how it drifts.
+        # Consequence to keep honest: a role-only run neither sets nor clears it — read the
+        # device back (`dhcp-option` via get, not a filtered print) instead of assuming.
         disabled: no
   loop: "{{ network_vlans }}"
   when: item.id not in [1, 99]

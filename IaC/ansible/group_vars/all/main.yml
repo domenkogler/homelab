@@ -12,7 +12,10 @@ ntp_servers:
   - 1.si.pool.ntp.org
 op_vault: Homelab-ansible
 domain_public: kogler.si
-domain_local: kogler.si    # reserved for future split-horizon scenarios — currently unused
+domain_local: kogler.si    # the LAN search suffix: rendered as `Domains=` / `dns-search=` on host
+                           # NICs (roles/network) and handed to DHCP clients as option 15 by the
+                           # router (HD-1097). NOT a split-horizon switch — the zone is one name-
+                           # space; `domain_public` is the public half of the same string.
 
 # Bootstrap DHCP DNS for freshly-reset MikroTik gear (HD-193): used by the
 # rb4011_initial template BEFORE Technitium exists (it lands on oldsrv at
@@ -348,6 +351,19 @@ zone_kogler_si:
   # HD-188 Cockpit break-glass surfaces: Home addresses, so LAN-only (never the VPS primary).
   - { name: cockpit-oldsrv.kogler.si, internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: cockpit-nas.kogler.si,   internal: true, ip: "{{ nas_home_ip }}", lan_only: true, tailnet: node, ts_router: false }
+  # HD-1097 host A records. Until 2026-10-07 the LAN zone answered SERVICE names only, so a
+  # bare `\\nas\media` SMB path had NO DNS answer at all (measured NXDOMAIN with the aa flag on
+  # both home resolvers) and fell back to LLMNR/NetBIOS broadcast — which a wired switch port
+  # supplies and a Wi-Fi client does not. The owner could mount by IP from Wi-Fi and not by
+  # name; that is this row. `switch`/`ilo` are deliberately ABSENT: they carry only a Mgmt-99
+  # address, which a Home client cannot route to (the answer-must-be-routable rule,
+  # docs/network-dns.md §The answer-plane model), so publishing them would ship a black hole.
+  # `tailnet: none` everywhere here: a tailnet device away from home cannot route to 10.10.1.x
+  # either, so the netmap gains nothing and the tailnet plane stays answer-neutral.
+  - { name: nas.kogler.si,           internal: true, ip: "{{ nas_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: oldsrv.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: pi.kogler.si,            internal: true, ip: "{{ pi_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: router.kogler.si,        internal: true, ip: "{{ router_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   # --- tailnet-edge dashboards: internal-only, tailnet-only (never public — HD-135b) ---
   - { name: stats.kogler.si,         internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
   - { name: logs.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
@@ -406,6 +422,9 @@ dns_primary_ipv6: "2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5"
 # The nas has no `nas_*_ip` entry in the address SSOT's naming pattern; read it the way
 # the seed's inline row did, from `network_static_hosts` itself.
 nas_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+# The router's own Home-leg address (its gateway), read from the same address SSOT — used by
+# the `router.kogler.si` host record (HD-1097).
+router_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
 # --- the derived views each consumer loops over ------------------------------------
 # These are VIEWS, not sources: edit `zone_kogler_si`, never these.

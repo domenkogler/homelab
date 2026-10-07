@@ -173,6 +173,12 @@
 # ---- DHCP: pools + servers + networks (mgmt server = dhcp-mgmt, named in bootstrap) ----
 # RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the
 # 4th/final fallback (HD-317). Guarded (HD-322) — re-import never duplicate-aborts.
+# HD-1097: option 15 (the search suffix, {{ domain_local }}) is delivered by the `dhcp-domain`
+# option row below, attached to every server — NOT by a `domain=` property, which RouterOS 7.24
+# does not have (`set … domain=` → `Script Error: bad parameter domain`; v6 had the property, v7
+# has neither `domain` nor any option 15 of its own). It is what makes a single-label name
+# (`nas`, for `\\nas\media`) reach DNS at all instead of the LLMNR/NetBIOS broadcast fallback that
+# a wired port gives you and a Wi-Fi client does not. docs/network-vlans.md §DHCP owns the why.
 # Resolver ORDER per VLAN comes from `lan_first_dns` on the `network_vlans` row (SSOT),
 # identical to roles/router/tasks/main.yml — see docs/network-dns.md §DNS Flow for why a
 # home instance first changes which split-horizon ANSWER that VLAN's devices get.
@@ -211,6 +217,25 @@
 }
 {% endif %}
 {% endfor %}
+
+# ---- HD-1097: DHCP option 15 (Domain Name) attached to EVERY server, dhcp-mgmt included ----
+# ⚠ Mechanism: an `/ip dhcp-server option` row with code 15, referenced by each server's
+# `dhcp-option`. There is NO `domain=` property in RouterOS 7 (`set … domain=` →
+# `Script Error: bad parameter domain`, measured on 7.24.4) — the v6 property is gone.
+# Full paths inside `[find]`: a bare `[find]` resolves against the CURRENT menu, so inside a
+# `do={}` block it searches the wrong table and attaches NOTHING without an error (HD-1095).
+# roles/router deliberately does not manage this reference — one owner, not two.
+# The VALUE is hex with a 0x prefix (measured 7.24.4): `value=kogler.si`, the quoted form and
+# `x6b…` all die with `failure: Unknown data type!`; `value=1` dies with `Bad delimiter!`.
+# Read it back with `print detail` — the `raw-value` column is the payload.
+:if ([/ip dhcp-server option find where name=dhcp-domain] = "") do={
+    /ip dhcp-server option add name=dhcp-domain code=15 value=0x{{ (domain_local | string).encode().hex() }}
+} else={
+    /ip dhcp-server option set [/ip dhcp-server option find where name=dhcp-domain] code=15 value=0x{{ (domain_local | string).encode().hex() }}
+}
+:foreach s in=[/ip dhcp-server find] do={
+    /ip dhcp-server set $s dhcp-option=[/ip dhcp-server option find where name=dhcp-domain]
+}
 
 # ---- Stale phantom VLAN 21 cleanup (HD-325 / HD-328) ----
 # VLAN 21 (IoT-Internet) was deleted from the SSOT in HD-325, but a live
