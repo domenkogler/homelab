@@ -415,6 +415,16 @@ Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native serve
 `llm-backend`, reachable only by LiteLLM, HD-59) and **docling** (no supported API key → see
 `services-ai.md`; treated like Ollama). *Cross-ref: `security.md` HD-160 block.*
 
+⚠ **Retiring a compose service does not stop its container, and a green converge hides that.**
+`docker_compose_v2` never passes `--remove-orphans`, so deleting a service block re-renders the file,
+brings the stack up, and leaves the old container RUNNING — the only trace is a task-level warning
+(`Found orphan containers (authentik-ldap) for this project`) that reads like trivia. Removal is a
+second act on the host: `docker compose -f /opt/<service>/docker-compose.yml up -d --remove-orphans`,
+and the flag belongs AFTER `up` (`docker compose --remove-orphans up` fails with `unknown flag`).
+Measured in the authentik teardown below, where `authentik-ldap` stayed up through the converge that
+deleted it. Prove it with `docker ps -a --format '{{.Names}}' | grep -c <name>` → 0, never with the
+playbook recap.
+
 #### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — **RETIRED 2026-10-07**, do not deploy this
 
 > ⛔ **Nothing in this subsection is live or deployable any more.** Samba on the NAS runs local
