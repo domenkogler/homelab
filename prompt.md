@@ -15,8 +15,15 @@
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
 fleet's live set (harness state in [docs/pi-harness.md](docs/pi-harness.md)). The laptop's WSL Debian clone
-is **retired as a seat (owner, 2026-10-07)** and held no unique state: clean tree, no worktree, no stash, no
-unpushed commit. Its one non-derived gitignored file, `skills/mikrotik/.env.op` (`op://` references, no
+is **retired as a seat (owner, 2026-10-07)**. Two things on it were unique to that box, checked rather than
+asserted — the first draft of this line said "no stash, no unpushed commit" and both were wrong: **one stash**
+(`On main: never_evict pin experiment`, 2026-10-03) and **`session/arr-door-20261006`**, whose remote ref the
+arr-door lane deleted once it had landed the work. Neither is live work: the stash re-arms a flag main REJECTED
+on 2026-10-05 (`group_vars/spark.yml` §never-evict — the pin held 0 blocks, and `check_spark_llm_gate.py` now
+refuses it), and the branch's content IS on `main` (the trio routers, the `.ts` twins, its `*_url` vars, its
+zone names) while its **commit object** `18913c63` is not — it survives only in this ref and unreferenced in
+the seat's object store, so delete it or pin it before the box goes, do not just stop booting the box.
+Its one non-derived gitignored file, `skills/mikrotik/.env.op` (`op://` references, no
 values), is TRACKED from this commit, so a clone elsewhere loses nothing. Read the inventory's `laptop-wsl` role
 ("durable runner state = NAT + auto-resolv") as that host's **network** mode, not as a job runner: nothing
 is scheduled on it (no crontab, stock Debian timers only). No command changes, because the seat's clone sits
