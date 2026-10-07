@@ -216,8 +216,9 @@
         # VLAN 10 carries it for HA-independence (HD-334 — ⚠ NOT for per-device query
         # visibility, that reason is dead: `logQueries = false` on the Pi, HD-476).
         # VLAN 50 (Media) gained it 2026-10-07 (HD-1095): with the VPS first, the Shield
-        # resolves media.kogler.si to the VPS edge, which has no route for the home-hosted
-        # names and answers 404 — a Media VLAN device could then never reach Jellyfin.
+        # resolves media.kogler.si to the VPS edge, which then had no route for the home-hosted
+        # names and answered 404 — a Media VLAN device could then never reach Jellyfin. (The VPS-edge
+        # routes landed the same evening; the home-first chain stays as WAN-out survival.)
         # RouterOS /ip dhcp-server network caps dns-server at 3 values (a 4th is
         # silently dropped — the earlier 4-entry render dropped Pi), so the router
         # /ip dns is NOT in the DHCP list; it's the implicit final fallback via its

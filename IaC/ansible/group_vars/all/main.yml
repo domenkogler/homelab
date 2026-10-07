@@ -508,13 +508,14 @@ network_ipv6:
 # (Pi tertiary) instead of the VPS primary. It is the switch that decides which split-horizon
 # ANSWER a device on that VLAN gets for the home-hosted app names (`media`/`seerr`/`seerrng`/
 # the *arr set): a home instance answers `oldsrv_home_ip` (the home edge, works), the VPS
-# primary answers `dns_primary_ip` — and the VPS edge has NO route for those names yet, so it
-# returns 404 (measured 2026-10-07 from the Shield on VLAN 50: media.kogler.si → VPS IP → 404,
-# while the same URL on the home edge is 302 → /web/). Do not add a VLAN to this list without
+# primary answers `dns_primary_ip`. The VPS edge had NO route for those names, so a VPS-first VLAN
+# got 404 (measured 2026-10-07 from the Shield on VLAN 50: media.kogler.si → VPS IP → 404, while the
+# same URL on the home edge is 302 → /web/); the VPS-edge routes landed the SAME EVENING, so a
+# VPS-first VLAN is served again and this switch is now resilience rather than the mechanism. Do not add a VLAN to this list without
 # reading docs/network-dns.md §Per-Instance Split-Horizon first: it hands that VLAN the LAN
-# answer for EVERY internal name, not just the one you are fixing. The permanent fix is the
-# missing VPS-edge route (HD-1095), which makes the VPS answer correct everywhere — at which
-# point the Media entry here becomes a WAN-out resilience choice, not a requirement.
+# answer for EVERY internal name, not just the one you are fixing. The permanent fix was the
+# VPS-edge route (HD-1095), landed 2026-10-07, which makes the VPS answer correct everywhere — so
+# the Media entry here is now a WAN-out resilience choice, not a requirement.
 network_vlans:
   - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler",     lan_first_dns: true }   # HD-334 HA-independence
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }

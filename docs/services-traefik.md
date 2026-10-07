@@ -533,3 +533,54 @@ PUBLIC P2P share on BOTH `pairdrop.kogler.si` and
 `drop.kogler.si` (one router, dual Host matcher; supersedes the HD-113 LAN-only decision).
 Abuse guards: CrowdSec bouncer + the app's built-in `RATE_LIMIT=true`; network isolation via
 traefik-public-only attachment.
+## The home-hosted names at the public edge (HD-1095, 2026-10-07)
+
+The VPS edge used to answer for `media` / `seerr` / `seerrng` with nothing — no router — while the VPS
+Technitium primary answered those names with `dns_primary_ip` and Cloudflare publishes `media`. Both halves
+are now true at once: `traefik/dynamic/routes.yml.j2` carries one router per name on `websecure`, behind
+`crowdsec-only@file` (own login → the [security.md](security.md) §1 law still requires the bouncer), and each
+points at the **home edge**, not at the app:
+
+```
+client → VPS edge (Host rule, TLS from the issuer) → https://<oldsrv Home address>:443 (Host + SNI preserved)
+       → traefik-internal's own route table → jellyfin / seerr / seerrng on loopback
+```
+
+Two rules this shape depends on, both learned by measurement rather than by reading the config:
+
+- **Dial the home EDGE, not the app.** Jellyfin publishes on loopback only (HD-419), so a backend URL aimed
+  at the app from the VPS is a dead port; `oldsrv_home_ip:443` is reachable over WG S2S and keeps one
+  behaviour for LAN and WAN clients, because the home edge applies its own rules to the forwarded `Host`.
+  `passHostHeader: true` is what makes that work.
+- **`serversTransports.<name>.servername` is mandatory.** The backend URL is an *address*; without an
+  explicit SNI Go verifies the `*.kogler.si` wildcard against the IP and every handshake fails. It is a
+  transport field, not a service field, so one transport per name — `home-edge-media`, `home-edge-seerr`,
+  `home-edge-seerrng`.
+
+Pre-flight, before any change landed: `curl` from the **traefik container's own network namespace** against
+the home edge with SNI + `Host` preserved returned `302` with **no `-k`**, i.e. verified end to end.
+After the converge: `--resolve media.kogler.si:443:<VPS IP>` → `302 → /web/`, `/System/Info/Public` returns
+Jellyfin JSON through the two hops, and `seerr`/`seerrng` return their own `307`.
+
+## The `:80 → :443` redirect has been broken on every edge since it was written (HD-1095)
+
+Measured 2026-10-07: `http://media.kogler.si/` and `http://foto.kogler.si/` returned **404**, on the home edge
+and on the public edge alike, while every rendered `routes.yml` said the redirect was in place. Two
+independent causes, neither of which can fail a converge:
+
+1. **`HostRegexp(`{host:.+}`)` matches nothing on Traefik v3.** The `{name:regex}` template is v2 syntax. The
+   rule parses, `GET /api/http/routers` reports the router **`enabled`**, and no request ever matches it.
+   Isolated proof on this host in a throwaway `traefik:v3.7.11` container: same file, same middleware —
+   template form `404`, `HostRegexp(`.+`)` `301`. The v3-valid catch-all exists, so the harsher conclusion
+   recorded in [services-rejected.md](services-rejected.md) ("rules must name the host") applies to *service*
+   routes, not to a redirect catch-all — see the appended row there.
+2. **The public edge referenced a middleware it never declared.** `docker logs traefik` said
+   `middleware "redirect-to-https@file" does not exist` for `http-redirect@file` on entrypoint `web`, and the
+   router served nothing. Every other edge declares `redirect-to-https` in its own dynamic files; this one
+   only used it.
+
+Both fixed where declared (`traefik`, `traefik-internal`, `traefik-ha`), and re-measured: `http://` is `301`
+on the home edge and on the public edge. ⛔ **A router that cannot match and a middleware reference that
+resolves to nothing are legal Traefik configuration.** The converge reads `changed=1, failed=0` either way.
+The two probes that actually see this: `GET /api/http/routers` on an edge with the API enabled, and a real
+`curl -i` against the cleartext entrypoint — never "the file says so".

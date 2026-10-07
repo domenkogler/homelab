@@ -14,7 +14,9 @@
 # Split-Horizon), so whichever instance a VLAN queries first decides whether that VLAN sees
 # the home edge or the VPS edge. HD-1095 (2026-10-07) put VLAN 50 (Media) home-first for
 # exactly that reason: with the VPS first the Shield got media.kogler.si = dns_primary_ip
-# and the VPS edge answers 404 for the home-hosted names.
+# and the VPS edge answered 404 for the home-hosted names — those VPS-edge routes landed the same
+# evening, so this chain is resilience (home-first keeps the Media VLAN working if WAN or the VPS
+# resolver is down), not the thing that makes media resolve.
 # Final state is ALSO folded into rb4011_converge.rsc.j2 (its idempotency is
 # partial by design — /add dupes abort re-imports before the DNS section) and into
 # roles/router/tasks/main.yml — all three read the same `lan_first_dns` SSOT.

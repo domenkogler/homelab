@@ -289,19 +289,27 @@ clients stay on the home LAN while WAN/tailnet clients keep the VPS edge. Record
 > [services-traefik.md](services-traefik.md) §Edge model) serves them from `oldsrv_home_ip`; the VPS
 > primary keeps `dns_primary_ip` so WAN/tailnet reach the VPS first.
 >
-> ⚠ **The consequence nobody wrote down until a TV broke (measured 2026-10-07, HD-1095):** the VPS answer is
-> only a promise, not a service — the VPS edge carries **no router** for the home-hosted names, so a client
-> that asks the VPS first gets `media.kogler.si` → `dns_primary_ip` → **HTTP 404**, while the same name asked
-> of either home instance returns `oldsrv_home_ip` → **302 → `/web/`** and plays. Measured pair from the
+> ⚠ **The consequence nobody wrote down until a TV broke (measured 2026-10-07, HD-1095):** a split-horizon
+> answer is a *promise*, and a promise with no route behind it is a 404. The VPS primary answers the
+> home-hosted names with `dns_primary_ip` while the VPS edge carried **no router** for them, so a client that
+> asks the VPS first got `media.kogler.si` → `dns_primary_ip` → **HTTP 404**, while the same name asked of
+> either home instance returned `oldsrv_home_ip` → **302 → `/web/`** and played. Measured pair from the
 > Shield's VLAN: `dig @<VPS> media.kogler.si` → the VPS address, `dig @<Pi>` / `@oldsrv` → the oldsrv Home
 > address, and `curl --resolve media.kogler.si:443:<VPS IP>` → 404 vs `:443:<oldsrv Home IP>` → 302.
 > **Which resolver a VLAN queries first is therefore a reachability switch, not a preference** — see
-> §DNS Flow and `network_vlans[].lan_first_dns`. Two ways to make the VPS answer honest; both are recorded,
-> only the first exists today: (a) hand that VLAN a home resolver first, (b) add the missing **VPS-edge
-> route** for the home-hosted names, proxying over WG S2S to the home edge — the `ha` route in
-> `traefik/dynamic/routes.yml.j2` is the precedent, and `crowdsec-only@file` is mandatory on it
-> ([security.md](security.md) §1 law). Until (b) lands, "works on the Home VLAN, 404 everywhere else" is
-> the signature of this defect, not of a dead service.
+> §DNS Flow and `network_vlans[].lan_first_dns`.
+>
+> **As-built the same evening (HD-1095): both halves exist.** (a) `lan_first_dns` now gives VLAN 10 **and 50**
+> a home resolver first, and (b) the VPS edge routes `media` / `seerr` / `seerrng` to the home edge over
+> WG S2S (`traefik/dynamic/routes.yml.j2`, the `ha` route as precedent, `crowdsec-only@file` per the
+> [security.md](security.md) §1 law), so the VPS answer is now served rather than merely pointed at.
+> `media.kogler.si` is published publicly (`public: true` + the Cloudflare CNAME, owner's call — see
+> [services-media.md](services-media.md) §How to reach it from anywhere); `seerr` / `seerrng` are routed at
+> the VPS edge but stay **unpublished**, so they are reachable by name only where a resolver is told.
+> Re-measured after the converge: `--resolve media.kogler.si:443:<VPS IP>` → **302** and the same URL's
+> `/System/Info/Public` returns Jellyfin JSON through the two-hop chain. The invariant to keep:
+> **an answer plane and an edge route must move together** — "works on the Home VLAN, 404 everywhere else"
+> is the signature of this defect, not of a dead service.
 
 ---
 
@@ -328,9 +336,9 @@ Client → Technitium (DHCP-pushed chain, see below)
     see §Per-Instance Split-Horizon for the measured 404 that made this a requirement, not a preference.
   - **Every other VLAN (guest 30 / kids 40 / mgmt 99):** **VPS primary → oldsrv secondary → Pi tertiary** —
     they are not per-device filtered, and their devices are expected to reach internal apps through the
-    **VPS** edge. ⚠ For the home-hosted names that expectation is currently unmet — the VPS edge has no
-    route for them (**HD-1095**), which is why a VLAN that is VPS-first cannot open `media`/`seerr`/`seerrng`
-    until that route exists. (IoT 20 and the Kids MACs are separate: the router `dst-nat`s their `:53` to a
+    **VPS** edge. That expectation held for the VPS-hosted apps and was **false for the home-hosted ones until
+    2026-10-07 evening**, when the VPS edge gained routes for `media`/`seerr`/`seerrng` (**HD-1095**) — a
+    VPS-first VLAN can open them now, and a missing route on that edge is the thing to look for if it cannot. (IoT 20 and the Kids MACs are separate: the router `dst-nat`s their `:53` to a
     chosen instance regardless of this order — see §Per-Subnet DNS Policy.)
   - The router's `/ip dns` is the **implicit** last resort via its own upstream (the same chain first +
     Cloudflare `1.1.1.1`/`1.0.0.1` last); its WAN egress is what the VPS `dns-allow-home` nft set permits.

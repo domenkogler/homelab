@@ -93,23 +93,26 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   was met on 2026-10-06 by 1337x.to. Wiring + evidence: [services-downloads.md](services-downloads.md)
   §The solver's own door; the manual step is [deployment-manual.md](../deployment-manual.md) §P3.6.
 - All *arr subdomains are **internal-only** (not in the public set).
-- **Reachability is resolver-dependent (HD-1095, measured 2026-10-07):** `media.`, `seerr.` and `seerrng.`
-  are answered **per Technitium instance** — the home instances return `oldsrv_home_ip` (the home edge, which
-  serves all three), the VPS primary returns `dns_primary_ip`, and the VPS edge has **no route** for these
-  names → HTTP **404**. So the question "does Jellyfin work here?" is really "which resolver did this device
-  get first?": the Home VLAN always did, a VPS-first VLAN did not, and the Media VLAN (50 — the Shield and
-  the TV) was moved to a home-first DHCP chain on 2026-10-07 via `network_vlans[].lan_first_dns` to make the
-  living-room TV work. ⚠ **And plain HTTP is a dead end on both edges (measured 2026-10-07):**
-  `http://media.kogler.si/` → **404** at the home edge (`:80` sockets ARE listening on both the VIP and the
-  oldsrv Home address — ss proves it — and Traefik answers 404, so no HTTP router matches) and
-  `http://foto.kogler.si/` → 404 at the VPS edge, even though `http-redirect` + `redirect-to-https` are
-  present in the deployed `routes.yml`. Cause **not** established — the next session should read the edge's
-  own view (`docker logs traefik-internal` + the API `/api/http/routers`) rather than the file. Client apps
-  that begin with `http://` (the Jellyfin Android-TV connect wizard does) report “can’t find media server”
-  because of this, so **type the full `https://media.kogler.si`** until `curl -I http://media.kogler.si/`
-  returns 301. ⚠ The flag above is a per-VLAN workaround: the durable fix, and the owner's stated goal of
-  these three names working on **every** network *including away/traveling*, is the missing VPS-edge route
-  (+ its public DNS record) — see [network-dns.md](network-dns.md) §Per-Instance Split-Horizon.
+- **How to reach it from anywhere (HD-1095, as-built 2026-10-07):** the three names are answered **per
+  Technitium instance** — the home instances return `oldsrv_home_ip` (the home edge serves all three), the VPS
+  primary returns `dns_primary_ip` — and the VPS edge now **routes** `media` / `seerr` / `seerrng` to the home
+  edge over WG S2S, so both answers lead to a served URL instead of a 404. `media.kogler.si` is **published
+  publicly** (Cloudflare CNAME → the VPS, `public: true` in the zone list, the owner's call on 2026-10-07) and
+  carries `crowdsec-only@file`, not Forward-Auth: client apps (Shield/Android TV) cannot sit behind an Authentik
+  dance. `seerr`/`seerrng` are routed there but **unpublished** — reachable by name where a resolver is told.
+  The Media VLAN (50 — the Shield and the TV) was additionally moved to a home-first DHCP chain the same
+  evening via `network_vlans[].lan_first_dns`, which is what fixed the TV within minutes and is now resilience
+  rather than the mechanism. Measured after the converge: `--resolve media.kogler.si:443:<VPS IP>` → `302 →
+  /web/` and `/System/Info/Public` returns Jellyfin JSON through the two hops; the same URL family on the home
+  edge → `302`. Mechanics in [services-traefik.md](services-traefik.md) §The home-hosted names at the public
+  edge; the split-horizon reasoning in [network-dns.md](network-dns.md) §Per-Instance Split-Horizon.
+- **`http://` works now — it did not until 2026-10-07 evening.** `http://media.kogler.si/` and
+  `http://foto.kogler.si/` returned **404** on both edges for the entire life of the redirect router: the rule
+  was v2 `HostRegexp(`{host:.+}`)` syntax, which parses and reports `enabled` while matching nothing, and the
+  public edge referenced a middleware it never declared. Both fixed; `curl -I http://media.kogler.si/` → `301`
+  now, so the Android-TV connect wizard's default `http://` form finds the server. Why it failed silently is
+  written up in [services-traefik.md](services-traefik.md) §The `:80 → :443` redirect… — read it before
+  adding another redirect router anywhere.
 
 | App | Web UI | Auth | Notes |
 |-----|--------|------|-------|
