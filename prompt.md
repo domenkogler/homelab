@@ -85,7 +85,7 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
-[todo-table.md](todo-table.md) §B): **1093** *(360 and 1092 left this list 2026-10-07 — the Samba `ldapsam` design they carried was retired; the shares authenticate locally now)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
+[todo-table.md](todo-table.md) §B): **1093** *(360 and 1092 left this list 2026-10-07 — the Samba `ldapsam` design they carried was retired; the shares authenticate locally now. One owner tail left: rotate both SMB passwords, then converge with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
 float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class on the Pi, where two docs already
 work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (only the
 re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — is left:

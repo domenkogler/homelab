@@ -238,12 +238,13 @@ Three properties of this shape are deliberate, and each has a live lesson behind
   (`/etc/exports` is IaC-rendered; addresses live in [network-addresses-generated.md](network-addresses-generated.md)), so before
   it nothing Windows-facing could reach the library at all — `\\nas\media` points
   at a different pool. A manual add used to mean "copy to the share, then a privileged `mv` on oldsrv".
-- ⚠ **OpenCloud is the one thing the retired glue did that nothing replaced.** Its step 4 best-effort
-  pre-seeded an OpenCloud account per family member with the `opencloud-service_api` service account,
-  so both that item and `authentik-nas_api` now have **no consumer** (rows kept in
-  [deployment-secrets.md](deployment-secrets.md), marked orphaned). OpenCloud is expected to JIT-provision
-  OIDC users on first login (HD-149); that leg has never been observed, because until now no member
-  had a reason to log in. Tracked in `todo.md` HD-1093.
+- ✅ **OpenCloud no longer needs anything the retired glue did.** Its step 4 had best-effort pre-seeded an
+  OpenCloud account per family member with the `opencloud-service_api` service account, so that item and
+  `authentik-nas_api` now have **no consumer** and are measured absent from the vault (`op item list`,
+  134 items, 2026-10-07). OpenCloud JIT-provisions OIDC users on first login — **the owner logged into
+  `file.kogler.si` the same day**, which closes the leg HD-149 registered as never observed. What was NOT
+  measured is the account list itself: with no service-account item left there is no API seat to read it
+  from, so an account-visibility audit would need a freshly minted Graph consumer.
 - **Scoped converge:** `--tags samba` (or `storage,samba`) works only because BOTH halves of the HD-468 tag
   rule are in place — the `include_tasks: samba.yml` line carries the tag *and* every task inside does.
   Verified 2026-10-07 by measuring the opposite: with neither, the run printed `ok=24 changed=0 failed=0`
