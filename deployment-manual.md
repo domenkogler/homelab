@@ -234,6 +234,14 @@ key **file path**, and `git commit` returns in ~0 s with `git log -1 --format='%
 dialog. `--check` prints which route the seat will take; `--1password` opts back into the dialog route
 (and rewrites the local `user.signingkey` pin to the public-key string the agent needs).
 
+✔-transport-evidence — the reason the payload names Git's own ssh rather than the System32 one, on the same
+key file: `C:/Windows/System32/OpenSSH/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none -T git@github.com`
+answers `invalid format`, `"C:/Program Files/Git/usr/bin/ssh.exe" …` answers `Hi domenkogler!`.
+
+If a git call on the 1Password route dies with `communication with agent failed` / `Permission denied
+(publickey)` the desktop app is locked or restarting — that route fails hard there, it does not queue the
+prompt; `--git-identity` removes the dependency.
+
 Why the payload is included **last**, why the program key must be *absent* rather than empty, the
 8.3-short-path trap, and what this says about the "keys never on disk" rule:
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt.

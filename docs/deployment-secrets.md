@@ -682,6 +682,50 @@ too, and it is now scripted rather than hand-planted — closing the ⏳ tail th
 What HD-495 still owes is the `--owner` half, not this. The manual form is
 [../deployment-manual.md](../deployment-manual.md) §0.4b.
 
+#### What a Win11 seat needs for git to work, per route
+
+Both routes were exercised on `Domen_P14s` on 2026-10-07 and both authenticate; the row that matters for
+an unattended seat is the last one. `scripts/git-bootstrap-win11.sh --check` prints which route the seat
+is on without changing anything.
+
+| requirement | modal-free seat default (`--git-identity`) | 1Password route (`--1password`) |
+|---|---|---|
+| transport | **Git for Windows' own ssh** — `C:/PROGRA~1/Git/usr/bin/ssh.exe` (OpenSSH 10.5p1 / OpenSSL) | **Windows OpenSSH** — `C:/Windows/System32/OpenSSH/ssh.exe` (9.5p2 / LibreSSL), because that client is what resolves `\\.\pipe\openssh-ssh-agent` |
+| key material | the two **files** `~/.ssh/github_auth` + `~/.ssh/github_signing` (passphrase-free PKCS#8, vault items `GitHub auth` / `GitHub sign`) | the same keys as **1Password SSH-key items**, the desktop app running with the SSH agent toggled on, and `op-ssh-sign.exe` in `WindowsApps` |
+| `user.signingkey` | the **file path** — in `~/.gitconfig-nightly` *and* in every clone's local config | the **public-key string** (`.gitconfig-github`, via `includeIf`) |
+| `gpg.ssh.program` | **absent** (an empty value makes git spawn `""`) | `op-ssh-sign.exe` |
+| needs a human present | never | yes — once per new process, and see the hard-failure shape below |
+
+The transport row is not a preference. Same key file, both clients, measured:
+
+```bash
+C:/Windows/System32/OpenSSH/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none -T git@github.com
+#   Load key "C:/Users/domen/.ssh/github_auth": invalid format        ← LibreSSL cannot read these PKCS#8 files
+"C:/Program Files/Git/usr/bin/ssh.exe" -i ~/.ssh/github_auth -o IdentityAgent=none -T git@github.com
+#   Hi domenkogler! You've successfully authenticated…                ← OpenSSL can
+```
+
+Two things that look like leaks or breakage and are neither. `ls -l` reports the key files `0644`, which
+is what MSVCRT says about every file on this platform — the real ACL (`icacls ~/.ssh/github_auth`) is
+`DOMEN_P14S\domen` + SYSTEM/Administrators only, so the 168-byte passphrase-free private halves are not
+world-readable. And `%G?` printing `N` next to `gpg.ssh.allowedSignersFile needs to be configured` is a
+**verification** gap, never a signing one: the object carries the signature
+(`git cat-file commit HEAD | grep -c gpgsig` → `1`), and `-c gpg.ssh.allowedSignersFile=~/.ssh/allowed_signers`
+makes git report `G` with the key fingerprint.
+
+**The 1Password route does not only wait — it can die.** A `git fetch` on the seat failed outright:
+
+```
+sign_and_send_pubkey: signing failed for ED25519 "GitHub auth" from agent: communication with agent failed
+git@github.com: Permission denied (publickey).
+```
+
+Thirty seconds later the same command succeeded, so the cause was the desktop app locked or mid-restart,
+not a config fault — but it sharpens the argument above. On that route a background git call does not
+merely block on a dialog nobody can answer; when the app is not answering the pipe it fails hard, and the
+modal-free route on the same box authenticated inside the same minute. Which is the failure mode an
+overnight leg actually hits.
+
 ---
 
 ### Who is authorized where — the grant inventory (swept 2026-09-22 by `scripts/check_ssh_grants.py`; first hand-swept 2026-09-21)
