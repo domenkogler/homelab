@@ -284,7 +284,7 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 > scope var (§Tags & surgical runs), and read which hosts the play actually matched before believing a surgical run
 > was surgical.
 
-### Two ways a converge lies to you
+### Three ways a converge lies to you
 
 1. **`-e ansible_host=<ip>` is a GLOBAL extra-var and hijacks `delegate_to`.** Used to reach one host's
    alternate leg, a `delegate_to: pi` task connected to that override address instead: `ok=367 changed=52
@@ -293,6 +293,21 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 2. **`pgrep -f ansible-playbook` matches its own command line.** It reported "a converge is already
    running" three separate times when nothing was running, because the pattern text was in the invoking
    shell's argv. Check with `ps -eo args | grep -c '[a]nsible-playbook'` (bracket trick) instead.
+3. **A duplicate YAML mapping key silently retires the first definition.** Ansible keeps the **last**,
+   prints `[WARNING]: Found duplicate mapping key … Using last defined value only.` on stderr and carries
+   on — `--syntax-check` is green, the converge is green, and the first definition is dead text that keeps
+   looking authoritative. Which key duplicates decides the damage: a second `tags:` **strips a tag** (a
+   surgical run then skips that task forever), a second `no_log:` **prints a secret**, a second `when:`
+   re-gates the task. Live on `main` until 2026-10-08 (HD-1098), two shapes, neither caught by any gate
+   that existed: `roles/monitoring/tasks/main.yml:600/601` — two `tags:` on one task, so HD-450's "Record
+   what the hygiene exporter publishes" silently kept `[monitoring, grafana]` and lost `hygiene`, i.e.
+   `--tags hygiene` skipped it forever — and a duplicated fragments section in `group_vars/spark.yml`
+   that re-defined `spark_llm_ultrafast_cudagraph_args` / `_diag_args` 36 lines apart.
+   The gate is [`scripts/check_yaml_dup_keys.py`](../scripts/check_yaml_dup_keys.py) (validate-all item 30,
+   plus ansible's own stderr inside the syntax-check loop as a second witness). Fix it with a **proven
+   no-op**, not a hope: both copies were value-identical here, and `spark-llm-render-matrix.py` printed
+   byte-identical output before and after — the same discipline §6's "a test that cannot fail is not
+   evidence" asks of a live claim.
 
 Corollary for any pre-flight: **a check that cannot distinguish "nothing running" from "I am running"
 is not a gate** — same class of failure as the green scoped converge and the `/health` wait in
@@ -322,7 +337,7 @@ ansible_ssh_common_args: "-o ProxyJump=vps"
 > `-e ansible_host=` is a **global** extra-var that also rewrites `delegate_to` targets — the recorded
 > damage is in §Gotchas above (`ok=367 changed=52 failed=1`, one key-file check silently executed on the
 > wrong host). Since HD-397 there is no reason to type either: the inventory carries the jump and
-> `host_vars` names the reachable leg. See §Two ways a converge lies to you above.
+> `host_vars` names the reachable leg. See §Three ways a converge lies to you above.
 >
 > **The OpenSSH-matching nuance, corrected by measurement:** Ansible types the
 > `ansible_host` value (an IP), so a `Host <alias>` block does nothing for it — but that is **not** why

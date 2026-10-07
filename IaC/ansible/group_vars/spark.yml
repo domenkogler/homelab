@@ -1245,18 +1245,12 @@ spark_llm_profiles:
     uncertified_reason: "Same CHANGEME gate as u4-pin (a placeholder substring is an invisible no-op). On this arm the pin also competes with the drafter's KV, so record prefix-hit rate from /metrics across a real session, not a synthetic one."
     certified_evidence: ""
 
-# ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
-# Piecewise CUDA graphs + the splitting-op list, as upstream ships it (compact JSON: no
-# spaces, so one list item == one argv word for the compose `command:` block). The list is
-# ONE var because a re-typed 12-element op list is exactly the kind of copy that silently
-# drifts from the kernel names in a future image (CONVENTIONS §2 pointers/lists).
-spark_llm_ultrafast_cudagraph_args:
-  - "-cc.cudagraph_mode=PIECEWISE"
-  - '-cc.splitting_ops=["vllm::unified_attention_with_output","vllm::unified_mla_attention_with_output","vllm::mamba_mixer2","vllm::mamba_mixer","vllm::short_conv","vllm::qwen3_8_flash_next_ple_short_conv","vllm::qwen3_8_flash_next_qsa_with_output","vllm::linear_attention","vllm::qwen_gdn_attention_core","vllm::qwen_gdn_attention_core_fused_norm_packed","vllm::sparse_attn_indexer","vllm::ple_mmap_lookup"]'
-# Prompt-token detail accounting: the ONLY in-band source of per-request prefill token counts
-# (prefill_tok_s = prompt_tokens / TTFT), which every cold-prefill number in this lane needs.
-spark_llm_ultrafast_diag_args:
-  - "--enable-prompt-tokens-details"
+# The shared argv/env fragments live in the "Shared argv/env fragments" section below, which
+# also defines `spark_llm_ultrafast_cudagraph_args` / `spark_llm_ultrafast_diag_args`. They
+# were ALSO defined here until 2026-10-08 (HD-1098): a duplicated copy of that section landed
+# above this one, ansible kept the LAST definition and printed only a warning, so this copy
+# was dead text sitting next to a live one — editing it would have changed nothing.
+# `spark_llm_ple_mmap_env` below is NOT a duplicate: it is the only definition.
 # The upstream mmap knobs (recipe/config/v16b/env + serve.sh pins), one SSOT list. Each is a
 # plain non-secret string ⇒ quoted, not `>-` (CONVENTIONS §3 applies that rule to 1P values).
 spark_llm_ple_mmap_env:

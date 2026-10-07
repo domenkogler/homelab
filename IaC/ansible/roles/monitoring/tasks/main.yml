@@ -598,4 +598,3 @@
     msg: "{{ (_hygiene_probe.stdout | default('')).split('--- alloy ---')[0].splitlines() }}"
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, hygiene]
-  tags: [monitoring, grafana]
