@@ -21,6 +21,10 @@
 > gate 6 on the live shape, the gate-7 read, then the `fast.certified_evidence` rewrite — after a legs session that closed B9
 > (FAIL-BOOT: the dispatch knobs are constitutive), B5 (no cliff) and B8 (monitoring live), with B10's gates 6/8/9 declined by
 > owner. Enforcement is armed on the box (`SPARK_OOM_REARM_GIB=12`, `no-enforce` removed, `usable` rests ≈ 13.3 GiB).
+> **Re-synced 2026-10-07b (same lane, HD-450 leg):** the silent-failure collector is live on oldsrv + the Pi, so **HD-450**
+> keeps three items instead of one open question. Minted from the same pass: **HD-1093** — the `alloy_version` pin had
+> fallen behind the box and made the monitoring role un-convergeable on oldsrv (apt: `Packages were downgraded and -y was
+> used without --allow-downgrades`); resolved for that host, the fleet question is the owner's.
 > **Re-synced 2026-10-07 (the downloads + observability lane):** **HD-1090** and **HD-1089** shrink to their
 > owner-witnessed tails after the oldsrv converge, and **HD-466** is closed and deleted — `check_todo_done.py`
 > now charges a `prompt.md` marker to the ENTRY that names the id instead of to whichever id sits inside
@@ -352,7 +356,7 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-316 | 3 | AI + gate | 2.5 Interfaces & Dashboards | Homepage family launchpad — real app dashboard (home.kogler.si) + Domen technical section (Grafana stays separ… | Owner verify: family sees live apps green; Domen-only technical section renders. · services.md, interfaces.md · | — |
 | HD-315 | 2 | AI | 2.5 Interfaces & Dashboards | Author Grafana technical dashboards (v1) — make the live Prometheus data usable | Remaining (owner): render-verify panels with data (CrowdSec/ups/network-clients verified now; host overview + probe tables have data). · observability.md §Dashboards · IaC/ansible/roles/monitoring/fil… | — |
 | HD-343 | 2 | AI | 2.5 Interfaces & Dashboards | Grafana “Network Clients” dashboard (stats.kogler.si) — all clients grouped per VLAN — DESIGN SSOT + EXPORTER… | Remaining (owner/verify steps): verify live wifi path (/interface/wifi/registration-table vs legacy); render-verify panels owner step; dashboard visible on stats.kogler.si after the VPS Grafana provis… | — |
-| HD-450 | 2 | AI | 2.5 Interfaces & Dashboards | A cert consumer can age out silently: nothing watches the pair's age at a consumer, and a failing systemd time… | Name that mechanism and pin the pull's identity so a reboot is never the fix. | — |
+| HD-450 | 2 | AI | 2.4 Services & Edge | unit results and consumer cert age were invisible to every alert | ⏳ 3 items — (1) VPS monitoring converge → rules reach Grafana, then the end-to-end Signal test; (2) spark/nas/VPS still need the exporter converge (VPS slot held); (3) NUT client→master as a metric (leg c) · [observability.md](docs/observability.md) |
 | HD-04 | 5 | AI + gate | 2.6 Smart Home | Pi redo: HAOS → Debian + HA Container + Technitium secondary — ✅ DONE + LIVE 2026-09-03 | Remaining: the owner failover test — drill EXECUTED LIVE 2026-09-09, forward takeover PROVEN (VIP Pi→oldsrv, standby HA up at VIP:8123 after the 8123-publish fix a3a11c0, Shelly control verified; reco… | — |
 | HD-434 | 3 | AI + owner | 2.6 Smart Home | KNX on the HA standby is still unproven — and its only published cause has been withdrawn. | 2 · KNX on the HA standby is still unproven — and its only published cause has been withdrawn. The standby's KNX failure was attributed to the GIRA router; that inference was built on probes that were… | — |
 | HD-438 | 3 | AI + owner | 2.6 Smart Home | HA's KNX has been dead since 2026-09-20 10:16; the firewall hole is closed but the service is not proven back. | 2 · HA's KNX has been dead since 2026-09-20 10:16; the firewall hole is closed but the service is not proven back. Cause found: Home→IoT (VLAN 20) is gated on src-address-list=trusted-ha, which held o… | — |

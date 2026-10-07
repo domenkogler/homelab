@@ -58,3 +58,21 @@ tailscale_node_expected_ip: "{{ tailnet_pi_ip }}"
 # (dated comment-out marker) until then — IaC never managed `admin`, so a converge
 # will not silently re-add it.
 access_admit_extra: ['admin']
+
+
+# ==== HD-450 — what this host's silent-failure collector watches (roles/monitoring) ====
+# Same reasoning as oldsrv's block: the RESULT of the last run is the only signal that separates a
+# healthy oneshot from a failing one, and NUT's units can read "active" while the client leg is broken.
+# Verified 2026-10-07 with `systemctl show`: ha-cert-sync loaded/inactive/success, nut-monitor and
+# nut-client loaded/active/success. `traefik-cert-pull` is NOT listed — this host pulls with
+# ha-cert-sync instead, and listing a unit that is not installed alerts on purpose.
+monitoring_hygiene_units:
+  - ha-cert-sync.service
+  - nut-monitor.service
+  - nut-client.service
+
+# Measured 2026-10-07: the deployed ha-cert-sync.sh DST is `/opt/traefik-ha/certs/` (hardcoded in that
+# template, unlike oldsrv's var-derived one) and the pair there carries the same 90-day wildcard.
+monitoring_hygiene_certs:
+  - consumer: traefik-ha
+    path: "/opt/traefik-ha/certs/{{ wildcard_cert_file }}"

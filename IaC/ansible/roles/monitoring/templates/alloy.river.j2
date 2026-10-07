@@ -111,6 +111,23 @@ prometheus.scrape "host_metrics" {
 {% endif %}
 }
 
+// ---- HD-450: silent-failure hygiene (unit results + the cert pair each consumer holds) ----
+// Two gaps that let a failing cert-pull timer run for DAYS with no series changing: systemd unit
+// results were scraped by nothing, and consumer-side cert age by nothing (`ssl-cert-expiring` reads
+// probe_ssl_earliest_cert_expiry, which has zero series — blackbox emits no SSL expiry). Exporter:
+// /usr/local/sbin/homelab-hygiene.py (roles/monitoring), same loopback shape as network_clients below.
+// Unconditional on purpose: every monitoring host has unit results worth watching, and a host that
+// runs no consumer edge simply reports no cert series (the cert rules carry noData=OK, so absence of
+// THAT is not an alert — absence of the heartbeat is, see hygiene-collector-stale).
+prometheus.scrape "homelab_hygiene" {
+    targets = [{
+        "__address__" = "{{ monitoring_hygiene_listen }}:{{ monitoring_hygiene_port }}",
+        "job" = "homelab-hygiene",
+        "instance" = "{{ inventory_hostname }}",
+    }]
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+
 {% if inventory_hostname == 'spark.kogler.si' %}
 prometheus.relabel "host_metrics_cold" {
     rule {

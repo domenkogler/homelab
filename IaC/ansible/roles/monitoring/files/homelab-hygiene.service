@@ -1,0 +1,23 @@
+# managed by Ansible — monitoring role (HD-450) — silent-failure hygiene exporter unit
+[Unit]
+Description=HD-450 hygiene exporter: systemd unit results + consumer cert age (loopback)
+Documentation=file:/usr/local/sbin/homelab-hygiene.py
+After=network-online.target
+
+[Service]
+Type=simple
+# Root, not a dedicated user (the HD-343 network-clients exporter does have one, because it holds a
+# RouterOS credential): nothing here holds a secret, but the cert pair lives under /opt/<edge>/certs,
+# whose permissions differ by host. Reading them as an unprivileged user would report
+# `homelab_cert_pair_present = 0` for a pair that is perfectly fine — a false CRITICAL, and the row is
+# about alerts that must mean what they say. The script is read-only (`systemctl show`, `openssl
+# x509 -noout -enddate`) and binds loopback only; it never opens the *-key.pem files.
+ExecStart=/usr/bin/python3 /usr/local/sbin/homelab-hygiene.py
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

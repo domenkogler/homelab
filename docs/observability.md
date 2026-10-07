@@ -342,6 +342,59 @@ idle recycle at baseline +8 GiB).
   both rules load in the ruler (`vps.yml --tags monitoring`, failed=0, 2026-09-17 22:33C), CRIT
   `noDataState: Alerting`, and the WARN summary/label mismatch is fixed.
 
+### Silent-failure hygiene: unit results and consumer cert age as series (HD-450, live 2026-10-07)
+
+The gap that HD-350 exposed: `traefik-cert-pull.timer` failed every 15 min for DAYS and **no series changed
+anywhere**. Not "the alert was mis-tuned" — two whole classes were unrepresented in the database: a systemd
+unit's *result* was scraped by nothing, and the cert pair a **consumer** holds was exported by nothing
+(`ssl-cert-expiring` reads `probe_ssl_earliest_cert_expiry`, which has **zero series** — blackbox emits no
+SSL expiry, so that rule has been structurally dead since it was written).
+
+`roles/monitoring` now ships `homelab-hygiene.py` on every monitoring host (loopback `:9098`, scraped by
+that host's Alloy into the same remote_write path as everything else):
+
+| Series | Meaning |
+| --- | --- |
+| `homelab_unit_last_success{unit=}` | 1 when the unit exists AND its last run succeeded — the only signal that separates a healthy oneshot from a failing one, because `is-active` answers `inactive` for both |
+| `homelab_unit_result{unit=,result="success\|failed\|missing"}` | the reason, for the dashboard and the alert text |
+| `homelab_cert_pair_present{consumer=}` | 1 when the pair this edge actually loads exists |
+| `homelab_cert_days_left{consumer=}` | days to expiry of the pair this edge loads |
+| `homelab_hygiene_scrape_ok` | the collector's own heartbeat — the collector is a systemd service, i.e. the same failure class |
+
+*Fail-loud by construction*, because a monitor that says "healthy" about what it cannot see is how the
+September incident ran for four days: a listed unit that is not installed → `0`/`missing` (so a wrong list
+costs a visible alert, never silence); a unit whose `systemctl show` gives no output at all → `0`/`unknown`;
+an absent cert file → `pair_present = 0`, **not** a NaN days-left value, because `NaN < 14` is false and a
+vanished pair would have read as "not expiring". All four branches are canaried, including a real failed
+transient unit (`systemd-run --wait --unit=… /bin/false` → `0`/`failed`).
+
+**Thresholds are measured, not copied.** The row proposed WARN 30 d / CRIT 14 d. The live pair is a **90-day
+cert** (`notBefore 2026-08-22 → notAfter 2026-11-20`) and the issuer renews late in that window, so a healthy
+consumer's `days_left` bottoms out near three weeks — a 30-day warning would have fired for days before every
+scheduled renewal, which is how an alert class gets muted. Shipped: **WARN 14 d / CRIT 7 d** + a critical on
+`pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
+
+⚠ **`textfile` was tried first and does not work on this Alloy.** `prometheus.exporter.unix` here accepts a
+`textfile {}` block but rejects every attribute name that would point it at a directory — probed against
+v1.20.1 on the box: `collectors_dir`, `directories`, `paths`, `files`, `syntax_version` each return
+`unrecognized attribute name`, while `textfile {}` with an empty body parses. Writing to a directory nobody
+could name is not a design, so the exporter follows the shape the same role already proves live (the HD-343
+network-clients exporter). The probe that established this is why `set_collectors` does NOT list `textfile`.
+
+Live 2026-10-07 (query in VM, both hosts): 9 series each — oldsrv `traefik-cert-pull` + `nut-monitor` +
+`nut-client`, Pi `ha-cert-sync` + the two NUT units, all `last_success = 1`; `cert_days_left = 44.14` on
+`traefik-internal` and `traefik-ha`. Two things are NOT claimed: **(a)** the alert rules are authored in
+`roles/monitoring/vars/main.yml` but reach Grafana only through a VPS converge, so nothing has fired yet;
+**(b)** the NUT client→master leg is still not a metric — the exporter reports the NUT *units'* results,
+which is not the same claim as "this client can reach the master" (HD-467's 23-day loopback-only window
+would still have been invisible between converges).
+
+⚠ **Debugging gotcha found the hard way the same day:** dumping `/etc/alloy/config.alloy` to inspect the
+remote_write block prints the VictoriaMetrics **and** VictoriaLogs basic-auth passwords. The file is 0600
+root but it is not a safe thing to `grep -A40`. Take credentials through the vault lookup the role already
+uses, or read them into a shell variable and never echo them — this is why the monitoring tasks template
+them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back rendered files.
+
 ### Tiers
 
 | Severity | What alerts | Channel | Notes |
