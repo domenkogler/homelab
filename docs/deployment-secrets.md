@@ -74,6 +74,10 @@ boundary — a leaked automation token never exposes break-glass credentials.
 ## Secret Naming Convention
 
 > **The single source of truth for 1Password items.** Every secret lives in the `Homelab-ansible` vault.
+> Two repo files *reference* items and hold no values: `skills/mikrotik/.env.op` (`mikrotik-admin_login`)
+> and `skills/shelly/.env.op` — both TRACKED, because a gitignored file that the docs call safe to commit is
+> how one of them came to exist on exactly one host (found 2026-10-07, when a seat was retired). `scripts/sync-skills.sh`
+> never deploys them on purpose, so point the scripts at the repo copy: `--op-env-file skills/mikrotik/.env.op`.
 
 **Item name pattern: `<service>_<type>`**
 

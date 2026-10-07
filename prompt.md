@@ -12,8 +12,18 @@
 
 ## 1. Environment
 
-**The pi-dev seat is `oldsrv`** (the primary coding seat — harness state in [docs/pi-harness.md](docs/pi-harness.md)); the
-laptop's WSL Debian clone is the durable **runner**, and owner/cleanup sessions also run from the **Win11 Git-Bash** seat.
+**The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
+land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
+fleet's live set (harness state in [docs/pi-harness.md](docs/pi-harness.md)). The laptop's WSL Debian clone
+is **retired as a seat (owner, 2026-10-07)** and held no unique state: clean tree, no worktree, no stash, no
+unpushed commit. Its one non-derived gitignored file, `skills/mikrotik/.env.op` (`op://` references, no
+values), is TRACKED from this commit, so a clone elsewhere loses nothing. Read the inventory's `laptop-wsl` role
+("durable runner state = NAT + auto-resolv") as that host's **network** mode, not as a job runner: nothing
+is scheduled on it (no crontab, stock Debian timers only). No command changes, because the seat's clone sits
+at the same `~/source/homelab`. What the seat does buy: HD-1085's canary prints SKIP for its load-probe legs
+where the `tmux` binary is missing — five of them did on WSL (`validate-all.sh` there is GREEN but partly
+unmeasured) — while on the seat, which runs tmux 3.5a, they execute. Owner/cleanup sessions also run from
+the **Win11 Git-Bash** seat.
 `python3`/bash/LF/UTF-8 no-BOM (`.gitattributes` pins `eol=lf`, so a checkout is LF on Windows too). On a Win11 seat four
 gates were silently blind or misleadingly red until 2026-10-07 — MSYS text mode makes `grep` miss the CR of a CRLF pair
 (`grep -U` is mandatory in encoding guards), `git` lives in `/mingw64/bin` not `/usr/bin`, and a case ending in a tmux/ansible
