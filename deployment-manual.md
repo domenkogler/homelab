@@ -1648,9 +1648,50 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
    `SABnzbd`, port `8080`, SSL off. Evidence: that arr's own `POST /api/vN/downloadclient/test` → HTTP 200.
    ⚠ Do **not** also add SABnzbd in Prowlarr: the arrs then round-robin two enabled clients into arbitrary
    landing folders.
-8. **qBittorrent (torrent leg)** — host `gluetun`, port `8080`; qBittorrent is `network_mode: service:gluetun`
-   and does not bind loopback inside that container, so probe it from a third container (the client
-   registration itself: HD-1082).
+8. **qBittorrent (torrent leg)** — the download client is registered **in each arr** (same rule as SABnzbd,
+   §Which half of Prowlarr to trust in [services-downloads.md](docs/services-downloads.md)): Radarr
+   `movies` · Sonarr `tv` · Lidarr `music`, host `gluetun`, port `8080`. qBittorrent runs
+   `network_mode: service:gluetun`, so `qbittorrent:8080` never resolves — always dial `gluetun:8080`, and
+   probe it from a third container, never from inside gluetun.
+   a. Create the WebUI credential first — one value, used both as qBittorrent's login and by the three arrs:
+      ```console
+      $ export OP_SERVICE_ACCOUNT_TOKEN=$(ssh ansible-admin@vps.kogler.si 'sudo cat /etc/op/provision-token')
+      $ python3 scripts/provision-secrets.py --list                  # catalog, to see what is missing
+      $ python3 scripts/provision-secrets.py --create --yes          # creates EVERY missing catalog item
+      $ unset OP_SERVICE_ACCOUNT_TOKEN
+      ```
+      ⚠ **There is no per-item create** (`--rotate <item>` refuses an absent item), so `--create` is the only
+      path — which is why the catalog must be honest: an item the owner deliberately deleted has to be
+      commented out of `CATALOG`, or this resurrects it with a meaningless random value (that is why
+      `dsh_forgejo_api` is commented out with a note, while staying in `NOT_AUTO_ROTATABLE`).
+   b. Seed qBittorrent (WebUI credential as PBKDF2, save paths, categories, `UseCategoryPathsInManualMode`)
+      — this restarts the container once when the conf drifts:
+      ```console
+      $ bash scripts/ansible-run.sh playbooks/home_servers.yml \
+          --tags docker_services,qbittorrent,qbittorrent_seed -e docker_services_scope="qbittorrent"
+      ```
+   c. Register the client in the three arrs:
+      ```console
+      $ bash scripts/ansible-run.sh playbooks/home_servers.yml \
+          --tags docker_services,sonarr,radarr,lidarr,arr_client_seed \
+          -e docker_services_scope="sonarr,radarr,lidarr"
+      ```
+      Success reads `registered host=gluetun:8080 movieCategory=movies · arr client test HTTP 200` — the
+      200 is the arr's own `/downloadclient/test`, so it proves DNS for `gluetun`, reachability of `:8080`
+      and the credential in one line. Re-running must read `OK already: unchanged`.
+   d. ⚠ **Prove the VPN leg before adding any torrent**, and treat "inconclusive" as unsafe: host egress and
+      `docker exec gluetun wget -qO- https://api.ipify.org` must differ. An IP leak has no undo.
+   e. **Adding a torrent the arrs' indexers cannot search** (e.g. a LimeTorrents movie grab — LimeTorrents is
+      attached to Sonarr, not Radarr): fetch the `.torrent` over plain HTTPS and hand it to qBittorrent
+      through its API. Never add it from the host, so peers can only ever see the VPN egress.
+      ```console
+      $ curl -gsSL -g -o /tmp/t.torrent "<torrent-url>"          # -g: [Site.name] is a curl glob range
+      $ curl -s -b $c -F "category=movies" -F "torrents=@/tmp/t.torrent" $Q/api/v2/torrents/add
+      ```
+      Then confirm the category actually steered the path — `save_path` must read
+      `/downloads/complete/<category>`, not the session default (see §qBittorrent's category save paths).
+      Radarr's Completed Download Handling imports it from there; expect a **move**, not a hardlink, while
+      `/media` and `/downloads` are separate binds (§Hardlink import is impossible…, HD-1086).
 9. **Verify one of each** — request a movie and a series in Seerr, then: SABnzbd history shows the job under
    `/downloads/complete/<category>/…`, the arr reports the import, the file exists under
    `/mnt/nas/media/media/{movies,tv}/…`, and Jellyfin serves it.
