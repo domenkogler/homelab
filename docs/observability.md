@@ -374,6 +374,31 @@ consumer's `days_left` bottoms out near three weeks — a 30-day warning would h
 scheduled renewal, which is how an alert class gets muted. Shipped: **WARN 14 d / CRIT 7 d** + a critical on
 `pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
 
+**The fleet leg landed 2026-10-08** (`nas` + the VPS monitoring converge, both `failed=0`), so the exporter
+now runs on `oldsrv · pi · nas · vps` and `homelab_hygiene_scrape_ok` is in VictoriaMetrics for all four
+(`count by (instance) (homelab_hygiene_scrape_ok)` → 1 each). `spark` is the one remaining leg — it is the
+converge every spark lane is told not to run unattended, so the rule there evaluates nothing until a
+spark-slot session converges `monitoring`. The five rules are in Grafana: of 24 rules loaded, **5 reference
+`homelab_*`** — `cert-pair-missing` (CRIT, 5 m), `cert-age-critical` (`< 7 d`, CRIT, 10 m),
+`hygiene-collector-stale` (CRIT, 15 m), `unit-last-result-failed` (WARN, 5 m), `cert-age-warning`
+(`< 14 d`, WARN, 30 m).
+
+**Three reads answer, and two confidently lie** (all measured the same night, so the next session does not
+re-derive them):
+
+| Question | The read that answers | The read that misleads |
+|---|---|---|
+| Are the rules in Grafana? | `GET http://<grafana-container-ip>:3000/api/ruler/grafana/api/v1/rules` with `admin` + the password from `docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD` (the role's own source — never a vault guess). Match on the **metric in the expression**: a file-provisioned rule lists under its TITLE, not its `uid`. | `GET /api/v1/rules` → **404** on this Grafana; a name-match on `uid` finds **zero** of the five while all five are loaded. |
+| Did the series reach the backend? | Query **through the datasource proxy**: `…/api/datasources/proxy/uid/prometheus/api/v1/query?query=…`. | A direct `curl` to `victoria-metrics:8428` answers **400** even with correct basic auth (this VM build wants a request shape curl's `-G` does not produce) — a 400 there is NOT "no data", and a 401 is often just the absent `OP_SERVICE_ACCOUNT_TOKEN`, because the vault lookup then yields nothing. |
+| Is the exporter up on a host? | `curl -s 127.0.0.1:9098/metrics \| grep -c '^homelab_'` on that host (oldsrv: 9). | The unit being `active` — the collector can be up and its `systemctl show` loop empty. |
+
+**One acceptance is still open, deliberately:** force one listed unit to fail and see the message arrive in
+the Signal alert group. Parked by the owner on 2026-10-08 — an intentional alert pages the family group, and
+the night's work was unattended. To close it: `systemd-run --wait --unit=hd450-canary.service /bin/false`
+on any monitoring host, wait one rule interval (`unit-last-result-failed`, `for: 5m`), read the Signal
+group, then `systemctl reset-failed hd450-canary.service`. The canary shape itself is already proven
+off-box (the exporter's own `--self-test` fails it closed).
+
 ⚠ **`textfile` was tried first and does not work on this Alloy.** `prometheus.exporter.unix` here accepts a
 `textfile {}` block but rejects every attribute name that would point it at a directory — probed against
 v1.20.1 on the box: `collectors_dir`, `directories`, `paths`, `files`, `syntax_version` each return
