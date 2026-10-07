@@ -173,6 +173,12 @@
 # ---- DHCP: pools + servers + networks (mgmt server = dhcp-mgmt, named in bootstrap) ----
 # RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the
 # 4th/final fallback (HD-317). Guarded (HD-322) — re-import never duplicate-aborts.
+# HD-1097: every server also carries `domain={{ domain_local }}` (DHCP option 15), which is
+# what makes a single-label name (`nas`, for `\\nas\media`) reach DNS at all instead of the
+# LLMNR/NetBIOS broadcast fallback that a wired port gives you and a Wi-Fi client does not.
+# docs/network-vlans.md §DHCP claimed option 15 was already set; live it was NOT (no `domain=`
+# anywhere in this template, `/ip dhcp-server option` empty) — this is the fold that makes the
+# doc true. Set on the SERVER (not `network`) — option 15 is a server-level property in v7.
 # Resolver ORDER per VLAN comes from `lan_first_dns` on the `network_vlans` row (SSOT),
 # identical to roles/router/tasks/main.yml — see docs/network-dns.md §DNS Flow for why a
 # home instance first changes which split-horizon ANSWER that VLAN's devices get.
@@ -183,9 +189,9 @@
     /ip pool set [find where name=pool-mgmt] ranges={{ mgmt.pool }}
 }
 :if ([/ip dhcp-server find where name=dhcp-mgmt] = "") do={
-    /ip dhcp-server add name=dhcp-mgmt interface=vlan99-mgmt address-pool=pool-mgmt disabled=no
+    /ip dhcp-server add name=dhcp-mgmt interface=vlan99-mgmt address-pool=pool-mgmt domain={{ domain_local }} disabled=no
 } else={
-    /ip dhcp-server set [find where name=dhcp-mgmt] interface=vlan99-mgmt address-pool=pool-mgmt disabled=no
+    /ip dhcp-server set [find where name=dhcp-mgmt] interface=vlan99-mgmt address-pool=pool-mgmt domain={{ domain_local }} disabled=no
 }
 :if ([/ip dhcp-server network find where gateway=10.10.99.1] = "") do={
     /ip dhcp-server network add address={{ mgmt.subnet }} gateway=10.10.99.1 dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
@@ -200,9 +206,9 @@
     /ip pool set [find where name=pool-vlan{{ v.id }}] ranges={{ v.pool }}
 }
 :if ([/ip dhcp-server find where name=dhcp-{{ v.id }}] = "") do={
-    /ip dhcp-server add name=dhcp-{{ v.id }} interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
+    /ip dhcp-server add name=dhcp-{{ v.id }} interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} domain={{ domain_local }} disabled=no
 } else={
-    /ip dhcp-server set [find where name=dhcp-{{ v.id }}] interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} disabled=no
+    /ip dhcp-server set [find where name=dhcp-{{ v.id }}] interface=vlan{{ v.id }}-{{ v.name|lower }} address-pool=pool-vlan{{ v.id }} domain={{ domain_local }} disabled=no
 }
 :if ([/ip dhcp-server network find where gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }}] = "") do={
     /ip dhcp-server network add address={{ v.subnet }} gateway={{ (network_static_hosts | selectattr('vlan','==',v.id) | selectattr('name','==','router') | first).ip }} dns-server={{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip] if (v.lan_first_dns | default(false)) else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip]) | join(',') }}

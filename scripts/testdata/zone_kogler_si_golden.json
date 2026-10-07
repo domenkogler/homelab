@@ -175,8 +175,8 @@
     "headscale:plain": 10,
     "headscale:ts_only": 28,
     "technitium:primary": 35,
-    "technitium:secondary": 46,
-    "technitium:secondary-pi": 46
+    "technitium:secondary": 50,
+    "technitium:secondary-pi": 50
   },
   "headscale": {
     "plain": [
@@ -701,6 +701,22 @@
       {
         "ip": "10.10.1.30",
         "name": "lidarr-ydl.kogler.si"
+      },
+      {
+        "ip": "10.10.1.10",
+        "name": "nas.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "oldsrv.kogler.si"
+      },
+      {
+        "ip": "10.10.1.20",
+        "name": "pi.kogler.si"
+      },
+      {
+        "ip": "10.10.1.1",
+        "name": "router.kogler.si"
       }
     ],
     "secondary-pi": [
@@ -887,6 +903,22 @@
       {
         "ip": "10.10.1.30",
         "name": "lidarr-ydl.kogler.si"
+      },
+      {
+        "ip": "10.10.1.10",
+        "name": "nas.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "oldsrv.kogler.si"
+      },
+      {
+        "ip": "10.10.1.20",
+        "name": "pi.kogler.si"
+      },
+      {
+        "ip": "10.10.1.1",
+        "name": "router.kogler.si"
       }
     ]
   }

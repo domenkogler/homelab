@@ -1518,7 +1518,9 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
    ```
 
    **[MANUAL] The mount itself is a human act — do it once per client:**
-   - Windows 11: `net use W: \\nas\media /user:domen` and `net use M: \\nas\music /user:shared`
+   - Windows 11: `net use W: \\nas.kogler.si\media /user:domen` and `net use M: \\nas.kogler.si\music /user:shared`
+     — type the **FQDN**. The bare `\\nas` form works only once the client has renewed and picked up the
+     `kogler.si` suffix (HD-1097); the FQDN answers on every link and never depends on that.
      (or Explorer → Map network drive → "Connect using different credentials"). Tick *Reconnect*,
      Windows does not prompt again; `cmdkey /list` shows what it stored, `net use /delete <drive>` releases it.
    - `shared` is the **music-only** service account (`valid users` on that one share, no private drive,

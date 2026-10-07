@@ -256,7 +256,14 @@ Implemented with **address-lists** and **interface lists** in RouterOS.
 
 DHCP is handled entirely by the **RB4011 router** on each VLAN interface. This ensures devices always get IP leases even if the Debian PC is down.
 
-DHCP option 15 (`domain=kogler.si`) is set on each DHCP network.
+DHCP option 15 (`domain=kogler.si`) is set on every DHCP **server** — in RouterOS it is a
+`/ip dhcp-server` property, not a `network` one — rendered from `domain_local` by
+`rb4011_converge.rsc.j2` + `roles/router/tasks/main.yml` (edit-both-or-neither). It is what turns a
+single-label name into a DNS query (`nas` → `nas.kogler.si`) instead of a broadcast guess.
+⚠ **This sentence described a `set` that was never in the template until HD-1097 (2026-10-07):**
+`/ip dhcp-server option` was empty and no `domain=` appeared in any render, so no client ever got a
+suffix — the claim and the device disagreed for a year, and the first symptom was a family member
+who could not mount `\\nas\media` from Wi-Fi.
 
 Static DHCP reservations (SSOT: `group_vars/all/` → `network_static_hosts`, applied by
 `roles/router` + `rb4011_converge.rsc.j2`; live verification via the RouterOS API):

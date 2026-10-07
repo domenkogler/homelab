@@ -1,0 +1,30 @@
+{#- RB4011 — HD-1097 DHCP option 15 (search suffix = {{ domain_local }}) DELTA, 2026-10-07.
+    Why: `\\nas\media` is typed with a BARE host name. The LAN zone answered service names
+    only (nas.kogler.si → NXDOMAIN, aa flag, on both home resolvers), so the mount rode the
+    LLMNR/NetBIOS broadcast fallback — which a wired switch port supplies and a Wi-Fi client
+    does not. Measured on the owner's laptop: mounting by IP over Wi-Fi works, by name it does
+    not. Same change set: the host A records in `zone_kogler_si` (group_vars/all) answer the
+    FQDN; THIS delta delivers option 15 so the bare name is devolved to the FQDN in the first
+    place. One without the other leaves the bug half-fixed.
+    Folded back into rb4011_converge.rsc.j2 + roles/router in the SAME change — a delta is
+    transient and must never become a second truth (docs/network-ops.md §The three tiers).
+    Idempotent: set-only (no add/remove), touches one property on the server rows; re-import
+    of an already-correct value is a no-op. Reaches clients at their next ACK/renewal. -#}
+# =============================================================================
+# HD-1097 — set domain (DHCP option 15) on EVERY dhcp-server, dhcp-mgmt included
+# =============================================================================
+:local dom "{{ domain_local }}"
+:foreach s in=[/ip dhcp-server find] do={
+    :local n [/ip dhcp-server get $s name]
+    /ip dhcp-server set $s domain=$dom
+    :put ("HD-1097: " . $n . " -> domain=" . [/ip dhcp-server get $s domain])
+}
+
+# The `:foreach ... get` form is deliberate: over non-interactive SSH
+# `/ip dhcp-server network print where ...` and `print as-value` print NOTHING and a bare
+# `[find …]` resolves against the current menu, so both read as "not set" while the value is
+# set (measured 2026-10-07, HD-1095). Read back with get, never with a filtered print.
+#
+# Verify (device):  /ip dhcp-server print detail      → every row shows domain=kogler.si
+# Verify (client):  Windows: ipconfig /all → "Connection-specific DNS Suffix . : kogler.si"
+#                   then:  Resolve-DnsName nas.kogler.si  → 10.10.1.10

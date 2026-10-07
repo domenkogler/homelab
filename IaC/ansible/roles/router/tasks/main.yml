@@ -246,6 +246,10 @@
       - name: "dhcp-{{ item.id }}"
         interface: "vlan{{ item.id }}-{{ item.name | lower }}"
         address-pool: "pool-vlan{{ item.id }}"
+        # HD-1097 — DHCP option 15 (the search suffix). Without it a single-label name
+        # (`nas` in `\\nas\media`) is never devolved to `nas.kogler.si` and never reaches DNS.
+        # Keep identical to rb4011_converge.rsc.j2 (edit-both-or-neither).
+        domain: "{{ domain_local }}"
         disabled: no
   loop: "{{ network_vlans }}"
   when: item.id not in [1, 99]

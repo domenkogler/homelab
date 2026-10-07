@@ -162,6 +162,16 @@ the two shared ones force-owned by the neutral **`media`** account (`force user`
 | `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | `shared` only | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move (HD-362, added 2026-10-07) |
 | `\\nas\<user>` | `/tank/data/users/<user>` | — | `<user>` | per-user private drive, NO force user (own uid = the isolation) |
 
+**How a client addresses these shares (HD-1097, 2026-10-07).** `nas.kogler.si` answers on the LAN plane
+and DHCP delivers the `kogler.si` suffix, so `\\nas\media` mounts over Wi-Fi as well as over cable.
+Before that the zone carried no `nas` record at all and the UNC worked only through the NetBIOS/LLMNR
+broadcast fallback — wired mounted, the same laptop on Wi-Fi did not, while mounting at the NAS's Home
+address (SSOT row `nas` in [network-addresses-generated.md](network-addresses-generated.md)) mounted on
+both. Keep that split as the diagnostic: **IP mounts and the name does not ⇒ resolution, not Samba**
+— read the DNS answer before touching the share, the accounts or the firewall. Mechanism and the
+decision not to paper over it with a `hosts` file:
+[network-dns.md](network-dns.md) §Local Name Resolution & mDNS.
+
 ⚠ **Samba resolves these directives by NAME, not by id.** `force user = 1005` and
 `valid users = @1005` parse fine, load fine, and resolve to NOTHING: authentication succeeds and
 the **tree connect** then fails — `NT_STATUS_ACCESS_DENIED`, or `NT_STATUS_NO_SUCH_USER` when it is
