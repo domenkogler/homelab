@@ -265,6 +265,28 @@ carry). Exit `90` = the deployed script drifted; re-converge it (`docker_service
 >   `dns-pi`, so it never fights `traefik-internal` for :443 (only the keepalived MASTER binds the VIP).
 > - **One ACME issuer** (the VPS public edge); every other edge is a cert **consumer**.
 
+**A consumer's pull can be aimed at itself, and no scoped converge can repair it (HD-350/HD-450,
+measured 2026-09-23).** oldsrv's wildcard pair LOOKED synced and was not: the deployed
+`/usr/local/sbin/traefik-cert-pull.sh` carried `SRC = ansible-admin@<oldsrv's own Home address>`, so
+every 15-minute fire asked its own box for `/opt/traefik/certs/` and got `Permission denied
+(publickey)` → rsync rc 255 (405 units, 2026-09-19 → 09-23). Two facts the row had wrong and the
+measurement settled: **(1)** it was **live drift, not an IaC bug** — `git log -S` on that line shows
+only the `hostvars['vps.kogler.si'].ansible_host` form ever existed and a fresh lookup resolves the
+VPS address, while the file's mtime was 2026-09-19 16:14, i.e. hand-touched on the box; validators
+read the repo, so the fault was invisible to every gate. **(2)** the repairing block carried **no
+tag**, and `roles:` entries get no implicit role tag, so `--tags docker_services` filtered the whole
+block out and reported a clean `changed=0` — four days of scoped converges could not re-render it
+(the same trap `scripts/README.md` warns about for `--tags tailscale-node`, in a different block).
+The SSH identity was never the gap: the pull key's pubkey has been in the VPS `authorized_keys`
+since 2026-09-15. Guards, so the silent form cannot come back: the block is tagged
+`docker_services`; the deploying task asserts the issuer is non-empty and not this host (plain
+`assert`, check-mode safe); and BOTH pull scripts (`traefik-cert-pull.sh`, the Pi's
+`ha-cert-sync.sh`) exit **90** when SRC names one of the host's own scope-global addresses — a
+self-pull otherwise exits 0, which is exactly why this class of fault is expensive. Live re-check
+2026-10-07: SRC renders the VPS address, the timer is active, 0 failures in 3 days, pair valid to
+2026-11-20. What remains open is only the **instrumentation** (nothing observes pair age at the
+consumers, and nothing watches these units' result — HD-450).
+
 ## Cockpit Routes (file-provider, no Forward-Auth)
 
 Cockpit is a host service (not a Docker container), so its routes are a Traefik
