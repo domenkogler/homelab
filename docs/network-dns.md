@@ -288,6 +288,20 @@ clients stay on the home LAN while WAN/tailnet clients keep the VPS edge. Record
 > depend on WAN (the HD-349 drill finding). The home edge (`traefik-internal`,
 > [services-traefik.md](services-traefik.md) §Edge model) serves them from `oldsrv_home_ip`; the VPS
 > primary keeps `dns_primary_ip` so WAN/tailnet reach the VPS first.
+>
+> ⚠ **The consequence nobody wrote down until a TV broke (measured 2026-10-07, HD-1095):** the VPS answer is
+> only a promise, not a service — the VPS edge carries **no router** for the home-hosted names, so a client
+> that asks the VPS first gets `media.kogler.si` → `dns_primary_ip` → **HTTP 404**, while the same name asked
+> of either home instance returns `oldsrv_home_ip` → **302 → `/web/`** and plays. Measured pair from the
+> Shield's VLAN: `dig @<VPS> media.kogler.si` → the VPS address, `dig @<Pi>` / `@oldsrv` → the oldsrv Home
+> address, and `curl --resolve media.kogler.si:443:<VPS IP>` → 404 vs `:443:<oldsrv Home IP>` → 302.
+> **Which resolver a VLAN queries first is therefore a reachability switch, not a preference** — see
+> §DNS Flow and `network_vlans[].lan_first_dns`. Two ways to make the VPS answer honest; both are recorded,
+> only the first exists today: (a) hand that VLAN a home resolver first, (b) add the missing **VPS-edge
+> route** for the home-hosted names, proxying over WG S2S to the home edge — the `ha` route in
+> `traefik/dynamic/routes.yml.j2` is the precedent, and `crowdsec-only@file` is mandatory on it
+> ([security.md](security.md) §1 law). Until (b) lands, "works on the Home VLAN, 404 everywhere else" is
+> the signature of this defect, not of a dead service.
 
 ---
 
@@ -300,19 +314,30 @@ Client → Technitium (DHCP-pushed chain, see below)
 
 - **Resolver chain pushed by DHCP (RouterOS caps `dns-server` at 3 values — a 4th is silently dropped,
   so the router IP is deliberately NOT in the list):**
-  - **Home VLAN 10:** **Pi tertiary → VPS primary → oldsrv secondary** (HD-334) — the durable reason is
+  - **Home VLAN 10 and Media VLAN 50** (`lan_first_dns: true` on the `network_vlans` row — SSOT, the flag
+    both the role and the converge render from, never a hardcoded VLAN id):
+    **Pi tertiary → VPS primary → oldsrv secondary** (HD-334). For VLAN 10 the durable reason is
     **HA-independence**: HA's primary runs on the Pi and the standby on oldsrv, so Home must keep resolving
     with oldsrv down, and the resolver must never sit behind the standby. ⚠ The reason this bullet used to
     give — *per-device query visibility in the Pi's log* — **is not delivered**: `logQueries = false` on the
     Pi (measured 2026-09-29), so the Pi's query log does not exist (HD-476). Note the pushed address is the
     Pi's **node IP** (`dns_tertiary_ip`), not the VIP: the resolver does **not** currently float with HA —
     see **HD-477**.
-  - **All other VLANs (guest/mgmt/iot/media):** **VPS primary → oldsrv secondary → Pi tertiary** — they
-    are not per-device filtered.
+    VLAN 50 was added to this list **2026-10-07 (HD-1095)** for the other half of the same mechanism: the
+    first resolver decides which **split-horizon answer** that VLAN gets for the home-hosted app names —
+    see §Per-Instance Split-Horizon for the measured 404 that made this a requirement, not a preference.
+  - **Every other VLAN (guest 30 / kids 40 / mgmt 99):** **VPS primary → oldsrv secondary → Pi tertiary** —
+    they are not per-device filtered, and their devices are expected to reach internal apps through the
+    **VPS** edge. ⚠ For the home-hosted names that expectation is currently unmet — the VPS edge has no
+    route for them (**HD-1095**), which is why a VLAN that is VPS-first cannot open `media`/`seerr`/`seerrng`
+    until that route exists. (IoT 20 and the Kids MACs are separate: the router `dst-nat`s their `:53` to a
+    chosen instance regardless of this order — see §Per-Subnet DNS Policy.)
   - The router's `/ip dns` is the **implicit** last resort via its own upstream (the same chain first +
     Cloudflare `1.1.1.1`/`1.0.0.1` last); its WAN egress is what the VPS `dns-allow-home` nft set permits.
-  - `.rsc`/role parity: the DHCP `dns-server` is rendered from the same SSOT in both
-    `roles/router/tasks/main.yml` and `rb4011_converge.rsc.j2`.
+  - `.rsc`/role parity: the DHCP `dns-server` is rendered from the same SSOT in
+    `roles/router/tasks/main.yml`, `rb4011_converge.rsc.j2` and the transient
+    `rb4011_dns_resolver_delta.rsc.j2` — all three read `network_vlans[].lan_first_dns`, so no
+    apply path can hand a VLAN a different resolver order than the other two.
 - **Clients must query the Technitium instances DIRECTLY** — do NOT point DHCP at the router and let
   `/ip dns` forward: RouterOS `/ip dns` is a single global resolver/cache and cannot differentiate
   per-VLAN, so the per-subnet policy above would collapse into one upstream.

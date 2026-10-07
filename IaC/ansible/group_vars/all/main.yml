@@ -501,12 +501,23 @@ network_ipv6:
                                              # drops — NOT by a `disabled=yes` /ipv6 nd row, which falls back to
                                              # the `interface=all` default row and advertises anyway (measured).
 
+# `lan_first_dns: true` = this VLAN's DHCP resolver chain starts with a HOME instance
+# (Pi tertiary) instead of the VPS primary. It is the switch that decides which split-horizon
+# ANSWER a device on that VLAN gets for the home-hosted app names (`media`/`seerr`/`seerrng`/
+# the *arr set): a home instance answers `oldsrv_home_ip` (the home edge, works), the VPS
+# primary answers `dns_primary_ip` — and the VPS edge has NO route for those names yet, so it
+# returns 404 (measured 2026-10-07 from the Shield on VLAN 50: media.kogler.si → VPS IP → 404,
+# while the same URL on the home edge is 302 → /web/). Do not add a VLAN to this list without
+# reading docs/network-dns.md §Per-Instance Split-Horizon first: it hands that VLAN the LAN
+# answer for EVERY internal name, not just the one you are fixing. The permanent fix is the
+# missing VPS-edge route (HD-1095), which makes the VPS answer correct everywhere — at which
+# point the Media entry here becomes a WAN-out resilience choice, not a requirement.
 network_vlans:
-  - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
+  - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler",     lan_first_dns: true }   # HD-334 HA-independence
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
   - { id: 30, name: Guest,        subnet: "10.10.30.0/24", pool: "10.10.30.100-10.10.30.199", ssid: "Kogler guest" }
   - { id: 40, name: Kids,         subnet: "10.10.40.0/24", pool: "10.10.40.100-10.10.40.199", ssid: "Kogler Kids" }
-  - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "" }
+  - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "",           lan_first_dns: true }   # HD-1095: TV/Shield must resolve the home edge
   - { id: 99, name: Management,   subnet: "10.10.99.0/24", pool: "10.10.99.50-10.10.99.99",  ssid: "" }
 network_static_hosts:
   # Management VLAN 99

@@ -41,6 +41,18 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > ⚠ Quote the var, not just the number — this list is prose, and numbers in prose are precisely what goes
 > stale when a `*_host_port` moves.
 >
+> ⚠ **The mirror-image defect on the OTHER edge (measured 2026-10-07, HD-1095):** the **VPS public edge
+> carries no router at all** for the home-hosted names (`media`/`seerr`/`seerrng` and the rest of that split-
+> horizon group), yet the VPS primary keeps answering them with `dns_primary_ip` for every client that asks
+> it first. The result is a silent **404** — no backend, nothing in the edge log, and the service itself
+> perfectly healthy (`302 → /web/` one hop away on the home edge). A `Host(` rule here has a different
+> reachability rule than the home edge's file provider: the backend is reached **over WG S2S at the home
+> edge**, not by a local socket — the `ha` route in `traefik/dynamic/routes.yml.j2` is the precedent, and
+> `crowdsec-only@file` is mandatory ([security.md](security.md) §1: a route with its own login still needs
+> the bouncer). Until those routes exist, the family's TV/media apps work only on a VLAN whose DHCP names a
+> **home** resolver first — which is what `network_vlans[].lan_first_dns` exists to express
+> ([network-dns.md](network-dns.md) §DNS Flow).
+>
 > **What is deliberately NOT on loopback yet** (measured `ss -ltn` on oldsrv 2026-10-07, after the HD-1083
 > converge — a blanket "everything is loopback" sentence would be false here, and every exception is a
 > consumer, not an oversight): `immich_ml_bind` :3003 and `actual-budget` :5006 are dialled **cross-host** (the

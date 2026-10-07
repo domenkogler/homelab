@@ -93,6 +93,15 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   was met on 2026-10-06 by 1337x.to. Wiring + evidence: [services-downloads.md](services-downloads.md)
   §The solver's own door; the manual step is [deployment-manual.md](../deployment-manual.md) §P3.6.
 - All *arr subdomains are **internal-only** (not in the public set).
+- **Reachability is resolver-dependent (HD-1095, measured 2026-10-07):** `media.`, `seerr.` and `seerrng.`
+  are answered **per Technitium instance** — the home instances return `oldsrv_home_ip` (the home edge, which
+  serves all three), the VPS primary returns `dns_primary_ip`, and the VPS edge has **no route** for these
+  names → HTTP **404**. So the question "does Jellyfin work here?" is really "which resolver did this device
+  get first?": the Home VLAN always did, a VPS-first VLAN did not, and the Media VLAN (50 — the Shield and
+  the TV) was moved to a home-first DHCP chain on 2026-10-07 via `network_vlans[].lan_first_dns` to make the
+  living-room TV work. ⚠ That flag is a per-VLAN workaround: the durable fix, and the owner's stated goal of
+  these three names working on **every** network *including away/traveling*, is the missing VPS-edge route
+  (+ its public DNS record) — see [network-dns.md](network-dns.md) §Per-Instance Split-Horizon.
 
 | App | Web UI | Auth | Notes |
 |-----|--------|------|-------|

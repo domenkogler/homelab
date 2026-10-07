@@ -1,24 +1,29 @@
 # =====================================================================
 # rb4011_dns_resolver_delta — HD-317: TECHNETIUM DNS-PRIMARY ON ROUTER (DHCP + /ip dns)
 # ---------------------------------------------------------------------
-# Transient delta (network-ops.md 3-tier): sets the DHCP dns-server chain to
-# PRIMARY(VPS) -> SECONDARY(oldsrv) -> TERTIARY(Pi) — RouterOS /ip dhcp-server
-# network accepts AT MOST 3 dns-server values (a 4th is silently dropped; the
-# earlier 4-entry rendition dropped Pi), so the router /ip dns is NOT part of
+# Transient delta (network-ops.md 3-tier): sets the DHCP dns-server chain per VLAN —
+# VPS PRIMARY -> oldsrv SECONDARY -> Pi TERTIARY by default, HOME-FIRST (Pi -> VPS ->
+# oldsrv) on every VLAN whose `network_vlans` row carries `lan_first_dns: true`.
+# RouterOS /ip dhcp-server network accepts AT MOST 3 dns-server values (a 4th is silently
+# dropped; the earlier 4-entry rendition dropped Pi), so the router /ip dns is NOT part of
 # the DHCP list. The router's own /ip dns upstream (below) is the implicit
 # final fallback: clients that can't reach any of the 3 resolvers still have the
 # router-resolver as their gateway.
+# ⚠ The ORDER is not cosmetic: the three instances answer the home-hosted app names with
+# DIFFERENT addresses (per-instance split-horizon, docs/network-dns.md §Per-Instance
+# Split-Horizon), so whichever instance a VLAN queries first decides whether that VLAN sees
+# the home edge or the VPS edge. HD-1095 (2026-10-07) put VLAN 50 (Media) home-first for
+# exactly that reason: with the VPS first the Shield got media.kogler.si = dns_primary_ip
+# and the VPS edge answers 404 for the home-hosted names.
 # Final state is ALSO folded into rb4011_converge.rsc.j2 (its idempotency is
-# partial by design — /add dupes abort re-imports before the DNS section).
+# partial by design — /add dupes abort re-imports before the DNS section) and into
+# roles/router/tasks/main.yml — all three read the same `lan_first_dns` SSOT.
 # Render: playbooks/render-converge.yml; apply: scripts/routeros-apply-delta.sh.
 # =====================================================================
-# DHCP — every VLAN network: dns-server = VPS,oldsrv,Pi  (3 max)
-/ip dhcp-server network set [find where address=10.10.1.0/24]    dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
-/ip dhcp-server network set [find where address=10.10.20.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
-/ip dhcp-server network set [find where address=10.10.30.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
-/ip dhcp-server network set [find where address=10.10.40.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
-/ip dhcp-server network set [find where address=10.10.50.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
-/ip dhcp-server network set [find where address=10.10.99.0/24]   dns-server={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }}
+# DHCP — per-VLAN resolver chain (3 max), rendered from the `network_vlans` SSOT
+{% for v in network_vlans %}
+/ip dhcp-server network set [find where address={{ v.subnet }}] dns-server={{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip] if (v.lan_first_dns | default(false)) else [dns_primary_ip, dns_secondary_ip, dns_tertiary_ip]) | join(',') }}
+{% endfor %}
 # Router resolver upstream — VPS,oldsrv,Pi + Cloudflare last (final unfiltered resort)
 /ip dns set allow-remote-requests=yes servers={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},1.1.1.1,1.0.0.1
 # =====================================================================
