@@ -136,7 +136,18 @@ Mechanism notes worth keeping: `pause` (`max_ratio_act 0`) is deliberate — 1 r
 **2 deletes the downloaded files**, and the seed refuses to render that value at all. Setting it by API
 rather than in `qBittorrent.conf` is what avoids stopping a working downloader for a preference, and it is
 only possible because `qbittorrent-seed.yml` runs first and writes the credential the API logs in with;
-run the two in the other order and the login is against an empty `WebUI\Password_PBKDF2`.
+run the two in the other order and the login is against an empty `WebUI\Password_PBKDF2`. It also **survives a
+restart**: qBittorrent persists the goal on clean exit as `Session\GlobalMaxRatio=2` — the only one of the seven
+keys its `qBittorrent.conf` carries, because the `*_enabled` flags are derived from `!= -1` (measured 2026-10-07
+with a `docker stop && docker start qbittorrent`, values read back over the API afterwards). A hard kill before a
+clean exit loses it until the next converge re-asserts it, which is the reason this is a reconciled task in the
+role and not a one-off playbook run.
+⚠ Two real failures here, measured 2026-10-07, from opposite directions and worth knowing separately.
+Posting `drift`'s `(current, wanted)` **pairs** instead of the wanted scalars: qbit skips the malformed keys,
+answers 204 — and only the read-back makes that red (rc 4), which is the entire point of it. Putting the drift
+`when:` on a `block:` wrapper: the write is silently skipped, `always:` prints a verdict that looks like a run,
+and the recap says `ok=186 failed=0` — nothing at all goes red, so the condition must stay on the command task.
+The lesson is not "qbit is fussy", it is **read the verdict line in the log, never the recap.**
 
 ### Torrent leg end-to-end: how a release Radarr cannot search still gets in (HD-496, 2026-10-07)
 
