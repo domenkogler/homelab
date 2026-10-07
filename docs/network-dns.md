@@ -338,6 +338,26 @@ Client → Technitium (DHCP-pushed chain, see below)
     `roles/router/tasks/main.yml`, `rb4011_converge.rsc.j2` and the transient
     `rb4011_dns_resolver_delta.rsc.j2` — all three read `network_vlans[].lan_first_dns`, so no
     apply path can hand a VLAN a different resolver order than the other two.
+  - ⚠ **The rendered order is NOT what RouterOS stores (measured 2026-10-07 while applying
+    HD-1095).** `/import … set dns-server=<secondary>,<tertiary>,<primary>` (in `group_vars` IP order) reads
+    back as `<tertiary>,<secondary>,<primary>` — **the list is re-sorted numerically on any write that
+    actually changes it**; a `set` whose value already matches is a no-op, so the rows nobody rewrites
+    keep whatever historical order they were created with (VLAN 10 still shows `tertiary, primary,
+    secondary`, which no current render can produce). Two consequences, both live now:
+    (a) the invariant a `lan_first_dns` VLAN actually gets is *a home address sorts first* — true here
+    only because the home resolvers sit on the Home-VLAN range and `dns_primary_ip` is a public address,
+    which makes this **address-dependent, not a guaranteed property of the render**; (b) if a future converge ever *changes* one of
+    the VPS-first VLANs, its list gets re-sorted too and that VLAN silently becomes home-first — the
+    flip is invisible in the diff and in the template.
+    **So the render is never the evidence; read the device:**
+    ```bash
+    ssh router ':foreach n in=[/ip dhcp-server network find] do={ :put (\
+      [/ip dhcp-server network get $n address] . " -> " . [/ip dhcp-server network get $n dns-server]) }'
+    ```
+    ⚠ `/ip dhcp-server network print where address=…` and `print as-value` return **nothing** over
+    non-interactive SSH on this build — the empty result is the probe failing, not the row missing
+    (`[find …]` also resolves against the *current* menu, so a bare `find` at the root menu returns
+    nothing and `set [find …]` silently changes nothing). Use the `foreach` form above.
 - **Clients must query the Technitium instances DIRECTLY** — do NOT point DHCP at the router and let
   `/ip dns` forward: RouterOS `/ip dns` is a single global resolver/cache and cannot differentiate
   per-VLAN, so the per-subnet policy above would collapse into one upstream.

@@ -81,6 +81,17 @@ wrong with the network.)* Away from home, router/switch work is **deferred, not 
   - **Key extraction:** use `op read` (canonical, clean PEM), NOT `op item get --reveal` piped through shell — the latter emits an inconsistent leading `"`/`\n` wrapper that corrupts the key file and surfaces as OpenSSH's cryptic `error in libcrypto`. `routeros-apply-delta.sh` uses `op read` and verifies the key loads (`ssh-keygen`) before touching the device.
   - **Ansible `copy`-module SCP is NOT RouterOS-safe:** `ansible.builtin.copy` fails with "Destination / not writable" even though raw `scp -i <key> file ansible@<router>:/file` succeeds — the copy module's stat-based writability check is incompatible with RouterOS's pseudo-filesystem (root `/` reports not-writable to stat). **Use `scripts/routeros-apply-delta.sh` (raw scp) for ANY device file upload/import.**
   - **Delta dedup:** importing the same delta twice leaves duplicate rules. They are behaviorally harmless but reconcile only on a full converge — a `--tags network` role run does NOT own the static `ip firewall filter` table, so it will not dedupe them. Remove duplicates via the API by exact `.id` when cleanliness matters.
+  - **Reading back a delta over non-interactive SSH — three probes that lie (measured 2026-10-07, HD-1095):**
+    `/ip dhcp-server network print where address=<vlan subnet>` and `print as-value` print **nothing** (the
+    empty output is the probe failing, not the row missing); a bare `[find …]` resolves against the
+    **current menu**, so in `get [find …]` at the root menu it returns nothing and `set [find …]` changes
+    nothing without an error; and a `set` of a list attribute that **does** write gets its values
+    **re-sorted numerically** (typed `dns_secondary_ip,dns_tertiary_ip,dns_primary_ip` → stored in
+    ascending order `dns_tertiary_ip,dns_secondary_ip,dns_primary_ip`), while a `set` whose value already matches is a no-op and leaves
+    the historical order standing. The form that reads the truth: `:foreach n in=[/ip dhcp-server network
+    find] do={ :put ( [/ip dhcp-server network get $n address] . " -> " . [/ip dhcp-server network get $n
+    dns-server]) }` — and it is the only acceptable evidence for "what order do these clients get their
+    resolvers in", which is a reachability question, not a cosmetic one (network-dns.md §DNS Flow).
 - **Verify live state** afterward via the read-only API (`api_facts`, `mikrotik-read.py`) — never assume the import applied.
 
 ### IPv6 on the RB4011 — measured facts, the outside-in probe, the rollback (HD-414, 2026-09-22)

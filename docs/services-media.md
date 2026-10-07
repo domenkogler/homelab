@@ -99,7 +99,15 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   names → HTTP **404**. So the question "does Jellyfin work here?" is really "which resolver did this device
   get first?": the Home VLAN always did, a VPS-first VLAN did not, and the Media VLAN (50 — the Shield and
   the TV) was moved to a home-first DHCP chain on 2026-10-07 via `network_vlans[].lan_first_dns` to make the
-  living-room TV work. ⚠ That flag is a per-VLAN workaround: the durable fix, and the owner's stated goal of
+  living-room TV work. ⚠ **And plain HTTP is a dead end on both edges (measured 2026-10-07):**
+  `http://media.kogler.si/` → **404** at the home edge (`:80` sockets ARE listening on both the VIP and the
+  oldsrv Home address — ss proves it — and Traefik answers 404, so no HTTP router matches) and
+  `http://foto.kogler.si/` → 404 at the VPS edge, even though `http-redirect` + `redirect-to-https` are
+  present in the deployed `routes.yml`. Cause **not** established — the next session should read the edge's
+  own view (`docker logs traefik-internal` + the API `/api/http/routers`) rather than the file. Client apps
+  that begin with `http://` (the Jellyfin Android-TV connect wizard does) report “can’t find media server”
+  because of this, so **type the full `https://media.kogler.si`** until `curl -I http://media.kogler.si/`
+  returns 301. ⚠ The flag above is a per-VLAN workaround: the durable fix, and the owner's stated goal of
   these three names working on **every** network *including away/traveling*, is the missing VPS-edge route
   (+ its public DNS record) — see [network-dns.md](network-dns.md) §Per-Instance Split-Horizon.
 
