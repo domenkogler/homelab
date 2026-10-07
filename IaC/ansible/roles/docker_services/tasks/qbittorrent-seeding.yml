@@ -73,29 +73,35 @@
   # The helper exits 4 when the API accepted the write but the read-back disagrees — that is the class
   # this whole file exists to close (a value that sits in a preference map doing nothing, the SABnzbd
   # `dir`/`complete_dir` shape). rc 0 with "CHANGED applied and read back" is the only green allowed.
-  # ⚠ Two legibility traps, both measured here 2026-10-07:
-  #   * `no_log` censors the result, so a bare failing command leaves only
-  #     `FAILED! => {"censored": ...}` — the block/always pair below prints the helper's own verdict even
-  #     when the task goes red. The task STILL goes red (a `rescue:` would mute the class).
-  #   * `when:` on a BLOCK does not do what it looks like: the main tasks were skipped silently (no_log
-  #     suppresses even the `skipping` line) while `always` ran anyway, so the run reported green with
-  #     the goal unapplied. The condition lives on the TASK, where it was proven to work.
-  block:
-    - name: "qbittorrent-seeding: POST the goal"
-      ansible.builtin.command:
-        cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}"
-        stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module — see the note above
-      when: "'CHANGED' in _qbit_seed_check.stdout | default('')"
-      no_log: true
-      changed_when: true
-      register: _qbit_seed_apply
+  #
+  # ⚠ This `when:` must stay on the command task. Twice on 2026-10-07 the same expression moved onto a
+  #   `block:` wrapper (or onto a task inside a block/`always` pair) and went silently FALSE while the
+  #   debug in `always:` printed a stdout that plainly contained `CHANGED`: the write was skipped,
+  #   `always:` ran, the recap said ok=186 failed=0. Same family as the `when: … | default('')` against
+  #   a dict-valued `is changed()` above — **the include ran, the write did not, nothing was red.** So:
+  #   no block, no `rescue`, no `ignore_errors` here; prettier failures are not worth an unreliable gate.
+  #
+  # Failure diagnosis, because `no_log` censors the result and the credential rides in `stdin` (so
+  # switching it off is not the answer): the rendered helper prints its own verdict — as root, with the
+  # credential on stdin, `python3 /usr/local/sbin/qbittorrent-seeding.py <origin> [--check]`.
+  ansible.builtin.command:
+    cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}"
+    stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module — see the note above
+  when: "'CHANGED' in _qbit_seed_check.stdout | default('')"
+  no_log: true
+  changed_when: true
+  register: _qbit_seed_apply
+  tags: [docker_services, qbittorrent_seed]
 
-  always:
-    - name: "qbittorrent-seeding: record the verdict (runs on failure and on no-drift too)"
-      ansible.builtin.debug:
-        msg: >-
-          seeding goal @ http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }} →
-          {{ _qbit_seed_apply.stdout | default(_qbit_seed_apply.msg | default(_qbit_seed_check.stdout | default('(no output)'))) }}
-          · note: an *arr import MOVES the file (EXDEV across the binds), so an imported torrent stops
-            seeding at the import regardless of this goal
-      tags: [docker_services, qbittorrent_seed]
+- name: "qbittorrent-seeding: record the verdict"
+  # The line that makes this reconcile auditable: the goal, as the client reports it after the write.
+  # ⚠ A run whose recap says `ok` and whose log has NO verdict line means the write never happened —
+  #   read the line, not the recap. That is how the silent skip above was found, and it is why this
+  #   debug is unconditional.
+  ansible.builtin.debug:
+    msg: >-
+      seeding goal @ http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }} →
+      {{ _qbit_seed_apply.stdout | default(_qbit_seed_check.stdout | default('(no output)')) }}
+      · note: an *arr import MOVES the file (EXDEV across the binds), so an imported torrent stops
+        seeding at the import regardless of this goal
+  tags: [docker_services, qbittorrent_seed]
