@@ -33,7 +33,11 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > torrent/sab (both :8080 inside) splits get distinct host ports — but `*_bind` resolves to
 > `oldsrv_home_ip`, because that is what the containers actually own: `jellyfin oldsrv_home_ip:8096`,
 > `bazarr :6767`, `seerr :5055`, `seerrng :5056`, `sabnzbd :8080`, `sonarr :8989`, `slskd :5030`,
-> qbit-via-gluetun `:8082`, all bound to `oldsrv_home_ip`, and the live `routes.yml` dials those same addresses.
+> qbit-via-gluetun `qbittorrent_host_port` = **8085**, all bound to `oldsrv_home_ip`, and the live
+> `routes.yml` dials those same addresses. qBittorrent moved off 8082 on 2026-10-07: gluetun had taken 8082
+> away from `signal-cli-rest-api` and broken alerting (§[services-downloads.md](services-downloads.md)).
+> ⚠ Quote the var, not just the number — this list is prose, and numbers in prose are precisely what goes
+> stale when a `*_host_port` moves.
 > ⚠ **This prose used to say "loopback", and the gap between that sentence and the running host caused a
 > three-service outage** (2026-10-06 20:24): a routine `docker_services` converge of radarr/prowlarr/lidarr
 > applied the loopback binds, while the edge still dialed `oldsrv_home_ip:<port>` → `502` on those three hostnames,

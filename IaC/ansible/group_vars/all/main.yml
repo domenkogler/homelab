@@ -788,6 +788,9 @@ qbittorrent_bind: "{{ oldsrv_home_ip }}"
 # is an alerting outage dressed up as a media fix. 8085 measured free (8083/8084 are the
 # Victoria* MCP publishes). Any NEW publish here must be checked against EVERY existing
 # `oldsrv_home_ip:` publish in the template tree, not against the neighbouring media ports alone.
+# ⚠ `8085` is also `rmat_ui_port` in templates/docker_services/raspberrymatic/ — harmless ONLY because
+# raspberrymatic was removed from the Pi loop (HD-13 parked, raspberry_pi.yml). If it is ever re-parked
+# on oldsrv these two collide; check `ss -ltnp | grep 8085` before enabling either.
 qbittorrent_host_port: 8085
 qbittorrent_url: "http://{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}"
 
