@@ -41,6 +41,22 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > ⚠ Quote the var, not just the number — this list is prose, and numbers in prose are precisely what goes
 > stale when a `*_host_port` moves.
 >
+> **What is deliberately NOT on loopback yet** (measured `ss -ltn` on oldsrv 2026-10-07, after the HD-1083
+> converge — a blanket "everything is loopback" sentence would be false here, and every exception is a
+> consumer, not an oversight): `immich_ml_bind` :3003 and `actual-budget` :5006 are dialled **cross-host** (the
+> VPS over the WG S2S), so a loopback bind there takes Immich ML and the n8n→Actual leg down; `dozzle` :8081
+> and `lan-litellm` :4000 are dialled by this edge as **literals** (`http://{{ oldsrv_home_ip }}:8081`,
+> `…:4000` in `routes.yml.j2`) rather than through a `*_url` var, so they cannot move in the render the
+> invariant above depends on — introducing those vars is the work, then the same one-converge move applies;
+> `dozzle-agent` :7007 is a log-shipping listener, not an edge backend. ⚠ **The music trio is the sharp one
+> now that HD-1087 landed**: `aurral_url`/`slskd_url`/`lidarr_ydl_url` compose from their `*_bind` and the new
+> LAN + `.ts` routers dial those vars — but the **publishes** in `aurral/`, `slskd/` and
+> `lidarr-ydl/docker-compose.yml.j2` still hard-code `"{{ oldsrv_home_ip }}:<port>"`. Flipping those three
+> `*_bind` values to loopback today moves the dial and leaves the socket on the Home VLAN → `502` on the trio's
+> hostnames, the `38f918c` failure reproduced on a new family. **Thread the var through the publish in the same
+> change** — that coupling is precisely what made the routed group's flip safe. Prove the posture at any time
+> with `ss -ltnp` filtered to the Home address plus one curl per routed hostname; do not trust this sentence.
+>
 > **The tailnet leg and the music trio's door — LANDED IN IaC (HD-1087, translated from the
 > `18913c63` patch; branch closed 2026-10-07).** ⏳ **Deploy-gated:** the routes and records below are
 > authored, not converged. One `oldsrv` `docker_services` converge (traefik-internal hot-reloads its file
