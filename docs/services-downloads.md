@@ -444,6 +444,33 @@ the schema's own defaults, which is what the create path does for the arrs as we
 ⚠ Re-read `arr_torrent_client` before copying this to another app: `category` is correct **only** for
 Prowlarr. Pointing an arr at it would store nothing at all and every grab would land flat in `complete/`.
 
+**6 · "Idempotent" means the write is skipped, not that the write is harmless (HD-1090, 2026-10-07).**
+The seed wrote all four clients on **every** converge and the second run of 2026-10-07 failed, with
+`no_log` hiding why. Four measurements, all read off the live apps:
+
+| Measured | Consequence | Now enforced by |
+| --- | --- | --- |
+| Every app echoes `port` back as the **int 8080**; `arr_torrent_client_port` renders the **string** `"8080"` | `"8080" != 8080` is permanent drift → PUT on every converge, all four apps | `same()` in the helper — scalar comparison, **bools stay strict** (`"False" == False` would mute a real `useSsl` change) |
+| **Lidarr 3.1 reports no `apiKey`** in either `GET /downloadclient` or `/downloadclient/schema` (Sonarr 4.0.19, Radarr and Prowlarr 2.5.2 all report it) | `None != ""` forever → Lidarr written on every converge, and the write is what failed | `arr_torrent_client_optional_fields` names the field + this measurement; any **other** owned-but-unreported field **fails the run** instead of being silently dropped |
+| **Prowlarr tests the client at save time**: a re-`PUT` of its own live body → **400** `Test was aborted due to an error: Object reference not set to an instance of an object`, while `POST /downloadclient/test` with the same fields → **200** | the seed's unconditional write failed **every** converge on Prowlarr | `--apply` writes **only when the drift list is non-empty**; the read-back assert and the app's own test still run every converge |
+| `no_log` (needed: two credentials arrive on stdin) also censored the helper's verdict | three runs to diagnose one line | the helper's stdout is `tee`'d to `/tmp/arr-torrent-client-<svc>.verdict` and a `rescue` echoes it into the failure message — canaried by pointing the run at `/api/v999`, which printed `FAIL GET …/api/v999/downloadclient -> 404` where it used to print only the censor notice |
+
+The post-fix verdict, `changed=0` on a second run (`-e docker_services_scope="sonarr,radarr,lidarr,prowlarr"`):
+
+```console
+sonarr:   OK already: unchanged host=gluetun:8080 tvCategory=tv       · arr client test HTTP 200 (no write needed, re-tested only)
+radarr:   OK already: unchanged host=gluetun:8080 movieCategory=movies · arr client test HTTP 200 (no write needed, re-tested only)
+lidarr:   OK already: unchanged host=gluetun:8080 musicCategory=music  · arr client test HTTP 200 · not exposed by this build: apiKey
+prowlarr: OK already: unchanged host=gluetun:8080 category=prowlarr    · arr client test HTTP 200 (no write needed, re-tested only)
+```
+
+The `not exposed by this build: apiKey` suffix is the optional-field path reporting itself rather than
+skipping quietly. **What this section does NOT claim:** that a grab started in Prowlarr's own search UI has
+landed in `/downloads/complete/prowlarr` — the category and its save path are configured
+(`categories.json` carries `prowlarr → /downloads/complete/prowlarr`, `UseCategoryPathsInManualMode=true`)
+and the directory does not exist until qBittorrent first writes into it, but the grab itself needs a real
+indexer result, so it stays an owner-witnessed leg.
+
 ### SABnzbd 5's folder options are `complete_dir` / `download_dir` — the old names are inert (HD-496, 2026-10-06)
 
 The first version of `sabnzbd-seed.yml` wrote `dir` and `temp_dir` into `[misc]`, re-checked them as

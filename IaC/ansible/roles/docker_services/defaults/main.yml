@@ -341,6 +341,13 @@ arr_torrent_client_fields:
   useSsl: false
   urlBase: ""
   apiKey: ""
+# Owned fields a build may legitimately not expose. Measured 2026-10-07 against the live four (read-only
+# GET /downloadclient + /downloadclient/schema): Sonarr 4.0.19, Radarr and Prowlarr 2.5.2 report
+# `apiKey`; **Lidarr 3.1 reports it in neither** — its QBittorrentSettings has no such property. Without
+# this list the seed compared None to "" forever and PUT Lidarr's client on EVERY converge (the
+# perpetual-drift half of HD-1090). Naming a field here is a claim about a build, so the measurement goes
+# with it; anything owned, unreported and NOT listed fails loud in arr-torrent-client.py.j2.
+arr_torrent_client_optional_fields: [apiKey]
 # `type` per field, exactly as the app reports it (measured out of a live GET /downloadclient on Sonarr
 # 4.0.19: textbox / checkbox / password). This is UI metadata about the settings FIELDS — the values
 # come from group_vars and from 1Password, never from here. Keys carry a `_type` suffix so the secrets
