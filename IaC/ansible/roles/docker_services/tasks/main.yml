@@ -343,6 +343,25 @@
     loop_var: svc_entry
   tags: [docker_services, qbittorrent_seed]
 
+# HD-1086 (2026-10-07): the seeding goal the owner ruled once the EXDEV finding landed — ratio 2.0, then
+# pause. Set over the API against the RUNNING client (no stop for a preference), which is only possible
+# because the seed above wrote the credential this logs in with. Autopsy: tasks/qbittorrent-seeding.yml.
+- name: "Reconcile the qBittorrent seeding goal (HD-1086)"
+  ansible.builtin.include_tasks:
+    file: qbittorrent-seeding.yml
+  vars:
+    svc: "{{ svc_entry }}"
+  loop: "{{ docker_services }}"
+  when:
+    - svc_entry.enabled | default(true)
+    - svc_entry.template_dir | default('') == 'qbittorrent'
+    - scope_is_all or svc_entry.name in scope_list
+    - not ansible_check_mode
+  loop_control:
+    label: "{{ svc_entry.name }}"
+    loop_var: svc_entry
+  tags: [docker_services, qbittorrent_seed]
+
 # Gate 3b of the acquisition lane: the three arrs carried a Usenet client and ZERO torrent clients, so
 # every torrent indexer Prowlarr synced (Zamunda, LimeTorrents, Nyaa) resolved releases nobody could
 # receive. Registered per-arr, never in Prowlarr — same policy the Usenet half settled. Runs AFTER the

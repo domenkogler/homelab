@@ -235,6 +235,34 @@ qbit_categories:
   tv: /downloads/complete/tv
   music: /downloads/complete/music
 
+# ---- Seeding goal (HD-1086, owner ruling 2026-10-07) ----
+# An arr CANNOT hardlink from /downloads to /media: `ln` across the two binds returns **EXDEV** even
+# though the host reports one filesystem for both (dev=1048705), and Radarr 6.3 removed Import Mode /
+# Link Type entirely — so an import MOVES the file and the torrent stops seeding at import, whatever
+# the ratio is. The owner ruled the second door rather than the shared-bind door, so seeding is bounded
+# by a goal instead of by the import:
+#   ratio 2.0 → PAUSE the torrent (files and torrent stay, seeding stops).
+# What this does and does NOT buy, stated rather than implied: it caps the seeds that keep their files
+# (manual seeds, anything not yet imported) and it bounds the window before an import moves the data.
+# It does NOT resurrect seeding for a torrent whose files an arr has already moved — those stop at the
+# import, not at 2.00. Measured + autopsy: [docs/services-downloads.md] §Hardlink import is impossible.
+# ⚠ Set over the WebUI API, not the conf (tasks/qbittorrent-seeding.yml): the API is the app's own
+# contract, needs no container stop, and its key names here were READ from the live 5.2.3
+# `/api/v2/app/preferences` answer — not remembered.
+qbit_seed_ratio_goal: 2                    # → API `max_ratio`
+qbit_seed_ratio_goal_enabled: true         # → API `max_ratio_enabled`; the goal is inert without it
+qbit_seed_goal_action: 0                   # → API `max_ratio_act`; 0 = pause torrent (1 = remove,
+                                           #   2 = remove AND delete files — never that one here)
+# Ratio is the ONLY limit: a time limit would stop seeding BEFORE 2.00 and quietly contradict the
+# ruling, so both time limits stay disabled with their unlimited sentinel.
+qbit_seed_time_goal_enabled: false
+qbit_seed_time_goal: -1                    # → API `max_seeding_time`
+qbit_seed_inactive_goal_enabled: false
+qbit_seed_inactive_goal: -1                # → API `max_inactive_seeding_time`
+# Where the rendered reconcile helper lives on the target (0700 root; it carries no secret — the
+# credential arrives on stdin, and it is the SAME origin qbittorrent-seed.yml verifies at).
+qbit_seeding_helper: /usr/local/sbin/qbittorrent-seeding.py
+
 # ---- The torrent download client in each *arr (HD-496 Gate 3b) ----
 # tasks/arr-client-torrent.yml reconciles ONE qBittorrent client per arr, over that arr's own API,
 # for the same reason arr-seed.yml owns root folders: a download client is APP state (each app's own

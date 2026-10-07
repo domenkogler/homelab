@@ -115,6 +115,29 @@ category paths under `/nas/downloads/complete/<cat>`. That changes paths stored 
 (and the `movieFiles` paths), so it is an owner decision, not a seed-level fix — tracked as an open
 question rather than done.
 
+**Owner ruling 2026-10-07: the shared-bind door was NOT taken — seeding gets a goal instead.**
+qBittorrent now stops seeding at **ratio 2.0 → pause the torrent** (`max_ratio 2`, `max_ratio_enabled`,
+`max_ratio_act 0`; both time goals stay OFF so nothing stops earlier than the ratio). Landed in IaC, not
+in the WebUI: `roles/docker_services/defaults/main.yml` (`qbit_seed_*`) reconciled by
+`roles/docker_services/tasks/qbittorrent-seeding.yml` → `templates/qbittorrent-seeding.py.j2`, which sets
+the goal over qBittorrent's own WebAPI and then **reads it back** (a `setPreferences` that returns 204 and
+applies nothing is the SAB `dir`/`complete_dir` failure shape, so the write is never the evidence). The
+key names were read from the live 5.2.3 `/api/v2/app/preferences` answer, not remembered.
+
+⚠ **What the goal does and does not buy, said plainly.** It bounds the seeds that keep their files —
+manual seeds, and the window between finishing and being imported. It does **not** resurrect seeding for a
+torrent whose data an arr has already moved: those still leave the swarm at the import, whatever the ratio
+says. So on Zamunda the hit-and-run the bullet above describes is **not** closed by this; what is closed
+is unbounded seeding of everything else, and the behaviour now has an SSOT instead of being an accident of
+the mount layout. Re-opening the shared-bind option needs a new fact (e.g. an arr release that restores
+`linkType`), not a re-litigation of this ruling.
+
+Mechanism notes worth keeping: `pause` (`max_ratio_act 0`) is deliberate — 1 removes the torrent and
+**2 deletes the downloaded files**, and the seed refuses to render that value at all. Setting it by API
+rather than in `qBittorrent.conf` is what avoids stopping a working downloader for a preference, and it is
+only possible because `qbittorrent-seed.yml` runs first and writes the credential the API logs in with;
+run the two in the other order and the login is against an empty `WebUI\Password_PBKDF2`.
+
 ### Torrent leg end-to-end: how a release Radarr cannot search still gets in (HD-496, 2026-10-07)
 
 First successful torrent run: `Svadba.2026.WEBRip.1080p.h264.[ExYuSubs]` (2.00 GiB) → qBittorrent

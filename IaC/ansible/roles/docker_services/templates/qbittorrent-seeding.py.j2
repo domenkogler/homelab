@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+r"""qbittorrent-seeding.py — reconcile qBittorrent's SEEDING GOAL over its own WebAPI (HD-1086).
+
+Rendered from qbittorrent-seeding.py.j2 by the docker_services role and run by
+tasks/qbittorrent-seeding.yml against a RUNNING container:
+
+    qbittorrent-seeding.py <base_url> [--check]
+
+The credential arrives on **stdin**, never in argv (argv is world-readable in `ps` for the life of the
+process — CONVENTIONS §6), exactly like qbittorrent-conf.py.
+
+WHY THE API AND NOT THE CONF (the conf is the door for everything else about this container).
+qbittorrent-seed.yml documents why the conf had to be the door: `app/login` needs the credential that
+file creates, so on a from-zero build the API is not yet reachable. That is now a SEQUENCING fact, not
+a permanent one — qbittorrent-seeding.yml runs AFTER that seed, against the credential it just wrote.
+The API is the better door for a preference: no container stop, no INI-key guessing, and the read-back
+is the app's own answer rather than a file that may or may not still be consulted (the SABnzbd
+`dir`/`complete_dir` failure shape — a value sitting in a file, doing nothing).
+
+KEY NAMES WERE READ, NOT REMEMBERED (measured 2026-10-07 against the live 5.2.3 API):
+    max_ratio / max_ratio_enabled / max_ratio_act
+    max_seeding_time / max_seeding_time_enabled
+    max_inactive_seeding_time / max_inactive_seeding_time_enabled
+`max_ratio_act` is the action taken when the goal is met: 0 = PAUSE the torrent, 1 = remove it,
+2 = remove it AND DELETE THE FILES. This lane ships 0 and nothing else; 2 is a data-loss option and a
+converge must never be able to select it by a typo in a variable — hence the guard below.
+
+⛔ The ratio is the ONLY limit here. A time goal would stop seeding BEFORE the ratio and quietly
+contradict the HD-1086 ruling, so both time goals stay disabled with their unlimited sentinel (-1).
+
+⚠ `| to_json | to_json` on the WANTED line is NOT a typo, and this file was written wrong once already
+(the same bug `2398f9da` fixed for the arr download-client helper): a SINGLE to_json emits JSON, and
+JSON's `true`/`false`/`null` are NameErrors in Python source. Rendering it twice yields a Python string
+literal that `json.loads` turns into real True/False. A single to_json of a dict holding a bool passes
+`ast.parse` locally and dies at import on the target — so a green syntax gate is not evidence here.
+
+WHAT THIS DOES NOT FIX (say it, do not let a green run imply it): an arr cannot hardlink
+/downloads → /media (`ln` = EXDEV across the two binds, Radarr 6.3 has no Import Mode/Link Type), so an
+import MOVES the data and that torrent stops seeding at the import whatever the goal says. The goal
+bounds the seeds that keep their files. Autopsy: docs/services-downloads.md §Hardlink import is
+impossible while downloads and media are separate bind mounts.
+
+⚠ ORIGIN: pass the netns owner's overlay origin (`http://<gluetun ip>:8080`), the same one
+qbittorrent-seed.yml verifies at. The HOST publish (`oldsrv_home_ip:8085`, loopback since HD-1083)
+answers 401 to everything — qbit's validateHostHeader() refuses a Host header whose port is not its own
+socket port, before any credential is read.
+
+Exit codes: 0 done (changed or not) · 2 no credential on stdin · 3 the API refused us (login/pref call)
+· 4 the API accepted the write but the READ-BACK disagrees — the setting did not take.
+"""
+import http.cookiejar
+import json
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+
+# NB: the helper needs json BEFORE the WANTED assignment below (that is where json.loads first runs).
+
+BASE = sys.argv[1].rstrip("/") if len(sys.argv) > 1 else None
+CHECK = "--check" in sys.argv[2:]
+if not BASE or not BASE.startswith("http://"):
+    sys.exit("usage: qbittorrent-seeding.py <http://host:port> [--check]")
+
+WANTED = json.loads({{ ({
+    "max_ratio_enabled": qbit_seed_ratio_goal_enabled | bool,
+    "max_ratio": qbit_seed_ratio_goal | int,
+    "max_ratio_act": qbit_seed_goal_action | int,
+    "max_seeding_time_enabled": qbit_seed_time_goal_enabled | bool,
+    "max_seeding_time": qbit_seed_time_goal | int,
+    "max_inactive_seeding_time_enabled": qbit_seed_inactive_goal_enabled | bool,
+    "max_inactive_seeding_time": qbit_seed_inactive_goal | int,
+}) | to_json | to_json }})   # ⚠ the doubled to_json is NOT a typo — see the note below
+
+# A typo in qbit_seed_goal_action must not be able to delete media. 2 = "remove torrent AND its files".
+if WANTED["max_ratio_act"] == 2:
+    sys.exit("refusing: max_ratio_act=2 deletes downloaded files at the seeding goal — that is an owner "
+             "decision made in the WebUI, never a default in IaC")
+if WANTED["max_ratio_enabled"] and WANTED["max_ratio"] in (-1, 0, None):
+    sys.exit("refusing: max_ratio_enabled is true but max_ratio has no goal value")
+
+PASSWORD = sys.stdin.read().strip()
+if not PASSWORD:
+    sys.exit("no credential on stdin — the seeding goal is inert without an authenticated session")
+
+cj = http.cookiejar.CookieJar()
+opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+
+
+def call(path, data=None):
+    try:
+        with opener.open(urllib.request.Request(BASE + path, data=data), timeout=20) as resp:
+            return resp.status, resp.read()
+    except urllib.error.HTTPError as err:                      # 401/403 arrive here, with a body
+        return err.code, err.read()
+    except (urllib.error.URLError, OSError) as exc:            # nothing listening / netns not up yet
+        return "unreachable: %s" % exc, b""
+
+
+# login: qbit answers 200 with a "Ok." body on some builds and 204 No Content on others (measured on
+# 5.2.3). Both are success; anything else must stop here, because a failed login that is ignored reads
+# as "0 preferences differ" — the API answers {} and the run goes green against an unauthenticated
+# session. That is the false-negative this file must not be able to produce.
+st, body = call("/api/v2/auth/login", urllib.parse.urlencode(
+    {"username": {{ qbit_webui_username | to_json }}, "password": PASSWORD}).encode())
+if st not in (200, 204):
+    print("FAIL login %s -> %s %s" % (BASE, st, body[:60].decode(errors="replace").strip()))
+    sys.exit(3)
+
+st, raw = call("/api/v2/app/preferences")
+if st != 200:
+    print("FAIL GET /api/v2/app/preferences -> %s" % st)
+    sys.exit(3)
+have = json.loads(raw)
+if not have:
+    # An empty preference map after a "successful" login is the unauthenticated-session shape above.
+    print("FAIL GET /api/v2/app/preferences returned 0 keys — refusing to call that a pass")
+    sys.exit(3)
+
+drift = {k: (have.get(k, "<absent>"), v) for k, v in WANTED.items() if have.get(k, "<absent>") != v}
+
+
+def report(state, extra=""):
+    # Names + goal values only; never the credential, never the full preference map (CONVENTIONS §6).
+    print("%s seeding goal ratio=%s enabled=%s action=%s · time=%s/enabled=%s · inactive=%s/enabled=%s%s"
+          % (state, WANTED["max_ratio"], WANTED["max_ratio_enabled"], WANTED["max_ratio_act"],
+             WANTED["max_seeding_time"], WANTED["max_seeding_time_enabled"],
+             WANTED["max_inactive_seeding_time"], WANTED["max_inactive_seeding_time_enabled"], extra))
+
+
+if not drift:
+    report("OK already:")
+    sys.exit(0)
+
+if CHECK:
+    report("CHANGED would set:", " · drift=%s" % ", ".join(
+        "%s %r->%r" % (k, cur, want) for k, (cur, want) in sorted(drift.items())))
+    sys.exit(0)
+
+st, _ = call("/api/v2/app/setPreferences",
+             urllib.parse.urlencode({"json": json.dumps({k: v for k, v in drift.items()})}).encode())
+if st not in (200, 204):
+    print("FAIL POST /api/v2/app/setPreferences -> %s" % st)
+    sys.exit(3)
+
+# READ BACK — qbit accepts a setPreferences body it may not apply the way it was phrased (a bool sent
+# where it wants an int is silently ignored, and the write still returns 204). The write is not the
+# evidence; the app's own next answer is.
+st, raw = call("/api/v2/app/preferences")
+if st != 200:
+    print("FAIL read-back GET /api/v2/app/preferences -> %s" % st)
+    sys.exit(3)
+now = json.loads(raw)
+still = {k: (now.get(k, "<absent>"), v) for k, v in WANTED.items() if now.get(k, "<absent>") != v}
+if still:
+    print("FAIL the API accepted the write but these still disagree: %s" % ", ".join(
+        "%s is %r, wanted %r" % (k, cur, want) for k, (cur, want) in sorted(still.items())))
+    sys.exit(4)
+
+report("CHANGED applied and read back:", " · set=%s" % ", ".join(sorted(drift)))
