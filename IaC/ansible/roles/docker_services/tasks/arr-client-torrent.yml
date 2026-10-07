@@ -37,21 +37,27 @@
       path of its own is how a grab lands flat in complete/ instead of complete/<category>.
   tags: [docker_services, arr_client_seed]
 
-- name: "arr-torrent-client: extract the instance key"
-  # The instance's own key, not the vault's *_api copy — those are consumer-side copies and they
-  # demonstrably drift (the lidarr_api case is recorded in tasks/arr-seed.yml). The capture group in
-  # the pattern is load-bearing: regex_search without parentheses raises "no such group" (HD-1081).
-  ansible.builtin.set_fact:
-    _tc_key: "{{ (_tc_cfg.content | b64decode) | regex_search('<ApiKey>([^<]*)</ApiKey>', '\\1') | first | default('') | trim }}"
-  no_log: true
-  tags: [docker_services, arr_client_seed]
-
 - name: "arr-torrent-client: read the instance config.xml (its ApiKey is the seed's credential)"
   ansible.builtin.slurp:
     src: "{{ arr_seed_config_dir }}/{{ svc.name }}/config/config.xml"
   register: _tc_cfg
   no_log: true
   failed_when: _tc_cfg.content is not defined
+  tags: [docker_services, arr_client_seed]
+
+- name: "arr-torrent-client: extract the instance key"
+  # The instance's own key, not the vault's *_api copy — those are consumer-side copies and they
+  # demonstrably drift (the lidarr_api case is recorded in tasks/arr-seed.yml). The capture group in
+  # the pattern is load-bearing: regex_search without parentheses raises "no such group" (HD-1081).
+  # ORDER IS LOAD-BEARING TOO: this task reads `_tc_cfg` from the slurp above. Splitting a register/use
+  # pair and re-inserting the halves in the wrong order is how this failed its first live converge —
+  # undefined `_tc_cfg` on the first loop iteration, empty key, and the fail-closed assert reported
+  # "no ApiKey in config.xml" about a file that plainly has one (measured 2026-10-07). The `\\1` is
+  # load-bearing too: inside a YAML double-quoted scalar a bare `\1` is a ScannerError, and YAML must
+  # hand Jinja a literal `\1`.
+  ansible.builtin.set_fact:
+    _tc_key: "{{ (_tc_cfg.content | b64decode) | regex_search('<ApiKey>([^<]*)</ApiKey>', '\\1') | first | default('') | trim }}"
+  no_log: true
   tags: [docker_services, arr_client_seed]
 
 - name: "arr-torrent-client: discover the {{ svc.name }} container IP"
