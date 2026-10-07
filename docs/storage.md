@@ -145,7 +145,38 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 - Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner (HD-51/HD-94/HD-131), NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
 - fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
 - **The `storage` role applies NFS exports on-change only** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason (e.g. an earlier state where it was absent), subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
-- **SMB/Samba is now implemented (HD-131 D4)** on the NAS via the `storage` role: one shared `media` share (any family user) + per-user private shares (`valid users = <user>`) for family mapped drives (Win11 + Linux).
+- **SMB/Samba is implemented (HD-131 D4)** on the NAS via the `storage` role — its own section below, since
+  it exposes a DIFFERENT tree than the NFS exports above and answers to different credentials.
+
+---
+
+## Samba (SMB) shares on the NAS
+
+`roles/storage/tasks/samba.yml` + `templates/smb.conf.j2`, rendered on **nas** only. Three kinds of share,
+all `valid users = @storage_gid` or a named account, all with `force user/group = storage_uid` on the shared
+ones so files land `media`-owned (uid/gid 1005) and stay usable by the arrs:
+
+| Share | Path (nas) | Also visible on oldsrv as | Purpose |
+|-------|------------|---------------------------|---------|
+| `\\nas\media` | `/tank/data/shared` | `/mnt/nas/data/shared` | family shared tree (HD-131) |
+| `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move (HD-362, added 2026-10-07) |
+| `\\nas\<user>` | `/tank/data/users/<user>` | — | per-user private drive, `valid users = <user>`, NO force user (own uid = the isolation) |
+
+- **Why the `music` share exists**: the `bulk/media` export names the oldsrv Home address as its **only** client
+  (`/etc/exports` is IaC-rendered; addresses live in [network-addresses-generated.md](network-addresses-generated.md)), so before
+  it nothing Windows-facing could reach the library at all — `\\nas\media` points
+  at a different pool. A manual add used to mean "copy to the share, then a privileged `mv` on oldsrv".
+- ⚠ **Authentication is the open half.** `passdb backend = tdbsam` (the live value; `ldapsam` = HD-132,
+  deploy-gated on the Authentik LDAP outpost) and **`pdbedit -L` returns nothing** — `storage_samba_users` is
+  `[]` and `samba.yml` deliberately carries NO Samba-password task, because under the designed `ldapsam`
+  model Authentik is the SSOT and a local `smbpasswd` would shadow a member's self-service password. Measured
+  consequence: the shares are **served** (`smbclient -L` lists both) but an anonymous tree connect is
+  `NT_STATUS_ACCESS_DENIED`. Until HD-132 lands or one local account is provisioned by hand, no Windows
+  client can mount any of them.
+- **Scoped converge:** `--tags samba` (or `storage,samba`) works only because BOTH halves of the HD-468 tag
+  rule are in place — the `include_tasks: samba.yml` line carries the tag *and* every task inside does.
+  Verified 2026-10-07 by measuring the opposite: with neither, the run printed `ok=24 changed=0 failed=0`
+  and executed only `always`-tagged guards. A share change applied that way is a no-op that reports success.
 
 ---
 

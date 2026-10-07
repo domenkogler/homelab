@@ -130,4 +130,10 @@
     - downloads/complete/movies
     - downloads/complete/music
     - downloads/incomplete
+    # ⚠ Not cosmetic, and not slskd's job: slskd VALIDATES SLSKD_INCOMPLETE_DIR at startup and
+    # refuses to run if it is missing — it does NOT create it, and it exits 0 while doing so, so
+    # `docker ps` shows `Restarting (0)` with no non-zero code anywhere to catch (live 2026-10-07:
+    # 12 restarts before the directory existed). Created here, storage_uid-owned, before the
+    # service that requires it can start.
+    - downloads/incomplete/music
   tags: [storage, nas]

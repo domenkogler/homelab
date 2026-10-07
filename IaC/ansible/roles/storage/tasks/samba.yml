@@ -13,12 +13,18 @@
 #
 # Runs on nas (the storage host that owns the shared datasets). The per-user + shared
 # trees live under /tank/data (a ZFS dataset owned by storage_uid/storage_gid).
+#
+# ⚠ Every task in this file carries [samba, storage] (HD-468 rule, roles/storage/tasks/main.yml):
+# an UNTAGGED child is filtered out of a `--tags samba` run, so the scoped form that ships a
+# share change would silently converge nothing but the user accounts and still print
+# `changed=0 failed=0`. Tag them or the scoped run is a lie.
 
 - name: Install Samba
   ansible.builtin.apt:
     name: samba
     state: present
     update_cache: true
+  tags: [samba, storage]
 
 - name: Create shared-media Samba tree (owned by neutral media account)
   ansible.builtin.file:
@@ -28,6 +34,10 @@
     group: "{{ storage_gid }}"
     mode: "0775"
   when: storage_samba_media.path | length > 0
+  tags: [samba, storage]
+  # The music share's tree (storage_samba_music.path) is NOT created here on purpose: it is
+  # part of the ZFS media layout, created by tasks/nas.yml, which is included BEFORE this file.
+  # Two tasks owning one path with different modes = a converge that flips it every run.
 
 # Per-user private trees (created only when the family-user list is populated, HD-51).
 - name: Create per-user Samba private trees
@@ -50,6 +60,7 @@
     group: root
     mode: "0600"   # contains the Authentik-LDAP bind password (D7/HD-132) — not world-readable
   notify: Restart Samba
+  tags: [samba, storage]
 
 # Create/update each family Samba user's account — IDEMPOTENT (CONVENTIONS §3): only
 # provision/password when the Samba account is absent, so re-runs don't churn or error.

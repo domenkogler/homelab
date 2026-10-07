@@ -58,8 +58,18 @@
   when: inventory_hostname in groups['storage'] | default([])
 - include_tasks: nas.yml
   when: inventory_hostname in groups['storage'] | default([])
+  tags: [storage, nas]
+  # ⚠ Same HD-468 half-1 rule as samba.yml below: an untagged dynamic include is never expanded
+  # by a filtered run, so `--tags storage,nas` used to converge nothing but the `always` guards
+  # while reporting changed=0/failed=0.
 - include_tasks: samba.yml
   when: inventory_hostname in groups['storage'] | default([])   # Samba shares on the NAS (D4/HD-131)
+  tags: [samba, storage]
+  # ⚠ BOTH halves of the HD-468 rule apply here (see oldsrv.yml below): the include must carry
+  # the tag AND every task inside samba.yml must carry it. Measured 2026-10-07 with
+  # `--check --tags samba --limit storage` on a file where NEITHER half held: `ok=24 changed=0
+  # failed=0`, and the TASKS RECAP contained only the `always`-tagged guards + the nut tasks —
+  # not one smb.conf task. A scoped run of that shape reports success while shipping nothing.
 - include_tasks: oldsrv.yml
   when: inventory_hostname in groups['home_servers'] | default([])
   tags: storage

@@ -7,7 +7,8 @@
 #   https://github.com/slskd/slskd · docs: services-media.md §Music Pillar,
 #   services-downloads.md §VPN & Ingress (rate-limit + open-port notes).
 #
-#   AUTH = Soulseek network login (slskd_login) + slskd web-UI token (soulseek_api).
+#   AUTH = Soulseek network login (slskd_login -> SLSKD_SLSK_*) + the slskd web-UI
+#   password (soulseek_api -> SLSKD_PASSWORD). slskd 0.26 has NO token option (HD-362).
 #   Fail-closed lookups, | replace('$','$$') compose-escape (HD-270).
 #   VERSION PIN: {{ slskd_version }} — registry-verified 2026-09-14.
 services:
@@ -50,17 +51,39 @@ services:
       - /tmp
     environment:
       # Soulseek network credentials (username + password from 1P).
-      SOULSEEK_USERNAME: "{{ vault['slskd_login'].username | replace('$','$$') }}"
-      SOULSEEK_PASSWORD: "{{ vault['slskd_login'].credential | replace('$','$$') }}"
-      # Web-UI + API token.
-      SLSKD_TOKEN: "{{ vault['soulseek_api'].credential | replace('$','$$') }}"
-      # Rate-limit at the container (mirrors the router 10 MB/s cap, HD-362) — KB/s.
-      SLSKD_DOWNLOAD_BANDWIDTH_LIMIT: "10240"
-      SLSKD_UPLOAD_BANDWIDTH_LIMIT: "10240"
+      # ⚠ slskd reads ONLY `SLSKD_`-prefixed env vars — `slskd --envars` (152 of them) is the
+      # authority, not the old upstream README. The previous SOULSEEK_USERNAME/PASSWORD pair
+      # was therefore inert: the daemon held EMPTY credentials and logged
+      # "Not connecting to the Soulseek server; username and/or password invalid" without ever
+      # dialling vps.slsknet.org:2271 — that line is the pre-flight skip branch, NOT a server
+      # rejection, which is why it read as a vault problem for three weeks (HD-362, settled
+      # 2026-10-07 by measuring --envars + /api/v0/options: the vault was right all along).
+      SLSKD_SLSK_USERNAME: "{{ vault['slskd_login'].username | replace('$','$$') }}"
+      SLSKD_SLSK_PASSWORD: "{{ vault['slskd_login'].credential | replace('$','$$') }}"
+      # Web-UI login. slskd 0.26 removed the shared token (`SLSKD_TOKEN` is gone from
+      # --envars); the UI now authenticates username+password → JWT. Unset, the daemon serves
+      # the STOCK DEFAULT slskd/slskd — which is exactly what answered on slskd.kogler.si.
+      SLSKD_USERNAME: "slskd"
+      SLSKD_PASSWORD: "{{ vault['soulseek_api'].credential | replace('$','$$') }}"
+      # Downloads land on the NAS, where the arr can see them: /downloads == the same
+      # /mnt/nas/media/downloads bind qBittorrent uses (TRaSH complete/<cat> layout).
+      # Unset, slskd writes to <appDir>/downloads == /srv/docker/slskd/data/downloads —
+      # a path Lidarr has no mount for, so every Soulseek find would be invisible forever
+      # (measured live: GET /api/v0/options -> directories.downloads == /app/downloads).
+      # ⚠ BOTH directories must already EXIST: slskd validates them at startup, does not create
+      # them, and exits 0 when one is missing — a silent `Restarting (0)` crash loop with no
+      # error code to catch. The incomplete leg is provisioned by roles/storage/tasks/nas.yml.
+      SLSKD_DOWNLOADS_DIR: "/downloads/complete/music"
+      SLSKD_INCOMPLETE_DIR: "/downloads/incomplete/music"
+      # Rate-limit at the container (mirrors the ruled 10 MB/s P2P cap, HD-362) — KiB/s.
+      # The previous SLSKD_{DOWNLOAD,UPLOAD}_BANDWIDTH_LIMIT names are not in --envars
+      # either, so this cap had never actually been applied at the container until now.
+      SLSKD_DOWNLOAD_SPEED_LIMIT: "10240"
+      SLSKD_UPLOAD_SPEED_LIMIT: "10240"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
-      - /srv/docker/slskd/data:/app          # slskd app state (database, downloads queue)
-      - /mnt/nas/media/downloads/complete/music:/downloads:rw   # TRaSH-style music save path
+      - /srv/docker/slskd/data:/app          # slskd app state (database, transfers queue)
+      - /mnt/nas/media/downloads:/downloads:rw   # TRaSH layout: complete/music + incomplete/music
 networks:
   traefik-public:
     external: true

@@ -101,7 +101,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | SeerrNG | `seerrng.` | Jellyfin login | Seerr fork + music (snapetech/seerrng); alongside Seerr |
 | Aurral | `aurral.` | own login | discovery + Lidarr requests (Last.fm / ListenBrainz history, free) — internal-only |
 | Lidarr-URL-DL | `lidarr-ydl.` | own login | YouTube → Lidarr download client (Angrido) — #3 priority, **audio only** (name ruled 2026-10-07, HD-1087; retires the old `url-dl.` spelling) |
-| Slskd | `slskd.` | own login/token | Soulseek P2P — gluetun sidecar, VPN-locked egress, #2 priority |
+| Slskd | `slskd.` | own login `slskd` + password (`soulseek_api`; 0.26 has **no token** option) | Soulseek P2P — gluetun sidecar, VPN-locked egress, #2 priority |
 | Tube Archivist | `tube.` | own login | personal YouTube — internal-only; headless yt-dlp |
 | Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr | `<name>.` | built-in Forms auth (home edge) | linuxserver images; API keys for integration |
 | Sabnzbd/Qbittorrent | `sab.`/`torrent.` | built-in Forms auth | downloads (qbitorrent through gluetun) |
@@ -112,8 +112,9 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 > `slskd` (`:5030`, published by its gluetun sidecar) and `lidarr-ydl` (`:5005`) now resolve from authored
 > rows, route on the home edge and on `.ts`, and answer **200** where they answered 404 for a year — their A
 > records had been live on the home instances all along, un-managed by anything on `main`, and the converge
-> brought `changed=0`: the IaC caught up to the host, not the other way round. ⚠ **`slskd` answers its UI but
-> is not connected to Soulseek** — see the credential/env finding in [`todo.md`](../todo.md) HD-362's tail.
+> brought `changed=0`: the IaC caught up to the host, not the other way round. ✅ **`slskd` now logs in**
+> (both doors — the web UI and the Soulseek network; the env-name root cause is in §Music Pillar, fixed
+> 2026-10-07).
 > Mechanics + the two shape calls: [services-traefik.md](services-traefik.md) §The tailnet leg and the
 > music trio's door.
 >
@@ -199,12 +200,17 @@ profile still exists and fails loudly when it does not.
 > **Status: 🟢 live on oldsrv** — slskd + its gluetun/PrivadoVPN sidecar healthy, aurral up,
 > `lidarr-ydl` up and healthy. **Tube Archivist is disabled** (row `enabled: false`) — see the two gotchas
 > below; re-enabling means fixing ES first.
+> ✅ **2026-10-07: slskd is on the Soulseek network** — `Logged in to the Soulseek server` after three weeks
+> of `Not connecting … username and/or password invalid`. The vault was never the problem (it holds the real
+> account, 9/9-char, verified by length); **the compose passed every credential under a name slskd does not
+> read**. See the third trap below — it is the reason this row stayed open after two "wrong password" passes.
 >
 > The shape of this pillar: **oldsrv downloads and manages, the VPS serves** (Navidrome, HD-354). All **P2P**
 > egress (slskd + qBittorrent) goes through the **shared gluetun WireGuard → PrivadoVPN**; **SABnzbd stays on
 > the plain LAN** — usenet does not need the VPN and sharing a tunnel with torrents couples two risk sets.
 >
-> Two implementation traps this stack taught, both generic:
+> Three implementation traps this stack taught (the first two generic, the third the one that cost
+> three weeks):
 > - **An image with a read-only layer may have no writable appuser home.** `lidarr-ydl` crash-looped FATAL on
 >   `/home/appuser/.profile` `EACCES`; the fix is a durable host bind at `/home/appuser`, not a chmod inside
 >   the image. Same class: aurral needed `/app/downloads` durable-bound or its weekly playlist fails.
@@ -215,16 +221,35 @@ profile still exists and fails loudly when it does not.
 >   **before** re-enabling the row. (TA's own stack also needed `ES_DISABLE_VERIFY_SSL` with an https
 >   `ES_URL`, redis running with `DAC_OVERRIDE`, and a reset ES data volume; its secret is the
 >   `tube-archivist-es` vault item, used as `ELASTIC_PASSWORD` on both sides.)
+>
+> And a third, measured 2026-10-07 while fixing the login — **an env var the app does not know is a silent
+> `null`, and this compose had four of them.** slskd binds only `SLSKD_`-prefixed names, so
+> `SOULSEEK_USERNAME`/`SOULSEEK_PASSWORD` (→ empty credentials), `SLSKD_TOKEN` (removed in 0.26 → the UI fell
+> back to the **stock `slskd`/`slskd`** login, which is what actually answered on `slskd.kogler.si`) and
+> `SLSKD_{DOWNLOAD,UPLOAD}_BANDWIDTH_LIMIT` (→ the ruled 10 MB/s cap never applied at the container) each did
+> exactly nothing while `docker compose ps` reported `healthy`. Correct names, from the binary itself:
+> `SLSKD_SLSK_USERNAME`/`SLSKD_SLSK_PASSWORD`, `SLSKD_USERNAME`/`SLSKD_PASSWORD`,
+> `SLSKD_{DOWNLOAD,UPLOAD}_SPEED_LIMIT` (KiB/s), `SLSKD_DOWNLOADS_DIR`/`SLSKD_INCOMPLETE_DIR`.
+> **The probe that ends this class in one command:** `docker exec slskd /slskd/slskd --envars` — 152 lines,
+> the authority over any README or older memory; cross-check what the process holds with
+> `GET /api/v0/options` **printing emptiness/length only** (`/soulseek/username -> len=9`,
+> `/soulseek/password -> masked`), never a value. A second trap in the same family: slskd **validates** both
+> download directories at startup and **exits 0** when one is missing, so `docker ps` shows `Restarting (0)`
+> — no non-zero code, no FATAL line, twelve times. `roles/storage/tasks/nas.yml` now provisions
+> `downloads/incomplete/music`; an arr/service bind is not a substitute for creating the directory.
 
 - **Acquisition chain (ALL on oldsrv):**
-  - **Lidarr** (existing) → manages the FLAC library in `bulk/media/music` (nas) — copy-import to the
-    Box per HD-354; **sees usenet (SABnzbd) as priority #1, then Soulseek (slskd, #2), then YouTube
-    (lidarr-ydl, #3)** (owner-set ladder).
+  - **Lidarr** (existing) → manages the FLAC library in `bulk/media/media/music` (nas; its API rootFolder is
+    `/media/music`) — copy-import to the Box per HD-354 (⚠ **the push leg does not exist yet — HD-1088**);
+    **the owner's ladder is usenet #1 → Soulseek #2 → YouTube #3**, and note that for Soulseek that is an
+    ordering *rule the human follows*, not wiring — see the slskd bullet and §"*arr ← downloader wiring".
   - **orpheusdl** — manual LAPTOP pip tool (no container; owner runs it on demand for paid-source
     FLAC. NOT in IaC — the automated ladder covers it).
   - **slskd** — Soulseek P2P daemon (Soulseek account, free): **gluetun WireGuard sidecar** (same tunnel as
-    qBittorrent), **no inbound port → fetch-only** (search + download; no upload credit). Router rate-limit
-    **10 MB/s per P2P service** (both slskd + torrent, owner decision). Acquisition **#2**.
+    qBittorrent), **no inbound port → fetch-only** (search + download; no upload credit). Rate limit is
+    enforced **at the container** (`SLSKD_DOWNLOAD_SPEED_LIMIT`, 10 MiB/s = the ruled per-P2P-service cap;
+    the router-side per-IP cap this doc used to cite has **no implementation** — see
+    [services-downloads.md](services-downloads.md) §VPN & Ingress). Acquisition **#2**.
   - **lidarr-ydl** — Lidarr-YouTube-Downloader (Angrido): YouTube search → Lidarr import, **#3** — **audio only**
     (yt-dlp + the bgutil PO-token sidecar → MP3/M4A/Opus into Lidarr); it has no video path and no Sonarr wiring.
   - **Murglar** — stays a **manual device app** (Android/Desktop; it is a client with **no API**, per
@@ -235,12 +260,32 @@ profile still exists and fails loudly when it does not.
   currently **disabled** (see the gotchas above); Jellyfin keeps serving TV/movies. Plex/StreamFab/YTDLNis
   stay **manual / not-IaC** by owner choice — Tube Archivist is the headless yt-dlp piece of that set.
 - **Auth:** Aurral / Tube Archivist / Slskd = **own local logins** (same home-edge pattern — *arr UIs use
-  built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key — **placeholder value**, overwrite with the real `config.xml` ApiKey (see deployment-secrets.md).
-- **Storage:** Tube Archivist lives in a **`bulk/media/tube` subdir** on nas (same `bulk/media` dataset
-  so TRaSH-style hardlink compose stays valid). Music files stay in `bulk/media/music` (existing).
-- *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr;
-  slskd + lidarr-ydl are **standalone download clients** (slskd has no indexer; lidarr-ydl registers as
-  a Newznab indexer + SABnzbd emulating client inside Lidarr). SeerrNG stays the music-request UI on top
+  built-in Forms auth); no Forward-Auth. `lidarr_api` token = the Lidarr instance key (minted from its
+  `config.xml` ApiKey 2026-10-07; see deployment-secrets.md). **Slskd's UI is `slskd` + the `soulseek_api`
+  credential** as `SLSKD_PASSWORD` — slskd 0.26 has no token option, and while `SLSKD_TOKEN` was the only
+  thing the compose set, the UI answered to the stock `slskd`/`slskd` (fixed + verified 2026-10-07:
+  `POST /api/v0/session` → 200 with the vault password, 401 for the stock pair).
+- **Storage / where music enters the library:** the library is `bulk/media/media/music` (nas) = oldsrv
+  `/mnt/nas/media/media/music` = Lidarr `/media/music`; slskd completes into
+  `bulk/media/downloads/complete/music` and stages partials in `…/downloads/incomplete/music`. Three ways in:
+  1. **slskd** → `…/downloads/complete/music` (needs a bridge for the *import* step — see the wiring bullet);
+  2. **the arr's own clients** (SABnzbd/qBittorrent) → hardlink import within `bulk/media`;
+  3. **`\\nas\music`** — a Samba share pointed **straight at the Lidarr root**, added 2026-10-07 so a laptop
+     can drop finished albums with no follow-up move (`bulk/media` is NFS-exported to oldsrv only, so nothing
+     Windows-facing reached that tree before). Layout: `<Artist>/<Album (Year)>/<files>`, then Lidarr →
+     Artists → **Add New → Import mode "Existing Files"** (or Rescan on a known artist). Files land
+     media-owned (`force user/group = storage_uid`) so the arr can still rename/hardlink them. ⚠ **No Samba
+     account exists yet** (`pdbedit -L` empty: `storage_samba_users: []`, tdbsam) — see
+     [storage.md](storage.md) §SMB; the share is served, authentication is the open half.
+- *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr.
+  ⚠ **slskd cannot be a Lidarr download client at all** — `GET /api/v1/downloadclient/schema` on the live
+  Lidarr **3.1.0.4875** returns 18 client types and every one is usenet or torrent; there is no Soulseek/Slskd
+  type (checked in the binary's own schema, not from the UI). So nothing pulls slskd's completed albums into
+  the library on its own, and any text claiming "Lidarr sees Soulseek as #2" describes an intention, not a
+  wiring. Options, none implemented yet: **[`mrusse/soularr`](https://github.com/mrusse/soularr)** (polls
+  Lidarr's wanted list, drives slskd, drops the album where Lidarr scans), a Lidarr plugin adding a Slskd
+  client, or the manual `\\nas\music` drop above. **lidarr-ydl** does register (Newznab indexer + a SABnzbd-
+  emulating client) — that leg is a real client, unlike this one. SeerrNG stays the music-request UI on top
   of the same Lidarr (HD-353).
 
 ## Related

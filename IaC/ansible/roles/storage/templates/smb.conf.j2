@@ -1,6 +1,8 @@
 # smb.conf — Samba shares on the NAS (D4 / HD-131)
 # Managed by Ansible (storage role). Family mapped drives:
 #   \\nas\media  — shared media (any family user; files owned by neutral `media`)
+#   \\nas\music  — the arr music library = Lidarr's rootFolder (a top-level share like
+#                 media, NOT a user store — so the “three kinds” count above still holds; HD-362)
 #   \\nas\<user> — per-user private drive (valid users = that account; files owned by that
 #                  user's OWN uid, NOT the global media account — so per-user isolation holds)
 # Family members log in with their Authentik credentials at mount time (D7/HD-132):
@@ -54,6 +56,19 @@ include = /etc/samba/share-*.conf
 [{{ storage_samba_media.share }}]
    comment = Family shared media
    path = {{ storage_samba_media.path }}
+   browseable = yes
+   read only = no
+   valid users = @{{ storage_gid }}
+   force user = {{ storage_uid }}
+   force group = {{ storage_gid }}
+
+# ---- Arr music library = Lidarr's rootFolder (HD-362) ----
+# The one drop point that needs no follow-up move: this IS the folder Lidarr scans
+# (container /media/music). Drop albums as <Artist>/<Album (Year)>/<files>, then
+# Lidarr → Artists → Add New / Import mode "Existing Files" (or Rescan on a known artist).
+[{{ storage_samba_music.share }}]
+   comment = Music library (Lidarr root — <Artist>/<Album (Year)>/files)
+   path = {{ storage_samba_music.path }}
    browseable = yes
    read only = no
    valid users = @{{ storage_gid }}

@@ -51,6 +51,16 @@ storage_samba_users: []
 storage_samba_media:
   share: media
   path: /tank/data/shared  # shared family tree; per-user stores live under /tank/data/users
+# The arr MUSIC library, exported so a laptop can drop finished albums straight into the
+# folder Lidarr actually scans (Lidarr rootFolder /media/music == this path; HD-362).
+# Why a share at all: `bulk/media` is NFS-exported to oldsrv only (/bulk/media 10.10.1.30/32),
+# so before this the `media` share (a DIFFERENT tree, /tank/data/shared) was the only
+# Windows-visible path and every manual add needed a privileged mv on oldsrv. smb.conf gives
+# it force user/group = storage_uid, so a dropped file stays media-owned and Lidarr (PUID
+# 1005) can still rename/move/hardlink-import it. Layout the arr expects: <Artist>/<Album>/files.
+storage_samba_music:
+  share: music
+  path: /bulk/media/media/music
 # Root of per-user private Samba stores (SSOT for smb.conf per-user share paths).
 storage_samba_users_root: /tank/data/users
 

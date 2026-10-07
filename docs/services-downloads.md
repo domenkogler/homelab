@@ -41,9 +41,20 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
 - **VPN:** P2P egress goes through gluetun (WireGuard, PrivadoVPN) — currently **qBittorrent + slskd**
   (HD-362). SABnzbd stays on the plain LAN (usenet is a licensed service, no VPN needed).
 - qBittorrent routes through the gluetun network namespace; no direct host port.
-- **Rate-limit:** each P2P service (slskd `50300`, qBittorrent) gets a **10 MB/s
-  cap at the router** (per-IP limit on the egress VLAN) and an **inbound open port on the LAN side**; see
-  [network-ops.md](network-ops.md) §QoS / firewall — the open port is home-LAN-only (no WAN exposure).
+- **Rate-limit:** ⚠ **the cap lives in the container, not on the router.** Each P2P service is capped at
+  **10 MiB/s** by its own env (`slskd`: `SLSKD_DOWNLOAD_SPEED_LIMIT`/`SLSKD_UPLOAD_SPEED_LIMIT`; qBittorrent:
+  its own settings). The **router-side per-IP queue this doc used to cite does not exist**: `grep -rn
+  '/queue\|max-limit' IaC/` answers nothing (RouterOS config is IaC-authored — see
+  [network-ops.md](network-ops.md) §Apply workflow, so "not in IaC" means "not applied"), and the
+  `§QoS / firewall` section referenced here was never written. Until someone lands a simple queue, do not
+  count on a second cap. **Also unimplemented for slskd: an inbound open port** — its egress is a
+  fixed-endpoint WireGuard tunnel in a CGNAT range, so it is a fetch-only peer (see
+  [services-media.md](services-media.md) §Music Pillar); the `50300` in the old text was a listen port
+  inside the container namespace, reachable from nowhere.
+- **slskd save paths** (same TRaSH layout as this stack, HD-362): complete → `bulk/media/downloads/complete/music`,
+  partial → `bulk/media/downloads/incomplete/music`. The partial dir **must pre-exist** — slskd validates it at
+  startup and exits 0 when missing (`Restarting (0)`, no error code); it is provisioned by
+  `roles/storage/tasks/nas.yml`.
 
 **gluetun provider mode — `custom` WireGuard (HD-318c).** gluetun **dropped** its native `privado` provider, so the sidecar now runs in `custom` WireGuard mode with an **explicit, fixed PrivadoVPN endpoint**. The endpoint/address values are **non-secret** and live in the IaC SSOT `group_vars/home_servers.yml` (`privado_vpn_endpoint_ip/port`, `privado_vpn_public_key`, `privado_vpn_address`, `privado_vpn_cidr`) — sourced from the owner-supplied PrivadoVPN WireGuard config; the **client private key is the only secret** (`1Password privado-vpn_api`, field `credential`, looked up at render). Endpoint mapping:
   - `WIREGUARD_ENDPOINT_IP`/`_PORT` ← `[Peer] Endpoint` (`91.148.247.8:51820`); gluetun custom requires an IP literal, not a DNS name ([qdm12/gluetun#2680](https://github.com/qdm12/gluetun/issues/2680))
