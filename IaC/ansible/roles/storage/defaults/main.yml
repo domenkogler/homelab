@@ -41,12 +41,43 @@ storage_nfs_clients: "{{ (network_ranges | selectattr('name', 'equalto', 'nfs-cl
 storage_uid: "1005"
 storage_gid: "1005"
 
+# The NAMES of that same neutral account/group (created by tasks/zfs_common.yml). Samba is not
+# NSS: `force user`, `force group` and the `@group` form of `valid users` are resolved by NAME,
+# so a numeric id there matches NOTHING and the share fails at TREE CONNECT time, after a
+# perfectly good authentication — indistinguishable from a wrong password from the client side.
+# Measured 2026-10-07 on `force user = 1005` / `valid users = @1005`: every media/music mount has
+# been failing this way since the shares existed, which nothing noticed because until that date no
+# Samba account existed to authenticate with either. samba.yml asserts name↔id agreement.
+storage_user: media
+storage_group: media
+
 # Samba (D4 / HD-131): per-user private shares + a shared media share on the NAS.
-# Each family member = one Samba account with a private home share (valid users = that
-# account); plus a `media` shared share (any family user). The family-user list is filled
-# when the family Linux/OpenCloud accounts are defined (HD-51 desktop auth); empty now.
-# Format: [{ name: <sambauser>, uid: <unixuid>, share: <dataset-shares>, home: <dataset> }]
+# Each family member = one LOCAL Samba account (tdbsam) with a private drive
+# (`valid users = <account>`); plus a `media` shared share (any family account).
+# ⚠ The Authentik-as-LDAP passdb this used to offer (D7/HD-132) is RETIRED 2026-10-07:
+#   it made every LAN drive mount depend on the VPS + the WG S2S tunnel, and Authentik's
+#   LDAP provider cannot answer an NTLM challenge at all (it stores PBKDF2 and serves
+#   `userPassword`, never `sambaNTPassword`). Decision: docs/storage-rejected.md.
+# SSOT for the family list = `storage_samba_users` in host_vars (a repo edit, not a
+# directory sync), so a from-scratch rebuild converges the drives with no external pull.
+# Format (name + vault_item are required; uid/shell optional):
+#   [{ name: <account>, vault_item: smb-<name>_login, uid: <unixuid>, shell: <login shell> }]
+#   * vault_item — 1Password item holding `username` + `password`; the converge writes the
+#     password into the local passdb. Declared as a `*_item:` registry key on purpose so
+#     scripts/check-vault-items.sh sees it (CONVENTIONS §2 item-reference coverage).
+#   * uid        — pin only when the uid must be exact; omit = let the host allocate.
+#   * shell      — omit to leave an EXISTING account's shell untouched (an interactive
+#     account keeps its login shell); set /usr/sbin/nologin for a service account.
 storage_samba_users: []
+# Accounts whose Samba password is RE-APPLIED from 1Password on the next converge.
+# Rotation path (CONVENTIONS §2 rotation propagation): a rotate alone reaches nothing,
+# because writing a passdb entry is a target-side act, so rotate the item, then run the
+# storage role with `-e storage_samba_password_force=<name>`. Empty = create-only, which
+# is what keeps a routine converge from resetting a member's password every run.
+storage_samba_password_force: []
+# `valid users` of the music share. Defaults to the whole storage group in the template;
+# the NAS pins it to the one shared service account (host_vars) — see docs/storage.md.
+# storage_samba_music_valid_users: <account>
 # Shared media share name + dataset (map to bulk/media NFS mount on the NAS).
 storage_samba_media:
   share: media
@@ -64,29 +95,15 @@ storage_samba_music:
 # Root of per-user private Samba stores (SSOT for smb.conf per-user share paths).
 storage_samba_users_root: /tank/data/users
 
-# PassDB backend — tdbsam (default, working offline) vs ldapsam (D7/HD-132, deploy-gated).
-# ldapsam = Samba pulls auth from the Authentik LDAP outpost on the VPS (SSOT, no push;
-# reachable over the WG S2S tunnel). REQUIRED before flipping to ldapsam: the Authentik
-# LDAP provider + LDAP outpost + svc_samba search bind user must exist and the
-# `authentik-ldap_bind` token must be valid (HD-132; still deploy-gated 2026-09-14 —
-# the outpost token expired and smbd fails HARD on startup when ldapsam can't bind).
-storage_samba_passdb: tdbsam
-
-# ---- Authentik-as-LDAP passdb (D7/HD-132) — Samba pulls auth from Authentik LDAP outpost ----
-# Samba is an LDAP *client* (pull): Authentik is the SSOT and does NOT push. The LDAP outpost
-# (ak-outpost-ldap) runs on the VPS beside the Authentik server; Samba on nas is the client and
-# reaches it over the WireGuard S2S tunnel at the VPS's WG-side address (HD-186, decided HD-204 —
-# no public publish; WAN path refuses). host derived from the WG SSOT (`wg_s2s_vps.ip`). These are
-# design constants (chosen when the Authentik LDAP provider is created) — see
-# docs/deployment-compose.md HD-132. The bind *password* is the secret: 1Password
-# `authentik-ldap_bind` (field=password).
-storage_samba_ldap:
-  host: "{{ wg_s2s_vps.ip }}"
-  port: 3389                 # LDAP port for the ak-outpost-ldap (non-privileged; avoids 389 clash)
-  base_dn: "DC=home,DC=kogler,DC=si"
-  user_suffix: "OU=Users,DC=home,DC=kogler,DC=si"
-  admin_dn: "CN=svc_samba,OU=Users,DC=home,DC=kogler,DC=si"   # service bind DN (HD-132)
-  ssl: "start tls"           # or "off" only if LDAP outpost is LAN-internal + restricted
+# PassDB backend — tdbsam is the ONLY supported value, and it is not a knob.
+# The `ldapsam` alternative (D7/HD-132) was retired 2026-10-07: it made a LAN-local drive
+# mount depend on the VPS, its outpost and the WG S2S tunnel, and it can never have worked
+# against Authentik anyway (no Samba attribute support → no NT hash to answer NTLM with).
+# Retired here, not left as a var: a var nobody can satisfy is how the LDAP path stayed
+# "almost deployed" for seven weeks while every tree connect returned ACCESS_DENIED.
+# The rendered smb.conf therefore always says `passdb backend = tdbsam` and carries no
+# `ldap *` directives; the secret lives only in 1Password `smb-<name>_login`, never in
+# smb.conf — which is also why that file is world-readable again (0644, see samba.yml).
 
 # ---------------------------------------------------------------------
 # Pools

@@ -105,7 +105,7 @@
 
 **Deploy-provisioned, not hand-seeded** (do not hunt for these before a converge):
 `kopia-server_fingerprint` (written by the `kopia-fingerprint-sync` task from the live cert),
-`authentik-ldap_bind` + the OIDC client-credential items (minted by the Authentik secret-egress glue),
+the OIDC client-credential items (minted by the Authentik secret-egress glue). (`authentik-ldap_bind` left this list 2026-10-07 with the retired Samba ldapsam design; `smb-domen_login` / `smb-shared_login` are catalog-generated instead — `provision-vault.sh --create`, usernames pinned to the `storage_samba_users` account names.)
 and the LiteLLM virtual keys (bootstrap glue — currently `bootstrap_keys: false`).
 
 **There is no Forgejo runner holding `op_api`** (settled 2026-09-25, was HD-396). The Phase 5 line "the deploy
@@ -349,19 +349,15 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 - [ ] **HD-06** — **[MANUAL, owner]** the one thing left in the UPS lane: a short power-pull → poweroff + WoL
       wake **end-to-end** re-test (the full defect fix set deployed to nas/oldsrv/pi 2026-09-09; the 2026-09-09
       drill is what found those three latent defects). · [hardware-ups.md](docs/hardware-ups.md)
-- [ ] **HD-360** — Samba Authentik-as-LDAP, VPS side (the deploy-gated remainder of the old HD-132): declare the
-      LDAP provider + `svc_samba` in the Blueprint, mint a **fresh** `authentik-ldap_bind` token (the current item
-      is an expired outpost token), redeploy the outpost, THEN flip `storage_samba_passdb: ldapsam` on nas and
-      live-verify a family drive. **Do not flip the var first — smbd fails hard on an unreachable outpost.**
-      Re-probed live 2026-09-21: **two** blockers, not one — Authentik holds **no LDAP provider, no LDAP source
-      and no LDAP outpost object** (the only Outpost row is the proxy one), and the `authentik-ldap` container is
-      crash-looping `403 Forbidden (Token invalid/expired)`; minting a token alone therefore yields an outpost
-      serving zero providers. **2026-09-25 re-probe: the 403 is gone** — the container is Up and simply serves
-      nothing (3389 REFUSED), and its healthcheck fails on a missing metrics UDS, so expect the `unhealthy` flag
-      to survive a token mint and clear only once a real outpost runs (services-vps.md §VPS findings). Ordered gates + the `ldapsearch` proof step (WG side only) recorded in
-      [deployment-compose.md](docs/deployment-compose.md); parked at the owner gate (a write-scoped `op` session
-      is required — the runner's SA token is read-scoped).
-      · [deployment-compose.md](docs/deployment-compose.md)
+- [x] **HD-1093** — ✅ done + live-verified 2026-10-07: family NAS shares authenticate with **local Samba accounts**; the Authentik-as-LDAP
+      path (HD-132/HD-360) is **retired** and torn down: `authentik-ldap` out of the authentik compose, the
+      D5 `sync-authentik-users` glue deleted from the NAS (it had exited 127 on all 823 runs), `storage_samba_passdb`
+      deleted from the storage role. ✅ Converged + matrix-verified 2026-10-07 (`domen`→media+private,
+      `shared`→media+music, cross-mounts denied, repeat converge `changed=0`).
+      ⏳ **[MANUAL, owner]** two residue items: delete the consumerless `authentik-ldap_bind` item, and rotate
+      **both** SMB passwords (measured 5 and 6 characters), then re-converge with
+      `-e '{"storage_samba_password_force":["domen","shared"]}'` — a vault rotate alone reaches the passdb nowhere.
+      · [docs/storage.md](docs/storage.md) §Samba (SMB) shares on the NAS · [docs/storage-rejected.md](docs/storage-rejected.md)
 - [ ] **HD-207** — land the migrated data: redistribute the `bulk/migrate` landing zone (personal → OpenCloud/live
 - [x] **HD-361** — Cockpit break-glass login on **nas** ✅ done + verified 2026-09-24: `maint` provisioned by
       `roles/cockpit` (`--tags cockpit`, from the laptop — `cockpit` is in the HD-413 lockout set), groups

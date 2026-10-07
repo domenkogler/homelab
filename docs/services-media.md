@@ -274,9 +274,9 @@ profile still exists and fails loudly when it does not.
      can drop finished albums with no follow-up move (`bulk/media` is NFS-exported to oldsrv only, so nothing
      Windows-facing reached that tree before). Layout: `<Artist>/<Album (Year)>/<files>`, then Lidarr →
      Artists → **Add New → Import mode "Existing Files"** (or Rescan on a known artist). Files land
-     media-owned (`force user/group = storage_uid`) so the arr can still rename/hardlink them. ⚠ **No Samba
-     account exists yet** (`pdbedit -L` empty: `storage_samba_users: []`, tdbsam) — see
-     [storage.md](storage.md) §SMB; the share is served, authentication is the open half.
+     media-owned (`force user/group = storage_uid`) so the arr can still rename/hardlink them. Mount it with
+     the **`shared`** Samba service account (`smb-shared_login`; local tdbsam, no IdP in the path) — see
+     [storage.md](storage.md) §Samba (SMB) shares on the NAS.
 - *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr.
   ⚠ **slskd cannot be a Lidarr download client at all** — `GET /api/v1/downloadclient/schema` on the live
   Lidarr **3.1.0.4875** returns 18 client types and every one is usenet or torrent; there is no Soulseek/Slskd

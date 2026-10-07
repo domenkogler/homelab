@@ -184,40 +184,14 @@ services:
       authentik-redis:
         condition: service_started
 
-  # ---- Authentik LDAP outpost (D7/HD-132) — Samba pulls auth from here ----
-  # Provides Authentik-as-LDAP to Samba on the LAN (nas). This is a *client* served
-  # outpost: Authentik stays the SSOT (no push). The outpost echoes the Authentik
-  # directory tree (users/groups) over LDAP/LDAPS and validates binds.
-  # REQUIRED at deploy (creation order): ensure the Authentik **LDAP provider**
-  # (base DN `DC=home,DC=kogler,DC=si`, bind_mode DIRECT) + outpost instance exist —
-  # either declared in the `ks-oidc.yml` Blueprint (HD-142) or created in the Authentik UI,
-  # then put the generated outpost token in 1Password as `authentik-ldap_bind`
-  # (field=password).
-  # Reachability (HD-186, decided HD-204): NO public publish — the LDAP port binds
-  # ONLY the WireGuard S2S address (prometheus/loki precedent), so Samba (nas, the
-  # client) targets the VPS's WG-side address over the tunnel; the WAN path refuses.
-  authentik-ldap:
-    image: ghcr.io/goauthentik/ldap:{{ authentik_version }}
-    cap_drop:
-      - ALL
-    read_only: true
-    tmpfs:
-      - /tmp
-    container_name: authentik-ldap
-    restart: unless-stopped
-    networks:
-      - services-internal
-    environment:
-      AUTHENTIK_HOST: http://authentik-server:9000
-      AUTHENTIK_INSECURE: "true"   # internal HTTP to authentik-server on services-internal only
-      AUTHENTIK_TOKEN: "{{ vault['authentik-ldap_bind'].password | replace('$','$$') }}"
-      TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-    ports:
-      # Non-secret `default()`s (CONVENTIONS §3): the WG peer-key gate below + db-name/TZ env
-      # and acme-issuer label defaults are structural wiring, never 1Password secrets (HD-65/186).
-      - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:3389:3389"   # LDAP (outpost binds providers' LDAP port); WG-only bind — Samba (nas) pulls over the S2S tunnel (HD-186); no WAN exposure
-    depends_on:
-      - authentik-server
+  # RETIRED 2026-10-07 — the `authentik-ldap` outpost that used to be declared here (D7/HD-132).
+  # It had exactly one consumer: Samba on nas pulling auth over the WG S2S tunnel. That passdb
+  # is gone (docs/storage-rejected.md — and it could never have authenticated a Windows client,
+  # because Authentik serves no `sambaNTPassword`, so there is no NT hash to answer NTLM with).
+  # Measured on the way out: the container sat `Up (unhealthy)` on an expired outpost token, and
+  # its WG publish (10.255.40.2:3389) refused TCP from nas AND oldsrv. Nothing else in the fleet
+  # consumes LDAP — Metabase LDAP auth is rejected (HD-243), every other service rides OIDC.
+  # `authentik-ldap_bind` left the vault set in roles/docker_services/defaults/main.yml with it.
 
 networks:
   traefik-public:

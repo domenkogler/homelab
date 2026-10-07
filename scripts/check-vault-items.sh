@@ -137,6 +137,18 @@ for f in "$GV/vps.yml" "$GV/home_servers.yml"; do
     { grep '^G|' "$TMP/rec_items.txt" || true; } | sed 's/^G|//' | sort -u >> "$TMP/glue_entry.txt"
 done
 
+# HD-244 class extension (2026-10-07, HD-1093): host_vars `*_item:` registry keys.
+# roles/storage reads the per-account Samba credential through a VARIABLE
+# (`storage_samba_users[].vault_item` in host_vars/nas.kogler.si.yml) and roles/cockpit reads
+# `cockpit_maint_vault_item` the same way, so no literal item name ever appears in a template
+# lookup — the same blind spot HD-244 found in the group_vars service entries, one file over.
+# Comment lines are dropped first: a doc comment that *names* an item is not a dependency.
+if compgen -G "IaC/ansible/host_vars/*.yml" > /dev/null; then
+    grep -hvE '^[[:space:]]*#' IaC/ansible/host_vars/*.yml |
+        grep -oE '[a-z0-9_]+_item:[[:space:]]*[a-z0-9_-]+' |
+        awk -F':[[:space:]]*' '{print $2}' | sed '/^$/d' >> "$TMP/needed.txt"
+fi
+
 sort -u "$TMP/needed.txt" -o "$TMP/needed.txt"
 
 # items present in the vault (--fake-vault swaps the query for a static list)

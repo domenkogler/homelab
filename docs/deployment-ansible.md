@@ -1079,7 +1079,8 @@ domain_local: kogler.si
   edge), applies the `ks-oidc.yml` Blueprint + runs the **secret-egress glue** to seed client
   creds into the 1Password OIDC items (`openwebui_api`…`metabase_oidc`, 8 providers). The
   **OpenCloud Graph-API service account** (`opencloud-service_api`) is **NOT** the glue's job
-  — it is provisioned by the `sync-authentik-users` rework (**HD-145**). The pre-pass is
+  — it was provisioned for the `sync-authentik-users` rework (**HD-145**), retired 2026-10-07 with
+  the Authentik-as-LDAP Samba design, so that item currently has no consumer. The pre-pass is
   gated on `authentik` presence via `when:`, so home hosts (home_servers / raspberry_pi)
   skip it entirely; the assert inside is a safety net that should never fire.
   Ordering: `authentik` → blueprint+glue → OIDC consumers. Fail-closed on a missing

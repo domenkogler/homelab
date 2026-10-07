@@ -41,6 +41,20 @@ def referenced_items(root: Path) -> dict[str, set[str]]:
             for item in re.findall(r"'([a-z0-9_.-]+)'", line):
                 if item.endswith(("_api", "_login", "_password", "_db")) and "<" not in item:
                     refs.setdefault(item, set()).add(f"{defaults.relative_to(root)} (registry)")
+    # Registry-key class in host_vars (the HD-244 rule, extended 2026-10-07 with HD-1093):
+    # a `*_item:` scalar whose value is an item NAME, consumed through a VARIABLE — so no
+    # template contains a literal lookup and the pass above can never see it. Found here:
+    # storage_samba_users[].vault_item (roles/storage, the NAS Samba logins) and
+    # cockpit_maint_vault_item (roles/cockpit). Comment lines are skipped — naming an item in
+    # prose is not a dependency. Same class, same rule as check-vault-items.sh.
+    hostvars = ansible / "host_vars"
+    if hostvars.exists():
+        for path in sorted(hostvars.glob("*.yml")):
+            for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if line.lstrip().startswith("#"):
+                    continue
+                for item in re.findall(r"[a-z0-9_]+_item:[ \t]*([a-z0-9_.-]+)", line):
+                    refs.setdefault(item, set()).add(f"{path.relative_to(root)} (registry)")
     return refs
 
 

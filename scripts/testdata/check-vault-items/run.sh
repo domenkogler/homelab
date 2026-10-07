@@ -133,6 +133,28 @@ out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt" --stri
 expect_eq "case7 scoped+strict: exactly 1 missing remains (metabase gap only)" "$(missing_items "$out" | grep -c .)" "1"
 rm -rf "$CTRL" "$GATED"
 
+# --- Case 8: host_vars `*_item:` registry class (HD-1093) ---------------------------
+# roles/storage names each Samba credential through a VARIABLE — storage_samba_users[].vault_item
+# in host_vars/nas.kogler.si.yml — so no template lookup contains the item name and only a
+# host_vars scan can see the dependency (the HD-244 blind spot, one directory over).
+# The control copy renames the key to `vaultitem:`, breaking the class convention: the item must
+# then VANISH from MISSING, proving the rule matches the KEY CLASS and not the literal string.
+mk_hostvars() { # $1 = key name -> echoes copy dir
+    local d; d="$(mktemp -d)"
+    cp -r "$FIXTURE/." "$d/"
+    mkdir -p "$d/IaC/ansible/host_vars"
+    printf '%s\n%s\n%s\n' 'storage_samba_users:' "  - { name: tester, $1: smb-shared_login }" '# vault_item: comment_only_item' \
+        > "$d/IaC/ansible/host_vars/nas.example.test.yml"
+    printf '%s\n' "$d"
+}
+HV_CTRL="$(mk_hostvars vault_item)"; HV_NOCLASS="$(mk_hostvars vaultitem)"
+out="$(bash "$MAIN" --root "$HV_CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
+expect_contains "case8 host_vars vault_item: is a real dependency (smb-shared_login MISSING)" "$(missing_items "$out")" "smb-shared_login"
+out="$(bash "$MAIN" --root "$HV_NOCLASS" --fake-vault "$FIXTURE/vault-gap.txt")"
+expect_absent "case8 control: a non-class key name makes it invisible (rule is key-class, not text)" "$(missing_items "$out")" "smb-shared_login"
+expect_absent "case8 commented-out `# vault_item:` line never creates a dependency" "$(missing_items "$out")" "comment_only_item"
+rm -rf "$HV_CTRL" "$HV_NOCLASS"
+
 # --- Summary ------------------------------------------------------------------
 echo "check-vault-items self-test: $pass passed, $fail failed"
 [ "$fail" -eq 0 ] || exit 1

@@ -415,83 +415,46 @@ Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native serve
 `llm-backend`, reachable only by LiteLLM, HD-59) and **docling** (no supported API key → see
 `services-ai.md`; treated like Ollama). *Cross-ref: `security.md` HD-160 block.*
 
-#### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract
+#### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — **RETIRED 2026-10-07**, do not deploy this
 
-> **Ruled by the owner 2026-10-07: Samba accounts are managed in Authentik.** The local-account stopgap that would
-> have made `\\nas\music` mountable in one step is rejected — see [storage-rejected.md](storage-rejected.md). This section is
-> therefore the only path to a mountable family drive, and it has a **third** blocker beyond the two below: the D5
-> provisioning glue exits 127 hourly on the NAS (`op` not installed → no unix account to map an LDAP bind to), **HD-1092**.
-> Both measured 2026-10-07; the 2026-09-21 "crash-looping 403" symptom below has since changed (see HD-360's row tail).
-> ⏳ **Deploy-gated (HD-360, split from HD-132).** Samba currently runs
-> `storage_samba_passdb=tdbsam` — local accounts, works offline, and the media share needs no per-user
-> LDAP. **Two independent blockers, both confirmed against the live box on 2026-09-21** (read-only):
+> ⛔ **Nothing in this subsection is live or deployable any more.** Samba on the NAS runs local
+> **tdbsam** accounts and the LDAP machinery has been deleted: the `authentik-ldap` outpost is out of
+> `templates/docker_services/authentik/docker-compose.yml.j2`, and `storage_samba_passdb` /
+> `storage_samba_ldap` are out of the storage role. The living design is
+> [storage.md](storage.md) §Samba (SMB) shares on the NAS; the decision and its evidence are in
+> [storage-rejected.md](storage-rejected.md). What follows is kept **only** as the reason not to
+> re-open it, because every one of these facts was paid for with a live probe.
 >
-> 1. **The LDAP objects do not exist in Authentik.** `ak shell` shows zero LDAP providers, zero LDAP
->    sources, and the only `Outpost` object in the database is the **proxy** outpost
->    (`authentik Embedded Outpost`, 17 forward-auth providers). There is nothing for a client to bind to.
-> 2. **The outpost container is crash-looping anyway.** `authentik-ldap` (compose project `authentik`,
->    rendered by `templates/docker_services/authentik/`) is `Up (unhealthy)` and repeating
->    `{"error":"403 Forbidden  (Token invalid/expired)","event":"Failed to fetch outpost configuration…"}`.
->    It was deployed in the HD-132 window with a token that has since expired.
+> 1. **It could not authenticate a Windows client, at any gate.** `ldapsam` answers an NTLM challenge
+>    with `MD4(UTF-16LE(password))`, which Samba reads from the directory's `sambaNTPassword`.
+>    Authentik stores PBKDF2 and exposes `userPassword`; on 2026.5.6 the server package and the
+>    `/ldap` outpost binary contain **zero** `samba` matches and the provider's built-in mappings are
+>    `DN to User Path`, `Name`, `mail`. So there is no hash to serve — gates 1–5 below could all have
+>    gone green and every tree connect would still have failed.
+> 2. **The network leg was never open.** The outpost publishes only on the WG S2S address
+>    (`wg_s2s_vps.ip:3389`, HD-186/HD-204). Measured 2026-10-07: TCP refused from **nas** and from
+>    **oldsrv**, while `:4443` on the very same address connected fine, and the VPS's own nft DNAT rule
+>    for ``wg_s2s_vps.ip`:3389` carried packets — so a `wait_for` on that host:port would have failed the
+>    converge at gate 4 even with a healthy outpost.
+> 3. **The objects never existed.** `ak shell` shows `LDAPProvider.objects.all()` empty, no `LDAPSource`,
+>    and the only `Outpost` row is the **proxy** one; there is no `svc_samba` user. The blueprint never
+>    declared them (`deployment-oidc.md` §Blueprint).
+> 4. **The token was dead, and its log lied.** `authentik-ldap` sat `Up (unhealthy)` with
+>    `403 Forbidden (Token invalid/expired)` and FailingStreak >600k. A 2026-09-25 re-probe concluded
+>    "the symptom changed" from **zero 403 lines in 24 h** — an artifact: the outpost backs off
+>    exponentially, so a quiet window is normal. Health/`FailingStreak`, never log absence, is the probe.
 >
-> The order matters because fixing only the token produces an outpost **with zero LDAP providers**: Samba
-> would bind to something that serves no base DN. **`smbd` fails hard at startup when `ldapsam` is
-> enabled and the outpost is unreachable** — that failure, not theory, is why the flip is gated.
+> **The systemic lesson (why this sat for seven weeks):** an infra token with an expiry and **no rotator**
+> decays silently. The rotation runbook excludes outpost tokens by design, so nothing failed loudly — one
+> container crash-looped for weeks, the feature merely looked "not deployed yet", and the family kept
+> hitting `NT_STATUS_ACCESS_DENIED` on a share the docs described as working. Any expiry-bearing infra
+> token must therefore be non-expiring by design or named in a rotation runbook at the moment it is
+> minted (recorded in [deployment-secrets.md](deployment-secrets.md)).
 >
-> **The systemic lesson (why this sat for a month):** an infra token with an expiry and **no rotator**
-> decays silently. The rotation runbook excludes outpost tokens by design (HD-132 class), so nothing
-> failed loudly — one container crash-looped for weeks and the feature merely looked "not deployed
-> yet", while the family kept working on `tdbsam` and nobody was told the LDAP path was dead. Any
-> expiry-bearing infra token must therefore be either non-expiring by design or named in a rotation
-> runbook at the moment it is minted (recorded in [deployment-secrets.md](deployment-secrets.md)).
+> **Second lesson — a var nobody can satisfy is worse than no var.** `storage_samba_passdb` sat at
+> `tdbsam` with a documented flip that could not succeed, which is how an unwinnable design stayed
+> "almost deployed". The var is deleted, not defaulted.
 
-**The order that makes the flip safe (each gate verified before the next step; the apply steps are
-owner-gated — the token write needs a write-scoped `op` session, which the runner's SA token is not):**
-
-1. **Declare** in the Blueprint (`templates/docker_services/authentik/blueprints/ks-oidc.yml`, which
-   already mints the two internal users): the LDAP **provider**, an LDAP **Outpost** object bound to
-   that provider, and `svc_samba` inside the provider's search base. Fields that must line up with the
-   Samba side or the bind fails after every gate above has passed: the provider's base DN must match
-   `storage_samba_ldap.base_dn` in the storage role, `password_write` stays **false** (Authentik-as-LDAP
-   is pull-only by D7 — a writable passdb here would shadow self-service), and the outpost must list the
-   LDAP provider explicitly (an outpost with no providers serves nothing and still reports `Up`).
-   Apply is **one-shot** per [deployment-oidc.md](deployment-oidc.md) §Blueprint rule — a failed import
-   takes the whole `authentik` converge with it (HD-386 class), so import it on a slot where that is
-   acceptable, not as a ride-along.
-2. **Mint** a fresh outpost token and write it to `authentik-ldap_bind` **without printing it**
-   (`op item create/edit` through a file/`--template`, never an argv assignment).
-3. **Redeploy the outpost** (re-render + `--force-recreate`) and verify it *stopped* 403-ing:
-   `ssh vps 'docker logs --since 5m authentik-ldap 2>&1 | tail'` must show no `Token invalid/expired`.
-4. **Prove it serves LDAP before Samba is told anything** — from the WG side only (the publish is
-   the VPS's WireGuard-side address (`wg_s2s_vps.ip`, SSOT
-   [network-addresses-generated.md](network-addresses-generated.md); publish + verify commands in
-   [services-vps.md](services-vps.md) row 7): `ldapsearch -x -H ldap://<vps-wg-ip>:3389 -D … -b
-   '<base_dn>' '(sAMAccountName=svc_samba')` returns the entry, and an anonymous base-DN search returns
-   the suffix. From the WAN the same port must refuse.
-5. **Only now flip** `storage_samba_passdb: ldapsam` (nas host var) and converge the storage role.
-   Rollback is one var + one converge, but `smb.conf` is rendered from the role — take
-   `testparm -s` before/after so a silent `passdb backend` regression cannot hide behind a green run.
-6. **Then** verify a real mount with an existing family account (the drive, not the LDAP query — a bind
-   can succeed while the share mapping fails), and record that an Authentik/outpost outage now takes the
-   family drives with it (the accepted D7 trade-off, restated in the todo row so nobody rediscovers it).
-
-
-- **When ldapsam is enabled (HD-360)**: Samba authenticates against Authentik as an LDAP
-  provider (`passdb backend = ldapsam`); **Authentik is the SSOT and does NOT push.** No
-  password is replicated/synced to the NAS.
-- **Effect:** a user changes their own password in the Authentik self-service
-  portal and the **next Samba bind (pull) reads it** — no admin step, no sync.
-- **Nothing in Ansible/glue writes a local Samba password** — we deliberately removed the old
-  `smbpasswd -a` provisioning (D5). Writing a local password would shadow/overwrite the LDAP
-  credential and break self-service; there is no such task anywhere.
-- **Dependency/trade-off:** because Samba pulls live from the LDAP outpost, if Authentik or its
-  `ak-outpost-ldap` is down, family drives cannot mount (no local fallback). Accepted D7 trade-off;
-  if outage resilience is ever required, revisit (LDAP replica cache / local fallback).
-- Bind/base DN are **design constants** in `storage_samba_ldap` (storage role); the **bind
-  password** is the secret `authentik-ldap_bind` (1Password). Deploy order: ensure the Authentik
-  LDAP provider + outpost exist (preferably declared in the `ks-oidc.yml` Blueprint — see
-  [`deployment-oidc.md`](deployment-oidc.md)), then seed `authentik-ldap_bind` before Samba
-  ldapsam connects.
 
 
 Auth tokens for internal services live in 1Password `Homelab-ansible` vault under the

@@ -370,7 +370,9 @@ arr_torrent_client_field_types:
 # template gains/loses a secret, update its line here (mirrors
 # docs/deployment-secrets.md).
 _template_vault_items:
-  authentik: {'authentik_password', 'authentik_login', 'authentik-ldap_bind', 'authentik_db'}
+  # `authentik-ldap_bind` removed 2026-10-07: the LDAP outpost it authenticated was torn down with
+  # the retired Samba `ldapsam` design (docs/storage-rejected.md), so the authentik render reads no LDAP item.
+  authentik: {'authentik_password', 'authentik_login', 'authentik_db'}
   db-backup: {'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
   crowdsec-web-ui: {'crowdsec-webui_lapi_api'}   # HD-272 LAPI watcher password (vault-dict read at render)
   forgejo: {'forgejo_db'}
