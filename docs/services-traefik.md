@@ -38,6 +38,22 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > away from `signal-cli-rest-api` and broken alerting (§[services-downloads.md](services-downloads.md)).
 > ⚠ Quote the var, not just the number — this list is prose, and numbers in prose are precisely what goes
 > stale when a `*_host_port` moves.
+>
+> **The tailnet leg that was never merged (HD-1087, patch = `18913c6` on `session/arr-door-20261006`).**
+> That lane's LAN-door half IS in `main` — cherry-picked as `39cb18d`, then corrected by `38f918c` when the
+> loopback binds it carried 502'd radarr/prowlarr/lidarr (HD-1083). Its second commit never landed; the
+> worktree was closed 2026-10-07 with the **branch kept**, so `git log main..session/arr-door-20261006`
+> reads the patch and no checkout is needed to hold it. What it adds: a `websecure-ts` router for each
+> home-hosted name (media · seerr · seerrng · sonarr · radarr · lidarr · prowlarr · bazarr · profilarr ·
+> sab · torrent + the music trio) on **oldsrv's own tailnet listener**, plus the matching names in
+> `tailnet_ts_only_subdomains`. That door is the correct shape for the home family — the node-direct
+> posture `ha-ts` / `pi-oldsrv-ts` / `cockpit-nas-ts` already use, and deliberately NOT the VPS
+> `traefik-tailnet` edge, which NXDOMAINs this family away from home (repointing the plain names instead
+> would hairpin a tailnet-enabled phone standing at home through the VPS). ⛔ Whoever lands it: the names
+> enter through HD-436's derived `zone_kogler_si` list, not by hand-authoring `vps.yml` a third time, and
+> if **HD-1083** is taken first every `.ts` route must dial the loopback binds in the same converge — that
+> is exactly the 502 `38f918c` recorded. The `.ts` twins stay ACL-only-auth routers on this edge: the
+> invariant above ("twins match no Docker provider") still holds, these are file-provider routers.
 > ⚠ **This prose used to say "loopback", and the gap between that sentence and the running host caused a
 > three-service outage** (2026-10-06 20:24): a routine `docker_services` converge of radarr/prowlarr/lidarr
 > applied the loopback binds, while the edge still dialed `oldsrv_home_ip:<port>` → `502` on those three hostnames,

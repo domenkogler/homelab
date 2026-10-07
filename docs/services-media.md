@@ -106,6 +106,15 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box (moved off nas) |
 | Immich | `foto.` | OIDC → Authentik | photos (VPS) |
 
+> ⚠ **Three of these names are authored, not reachable (HD-1087, measured 2026-10-07).** `aurral`
+> (`oldsrv_home_ip:3001`), `slskd` (`:5030`) and `lidarr-ydl` (`:5005`) publish host sockets on the box, but `main` carries **no router for them in any edge file and no record in
+> `technitium-seed.yml`** — so `aurral.` / `slskd.` / `url-dl.` resolve nowhere and dial nothing. The
+> patch that gives them a LAN router, split-horizon records and `.ts` twins exists as `18913c6` on
+> `session/arr-door-20261006` (see [services-traefik.md](services-traefik.md) §The tailnet leg that was
+> never merged); it names the downloader `lidarr-ydl.`, while this doc's table says `url-dl.` — decide the
+> name in the same change, since the DNS record, the compose publish and this table all take it from
+> whichever lands first.
+
 ## Request → import wiring (Seerr / SeerrNG → *arr → Jellyfin)
 
 > **Status: 🟢 configured + live 2026-10-06** (bootstrap completed through the UIs; the parts IaC can
