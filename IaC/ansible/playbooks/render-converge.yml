@@ -132,7 +132,3 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_egress_probe_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_egress_probe_delta.rsc"
-    - name: "Render rb4011_dhcp_domain_delta.rsc (HD-1097: DHCP option 15 = domain_local)"
-      template:
-        src: "{{ playbook_dir }}/../../router/templates/rb4011_dhcp_domain_delta.rsc.j2"
-        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_dhcp_domain_delta.rsc"

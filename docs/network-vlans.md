@@ -256,14 +256,25 @@ Implemented with **address-lists** and **interface lists** in RouterOS.
 
 DHCP is handled entirely by the **RB4011 router** on each VLAN interface. This ensures devices always get IP leases even if the Debian PC is down.
 
-DHCP option 15 (`domain=kogler.si`) is set on every DHCP **server** — in RouterOS it is a
-`/ip dhcp-server` property, not a `network` one — rendered from `domain_local` by
-`rb4011_converge.rsc.j2` + `roles/router/tasks/main.yml` (edit-both-or-neither). It is what turns a
-single-label name into a DNS query (`nas` → `nas.kogler.si`) instead of a broadcast guess.
-⚠ **This sentence described a `set` that was never in the template until HD-1097 (2026-10-07):**
-`/ip dhcp-server option` was empty and no `domain=` appeared in any render, so no client ever got a
-suffix — the claim and the device disagreed for a year, and the first symptom was a family member
-who could not mount `\\nas\media` from Wi-Fi.
+DHCP option 15 (`{{ domain_local }}`) is set on every DHCP **server** and rendered from
+`domain_local` by `rb4011_converge.rsc.j2`. It is what turns a single-label name into a DNS query
+(`nas` → `nas.kogler.si`) instead of a broadcast guess.
+⚠ **The doc asserted this for a year while the device never carried it** (measured 2026-10-07:
+`/ip dhcp-server option` empty, no `domain=` in any render, `nas.kogler.si` → NXDOMAIN). First
+symptom: a family member could not mount `\\nas\media` from Wi-Fi. Fixed and applied live under
+HD-1097 — see todo for the case, and for the three RouterOS traps paid for on the device while
+wiring it: **there is no `domain` property in v7** (`set … domain=` aborts the import with
+`Script Error: bad parameter domain`; v6 had it) so option 15 rides an `/ip dhcp-server option`
+row with `code=15` referenced by each server's `dhcp-option`; **the value is hex with a `0x`
+prefix** (the string form, the quoted form and `x6b…` all die with `failure: Unknown data type!`,
+`value=1` with `Bad delimiter!`); and **the literal must be inline** — `:local dom "0x…"` +
+`set … value=$dom` reports success and writes an EMPTY value, which is exactly what the first
+import of the HD-1097 delta shipped (`Script file loaded and executed successfully`, option blank).
+Read back with `print detail` and its `raw-value` column; `get … value` can read empty on a
+healthy row. `roles/router` deliberately manages nothing here — api_modify cannot express a
+`[find]` reference, and two writers of one reference is drift — so after a role-only run, read the
+device rather than assume. Delta applied 2026-10-07 and folded into the converge; the delta file
+is deleted per the 3-tier rule.
 
 Static DHCP reservations (SSOT: `group_vars/all/` → `network_static_hosts`, applied by
 `roles/router` + `rb4011_converge.rsc.j2`; live verification via the RouterOS API):
