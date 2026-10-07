@@ -203,6 +203,16 @@ sabnzbd_host_whitelist:
 #      password, which is the random one), so the conf is the only automatable door — write it while
 #      the container is stopped, because qbit rewrites the conf on a clean exit (the sabnzbd ini rule).
 qbit_container_name: qbittorrent
+# The netns OWNER: qBittorrent is `network_mode: service:gluetun`, so it has no address of its own —
+# `qbittorrent:8080` reads as code=000 from every consumer while `gluetun:8080` answers. Everything
+# that must reach the WebUI from OUTSIDE the pair (this seed's verification) dials THIS container.
+qbit_netns_owner: gluetun
+# Where the rendered reconcile helper lives on the target.
+qbit_conf_helper: /usr/local/sbin/qbittorrent-conf.py
+# The WebUI port INSIDE the shared netns (the app's own socket port). The host publish
+# (qbittorrent_host_port) is a different number on purpose, and qBittorrent rejects a Host header
+# whose port differs from this one — so this, not qbittorrent_host_port, is what verification uses.
+qbit_webui_port: 8080
 # The conf + categories file on the HOST path (compose binds config → /config).
 qbit_conf_host_path: /srv/docker/qbittorrent/config/qBittorrent/qBittorrent.conf
 qbit_categories_host_path: /srv/docker/qbittorrent/config/qBittorrent/categories.json
@@ -261,7 +271,7 @@ arr_torrent_client:
     category: music
 arr_torrent_client_name: qBittorrent      # the client name shown in each arr
 arr_torrent_client_host: gluetun          # the netns owner — see the note above
-arr_torrent_client_port: 8080
+arr_torrent_client_port: "{{ qbit_webui_port }}"   # the app's socket port in the shared netns, NOT the host publish
 arr_torrent_client_user: "{{ qbit_webui_username }}"
 arr_torrent_client_item: qbittorrent_api  # vault item holding the WebUI credential (field credential)
 # The non-secret fields the seed writes. `apiKey` is part of the settings class but unused by qBittorrent
@@ -330,6 +340,16 @@ _template_vault_items:
   victoria-metrics: {'victoria-metrics_api'}   # Victoria* basic auth (HD-341/342), HYPHENATED <service>_<type>
   victoria-logs: {'victoria-logs_api'}         # Victoria* basic auth (HD-341/342)
   qbittorrent: {'privado-vpn_api', 'qbittorrent_api'}   # qbittorrent_api is NOT a compose reference: the WebUI credential is written into qBittorrent.conf by tasks/qbittorrent-seed.yml, which reads it from the bulk vault dict (the immich-seed precedent) — the derive set is where a missing item fails loudly
+  # The three arrs take no compose secret, but tasks/arr-client-torrent.yml writes a qBittorrent client
+  # into each app and that client authenticates with `qbittorrent_api` — an item REGISTERED ABOVE under
+  # the qbittorrent service. Derive mode fetches per enabled service IN SCOPE, so with no rows here an
+  # arr-only converge (`-e docker_services_scope=sonarr,…`) seeded the client against an empty `vault`
+  # and the include's own assert failed it closed (measured 2026-10-07 — the assert earned its keep).
+  # Listed per consuming app rather than fetched ad hoc, so check-vault-items.sh keeps answering "does
+  # the vault have it" for the lane that reads it, and one item is fetched once per converge either way.
+  sonarr: {'qbittorrent_api'}
+  radarr: {'qbittorrent_api'}
+  lidarr: {'qbittorrent_api'}
   aurral: []   # HD-362 — Aurral config is all IN-UI (Lidarr API, Last.fm, ListenBrainz entered in its first-run setup); no 1P items needed for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows. (NB: was `set()` — a Python set literal that YAML parses as the STRING "set()", polluting the derive item set with per-char fake items → op-vault-export failed on '('.)
   lidarr-ydl: {'lidarr_api'}   # HD-362 — Lidarr API key (compose). Its Web-UI login has NO vault item (measured 2026-10-07: no matching title in the 131-item vault) —
   #   first-run setup, not fetched/required by compose.

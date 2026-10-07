@@ -52,9 +52,13 @@ Exit codes: 0 done (changed or not), 2 no password on stdin, 3 refusing to clobb
 import base64
 import hashlib
 import hmac
+import http.cookiejar
 import json
 import os
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 PBKDF2_ITERATIONS = 100000   # qBittorrent's own constant; changing it silently breaks login
 PBKDF2_DK_LEN = 64
@@ -63,6 +67,11 @@ SALT_LEN = 16                # qbit: 4 x uint32; any 16 random bytes verify the 
 CONF = sys.argv[1]
 CATS = sys.argv[2]
 CHECK = "--check" in sys.argv[3:]
+# --verify <base_url> : after the reconcile, prove the credential WORKS over the same origin the arrs
+# will use. A 401 to an unauthenticated call only proves auth is ON; it cannot tell a correct
+# credential from a broken one (measured 2026-10-07: an unreachable-by-design origin answers 401 to
+# correct AND wrong credentials alike, which read as "the seed succeeded" while every consumer 401s).
+VERIFY = sys.argv[sys.argv.index("--verify") + 1] if "--verify" in sys.argv else None
 
 WANTED_CONF = {
     "BitTorrent": {
@@ -225,3 +234,65 @@ summary = ("save_path=%s temp_path=%s webui_user=%s password=%s categories=%s" %
     sorted(WANTED_CATS)))
 print(("CHANGED " if changed else "OK already: ") + summary +
       (" added=%s corrected=%s" % (cats_added or "none", cats_fixed or "none") if changed else ""))
+
+
+# --- --verify: the POSITIVE leg ---------------------------------------------------------------
+# Both legs matter and they catch different bugs:
+#   * unauthenticated GET  -> must be 401  (auth is enforced; 200 = the VLAN can drive the client)
+#   * authenticated POST   -> must be 200/204 (the hash this script wrote == the vault credential;
+#                             a 401 here means qbittorrent.conf and 1Password disagree)
+# ⚠ WHICH ORIGIN YOU PASS IS LOAD-BEARING. qBittorrent's validateHostHeader() refuses a request whose
+# Host header carries a port other than the one it listens on (webapplication.cpp, release-5.2.3:
+# `if ((requestPort != -1) && (m_env.localPort != requestPort)) return false;`), and the refusal is
+# HTTP 401 — BEFORE any credential is looked at. The host publish `oldsrv_home_ip:8085 -> :8080` therefore
+# answers 401 to EVERYTHING, correct password included: verifying through `qbittorrent_url` proves
+# nothing except that something is listening. Pass the container origin (`http://<gluetun ip>:8080`,
+# the address the arrs themselves use — qbit shares gluetun's netns), never the published host port.
+def verify(base):
+    def get(path, opener=None):
+        try:
+            resp = (opener.open(base + path, timeout=15) if opener is not None
+                    else urllib.request.urlopen(base + path, timeout=15))
+            with resp:
+                return resp.status, resp.read()[:64]
+        except urllib.error.HTTPError as err:
+            return err.code, err.read()[:64]
+        except (urllib.error.URLError, OSError) as exc:
+            return "unreachable: %s" % exc, b""
+
+    st, _ = get("/api/v2/app/version")
+    if st not in (401, 403):
+        # 403 = reached the API layer and was refused for lack of a session (the normal answer from a
+        # same-port origin); 401 = refused at the CSRF/host-header gate before routing. Both are
+        # "auth enforced"; 200 is the one that must never happen.
+        print("FAIL unauthenticated GET %s/api/v2/app/version -> %s, expected a refusal (401/403).\n"
+              "     200 would mean WebUI auth is OFF (anyone on the Home VLAN can drive the client);\n"
+              "     anything else means this origin is not qBittorrent's WebUI at all."
+              % (base, st))
+        return 1
+
+    cj = http.cookiejar.CookieJar()
+    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
+    form = urllib.parse.urlencode({"username": {{ qbit_webui_username | to_json }},
+                                   "password": PASSWORD}).encode()
+    try:
+        with opener.open(urllib.request.Request(base + "/api/v2/auth/login", data=form), timeout=15) as resp:
+            login, body = resp.status, resp.read()[:40].decode(errors="replace")
+    except urllib.error.HTTPError as err:
+        login, body = err.code, err.read()[:80].decode(errors="replace")
+    if login not in (200, 204):
+        print("FAIL POST %s/api/v2/auth/login -> %s %s with the vault credential.\n"
+              "     401 = the PBKDF2 hash in %s is not the vault value (qbittorrent_seed did not run\n"
+              "     after the last rotation, or the WebUI listen port != the port in this URL — qbit\n"
+              "     answers 401 to EVERY request when the Host header's port and its own socket port\n"
+              "     disagree, which is what a published port mapping looks like from outside)."
+              % (base, login, body.strip(), CONF))
+        return 1
+    st, ver = get("/api/v2/app/version", opener)
+    print("verified: auth enforced AND the vault credential accepted (qbit %s) at %s"
+          % (ver.decode(errors="replace").strip() or "?", base))
+    return 0
+
+
+if VERIFY:
+    sys.exit(verify(VERIFY))

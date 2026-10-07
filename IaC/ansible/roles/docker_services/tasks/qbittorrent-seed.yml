@@ -69,7 +69,7 @@
   # password arrives on stdin), but it does rewrite a downloader's config.
   ansible.builtin.template:
     src: qbittorrent-conf.py.j2
-    dest: /usr/local/sbin/qbittorrent-conf.py
+    dest: "{{ qbit_conf_helper }}"
     mode: '0700'
   changed_when: false
   tags: [docker_services, qbittorrent_seed]
@@ -79,7 +79,7 @@
   # §3 secret-output hygiene). no_log keeps it out of the run log the same way.
   ansible.builtin.command:
     cmd: >-
-      /usr/local/sbin/qbittorrent-conf.py {{ qbit_conf_host_path }} {{ qbit_categories_host_path }} --check
+      {{ qbit_conf_helper }} {{ qbit_conf_host_path }} {{ qbit_categories_host_path }} --check
     stdin: "{{ vault[svc.secret_item].credential }}"
   no_log: true
   register: _qbit_check
@@ -106,7 +106,7 @@
     - name: "qbittorrent-seed: write credential + save paths + categories"
       ansible.builtin.command:
         cmd: >-
-          /usr/local/sbin/qbittorrent-conf.py {{ qbit_conf_host_path }} {{ qbit_categories_host_path }}
+          {{ qbit_conf_helper }} {{ qbit_conf_host_path }} {{ qbit_categories_host_path }}
         stdin: "{{ vault[svc.secret_item].credential }}"
       no_log: true
       register: _qbit_apply
@@ -120,19 +120,37 @@
       when: _qbit_drift | bool
   tags: [docker_services, qbittorrent_seed]
 
-- name: "qbittorrent-seed: prove WebUI auth is actually enforced (unauthenticated call)"
-  # The proof is the NEGATIVE: an unauthenticated API call must be refused. 200 here means auth is off
-  # and the Home VLAN can drive the client anonymously; 000 means the publish is gone. Both are bugs,
-  # and only one of them is the one this seed is supposed to fix.
+- name: "qbittorrent-seed: discover the WebUI address the consumers actually use"
+  # qBittorrent runs `network_mode: service:gluetun`, so the address that WORKS is the netns owner's
+  # overlay address on its own listen port — exactly what the three arrs will dial. NOT `qbittorrent:8080`
+  # (no such namespace) and NOT `qbittorrent_url` (the host publish), which qBittorrent answers with 401
+  # for every request because its Host-header check rejects a port mismatch. See the helper's verify().
   ansible.builtin.shell:
-    cmd: curl -s -o /dev/null -w '%{http_code}' -m 8 {{ qbittorrent_url }}/api/v2/app/version
+    cmd: >-
+      docker inspect {{ qbit_netns_owner }}
+      --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+      | tr ' ' '\n' | awk 'NF{print $1; exit}'
     executable: /bin/bash
-  register: _qbit_probe
+  register: _qbit_netns_ip
   changed_when: false
-  until: _qbit_probe.stdout | default('000') == '401'
-  retries: 10
-  delay: 3
-  failed_when: _qbit_probe.stdout | default('000') != '401'
+  tags: [docker_services, qbittorrent_seed]
+
+- name: "qbittorrent-seed: prove auth is enforced AND that the vault credential actually logs in"
+  # Both legs, because they catch different bugs — the negative alone was the bug: a 401-to-everything
+  # origin passes an "auth is enforced" check while every consumer 401s for real. --check keeps this
+  # read-only (no conf write behind a running qBittorrent, which would be clobbered at its next exit).
+  ansible.builtin.command:
+    cmd: >-
+      {{ qbit_conf_helper }} {{ qbit_conf_host_path }} {{ qbit_categories_host_path }}
+      --check --verify http://{{ _qbit_netns_ip.stdout | trim }}:{{ qbit_webui_port }}
+    stdin: "{{ vault[arr_torrent_client_item].credential }}"
+  no_log: true
+  register: _qbit_verify
+  changed_when: false
+  until: _qbit_verify.rc == 0
+  retries: 8
+  delay: 5
+  failed_when: _qbit_verify.rc != 0
   tags: [docker_services, qbittorrent_seed]
 
 # A torrent client behind a dead tunnel is an IP leak, not a download. The two legs are asked the same
@@ -190,6 +208,6 @@
       {{ 'seeded: ' ~ _qbit_detail ~ ' · qBittorrent restarted once'
          if (_qbit_drift | bool)
          else 'unchanged: ' ~ _qbit_detail ~ ' · no restart' }}
-      · WebUI auth enforced (401 unauthenticated at {{ qbittorrent_url }})
+      · WebUI auth + credential verified at http://{{ _qbit_netns_ip.stdout | trim }}:{{ qbit_webui_port }} ({{ (_qbit_verify.stdout | default('')).split('·') | last | trim }})
       · consumers use host {{ qbit_container_name }}'s overlay peer `gluetun:8080`, NOT `qbittorrent:8080`
   tags: [docker_services, qbittorrent_seed]
