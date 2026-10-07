@@ -38,6 +38,16 @@ http:
         middlewares:
           - crowdsec-bouncer
 
+    # HD-1095 Fix B: the :80 → :443 redirect used to reference a middleware THIS edge never
+    # declared — Traefik's own log said `middleware "redirect-to-https@file" does not exist`
+    # and the router silently served nothing. Declare it here; the router that uses it lives
+    # in routes.yml.j2 with the v3-valid `HostRegexp(`.+`)` rule (the v2 `{host:.+}` template
+    # parses but matches nothing, which is the other half of the same outage).
+    redirect-to-https:
+      redirectScheme:
+        scheme: https
+        permanent: true
+
     # ONLYOFFICE CSP upgrade (HD-166 layer-6): DS builds browser-facing cache URLs
     # (Editor.bin etc.) with an http:// scheme behind our TLS edge (upstream issue
     # ONLYOFFICE/DocumentServer#2186 class) -> mixed content -> browser blocks the
