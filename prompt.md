@@ -12,7 +12,12 @@
 
 ## 1. Environment
 
-WSL Debian primary, ext4 (the repo runs from the WSL Debian primary, not Windows). `python3`/bash/LF/UTF-8 no-BOM.
+**The pi-dev seat is `oldsrv`** (the primary coding seat — harness state in [docs/pi-harness.md](docs/pi-harness.md)); the
+laptop's WSL Debian clone is the durable **runner**, and owner/cleanup sessions also run from the **Win11 Git-Bash** seat.
+`python3`/bash/LF/UTF-8 no-BOM (`.gitattributes` pins `eol=lf`, so a checkout is LF on Windows too). On a Win11 seat four
+gates were silently blind or misleadingly red until 2026-10-07 — MSYS text mode makes `grep` miss the CR of a CRLF pair
+(`grep -U` is mandatory in encoding guards), `git` lives in `/mingw64/bin` not `/usr/bin`, and a case ending in a tmux/ansible
+probe must print SKIP, not a verdict (CONVENTIONS §6; the sweep rule is [docs/orchestration.md](docs/orchestration.md) §4 step 5).
 Secrets → 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders. Multi-line bash heredocs with
 backslashes/backticks get mangled through `bash -c` — write script bodies to a temp file and run them.
 **Signed-commit gotcha:** keys `~/.ssh/github_signing` / `github_auth`, both in `Homelab-ansible` (HD-495), so
@@ -44,11 +49,14 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
    `cloudflare_dns_records`). Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
 4. ⏳ **HD-450** — nothing watches cert pair age at a consumer; the Signal alert channel exists, only the age probe is owed
    (and it now also owes the NUT client→master leg probe, the class the 2026-10-07 UPS fix left standing).
-5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 465 · 444; of the
-   the 442–444 block, whose rows keep owner-gated tails).
+5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 442–444 · 465 — the 442–444
+   rows keep owner-gated tails).
    ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently). The seat's
    **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
-   playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself.
+   playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself. The row now also carries the
+   **Win11 sibling**: the unattended signing identity works but lives in no script, so a laptop rebuild loses it the same way
+   (measured dialog timings + the two traps in [docs/deployment-secrets.md](docs/deployment-secrets.md)
+   §What actually raises a 1Password prompt).
 6. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 

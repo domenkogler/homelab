@@ -132,7 +132,10 @@ encoding_violation() {
   strip="$(tr -d '\0' < "$p" | wc -c)"
   [ "$total" != "$strip" ] && return 1
   [ "$(head -c3 "$p" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "efbbbf" ] && return 0
-  LC_ALL=C grep -q $'\r' "$p" 2>/dev/null && return 0
+  # -U/--binary is load-bearing on a Windows seat: Git-Bash's MSYS layer opens files in TEXT mode,
+  # so a plain grep never sees the CR of a CRLF pair and this guard was silently blind there
+  # (measured 2026-10-07; `-U` is a no-op on Debian, where no conversion exists to disable).
+  LC_ALL=C grep -qU $'\r' "$p" 2>/dev/null && return 0
   return 1
 }
 
@@ -356,7 +359,18 @@ self_test() {
   run_at "$tmp/foreign" --push && { err "canary passed: --push clobbered a foreign file"; fails=$((fails+1)); } \
     || info "foreign-refusal   caught"
   # 4b. --force replaces it and keeps a backup.
-  run_at "$tmp/foreign" --push --force || { err "canary: --push --force failed"; fails=$((fails+1)); }
+  #     The replacement itself is provable everywhere, so assert it with `cmp` instead of trusting
+  #     the exit code alone: `--push` ENDS in the load probe, which returns 2 (SKIP, see `have tmux`
+  #     above) on a host with no tmux — counted here as a failure, this self-test reported
+  #     "canary: --push --force failed" on the Win11 seat (measured 2026-10-07) while the install had
+  #     in fact succeeded. A host boundary read as a broken invariant is how a gate gets muted.
+  rc=0; run_at "$tmp/foreign" --push --force || rc=$?
+  cmp -s "$REPO/pi-agent/tmux/tmux.conf" "$tmp/foreign/tmux.conf" \
+    && info "foreign-force     replaced (SSOT == target, byte-exact)" \
+    || { err "canary: --push --force did NOT replace the foreign file"; fails=$((fails+1)); }
+  [ "$rc" -eq 0 ] && info "foreign-probe     GREEN" \
+    || { have tmux && { err "canary: --push --force failed (rc $rc)"; fails=$((fails+1)); }; \
+         info "foreign-probe     SKIP (no tmux) — install ran, the load probe cannot"; }
   ls "$tmp/foreign"/tmux.conf.foreign-* >/dev/null 2>&1 \
     && info "foreign-backup    kept" || { err "canary: --force kept no backup"; fails=$((fails+1)); }
 

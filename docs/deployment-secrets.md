@@ -32,7 +32,7 @@ host facts in the repo. This split is deliberate and **intentionally uses no `se
 |-----------------|----------------|-----|
 | hostname / IP / port | `host_vars/*.yml` (`ansible_host`), `group_vars/all/main.yml` (`kopia_sftp_*`, …) | **config**, not secret — part of the repo's self-rebuild + recovery premise; moving it to 1P would break the `git clone → rebuild` and the provisioning bootstrap (which needs host facts before 1P is available) |
 | login (`ansible_user`, `kopia_sftp_user`) | `host_vars` / `group_vars` (inventory) | the login alone grants nothing; the **key** does. Kept in IaC so inventory is complete |
-| **key / credential** | 1Password `_ssh` items via the **1Password SSH agent**, or connection-refs (`Hertzner-SB-Backup`) for kopia SFTP | this is the actual secret — never on disk, never in Git |
+| **key / credential** | 1Password `_ssh` items via the **1Password SSH agent**, or connection-refs (`Hertzner-SB-Backup`) for kopia SFTP | this is the actual secret — never on disk, never in Git. **One named exception:** the laptop's own GitHub pair exists as passphrase-free files on both laptop seats — see §What actually raises a 1Password prompt |
 
 **Why not a `server` type:** none of the repo's consumers need a full bundle from a single
 `lookup()` — Ansible reads host/login from inventory (parse-time, not 1P), and keys come from
@@ -67,7 +67,7 @@ boundary — a leaked automation token never exposes break-glass credentials.
 | **Resolved at deploy time** | Ansible templates call `lookup('community.general.onepassword', ...)` — secrets fetched at render time, never cached |
 | **Forgejo Actions integration** | Service Account token with minimum-scope vault access. Secrets resolved at deploy, never on disk |
 | **1Password CLI** | Installed on management laptop + Actions runner. `op` CLI + `OP_SERVICE_ACCOUNT_TOKEN` |
-| **1Password SSH agent** | Private keys never on disk — served from `Homelab-ansible` vault on demand. See SSH Key Separation below |
+| **1Password SSH agent** | Private keys never on disk — served from `Homelab-ansible` vault on demand. See SSH Key Separation below. On the **Win11** seat the agent serves the GitHub pair only, and both keys are on that disk anyway (§What actually raises a 1Password prompt) |
 
 ---
 
@@ -621,6 +621,53 @@ Host nas-ai           # AI debugging — tell the AI: "use ssh nas-ai"
 ```
 
 After a host reinstall the host key changes — run `ssh-keygen -R nas` (or `-R oldsrv`) once on the laptop.
+
+---
+
+### What actually raises a 1Password prompt on the Win11 seat (measured 2026-10-03)
+
+Three paths ask, and the timings are the proof — a consent dialog is a 7–12 s wait for a human, a
+credential the machine already holds answers in under a second. Measured on `Domen_P14s`:
+
+| action | path | dialog |
+|---|---|---|
+| `git commit` with the interactive config | `gpg.ssh.program = op-ssh-sign.exe` (`.gitconfig-windows`) | **yes — one per commit** (10 s) |
+| `git push` / `git fetch` from a new process | `core.sshCommand = C:/Windows/System32/OpenSSH/ssh.exe` → the agent's named pipe | **yes — per application/process** |
+| `op item get <item>` (the HD-388 client render) | the `op` CLI, which authorises the *calling* process (`bash.exe`) | **yes — one per read** (8–12 s) |
+| `git commit` with `user.signingkey` as a **file path** and `gpg.ssh.program` absent | git's own SSH signer | no — 0 s, `%G?` = `G` |
+| `git ls-remote` through `C:/Program Files/Git/usr/bin/ssh.exe -i ~/.ssh/github_auth -o IdentityAgent=none -o BatchMode=yes` | the bundled OpenSSH 10.5p1 | no — 1 s, authenticates |
+
+Why it is per-process: 1Password authorises a key *against a requesting process*, and a harness that
+starts a fresh shell per command (an agent, a scheduled task) is a new process every time. Same
+mechanism that makes `op` prompt from Git-Bash but not from a terminal that stays open; also why
+VS Code's `git.autofetch` produced dialogs nobody ran (now `false` on this seat — **a suppressed
+prompt is not a refusal, it is a wait**).
+
+**The correction this forces on the `key / credential` row in §Config vs credential split.**
+"Never on disk" is true of the fleet keys (`ansible-admin_ssh`, `domen_ssh`), which the agent serves
+from the vault. It is **not** true of the laptop's GitHub pair: `~/.ssh/github_signing` and
+`~/.ssh/github_auth` exist as unencrypted PKCS#8 files on BOTH seats — the WSL bootstrap writes them
+out with `op read`, and the Win11 seat carries the same two files (168 bytes each). So the Win11
+`op-ssh-sign` path guards nothing that is not already on that disk; it only decides **who has to be
+asked**. Stated plainly for two reasons: it is why the unattended identity below is not a new
+exposure, and it is why this laptop's GitHub pair must be inventoried as a disk-resident secret
+wherever the laptop goes.
+
+**Unattended git on Win11 — `~/.gitconfig-nightly`, opt-in through `GIT_CONFIG_GLOBAL`.** A leg that
+runs while nobody is watching has to fail into its log, never wait on a dialog it cannot answer, so
+that config carries `IdentityAgent=none` + `BatchMode=yes` (fail in 15 s) and file-path signing. Two
+traps, both measured, recorded so the next session does not rediscover them: the repo's own
+`.git/config` pins `user.signingkey` to the **public-key string**, and repo config outranks global —
+so the nightly file alone still routes git at an agent (`Couldn't get agent socket?`) and the call
+needs `-c user.signingkey=C:/Users/domen/.ssh/github_signing` as well. And `core.sshCommand` must be
+the **8.3 short path** (`C:/PROGRA~1/Git/usr/bin/ssh.exe`): Git for Windows hands the string to `sh`,
+which drops the quoting around "Program Files" and execs `C:/Program`.
+
+The same key-FORM finding that HD-495 established for the oldsrv seat is therefore what works here
+too — the difference is only that on Win11 the repo pins the `key::<pub>` form and must be
+overridden per call. Scripting this into `git-bootstrap-win11.sh` (so a rebuild of the seat does not
+have to be re-derived by hand) is the ⏳ tail recorded in [`../todo.md`](../todo.md) HD-495; the
+manual form is [../deployment-manual.md](../deployment-manual.md) §0.4b.
 
 ---
 

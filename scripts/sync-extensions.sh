@@ -98,7 +98,12 @@ bad_encoding() {
   strip="$(tr -d '\0' < "$p" | wc -c)"
   [ "$total" != "$strip" ] && return 1   # NUL byte -> binary, no judgement
   [ "$(head -c3 "$p" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "efbbbf" ] && return 0
-  LC_ALL=C grep -q $'\r' "$p" 2>/dev/null && return 0
+  # -U/--binary is load-bearing on a Windows seat: Git-Bash's MSYS layer opens files in TEXT mode,
+  # so a plain grep never sees the CR of a CRLF pair and this guard was silently blind (measured
+  # 2026-10-07: `printf 'x\r\n' | grep -c $'\r'` → 0, with `od -c` showing the CR, and both CRLF
+  # canaries in --self-test reported "canary passed"). `-U` is a no-op on Debian, where no
+  # conversion exists to disable.
+  LC_ALL=C grep -qU $'\r' "$p" 2>/dev/null && return 0
   return 1
 }
 

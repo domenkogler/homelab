@@ -215,6 +215,22 @@ bash scripts/git-bootstrap-win11.sh --ssh-auth      # idempotent
 ✔-evidence: `git ls-remote git@github.com:<owner>/homelab.git HEAD` succeeds over SSH, and a test
 `git commit -S` is signed without a passphrase prompt.
 
+**Only if this seat will run unattended jobs** (bench legs, scheduled tasks): the path above blocks on
+a 1Password consent dialog when nobody is at the keyboard, so give the driver an agent-free identity.
+
+```powershell
+$env:GIT_CONFIG_GLOBAL = "$env:USERPROFILE\.gitconfig-nightly"        # for the driver process only
+git -c user.signingkey="$env:USERPROFILE\.ssh\github_signing" commit -m "..."
+git -c user.signingkey="$env:USERPROFILE\.ssh\github_signing" ls-remote origin HEAD   # proof, ~1 s
+```
+
+✔-evidence: `git log -1 --format='%G?'` prints `G` and neither command raises a dialog (~0 s / ~1 s).
+Pass `-c user.signingkey=<path>` on EVERY call — the repo's own `.git/config` pins the pubkey-string
+form and repo config outranks global. Why these two switches, the 8.3-short-path trap, and what this
+says about the "keys never on disk" rule: [docs/deployment-secrets.md](docs/deployment-secrets.md)
+§What actually raises a 1Password prompt. Scripting it into `git-bootstrap-win11.sh` is tracked in
+[todo.md](todo.md) HD-495.
+
 The Windows desktop side differs from the WSL runner: the 1Password **desktop** app owns the GitHub keys
 (`GitHub sign`, `GitHub auth`) over the Windows named-pipe agent, and signing resolves by the **public-key
 string**, not a file path. Why each config line in the script is what it is — and the two failure modes

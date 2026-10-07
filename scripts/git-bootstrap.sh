@@ -91,8 +91,15 @@ if [ "${1:-}" = "--self-test" ]; then
   # the runtime-dir guard must fire BEFORE any op call. PATH keeps a real shell (a bare
   # PATH=/nonexistent breaks `bash` itself, which is how the first draft of this case failed) and
   # supplies a witness op: reaching it would print OP-WAS-CALLED.
+  # ⚠ The stripped PATH must still carry `git`, which the throwaway clone above needs. Hardcoding
+  #   `/usr/bin:/bin` is a Debian-ism: on Git-Bash `git` lives in `/mingw64/bin`, so the child died
+  #   `git: command not found` at the first `git config` and this case reported a PATH failure as a
+  #   guard failure (measured 2026-10-07 on the Win11 seat: SELFTEST FAIL [xdg-guard] got "Repo
+  #   present at …"). The `dirname` of the real `git` is `/usr/bin` on Debian, so this adds nothing
+  #   there; when `git` is absent it degrades to `/usr/bin` rather than `.` (no CWD on the PATH).
+  GITDIR=$(dirname "$(command -v git 2>/dev/null || echo /usr/bin/git)")
   out=$(run "$TMP/noop" "" "")
-  out=$(PATH="$TMP/noop:/usr/bin:/bin" HOME="$TMP/home" SRC="$TMP/src" XDG_RUNTIME_DIR="/run/user/999999" \
+  out=$(PATH="$TMP/noop:/usr/bin:/bin:$GITDIR" HOME="$TMP/home" SRC="$TMP/src" XDG_RUNTIME_DIR="/run/user/999999" \
         bash "$SELF" --ssh-auth 2>&1 || true)
   printf '%s' "$out" | grep -qi "XDG_RUNTIME_DIR is" \
     || { echo "SELFTEST FAIL [xdg-guard]: expected the runtime-dir refusal — got: $(printf '%s' "$out" | tail -2)"; fails=$((fails+1)); }

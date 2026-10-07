@@ -684,7 +684,7 @@ comparing the four sources, none of which noticed:
 | media family | the seed answers **oldsrv**; `network-addresses-generated.md` says the **NAS** | generated view vs source |
 | `stats` | labelled **Beszel** in the address doc, served by **Grafana** per `vps.yml` | label vs owner |
 | `stats` / `logs` / `csui` | LAN clients are handed a **tailnet address** | decision 3 above |
-| a workstation hosts file | pins `.ts` + short names to tailnet node addresses and cites `scripts/tailnet-hosts.txt` + `scripts/tailscale-dns-fix.ps1` — **neither has ever existed in git** | unversioned state with a citation that looks recorded |
+| a workstation hosts file | pins `.ts` + short names to tailnet node addresses and cites `scripts/tailnet-hosts.txt` + `scripts/tailscale-dns-fix.ps1` — **never in git**; corrected 2026-10-07: three such files (`tailnet-hosts.txt`, `tailscale-dns-fix.ps1`, `wsl-magicdns-resolv.sh`) did exist **untracked**, in the stale `homelab-wt-20260919-0941` session worktree, and were discarded with it — the mechanism is rejected ([network-rejected.md](network-rejected.md) "hosts-file aliases as the answer mechanism", 2026-09-22), and the shipped answer is `scripts/wsl-nat-resolv.ps1` | unversioned state with a citation that looks recorded, and (now closed) residue that outlived its own rejection |
 
 The last row also costs an instrument: a hosts override sits **above** DNS on the one machine you would
 otherwise debug on, so a wrong zone answer becomes invisible exactly where it would have been noticed.

@@ -105,7 +105,10 @@ bad_encoding() {
   if [ "$(head -c3 "$p" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "efbbbf" ]; then
     return 0   # UTF-8 BOM
   fi
-  LC_ALL=C grep -q $'\r' "$p" 2>/dev/null && return 0   # CRLF
+  # -U/--binary is load-bearing on a Windows seat: Git-Bash's MSYS layer opens files in TEXT mode, so
+  # a plain grep never sees the CR of a CRLF pair and this guard was silently blind there (measured
+  # 2026-10-07; `-U` is a no-op on Debian, where no conversion exists to disable).
+  LC_ALL=C grep -qU $'\r' "$p" 2>/dev/null && return 0   # CRLF
   return 1
 }
 

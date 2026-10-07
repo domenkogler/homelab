@@ -145,6 +145,14 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `git-bootstrap.sh --ssh-auth`; HD-300's `~/.bashrc` block re-adds them, agent memory is non-persistent).
   Verify with `git log -1 --format='%G?'` (**G** = good) — which needs `gpg.ssh.allowedSignersFile`,
   without which git prints `N` for every commit, signed or not. See `scripts/README.md` git-bootstrap row + HD-270 doc.
+- **A gate that cannot see the file cannot fail either — prove the probe, not the platform.** Four validators were
+  silently blind on a Git-Bash/Windows seat (measured 2026-10-07, all four now fixed): MSYS opens files in **text mode**, so a
+  plain `LC_ALL=C grep $'\r'` never sees the CR of a CRLF pair (`grep -U` is mandatory in every encoding guard; `cmp`/`diff`
+  are binary-safe and were fine); a self-test fixture with a hardcoded `/usr/bin:/bin` PATH dies `git: command not found`
+  because Git-Bash keeps `git` in `/mingw64/bin`; a `^={7}$` anchor never matches a `=======\r`; and a case whose last step is
+  a load probe counted "no tmux here" as a broken invariant. Each of those reported **green or a misleading red**, so the rule
+  for any host-dependent guard: assert the probe detects the canary **on the host it will run on**, and make an environment
+  boundary print `SKIP`, never a pass.
 - **A test that cannot fail is not evidence.** Before claiming a fix, write the input that
   differs *only* under the fix and run it; if the check would print the same thing either way,
   it proves nothing. Measured cost of skipping this (2026-09-21): a commit here described a

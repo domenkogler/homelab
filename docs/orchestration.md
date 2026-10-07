@@ -99,6 +99,16 @@
    (O7). The 2026-09-22 sweep paid the last scheduled debt: `prompt-405.md`, `prompt-next.md`, `prompt-OV.md` and
    `prompt-agentmemory.md` are gone and no view links a deleted brief.
 5. `git worktree remove` each lane worktree, `git worktree prune`, `git branch -d session/<lane>…` (O8), `git push`.
+   ⚠ **A merged branch does not mean a drained worktree — inventory the residue first.** `git merge-base --is-ancestor` proves
+   only the *commits*. A lane can be fully merged and still hold uncommitted and untracked files, and `git worktree remove`
+   discards them (measured 2026-10-07 sweeping four stale lanes: every one was merged, every one was dirty, and three held
+   work that had never reached `main` — a new `docs/deployment-secrets.md` section, three never-committed scripts, and a bench
+   driver). So before removing: `git -C <wt> status --porcelain` in each, then for every added line decide
+   *present-in-`main` / superseded / to-rescue* (`git grep -F -- '<line>' main -- <path>` names which), rescue what is real into
+   its owning doc, and only then remove. A row that was **minted inside** the residue must be re-checked against the registry
+   before it lands: one such row said `HD-491`, which `todo.md` already uses for the CrewAI call — the duplicate-mint class
+   HD-495's row records. Where the answer is "superseded", the discard still gets recorded where it is read (the owning doc or
+   the domain's `-rejected.md`), because "it existed and was thrown away" is the fact the next session cannot otherwise find.
    ⚠ **A patch-absorbed branch is not an ancestor, and `-d` cannot tell the two cases apart.** When a lane's work reached
    `main` through cherry-picks or an earlier rebase, `git cherry -v main <branch>` shows every commit as `-` yet `git branch -d`
    still refuses — and `-D` is forbidden (O8), so the sweep stalls. The convention-compatible move is `git rebase main <branch>`:

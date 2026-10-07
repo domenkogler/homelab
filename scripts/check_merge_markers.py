@@ -85,7 +85,15 @@ def scan(root: Path) -> list[str]:
         except UnicodeDecodeError:
             continue  # undecodable (e.g. the .knxproj/.zip artifacts) — nothing to grep
         rel = path.relative_to(root).as_posix()
-        lines = text.split("\n")
+        # CRLF-normalise BEFORE splitting: `DIVIDER` is anchored at git's exact width (`^={7}$`), so a
+        # trailing `\r` silently defeats it while the `^<{7,}` shapes still match — a gate that catches
+        # three shapes and misses the fourth looks green. Measured 2026-10-07 on the Win11 seat, where
+        # the canary's `write_text` emits CRLF (Python translates `\n` on write under Windows) and
+        # SELFTEST FAIL [conflict_divider_only.txt] proved the blind spot. `.gitattributes` pins
+        # `* text=auto eol=lf`, so a `git checkout` yields LF on every platform; this covers any file
+        # that reaches the working tree by another route. splitlines() was NOT used: it also splits on
+        # form feeds, which would shift line numbers in this repo's `\f`-bearing evidence dumps.
+        lines = text.replace("\r\n", "\n").split("\n")
         markdown = rel.lower().endswith((".md", ".markdown"))
         for n, line in enumerate(lines, start=1):
             if PRIMARY.match(line):
