@@ -321,17 +321,20 @@ zone_kogler_si:
   - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }
   - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
   # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
-  - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: seerr.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: seerrng.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: sonarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: radarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: lidarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: prowlarr.kogler.si,      internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: bazarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: profilarr.kogler.si,     internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: sab.kogler.si,           internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
-  - { name: torrent.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: none, ts_router: false }
+  - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: seerr.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: seerrng.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: sonarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: radarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: lidarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: prowlarr.kogler.si,      internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: bazarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: profilarr.kogler.si,     internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: sab.kogler.si,           internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: torrent.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  - { name: aurral.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: node, ts_router: true }
+  - { name: slskd.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: node, ts_router: true }
+  - { name: lidarr-ydl.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: node, ts_router: true }
   # --- LAN-only: answers a Home/modem address, so the VPS primary must never carry them ---
   - { name: llogs.kogler.si,         internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: modem.kogler.si,         internal: true, ip: "192.168.1.1", lan_only: true, tailnet: none, ts_router: false }   # Comtrend UI; mirrors group_vars/router.yml modem_mgmt_ip
@@ -793,6 +796,27 @@ qbittorrent_bind: "{{ oldsrv_home_ip }}"
 # on oldsrv these two collide; check `ss -ltnp | grep 8085` before enabling either.
 qbittorrent_host_port: 8085
 qbittorrent_url: "http://{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}"
+
+# ==== The music trio on the home edge (HD-362, door landed by HD-1087) ====
+# Same HD-419 shape as the *arr set above: traefik-internal is `network_mode: host`, so a
+# route can only reach a backend that PUBLISHES a host socket on the address the route names.
+# All three already publish on the oldsrv Home IP (measured 2026-10-07: aurral :3001,
+# slskd :5030 via its gluetun sidecar's publish, lidarr-ydl :5005), so NO compose change is
+# needed — only the vars, the routers and the records. Ports are re-checked against every
+# other `oldsrv_home_ip:` publish per the qbittorrent note above (3001/5005/5030 measured
+# free of collisions on this host).
+aurral_bind: "{{ oldsrv_home_ip }}"
+aurral_host_port: 3001
+aurral_url: "http://{{ aurral_bind }}:{{ aurral_host_port }}"
+# slskd shares the gluetun-slskd network namespace; the publish lives on the sidecar.
+slskd_bind: "{{ oldsrv_home_ip }}"
+slskd_host_port: 5030
+slskd_url: "http://{{ slskd_bind }}:{{ slskd_host_port }}"
+# The name is `lidarr-ydl.` (owner ruled 2026-10-07): the tool is Lidarr-only and audio-only,
+# so the neutral `ydl.` was rejected and the older `url-dl.` spelling is retired.
+lidarr_ydl_bind: "{{ oldsrv_home_ip }}"
+lidarr_ydl_host_port: 5005
+lidarr_ydl_url: "http://{{ lidarr_ydl_bind }}:{{ lidarr_ydl_host_port }}"
 
 # ==== Tailscale listen port (HD-414) ====
 # 41641 is tailscaled's DEFAULT, so this is not a change — it is the PIN that keeps it

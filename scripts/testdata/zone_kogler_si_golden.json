@@ -173,10 +173,10 @@
   "counts": {
     "cloudflare": 21,
     "headscale:plain": 10,
-    "headscale:ts_only": 14,
+    "headscale:ts_only": 28,
     "technitium:primary": 35,
-    "technitium:secondary": 43,
-    "technitium:secondary-pi": 43
+    "technitium:secondary": 46,
+    "technitium:secondary-pi": 46
   },
   "headscale": {
     "plain": [
@@ -301,6 +301,76 @@
         "name": "traefik.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.1"
+      },
+      {
+        "name": "media.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "seerr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "seerrng.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "sonarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "radarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "lidarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "prowlarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "bazarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "profilarr.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "sab.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "torrent.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "aurral.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "slskd.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "lidarr-ydl.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
       }
     ]
   },
@@ -619,6 +689,18 @@
       {
         "ip": "192.168.1.1",
         "name": "modem.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "aurral.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "slskd.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "lidarr-ydl.kogler.si"
       }
     ],
     "secondary-pi": [
@@ -793,6 +875,18 @@
       {
         "ip": "192.168.1.1",
         "name": "modem.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "aurral.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "slskd.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "lidarr-ydl.kogler.si"
       }
     ]
   }

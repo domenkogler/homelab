@@ -108,17 +108,14 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 | Navidrome | `music.` | **VPS** (SSO web UI optional + local) | music server — library on Storage Box; ⚠ **no door yet: `music.kogler.si` answers nothing** (see §Navidrome) |
 | Immich | `foto.` | OIDC → Authentik | photos (VPS) |
 
-> ⚠ **Three of these names resolve and then 404 (HD-1087, measured 2026-10-07).** `aurral`
-> (`oldsrv_home_ip:3001`), `slskd` (`:5030`) and `lidarr-ydl` (`:5005`) publish host sockets on the box, and
-> `aurral.kogler.si` / `slskd.kogler.si` / `lidarr-ydl.kogler.si` **do answer the oldsrv Home address** (the
-> `oldsrv_home_ip` row of [network-addresses-generated.md](network-addresses-generated.md)) — but nothing **on
-> `main`** authors those records (the patch does, `main` does not), so they are **un-managed live state**, and `main`
-> carries **no router for them in any edge file**: `https://<name>.kogler.si/` returns **404** from the home edge
-> while the control (`lidarr`, `torrent`) returns **200**. The patch that opens the door does exist — `18913c63`, the
-> second commit on `session/arr-door-20261006` — but it was cut before `main` derived the DNS list, so it lands as a
-> **translation, not a rebase**: see [services-traefik.md](services-traefik.md) §The tailnet leg that was never
-> merged. The `.ts` half is ruled **in** by the owner (2026-10-07), and `music` (Navidrome) is not in that patch at
-> all — see §Navidrome below.
+> ⚠ **These three names have a door in IaC now, and still 404 live (HD-1087, 2026-10-07).** `aurral`
+> (`oldsrv_home_ip:3001`), `slskd` (`:5030`, published by its gluetun sidecar) and `lidarr-ydl` (`:5005`)
+> publish host sockets, and their A records already answer on the home instances **from state nothing on
+> `main` had ever authored** — un-managed live state. The row set now authors them (`lan_only`), adds the LAN
+> routers and the `.ts` twins, and ⏳ waits for the one owner-present `oldsrv` converge that makes any of it
+> real; until then `https://<name>.kogler.si/` still returns **404** from the home edge while `lidarr` returns
+> **200**. Mechanics + the two shape calls: [services-traefik.md](services-traefik.md) §The tailnet leg and the
+> music trio's door.
 >
 > **Name ruling (owner, 2026-10-07): the downloader is `lidarr-ydl.`** — a neutral `ydl.` was proposed and rejected,
 > because the tool is **music-only**: `angrido/lidarr-downloader` talks only to Lidarr (`LIDARR_URL` /
@@ -186,15 +183,16 @@ profile still exists and fails loudly when it does not.
   is what is owed (**HD-1088**, ruled 2026-10-07); there is no Box mount on oldsrv to import into.
   `docs/storage.md` owns the tiering/consequence line. Until that leg lands, only files placed on the Box by hand (or
   by the owner's own SMB mount) reach Navidrome.
-- **⚠ The door does not exist (measured 2026-10-07, HD-354 tail).** `music.kogler.si` is published **nowhere**: no
-  row in `zone_kogler_si` on any of the three Technitium instances, no entry in headscale's extra-record sets, and
-  **no router in any edge file** — not in `traefik-tailnet` (which does route `foto` /
-  `file` / `git`), not in the home `traefik-internal` set — and the container publishes no host port and sets
-  `traefik.enable: "false"`. `dig` returns nothing and `curl` never connects, while the control (`lidarr`) answers
-  `200`. The 2026-09-18 verification checked the container, the Box bind and the scanner — **it never dialed the
-  hostname**, so the ✅ in the row is true of the server and false of the service. Nothing in this pillar is
-  listenable by name until the route + record exist; a Subsonic client pointed at `VPS:4533` directly is the only
-  working path today.
+- **⚠ The door is still missing, and the landed trio patch does not fix it (HD-354 tail).** `music.kogler.si` is
+  published **nowhere**: no row in `zone_kogler_si` on any of the three Technitium instances, no entry in
+  headscale's extra-record sets, and **no router in any edge file** — the VPS `traefik-tailnet` set routes
+  `foto` / `file` / `git` but not Navidrome, and this container sets `traefik.enable: "false"` and publishes no
+  host port. `dig` answers nothing; the control (`lidarr`) answers `200`. The 2026-09-18 ✅ verified the
+  container, the Box bind and the scanner — never the hostname — so it is true of the server and false of the
+  service. HD-1087 landed the *trio's* door on 2026-10-07 and deliberately did not guess this one: the correct
+  shape depends on which edge is allowed to serve VPS-resident internal apps at home (the `foto` precedent dials
+  `wg_s2s_vps.ip:wg_internal_edge_port` from the home edge), so it goes in as its own change with a route on the
+  VPS edge **and** the home edge plus one zone row, not as a bolt-on to a DNS lane.
 
 ## Music Pillar — acquisition + discovery (HD-362)
 

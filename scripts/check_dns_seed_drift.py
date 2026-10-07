@@ -73,6 +73,14 @@ LAN_ONLY = {
     # in an interesting way, it just never resolved (NXDOMAIN at the secondary AND the tertiary).
     "cockpit-oldsrv.kogler.si": None,          # oldsrv_home_ip — oldsrv's traefik-internal file-provider route
     "cockpit-nas.kogler.si": None,             # nas Home address via SSOT — same route shape on nas
+    # HD-1087 (2026-10-07): the music trio, routed on the home edge + .ts twins. Deliberately
+    # LAN_ONLY and NOT the family's home_edge_ip class — the family rows answer the VPS PRIMARY with
+    # dns_primary_ip, where no edge file carries a route for those names (a resolve-that-404s away
+    # from home, the pre-existing wart HD-1087 documents). A new name should not ship that wart:
+    # away-from-home the trio is served by its `.ts` twin, so the plain answer stays Home-only.
+    "aurral.kogler.si": None,                  # oldsrv_home_ip — music discovery (HD-362)
+    "slskd.kogler.si": None,                   # oldsrv_home_ip — Soulseek daemon UI (HD-362)
+    "lidarr-ydl.kogler.si": None,              # oldsrv_home_ip — YouTube->Lidarr (HD-362)
 }
 
 # Documented record classes -> expected target resolution, per instance (docs/network-dns.md).
@@ -84,6 +92,10 @@ HOME_HOSTED = {  # oldsrv_home_ip home / dns_primary_ip VPS
     "prowlarr", "bazarr", "profilarr", "sab", "torrent", "llogs",
 }
 TAILNET = {"stats", "logs", "csui", "traefik", "auto"}
+# The music trio (HD-362), routed on the home edge with .ts twins since HD-1087. Home-instance
+# target is the oldsrv Home IP; on the VPS PRIMARY they are gated out (lan_only) — see the note in
+# LAN_ONLY above for why they are not in the family's HOME_HOSTED class.
+TRIO = {"aurral.kogler.si", "slskd.kogler.si", "lidarr-ydl.kogler.si"}
 # NOTE: `pi-oldsrv` is absent from every set here, and `cockpit-nas` is absent from TAILNET — but
 # not from this file entirely: the PLAIN `cockpit-nas.kogler.si` sits in LAN_ONLY above, and it is its
 # `.ts` twin that must never be seeded. Two names, two questions; do not "tidy" one into the other.
@@ -212,7 +224,7 @@ def main() -> int:
                 else:
                     if name in ("spark.kogler.si", "db-spark.kogler.si", "llm.kogler.si"):
                         target = EXPECT["spark"]
-                    elif name in ("llogs.kogler.si", "llitellm.kogler.si"):
+                    elif name in ("llogs.kogler.si", "llitellm.kogler.si") or name in TRIO:
                         target = EXPECT["oldsrv"]
                     elif name == "cockpit-oldsrv.kogler.si":   # HD-188 Cockpit on oldsrv
                         target = EXPECT["oldsrv"]

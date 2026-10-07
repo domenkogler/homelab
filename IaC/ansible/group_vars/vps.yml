@@ -377,6 +377,28 @@ tailnet_ts_only_subdomains:
   # left the network at 21:39:55 the healthy nas lost its console route too. If that ever stops
   # being acceptable, the fix is `ip: tailnet_sidecar_ip` + the firewall allow + an edge-side router.
   - { name: cockpit-nas }  # -> oldsrv tailnet node -> cockpit role `cockpit-nas-ts` -> nas:9090
+  # HD-1087 (2026-10-07, from the arr-door lane's patch `18913c63`): the home-hosted media/*arr/
+  # downloader set + the music trio, OFF-LAN. HERE and not in `tailnet_subdomains` on purpose — that
+  # list renders BOTH namespaces and MagicDNS answers CLIENT-SIDE, so publishing the plain HOST name
+  # would hairpin a tailnet-enabled phone standing AT HOME through the VPS instead of oldsrv's LAN
+  # answer (the ha/spark resolver-ambiguity trap, HD-382/389). `ip` defaults to `tailnet_oldsrv_ip`
+  # -> oldsrv's own `websecure-ts` listener -> the `<name>-ts` routers in traefik-internal -> the
+  # oldsrv publishes. Node-direct: no VPS hop, so it survives a WAN-out at home. Same coupling to
+  # oldsrv as cockpit-nas, accepted for the same reason.
+  - { name: media }
+  - { name: seerr }
+  - { name: seerrng }
+  - { name: sonarr }
+  - { name: radarr }
+  - { name: lidarr }
+  - { name: prowlarr }
+  - { name: bazarr }
+  - { name: profilarr }
+  - { name: sab }
+  - { name: torrent }
+  - { name: aurral }
+  - { name: slskd }
+  - { name: lidarr-ydl }
 
 # HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge

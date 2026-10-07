@@ -39,62 +39,44 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > ⚠ Quote the var, not just the number — this list is prose, and numbers in prose are precisely what goes
 > stale when a `*_host_port` moves.
 >
-> **The tailnet leg that was never merged (HD-1087, patch = `18913c63`, the second commit on
-> `session/arr-door-20261006`).** That lane's LAN-door half IS in `main` — cherry-picked as `39cb18d`, then
-> corrected by `38f918c` when the loopback binds it carried 502'd radarr/prowlarr/lidarr (HD-1083). Its second
-> commit never landed; the worktree was closed 2026-10-07 with the **branch kept**, so
-> `git log main..origin/session/arr-door-20261006` reads the patch and no checkout is needed to hold it.
-> ⚠ **Re-fetch the ref before judging the row — memory and stale clones both lie here.** A session reading this
-> branch earlier on 2026-10-07 saw tip `79749c64` (the LAN-door half alone, zero `websecure-ts` lines), proved
-> from it that no patch existed, and wrote that into the docs — `18913c63` was pushed later the same day. Same
-> class as the outage recorded below: a claim about a moving thing, stated as if both sides had met.
+> **The tailnet leg and the music trio's door — LANDED IN IaC (HD-1087, translated from the
+> `18913c63` patch; branch closed 2026-10-07).** ⏳ **Deploy-gated:** the routes and records below are
+> authored, not converged. One `oldsrv` `docker_services` converge (traefik-internal hot-reloads its file
+> provider) plus the Technitium seed on the three instances — owner-present, it re-renders live edge routing
+> and the MagicDNS answer set.
 >
-> **What the patch carries:** a `websecure-ts` router for each home-hosted name (media · seerr · seerrng ·
-> sonarr · radarr · lidarr · prowlarr · bazarr · profilarr · sab · torrent **+ the music trio**) on **oldsrv's own
-> tailnet listener**, the same 14 names added to `tailnet_ts_only_subdomains`, LAN routers for the trio, three
-> hand-authored split-horizon rows for them in `technitium-seed.yml`, the trio's `*_bind`/`*_host_port` ports in
-> `group_vars/all/main.yml`, and the `check_dns_seed_drift.py` HOME_HOSTED set. It also flips every routed
-> group's `*_bind` from `127.0.0.1` to `oldsrv_home_ip`.
+> **What landed:** LAN routers (`websecure` + `websecure-lan`) and `*-backend` services for `aurral` ·
+> `slskd` · `lidarr-ydl`, dialled through `*_url`/`*_bind`/`*_host_port` (`aurral 3001`, `slskd 5030` — the
+> publish lives on its gluetun sidecar — `lidarr-ydl 5005`; all three already had a host socket, measured, so
+> no compose change was needed); `websecure-ts` routers on **oldsrv's own tailnet listener** for the whole
+> home set (media · seerr · seerrng · sonarr · radarr · lidarr · prowlarr · bazarr · profilarr · sab · torrent
+> + the trio); those 14 names in `tailnet_ts_only_subdomains` (MagicDNS `.ts` twins, `node` class →
+> `tailnet_oldsrv_ip`); the trio's three rows in `zone_kogler_si`; the matching sets in
+> `check_dns_seed_drift.py`. The 11 family rows now declare `tailnet: node, ts_router: true`, so the catalogue
+> says what the edge actually does. Node-direct on purpose — no VPS hop, survives a WAN-out at home — and the
+> `.ts` namespace only, because MagicDNS answers client-side (HD-382/389).
 >
-> **What to author** (one `oldsrv` converge, owner-present — it re-renders live edge routing + the MagicDNS answer
-> set; the owner ruled **`.ts` twins: yes** on 2026-10-07):
+> **Two shape calls the patch did not carry:**
+> - **The trio is seeded `lan_only`; the family is not.** The family rows answer the **VPS primary** with
+>   `dns_primary_ip`, yet no edge file on the VPS carries a route for those names — away from home the plain
+>   family name resolves and then 404s. That is a pre-existing wart, not a contract, so a new name does not
+>   inherit it: the trio answers at home only, and away clients use the `.ts` twin. If HD-1083's edge work ever
+>   gives the VPS edge this family, flip the trio to `home_edge_ip` in that same change.
+> - **The patch's `*_bind` loopback→Home-IP hunks were dropped.** `38f918c` already moved `main`'s routed group
+>   onto `oldsrv_home_ip`; re-applying the flip would have a converge "fix" that silently reverts live state.
+>   Recorded in [services-rejected.md](services-rejected.md).
 >
-> - **LAN door for the trio** — `websecure` + `websecure-lan` routers and `*-backend` services for `aurral` ·
->   `slskd` · `lidarr-ydl` in `templates/docker_services/traefik-internal/dynamic/routes.yml.j2`, dialed through new
->   `*_url`/`*_bind`/`*_host_port` vars (the `sonarr_url` pattern above; register them in
->   `scripts/validate-docker-services.py`'s render context per HD-189). All three already publish a host socket on
->   `oldsrv_home_ip` — `3001` / `5030` / `5005`, measured — so no compose change is needed; a backend the host-net
->   edge cannot reach is a silent `502`, so re-measure `docker port` before concluding an app is down.
-> - **Names — translate the patch, do not rebase it blindly.** It adds its three rows to the seed task's inline
->   `loop:`, but main replaced that list with the derived `zone_kogler_si` (HD-436) while the branch was open, so
->   the rows belong in that list and nowhere else (`technitium-seed.yml` loops `zone_kogler_si_seed_records`).
->   ⚠ **And the patch's per-instance shape is wrong for these names**: it answers the VPS primary with
->   `dns_primary_ip`, which is exactly how a name ends up resolving to a door that 404s — no edge on the VPS
->   carries a `aurral`/`slskd`/`lidarr-ydl` router. Rule them `internal: true, lan_only: true,
->   ip: "{{ oldsrv_home_ip }}"` (the `llogs`/`llitellm` shape; `websecure-lan` is the listener that answers them at
->   home). ⚠ **The trio already resolves on the home instances although no ref ever converged those records** —
->   un-managed live state, which is why the symptom is a Traefik **404** and not an NXDOMAIN (control: `lidarr`
->   answers `200`). The rows make the answers authored; the routers make them work.
-> - **The patch's `*_bind` flip is already `main`'s state** (`38f918c` moved the routed group onto
->   `oldsrv_home_ip`), so drop those hunks when landing — re-applying them as a "change" is how a converge
->   silently reverts live state (the lesson in the paragraph below). Keep the `.ts` and LAN routers dialling the
->   `*_url` vars so a later **HD-1083** flip touches one place.
-> - **`music` (Navidrome) is the same class and worse** — no record anywhere and no router in **either** edge (the
->   VPS `traefik-tailnet` file set routes `foto`/`file`/`git` but not Navidrome, and the container sets
->   `traefik.enable: "false"` with no host publish). `dig music.kogler.si` answers nothing. It belongs in this
->   converge, not in a separate one — see [services-media.md](services-media.md) §Navidrome.
-> - **⚠ A new name makes the parity gate go RED on purpose** — `check_zone_kogler_si_parity.py` prints `ADDED <row>`
->   and exits 1, and `capture_zone_kogler_si_golden.py` REFUSES to re-capture post-derivation. The sanctioned move is
->   to hand-edit `scripts/testdata/zone_kogler_si_golden.json` with the same rows **in the same commit** and say why
->   in the message; the fixture is the snapshot, not a render.
-> - **`.ts` twins** — a `websecure-ts` router per name on **oldsrv's own tailnet listener** (the node-direct posture
->   `ha-ts` / `pi-oldsrv-ts` / `cockpit-nas-ts` already use, deliberately NOT the VPS `traefik-tailnet` edge, which
->   NXDOMAINs this family away from home — repointing the plain names instead would hairpin a tailnet-enabled phone
->   standing at home through the VPS) + the names in `tailnet_ts_only_subdomains`. File-provider routers, ACL-only
->   auth, so the invariant above ("twins match no Docker provider") still holds. If **HD-1083** is taken first, every
->   `.ts` route must dial the loopback binds in that same converge — exactly the 502 `38f918c` recorded.
-> - **Name ruled (owner, 2026-10-07):** `lidarr-ydl.` — see [services-media.md](services-media.md) §Music Pillar for
->   why the neutral `ydl.` was rejected.
+> **Both router sets dial the same `*_url` vars**, which is exactly why **HD-1083** (loopback-only publishes)
+> has to move the LAN *and* the `.ts` routes in ONE converge — half of it 502s the other half, the way
+> `38f918c` recorded for the LAN leg.
+>
+> ⚠ **How this section got a confidently wrong sentence once (2026-10-07).** A session read
+> `session/arr-door-20261006` at tip `79749c64`, proved from it that *"no patch exists"*, and wrote that into
+> three docs — while `18913c63` was being pushed to the same branch that day. A ref sweep means `git fetch`
+> first: a clone's refs are not the remote's refs.
+>
+> **Name ruled (owner, 2026-10-07):** the downloader is `lidarr-ydl.` — see
+> [services-media.md](services-media.md) §Music Pillar for why the neutral `ydl.` was rejected.
 > ⚠ **This prose used to say "loopback", and the gap between that sentence and the running host caused a
 > three-service outage** (2026-10-06 20:24): a routine `docker_services` converge of radarr/prowlarr/lidarr
 > applied the loopback binds, while the edge still dialed `oldsrv_home_ip:<port>` → `502` on those three hostnames,
@@ -103,11 +85,11 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > before concluding an app is down; **(b)** converging a committed state onto a host whose live state came from
 > an **unmerged** branch reverts that state silently. Loopback-only publishing (edge as the only door) is still
 > the target and is tracked as HD-1083 — it must be applied to every routed service *and* the edge in one
-> converge, never to a subset. ⚠ **aurral / slskd / lidarr-ydl are NOT in
-> this group and were never routed on any edge** (the old prose here counted them in `routes.yml.j2` — they are
-> not there; they have no route and no split-horizon record to this day). Follow the same pattern if one is
-> ever exposed: loopback bind + the `*-backend` URL pointed at the same var, never the Home IP unless a
-> cross-host backend genuinely needs it.
+> converge, never to a subset. **aurral / slskd / lidarr-ydl joined this group on
+> 2026-10-07 (HD-1087)** — LAN routers, `.ts` twins, `*_url` vars and three split-horizon rows, ⏳ pending the
+> oldsrv converge. Until that converge they still 404 exactly as before, so a live 404 is not a routing bug —
+> check `docker exec traefik-internal cat /etc/traefik/dynamic/routes.yml | grep aurral` first.
+> Follow the same pattern for the next one: the `*-backend` URL points at the var, never a literal address.
 
 
 ---

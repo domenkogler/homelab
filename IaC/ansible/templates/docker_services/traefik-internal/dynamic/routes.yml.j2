@@ -134,6 +134,31 @@ http:
         - websecure-lan
       service: torrent-backend
       tls: true
+    # --- music trio (HD-362, door landed by HD-1087) ---
+    # Own logins (Aurral/Slskd local auth + the slskd token), NO forward-auth anywhere on this
+    # edge — the home edge carries none by design (WAN-out survival). Backends are the oldsrv
+    # publishes in group_vars/all/main.yml (`*_url`), never a literal address here.
+    aurral:
+      rule: "Host(`aurral.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: aurral-backend
+      tls: true
+    slskd:
+      rule: "Host(`slskd.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: slskd-backend
+      tls: true
+    lidarr-ydl:
+      rule: "Host(`lidarr-ydl.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: lidarr-ydl-backend
+      tls: true
     # LAN log hub (Dozzle multi-host, HD-343 ride-along 2026-09-15): llogs.kogler.si
     # served by the traefik-internal HOME edge (WAN-out survival — no VPS dependency).
     # Backend = the oldsrv Dozzle hub (:8081); it shows oldsrv + pi + spark containers
@@ -196,6 +221,101 @@ http:
       entryPoints:
         - websecure-ts
       service: pi-oldsrv-backend
+      tls: true
+    # --- home-hosted *arr / media / downloaders / music trio over the TAILNET (HD-1087, landed
+    #     2026-10-07 from the arr-door lane's `18913c63`) ---
+    # Away-from-home path for the whole home set: node-direct on oldsrv's OWN tailnet address, the
+    # same posture as ha-ts / pi-oldsrv-ts / cockpit-nas-ts — NO VPS hop, so it works during a
+    # WAN-out at home and off-LAN. The `.ts` twins live in `tailnet_ts_only_subdomains` and publish
+    # the `.ts` namespace ONLY (MagicDNS answers client-side; the plain home name must never be
+    # re-pointed — HD-382/389). NO forward-auth: the tailnet ACL is the gate and every app here owns
+    # its login (a phone PWA cannot complete an Authentik sub-request, measured in HD-409).
+    # Backends are the same `*_url` vars the LAN routers use — which is why a future HD-1083 flip
+    # (loopback-only publishes) has to move these routes in the SAME converge, or this set 502s
+    # exactly the way `38f918c` recorded for the LAN leg.
+    media-ts:
+      rule: "Host(`media.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: media-backend
+      tls: true
+    seerr-ts:
+      rule: "Host(`seerr.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: seerr-backend
+      tls: true
+    seerrng-ts:
+      rule: "Host(`seerrng.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: seerrng-backend
+      tls: true
+    sonarr-ts:
+      rule: "Host(`sonarr.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: sonarr-backend
+      tls: true
+    radarr-ts:
+      rule: "Host(`radarr.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: radarr-backend
+      tls: true
+    lidarr-ts:
+      rule: "Host(`lidarr.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: lidarr-backend
+      tls: true
+    prowlarr-ts:
+      rule: "Host(`prowlarr.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: prowlarr-backend
+      tls: true
+    bazarr-ts:
+      rule: "Host(`bazarr.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: bazarr-backend
+      tls: true
+    profilarr-ts:
+      rule: "Host(`profilarr.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: profilarr-backend
+      tls: true
+    sab-ts:
+      rule: "Host(`sab.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: sab-backend
+      tls: true
+    torrent-ts:
+      rule: "Host(`torrent.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: torrent-backend
+      tls: true
+    aurral-ts:
+      rule: "Host(`aurral.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: aurral-backend
+      tls: true
+    slskd-ts:
+      rule: "Host(`slskd.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: slskd-backend
+      tls: true
+    lidarr-ydl-ts:
+      rule: "Host(`lidarr-ydl.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: lidarr-ydl-backend
       tls: true
 {% endif %}
     dns-pi:
@@ -294,6 +414,18 @@ http:
       loadBalancer:
         servers:
           - url: "{{ qbittorrent_url }}"
+    aurral-backend:
+      loadBalancer:
+        servers:
+          - url: "{{ aurral_url }}"
+    slskd-backend:
+      loadBalancer:
+        servers:
+          - url: "{{ slskd_url }}"
+    lidarr-ydl-backend:
+      loadBalancer:
+        servers:
+          - url: "{{ lidarr_ydl_url }}"
     llogs-backend:
       loadBalancer:
         servers:
