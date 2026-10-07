@@ -57,7 +57,11 @@ NAME = {{ arr_torrent_client_name | to_json }}
 # must not be empty" without it (measured 2026-10-07), and it is the one field a read-back cannot teach
 # you about a client that does not exist yet. It is also what `implementation` names, so both come from
 # one variable rather than two places that can disagree.
-CONTRACT = {{ arr_torrent_client_contract | to_json }}
+CONTRACT = {{ arr_torrent_client_contract | to_json }}          # the SETTINGS class: QBittorrentSettings
+IMPLEMENTATION = {{ arr_torrent_client_implementation | to_json }}   # the PROVIDER class: QBittorrent
+# ⚠ These are two DIFFERENT names and POST instantiates the first one. Using the provider name for both
+# (which is what an earlier revision did) yields 500 "Cannot dynamically create an instance of type
+# …QBittorrent. Reason: No parameterless constructor defined".
 # Field `type` as the app itself reports it (measured out of a live /downloadclient response: the
 # literal strings textbox / checkbox / password / select). Only used for fields the app did not already declare.
 # Keys arrive suffixed (`host_type`) so the secrets linter cannot read a type NAME as a credential.
@@ -127,7 +131,7 @@ if existing:
         "removeCompletedDownloads": existing.get("removeCompletedDownloads", True),
         "removeFailedDownloads": existing.get("removeFailedDownloads", True),
         "configContract": existing.get("configContract") or CONTRACT,
-        "implementation": existing.get("implementation") or CONTRACT,
+        "implementation": existing.get("implementation") or IMPLEMENTATION,
         "appProfileId": existing.get("appProfileId", 1),
         "tags": existing.get("tags", []),
         "fields": [{"name": k, "value": v, "type": types.get(k) or TYPES.get(k, "textBox")}
@@ -139,12 +143,38 @@ if existing:
         drift.append("enable")
     action = "updated" if drift else "unchanged"
 else:
-    body = {
-        "name": NAME, "enable": True, "protocol": "torrent", "priority": 1,
-        "removeCompletedDownloads": True, "removeFailedDownloads": True,
-        "configContract": CONTRACT, "implementation": CONTRACT, "appProfileId": 1, "tags": [],
-        "fields": [{"name": k, "value": v, "type": TYPES.get(k, "textBox")} for k, v in wanted.items()],
-    }
+    # No client yet → start from the app's OWN schema, because that is what the UI posts back and it is
+    # the only source that cannot drift from this build. A hand-built body died with
+    #   500 "Cannot dynamically create an instance of type …QBittorrent. Reason: No parameterless
+    #        constructor defined."
+    # — POST takes `configContract` as the name of the SETTINGS class to instantiate, and that name is
+    # `QBittorrentSettings`, not `QBittorrent` (measured on Sonarr 4.0.19 via /downloadclient/schema).
+    # Guessing class names is not a strategy; the schema also supplies every field's real `type` and
+    # default, so this path no longer needs TYPES for the create case at all.
+    st_schema, schema = call("GET", "/downloadclient/schema")
+    tmpl = next((x for x in (schema or []) if isinstance(x, dict)
+                 and (x.get("implementation") or "").lower() == "qbittorrent"), None) \
+        if st_schema == 200 else None
+    if tmpl is None:
+        print("FAIL GET %s/downloadclient/schema -> %s, and no qbittorrent entry in it: without the "
+              "schema this script will not guess this build's contract/field types (that guess is what "
+              "produced the 500 above). Is the qBittorrent provider present in this app?"
+              % (BASE + API, st_schema))
+        sys.exit(1)
+    tmpl_types = {f.get("name"): f.get("type") for f in tmpl.get("fields", []) if isinstance(f, dict)}
+    tmpl_values = {f.get("name"): f.get("value") for f in tmpl.get("fields", []) if isinstance(f, dict)}
+    tmpl_values.update(wanted)
+    body = {k: v for k, v in tmpl.items() if k not in ("presets", "infoLink", "implementationName", "id")}
+    body.update({
+        "name": NAME,
+        "enable": True,
+        "tags": tmpl.get("tags", []),
+        "fields": [{"name": k, "value": v, "type": tmpl_types.get(k) or TYPES.get(k, "textBox")}
+                   for k, v in tmpl_values.items()],
+    })
+    if body.get("configContract") != CONTRACT:
+        print("note: schema reports configContract=%r, defaults say %r — the schema wins, this line "
+              "only says the two have diverged" % (body.get("configContract"), CONTRACT))
     drift = sorted(wanted)
     action = "registered"
 
@@ -170,6 +200,7 @@ saved = qbit_of(after)
 if len(saved) != 1:
     print("FAIL expected exactly one qBittorrent client after the write, found %d" % len(saved))
     sys.exit(1)
+types_by_name = {f.get("name"): f.get("type") for f in saved[0].get("fields", []) if isinstance(f, dict)}
 stored = {f.get("name"): f.get("value") for f in saved[0].get("fields", []) if isinstance(f, dict)}
 if stored.get(CATEGORY_FIELD) != CATEGORY:
     print("FAIL stored %s=%r, wanted %r — the write returned 2xx but the category did not land. That "
@@ -181,10 +212,13 @@ if not saved[0].get("enable"):
     print("FAIL the client exists but is disabled — it will never receive a grab")
     sys.exit(1)
 
-# The app's own judgement, over the values WE hold (never the redacted read-back).
+# The app's own judgement, over the values WE hold (never the redacted read-back). Every field the
+# app stores goes back, with our values overlaid — a partial object would have the app default the
+# rest for the duration of the test, which tests something other than the client in use.
 test_body = dict(saved[0])
-test_body["fields"] = [{"name": k, "value": v,
-                        "type": TYPES.get(k, "textBox")} for k, v in wanted.items()]
+test_body["fields"] = [{"name": k, "value": wanted.get(k, v),
+                        "type": types_by_name.get(k) or TYPES.get(k, "textBox")}
+                       for k, v in stored.items()]
 status, reply = call("POST", "/downloadclient/test", test_body)
 if status != 200:
     print("FAIL the arr's own client test -> %s %s · stored host=%s:%s %s=%s — 401 means qBittorrent's "

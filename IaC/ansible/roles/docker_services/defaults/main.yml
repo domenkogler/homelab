@@ -270,9 +270,12 @@ arr_torrent_client:
     category_field: musicCategory
     category: music
 arr_torrent_client_name: qBittorrent      # the client name shown in each arr
-# The provider settings class each app loads for this client (Sonarr 400s without it on POST). Same string
-# for all three: every *arr ships the same QBittorrent config contract.
-arr_torrent_client_contract: QBittorrent
+# POST needs BOTH names and instantiates the first: `configContract` is a SETTINGS class
+# (`QBittorrentSettings`), `implementation` is the PROVIDER class (`QBittorrent`). Confused for one
+# each other on 2026-10-07 and Sonarr answered 500 "No parameterless constructor defined".
+# Same pair in all three apps; the create path takes them from the app's own schema anyway.
+arr_torrent_client_contract: QBittorrentSettings   # the SETTINGS class POST instantiates
+arr_torrent_client_implementation: QBittorrent       # the PROVIDER class it implements — NOT the same string
 arr_torrent_client_host: gluetun          # the netns owner — see the note above
 arr_torrent_client_port: "{{ qbit_webui_port }}"   # the app's socket port in the shared netns, NOT the host publish
 arr_torrent_client_user: "{{ qbit_webui_username }}"
