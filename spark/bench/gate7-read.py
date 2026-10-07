@@ -194,8 +194,11 @@ def self_test() -> int:
         got, log = verdict(rows)
         ok = got == want
         bad += 0 if ok else 1
-        print(f"self-test {'ok  ' if ok else 'FAIL'} {name:8s} want={want} got={got}"
-              f"  ({log[-1][:70]})")
+        # NB: keep the word "FAIL" out of a PASSING run's output — validate-all's callers grep it
+        # and an expected-red case must not read as a suite failure.
+        why = log[-1].replace("FAIL", "red").replace("PASS", "green")
+        print(f"self-test {'ok  ' if ok else 'FAILED'} {name:8s} want={want} got={got}"
+              f"  ({why[:70]})")
     # the artifact case must not be able to produce the 2663 MiB/h figure
     rows = parse(_fixture("twopid"), None, None)
     _, log = verdict(rows)
@@ -204,7 +207,7 @@ def self_test() -> int:
     n = abs(float(m.group(1))) if m else 1e9
     ok = n < 2048
     bad += 0 if ok else 1
-    print(f"self-test {'ok  ' if ok else 'FAIL'} artifact  mixed-pid window stays quiet (got {n:.0f} MiB/h)")
+    print(f"self-test {'ok  ' if ok else 'FAILED'} artifact  mixed-pid window stays quiet (got {n:.0f} MiB/h)")
     print("SELFTEST OK: gate 7 accepts a flat curve and refuses a leak, a spike-only window "
           "and a mixed-pid window" if not bad else f"SELFTEST FAILED ({bad} case(s))")
     return 0 if not bad else 1
