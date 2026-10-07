@@ -727,9 +727,12 @@ immich_ml_url: "http://{{ immich_ml_bind }}:3003"   # IMMICH_MACHINE_LEARNING_UR
 # listener on :8096 at all, while actual-budget :5006 and immich-ml :3003 are published
 # on `oldsrv_home_ip`). Same precedent, tighter bind: the edge and the host are the same
 # box, so LOOPBACK is enough and it does not hand Jellyfin's own login (and its bypass of
-# the edge's CrowdSec/HSTS posture) to every Home device. Flip `jellyfin_bind` to
-# `{{ oldsrv_home_ip }}` if a client ever needs :8096 directly.
-jellyfin_bind: "{{ oldsrv_home_ip }}"
+# the edge's CrowdSec/HSTS posture) to every Home device.
+# HD-1083 (owner ruling 2026-10-07): loopback IS the posture for the whole routed group, so this
+# binds loopback like the rest. A LAN client that insists on dialling :8096 directly is a NEW
+# decision, not a one-line flip — `JELLYFIN_PublishedServerUrl` (compose) already hands every client
+# the edge name, so direct-:8096 access is a regression of the edge, not a client fix.
+jellyfin_bind: "127.0.0.1"
 jellyfin_host_port: 8096                     # host port; the container side stays 8096
 jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-internal's media-backend
 
@@ -746,43 +749,55 @@ jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-
 # is dozzle/llogs, and 8082 is ALREADY TAKEN, see the collision note at qbittorrent_host_port).
 # recyclarr has NO publish: it is a scheduled worker with no UI and talks to
 # sonarr/radarr over the overlay network, not through the edge.
-# HD-1083 (2026-10-06): the binds above publish on the HOME IP, not loopback, because that is what
-# every routed container on oldsrv actually publishes on (measured: jellyfin 10.10.1.30:8096, bazarr
-# :6767, seerr :5055, seerrng :5056, sabnzbd :8080, sonarr :8989, slskd :5030, qbit-via-gluetun :8085).
-# traefik-internal's live routes file targets those same 10.10.1.30:<port> sockets, so loopback binds
-# here would 502 the whole group unless EVERY routed service plus the edge were re-deployed in one
-# converge. Loopback-only + edge re-render is the better end state (services stop being reachable
-# directly from the LAN, the edge becomes the only door) — tracked as HD-1083, do not half-apply it.
+# HD-1083 (ruled + implemented 2026-10-07): the routed group binds LOOPBACK. The edge reads the same
+# `*_url` vars these publishes do, so a bind and its `*-backend` URL move together in ONE render — that
+# is what keeps `38f918c`'s live lesson (a subset flip 502s the group) unreachable by construction.
+# What loopback does NOT cover, and stays on the Home IP on purpose (measured `ss -ltn` 2026-10-07):
+#   immich-ml :3003 + actual-budget :5006 — dialed CROSS-HOST (the VPS over the WG S2S); loopback
+#     would take Immich ML and the n8n→Actual leg down;
+#   lan-litellm :4000 + dozzle :8081 — the edge dials these as LITERALS in routes.yml.j2, not as
+#     `*_url` vars, so they cannot move in this change without introducing those vars; lan-litellm is
+#     the LLM plane and wants its own window. Tracked as the HD-1083 tail.
+#   slskd :5030 / aurral :3001 / lidarr-ydl :5005 — publish a host socket with NO router in any edge
+#     file and no record in technitium-seed.yml (HD-1087): loopback here would take away the only way
+#     anything reaches them today without adding the door that is actually owed.
+# ⛔ Half-applying is still the bug: bind AND route must move together, in one converge.
 
 # to sonarr/radarr over the overlay network, not through the edge.
-sonarr_bind: "{{ oldsrv_home_ip }}"
+# Every `*_bind` below is loopback by the HD-1083 ruling above. Flipping ONE of them back to
+# `{{ oldsrv_home_ip }}` re-exposes that one app's own login to the Home VLAN while the edge still
+# works — the change reads as harmless and is exactly the posture the ruling closed.
+sonarr_bind: "127.0.0.1"
 sonarr_host_port: 8989
 sonarr_url: "http://{{ sonarr_bind }}:{{ sonarr_host_port }}"
-radarr_bind: "{{ oldsrv_home_ip }}"
+radarr_bind: "127.0.0.1"
 radarr_host_port: 7878
 radarr_url: "http://{{ radarr_bind }}:{{ radarr_host_port }}"
-lidarr_bind: "{{ oldsrv_home_ip }}"
+lidarr_bind: "127.0.0.1"
 lidarr_host_port: 8686
 lidarr_url: "http://{{ lidarr_bind }}:{{ lidarr_host_port }}"
-prowlarr_bind: "{{ oldsrv_home_ip }}"
+prowlarr_bind: "127.0.0.1"
 prowlarr_host_port: 9696
 prowlarr_url: "http://{{ prowlarr_bind }}:{{ prowlarr_host_port }}"
-bazarr_bind: "{{ oldsrv_home_ip }}"
+bazarr_bind: "127.0.0.1"
 bazarr_host_port: 6767
 bazarr_url: "http://{{ bazarr_bind }}:{{ bazarr_host_port }}"
-seerr_bind: "{{ oldsrv_home_ip }}"
+seerr_bind: "127.0.0.1"
 seerr_host_port: 5055
 seerr_url: "http://{{ seerr_bind }}:{{ seerr_host_port }}"
-seerrng_bind: "{{ oldsrv_home_ip }}"
+seerrng_bind: "127.0.0.1"
 seerrng_host_port: 5056                     # split from seerr — both containers listen :5055 inside
 seerrng_url: "http://{{ seerrng_bind }}:{{ seerrng_host_port }}"
-profilarr_bind: "{{ oldsrv_home_ip }}"
+profilarr_bind: "127.0.0.1"
 profilarr_host_port: 6868
 profilarr_url: "http://{{ profilarr_bind }}:{{ profilarr_host_port }}"
-sabnzbd_bind: "{{ oldsrv_home_ip }}"
+sabnzbd_bind: "127.0.0.1"
 sabnzbd_host_port: 8080
 sabnzbd_url: "http://{{ sabnzbd_bind }}:{{ sabnzbd_host_port }}"
-qbittorrent_bind: "{{ oldsrv_home_ip }}"
+# qBittorrent's publish lives on the GLUETUN sidecar (the netns owner); loopback there is the same
+# ruling applied (HD-1083). ⚠ The arrs do NOT dial this socket — qbit rejects a Host header whose
+# port is not its own 8080, so consumers use `gluetun:8080` on the overlay (qbittorrent-seed.yml).
+qbittorrent_bind: "127.0.0.1"
 # qBittorrent WebUI listens :8080 inside the gluetun netns; host port split from sabnzbd's 8080.
 # ⚠ 8082 is NOT free on this host: signal-cli-rest-api publishes {{ oldsrv_home_ip }}:8082:8880
 # (templates/docker_services/signal-cli-rest-api/). The first assignment of torrent→8082 (the

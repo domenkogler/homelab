@@ -26,16 +26,18 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > address the route names** — container-only port exposure is invisible to it, and the failure is a silent `502`
 > with nothing in the edge's log. Two cases, same cause, both now closed: **jellyfin** publishes
 > `{{ jellyfin_bind }}:{{ jellyfin_host_port }}` = **loopback**, which is enough for a host-net edge and keeps
-> Jellyfin's login + its CrowdSec/HSTS bypass off the Home VLAN; `media.kogler.si` 502 → 200. **The rest of the
-> home-hosted group publishes on the HOME IP, not on loopback (corrected by measurement, HD-1083, 2026-10-06).**
+> Jellyfin's login + its CrowdSec/HSTS bypass off the Home VLAN; `media.kogler.si` 502 → 200. **The whole
+> routed group binds loopback now (HD-1083, ruled and landed 2026-10-07); between 2026-10-06 and that change it
+> published on the HOME IP, which is what `38f918c` had to correct after a subset flip 502'd the group.**
 > Every `*-backend` in `routes.yml.j2` (seerr, seerrng, sonarr, radarr, lidarr, prowlarr, bazarr, profilarr, sab,
 > torrent) has its own `*_url` var in `group_vars/all/main.yml`, and the seerr/seerrng (both :5055 inside) and
-> torrent/sab (both :8080 inside) splits get distinct host ports — but `*_bind` resolves to
-> `oldsrv_home_ip`, because that is what the containers actually own: `jellyfin oldsrv_home_ip:8096`,
-> `bazarr :6767`, `seerr :5055`, `seerrng :5056`, `sabnzbd :8080`, `sonarr :8989`, `slskd :5030`,
-> qbit-via-gluetun `qbittorrent_host_port` = **8085**, all bound to `oldsrv_home_ip`, and the live
-> `routes.yml` dials those same addresses. qBittorrent moved off 8082 on 2026-10-07: gluetun had taken 8082
-> away from `signal-cli-rest-api` and broken alerting (§[services-downloads.md](services-downloads.md)).
+> torrent/sab (both :8080 inside) splits get distinct host ports. Each `*_url` is composed from the matching
+> `*_bind`, **which is what makes a half-flip unauthorable**: the publish and the route the edge dials are the
+> same two variables, so one render moves both — the failure mode is no longer reachable by editing one file.
+> Host ports: `jellyfin_host_port` 8096, `sonarr_host_port` 8989, `bazarr_host_port` 6767, `seerr_host_port` 5055,
+> `seerrng_host_port` 5056, `sabnzbd_host_port` 8080, qbit-via-gluetun `qbittorrent_host_port` = **8085**.
+> qBittorrent moved off 8082 on 2026-10-07: gluetun had taken 8082 away from `signal-cli-rest-api` and broken
+> alerting (§[services-downloads.md](services-downloads.md)).
 > ⚠ Quote the var, not just the number — this list is prose, and numbers in prose are precisely what goes
 > stale when a `*_host_port` moves.
 >
@@ -83,9 +85,11 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > with `sonarr` (not recreated) still serving `302` next to them. Two rules came out of it: **(a)** the bind
 > address of a routed backend is part of the edge contract — check `docker port <svc>` against the route's URL
 > before concluding an app is down; **(b)** converging a committed state onto a host whose live state came from
-> an **unmerged** branch reverts that state silently. Loopback-only publishing (edge as the only door) is still
-> the target and is tracked as HD-1083 — it must be applied to every routed service *and* the edge in one
-> converge, never to a subset. **aurral / slskd / lidarr-ydl joined this group on
+> an **unmerged** branch reverts that state silently. Loopback-only publishing (edge as the only door) **was
+> the target and is now the state — HD-1083 landed 2026-10-07**: the eleven routed `*_bind` values and the
+> edge's `*-backend` URLs moved in one converge, acceptance measured on oldsrv (`ss -ltn`: every routed app
+> port on `127.0.0.1`, none on the Home address; edge ladder byte-identical to the pre-change baseline).
+> It had to be every routed service *and* the edge in one converge; a subset is what caused the outage above. **aurral / slskd / lidarr-ydl joined this group on
 > 2026-10-07 (HD-1087)** — LAN routers, `.ts` twins, `*_url` vars and three split-horizon rows, ⏳ pending the
 > oldsrv converge. Until that converge they still 404 exactly as before, so a live 404 is not a routing bug —
 > check `docker exec traefik-internal cat /etc/traefik/dynamic/routes.yml | grep aurral` first.
