@@ -22,7 +22,7 @@
 > (FAIL-BOOT: the dispatch knobs are constitutive), B5 (no cliff) and B8 (monitoring live), with B10's gates 6/8/9 declined by
 > owner. Enforcement is armed on the box (`SPARK_OOM_REARM_GIB=12`, `no-enforce` removed, `usable` rests ≈ 13.3 GiB).
 > **Re-synced 2026-10-07b (same lane, HD-450 leg):** the silent-failure collector is live on oldsrv + the Pi, so **HD-450**
-> keeps three items instead of one open question. Minted from the same pass: **HD-1093** — the `alloy_version` pin had
+> keeps three items instead of one open question. Minted from the same pass: **HD-1094** — the `alloy_version` pin had
 > fallen behind the box and made the monitoring role un-convergeable on oldsrv (apt: `Packages were downgraded and -y was
 > used without --allow-downgrades`); resolved for that host, the fleet question is the owner's.
 > **Re-synced 2026-10-07 (the downloads + observability lane):** **HD-1090** and **HD-1089** shrink to their

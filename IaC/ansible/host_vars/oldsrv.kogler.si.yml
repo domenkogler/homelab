@@ -141,5 +141,5 @@ monitoring_hygiene_certs:
 # failed here on that one task (reproduced: rc 100 at `Install Alloy package`). Correcting the pin for
 # the host that is actually ahead is the truth-sync; downgrading a working collector to match a file is
 # not. The fleet-wide question (bring spark / vps / nas / pi to 1.20.1 as well, or hold them) is a
-# separate owner call and is registered as HD-1093 — do not fold it in here.
+# separate owner call and is registered as HD-1094 — do not fold it in here.
 alloy_version: "1.20.1-1"
