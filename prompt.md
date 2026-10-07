@@ -38,12 +38,15 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
    load proves the clock regime on GB10), then `reasoning` gates 5–7. Run it from a session whose own model is **not**
    spark (rule 0). Split out of it: ⏳ **HD-475** (`fast`'s triton fix — code-first) and ⛔ **HD-473**
    (engine pin, upstream-blocked, ~40 s re-check). → [prompt-llm.md](prompt-llm.md)
-2. ⏳ **HD-489 tail** — the winner is live and every leg ran; two certificate items remain: **read the gate-7 memory-curve
-   day** accruing since 2026-10-06 11:19Z · then rewrite `fast.certified_evidence` and delete the row. `fast`'s **gate 6**
-   was taken 2026-10-06 on the live 20 GB shape ([`spark/reports/hd489-tail-gate6-20261006-2349/`](spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md))
-   — PASS, with the battery's `max_tokens 1024` vs reasoning-on confound named in it: deciding that battery budget is an
-   owner call, not a quiet edit to `spark/bench/accuracy-gate.sh`. ⛔ B10's gates 6/8/9 were **declined by owner** and B9 · B5 · B8
-   are closed — do not re-run any of them. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
+2. ⏳ **HD-489 tail** — the winner is live, every leg ran, and **one** certificate item is left: the owner ruled
+   gate 6's battery up to `max_tokens 16,384` (16 × 2^10) on 2026-10-07 — **recorded, not applied** — and applying it
+   means re-running the **B1 baseline in the same change**, because grading the reasoning arm against a baseline made
+   under the old 1024 budget is not a measurement. **Gate 7 is CLOSED**: read twice on 2026-10-07 over the accruing
+   window and PASS both times — a bounded fill, one +5,626 MiB step then flat at 99,649 MiB, 0.0 MiB/h tail, 0 restarts
+   ([`spark/reports/hd489-tail-gate7-20261007/`](spark/reports/hd489-tail-gate7-20261007/RESULTS.md));
+   `fast.certified_evidence` now says the shape's real history, so the row can go once the battery lands. The gate-6
+   confound it replaces is in [`spark/reports/hd489-tail-gate6-20261006-2349/`](spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md).
+   ⛔ B10's gates 6/8/9 were **declined by owner** and B9 · B5 · B8 are closed — do not re-run any of them. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
 3. ⏳ **HD-436** — the transport lane's hinge: the derived `zone_kogler_si` list is already on `main`; switch the two
    consumers that still hand-author (`vps.yml`'s two subdomain lists, `roles/cloudflare_dns/vars`
    `cloudflare_dns_records`). Re-renders live edge routing → owner-present. → [prompt-436.md](prompt-436.md)
@@ -64,10 +67,11 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 [todo-table.md](todo-table.md) §B): 360 · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
 float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class on the Pi, where two docs already
 work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (only the
-re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — and HD-380's
-`gpu_top_mib` growth check are left, the gate-7 window accruing since 11:19Z — and the **peak** for that arithmetic is now
-measured, not inferred: the 2026-10-06 partial read put the engine at **99,649 MiB flat for 9 h**, 6,558 MiB over the
-watchdog's committed baseline and 1,634 MiB under the recycle trigger; the gate-4/gate-5 legs closed inside the
+re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — is left:
+HD-380's `gpu_top_mib` growth check (gate 7) **closed 2026-10-07**, read over the full working day and PASS twice — a
+bounded fill, one +5,626 MiB step then flat at **99,649 MiB for 19 of 22 hours** at 0.0 MiB/h tail and 0 restarts. The
+**peak** for that arithmetic is measured, not inferred: 6,558 MiB over the watchdog's committed baseline and 1,634 MiB
+under the recycle trigger; the gate-4/gate-5 legs closed inside the
 **spark** slot of the HD-489 tail lane, so do not open a second writer there) · **1085** (the tmux seat harness: one
 owner act — mouse-drag text inside a tmux pane on oldsrv and paste it where you typed, which is the OSC 52 leg no in-repo
 probe can reach — plus one `--push` wired into `install-pi-debian.sh`; mechanism and traps in

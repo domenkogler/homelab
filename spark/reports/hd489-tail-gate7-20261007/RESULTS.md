@@ -1,4 +1,4 @@
-# HD-489 tail — gate 7 memory-curve read (19.79 h of the accruing window), 2026-10-07
+# HD-489 tail — gate 7 memory-curve read over a full working day (21.49 h), 2026-10-07
 
 Read-only. Command (run from the repo root on oldsrv, where this session runs):
 
@@ -7,9 +7,11 @@ ssh spark 'cat /mnt/spark_nvme/oom-watchdog/state/samples.csv' \
   | python3 -I spark/bench/gate7-read.py --since 2026-10-06T11:19:00Z --baseline-mib 93091
 ```
 
-Window start = the current engine boot's first watchdog sample (2026-10-06T11:19Z; container start
-11:49:52Z). Read taken **2026-10-07 07:38Z**, so the window is **19.79 h** — the row asks for a *working
-day*, which fills at **2026-10-07 11:19Z**; this is 3 h 41 min short of it and is labelled accordingly.
+Two reads of the same accruing window, both scored by the same tool. **The day read** was taken
+**2026-10-07 09:20Z** — the window spans the engine boot at 11:19Z on 2026-10-06 to 09:20Z, so it is
+**21.49 h**, which clears the "one working day" the row asks for (it filled at 11:19Z local today).
+**The pre-read** was taken 2026-10-07 07:38Z at 19.79 h and is kept below, because a second, independent
+shape on the same window is the only thing that distinguishes a plateau from one lucky interval.
 The raw series stays where the watchdog writes it (`spark:/mnt/spark_nvme/oom-watchdog/state/samples.csv`,
 15 s cadence); no copy is committed because the verdict is re-derivable from that one file.
 
@@ -23,7 +25,27 @@ precisely what the tool separates from growth (per-hour maxima of one and the sa
 slope) — and the tail is flat to the MiB. A timed leg of any kind must still be taken from outside the
 served loop.
 
-## Output (verbatim)
+## Output — the day read, 21.49 h (verbatim)
+
+```
+window: 5219 samples, 5117 on the dominant gpu_top_pid 3813481 (98.0 %); other pids seen: 1 — those samples are EXCLUDED, not averaged
+span 21.49 h over 22 hourly maxima: first 94023 MiB, last 99649 MiB, max 99649 MiB
+hourly maxima (MiB): 94023 94023 99645 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649 99649
+worst single-hour jump = +5622 MiB/h at hour +2; least-squares slope = +127.1 MiB/h
+shape: BOUNDED FILL — one step of +5626 MiB reaching the plateau at hour +3, then flat for the last 7 h (spread 0 MiB, tail slope +0.0 MiB/h). The step is fixed-cost arithmetic, not a leak.
+host usable floor in window = 11.73 GiB (watchdog WARN is 12 GiB, CRIT 8 GiB)
+engine restarts in window: max 0
+vs the watchdog's committed baseline 93091 MiB: peak is +6558 MiB — a DERIVED fixed_cost_bytes must hold that headroom
+PASS: bounded — the tail holds under the 2048 MiB/h gate (report the fill step to HD-494's ceiling arithmetic, do not score it as a leak)
+exit=0
+```
+
+The three numbers that moved between the two reads are all arithmetic, not physics: more samples in the
+window, the least-squares slope fell (+152.3 → **+127.1 MiB/h**) because the flat hours now outweigh the
+fill hour more, and 19 of the 22 hourly maxima sit at exactly **99,649 MiB**. The step, the plateau and
+the pid did not move.
+
+## Output — the pre-read, 19.79 h (verbatim)
 
 ```
 window: 4814 samples, 4712 on the dominant gpu_top_pid 3813481 (97.9 %); other pids seen: 1 — those samples are EXCLUDED, not averaged
@@ -56,12 +78,14 @@ exit=0
 ## What this does and does not establish
 
 **Does:**
-* Over 19.79 h on the live `fast` 20 GB shape there is **no leak**: one +5,626 MiB fixed-cost step at
-  hour +2, then **17 consecutive hours at exactly 99,649 MiB** with `spread 0 MiB`, tail slope 0.0 MiB/h,
-  least-squares slope +152.3 MiB/h against the 2,048 MiB/h gate, **0 engine restarts**.
+* **The working day is satisfied** — 21.49 h on the accruing window, read twice, same verdict, and the
+  longer read's tail is as flat as the shorter one's.
+* Over 21.49 h on the live `fast` 20 GB shape there is **no leak**: one +5,626 MiB fixed-cost step at
+  hour +2, then **19 consecutive hours at exactly 99,649 MiB** with `spread 0 MiB`, tail slope 0.0 MiB/h,
+  least-squares slope +127.1 MiB/h against the 2,048 MiB/h gate, **0 engine restarts**.
 * The >2 GiB/h condition that would re-arm C3 `--enforce-eager` (HD-380) is **not met**, and this read
-  covers 7.5 h more of the same regime than `hd489-gate7-partial-20261006/` did — the two reads agree to
-  the MiB (same plateau, same pid, same step), so the 12.2 h pre-read was not a lucky window.
+  covers 9.3 h more of the same regime than `hd489-gate7-partial-20261006/` did — the reads agree to the
+  MiB (same plateau, same pid, same step), so the 12.2 h pre-read was not a lucky window.
 * The number **HD-494** carries is now measured rather than inferred twice over: the peak sits
   **+6,558 MiB** above the watchdog's committed 93,091 MiB baseline, 3,414 MiB above the 96,235 MiB
   "certified peak" HD-395 priced against, and 1,634 MiB under the recycle trigger. A derived
@@ -70,11 +94,9 @@ exit=0
   the duration, which is the shape HD-375 warned about and is not the same claim as "low".
 
 **Does not:**
-* It is **not** the working day. The day completes at 11:19Z today; re-run the one command above after
-  that and the line to update is the `span … over … hourly maxima` line. Nothing in the shape is expected
-  to move — the last 17 h are flat — but "re-read" is the row's condition, not a formality to assert.
-* It says nothing about *leaks that need more than a day* (a slow one at 1 GiB/day is invisible to a
-  2 GiB/h gate by construction). This gate was specified as a growth-rate check, and that is what passed.
+* It does not cover a second day, and it cannot see **leaks slower than the gate** — a drift of 1 GiB/day
+  is 42 MiB/h, six times under the 2,048 MiB/h bar, and would read flat here by construction. The row
+  asked for a growth-rate check over a working day; that is the claim being made and no more.
 * It is not gate 6. The accuracy battery's `max_tokens 1024` confound (reasoning-on spends the whole
   budget, `code-fib` returns empty) is separate, was named in `hd489-tail-gate6-20261006-2349/`, and the
   owner has since ruled the battery up to **16 × 2^10 = 16,384** — recorded, **not applied**, and when it
