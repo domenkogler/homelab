@@ -58,6 +58,9 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
   [Media Stack → Storage & Import](services-media.md#storage-import-media-arr).
 - **Hardlink import** into `media/` is performed by Sonarr/Radarr/Lidarr in the media stack; downloads
   dir is transient scratch and pruned after import.
+  ⚠ **On oldsrv today it is a MOVE, not a hardlink** — see §Hardlink import is impossible while the two
+  trees are separate bind mounts. The distinction is not cosmetic: a moved torrent stops seeding the
+  moment it is imported, which is a problem on a private tracker.
 - ⚠ **SABnzbd's first-run wizard defaults BOTH folder fields to its own config bind** — `/config/Downloads/{incomplete,complete}`
   (2026-10-06, live). That path is writable and looks harmless, but it is `/srv/docker/sabnzbd/config` on
   the **local NVMe**, while the \*arrs mount the NAS share at `/downloads`; so the grab succeeds, the
@@ -73,6 +76,130 @@ Subdomains are relative to `kogler.si`. Network codes: see [Docker Networks](ser
   "succeeds" (the lines sit in the file, SAB never reads them) and downloads keep landing on the local
   disk — see §SABnzbd 5's folder options below. Both keys are owned in IaC now via
   `sabnzbd_folder_ini` / `sabnzbd_folder_ini_drop` in `roles/docker_services/defaults/main.yml`.
+
+### Hardlink import is impossible while downloads and media are separate bind mounts (HD-496, 2026-10-07)
+
+Measured with Radarr's own uid inside its own mounts — the only place the question can be asked:
+
+```console
+$ docker exec radarr sh -c 'echo hi > /downloads/complete/movies/.s && ln /downloads/complete/movies/.s /media/movies/.d'
+ln: failed to create hard link '/media/movies/.d' => '/downloads/complete/movies/.s': Cross-device link
+```
+
+Yet the host reports ONE filesystem for both trees — `stat -c '%d %m'` returns the same `dev=1048705
+mount=/mnt/nas/media` for `/mnt/nas/media/media` and `/mnt/nas/media/downloads`, and the same device id
+is visible inside the container. The reason `link()` still fails is that the compose file mounts them as
+two **separate bind mounts**:
+
+```yaml
+# /opt/radarr/docker-compose.yml
+- /mnt/nas/media/media:/media              # mount A
+- /mnt/nas/media/downloads:/downloads      # mount B
+```
+
+`link()` is refused across mount points regardless of the underlying filesystem, so the "same NFS mount"
+argument in §Landing & Import is necessary but not sufficient: what matters is how the paths are
+*mounted into the container*. Consequences, all observed on 2026-10-07:
+
+- Radarr 6.3 (which removed the Import Mode / Link Type settings entirely — no `importMode`/`linkType`
+  keys exist in `/api/v3/config/mediamanagement` or in `config.xml`) falls back to **move**: the file
+  disappears from `downloads/complete/movies/` and reappears in the library with `Links=1`.
+- Space is not wasted (a rename, not a copy), so nothing looks broken.
+- **Seeding stops at import.** For the torrent leg that is the whole point of a ratio: a private-tracker
+  grab (Zamunda LIFE) is removed from the swarm the instant CDH imports it, which is a hit-and-run.
+- Usenet is unaffected: SABnzbd needs no seeding, and a move is cheaper than a copy.
+
+To restore the hardlink the layout assumes, the two trees have to arrive in the container through **one**
+mount, e.g. `- /mnt/nas/media:/nas` with Radarr's root folder `/nas/media/movies` and qBittorrent
+category paths under `/nas/downloads/complete/<cat>`. That changes paths stored in each arr's database
+(and the `movieFiles` paths), so it is an owner decision, not a seed-level fix — tracked as an open
+question rather than done.
+
+### Torrent leg end-to-end: how a release Radarr cannot search still gets in (HD-496, 2026-10-07)
+
+First successful torrent run: `Svadba.2026.WEBRip.1080p.h264.[ExYuSubs]` (2.00 GiB) → qBittorrent
+(category `movies`, 2.5 MB/s, ~13 min) → Radarr `The Wedding (2026)` (tmdb 1551507, already in the
+library with `hasFile=False`; *svadba* is Slovene for *wedding*) → imported → **visible in Jellyfin**.
+
+The release is a LimeTorrents grab and Radarr has no LimeTorrents indexer (Sonarr does), so the path is:
+fetch the `.torrent` over plain HTTPS, add it **through qBittorrent's API with `category=movies`** — never
+from the host, because peers must only ever see the VPN egress — and let Radarr's own Completed Download
+Handling import it once the client reports it complete. Radarr imports it because the client is
+registered with the matching category (§Which half of Prowlarr to trust); a release that needs no
+indexer still needs that registration.
+
+Two things to check before adding anything, both because an IP leak cannot be undone:
+
+```console
+# 1 · egress must differ, and "inconclusive" is not "ok"
+host: 193.77.156.222   gluetun/qBittorrent: 91.148.247.10     → different, safe to add
+# 2 · the category must actually steer the path — see the autoTMM trap below
+save_path=/downloads/complete/movies                          → correct
+```
+
+⚠ **curl needs `-g` for torrent-site URLs.** They carry `[LimeTorrents.fun]` and curl treats `[]` as a
+glob range ("bad range in URL") and downloads nothing. The first attempt failed this way and looked
+like the site refusing the file; `curl -w '%{http_code} %{size_download} %{content_type}'` showed an
+empty result rather than an HTTP status, which is the tell.
+
+⚠ **qBittorrent ignores a torrent's category path unless autoTMM is on, and its default is off** —
+see §Category save paths do nothing while autoTMM is off (measured the same day: `category=movies` put
+the torrent in `/downloads/complete`, and `setSavePath` was silently reverted).
+
+⚠ **Radarr's manual-import result is a FLAT file list, Sonarr's is nested `scenes`.** Reusing Sonarr's
+shape against Radarr returns entries with no `scenes` key, which reads exactly like "Radarr parsed
+nothing". Radarr 6.3: `GET /api/v3/manualimport?folder=&movieId=` → `[{path, relativePath, size,
+quality, movie, rejections, …}]`; POST those back with `movieId` on each. Also note `importMode: Move`
+in the POST body is *our* choice, not the app's default, and it overrides whatever CDH would do.
+
+Radarr's parse 500s with `Could not find a part of the path '/media/movies/<Movie> (YYYY)'` on a movie
+whose library folder does not exist yet — create the folder (owned `media:media`) or import once and let
+Radarr make it. That was the first manual-import attempt's failure, not a permission problem.
+
+Finally, a metadata mismatch to fix: Jellyfin shows the file as **The Scarecrows' Wedding** while Radarr
+holds it as *The Wedding (2026) / originalTitle Svadba* (tmdb 1551507). Same file, two identifications —
+one of them is wrong by accident.
+
+### qBittorrent's category save paths do nothing unless you turn this one switch on (HD-496, 2026-10-07)
+
+A category can have a perfectly good `savePath` and never be consulted. From the pinned source:
+
+```cpp
+// src/base/bittorrent/sessionimpl.cpp (release-5.2.3)
+m_isAutoTMMDisabledByDefault(BITTORRENT_SESSION_KEY(u"DisableAutoTMMByDefault"_s), true)   // default TRUE
+
+const bool useCategoryPaths = useAutoTMM.value_or(!isAutoTMMDisabledByDefault())
+                              || useCategoryPathsInManualMode();
+const auto path = useCategoryPaths ? categorySavePath(categoryName) : savePath();   // else: session default
+```
+
+So with the shipped default, a client that does not state `autoTMM` explicitly gets `savePath()` — the
+session default — and the per-category paths are dead weight. **The \*arrs never state it**, so every
+grab would land flat in `complete/` instead of `complete/<category>`, which is where the arrs' root
+folders and the whole import path assume the files are. Two symptoms of one cause, both measured live:
+
+- adding with `category=movies` → `save_path=/downloads/complete`;
+- `POST /torrents/setSavePath` → **HTTP 200 and nothing changes** (in manual mode the path is recomputed
+  from the category/session, so an explicit path is not a fix — and a 200 made it look applied).
+
+Fix is the second term in that expression — `Session\UseCategoryPathsInManualMode=true`, exposed over the
+API as `use_category_paths_in_manual_mode` (the WebUI calls it "Use category paths in manual mode"):
+
+```console
+$ curl -s -b $c -d 'json={"use_category_paths_in_manual_mode":true}' $Q/api/v2/app/setPreferences
+$ curl -s -b $c $Q/api/v2/app/preferences | jq .use_category_paths_in_manual_mode
+true
+```
+
+After that, re-assigning the category moved the in-progress torrent: `save_path=/downloads/complete/movies`
+and the pieces moved with it. Owned in IaC as `Session\UseCategoryPathsInManualMode` in
+`templates/qbittorrent-conf.py.j2`. The two alternatives are worse: sending `autoTMM=true` per add is not
+something we can make the arrs do, and `DisableAutoTMMByDefault=false` changes seeding behaviour well
+beyond the category question.
+
+The API's own view of a category can look correct while this is broken — `/torrents/categories` reported
+`savePath=/downloads/complete/movies` throughout. Read back what a torrent **did**, not what the category
+says it would do.
 
 ### SABnzbd's own door: `host_whitelist` (HD-496, 2026-10-06)
 
@@ -160,6 +287,59 @@ docker exec $c curl -s -H "X-Api-Key: $k" http://127.0.0.1:$p/api/$api/downloadc
 ⚠ **`apiKey` reads back as 8 characters and that is NOT a broken key** — the arrs redact secret fields in
 API responses, so `len=8` is the redaction placeholder, not the stored value. Judging "is the key set?"
 by that string wastes time; the `Test` call above is the answer.
+
+### Registering a torrent client in an arr: let the app supply the body (HD-496, 2026-10-07)
+
+`arr-client-torrent.yml` + `templates/arr-torrent-client.py.j2` register qBittorrent in Radarr/Sonarr/
+Lidarr. Four things about the *arr API were measured here, three of them by being broken first:
+
+**1 · A new client must be built from `GET /downloadclient/schema`, not from names we remember.** POST
+requires `configContract`, and it is the name of the **settings class** the app instantiates:
+
+```console
+$ curl -s -H "X-Api-Key: $k" $U/api/v3/downloadclient/schema | jq '.[] | select(.implementation=="QBittorrent") | {configContract, implementation}'
+{ "configContract": "QBittorrentSettings", "implementation": "QBittorrent" }
+```
+
+Passing the provider name for both gives **HTTP 500** `Cannot dynamically create an instance of type
+'…QBittorrent'. Reason: No parameterless constructor defined` — the app tried to instantiate the provider
+as if it were settings. The schema is what the arr's own UI posts back, so building from it also carries
+every field's real `type` and default instead of a remembered copy.
+
+**2 · The apps redact secrets on read-back, so a read-back body can never be re-sent.** The category
+field is what the arr needs (and it is per-app: `tvCategory` / `movieCategory` / `musicCategory`); the
+correct merge is "keep the existing non-secret fields, then overlay every secret from the vault, last".
+An unknown field name is **silently discarded**, so read the stored value back and assert it landed —
+that assertion is what catches a wrong field name rather than a mystery "no torrents" six weeks later.
+
+**3 · The test endpoint validates the body you send, not the saved set.** Measured on Sonarr:
+`POST /downloadclient/test` with `{}` → **400** `'Name' must not be empty`; `test/1` and `test/all` →
+**405**. So the body under test must carry the real vault credential, and HTTP **200** is then a genuine
+end-to-end proof: the arr resolved `gluetun`, reached `:8080`, and authenticated against qBittorrent.
+Send every stored field with our values overlaid — a partial body makes the app default the rest for the
+duration of the test, so it would test a client that is not the one in use.
+
+**4 · Reach the arr on the address it actually binds.** Radarr listens on oldsrv's LAN address (see
+[network-addresses-generated.md](network-addresses-generated.md)), not on loopback — a localhost probe
+returns `HTTP 000` and looks like a dead app, while `ss` shows the LAN bind. And the qBittorrent origin
+must carry a `Host:` port equal to its listen port (§Landing & Import, qBittorrent answers 401
+otherwise).
+
+Two silent-failure classes worth remembering because both passed `ast.parse` locally:
+
+- **JSON literals rendered into Python source.** `| to_json` of a dict containing a bool emits `false`,
+  which is a legal *name* in Python: syntactically fine, `NameError` at import. Render it a second time
+  (`| to_json | to_json`) so the template emits a string literal, then `json.loads` it. The offline check
+  that catches this for good is: execute the rendered module body with argv/stdin stubbed and require the
+  failure to be *missing inputs* (`SystemExit`/`OSError`) rather than *bad python* (`NameError`).
+- **A URL built twice.** The helper takes origin and api base separately (`BASE + API + path`); passing
+  `/api/v3` inside the origin too produced `/api/v3/api/v3/downloadclient` → 404. Printing the resolved
+  URL in the error is what made this a five-second diagnosis.
+
+Finally, a seeding-mode trap of the same family: in vault derive mode the runner fetches only the vault
+items belonging to services **in scope**, so an arr-only converge did not fetch `qbittorrent_api` while
+the item was registered only under the `qbittorrent` service. The item belongs to the seed logic, not to
+a service's `templates/` directory — declare it on each consumer.
 
 ### SABnzbd 5's folder options are `complete_dir` / `download_dir` — the old names are inert (HD-496, 2026-10-06)
 
