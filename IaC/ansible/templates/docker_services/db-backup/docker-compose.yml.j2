@@ -109,6 +109,17 @@ services:
       DB04_PASS: "{{ vault['litellm_db'].password | replace('$','$$') }}"
       DB04_NAME: litellm
 
+      # HD-112 tail, closed 2026-10-07: zipline-db has been Up/healthy on the VPS since the deploy,
+      # but backup.md's claim that its metadata was "dumped via DB05" was never true — no DB05 block
+      # existed (it was RESERVED, which under the slot rule above means a block that does nothing).
+      # Slot 05 is contiguous now that LiteLLM holds DB04, so this block actually runs.
+      DB05_TYPE: postgresql
+      DB05_HOST: zipline-db
+      DB05_PORT: "5432"
+      DB05_USER: "{{ vault['zipline_db'].username | replace('$','$$') }}"
+      DB05_PASS: "{{ vault['zipline_db'].password | replace('$','$$') }}"
+      DB05_NAME: zipline
+
       # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx
       # block here. Its backup is a tar of the data dir (/srv/docker/opencloud/data,
       # mount `/var/lib/opencloud`), covered by the service-state/OpenCloud Kopia scope
