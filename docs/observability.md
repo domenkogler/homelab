@@ -361,6 +361,15 @@ that host's Alloy into the same remote_write path as everything else):
 | `homelab_cert_days_left{consumer=}` | days to expiry of the pair this edge loads |
 | `homelab_hygiene_scrape_ok` | the collector's own heartbeat — the collector is a systemd service, i.e. the same failure class |
 
+⚠ **What the cert legs do NOT cover, measured 2026-10-08 at the metric-name level** (VM
+`/api/v1/label/__name__/values`): the only cert families in the backend are `homelab_cert_days_left` (both series
+`consumer="traefik-*"`), `homelab_cert_pair_present` and blackbox `probe_ssl_earliest_cert_expiry`. **The VPS box cert
+(acme.sh, `/etc/letsencrypt/live/…`, 61-day cycle, renewal step failing since 2026-08-24) is in none of them** — so no
+rule could ever have caught it, and HD-510's premise had to be proven from `/var/log/acme.sh.log` rather than a graph
+(→ [`network-dns.md`](network-dns.md) §Cert chain). Exporting it is a collector leg on the VPS, not a rule; a rule
+written against a plausible-sounding name like `cert_age_days{name="vps-cert"}` would sit green forever on a series
+that has never existed, which is the failure mode this whole section exists to prevent.
+
 *Fail-loud by construction*, because a monitor that says "healthy" about what it cannot see is how the
 September incident ran for four days: a listed unit that is not installed → `0`/`missing` (so a wrong list
 costs a visible alert, never silence); a unit whose `systemctl show` gives no output at all → `0`/`unknown`;
