@@ -237,12 +237,20 @@ says it would do.
 
 ### SABnzbd's own door: `host_whitelist` (HD-496, 2026-10-06)
 
-> **Addendum (HD-1087, 2026-10-07) — a new *Host* is a new whitelist entry.** The tailnet twin
-> `sab.ts.kogler.si` is a third name this guard has to know: Traefik preserves the original Host on BOTH
-> legs, so when the `.ts` routers landed the tailnet leg answered **403** while LAN went on answering 200.
-> Now seeded as `sab.{{ tailnet_base_domain }}` in `sabnzbd_host_whitelist`. Read the status code before
-> believing the routing: **403 = the app refused the name, 404 = the edge has no route** — they look like the
-> same complaint and send you to opposite files.
+> ⚠ **Addendum (HD-1087, 2026-10-07) — there are TWO 403s here and they mean different things.** The
+> hostname wall above says **`Access denied - Hostname verification failed`**. A tailnet client gets a
+> different body: **`External internet access denied`**, which is SABnzbd's *peer-IP locality* check —
+> Traefik forwards the real client address, and off-LAN that is the client's CGNAT tailnet address, which
+> SAB does not consider local. So `sab.kogler.si` → 200 while `sab.ts.kogler.si` → 403 with the same backend
+> and the same route. `sab.{{ tailnet_base_domain }}` was added to `host_whitelist` (a new Host always needs
+> the entry, on either leg), but ⚠ **that is not the cure for this one** — it was my first guess and the
+> re-test says so. The fix is to make SAB treat the tailnet as local, i.e. union the tailnet range into its
+> `local_ip` in `tasks/sabnzbd-seed.yml`, exactly the way this file already unions names into
+> `host_whitelist`; the option's real key must be read from the shipped ini before writing the seed
+> (`local_ip` is the documented candidate, not a measured one). Tracked as **HD-1089**.
+> Read the body before believing the code: **403 + "Hostname verification failed" = whitelist, 403 +
+> "External internet access denied" = locality, 404 = the edge has no route.** Three symptoms, three files.
+
 
 SABnzbd runs a DNS-rebinding guard of its own, in front of Authentik and in front of its API key: the
 incoming `Host:` must appear in `host_whitelist` or it answers **403 "Access denied - Hostname

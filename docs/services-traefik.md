@@ -67,10 +67,14 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > router looks like; MagicDNS (`dig @100.100.100.100` on a tailnet client) answers all 14 `.ts` names →
 > `tailnet_oldsrv_ip` ([network-addresses-generated.md](network-addresses-generated.md)) and **no plain name at all** — the HD-382/389 hairpin trap measured shut rather than assumed;
 > the VPS primary answers the trio NXDOMAIN while `lidarr` answers `159.195.111.66`, which is the `lan_only`
-> choice working as designed. ⚠ One gap the sweep caught and fixed the same day: `sab` answered 200 on LAN and
-> **403 on `.ts`** — SABnzbd's own `host_whitelist` had never been told the twin's Host (403 = the app
-> refusing the name; 404 = no route; the two read alike and mean opposite things). See
-> [services-downloads.md](services-downloads.md) §SABnzbd's own door.
+> choice working as designed.
+> ⚠ **13 of 14 names are proven on both legs; `sab` is the exception** — 200 on LAN, **403 off-LAN**, and the
+> response body (`External internet access denied`) makes it SABnzbd's own peer-IP locality check rather than
+> this file's routing or the hostname whitelist. Diagnosed, **not fixed**: **HD-1089**, and
+> [services-downloads.md](services-downloads.md) §SABnzbd's own door now says how to tell the three shapes apart
+> (hostname-403 vs locality-403 vs routing-404). My first fix there — adding the twin to `host_whitelist` — was a
+> guess about which of the two it was; the re-test proved it wrong and the entry stays only because a new Host
+> genuinely needs it.
 >
 > **What landed:** LAN routers (`websecure` + `websecure-lan`) and `*-backend` services for `aurral` ·
 > `slskd` · `lidarr-ydl`, dialled through `*_url`/`*_bind`/`*_host_port` (`aurral 3001`, `slskd 5030` — the
