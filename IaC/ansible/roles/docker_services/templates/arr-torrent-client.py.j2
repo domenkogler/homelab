@@ -43,7 +43,12 @@ if MODE not in ("check", "apply", "verify"):
     sys.exit("unknown mode %r (want --check | --apply | --verify)" % MODE)
 
 # Non-secret fields this file owns, from group_vars/role defaults, plus this app's category field.
-FIELDS = {{ (arr_torrent_client_fields | combine({arr_torrent_client[svc.template_dir].category_field: arr_torrent_client[svc.template_dir].category})) | to_json }}
+# ⚠ `| to_json | to_json` is not a typo: a single to_json emits JSON, and JSON `false`/`true`/`null` are
+# NameErrors in Python source. Rendering the JSON a second time yields a Python string literal, which
+# json.loads turns into real True/False. A single to_json of a dict containing a bool passed `ast.parse`
+# locally (JSON's `false` is a legal *name* there) and died at import on the target — measured
+# 2026-10-07: `NameError: name 'false' is not defined`.
+FIELDS = json.loads({{ (arr_torrent_client_fields | combine({arr_torrent_client[svc.template_dir].category_field: arr_torrent_client[svc.template_dir].category})) | to_json | to_json }})
 USERNAME = {{ arr_torrent_client_user | to_json }}
 CATEGORY_FIELD = {{ arr_torrent_client[svc.template_dir].category_field | to_json }}
 CATEGORY = {{ arr_torrent_client[svc.template_dir].category | to_json }}
