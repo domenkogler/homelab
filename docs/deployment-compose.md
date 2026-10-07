@@ -417,6 +417,11 @@ Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native serve
 
 #### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — the pull contract
 
+> **Ruled by the owner 2026-10-07: Samba accounts are managed in Authentik.** The local-account stopgap that would
+> have made `\\nas\music` mountable in one step is rejected — see [storage-rejected.md](storage-rejected.md). This section is
+> therefore the only path to a mountable family drive, and it has a **third** blocker beyond the two below: the D5
+> provisioning glue exits 127 hourly on the NAS (`op` not installed → no unix account to map an LDAP bind to), **HD-1092**.
+> Both measured 2026-10-07; the 2026-09-21 "crash-looping 403" symptom below has since changed (see HD-360's row tail).
 > ⏳ **Deploy-gated (HD-360, split from HD-132).** Samba currently runs
 > `storage_samba_passdb=tdbsam` — local accounts, works offline, and the media share needs no per-user
 > LDAP. **Two independent blockers, both confirmed against the live box on 2026-09-21** (read-only):

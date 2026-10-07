@@ -162,17 +162,36 @@ ones so files land `media`-owned (uid/gid 1005) and stay usable by the arrs:
 | `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move (HD-362, added 2026-10-07) |
 | `\\nas\<user>` | `/tank/data/users/<user>` | — | per-user private drive, `valid users = <user>`, NO force user (own uid = the isolation) |
 
+- ⚠ **The `\\nas\<user>` row describes an outcome that has never happened.** Those drives are provisioned by the
+  `sync-authentik-users.sh` glue (D5/HD-131), and on the NAS that unit exits **127 on every hourly run** — measured
+  2026-10-07: `sync-authentik-users.sh: line 28: op: command not found`, **823 failures since 2026-09-03**, i.e. since it
+  first fired, so nothing regressed. `op` is simply not installed on the NAS and carries no token file there. Downstream,
+  measured in the same probe: `/tank/data/users` does not exist, no family unix users exist, and `/etc/samba/share-*.conf`
+  is empty of fragments. **This is the unix-account half of the Authentik-managed-accounts decision above** — with
+  `ldapsam` a member can bind, but with no local uid/gid to map to, the mount still fails. Tracked as **HD-1092**.
+- ⚠ **Second, latent:** the glue appends `include = /etc/samba/share-*.conf` to `smb.conf` when it writes a fragment,
+  and `roles/storage/templates/smb.conf.j2` does not carry that include — so the first storage **converge** after a
+  successful provisioning silently deletes every runtime-created family drive. The fix belongs with HD-1092: either the
+  template owns the include, or the glue writes under the include the template already has (`/etc/samba/smb-share.conf`).
+
 - **Why the `music` share exists**: the `bulk/media` export names the oldsrv Home address as its **only** client
   (`/etc/exports` is IaC-rendered; addresses live in [network-addresses-generated.md](network-addresses-generated.md)), so before
   it nothing Windows-facing could reach the library at all — `\\nas\media` points
   at a different pool. A manual add used to mean "copy to the share, then a privileged `mv` on oldsrv".
-- ⚠ **Authentication is the open half.** `passdb backend = tdbsam` (the live value; `ldapsam` = HD-132,
-  deploy-gated on the Authentik LDAP outpost) and **`pdbedit -L` returns nothing** — `storage_samba_users` is
-  `[]` and `samba.yml` deliberately carries NO Samba-password task, because under the designed `ldapsam`
-  model Authentik is the SSOT and a local `smbpasswd` would shadow a member's self-service password. Measured
-  consequence: the shares are **served** (`smbclient -L` lists both) but an anonymous tree connect is
-  `NT_STATUS_ACCESS_DENIED`. Until HD-132 lands or one local account is provisioned by hand, no Windows
-  client can mount any of them.
+- ⚠ **Authentication is the open half — and its shape is now ruled.** `passdb backend = tdbsam` is the live
+  value and **`pdbedit -L` returns nothing** (`storage_samba_users: []`), so the shares are **served**
+  (`smbclient -L` lists both) but every tree connect is `NT_STATUS_ACCESS_DENIED`: measured 2026-10-07, nobody
+  can mount any share from Windows today.
+  **Decision (owner, 2026-10-07): Samba accounts are managed in Authentik.** The local path is closed, in both
+  halves — no `smbpasswd` task ever ships in `samba.yml` (a local password would shadow a member's
+  self-service credential and break the pull model), and provisioning one tdbsam account by hand as a stopgap
+  was **explicitly rejected** — see [storage-rejected.md](storage-rejected.md). So the actionable row is
+  **HD-360** (split from HD-132 2026-09-14): declare the LDAP provider + `svc_samba` + the outpost object in the
+  `ks-oidc.yml` Blueprint, mint a fresh `authentik-ldap_bind` token, redeploy `authentik-ldap`, prove the base
+  DN answers over the WG leg, and only then flip `storage_samba_passdb: ldapsam` on the NAS. Ordered gates and
+  the two live blockers: [deployment-compose.md](deployment-compose.md) §Samba ↔ Authentik-as-LDAP.
+  Consequence of the ruling, restated so nobody rediscovers it: **an Authentik or outpost outage takes the
+  family drives with it** (pull model, no local fallback — accepted, D7).
 - **Scoped converge:** `--tags samba` (or `storage,samba`) works only because BOTH halves of the HD-468 tag
   rule are in place — the `include_tasks: samba.yml` line carries the tag *and* every task inside does.
   Verified 2026-10-07 by measuring the opposite: with neither, the run printed `ok=24 changed=0 failed=0`

@@ -19,6 +19,23 @@
 # share change would silently converge nothing but the user accounts and still print
 # `changed=0 failed=0`. Tag them or the scoped run is a lie.
 
+# ⚠ Gate the ldapsam flip BEFORE anything else changes (HD-360; live hit 2026-09-14, recorded in
+# deployment-compose.md §Samba ↔ Authentik-as-LDAP): with `passdb backend = ldapsam` and the Authentik LDAP
+# outpost unreachable, **smbd fails HARD at startup** — the NAS comes up serving nothing and the converge that
+# did it prints green. This converts that into a loud, reversible stop.
+# `wait_for` is a PRECONDITION, not the proof: it proves a listener exists, while the proof is an `ldapsearch`
+# that returns the base DN over the WG leg (step 4 of that section). It must run FROM the NAS — `wait_for`
+# executes on the control node by default, and the runner is not the host on the S2S tunnel.
+- name: Refuse ldapsam while the Authentik LDAP outpost is unreachable
+  ansible.builtin.wait_for:
+    host: "{{ storage_samba_ldap.host }}"
+    port: "{{ storage_samba_ldap.port }}"
+    timeout: 10
+    state: started
+  when: storage_samba_passdb == 'ldapsam'
+  delegate_to: "{{ inventory_hostname }}"
+  tags: [samba, storage]
+
 - name: Install Samba
   ansible.builtin.apt:
     name: samba
