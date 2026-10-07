@@ -810,6 +810,18 @@ radarr_url: "http://{{ radarr_bind }}:{{ radarr_host_port }}"
 lidarr_bind: "127.0.0.1"
 lidarr_host_port: 8686
 lidarr_url: "http://{{ lidarr_bind }}:{{ lidarr_host_port }}"
+
+# HD-1083: the LAN URL of the LAN-only LiteLLM proxy (container `lan-litellm`, host-net publish
+# on the oldsrv Home address:4000). It had NO var: the edge template carried `http://{{
+# oldsrv_home_ip }}:4000` inline, which is the only reason the name `lan_litellm_url` did not
+# exist to reference. Minted here so the SSOT rule (docs/services-traefik.md §Service URL Map)
+# holds for this service too. ⚠ NOT the VPS `litellm` service and NOT the spark `litellm-*`
+# profiles — and NOT `litellm_scoped_keys`, which is a different name that already means two
+# different things on home_servers and vps (that collision is the reason this one is named after
+# the container, not the software).
+lan_litellm_host_port: 4000
+lan_litellm_bind: "{{ oldsrv_home_ip }}"
+lan_litellm_url: "http://{{ lan_litellm_bind }}:{{ lan_litellm_host_port }}"
 prowlarr_bind: "127.0.0.1"
 prowlarr_host_port: 9696
 prowlarr_url: "http://{{ prowlarr_bind }}:{{ prowlarr_host_port }}"
