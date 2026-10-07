@@ -24,8 +24,13 @@ number reaches a doc.
 
 ## Legs, in value order (the row owns the ⏳ list; this is the how)
 
-What is left: **gate 6 on the live shape → the gate-7 curve read (accruing since 2026-10-06 11:19Z) → the
-`fast.certified_evidence` rewrite**. The 2026-10-06 legs session closed **B9 · B5 · B8** and the owner declined **B10's gates
+What is left: **the gate-7 curve read (accruing since 2026-10-06 11:19Z — read it with
+`spark/bench/gate7-read.py`, self-testing and wired into `validate-all.sh`) → the
+`fast.certified_evidence` rewrite**. **Gate 6 on the live shape is DONE** (2026-10-06,
+[`spark/reports/hd489-tail-gate6-20261006-2349/`](spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md)):
+PASS, and the one EMPTY item is the battery spending all 1024 tokens on `reasoning_tokens` — raising
+that budget or scoring with thinking off changes a FIXED comparison basis, so it is an owner call and
+never a quiet edit to `accuracy-gate.sh`. The 2026-10-06 legs session closed **B9 · B5 · B8** and the owner declined **B10's gates
 6/8/9** ([`spark/reports/hd489-legs-20261006-1228/`](spark/reports/hd489-legs-20261006-1228/RESULTS.md)); keep the closed rows
 below for their commands and pass rules, not as work.
 
@@ -237,10 +242,12 @@ the engine under test, or let a laptop-local session author a profile delta at a
 Done and in tree with raw: **B1–B3**, **B6** (BLOCKED-ON-IMAGE), **B7**, **B9** (FAIL-BOOT), **B5** (no cliff), **B8**
 (monitoring live) and **B10's boot + both speed legs** — the `hd489-overnight-20261006-0226/` and `hd489-legs-20261006-1228/`
 reports plus the `hd489-tail-*` dirs. **B10's gates 6/8/9 are closed as declined-by-owner; do not re-litigate them.**
-What remains: `fast`'s **gate 6** accuracy battery on the live 20 GB shape · the **gate 7** curve read (the window accrues
-since 2026-10-06 11:19Z) · then rewrite `fast`'s `certified_evidence:` to the 20 GB legs it now holds (links to artifacts, not
+What remains: the **gate 7** curve read (`spark/bench/gate7-read.py --since 2026-10-06T11:19:00Z --baseline-mib 93091`;
+the 12.2 h partial read is already on file as a **bounded fill**, and its plateau — 99,649 MiB flat — is HD-494's
+peak, not a verdict here) · then rewrite `fast`'s `certified_evidence:` to the 20 GB legs it now holds (links to artifacts, not
 prose) — `fast` is already `certified: true` with no `uncertified_reason`, and a converge with no override is on record, so the
-certificate itself is not the open item. Then **delete the HD-489 row**.
+certificate itself is not the open item. **`fast`'s gate 6 was taken 2026-10-06 — do not re-run the battery**; the open question
+around it is its `max_tokens` budget, which belongs to the owner. Then **delete the HD-489 row**.
 **HD-494's legs this lane carries are closed** (gate 4 at conc 8 and gate 5, reported on the 20 GB shape 2026-10-06 and
 written into HD-494's row by the orchestrator); this brief changes nothing in HD-494's row or docs (O2).
 **Acceptance:** every item returns `PASS / FAIL / BLOCKED / PARKED` + the number + the evidence path;

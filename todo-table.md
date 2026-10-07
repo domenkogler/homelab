@@ -48,13 +48,23 @@
 
 - **Live:** VPS edge (Phase 1), nas (Phase 2), Pi (Phase 4), oldsrv (Phase 3, full `docker_services` healthy),
   Victoria* observability, 3-instance DNS HA, the home `traefik-internal` edge, **the Usenet acquisition path end-to-end** (`Seerr → Prowlarr → Sonarr/Radarr → SABnzbd/Eweka → import → Jellyfin`; closed 2026-10-06 as HD-496 — one movie and one full season played back), `lan-litellm` on oldsrv, the three
-  pinned-AI Vulkan legs on the RX 7600, spark as the generation tier with the **16 GiB KV pool certified** — ⚠ under the graphics-clock cap (`-lgc 300,2418`) **since 2026-09-29**, but the cap has **no read-back on GB10**, so no figure here is a certified under-cap number until a sustained `clocks.sm` trace exists (HD-469; `clocks.max.sm` is a capability field and stays 3003) — and
+  pinned-AI Vulkan legs on the RX 7600, spark as the generation tier — the live `fast` profile on a **20 GB KV pool** through its per-profile ceiling, with the certified **16 GiB** global still binding every other profile (HD-489) — ⚠ under the graphics-clock cap (`-lgc 300,2418`) **since 2026-09-29**, but the cap has **no read-back on GB10**, so no figure here is a certified under-cap number until a sustained `clocks.sm` trace exists (HD-469; `clocks.max.sm` is a capability field and stays 3003) — and
   **two home headscale nodes, not one**: `oldsrv` (`tag:dev:443`) and — since 2026-09-25, HD-435 —
   `pi` (`tag:home-edge:443`), whose own `traefik-ha` answers `pi.ts.kogler.si` → 200 **direct**, which is
   the difference between "HA is up" and "HA is reachable" when the other home node is not answering. Also live: the apex
   `/.well-known/matrix/{client,server}` are **public** with the launchpad still behind SSO (HD-47), the VPS's
   tailnet node is reached **directly** on a pinned 41641 (HD-460), and a `nut` converge reports `changed=0` — what
   postgres analogue (HD-452) closed 2026-09-27 — the sync now reads a cluster-stored marker before it writes — and the residue that measurement exposed, an unconditional `Restart Homepage`, is fixed under HD-440: the same VPS commit now reports `changed=1` twice, all of it renovate's honest exit-0 one-shot.
+- **Re-measured 2026-10-07 (overnight lanes, each proven on the box, not from the repo):** every home host is
+  **UPS-protected again** and proven from the clients (`upsc … ups.status` = `OL` from oldsrv and the Pi, `upsd`
+  listening on the Home leg) — the 23-day fault was `upsd` binding before its address existed, and NUT 2.8 ignores
+  `ACCEPT`/`REJECT` so the old allow-list never did anything (HD-467, [hardware-ups.md](docs/hardware-ups.md)); the **VPS's
+  own state now exists off its own disk** nightly — dumps + compose/env + n8n sqlite to the Storage Box, one restore
+  executed (130 tables vs 130) — and building that push found two databases, **LiteLLM and Zipline**, that had **never
+  been dumped** because a block number beyond a contiguous slot does nothing (HD-470/HD-112 tail,
+  [backup.md](docs/backup.md) §The slot-numbering rule); **Docling converts a 300 dpi scan again** (HD-471/HD-103, the
+  `noexec /tmp` layout-stage kill fixed with an exec-capable `/cache` bind); and `fast`'s **gate 6** is on file with its
+  battery-budget confound named, while the gate-7 curve reads as a **bounded fill to 99,649 MiB**, a number HD-494 owns.
 - **⚠ The asymmetry a transport session must not read backwards:** the tailnet EDGE now survives either home box,
   the tailnet ANSWER does not. MagicDNS still answers `ha.ts.kogler.si` with **oldsrv's node address only**, so the away path that
   works today is `pi.ts.kogler.si`, and the fix is HD-436's `tailnet: dual` step (HD-435).
@@ -169,8 +179,9 @@ with its lane, small residue folds back into the rows.)
 | `prompt-407.md` runner + cockpit — **CLOSED 2026-09-23, brief deleted** | — | delivered: 407 · 409 · 399 · 386 · 416 · 388 · 356; its former residue now carries the **prompt-361** brief above | — |
 | `prompt-420.md` / `prompt-414.md` / `prompt-417.md` — **deleted 2026-09-28**: their surviving rows (377(a) · 342-tail · 406 · 159 · 404 · 248) live in [todo.md](todo.md) like every other row | — | — | — |
 
-> **Unbriefed but still open — not lost, just unassigned:** HD-360 · 103 · 238 · 421 · **450** (a cert consumer can age
-> out unalerted) · 448 · 461 (owner: reachability) · 459 · 412 (needs a human at both ends — §D).
+> **Unbriefed but still open — not lost, just unassigned:** HD-360 · 238 · 421 · **450** (a cert consumer can age
+> out unalerted) · 448 · 461 (owner: reachability) · 459 · 412 (needs a human at both ends — §D). **103 left this list
+> 2026-10-07** — its live conversion gate closed with HD-471.
 > **Briefed, not running:** the transport plane — [prompt-436.md](prompt-436.md) carries **436 · 435 · 460**; it is gated
 > on an owner-present window, not on a decision, except HD-460's v6 half, which waits on an edge-networking decision
 > (the edge netns has no global IPv6 address at all).

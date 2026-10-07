@@ -57,7 +57,9 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class on the Pi, where two docs already
 work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (only the
 re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — and HD-380's
-`gpu_top_mib` growth check are left, the gate-7 window accruing since 11:19Z; the gate-4/gate-5 legs closed inside the
+`gpu_top_mib` growth check are left, the gate-7 window accruing since 11:19Z — and the **peak** for that arithmetic is now
+measured, not inferred: the 2026-10-06 partial read put the engine at **99,649 MiB flat for 9 h**, 6,558 MiB over the
+watchdog's committed baseline and 1,634 MiB under the recycle trigger; the gate-4/gate-5 legs closed inside the
 **spark** slot of the HD-489 tail lane, so do not open a second writer there) · **1085** (the tmux seat harness: one
 owner act — mouse-drag text inside a tmux pane on oldsrv and paste it where you typed, which is the OSC 52 leg no in-repo
 probe can reach — plus one `--push` wired into `install-pi-debian.sh`; mechanism and traps in
@@ -78,7 +80,11 @@ Technitium stopped**. The owner rulings behind it (2026-10-01: 480 · 481 · 482
 **Whoever takes the VPS-hygiene residue forms the next VPS + nas lane** — **HD-472 + HD-421** are what is left of the
 Docling cluster (HD-471 + HD-103 closed 2026-10-07: the `/cache` bind is live, a 300 dpi image-only Slovenian scan
 returns `status: success` with real markdown, and the 6 GiB ceiling is read back on the container), still converging
-the `docling` container alone. Before touching ANY Authentik OIDC client, read
+the `docling` container alone. **HD-470 closed 2026-10-07** the same night — the VPS now pushes its dumps, its
+compose/env and the n8n sqlite to the Storage Box nightly ([backup.md](docs/backup.md) §VPS state push), and doing it
+found two databases that had never been dumped at all; what that lane still owes is named in the same doc (Matrix state
++ signing identity, Headscale, CrowdSec, Qdrant, OpenCloud, Grafana, the **Forgejo git repos**, immich originals — and
+the push is rsync-to-CIFS, not the encrypted Kopia snapshot). Before touching ANY Authentik OIDC client, read
 [services-authentik.md](docs/services-authentik.md) §Blueprint authoring notes, facts 7 + 9.
 
 ## 3. Lane map
@@ -89,7 +95,7 @@ lane**; never two briefs on one converge host; never a pair marked *never with*.
 | Wave | Brief | Rows it carries | Converge host | Pairing |
 |---|---|---|---|---|
 | **1 — ready** | [prompt-llm.md](prompt-llm.md) | ⏳ **469** · **473** (⛔ upstream-blocked, 40 s re-check) · **475** | **spark**, engine restarts per flip | ⛔ never with prompt-remaining-bench or prompt-376 (same host) · ⚠ **the operator's model must not be spark** (rule 0) |
-| **1 — ready** | [prompt-remaining-bench.md](prompt-remaining-bench.md) | ⏳ **489** tail: gate 6 on the live shape + read the gate-7 day (B9 · B5 · B8 closed, B10's gates declined; **494**'s legs landed) | **spark**, boots owner-gated | ⛔ rule 0 — timed legs from a client **outside** the served loop, stamped `--client`. Timed harness = [`spark/bench/run-scenario.sh`](spark/bench/run-scenario.sh) (+ `vm-window.sh`, `snapshot-metrics.sh`, `stress-oom.sh`, `accuracy-gate.sh`); pass/fail ladder = [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (gates 0–9); evidence under `spark/reports/` |
+| **1 — ready** | [prompt-remaining-bench.md](prompt-remaining-bench.md) | ⏳ **489** tail: read the gate-7 day (gate 6 taken 2026-10-06 with its battery-budget confound named; B9 · B5 · B8 closed, B10's gates declined; **494**'s legs landed) | **spark**, boots owner-gated | ⛔ rule 0 — timed legs from a client **outside** the served loop, stamped `--client`. Timed harness = [`spark/bench/run-scenario.sh`](spark/bench/run-scenario.sh) (+ `vm-window.sh`, `snapshot-metrics.sh`, `stress-oom.sh`, `accuracy-gate.sh`); pass/fail ladder = [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (gates 0–9); evidence under `spark/reports/` |
 | **1 — laptop seat** | [prompt-lmstudio.md](prompt-lmstudio.md) | ⏳ **474** (owner hands: `op signin` → render → `probe-client` PASS) · **476** · **486** (needle at ≥90 % of the 150 016 window + the prefill ladder) | **the laptop, in Windows** — no Ansible converge, no shared host | rule 0 only; can run alongside the spark/oldsrv lanes |
 | **2** | [prompt-384.md](prompt-384.md) | **384 · 403 · 387 · 373 · 249** | oldsrv + VPS `docker_services` | ⛔ never with 357 / 361 (oldsrv slot) |
 | **2** | [prompt-376.md](prompt-376.md) | **376 · 400 · 359 · 367 · 380** | **spark**, owner bench window | with 384 **only** in an open bench window, else alone · ⛔ never with the 469 lane |
