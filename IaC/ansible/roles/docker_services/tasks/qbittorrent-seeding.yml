@@ -73,20 +73,33 @@
   # The helper exits 4 when the API accepted the write but the read-back disagrees — that is the class
   # this whole file exists to close (a value that sits in a preference map doing nothing, the SABnzbd
   # `dir`/`complete_dir` shape). rc 0 with "CHANGED applied and read back" is the only green allowed.
-  ansible.builtin.command:
-    cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}"
-    stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module — see the note above
-  no_log: true
+  # ⚠ The verdict must be readable when it FAILS: `no_log` censors the task result, so a bare failing
+  # command leaves a run with `FAILED! => {"censored": ...}` and no diagnosis. The block/always pair
+  # prints the helper's own line even when the task goes red — and the task still goes red (a rescue
+  # would mute it; `always` does not).
   when: "'CHANGED' in _qbit_seed_check.stdout | default('')"
-  changed_when: true
-  register: _qbit_seed_apply
-  tags: [docker_services, qbittorrent_seed]
+  block:
+    - name: "qbittorrent-seeding: POST the goal"
+      ansible.builtin.command:
+        cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}"
+        stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module — see the note above
+      no_log: true
+      changed_when: true
+      register: _qbit_seed_apply
+
+  always:
+    - name: "qbittorrent-seeding: record the verdict (runs on failure too)"
+      ansible.builtin.debug:
+        msg: >-
+          {{ _qbit_seed_apply.stdout | default(_qbit_seed_apply.msg | default(_qbit_seed_check.stdout | default('(no output)'))) }}
+          at http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}
+          · note: an *arr import MOVES the file (EXDEV across the binds), so an imported torrent stops
+            seeding at the import regardless of this goal
+      tags: [docker_services, qbittorrent_seed]
 
 - name: "qbittorrent-seeding: record the verdict"
   ansible.builtin.debug:
     msg: >-
-      {{ _qbit_seed_apply.stdout | default(_qbit_seed_check.stdout | default('(no output)')) }}
-      at http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}
-      · note: an *arr import MOVES the file (EXDEV across the binds), so an imported torrent stops
-        seeding at the import regardless of this goal
+      no drift to apply — the running client already carries the goal
+      ({{ _qbit_seed_check.stdout | default('(no output)') }})
   tags: [docker_services, qbittorrent_seed]

@@ -137,15 +137,31 @@ if CHECK:
         "%s %r->%r" % (k, cur, want) for k, (cur, want) in sorted(drift.items())))
     sys.exit(0)
 
+PAYLOAD = {k: want for k, (cur, want) in drift.items()}
+# A preference value must be a SCALAR. `drift` stores (current, wanted) pairs to make the report honest,
+# and a dict comprehension that reaches for the wrong half of that pair produces [[-1, 2]] where qbit
+# wants 2 — which it rejects in silence with a 204. Die loudly instead of shipping a write that does
+# nothing (the shape this guard exists for was measured live, 2026-10-07).
+for _k, _v in PAYLOAD.items():
+    if isinstance(_v, (list, tuple, dict)):
+        print("FAIL refusing to POST %s as %r — a preference value must be a scalar, not a container. "
+              "The drift map stores (current, wanted) pairs; take the wanted half." % (_k, _v))
+        sys.exit(5)
+if any(v is None for v in PAYLOAD.values()):
+    print("FAIL refusing to POST a null preference value (qbit would clear the setting, not skip it)")
+    sys.exit(5)
+
 st, _ = call("/api/v2/app/setPreferences",
-             urllib.parse.urlencode({"json": json.dumps({k: v for k, v in drift.items()})}).encode())
+             urllib.parse.urlencode({"json": json.dumps({k: want for k, (cur, want) in drift.items()})}).encode())
 if st not in (200, 204):
     print("FAIL POST /api/v2/app/setPreferences -> %s" % st)
     sys.exit(3)
 
-# READ BACK — qbit accepts a setPreferences body it may not apply the way it was phrased (a bool sent
-# where it wants an int is silently ignored, and the write still returns 204). The write is not the
-# evidence; the app's own next answer is.
+# READ BACK — qbit answers 204 to a setPreferences body it applied NONE of (a bool sent where it wants
+# an int, or a value shaped like a list, is skipped silently). The write is never the evidence; the
+# app's own next answer is. This leg earned its keep on 2026-10-07: the first version of this file
+# posted the (current, wanted) TUPLES from `drift` instead of the wanted scalars, qbit answered 204,
+# and the read-back is the only thing that said so.
 st, raw = call("/api/v2/app/preferences")
 if st != 200:
     print("FAIL read-back GET /api/v2/app/preferences -> %s" % st)
