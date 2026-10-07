@@ -191,6 +191,67 @@ profile still exists and fails loudly when it does not.
   `jellyfin-seerng_api` (app state inside each Seerr's `settings.json`; no IaC consumer) —
   [deployment-secrets.md](deployment-secrets.md).
 
+## Subtitles — Bazarr app-state wiring (HD-1096)
+
+> **Status: 🟢 wired + live 2026-10-07** — Radarr + Sonarr + Jellyfin connected, provider and languages
+> set, `.srt` sidecars landing next to the media. ⏳ **None of it is in IaC.** Bazarr keeps its settings in
+> its own SQLite DB (`/srv/docker/bazarr/config/db/bazarr.db`; `config/config.yaml` is only a partial
+> mirror — it still said `use_radarr: false` while the running instance had SignalR up), so a from-zero
+> converge recovers the blank app this section found. ⏳ `tasks/bazarr-seed.yml`: HD-1096.
+
+What "is the subtitles app ready?" actually measured (2026-10-07): the container Up, `bazarr.kogler.si`
+→ 200, `versions.yml` pin honoured — and `GET /api/movies` = `{"data": [], "total": 0}` with
+`GET /api/providers` = `[]`. A running app that cannot fetch anything, because the compose owns the
+container and **the app's own DB owns the behaviour** — the same split `tasks/arr-seed.yml` was written
+for (§Request → import wiring).
+
+**API surface worth knowing (1.6.0).** No spec is published (`/api/schema` serves the SPA), so this was
+read out of the UI bundle (`assets/index-*.js`, the `Oa` request classes) and then measured:
+
+| Call | Notes |
+|---|---|
+| `GET/POST /api/system/settings` | POST is **form-urlencoded**, one field per value: `settings-<section>-<key>=<value>` (`settings-radarr-ip=radarr`), plus the **bare** keys `languages-enabled=<code2>` (repeat the field for several languages) and `languages-profiles=<json>`. **204** on success; a wrong key shape answers **500** and the reason only appears in `log/bazarr.log` — read that file after every POST |
+| `POST /api/system?action=restart` | graceful restart from inside the app; the PVR link needs it to run its initial sync, and it works where the operator has no `docker` access |
+| `GET /api/system/health` | the honest gate — `{"object": "Missing languages profile"}` is what "the search did nothing" looks like from outside |
+| `PATCH /api/movies/subtitles?radarrid=<n>&language=<code2>&forced=false&hi=false` | automatic search, one movie × one language. **All four params are required**; the 400 names exactly the one missing |
+| `GET /api/providers/movies?radarrid=<n>` | the UI's Manual Search; 500s without an assigned profile (`int() argument … not 'NoneType'`) |
+| `POST /api/jellyfin/test-connection` (`url`, `apikey`) | run it before saving the Jellyfin leg — it is the only thing that separates a wrong URL from a wrong key |
+
+⚠ **The profile-shape trap (took the Languages page down for a few minutes on 2026-10-07).**
+`GET /api/system/languages/profiles` renders each item's `language` as an **object**
+(`{"code2": "sl", "name": "Slovenian", "enabled": true}`), but the writer wants the **bare code2 string**
+(`"language": "sl"`). POST the object and it is stored verbatim; every movie serialisation then dies in
+`api/utils.py:73 postprocess` — `subs.split(':')` on a dict — so `GET /api/movies` 500s and every page
+that reads the movie list, **Settings → Languages included**, comes up empty. Undo: `POST
+/api/system/settings` with `languages-profiles=[]` **and** `POST /api/movies` with an empty `profileid`
+per movie (the rows still point at the deleted profile otherwise), then `POST /api/system?action=restart`.
+**Create profiles in the UI**; read them back over the API if a seed has to reproduce them.
+
+**Addresses — same rule as §Request → import wiring (overlay/container name, never a `*.kogler.si`
+host), with exactly one exception.** Measured from inside the Bazarr container:
+
+| Leg | Value that works | Evidence |
+|---|---|---|
+| Bazarr → Radarr | `radarr:7878` + the key read from `/srv/docker/radarr/config/config.xml` | SignalR connected; job `Synced movies with Radarr` → 2 movies |
+| Bazarr → Sonarr | `sonarr:8989` + its own `config.xml` key (the `arr-seed.yml` rule: instance key, never the vault copy) | SignalR connected; 3 series synced |
+| Bazarr → Jellyfin | **`https://media.kogler.si`** — the container name fails (`HTTPSConnectionPool(host='media', port=443) … NameResolutionError`), because Bazarr dials this one over HTTPS by name | `test-connection` → `{"success": true, "server_name": "media", "version": "10.11.11"}`; `Movies` library + refresh-on-download on |
+| Bazarr → provider | `opensubtitlescom` with `opensubtitles_login` | ❌ `Throttling opensubtitlescom for 12 hours … AuthenticationError … 'Login failed'` — the credential, not the network |
+
+**Keys are app state, documented as such:** Bazarr's own API key is the vault `bazarr_api` (proved equal
+to the instance `auth.apikey` by sha256 — the drift class that caught `lidarr_api`), and Jellyfin's
+read-only key minted for Bazarr is `jellyfin-bazarr_api` →
+[deployment-secrets.md](deployment-secrets.md).
+
+**State at close of the wiring session** (read back over the API, not remembered): languages enabled
+`sl, en, hr, sr`; profiles `slo + eng` (sl,en), `slo` (sl), `cro/srb` (hr,sh) — ⚠ **no profile is
+assigned**: both movies carry `profileid: null` and `movie_default_profile` is empty, so the scheduled
+search will keep finding nothing until a default profile is set (Settings → Radarr → Default profile,
+or per movie) — HD-1096 ⏳. For the first real request (*Svadba* / `The Wedding`, 2026, tmdb 1551507,
+Radarr id 2) the library holds exactly one sidecar,
+`movies/The Wedding (2026)/Svadba.2026.WEBRip.1080p.h264.[ExYuSubs].en.hi.srt` (English, HI; Bazarr lists
+it with `hi: true`). No `sl`/`hr`/`sr` file exists for the title — a provider-availability question that
+cannot be answered until the provider login works.
+
 ## Navidrome (music.kogler.si) — VPS + Storage Box (HD-354)
 
 - **Placement:** on the **VPS** (reliable tier) with **app + data together** — library on the live Hetzner
