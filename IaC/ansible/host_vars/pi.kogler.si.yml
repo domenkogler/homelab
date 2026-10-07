@@ -9,6 +9,14 @@ mgmt_ip: 10.10.99.20              # VLAN 99 (Management) — static reg on the m
 # (dns_primary_ip = VPS public, dns_secondary_ip = oldsrv, dns_tertiary_ip = Pi).
 # Pi is the TERTIARY now (the old dns_secondary_ip host var was removed — it would
 # shadow the Group Var on this host and reintroduce the stale Pi-secondary value).
+# Host-side resolver (HD-484 mechanism, HD-488 this host): OWN instance first — the Pi is the
+# tertiary — then oldsrv. The VPS primary is deliberately absent: it is authoritative for the
+# public view only, so as a home host's resolver it answers NXDOMAIN for exactly the names this
+# exists to resolve (docs/network-dns.md §Host-side resolver). Before 2026-10-08 this box resolved
+# through bootstrap_dns_servers (1.1.1.1), so NOTHING internal resolved on the box that is the Home
+# VLAN's first resolver — the guarded-converge row and HD-465 both carry workarounds for that.
+# ⛔ HD-477 (float the resolver with the VIP) REPLACES the first entry, it does not add one.
+host_resolver_dns: "{{ [dns_tertiary_ip, dns_secondary_ip] | join(',') }}"
 ansible_user: ansible-admin        # created by preseed post_install.sh (like nas/oldsrv)
 # NUT: UPS CLIENT (slave to nas) — power down immediately on critical
 nut_mode: client

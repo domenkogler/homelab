@@ -2,8 +2,11 @@
 # Pi-uses-NetworkManager (network-rejected.md 2026-09-01, HD-307): RPi OS ships NM (no
 # systemd-networkd active), so the `network` role configures eth0 here.
 # SSOT: the Home address + gateway come from host_vars ansible_host + network_static_hosts,
-# the resolver from bootstrap_dns_servers (public until Technitium lands — see group_vars/all/) —
-# never literals.
+# the resolver from host_resolver_dns (HD-484's steady-state pair, keyfile `;` form) and ONLY
+# from bootstrap_dns_servers (public, see group_vars/all/) where a host has not defined the
+# steady-state pair yet — the boot-window var must not be the running box's resolver: a box that
+# resolves through 1.1.1.1 cannot name one split-horizon service of its own, which is the HD-484
+# defect this template used to carry on the Pi (HD-488). Never literals.
 # The Mgmt IP does NOT belong on the untagged parent: ether10 is pvid=10 (untagged = Home),
 # so an untagged Mgmt address is unreachable from the tagged Mgmt plane and its connected
 # route (metric 100) can hijack 10.10.99.x lookups AWAY from the tagged eth0.99 leg
@@ -22,13 +25,13 @@ method=auto
 {% if nm_home_dhcp_clientid | default(false) %}
 dhcp-client-id=mac
 {% endif %}
-dns={{ bootstrap_dns_servers }};
+dns={{ (host_resolver_dns | default(bootstrap_dns_servers)).split(',') | join(';') }};
 dns-search={{ domain_local }};
 {% else %}
 method=manual
 address1={{ ansible_host }}/24
 gateway={{ network_static_hosts | selectattr('name','equalto','router') | selectattr('vlan','equalto',10) | map(attribute='ip') | first }}
-dns={{ bootstrap_dns_servers }};
+dns={{ (host_resolver_dns | default(bootstrap_dns_servers)).split(',') | join(';') }};
 dns-search={{ domain_local }};
 {% endif %}
 
