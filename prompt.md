@@ -15,14 +15,14 @@
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
 fleet's live set (harness state in [docs/pi-harness.md](docs/pi-harness.md)). The laptop's WSL Debian clone
-is **retired as a seat (owner, 2026-10-07)**. Two things on it were unique to that box, checked rather than
-asserted — the first draft of this line said "no stash, no unpushed commit" and both were wrong: **one stash**
-(`On main: never_evict pin experiment`, 2026-10-03) and **`session/arr-door-20261006`**, whose remote ref the
-arr-door lane deleted once it had landed the work. Neither is live work: the stash re-arms a flag main REJECTED
-on 2026-10-05 (`group_vars/spark.yml` §never-evict — the pin held 0 blocks, and `check_spark_llm_gate.py` now
-refuses it), and the branch's content IS on `main` (the trio routers, the `.ts` twins, its `*_url` vars, its
-zone names) while its **commit object** `18913c63` is not — it survives only in this ref and unreferenced in
-the seat's object store, so delete it or pin it before the box goes, do not just stop booting the box.
+is **retired as a seat (owner, 2026-10-07)**. Two refs were unique to that box — a stash (`On main: never_evict
+pin experiment`, 2026-10-03) and `session/arr-door-20261006`, whose remote ref the arr-door lane had deleted
+after landing its work. Neither is live, and both are closed: the stash re-armed a flag main REJECTED on
+2026-10-05 (`group_vars/spark.yml` §never-evict — the pin held 0 blocks, and `check_spark_llm_gate.py` refuses
+it) and was dropped with its diff recorded in the commit that dropped it; the branch's content IS on `main` (the
+trio routers, the `.ts` twins, its `*_url` vars, its zone names) and its commit object `18913c63` is pinned as
+**`rescue/arr-door-20261006` on the seat** — local, in the existing `rescue/*` habit, so that object now lives
+where the box that survives does. The station checkout there is clean, one worktree, skills synced, tmux 3.5a.
 Its one non-derived gitignored file, `skills/mikrotik/.env.op` (`op://` references, no
 values), is TRACKED from this commit, so a clone elsewhere loses nothing. Read the inventory's `laptop-wsl` role
 ("durable runner state = NAT + auto-resolv") as that host's **network** mode, not as a job runner: nothing
