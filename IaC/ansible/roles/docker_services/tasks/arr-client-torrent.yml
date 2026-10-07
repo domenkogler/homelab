@@ -95,10 +95,13 @@
   tags: [docker_services, arr_client_seed]
 
 - name: "arr-torrent-client: check what this arr is missing (read-only)"
+  # argv is (origin, api_base): the helper joins them itself (BASE + API + path), so putting
+  # api_base into the origin too produced `…/api/v3/api/v3/downloadclient` → 404 on the first
+  # live run (measured 2026-10-07). Origin = scheme://host:port, nothing more.
   ansible.builtin.command:
     cmd: >-
       /usr/local/sbin/arr-torrent-client-{{ svc.name }}.py
-      http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}{{ arr_torrent_client[svc.template_dir].api_base }}
+      http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}
       {{ arr_torrent_client[svc.template_dir].api_base }} --check
     # --check needs only the arr's own key; the qBittorrent password never leaves this host on a check.
     stdin: "{{ _tc_key }}"
@@ -120,7 +123,7 @@
   ansible.builtin.command:
     cmd: >-
       /usr/local/sbin/arr-torrent-client-{{ svc.name }}.py
-      http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}{{ arr_torrent_client[svc.template_dir].api_base }}
+      http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}
       {{ arr_torrent_client[svc.template_dir].api_base }} --apply
     # Two stdin lines (line 1 = arr key, line 2 = qbit password): joined with a Jinja escape because a
     # YAML double-quoted scalar would fold a real newline in the middle into a space.
