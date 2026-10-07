@@ -447,7 +447,9 @@ spark_llm_profiles:
     fixed_cost_bytes: 86900000000
 
     pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
-    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor (spark_llm_device_hold_ceiling_bytes default)
+    # device_hold_ceiling_bytes intentionally NOT declared: a per-profile copy of the
+    # global is how a re-derive silently stops being one (HD-1098 class). The role falls
+    # back to spark_llm_device_hold_ceiling_bytes, which is the value this line had.
     fixed_cost_basis: "MEASURED from the engine boot log (docs/hardware-spark.md §Unified-memory budget)"
     # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
     # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
@@ -522,7 +524,9 @@ spark_llm_profiles:
     fixed_cost_bytes: 86900000000      # = the `reasoning` lane: same weights, same engine
 
     pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
-    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor (spark_llm_device_hold_ceiling_bytes default)
+    # device_hold_ceiling_bytes intentionally NOT declared: a per-profile copy of the
+    # global is how a re-derive silently stops being one (HD-1098 class). The role falls
+    # back to spark_llm_device_hold_ceiling_bytes, which is the value this line had.
     fixed_cost_basis: "DERIVED: inherited from reasoning \u2014 the weights are unchanged, so
       the measured 87.8 GB stands; the fp8 saving is upstream-published and deliberately NOT
       claimed here (docs/hardware-spark.md \u00a7fp8 KV cache: still unmeasured on this box)"
@@ -765,11 +769,13 @@ spark_llm_profiles:
     max_num_batched_tokens: 4096      # interfaces; we keep the contract and take only the
     max_num_seqs: 4                   # engine work. (docs/spark-llm-profiles.md §Client
     max_cudagraph_capture_size: 4     # contract.)
-    kv_cache_dtype: auto              # arms never try fp8 KV: the parent build's qsa.py
+    kv_cache_dtype: auto              # arms never try fp8 KV: the parent build's qsa.py declares
+                                      # [auto, bfloat16] (HD-473), and the upstream recipe itself passes
+                                      # --kv-cache-dtype auto — the only value with a certified path
+                                      # through BOTH build and recipe.
     kv_cache_memory: "16000000000"
     pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB default (spark_llm_pool_ceiling_bytes); a profile overrides for its own test
-    device_hold_ceiling_bytes: 104113000000  # CERTIFIED host-floor default (spark_llm_device_hold_ceiling_bytes)    # declares [auto, bfloat16] (HD-473), and the upstream
-    enforce_eager: false              # recipe itself passes --kv-cache-dtype auto.
+    enforce_eager: false              # (no --enforce-eager: CUDA graphs are the point)
     distributed_executor_backend: mp
     spec_method: mtp
     spec_tokens: 3
@@ -986,8 +992,13 @@ spark_llm_profiles:
     # margin 0.57e9 B, usable-at-rest 12.60 GiB — and the same model run at pool = 25e9 predicts
     # 7.94 GiB, which is what the box actually read all morning: the ledger is validated against
     # the box, not merely balanced. ⚠ This is a measured EXCEPTION, not a re-cert of the global:
-    # every other profile stays gated at 104.113e9, and re-certifying the global on the measured
-    # OS term is HD-494's ⏳ item.
+    # every other profile stays gated at 104.113e9 — and since 2026-10-08 it is gated by the GLOBAL
+    # for real: the per-profile/anchor copies of 104113000000 were deleted, because a copy that
+    # restates the global makes a re-derive silently do nothing (HD-1098 class). The re-derive itself
+    # is docs/hardware-spark.md §Re-deriving the GLOBAL ceiling: on the measured OS term alone it lands
+    # at 112.774e9 (which would make THIS override redundant), but the 2026-10-06 transient priced
+    # against a floor lands at 101.951e9 and makes 7 certified arms illegal, so the global stays 104.113e9
+    # until a 1 s prefill-window sampler decides which floor the reserve is priced against.
     device_hold_ceiling_bytes: 112700000000
     # ple_dispatch above is LOAD-BEARING on this checkpoint: without the A4 dispatch env the AR
     # arm fails to boot (root cause 2026-10-03) — B9 is the arm that measures what it costs.
