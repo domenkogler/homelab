@@ -305,6 +305,60 @@ categories exist but every one has an empty `dir`, and there is an **`audio`** c
 stack's layout says `music`, so Lidarr's client category must either be pointed at `audio` or a `music`
 category added. · [services-media.md](services-media.md) §Request → import wiring · [subscriptions.yml](../IaC/ansible/group_vars/subscriptions.yml)
 
+### SABnzbd's other door: `local_ranges`, which is what a tailnet client trips (HD-1089, 2026-10-07)
+
+`host_whitelist` is not the only 403 SABnzbd serves, and the two are told apart by their **body**:
+
+| Wall | Body | Option |
+| --- | --- | --- |
+| DNS-rebinding guard | `Access denied - Hostname verification failed` | `host_whitelist` (§above, HD-496) |
+| locality guard | `External internet access denied` | **`local_ranges`** (this section) |
+
+`sab.kogler.si` → **200** while `sab.ts.kogler.si` → **403 External internet access denied**: same
+router family, same upstream, different client address. The shipped ini carries `local_ranges = ,` — two
+EMPTY entries — and SABnzbd reads that as unset, which makes `is_local_addr()` fall back to Python's
+*private* list. That covers the LAN and the Docker bridges and **not** the `headscale` CGNAT block that
+the tailnet hands out ([network-addresses-generated.md](network-addresses-generated.md)), which
+`ipaddress` classifies as shared-address space and therefore NOT private. From the shipped 5.1.1:
+
+```python
+# interface.py check_access()                        # misc.py is_local_addr()
+is_allowed = is_loopback_addr(peer) or is_local_addr(peer)   # ← if local_ranges is set, ONLY it counts
+if is_allowed and cfg.verify_xff_header():            # OptionBool(..., True) — default ON
+    is_allowed = all(is_local_addr(ip) for ip in X-Forwarded-For)   # Traefik puts the CLIENT here
+```
+
+So through the edge the peer is a private bridge address (leg 1 passes) and the client's **tailnet**
+address rides in `X-Forwarded-For` (leg 2 fails). ⚠ **`local_ranges` is REPLACE-all, not additive**
+(`misc.py:1301`): the moment it is non-empty the private-list fallback is gone, so seeding *only* the
+tailnet range would have taken access away from the LAN and from every container-side consumer — the arrs
+and Prowlarr dial SAB through `172.21/172.20`, and the edge's own peer address sits on a bridge too.
+`tasks/sabnzbd-seed.yml` therefore seeds the **union** of every internal range the app can be reached
+through, derived from the `network_ranges` SSOT by name (`site`, `headscale`, the six Docker bridges) and
+unioned with whatever the live ini already carries, so a hand-added entry survives. The WireGuard family
+(`10.255/16`) and `modem-lan` are deliberately **out**: a peer's range has to be listed to be believed,
+and the VPS's WireGuard networks are not "this house".
+
+The seed ends with a probe, and the probe is the interesting part: it runs **inside the container**
+against SAB's own overlay address — dialing `127.0.0.1` would be allowed by `is_loopback_addr()` and pass
+with `local_ranges` empty, which is a test that cannot fail — carries
+`X-Forwarded-For: {{ tailnet_oldsrv_ip }}`, and is graded on the **status code**, because a 403 with
+`api_warnings` off has an empty body. Canary for the probe itself: the same request with
+`X-Forwarded-For: 8.8.8.8` → **403**, so the check does discriminate.
+
+```console
+$ grep -E '^(local_ranges|host_whitelist)' /srv/docker/sabnzbd/config/sabnzbd.ini
+host_whitelist = 04e95abd5869, sab.kogler.si, sabnzbd, sab.ts.kogler.si
+local_ranges   = <the eight derived CIDRs — site, headscale and the six Docker bridges, in derive order;
+                  the numbers themselves are the network_ranges SSOT, this doc does not re-type them>
+```
+
+One restart to apply (stop → edit the **host path** → start, the same ordering reason as §above: SAB
+rewrites `sabnzbd.ini` on a clean exit), then `changed=0` with `local_ranges unchanged · tailnet leg
+HTTP 200`. **What is NOT claimed:** a read taken by a real tailnet client — the seat resolves no `.ts`
+name at all (`getent hosts sab.ts.kogler.si` → nothing, MagicDNS off on oldsrv), so the XFF probe above
+is the proof, and the phone-on-tailnet curl is still owed.
+
 ### Which half of Prowlarr to trust: indexers synced, download clients per-arr (HD-496, 2026-10-06)
 
 Asked directly: *should we drop Prowlarr and register indexers in each arr instead?* No — measured, the
