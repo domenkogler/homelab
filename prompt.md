@@ -52,6 +52,13 @@ contract (the only alias table; governs BOTH `~/.ssh/config` files). In one line
 (`pi`/`nas`/`oldsrv`/`spark`) are reached over the VPS jump onto their **Home leg**; the **Mgmt plane (VLAN 99) is
 same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a `ProxyJump`). `ssh oldsrv` = the Home address.
 
+**Seat git writes can fail transiently — retry before believing it.** A `git push` from the seat was rejected with
+`remote: fatal error in commit_refs` on BOTH `main` and a fresh branch, while `git push --dry-run` and `git fetch`
+succeeded and `ssh -T` authenticated — GitHub-side, not a key/ACL problem (the ACL proof is the dry-run: it does
+request `git-receive-pack`). A retry a few minutes later pushed clean. So on that exact message: re-verify ACL with
+`--dry-run`, then retry; do not go hunting for a permissions cause, and never conclude the commit is lost — it is on
+`main` locally the moment you merge.
+
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 
 1. ⏳ **HD-469** — spark LLM profile switch: take the **under-cap baseline** trace (only a sustained `clocks.sm` trace under
@@ -85,7 +92,7 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
-[todo-table.md](todo-table.md) §B): **1093** *(360 and 1092 left this list 2026-10-07 — the Samba `ldapsam` design they carried was retired; the shares authenticate locally now. One owner tail left: rotate both SMB passwords, then converge with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
+[todo-table.md](todo-table.md) §B): **1093** *(owner tail: rotate both SMB passwords, then land them with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
 float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class on the Pi, where two docs already
 work around it) · **487** (finish oldsrv's config-manager decision — lockout-class, so it runs off-box) · **494** (only the
 re-derive of the global host-floor ceiling — with the 2026-10-06 transient burst as its reserve evidence — is left:
