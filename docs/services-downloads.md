@@ -298,10 +298,15 @@ the working half intact:
 - **Download clients are added directly in each arr** while SAB 5 / Prowlarr disagree: Radarr → Category
   `movies`, Sonarr → `tv`, Lidarr → `music` (SAB ships `audio`; add a `music` category or point Lidarr at
   `audio`). Each arr's own form validates differently and accepts these.
-- ⚠ **Then do not add a download client in Prowlarr at all.** Adding one there and keeping the arr-side
-  entries yields *two* SAB clients per arr, and the arrs round-robin grabs across enabled clients —
-  the failure mode is downloads landing in the wrong folder at random, which is a miserable thing to
-  debug six weeks from now.
+- ⚠ **Keep grabs flowing through the arrs.** Measured 2026-10-07, the live topology is: each arr carries
+  **qBittorrent + SABnzbd** (one per protocol, both enabled) and **Prowlarr also carries a SABnzbd client**.
+  That is *not* the duplication this section once warned about — the correction is mine: Prowlarr's client list
+  is not visible to the arrs, so no arr ever sees two SAB clients and nothing round-robins. What Prowlarr's own
+  client actually governs is a job **sent from Prowlarr itself** (its search UI, or its app-synced "send to
+  Prowlarr" path), and since its Default Category must stay blank against SAB 5, such a job lands in
+  `/downloads/complete` **without** the `movies`/`tv`/`music` subfolder — invisible to the arr that would
+  import it. So: initiate from the arr, and if someone must use Prowlarr's client, set its category or accept
+  that its downloads need manual handling.
 - Cost, stated plainly: SAB's host/port/API key now live in **three** configs instead of one, so an API
   key rotation is three edits. Revisit by pulling a Prowlarr build that speaks `get_cats`; if it saves
   with a category, delete the three arr-side clients **first**, then sync from Prowlarr.
@@ -577,10 +582,12 @@ at must not be listening on the LAN.
 
 Two things make a SABnzbd API probe read as "the API is broken" when nothing is:
 
-- **It publishes on the oldsrv Home-IP only.** `docker port sabnzbd 8080/tcp` → `<oldsrv_home_ip>:8080`, and
-  nothing on loopback — so `curl http://127.0.0.1:8080/api?...` from the host gets HTTP `000` (no connection),
-  which is easy to misread as an auth failure. Dial the Home-IP, or send `Host: sabnzbd` from anything on the
-  overlay.
+- **It publishes on loopback** — `docker port sabnzbd` → `127.0.0.1:8080`, nothing on the Home address, since
+  HD-1083 landed 2026-10-07. From oldsrv the working probe is `curl http://127.0.0.1:8080/api?...`; the Home-IP
+  address now returns HTTP `000` (no listener), which is easy to misread as an auth failure. From any other
+  container dial the overlay name `http://sabnzbd:8080`. **Before HD-1083 this was the other way round** — the
+  publish lived on the Home-IP and loopback refused — so any note older than 2026-10-07 that tells you to dial
+  the Home-IP is describing the old contract. Re-measured 2026-10-07: loopback → HTTP 200 + JSON, Home-IP → 000.
 - **The API key is not readable by `ansible-admin` on the host.** `/srv/docker/sabnzbd/config/sabnzbd.ini`
   answers `Permission denied`; read it as the service uid:
   `docker exec -u <sab_uid> sabnzbd grep -m1 '^api_key' /config/sabnzbd.ini`.
