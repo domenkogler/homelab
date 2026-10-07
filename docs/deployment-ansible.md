@@ -362,6 +362,70 @@ nohup ansible-playbook -i IaC/ansible/inventory.ini playbooks/spark.yml --tags <
 
 `--check` stays the only safe foreground form.
 
+### Network devices (router / switch): the API path, and four probes that lie
+
+`router.kogler.si` and `switch.kogler.si` are **not SSH-managed hosts**. Both playbooks are
+`connection: local` and drive the **RouterOS API on tcp/8728** as `admin`, the password read from
+`mikrotik-admin_login` — the module runs on the CONTROLLER. A delta's *apply* is a different path
+again: `/import` over SSH as the key-only `ansible` user via
+[`scripts/routeros-apply-delta.sh`](../scripts/routeros-apply-delta.sh). Two paths, two auth
+mechanisms — so "can I reach the router?" has to name which one it means.
+
+Four ways a probe answers confidently and wrongly (all four were measured on the oldsrv seat,
+2026-10-08, on devices that were healthy and reachable the whole time):
+
+1. **`ansible … -m ping` → `Permission denied (publickey,password)`** (and for the switch, `Host key
+   verification failed`). Ping opens SSH as the seat user; the devices do not take that. The probe is
+   not a reachability test here — it tests a door these hosts do not have.
+2. **`https://<mgmt-ip>:8728/rest/…` → `SSL: WRONG_VERSION_NUMBER`.** 8728 is the binary API, not the
+   REST endpoint; REST-on-the-same-port is a different protocol. This probe was invented because both
+   playbook headers said "via RouterOS REST API" — the headers are fixed; the comment was the bug.
+3. **`Failed to import the required Python library (librouteros)`** — a python problem wearing a
+   network error. `inventory.ini` pins `[all:vars] ansible_python_interpreter=/usr/bin/python3`, and
+   `librouteros` (the PYTHON half of `community.routeros`; `requirements.yml` installs only the
+   Ansible half) lives in the runner venv. `group_vars/network.yml` now pins
+   `ansible_python_interpreter: {{ ansible_playbook_python }}` for the `network` group, which is what
+   `scripts/ansible-network-hop.sh` has forced on the off-LAN path for exactly this reason — and a
+   rebuilt seat needs `pip install librouteros`, now part of `scripts/bootstrap-runner.sh`.
+4. **`Unable to sign in to 1Password. Missing required parameters: secret_key, subdomain,
+   master_password, username`** —
+   absent `OP_SERVICE_ACCOUNT_TOKEN`, i.e. an ansible invoked directly instead of through
+   `scripts/ansible-run.sh`, which sources `~/.config/op/homelab-sa-token`. Reads like a vault
+   permission problem; is an environment problem.
+
+The probe that actually answers (read-only, no `no_log` needed because nothing is printed but shape):
+
+```yaml
+- hosts: network
+  gather_facts: false
+  connection: local
+  vars: { ansible_python_interpreter: "{{ ansible_playbook_python }}" }
+  tasks:
+    - set_fact: { _pw: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}" }
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+    - community.routeros.api_facts:
+        hostname: "{{ ansible_host }}"
+        username: admin
+        password: "{{ _pw }}"
+        port: 8728
+        tls: false                 # routeros_tls — the API is plaintext on Mgmt, no cert to validate
+        validate_certs: false
+        gather_subset: hardware
+      register: _f
+    - debug:
+        msg: "{{ inventory_hostname }} {{ _f.ansible_facts.ansible_net_model }} {{ _f.ansible_facts.ansible_net_version }}"
+```
+
+Answered 2026-10-08 from the oldsrv seat: `router.kogler.si` → **RB4011iGS+ 7.24.4**,
+`switch.kogler.si` → **CRS328-24P-4S+ 7.24.4**. ⚠ Run it over the **Mgmt** address (VLAN 99 is
+same-site only — never a `ProxyJump`); away from home use `scripts/ansible-network-hop.sh`, which
+tunnels 8728 through the Pi and already forces the venv interpreter. The device facts above are
+reachability evidence only — the authoritative device state is the `print`/`foreach` reads in
+[network-ops.md](network-ops.md) §Apply workflow, and a mutate of either device is still a
+render → `/import` (this repo does not hand-apply API deltas, HD-161 identity assert notwithstanding).
+
 ### Dry-run Mode (`--check --diff`)
 
 `--check` mode is **NOT** compatible with the HD-258 bulk 1Password pre-pass: the pre-pass

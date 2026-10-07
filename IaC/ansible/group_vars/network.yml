@@ -9,3 +9,15 @@ ansible_host: "{{ (network_static_hosts
                   | selectattr('name', '==', inventory_hostname_short)
                   | selectattr('vlan', '==', 99)
                   | map(attribute='ip') | list | first) }}"
+
+# The module runs on the CONTROLLER, not the device: both network playbooks are
+# `connection: local` and talk RouterOS over the API, so `ansible_python_interpreter` here is
+# the python that must import `librouteros` — and the inventory's `[all:vars]` pins it to
+# `/usr/bin/python3`, which has no such module on a Debian seat. That mismatch (2026-10-08,
+# oldsrv) made every router/switch converge die with
+# `Failed to import the required Python library (librouteros)` while the devices were healthy
+# and reachable — and the error names a python, not the network, so it reads like a host
+# problem. `ansible_playbook_python` is the interpreter running ansible, i.e. the venv that
+# `scripts/bootstrap-runner.sh` installs the deps into. Same class as HD-495: the capability
+# lived in a path a rebuild does not recreate.
+ansible_python_interpreter: "{{ ansible_playbook_python }}"
