@@ -36,7 +36,11 @@ crowdsec_web_ui_version: "2026.10.1"   # ghcr.io/theduffman85/crowdsec-web-ui �
 authentik_version: "2026.8.3"     # ghcr.io/goauthentik/server + ldap (GoAuthentik) — verified 2026-10-08 (2026-09-17)
 # The two authentik sidecars were HARDCODED in the template (`postgres:16-alpine`, `redis:7-alpine`)
 # — no var, no Renovate trail, invisible to a fleet version review (§7 violation, found 2026-10-08).
-authentik_db_version: "16.15-alpine"    # HELD at 16 (HD-1100 owns the 16 → 18 dump/restore window)
+authentik_db_version: "18.6-alpine"   # LEG 2 (HD-1100, 2026-10-08): the fleet SSO database — the highest-blast-radius
+                                  #   cluster here, so it moves with the shape proven on leg 1: PGDATA pinned to the flat
+                                  #   data path, single bind, dumps over STDIN (read_only rootfs), initdb args holding the
+                                  #   libc locale. Rollback = this line at 16.15-alpine AND the datadir moved back, both
+                                  #   together; the 16 cluster is kept at /srv/authentik db dir .16-<date> on the VPS.
 authentik_redis_version: "8.10.2-alpine"  # redis — cache/queue only (auth sessions live in Postgres)
 
 # ==== Tunnels / DNS ====
