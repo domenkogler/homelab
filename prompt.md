@@ -135,7 +135,7 @@ not deleted; the HD-247 volume→bind pattern is the suspect) · **HD-1103 tail*
 logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it).
 
 7. ⏳ **HD-1110 tail — the pi.dev seat lane has a driver and eight planes; two live legs remain.**
-   `scripts/pi-seat-sync.sh` is the one deploy path (`pi-self` now covers the pi build itself, HD-1114, and
+   `scripts/pi-seat-sync.sh` is the one deploy path (`pi-self` now covers the pi build itself, HD-1115, and
    `update_pi.cmd` is gone). Owed, in order: run `install-pi-wsl.sh` on the `wsl` seat (its `pi` on PATH is still the
    Windows Volta shim that dies with `volta: command not found`), get oldsrv’s clone to this commit and fix its
    non-login `node` PATH, then one `bash scripts/pi-seat-sync.sh --push` — `STALE-CLONE` is the refusal to expect,

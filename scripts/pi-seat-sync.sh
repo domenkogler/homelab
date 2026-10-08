@@ -72,7 +72,7 @@ OLDSRV_REPO="${PI_OLDSRV_REPO:-/home/domen/source/homelab}"
 SSH_OPTS="${PI_SSH_OPTS:--o ConnectTimeout=10 -o BatchMode=yes}"
 
 # --- the plane scripts (owners; this file never re-implements one) --------------
-# The build itself (HD-1114): every other plane compares FILES, so before this the running
+# The build itself (HD-1115): every other plane compares FILES, so before this the running
 # pi binary was the one harness artifact with no gate — which is how a seat ended up on a pi
 # release the repo had never reviewed (HD-1112's unpinned volta install).
 S_SELF_C='bash scripts/pi-self-update.sh --check --strict'
