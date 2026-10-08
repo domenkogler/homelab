@@ -681,6 +681,14 @@ traps, all measured, recorded so the next session does not rediscover them:
   include is **appended last** — beside `.gitconfig-windows` it loses and signing silently reverts to
   the agent route. Proven in a fabricated seat carrying that exact `includeIf` block: the commit came
   out signed (`%G?` = `G`) with no dialog.
+* **Retired 2026-10-08 (owner decision, HD-1116): commits are no longer signed.** The SSH signing key
+  was deleted from GitHub, which turns `commit.gpgsign=true` from a policy into a HANG — git blocks
+  waiting for an agent to sign with a key nothing can validate any more, and it does that in the
+  shells nobody watches (cron, a converge, pi's bash). Applied on this host in `~/.gitconfig-github`
+  and `~/.gitconfig-nightly` (`gpgsign=false` in `[commit]` and `[tag]`), and in the two places that
+  would otherwise restore it on a rebuild: `scripts/git-bootstrap.sh --ssh-auth` and the repo template
+  `scripts/git/gitconfig-nightly`. Everything else on this page stays true as the record of HOW
+  signing worked and what to change if a key is ever registered again.
 * **The repo's own `.git/config` outranks every global file** and pinned `user.signingkey` to the
   public-key string, so the file alone was not enough — `--git-identity` rewrites the local pin to the
   key path (it was `git-bootstrap.sh` that wrote the string form in the first place).
