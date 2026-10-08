@@ -234,6 +234,11 @@ litellm_version: "v1.104.0"
 #   hardcoded), litellm-db / onlyoffice-postgres / zipline-db (`16.15-alpine`), immich-postgres on
 #   its own composite `14-vectorchord…` tag. OLDSRV's only Postgres is `lan-litellm-db` (this var).
 litellm_db_version: "16.15-alpine"
+# The LAN inference gateway on OLDSRV runs its OWN cluster (measured 2026-10-08: it is a separate
+# container `lan-litellm-db`, 78 MB, and until now shared this var with the VPS cluster — so a pin
+# bump here would migrate both hosts at once, or neither. HD-1100 needs one host per window, so the
+# clusters get their own pins and move independently.
+lan_litellm_db_version: "16.15-alpine"
 # (The authentik-db and forgejo-db sidecars that were hardcoded `postgres:16-alpine` in their
 #  templates now have their own vars next to their service — search `authentik_db_version` /
 #  `forgejo_db_version`. The 16 → 18 data-format rule above applies to every one of them.)

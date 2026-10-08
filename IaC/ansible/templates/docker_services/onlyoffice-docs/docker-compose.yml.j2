@@ -146,6 +146,15 @@ services:
       # read; broke the db_role_sync ALTER). Named volumes are invisible to that walk.
       - onlyoffice-pgdata:/var/lib/postgresql/data
     environment:
+      # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
+      #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
+      #   = default/libc on all six). Left to the default, an 18 cluster would restore the same
+      #   rows with different sort semantics and silently change ORDER BY / index ordering, so
+      #   the provider is pinned HERE, in the template, before any pin moves. Harmless on 16
+      #   (--locale-provider exists since 15) and ignored on a non-empty datadir, so landing it
+      #   early costs nothing. Measured against postgres:18.6-alpine: datcollate=en_US.utf8.
+      #   HD-1100.
+      POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       POSTGRES_DB: onlyoffice
       POSTGRES_USER: "{{ vault['onlyoffice_db'].username | replace('$','$$') }}"
