@@ -2137,3 +2137,27 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    To undo only the PATH fix, delete `pi-on-path.conf` and `systemctl --user daemon-reload &&
    systemctl --user restart pi-web.service` — the symptom returns as `GET /api/models` → HTTP 500
    `{"error":"pi executable not found: …"}`.
+
+9. **Converge the seat's pi harness planes from git — the seat is not hand-configured.** Every plane has an
+   owner script under `scripts/`; run them from a clone at the SAME commit as the SSOT (the driver refuses a
+   stale clone as `STALE-CLONE`, and that refusal is the point). Each script prints its own per-plane evidence:
+   ```bash
+   cd /home/domen/source/homelab && git pull --ff-only
+   bash scripts/pi-seat-sync.sh --check          # read-only seat x plane matrix
+   bash scripts/pi-seat-sync.sh --push           # or the planes one at a time:
+   #   scripts/sync-skills.sh --push          skills/                       -> ~/.pi/agent/skills/
+   #   scripts/sync-extensions.sh --push      repo extensions               -> ~/.pi/agent/extensions/
+   #                                          (removes names on its RETIRED list, keeps LOCAL ones)
+   #   scripts/pi-settings-config.sh --push   pi-agent/settings-ssot.json   -> ~/.pi/agent/settings.json
+   #                                          (a MERGE: workstation keys and seat-local packages survive;
+   #                                           `packages` is composed from the versions.yml pins)
+   #   scripts/pi-tui-config.sh --push        footerSegments.hostname=true in ~/.pi/agent/open-tui.json
+   #   scripts/install-nerd-font.sh --push    pinned nerd-fonts release     -> per-user font dir
+   #   scripts/install-tmux-conf.sh --push --reload  pi-agent/tmux/tmux.conf -> ~/.tmux.conf
+   #     --reload also sources the RUNNING server: pi reads extended-keys / extended-keys-format back
+   #     with `tmux show -gv` at start-up, and a server that was already up keeps its old values.
+   ```
+   A seat that carries its own extra pi package (this cockpit runs pi-web itself) is KEPT and printed by the
+   settings plane — never deleted to make a check go green. Updating pi ITSELF is in no script on the Windows
+   side (Volta is Windows-only): `volta install @earendil-works/pi-coding-agent@<pi_host_npm_version>`, the
+   version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest` (HD-1094, HD-1095).
