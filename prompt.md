@@ -134,15 +134,16 @@ with an EMPTY `ExecStart`) · **HD-1106** (20 dangling VPS volumes, 644 MB, two 
 not deleted; the HD-247 volume→bind pattern is the suspect) · **HD-1103 tail** (`/var/log` on pi is mode `1777`, so
 logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it).
 
-7. ⏳ **HD-1110 tail — the pi.dev seat fan-out exists but has never run against a seat that was
-   at its own commit.** `scripts/pi-seat-sync.sh` is the one deploy path now (seat × plane; the root
-   `update_pi.cmd` is deleted, HD-1112). Owed, in order: run `install-pi-wsl.sh` on the `wsl` seat (its `pi`
-   on PATH is still the Windows Volta shim and dies with `volta: command not found`), fix `oldsrv`’s `node`
-   on a non-login PATH (HD-446 class), then one `bash scripts/pi-seat-sync.sh --push` from clones at the SAME
-   commit — `STALE-CLONE` is the refusal to expect, not a bug. HD-1111’s pin raise is live on the Win11
-   seat only. From this laptop the oldsrv leg stays down until HD-443’s `IdentityFile
-   ~/.ssh/ansible-admin_ssh.pub` is fixed — run that seat from WSL. [docs/pi-harness.md](docs/pi-harness.md)
-   §1, §5, §5a · [scripts/README.md](scripts/README.md)
+7. ⏳ **HD-1110 tail — the pi.dev seat lane has a driver and eight planes; two live legs remain.**
+   `scripts/pi-seat-sync.sh` is the one deploy path (`pi-self` now covers the pi build itself, HD-1114, and
+   `update_pi.cmd` is gone). Owed, in order: run `install-pi-wsl.sh` on the `wsl` seat (its `pi` on PATH is still the
+   Windows Volta shim that dies with `volta: command not found`), get oldsrv’s clone to this commit and fix its
+   non-login `node` PATH, then one `bash scripts/pi-seat-sync.sh --push` — `STALE-CLONE` is the refusal to expect,
+   not a bug. From this laptop the oldsrv leg stays down until HD-443’s `IdentityFile` is fixed, so run it from WSL.
+   NEW, owner-shaped: the Win11 seat shows `pi_auth` DRIFT — it holds an **OAuth** openrouter entry while the spec
+   renders `api_key`. Mint it under the HD-484 auth lane; do not overwrite live tokens to green a check.
+   [docs/pi-harness.md](docs/pi-harness.md) §1, §5, §5a · [scripts/README.md](scripts/README.md)
+
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
 [todo-table.md](todo-table.md) §B): **1094** *(minted 2026-10-07 by the same session that shipped HD-450's exporter: `alloy_version` pins 1.19.2-1 while oldsrv had drifted to 1.20.1-1, which made every monitoring converge there die in apt. Resolved for that host; the fleet bump is the owner's call and until it is decided, the four hosts still on the pin will tell you the same way.)* · **1093** *(owner tail: rotate both SMB passwords, then land them with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually

@@ -69,11 +69,9 @@ extension stayed loaded on the seat forever.
 > seat-local packages survive), a hand-written `~/.tmux.conf` is a REFUSAL, and a seat
 > whose clone trails this commit is reported `STALE-CLONE` with its planes NOT run.
 >
-> **Updating pi itself on Windows** is the one leg no script owns (Volta is
-> Windows-only): `volta install @earendil-works/pi-coding-agent@<pin>`, reading the
-> version from `IaC/ansible/group_vars/all/versions.yml` (`pi_host_npm_version`) - never
-> bare `@latest`. That unpinned upgrade is what put this seat a pi release ahead of its
-> pin and produced an `[Extension issues]` panel at start-up (HD-1111).
+> **Updating pi itself** is the `pi-self` plane: `bash scripts/pi-self-update.sh --push` installs `pi_host_npm_package@pi_host_npm_version` with whatever the host actually uses (Volta on the Windows seat, npm at the pinned prefix on the Debian seats) and then re-probes the binary. A seat running a pi the repo has not reviewed reads as `AHEAD`, which is drift, not a warning (HD-1114).
+> `bash scripts/pi-self-update.sh --check` prints what this host runs against the pin. The pin is the value, never
+> `latest` — HD-1111 is the start-up panel an unpinned upgrade produced.
 
 ---
 
