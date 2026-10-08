@@ -477,14 +477,19 @@ each leg that `db-backup` still dumps that cluster (it addresses services by con
 survives a name-preserving leg — but "survives" has to be read back, not assumed), and re-run the
 restore spot-check the way the Forgejo dump was proven (130 tables against production's 130).
 
-### The bind target moves with the major (this is what stopped the first leg)
+### What PG 18 actually requires: pin `PGDATA`, not the bind target
 
-PG 18 images run `PGDATA=/var/lib/postgresql/18/docker` and **refuse to start** when a cluster is
-found at `/var/lib/postgresql/data`, attaching an anonymous volume at `/var/lib/postgresql` instead.
-The templates now pick the bind target from the pinned major (`pg_data_mount`), so pin and mount move
-in ONE commit; rendering at a 16 pin is byte-identical to before, which is what makes landing this
-ahead of the legs safe. Rollback after an 18 leg needs the datadir back AND the pin back - an 18
-image over a 16 cluster **crash-loops instead of failing at any gate**.
+PG 18 images default `PGDATA` to the version-specific `/var/lib/postgresql/18/docker`, and their entrypoint
+**refuses to start** when the cluster sits anywhere else. The layout they recommend (one mount at
+`/var/lib/postgresql`) does **not** work on this fleet: the DB containers run `cap_drop: ALL`, so the entrypoint's
+root phase has no `CAP_DAC_OVERRIDE` and cannot write the uid-70 `0700` directory it is handed — measured on the
+VPS as `mkdir: can't create directory '/var/lib/postgresql/18/': Permission denied`, repeated on every restart.
+The fix is one env line, `PGDATA: /var/lib/postgresql/data`, which keeps ONE mount shape for 16 and 18. Probed
+2026-10-08 with the service's own caps: `server_version 18.6`, `datcollate=en_US.utf8`, `ready to accept
+connections`. A first attempt at this migration landed the bind-target version conditional instead; it was wrong
+and was reverted in the same window — if a `pg_data_mount` ever reappears in a template, it is stale.
+Rollback after an 18 leg needs the datadir back AND the pin back; an 18 image over a 16 cluster **crash-loops
+instead of failing at any gate**.
 
 **Sequencing by blast radius:** `litellm-db` → `onlyoffice-postgres` (+ the RabbitMQ 3.13 → 4.3
 question in the same window, while ONLYOFFICE is already down) → `forgejo-db` → `zipline-db` →

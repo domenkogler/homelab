@@ -43,13 +43,8 @@
 #     zipline_password (Password: CORE_SECRET — session/config secret)
 #     zipline_db       (Database: username/password for the bundled Postgres)
 #     zipline_oidc     (api: username=client_id, credential=client_secret — seeded by glue)
-{# PG >= 18 official images keep the cluster in a MAJOR-VERSION-SPECIFIC dir and REFUSE to boot
-#   when data is found at the old /var/lib/postgresql/data mount (measured 2026-10-08: "in 18+, these
-#   Docker images are configured to store database data in a format which is compatible with
-#   pg_ctlcluster", plus an anonymous volume at /var/lib/postgresql). The bind target is therefore
-#   part of the version and moves WITH the pin; a pin bump alone crash-loops the database (HD-1100,
-#   proven by the first leg). Rendering on a 16 pin is byte-identical to before. #}
-{%- set pg_data_mount = "/var/lib/postgresql" if (zipline_db_version.split(".")[0] | int) >= 18 else "/var/lib/postgresql/data" -%}
+{# The Postgres bind target is deliberately version-INDEPENDENT: PGDATA is pinned in the env
+#   block below, which is what lets one mount shape serve 16 and 18 (HD-1100). #}
 services:
   zipline:
     image: ghcr.io/diced/zipline:{{ zipline_version }}
@@ -132,7 +127,7 @@ services:
     networks:
       - db-internal
     volumes:
-      - /srv/docker/zipline/postgres:{{ pg_data_mount }}
+      - /srv/docker/zipline/postgres:/var/lib/postgresql/data
     environment:
       # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
       #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
@@ -143,6 +138,14 @@ services:
       #   early costs nothing. Measured against postgres:18.6-alpine: datcollate=en_US.utf8.
       #   HD-1100.
       POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"
+      # PG 18 images moved PGDATA to the version-specific /var/lib/postgresql/18/docker and their
+#   entrypoint REFUSES to start when it finds a cluster anywhere else - and the parent-mount layout
+#   it recommends does not work under this fleet's cap_drop: ALL, because the root phase then lacks
+#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory (measured: "mkdir: can't create
+#   directory /var/lib/postgresql/18/: Permission denied"). Pinning PGDATA to the existing mount keeps
+#   ONE mount shape for 16 and 18; probed 2026-10-08 with the service's own caps -> server_version
+#   18.6, datcollate=en_US.utf8, "ready to accept connections". HD-1100.
+      PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: zipline
       POSTGRES_USER: "{{ vault['zipline_db'].username | replace('$','$$') }}"
       POSTGRES_PASSWORD: >-
