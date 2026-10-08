@@ -44,7 +44,13 @@
 
       [Service]
       Type=oneshot
-      ExecStart=/usr/local/bin/sanoid --cron
+            # Was /usr/local/bin/sanoid, which does not exist: the Debian package installs /usr/sbin/sanoid
+      #   (verified 2026-10-08, sanoid 2.2.0-2 -> /usr/sbin/sanoid), so the unit WE GENERATE failed every
+      #   timer fire with status=203/EXEC and ZFS POLICY SNAPSHOTS NEVER RAN: zero hourly.*/daily.* in the
+      #   pool although sanoid.conf asks for hourly=24 daily=7, the only snapshots present being manual/
+      #   migration ones plus syncoid transient pre-sync snaps. The package also ships /etc/cron.d/sanoid,
+      #   which did not compensate. HD-1107.
+      ExecStart=/usr/sbin/sanoid --cron
     dest: /etc/systemd/system/sanoid.service
     mode: "0644"
   notify: Restart sanoid timers

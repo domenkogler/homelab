@@ -59,6 +59,13 @@
 #                                                   NOT_AUTO_ROTATABLE; db_role_sync guard)
 #   Images: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (registry-verified pin,
 #   versions.yml) + postgres:{{ litellm_db_version }}.
+{# PG >= 18 official images keep the cluster in a MAJOR-VERSION-SPECIFIC dir and REFUSE to boot
+#   when data is found at the old /var/lib/postgresql/data mount (measured 2026-10-08: "in 18+, these
+#   Docker images are configured to store database data in a format which is compatible with
+#   pg_ctlcluster", plus an anonymous volume at /var/lib/postgresql). The bind target is therefore
+#   part of the version and moves WITH the pin; a pin bump alone crash-loops the database (HD-1100,
+#   proven by the first leg). Rendering on a 16 pin is byte-identical to before. #}
+{%- set pg_data_mount = "/var/lib/postgresql" if (litellm_db_version.split(".")[0] | int) >= 18 else "/var/lib/postgresql/data" -%}
 services:
   litellm:
     image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}
@@ -128,7 +135,7 @@ services:
     networks:
       - db-internal           # NOT on services-internal: no direct sibling access
     volumes:
-      - /srv/docker/litellm/postgres:/var/lib/postgresql/data   # CRITICAL state (HD-247): holds keys/models/spend — db-backup DB06 + Kopia scope
+      - /srv/docker/litellm/postgres:{{ pg_data_mount }}   # CRITICAL state (HD-247): holds keys/models/spend — db-backup DB06 + Kopia scope
     environment:
       # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
       #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider

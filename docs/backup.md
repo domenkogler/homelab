@@ -463,6 +463,7 @@ pg_restore --list /root/pg18/$SVC/data.dump | wc -l                          # p
 # record pre-migration counts (tables + row counts for the 3 largest tables) to /root/pg18/$SVC/pre.txt
 docker compose -f /opt/$SVC/docker-compose.yml stop <app> && docker compose -f /opt/$SVC/docker-compose.yml stop db
 mv /srv/docker/$SVC/postgres /srv/docker/$SVC/postgres.16-$(date +%Y%m%d)     # named volume: RENAME it, never rm
+mkdir -p /srv/docker/$SVC/postgres && chown 70:70 /srv/docker/$SVC/postgres      # fresh empty mountpoint
 # flip <var> to 18.6-alpine, converge THIS service only — initdb runs with the pinned libc locale
 docker compose -f /opt/$SVC/docker-compose.yml up -d db                        # wait: healthy
 psql "host=... user=$U" -f /root/pg18/$SVC/roles.sql                           # trap 3: roles first
@@ -475,6 +476,15 @@ move the directory back. Keep it until the next snapshot cycle proves the new cl
 each leg that `db-backup` still dumps that cluster (it addresses services by container name, so it
 survives a name-preserving leg — but "survives" has to be read back, not assumed), and re-run the
 restore spot-check the way the Forgejo dump was proven (130 tables against production's 130).
+
+### The bind target moves with the major (this is what stopped the first leg)
+
+PG 18 images run `PGDATA=/var/lib/postgresql/18/docker` and **refuse to start** when a cluster is
+found at `/var/lib/postgresql/data`, attaching an anonymous volume at `/var/lib/postgresql` instead.
+The templates now pick the bind target from the pinned major (`pg_data_mount`), so pin and mount move
+in ONE commit; rendering at a 16 pin is byte-identical to before, which is what makes landing this
+ahead of the legs safe. Rollback after an 18 leg needs the datadir back AND the pin back - an 18
+image over a 16 cluster **crash-loops instead of failing at any gate**.
 
 **Sequencing by blast radius:** `litellm-db` → `onlyoffice-postgres` (+ the RabbitMQ 3.13 → 4.3
 question in the same window, while ONLYOFFICE is already down) → `forgejo-db` → `zipline-db` →

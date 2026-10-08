@@ -12,6 +12,13 @@
 #     authentik_password (Password: Django SECRET_KEY)
 #     authentik_login    (Login: password=<bootstrap admin password>)
 
+{# PG >= 18 official images keep the cluster in a MAJOR-VERSION-SPECIFIC dir and REFUSE to boot
+#   when data is found at the old /var/lib/postgresql/data mount (measured 2026-10-08: "in 18+, these
+#   Docker images are configured to store database data in a format which is compatible with
+#   pg_ctlcluster", plus an anonymous volume at /var/lib/postgresql). The bind target is therefore
+#   part of the version and moves WITH the pin; a pin bump alone crash-loops the database (HD-1100,
+#   proven by the first leg). Rendering on a 16 pin is byte-identical to before. #}
+{%- set pg_data_mount = "/var/lib/postgresql" if (authentik_db_version.split(".")[0] | int) >= 18 else "/var/lib/postgresql/data" -%}
 services:
   authentik-postgres:
     image: postgres:{{ authentik_db_version }}
@@ -32,7 +39,7 @@ services:
     networks:
       - db-internal
     volumes:
-      - /srv/docker/authentik/postgres:/var/lib/postgresql/data
+      - /srv/docker/authentik/postgres:{{ pg_data_mount }}
     environment:
       # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
       #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
