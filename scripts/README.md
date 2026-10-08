@@ -199,6 +199,7 @@ Every script must run natively in WSL Debian; paths use `$HOME`, `$SRC`, `$REPO`
 | `guard-session.sh` | bash | none (`mktemp`/`${TMPDIR:-/tmp}`; Windows comment only) | 🟢 portable |
 | `install-pi-wsl.sh` | bash | none (paths from `$SCRIPT_DIR`/`$HOME`; `/mnt/c` is a comment) | 🟢 portable |
 | `op-vault-export.py` | python3 | none | 🟢 portable |
+| `probe-net-manager.sh` | bash | none (ssh to hosts by short name; `/etc` reads only) | 🟢 portable |
 | `provision-secrets.py` | python3 | **`py -3` default** → now auto-detects `python3`/`py -3`/`sys.executable` and probes `import bcrypt` (falls back on a broken `BCRYPT_PY` override); HD-205 | 🟢 portable (HD-256 fix) |
 | `check_dns_seed_drift.py` | python3 | none (PyYAML + jinja2; imports `zone_kogler_si_render`) | 🟢 portable |
 | `zone_kogler_si_render.py` | python3 | none (PyYAML + jinja2, stdlib) | 🟢 portable |
