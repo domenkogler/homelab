@@ -135,7 +135,9 @@ task-specific dispatch. Do **not** bulk-read the repo.
 6. implement → `bash scripts/validate-all.sh` green → update `todo.md` + owning `docs/*.md` per
    lifecycle (the finding/✅ goes to the doc, the row keeps only the remaining `⏳` items and shrinks;
    close-out record = owning doc + commit; the frozen changelog/journal are archived)
-   → commit signed (if `Couldn't find key in agent`: `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`, then commit; CONVENTIONS §6)
+   → commit — **plain `git commit`, signing is retired (HD-1116, 2026-10-08): `commit.gpgsign=false`, never
+     `git commit -s` (that adds a `Signed-off-by` trailer, it signs nothing), and `%G?` → `N` is the expected
+     value, not a failure; CONVENTIONS §6**
 
 > **Live converges run DETACHED (HD-370 live lesson 2026-09-15):** a full `docker_services` converge
 > takes **10–30+ min** and must be launched with `nohup … &` + a log file, then polled — a foreground

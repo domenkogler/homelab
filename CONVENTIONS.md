@@ -133,18 +133,25 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   live timestamp (`git worktree add ../homelab-wt-YYYYMMDD-HHMM`). **Primary definition:** the primary
   checkout is a **merge station only** — all edits happen on a session branch inside a session worktree;
   main receives only fast-forward merges of committed, green results.
-- **Commit signing (HD-265/270/495, RETIRED by owner decision 2026-10-08, HD-1116):** commits are **not** signed — `commit.gpgsign=false`. The rule above held while the SSH signing key was registered on GitHub; the owner deleted it, so signing became a hang (git waits on an agent for a key that can no longer be validated) dressed as a policy. The mechanism documented in HD-265/270/495 stays valid as history and in [docs/deployment-secrets.md](docs/deployment-secrets.md): it is how a rebuild used to recover signing, and it is what must change if the owner ever re-registers a key.
-  The signing + auth halves are the `GitHub sign` / `GitHub auth` SSH_KEY items in the **`Homelab-ansible`**
-  vault — moved out of `Private` on 2026-10-06 (HD-495) precisely so a read-scope Service Account can pull
-  them: on any Debian seat that means **no human `op signin` and no desktop app**, which is what used to
-  make seat signing owner-gated. `user.signingkey` carries the **key-file path** when the key is
-  passphrase-free — that form signs with no agent at all, so pi, cron and converge shells work; the
-  `key::<pub>` form depends on `SSH_AUTH_SOCK` and fails with `Couldn't get agent socket?` in every
-  non-interactive shell, so keep it for a passphrase-protected key only. A shell reporting
-  `Couldn't find key in agent` → `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth` (they persist after
-  `git-bootstrap.sh --ssh-auth`; HD-300's `~/.bashrc` block re-adds them, agent memory is non-persistent).
-  Verify with `git log -1 --format='%G?'` (**G** = good) — which needs `gpg.ssh.allowedSignersFile`,
-  without which git prints `N` for every commit, signed or not. See `scripts/README.md` git-bootstrap row + HD-270 doc.
+- **Commit signing is RETIRED (HD-1116, owner decision 2026-10-08): `commit.gpgsign=false`, and a plain
+  `git commit` is the correct command.** ⚠ **Do not reach for `git commit -s`** — in git, `-s`/`--signoff`
+  adds a `Signed-off-by:` **trailer and signs nothing**; a session that mistakes it for signing leaves a
+  trailer no other commit in this history carries (measured 2026-10-08: the HD-450 alert lane did exactly
+  this, having read the pre-retirement wording below). Why it was retired: the owner deleted the SSH signing
+  key from GitHub, so `commit.gpgsign=true` stopped being a policy and became a **hang** — git waits on an
+  agent for a key that can never validate, in the shells nobody watches (cron, a converge, a pi bash call).
+  **`git log -1 --format='%G?'` returning `N` is the expected value on every commit now and is not a
+  failure** — there is nothing to verify; `gpg.ssh.allowedSignersFile` stays only so the signed history
+  still verifies. The mechanism (the `GitHub sign` / `GitHub auth` SSH_KEY items in `Homelab-ansible`, the
+  key-**file-path** vs `key::<pub>` form and why the file path was chosen, the
+  `ssh-add ~/.ssh/github_signing ~/.ssh/github_auth` recovery for a shell that still has a key to find) is
+  documented in [docs/deployment-secrets.md](docs/deployment-secrets.md) §6 (the retirement and the seat
+  test), [docs/1password.md](docs/1password.md) (the key-file vs `key::<pub>` measurement),
+  [docs/deployment-rejected.md](docs/deployment-rejected.md) (the rejected form) and the `git-bootstrap.sh`
+  row of [`scripts/README.md`](scripts/README.md) (the `--ssh-auth` plumbing and HD-300's `~/.bashrc`
+  re-add block) — kept as history and as the rebuild path, so **if the owner ever re-registers a key, those
+  and the seat template [`scripts/git/gitconfig-nightly`](scripts/git/gitconfig-nightly) are where it
+  changes, not this bullet.**
 - **A gate that cannot see the file cannot fail either — prove the probe, not the platform.** Four validators were
   silently blind on a Git-Bash/Windows seat (measured 2026-10-07, all four now fixed): MSYS opens files in **text mode**, so a
   plain `LC_ALL=C grep $'\r'` never sees the CR of a CRLF pair (`grep -U` is mandatory in every encoding guard; `cmp`/`diff`
