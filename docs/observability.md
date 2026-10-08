@@ -431,7 +431,12 @@ other 23. Fixed to the shape the general rule in §Alerting demands — unfilter
 (`time() - max_over_time(homelab_hygiene_scrape_ok[6h])`) + `gt [900]` in B, `for: 5m`, noData=Alerting
 kept — which verified live at 20:01 CEST as **five series of 12–51 s** (so: Normal when fresh, per-host
 `instance=` at ~20 min of silence, and NoData only if no host has collected in 6 h).
-⏳ **The corrected expression is not live until `monitoring` converges on the VPS.**
+✅ **Live 2026-10-08 22:13 CEST** (the VPS `monitoring` converge; Grafana restarted by the role's own handler). The read-back
+is itself the proof the shape is right: `GET /api/prometheus/grafana/api/v1/alerts` now lists this rule as **five series,
+one per host, each carrying `instance=` and all `Normal`** — before the fix it was ONE valueless `Alerting (NoData)`
+series, because a filtered result has no labels to enumerate. Fleet state after the restart: 29 rule-series, nothing
+`Alerting`/`Pending`. The end-to-end delivery read (⏳ in the HD-450 row) is still owed — this fix proves the rule
+*evaluates*, not that a firing one reaches the Signal group.
 
 **Three reads answer, and two confidently lie** (all measured the same night, so the next session does not
 re-derive them):
