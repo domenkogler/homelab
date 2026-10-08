@@ -1046,7 +1046,7 @@ nobody reads a device series as "the XFS mount".
 `set_collectors` enumerated a minimal collector list that omitted `hwmon` and
 `thermal_zone`, so `node_hwmon_*`/`node_thermal_zone_temp` were absent **for every host**
 (VM check across 30 d: 0 series) even though the sensors are live in `/sys`. Added both
-collectors (valid Alloy `prometheus.exporter.unix` collectors; spark runs Alloy v1.19.2).
+collectors (valid Alloy `prometheus.exporter.unix` collectors; spark ran Alloy 1.19.2 until the 2026-10-08 fleet pin move to 1.20.1-1 ⏳).
 Verified the exact series + label shape with a throwaway `node_exporter` v1.9.1 binary on
 spark — names and labels below are measured, not guessed:
 

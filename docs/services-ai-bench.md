@@ -129,7 +129,7 @@ must be a literal, and local providers need a dummy `api_key`. TEI instead needs
 Embed was the one leg #25(a) left alone (“already live + E2E-verified, no reason to move”), so the question is
 not *can* Vulkan do it but whether the move is worth the churn. Model: **`ggml-org/bge-m3-Q8_0-GGUF`**
 (634.6 MB, **MIT**, the official `ggml-org` org) in the **same `llama.cpp server-vulkan` image** as the
-reranker; reference = the **live** `ollama:0.32.15-rocm` `bge-m3` container, untouched, reached over
+reranker; reference = the **live** `ollama:0.32.15-rocm` (the bench ran that build; the pin is `0.35.1-rocm` since 2026-10-08) `bge-m3` container, untouched, reached over
 `llm-backend`. Corpus: 1 short query + 50 chunk-shaped Slovenian texts (~110 words each, **7 604 tokens**
 batched), both engines timed by the same wall-clock method.
 

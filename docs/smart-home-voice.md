@@ -27,7 +27,7 @@ tags: [smart-home, voice, whisper, piper]
 > **conversation** integration: ha-core PR
 > [#172960](https://github.com/home-assistant/core/pull/172960) **merged 2026-07-17**, first released in
 > **2026.8.0** — probed at the release tags, `homeassistant/components/litellm/manifest.json` is **404 at 2026.7.0
-> and 200 at 2026.8.0 / 2026.8.1** — and this repo pins `home_assistant_version: "2026.8.1"`, so the pin already
+> and 200 at 2026.8.0 / 2026.8.1** — and this repo pins `home_assistant_version` (`2026.9.4` since 2026-10-08, moved into `group_vars/all/versions.yml`), so the pin already
 > carries it. It is the exact shape #24 asks for: **the URL of any LiteLLM proxy + an optional virtual key**, and
 > the agent is usable in Assist like any other conversation agent
 > ([integration docs](https://www.home-assistant.io/integrations/litellm/)). Read from the **2026.8.1 source**, not

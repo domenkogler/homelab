@@ -100,6 +100,15 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    §What actually raises a 1Password prompt).
 6. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
+7. ⏳ **HD-1099** — fleet image-pin refresh merged 2026-10-08 (63 of 89 pins; newest stable ≥3 days
+   old, majors included, digest pins left alone by rule). The deploy IS the work and the tails are
+   migrations, not restarts: PGDATA 16→18 on five sidecars needs dump/restore first, RabbitMQ 3→4
+   cannot read the old mnesia dir, authentik is a chained-minor upgrade, homepage v1→v2 re-reads its
+   config, Alloy 1.19.2→1.20.1 on four hosts (which also closes **1094** — fleet pin raised, oldsrv's
+   override deleted). Re-derive any pin with `python3 scripts/image-pin-probe.py --verify`; it is the
+   only thing in the repo that can see a phantom pin, and two were live (`db_backup_version:
+   4.1.100`, Sunshine `v2026.821.30050-…`). Never bump a digest-pinned `*_image` — the digest is the
+   load-bearing value there.
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
 [todo-table.md](todo-table.md) §B): **1094** *(minted 2026-10-07 by the same session that shipped HD-450's exporter: `alloy_version` pins 1.19.2-1 while oldsrv had drifted to 1.20.1-1, which made every monitoring converge there die in apt. Resolved for that host; the fleet bump is the owner's call and until it is decided, the four hosts still on the pin will tell you the same way.)* · **1093** *(owner tail: rotate both SMB passwords, then land them with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually

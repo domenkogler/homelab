@@ -14,7 +14,7 @@
 
 services:
   authentik-postgres:
-    image: postgres:16-alpine
+    image: postgres:{{ authentik_db_version }}
     cap_drop:
       - ALL
     cap_add:
@@ -46,7 +46,7 @@ services:
       start_period: 30s
 
   authentik-redis:
-    image: redis:7-alpine
+    image: redis:{{ authentik_redis_version }}
     cap_drop:
       - ALL
     cap_add:

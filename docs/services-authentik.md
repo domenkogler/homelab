@@ -311,7 +311,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 
 Expiring API tokens are **auto-ROTATED by authentik itself** — a legitimate security feature,
 not an attack or bug (upstream docs: service accounts → "Expiring API tokens are rotated by
-authentik"; source branch `version-2026.5`, pinned image 2026.5.6 = same minor):
+authentik"; source branch `version-2026.5`, pinned image 2026.5.6 at authoring time = same minor; the pin is `2026.8.3` since 2026-10-08, so the derivation below is a HISTORICAL baseline — re-derive per minor before editing a blueprint):
 
 - **Scheduler:** `clean_expired_models` runs on crontab `2-59/5 * * * *` (≈ every 5 min;
   `core/apps.py`) over all `ExpiringModel` subclasses, selecting rows with `expiring=True`

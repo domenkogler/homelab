@@ -143,7 +143,7 @@ HD-62; Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models via a LiteLLM scoped key. |
 | **kapa-inspired-rag-mcp** *(stub)* | MCP hybrid reader | `services-internal` | Intended flow: hybrid search in Qdrant → top-20 → rerank via LiteLLM `jina_ai/` → top-5 clean markdown. Not implemented (**HD-268b**) — see the status block. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
-| **Ollama** | **embed fallback rung** | `llm-backend` | `ollama:0.32.15-rocm` serving `bge-m3` (1024-dim, E2E-verified, 833–899 MiB VRAM, ~500 ms/chunk). Demoted from primary by measurement (decision #27) but **kept as the documented fallback** of the same 1024-dim space. **Not** a rerank host and **not** an STT host (§9c). |
+| **Ollama** | **embed fallback rung** | `llm-backend` | `ollama:0.32.15-rocm` serving (live; pin is `0.35.1-rocm` since 2026-10-08 ⏳ — the container moves at the oldsrv converge) `bge-m3` (1024-dim, E2E-verified, 833–899 MiB VRAM, ~500 ms/chunk). Demoted from primary by measurement (decision #27) but **kept as the documented fallback** of the same 1024-dim space. **Not** a rerank host and **not** an STT host (§9c). |
 | **whisper / reranker / embed** | pinned-AI tier | `llm-backend` | oldsrv RX 7600 / Vulkan — §3a. |
 | **Mem0** *(planned)* | Long-term memory for OWUI | `services-internal` | Backed by Qdrant; per-user/per-project scoping (§5c D). Onboarding tracked in HD-335. |
 | **OpenHands** *(planned)* | Agentic coding harness | oldsrv / spark | A third coding cockpit; would be served by the LAN LiteLLM (scoped key) + a PR-only Forgejo token. |
@@ -345,7 +345,7 @@ per-consumer virtual keys (lookups are fail-closed thereafter). Specs SSOT in `g
 authored 2026-09-26) minted on 2026-09-27 when `bootstrap_keys` flipped to `true` on `lan-litellm`, and the
 glue exited 0 on that service's deploy pass. Every other call on that side still runs on the master key, and
 the pinned-AI legs still have no per-consumer caps — that is the rest of HD-384. ✅ And the record **is** consumable the moment it
-mints: HA **2026.8** ships a stock `litellm` conversation integration (this repo pins `2026.8.1`, verified at the
+mints: HA **2026.8** ships a stock `litellm` conversation integration (this repo pins `2026.9.4` since 2026-10-08; verified at the
 release tag) that takes **any proxy URL + an optional virtual key** and lists its models from `/v1/models` — so
 what the `home-assistant` row must satisfy is visibility of `spark/qwen3.8-flash-next` **to that key's
 `/v1/models`**, the same endpoint the glue probes below
@@ -898,7 +898,7 @@ picker. Root cause, measured on the box: `pi-web` is a Go binary that **shells o
 list, every chat turn, and its own self-update — and **no flag overrides that path** (`pi-web -h` offers only
 `-host -p -token/-insecure -o -version`). A systemd **user** unit gets no login shell, so it never sees
 `~/.profile`: `/proc/<pi-web>/environ` read `PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`, while
-`pi` lives inside the pinned Node tarball (`~/.local/share/pi-node/node-v22.23.2-linux-x64/bin/pi`). The
+`pi` lives inside the pinned Node tarball (`~/.local/share/pi-node/node-v22.23.3-linux-x64/bin/pi — pin bumped 2026-10-08; a seat's path changes only when `install-pi-debian.sh` next runs`). The
 failure is not subtle once you ask the API itself — A/B on the live unit, one restart each way:
 
 | `pi-on-path.conf` drop-in | `GET /api/models` | `POST /api/check-update` |
@@ -983,7 +983,7 @@ Two halves, both read from this workstation:
   maint-console leg carries a vault-vs-box credential divergence that must stay a hard failure:
   rotating a console credential is an owner act, never a side effect of converging a seat), and a
   bare-Debian rebuild is a script now, not a memory (**scripts/install-pi-debian.sh**, HD-446).
-  Both seats run **pi 1.0.3** on the same pinned Node 22.23.2 tarball, the seat's `settings.json`
+  Both seats run **pi 1.0.3** on the same pinned Node tarball (22.23.3 since 2026-10-08 ⏳, was 22.23.2), the seat's `settings.json`
   carries the [pi-harness.md](pi-harness.md) §5 block verbatim (`defaultThinkingLevel: high`, the
   900 s idle timeout, the 16 k/32 k compaction pair, the 8 k thinking budget) and a smoke turn on
   the spark leg answered, so "the seat moved" is measured, not inferred.
