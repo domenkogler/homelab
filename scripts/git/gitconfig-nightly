@@ -43,10 +43,16 @@
 	format = ssh
 [gpg "ssh"]
 	allowedSignersFile = __KEYDIR__/allowed_signers
+# Commit signing is RETIRED by owner decision 2026-10-08 (HD-1116): the SSH signing key is no
+# longer registered on GitHub, so gpgsign=true does not produce a signature, it produces a
+# HANG — git blocks on an agent that cannot validate a key the remote deleted. This file is
+# the seat default, so leaving it true meant a rebuild silently restored a broken policy
+# (HD-495's mechanism, now pointing the other way). The key FILE entries above stay for
+# reference; to bring signing back, register a key, then flip both values to true.
 [commit]
-	gpgsign = true
+	gpgsign = false
 [tag]
-	gpgsign = true
+	gpgsign = false
 [core]
 	# SHORT (8.3) PATH ON PURPOSE: Git for Windows hands sshCommand to sh, which drops the
 	# quoting and execs `C:/Program` -> "No such file or directory" (measured). Same reason

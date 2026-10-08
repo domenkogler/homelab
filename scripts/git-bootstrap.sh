@@ -321,7 +321,11 @@ EOF
       echo "==> commit signing: key:: form — the key has a passphrase, so an agent is REQUIRED"
     fi
     git config gpg.format ssh
-    git config commit.gpgsign true
+    # Commit signing RETIRED 2026-10-08 (HD-1116, owner decision): the key is gone from GitHub,
+    # so signing would hang the next non-interactive committer (cron, a converge, pi's bash).
+    # The key files and the form choice above are kept: if a key is ever re-registered, this
+    # line is the one thing that flips back.
+    git config commit.gpgsign false
     # allowed-signers so `git log --show-signature` can VERIFY our own signed commits.
     ALLOWED="$SSH_DIR/allowed_signers"
     touch "$ALLOWED" 2>/dev/null || true

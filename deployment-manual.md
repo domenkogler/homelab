@@ -188,7 +188,8 @@ set -a; . ~/.config/op/homelab-sa-token; set +a         # read-scope SA token (P
                                                         # printed — an already-running shell keeps the
                                                         # OLD value and the environment beats the file
 bash scripts/git-bootstrap.sh --ssh-auth                # idempotent; pulls both keys, ssh-adds them,
-                                                        # sets gpg.format=ssh + gpgsign=true +
+                                                        # sets gpg.format=ssh + gpgsign=false (commit signing retired —
+                                                        # [docs/deployment-secrets.md](docs/deployment-secrets.md)) +
                                                         # allowedSignersFile, and CHOOSES the
                                                         # user.signingkey form: a passphrase-free key
                                                         # gets its file path (signs with no agent), a

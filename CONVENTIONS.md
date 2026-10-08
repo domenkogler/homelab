@@ -133,7 +133,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   live timestamp (`git worktree add ../homelab-wt-YYYYMMDD-HHMM`). **Primary definition:** the primary
   checkout is a **merge station only** — all edits happen on a session branch inside a session worktree;
   main receives only fast-forward merges of committed, green results.
-- **Commit signing (HD-265/270/495):** every commit is signed (`commit.gpgsign=true`, `gpg.format=ssh`).
+- **Commit signing (HD-265/270/495, RETIRED by owner decision 2026-10-08, HD-1116):** commits are **not** signed — `commit.gpgsign=false`. The rule above held while the SSH signing key was registered on GitHub; the owner deleted it, so signing became a hang (git waits on an agent for a key that can no longer be validated) dressed as a policy. The mechanism documented in HD-265/270/495 stays valid as history and in [docs/deployment-secrets.md](docs/deployment-secrets.md): it is how a rebuild used to recover signing, and it is what must change if the owner ever re-registers a key.
   The signing + auth halves are the `GitHub sign` / `GitHub auth` SSH_KEY items in the **`Homelab-ansible`**
   vault — moved out of `Private` on 2026-10-06 (HD-495) precisely so a read-scope Service Account can pull
   them: on any Debian seat that means **no human `op signin` and no desktop app**, which is what used to

@@ -95,12 +95,12 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    → [docs/observability.md](docs/observability.md) §Silent-failure hygiene, §Alerting
 5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 442–444 · 465 — the 442–444
    rows keep owner-gated tails).
-   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently). The seat's
+   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently 's signing half retired 2026-10-08 by HD-1116: the owner deleted the key and ruled commits unsigned, so a rebuild recovers `gpgsign=false` instead of a hang — the row stays OPEN for its seat legs). The seat's
    **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
    playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself. The same session also gave the
    seat its RouterOS API path (dep in the venv + `bootstrap-runner.sh`, `ansible_python_interpreter` pinned for the `network`
    group) and wrote the four probes-that-lie into [deployment-ansible.md](docs/deployment-ansible.md) §Network devices. The row now also carries the
-   **Win11 sibling**: the modal-free signing identity is now the *seat default* — `scripts/git/gitconfig-nightly`, installed
+   **Win11 sibling** — signing SUPERSEDED 2026-10-08 by HD-1116 (the key is gone from GitHub; the same install path now lands `gpgsign=false`): the modal-free identity is still the *seat default* — `scripts/git/gitconfig-nightly`, installed
    and included last by `git-bootstrap-win11.sh --git-identity` — so a rebuild recovers it instead of losing it
    (measured dialog timings + the traps in [docs/deployment-secrets.md](docs/deployment-secrets.md)
    §What actually raises a 1Password prompt).
