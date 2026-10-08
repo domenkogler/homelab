@@ -127,14 +127,19 @@ installs `/usr/sbin/sanoid`, so every timer fire died `203/EXEC`; fixed and live
 · **HD-1105** (three enabled-but-dead units on nas: `zfs-share`, `winbind` with `smb` enabled, and `sync-authentik-users`
 with an EMPTY `ExecStart`) · **HD-1106** (20 dangling VPS volumes, 644 MB, two of them 47 MB with unverified provenance —
 not deleted; the HD-247 volume→bind pattern is the suspect) · **HD-1103 tail** (`/var/log` on pi is mode `1777`, so
-logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it). · **HD-1114** (`validate-all.sh` is red on clean `main` because `22a2cb58` retired `host-status.ts` in the repo while the seat still deploys it — a gate every session inherits red, which is how a gate dies; fix belongs to HD-1093's lane, and until then any merge carries it as a recorded known-red exception)
+logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it). · **HD-1114** (`validate-all.sh` was red on clean `main` because `22a2cb58` retired `host-status.ts` in the repo while the seat still deployed it — a gate every session inherits red is how a gate dies. **The `oldsrv` half is cleared 2026-10-08**: that seat's own `--push` removed the retired name and `validate-all.sh` exits 0 there. Left: the Win11 seat's deployed copy, removable only by a push from that box. Fix belongs to HD-1093's lane)
 
 7. ⏳ **HD-1110 tail — the pi.dev seat lane has a driver and eight planes; two live legs remain.**
    `scripts/pi-seat-sync.sh` is the one deploy path (`pi-self` now covers the pi build itself, HD-1115, and
    `update_pi.cmd` is gone). Owed, in order: run `install-pi-wsl.sh` on the `wsl` seat (its `pi` on PATH is still the
-   Windows Volta shim that dies with `volta: command not found`), get oldsrv’s clone to this commit and fix its
-   non-login `node` PATH, then one `bash scripts/pi-seat-sync.sh --push` — `STALE-CLONE` is the refusal to expect,
-   not a bug. From this laptop the oldsrv leg stays down until HD-443’s `IdentityFile` is fixed, so run it from WSL.
+   Windows Volta shim that dies with `volta: command not found`), **`oldsrv` ran 2026-10-08 FROM the seat** — all eight planes green (`pi-self` measured after the merge: 1.1.0 == pin),
+   its clone now at this commit; `node` on a bare non-login PATH is still absent (`env -i bash -c` → MISSING, a login
+   shell finds the pinned prefix), but the plane scripts read the pin prefix themselves, so that HD-446-class item
+   is no longer owed. From this laptop the oldsrv leg stays down until HD-443’s `IdentityFile` is fixed, so run it
+   from WSL — or ON the seat, where the driver's three legs are all laptop-side and read `UNREACHABLE`; §5a carries
+   the local (`planes_for_seat oldsrv`) form. The one red that run produced was `install-nerd-font.sh`'s `fc-list`
+   probe — a `grep -q` + `pipefail` SIGPIPE false red over a font that was installed AND registered, now fixed with
+   a self-test arm that goes red against the old form (HD-1110, §5a).
    NEW, owner-shaped: the Win11 seat shows `pi_auth` DRIFT — it holds an **OAuth** openrouter entry while the spec
    renders `api_key`. Mint it under the HD-484 auth lane; do not overwrite live tokens to green a check.
    [docs/pi-harness.md](docs/pi-harness.md) §1, §5, §5a · [scripts/README.md](scripts/README.md)

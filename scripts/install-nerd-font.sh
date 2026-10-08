@@ -29,7 +29,9 @@
 #                                                 nerd-fonts ships no per-asset checksum, so
 #                                                 the manifest is what makes the tag load-bearing)
 #   3. `fc-list` actually lists the family       (the EFFECTIVE half — absent fontconfig is a
-#                                                 printed SKIP, never a pass)
+#                                                 printed SKIP, never a pass). The listing is
+#                                                 CAPTURED and then searched, never piped into
+#                                                 `grep -q` — see probe_fc, that is a false red.
 #
 # MODES
 #   --check (default)  report OK / DRIFT / MISSING / STALE / UNVERIFIABLE. MISSING/STALE/
@@ -111,10 +113,24 @@ write_manifest() {
 
 # The effective half: does the font CONFIGURATION know this family? Absent fontconfig is a
 # printed SKIP — a SKIP is not a pass (the same rc contract as install-tmux-conf.sh).
+# WHY THE LISTING IS CAPTURED, NOT PIPED (live on oldsrv, 2026-10-08, HD-1110 font plane):
+# `grep -q` exits at the FIRST match. `fc-list` is still writing when that happens, so it dies of
+# SIGPIPE = rc 141, and `set -o pipefail` (top of this file) promotes the dead producer to a FAILED
+# pipeline even though grep found the family and exited 0 — the error branch then prints "the font
+# is not usable" over an install that IS usable. Measured on oldsrv, ten runs each way, the OLD form
+# `fc-list | grep -qi`: 141 every single time (10/10) with 389 families / 52,885 bytes listed — it
+# does NOT need a listing bigger than the 64 KiB pipe, because fc-list emits in chunks across its
+# cache scan and grep exits during the scan; the NEW form (capture, then search the captured text)
+# read 0 every time (10/10). The self-test's arm 8 forces the race with a fat producer, because a
+# one-line fake fc-list fits in the pipe buffer and would prove nothing (CONVENTIONS §6: a test that
+# cannot fail is not evidence).
 probe_fc() {
   if ! have "$FCLIST"; then info "fc-list: SKIP (no fontconfig here) — the file is placed, its EFFECTIVENESS is unproven"; return 2; fi
-  if "$FCLIST" 2>/dev/null | grep -qi -- "$FAMILY"; then info "fc-list      OK — '$FAMILY' is known to fontconfig"; return 0; fi
-  err "fc-list: '$FAMILY' is NOT listed — the files are on disk but the font is not usable (ran fc-cache? is the dir a font dir?)"
+  local listing fcrc note=""
+  listing="$("$FCLIST" 2>/dev/null)"; fcrc=$?
+  if printf '%s\n' "$listing" | grep -i -- "$FAMILY" >/dev/null; then info "fc-list      OK — '$FAMILY' is known to fontconfig"; return 0; fi
+  [ "$fcrc" -ne 0 ] && note=" (fc-list itself exited $fcrc — fontconfig may be broken; the search above ran over whatever it did print)"
+  err "fc-list: '$FAMILY' is NOT listed — the files are on disk but the font is not usable (ran fc-cache? is the dir a font dir?)$note"
   return 1
 }
 
@@ -262,6 +278,41 @@ self_test() {
     fi
   else
     info "push-leg         SKIP (no tar/xz here) — the install leg is unproven on this host"
+  fi
+
+  # 8. THE SIGPIPE ARM (HD-1110's font plane, live on oldsrv 2026-10-08). `grep -q` exits at the
+  #    first match; if the producer still has bytes, it dies of SIGPIPE (rc 141) and `set -o
+  #    pipefail` turns a SUCCESSFUL search into a failed pipeline — the false red that made a
+  #    working font read "not usable". The fake below puts the family FIRST and then pushes
+  #    ~160 KB of filler while counting its chunks into probe-progress, so this arm can tell the
+  #    two green outcomes apart: a producer that wrote every chunk proves the pipe was drained,
+  #    a truncated counter on a GREEN run means this host's pipe buffer absorbed the listing and
+  #    the race was never provoked here (still green, but weaker evidence — stated, not hidden).
+  #    Measured proof that this arm bites: with the pre-fix piped form it fails red here.
+  local race_lines=800
+  cat > "$tmp/fc-fat" <<EOS
+#!/bin/sh
+printf '%s: style=Regular\n' '$FAMILY'
+i=0
+while [ "\$i" -lt $race_lines ]; do
+  printf '%s\n' 'filler 01234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890'
+  echo "\$i" > '$tmp/probe-progress'
+  i=\$((i+1))
+done
+exit 0
+EOS
+  chmod +x "$tmp/fc-fat"
+  mk_fake "$tmp/race"; rm -f "$tmp/probe-progress"
+  out="$(NERD_FONT_DIR="$tmp/race" NERD_FONT_CACHE="$tmp/race/.cache" NERD_FCLIST="$tmp/fc-fat" \
+          bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --check --strict 2>&1)"; rc=$?
+  wrote="$(sed -n '1p' "$tmp/probe-progress" 2>/dev/null || true)"; wrote="${wrote:-0}"
+  if [ "$rc" -ne 0 ]; then
+    err "canary: a family fontconfig DOES list read as NOT usable (rc $rc) — probe_fc must drain the pipe, not pipe into grep -q"
+    fails=$((fails+1))
+  elif [ "$wrote" -lt $((race_lines - 1)) ]; then
+    info "sigpipe-drain    GREEN (producer reached $((wrote+1))/$race_lines chunks — race NOT provoked on this host, the pipe buffer absorbed it)"
+  else
+    info "sigpipe-drain    GREEN — all $race_lines filler chunks written, the producer survived the search (rc 141 is what killed it before)"
   fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"

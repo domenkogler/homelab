@@ -406,6 +406,37 @@ answerable from an extension, and this section is the only place that fact is wr
   the terminal runs on the machine you type from. Having the font installed is not the same as the
   terminal selecting it: that stays a `fontFace` choice in the terminal profile, and `unicode` mode
   is the documented fallback when a box has no patched font.
+- **The font plane was red on a seat that had the font — `grep -q` + `pipefail` (HD-1110, live on
+  oldsrv 2026-10-08).** The effectiveness probe was `fc-list | grep -qi "$FAMILY"`. `grep -q` exits at
+  the FIRST match; `fc-list` is still writing, so it dies of SIGPIPE (rc **141**), and `set -o
+  pipefail` promotes the dead producer to a failed pipeline even though grep found the family and
+  returned 0 — so the script printed "the files are on disk but the font is not usable" over an
+  install that was placed, hashed, AND registered. Measured ten runs each way on the seat: the piped
+  form **141 ten times out of ten**, the fixed form (capture the listing, then search the captured
+  text — the producer is then finished before grep starts, so there is no race) **0 ten times out of
+  ten**. Two things make this a rule and not a one-liner: it bit at **52,885 bytes / 389 families**,
+  well under the 64 KiB pipe, because `fc-list` emits in chunks across its cache scan and grep exits
+  during the scan; and the self-test could not see it, because its fake `fc-list` printed ONE line,
+  which fits in the pipe buffer — the same "a test that cannot fail is not evidence" trap as §5b's
+  `-eq 1` (CONVENTIONS §6). Self-test arm 8 now breeds it (family first, ~160 KB of filler after it,
+  counting chunks so a GREEN can tell "drained" from "this host's buffer absorbed it"), and it fails
+  red against the pre-fix probe. **Generalise: under `pipefail`, never `producer | grep -q`** — the
+  early exit is a bug in the probe, never news about the producer.
+  **LIVE on oldsrv 2026-10-08:** all eight planes green run from the seat (`pi-self` included, measured after the
+  merge — 1.1.0 == the `pi_host_npm_version` pin), and `validate-all.sh`
+  exits 0 there with the retired `host-status.ts` gone — that clears HD-1114's `oldsrv` half; the
+  Win11 seat's deployed copy is still owed, and only a push from that box can remove it.
+- **Running the driver ON the oldsrv box (seat == host, 2026-10-08):** all three of
+  [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh)'s legs are laptop-side — `win11` is "this
+  shell" only on the Windows workstation, `wsl` needs `wsl.exe`, and `oldsrv` sshes to `oldsrv-domen`,
+  an alias that exists in the *workstation's* ssh config. Run the driver on oldsrv itself and every
+  leg reads `UNREACHABLE` (rc 1) with three different true reasons, which is the fail-closed contract
+  working, not a broken seat. From the seat, run that seat's own plane list locally instead — the same
+  seven commands `planes_for_seat oldsrv` prints, in the same order, from the same clone (pre-flight
+  still applies: the clone must be at `origin/main`). One seat-side failure is NOT the repo's fault:
+  the `models` plane resolves credentials at render time, so a `TLS handshake timeout` from `op` is a
+  transient 1Password/network fault — retry it, and never reach for `--keep-legacy-credentials`, which
+  would paper over a provider the spec expects to be managed.
 - **Proven, not assumed:** with the file in `~/.pi/agent/extensions/`, `pi --mode rpc` with an empty
   stdin emits
   `{"type":"extension_ui_request","method":"setStatus","statusKey":"host","statusText":"@ oldsrv"}`.
