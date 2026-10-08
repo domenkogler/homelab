@@ -1,4 +1,4 @@
-# traefik — oldsrv file-provider routes (deployed as /opt/traefik/dynamic/routes.yml)
+# traefik — VPS public-edge file-provider routes (deployed as /opt/traefik/dynamic/routes.yml)
 #
 # `ha` takeover route: after a forward takeover (Pi down → oldsrv owns VIP
 # {{ ha_vip }}), oldsrv's `traefik` serves ha.kogler.si → VIP:8123. Semantics
@@ -9,7 +9,33 @@
 # In NORMAL operation the VIP is on the Pi, so this route is quiescent (no clients
 # resolve ha.kogler.si to oldsrv); it only becomes live once the VIP + HA-standby
 # are up here after takeover. backends bind the VIP, never a per-node IP.
+#
+# HD-1095 — the **home-hosted media group** (media / seerr / seerrng) is served HERE too.
+# Until 2026-10-07 this edge had no router for those names while the VPS Technitium primary
+# kept answering them with `dns_primary_ip`, so every client whose first resolver is the VPS
+# — i.e. every VLAN except the Home one, and every away session — got Traefik's 404 for a
+# service that was healthy one hop away. Split-horizon answer and edge route must agree;
+# this block is the agreeing half.
+#   - Backend = the HOME EDGE (`traefik-internal`, host-net on oldsrv), reached over the
+#     WG S2S tunnel, NOT a local socket: Jellyfin publishes on loopback only (HD-419), so a
+#     direct backend URL here would be a dead port. The home edge then applies its own route
+#     table, which is what keeps one behaviour for LAN and WAN clients.
+#   - `servername` is mandatory: the backend URL is an ADDRESS, and without an explicit SNI
+#     Go verifies the wildcard against the IP and the handshake fails. It is a
+#     serversTransport field, so one transport per name.
+#   - `crowdsec-only@file` per security.md §1 law: a route that skips Forward-Auth because it
+#     has its own login (Jellyfin/Seerr) must still carry the bouncer. This is now an
+#     INTERNET-FACING login surface by owner decision (2026-10-07) — see network-vpn.md
+#     §Mobile/media reach for what that re-decided.
 http:
+  serversTransports:
+    home-edge-media:
+      servername: media.kogler.si
+    home-edge-seerr:
+      servername: seerr.kogler.si
+    home-edge-seerrng:
+      servername: seerrng.kogler.si
+
   routers:
     ha:
       rule: "Host(`ha.kogler.si`)"
@@ -26,8 +52,85 @@ http:
 {% endif %}
       # NOTE: no authentik-forward-auth@file on the ha route
 
+    # --- HD-1095: home-hosted media group, proxied to the home edge over WG S2S ---
+    media:
+      rule: "Host(`media.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only@file   # own login (client apps cannot sit behind Forward-Auth) — HD-60 law
+      service: media-backend
+{% if traefik_acme_issuer is defined and traefik_acme_issuer %}
+      tls:
+        certResolver: letsencrypt
+{% else %}
+      tls: {}
+{% endif %}
+    seerr:
+      rule: "Host(`seerr.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only@file   # Jellyfin-backed login, no Forward-Auth — HD-60 law
+      service: seerr-backend
+{% if traefik_acme_issuer is defined and traefik_acme_issuer %}
+      tls:
+        certResolver: letsencrypt
+{% else %}
+      tls: {}
+{% endif %}
+    seerrng:
+      rule: "Host(`seerrng.kogler.si`)"
+      entryPoints:
+        - websecure
+      middlewares:
+        - crowdsec-only@file   # as above
+      service: seerrng-backend
+{% if traefik_acme_issuer is defined and traefik_acme_issuer %}
+      tls:
+        certResolver: letsencrypt
+{% else %}
+      tls: {}
+{% endif %}
+
+    # HD-1095 Fix B — :80 → :443 on this edge. ⚠ The rule syntax is the WHOLE finding:
+    # Traefik v3 does NOT understand the v2 `{host:.+}` template. `HostRegexp(`{host:.+}`)`
+    # parses, the router reports `enabled`, and it matches NOTHING — proven 2026-10-07 in a
+    # throwaway v3.7.11 container on this host (404 with the template, 301 with the plain
+    # regex below). Same class as the spark-edge row in docs/services-rejected.md, which drew
+    # the harsher conclusion ("rules must name the host"); a v3-VALID catch-all does exist.
+    http-redirect:
+      rule: "HostRegexp(`.+`)"
+      entryPoints:
+        - web
+      middlewares:
+        - redirect-to-https
+      service: noop@internal
+
   services:
     ha-backend:
       loadBalancer:
         servers:
           - url: "http://{{ ha_vip }}:8123"
+
+    # The home edge is dialled BY ADDRESS over wg-s2s; passHostHeader keeps the Host the
+    # client used so the home edge's own Host rules match (verified from this edge's network
+    # namespace: GET https://<oldsrv home address>/ with SNI+Host=media → 302, cert verified).
+    media-backend:
+      loadBalancer:
+        serversTransport: home-edge-media
+        passHostHeader: true
+        servers:
+          - url: "https://{{ oldsrv_home_ip }}:443"
+    seerr-backend:
+      loadBalancer:
+        serversTransport: home-edge-seerr
+        passHostHeader: true
+        servers:
+          - url: "https://{{ oldsrv_home_ip }}:443"
+    seerrng-backend:
+      loadBalancer:
+        serversTransport: home-edge-seerrng
+        passHostHeader: true
+        servers:
+          - url: "https://{{ oldsrv_home_ip }}:443"

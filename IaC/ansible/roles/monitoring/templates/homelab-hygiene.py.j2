@@ -1,0 +1,200 @@
+#!/usr/bin/env python3
+"""HD-450 — the two things that can age out silently, turned into series.
+
+Found closing HD-350: oldsrv's `traefik-cert-pull.timer` failed every 15 min for DAYS while the wildcard
+pair sat on a 26-day-old copy, and nothing in the stack could see either half — a systemd unit's result is
+not scraped at all, and the cert pair a CONSUMER holds is not exported anywhere (the one cert rule,
+`ssl-cert-expiring`, reads `probe_ssl_earliest_cert_expiry`, which has ZERO series because blackbox emits
+no SSL expiry). This exporter is the collector for both.
+
+    homelab_unit_last_success{unit="traefik-cert-pull.service"}   1 | 0
+    homelab_unit_result{unit="…", result="success|failed|missing"} 1
+    homelab_cert_days_left{consumer="traefik-internal"}           44.2
+    homelab_cert_pair_present{consumer="traefik-internal"}        1 | 0
+    homelab_hygiene_scrape_ok                                    <unix ts of this collection>
+
+WHY A BINARY EXPORTER AND NOT A TEXTFILE FILE (the obvious cheaper shape): Alloy's
+`prometheus.exporter.unix` here accepts a `textfile {}` block but rejects every attribute name that
+would point it at a directory (`collectors_dir`, `directories`, `paths`, `files`, `syntax_version` —
+probed against v1.20.1 on the box, each `unrecognized attribute name`, while `textfile {}` with no body
+parses), so a textfile leg would have meant shipping the collector blind, to a default directory nobody
+could name. This file therefore follows the shape the SAME role already proves live — the HD-343
+network-clients exporter: a stdlib-only host binary on a loopback port, scraped by this host's Alloy.
+
+FAIL-LOUD BY CONSTRUCTION, because a monitor that reports "healthy" about something it cannot see is how
+the 2026-09 incident lasted four days:
+  * a listed unit that does not EXIST reports last_success=0 with result="missing" — a unit that never
+    runs is the purest form of the class, so being wrong about the list costs a visible alert, never
+    silence;
+  * a cert pair that is absent or unreadable emits `…_pair_present = 0` rather than a NaN days-left
+    value: NaN parses, and `NaN < 14` is false, so a vanished pair would have read as "not expiring";
+  * `homelab_hygiene_scrape_ok` is the collector's own heartbeat — this exporter is a systemd service,
+    i.e. the same failure class, and `time() - heartbeat > 900` is the rule that watches itself.
+
+Collection happens per scrape (four subprocesses, single-digit ms): no cache to go stale, no second
+timer to fail silently. Read-only throughout — `systemctl show` and `openssl x509 -enddate`, no writes.
+"""
+import datetime
+import email.utils
+import http.server
+import json
+import os
+import subprocess
+import sys
+import urllib.parse
+
+UNITS = {{ monitoring_hygiene_units | to_json }}
+CERTS = {{ monitoring_hygiene_certs | to_json }}
+LISTEN = ("{{ monitoring_hygiene_listen }}", {{ monitoring_hygiene_port }})
+
+
+def show(unit: str) -> dict:
+    """`systemctl show` for one unit as a dict (key=value lines; NOT `--value`, so a key the unit does
+    not have stays distinguishable from an empty one). stderr is kept under `_err` so a failed
+    invocation is explainable in the log instead of becoming a silent "healthy"."""
+    r = subprocess.run(
+        ["systemctl", "show", unit, "-p", "LoadState", "-p", "ActiveState", "-p", "Result"],
+        capture_output=True, text=True, check=False,
+    )
+    out: dict = {"_err": (r.stderr or "").strip()[:140]}
+    for line in (r.stdout or "").splitlines():
+        if "=" in line:
+            k, _, v = line.partition("=")
+            out[k.strip()] = v.strip()
+    return out
+
+
+def sel(labels: str) -> str:
+    """`{labels}` ASSEMBLED rather than written. This file is a Jinja template, so a literal brace
+    followed by `%` anywhere in it is parsed as a statement — the first draft of this file failed the
+    converge that proved it: a format placeholder that began with a brace-percent was parsed as a Jinja
+    statement and the template died with `Encountered unknown tag 's'`."""
+    return "{" + labels + "}"
+
+
+def unit_lines(unit: str) -> list[str]:
+    st = show(unit)
+    load, active, result = st.get("LoadState", ""), st.get("ActiveState", ""), st.get("Result", "")
+    if not load:
+        # `systemctl show` gave nothing at all (bad sandboxing, a systemd we cannot talk to). Reporting
+        # "success" here would be the fail-open version of the very bug this row hunts, so it alerts.
+        print("WARN: no systemctl output for %s (%s)" % (unit, st.get("_err", "")), file=sys.stderr)
+        ok, reason = 0, "unknown"
+    elif load in ("not-found", "masked"):
+        # Not "fine": nothing runs here, so nothing can fail. `masked` is included for the same reason
+        # — HD-450's own incident class is a unit that answers "inactive" while doing no work.
+        ok, reason = 0, "missing"
+    elif active == "failed" or (result and result != "success"):
+        ok, reason = 0, "failed"
+    else:
+        ok, reason = 1, result or "success"
+    q = sel('unit="%s"' % unit)
+    return [
+        "# HELP homelab_unit_last_success 1 when the unit exists and its last run succeeded (HD-450).",
+        "# TYPE homelab_unit_last_success gauge",
+        "homelab_unit_last_success%s %d" % (q, ok),
+        'homelab_unit_result%s %s' % (sel('unit="%s", result="%s"' % (unit, reason)), "1"),
+    ]
+
+
+def _as_utc(value: str):
+    """Both forms openssl prints, and neither may silently become a naive local-time datetime: a naive
+    parse shifts the age by the host's UTC offset, which on a two-week threshold is a day of slop."""
+    v = value.strip()
+    for suffix in ("Z", " GMT", " UTC"):            # `-dateopt iso_8601` → "2026-11-20 20:45:49Z"
+        if v.endswith(suffix):
+            try:
+                dt = datetime.datetime.fromisoformat(v[: -len(suffix)].strip().replace(" ", "T"))
+                return dt if dt.tzinfo else dt.replace(tzinfo=datetime.timezone.utc)
+            except ValueError:
+                pass
+    try:                                            # default form → "Nov 20 12:00:00 2026 GMT"
+        dt = email.utils.parsedate_to_datetime(value)
+        return dt if dt.tzinfo else dt.replace(tzinfo=datetime.timezone.utc)
+    except (TypeError, ValueError):
+        return None
+
+
+def cert_exdate(path: str) -> datetime.datetime:
+    """notAfter of a PEM. `-dateopt iso_8601` keeps the parse unambiguous; the second attempt covers an
+    openssl too old for the flag (openssl < 3.0 printed only the RFC-822-ish default form)."""
+    base = ["openssl", "x509", "-in", path, "-noout", "-enddate"]
+    err = ""
+    for extra in (["-dateopt", "iso_8601"], []):
+        r = subprocess.run(base + extra, capture_output=True, text=True, check=False)
+        err = (r.stderr or "").strip()[:120]
+        line = (r.stdout or "").strip()
+        if "notAfter=" in line:
+            dt = _as_utc(line.split("notAfter=", 1)[1])
+            if dt:
+                return dt
+    raise ValueError("no parseable notAfter from %s (%s)" % (path, err))
+
+
+def cert_lines(consumer: str, path: str) -> list[str]:
+    q = sel('consumer="%s"' % consumer)
+    head = [
+        "# HELP homelab_cert_pair_present 1 when the cert pair this consumer edge loads exists (HD-450).",
+        "# TYPE homelab_cert_pair_present gauge",
+        "# HELP homelab_cert_days_left Days until this consumer's cert pair expires (HD-450).",
+        "# TYPE homelab_cert_days_left gauge",
+    ]
+    if not os.path.isfile(path):
+        return head + ["homelab_cert_pair_present%s 0" % q]
+    try:
+        days = (cert_exdate(path) - datetime.datetime.now(datetime.timezone.utc)).total_seconds() / 86400.0
+    except Exception as exc:                        # unreadable / not a cert / clock nonsense
+        print("WARN: %s: %s" % (path, exc), file=sys.stderr)
+        return head + ["homelab_cert_pair_present%s 0" % q]
+    return head + [
+        "homelab_cert_pair_present%s 1" % q,
+        "homelab_cert_days_left%s %.2f" % (q, days),
+    ]
+
+
+def render() -> str:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    lines: list[str] = []
+    for unit in UNITS:
+        lines += unit_lines(unit)
+    for cert in CERTS:
+        lines += cert_lines(cert["consumer"], cert["path"])
+    lines += [
+        "# HELP homelab_hygiene_scrape_ok Unix time of this collection — the collector's own heartbeat.",
+        "# TYPE homelab_hygiene_scrape_ok gauge",
+        "homelab_hygiene_scrape_ok %d" % now.timestamp(),
+    ]
+    return "\n".join(lines) + "\n"
+
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    # The one exception to collecting on the request: a probe of the listening socket must not pay for
+    # the subprocesses, and must not advance the heartbeat (that would hide a stalled collector).
+    def do_GET(self) -> None:                      # noqa: N802 (stdlib name)
+        path = urllib.parse.urlparse(self.path).path
+        body = b"ok\n" if path == "/-" else render().encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; version=0.0.4")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, fmt: str, *args) -> None:
+        sys.stderr.write("http: " + (fmt % args) + "\n")
+
+
+def main() -> int:
+    # Fail at start, not at scrape time: a list that arrived unrendered means the template was copied
+    # without Ansible, and 0 series would otherwise look like "nothing to watch".
+    if "{" + "{" in json.dumps([UNITS, CERTS]):
+        print("FATAL: the config lines are still Jinja — run this through the role, not by hand", file=sys.stderr)
+        return 3
+    srv = http.server.ThreadingHTTPServer(LISTEN, Handler)
+    print("homelab-hygiene exporter on http://%s:%s/metrics · %d unit(s), %d cert(s)"
+          % (LISTEN[0], LISTEN[1], len(UNITS), len(CERTS)), flush=True)
+    srv.serve_forever()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

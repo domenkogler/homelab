@@ -203,7 +203,26 @@
 #                                     like items 13/27: with no ~/.tmux.conf on the host it SKIPs (a
 #                                     stateless runner has no seat here); ineffectiveness fails in every
 #                                     mode because it is a defect, not a seat state.
-#   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197)
+#  30. check_yaml_dup_keys.py    — HD-1098: no YAML mapping may declare the same key twice.
+#                                     Ansible resolves a duplicate key by KEEPING THE LAST one and
+#                                     printing `[WARNING]: Found duplicate mapping key … Using last
+#                                     defined value only.` — the playbook still runs, --syntax-check
+#                                     still passes, so the FIRST definition is dead text that keeps
+#                                     looking authoritative (CONVENTIONS §6's silent-failure class).
+#                                     Three were live on 2026-10-08, none caught by any gate: a task
+#                                     in roles/monitoring with two `tags:` (HD-450's hygiene-exporter
+#                                     task silently lost the `hygiene` tag) and two fragment vars in
+#                                     group_vars/spark.yml defined twice by a duplicated section.
+#                                     Walks the RAW node tree (compose_all), not loader hooks — a hook
+#                                     version of this check saw 1 of the 3. `--self-test` breeds the
+#                                     canary shapes, pins the legal near-misses (merge keys `<<`,
+#                                     sibling mappings, multi-doc, Jinja scalars) and proves the
+#                                     corpus was actually walked. Archives (brainstorming/,
+#                                     docs/assets/references/, reports/) are excluded by path.
+#   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
+#                                     kept and the duplicate-mapping-key warning fails the run, the
+#                                     second witness for HD-1098 (it sees role task files as ansible
+#                                     loads them, at no extra ansible cost).
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
 set -euo pipefail
@@ -420,6 +439,12 @@ $PY scripts/check_doc_path_refs.py
 echo "== check_doc_path_refs.py --self-test (HD-490 canary) =="
 $PY scripts/check_doc_path_refs.py --self-test
 
+echo "== check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op) =="
+$PY scripts/check_yaml_dup_keys.py
+
+echo "== check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe) =="
+$PY scripts/check_yaml_dup_keys.py --self-test
+
 echo "== spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate) =="
 # The gate proves the ARITHMETIC; this proves the RENDER. A profile can satisfy every
 # invariant and still render an engine that boots for 20 minutes and then cannot find its
@@ -523,9 +548,27 @@ REPO_ROOT="$(pwd)"
 export ANSIBLE_CONFIG="$REPO_ROOT/IaC/ansible/ansible.cfg"
 export ANSIBLE_ROLES_PATH="$REPO_ROOT/IaC/ansible/roles"
 if command -v ansible-playbook >/dev/null 2>&1 && ansible-playbook --version >/dev/null 2>&1; then
+  # HD-1098: ansible's own parser is the second witness for duplicate mapping keys. It prints
+  # `Found duplicate mapping key … Using last defined value only.` on stderr and carries on, so
+  # the warning has to be caught here or the FIRST definition silently stays dead.
+  ANSIBLE_ERR_LOG="$(mktemp)"
   for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
-    ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check >/dev/null
+    rc=0
+    ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check >/dev/null 2>"$ANSIBLE_ERR_LOG" || rc=$?
+    if grep -q "Found duplicate mapping key" "$ANSIBLE_ERR_LOG"; then
+      echo "FAIL: ansible reported a duplicate mapping key while parsing $pb — it keeps the LAST"
+      echo "      definition and drops the first, so the earlier one is dead (HD-1098):"
+      grep -A3 "Found duplicate mapping key" "$ANSIBLE_ERR_LOG" | sed 's/^/  /'
+      rm -f "$ANSIBLE_ERR_LOG"; exit 1
+    fi
+    if [ "$rc" -ne 0 ]; then
+      # unchanged HD-197 semantics: a real syntax failure still stops the run (the duplicate-key
+      # leg above must not have turned this loop into a warning collector)
+      cat "$ANSIBLE_ERR_LOG" >&2
+      rm -f "$ANSIBLE_ERR_LOG"; exit "$rc"
+    fi
   done
+  rm -f "$ANSIBLE_ERR_LOG"
   echo "OK: all playbooks pass --syntax-check"
 else
   echo "SKIP: ansible-playbook not functional on this host (absent or native-Windows WinError 87) — syntax gate runs under WSL/CI"

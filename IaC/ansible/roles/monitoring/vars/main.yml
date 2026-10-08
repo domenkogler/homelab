@@ -16,6 +16,58 @@ network_clients_scrape_interval: 45
 # source must still page).
 grafana_alert_rules:
   critical:
+    # ---- HD-450: the two silent-failure classes this stack could not see (live from 2026-10-07) ----
+    # Series come from /usr/local/sbin/homelab-hygiene.py → the Alloy textfile collector on each
+    # monitoring host (roles/monitoring/tasks/main.yml §HD-450). Before this, a cert-pull timer could
+    # fail every 15 min for DAYS with no series changing anywhere.
+    - uid: cert-pair-missing
+      title: Consumer edge holds no cert pair
+      for: 5m
+      expr: "homelab_cert_pair_present == 0"
+      summary: !unsafe "Cert pair absent on consumer {{ $labels.consumer }} ({{ $labels.instance }}) — the pull never landed"
+      # The absent-file case gets its OWN series rather than a NaN days-left value: NaN parses fine and
+      # `NaN < 14` is false, so a vanished pair would have read as "not expiring".
+      noDataState: OK
+      execErrState: Error
+      eval_type: lt
+      eval_params: [1]
+    - uid: cert-age-critical
+      title: Consumer cert pair nearly expired
+      for: 10m
+      expr: "homelab_cert_days_left < 7"
+      summary: !unsafe "Cert on {{ $labels.consumer }} ({{ $labels.instance }}) expires in under 7 days"
+      # ⚠ 7, and the warning twin is 14 — NOT the 30/14 the row proposed. MEASURED 2026-10-07: the
+      # wildcard pair is a 90-day cert (notBefore 2026-08-22 → notAfter 2026-11-20) and the issuer
+      # renews late in that window, so a HEALTHY consumer's days-left bottoms out around three weeks.
+      # A 30-day warning would have fired for days before every scheduled renewal — which is how an
+      # alert class gets muted. RE-DERIVE both if the pair lifetime or the renewal threshold changes.
+      noDataState: OK
+      execErrState: Error
+    - uid: hygiene-collector-stale
+      title: Silent-failure collector stopped reporting
+      # for 5 m (was 15 m): the threshold is in A now, so `for` is only the anti-jitter hold — the page
+      # lands ~20 min after the last successful collection (900 s + 5 m), not 30.
+      for: 5m
+      # ⚠ UNFILTERED on purpose. The OLD shape (`time() - homelab_hygiene_scrape_ok > 900`, `for: 15m`)
+      # was MEASURED wrong in both directions and paged the family every 30 min for 19 h on a fleet that
+      # was healthy on all five hosts (2026-10-08 01:13 → 20:00 CEST, `activeAt` never moved,
+      # `Value: [no value]`, no `instance=`). Two independent bugs in one line:
+      #  (a) a FILTERED-EMPTY result is the same NoData state as no-series, so with noData=Alerting the
+      #      rule fired exactly WHEN EVERYTHING WAS FRESH. The comparison therefore lives in the
+      #      threshold expression (B, `eval_type`/`eval_params` below) — the shape
+      #      spark-host-mem-oom-critical further down already uses and which reads Normal.
+      #  (b) a plain selector cannot age: the 5-min staleness horizon drops the last heartbeat TEN
+      #      MINUTES BEFORE a 900 s threshold is reachable, so a dead collector could only ever reach
+      #      this rule as NoData — paging without ever naming which host went blind. `max_over_time[6h]`
+      #      keeps a silent host visible for 6 h, so the page now carries `instance=`.
+      # noData=Alerting stays, now honestly: every leg reports healthy → A has a value → Normal; A is
+      # empty only when NO host has collected in 6 h, which IS the blind-coverage case.
+      expr: "time() - max_over_time(homelab_hygiene_scrape_ok[6h])"
+      summary: !unsafe "homelab-hygiene collector stale on {{ $labels.instance }} (no collection for >15 min) — unit-result and cert-age coverage is blind there"
+      noDataState: Alerting
+      execErrState: Error
+      eval_type: gt
+      eval_params: [900]
     - uid: ups-battery-low
       title: UPS battery low
       for: 1m
@@ -146,6 +198,29 @@ grafana_alert_rules:
       eval_type: lt
       eval_params: [8]
   warning:
+    # ---- HD-450 (thresholds + source series: see the critical twins above) ----
+    - uid: unit-last-result-failed
+      title: Systemd unit's last run failed
+      for: 5m
+      expr: "homelab_unit_last_success == 0"
+      summary: !unsafe "{{ $labels.unit }} on {{ $labels.instance }}: last run did not succeed (result={{ $labels.result }})"
+      # The leg that hid the HD-350 incident for four days: `is-active` answers "inactive" for a healthy
+      # oneshot, so only the RESULT distinguishes "ran fine" from "failed and will be retried".
+      # result="missing" means the unit is not installed on that host — listed-but-absent alerts on
+      # purpose, so a wrong list is a visible alert and never a silent pass.
+      noDataState: OK
+      execErrState: Error
+      eval_type: lt
+      eval_params: [1]
+    - uid: cert-age-warning
+      title: Consumer cert pair aging
+      for: 30m
+      expr: "homelab_cert_days_left < 14"
+      summary: !unsafe "Cert on {{ $labels.consumer }} ({{ $labels.instance }}) expires in under 14 days"
+      # Below the measured renewal floor (~3 weeks on a 90-day pair), so it says "a renewal was MISSED",
+      # not "a renewal is due". See cert-age-critical for the numbers.
+      noDataState: OK
+      execErrState: Error
     # Pre-stage of the critical rule above, same gauge, same source of truth. Gives the
     # owner room to route agent sessions off spark before the governor has to act.
     - uid: spark-host-mem-oom-warning

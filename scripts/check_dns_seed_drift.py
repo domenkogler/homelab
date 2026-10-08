@@ -81,6 +81,15 @@ LAN_ONLY = {
     "aurral.kogler.si": None,                  # oldsrv_home_ip — music discovery (HD-362)
     "slskd.kogler.si": None,                   # oldsrv_home_ip — Soulseek daemon UI (HD-362)
     "lidarr-ydl.kogler.si": None,              # oldsrv_home_ip — YouTube->Lidarr (HD-362)
+    # HD-1097 (2026-10-07): the HOST names. Before this row the LAN zone answered service
+    # names only, so `nas.kogler.si` was NXDOMAIN and `\\nas\media` rode the NetBIOS/LLMNR
+    # broadcast fallback — fine on a wired port, gone on Wi-Fi (measured: mount by IP works,
+    # by name does not). Each answers its own machine's Home address, which a peer outside the
+    # home cannot route to → LAN-only, exactly like the Cockpit surfaces above.
+    "nas.kogler.si": None,                     # nas_home_ip
+    "oldsrv.kogler.si": None,                  # oldsrv_home_ip
+    "pi.kogler.si": None,                      # pi_home_ip
+    "router.kogler.si": None,                  # router_home_ip (the Home-leg gateway address)
 }
 
 # Documented record classes -> expected target resolution, per instance (docs/network-dns.md).
@@ -96,6 +105,14 @@ TAILNET = {"stats", "logs", "csui", "traefik", "auto"}
 # target is the oldsrv Home IP; on the VPS PRIMARY they are gated out (lan_only) — see the note in
 # LAN_ONLY above for why they are not in the family's HOME_HOSTED class.
 TRIO = {"aurral.kogler.si", "slskd.kogler.si", "lidarr-ydl.kogler.si"}
+# HD-1097 — a host name must answer that host's Home address (never a shared edge address):
+# a name that resolves to the wrong machine mounts the wrong tree, which is worse than NXDOMAIN.
+HOST_RECORDS = {
+    "nas.kogler.si": "nas",
+    "oldsrv.kogler.si": "oldsrv",
+    "pi.kogler.si": "pi",
+    "router.kogler.si": "router",
+}
 # NOTE: `pi-oldsrv` is absent from every set here, and `cockpit-nas` is absent from TAILNET — but
 # not from this file entirely: the PLAIN `cockpit-nas.kogler.si` sits in LAN_ONLY above, and it is its
 # `.ts` twin that must never be seeded. Two names, two questions; do not "tidy" one into the other.
@@ -198,6 +215,10 @@ def main() -> int:
         # nas has no `nas_home_ip` var in older shapes; the derived list defines it as the
         # selectattr over network_static_hosts, which the resolver already expanded.
         "nas": _ctx_home.get("nas_home_ip") or _host_ip(gv, "nas", 10),
+        # HD-1097 host records — each host name must answer its OWN Home address, so the
+        # contract needs one expectation per machine, not a shared expression.
+        "pi": _ctx_home.get("pi_home_ip") or _host_ip(gv, "pi", 10),
+        "router": _ctx_home.get("router_home_ip") or _host_ip(gv, "router", 10),
         "tailnet": _ctx_primary.get("tailnet_sidecar_ip", DEFAULT_TAILNET),
     }
     rendered = {inst: {} for inst in INSTANCES}
@@ -230,6 +251,8 @@ def main() -> int:
                         target = EXPECT["oldsrv"]
                     elif name == "cockpit-nas.kogler.si":      # HD-188 Cockpit on nas
                         target = EXPECT["nas"]
+                    elif name in HOST_RECORDS:                 # HD-1097 host names
+                        target = EXPECT[HOST_RECORDS[name]]
                     else:
                         target = LAN_ONLY[name]
                     _check(name, ip, {"expect": target, "all": False, "home": True}, findings, inst)

@@ -202,7 +202,7 @@ update, or queries keep 401-ing despite correct rendered files.
 | Logs | Alloy → VictoriaLogs | VictoriaLogs (90d, Kopia) |
 | RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) (HD-313) |
 | Live logs (ops day-to-day tail) | Dozzle viewers — VPS `logs.kogler.si` (tailnet) + home hub `llogs.kogler.si` (LAN, oldsrv, pi/spark agents) | ephemeral — nothing persisted |
-| Alerts | Grafana Alerting → n8n → Signal/email | alert delivery |
+| Alerts | Grafana Alerting → n8n → Matrix (target) / Signal / email | alert delivery — **channel ruled 2026-10-08: Matrix/Element becomes the delivery surface (HD-1108)** |
 | Display | Grafana + Homepage | — |
 
 ---
@@ -218,6 +218,16 @@ update, or queries keep 401-ing despite correct rendered files.
   **inline** (see [hardware-ups.md](hardware-ups.md)).
   - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress** — verified live — so **2525 is the SSOT port**, not 587).
 - **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. **Recipient value (owner confirmed 2026-09-21, HD-347): alerts go to the WHOLE group, and `signal_alert_recipients` takes the group ID that signal-cli reports** (read it from the linked daemon on oldsrv, read-only) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. ✅ **LIVE 2026-09-28:** the ID is in `group_vars/all/main.yml` (`group.NVZ6Y21…`, read off `GET 127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` → `.id` on oldsrv) and delivery was **proven end to end**: n8n executed the alerting + resolved legs, the gateway logged two `POST /v2/send` → **201**, and signal-cli returned a **delivery receipt**. Two mutes had to be removed first — both are in §Alert delivery below, and both had made a dead leg look healthy. An `invite_link` is not a recipient, and the ID is still only readable from the linked daemon (never reconstructed from a message-store backup, which would mean reading private messages).
+- **Matrix is the target channel (owner ruling 2026-10-08, HD-1108).** Two facts made it a decision, not a
+  preference: the `signal-cli-rest-api` daemon is **linked to the operator's personal number** and the
+  "Homelab Alerts" group's **only human member is the operator** — so nothing in this fleet pages anyone
+  else — and the operator reads **Element**, not Signal, so a Signal-only alert is an alert with no reader.
+  Shape: the same Grafana → n8n chain posts to a dedicated **`#homelab-alerts` room** on the live Tuwunel
+  (a dedicated alert user, not the operator's own account; token in the `Homelab-ansible` vault per §6, never
+  a literal), the **Grafana-native SMTP contact point keeps running in parallel** as the "n8n/Matrix is down"
+  fail-safe, and only then does Signal demote to a documented fallback or come out. ⛔ Delivery is proven by
+  **the room's event**, never by the workflow's `200` — that exact mistake is why HD-347 stayed open (§Alert
+  delivery), and both `onError: continueRegularOutput` mutes have to stay removed on the new leg too.
 
 ### Operational gotchas (learned live — the rules that keep them from coming back)
 
@@ -244,6 +254,23 @@ update, or queries keep 401-ing despite correct rendered files.
   rules (`victoria-*-down`, `wg-s2s-down`) keep `Alerting`. Anything whose series may legitimately be
   absent (UPS metrics while healthy, `probe_ssl_earliest_cert_expiry` — blackbox does not emit SSL expiry,
   SNMP interfaces before SNMP ships) must be set explicitly, not left at the default.
+- **⚠ A filtered-empty result is the SAME `NoData` state as no-series — measured 2026-10-08.** Grafana
+  cannot tell "the query matched nothing because the condition is false" from "the series does not exist",
+  so `expr: <something> > 900` **under `noDataState: Alerting` fires while everything is healthy**: the
+  comparison deletes every series on a good evaluation. Two rules follow from the shape, and both are
+  required for a staleness alert:
+  1. **Keep the comparison in the threshold expression, not in the PromQL.** A must return a value on a
+     healthy evaluation; the `gt`/`lt` lives in `data` B (`eval_type` / `eval_params` in
+     `roles/monitoring/vars/main.yml`). That is what `spark-host-mem-oom-critical` does — same tier, same
+     `noDataState: Alerting`, reads `Normal`.
+  2. **A plain selector cannot age.** The 5-min staleness horizon drops the last sample *before* a
+     900-second threshold becomes reachable, so a dead exporter can only reach the rule as NoData — it
+     pages without naming a host, and goes blind entirely once the host leaves the database. Wrap the
+     metric in a range window (`max_over_time(<metric>[6h])`) so a silent series keeps evaluating.
+  Victim: `hygiene-collector-stale`, which fired continuously for ~19 h on a 5/5-healthy fleet while the
+  other 24 rules correctly read `Normal (NoData)`. The read that shows it in one line:
+  `GET /api/prometheus/grafana/api/v1/alerts` — every entry prints its reason, `Alerting (NoData)` versus
+  `Normal (NoData)` versus a real `Normal`.
 - **Alert rules must match the live backend.** After a backend migration, orphan rules survive in the live
   Grafana DB (provenance = file, but absent from the rendered rules file). Delete orphans after any
   backend change — a stale `prometheus-down` rule alerts about a component that no longer exists.
@@ -341,6 +368,109 @@ idle recycle at baseline +8 GiB).
   the row is deleted from the backlog per CONVENTIONS §4(a); the record stays here. Deployed state unchanged:
   both rules load in the ruler (`vps.yml --tags monitoring`, failed=0, 2026-09-17 22:33C), CRIT
   `noDataState: Alerting`, and the WARN summary/label mismatch is fixed.
+
+### Silent-failure hygiene: unit results and consumer cert age as series (HD-450, live 2026-10-07)
+
+The gap that HD-350 exposed: `traefik-cert-pull.timer` failed every 15 min for DAYS and **no series changed
+anywhere**. Not "the alert was mis-tuned" — two whole classes were unrepresented in the database: a systemd
+unit's *result* was scraped by nothing, and the cert pair a **consumer** holds was exported by nothing
+(`ssl-cert-expiring` reads `probe_ssl_earliest_cert_expiry`, which has **zero series** — blackbox emits no
+SSL expiry, so that rule has been structurally dead since it was written).
+
+`roles/monitoring` now ships `homelab-hygiene.py` on every monitoring host (loopback `:9098`, scraped by
+that host's Alloy into the same remote_write path as everything else):
+
+| Series | Meaning |
+| --- | --- |
+| `homelab_unit_last_success{unit=}` | 1 when the unit exists AND its last run succeeded — the only signal that separates a healthy oneshot from a failing one, because `is-active` answers `inactive` for both |
+| `homelab_unit_result{unit=,result="success\|failed\|missing"}` | the reason, for the dashboard and the alert text |
+| `homelab_cert_pair_present{consumer=}` | 1 when the pair this edge actually loads exists |
+| `homelab_cert_days_left{consumer=}` | days to expiry of the pair this edge loads |
+| `homelab_hygiene_scrape_ok` | the collector's own heartbeat — the collector is a systemd service, i.e. the same failure class |
+
+⚠ **What the cert legs do NOT cover, measured 2026-10-08 at the metric-name level** (VM
+`/api/v1/label/__name__/values`): the only cert families in the backend are `homelab_cert_days_left` (both series
+`consumer="traefik-*"`), `homelab_cert_pair_present` and blackbox `probe_ssl_earliest_cert_expiry`. **The VPS box cert
+(acme.sh, `/etc/letsencrypt/live/…`, 61-day cycle, renewal step failing since 2026-08-24) is in none of them** — so no
+rule could ever have caught it, and HD-510's premise had to be proven from `/var/log/acme.sh.log` rather than a graph
+(→ [`network-dns.md`](network-dns.md) §Cert chain). Exporting it is a collector leg on the VPS, not a rule; a rule
+written against a plausible-sounding name like `cert_age_days{name="vps-cert"}` would sit green forever on a series
+that has never existed, which is the failure mode this whole section exists to prevent.
+
+*Fail-loud by construction*, because a monitor that says "healthy" about what it cannot see is how the
+September incident ran for four days: a listed unit that is not installed → `0`/`missing` (so a wrong list
+costs a visible alert, never silence); a unit whose `systemctl show` gives no output at all → `0`/`unknown`;
+an absent cert file → `pair_present = 0`, **not** a NaN days-left value, because `NaN < 14` is false and a
+vanished pair would have read as "not expiring". All four branches are canaried, including a real failed
+transient unit (`systemd-run --wait --unit=… /bin/false` → `0`/`failed`).
+
+**Thresholds are measured, not copied.** The row proposed WARN 30 d / CRIT 14 d. The live pair is a **90-day
+cert** (`notBefore 2026-08-22 → notAfter 2026-11-20`) and the issuer renews late in that window, so a healthy
+consumer's `days_left` bottoms out near three weeks — a 30-day warning would have fired for days before every
+scheduled renewal, which is how an alert class gets muted. Shipped: **WARN 14 d / CRIT 7 d** + a critical on
+`pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
+
+**The fleet leg landed 2026-10-08** (`nas` + the VPS monitoring converge, both `failed=0`), so the exporter
+now runs on `oldsrv · pi · nas · vps`, and `spark` joined the same day: `count by (instance)
+(homelab_hygiene_scrape_ok)` → **1 for each of the five**, heartbeats 12–51 s old. The five rules are in
+Grafana: of 24 rules loaded, **5 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
+`cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
+(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m).
+
+**`hygiene-collector-stale` shipped broken and paged for 19 h on a healthy fleet (2026-10-08).** The
+expression was `time() - homelab_hygiene_scrape_ok > 900` with `for: 15m` and `noDataState: Alerting`, and
+it was wrong in both directions at once: **healthy** → the filter removes all five series → NoData →
+Alerting, so it fired from the moment the rules loaded (`activeAt 2026-10-08T01:13 CEST`, never moved) and
+re-poked the family group every 30 min; **broken** → the plain selector drops a dead collector's heartbeat
+at the 5-min staleness horizon, ten minutes before 900 s is reachable, so the only path to firing was
+NoData, which carries no `instance=` and could not say which host had gone blind. `Value: [no value]` in
+the Signal card was the tell. Live proof, one read each: the rule's own query through the datasource proxy
+returns `result: []` while `homelab_hygiene_scrape_ok` is 12–51 s fresh on all five hosts, and
+`/api/prometheus/grafana/api/v1/alerts` lists it as `Alerting (NoData)` against `Normal (NoData)` for the
+other 23. Fixed to the shape the general rule in §Alerting demands — unfiltered A
+(`time() - max_over_time(homelab_hygiene_scrape_ok[6h])`) + `gt [900]` in B, `for: 5m`, noData=Alerting
+kept — which verified live at 20:01 CEST as **five series of 12–51 s** (so: Normal when fresh, per-host
+`instance=` at ~20 min of silence, and NoData only if no host has collected in 6 h).
+⏳ **The corrected expression is not live until `monitoring` converges on the VPS.**
+
+**Three reads answer, and two confidently lie** (all measured the same night, so the next session does not
+re-derive them):
+
+| Question | The read that answers | The read that misleads |
+|---|---|---|
+| Are the rules in Grafana? | `GET http://<grafana-container-ip>:3000/api/ruler/grafana/api/v1/rules` with `admin` + the password from `docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD` (the role's own source — never a vault guess). Match on the **metric in the expression**: a file-provisioned rule lists under its TITLE, not its `uid`. | `GET /api/v1/rules` → **404** on this Grafana; a name-match on `uid` finds **zero** of the five while all five are loaded. |
+| Did the series reach the backend? | Query **through the datasource proxy**: `…/api/datasources/proxy/uid/prometheus/api/v1/query?query=…`. | A direct `curl` to `victoria-metrics:8428` answers **400** even with correct basic auth (this VM build wants a request shape curl's `-G` does not produce) — a 400 there is NOT "no data", and a 401 is often just the absent `OP_SERVICE_ACCOUNT_TOKEN`, because the vault lookup then yields nothing. |
+| Is the exporter up on a host? | `curl -s 127.0.0.1:9098/metrics \| grep -c '^homelab_'` on that host (oldsrv: 9). | The unit being `active` — the collector can be up and its `systemctl show` loop empty. |
+
+**One acceptance is still open:** force one listed unit to fail and see the message arrive in
+the alert channel. **Un-parked by the owner on 2026-10-08:** the group's only human member is the operator,
+so the canary pages nobody else and it **may run unattended** (the earlier park, same day, assumed a family
+audience that does not exist). Once HD-1108 lands the read moves from the Signal group to the
+`#homelab-alerts` room; the trigger does not change. To close it: `systemd-run --wait --unit=hd450-canary.service /bin/false`
+on any monitoring host, wait one rule interval (`unit-last-result-failed`, `for: 5m`), read the Signal
+group, then `systemctl reset-failed hd450-canary.service`. The canary shape itself is already proven
+off-box (the exporter's own `--self-test` fails it closed).
+
+⚠ **`textfile` was tried first and does not work on this Alloy.** `prometheus.exporter.unix` here accepts a
+`textfile {}` block but rejects every attribute name that would point it at a directory — probed against
+v1.20.1 on the box: `collectors_dir`, `directories`, `paths`, `files`, `syntax_version` each return
+`unrecognized attribute name`, while `textfile {}` with an empty body parses. Writing to a directory nobody
+could name is not a design, so the exporter follows the shape the same role already proves live (the HD-343
+network-clients exporter). The probe that established this is why `set_collectors` does NOT list `textfile`.
+
+Live 2026-10-07 (query in VM, both hosts): 9 series each — oldsrv `traefik-cert-pull` + `nut-monitor` +
+`nut-client`, Pi `ha-cert-sync` + the two NUT units, all `last_success = 1`; `cert_days_left = 44.14` on
+`traefik-internal` and `traefik-ha`. Two things are NOT claimed: **(a)** the alert rules are authored in
+`roles/monitoring/vars/main.yml` but reach Grafana only through a VPS converge, so nothing has fired yet;
+**(b)** the NUT client→master leg is still not a metric — the exporter reports the NUT *units'* results,
+which is not the same claim as "this client can reach the master" (HD-467's 23-day loopback-only window
+would still have been invisible between converges).
+
+⚠ **Debugging gotcha found the hard way the same day:** dumping `/etc/alloy/config.alloy` to inspect the
+remote_write block prints the VictoriaMetrics **and** VictoriaLogs basic-auth passwords. The file is 0600
+root but it is not a safe thing to `grep -A40`. Take credentials through the vault lookup the role already
+uses, or read them into a shell variable and never echo them — this is why the monitoring tasks template
+them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back rendered files.
 
 ### Tiers
 
@@ -959,7 +1089,7 @@ nobody reads a device series as "the XFS mount".
 `set_collectors` enumerated a minimal collector list that omitted `hwmon` and
 `thermal_zone`, so `node_hwmon_*`/`node_thermal_zone_temp` were absent **for every host**
 (VM check across 30 d: 0 series) even though the sensors are live in `/sys`. Added both
-collectors (valid Alloy `prometheus.exporter.unix` collectors; spark runs Alloy v1.19.2).
+collectors (valid Alloy `prometheus.exporter.unix` collectors; spark ran Alloy 1.19.2 until the 2026-10-08 fleet pin move to 1.20.1-1 ⏳).
 Verified the exact series + label shape with a throwaway `node_exporter` v1.9.1 binary on
 spark — names and labels below are measured, not guessed:
 

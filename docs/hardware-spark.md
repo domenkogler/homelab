@@ -323,6 +323,49 @@ this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 �
 > `no-enforce` flag removed `status` reports `hysteresis: armed (no latch)` at `usable` 13.27 GiB.
 > Verify a watchdog claim on this host by reading the box (`sha256sum`, `systemctl show -p Environment
 > --value spark-oom-watchdog.service`, `spark-oom-watchdog.sh status`), never by reading the commit.
+#### Re-deriving the GLOBAL ceiling (HD-494 (1), 2026-10-08) — and the term that is still missing
+
+The row asks for the global `spark_llm_device_hold_ceiling_bytes` re-derived from the measured OS term
+plus a stated reserve, with the 2026-10-06 transient priced in. Two things had to be true before the
+arithmetic meant anything, and one of them was not:
+
+⚠ **Until tonight the global governed almost nothing.** Four places restated it as a literal
+(`_x: &u_x` and three profiles carried `device_hold_ceiling_bytes: 104113000000`), so editing the
+global would have changed exactly zero arms — HD-1098's disease in a different file. Those copies are
+now gone (the anchor comment that had been shredded across three keys by `22e802e4` is rejoined in the
+same change), `spark-llm-render-matrix.py` output is **byte-identical** before and after, and the
+global is the effective ceiling for 15 of 16 profiles. `fast` keeps its own `112.70e9`, which the row
+already ruled a measured exception. **A re-derive is only possible after that deletion; do it first
+in any future session.**
+
+The four candidates, all from the same `MemTotal 130.594e9`:
+
+| candidate | B | derivation | consequence for the 15 arms gated by it |
+|---|---|---|---|
+| **A — raise on the measured OS term** | 112.774e9 | `MemTotal − 4.934e9 − 12 GiB` (WARN band as reserve) — exactly `fast`'s rule | all legal, pools may grow to 20–36 GB; `fast`'s override becomes redundant and can go |
+| **B — today** | 104.113e9 | `MemTotal − 6.9 GiB − 17.78 GiB` (assumed OS, "worst usable reading") | all legal at their certified pools |
+| **C — transient priced, floor at CRIT** | 101.951e9 | `MemTotal − 4.934e9 − (14.08 + 8) GiB` | **7 arms illegal as configured** (`reasoning`/`graded`/`u1`–`u4` need 16→15 GB, `nv-patch` 11→9 GB; 547k→483k slots) |
+| **D — transient priced, floor at WARN** | 97.656e9 | `MemTotal − 4.934e9 − (14.08 + 12) GiB` | 8 illegal (adds `awq-mmap`), `nv-patch` down to 5 GB |
+
+14.08 GiB is the 2026-10-06 transient: `usable` fell **20.0 → 5.92 GiB in under 15 s** during one heavy
+prefill, and the governor recycled the engine. Pricing it means the reserve must cover the burst *and*
+leave the floor you refuse to breach — which is why **pricing the transient moves the ceiling DOWN, not
+up**, the opposite of what the row's "then delete `fast`'s per-profile override" implies: A and the
+transient cannot both be true.
+
+⚠ **And the ledger's reserve is not the box's reserve.** Measured above: at a 20 GB pool the ledger
+predicts 12.60 GiB at rest and the box rests at **9.83–9.90 GiB** — the OS term is a 15-second
+post-restart sample while a served box carries more, and `CmaFree` itself moves (0.13 GiB at boot →
+4.03 GiB served). So A's "12 GiB reserve" is ~9.3 GiB on the machine: inside the WARN band, 1.3 GiB
+above CRIT, and one 14 GiB burst away from a recycle.
+
+**Landed state: B, unchanged, deliberately.** It is the one value that is legal for every certified
+arm AND matches the rest floor actually observed (~9.9 GiB); A buys slots with a reserve that exists
+only in the ledger, and C/D refuse arms that are running today. ⏳ What would settle it is not more
+arithmetic but one measurement the box has never had: a **1 s sampler over one heavy prefill** on the
+current regime, which yields the true OS term at load and the transient's amplitude together, instead
+of one 15-second boot sample and one survivor from a CRIT log. Owner call after that read: which floor
+(CRIT or WARN) the reserve is priced against. Nothing in this change touched spark or an engine value.
 With `reserve` = the watchdog's WARN band (12 GiB, i.e. "the rest state must not even sit in the
 WARN band"), **20 GB is the largest 1-GB-rounded pool this profile may use**, and `fast` is set to
 it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seqs=8` ceiling).
@@ -826,6 +869,9 @@ must implement when it lands:
   appending entrypoint+route pairs in the template). JupyterLab spawns **on demand** from the dashboard's
   JupyterLab panel — until a lab is Running, loopback:11002 has no listener and the route idles (the
   healthcheck stays on :11000 only). Once Running, browse to `http://spark.kogler.si:11002`.
+  ✅ **Frozen by the owner, reaffirmed 2026-10-08:** the accept step stays un-run **on purpose** — a 502 with
+  no lab running is the correct shape of an on-demand backend, not a defect. No session starts a lab here and
+  no session re-asks; the freeze lifts only on the owner's word (HD-366 keeps the record).
 - **GB10 bring-up reference:** [`martimramos/dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide) —
   PyTorch-nightly (sm_121), no ARM64 wheels, CPU/Python gotchas; run ML **container-native** (Docker
   isolates CUDA/Python — the guide's own recommended path).

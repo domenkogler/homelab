@@ -275,14 +275,15 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   `Outpost` has no `enabled`/`created_on`; `Token` has no `persistent` (it is `expiring`) — and never read
   a token's `intent`, that is the secret value. A read-only sweep of what really exists, worth running
   before believing any "the provider/outpost is deployed" claim: `LDAPProvider.objects.all()`,
-  `LDAPSource.objects.all()`, `Outpost.objects.all()` — that triple is what diagnosed HD-360
-  ([deployment-compose.md](deployment-compose.md) §HD-132).
+  `LDAPSource.objects.all()`, `Outpost.objects.all()` — that triple is what diagnosed HD-360, and it
+  came back empty on 2026-10-07, which is how the design was found to be stillborn
+  ([deployment-compose.md](deployment-compose.md) §Samba ↔ Authentik-as-LDAP, now retired).
 - **`scripts/ak-shell.sh` reports EVERY failure as "runner key / VPS unreachable"**: it runs the remote
   command with `2>/dev/null`, so a Python exception inside `ak shell` (wrong import or field — the common
   case just above) is indistinguishable from an ssh/auth failure. Verified 2026-09-21: the wrapper's exact
   ssh+base64 command works from the runner, and the invocation that "failed" had failed only on its own
   `ImportError`. Until it is fixed (owner: the lane holding `scripts/**` this wave,
-  `prompt-407.md` (**closed, brief deleted**) — named in the HD-360 row tail), reproduce the one-liner with
+  `prompt-407.md` (**closed, brief deleted**) — it was also named in the HD-360 row, retired 2026-10-07), reproduce the one-liner with
   stderr visible, or run `ssh vps 'sudo docker exec authentik-worker ak shell -c …'` directly, before
   believing the message.
 
@@ -292,7 +293,9 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   to VPS `/etc/op/provision-token`; authenticates the HOST-side `op` CLI the glue uses to seed the
   OIDC client-cred items.
 - `authentik-nas_api` — **read-only** Authentik-issued API token, minted durable (`expiring=False`) at NAS provisioning; the Authentik→NAS provisioning
-  glue (`sync-authentik-users.sh`, D5/HD-131) uses this to *read* the `family` group.
+  glue (`sync-authentik-users.sh`, D5/HD-131) used this to *read* the `family` group. **ORPHANED 2026-10-07** —
+  the glue and the Samba `ldapsam` design it fed are both retired ([storage-rejected.md](storage-rejected.md)),
+  so no IaC reads this token; the item still exists and the owner deletes it.
 - **Ephemeral glue token (NOT a secret anywhere):** the OIDC secret-egress glue mints its own
   api-intent token via `ak shell` per run (identifier `egress-glue-<pid>-<ts>`, revoked on exit).
   Rationale: persisted ORM tokens were observed being rotated/invalidated server-side within
@@ -308,7 +311,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 
 Expiring API tokens are **auto-ROTATED by authentik itself** — a legitimate security feature,
 not an attack or bug (upstream docs: service accounts → "Expiring API tokens are rotated by
-authentik"; source branch `version-2026.5`, pinned image 2026.5.6 = same minor):
+authentik"; source branch `version-2026.5`, pinned image 2026.5.6 at authoring time = same minor; the pin is `2026.8.3` since 2026-10-08, so the derivation below is a HISTORICAL baseline — re-derive per minor before editing a blueprint):
 
 - **Scheduler:** `clean_expired_models` runs on crontab `2-59/5 * * * *` (≈ every 5 min;
   `core/apps.py`) over all `ExpiringModel` subclasses, selecting rows with `expiring=True`
@@ -336,7 +339,8 @@ Durable-persisted-token rules for this homelab:
 
 Consequences applied here: the glue's ephemeral mint stays (immune by construction); a future
 scoped persisted `authentik-provision_api` (HD-211) follows rule 1; `authentik-nas_api`
-(sync-authentik-users glue) gets a one-time `expiring=False` verification at its next live touch.
+(`sync-authentik-users` glue) never got that verification — the glue was retired 2026-10-07 with the
+Samba `ldapsam` design, which also removes the last reason to mint an LDAP outpost token at all.
 
 #### Rotating a shared Authentik OIDC client secret (runbook; verified)
 

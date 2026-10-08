@@ -123,23 +123,55 @@
     _tc_detail: "{{ _tc_check.stdout | default('') }}"
   tags: [docker_services, arr_client_seed]
 
-- name: "arr-torrent-client: write the client and let the arr test it"
-  # `--apply` also runs the verification legs (read-back assert + the app's own /downloadclient/test),
-  # so an unchanged client is still re-tested every converge — that is what makes a silent vault
-  # rotation fail the next run instead of failing the next download.
-  ansible.builtin.command:
-    cmd: >-
-      /usr/local/sbin/arr-torrent-client-{{ svc.name }}.py
-      http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}
-      {{ arr_torrent_client[svc.template_dir].api_base }} --apply
-    # Two stdin lines (line 1 = arr key, line 2 = qbit password): joined with a Jinja escape because a
-    # YAML double-quoted scalar would fold a real newline in the middle into a space.
-    stdin: "{{ [ _tc_key, vault[arr_torrent_client_item].credential ] | join('\n') }}"
-  no_log: true
-  register: _tc_apply
-  changed_when: "'CHANGED' in _tc_apply.stdout | default('')"
-  failed_when: _tc_apply.rc != 0
-  tags: [docker_services, arr_client_seed]
+- name: "arr-torrent-client: write the client and let the app test it"
+  # `--apply` writes ONLY when something drifted. That is not a micro-optimisation: Prowlarr 2.5.2 runs
+  # its own client test *at save time* and answers a re-PUT of its own live body with
+  #   400 [{"errorMessage": "Test was aborted due to an error: Object reference not set to an instance of an object."}]
+  # while `POST /downloadclient/test` gives the SAME fields 200 (measured 2026-10-07). An unconditional
+  # write therefore failed every converge on Prowlarr, and on the other three it churned app state for
+  # nothing. The verification legs still run every time (read-back assert + the app's own
+  # /downloadclient/test), so an unchanged client is still re-tested each converge — that is what makes a
+  # silent vault rotation fail the next run instead of failing the next download.
+  #
+  # ⚠ Why the verdict is tee'd to a file: `no_log` is required here (the instance key and the qBittorrent
+  # password both arrive on stdin), and it also censored the helper's own failure line — diagnosing the
+  # 2026-10-07 failure cost three runs because the only output was "the output has been hidden due to the
+  # fact that 'no_log: true' was specified". The rescue echoes the tee'd verdict instead. Safe by
+  # construction: the helper's messages name host/port/category/status codes and nothing else, and the two
+  # credentials enter through stdin and are never echoed.
+  block:
+    - name: "arr-torrent-client: run the helper"
+      ansible.builtin.shell:
+        executable: /bin/bash
+        cmd: >-
+          rm -f /tmp/arr-torrent-client-{{ svc.name }}.verdict; set -o pipefail;
+          /usr/local/sbin/arr-torrent-client-{{ svc.name }}.py
+          http://{{ _tc_ip.stdout | trim }}:{{ arr_torrent_client[svc.template_dir].port }}
+          {{ arr_torrent_client[svc.template_dir].api_base }} --apply 2>&1
+          | tee /tmp/arr-torrent-client-{{ svc.name }}.verdict
+        # Two stdin lines (line 1 = arr key, line 2 = qbit password): joined with a Jinja escape because a
+        # YAML double-quoted scalar would fold a real newline in the middle into a space.
+        stdin: "{{ [ _tc_key, vault[arr_torrent_client_item].credential ] | join('\n') }}"
+      no_log: true
+      register: _tc_apply
+      changed_when: "'CHANGED' in _tc_apply.stdout | default('')"
+      failed_when: _tc_apply.rc != 0
+      tags: [docker_services, arr_client_seed]
+  rescue:
+    - name: "arr-torrent-client: read back the verdict no_log censored"
+      ansible.builtin.command: "cat /tmp/arr-torrent-client-{{ svc.name }}.verdict"
+      register: _tc_verdict
+      changed_when: false
+      failed_when: false
+      tags: [docker_services, arr_client_seed]
+
+    - name: "arr-torrent-client: fail with the verdict, not with the censor notice"
+      ansible.builtin.fail:
+        msg: >-
+          {{ svc.name }}: download-client seed failed (rc {{ _tc_apply.rc | default('?') }}) ·
+          {{ (_tc_verdict.stdout | default('') | trim)
+             | default('(no verdict on disk — the helper died before its first print, or the tee never ran)') }}
+      tags: [docker_services, arr_client_seed]
 
 - name: "arr-torrent-client: summary"
   ansible.builtin.debug:

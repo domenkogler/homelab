@@ -5,12 +5,12 @@
 #                 media, NOT a user store — so the “three kinds” count above still holds; HD-362)
 #   \\nas\<user> — per-user private drive (valid users = that account; files owned by that
 #                  user's OWN uid, NOT the global media account — so per-user isolation holds)
-# Family members log in with their Authentik credentials at mount time (D7/HD-132):
-# Samba AUTHENTICATES against Authentik-as-LDAP (PULL model — Authentik is SSOT and does
-# NOT push; a portal password change takes effect on the next bind). NO local smbpasswd
-# password is ever stored here, so an Ansible/glue re-run can NEVER overwrite a user's
-# self-service password. Note: if the Authentik LDAP outpost is down, drives don't mount
-# (no local fallback) — accepted D7 trade-off. Data lives on ZFS datasets.
+# Authentication is LOCAL: `passdb backend = tdbsam` — one unix+Samba account per entry in
+# `storage_samba_users`, its password written from the 1Password item `smb-<name>_login` at
+# converge (roles/storage/tasks/samba.yml). Members mount with a username + password typed
+# once by the client. The Authentik-as-LDAP passdb planned here (D7/HD-132) was RETIRED
+# 2026-10-07 — see docs/storage-rejected.md. Nothing in this file reads a directory or a bind
+# secret, which is why the rendered file is 0644 again. Data lives on ZFS datasets.
 
 [global]
    workgroup = WORKGROUP
@@ -27,56 +27,41 @@
    directory mask = 0775
    netbios name = NAS
 
-   # ---- PassDB: tdbsam (current, working) vs Authentik-as-LDAP (D7/HD-132, deploy-gated) ----
-   # storage_samba_passdb=tdbsam = local Samba accounts (works offline; media share needs
-   # no per-user LDAP). storage_samba_passdb=ldapsam = Samba pulls from the Authentik LDAP
-   # outpost (SSOT, no push) — REQUIRES the VPS LDAP provider+outpost+svc_samba to exist and
-   # the `authentik-ldap_bind` token to be valid (HD-132; 2026-09-14: outpost dead/expired,
-   # smbd fails hard on startup if enabled before that). Flip the var once HD-132 is live.
-{% if storage_samba_passdb == 'ldapsam' %}
-   passdb backend = ldapsam:ldap://{{ storage_samba_ldap.host }}:{{ storage_samba_ldap.port }}
-   ldap ssl = {{ storage_samba_ldap.ssl | default('start tls') }}
-   ldap suffix = {{ storage_samba_ldap.base_dn }}
-   ldap user suffix = {{ storage_samba_ldap.user_suffix }}
-   ldap admin dn = {{ storage_samba_ldap.admin_dn }}
-   ldap admin password = {{ lookup('community.general.onepassword', 'authentik-ldap_bind', field='password', vault=op_vault) }}
-   # Read/write are pull-only: Samba never writes NTAuth/plaintext back to LDAP.
-   ldap passwd sync = no
-{% else %}
+   # ---- PassDB: local tdbsam, and the only supported shape ----
+   # The Authentik-as-LDAP alternative (D7/HD-132) is retired 2026-10-07: it hung a LAN-local
+   # mount off the VPS + WG tunnel and could never answer an NTLM challenge (Authentik serves
+   # no `sambaNTPassword`). Credentials arrive from 1Password `smb-<name>_login` via
+   # roles/storage/tasks/samba.yml; NOTHING here reads an LDAP directory or a bind secret.
    passdb backend = tdbsam
-{% endif %}
 
-
-# Runtime-provisioned per-user shares (sync-authentik-users.sh glue, D5) —
-# each "/etc/samba/share-<user>.conf" fragment defines one family member's private
-# drive when they're added via Authentik (so the share appears without a re-run of Ansible).
-include = /etc/samba/share-*.conf
-
-# ---- Shared media (any family user; force-owner = neutral media account) ----
+# ---- Shared media (any family account; force-owner = neutral media account) ----
 [{{ storage_samba_media.share }}]
    comment = Family shared media
    path = {{ storage_samba_media.path }}
    browseable = yes
    read only = no
-   valid users = @{{ storage_gid }}
-   force user = {{ storage_uid }}
-   force group = {{ storage_gid }}
+   valid users = @{{ storage_group }}
+   force user = {{ storage_user }}
+   force group = {{ storage_group }}
 
 # ---- Arr music library = Lidarr's rootFolder (HD-362) ----
 # The one drop point that needs no follow-up move: this IS the folder Lidarr scans
 # (container /media/music). Drop albums as <Artist>/<Album (Year)>/<files>, then
 # Lidarr → Artists → Add New / Import mode "Existing Files" (or Rescan on a known artist).
+# `valid users` is the SHARED service account rather than the storage group: this is the
+# share a laptop or a relative's machine mounts, so it is deliberately reachable with ONE
+# non-personal credential (host_vars pins storage_samba_music_valid_users).
 [{{ storage_samba_music.share }}]
    comment = Music library (Lidarr root — <Artist>/<Album (Year)>/files)
    path = {{ storage_samba_music.path }}
    browseable = yes
    read only = no
-   valid users = @{{ storage_gid }}
-   force user = {{ storage_uid }}
-   force group = {{ storage_gid }}
+   valid users = {{ storage_samba_music_valid_users | default('@' ~ storage_group) }}
+   force user = {{ storage_user }}
+   force group = {{ storage_group }}
 
-# ---- Per-user private drives (only the named user can mount; OWN uid owns their files) ----
-{% for u in storage_samba_users %}
+# ---- Per-user private drives (only the named account can mount; OWN uid owns their files) ----
+{% for u in storage_samba_users if u.drive | default(true) %}
 [{{ u.name }}]
    comment = {{ u.name }}'s private drive
    path = {{ storage_samba_users_root }}/{{ u.name }}

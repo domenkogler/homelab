@@ -77,7 +77,15 @@ fi
 # Activate and update packages inside the environment
 source ~/ansible-venv/bin/activate
 pip install --upgrade pip
-pip install ansible
+# `librouteros` is not optional on a seat that touches the network devices: the router/switch
+# roles talk the RouterOS API through `community.routeros`, whose PYTHON dependency is this one —
+# the Galaxy collection is only the Ansible half (requirements.yml installs that half). Without
+# it every router/switch run dies with `Failed to import the required Python library
+# (librouteros)`, which names a python and therefore reads like a host problem (measured on the
+# oldsrv seat 2026-10-08: devices healthy and reachable, converge dead). `ansible-network-hop.sh`
+# already forces the venv interpreter on the off-LAN path, and `group_vars/network.yml` now pins
+# it for every path — both of them only mean anything if this line puts the module HERE.
+pip install ansible librouteros
 
 # Install collections (Galaxy handles idempotency and skips re-installs).
 # SSOT = requirements.yml (Renovate-tracked, HD-90) — covers community.general,

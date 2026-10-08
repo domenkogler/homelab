@@ -284,7 +284,7 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 > scope var (§Tags & surgical runs), and read which hosts the play actually matched before believing a surgical run
 > was surgical.
 
-### Two ways a converge lies to you
+### Three ways a converge lies to you
 
 1. **`-e ansible_host=<ip>` is a GLOBAL extra-var and hijacks `delegate_to`.** Used to reach one host's
    alternate leg, a `delegate_to: pi` task connected to that override address instead: `ok=367 changed=52
@@ -293,6 +293,21 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 2. **`pgrep -f ansible-playbook` matches its own command line.** It reported "a converge is already
    running" three separate times when nothing was running, because the pattern text was in the invoking
    shell's argv. Check with `ps -eo args | grep -c '[a]nsible-playbook'` (bracket trick) instead.
+3. **A duplicate YAML mapping key silently retires the first definition.** Ansible keeps the **last**,
+   prints `[WARNING]: Found duplicate mapping key … Using last defined value only.` on stderr and carries
+   on — `--syntax-check` is green, the converge is green, and the first definition is dead text that keeps
+   looking authoritative. Which key duplicates decides the damage: a second `tags:` **strips a tag** (a
+   surgical run then skips that task forever), a second `no_log:` **prints a secret**, a second `when:`
+   re-gates the task. Live on `main` until 2026-10-08 (HD-1098), two shapes, neither caught by any gate
+   that existed: `roles/monitoring/tasks/main.yml:600/601` — two `tags:` on one task, so HD-450's "Record
+   what the hygiene exporter publishes" silently kept `[monitoring, grafana]` and lost `hygiene`, i.e.
+   `--tags hygiene` skipped it forever — and a duplicated fragments section in `group_vars/spark.yml`
+   that re-defined `spark_llm_ultrafast_cudagraph_args` / `_diag_args` 36 lines apart.
+   The gate is [`scripts/check_yaml_dup_keys.py`](../scripts/check_yaml_dup_keys.py) (validate-all item 30,
+   plus ansible's own stderr inside the syntax-check loop as a second witness). Fix it with a **proven
+   no-op**, not a hope: both copies were value-identical here, and `spark-llm-render-matrix.py` printed
+   byte-identical output before and after — the same discipline §6's "a test that cannot fail is not
+   evidence" asks of a live claim.
 
 Corollary for any pre-flight: **a check that cannot distinguish "nothing running" from "I am running"
 is not a gate** — same class of failure as the green scoped converge and the `/health` wait in
@@ -322,7 +337,7 @@ ansible_ssh_common_args: "-o ProxyJump=vps"
 > `-e ansible_host=` is a **global** extra-var that also rewrites `delegate_to` targets — the recorded
 > damage is in §Gotchas above (`ok=367 changed=52 failed=1`, one key-file check silently executed on the
 > wrong host). Since HD-397 there is no reason to type either: the inventory carries the jump and
-> `host_vars` names the reachable leg. See §Two ways a converge lies to you above.
+> `host_vars` names the reachable leg. See §Three ways a converge lies to you above.
 >
 > **The OpenSSH-matching nuance, corrected by measurement:** Ansible types the
 > `ansible_host` value (an IP), so a `Host <alias>` block does nothing for it — but that is **not** why
@@ -346,6 +361,70 @@ nohup ansible-playbook -i IaC/ansible/inventory.ini playbooks/spark.yml --tags <
 ```
 
 `--check` stays the only safe foreground form.
+
+### Network devices (router / switch): the API path, and four probes that lie
+
+`router.kogler.si` and `switch.kogler.si` are **not SSH-managed hosts**. Both playbooks are
+`connection: local` and drive the **RouterOS API on tcp/8728** as `admin`, the password read from
+`mikrotik-admin_login` — the module runs on the CONTROLLER. A delta's *apply* is a different path
+again: `/import` over SSH as the key-only `ansible` user via
+[`scripts/routeros-apply-delta.sh`](../scripts/routeros-apply-delta.sh). Two paths, two auth
+mechanisms — so "can I reach the router?" has to name which one it means.
+
+Four ways a probe answers confidently and wrongly (all four were measured on the oldsrv seat,
+2026-10-08, on devices that were healthy and reachable the whole time):
+
+1. **`ansible … -m ping` → `Permission denied (publickey,password)`** (and for the switch, `Host key
+   verification failed`). Ping opens SSH as the seat user; the devices do not take that. The probe is
+   not a reachability test here — it tests a door these hosts do not have.
+2. **`https://<mgmt-ip>:8728/rest/…` → `SSL: WRONG_VERSION_NUMBER`.** 8728 is the binary API, not the
+   REST endpoint; REST-on-the-same-port is a different protocol. This probe was invented because both
+   playbook headers said "via RouterOS REST API" — the headers are fixed; the comment was the bug.
+3. **`Failed to import the required Python library (librouteros)`** — a python problem wearing a
+   network error. `inventory.ini` pins `[all:vars] ansible_python_interpreter=/usr/bin/python3`, and
+   `librouteros` (the PYTHON half of `community.routeros`; `requirements.yml` installs only the
+   Ansible half) lives in the runner venv. `group_vars/network.yml` now pins
+   `ansible_python_interpreter: {{ ansible_playbook_python }}` for the `network` group, which is what
+   `scripts/ansible-network-hop.sh` has forced on the off-LAN path for exactly this reason — and a
+   rebuilt seat needs `pip install librouteros`, now part of `scripts/bootstrap-runner.sh`.
+4. **`Unable to sign in to 1Password. Missing required parameters: secret_key, subdomain,
+   master_password, username`** —
+   absent `OP_SERVICE_ACCOUNT_TOKEN`, i.e. an ansible invoked directly instead of through
+   `scripts/ansible-run.sh`, which sources `~/.config/op/homelab-sa-token`. Reads like a vault
+   permission problem; is an environment problem.
+
+The probe that actually answers (read-only, no `no_log` needed because nothing is printed but shape):
+
+```yaml
+- hosts: network
+  gather_facts: false
+  connection: local
+  vars: { ansible_python_interpreter: "{{ ansible_playbook_python }}" }
+  tasks:
+    - set_fact: { _pw: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}" }
+      no_log: true
+      delegate_to: localhost
+      run_once: true
+    - community.routeros.api_facts:
+        hostname: "{{ ansible_host }}"
+        username: admin
+        password: "{{ _pw }}"
+        port: 8728
+        tls: false                 # routeros_tls — the API is plaintext on Mgmt, no cert to validate
+        validate_certs: false
+        gather_subset: hardware
+      register: _f
+    - debug:
+        msg: "{{ inventory_hostname }} {{ _f.ansible_facts.ansible_net_model }} {{ _f.ansible_facts.ansible_net_version }}"
+```
+
+Answered 2026-10-08 from the oldsrv seat: `router.kogler.si` → **RB4011iGS+ 7.24.4**,
+`switch.kogler.si` → **CRS328-24P-4S+ 7.24.4**. ⚠ Run it over the **Mgmt** address (VLAN 99 is
+same-site only — never a `ProxyJump`); away from home use `scripts/ansible-network-hop.sh`, which
+tunnels 8728 through the Pi and already forces the venv interpreter. The device facts above are
+reachability evidence only — the authoritative device state is the `print`/`foreach` reads in
+[network-ops.md](network-ops.md) §Apply workflow, and a mutate of either device is still a
+render → `/import` (this repo does not hand-apply API deltas, HD-161 identity assert notwithstanding).
 
 ### Dry-run Mode (`--check --diff`)
 
@@ -549,6 +628,17 @@ or the static gate fails.
 ---
 
 ## Runner placement (HD-407) — seeding a second control node
+
+> **⚠ A runner whose key lives in `~/.ssh/agent` can be unable to reach any target, and the error
+> lies (measured 2026-10-08 on the VPS bootstrap).** This seat's agent holds `github_signing` +
+> `github_auth` and `IdentitiesOnly` is unset, so ssh offers those FIRST and, against the VPS's
+> low `MaxAuthTries`, the server hangs up before the canonical key is ever offered — the client
+> reports `Too many authentication failures`, which reads like "wrong key" and is actually "never
+> got to the right one". The canonical `ansible-admin_ssh` key was in `~/.ssh/id_ed25519` the whole
+> time. The working form is `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 ansible-admin@…`;
+> pinning `IdentitiesOnly yes` per `Host` block is the durable fix, and `ssh -G <host> | grep
+> -E 'identityfile|identitiesonly'` is the five-second diagnostic. Check this BEFORE concluding a
+> grant is missing.
 
 The runner is whatever machine executes `scripts/ansible-run.sh`; both scripts and the IaC
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
@@ -1079,7 +1169,8 @@ domain_local: kogler.si
   edge), applies the `ks-oidc.yml` Blueprint + runs the **secret-egress glue** to seed client
   creds into the 1Password OIDC items (`openwebui_api`…`metabase_oidc`, 8 providers). The
   **OpenCloud Graph-API service account** (`opencloud-service_api`) is **NOT** the glue's job
-  — it is provisioned by the `sync-authentik-users` rework (**HD-145**). The pre-pass is
+  — it was provisioned for the `sync-authentik-users` rework (**HD-145**), retired 2026-10-07 with
+  the Authentik-as-LDAP Samba design, so that item currently has no consumer. The pre-pass is
   gated on `authentik` presence via `when:`, so home hosts (home_servers / raspberry_pi)
   skip it entirely; the assert inside is a safety net that should never fire.
   Ordering: `authentik` → blueprint+glue → OIDC consumers. Fail-closed on a missing

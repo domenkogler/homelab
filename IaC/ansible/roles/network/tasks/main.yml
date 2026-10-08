@@ -244,7 +244,15 @@
       iface='{{ nm_resolver_iface | default('<undefined>') }}'. Either half would leave this box
       unable to name anything.
     quiet: true
+  # ⚠ Gated like EVERY other task in this block, not on host_resolver_dns alone. Found 2026-10-08 by
+  # the pi converge (ok=37 changed=0 failed=1 — the play died here, so HA/alloy/tailscale never ran):
+  # pi.kogler.si.yml:19 sets host_resolver_dns WITHOUT nm_oldsrv_profile (oldsrv-only, :49), so the
+  # gather-facts and set_fact tasks above both skipped, nm_resolver_iface was never set, and the
+  # guard's own second clause failed the play on a host that never applies this profile. A fail-loud
+  # guard must not be able to break a host it does not describe; the pi's own resolver leg needs its
+  # own shape check (HD-1101), not an oldsrv-shaped assertion.
   when:
+    - nm_oldsrv_profile is defined
     - host_resolver_dns is defined
   tags: [network, nm-resolver]
 

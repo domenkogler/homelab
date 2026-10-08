@@ -115,7 +115,7 @@ eval $(op signin)
 
 **How it works:**
 
-Create an `.env.op` file (safe to commit — it contains only `op://` references, never real secrets):
+**This repo already ships one** — `skills/mikrotik/.env.op` is tracked, so a fresh clone needs no setup step (it was gitignored until 2026-10-07, which is how it ended up existing on a single host; the vault item is `mikrotik-admin_login`, mapped in the repo's `docs/deployment-secrets.md`). On another machine, create it — safe to commit, because it contains only `op://` references, never real secrets:
 
 ```bash
 # skills/mikrotik/.env.op

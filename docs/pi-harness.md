@@ -364,7 +364,9 @@ drifting again (§9: the seat trailing the laptop is the failure this pair exist
 
 ## 5a. Seat identity — which box the footer names (2026-10-06)
 
-Three seats run this harness (Win11, WSL Debian, the oldsrv cockpit) and **pi has no setting for footer
+Two seats run this harness today — **Win11** and **the oldsrv cockpit**; the WSL Debian seat is retired
+(2026-10-07, [../prompt.md](../prompt.md) §1), which is also why the "two seats on ONE machine" case below is
+now theoretical rather than daily. **Pi has no setting for footer
 content** — `settings.md` §Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else,
 and the default footer shows folder / model / context / cost. So "which machine am I typing to" is only
 answerable from an extension, and this section is the only place that fact is written down.
@@ -422,7 +424,7 @@ answerable from an extension, and this section is the only place that fact is wr
 
 ## 5b. The seat's terminal harness — tmux mouse + OSC 52 clipboard (2026-10-06)
 
-pi runs inside tmux on the Debian seats (HD-445's package call put `tmux` on oldsrv), and two things a
+pi runs inside tmux on the Debian seats — **one now**, oldsrv, since the WSL seat retired (HD-445's package call put `tmux` on oldsrv), and two things a
 session touches every minute are **terminal-level, not pi-level**: the mouse and the clipboard. Repo
 SSOT [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → `~/.tmux.conf`, installed and *proved*
 by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh), drift-gated by

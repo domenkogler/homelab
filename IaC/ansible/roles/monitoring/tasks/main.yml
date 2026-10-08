@@ -526,4 +526,75 @@
     mode: '0644'
   notify: restart grafana
   when: inventory_hostname in groups['vps']
-  tags: [monitoring, grafana]
+
+# -------------------------------------------------------------------------
+# HD-450 — the silent-failure hygiene collector (unit results + consumer cert age)
+# -------------------------------------------------------------------------
+# Found closing HD-350: oldsrv's `traefik-cert-pull.timer` failed every 15 min for DAYS and NO series
+# changed anywhere in the stack. Two gaps, both structural: a systemd unit's result is not scraped at
+# all (Alloy's host exporter ran an explicit collector set with no `systemd` and no `textfile`), and the
+# cert pair a CONSUMER holds is not exported either — the one cert rule (`ssl-cert-expiring`) reads
+# `probe_ssl_earliest_cert_expiry`, which has ZERO series because blackbox emits no SSL expiry, so the
+# rule has been structurally dead since it was written.
+# The collector is a textfile file written by a 5-min timer, not a long-running exporter: it costs
+# nothing to watch, and its OWN staleness becomes a series (`homelab_hygiene_scrape_ok`), which is the
+# rule that catches this collector dying — the class of failure being hunted, pointed at itself.
+
+- name: Install the hygiene exporter (HD-450)
+  # 0750 root:root — it carries no secret (the lists and the loopback port are the only rendered
+  # content), but it is the thing the alert rules trust, so it is not world-writable by construction.
+  ansible.builtin.template:
+    src: homelab-hygiene.py.j2
+    dest: /usr/local/sbin/homelab-hygiene.py
+    mode: '0750'
+  notify: restart hygiene exporter
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, hygiene]
+
+- name: Install the hygiene exporter unit (HD-450)
+  ansible.builtin.copy:
+    src: homelab-hygiene.service
+    dest: /etc/systemd/system/homelab-hygiene.service
+    mode: '0644'
+  notify: restart hygiene exporter
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, hygiene]
+
+- name: Ensure the hygiene exporter is running (HD-450)
+  ansible.builtin.systemd:
+    name: homelab-hygiene
+    state: started
+    enabled: true
+    daemon_reload: true
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, hygiene]
+
+- name: Prove the exporter answers and this host's Alloy is alive (HD-450)
+  # Two legs, because "the exporter works" and "the exporter is being scraped" are different claims and
+  # only the second one is worth anything: the first curl is the exporter's own /metrics (the series must
+  # exist at all), the second is Alloy's listener (:12345, its default — proof the process this file just
+  # reconfigured is up after the restart). What is NOT proven here is that the series reached
+  # VictoriaMetrics; that read is taken by hand after the converge, and it is the leg that must be green
+  # before an alert rule can be trusted to have anything to evaluate.
+  ansible.builtin.shell:
+    cmd: >-
+      curl -s -m 8 http://{{ monitoring_hygiene_listen }}:{{ monitoring_hygiene_port }}/metrics |
+      grep -E '^homelab_' ; echo '--- alloy ---' ;
+      curl -s -m 8 -o /dev/null -w '%{http_code}' http://127.0.0.1:12345/metrics
+    executable: /bin/bash
+  register: _hygiene_probe
+  changed_when: false
+  failed_when: >-
+    'homelab_hygiene_scrape_ok' not in _hygiene_probe.stdout | default('')
+    or not (_hygiene_probe.stdout | default('')).split('--- alloy ---')[-1].strip().startswith('200')
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, hygiene]
+
+- name: Record what the hygiene exporter publishes (HD-450)
+  # The row is about failures being READABLE, so the converge prints the numbers the alert rules
+  # threshold on instead of a bare "ok" — including cert days-left, which is the value an owner needs
+  # to sanity-check the WARN/CRIT thresholds against the real renewal cycle.
+  ansible.builtin.debug:
+    msg: "{{ (_hygiene_probe.stdout | default('')).split('--- alloy ---')[0].splitlines() }}"
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, hygiene]

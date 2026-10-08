@@ -52,7 +52,12 @@ http:
       tls: true
       # NOTE: no authentik-forward-auth on the dns-pi route (own-login mgmt surface)
     http-redirect:
-      rule: "HostRegexp(`{host:.+}`)"
+      rule: "HostRegexp(`.+`)"
+      # HD-1095 Fix B: v3 needs the PLAIN regex. The v2 template form
+      # HostRegexp(`{host:.+}`) parses and reports the router as `enabled` while
+      # matching NOTHING — measured 2026-10-07 in a clean v3.7.11 container (404 with
+      # the template, 301 with this form), which is why http:// has 404-ed on every
+      # edge for the whole life of this file while the config text read correctly.
       entryPoints:
         - web
       middlewares:

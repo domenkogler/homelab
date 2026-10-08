@@ -72,9 +72,41 @@
     _sab_wl_want: "{{ sabnzbd_host_whitelist | map('trim') | select() | list }}"
   tags: [docker_services, sabnzbd_seed]
 
+- name: "sabnzbd-seed: read the current locality ranges (the OTHER 403 — see the defaults note)"
+  # Absent/empty is a LEGITIMATE state (a fresh SAB ships `local_ranges = ,`), hence `|| true`: grep's rc
+  # would otherwise read as "container not up", which is a different failure with a different remedy.
+  # The container-down case is already caught by the host_whitelist read above.
+  ansible.builtin.shell:
+    cmd: >-
+      docker exec -u {{ storage_uid }} {{ sabnzbd_container_name }}
+      sh -c 'grep -m1 "^local_ranges" /config/sabnzbd.ini | cut -d= -f2- || true'
+    executable: /bin/bash
+  register: _sab_local
+  changed_when: false
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: assert every named locality range resolved from the SSOT"
+  # A range renamed out of network_ranges must not silently shrink the set: local_ranges is REPLACE-all,
+  # so a quietly-missing entry is a network that stops being local (HD-1089's own trap).
+  ansible.builtin.assert:
+    that:
+      - sabnzbd_local_ranges | length == sabnzbd_local_ranges_names | length
+    fail_msg: >-
+      sabnzbd_local_ranges_names asks for {{ sabnzbd_local_ranges_names | length }} range(s) but
+      network_ranges resolves only {{ sabnzbd_local_ranges | length }}: {{ sabnzbd_local_ranges }}.
+      Deriving the set is the whole point — an unresolved name would narrow who counts as local.
+  tags: [docker_services, sabnzbd_seed]
+
+- name: "sabnzbd-seed: compute the wanted locality ranges (union — never drop an existing entry)"
+  ansible.builtin.set_fact:
+    _sab_local_have: "{{ _sab_local.stdout | default('') | split(',') | map('trim') | select() | list }}"
+    _sab_local_want: "{{ sabnzbd_local_ranges }}"
+  tags: [docker_services, sabnzbd_seed]
+
 - name: "sabnzbd-seed: is a change needed?"
   ansible.builtin.set_fact:
     _sab_wl_missing: "{{ _sab_wl_want | difference(_sab_wl_have) }}"
+    _sab_local_missing: "{{ _sab_local_want | difference(_sab_local_have) }}"
   tags: [docker_services, sabnzbd_seed]
 
 # --check first: reading drift does not need SAB stopped, and stopping a working downloader on a
@@ -102,6 +134,14 @@
     _sab_folders_need: "{{ _sab_folders_check.stdout | default('') }}"
   tags: [docker_services, sabnzbd_seed]
 
+- name: "sabnzbd-seed: does any of this need SAB stopped?"
+  # ONE expression, because three `when:` conditions that have to agree (the block, the restart, the
+  # summary) are three chances to leave the downloader stopped.
+  ansible.builtin.set_fact:
+    _sab_restart_needed: >-
+      {{ (_sab_wl_missing | length > 0) or (_sab_local_missing | length > 0) or (_sab_folders_drift | bool) }}
+  tags: [docker_services, sabnzbd_seed]
+
 # SAB rewrites sabnzbd.ini when it exits cleanly, so an edit made while it runs is silently undone at
 # the next stop → stop, edit, start. And the edit MUST go through the HOST PATH, not `docker exec`:
 # exec needs a RUNNING container, so a stop-then-exec seed fails at the edit task and leaves the
@@ -111,7 +151,7 @@
 # place without taking ownership away from the `media` owner the container writes as.
 # `always:` restarts even if the edit blows up, so a failed seed cannot strand the downloader.
 - name: "sabnzbd-seed: apply the ini drift (stop → edit on the host path → start)"
-  when: ( _sab_wl_missing | length > 0 ) or ( _sab_folders_drift | bool )
+  when: _sab_restart_needed | bool
   block:
     - name: "sabnzbd-seed: stop SABnzbd"
       ansible.builtin.command:
@@ -124,6 +164,15 @@
         regexp: '^host_whitelist\s*='
         line: "host_whitelist = {{ (_sab_wl_have + _sab_wl_missing) | unique | join(', ') }}"
       when: _sab_wl_missing | length > 0
+
+    # Same union discipline, opposite consequence: an entry dropped HERE is a network that STOPS being
+    # local, so the LAN and the bridges belong in the line, not just the new tailnet range.
+    - name: "sabnzbd-seed: write the union into local_ranges"
+      ansible.builtin.lineinfile:
+        path: "{{ sabnzbd_ini_host_path }}"
+        regexp: '^local_ranges\s*='
+        line: "local_ranges = {{ (_sab_local_have + _sab_local_missing) | unique | join(', ') }}"
+      when: _sab_local_missing | length > 0
 
     # Section-safe on purpose: a lineinfile on '^dir *=' would also match every CATEGORY's `dir = ""`
     # line and point five categories at the same folder. The helper only edits [misc].
@@ -139,7 +188,7 @@
         cmd: docker start {{ sabnzbd_container_name }}
       changed_when: false
       failed_when: false
-      when: ( _sab_wl_missing | length > 0 ) or ( _sab_folders_drift | bool )
+      when: _sab_restart_needed | bool
   tags: [docker_services, sabnzbd_seed]
 
 - name: "sabnzbd-seed: prove the edge name is now accepted (Host probe, no credentials)"
@@ -156,12 +205,49 @@
   failed_when: "'Hostname verification failed' in _sab_probe.stdout | default('')"
   tags: [docker_services, sabnzbd_seed]
 
+- name: "sabnzbd-seed: discover SAB's own overlay address"
+  ansible.builtin.shell:
+    cmd: >-
+      docker inspect {{ sabnzbd_container_name }}
+      --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
+      | tr ' ' '\n' | awk 'NF{print $1; exit}'
+    executable: /bin/bash
+  register: _sab_overlay
+  changed_when: false
+  failed_when: _sab_overlay.stdout | trim | length == 0
+  tags: [docker_services, sabnzbd_seed]
+- name: "sabnzbd-seed: prove a tailnet client counts as local (HD-1089)"
+  # This is what Traefik actually sends: the peer is a private bridge address (leg 1 passes) and the
+  # client's tailnet address arrives in X-Forwarded-For (leg 2 — the one that 403'd). Three things make
+  # this test worth having: it runs INSIDE the container against SAB's own overlay address, so the peer is
+  # a private non-loopback address — dialing 127.0.0.1 would be allowed by is_loopback_addr() and pass
+  # even with local_ranges EMPTY, i.e. a test that cannot fail; it sends the XFF a real `.ts` request
+  # carries, which is the only way to reach the check that failed; and it is graded on the STATUS CODE,
+  # because a 403 with `api_warnings` off has an EMPTY body, which a string match would call a pass.
+  # (The host cannot dial the overlay address here — measured rc 7 — hence docker exec.)
+  ansible.builtin.shell:
+    cmd: >-
+      docker exec {{ sabnzbd_container_name }} curl -s -m 8 -o /dev/null -w '%{http_code}'
+      -H "Host: sab.{{ tailnet_base_domain }}"
+      -H "X-Forwarded-For: {{ tailnet_oldsrv_ip }}"
+      "http://{{ _sab_overlay.stdout | trim }}:8080/"
+    executable: /bin/bash
+  register: _sab_local_probe
+  changed_when: false
+  failed_when: >-
+    _sab_local_probe.rc != 0
+    or not (_sab_local_probe.stdout | trim is match('^(200|30[0-9])$'))
+  tags: [docker_services, sabnzbd_seed]
+
 - name: "sabnzbd-seed: record what it took"
   ansible.builtin.debug:
     msg: >-
       host_whitelist {{ 'unchanged (all of ' ~ _sab_wl_want | join(', ') ~ ' already present)'
                        if _sab_wl_missing | length == 0
                        else 'extended with ' ~ _sab_wl_missing | join(', ') }}
+      · local_ranges {{ 'unchanged (every internal range already listed)' if _sab_local_missing | length == 0
+                        else 'extended with ' ~ _sab_local_missing | join(', ') }}
       · folders {{ 'unchanged' if not ( _sab_folders_drift | bool ) else ( _sab_folders_apply.stdout | default('') ) }}
-      · {{ 'no restart needed' if ( _sab_wl_missing | length == 0 and not ( _sab_folders_drift | bool ) ) else 'SABnzbd restarted once' }}
+      · tailnet leg HTTP {{ _sab_local_probe.stdout | trim | default('?') }} (XFF {{ tailnet_oldsrv_ip }})
+      · {{ 'no restart needed' if not ( _sab_restart_needed | bool ) else 'SABnzbd restarted once' }}
   tags: [docker_services, sabnzbd_seed]

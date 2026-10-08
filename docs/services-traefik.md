@@ -34,12 +34,38 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > torrent/sab (both :8080 inside) splits get distinct host ports. Each `*_url` is composed from the matching
 > `*_bind`, **which is what makes a half-flip unauthorable**: the publish and the route the edge dials are the
 > same two variables, so one render moves both — the failure mode is no longer reachable by editing one file.
+> **The three names that are NOT in that family, measured 2026-10-08** (so the next session does not go looking
+> for plumbing that is gone): **(a)** there is no `labels: [… publish=…]` mechanism anywhere in `IaC` anymore —
+> `publish=` matches nothing and the music trio's publishes were threaded into the same `*_bind`/`*_host_port`
+> pair in `0549c54e`, so "the trio has the var but a hard-coded publish" is no longer a description of the tree;
+> **(b)** `lan-litellm` (`llitellm.kogler.si` → oldsrv Home :4000) had no var at all and the edge carried the
+> address inline — minted 2026-10-08 as `lan_litellm_host_port` / `lan_litellm_bind` / `lan_litellm_url`, named
+> after the CONTAINER because `litellm_*` already means three different things here (the VPS `litellm` service, the
+> spark `litellm-*` profiles, and `litellm_scoped_keys`, one name with two different values on `home_servers` and
+> `vps`); **(c)** `dozzle`'s backend is `http://dozzle:8080`, a **compose-DNS service name**, and `llogs`' is an
+> inline `http://{{ oldsrv_home_ip }}:8081` — minting a URL var for the first would dress a service name up as a
+> host URL (which is how the `service.*` class got authored in the first place), so it stays a literal on purpose,
+> while `llogs` is a genuine same-class literal awaiting the edge window. Proving an edit here inert is cheap and
+> mandatory: render `routes.yml.j2` recursively (Ansible resolves the nested `oldsrv_home_ip` expression; one-pass
+> jinja does NOT, which is why a hand-diff lies) and require byte-identity before an edge converge is even discussed.
 > Host ports: `jellyfin_host_port` 8096, `sonarr_host_port` 8989, `bazarr_host_port` 6767, `seerr_host_port` 5055,
 > `seerrng_host_port` 5056, `sabnzbd_host_port` 8080, qbit-via-gluetun `qbittorrent_host_port` = **8085**.
 > qBittorrent moved off 8082 on 2026-10-07: gluetun had taken 8082 away from `signal-cli-rest-api` and broken
 > alerting (§[services-downloads.md](services-downloads.md)).
 > ⚠ Quote the var, not just the number — this list is prose, and numbers in prose are precisely what goes
 > stale when a `*_host_port` moves.
+>
+> ⚠ **The mirror-image defect on the OTHER edge (measured 2026-10-07, HD-1095):** the **VPS public edge
+> carries no router at all** for the home-hosted names (`media`/`seerr`/`seerrng` and the rest of that split-
+> horizon group), yet the VPS primary keeps answering them with `dns_primary_ip` for every client that asks
+> it first. The result is a silent **404** — no backend, nothing in the edge log, and the service itself
+> perfectly healthy (`302 → /web/` one hop away on the home edge). A `Host(` rule here has a different
+> reachability rule than the home edge's file provider: the backend is reached **over WG S2S at the home
+> edge**, not by a local socket — the `ha` route in `traefik/dynamic/routes.yml.j2` is the precedent, and
+> `crowdsec-only@file` is mandatory ([security.md](security.md) §1: a route with its own login still needs
+> the bouncer). Until those routes exist, the family's TV/media apps work only on a VLAN whose DHCP names a
+> **home** resolver first — which is what `network_vlans[].lan_first_dns` exists to express
+> ([network-dns.md](network-dns.md) §DNS Flow).
 >
 > **What is deliberately NOT on loopback yet** (measured `ss -ltn` on oldsrv 2026-10-07, after the HD-1083
 > converge — a blanket "everything is loopback" sentence would be false here, and every exception is a
@@ -381,10 +407,20 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
   `tailnet_ts_only_subdomains` (since `97d9fbf`) and the live headscale config carries the record — the earlier
   claim that the name was never published read a stale copy of that list. ⛔ It belongs in that list and **not**
   in `tailnet_subdomains`, which renders BOTH namespaces (the HD-382/389 ambiguity trap).
-  **Placement decided 2026-09-27 (owner):** the Cockpit surfaces stay pinned to **oldsrv's** node; the deciding
-  fact was the type of the 2026-09-23 outage — a human poweroff at the chassis button, not a lost leg
-  ([hardware-oldsrv.md](hardware-oldsrv.md) §Remote Management) — so the record stays rather than being
-  re-pointed at the Pi. Accepted cost: one node behind both doors.
+  **Placement ruled 2026-10-08 (owner): BOTH nodes serve the Cockpit tailnet surfaces — this supersedes the
+  2026-09-27 "pinned to oldsrv's node" ruling.** The reasoning that made the old one cheap — the 2026-09-23
+  outage was a human poweroff at the chassis button, not a lost leg
+  ([hardware-oldsrv.md](hardware-oldsrv.md) §Remote Management) — is still true, and it is exactly why it
+  was reversed: a console route that dies with a *healthy* box is the same class HD-435 already refused for
+  HA's tailnet answer. The acceptance becomes **the name answers with either box shut**, not "answers off
+  oldsrv".
+  ⚠ The load-bearing fact the old ruling rested on does **not** go away and must be solved, not ignored:
+  `pi-oldsrv.ts.kogler.si` (the pi-web seat) and `cockpit-nas.ts.kogler.si` are both served by **oldsrv's own
+  `websecure-ts` listener** — so the Pi leg needs its **own** tailnet listener + router on that box (never a
+  re-point of the seat's name), and the name publishes **`tailnet: dual`** through HD-436's mechanism, not a
+  `tailnet_subdomains` bolt-on (that renders both namespaces, the HD-382/389 trap).
+  ⏳ AI: deploy `cockpit.yml` on **both** edges — oldsrv's deployed file is the **2026-09-03** LAN-only render
+  and the Pi carries no cockpit router at all — then run the browser acceptance once per node.
   ⚠ **A published name and an `online` node are still not a route (measured 2026-09-27):** oldsrv's deployed
   `/opt/traefik/dynamic/cockpit.yml` is the **2026-09-03** render and carries only the two LAN `Host()` rules, so
   `Host: cockpit-nas.ts.kogler.si` against the tailnet listener answers **404** while headscale publishes that
@@ -521,3 +557,54 @@ PUBLIC P2P share on BOTH `pairdrop.kogler.si` and
 `drop.kogler.si` (one router, dual Host matcher; supersedes the HD-113 LAN-only decision).
 Abuse guards: CrowdSec bouncer + the app's built-in `RATE_LIMIT=true`; network isolation via
 traefik-public-only attachment.
+## The home-hosted names at the public edge (HD-1095, 2026-10-07)
+
+The VPS edge used to answer for `media` / `seerr` / `seerrng` with nothing — no router — while the VPS
+Technitium primary answered those names with `dns_primary_ip` and Cloudflare publishes `media`. Both halves
+are now true at once: `traefik/dynamic/routes.yml.j2` carries one router per name on `websecure`, behind
+`crowdsec-only@file` (own login → the [security.md](security.md) §1 law still requires the bouncer), and each
+points at the **home edge**, not at the app:
+
+```
+client → VPS edge (Host rule, TLS from the issuer) → https://<oldsrv Home address>:443 (Host + SNI preserved)
+       → traefik-internal's own route table → jellyfin / seerr / seerrng on loopback
+```
+
+Two rules this shape depends on, both learned by measurement rather than by reading the config:
+
+- **Dial the home EDGE, not the app.** Jellyfin publishes on loopback only (HD-419), so a backend URL aimed
+  at the app from the VPS is a dead port; `oldsrv_home_ip:443` is reachable over WG S2S and keeps one
+  behaviour for LAN and WAN clients, because the home edge applies its own rules to the forwarded `Host`.
+  `passHostHeader: true` is what makes that work.
+- **`serversTransports.<name>.servername` is mandatory.** The backend URL is an *address*; without an
+  explicit SNI Go verifies the `*.kogler.si` wildcard against the IP and every handshake fails. It is a
+  transport field, not a service field, so one transport per name — `home-edge-media`, `home-edge-seerr`,
+  `home-edge-seerrng`.
+
+Pre-flight, before any change landed: `curl` from the **traefik container's own network namespace** against
+the home edge with SNI + `Host` preserved returned `302` with **no `-k`**, i.e. verified end to end.
+After the converge: `--resolve media.kogler.si:443:<VPS IP>` → `302 → /web/`, `/System/Info/Public` returns
+Jellyfin JSON through the two hops, and `seerr`/`seerrng` return their own `307`.
+
+## The `:80 → :443` redirect has been broken on every edge since it was written (HD-1095)
+
+Measured 2026-10-07: `http://media.kogler.si/` and `http://foto.kogler.si/` returned **404**, on the home edge
+and on the public edge alike, while every rendered `routes.yml` said the redirect was in place. Two
+independent causes, neither of which can fail a converge:
+
+1. **`HostRegexp(`{host:.+}`)` matches nothing on Traefik v3.** The `{name:regex}` template is v2 syntax. The
+   rule parses, `GET /api/http/routers` reports the router **`enabled`**, and no request ever matches it.
+   Isolated proof on this host in a throwaway `traefik:v3.7.11` container: same file, same middleware —
+   template form `404`, `HostRegexp(`.+`)` `301`. The v3-valid catch-all exists, so the harsher conclusion
+   recorded in [services-rejected.md](services-rejected.md) ("rules must name the host") applies to *service*
+   routes, not to a redirect catch-all — see the appended row there.
+2. **The public edge referenced a middleware it never declared.** `docker logs traefik` said
+   `middleware "redirect-to-https@file" does not exist` for `http-redirect@file` on entrypoint `web`, and the
+   router served nothing. Every other edge declares `redirect-to-https` in its own dynamic files; this one
+   only used it.
+
+Both fixed where declared (`traefik`, `traefik-internal`, `traefik-ha`), and re-measured: `http://` is `301`
+on the home edge and on the public edge. ⛔ **A router that cannot match and a middleware reference that
+resolves to nothing are legal Traefik configuration.** The converge reads `changed=1, failed=0` either way.
+The two probes that actually see this: `GET /api/http/routers` on an edge with the API enabled, and a real
+`curl -i` against the cleartext entrypoint — never "the file says so".

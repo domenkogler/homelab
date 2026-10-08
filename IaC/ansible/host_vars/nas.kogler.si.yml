@@ -32,3 +32,25 @@ nut_wake_macs:
 # Per-host on purpose: one shared item would give two management consoles the same password.
 # Value lives only in 1Password; the host gets a sha512 crypt hash in /etc/shadow.
 cockpit_maint_vault_item: nas-cockpit_login
+
+# ---------------------------------------------------------------------------
+# Samba family shares (D4/HD-131; roles/storage/tasks/samba.yml) — LOCAL tdbsam accounts.
+# SSOT for "who can mount the NAS" is THIS list: a repo edit + one `--tags samba` converge,
+# no directory sync and no VPS in the auth path (the Authentik-as-LDAP design that used to
+# own this was retired 2026-10-07 — docs/storage-rejected.md + storage.md §Samba).
+#   * vault_item is a `*_item:` registry key on purpose, so scripts/check-vault-items.sh
+#     sees the dependency (CONVENTIONS §2 item-reference coverage; HD-244 lesson).
+#   * `shell` is pinned only for the service account; `domen` keeps whatever login shell
+#     the box already gives it, because that account also SSHes here (an interactive leg
+#     an ansible.builtin.user task must not silently take away).
+#   * `drive: false` = no `\\nas\<name>` private share — it is a share-login account, not
+#     a person. Its share is `music` (storage_samba_music_valid_users below).
+# Rotation: rotate the item in 1Password, then re-run with
+#   -e storage_samba_password_force=domen   (a rotate alone reaches nothing — §2 rotation).
+storage_samba_users:
+  - { name: domen,  vault_item: smb-domen_login }
+  - { name: shared, vault_item: smb-shared_login, shell: /usr/sbin/nologin, drive: false }
+# The music share (the Lidarr root, HD-362) is mounted with the shared service account, so
+# no personal credential is typed on a family laptop / relative's machine.
+storage_samba_music_valid_users: shared
+

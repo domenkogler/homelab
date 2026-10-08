@@ -28,9 +28,10 @@ The `authentik-server` service mounts a **`blueprints/`** volume (alongside the 
 `/templates`): Authentik applies the Blueprint idempotently at startup / on demand. The
 `ks-oidc.yml` Blueprint declares the OIDC providers + applications for Open WebUI, Headscale,
 Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect), **Immich, Forgejo, Metabase**
-(HD-148). Optionally the Authentik
-**LDAP provider/outpost** (D7/HD-132) was planned to be declared here — **HD-360** adds it
-(2026-09-14: still absent from the blueprint; the live LDAP enable is pending that row).
+(HD-148). The Authentik **LDAP provider/outpost** (D7/HD-132) was also once planned to be declared
+here — **retired 2026-10-07**, it never landed in the blueprint and the whole path is now
+[storage-rejected.md](storage-rejected.md); see
+[deployment-compose.md](deployment-compose.md) §Samba ↔ Authentik-as-LDAP for the evidence.
 
 ### Deploy ordering (in `vps.yml`)
 Steps 2–4 map to the Ansible **Authentik pre-pass** (`roles/docker_services/tasks/prepass-authentik.yml`,
@@ -39,7 +40,8 @@ HD-162), which runs **before** the per-service deploy loop and is gated on `auth
 file (`docker compose -f … validate`) before `up`. See
 [`deployment-ansible.md`](deployment-ansible.md) §`docker_services`.
 
-1. Deploy `authentik` (+ bundled pg/redis/ldap) — `docker compose up -d`.
+1. Deploy `authentik` (+ bundled pg/redis) — `docker compose up -d`. (`authentik-ldap` used to be
+   deployed here too; it was retired 2026-10-07 with the Samba ldapsam design.)
 2. **Apply the Blueprint** (`ks-oidc.yml`) — via the dedicated, externalized playbook
    `playbooks/authentik-blueprints.yml` (owner decision 2026-08-27: blueprints are rarely-changed
    integration wiring, so the ~45s one-shot was moved OUT of the routine docker_services lane; run
@@ -49,8 +51,8 @@ file (`docker compose -f … validate`) before `up`. See
 3. **Run the secret-egress glue** — for each declared provider, `GET /api/v3/core/providers/oauth2/`
    → seed the 1Password item (`openwebui_api`, `headscale_api`, `matrix_api`, `openclaw_api`,
    `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`, `metabase_oidc`). (The OpenCloud Graph-API
-   service account `opencloud-service_api` is NOT this glue's job — it is seeded by the
-   `sync-authentik-users` rework, HD-145.)
+   service account `opencloud-service_api` is NOT this glue's job — it was seeded for the
+   `sync-authentik-users` rework, HD-145, which was retired 2026-10-07; the item now has no consumer.)
 4. Deploy the **OIDC consumers** — their compose `lookup()` now resolves real client creds.
 
 Fail-closed (HD-65/91): the glue aborts loudly instead of rendering a consumer with an

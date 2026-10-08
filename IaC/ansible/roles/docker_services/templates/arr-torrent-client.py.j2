@@ -71,6 +71,14 @@ IMPLEMENTATION = {{ arr_torrent_client_implementation | to_json }}   # the PROVI
 # Keys arrive suffixed (`host_type`) so the secrets linter cannot read a type NAME as a credential.
 TYPES = {k[:-5] if k.endswith("_type") else k: v
          for k, v in {{ arr_torrent_client_field_types | to_json }}.items()}
+# Fields our defaults own that a build's settings class may legitimately not expose. Measured 2026-10-07
+# against the live four (read-only GET /downloadclient + /downloadclient/schema): Sonarr 4.0.19, Radarr
+# and Prowlarr 2.5.2 all report `apiKey`; **Lidarr 3.1 reports it in neither**. Treating "the app has no
+# such property" as drift compared None to "" forever, so Lidarr's client was PUT on every converge —
+# which is what made the failed second run of 2026-10-07 read like a flake. Everything else we own and
+# the app does not report is a hard failure below, never a silent skip.
+OPTIONAL = {{ arr_torrent_client_optional_fields | to_json }}
+SKIPPED = []      # owned-but-not-exposed fields actually seen this run, for the report line
 
 stdin_lines = sys.stdin.read().split("\n")
 API_KEY = (stdin_lines[0] if stdin_lines else "").strip()
@@ -107,6 +115,23 @@ def qbit_of(clients):
     return [c for c in clients or [] if (c.get("implementation") or "").lower() == "qbittorrent"]
 
 
+def same(live_value, wanted_value):
+    """Scalar equality that ignores JSON representation.
+
+    The apps store `port` as an int and echo it back as 8080 while our var renders the string "8080"
+    (`arr_torrent_client_port` is a quoted Jinja value), so a raw `!=` compares "8080" to 8080 forever.
+    Measured 2026-10-07 against the live four: field `port` is int 8080 on Sonarr, Radarr, Lidarr AND
+    Prowlarr, so EVERY converge PUT all four clients — the bigger half of HD-1090's perpetual drift, of
+    which Lidarr's missing apiKey was only the extra field. Bools stay strict: "False" == False would
+    mute a real useSsl change.
+    """
+    if isinstance(live_value, bool) or isinstance(wanted_value, bool):
+        return live_value == wanted_value
+    if live_value is None or wanted_value is None:
+        return live_value == wanted_value
+    return str(live_value) == str(wanted_value)
+
+
 status, clients = call("GET", "/downloadclient")
 if status != 200 or not isinstance(clients, list):
     print("FAIL GET %s/downloadclient -> %s %s" % (BASE + API, status, str(clients)[:200]))
@@ -124,8 +149,21 @@ if existing:
     live = {f.get("name"): f.get("value") for f in existing.get("fields", []) if isinstance(f, dict)}
     types = {f.get("name"): f.get("type") or TYPES.get(f.get("name"), "textBox")
              for f in existing.get("fields", []) if isinstance(f, dict)}
+    # The app's OWN field set is the drift universe: a field it does not report is a field it cannot
+    # store, so it can neither drift nor be written. An unreported field we depend on is still fatal.
+    unreported = [k for k in wanted if k not in live and k not in OPTIONAL]
+    if unreported:
+        print("FAIL this build reports none of %s, which our defaults own, and they are not in "
+              "arr_torrent_client_optional_fields. Either the app renamed a field this seed depends on "
+              "(the category field is what steers the save path) or the defaults gained a field this "
+              "build cannot store — in which case it belongs in the optional list WITH the measurement "
+              "that proves it. Reported fields: %s"
+              % (sorted(unreported), sorted(live)))
+        sys.exit(1)
+    SKIPPED = sorted(k for k in wanted if k not in live)
+    owned = {k: v for k, v in wanted.items() if k in live}
     merged = dict(live)
-    merged.update(wanted)          # secrets last, so a redacted read-back value can never survive
+    merged.update(owned)          # secrets last, so a redacted read-back value can never survive
     body = {
         "id": existing.get("id"),
         "name": existing.get("name") or NAME,     # never rename a client something else may reference
@@ -149,7 +187,7 @@ if existing:
         if _opt in existing:
             body[_opt] = existing[_opt]
     # Password is unreadable by design, so it is not part of the drift question — the test call is.
-    drift = [k for k in wanted if k != "password" and live.get(k) != wanted[k]]
+    drift = [k for k in owned if k != "password" and not same(live[k], owned[k])]
     if not existing.get("enable"):
         drift.append("enable")
     action = "updated" if drift else "unchanged"
@@ -174,7 +212,17 @@ else:
         sys.exit(1)
     tmpl_types = {f.get("name"): f.get("type") for f in tmpl.get("fields", []) if isinstance(f, dict)}
     tmpl_values = {f.get("name"): f.get("value") for f in tmpl.get("fields", []) if isinstance(f, dict)}
-    tmpl_values.update(wanted)
+    # Same rule as the update path, against the schema instead of the live object: a field this build
+    # does not expose cannot be configured, and silently dropping it would make a "registered" verdict
+    # mean "configured everything except the field nobody checked".
+    unreported = [k for k in wanted if k not in tmpl_values and k not in OPTIONAL]
+    if unreported:
+        print("FAIL the schema for this build exposes none of %s, which our defaults own, and they are "
+              "not in arr_torrent_client_optional_fields. Schema fields: %s"
+              % (sorted(unreported), sorted(tmpl_values)))
+        sys.exit(1)
+    SKIPPED = sorted(k for k in wanted if k not in tmpl_values)
+    tmpl_values.update({k: v for k, v in wanted.items() if k in tmpl_values})
     body = {k: v for k, v in tmpl.items() if k not in ("presets", "infoLink", "implementationName", "id")}
     body.update({
         "name": NAME,
@@ -186,16 +234,17 @@ else:
     if body.get("configContract") != CONTRACT:
         print("note: schema reports configContract=%r, defaults say %r — the schema wins, this line "
               "only says the two have diverged" % (body.get("configContract"), CONTRACT))
-    drift = sorted(wanted)
+    drift = sorted(k for k in wanted if k in tmpl_values)
     action = "registered"
 
 if MODE == "check":
-    print("%s: would %s (%d field(s) differ%s) · %s=%s" % (
+    print("%s: would %s (%d field(s) differ%s) · %s=%s%s" % (
         "CHANGED" if (not existing or drift) else "OK already", action, len(drift),
-        "" if drift else "", CATEGORY_FIELD, wanted[CATEGORY_FIELD]))
+        "" if drift else "", CATEGORY_FIELD, wanted[CATEGORY_FIELD],
+        (" · not exposed by this build: %s" % ",".join(SKIPPED)) if SKIPPED else ""))
     sys.exit(0)
 
-if MODE == "apply":
+if MODE == "apply" and drift:
     status, reply = call("PUT" if existing else "POST", "/downloadclient", body)
     if status not in (200, 201, 202):
         print("FAIL %s %s/downloadclient -> %s %s"
@@ -239,6 +288,7 @@ if status != 200:
              CATEGORY_FIELD, wanted["host"]))
     sys.exit(1)
 
-print("%s: %s host=%s:%s %s=%s · arr client test HTTP %s" % (
+print("%s: %s host=%s:%s %s=%s · arr client test HTTP %s%s" % (
     "CHANGED" if (MODE == "apply" and (not existing or drift)) else "OK already",
-    action, wanted["host"], wanted["port"], CATEGORY_FIELD, CATEGORY, status))
+    action, wanted["host"], wanted["port"], CATEGORY_FIELD, CATEGORY, status,
+    (" · not exposed by this build: %s" % ",".join(SKIPPED)) if SKIPPED else ""))

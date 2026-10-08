@@ -98,6 +98,11 @@ cloudflare_dns_records:
   - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # KEPT + IaC-tracked (HD-230): pairdrop.kogler.si stays live alongside drop
   - { name: bin,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-112: Zipline public bin/shortener
   - { name: home,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-230: was missing from CF entirely (route 000 since HD-219 wave)
+  # HD-1095 (2026-10-07): the owner created this CNAME live so Jellyfin is reachable while
+  # traveling; the VPS edge now actually serves it (routes.yml.j2 → home edge over WG S2S),
+  # so the record is a true answer, not a dead pointer. IaC-owns the live record here — same
+  # incremental path as `dns` (HD-198): created by hand first, then put under IaC.
+  - { name: media,     type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-1095: Jellyfin public, own login + crowdsec-only
 #
 # OBSERVABILITY IS TAILNET-ONLY (HD-135b follow-up, 2026-08-28): stats / sec / traefik /
 # auto had public CNAMEs here from the Phase-1 wave, contradicting the internal-only docs.

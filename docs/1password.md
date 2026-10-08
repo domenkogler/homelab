@@ -29,7 +29,7 @@ one vault), both re-issued:
 
 | Item | Scope | Who uses it |
 |---|---|---|
-| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) any CI runner that resolves the vault (HD-315's `vault-gate`; Phase 0/5 of [../deployment-tasks.md](../deployment-tasks.md) store `op_api` as a runner secret — renew it there after every rotation, or CI's vault access starts 403-ing) |
+| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) any CI runner that resolves the vault (HD-315's `vault-gate`; Phase 0/5 of [../deployment-tasks.md](../deployment-tasks.md) store `op_api` as a runner secret — renew it there after every rotation, or CI's vault access starts 403-ing). ✅ **Rotated by the owner 2026-10-08**; the superseded value stops working ~2026-10-15, so re-seed + re-verify every consumer before then (HD-495 carries the leg) |
 | `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted) |
 
 > **Superseded design (kept for the record, do not re-implement):** this section used to say the
