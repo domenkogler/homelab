@@ -4,7 +4,7 @@
 #
 # WHY THIS EXISTS
 # ---------------
-# A seat's harness is seven planes (skills, extensions, settings, the model contract, the TUI
+# A seat's harness is eight planes (the pi build itself, skills, extensions, settings, the model contract, the TUI
 # package + its footer key, tmux, the TUI font), each owned by its own script, on three
 # machines (Win11, WSL Debian, the oldsrv cockpit). Before 2026-10-08 the planes were run one
 # at a time, per seat, by a session remembering which ones it had done — and the gaps that
@@ -72,6 +72,11 @@ OLDSRV_REPO="${PI_OLDSRV_REPO:-/home/domen/source/homelab}"
 SSH_OPTS="${PI_SSH_OPTS:--o ConnectTimeout=10 -o BatchMode=yes}"
 
 # --- the plane scripts (owners; this file never re-implements one) --------------
+# The build itself (HD-1114): every other plane compares FILES, so before this the running
+# pi binary was the one harness artifact with no gate — which is how a seat ended up on a pi
+# release the repo had never reviewed (HD-1112's unpinned volta install).
+S_SELF_C='bash scripts/pi-self-update.sh --check --strict'
+S_SELF_P='bash scripts/pi-self-update.sh --push'
 S_SKILLS_C='bash scripts/sync-skills.sh --check'
 S_SKILLS_P='bash scripts/sync-skills.sh --push'
 S_EXT_C='bash scripts/sync-extensions.sh --check --strict'
@@ -97,7 +102,8 @@ S_FONT_WIN_P='powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/wi
 # package decision (HD-445/HD-1085), and the Windows font leg is the ps1 because a
 # ~/.local/share/fonts directory rasterises nothing on Windows.
 planes_for_seat() {
-  local common="skills|$S_SKILLS_C|$S_SKILLS_P
+  local common="pi-self|$S_SELF_C|$S_SELF_P
+skills|$S_SKILLS_C|$S_SKILLS_P
 extensions|$S_EXT_C|$S_EXT_P
 tui|$S_TUI_C|$S_TUI_P
 models|$S_MODEL_C|$S_MODEL_P"

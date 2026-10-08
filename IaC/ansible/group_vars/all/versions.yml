@@ -260,7 +260,7 @@ openclaw_version: "2026.7.1"   # HELD: 2026.9.8 crash-loops "shared state databa
 # at container start (pinned below; engine node>=22.19.0).
 pi_dev_node_version: "24.21.0"              # node:24 glibc base (HD-298: NOT -alpine — node-pty needs glibc prebuilds; template no longer appends -alpine) — pi agent-engine node>=22.19.0. Was the floating `24` alias; an exact patch tag is the §7-correct form (verified 2026-10-08).
 pi_dev_npm_package: "@earendil-works/pi-coding-agent"  # pi CLI (containerization "Plain Docker")
-pi_dev_npm_version: "1.0.3"                # npm `latest` at the 2026-10-08 probe; 1.1.0 exists (2026-10-07) but is inside the 3-day hold — must equal `pi_host_npm_version` (HD-484: the two seats must not drift)
+pi_dev_npm_version: "1.1.0"                # OWNER RULING 2026-10-08: pin moved to 1.1.0 (published 2026-10-07T22:16Z, inside the 3-day hold, which the owner waived for this move). MUST equal `pi_host_npm_version` (HD-484: the two seats must not drift).
 pi_web_access_version: "0.36.0"             # pi-web-access extension (web search/URL fetch) — npm probe 2026-10-08
 pi_web_ui_version: "0.99.0"                 # pi-web-ui — Web chat UI for the pi agent (server on :8787, logs; npm probe 2026-10-08)
 # 2026-10-08 (HD-1111): the `[Extension issues]` panel about `typebox` being a `dependencies`
@@ -506,9 +506,8 @@ pi_host_node_version: "22.23.3"              # nodejs.org tarball (22.23.3, rele
                                              # live install 2026-10-05). An exact patch release, never the `v22.x.x` alias —
                                              # that tag exists but is not a release.
 pi_host_npm_package: "@earendil-works/pi-coding-agent"
-pi_host_npm_version: "1.0.3"                 # npm dist-tag `latest` at the 2026-10-08 probe (1.1.0 released 2026-10-07 = inside
-                                             # the 3-day hold). MUST equal `pi_dev_npm_version` (HD-484). The seats move on the
-                                             # next `install-pi-debian.sh` run — the pin changing is not the same as the seat moving.
+pi_host_npm_version: "1.1.0"                 # npm dist-tag `latest` (registry-verified 2026-10-08: latest is 1.1.0). The Win11 seat already RAN 1.1.0 — it moved past its pin through the unpinned `volta install @latest` in the now-deleted root `update_pi.cmd` (HD-1112); this pin records what the seat runs instead of pretending it runs 1.0.3.
+                                             # MUST equal `pi_dev_npm_version` (HD-484). The DEBIAN seats do NOT move by reading this line: `pi-self-update.sh --push` is what moves a seat (HD-1114), and it re-probes the binary to prove it.
 # 2026-10-08 (HD-1111/HD-1112): the Win11 seat was already RUNNING 1.1.0, ahead of this pin,
 # because the root `update_pi.cmd` ran an unpinned `volta install ...@latest`. That script is
 # deleted; raising a pin is not the same as a seat moving, and here the seat moved first.

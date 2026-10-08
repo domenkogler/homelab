@@ -489,7 +489,7 @@ else
   echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
 fi
 
-echo "== pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1110: the seat planes) =="
+echo "== pi-self-update.sh / pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1110, HD-1114: the seat planes) =="
 # Four gates, one per plane the seat-sync driver fans out to, so the driver can never report
 # OK on a plane nothing ever validated. Each self-test runs EVERYWHERE (they are sandboxed in
 # a temp dir and need no seat); the --check half is guarded to SKIP where the target does not
@@ -509,10 +509,21 @@ echo "== pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-se
 #                      driver that reports IN SYNC without reaching a seat is the failure this
 #                      file exists to prevent — and the real legs need network + SSH, so this is
 #                      the only half that can be gated. Run it live yourself, do not trust a gate.
+bash scripts/pi-self-update.sh --self-test
 bash scripts/pi-tui-config.sh --self-test
 bash scripts/pi-settings-config.sh --self-test
 bash scripts/install-nerd-font.sh --self-test
 bash scripts/pi-seat-sync.sh --self-test
+# The pi BUILD on this host vs pi_host_npm_version — BEHIND and AHEAD are both drift (a seat
+# ahead of its pin is the shape every file plane misses). rc 2 = no pi binary here = SKIP,
+# printed and never counted green (CONVENTIONS: a SKIP is not a pass).
+rc_piself=0
+bash scripts/pi-self-update.sh --check --strict || rc_piself=$?
+case "$rc_piself" in
+  0) echo "OK: the pi build on this host equals pi_host_npm_version" ;;
+  2) echo "SKIP: no pi binary on this host — the pi-self plane runs where pi is installed (pi-seat-sync.sh --push)" ;;
+  *) echo "FAIL: the pi build drifts from pi_host_npm_version — run: bash scripts/pi-self-update.sh --push"; exit 1 ;;
+esac
 if [ -f "$HOME/.pi/agent/settings.json" ]; then
   bash scripts/pi-settings-config.sh --check --strict
 else

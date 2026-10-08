@@ -2164,6 +2164,9 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    cd /home/domen/source/homelab && git pull --ff-only
    bash scripts/pi-seat-sync.sh --check          # read-only seat x plane matrix
    bash scripts/pi-seat-sync.sh --push           # or the planes one at a time:
+   #   scripts/pi-self-update.sh --push     the pi build itself -> pi_host_npm_version (HD-1114): Volta on the
+   #                                      Windows seat, npm at $PI_NODE_PREFIX on the Debian seats, then the
+   #                                      binary is RE-PROBED. BEHIND and AHEAD are both drift.
    #   scripts/sync-skills.sh --push          skills/                       -> ~/.pi/agent/skills/
    #   scripts/sync-extensions.sh --push      repo extensions               -> ~/.pi/agent/extensions/
    #                                          (removes names on its RETIRED list, keeps LOCAL ones)
@@ -2176,6 +2179,10 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    #     --reload also sources the RUNNING server: pi reads extended-keys / extended-keys-format back
    #     with `tmux show -gv` at start-up, and a server that was already up keeps its old values.
    ```
+   On the Windows seat a **machine-wide** JetBrainsMono install satisfies the font plane (the operator-installed case,
+   [docs/pi-harness.md](docs/pi-harness.md) §5a): the ps1 reports `OK (machine-wide)` and installs nothing a second time
+   per-user.
+
    A seat that carries its own extra pi package (this cockpit runs pi-web itself) is KEPT and printed by the
    settings plane — never deleted to make a check go green. Updating pi ITSELF is in no script on the Windows
    side (Volta is Windows-only): `volta install @earendil-works/pi-coding-agent@<pi_host_npm_version>`, the
