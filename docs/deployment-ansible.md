@@ -629,6 +629,17 @@ or the static gate fails.
 
 ## Runner placement (HD-407) — seeding a second control node
 
+> **⚠ A runner whose key lives in `~/.ssh/agent` can be unable to reach any target, and the error
+> lies (measured 2026-10-08 on the VPS bootstrap).** This seat's agent holds `github_signing` +
+> `github_auth` and `IdentitiesOnly` is unset, so ssh offers those FIRST and, against the VPS's
+> low `MaxAuthTries`, the server hangs up before the canonical key is ever offered — the client
+> reports `Too many authentication failures`, which reads like "wrong key" and is actually "never
+> got to the right one". The canonical `ansible-admin_ssh` key was in `~/.ssh/id_ed25519` the whole
+> time. The working form is `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 ansible-admin@…`;
+> pinning `IdentitiesOnly yes` per `Host` block is the durable fix, and `ssh -G <host> | grep
+> -E 'identityfile|identitiesonly'` is the five-second diagnostic. Check this BEFORE concluding a
+> grant is missing.
+
 The runner is whatever machine executes `scripts/ansible-run.sh`; both scripts and the IaC
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
 oldsrv is five steps, and only the first needs a human. **Executed end to end 2026-09-22/23** —
