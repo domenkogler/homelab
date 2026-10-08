@@ -36,7 +36,7 @@ crowdsec_web_ui_version: "2026.10.1"   # ghcr.io/theduffman85/crowdsec-web-ui �
 authentik_version: "2026.8.3"     # ghcr.io/goauthentik/server + ldap (GoAuthentik) — verified 2026-10-08 (2026-09-17)
 # The two authentik sidecars were HARDCODED in the template (`postgres:16-alpine`, `redis:7-alpine`)
 # — no var, no Renovate trail, invisible to a fleet version review (§7 violation, found 2026-10-08).
-authentik_db_version: "18.6-alpine"    # postgres — ⚠ data-format major (16 → 18): dump/restore before the converge
+authentik_db_version: "16.15-alpine"    # HELD at 16 (HD-1100 owns the 16 → 18 dump/restore window)
 authentik_redis_version: "8.10.2-alpine"  # redis — cache/queue only (auth sessions live in Postgres)
 
 # ==== Tunnels / DNS ====
@@ -54,12 +54,17 @@ headplane_version: 0.7.1
 keepalived_version: "2.3.4"        # verified 2026-10-08: 2.4.3 IS the newest release but was published
                                    # 2026-10-07 — inside the hold; eligible 2026-10-10, not a missed bump.
 
-# ==== Home Assistant (Pi primary + oldsrv standby) ====
+# ==== Home Assistant (Pi primary; HD-12 standby NOT deployed) ====
 # Home Assistant Container image tag, ghcr.io/home-assistant/home-assistant, calver.
 # ONE copy on purpose: until 2026-10-08 `home_servers.yml` AND `raspberry_pi.yml` each carried
 # their own `home_assistant_version` — exactly how a primary/standby pair that MUST run the same
 # version for clean manual failover (HD-39) ends up drifting. Verified 2026-10-08 via the ha-core
 # release feed (2026.9.4, 2026-09-03); both templates read this var.
+# MEASURED 2026-10-08 from the runner: the PRIMARY container runs on the **Pi**
+# (`home-assistant-primary` + its `osixia/keepalived` sidecar) and there is **no standby container
+# on any host** — `docker ps -a | grep -ci home-assistant` = 0 on oldsrv/vps/spark/nas. So the
+# same-version rule (HD-39) currently protects nothing; the standby template exists, the deploy
+# never happened. Do not describe HA failover as live until HD-12 converges.
 home_assistant_version: "2026.9.4"
 
 # ==== Tuwunel (Matrix homeserver) — MUST-pin, fluid/obscure ====
@@ -221,10 +226,14 @@ docling_version: "v1.36.0"   # verified 2026-10-08 via the Quay tag API (2026-10
 # a long way behind the gateway the clients actually call. Renovate tracks it.
 litellm_version: "v1.104.0"
 # Bundled LiteLLM Postgres sidecar image tag (HD-247, STORE_MODEL_IN_DB). Renovate-tracked.
-# ⚠ DATA-FORMAT MAJOR (16 → 18): an existing PGDATA from 16 will NOT start on 18 — the container
-#   exits "database files are incompatible with server". Dump/restore (or pg_upgrade) BEFORE the
-#   converge that applies this line, for EVERY postgres sidecar below.
-litellm_db_version: "18.6-alpine"
+# ⚠ HELD AT THE 16 LINE 2026-10-08 by owner decision — HD-1100 owns the 16 → 18 window. An
+#   existing PGDATA from 16 will NOT start on 18 (container exits "database files are incompatible
+#   with server"), so this line is a MIGRATION, not a restart: dump/restore or pg_upgrade first.
+#   MEASURED placement 2026-10-08 (`PG_VERSION` read on each host): ALL the 16-line sidecars live
+#   on the VPS — authentik-postgres + forgejo-db (`postgres:16-alpine`, the alias the templates
+#   hardcoded), litellm-db / onlyoffice-postgres / zipline-db (`16.15-alpine`), immich-postgres on
+#   its own composite `14-vectorchord…` tag. OLDSRV's only Postgres is `lan-litellm-db` (this var).
+litellm_db_version: "16.15-alpine"
 # (The authentik-db and forgejo-db sidecars that were hardcoded `postgres:16-alpine` in their
 #  templates now have their own vars next to their service — search `authentik_db_version` /
 #  `forgejo_db_version`. The 16 → 18 data-format rule above applies to every one of them.)
@@ -263,7 +272,8 @@ dsh_version: "0.1.1-rc.2"
 # `scripts/image-pin-probe.py` + the registry's own Docker-Content-Digest.
 db_backup_version: "latest@sha256:f70a79aa8dc1ea6cf08762ce478923a814578741f1f374fa9168902eda1312ee"   # tiredofit/db-backup
 forgejo_version: "16.0.5"  # codeberg.org/forgejo/forgejo (docker tag strips `v`) — verified 2026-10-08 via the Codeberg release API (2026-09-17); the 16.0.2 publish-break precedent (manifest 404) is why existence is probed, not assumed
-forgejo_db_version: "18.6-alpine"  # forgejo's DB sidecar was hardcoded `postgres:16-alpine` in the template —
+forgejo_db_version: "16.15-alpine"  # HELD at 16 (HD-1100). The sidecar WAS hardcoded `postgres:16-alpine` in the
+                                  # template — a mutable alias with no var, so nothing could see it (§7, found 2026-10-08).
                                   # no var, no Renovate trail, invisible to a fleet review (§7, found 2026-10-08).
                                   # ⚠ 16 → 18 data-format major: dump/restore the forgejo-db volume first.
 grafana_version: "13.2.3"           # grafana/grafana OSS — verified 2026-10-08
@@ -287,7 +297,7 @@ immich_valkey_version: "9.1.2"     # docker.io/valkey/valkey — verified 2026-1
 opencloud_version: "8.0.1"        # opencloudeu/opencloud-rolling (Docker Hub; the template, not this comment,
                                   # is the reference) — MAJOR 7 → 8 (2026-09-16); read the skipped migration notes.
 zipline_version: "4.8.0"          # ghcr.io/diced/zipline (owner-corrected 2026-08-25; tag has NO `v` prefix; verified 2026-10-08). Note: upstream also ships rolling `v4`/`latest` — never use those (§7).
-zipline_db_version: "18.6-alpine" # postgres — ⚠ data-format major (16 → 18), same migration rule as litellm_db_version.
+zipline_db_version: "16.15-alpine" # HELD at 16 (HD-1100) — same data-format rule as litellm_db_version.
 # ONLYOFFICE Docs Server — WOPI helper for OpenCloud browser editing (HD-166). Verified
 # 2026-10-08: Docker Hub `onlyoffice/documentserver` newest stable 9.4.0.1 (2026-07-22).
 # Renovate docker datasource tracks it; MUST re-verify at first deploy (HD-134/§7).
@@ -296,17 +306,20 @@ onlyoffice_version: "9.4.0.1"
 # to LOCALHOST postgres/redis/rabbitmq, which cannot start under cap_drop:ALL -> eternal
 # "Waiting for connection to the localhost host on port 5432" -> WopiDiscovery 502).
 # Tags verified 2026-10-08 via the Docker Hub tag API; Renovate tracks each.
-# ⚠ All three left the line ONLYOFFICE ships/tests against: postgres 16 → 18 (data-format
-#   migration — see litellm_db_version), redis 7.4 → 8.10 (wire-compatible, no action), and
-#   rabbitmq 3.13 → 4.3 — RabbitMQ 4 CANNOT read a 3.13 mnesia store, so the broker's data dir
-#   must be recreated rather than restarted. ONLYOFFICE holds only transient job queues there,
-#   but say so out loud in the deploy, not in a queue that never drains.
-onlyoffice_pg_version: "18.6-alpine"
+# ⚠ Only redis moved (7.4 → 8.10: Redis 8 reads a 7.x RDB, so it is a restart). Postgres and the
+#   broker are HELD at their live majors 2026-10-08 (HD-1100):
+#   * `onlyoffice_pg_version` — the 16 → 18 data-format rule, see litellm_db_version;
+#   * `onlyoffice_rabbitmq_version` — I asserted in-session that RabbitMQ 4 cannot read a 3.13
+#     mnesia store, then could NOT source it (rabbitmq.com upgrade pages 404, the GitHub UPGRADE.md
+#     path moved). An unsourced claim does not license an in-place store bump on a live broker, so
+#     3.13.7 stays and the vendor matrix gets read in HD-1100. ONLYOFFICE keeps only transient job
+#     queues here — which is why it is cheap to migrate, not why it is safe to guess.
+onlyoffice_pg_version: "16.15-alpine"
 onlyoffice_redis_version: "8.10.2-alpine"
 # Tube Archivist (HD-362) — redis for TA's queue/cache (archivist-redis).
 # Was the floating `7-alpine` alias (a mutable alias under §7); now an exact patch tag.
 tube_archivist_redis_version: "7.4.11-alpine"
-onlyoffice_rabbitmq_version: "4.3.6-alpine"
+onlyoffice_rabbitmq_version: "3.13.7-alpine"
 
 # ==== Observability infra ====
 # Alloy is the DELIBERATE exception (host-APT, not Docker) — decision 2026-08-28 (Option A).
