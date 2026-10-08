@@ -34,6 +34,20 @@ public key for the cert-pull + the per-home cert-sync on the issuer side.
 > torrent/sab (both :8080 inside) splits get distinct host ports. Each `*_url` is composed from the matching
 > `*_bind`, **which is what makes a half-flip unauthorable**: the publish and the route the edge dials are the
 > same two variables, so one render moves both — the failure mode is no longer reachable by editing one file.
+> **The three names that are NOT in that family, measured 2026-10-08** (so the next session does not go looking
+> for plumbing that is gone): **(a)** there is no `labels: [… publish=…]` mechanism anywhere in `IaC` anymore —
+> `publish=` matches nothing and the music trio's publishes were threaded into the same `*_bind`/`*_host_port`
+> pair in `0549c54e`, so "the trio has the var but a hard-coded publish" is no longer a description of the tree;
+> **(b)** `lan-litellm` (`llitellm.kogler.si` → oldsrv Home :4000) had no var at all and the edge carried the
+> address inline — minted 2026-10-08 as `lan_litellm_host_port` / `lan_litellm_bind` / `lan_litellm_url`, named
+> after the CONTAINER because `litellm_*` already means three different things here (the VPS `litellm` service, the
+> spark `litellm-*` profiles, and `litellm_scoped_keys`, one name with two different values on `home_servers` and
+> `vps`); **(c)** `dozzle`'s backend is `http://dozzle:8080`, a **compose-DNS service name**, and `llogs`' is an
+> inline `http://{{ oldsrv_home_ip }}:8081` — minting a URL var for the first would dress a service name up as a
+> host URL (which is how the `service.*` class got authored in the first place), so it stays a literal on purpose,
+> while `llogs` is a genuine same-class literal awaiting the edge window. Proving an edit here inert is cheap and
+> mandatory: render `routes.yml.j2` recursively (Ansible resolves the nested `oldsrv_home_ip` expression; one-pass
+> jinja does NOT, which is why a hand-diff lies) and require byte-identity before an edge converge is even discussed.
 > Host ports: `jellyfin_host_port` 8096, `sonarr_host_port` 8989, `bazarr_host_port` 6767, `seerr_host_port` 5055,
 > `seerrng_host_port` 5056, `sabnzbd_host_port` 8080, qbit-via-gluetun `qbittorrent_host_port` = **8085**.
 > qBittorrent moved off 8082 on 2026-10-07: gluetun had taken 8082 away from `signal-cli-rest-api` and broken

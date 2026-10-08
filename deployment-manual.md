@@ -1302,7 +1302,10 @@ wifi/security/provisioning objects.
 > scp -i <ansible-key> IaC/router/rendered/rb4011_<name>_delta.rsc ansible@<router>:/rb4011_<name>_delta.rsc
 > ssh ansible@<router> '/import rb4011_<name>_delta.rsc'   # 'loaded and executed successfully'
 > ```
-> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — if that is missing, use the SSH-import path above (`routeros-apply-delta.sh`). ⛔ Note on that playbook's upload step: it uses `ansible.builtin.copy`, which fails on RouterOS's pseudo-filesystem (see [network-ops.md](docs/network-ops.md) §Apply workflow — "Destination / not writable"); `routeros-apply-delta.sh` takes **any** `.rsc` filename, including `rb4011_converge.rsc` itself, and is the transport that works for a full converge too.
+> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — `scripts/bootstrap-runner.sh` installs it, so the only way it
+> is missing is a runner that skipped the bootstrap (HD-495 also pins the interpreter for
+> the `network` group: `ansible_python_interpreter: {{ ansible_playbook_python }}` in `group_vars/network.yml`, otherwise the module
+> imports from a python that has no such package). If it is genuinely absent, use the SSH-import path above (`routeros-apply-delta.sh`). ⛔ Note on that playbook's upload step: it uses `ansible.builtin.copy`, which fails on RouterOS's pseudo-filesystem (see [network-ops.md](docs/network-ops.md) §Apply workflow — "Destination / not writable"); `routeros-apply-delta.sh` takes **any** `.rsc` filename, including `rb4011_converge.rsc` itself, and is the transport that works for a full converge too.
 
 > **1.5.3d Scoped IPv6 (Home VLAN) — enable / verify / roll back.** Design, rule order and invariants:
 > [network-vlans.md](docs/network-vlans.md) §IPv6. Measured RouterOS behaviour, the outside-in probe and why
