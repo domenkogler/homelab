@@ -28,13 +28,17 @@
   when: _zfs_exporter_release | default('') != ''
   tags: [zfs_exporter]
 
+# In --check mode get_url is SKIPPED, so the tarball never exists and unarchive aborts the whole
+#   storage play with "Source /tmp/zfs_exporter.tar.gz does not exist" while the REAL converge
+#   passes (measured on nas 2026-10-08: check FAILED, real run ok=159 failed=0). The dry pass a
+#   careful operator runs before touching ZFS was the thing that broke. HD-1102.
 - name: Unpack zfs_exporter binary
   ansible.builtin.unarchive:
     src: /tmp/zfs_exporter.tar.gz
     dest: /usr/local/bin
     remote_src: true
     mode: '0755'
-  when: _zfs_exporter_release | default('') != ''
+  when: not ansible_check_mode and _zfs_exporter_release | default('') != ''
   tags: [zfs_exporter]
 
 - name: Symlink extracted zfs_exporter binary to the canonical path

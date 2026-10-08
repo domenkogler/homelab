@@ -119,6 +119,17 @@ services:
       DB05_USER: "{{ vault['zipline_db'].username | replace('$','$$') }}"
       DB05_PASS: "{{ vault['zipline_db'].password | replace('$','$$') }}"
       DB05_NAME: zipline
+      # DB06 (HD-1100): ONLYOFFICE was in NO dump target until 2026-10-08. Its datadir is a NAMED volume
+      #   (onlyoffice-docs_onlyoffice-pgdata), not under /srv/docker, so every target list derived from
+      #   /srv/docker misses it. The compose comment calls that state REGENERABLE (HD-230), which is a
+      #   reason to move fast in a migration window, not a reason to hold no copy of it.
+      DB06_TYPE: postgresql
+      DB06_HOST: onlyoffice-postgres
+      DB06_PORT: "5432"
+      DB06_USER: onlyoffice
+      DB06_PASSWORD: "{{ vault['onlyoffice_db'].password | replace('$','$$') }}"
+      DB06_NAME: onlyoffice
+
 
       # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx
       # block here. Its backup is a tar of the data dir (/srv/docker/opencloud/data,
