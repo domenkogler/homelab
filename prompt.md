@@ -126,6 +126,14 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    (`alloy`, `tailscale`, `docker-ce`, `kopia`) landed in IaC first, or a bare `apt upgrade` re-creates the HD-1094 drift and
    stacks kernel reboots onto a DB-migration window. The `roles/updates` design (visibility → unattended security pocket →
    gated full upgrade with holds) is still an owner go/no-go.
+9. ⏳ **HD-1118 — `scripts/` restructure: the tree is agreed, the code is not yet moved.** Target folders (toolchain-named:
+   `lib/ gate/ ansible/ secrets/ git/ harness/ bench/ hardware/`, both umbrella entry points staying at the top), the full
+   per-file assignment and the four stages are in [prompt-scripts.md](prompt-scripts.md); the rows carry the measurements.
+   **Stage 1 is the gate on everything else and is safe to start immediately** — one repo-root resolver replacing the fixed-depth
+   assumptions (22 bash + 29 python sites, measured 2026-10-09), because a moved validator that resolves its root wrongly
+   walks nothing and prints green. Its own trap: `validate-all.sh` judges the INDEX, so a new file (or a new checker) is
+   invisible until `git add` — the exact miss this session made and then fixed in `447a77e8`. Sits behind HD-1119 for the
+   folder-name question only at Stage 4 (the layout checker asserts folder ≡ the cited doc's domain).
 
 **New unbriefed rows from the 2026-10-08 maintenance window** (no session launches from them): **HD-1107**
 (nas ZFS **policy** snapshots never ran — our own generated `sanoid.service` said `/usr/local/bin/sanoid`, the package
@@ -148,7 +156,10 @@ logrotate fails nightly; no role owns that path, which is why it drifted — nee
 
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
-[todo-table.md](todo-table.md) §B): **1094** *(minted 2026-10-07 by the same session that shipped HD-450's exporter: `alloy_version` pins 1.19.2-1 while oldsrv had drifted to 1.20.1-1, which made every monitoring converge there die in apt. Resolved for that host; the fleet bump is the owner's call and until it is decided, the four hosts still on the pin will tell you the same way.)* · **1093** *(owner tail: rotate both SMB passwords, then land them with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
+[todo-table.md](todo-table.md) §B): **1119** *(the `docs/` half of the same naming decision — the `harness` domain is missing, so
+`pi-harness.md` declares `domain: services` and harness decisions sit in `services-ai-rejected.md` / `services-rejected.md` where
+the §0 prior-art sweep cannot reach them; the row carries the proposed split + the append-only and §8.1 host-class traps. Decide it
+before HD-1118 Stage 4.)* · **1094** *(minted 2026-10-07 by the same session that shipped HD-450's exporter: `alloy_version` pins 1.19.2-1 while oldsrv had drifted to 1.20.1-1, which made every monitoring converge there die in apt. Resolved for that host; the fleet bump is the owner's call and until it is decided, the four hosts still on the pin will tell you the same way.)* · **1093** *(owner tail: rotate both SMB passwords, then land them with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
 float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class beyond oldsrv: **the Pi leg landed and was verified 2026-10-08** — it resolves internal
 names on the box now, and the two documents that carried workarounds for the broken state were corrected in the same change.
 ⏳ spark waits on a spark-slot converge (its keyfile still says `dns=1.1.1.1;`) and nas waits on HD-487, because no manager owns

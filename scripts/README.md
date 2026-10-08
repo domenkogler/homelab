@@ -175,6 +175,21 @@ inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
 ## Notes & conventions
 
 - **Never edit a `-generated` doc directly** — change the SSOT (`group_vars/*.yml`, `rack-connections.json`) and re-render, then `git diff --exit-code` to confirm.
+- **A script must not derive the repo root from its own depth.** Every script here resolves `$REPO` from its own path
+   (measured 2026-10-09: 22 bash sites as `$SCRIPT_DIR/..`, 29 python sites as `Path(__file__).resolve().parent.parent`, one
+   ps1 as `$PSScriptRoot\..\..`, plus two same-directory python imports). That is correct **only at the current depth**: add
+   one folder level and all of them resolve to `scripts/`, so `IaC/` and `docs/` silently vanish from a validator's view and
+   it prints `OK: 0 files` — a green gate that checked nothing. Two rules follow: a script (or a new `lib/` helper) walks up
+   to the git toplevel instead of counting `..`, and every tree-walking checker asserts its corpus is non-empty the way
+   `check_md_tables.py` asserts it walked >100 files. Owner of the fix: HD-1118 Stage 1.
+- **`validate-all.sh` judges what is TRACKED — so `git add` a new file before believing a green run.** The path/secret/table
+   walkers list files with `git ls-files`, so an untracked file is invisible to them. Measured 2026-10-09: a new root-level
+   doc passed the whole gate while untracked and failed it the moment a merge made it tracked (three citations to a path that
+   does not exist yet). For a **new validator** the same trap is worse — a green run in which the new check never executed.
+- **Layout:** `scripts/` is one flat directory today (79 executables at top level, measured 2026-10-09) plus `git/`,
+   `pi-config/`, `laptop-llm/`, `win/`, `testdata/`. The agreed target structure, the per-file assignment and the stage order
+   are [../prompt-scripts.md](../prompt-scripts.md) / [`todo.md`](../todo.md) HD-1118 — read that before proposing a move,
+   because Stage 1 (root resolution) has to land first.
 - **Judge `validate-all.sh` by its EXIT CODE, never by a filtered view of its output.** Live
   2026-09-25: `bash scripts/validate-all.sh 2>&1 | grep -iE "FAIL|OK: all validators" && git commit … &&
   git push` — the pipeline's status is GREP's, and grep exits 0 when it finds something, so a run that
