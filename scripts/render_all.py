@@ -28,7 +28,7 @@ Usage:
     python scripts/render_all.py subscriptions
     python scripts/render_all.py rack
     python scripts/render_all.py all
-    python scripts/render_all.py --check        # render then diff vs index; exit 1 on drift (no tree mutation)
+    python scripts/render_all.py --check        # render then diff vs index; exit 1 on drift; tree restored to its pre-run state
 
 After any edit to `group_vars/*.yml` / `host_vars/*.yml` / `rack-connections.json`,
 run `python scripts/render_all.py`, then `bash scripts/validate-all.sh`, then
@@ -165,12 +165,33 @@ def _run_all() -> None:
         _JOBS[name]()
 
 
+def _snapshot_generated() -> dict[Path, bytes | None]:
+    """Every file a renderer can overwrite, read BEFORE anything is written.
+
+    The set is the repo's own naming rule (CONVENTIONS §8.2: machine-produced docs carry
+    `-generated.md`) applied to `docs/` — the only dir the jobs write into — plus the one
+    non-md output. That is a SAFE SUPERSET of what the jobs produce, so no path is listed
+    twice and a new renderer needs no edit here.
+    """
+    paths = list(dict.fromkeys(sorted(DOCS.glob("*-generated.md")) + [DOCS / "rack-layout.mmd"]))
+    return {p: (p.read_bytes() if p.exists() else None) for p in paths}
+
+
 def _check_target(name: str) -> bool:
-    """Snapshot each produced file, run the renderer, then `git diff` each produced
-    file against the index (committed) state. Returns True if any drifted. The
-    working tree is restored to its pre-run state on completion."""
+    """Render, then `git diff` each produced file against the index (committed) state; returns
+    True if any drifted. The working tree is restored to its **pre-run** state afterwards.
+
+    ⚠ The snapshot must be taken BEFORE the render. It used to be taken after `_run_target()`, so
+    the "restore" wrote back the bytes the renderer had just produced: `--check` left the tree
+    MUTATED while its own help said "tree not mutated", and — worse — any uncommitted edit to a
+    generated doc was replaced by the render and then restored as the render, so the edit was
+    destroyed on a command that promised not to touch the tree. Measured 2026-10-09: `--check` on
+    a clean tree left 2 files dirty, and run from the primary checkout on `main` that dirtiness is
+    a CONVENTIONS §6 hard gate failure. No `--self-test` here on purpose: proving it would have to
+    render into the real tree, which is the thing under test.
+    """
+    snap = _snapshot_generated()
     produced = _run_target(name)
-    snapshots = [(p, p.read_bytes() if p.exists() else None) for p in produced]
     try:
         drifted = False
         for dest in produced:
@@ -189,7 +210,7 @@ def _check_target(name: str) -> bool:
             else:
                 print(f"ok     {dest.name}: matches index")
     finally:
-        for p, b in snapshots:
+        for p, b in snap.items():
             if b is None:
                 p.unlink(missing_ok=True)
             else:
@@ -209,7 +230,7 @@ def main() -> int:
     ap.add_argument(
         "--check",
         action="store_true",
-        help="render then git-diff against the committed (index) state; exit 1 on drift (tree not mutated)",
+        help="render then git-diff against the committed (index) state; exit 1 on drift (the tree is restored to its pre-run state)",
     )
     args = ap.parse_args()
 

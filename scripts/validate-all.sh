@@ -80,8 +80,14 @@
 #  17. testdata/self-converge-guard/run.sh — HD-413 guardrail BEHAVIOUR (runtime, WSL/CI-gated):
 #                                     executes the real guard against a throwaway inventory
 #                                     (this host = the controller, plus a decoy that is not) and
-#                                     asserts the refuse/allow verdict for 14 invocations. The
-#                                     static gate above cannot see a wrong Jinja predicate: the
+#                                     asserts the refuse/allow verdict for 18 legs (`grep -c
+#                                     '^expect '` — the header said 14 for a while and rotted).
+#                                     The legs are independent and side-effect free, so they
+#                                     LAUNCH concurrently now: 11.4 s -> 3.4 s, with the verdict
+#                                     assertions unchanged and printed in the declared order
+#                                     (mutation-checked: flipped expectation, neutered DUMMY
+#                                     output, and a leg whose rc never arrives — all three go RED)
+#                                     The static gate above cannot see a wrong Jinja predicate: the
 #                                     first draft compared `ansible_run_tags == ['all']`, which
 #                                     is always False because that magic var is a TUPLE, and
 #                                     passed every static check while allowing an unfiltered
