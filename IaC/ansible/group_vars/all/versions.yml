@@ -233,14 +233,14 @@ litellm_version: "v1.104.0"
 #   on the VPS — authentik-postgres + forgejo-db (`postgres:16-alpine`, the alias the templates
 #   hardcoded), litellm-db / onlyoffice-postgres / zipline-db (`16.15-alpine`), immich-postgres on
 #   its own composite `14-vectorchord…` tag. OLDSRV's only Postgres is `lan-litellm-db` (this var).
-litellm_db_version: "16.15-alpine"   # ROLLED BACK 2026-10-08, second leg attempt (HD-1100).
-                                  #   PG 18 accepts a pinned PGDATA=/var/lib/postgresql/data (probed: 18.6 initializes
-                                  #   with datcollate=en_US.utf8), but under this fleet's cap_drop: ALL the container
-                                  #   ALSO gets the image's declared volume at /var/lib/postgresql, and the entrypoint
-                                  #   then finds that path non-empty -> initdb aborts ("directory exists but is not
-                                  #   empty"). UNRESOLVED: the 18 mount shape for a cap-dropped container. See
-                                  #   docs/backup.md. Rollback = this line at 16.15 AND the datadir back (both done);
-                                  #   oldsrv keeps lan_litellm_db_version at 16.
+litellm_db_version: "18.6-alpine"   # LEG 3 (HD-1100, 2026-10-08): shape PROVEN in a scratch container with this
+                                  #   service's own caps + tmpfs + single data bind + PGDATA pinned -> 18.6,
+                                  #   datcollate=en_US.utf8, "ready to accept connections". The two failed shapes are
+                                  #   recorded in docs/backup.md: (1) the upstream parent mount cannot work under
+                                  #   cap_drop: ALL (no CAP_DAC_OVERRIDE -> EACCES on the uid-70 0700 dir), and (2) a
+                                  #   dir that is non-empty at first boot (a nested `data` mountpoint from a previous
+                                  #   shape) makes initdb abort. Rollback = this line at 16.15-alpine AND the datadir
+                                  #   back, both together. oldsrv keeps lan_litellm_db_version at 16.
 lan_litellm_db_version: "16.15-alpine"
 # (The authentik-db and forgejo-db sidecars that were hardcoded `postgres:16-alpine` in their
 #  templates now have their own vars next to their service — search `authentik_db_version` /
