@@ -26,7 +26,8 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 |------|----------------|-----------|
 | `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Was: "this doc is the reference copy" (HD-388 closed that). Rendered on **two** machines as of 2026-09-23: the laptop, and oldsrv's cockpit account `domen` (HD-409) — so the harness is no longer "admin workstation only", and the second machine got its contract from `--out` + scp rather than a copied file |
 | `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`) was the last hand-kept credential file on the client; proven byte-identical to the render 2026-09-23 |
-| `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`, HD-409) | this doc is the reference copy (§5) — deliberately NOT rendered: theme/packages/`lastChangelogVersion` are machine-local, and `models-spec.yml` says so out loud. The seat got its block written from §5 on 2026-10-01 (HD-484), preserving the installer's `packages` key |
+| `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`, HD-409) | **§5's harness block is a repo file now** — [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), merged into each seat's file by [`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh) (owner ruling 2026-10-08; before that this doc WAS the SSOT and the seats agreed only because a session remembered to copy it — HD-484/HD-493). The merge owns the harness keys and the `packages` list (composed from the `versions.yml` pins, §7); `externalEditor` / `lastChangelogVersion` / `tuiMode` stay machine-local and §5 remains the place that says WHY each key is what it is |
+| pi packages (`pi install npm:…`) + the seat TUI font | every pi.dev seat | git — the pin pairs `pi_host_tui_npm_*` / `pi_host_web_npm_*` / `nerd_fonts_*` in `IaC/ansible/group_vars/all/versions.yml`, installed by the two `install-pi-*.sh` scripts and re-converged by [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh) (the fan-out driver: seat × plane matrix, unreachable seat = failed run) |
 | `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/sync-skills.sh`](../scripts/sync-skills.sh), `extensions/` via [`../scripts/sync-extensions.sh`](../scripts/sync-extensions.sh) (HD-254 family; the Debian seat had **no** extension step at all until 2026-10-06, so it carried whatever was hand-placed) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
 | `~/.tmux.conf` (the seat's terminal harness) | repo [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → installed by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh) | git (the SSOT) — **not** the file in `$HOME`; it carries a `managed-by:` line so an installed copy is nameable, and a foreign `~/.tmux.conf` is a REFUSAL rather than a silent overwrite. Mouse + OSC 52 clipboard: **§5b**. Not yet called by the seat installer (the row in [`../todo.md`](../todo.md) keeps that) |
 | spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT, HD-374) |
@@ -259,15 +260,26 @@ row stays open until it happens.
 }
 ```
 
-Other keys in the real file (`theme`, `packages`, `lastChangelogVersion`) are workstation state, not
-spec — the block above is the part that must match.
+Other keys in the real file (`lastChangelogVersion`, `externalEditor`, `tuiMode`) are workstation
+state, not spec — the block above plus `theme` and `packages` is the part that must match, and
+since 2026-10-08 that "must" is enforced rather than asserted: the keys live in
+[`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) and
+[`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh) merges them into each seat's
+file (owned keys replaced, everything else preserved, timestamped backup, an unparseable file is a
+REFUSAL; `packages` is composed from the `versions.yml` pins and a seat-local package the repo does
+not name — the cockpit's pi-web — is KEPT and printed, never deleted).
 
-**There is no renderer for this file, and that is the design, not a gap.** `render-pi-config.py --vendor`
-speaks `pi` / `pi_auth` / `continue` / `all` — no settings vendor exists, and
-[`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) states the boundary in its
-own comment (the spec renders the **model contract**, never someone's editor settings). So §5 **is** the
-source and the file is hand-written per machine; the earlier wording "render settings.json from the spec"
-(HD-484, 2026-10-01) described a command that does not exist. Both carriers today: the laptop, and
+**There is no settings VENDOR in `render-pi-config.py`, and that boundary still holds — but §5 is
+no longer the only source.** `render-pi-config.py --vendor` speaks `pi` / `pi_auth` / `continue` /
+`all`; the spec renders the **model contract**, never someone's editor settings
+([`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) says so in its own
+comment). What changed 2026-10-08 (owner ruling, HD-1093) is that the harness keys became a repo
+file plus a merge script instead of a hand-copied doc block — the re-decision is recorded here, not
+buried in an edit, because §5 had said "this doc is the reference copy" since HD-388 and
+`models-spec.yml` line 248 named `settings.json` as machine-local. The parts it named are still
+machine-local; the harness block is not. The earlier wording "render settings.json from the spec"
+(HD-484, 2026-10-01) still described a command that does not exist, and still must not be revived:
+a vendor would rewrite the whole file and delete a seat's own packages. Both carriers today: the laptop, and
 oldsrv's seat (the §5 block + `packages`, live 2026-10-01 — before that the seat held `{"packages": […]}`
 only, so its picker defaulted to a cloud model and thought every turn).
 
@@ -343,15 +355,38 @@ content** — `settings.md` §Terminal and display carries `theme`/`tuiMode`/`te
 and the default footer shows folder / model / context / cost. So "which machine am I typing to" is only
 answerable from an extension, and this section is the only place that fact is written down.
 
-- **The extension:** [`../pi-agent/extensions/host-status.ts`](../pi-agent/extensions/host-status.ts)
-  calls `ctx.ui.setStatus("host", …)` on `session_start` — `session_start` is what fires after `/new` and
-  a session switch, which is where the footer gets rebuilt. **`setStatus` and not `setFooter`** on
-  purpose: `setFooter` replaces pi's line, and this file would then own the token/cost/context math
-  forever (pi's own `examples/extensions/custom-footer.ts` demonstrates that debt).
-- **Deploy direction:** repo `pi-agent/extensions/` is SSOT → `bash scripts/sync-extensions.sh --push`.
-  Both installers call it now, and `validate-all.sh` item 27 drift-gates it. A **deployed-only**
-  extension (`remote-bash.ts` on the Windows host — `sshpass.exe`, drive-letter paths) is deliberately
-  NOT drift: it is reported `LOCAL`, never deleted, never imported.
+- **The mechanism today (2026-10-08, HD-1093):** the pi package `pi-open-tui` (pin
+  `pi_host_tui_npm_*`) draws the whole footer, and its `footerSegments.hostname` segment prints
+  `os.hostname()` in short form. The hand-written `pi-agent/extensions/host-status.ts` is **retired**
+  with it — a `ctx.ui.setStatus` line under a package-drawn footer is two sources of truth for one
+  line, and the package owns the line now. Retirement is a MECHANISM, not a deletion:
+  `sync-extensions.sh --push` never deletes a deployed-only file, so without the script's
+  `RETIRED` list a deleted extension stays loaded on every seat forever, invisible to a gate that
+  compares only repo-side files. Retired the same day on the owner's instruction: `remote-bash.ts`
+  (Windows `sshpass.exe` + drive-letter paths, never in the repo by design).
+- **The trap that makes this a script and not a note:** pi-open-tui's `DEFAULT_CONFIG` ships
+  `footerSegments.hostname: false`. A seat that only ran `pi install npm:pi-open-tui` therefore has
+  an **anonymous footer** — precisely the regression retiring the extension would have caused, and
+  it lands where nobody looks (the SSH legs, where the prompt is gone). So
+  [`../scripts/pi-tui-config.sh`](../scripts/pi-tui-config.sh) asserts that ONE key: it creates the
+  minimal override file when absent, preserves every other key the operator tuned through
+  `/open-tui`, and REFUSES to rewrite an unparseable file. Both installers call it; `validate-all.sh`
+  gates it (self-test + `--check --strict`).
+- **Deploy direction:** repo `pi-agent/` + `skills/` is SSOT → `bash scripts/pi-seat-sync.sh --push`
+  runs every plane on every seat (that is what replaced "a session remembers which planes it did"),
+  and per plane `sync-skills.sh` / [`sync-extensions.sh`](../scripts/sync-extensions.sh) (item 27).
+  A **deployed-only** extension is still deliberately NOT drift — it is reported `LOCAL`, never
+  deleted, never imported; only a name on the `RETIRED` list is removed. The self-test asserts both
+  halves, so the retirement rule cannot quietly swallow the `LOCAL` rule.
+- **The font is part of this, not a nicety:** pi-open-tui's icons are Nerd Font private-use glyphs,
+  and its `icons.mode: auto` chooses them from the TERMINAL ENVIRONMENT, never from the installed
+  font file. The release is pinned (`nerd_fonts_version`, verified 2026-10-08) and installed by
+  [`../scripts/install-nerd-font.sh`](../scripts/install-nerd-font.sh) on the Debian seats and by
+  [`../scripts/win/install-nerd-font.ps1`](../scripts/win/install-nerd-font.ps1) per-user on the
+  Windows one — and **the Windows leg is the one that draws**, because on WSL and on every SSH leg
+  the terminal runs on the machine you type from. Having the font installed is not the same as the
+  terminal selecting it: that stays a `fontFace` choice in the terminal profile, and `unicode` mode
+  is the documented fallback when a box has no patched font.
 - **Proven, not assumed:** with the file in `~/.pi/agent/extensions/`, `pi --mode rpc` with an empty
   stdin emits
   `{"type":"extension_ui_request","method":"setStatus","statusKey":"host","statusText":"@ oldsrv"}`.

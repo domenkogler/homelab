@@ -15,15 +15,24 @@
 #                      never imports a deployed-only file (see below).
 #
 # THE DIFFERENCE, and the reason it is not just a copy of sync-skills.sh: a
-# deployed-only extension is a NORMAL state here, not drift. `remote-bash.ts`
-# lives on the Win11 host only — it hardcodes Windows sshpass.exe and C:\ paths
-# and is intentionally out of the repo (scripts/README.md, install-pi-wsl.sh).
-# sync-skills.sh counts an untracked deployed file as drift; doing that here
-# would fail the gate permanently on the laptop seat and teach the next reader to
-# mute the gate (the HD-417 failure mode). So: deployed-only files are reported
-# as LOCAL and do NOT set the exit code. --self-test asserts BOTH halves — a
-# missing repo-side file fails, a deployed-only extra stays green — so this rule
-# cannot silently become the old one.
+# deployed-only extension is a NORMAL state here, not drift — a seat-side file the repo does
+# not carry (a machine-local experiment, a per-seat tool that cannot be made portable) is
+# reported as LOCAL and does NOT set the exit code. sync-skills.sh counts an untracked
+# deployed file as drift; doing that here would fail the gate permanently on the seat that
+# carries one and teach the next reader to mute the gate (the HD-417 failure mode). So
+# --self-test asserts BOTH halves — a missing repo-side file fails, a deployed-only extra
+# stays green — and a third rule cannot quietly become the second: the names the repo
+# RETIRED (below) are the one exception, and their canary proves they are removed.
+#
+# RETIRED EXTENSIONS
+# ------------------
+# `--push` never deletes a deployed-only file, which is correct for machine-local files and
+# WRONG for something the repo used to ship and stopped shipping: it would keep loading on
+# every seat forever, invisible to a gate that only compares repo-side files. So retirement
+# is explicit, in ONE place, and enforced by both --push (removes) and --check --strict
+# (fails while one is still deployed). Retired: `host-status.ts` (the footer hostname is
+# pi-open-tui's own segment now — docs/pi-harness.md §5a) and `remote-bash.ts` (Windows
+# sshpass.exe + drive-letter paths, never in the repo by design, dropped 2026-10-08).
 #
 # Artifacts never compared or deployed: __pycache__/**, .DS_Store, *.bak, *.log.
 #
@@ -42,6 +51,15 @@ DEPLOY="${PI_EXT_DIR:-$HOME/.pi/agent/extensions}"
 MODE="check"
 STRICT=0
 
+# Names the repo used to ship and no longer does. --push removes them from the deploy
+# target; --check --strict fails while one is still loaded. NEVER extend this list to
+# something the repo merely stopped tracking — a machine-local file is a LOCAL extra, not
+# retired (that distinction is canary 1 vs canary 7 in --self-test).
+RETIRED=(
+  "host-status.ts"   # superseded by the pi-open-tui footer hostname segment (§5a)
+  "remote-bash.ts"   # Windows-only (sshpass.exe, C:\ paths); never in the repo, dropped 2026-10-08
+)
+
 err()  { printf 'sync-extensions: %s\n' "$*" >&2; }
 info() { printf '  %s\n' "$*"; }
 
@@ -50,13 +68,15 @@ usage() {
 usage: sync-extensions.sh [--check [--strict] | --push | --pull] [--self-test]
 
   --check            (default) drift report: repo pi-agent/extensions/ vs deployed
-  --check --strict   also exit 1 on drift or an encoding violation (gate use)
-  --push             deploy repo -> ~/.pi/agent/extensions; deployed-only files
-                     are PRESERVED, never deleted
+  --check --strict   also exit 1 on drift, an encoding violation, or a RETIRED extension
+                     the seat still has deployed
+  --push             deploy repo -> ~/.pi/agent/extensions; deployed-only files are
+                     PRESERVED (never deleted) and the RETIRED names are removed
   --pull             copy tracked-by-repo deployed files into the repo working
                      tree (no commit, no delete, no import of extras)
   --self-test        sandboxed canaries in a temp dir; asserts a missing repo
-                     file FAILS the check and a deployed-only extra stays GREEN
+                     file FAILS the check, a deployed-only extra stays GREEN, and a
+                     retired deployed file is caught AND removed
 
 Artifacts ignored: __pycache__, .DS_Store, *.bak, *.log.
 Encoding guard: text must be UTF-8 no-BOM + LF; CRLF or BOM blocks --push.
@@ -138,8 +158,28 @@ encoding_violations() {
   printf '%s' "$count"
 }
 
+# --- retired names -------------------------------------------------------------
+# Sets RETIRED_N to the number of retired names found deployed; prints what it did.
+RETIRED_N=0
+retired() {
+  local action="${1:-check}" name
+  RETIRED_N=0
+  for name in "${RETIRED[@]}"; do
+    [ -e "$DEPLOY/$name" ] || continue
+    if [ "$action" = push ]; then
+      rm -f "$DEPLOY/$name" || { err "could not remove the retired $DEPLOY/$name"; return 1; }
+      info "RETIRED removed:      $name"
+    else
+      err "RETIRED still deployed: $name — the repo no longer ships it, --push removes it"
+    fi
+    RETIRED_N=$((RETIRED_N+1))
+  done
+  return 0
+}
+
 # --- drift compare -------------------------------------------------------------
 # Repo-side missing/differing = DRIFT (exit 1). Deployed-only = LOCAL (exit 0).
+# A RETIRED name still deployed = DRIFT (exit 1) — that is the retirement channel.
 compare() {
   local rel abs drift=0 extras=0
   while IFS=$'\t' read -r rel abs; do
@@ -154,12 +194,15 @@ compare() {
 
   while IFS=$'\t' read -r rel abs; do
     if [ ! -e "$SRC/$rel" ]; then
+      # a retired name is NOT a machine-local extra — it is drift, reported once below
+      case " ${RETIRED[*]} " in *" $rel "*) continue ;; esac
       info "LOCAL (deploy-only, not drift): $rel"
       extras=$((extras+1))
     fi
   done < <(list_deploy_files)
 
-  [ "$extras" -gt 0 ] && info "$extras deployed-only file(s) left alone (machine-local by design, e.g. remote-bash.ts)"
+  [ "$extras" -gt 0 ] && info "$extras deployed-only file(s) left alone (machine-local by design; a name the repo retired is NOT in that class)"
+  retired check; [ "$RETIRED_N" -gt 0 ] && drift=1
   return $drift
 }
 
@@ -179,7 +222,8 @@ do_push() {
     cp -a "$abs" "$DEPLOY/$rel" || { err "push failed: $rel"; return 1; }
     n=$((n+1))
   done < <(list_src_files)
-  info "pushed $n file(s) -> $DEPLOY (deployed-only files preserved)"
+  retired push || return 1
+  info "pushed $n file(s) -> $DEPLOY (deployed-only files preserved, retired names removed)"
   info "deployed now holds: $(cd "$DEPLOY" && find . -type f | sed 's#^\./##' | sort | tr '\n' ' ')"
   return 0
 }
@@ -217,9 +261,9 @@ self_test() {
 
   mk_tree() {  # $1 = sandbox root holding pi-agent/extensions (repo) + agent/extensions (deploy)
     mkdir -p "$1/pi-agent/extensions/autotalk" "$1/agent/extensions/autotalk"
-    printf 'export default function () {}\n' > "$1/pi-agent/extensions/host-status.ts"
+    printf 'export default function () {}\n' > "$1/pi-agent/extensions/seat-status.ts"
     printf '{\n  "intervalSec": 10\n}\n' > "$1/pi-agent/extensions/autotalk/settings.json"
-    printf 'export default function () {}\n' > "$1/agent/extensions/host-status.ts"
+    printf 'export default function () {}\n' > "$1/agent/extensions/seat-status.ts"
     printf '{\n  "intervalSec": 10\n}\n' > "$1/agent/extensions/autotalk/settings.json"
     printf 'export default function () {}\n' > "$1/agent/extensions/windows-only.ts"  # deployed-only extra
   }
@@ -236,22 +280,22 @@ self_test() {
   if run_at "$a" --check --strict; then info "extras-at-rest     GREEN (as designed)"; else err "canary: deployed-only extra was treated as drift"; fails=$((fails+1)); fi
 
   # 2. deployed side loses the repo file -> MUST fail.
-  rm -f "$a/agent/extensions/host-status.ts"
+  rm -f "$a/agent/extensions/seat-status.ts"
   if run_at "$a" --check --strict; then err "canary passed: MISSING file stayed green"; fails=$((fails+1)); else info "missing-canary     caught"; fi
 
   # 3. deployed side differs -> MUST fail.
   mk_tree "$tmp/diff"
-  printf 'export default function () { /* drifted */ }\n' > "$tmp/diff/agent/extensions/host-status.ts"
+  printf 'export default function () { /* drifted */ }\n' > "$tmp/diff/agent/extensions/seat-status.ts"
   if run_at "$tmp/diff" --check --strict; then err "canary passed: DIFFERING file stayed green"; fails=$((fails+1)); else info "drift-canary       caught"; fi
 
   # 4. repo-side CRLF -> blocks --push AND fails --check --strict.
   mk_tree "$tmp/enc"
-  printf 'export default function () {}\r\n' > "$tmp/enc/pi-agent/extensions/host-status.ts"
+  printf 'export default function () {}\r\n' > "$tmp/enc/pi-agent/extensions/seat-status.ts"
   if run_at "$tmp/enc" --push; then err "canary passed: --push deployed a CRLF file"; fails=$((fails+1)); else info "crlf-canary        caught (push blocked)"; fi
   if run_at "$tmp/enc" --check --strict; then err "canary passed: CRLF stayed green"; fails=$((fails+1)); else info "crlf-gate          caught"; fi
 
   # 5. --push converges a clean repo and is idempotent (push twice == green).
-  mk_tree "$tmp/push"; rm -f "$tmp/push/agent/extensions/host-status.ts"
+  mk_tree "$tmp/push"; rm -f "$tmp/push/agent/extensions/seat-status.ts"
   run_at "$tmp/push" --push || { err "--push failed on a clean tree"; fails=$((fails+1)); }
   run_at "$tmp/push" --check --strict || { err "canary: still drifting after --push"; fails=$((fails+1)); }
   run_at "$tmp/push" --push >/dev/null 2>&1 && run_at "$tmp/push" --check --strict \
@@ -263,6 +307,17 @@ self_test() {
   # 6. absent deploy dir -> MUST be reported (validate-all guards the SKIP).
   mk_tree "$tmp/nodir"; rm -rf "$tmp/nodir/agent/extensions"
   if run_at "$tmp/nodir" --check --strict; then err "canary passed: absent deploy target read as clean"; fails=$((fails+1)); else info "no-target-canary   caught"; fi
+
+  # 7. THE RETIREMENT RULE, both halves. A name the repo deleted would otherwise stay loaded on
+  #    every seat forever, because --push never deletes a deployed-only file — and the rule must
+  #    NOT swallow the LOCAL rule above, so the same tree keeps its non-retired extra.
+  mk_tree "$tmp/retired"
+  printf 'export default function () {}\n' > "$tmp/retired/agent/extensions/${RETIRED[0]}"
+  if run_at "$tmp/retired" --check --strict; then err "canary passed: a RETIRED deployed file stayed green"; fails=$((fails+1)); else info "retired-canary     caught"; fi
+  run_at "$tmp/retired" --push || true
+  if [ ! -e "$tmp/retired/agent/extensions/${RETIRED[0]}" ]; then info "retired-removed    GREEN (--push took it out)"; else err "canary: --push left a retired extension deployed"; fails=$((fails+1)); fi
+  if [ -f "$tmp/retired/agent/extensions/windows-only.ts" ]; then info "retired-vs-local   GREEN (a non-retired extra survived)"; else err "canary: --push deleted a machine-local extra while retiring"; fails=$((fails+1)); fi
+  run_at "$tmp/retired" --check --strict && info "post-retire        GREEN" || { err "canary: still drifting after the retirement push"; fails=$((fails+1)); }
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"

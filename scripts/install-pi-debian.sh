@@ -5,9 +5,9 @@
 # Purpose: bring a clean Debian 13 box (or a fresh user account on one — the
 #   oldsrv cockpit seat `domen` is the reference target) to the SAME pi harness
 #   this repo's other seat runs: pinned Node, the pinned pi coding-agent, the
-#   rendered model contract/auth, the repo skills, and (optionally) the web
-#   cockpit. Rebuildable instead of remembered: the seat must survive a rebuild
-#   without a session having to remember what was hand-installed.
+#   rendered model contract/auth, the repo skills, the seat TUI package, and
+#   (optionally) the web cockpit. Rebuildable instead of remembered: the seat must
+#   survive a rebuild without a session having to remember what was hand-installed.
 #
 # SIBLING, NOT FORK (the row's own trap): [`install-pi-wsl.sh`](install-pi-wsl.sh)
 #   is the WSL shape — `/mnt/c`, drive letters, a Windows-side mirror. Nothing
@@ -25,6 +25,7 @@
 #   bash scripts/install-pi-debian.sh --pi-only    # pinned node + pi, no config sync
 #   bash scripts/install-pi-debian.sh --config-only# skills/AGENTS/prompts + model contract
 #   bash scripts/install-pi-debian.sh --cockpit    # + the pi-web cockpit package
+#   bash scripts/install-pi-debian.sh --tui        # + the seat TUI package only (pi-open-tui)
 #   bash scripts/install-pi-debian.sh --check      # report only, write nothing (exit 1 on drift)
 #
 # Pins: read from the SSOT `IaC/ansible/group_vars/all/versions.yml` (§7 — one
@@ -67,6 +68,8 @@ PI_PKG="$(pin pi_host_npm_package)"
 PI_V="$(pin pi_host_npm_version)"
 WEB_PKG="$(pin pi_host_web_npm_package)"
 WEB_V="$(pin pi_host_web_npm_version)"
+TUI_PKG="$(pin pi_host_tui_npm_package)"
+TUI_V="$(pin pi_host_tui_npm_version)"
 
 MODE="${1:-full}"
 
@@ -123,6 +126,26 @@ install_pi() {
   command -v pi >/dev/null 2>&1 || { err "pi not on PATH after install"; exit 1; }
   info "pi $(pi --version 2>&1 | head -1)"
 }
+install_tui() {
+  # The seat's TUI skin (docs/pi-harness.md §5a): pi-open-tui owns the footer, and the
+  # footer's hostname segment is what answers "which box am I typing to" — the job the
+  # retired pi-agent/extensions/host-status.ts used to do. Fleet-wide, not seat-local:
+  # the version is the pi_host_tui_npm_version pin, never a bare `pi install npm:…`.
+  command -v pi >/dev/null 2>&1 || { info "pi not on PATH — skipping the ${TUI_PKG} package (run --pi-only first)"; return 0; }
+  say "installing the seat TUI package ${TUI_PKG}@${TUI_V}"
+  pi install "npm:${TUI_PKG}@${TUI_V}" 2>&1 | tail -2 || { err "pi install npm:${TUI_PKG}@${TUI_V} failed"; return 1; }
+  bash "$REPO/scripts/pi-tui-config.sh" --push || return 1
+}
+check_tui() {
+  command -v pi >/dev/null 2>&1 || { err "pi: not on PATH (cannot read the TUI package)"; return 1; }
+  if pi list 2>/dev/null | grep -q "$TUI_PKG"; then
+    info "tui package: ${TUI_PKG} installed (pin ${TUI_V})"
+    pi list 2>/dev/null | grep "$TUI_PKG" | sed 's/^/      /'
+  else
+    err "tui package: ${TUI_PKG} NOT installed — pi install npm:${TUI_PKG}@${TUI_V}"; return 1
+  fi
+  bash "$REPO/scripts/pi-tui-config.sh" --check --strict || return 1
+}
 install_cockpit() {
   say "installing the web cockpit package"
   # TRAP: the pi-web binary exits 1 unless ~/.pi/agent/sessions already exists.
@@ -159,12 +182,26 @@ install_config() {
   fi
   say "repo skills -> ~/.pi/agent/skills (repo is SSOT, HD-254)"
   bash "$REPO/scripts/sync-skills.sh" --push || err "sync-skills.sh --push reported problems"
-  say "repo extensions -> ~/.pi/agent/extensions (repo is SSOT; deployed-only files preserved)"
+  say "repo extensions -> ~/.pi/agent/extensions (repo is SSOT; deployed-only files preserved, retired names removed)"
   bash "$REPO/scripts/sync-extensions.sh" --push || err "sync-extensions.sh --push reported problems"
+  say "the seat TUI package (pi-open-tui, pinned) + its footer key"
+  install_tui
   say "AGENTS.md + prompt templates"
   [ -f "$REPO/pi-agent/AGENTS.md" ] && install -m 0644 "$REPO/pi-agent/AGENTS.md" "$HOME/.pi/agent/AGENTS.md" && info "AGENTS.md deployed"
   [ -d "$REPO/pi-agent/prompts" ] && { mkdir -p "$HOME/.pi/agent/prompts"; install -m 0644 "$REPO"/pi-agent/prompts/*.md "$HOME/.pi/agent/prompts/" 2>/dev/null || true; }
-  info "settings.json is NOT written here: docs/pi-harness.md §5 is its source (§1: no renderer exists by design)"
+  info "the harness keys of settings.json are NOT written here by hand: pi-settings-config.sh merges them from pi-agent/settings-ssot.json (§1, §5)"
+  say "settings plane (pi-agent/settings-ssot.json -> ~/.pi/agent/settings.json, machine-local keys preserved)"
+  bash "$REPO/scripts/pi-settings-config.sh" --push || err "pi-settings-config.sh --push reported problems"
+  say "the seat's terminal harness (repo pi-agent/tmux/tmux.conf -> ~/.tmux.conf, HD-1085)"
+  # This was HD-1085's known gap — the installer never called the tmux installer, so a freshly
+  # bootstrapped seat had no mouse and no OSC 52 clipboard. --push REFUSES a foreign ~/.tmux.conf
+  # rather than clobbering it, so a hand-configured seat is a loud stop, not a silent overwrite.
+  bash "$REPO/scripts/install-tmux-conf.sh" --push || info "install-tmux-conf.sh reported a problem (a foreign ~/.tmux.conf is a REFUSAL by design — diff it, then --force)"
+  say "seat TUI font (the pinned nerd-fonts release the footer icons come from)"
+  # Honest scope: on a headless seat this PLACES the font (and proves the placement); the leg
+  # that buys visible glyphs is the terminal you draw pi with — on the Windows side, where the
+  # sibling is scripts/win/install-nerd-font.ps1 (docs/pi-harness.md §5a).
+  bash "$REPO/scripts/install-nerd-font.sh" --push || info "install-nerd-font.sh reported a problem (the seat still works; icons.mode falls back to portable Unicode)"
 }
 
 # ---- check mode ----------------------------------------------------------
@@ -180,8 +217,11 @@ check() {
     && info "models.json + auth.json match the spec" || { err "model contract drift (or not rendered)"; bad=1; }
   bash "$REPO/scripts/sync-skills.sh" --check 2>&1 | tail -2
   bash "$REPO/scripts/sync-extensions.sh" --check 2>&1 | tail -2
+  bash "$REPO/scripts/pi-settings-config.sh" --check --strict || bad=1
+  bash "$REPO/scripts/install-nerd-font.sh" --check 2>&1 | tail -2
   [ -d "$HOME/.pi/agent/sessions" ] && info "sessions dir present" || { err "~/.pi/agent/sessions missing (pi-web exits 1 without it)"; bad=1; }
   check_cockpit_unit || bad=1
+  check_tui || bad=1
   say "check: $([ $bad -eq 0 ] && echo GREEN || echo 'DRIFT — see ERROR lines')"
   return $bad
 }
@@ -191,6 +231,7 @@ case "$MODE" in
   --pi-only)    require_cmds curl tar xz git; install_node; persist_path; install_pi ;;
   --config-only) install_config ;;
   --cockpit)    require_cmds curl tar xz git; install_node; persist_path; install_pi; install_config; install_cockpit ;;
+  --tui)        require_cmds curl tar xz git; install_node; persist_path; install_pi; install_tui ;;
   full|"")      require_cmds curl tar xz git; install_node; persist_path; install_pi; install_config ;;
   *)            err "unknown option: $MODE"; echo "  use: (none) | --pi-only | --config-only | --cockpit | --check" >&2; exit 2 ;;
 esac

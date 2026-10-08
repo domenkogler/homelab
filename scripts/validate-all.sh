@@ -157,11 +157,16 @@
 #  27. sync-extensions.sh --self-test + --check --strict — extension drift gate (HD-254 family):
 #                                     repo pi-agent/extensions/ must equal ~/.pi/agent/extensions.
 #                                     Deliberately NOT identical to item 13: a DEPLOYED-ONLY extension
-#                                     (remote-bash.ts on the Win11 host — Windows sshpass.exe and
-#                                     drive-letter paths, out of the repo on purpose) is reported as
-#                                     LOCAL and does NOT fail the gate, or the laptop seat would fail
-#                                     forever and the gate would get muted (the HD-417 failure mode). --self-test
-#                                     asserts both halves. Guarded like item 13: with no
+#                                     (a machine-local file one seat carries on purpose) is reported
+#                                     as LOCAL and does NOT fail the gate, or that seat would fail
+#                                     forever and the gate would get muted (the HD-417 failure mode).
+#                                     The ONE exception is the script's RETIRED list (HD-1093): names
+#                                     the repo deleted — host-status.ts, remote-bash.ts, both retired
+#                                     2026-10-08 — which --push removes and --check --strict fails
+#                                     while still deployed, because --push preserving a deployed-only
+#                                     file would otherwise keep a deleted extension loaded forever.
+#                                     --self-test asserts all three halves (missing fails, extra is
+#                                     kept, retired is removed). Guarded like item 13: with no
 #                                     ~/.pi/agent/extensions on the host, the check SKIPs.
 #                                     16 arms × the same docker-compose.yml.j2 the engine
 #                                     boots from, with the parity assertions that keep the
@@ -457,6 +462,47 @@ if [ -f "$HOME/.tmux.conf" ]; then
   bash scripts/install-tmux-conf.sh --check --strict
 else
   echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
+fi
+
+echo "== pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1093: the seat planes) =="
+# Four gates, one per plane the seat-sync driver fans out to, so the driver can never report
+# OK on a plane nothing ever validated. Each self-test runs EVERYWHERE (they are sandboxed in
+# a temp dir and need no seat); the --check half is guarded to SKIP where the target does not
+# exist on this host, exactly like items 13/27/29 — a gate that cannot run says SKIP.
+#   pi-tui-config      pi-open-tui's footer hostname key — the pi-open-tui DEFAULT IS FALSE, so
+#                      an installed-but-unconfigured seat has an anonymous footer: this is what
+#                      replaced host-status.ts (docs/pi-harness.md §5a), and the package install
+#                      alone does NOT buy it.
+#   pi-settings-config the harness keys of ~/.pi/agent/settings.json vs pi-agent/settings-ssot.json
+#                      (§5, the 2026-10-08 owner ruling that replaced the hand-copied doc block),
+#                      packages composed from the versions.yml pins, workstation keys never touched.
+#   install-nerd-font  the pinned nerd-fonts release the TUI icons come from: release == pin,
+#                      a per-file sha256 manifest, AND `fc-list` listing the family where
+#                      fontconfig exists (absent fontconfig is a printed SKIP, not a pass).
+#   pi-seat-sync       the fan-out driver itself: its verdict logic is proven on STUBBED seats
+#                      (clean / drift / failed / unreachable / stale-clone / skip), because a
+#                      driver that reports IN SYNC without reaching a seat is the failure this
+#                      file exists to prevent — and the real legs need network + SSH, so this is
+#                      the only half that can be gated. Run it live yourself, do not trust a gate.
+bash scripts/pi-tui-config.sh --self-test
+bash scripts/pi-settings-config.sh --self-test
+bash scripts/install-nerd-font.sh --self-test
+bash scripts/pi-seat-sync.sh --self-test
+if [ -f "$HOME/.pi/agent/settings.json" ]; then
+  bash scripts/pi-settings-config.sh --check --strict
+else
+  echo "SKIP: no ~/.pi/agent/settings.json on this host — the settings plane runs where pi is configured (deploy: pi-seat-sync.sh --push)"
+fi
+if [ -f "$HOME/.pi/agent/open-tui.json" ]; then
+  bash scripts/pi-tui-config.sh --check --strict
+else
+  echo "SKIP: no ~/.pi/agent/open-tui.json on this host — the TUI footer gate runs where pi-open-tui is installed"
+fi
+if [ -d "${NERD_FONT_DIR:-$HOME/.local/share/fonts}" ] || command -v fc-list >/dev/null 2>&1; then
+  NERD_FONT_DIR="${NERD_FONT_DIR:-$HOME/.local/share/fonts}"/JetBrainsMono-Nerd-Font bash scripts/install-nerd-font.sh --check --strict \
+    || echo "NOTE: the font plane is not green on this host — on the Windows seat the leg that matters is scripts/win/install-nerd-font.ps1"
+else
+  echo "SKIP: no user font dir / no fontconfig here — the font plane runs where the TUI's glyphs are drawn"
 fi
 
 echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="

@@ -382,3 +382,22 @@ pi_host_web_npm_version: "0.0.1-beta.38"       # the observed version behind the
                                                # exception: the cockpit self-updates inside @beta from the phone —
                                                # HD-484 live evidence beta.36 -> beta.38 — so pinning the string in
                                                # the seat's settings packages would stop that path working)
+# The seat's TUI skin (pi-open-tui, the pi package behind the footer that names the machine —
+# docs/pi-harness.md §5a). Fleet-wide: every pi.dev node installs this pair through the two
+# install-pi-* scripts, so it is a pin and not a seat-local `pi install npm:pi-open-tui`.
+pi_host_tui_npm_package: "pi-open-tui"
+pi_host_tui_npm_version: "0.3.11"              # npm dist-tag `latest`, registry-verified 2026-10-08 (`npm view
+                                               # pi-open-tui version` -> 0.3.11; published line 0.3.5..0.3.11),
+                                               # same value the Win11 seat already runs
+
+# ==== Seat TUI font (HD-1093) ====
+# pi-open-tui draws its footer icons from a Nerd Font private-use glyph block, and `icons.mode:
+# auto` picks Nerd glyphs by the TERMINAL ENVIRONMENT, not by the installed font file. So the font
+# is a harness dependency of the TUI pin above, not a cosmetic extra — and where it belongs is the
+# machine whose terminal DRAWS pi: for the Win11 seat and for every SSH leg that is the Windows
+# workstation, which is why scripts/win/install-nerd-font.ps1 sits next to scripts/install-nerd-font.sh.
+# The release TAG is the integrity boundary — nerd-fonts ships no per-asset checksum file (checked
+# against the v3.5.1 release 2026-10-08), so the installers stamp the sha256 of what landed and a
+# later --check re-hashes it: a swapped font directory reads as drift, not as success.
+nerd_fonts_version: "v3.5.1"                   # github.com/ryanoasis/nerd-fonts release (releases/latest -> v3.5.1, verified 2026-10-08)
+nerd_fonts_family: "JetBrainsMono"             # the release asset name AND the family the owner selected

@@ -23,6 +23,12 @@
 #   pi-agent/      -> ~/.pi/agent/               (AGENTS.md + prompts/*)
 #   packages below -> `pi install npm:...`        (tracked in-repo, not a drift copy)
 #
+# Version pins (§7): no version string lives in this file. The seat TUI pair
+#   (pi_host_tui_npm_*) is read from the one pin file
+#   IaC/ansible/group_vars/all/versions.yml, exactly like install-pi-debian.sh reads its
+#   pins, so a hand-typed `pi install npm:pi-open-tui` on one seat cannot quietly become
+#   the fleet's state (docs/pi-harness.md §5a).
+#
 # Env overrides: REPO (default: $PWD repo root via script path),
 #   PI_PACKAGES (space-separated, default below). Run INSIDE WSL Debian
 #   (`wsl -d Debian -- bash $REPO/scripts/install-pi-wsl.sh` works too, where $REPO =
@@ -38,11 +44,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 # ---- pi packages to install (tracked here, mirror of Windows settings.json) --
+VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
+# pin(): read one pin from the SSOT version file. Fail-loud, like install-pi-debian.sh:
+# a missing pin aborts here instead of installing whatever npm answers for `latest` (§7).
+pin() {
+  local v
+  v="$(grep -E "^${1}:" "$VERSIONS" 2>/dev/null | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')"
+  [ -n "$v" ] || { echo "error: pin '$1' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here" >&2; exit 1; }
+  printf '%s' "$v"
+}
+TUI_PKG="$(pin pi_host_tui_npm_package)"
+TUI_V="$(pin pi_host_tui_npm_version)"
+
 PI_PACKAGES="${PI_PACKAGES:-
   npm:@ogulcancelik/pi-ssh-tools
   npm:pi-subagents
   npm:@season179/pi-worktree
   npm:pi-deepseek-optimized
+  npm:${TUI_PKG}@${TUI_V}
 }"
 
 MODE="${1:-}"
@@ -136,14 +155,44 @@ if [ "$MODE" != "--pi-only" ]; then
   done
   info "installed: $(pi list 2>/dev/null | tr '\n' ' ')"
 
+  # The seat TUI package carries ONE harness-relevant key: the footer's hostname segment,
+  # which is what answers "which box am I typing to" (docs/pi-harness.md §5a — the job the
+  # retired pi-agent/extensions/host-status.ts used to do). pi-open-tui's own DEFAULT is
+  # OFF, so `pi install` alone leaves the seat anonymous: this sets that key and touches
+  # nothing else the operator tuned through /open-tui.
+  say "seat TUI footer config (pi-tui-config.sh --push)"
+  if [ -f "$REPO/scripts/pi-tui-config.sh" ]; then
+    bash "$REPO/scripts/pi-tui-config.sh" --push \
+      || { echo "error: pi-tui-config.sh --push reported problems" >&2; exit 1; }
+  else
+    info "no scripts/pi-tui-config.sh in this clone — the footer-hostname leg was NOT run"
+  fi
+
+  # The settings plane (HD-1093): the harness keys come from pi-agent/settings-ssot.json and are
+  # MERGED, so this runner's workstation keys (externalEditor, lastChangelogVersion, tuiMode) and
+  # any seat-local package survive — §5's "the block is the part that must match", enforced.
+  say "settings plane (pi-agent/settings-ssot.json -> ~/.pi/agent/settings.json)"
+  if [ -f "$REPO/scripts/pi-settings-config.sh" ]; then
+    bash "$REPO/scripts/pi-settings-config.sh" --push \
+      || { echo "error: pi-settings-config.sh --push reported problems" >&2; exit 1; }
+  else
+    info "no scripts/pi-settings-config.sh in this clone — the settings plane was NOT run"
+  fi
+
+  # The TUI font. Honest scope note: WSL has no display, so THIS leg only places + proves; the
+  # glyphs this seat draws come from the font installed on the Windows side
+  # (scripts/win/install-nerd-font.ps1, run by pi-seat-sync.sh's win11 seat).
+  say "seat TUI font (pinned nerd-fonts release)"
+  [ -f "$REPO/scripts/install-nerd-font.sh" ] && bash "$REPO/scripts/install-nerd-font.sh" --push \
+    || info "install-nerd-font.sh absent or reported a problem — pi-open-tui falls back to portable Unicode icons"
+
   # Local hand-written extension files: repo pi-agent/extensions/ is the SSOT, deployed
   # by the sync script — the same discipline the skills loop above uses (HD-254). The
   # inline `cp -a` this replaces copied silently over drift and could not report it;
-  # the sync script compares byte-exact, blocks on an encoding violation, and does the
-  # one thing a cp cannot: PRESERVE a deployed-only extension. `remote-bash.ts` stays
-  # on the Windows host precisely because it hardcodes sshpass.exe and drive-letter
-  # paths (see ~/.pi/agent/extensions/remote-bash.ts), so it must be left in place and
-  # never pulled back into the repo, where it would break the Debian seats.
+  # the sync script compares byte-exact, blocks on an encoding violation, does the
+  # one thing a cp cannot (PRESERVE a machine-local deployed-only file), and REMOVES
+  # the names the repo retired — otherwise a retired extension stays loaded on every
+  # seat forever, because --push never deletes a deployed-only file.
   say "repo extensions -> ~/.pi/agent/extensions (sync-extensions.sh --push)"
   if [ -d "$REPO/pi-agent/extensions" ]; then
     bash "$REPO/scripts/sync-extensions.sh" --push \
@@ -156,8 +205,10 @@ fi
 echo
 echo "== Done. pi.dev is bootstrapped in WSL Debian. =="
 echo "   Run:      pi"
-echo "   Extensions: available in ~/.pi/agent/extensions (see README: repo copies are the"
-echo "               portable/core set; Windows-only ones like remote-bash.ts stay local)."
+echo "   Extensions: available in ~/.pi/agent/extensions (repo files are the SSOT set; a"
+echo "               machine-local file stays local, and retired names are removed by --push)."
+echo "   TUI:      pi-open-tui (pin pi_host_tui_npm_*, installed above) — /open-tui tunes it;"
+echo "               its footer hostname IS the seat identity: docs/pi-harness.md §5a"
 echo "   Session:  cd $REPO && bash scripts/guard-session.sh  (create a worktree first)"
 echo "   Update:   pi update --extensions   +   re-run this script to re-sync repo SSOT"
 echo
