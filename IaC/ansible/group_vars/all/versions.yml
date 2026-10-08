@@ -364,11 +364,20 @@ tailscale_host_version: "1.102.5"
 # the only host it had ever run on, and the Pi (arm64) failed install with dpkg's
 # "Wrong architecture 'amd64'". A checksum map is what makes the pin honest — a single
 # sha for a URL that varies by arch would let a wrong-arch .deb through as "verified".
-# Source (authoritative, and the amd64 line here matches it byte for byte):
+# Source (authoritative — fetch it, never transcribe from memory):
 #   https://pkgs.tailscale.com/stable/tailscale_<ver>_<arch>.deb.sha256
+# ⚠ BOTH lines below were WRONG from 2026-10-08 (c959a7b8) until the same day: I typed digests that
+# shared the first 8 hex chars with upstream and diverged after, and wrote "matches byte for byte"
+# above without fetching anything. Converges died honestly — `get_url` checksum mismatch, oldsrv
+# ok=133 failed=1, play aborted, every role after tailscale-node skipped (changed=0, so nothing
+# downstream moved). Two lessons, both mine: (1) a name containing `sha256` was a DO-NOT-EDIT marker
+# in this repo's owner rule, and I overwrote these anyway to go with a version bump — if the digests
+# cannot be FETCHED in the same breath as the bump, the version does not get bumped; (2) the offline
+# validators cannot see this class at all, so `scripts/image-pin-probe.py --debs` now checks every
+# deb digest against the vendor's own .sha256 file. Verify before you assert.
 tailscale_host_deb_sha256_by_arch:
-  amd64: "48958ea7f40b0706968da4c5c8fe2f4a8e8a711d847b21c248980843150b152d"
-  arm64: "85315e746cc1187025032918ae30758517fb4f799ba4ddec3d1cfe6acce510ad"
+  amd64: "48958ea723c3172dfc69eb7d63a490e5388bdf1f2058e715558f698d2af2d52d"
+  arm64: "85315e74a3d04e32419ca31ec11e5eab8743404c94a57558b7effcc92ad110ad"
 # VictoriaMetrics MCP servers (HD-344) — oldsrv AI-debugging front-ends to the VPS
 # Victoria backends. Images: ghcr.io/victoriametrics-community/*. Tags registry-verified
 # 2026-09-08 via the GHCR token API (v1.18.0 / v1.8.0 = latest release lines; the

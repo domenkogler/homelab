@@ -433,13 +433,53 @@ def pick(cfg, cutoff):
     return (elig[0] if elig else None), (cand[0] if cand else None), err
 
 
+def check_debs(path) -> list:
+    """Verify deb checksum pins against the vendor's OWN .sha256 file (needs network).
+
+    WHY THIS EXISTS: on 2026-10-08 a version refresh rewrote `tailscale_host_deb_sha256_by_arch` with
+    digests that had been transcribed instead of fetched — first 8 hex chars matched upstream, the
+    tail diverged, on BOTH arch lines. Every offline gate passed and the render was fine; the converge
+    then died mid-role on a `get_url` checksum mismatch, which stalled oldsrv (ok=133 failed=1, play
+    aborted, every role after it skipped) and would have stalled the Pi the same way. A variable whose
+    name contains `sha256` means FETCH or DON'T TOUCH — this is the fetch, so the next refresh has a
+    tool instead of a memory. Like the rest of this script it stays out of validate-all: it is
+    network-bound and the repo gate must run offline.
+    """
+    txt = open(path, encoding='utf-8').read()
+    ver = re.search(r'^tailscale_host_version:\s*"?([^"\n#]+)"?', txt, re.M)
+    block = re.search(r'^tailscale_host_deb_sha256_by_arch:\s*\n((?:[ \t]+\S.*\n?)+)', txt, re.M)
+    if not ver or not block:
+        return ['no tailscale deb pin block found — did the var names change?']
+    bad = []
+    for arch, want in re.findall(r'^\s+(\w+):\s*"?([0-9a-fA-F]{64})"?', block.group(1), re.M):
+        url = f'https://pkgs.tailscale.com/stable/tailscale_{ver.group(1).strip()}_{arch}.deb.sha256'
+        res = _get(url)
+        if 'err' in res:                                            # a probe reports, never crashes
+            bad.append(f'tailscale {arch}: cannot fetch {url} ({res["err"]})')
+            continue
+        got = res['body'].split()[0].strip().lower()
+        if got != want.lower():
+            bad.append(f'tailscale {arch} {ver.group(1).strip()}: PIN {want} != UPSTREAM {got}')
+        else:
+            print(f'ok  tailscale {arch} {ver.group(1).strip()}  {want}')
+    return bad
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('--file', default=os.path.normpath(DEFAULT_ROOT))
     ap.add_argument('--days', type=int, default=3, help='stability hold, mirrors renovate.json stabilityDays')
     ap.add_argument('--verify', action='store_true', help='also probe whether the CURRENT pin exists upstream')
     ap.add_argument('--json', action='store_true')
+    ap.add_argument('--debs', action='store_true',
+                    help='verify deb checksum pins against the vendor .sha256 (see check_debs) and exit')
     args = ap.parse_args()
+    if args.debs:
+        bad = check_debs(args.file)
+        for b in bad:
+            print('BAD ' + b)
+        print(f'deb digest check: {"FAIL" if bad else "OK"} ({len(bad)} bad)')
+        return 1 if bad else 0
 
     pins = {}
     for line in open(args.file, encoding='utf-8'):
