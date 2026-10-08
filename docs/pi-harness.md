@@ -269,6 +269,20 @@ file (owned keys replaced, everything else preserved, timestamped backup, an unp
 REFUSAL; `packages` is composed from the `versions.yml` pins and a seat-local package the repo does
 not name — the cockpit's pi-web — is KEPT and printed, never deleted).
 
+**One rule about that `packages` list no doc here stated until it bit (2026-10-08, pi 1.1.0):** an
+extension package must NOT list a host-provided module in `dependencies`. pi's loader compares each
+installed manifest's `dependencies` against `HOST_PROVIDED_EXTENSION_PACKAGES` (`typebox`,
+`@sinclair/typebox`, the `pi-ai` / `pi-tui` / `pi-coding-agent` families) and prints on every start:
+`Host-provided extension packages must be declared in peerDependencies with a "*" range, not
+dependencies`. Not style: an extension that installs its OWN `typebox` gets a second runtime module
+beside the host's, bypassing the extension loader. `pi-web-access` 0.25.0 did exactly that, so the
+panel appeared the moment the seat moved to pi 1.1.0 — a **pin** problem wearing an extension's
+clothes. The fix is the pin (`pi_web_access_version` → 0.37.0, which declares
+`peerDependencies.typebox: "*"`; upstream moved it in 0.32.0, registry-verified across all 46
+published versions), never an edit into someone's `node_modules`: the predicate is one read of a
+manifest, so `pi list` plus a manifest scan proves it, and deleting a hoisted copy is undone by the
+next install.
+
 **There is no settings VENDOR in `render-pi-config.py`, and that boundary still holds — but §5 is
 no longer the only source.** `render-pi-config.py --vendor` speaks `pi` / `pi_auth` / `continue` /
 `all`; the spec renders the **model contract**, never someone's editor settings
