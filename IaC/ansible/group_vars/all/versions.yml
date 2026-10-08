@@ -244,7 +244,8 @@ openwebui_version: "0.11.4"   # verified 2026-10-08 (2026-09-21)
 # OpenClaw (AI agent/orchestration, ex-Clawd) image tag — HD-104. Pinned to the latest
 # stable release (date-based versioning); young project, MUST re-verify at deploy.
 # GHCR is the primary registry for release automation/provenance.
-openclaw_version: "2026.9.8"   # verified 2026-10-08 (2026-10-03)
+openclaw_version: "2026.7.1"   # HELD: 2026.9.8 crash-loops "shared state database is unreadable … openclaw.sqlite"
+                      # (doctor cannot repair), measured on the VPS 2026-10-08. Needs a state-store migration first (HD-1100).
 
 # ==== AI coding harness (HD-268c: dual = pi-dev + DSH) ====
 # pi-dev: runtime is the pinned Node OCI image; the pi coding-agent is installed from npm
@@ -296,7 +297,9 @@ immich_version: "v3.2.4"          # ghcr.io/immich-app/immich-server (tag has `v
 immich_valkey_version: "9.1.2"     # docker.io/valkey/valkey — verified 2026-10-08 (9.1.2, 2026-09-21)
 opencloud_version: "8.0.1"        # opencloudeu/opencloud-rolling (Docker Hub; the template, not this comment,
                                   # is the reference) — MAJOR 7 → 8 (2026-09-16); read the skipped migration notes.
-zipline_version: "4.8.0"          # ghcr.io/diced/zipline (owner-corrected 2026-08-25; tag has NO `v` prefix; verified 2026-10-08). Note: upstream also ships rolling `v4`/`latest` — never use those (§7).
+zipline_version: "4.6.5"            # ghcr.io/diced/zipline — HELD: 4.8.0 crash-loops "expected migration 20260806081144_remove_version_api
+                                     # was not applied" (Prisma ledger), measured on the VPS 2026-10-08 after applying it. Its own
+                                     # store migration is HD-1100 work, not a pin bump.
 zipline_db_version: "16.15-alpine" # HELD at 16 (HD-1100) — same data-format rule as litellm_db_version.
 # ONLYOFFICE Docs Server — WOPI helper for OpenCloud browser editing (HD-166). Verified
 # 2026-10-08: Docker Hub `onlyoffice/documentserver` newest stable 9.4.0.1 (2026-07-22).
