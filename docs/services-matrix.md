@@ -58,7 +58,7 @@ tags: [services, matrix, chat, messaging]
 > registration (MSC2966), and simplified sliding sync (`org.matrix.simplified_msc3575`). What *is*
 > old is the pinned client build: `group_vars/all/versions.yml` pins
 > `element_web_version: "v1.11.96"`, while upstream Element Web is on the 1.12 line, which has had
-✅ **Shipped 2026-09-26: `element_web_version` went `v1.11.96` → `v1.12.29`**, so the browser
+✅ **Shipped 2026-09-26: `element_web_version` went `v1.11.96` → `v1.12.29`; `element_web_version` is `v1.12.30` since 2026-10-08 ⏳ (same 1.12 OIDC line, no config change)**, so the browser
 > client now speaks the same generation as the homeserver. Live proof: the `chat` container runs
 > `ghcr.io/element-hq/element-web:v1.12.29` (healthy) and `https://chat.kogler.si/version` answers
 > `1.12.29`; the converge was scoped with `docker_services_scope=chat` (`ok=31 changed=2
@@ -143,3 +143,29 @@ tags: [services, matrix, chat, messaging]
 > is not supported here** (upstream tuwunel #286, and we are not rewriting `r0`→`v3` at the edge to
 > imitate an API the origin does not serve). Anyone else in the family who logs in on a phone needs the
 > Element X app — the same server, the same Authentik account, no other change.
+
+
+## Alert room (HD-1108 — ruled by the owner, 2026-10-08)
+
+The owner ruled the **alert delivery surface to Matrix/Element** instead of Signal, on two measured facts:
+the `signal-cli-rest-api` daemon is linked to the operator's personal number and the "Homelab Alerts"
+Signal group has **exactly one human member**, and the operator's everyday reader is Element. So the
+alert path becomes: **Grafana → n8n → this homeserver → a dedicated `#homelab-alerts` room**, with the
+Grafana-native **SMTP contact point still running in parallel** as the fail-safe that survives n8n or
+Matrix being down ([observability.md](observability.md) §Alerting owns the delivery chain and its two
+silent-failure mutes — read it before touching the workflow).
+
+What the row owes, none of it an owner act:
+
+- one **dedicated alert user** on this homeserver (not the operator's account — an alert sent as you
+  cannot be told apart from a message you wrote), with its access token in the `Homelab-ansible` vault
+  (`<service>_<type>` naming per CONVENTIONS §6, rendered block-scalar, never a literal in compose);
+- the **room**, created once, with its id in SSOT the way `signal_alert_recipients` is today — an alias
+  reads better to a human, but the write wants the id;
+- n8n's `homelab-alerts` workflow gains the Matrix leg **beside** the Signal one, so the cutover is a diff
+  in one run rather than swapping a live alerting path out from under the rules;
+- acceptance is **the room's own event read** for a canary — the HD-347 lesson: a workflow `200` means a
+  run started, never that a message landed.
+
+⛔ Signal is not deleted by this ruling. `signal-cli-rest-api` stays live until the Matrix leg proves
+itself, then demotes to a documented fallback or is retired — **that teardown is the row's last step**.

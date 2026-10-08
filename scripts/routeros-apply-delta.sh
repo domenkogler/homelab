@@ -30,8 +30,15 @@
 #     e.g. bash scripts/routeros-apply-delta.sh 10.10.99.1 rb4011_wan_delta.rsc
 #   Env: ROS_SSH_USER (default: ansible)
 #
-# Requires: 1Password CLI signed in (Homelab-ansible vault, human session —
-#   the SA token cannot read these items), openssh client + ssh-keygen.
+# Requires: the 1Password CLI, openssh client + ssh-keygen, and EITHER the read-scope
+#   service-account token (`OP_SERVICE_ACCOUNT_TOKEN`, what `scripts/ansible-run.sh` sources
+#   from ~/.config/op/homelab-sa-token) or a signed-in account (`op signin`). Measured
+#   2026-10-08: with the SA token alone, `op account list` returns 0 and
+#   `op read op://Homelab-ansible/ansible-admin_ssh/"private key"` returns a PEM that
+#   `ssh-keygen -yf` loads — the item lives in `Homelab-ansible`, which the read-scope SA can
+#   read (the same HD-495 move that took the GitHub signing keys out of `Private`). An earlier
+#   version of this header claimed a human `op signin` was required; that stopped being true
+#   when the item moved, and it was costing router lanes an unnecessary owner gate.
 # =====================================================================
 set -euo pipefail
 

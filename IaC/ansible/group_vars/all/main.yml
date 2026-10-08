@@ -12,7 +12,10 @@ ntp_servers:
   - 1.si.pool.ntp.org
 op_vault: Homelab-ansible
 domain_public: kogler.si
-domain_local: kogler.si    # reserved for future split-horizon scenarios — currently unused
+domain_local: kogler.si    # the LAN search suffix: rendered as `Domains=` / `dns-search=` on host
+                           # NICs (roles/network) and handed to DHCP clients as option 15 by the
+                           # router (HD-1097). NOT a split-horizon switch — the zone is one name-
+                           # space; `domain_public` is the public half of the same string.
 
 # Bootstrap DHCP DNS for freshly-reset MikroTik gear (HD-193): used by the
 # rb4011_initial template BEFORE Technitium exists (it lands on oldsrv at
@@ -321,7 +324,10 @@ zone_kogler_si:
   - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }
   - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
   # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
-  - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
+  # media is PUBLISHED (HD-1095, owner decision 2026-10-07): the VPS edge now routes it to the
+  # home edge over WG S2S, so the public answer is served, not just pointed at. seerr/seerrng are
+  # routed there too but stay UNPUBLISHED — reachable by name only where a resolver is told.
+  - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true, public: true }
   - { name: seerr.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
   - { name: seerrng.kogler.si,       internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
   - { name: sonarr.kogler.si,        internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true }
@@ -345,6 +351,19 @@ zone_kogler_si:
   # HD-188 Cockpit break-glass surfaces: Home addresses, so LAN-only (never the VPS primary).
   - { name: cockpit-oldsrv.kogler.si, internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: cockpit-nas.kogler.si,   internal: true, ip: "{{ nas_home_ip }}", lan_only: true, tailnet: node, ts_router: false }
+  # HD-1097 host A records. Until 2026-10-07 the LAN zone answered SERVICE names only, so a
+  # bare `\\nas\media` SMB path had NO DNS answer at all (measured NXDOMAIN with the aa flag on
+  # both home resolvers) and fell back to LLMNR/NetBIOS broadcast — which a wired switch port
+  # supplies and a Wi-Fi client does not. The owner could mount by IP from Wi-Fi and not by
+  # name; that is this row. `switch`/`ilo` are deliberately ABSENT: they carry only a Mgmt-99
+  # address, which a Home client cannot route to (the answer-must-be-routable rule,
+  # docs/network-dns.md §The answer-plane model), so publishing them would ship a black hole.
+  # `tailnet: none` everywhere here: a tailnet device away from home cannot route to 10.10.1.x
+  # either, so the netmap gains nothing and the tailnet plane stays answer-neutral.
+  - { name: nas.kogler.si,           internal: true, ip: "{{ nas_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: oldsrv.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: pi.kogler.si,            internal: true, ip: "{{ pi_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
+  - { name: router.kogler.si,        internal: true, ip: "{{ router_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   # --- tailnet-edge dashboards: internal-only, tailnet-only (never public — HD-135b) ---
   - { name: stats.kogler.si,         internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
   - { name: logs.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
@@ -403,6 +422,9 @@ dns_primary_ipv6: "2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5"
 # The nas has no `nas_*_ip` entry in the address SSOT's naming pattern; read it the way
 # the seed's inline row did, from `network_static_hosts` itself.
 nas_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
+# The router's own Home-leg address (its gateway), read from the same address SSOT — used by
+# the `router.kogler.si` host record (HD-1097).
+router_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
 # --- the derived views each consumer loops over ------------------------------------
 # These are VIEWS, not sources: edit `zone_kogler_si`, never these.
@@ -501,12 +523,24 @@ network_ipv6:
                                              # drops — NOT by a `disabled=yes` /ipv6 nd row, which falls back to
                                              # the `interface=all` default row and advertises anyway (measured).
 
+# `lan_first_dns: true` = this VLAN's DHCP resolver chain starts with a HOME instance
+# (Pi tertiary) instead of the VPS primary. It is the switch that decides which split-horizon
+# ANSWER a device on that VLAN gets for the home-hosted app names (`media`/`seerr`/`seerrng`/
+# the *arr set): a home instance answers `oldsrv_home_ip` (the home edge, works), the VPS
+# primary answers `dns_primary_ip`. The VPS edge had NO route for those names, so a VPS-first VLAN
+# got 404 (measured 2026-10-07 from the Shield on VLAN 50: media.kogler.si → VPS IP → 404, while the
+# same URL on the home edge is 302 → /web/); the VPS-edge routes landed the SAME EVENING, so a
+# VPS-first VLAN is served again and this switch is now resilience rather than the mechanism. Do not add a VLAN to this list without
+# reading docs/network-dns.md §Per-Instance Split-Horizon first: it hands that VLAN the LAN
+# answer for EVERY internal name, not just the one you are fixing. The permanent fix was the
+# VPS-edge route (HD-1095), landed 2026-10-07, which makes the VPS answer correct everywhere — so
+# the Media entry here is now a WAN-out resilience choice, not a requirement.
 network_vlans:
-  - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler" }
+  - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler",     lan_first_dns: true }   # HD-334 HA-independence
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
   - { id: 30, name: Guest,        subnet: "10.10.30.0/24", pool: "10.10.30.100-10.10.30.199", ssid: "Kogler guest" }
   - { id: 40, name: Kids,         subnet: "10.10.40.0/24", pool: "10.10.40.100-10.10.40.199", ssid: "Kogler Kids" }
-  - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "" }
+  - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "",           lan_first_dns: true }   # HD-1095: TV/Shield must resolve the home edge
   - { id: 99, name: Management,   subnet: "10.10.99.0/24", pool: "10.10.99.50-10.10.99.99",  ssid: "" }
 network_static_hosts:
   # Management VLAN 99
@@ -776,6 +810,18 @@ radarr_url: "http://{{ radarr_bind }}:{{ radarr_host_port }}"
 lidarr_bind: "127.0.0.1"
 lidarr_host_port: 8686
 lidarr_url: "http://{{ lidarr_bind }}:{{ lidarr_host_port }}"
+
+# HD-1083: the LAN URL of the LAN-only LiteLLM proxy (container `lan-litellm`, host-net publish
+# on the oldsrv Home address:4000). It had NO var: the edge template carried `http://{{
+# oldsrv_home_ip }}:4000` inline, which is the only reason the name `lan_litellm_url` did not
+# exist to reference. Minted here so the SSOT rule (docs/services-traefik.md §Service URL Map)
+# holds for this service too. ⚠ NOT the VPS `litellm` service and NOT the spark `litellm-*`
+# profiles — and NOT `litellm_scoped_keys`, which is a different name that already means two
+# different things on home_servers and vps (that collision is the reason this one is named after
+# the container, not the software).
+lan_litellm_host_port: 4000
+lan_litellm_bind: "{{ oldsrv_home_ip }}"
+lan_litellm_url: "http://{{ lan_litellm_bind }}:{{ lan_litellm_host_port }}"
 prowlarr_bind: "127.0.0.1"
 prowlarr_host_port: 9696
 prowlarr_url: "http://{{ prowlarr_bind }}:{{ prowlarr_host_port }}"

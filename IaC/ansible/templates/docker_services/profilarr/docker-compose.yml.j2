@@ -11,7 +11,7 @@
 #   — none needed
 services:
   profilarr:
-    image: ghcr.io/dictionarry-hub/profilarr:latest
+    image: ghcr.io/dictionarry-hub/profilarr:{{ profilarr_version }}
     cap_drop:
       - ALL
     cap_add:
@@ -52,7 +52,7 @@ services:
       start_period: 10s
 
   profilarr-parser:
-    image: ghcr.io/dictionarry-hub/profilarr-parser:latest
+    image: ghcr.io/dictionarry-hub/profilarr-parser:{{ profilarr_parser_version }}
     cap_drop:
       - ALL
     cap_add:

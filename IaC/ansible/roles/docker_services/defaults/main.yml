@@ -193,6 +193,37 @@ sabnzbd_host_whitelist:
   # else in tasks/sabnzbd-seed.yml, so a hand-added entry survives.
   - "sab.{{ tailnet_base_domain }}"   # the MagicDNS twin's Host on the tailnet leg
 
+# ---- SABnzbd locality ranges (HD-1089) — the OTHER 403, and it is a different option ----
+# `sab.kogler.si` → 200 while `sab.ts.kogler.si` → 403 **`External internet access denied`** (measured
+# 2026-10-07). Different body, different guard from `host_whitelist` above: this one is `local_ranges`,
+# and the shipped value is `,` — two EMPTY entries — which SABnzbd reads as unset, and unset means
+# "fall back to `is_lan_addr()`", i.e. Python's private-address list. That covers the LAN (10.10/16) and
+# the Docker bridges (172.20–172.25) but NOT 100.64.0.0/10, which `ipaddress` classifies as
+# shared/carrier-grade NAT and therefore NOT private. The check that bites, read out of the shipped
+# 5.1.1 (`interface.py` check_access + `misc.py` is_local_addr):
+#
+#     is_allowed = is_loopback_addr(peer) or is_local_addr(peer)      # peer = the edge: private ⇒ ok
+#     if is_allowed and cfg.verify_xff_header():                       # default True (cfg.py:531)
+#         is_allowed = all(is_local_addr(ip) for ip in X-Forwarded-For)  # the CLIENT ⇒ tailnet IP ⇒ 403
+#
+# ⚠ `local_ranges` is REPLACE-all, not additive: the moment it is non-empty, `is_local_addr()` stops
+# consulting the private list (`misc.py:1301`). Seeding ONLY the tailnet would therefore take access
+# away from the LAN and from every container-side consumer — the arrs and Prowlarr dial SAB through
+# 172.21/172.20, and the edge's own peer address is on a bridge too. The wanted set is therefore every
+# internal range this app can be reached through, derived from the `network_ranges` SSOT by name. The
+# wireguard family (10.255/16) and `modem-lan` stay OUT deliberately: a peer's range has to be listed to
+# be believed, and the VPS's WireGuard networks are not "this house".
+sabnzbd_local_ranges_names:
+  - site
+  - headscale
+  - traefik-public
+  - services-internal
+  - db-internal
+  - llm-backend
+  - tailnet-apps
+  - dns-servers
+sabnzbd_local_ranges: "{{ network_ranges | selectattr('name', 'in', sabnzbd_local_ranges_names) | map(attribute='cidr') | list }}"
+
 # ---- qBittorrent WebUI seed (the torrent leg) — what tasks/qbittorrent-seed.yml reconciles ----
 # WHY THIS IS A SEED AND NOT COMPOSE ENV (measured 2026-10-06, same class as sabnzbd-seed.yml):
 #   1. qBittorrent stores its settings in `qBittorrent.conf` (a Qt .ini), and the linuxserver image
@@ -341,6 +372,13 @@ arr_torrent_client_fields:
   useSsl: false
   urlBase: ""
   apiKey: ""
+# Owned fields a build may legitimately not expose. Measured 2026-10-07 against the live four (read-only
+# GET /downloadclient + /downloadclient/schema): Sonarr 4.0.19, Radarr and Prowlarr 2.5.2 report
+# `apiKey`; **Lidarr 3.1 reports it in neither** — its QBittorrentSettings has no such property. Without
+# this list the seed compared None to "" forever and PUT Lidarr's client on EVERY converge (the
+# perpetual-drift half of HD-1090). Naming a field here is a claim about a build, so the measurement goes
+# with it; anything owned, unreported and NOT listed fails loud in arr-torrent-client.py.j2.
+arr_torrent_client_optional_fields: [apiKey]
 # `type` per field, exactly as the app reports it (measured out of a live GET /downloadclient on Sonarr
 # 4.0.19: textbox / checkbox / password). This is UI metadata about the settings FIELDS — the values
 # come from group_vars and from 1Password, never from here. Keys carry a `_type` suffix so the secrets
@@ -370,7 +408,9 @@ arr_torrent_client_field_types:
 # template gains/loses a secret, update its line here (mirrors
 # docs/deployment-secrets.md).
 _template_vault_items:
-  authentik: {'authentik_password', 'authentik_login', 'authentik-ldap_bind', 'authentik_db'}
+  # `authentik-ldap_bind` removed 2026-10-07: the LDAP outpost it authenticated was torn down with
+  # the retired Samba `ldapsam` design (docs/storage-rejected.md), so the authentik render reads no LDAP item.
+  authentik: {'authentik_password', 'authentik_login', 'authentik_db'}
   db-backup: {'forgejo_db', 'immich_db', 'authentik_db', 'litellm_db'}
   crowdsec-web-ui: {'crowdsec-webui_lapi_api'}   # HD-272 LAPI watcher password (vault-dict read at render)
   forgejo: {'forgejo_db'}

@@ -56,7 +56,7 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Lidarr-URL-DL | url-dl | I | 150–300 / 500 | Lidarr-YouTube-Downloader (angrido/lidarr-downloader, HD-362) — acquisition **#3**: YouTube → Lidarr (Newznab + SABnzbd emulation, yt-dlp + PO-token sidecar), up to 320 kbps MP3/M4A/Opus; internal-only UI |
 | Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd, HD-362) — **gluetun WireGuard sidecar, VPN-locked egress**, acquisition **#2**; no inbound port → fetch-only peer (search + download, no upload credit); own login/token |
 | Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis, HD-362) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · **new `tube` subdir on nas `bulk/media`** · needs `vm.max_map_count` · **⏳ disabled** — ES `path.repo` problem, see §Music Pillar
-| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (`@daily` inside the container, no UI) — **mechanism fixed + proven 2026-09-28, policy switch still commented** (it rewrites live quality profiles): [deployment-secrets.md](deployment-secrets.md) §the `sonarr_api`/`radarr_api` rows |
+| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (`@daily` inside the container, no UI) — **mechanism fixed + proven 2026-09-28, policy switch still commented** (it rewrites live quality profiles) — ✅ **deferred by the owner 2026-10-08:** the profile choice stays unmade and the service stays off; do not re-open it until upstream profile drift actually costs something: [deployment-secrets.md](deployment-secrets.md) §the `sonarr_api`/`radarr_api` rows |
 
 ## Storage & Import (Media / *arr)
 
@@ -78,7 +78,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Three NFS exports:** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share), `tank/data` →
   `/mnt/nas/data` (immutable user data) and `bulk/data/immich-thumbs` → `/mnt/nas/thumbs` (push target) —
   two pools, three exports.
-- **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — measured `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the exception — and the leg **does not exist yet** (measured 2026-10-07): Lidarr's root is `/media/music` = nas `bulk/media/media/music` (empty), and neither oldsrv nor the NAS can write the Box — `roles/cifs/tasks/main.yml` asserts the Box mount onto the **VPS only**, and `mount | grep cifs` on oldsrv shows nothing. So the HD-354 prose ("Lidarr copies music to the Box") described a path with no mount behind it. Owner ruled the shape on 2026-10-07: **NAS master + a push leg to the Box** — **HD-1088**. `docs/storage.md` §Store tiering owns the layout.
+- **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — measured `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the exception — and the leg **does not exist yet** (measured 2026-10-07): Lidarr's root is `/media/music` = nas `bulk/media/media/music` (empty), and neither oldsrv nor the NAS can write the Box — `roles/cifs/tasks/main.yml` asserts the Box mount onto the **VPS only**, and `mount | grep cifs` on oldsrv shows nothing. So the HD-354 prose ("Lidarr copies music to the Box") described a path with no mount behind it. Owner ruled the shape on 2026-10-07: **NAS master + a push leg to the Box** — **HD-1088**. ✅ **Ruled 2026-10-08 (owner): the push is `oldsrv` → Box rsync/SFTP over `:23`** — no new mount, the VPS-only `cifs` assert stays; the mount assert and a bounded `--max-delete` are part of the requirement, not advice (a dead mount is an empty directory, and an empty directory is what Navidrome will serve). Retention stays an owner call: neither copy is inside Kopia's scope. `docs/storage.md` §Store tiering owns the layout.
 - **Media is not backed up** (movies/TV) — no sanoid snapshots, no syncoid, no Kopia; lost media is re-fetched via
   usenet/torrents. ⚠ **Music must not be read as "the exception" any more (HD-1088):** under the ruled shape the FLAC
   master sits on the NAS in the same not-backed-up tier, and the Box holds a second *serving* copy — the Kopia trail
@@ -93,6 +93,26 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   was met on 2026-10-06 by 1337x.to. Wiring + evidence: [services-downloads.md](services-downloads.md)
   §The solver's own door; the manual step is [deployment-manual.md](../deployment-manual.md) §P3.6.
 - All *arr subdomains are **internal-only** (not in the public set).
+- **How to reach it from anywhere (HD-1095, as-built 2026-10-07):** the three names are answered **per
+  Technitium instance** — the home instances return `oldsrv_home_ip` (the home edge serves all three), the VPS
+  primary returns `dns_primary_ip` — and the VPS edge now **routes** `media` / `seerr` / `seerrng` to the home
+  edge over WG S2S, so both answers lead to a served URL instead of a 404. `media.kogler.si` is **published
+  publicly** (Cloudflare CNAME → the VPS, `public: true` in the zone list, the owner's call on 2026-10-07) and
+  carries `crowdsec-only@file`, not Forward-Auth: client apps (Shield/Android TV) cannot sit behind an Authentik
+  dance. `seerr`/`seerrng` are routed there but **unpublished** — reachable by name where a resolver is told.
+  The Media VLAN (50 — the Shield and the TV) was additionally moved to a home-first DHCP chain the same
+  evening via `network_vlans[].lan_first_dns`, which is what fixed the TV within minutes and is now resilience
+  rather than the mechanism. Measured after the converge: `--resolve media.kogler.si:443:<VPS IP>` → `302 →
+  /web/` and `/System/Info/Public` returns Jellyfin JSON through the two hops; the same URL family on the home
+  edge → `302`. Mechanics in [services-traefik.md](services-traefik.md) §The home-hosted names at the public
+  edge; the split-horizon reasoning in [network-dns.md](network-dns.md) §Per-Instance Split-Horizon.
+- **`http://` works now — it did not until 2026-10-07 evening.** `http://media.kogler.si/` and
+  `http://foto.kogler.si/` returned **404** on both edges for the entire life of the redirect router: the rule
+  was v2 `HostRegexp(`{host:.+}`)` syntax, which parses and reports `enabled` while matching nothing, and the
+  public edge referenced a middleware it never declared. Both fixed; `curl -I http://media.kogler.si/` → `301`
+  now, so the Android-TV connect wizard's default `http://` form finds the server. Why it failed silently is
+  written up in [services-traefik.md](services-traefik.md) §The `:80 → :443` redirect… — read it before
+  adding another redirect router anywhere.
 
 | App | Web UI | Auth | Notes |
 |-----|--------|------|-------|
@@ -170,6 +190,67 @@ profile still exists and fails loudly when it does not.
 - **Seerr API keys for Jellyfin** are the two owner-minted items `jellyfin-seer_api` /
   `jellyfin-seerng_api` (app state inside each Seerr's `settings.json`; no IaC consumer) —
   [deployment-secrets.md](deployment-secrets.md).
+
+## Subtitles — Bazarr app-state wiring (HD-1096)
+
+> **Status: 🟢 wired + live 2026-10-07** — Radarr + Sonarr + Jellyfin connected, provider and languages
+> set, `.srt` sidecars landing next to the media. ⏳ **None of it is in IaC.** Bazarr keeps its settings in
+> its own SQLite DB (`/srv/docker/bazarr/config/db/bazarr.db`; `config/config.yaml` is only a partial
+> mirror — it still said `use_radarr: false` while the running instance had SignalR up), so a from-zero
+> converge recovers the blank app this section found. ⏳ `tasks/bazarr-seed.yml`: HD-1096.
+
+What "is the subtitles app ready?" actually measured (2026-10-07): the container Up, `bazarr.kogler.si`
+→ 200, `versions.yml` pin honoured — and `GET /api/movies` = `{"data": [], "total": 0}` with
+`GET /api/providers` = `[]`. A running app that cannot fetch anything, because the compose owns the
+container and **the app's own DB owns the behaviour** — the same split `tasks/arr-seed.yml` was written
+for (§Request → import wiring).
+
+**API surface worth knowing (1.6.0).** No spec is published (`/api/schema` serves the SPA), so this was
+read out of the UI bundle (`assets/index-*.js`, the `Oa` request classes) and then measured:
+
+| Call | Notes |
+|---|---|
+| `GET/POST /api/system/settings` | POST is **form-urlencoded**, one field per value: `settings-<section>-<key>=<value>` (`settings-radarr-ip=radarr`), plus the **bare** keys `languages-enabled=<code2>` (repeat the field for several languages) and `languages-profiles=<json>`. **204** on success; a wrong key shape answers **500** and the reason only appears in `log/bazarr.log` — read that file after every POST |
+| `POST /api/system?action=restart` | graceful restart from inside the app; the PVR link needs it to run its initial sync, and it works where the operator has no `docker` access |
+| `GET /api/system/health` | the honest gate — `{"object": "Missing languages profile"}` is what "the search did nothing" looks like from outside |
+| `PATCH /api/movies/subtitles?radarrid=<n>&language=<code2>&forced=false&hi=false` | automatic search, one movie × one language. **All four params are required**; the 400 names exactly the one missing |
+| `GET /api/providers/movies?radarrid=<n>` | the UI's Manual Search; 500s without an assigned profile (`int() argument … not 'NoneType'`) |
+| `POST /api/jellyfin/test-connection` (`url`, `apikey`) | run it before saving the Jellyfin leg — it is the only thing that separates a wrong URL from a wrong key |
+
+⚠ **The profile-shape trap (took the Languages page down for a few minutes on 2026-10-07).**
+`GET /api/system/languages/profiles` renders each item's `language` as an **object**
+(`{"code2": "sl", "name": "Slovenian", "enabled": true}`), but the writer wants the **bare code2 string**
+(`"language": "sl"`). POST the object and it is stored verbatim; every movie serialisation then dies in
+`api/utils.py:73 postprocess` — `subs.split(':')` on a dict — so `GET /api/movies` 500s and every page
+that reads the movie list, **Settings → Languages included**, comes up empty. Undo: `POST
+/api/system/settings` with `languages-profiles=[]` **and** `POST /api/movies` with an empty `profileid`
+per movie (the rows still point at the deleted profile otherwise), then `POST /api/system?action=restart`.
+**Create profiles in the UI**; read them back over the API if a seed has to reproduce them.
+
+**Addresses — same rule as §Request → import wiring (overlay/container name, never a `*.kogler.si`
+host), with exactly one exception.** Measured from inside the Bazarr container:
+
+| Leg | Value that works | Evidence |
+|---|---|---|
+| Bazarr → Radarr | `radarr:7878` + the key read from `/srv/docker/radarr/config/config.xml` | SignalR connected; job `Synced movies with Radarr` → 2 movies |
+| Bazarr → Sonarr | `sonarr:8989` + its own `config.xml` key (the `arr-seed.yml` rule: instance key, never the vault copy) | SignalR connected; 3 series synced |
+| Bazarr → Jellyfin | **`https://media.kogler.si`** — the container name fails (`HTTPSConnectionPool(host='media', port=443) … NameResolutionError`), because Bazarr dials this one over HTTPS by name | `test-connection` → `{"success": true, "server_name": "media", "version": "10.11.11"}`; `Movies` library + refresh-on-download on |
+| Bazarr → provider | `opensubtitlescom` with `opensubtitles_login` | ❌ `Throttling opensubtitlescom for 12 hours … AuthenticationError … 'Login failed'` — the credential, not the network |
+
+**Keys are app state, documented as such:** Bazarr's own API key is the vault `bazarr_api` (proved equal
+to the instance `auth.apikey` by sha256 — the drift class that caught `lidarr_api`), and Jellyfin's
+read-only key minted for Bazarr is `jellyfin-bazarr_api` →
+[deployment-secrets.md](deployment-secrets.md).
+
+**State at close of the wiring session** (read back over the API, not remembered): languages enabled
+`sl, en, hr, sr`; profiles `slo + eng` (sl,en), `slo` (sl), `cro/srb` (hr,sh) — ⚠ **no profile is
+assigned**: both movies carry `profileid: null` and `movie_default_profile` is empty, so the scheduled
+search will keep finding nothing until a default profile is set (Settings → Radarr → Default profile,
+or per movie) — HD-1096 ⏳. For the first real request (*Svadba* / `The Wedding`, 2026, tmdb 1551507,
+Radarr id 2) the library holds exactly one sidecar,
+`movies/The Wedding (2026)/Svadba.2026.WEBRip.1080p.h264.[ExYuSubs].en.hi.srt` (English, HI; Bazarr lists
+it with `hi: true`). No `sl`/`hr`/`sr` file exists for the title — a provider-availability question that
+cannot be answered until the provider login works.
 
 ## Navidrome (music.kogler.si) — VPS + Storage Box (HD-354)
 
@@ -274,9 +355,9 @@ profile still exists and fails loudly when it does not.
      can drop finished albums with no follow-up move (`bulk/media` is NFS-exported to oldsrv only, so nothing
      Windows-facing reached that tree before). Layout: `<Artist>/<Album (Year)>/<files>`, then Lidarr →
      Artists → **Add New → Import mode "Existing Files"** (or Rescan on a known artist). Files land
-     media-owned (`force user/group = storage_uid`) so the arr can still rename/hardlink them. ⚠ **No Samba
-     account exists yet** (`pdbedit -L` empty: `storage_samba_users: []`, tdbsam) — see
-     [storage.md](storage.md) §SMB; the share is served, authentication is the open half.
+     media-owned (`force user/group = storage_uid`) so the arr can still rename/hardlink them. Mount it with
+     the **`shared`** Samba service account (`smb-shared_login`; local tdbsam, no IdP in the path) — see
+     [storage.md](storage.md) §Samba (SMB) shares on the NAS.
 - *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr.
   ⚠ **slskd cannot be a Lidarr download client at all** — `GET /api/v1/downloadclient/schema` on the live
   Lidarr **3.1.0.4875** returns 18 client types and every one is usenet or torrent; there is no Soulseek/Slskd

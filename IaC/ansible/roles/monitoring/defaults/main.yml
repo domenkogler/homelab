@@ -1,0 +1,35 @@
+# ---- HD-450 silent-failure hygiene collector -----------------------------------------------------
+# What `homelab-hygiene.py` reports, and therefore what the two alert rules can see. Found closing
+# HD-350: a cert-pull timer failed every 15 min for DAYS and NO series changed anywhere — a systemd
+# unit's result is not scraped at all, and the cert pair a *consumer* holds is not exported either
+# (the only cert rule reads `probe_ssl_earliest_cert_expiry`, which has zero series because blackbox
+# emits no SSL expiry). The exporter, the fail-loud rules and the metric names live in
+# templates/homelab-hygiene.py.j2; the rules live in vars/main.yml.
+
+# The shape is a loopback HTTP exporter scraped by this host's Alloy — NOT a textfile file: this
+# Alloy build accepts a `textfile {}` block but rejects every attribute name that would point it at a
+# directory (probed against v1.20.1 on the box; see the module docstring), so the textfile variant
+# could not have been written to a directory anyone could name. Loopback + one scrape job is the shape
+# the same role already runs for the HD-343 network-clients exporter.
+monitoring_hygiene_listen: 127.0.0.1
+# 9098: the next free loopback exporter port in this inventory (9097 is network-clients, HD-343).
+monitoring_hygiene_port: 9098
+
+# Units whose LAST RESULT matters, per host — set in host_vars, empty by default on purpose: a unit
+# listed on a host that does not run it reports last_success=0 (`result="missing"`), which alerts.
+# Being wrong about the list therefore costs a visible alert, never silence — see the script's header.
+monitoring_hygiene_units: []
+
+# The cert pair each consumer edge actually loads. Declared per host (see host_vars) rather than
+# derived, and that is a measurement, not a preference: the destination lives in TWO templates that
+# do not agree — `docker_services/templates/traefik-cert-pull.sh.j2` renders
+# `{{ docker_compose_dir }}/{{ traefik_consumer_dir }}/certs/` (and `traefik_consumer_dir` is a
+# task-scoped var set inside the docker_services role, so it is not even defined for a role that runs
+# earlier), while `home_assistant/templates/ha-cert-sync.sh.j2` hardcodes `/opt/traefik-ha/certs/`.
+# Reading it from either would be a third copy of the fact, and HD-350 was precisely a DST that had
+# drifted from its own SSOT. So each entry is a MEASURED absolute path (2026-10-07:
+# `find / -maxdepth 5 -name "{{ wildcard_cert_file }}"` + `openssl x509 -noout -enddate`) and the
+# cert-pull script's DST is what a drift between the two would break — the row in
+# docs/services-traefik.md §Certification owns that contract.
+# Empty on a host that holds no consumer pair: nothing to report, nothing to alert on.
+monitoring_hygiene_certs: []

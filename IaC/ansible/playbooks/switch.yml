@@ -1,6 +1,7 @@
 ---
 # CRS328 Switch configuration playbook
-# Configures the MikroTik CRS328 via RouterOS REST API
+# Configures the MikroTik CRS328 over the RouterOS **API** (tcp/8728, the binary API that
+# `community.routeros` speaks — not the `:8728/rest/` endpoint; see playbooks/router.yml).
 - hosts: switch
   gather_facts: false
   connection: local

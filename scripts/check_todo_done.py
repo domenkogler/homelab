@@ -77,6 +77,11 @@ PROMPT = ROOT / "prompt.md"
 # Status markers in this repo are written UPPERCASE or as a glyph (`ALL LEGS LIVE`, `DONE`,
 # `✅`); lowercase prose is prose, not a marker.
 #
+# Case-sensitivity alone was not enough (HD-466): at §2/§4/§5 entry lengths a ±60/+90 window reaches
+# into the NEIGHBOURING entry, so a right marker got charged to the wrong id — or, with an ⏳ sitting in
+# the next row, the wrong verdict in the other direction. See `_prompt_claim_spans`: the window is now
+# bounded by the entry and by any sibling id inside it. The radius is unchanged on purpose.
+#
 # Direction of the tradeoff, deliberately: tightening can only turn a FALSE ALARM into a
 # keep. A row that is genuinely finished and carries no marker at all is still caught by
 # CONVENTIONS §4's own delete step + the audit sweep, never silently blessed.
@@ -259,16 +264,70 @@ def _open_todo_ids() -> set[str]:
     return {ident for ident, _ in _rows()}
 
 
+# ── Where a claim belongs: structure, not proximity (HD-466) ──────────────────────────
+# `_prompt_hds` used to hand every id occurrence a fixed ±60/+90 character window and nothing else.
+# prompt.md §2/§4/§5 entries run 200–400 characters per bullet, so a window around one id reaches
+# into the neighbouring entry and credits ITS marker to this one — the verdict then names an id that
+# was never said to be done. Claim ownership is a property of the ENTRY, so the text is split into
+# entries first, and each occurrence gets the region around it clipped to its own entry and to the
+# midpoint of any sibling id inside that entry. Inside one entry nothing changes (same radius, same
+# catch); across entries, misattribution becomes impossible by construction rather than by tuning.
+_UNIT_HEAD_RE = re.compile(r"^\s*(?:[-*+]\s|\d+[.)]\s+|#{1,6}\s|\|)")
+_CTX_BEFORE = 60   # the radius is not the bug — the missing bounds were
+_CTX_AFTER = 90
+
+
+def _split_prompt_units(text: str) -> list[tuple[int, int]]:
+    """(start, end) of every ENTRY in prompt.md: a bullet / numbered item / heading / table row,
+    plus the wrapped continuation lines under it. A blank line closes an entry, and so does the
+    next head — which is what makes a §2 bullet and a §4 table row the same kind of unit here."""
+    units: list[tuple[int, int]] = []
+    start: int | None = None
+    pos = 0
+    for line in text.splitlines(keepends=True):
+        if not line.strip():
+            if start is not None:
+                units.append((start, pos))
+                start = None
+            pos += len(line)
+            continue
+        if _UNIT_HEAD_RE.match(line):
+            if start is not None:
+                units.append((start, pos))
+            start = pos
+        elif start is None:
+            start = pos          # a plain prose paragraph line starts a unit of its own
+        pos += len(line)
+    if start is not None:
+        units.append((start, pos))
+    return units
+
+
+def _prompt_claim_spans(text: str) -> dict[str, list[tuple[int, int]]]:
+    """id -> regions of `text` in which prompt.md makes a status claim about that id."""
+    spans: dict[str, list[tuple[int, int]]] = {}
+    for lo, hi in _split_prompt_units(text):
+        occ = [(m.start(), m.end(), m.group(1)) for m in _HD_RE.finditer(text[lo:hi])]
+        for i, (s, e, ident) in enumerate(occ):
+            prev_end = occ[i - 1][1] if i else None
+            next_start = occ[i + 1][0] if i + 1 < len(occ) else None
+            a = s - _CTX_BEFORE if prev_end is None else max(s - _CTX_BEFORE, (prev_end + s) // 2)
+            b = e + _CTX_AFTER if next_start is None else min(e + _CTX_AFTER, (e + next_start) // 2)
+            spans.setdefault(ident, []).append((lo + max(a, 0), lo + min(b, hi - lo)))
+    return spans
+
+
 def _prompt_hds(text: str) -> dict[str, list[str]]:
-    """Map HD id -> [context snippets] where it appears in prompt.md."""
-    hds: dict[str, list[str]] = {}
-    for m in _HD_RE.finditer(text):
-        ident = m.group(1)
-        start = max(0, m.start() - 60)
-        end = min(len(text), m.end() + 90)
-        ctx = text[start:end].replace("\n", " ")
-        hds.setdefault(ident, []).append(ctx)
-    return hds
+    """Map HD id -> the context snippets in which prompt.md makes a claim about it.
+
+    The snippets are the OWNED regions from `_prompt_claim_spans`, not a raw ±window: same radius,
+    but bounded by the entry and by any sibling id inside it, so a marker can only ever be charged to
+    the id the sentence is about (HD-466).
+    """
+    return {
+        ident: [text[a:b].replace("\n", " ") for a, b in spans]
+        for ident, spans in _prompt_claim_spans(text).items()
+    }
 
 
 def _ctx_is_open(ctx: str) -> bool:
@@ -285,7 +344,7 @@ def _ctx_is_done(ctx: str) -> bool:
     return bool(_DONE_MARKER_RE.search(ctx))
 
 
-def scan_prompt(open_ids: set[str]) -> tuple[list[str], list[str], list[str]]:
+def scan_prompt(open_ids: set[str], text: str | None = None) -> tuple[list[str], list[str], list[str]]:
     """Return (prompt_done, prompt_contradiction, prompt_info).
 
     prompt_done          — HD presented as OPEN work in prompt.md but its todo.md
@@ -294,10 +353,13 @@ def scan_prompt(open_ids: set[str]) -> tuple[list[str], list[str], list[str]]:
                             todo.md → handoff claims done, backlog keeps it open.
     prompt_info          — SESSION entries that are pure history (all-done, no ⏳):
                             compressible, informational only.
+
+    `text` is injectable for the self-test; production callers pass nothing and get prompt.md.
     """
-    if not PROMPT.exists():
-        return [], [], []
-    text = PROMPT.read_text(encoding="utf-8")
+    if text is None:
+        if not PROMPT.exists():
+            return [], [], []
+        text = PROMPT.read_text(encoding="utf-8")
     hds = _prompt_hds(text)
 
     prompt_done: list[str] = []
@@ -507,6 +569,48 @@ def _self_test() -> int:
         got = classify(body)
         if got != want:
             fails.append(f"classify({body!r}) = {got}, expected {want}")
+    # ── Claim attribution (HD-466): a marker counts for the id whose ENTRY it sits in ──
+    # Synthetic prompts, because the shape that broke is a two-bullet §2 handoff and cannot be bred
+    # in the real prompt.md on demand. Both directions are asserted: the neighbour's marker must NOT
+    # be charged (the bug), and the entry's OWN marker must still be (the catch). Both outcomes were
+    # measured against the unbounded ±60/+90 window before committing: cases 1 and 3 flagged the WRONG
+    # id there, case 4 flagged NOTHING at all (a false negative), case 6 invented a stale-open claim.
+    _ST_ATTR = (
+        ("- **SESSION 1**: HD-1 tailnet alias work\n"
+         "- **SESSION 2**: HD-2 ✅ LIVE, merged and converged\n",
+         {"1", "2"}, ([], ["2"]),
+         "a done marker in the NEXT bullet charged to HD-1 (the ±window had no entry bound)"),
+        ("- **SESSION 1**: HD-1 tailnet alias work\n"
+         "  ✅ LIVE on both legs, merged and converged\n",
+         {"1"}, ([], ["1"]),
+         "a marker in the entry's OWN wrapped continuation must still count — the catch, not just the bound"),
+        ("- HD-1 tailnet alias work; HD-2 ✅ LIVE, merged and converged\n",
+         {"1", "2"}, ([], ["2"]),
+         "two ids in one sentence: the marker belongs to the nearer id, not to both"),
+        ("| HD-1 | 2 | AI | 2 | ⏳ the Pi leg, next session |\n"
+         "| HD-2 | 2 | AI | 2 | ✅ LIVE, merged and converged |\n",
+         {"1", "2"}, ([], ["2"]),
+         "an ⏳ in the neighbouring ROW swallowed HD-2's real contradiction (false negative)"),
+        ("- **SESSION 9**: ✅ LIVE, HD-9 shipped the alias fleet-wide\n",
+         {"9"}, ([], ["9"]),
+         "a marker BEFORE the id in the same entry counts"),
+        ("- **SESSION 3**: HD-1 the Pi leg, ⏳ next session\n"
+         "- **SESSION 4**: HD-2 ✅ LIVE, merged and converged\n",
+         {"1"}, ([], []),
+         "HD-2's row is gone and presented as DONE — nothing stale there; HD-1's ⏳ must not leak into it"),
+    )
+    for _text, _open, _want, _why in _ST_ATTR:
+        _got = tuple(scan_prompt(_open, _text)[:2])
+        if _got != _want:
+            fails.append(f"claim attribution wrong ({_why}): got {_got}, expected {_want}")
+        # The structural half, so the verdicts above cannot be an accident of tuning: a claim region may
+        # never cross its entry. Re-widening the window without the bound trips THIS, not just case 1.
+        _units = _split_prompt_units(_text)
+        for _ident, _spans in _prompt_claim_spans(_text).items():
+            for _a, _b in _spans:
+                if not any(lo <= _a and _b <= hi for lo, hi in _units):
+                    fails.append(f"HD-{_ident}'s claim region crosses its entry boundary ({_why})")
+
     # ── Duplicate-ID gate (HD-485). The canary writes into todo.md and restores it from a
     # byte-for-byte snapshot in `finally`: the assertion "the gate sees the duplicate" is only
     # evidence if a crash cannot leave a fabricated row in the backlog.
@@ -574,7 +678,10 @@ def _self_test() -> int:
             print(f"  - {f}")
         return 1
     n = len(_ST_NOT_DONE) + len(_ST_DONE) + len(_ST_REJECT) + len(_ST_NOT_REJECT)
-    print(f"OK: check_todo_done self-test passed ({n} marker-grammar cases, 8 row-classification cases)")
+    print(
+        f"OK: check_todo_done self-test passed ({n} marker-grammar cases, 8 row-classification cases, "
+        f"{len(_ST_ATTR)} claim-attribution cases)"
+    )
     return 0
 
 

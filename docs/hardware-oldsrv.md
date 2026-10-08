@@ -165,7 +165,9 @@ The power paths that exist are therefore exactly two: the **chassis button**, an
 > **WoL is unproven, not spent:** `enp0s31f6` reads `Supports Wake-on: pumbg` / `Wake-on: g`, so the 2026-09-24
 > silence was measured against a box with no standby power, not against an unarmed NIC — one re-test at a planned
 > power-off settles it. Whether to buy a real out-of-band path, and where such a device may sit (VLAN 99 is
-> sealed same-site by HD-398 A), is an owner call: [../todo.md](../todo.md) **HD-454**.
+> sealed same-site by HD-398 A), is an owner call: [../todo.md](../todo.md) **HD-454**. ⏸ **Deferred again 2026-10-08
+> (owner): no purchase, no ruling, no WoL window scheduled** — nothing in this section may be written as a
+> device that exists, and no session may treat remote power control as available.
 > What does outlive any single outage is the topology: a down
 > oldsrv takes the home edge with it, including the nas's own Cockpit route, because
 > `/opt/traefik/dynamic/cockpit.yml` is rendered onto oldsrv by the cockpit role

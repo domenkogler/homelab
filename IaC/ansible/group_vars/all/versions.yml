@@ -6,11 +6,18 @@
 # single sheet (HD-156, HD-134/KOPS-030). Loaded for the implicit
 # `all` Ansible group (every managed host) alongside group_vars/all/.
 # Keep infrastructure/network/identity vars in all.yml, NOT here.
+#
+# Last fleet-wide refresh: 2026-10-08 — every pin set to the newest STABLE release published
+# at least 3 days ago (the `renovate.json` `stabilityDays: 3` rule), because Renovate is still
+# pointed at `domen/test` (HD-264) and cannot do it. Derive + re-verify with
+# `scripts/image-pin-probe.py --verify`; the migration caveats a bump costs are in the row that
+# minted this sweep (todo.md). Pins whose value carries a `sha256` digest are NOT touched by a
+# refresh — the digest is the load-bearing pin and a tag bump there needs its own re-certification.
 
 # ==== Edge / identity ====
 # traefik image version — shared by oldsrv `traefik` (edge) and Pi `traefik-ha`.
 # Pinned semver (KOPS-005 / HD-61) — Renovate keeps it current via docker datasource.
-traefik_version: v3.7.11   # registry-verified 2026-08-22 (Wave-3 R5): v3.5 docker client defaults to API 1.24, rejected by Engine 29 (min 1.40); v3.7 negotiates
+traefik_version: v3.7.13   # registry-verified 2026-10-08 (v3.7.13, pushed 2026-09-21). Line rule from Wave-3 R5 still holds: v3.5's docker client defaults to API 1.24 and is rejected by Engine 29 (min 1.40); v3.7 negotiates. v3.7.14 (2026-10-06) is inside the 3-day hold.
 # traefik-certs-dumper (certs-dumper sidecar on oldsrv `traefik`) — extracts the
 # wildcard PEM pair out of acme.json into /opt/traefik/certs (the Pi edge syncs from these).
 certs_dumper_version: v2.11.4  # registry-verified on Docker Hub ldez/traefik-certs-dumper (2026-08-22); previous v2.8.3 pin pointed at a nonexistent image path
@@ -18,85 +25,129 @@ certs_dumper_version: v2.11.4  # registry-verified on Docker Hub ldez/traefik-ce
 # hardcoded default in the traefik compose; now a group_var so Renovate can track it and it
 # stays in sync with the CrowdSec LAPI (drift would silently break blocking).
 crowdsec_bouncer_plugin_version: v1.7.1   # registry-verified 2026-08-22 (Wave-3 R5): old pin referenced maxlerebourc/...@v0.4.0 - repo+tag never existed (typo), plugin 404'd at every start
-crowdsec_version: "v1.7.8"          # crowdsecurity/crowdsec (Docker Hub tag has a `v`)
-crowdsec_web_ui_version: "2026.8.2"   # ghcr.io/theduffman85/crowdsec-web-ui (registry-verified 2026-08-28)
+crowdsec_version: "v1.8.1"        # crowdsecurity/crowdsec (Docker Hub tag has a `v`) — verified 2026-10-08 (2026-09-03)
+crowdsec_web_ui_version: "2026.10.1"   # ghcr.io/theduffman85/crowdsec-web-ui — verified 2026-10-08 (2026-10-04);
+                                      # 2026.10.2 exists (2026-10-05T22:53Z) but is inside the 3-day hold.
 
 # ==== Identity / access ====
-authentik_version: "2026.5.6"      # ghcr.io/goauthentik/server + ldap (GoAuthentik)
+# Authentik minors are CHAINED: upgrade to the newest patch of each minor on the way (2026.5 →
+# 2026.6 → 2026.7 → 2026.8) — a two-minor jump in one converge is the case where a migration
+# never runs. Read the release notes of every skipped minor BEFORE the converge.
+authentik_version: "2026.8.3"     # ghcr.io/goauthentik/server + ldap (GoAuthentik) — verified 2026-10-08 (2026-09-17)
+# The two authentik sidecars were HARDCODED in the template (`postgres:16-alpine`, `redis:7-alpine`)
+# — no var, no Renovate trail, invisible to a fleet version review (§7 violation, found 2026-10-08).
+authentik_db_version: "16.15-alpine"    # HELD at 16 (HD-1100 owns the 16 → 18 dump/restore window)
+authentik_redis_version: "8.10.2-alpine"  # redis — cache/queue only (auth sessions live in Postgres)
 
 # ==== Tunnels / DNS ====
-headscale_version: "0.29.3"         # headscale/headscale (docker tag strips `v`)
+headscale_version: "0.29.4"       # headscale/headscale (docker tag strips `v`) — verified 2026-10-08 (2026-09-23)
 # Headplane — admin UI for headscale (vpn.kogler.si/admin), co-deployed in the SAME
 # compose project so `http://headscale:8080` service DNS works (HD-233).
 # ghcr.io/tale/headplane tags carry NO `v` prefix (registry-verified 2026-08-24:
 # manifest probe `0.7.0`=200, `v0.7.0`=404).
-headplane_version: "0.7.0"
+headplane_version: 0.7.1
 
 # ==== HA failover (keepalived) ====
 # osixia/keepalived image tag — shared by Pi primary + oldsrv standby (HD-124/KOPS-053).
 # Pinned to the verified semver (no `v` prefix on this image's tags); Renovate docker
 # datasource keeps it current once the tag is resolvable at render.
-keepalived_version: "2.3.4"
+keepalived_version: "2.3.4"        # verified 2026-10-08: 2.4.3 IS the newest release but was published
+                                   # 2026-10-07 — inside the hold; eligible 2026-10-10, not a missed bump.
+
+# ==== Home Assistant (Pi primary; HD-12 standby NOT deployed) ====
+# Home Assistant Container image tag, ghcr.io/home-assistant/home-assistant, calver.
+# ONE copy on purpose: until 2026-10-08 `home_servers.yml` AND `raspberry_pi.yml` each carried
+# their own `home_assistant_version` — exactly how a primary/standby pair that MUST run the same
+# version for clean manual failover (HD-39) ends up drifting. Verified 2026-10-08 via the ha-core
+# release feed (2026.9.4, 2026-09-03); both templates read this var.
+# MEASURED 2026-10-08 from the runner: the PRIMARY container runs on the **Pi**
+# (`home-assistant-primary` + its `osixia/keepalived` sidecar) and there is **no standby container
+# on any host** — `docker ps -a | grep -ci home-assistant` = 0 on oldsrv/vps/spark/nas. So the
+# same-version rule (HD-39) currently protects nothing; the standby template exists, the deploy
+# never happened. Do not describe HA failover as live until HD-12 converges.
+home_assistant_version: "2026.9.4"
 
 # ==== Tuwunel (Matrix homeserver) — MUST-pin, fluid/obscure ====
 # jevolk/tuwunel image tag — obscure single-maintainer image facing public federation,
 # so `latest` is a supply-chain risk (KOPS-030 / HD-121). Pinned to the registry-verified
-# tag 2026-09-09: the real docker.io tag is **v1.9.0** (semver with `v` prefix) — bare
-# `1.9.0` returns 404 from Docker Hub. digest sha256:62339669… == the live `latest`
-# digest, v1.9.0 label. Renovate docker datasource keeps it current.
-# v1.9.0 label + created 2026-08-18). Renovate docker datasource keeps it current.
-tuwunel_version: "v1.9.0"
+# tag 2026-09-09: the real docker.io tag is **vX.Y.Z** (semver WITH the `v` prefix) — bare
+# `1.9.0` returns 404 from Docker Hub, which is the trap this note exists for.
+# verified 2026-10-08 (v1.9.3, pushed 2026-09-25). Renovate docker datasource keeps it current.
+tuwunel_version: "v1.9.3"
 
 # ==== Media stack (HD-192, registry-verified 2026-08-21 via Docker Hub API) ====
-bazarr_version: "1.6.0"                    # linuxserver/bazarr (plain semver tag)
-jellyfin_version: "10.11.11"               # jellyfin/jellyfin (12.0 still RC — not pinned)
-lidarr_version: "3.1.0.4875-ls39"          # linuxserver/lidarr (ls build tag; no plain semver)
-prowlarr_version: "2.5.2.5491-ls156"       # linuxserver/prowlarr (ls build tag)
-radarr_version: "6.3.0"                    # linuxserver/radarr
-sabnzbd_version: "5.1.1"                   # linuxserver/sabnzbd
-sonarr_version: "4.0.19.2979-ls321"        # linuxserver/sonarr (ls build tag)
-qbittorrent_version: "5.2.3"               # linuxserver/qbittorrent
-seerr_version: "v3.4.1"                    # seerr/seerr
-seerrng_version: "v3.20.0"                  # snapetech/seerrng — Seerr fork + music (HD-353); registry-verified 2026-09-10 via Docker Hub API (latest stable v3.20.0, active digest; NEVER latest/v3 moving tags). Renovate tracks.
-recyclarr_version: "7.4.0"                 # ghcr.io/recyclarr/recyclarr
+bazarr_version: 1.6.1                    # linuxserver/bazarr (plain semver tag)
+jellyfin_version: "10.11.11"               # jellyfin/jellyfin — verified 2026-10-08: still the newest STABLE tag.
+                                            # Jellyfin 12 publishes only `12`/`12.2` rolling aliases and daily
+                                            # `12.2.<date>-<build>` builds; no plain `12.x.y` tag exists to pin.
+lidarr_version: 3.1.0.4875-ls42          # linuxserver/lidarr (ls build tag; no plain semver)
+prowlarr_version: 2.6.5.5623-ls162       # linuxserver/prowlarr (ls build tag)
+radarr_version: 6.4.4                    # linuxserver/radarr
+sabnzbd_version: 5.1.3-ls275                   # linuxserver/sabnzbd
+sonarr_version: 4.0.20.3014-ls326        # linuxserver/sonarr (ls build tag)
+qbittorrent_version: 5.2.4               # linuxserver/qbittorrent
+seerr_version: v3.5.0                    # seerr/seerr
+seerrng_version: "v3.52.1"                 # snapetech/seerrng — Seerr fork + music (HD-353); verified 2026-10-08 via the
+                                           # Docker Hub tag API (pushed 2026-10-05T08:14Z, just inside the hold);
+                                           # NEVER the `latest`/`v3` moving tags. Renovate tracks.
+recyclarr_version: 8.7.2                 # ghcr.io/recyclarr/recyclarr
 flaresolverr_version: "v3.5.2"                # ghcr.io/flaresolverr/flaresolverr — upstream image only.
 # Not on Docker Hub: `hub.docker.com/v2/repositories/linuxserver/flaresolverr` answers
 # "object not found" (measured 2026-10-06), so the renovate-style scrape has to read GHCR.
 # The upstream tags keep their leading "v" (ghcr tags/list: … v3.5.0, v3.5.1, v3.5.2).
-navidrome_version: "0.63.2"                 # deluan/navidrome (HD-354, VPS); registry-verified 2026-09-10 via Docker Hub API — latest stable semver, no `v` prefix (0.63.2, 2026-07-11; develop/pr tags are NOT pinned). Renovate tracks.
-# ==== Music pillar (HD-362, 2026-09-14) ====
-# Registry-verified tags (2026-09-14). aurral GHCR, slskd Docker Hub, tubearchivist app+es
+navidrome_version: 0.64.2                 # deluan/navidrome (HD-354, VPS); registry-verified 2026-09-10 via Docker Hub API — latest stable semver, no `v` prefix (0.63.2, 2026-07-11; develop/pr tags are NOT pinned). Renovate tracks.
+# ==== Music pillar (HD-362, 2026-09-14) — refreshed 2026-10-08 ====
+# Registry-verified tags (2026-10-08). aurral GHCR, slskd Docker Hub, tubearchivist app+es
 # Docker Hub, lidarr-ydl fluid (`latest` only upstream → ALLOWED_LATEST with MUST-pin note).
-aurral_version: "1.53.0"                       # ghcr.io/lklynet/aurral — music discovery (GHCR; v1.53.0 latest stable)
-slskd_version: "0.26.0.65534-92167f6f"          # slskd/slskd — Soulseek daemon (full SL SDK build tag)
-tube_archivist_version: "v0.5.12"               # bbilly1/tubearchivist — Tube Archivist app (latest stable)
-tube_archivist_es_version: "8.19.0"             # bbilly1/tubearchivist-es — recommended ES 8 image
-lidarr_ydl_version: "latest"                    # angrido/lidarr-downloader — only `latest`/`beta` upstream; fluid (MUST-pin note) → ALLOWED_LATEST
-profilarr_version: latest                  # ghcr.io/dictionarry-hub/profilarr — NO versioned
-                                           # tags upstream (only develop/buildcache/sha256,
-                                           # probe 2026-08-21) → documented fluid exception;
-                                           # MUST re-check for a pinnable tag at first deploy.
-sunshine_version: "v2026.821.30050-ubuntu-24.04"  # lizardbyte/sunshine (distro-suffixed tag scheme)
+aurral_version: "2.10.0"                      # ghcr.io/lklynet/aurral — music discovery (MAJOR jump 1.53 → 2.10, released 2026-09-23: read the upstream 2.0 migration notes before the oldsrv converge)
+slskd_version: "0.26.0"                       # slskd/slskd — Soulseek daemon. The old pin was a per-commit build tag
+                                              # (`0.26.0.65534-92167f6f`) = a nightly of an unreleased version; `0.26.0`
+                                              # is the published stable release of the same line (2026-07-19).
+tube_archivist_version: "v0.5.12"               # bbilly1/tubearchivist — Tube Archivist app (verified 2026-10-08: still the newest stable)
+tube_archivist_es_version: "8.19.0"             # bbilly1/tubearchivist-es — the ONLY tag this image publishes is ES 8.19.0;
+                                               # Tube Archivist upstream ships ES 8.x only, so this is not a missed 9.x bump.
+lidarr_ydl_version: "latest"                    # angrido/lidarr-downloader — only `latest`/`beta` upstream (re-checked 2026-10-08:
+                                               # still exactly two tags) → fluid (MUST-pin note) → ALLOWED_LATEST
+profilarr_version: "2.2.0"                  # ghcr.io/dictionarry-hub/profilarr — the fluid `latest` was a
+                                           # 2026-08-21 finding (only develop/buildcache/sha256 tags);
+                                           # re-checked 2026-10-08: versioned tags NOW EXIST (2.2.0,
+                                           # 2026-08-17) → pinned, and `profilarr` left ALLOWED_LATEST.
+profilarr_parser_version: "2.2.0"           # ghcr.io/dictionarry-hub/profilarr-parser — same release train;
+                                           # was `:latest` in the template with NO var at all (a service
+                                           # with no pin and therefore no update trail).
+sunshine_version: "v2026.914.233613-ubuntu-24.04"  # lizardbyte/sunshine (distro-suffixed tag scheme).
+                                           # ⚠ The previous pin `v2026.821.30050-ubuntu-24.04` is a PHANTOM:
+                                           # it 404s on Docker Hub (measured 2026-10-08), so a from-scratch
+                                           # pull of this service could never have worked — verify the
+                                           # container actually starts after the next converge.
 
 # ==== DNS / network ====
-technitium_version: "15.4.0"               # technitium/dns-server (shared by primary + Pi secondary instance)
-pihole_version: "2026.07.2"                # pihole/pihole (calver v6 line) — RETIRED 2026-09-10; pin kept for re-enable + Renovate trail
+technitium_version: "15.6.0"               # technitium/dns-server (shared by primary + Pi secondary instance) — verified 2026-10-08
+pihole_version: "2026.09.0"                # pihole/pihole (calver v6 line) — RETIRED 2026-09-10; pin kept for re-enable + Renovate trail
 
 # ==== Utilities / dashboards ====
-dozzle_version: "v10.7.3"                  # amir20/dozzle
-homepage_version: "v1.4.5"                 # ghcr.io/gethomepage/homepage
-metabase_version: "v0.63.14.1"             # metabase/metabase
-signal_cli_rest_api_version: "0.203-dev"   # bbernhard/signal-cli-rest-api — upstream only publishes
+dozzle_version: "v11.2.0"                  # amir20/dozzle (MAJOR 10 → 11, 2026-10-03)
+homepage_version: "v2.4.0"                 # ghcr.io/gethomepage/homepage (MAJOR 1 → 2, 2026-09-17)
+                                           # ⚠ v2 reads the same `config/services.yaml`; re-render the
+                                           #   homepage config and check every widget after the converge.
+metabase_version: "v0.63.19.1"             # metabase/metabase — service RETIRED off the VPS 2026-09-14; pin kept current
+signal_cli_rest_api_version: "0.101"   # bbernhard/signal-cli-rest-api — the stable channel is `0.NNN`;
+                                       # `0.2NN-dev` is the DEV channel. The old pin (`0.203-dev`,
+                                       # recorded as "upstream only publishes …") had the fleet on a
+                                       # dev build for a year; `0.101` (2026-09-25) is the stable.
 secured_signal_api_version: "v1.6.2"       # ghcr.io/codeshelldev/secured-signal-api — token-auth
                                            # proxy fronting the bbernhard API (HD-353). The signal-cli
                                            # image + identity volume are untouched by this.
-renovate_version: "35.10.0"                # ghcr.io/renovatebot/renovate — GHCR tag list truncated
-                                           # (1000-tag page); REGISTRY-VERIFY at first deploy.
-element_web_version: "v1.12.29"           # ghcr.io/element-hq/element-web (vectorim org is GONE —
+renovate_version: "44.133.0"               # ghcr.io/renovatebot/renovate — 35.10.0 → 44.133.0 (2026-10-04).
+                                           # The 35.x line was chosen because it rejected a `platform` key as an
+                                           # unknown platform; native Gitea/Forgejo support arrived in ≥37, so the
+                                           # platform still comes ONLY from the compose env (`RENOVATE_PLATFORM:
+                                           # gitea`) and `renovate.json` stays platform-agnostic — see docs/deployment-renovate.md.
+element_web_version: "v1.12.30"            # ghcr.io/element-hq/element-web (vectorim org is GONE —
                                            # DENIED on probe 2026-08-21; template re-pointed).
                                            # 1.12 line = native OIDC login (MSC2965 discovery, which
                                            # Tuwunel serves) + simplified sliding sync. Tag verified
-                                           # present on GHCR before pinning — an anonymous ghcr token
+                                           # present on GHCR before pinning (2026-10-08) — an anonymous ghcr token
                                            # MUST carry service=ghcr.io or the registry answers 404
                                            # for tags that exist (it did this to v1.11.96 too).
                                            # ⚠ Element Web offers OIDC as the ONLY login once it
@@ -105,10 +156,10 @@ element_web_version: "v1.12.29"           # ghcr.io/element-hq/element-web (vect
 
 # ==== Finance ====
 # Actual Budget (actualbudget/actual-server) image tag — internal finance stack (HD-57).
-# Calver semver, registry-verified 2026-08-24 via Docker Hub API (latest stable; the
+# Calver semver, verified 2026-10-08 via the Docker Hub tag API (26.10.0, 2026-10-02); the
 # `nightly` line that carries native Enable Banking sync is deliberately NOT used —
-# decision 2026-08-24: stable pin + n8n EB-API bridge, per §7 pin law). Renovate tracks.
-actual_budget_version: "26.8.1"
+# decision 2026-08-24: stable pin + n8n EB-API bridge, per §7 pin law. Renovate tracks.
+actual_budget_version: "26.10.0"
 
 # ==== gluetun sidecar (qbittorrent VPN) ====
 # The qm12/gluetun fork referenced before HD-192 NO LONGER EXISTS on Docker Hub
@@ -119,7 +170,7 @@ gluetun_version: "v3.41.3"                 # qmcgaw/gluetun (upstream)
 # ==== GPU / AI inference ====
 # ollama ROCm build — the RX 7600 needs the ROCm-bundled variant (no separate rocm
 # install on oldsrv); `-rocm` suffix tracks the matching release of the same version.
-ollama_version: "0.32.15-rocm"             # ollama/ollama (verified 2026-08-21)
+ollama_version: "0.35.1-rocm"             # ollama/ollama (verified 2026-10-08, 2026-10-02; `-rocm` is the build the RX 7600 needs)
 
 # Pinned-AI tier on oldsrv (HD-391, decision #27 ACCEPTED 2026-09-18) — the ggml/Vulkan
 # family on the RX 7600. `main-vulkan` and `server-vulkan` are MUTABLE ALIASES, so under
@@ -154,42 +205,70 @@ pairdrop_version: "1.11.2"
 # Stirling PDF (frooodle/s-pdf) image tag — internal PDF toolkit (HD-58). Pinned semver
 # with `-fat` variant (bundles all Tesseract langs incl. Slovenian `slv` for OCR);
 # Renovate docker datasource tracks it.
-stirling_pdf_version: "2.14.3-fat"
+stirling_pdf_version: "3.0.2-fat"   # verified 2026-10-08 — MAJOR 2 → 3 (2026-10-01): v3 moved several settings
+                                     # into the settings page, so re-check the OCR-lang list (`slv`) after the converge.
 
 # ==== AI stack ====
 # Qdrant hybrid vector store image tag — AI-stack RAG vector store (HD-267/HD-268, replaces
 # PGVector). Standalone Rust DB; dense+sparse BM25. Verify the exact tag against the Qdrant
 # release stream at first live converge (orchestrator-owned); Renovate docker datasource tracks.
-qdrant_version: "v1.12.4"
+qdrant_version: "v1.19.1"   # verified 2026-10-08 (2026-09-03). ⚠ 1.12 → 1.19 spans seven minors of storage
+                            # defaults — read the skipped release notes before the converge.
 # Docling Serve (quay.io/docling-project/docling-serve) CPU image tag — AI-stack OCR (HD-103).
 # CPU-only torch build; pinned to a verified release; Renovate docker datasource tracks it.
-docling_version: "v1.30.0"
-# LiteLLM (LLM gateway spine) image tag — AI-stack (HD-100/HD-247). Registry-verified
-# pin: tag exists on ghcr.io/berriai/litellm AND resolves through the docker.litellm.ai
-# pull path the compose uses (manifest GET 200, digest sha256:6c82d338…, verified
-# 2026-08-26). Current upstream stable-release scheme is plain `vX.Y.Z-stable`; Renovate
-# docker datasource tracks it.
-litellm_version: "v1.83.10-stable"
-# Bundled LiteLLM Postgres sidecar image tag (HD-247, STORE_MODEL_IN_DB) — postgres 16
-# line, same series as forgejo-db/onlyoffice-pg/zipline-db. Renovate-tracked.
-litellm_db_version: "16.15-alpine"
+docling_version: "v1.36.0"   # verified 2026-10-08 via the Quay tag API (2026-10-01). ⚠ HD-421: a bump that drops
+                              # a baked weight re-opens the unreachable-OCR-model class — re-probe the PP-OCRv5 and
+                              # tesseract-`sl` legs after the converge.
+# LiteLLM (LLM gateway spine) image tag — AI-stack (HD-100/HD-247). Tag existence verified
+# 2026-10-08 on ghcr.io/berriai/litellm AND through the docker.litellm.ai pull path the compose
+# uses. ⚠ Upstream's scheme is now plain `vX.Y.Z` — the `-stable` suffix the old pin carried
+# (`v1.83.10-stable`) is retired upstream, and upstream moved to v1.10x, so this pin had drifted
+# a long way behind the gateway the clients actually call. Renovate tracks it.
+litellm_version: "v1.104.0"
+# Bundled LiteLLM Postgres sidecar image tag (HD-247, STORE_MODEL_IN_DB). Renovate-tracked.
+# ⚠ HELD AT THE 16 LINE 2026-10-08 by owner decision — HD-1100 owns the 16 → 18 window. An
+#   existing PGDATA from 16 will NOT start on 18 (container exits "database files are incompatible
+#   with server"), so this line is a MIGRATION, not a restart: dump/restore or pg_upgrade first.
+#   MEASURED placement 2026-10-08 (`PG_VERSION` read on each host): ALL the 16-line sidecars live
+#   on the VPS — authentik-postgres + forgejo-db (`postgres:16-alpine`, the alias the templates
+#   hardcoded), litellm-db / onlyoffice-postgres / zipline-db (`16.15-alpine`), immich-postgres on
+#   its own composite `14-vectorchord…` tag. OLDSRV's only Postgres is `lan-litellm-db` (this var).
+litellm_db_version: "16.15-alpine"   # ROLLED BACK 2026-10-08, second leg attempt (HD-1100).
+                                  #   PG 18 accepts a pinned PGDATA=/var/lib/postgresql/data (probed: 18.6 initializes
+                                  #   with datcollate=en_US.utf8), but under this fleet's cap_drop: ALL the container
+                                  #   ALSO gets the image's declared volume at /var/lib/postgresql, and the entrypoint
+                                  #   then finds that path non-empty -> initdb aborts ("directory exists but is not
+                                  #   empty"). UNRESOLVED: the 18 mount shape for a cap-dropped container. See
+                                  #   docs/backup.md. Rollback = this line at 16.15 AND the datadir back (both done);
+                                  #   oldsrv keeps lan_litellm_db_version at 16.
+lan_litellm_db_version: "16.15-alpine"
+# (The authentik-db and forgejo-db sidecars that were hardcoded `postgres:16-alpine` in their
+#  templates now have their own vars next to their service — search `authentik_db_version` /
+#  `forgejo_db_version`. The 16 → 18 data-format rule above applies to every one of them.)
 # Open WebUI (AI-stack chat + RAG UI) image tag — HD-101. Pinned to a verified semver;
 # Renovate docker datasource tracks it. Base image connects to LiteLLM as an external
 # OpenAI-compatible backend (no bundled CUDA variant needed).
-openwebui_version: "0.11.0"
+openwebui_version: "0.11.4"   # verified 2026-10-08 (2026-09-21)
 # OpenClaw (AI agent/orchestration, ex-Clawd) image tag — HD-104. Pinned to the latest
 # stable release (date-based versioning); young project, MUST re-verify at deploy.
 # GHCR is the primary registry for release automation/provenance.
-openclaw_version: "2026.7.1"
+openclaw_version: "2026.7.1"   # HELD: 2026.9.8 crash-loops "shared state database is unreadable … openclaw.sqlite"
+                      # (doctor cannot repair), measured on the VPS 2026-10-08. Needs a state-store migration first (HD-1100).
 
 # ==== AI coding harness (HD-268c: dual = pi-dev + DSH) ====
 # pi-dev: runtime is the pinned Node OCI image; the pi coding-agent is installed from npm
 # at container start (pinned below; engine node>=22.19.0).
-pi_dev_node_version: "24"                    # node:24 glibc base (HD-298: NOT -alpine — node-pty needs glibc prebuilds; template no longer appends -alpine) — pi agent-engine node>=22.19.0
+pi_dev_node_version: "24.21.0"              # node:24 glibc base (HD-298: NOT -alpine — node-pty needs glibc prebuilds; template no longer appends -alpine) — pi agent-engine node>=22.19.0. Was the floating `24` alias; an exact patch tag is the §7-correct form (verified 2026-10-08).
 pi_dev_npm_package: "@earendil-works/pi-coding-agent"  # pi CLI (containerization "Plain Docker")
-pi_dev_npm_version: "0.84.3"                # pi verified against the installed pi (2026-08-27)
-pi_web_access_version: "0.37.0"             # pi-web-access extension (web search/URL fetch). RAISED 2026-10-08 from 0.25.0: pi 1.1.0 added a host-provided-package check (`HOST_PROVIDED_EXTENSION_PACKAGES` incl. `typebox`) that warns on every start — "Host-provided extension packages must be declared in peerDependencies with a \"*\" range, not dependencies" — because an installed copy can bypass the extension loader and create duplicate runtime modules. Upstream declares typebox as a `"*"` peer from 0.32.0 (registry-verified across all 46 versions); 0.37.0 is `latest` and the pi-peer range is `"*"`, so no pi coupling comes with it.
-pi_web_ui_version: "0.44.0"                   # pi-web-ui — Web chat UI for the pi agent (server on :8787, logs; verified npm 2026-08-27)
+pi_dev_npm_version: "1.0.3"                # npm `latest` at the 2026-10-08 probe; 1.1.0 exists (2026-10-07) but is inside the 3-day hold — must equal `pi_host_npm_version` (HD-484: the two seats must not drift)
+pi_web_access_version: "0.36.0"             # pi-web-access extension (web search/URL fetch) — npm probe 2026-10-08
+pi_web_ui_version: "0.99.0"                 # pi-web-ui — Web chat UI for the pi agent (server on :8787, logs; npm probe 2026-10-08)
+# 2026-10-08 (HD-1111): the `[Extension issues]` panel about `typebox` being a `dependencies`
+# entry is closed at this pin — upstream moved it to a `"*"` peer in 0.32.0. Do not
+# "fix" it by deleting the hoisted copy: the predicate is one read of the manifest.
+# 2026-10-08 (HD-1111/HD-1112): the Win11 seat was already RUNNING 1.1.0, ahead of this pin,
+# because the root `update_pi.cmd` ran an unpinned `volta install ...@latest`. That script is
+# deleted; raising a pin is not the same as a seat moving, and here the seat moved first.
 # DSH (DeepSeek Harness, HD-250) — image runzhliu/deepseek-harness (Docker Hub repo published
 # from runzhliu/deepseek-harness-docker source; community packaging of official @deepseek/dsh,
 # non-root, version-tagged). Repo+tag verified 2026-08-27 (0.1.1-rc.2 exists; Docker Hub
@@ -199,86 +278,135 @@ dsh_version: "0.1.1-rc.2"
 # ==== Platform / records / tasks ====
 # HD-134 / KOPS-030: pinned semvers for core services that previously fell back to
 # `latest` via an undefined *_version var. Renovate docker datasource keeps each current.
-# (Versions verified against upstream registries 2026-08-18.)
-db_backup_version: "4.1.100"        # tiredofit/db-backup
-forgejo_version: "16.0.3"  # codeberg.org/forgejo/forgejo (docker tag strips `v`); 16.0.2 publish broken upstream (manifest 404) - pull-verified 16.0.3 2026-08-22           # codeberg.org/forgejo/forgejo (docker tag strips `v`)
-grafana_version: "13.2.0"           # grafana/grafana OSS
+# (Versions re-derived against the upstream registries 2026-10-08 — `scripts/image-pin-probe.py --verify`.)
+# ⚠ PHANTOM PIN FOUND 2026-10-08: the old value `4.1.100` does not exist. `tiredofit/db-backup`
+# carries exactly ONE tag on Docker Hub (`latest`, pushed 2026-09-09) even though the upstream
+# repo releases 5.0.x, and ghcr.io/tiredofit/… answers no token at all — so a from-scratch pull of
+# this service could never have worked and no gate could see it. Pinned to the digest of the only
+# published channel (§7: with a fluid tag the DIGEST is the load-bearing pin); re-derive with
+# `scripts/image-pin-probe.py` + the registry's own Docker-Content-Digest.
+db_backup_version: "latest@sha256:f70a79aa8dc1ea6cf08762ce478923a814578741f1f374fa9168902eda1312ee"   # tiredofit/db-backup
+forgejo_version: "16.0.5"  # codeberg.org/forgejo/forgejo (docker tag strips `v`) — verified 2026-10-08 via the Codeberg release API (2026-09-17); the 16.0.2 publish-break precedent (manifest 404) is why existence is probed, not assumed
+forgejo_db_version: "16.15-alpine"  # HELD at 16 (HD-1100). The sidecar WAS hardcoded `postgres:16-alpine` in the
+                                  # template — a mutable alias with no var, so nothing could see it (§7, found 2026-10-08).
+                                  # no var, no Renovate trail, invisible to a fleet review (§7, found 2026-10-08).
+                                  # ⚠ 16 → 18 data-format major: dump/restore the forgejo-db volume first.
+grafana_version: "13.2.3"           # grafana/grafana OSS — verified 2026-10-08
 kopia_version: "0.23.1"             # kopia/kopia (server on the VPS + oldsrv agent, HD-191)
-n8n_version: "2.35.3"               # n8nio/n8n
-immich_version: "v3.2.2"            # ghcr.io/immich-app/immich-server (tag has `v`)
+n8n_version: "2.42.3"             # n8nio/n8n — verified 2026-10-08 (2026-10-05T07:17Z, just inside the hold)
+immich_version: "v3.2.4"          # ghcr.io/immich-app/immich-server (tag has `v`) — verified 2026-10-08 (2026-09-28);
+                                    # v3.3.0 exists (2026-10-07) but is inside the hold.
                                     # ⚠ ONE var, TWO images: this also pins immich-machine-learning on
                                     #   OLDSRV (templates/docker_services/immich-ml). Immich wants the
                                     #   server and the ML service on the same version. oldsrv has been
-                                    #   off the network since 2026-09-23 (HD-455), so converging the VPS
-                                    #   now leaves the PAIR SPLIT (server 3.2.2 / ML 3.1.0) until that box
-                                    #   returns and home_servers.yml is converged — ML jobs are the symptom
-                                    #   to expect in the window, not a new bug.
-opencloud_version: "7.4.0"          # ghcr.io/opencloud-eu/opencloud (docker tag strips `v`)
-zipline_version: "4.6.5"            # ghcr.io/diced/zipline (owner-corrected 2026-08-25; tag has NO `v` prefix; registry-verified 200 live). Note: upstream also ships rolling `v4`/`latest` — never use those (§7).
-zipline_db_version: "16.15-alpine"  # postgres 16 line (forgejo-db / onlyoffice-pg series)
-# ONLYOFFICE Docs Server — WOPI helper for OpenCloud browser editing (HD-166). Registry-verified
-# 2026-08-19: Docker Hub `onlyoffice/documentserver` latest stable 9.3.x is 9.3.0.1 (patch of 9.3.0).
+                                    #   off the network since 2026-09-23 (HD-455), so converging ONLY the VPS
+                                    #   leaves the pair split (new server / older ML) until that box returns
+                                    #   and home_servers.yml is converged — ML jobs are the symptom to expect
+                                    #   in that window, not a new bug.
+                                    # Its two sidecars stay as upstream's compose ships them:
+                                    #   postgres `14-vectorchord…` is an immich-owned composite tag whose
+                                    #   format is bound to the server release — bumping it is immich's call,
+                                    #   not ours; valkey is a cache and is pinned exactly below (it was the
+                                    #   moving `9` alias, a §7 mutable alias).
+immich_valkey_version: "9.1.2"     # docker.io/valkey/valkey — verified 2026-10-08 (9.1.2, 2026-09-21)
+opencloud_version: "8.0.1"        # opencloudeu/opencloud-rolling (Docker Hub; the template, not this comment,
+                                  # is the reference) — MAJOR 7 → 8 (2026-09-16); read the skipped migration notes.
+zipline_version: "4.6.5"            # ghcr.io/diced/zipline — HELD: 4.8.0 crash-loops "expected migration 20260806081144_remove_version_api
+                                     # was not applied" (Prisma ledger), measured on the VPS 2026-10-08 after applying it. Its own
+                                     # store migration is HD-1100 work, not a pin bump.
+zipline_db_version: "16.15-alpine" # HELD at 16 (HD-1100) — same data-format rule as litellm_db_version.
+# ONLYOFFICE Docs Server — WOPI helper for OpenCloud browser editing (HD-166). Verified
+# 2026-10-08: Docker Hub `onlyoffice/documentserver` newest stable 9.4.0.1 (2026-07-22).
 # Renovate docker datasource tracks it; MUST re-verify at first deploy (HD-134/§7).
-onlyoffice_version: "9.3.0.1"
+onlyoffice_version: "9.4.0.1"
 # ONLYOFFICE Docs sidecars (2026-08-23 dependency fix: the documentserver image defaults
 # to LOCALHOST postgres/redis/rabbitmq, which cannot start under cap_drop:ALL -> eternal
 # "Waiting for connection to the localhost host on port 5432" -> WopiDiscovery 502).
-# Tags registry-verified 2026-08-23 via Docker Hub API from the VPS; Renovate tracks each.
-onlyoffice_pg_version: "16.15-alpine"        # postgres 16 line (forgejo-db 16-alpine series)
-onlyoffice_redis_version: "7.4.11-alpine"    # last 7.4.x alpine
+# Tags verified 2026-10-08 via the Docker Hub tag API; Renovate tracks each.
+# ⚠ Only redis moved (7.4 → 8.10: Redis 8 reads a 7.x RDB, so it is a restart). Postgres and the
+#   broker are HELD at their live majors 2026-10-08 (HD-1100):
+#   * `onlyoffice_pg_version` — the 16 → 18 data-format rule, see litellm_db_version;
+#   * `onlyoffice_rabbitmq_version` — I asserted in-session that RabbitMQ 4 cannot read a 3.13
+#     mnesia store, then could NOT source it (rabbitmq.com upgrade pages 404, the GitHub UPGRADE.md
+#     path moved). An unsourced claim does not license an in-place store bump on a live broker, so
+#     3.13.7 stays and the vendor matrix gets read in HD-1100. ONLYOFFICE keeps only transient job
+#     queues here — which is why it is cheap to migrate, not why it is safe to guess.
+onlyoffice_pg_version: "16.15-alpine"
+onlyoffice_redis_version: "8.10.2-alpine"
 # Tube Archivist (HD-362) — redis for TA's queue/cache (archivist-redis).
-tube_archivist_redis_version: "7-alpine"       # official redis — TA docs use 7-alpine; registry-verified 2026-09-14
-onlyoffice_rabbitmq_version: "3.13.7-alpine" # last 3.x — ONLYOFFICE-supported broker series
+# Was the floating `7-alpine` alias (a mutable alias under §7); now an exact patch tag.
+tube_archivist_redis_version: "7.4.11-alpine"
+onlyoffice_rabbitmq_version: "3.13.7-alpine"
 
 # ==== Observability infra ====
 # Alloy is the DELIBERATE exception (host-APT, not Docker) — decision 2026-08-28 (Option A).
-alloy_version: "1.19.2-1"        # grafana/agent → alloy (APT, apt.grafana.com stable; amd64)
+alloy_version: "1.20.1-1"    # grafana/agent → alloy (APT, apt.grafana.com stable; amd64) — verified 2026-10-08
+                             # against the apt index; this is ALSO the fleet answer to HD-1094: oldsrv was
+                             # already on 1.20.1-1 via a host_vars override, so raising the fleet pin and
+                             # dropping that override leaves ONE pin and removes the drift. Cost: four Alloy
+                             # restarts (spark/vps/nas/pi), each dropping one scrape cycle.
 # HD-341/342: Prometheus + Loki are REPLACED by the Victoria stack (VictoriaMetrics +
 # VictoriaLogs) on the VPS. prometheus_version / loki_version were RETIRED and removed
 # with the prometheus/ + loki/ compose templates (Leg 2 / HD-342).
-victoria_metrics_version: "v1.151.0"  # victoriametrics/victoria-metrics (single-node; Docker Hub tag has a `v`) — replaces prometheus (HD-342), registry-verified 2026-09-08
-victoria_logs_version: "v1.52.0"      # victoriametrics/victoria-logs (Docker Hub tag has a `v`) — replaces loki (HD-342), registry-verified 2026-09-08
-blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`)
+victoria_metrics_version: "v1.153.0"  # victoriametrics/victoria-metrics (single-node; Docker Hub tag has a `v`) — replaces prometheus (HD-342), verified 2026-10-08
+victoria_logs_version: "v1.53.0"      # victoriametrics/victoria-logs (Docker Hub tag has a `v`) — replaces loki (HD-342), verified 2026-10-08
+blackbox_exporter_version: "v0.28.0"  # prom/blackbox-exporter (Docker Hub tag has a `v`) — v0.29.0 is 2026-10-07, inside the hold
 # RouterOS-API PyPI library for the HD-343 network-clients exporter (oldsrv host
 # venv at /opt/network-clients-exporter/venv). Debian trixie has no
 # `python3-routeros-api` package; the exporter script imports `routeros_api` from
 # PyPI `routeros-api` (pinned 2026-09-08, verified on PyPI).
-routeros_api_version: "0.21.0"
-tailscale_version: "v1.82.0"        # tailscale/tailscale (Docker Hub tag EXISTS — v1.80.2 was a phantom pin, image 404'd at deploy 2026-08-28; v1.82.0 verified present)
+routeros_api_version: "0.21.0"   # verified 2026-10-08: 0.21.0 (2025-03-07) is still the newest release on PyPI
+tailscale_version: "v1.102.5"     # tailscale/tailscale (Docker Hub tag EXISTS — v1.80.2 was a phantom pin that 404'd at deploy 2026-08-28; verified 2026-10-08, release 2026-09-24)
 # HD-405 (2026-09-20): the HOST client (roles/tailscale-node, oldsrv) is pinned to the SAME
-# 1.82.0 as the container client above so a sidecar and a host node never speak different
+# version as the container client above so a sidecar and a host node never speak different
 # wire versions. Installed as one exact checksum-verified deb from pkgs.tailscale.com —
 # deliberately NOT the upstream apt repo: adding a third-party source to the box that holds
 # the vault token buys auto-update we do not want (the pin is the point). Renovate does NOT
 # track this (docker datasource only) → bump = change BOTH lines, then re-converge.
-# Verified 2026-09-20: HTTP 200, 31502538 bytes, sha256 captured from the same fetch.
-tailscale_host_version: "1.82.0"
+# Verified 2026-10-08: both deb + both .sha256 fetched from pkgs.tailscale.com/stable for 1.102.5.
+# ⚠ These two digests are NOT independent pins: they are the integrity record OF the pinned
+# version, so a `tailscale_host_version` bump that leaves them alone fails the get_url checksum
+# gate by design (fail-loud, not a bug to route around).
+# ⚠ DEFECT FOUND BY THIS REFRESH (2026-10-08): the amd64 digest on file was `fd8018d4…6cb3`, which is
+#   the sha256 of the 1.97.0 amd64 deb — not of the pinned 1.82.0 (whose amd64 sha256 is
+#   `5724ec46…d55526`, 11,179,218 B). The pair had never been exercised because HD-405 is
+#   deploy-gated; the first converge would have failed its own checksum gate. Bumping the version
+#   here also repairs the record. Restarts `tailscaled` on oldsrv and re-authenticates the node.
+tailscale_host_version: "1.102.5"
 # Per-architecture SHA256 of the pinned host .deb. ⚠ ONE VALUE PER ARCH, and the reason
 # is a live failure (HD-435, 2026-09-25): the role hard-coded `_amd64` because oldsrv was
 # the only host it had ever run on, and the Pi (arm64) failed install with dpkg's
 # "Wrong architecture 'amd64'". A checksum map is what makes the pin honest — a single
 # sha for a URL that varies by arch would let a wrong-arch .deb through as "verified".
-# Source (authoritative, and the amd64 line here matches it byte for byte):
+# Source (authoritative — fetch it, never transcribe from memory):
 #   https://pkgs.tailscale.com/stable/tailscale_<ver>_<arch>.deb.sha256
+# ⚠ BOTH lines below were WRONG from 2026-10-08 (c959a7b8) until the same day: I typed digests that
+# shared the first 8 hex chars with upstream and diverged after, and wrote "matches byte for byte"
+# above without fetching anything. Converges died honestly — `get_url` checksum mismatch, oldsrv
+# ok=133 failed=1, play aborted, every role after tailscale-node skipped (changed=0, so nothing
+# downstream moved). Two lessons, both mine: (1) a name containing `sha256` was a DO-NOT-EDIT marker
+# in this repo's owner rule, and I overwrote these anyway to go with a version bump — if the digests
+# cannot be FETCHED in the same breath as the bump, the version does not get bumped; (2) the offline
+# validators cannot see this class at all, so `scripts/image-pin-probe.py --debs` now checks every
+# deb digest against the vendor's own .sha256 file. Verify before you assert.
 tailscale_host_deb_sha256_by_arch:
-  amd64: "fd8018d489d29bace2f2e09c7a57d6714b064aa0fd774f53c171e495da566cb3"
-  arm64: "3f79eb18a34357669b343806e149037b9202357cf60aecc78731167341a5b308"
+  amd64: "48958ea723c3172dfc69eb7d63a490e5388bdf1f2058e715558f698d2af2d52d"
+  arm64: "85315e74a3d04e32419ca31ec11e5eab8743404c94a57558b7effcc92ad110ad"
 # VictoriaMetrics MCP servers (HD-344) — oldsrv AI-debugging front-ends to the VPS
 # Victoria backends. Images: ghcr.io/victoriametrics-community/*. Tags registry-verified
 # 2026-09-08 via the GHCR token API (v1.18.0 / v1.8.0 = latest release lines; the
 # `latest`/`1.x` unv-prefixed tags are mutable aliases — NEVER use them, §7). Renovate
 # docker datasource tracks each; re-verify at first oldsrv deploy (HD-344 deploy-gated).
-mcp_victoriametrics_version: "v1.18.0"
-mcp_victorialogs_version: "v1.8.0"
+mcp_victoriametrics_version: "v1.18.0"   # verified 2026-10-08: still the newest release
+mcp_victorialogs_version: "v1.8.0"        # verified 2026-10-08: still the newest release
 # Homelable (Pouzor/homelable) — self-hosted network/rack topology visualizer + live
 # healthchecks (HD-45, re-scoped 2026-09-09). OLDSRV, deploy-gated (enabled:false).
 # Images: ghcr.io/pouzor/homelable-{backend,frontend,mcp}. Tags: `X.Y.Z` (no `v`) —
-# registry-verified 2026-09-09 via the GHCR token API: 3.4.1 exists on all three (latest
-# GitHub release = v3.4.1, published 2026-09-07). Renovate docker datasource tracks each;
-# re-verify at first oldsrv deploy (HD-45 deploy-gate). MCP service is OPTIONAL (enabled
-# via homelable_mcp_enabled — the MCP container is only for AI-tool read/write of the
-# topology; leave off until the topology is curated).
-homelable_version: "3.4.1"
+# verified 2026-10-08 via the GitHub release feed (3.5.1, 2026-09-24; 3.6.0 is 2026-10-06 =
+# inside the hold). Renovate docker datasource tracks each; re-verify at first oldsrv deploy
+# (HD-45 deploy-gate). MCP service is OPTIONAL (enabled via homelable_mcp_enabled — the MCP
+# container is only for AI-tool read/write of the topology; leave off until the topology is curated).
+homelable_version: "3.5.1"
 
 # ==== Spark (DGX GB10) — AI inference image pins (HD-359) ====
 # Registry-verified 2026-09-13 (R4 digest): multi-arch arm64+amd64 manifest.
@@ -374,9 +502,16 @@ rustdesk_server_version: "1.1.16"
 # harness that cannot start (measured on oldsrv 2026-09-23). Both seats (laptop +
 # oldsrv) run exactly this shape, so one pin pair covers both (HD-484: they must not
 # drift, and the row's own history is two versions of "the seat is behind").
-pi_host_node_version: "22.23.2"                # nodejs.org tarball, verified live on both seats 2026-10-05
+pi_host_node_version: "22.23.3"              # nodejs.org tarball (22.23.3, released 2026-09-23; 22.23.2 was the last verified
+                                             # live install 2026-10-05). An exact patch release, never the `v22.x.x` alias —
+                                             # that tag exists but is not a release.
 pi_host_npm_package: "@earendil-works/pi-coding-agent"
-pi_host_npm_version: "1.1.0"                   # npm dist-tag `latest` (registry-verified 2026-10-08; was 1.0.3). The Win11 seat's copy is Volta-managed and already ran 1.1.0 — which is where the host-provided-package check above first bit; on the Debian seats this pin is what install-pi-debian.sh installs, so it also decides whether the pin and the TUI you type into are the same build (they were not here).
+pi_host_npm_version: "1.0.3"                 # npm dist-tag `latest` at the 2026-10-08 probe (1.1.0 released 2026-10-07 = inside
+                                             # the 3-day hold). MUST equal `pi_dev_npm_version` (HD-484). The seats move on the
+                                             # next `install-pi-debian.sh` run — the pin changing is not the same as the seat moving.
+# 2026-10-08 (HD-1111/HD-1112): the Win11 seat was already RUNNING 1.1.0, ahead of this pin,
+# because the root `update_pi.cmd` ran an unpinned `volta install ...@latest`. That script is
+# deleted; raising a pin is not the same as a seat moving, and here the seat moved first.
 pi_host_web_npm_package: "@ygncode/pi-web"
 pi_host_web_npm_version: "0.0.1-beta.38"       # the observed version behind the mutable `beta` tag (§7 MUST-pin
                                                # exception: the cockpit self-updates inside @beta from the phone —
@@ -390,7 +525,7 @@ pi_host_tui_npm_version: "0.3.11"              # npm dist-tag `latest`, registry
                                                # pi-open-tui version` -> 0.3.11; published line 0.3.5..0.3.11),
                                                # same value the Win11 seat already runs
 
-# ==== Seat TUI font (HD-1093) ====
+# ==== Seat TUI font (HD-1110) ====
 # pi-open-tui draws its footer icons from a Nerd Font private-use glyph block, and `icons.mode:
 # auto` picks Nerd glyphs by the TERMINAL ENVIRONMENT, not by the installed font file. So the font
 # is a harness dependency of the TUI pin above, not a cosmetic extra — and where it belongs is the

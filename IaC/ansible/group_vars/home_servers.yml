@@ -32,12 +32,13 @@ docker_services_op_provision_token: true
 gpu_vendor: amd
 ollama_keep_alive: 5m
 
-# HA container pin (HD-192/HD-39): the PRIMARY (Pi, raspberry_pi.yml) and the
-# STANDBY (this host) MUST run the same version for clean manual failover. The
-# standby compose renders ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }}
-# (standby.yml / home-assistant-standby template) — undefined here caused the
-# standby render to fail on oldsrv (2026-09-08). Keep in sync with raspberry_pi.yml.
-home_assistant_version: "2026.8.1"
+# HA container pin (HD-192/HD-39): the PRIMARY (Pi, raspberry_pi.yml) and the STANDBY (this
+# host) MUST run the same version for clean manual failover. The standby compose renders
+# ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }} (standby.yml /
+# home-assistant-standby template) — an undefined var here broke the standby render on oldsrv
+# (2026-09-08).
+# ⚠ FIXED 2026-10-08: this file AND raspberry_pi.yml each carried their own copy of the pin, which
+#   is exactly how a primary/standby pair drifts. One copy now, in `group_vars/all/versions.yml` (§7).
 
 # AMD ROCm host userspace (roles/amd_rocm, docs/hardware-gpu.md)
 # HD-318 (2026-09-07): Ubuntu-noble AMD repo INCOMPATIBLE with Debian trixie
@@ -388,7 +389,7 @@ litellm_scoped_keys:
   # ✅ THE SECOND GATE RECORDED HERE IS GONE (research 2026-09-26, HD-403): "HA has no surface for a
   # self-hosted OpenAI-compatible base_url" was true of `openai_conversation` only. HA **2026.8** ships a stock
   # `litellm` conversation integration (ha-core #172960, merged 2026-07-17; probed at the tags — 404 at 2026.7.0,
-  # 200 at 2026.8.0) and the pin `home_assistant_version: "2026.8.1"` already carries it: any proxy URL + an
+  # 200 at 2026.8.0) and the pin (moved to `group_vars/all/versions.yml`, `2026.9.4` since 2026-10-08) already carries it: any proxy URL + an
   # optional virtual key, models discovered from `/v1/models`. So `bootstrap_keys` was flipped on 2026-09-27, once oldsrv answered — the key is not minted for nobody. ⚠ Two sequencing facts: HA queries `/v1/models`
   # **before** it creates its config entry (mint must land first), and voice goes live only once that entry + its
   # conversation agent exist (config-flow only, no YAML, no template here). Evidence:

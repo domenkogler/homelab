@@ -27,9 +27,18 @@ tags: [deployment, renovate, updates]
 ## Configuration (`renovate.json` at repo root)
 
 > **`renovate.json` must stay platform-agnostic — there is deliberately no `"platform"` key.**
-> The pinned Renovate image (35.x) rejects it as an unknown platform (native Forgejo support arrived in
-> ≥37); the platform comes exclusively from the compose env (`RENOVATE_PLATFORM: gitea`). Adding it back to
-> the config file breaks the run, and setting it in both places guarantees a future disagreement.
+> The platform comes exclusively from the compose env (`RENOVATE_PLATFORM: gitea`), and that is not
+> cosmetic: the image pinned until 2026-10-08 was **35.10.0**, whose config parser rejects a
+> `platform` key as an unknown platform (native Forgejo support arrived in ≥37). The pin is
+> **44.133.0** since 2026-10-08, where a `platform` key WOULD be honoured — which is exactly why the
+> rule now has to be stated instead of being enforced by an old parser. Setting it in both places
+> guarantees a future disagreement; setting it in the file hands the run a platform the env also
+> claims, and the compose one wins silently.
+>
+> **Why the fleet was nine majors behind:** Renovate here is pointed at `domen/test` (HD-264 tail), so
+> nothing has ever opened a PR against this repo. The pins were refreshed by hand on 2026-10-08 — see
+> §Manual pin refresh below. "Renovate keeps it current" is a true statement about the CONFIG and a
+> false statement about the fleet until that pointer moves.
 
 ```json
 {
@@ -45,10 +54,61 @@ tags: [deployment, renovate, updates]
     {
       "matchManagers": ["ansible-galaxy", "pip_requirements"],
       "stabilityDays": 3
+    },
+    {
+      "matchManagers": ["npm"],
+      "stabilityDays": 3,
+      "description": "The one npm-managed pin in the repo is the pi stack in group_vars/all/versions.yml (pi_host_*/pi_dev_*/pi_web_*) — it is an APPLICATION version, not a Docker base image, so §7's stabilityDays argument applies verbatim. `pi_host_web_npm_version` is exempt: the pi-web cockpit self-updates inside @beta from the phone, so pinning that string would break its own update path (HD-484)."
     }
-  ]
+  ],
+  "fileMatch": {
+    "jsonnet": ["**/*.jsonnet", "**/*.libsonnet"]
+  }
 }
 ```
+
+---
+
+### Deb checksums: fetch, never transcribe (2026-10-08)
+
+A `sha256` in a variable name is a **do-not-edit marker** for exactly this reason. When a version bump
+does require the digest to move, the digest must come from the vendor in the same breath as the bump —
+`python3 scripts/image-pin-probe.py --debs` fetches `pkgs.tailscale.com/stable/tailscale_<ver>_<arch>.deb.sha256`
+and compares every arch line, and it is the only honest way to write those lines. Skipping that step in
+the 2026-10-08 refresh produced digests that shared 8 hex chars with upstream and diverged after: every
+offline gate passed, the render was clean, and the converge died mid-role on a `get_url` checksum
+mismatch — which left the play aborted and everything downstream unconverged with `changed=0`.
+
+## Manual pin refresh (what to do while HD-264 is open)
+
+Until `RENOVATE_REPOSITORIES` names this repo, the Dependency Dashboard produces nothing here, so a
+version refresh is a session task. Do it with the probe, not from memory:
+
+```bash
+python3 scripts/image-pin-probe.py --verify     # every *_version in versions.yml, per registry
+```
+
+It prints, per pin: the current value, the newest **stable** release at least `stabilityDays`
+(3) old, the newest release of any kind, whether the CURRENT tag actually exists upstream, and
+what it must NOT change (the digest-pinned `*_image` values, which carry their own certification).
+Rules it encodes, and why each one exists:
+
+* **3-day hold** — same rule as `stabilityDays` in the config above, so a hand refresh and a future
+  Renovate PR agree; a release younger than that is reported as "newest any", not as a target.
+* **prerelease/flavour filter** — `alpha`/`rc`/`nightly`/`dev`/`-snapshot`/`-enterprise` are not
+  stable. This is what caught `signal_cli_rest_api_version` sitting on the upstream **dev channel**
+  (`0.203-dev`) while stable was `0.101`, and `slskd` on a commit-suffixed nightly of an unreleased
+  `0.26.1`.
+* **existence probe** — a tag that 404s is a phantom pin. `db_backup_version: 4.1.100` and
+  `sunshine_version: v2026.821.30050-ubuntu-24.04` both did: no gate can see this, because every
+  gate renders the string and none asks the registry, and a host that already has the layer cached
+  never finds out. This is the check the repo was missing.
+* **official images** — Docker Hub push date is a *rebuild* date, so the release feed (GitHub)
+  supplies the date for `library/*` instead.
+
+Then: apply the values into `group_vars/all/versions.yml` (the SSOT), keep `*_image` digest pins
+untouched, and put the deploy cost in the todo row — a data-format major (postgres 16 → 18,
+RabbitMQ 3 → 4) is a migration, not a restart.
 
 ---
 

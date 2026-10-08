@@ -46,7 +46,7 @@ it is refreshed from this repo.
 The same command converges every other harness plane (extensions, settings, the model
 contract, the TUI key, tmux, the font) on every seat, so there is exactly ONE deploy
 path. The root-level `update_pi.cmd` that used to do the Windows half was **deleted
-2026-10-08 (HD-1095)**: its `volta install ...@latest` and `pi update --extensions`
+2026-10-08 (HD-1112)**: its `volta install ...@latest` and `pi update --extensions`
 ignored the `versions.yml` pins, and its `robocopy /E` cannot delete, so a retired
 extension stayed loaded on the seat forever.
 
@@ -73,7 +73,7 @@ extension stayed loaded on the seat forever.
 > Windows-only): `volta install @earendil-works/pi-coding-agent@<pin>`, reading the
 > version from `IaC/ansible/group_vars/all/versions.yml` (`pi_host_npm_version`) - never
 > bare `@latest`. That unpinned upgrade is what put this seat a pi release ahead of its
-> pin and produced an `[Extension issues]` panel at start-up (HD-1094).
+> pin and produced an `[Extension issues]` panel at start-up (HD-1111).
 
 ---
 

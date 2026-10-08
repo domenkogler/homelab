@@ -112,3 +112,35 @@ cockpit_maint_vault_item: oldsrv-cockpit_login
 # token env file, linger and tmux were all hand-kept, so a rebuild lost the cockpit
 # silently and `--check` could not see any of it.
 seat_enable: true
+
+
+# ==== HD-450 — what this host's silent-failure collector watches (roles/monitoring) ====
+# Unit RESULTS, because `is-active` on a oneshot answers "inactive" whether it ran fine or failed and
+# is waiting to retry — that ambiguity is what let `traefik-cert-pull.timer` fail every 15 min for four
+# days in 2026-09 with no series changing. The two NUT units are here for the same reason: on 2026-10-06
+# `nut-monitor` answered "active" on both clients while `upsd` had been loopback-only for 23 days.
+# A listed unit that is NOT installed reports result="missing" and alerts, so this list must hold only
+# units this host really runs — verified 2026-10-07: traefik-cert-pull loaded/inactive/success,
+# nut-monitor + nut-client loaded/active/success.
+monitoring_hygiene_units:
+  - traefik-cert-pull.service
+  - nut-monitor.service
+  - nut-client.service
+
+# The pair THIS host's edge loads. Measured 2026-10-07, not copied: the deployed pull script's DST is
+# `/opt/traefik-internal/certs/` and `find / -name kogler.si.pem` returns exactly that one file,
+# notBefore 2026-08-22 → notAfter 2026-11-20 (a 90-day pair, which sets the alert thresholds).
+monitoring_hygiene_certs:
+  - consumer: traefik-internal
+    path: "/opt/traefik-internal/certs/{{ wildcard_cert_file }}"
+
+# HD-450 (found while deploying the hygiene exporter, 2026-10-07) / HD-1094 (2026-10-08):
+# this box had moved to alloy 1.20.1-1 on its own while the fleet pin was `1.19.2-1`, so the
+# monitoring role's install task asked apt for the OLDER version and every converge that touched
+# the role failed here on "Packages were downgraded and -y was used without --allow-downgrades"
+# (reproduced: rc 100 at `Install Alloy package`). Correcting the pin for the host that is
+# actually ahead was the truth-sync; downgrading a working collector to match a file is not.
+# CLOSED 2026-10-08: the fleet pin in `group_vars/all/versions.yml` is now `1.20.1-1` and this
+# host-level override is DELETED (not set to null — host_vars outrank group_vars, so even a null
+# override would win and render `apt: name=alloy=` in roles/monitoring). The drift is now gone in
+# BOTH directions: a future 1.21 raises one pin instead of leaving this box ahead of the file.

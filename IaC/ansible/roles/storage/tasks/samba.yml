@@ -1,46 +1,64 @@
 ---
 # Samba (SMB/CIFS) shares on the NAS — D4 / HD-131 family-access model.
 #
-#   - ONE shared media share (any family user can map `\\nas\media`).
-#   - ONE private share per family member (`\\nas\<user>`, valid users = that account;
-#     other members cannot map it) once storage_samba_users is populated (HD-51 accounts).
+#   - ONE shared media share (any family account can map `\\nas\media`).
+#   - ONE private drive per family account (`\\nas\<user>`, valid users = that account;
+#     other accounts cannot map it) — driven by `storage_samba_users` (host_vars/nas).
+#   - ONE service-account share (`music`, the Lidarr root) whose `valid users` is the one
+#     shared account, so a laptop drops albums without a personal credential (HD-362).
 #
-# Per-user isolation is enforced by Samba `valid users`, NOT by POSIX uid on the NAS
-# filesystem (the shared tree is owned by the neutral `media`/storage_uid account).
-# Family members log in with a manual username+password at mount time (no 1Password SSO);
-# 1Password only stores the passwords. PassDB is `storage_samba_passdb` — tdbsam (default,
-# local accounts) or ldapsam (D7/HD-132, deploy-gated until the VPS LDAP outpost is live).
+# Authentication is LOCAL (tdbsam): each account is a unix user on the NAS with its Samba
+# password written from 1Password `smb-<name>_login` at converge. Members type that
+# username+password at mount time (no 1Password SSO on the drive). Per-user isolation comes
+# from `valid users` + each drive being owned by its OWN account; the shared trees are owned
+# by the neutral `media`/storage_uid account and force-owned on write.
+#
+# ⚠ The Authentik-as-LDAP passdb (D7/HD-132) that used to live here is RETIRED 2026-10-07 —
+# see defaults/main.yml and docs/storage-rejected.md. Two independent reasons, both measured:
+# (1) it made a LAN-local drive mount depend on the VPS, its LDAP outpost and the WG S2S
+# tunnel (and that tunnel leg refused `:3389` when probed), and (2) Authentik's LDAP provider
+# carries no Samba attribute at all, so it can never answer the NTLM challenge a Windows
+# client sends — `ldapsam` here was unwinnable, not merely unfinished. The `smbpasswd` task
+# this had removed is restored below; rotation reaches the host via
+# `storage_samba_password_force`, because a passdb write is a target-side act (§2 rotation).
 #
 # Runs on nas (the storage host that owns the shared datasets). The per-user + shared
-# trees live under /tank/data (a ZFS dataset owned by storage_uid/storage_gid).
+# trees live under /tank/data (a ZFS dataset: xattr=sa, acltype=posixacl — inherited by
+# the per-user directories, which is what makes Samba's vfs acl_xattr work on them).
 #
 # ⚠ Every task in this file carries [samba, storage] (HD-468 rule, roles/storage/tasks/main.yml):
 # an UNTAGGED child is filtered out of a `--tags samba` run, so the scoped form that ships a
 # share change would silently converge nothing but the user accounts and still print
 # `changed=0 failed=0`. Tag them or the scoped run is a lie.
 
-# ⚠ Gate the ldapsam flip BEFORE anything else changes (HD-360; live hit 2026-09-14, recorded in
-# deployment-compose.md §Samba ↔ Authentik-as-LDAP): with `passdb backend = ldapsam` and the Authentik LDAP
-# outpost unreachable, **smbd fails HARD at startup** — the NAS comes up serving nothing and the converge that
-# did it prints green. This converts that into a loud, reversible stop.
-# `wait_for` is a PRECONDITION, not the proof: it proves a listener exists, while the proof is an `ldapsearch`
-# that returns the base DN over the WG leg (step 4 of that section). It must run FROM the NAS — `wait_for`
-# executes on the control node by default, and the runner is not the host on the S2S tunnel.
-- name: Refuse ldapsam while the Authentik LDAP outpost is unreachable
-  ansible.builtin.wait_for:
-    host: "{{ storage_samba_ldap.host }}"
-    port: "{{ storage_samba_ldap.port }}"
-    timeout: 10
-    state: started
-  when: storage_samba_passdb == 'ldapsam'
-  delegate_to: "{{ inventory_hostname }}"
-  tags: [samba, storage]
-
 - name: Install Samba
   ansible.builtin.apt:
     name: samba
     state: present
     update_cache: true
+  tags: [samba, storage]
+
+# Samba resolves `force user`/`force group`/`@group` by NAME, so those two vars must keep naming
+# the SAME account that storage_uid/storage_gid point at. A rename on either side would not fail
+# the converge — it would fail every tree connect on the shared shares with what looks exactly like
+# a wrong password (measured 2026-10-07 with the numeric form). Assert it instead of documenting it.
+- name: Resolve the account and group behind the Samba force-owner names
+  ansible.builtin.shell: "id -u {{ storage_user }}; getent group {{ storage_group }} | cut -d: -f3"
+  changed_when: false
+  register: _samba_owner_ids
+  tags: [samba, storage]
+
+- name: Assert the Samba owner names match the pinned storage uid/gid
+  ansible.builtin.assert:
+    that:
+      - (_samba_owner_ids.stdout_lines[0] | trim) == (storage_uid | string)
+      - (_samba_owner_ids.stdout_lines[1] | trim) == (storage_gid | string)
+    fail_msg: >-
+      `{{ storage_user }}`/`{{ storage_group }}` resolve to
+      {{ _samba_owner_ids.stdout_lines | join('/') }} but storage_uid/storage_gid are
+      {{ storage_uid }}/{{ storage_gid }} — smb.conf's force user/group would resolve to nothing
+      and every shared-share mount would fail at tree connect. Fix the name or the id, not this assert.
+    quiet: true
   tags: [samba, storage]
 
 - name: Create shared-media Samba tree (owned by neutral media account)
@@ -56,33 +74,30 @@
   # part of the ZFS media layout, created by tasks/nas.yml, which is included BEFORE this file.
   # Two tasks owning one path with different modes = a converge that flips it every run.
 
-# Per-user private trees (created only when the family-user list is populated, HD-51).
-- name: Create per-user Samba private trees
-  ansible.builtin.file:
-    path: "{{ storage_samba_users_root }}/{{ item.name }}"
-    state: directory
-    owner: "{{ item.uid | default(storage_uid) }}"
-    group: "{{ storage_gid }}"
-    mode: "0700"
+# Fail loud BEFORE creating accounts: an entry with no `vault_item:` would otherwise surface
+# as an opaque lookup error inside the password task, whose output is no_log'd (CONVENTIONS §3
+# fail-loud — a missing secret reference names itself, it never falls back to a default).
+- name: Assert every family Samba account names its vault item
+  ansible.builtin.assert:
+    that:
+      - item.name is defined
+      - item.vault_item is defined
+      - item.vault_item | length > 0
+    fail_msg: >-
+      storage_samba_users entry '{{ item.name | default("?") }}' declares no vault_item —
+      the converge cannot write a Samba password without its 1Password item (smb-<name>_login).
+    quiet: true
   loop: "{{ storage_samba_users }}"
   loop_control:
-    label: "{{ item.name }}"
+    label: "{{ item.name | default('?') }}"
   when: storage_samba_users | length > 0
-
-- name: Render smb.conf (per-user + shared media shares)
-  ansible.builtin.template:
-    src: smb.conf.j2
-    dest: /etc/samba/smb.conf
-    owner: root
-    group: root
-    mode: "0600"   # contains the Authentik-LDAP bind password (D7/HD-132) — not world-readable
-  notify: Restart Samba
   tags: [samba, storage]
 
-# Create/update each family Samba user's account — IDEMPOTENT (CONVENTIONS §3): only
-# provision/password when the Samba account is absent, so re-runs don't churn or error.
-# Password via 1Password at deploy (mount uses username+password manually, D4).
-- name: Probe which family Samba users are absent (idempotency guard)
+# Idempotency probe: the passdb is the SSOT for "does this account's credential already
+# exist", so a routine converge never re-writes a member's password. `pdbedit -L` is the
+# only honest probe — a unix account can exist while its passdb entry does not, which is
+# exactly the state that left every tree connect at ACCESS_DENIED (HD-362, 2026-10-07).
+- name: Probe which family Samba accounts are absent from the passdb
   ansible.builtin.shell: "pdbedit -L | grep -qw '{{ item.name }}' && echo present || echo absent"
   changed_when: false
   register: _smb_exist
@@ -92,49 +107,147 @@
   when: storage_samba_users | length > 0
   tags: [samba, storage]
 
-- name: Ensure each family Samba user account exists (only when absent)
+# The unix account is what gives the drive its POSIX owner (Samba maps the authenticated
+# account to its own uid; the private drives have no `force user` — that IS the isolation).
+# `shell` is omitted unless the entry pins it, so an existing interactive account (e.g. a
+# member who also SSHes to the NAS) keeps its login shell instead of being locked out here.
+- name: Ensure each family Samba account has a unix user (only when absent from the passdb)
   ansible.builtin.user:
     name: "{{ item.item.name }}"
     uid: "{{ item.item.uid | default(omit) }}"
     groups: "{{ storage_gid }}"
     append: true
-    shell: /usr/sbin/nologin
+    shell: "{{ item.item.shell | default(omit) }}"
     create_home: false
-  loop: "{{ _smb_exist.results }}"
+  loop: "{{ _smb_exist.results | default([]) }}"
   when:
     - storage_samba_users | length > 0
     - (item.stdout | trim) == 'absent'
   tags: [samba, storage]
-# NO Samba-password task here (D7/HD-132): with `storage_samba_passdb=ldapsam`, Samba auths
-# family members against Authentik-as-LDAP (passdb = ldapsam). Authentik is the SSOT and
-# does NOT push; Samba pulls, so a user changes their own password in the portal and the next
-# mount picks it up. We never write a local smbpasswd password — writing one would
-# shadow/overwrite the LDAP credential and break self-service. (Current default
-# `storage_samba_passdb=tdbsam` uses the Samba account probe/user task below; flip the var
-# to ldapsam once HD-132's LDAP provider/outpost/svc_samba + valid token are live.)
 
-# ---------------------------------------------------------------------------
-# Authentik → NAS/OpenCloud provisioning glue (D5/HD-131). Runs on nas via a
-# systemd timer: reads the Authentik 'family' group and provisions NAS user +
-# dataset + Samba account (+ OpenCloud) for each new member. The `op` CLI must be
-# available+authd at run time (1Password). auth token from 'authentik-nas_api'.
-# ---------------------------------------------------------------------------
-- name: Render Authentik→NAS sync script + units
+# Per-user private trees — AFTER the accounts exist, and owned BY the account (the old
+# `item.uid | default(storage_uid)` made the tree media-owned while `valid users` named the
+# member, i.e. a mode-0700 directory the mounter could not write to).
+#
+# ⚠ The parent is created FIRST and explicitly. `file:` creates missing parents itself, and when
+# it does it stamps them with THIS item's owner+mode — so the first member's private drive left
+# `/tank/data/users` itself `drwx------ domen media` (measured 2026-10-07), which locks every
+# later member's drive behind the first member's uid and makes the next private drive unmountable
+# while reporting a green converge.
+- name: Create the private-drive root (shared parent, traversable by every family account)
+  ansible.builtin.file:
+    path: "{{ storage_samba_users_root }}"
+    state: directory
+    owner: "{{ storage_uid }}"
+    group: "{{ storage_gid }}"
+    mode: "0755"
+  when: storage_samba_users | length > 0
+  tags: [samba, storage]
+
+- name: Create per-user Samba private drives (owned by their own account)
+  ansible.builtin.file:
+    path: "{{ storage_samba_users_root }}/{{ item.name }}"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ storage_gid }}"
+    mode: "0700"
+  loop: "{{ storage_samba_users }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when:
+    - storage_samba_users | length > 0
+    - item.drive | default(true)
+  tags: [samba, storage]
+
+# (The private-drive task above carried NO tag in the version this replaced — the HD-468 rule
+# below is the reason it now does; an untagged child is invisible to `--tags samba`.)
+- name: Render smb.conf (per-user + shared media shares)
   ansible.builtin.template:
-    src: "{{ item }}"
-    dest: "{{ '/usr/local/sbin/sync-authentik-users.sh' if item == 'sync-authentik-users.sh.j2' else '/etc/systemd/system/' + item | replace('.j2','') }}"
-    mode: "{{ '0755' if item == 'sync-authentik-users.sh.j2' else '0644' }}"
-  loop:
-    - sync-authentik-users.sh.j2
-    - sync-authentik-users.service.j2
-    - sync-authentik-users.timer.j2
-  tags: [samba, storage, auth-glue]
-  notify: Reload systemd
+    src: smb.conf.j2
+    dest: /etc/samba/smb.conf
+    owner: root
+    group: root
+    mode: "0644"   # carries NO secret since ldapsam was retired — passwords live in 1Password
+  notify: Restart Samba
+  tags: [samba, storage]
 
-- name: Enable+start Authentik→NAS sync timer
+# The credential write, and the proof that it worked.
+#
+# ⚠ The prompt sequence of `smbpasswd -s` is NOT the same for a new and an existing entry, and it
+# exits **0 while failing**:
+#   * new entry      → reads NEW, REENTER            (2 lines ⇒ "Added user x.", mounts)
+#   * existing entry → reads OLD, NEW, REENTER       (2 lines ⇒ "Unable to get new password.", rc=0,
+#                                                     the entry is left holding the OLD password)
+# Both facts were measured on Samba 4.22.10 (Debian 13) on 2026-10-07, on a throwaway account, in
+# all three combinations (new/rotate × 1-line/2-line); the middle case is the one that silently
+# lies, and it is the case the rotate path hits. So the task deletes any existing entry first and
+# always takes the create path, which makes one code path out of two, and then PROVES the result by
+# mounting a share over SMB with the value it just wrote — because "the task was green" is not
+# evidence that a client can authenticate.
+# The secret travels in the environment (never the command text) and the task is no_log, so nothing
+# reaches a log or a transcript (CONVENTIONS §6 never-print). Re-adding an entry can hand it a new
+# RID/SID; harmless here because isolation is POSIX (uid) and Samba's own ACLs are not in use.
+- name: Set the Samba password for each family account (create, or re-apply when force-listed)
+  ansible.builtin.shell: |
+    name="{{ item.item.name }}"
+    smbpasswd -x "$name" >/dev/null 2>&1 || true
+    printf '%s\n%s\n' "$SMB_PASS" "$SMB_PASS" | smbpasswd -a -s "$name" >/dev/null 2>&1
+    creds="$(mktemp)"
+    chmod 600 "$creds"
+    printf '[global]\nusername=%s\npassword=%s\n' "$name" "$SMB_PASS" > "$creds"
+    if smbclient //localhost/{{ storage_samba_media.share }} -A "$creds" -c 'ls' >/dev/null 2>&1; then
+      echo VERIFIED
+    else
+      echo VERIFICATION_FAILED
+    fi
+    rm -f "$creds"
+  environment:
+    SMB_PASS: "{{ lookup('community.general.onepassword', item.item.vault_item, field='password', vault=op_vault) }}"
+  register: _smb_pw_written
+  changed_when: true
+  no_log: true
+  failed_when: "'VERIFIED' not in (_smb_pw_written.stdout | default(''))"
+  loop: "{{ _smb_exist.results | default([]) }}"
+  loop_control:
+    label: "{{ item.item.name }} (smbpasswd + mount proof)"
+  when:
+    - storage_samba_users | length > 0
+    - (item.stdout | trim) == 'absent' or item.item.name in storage_samba_password_force
+  tags: [samba, storage]
+
+# ---------------------------------------------------------------------------
+# RETIRED: the Authentik → NAS provisioning glue (D5/HD-131) — an hourly systemd
+# timer that read the Authentik `family` group and created the unix account + drive.
+# Deleted with the ldapsam decision: its share of the job is now `storage_samba_users`
+# above (a repo edit), and the password half could only ever have been a PUSH, which
+# D7 rejected. It also never worked: `op` is not installed on the NAS, so the unit
+# exited 127 on all 823 runs since 2026-09-03 (HD-1092) — which is how the family
+# drives stayed unprovisioned for five weeks with a green-looking timer.
+# The teardown below is what stops the hourly failure on a live host; on a fresh host
+# the unit files simply do not exist, hence the stat guard.
+# ---------------------------------------------------------------------------
+- name: Check whether the retired Authentik sync units are still installed
+  ansible.builtin.stat:
+    path: /etc/systemd/system/sync-authentik-users.timer
+  register: _glue_timer
+  tags: [samba, storage, auth-glue]
+
+- name: Stop+disable the retired Authentik sync timer
   ansible.builtin.systemd:
     name: sync-authentik-users.timer
     daemon_reload: true
-    enabled: true
-    state: started
+    enabled: false
+    state: stopped
+  when: _glue_timer.stat.exists
+  tags: [samba, storage, auth-glue]
+
+- name: Remove the retired Authentik sync glue files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /usr/local/sbin/sync-authentik-users.sh
+    - /etc/systemd/system/sync-authentik-users.service
+    - /etc/systemd/system/sync-authentik-users.timer
+  notify: Reload systemd
   tags: [samba, storage, auth-glue]

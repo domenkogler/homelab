@@ -157,7 +157,21 @@ CATALOG = [
     # Forgejo UI is up; openrouter/cohere keys from the provider dashboards — swap in the
     # vault, re-run playbook).
     ("Password",       "authentik_login",         lambda: [f"password={gen_pw()}"]),
-    ("Password",       "authentik-ldap_bind",     lambda: [f"password={gen_pw()}"]),
+    # RETIRED 2026-10-07 (Authentik-as-LDAP for Samba, HD-132/HD-360 → docs/storage-rejected.md):
+    # nothing consumes `authentik-ldap_bind` any more — the LDAP outpost left the authentik
+    # compose and the Samba passdb went back to local tdbsam. Out of the CATALOG for the same
+    # reason as `dsh_forgejo_api` above: `--create` would re-mint a secret no service reads,
+    # and a permanently MISSING-looking item in check-vault-items.sh is noise that trains
+    # people to ignore it. It STAYS in NOT_AUTO_ROTATABLE below so --rotate-all can never
+    # regenerate the live item while it still exists in the vault (owner deletes it, by hand).
+    # ("Password",       "authentik-ldap_bind",     lambda: [f"password={gen_pw()}"]),
+    # NAS Samba share logins (HD-1093): the credentials `roles/storage/tasks/samba.yml` writes
+    # into the NAS passdb with `smbpasswd -a -s`. username is FIXED (the unix/Samba account name
+    # in host_vars storage_samba_users) — it must match, or the entry is created but unmountable.
+    # Propagation exists (the converge writes the passdb), so rotation = rotate + re-run with
+    # `-e storage_samba_password_force=<name>`; see docs/storage.md §Samba.
+    ("Login",          "smb-domen_login",         lambda: [f"username=domen", f"password={gen_pw()}"]),
+    ("Login",          "smb-shared_login",        lambda: [f"username=shared", f"password={gen_pw()}"]),
     ("Login",          "opencloud_login",         lambda: [f"username=admin", f"password={gen_pw()}"]),
     ("API Credential", "forgejo_api",             lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "openrouter_api",          lambda: [f"credential={gen_pw()}"]),
@@ -262,7 +276,8 @@ NOT_AUTO_ROTATABLE = {
     # Phase 1 additions (2026-08-22): external/app-coupled — rotate via vault + redeploy,
     # never auto-regenerate:
     "authentik_login",      # bootstrap admin — created at Authentik first boot from this value
-    "authentik-ldap_bind",  # consumed by the LDAP outpost binding
+    "authentik-ldap_bind",  # RETIRED 2026-10-07 (LDAP outpost gone); guard kept so --rotate-all
+                            # cannot regenerate the item while it still sits in the vault
     "forgejo_api",          # real token issued by the Forgejo UI after first boot
     "openrouter_api",       # external provider API key
     "cohere_api",           # external provider API key

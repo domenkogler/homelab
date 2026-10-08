@@ -201,9 +201,12 @@ Radarr's parse 500s with `Could not find a part of the path '/media/movies/<Movi
 whose library folder does not exist yet — create the folder (owned `media:media`) or import once and let
 Radarr make it. That was the first manual-import attempt's failure, not a permission problem.
 
-Finally, a metadata mismatch to fix: Jellyfin shows the file as **The Scarecrows' Wedding** while Radarr
-holds it as *The Wedding (2026) / originalTitle Svadba* (tmdb 1551507). Same file, two identifications —
-one of them is wrong by accident.
+Finally, a metadata mismatch that surfaced on the first torrent and is **resolved by hand (owner,
+2026-10-07)**: Jellyfin showed the file as *The Scarecrows' Wedding* while Radarr holds it as *The Wedding
+(2026) / originalTitle Svadba* (tmdb 1551507) — same file, two identifications, one wrong by accident
+(Jellyfin's own title/ID lookup, not this stack's). Corrected on the Jellyfin side manually; **no IaC owns
+it and nothing here needs to stay standing for it** — the lesson kept is only that a first-run download is
+also the first time two ID databases get to disagree, so an import is worth eyeballing once.
 
 ### qBittorrent's category save paths do nothing unless you turn this one switch on (HD-496, 2026-10-07)
 
@@ -304,6 +307,60 @@ which leaves the completed folder on SAB's local config bind — see §Landing &
 categories exist but every one has an empty `dir`, and there is an **`audio`** category where this
 stack's layout says `music`, so Lidarr's client category must either be pointed at `audio` or a `music`
 category added. · [services-media.md](services-media.md) §Request → import wiring · [subscriptions.yml](../IaC/ansible/group_vars/subscriptions.yml)
+
+### SABnzbd's other door: `local_ranges`, which is what a tailnet client trips (HD-1089, 2026-10-07)
+
+`host_whitelist` is not the only 403 SABnzbd serves, and the two are told apart by their **body**:
+
+| Wall | Body | Option |
+| --- | --- | --- |
+| DNS-rebinding guard | `Access denied - Hostname verification failed` | `host_whitelist` (§above, HD-496) |
+| locality guard | `External internet access denied` | **`local_ranges`** (this section) |
+
+`sab.kogler.si` → **200** while `sab.ts.kogler.si` → **403 External internet access denied**: same
+router family, same upstream, different client address. The shipped ini carries `local_ranges = ,` — two
+EMPTY entries — and SABnzbd reads that as unset, which makes `is_local_addr()` fall back to Python's
+*private* list. That covers the LAN and the Docker bridges and **not** the `headscale` CGNAT block that
+the tailnet hands out ([network-addresses-generated.md](network-addresses-generated.md)), which
+`ipaddress` classifies as shared-address space and therefore NOT private. From the shipped 5.1.1:
+
+```python
+# interface.py check_access()                        # misc.py is_local_addr()
+is_allowed = is_loopback_addr(peer) or is_local_addr(peer)   # ← if local_ranges is set, ONLY it counts
+if is_allowed and cfg.verify_xff_header():            # OptionBool(..., True) — default ON
+    is_allowed = all(is_local_addr(ip) for ip in X-Forwarded-For)   # Traefik puts the CLIENT here
+```
+
+So through the edge the peer is a private bridge address (leg 1 passes) and the client's **tailnet**
+address rides in `X-Forwarded-For` (leg 2 fails). ⚠ **`local_ranges` is REPLACE-all, not additive**
+(`misc.py:1301`): the moment it is non-empty the private-list fallback is gone, so seeding *only* the
+tailnet range would have taken access away from the LAN and from every container-side consumer — the arrs
+and Prowlarr dial SAB through `172.21/172.20`, and the edge's own peer address sits on a bridge too.
+`tasks/sabnzbd-seed.yml` therefore seeds the **union** of every internal range the app can be reached
+through, derived from the `network_ranges` SSOT by name (`site`, `headscale`, the six Docker bridges) and
+unioned with whatever the live ini already carries, so a hand-added entry survives. The WireGuard family
+(`10.255/16`) and `modem-lan` are deliberately **out**: a peer's range has to be listed to be believed,
+and the VPS's WireGuard networks are not "this house".
+
+The seed ends with a probe, and the probe is the interesting part: it runs **inside the container**
+against SAB's own overlay address — dialing `127.0.0.1` would be allowed by `is_loopback_addr()` and pass
+with `local_ranges` empty, which is a test that cannot fail — carries
+`X-Forwarded-For: {{ tailnet_oldsrv_ip }}`, and is graded on the **status code**, because a 403 with
+`api_warnings` off has an empty body. Canary for the probe itself: the same request with
+`X-Forwarded-For: 8.8.8.8` → **403**, so the check does discriminate.
+
+```console
+$ grep -E '^(local_ranges|host_whitelist)' /srv/docker/sabnzbd/config/sabnzbd.ini
+host_whitelist = 04e95abd5869, sab.kogler.si, sabnzbd, sab.ts.kogler.si
+local_ranges   = <the eight derived CIDRs — site, headscale and the six Docker bridges, in derive order;
+                  the numbers themselves are the network_ranges SSOT, this doc does not re-type them>
+```
+
+One restart to apply (stop → edit the **host path** → start, the same ordering reason as §above: SAB
+rewrites `sabnzbd.ini` on a clean exit), then `changed=0` with `local_ranges unchanged · tailnet leg
+HTTP 200`. **What is NOT claimed:** a read taken by a real tailnet client — the seat resolves no `.ts`
+name at all (`getent hosts sab.ts.kogler.si` → nothing, MagicDNS off on oldsrv), so the XFF probe above
+is the proof, and the phone-on-tailnet curl is still owed.
 
 ### Which half of Prowlarr to trust: indexers synced, download clients per-arr (HD-496, 2026-10-06)
 
@@ -443,6 +500,33 @@ the schema's own defaults, which is what the create path does for the arrs as we
 
 ⚠ Re-read `arr_torrent_client` before copying this to another app: `category` is correct **only** for
 Prowlarr. Pointing an arr at it would store nothing at all and every grab would land flat in `complete/`.
+
+**6 · "Idempotent" means the write is skipped, not that the write is harmless (HD-1090, 2026-10-07).**
+The seed wrote all four clients on **every** converge and the second run of 2026-10-07 failed, with
+`no_log` hiding why. Four measurements, all read off the live apps:
+
+| Measured | Consequence | Now enforced by |
+| --- | --- | --- |
+| Every app echoes `port` back as the **int 8080**; `arr_torrent_client_port` renders the **string** `"8080"` | `"8080" != 8080` is permanent drift → PUT on every converge, all four apps | `same()` in the helper — scalar comparison, **bools stay strict** (`"False" == False` would mute a real `useSsl` change) |
+| **Lidarr 3.1 reports no `apiKey`** in either `GET /downloadclient` or `/downloadclient/schema` (Sonarr 4.0.19, Radarr and Prowlarr 2.5.2 all report it) | `None != ""` forever → Lidarr written on every converge, and the write is what failed | `arr_torrent_client_optional_fields` names the field + this measurement; any **other** owned-but-unreported field **fails the run** instead of being silently dropped |
+| **Prowlarr tests the client at save time**: a re-`PUT` of its own live body → **400** `Test was aborted due to an error: Object reference not set to an instance of an object`, while `POST /downloadclient/test` with the same fields → **200** | the seed's unconditional write failed **every** converge on Prowlarr | `--apply` writes **only when the drift list is non-empty**; the read-back assert and the app's own test still run every converge |
+| `no_log` (needed: two credentials arrive on stdin) also censored the helper's verdict | three runs to diagnose one line | the helper's stdout is `tee`'d to `/tmp/arr-torrent-client-<svc>.verdict` and a `rescue` echoes it into the failure message — canaried by pointing the run at `/api/v999`, which printed `FAIL GET …/api/v999/downloadclient -> 404` where it used to print only the censor notice |
+
+The post-fix verdict, `changed=0` on a second run (`-e docker_services_scope="sonarr,radarr,lidarr,prowlarr"`):
+
+```console
+sonarr:   OK already: unchanged host=gluetun:8080 tvCategory=tv       · arr client test HTTP 200 (no write needed, re-tested only)
+radarr:   OK already: unchanged host=gluetun:8080 movieCategory=movies · arr client test HTTP 200 (no write needed, re-tested only)
+lidarr:   OK already: unchanged host=gluetun:8080 musicCategory=music  · arr client test HTTP 200 · not exposed by this build: apiKey
+prowlarr: OK already: unchanged host=gluetun:8080 category=prowlarr    · arr client test HTTP 200 (no write needed, re-tested only)
+```
+
+The `not exposed by this build: apiKey` suffix is the optional-field path reporting itself rather than
+skipping quietly. **What this section does NOT claim:** that a grab started in Prowlarr's own search UI has
+landed in `/downloads/complete/prowlarr` — the category and its save path are configured
+(`categories.json` carries `prowlarr → /downloads/complete/prowlarr`, `UseCategoryPathsInManualMode=true`)
+and the directory does not exist until qBittorrent first writes into it, but the grab itself needs a real
+indexer result, so it stays an owner-witnessed leg.
 
 ### SABnzbd 5's folder options are `complete_dir` / `download_dir` — the old names are inert (HD-496, 2026-10-06)
 

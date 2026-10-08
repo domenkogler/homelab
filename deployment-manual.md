@@ -1302,7 +1302,10 @@ wifi/security/provisioning objects.
 > scp -i <ansible-key> IaC/router/rendered/rb4011_<name>_delta.rsc ansible@<router>:/rb4011_<name>_delta.rsc
 > ssh ansible@<router> '/import rb4011_<name>_delta.rsc'   # 'loaded and executed successfully'
 > ```
-> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — if that is missing, use the SSH-import path above (`routeros-apply-delta.sh`). ⛔ Note on that playbook's upload step: it uses `ansible.builtin.copy`, which fails on RouterOS's pseudo-filesystem (see [network-ops.md](docs/network-ops.md) §Apply workflow — "Destination / not writable"); `routeros-apply-delta.sh` takes **any** `.rsc` filename, including `rb4011_converge.rsc` itself, and is the transport that works for a full converge too.
+> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — `scripts/bootstrap-runner.sh` installs it, so the only way it
+> is missing is a runner that skipped the bootstrap (HD-495 also pins the interpreter for
+> the `network` group: `ansible_python_interpreter: {{ ansible_playbook_python }}` in `group_vars/network.yml`, otherwise the module
+> imports from a python that has no such package). If it is genuinely absent, use the SSH-import path above (`routeros-apply-delta.sh`). ⛔ Note on that playbook's upload step: it uses `ansible.builtin.copy`, which fails on RouterOS's pseudo-filesystem (see [network-ops.md](docs/network-ops.md) §Apply workflow — "Destination / not writable"); `routeros-apply-delta.sh` takes **any** `.rsc` filename, including `rb4011_converge.rsc` itself, and is the transport that works for a full converge too.
 
 > **1.5.3d Scoped IPv6 (Home VLAN) — enable / verify / roll back.** Design, rule order and invariants:
 > [network-vlans.md](docs/network-vlans.md) §IPv6. Measured RouterOS behaviour, the outside-in probe and why
@@ -1492,27 +1495,43 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
 > sudo umount /mnt/<share>
 > ls /mnt/<share>                   # re-mounts cleanly once the export is live
 > ```
-6. **Samba — passdb switch (HD-132/HD-360):** Samba auth is driven by `storage_samba_passdb`
-   in the storage role (default `tdbsam` = local accounts; `ldapsam` = Authentik-as-LDAP, D7).
-   **Do NOT flip to `ldapsam` before the Authentik side is live** — smbd fails HARD on startup
-   (`pdb_init_ldapsam: NT_STATUS_CANT_ACCESS_DOMAIN_INFO`) if the outpost is unreachable
-   — a tree connect fails on every share if it is set). To enable LDAP (HD-360):
+6. **Samba — family shares on the NAS (HD-131 / HD-1093).** Auth is **local tdbsam**: the account
+   list lives in `host_vars/nas.kogler.si.yml` (`storage_samba_users`) and each account's password in
+   the 1Password item `smb-<name>_login`. Nothing external is involved — no IdP, no VPS, no tunnel.
+   (The `ldapsam`/`storage_samba_passdb` switch described here for a while is **retired**; its evidence is in
+   [docs/storage-rejected.md](docs/storage-rejected.md). If an old note tells you to mint an outpost token or
+   flip a passdb var, that note is stale.)
+
    ```bash
-   # 1. Authentik (VPS): add the LDAP provider + outpost + svc_samba service user/group
-   #    to the ks-oidc.yml Blueprint, then apply:
-   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml
-   # 2. Mint a FRESH outpost token → 1Password `authentik-ldap_bind` (field=password). A stale token
-   #    renders the outpost unhealthy and every bind fails — always re-mint, never reuse.
-   # 3. Redeploy the ldap outpost with the new token:
-   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps   # (or docker compose up -d authentik-ldap on vps)
-   # 4. Flip the var + converge nas:
-   #    host_vars/nas.kogler.si.yml: storage_samba_passdb: ldapsam
-   bash scripts/ansible-run.sh playbooks/storage.yml --limit nas
-   # 5. Live-verify: mount \\nas\media with an Authentik (family) account.
+   # 1. The two items must exist BEFORE the converge — the render fails loud otherwise. They are
+   #    catalog-generated (username is fixed to the account name; it MUST match host_vars):
+   bash scripts/check-vault-items.sh            # expect: no smb-*-login in MISSING
+   bash scripts/provision-vault.sh              # (or the owner creates smb-domen_login / smb-shared_login in 1Password by hand)
+   # 2. Converge the storage role on the NAS. `--tags samba` is only honest because every task in
+   #    roles/storage/tasks/samba.yml carries the tag (HD-468) — without it the run reports success
+   #    and changes nothing.
+   bash scripts/ansible-run.sh playbooks/storage.yml --limit nas --tags samba
+   # 3. Prove the passdb, not the service (smbclient -L answers anonymously and proves nothing;
+   #    run the probe ON the NAS — oldsrv has no smbclient installed):
+   ssh nas 'sudo pdbedit -L; sudo testparm -s 2>/dev/null | grep -iE "passdb|valid users|force "'
+   #    then a real tree connect per (account, share) pair — see docs/storage.md §Samba for the matrix
+   printf '%s' "$(op read op://Homelab-ansible/smb-shared_login/password)" | \
+     ssh nas 'read -r -d "" PW; printf "[global]\nusername=shared\npassword=%s\n" "$PW" | sudo tee /root/.c >/dev/null; \
+              sudo smbclient //localhost/music -A /root/.c -c ls >/dev/null && echo OK; sudo rm -f /root/.c'
    ```
-   Default at deploy: `storage_samba_passdb: tdbsam` (works with the IdP offline), with
-   `vfs objects = acl_xattr`. LDAP mode = `ldapsam`, gated on HD-360 — **do not flip it before the
-   outpost is live**, smbd fails hard on an unreachable outpost.
+
+   **[MANUAL] The mount itself is a human act — do it once per client:**
+   - Windows 11: `net use W: \\nas.kogler.si\media /user:domen` and `net use M: \\nas.kogler.si\music /user:shared`
+     — type the **FQDN**. The bare `\\nas` form works only once the client has renewed and picked up the
+     `kogler.si` suffix (HD-1097); the FQDN answers on every link and never depends on that.
+     (or Explorer → Map network drive → "Connect using different credentials"). Tick *Reconnect*,
+     Windows does not prompt again; `cmdkey /list` shows what it stored, `net use /delete <drive>` releases it.
+   - `shared` is the **music-only** service account (`valid users` on that one share, no private drive,
+     no login shell) — that is what lets a relative's laptop mount the library without anyone typing a
+     personal credential. Personal drives (`\\nas\<user>`) take that member's own account.
+   - The SMB password is **not** the Authentik portal password (the local-accounts decision, paid on
+     purpose). Rotate it here, then re-converge with `-e storage_samba_password_force=<name>` — a vault
+     rotate alone changes nothing on the NAS.
 
 ---
 
@@ -2160,4 +2179,4 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    A seat that carries its own extra pi package (this cockpit runs pi-web itself) is KEPT and printed by the
    settings plane — never deleted to make a check go green. Updating pi ITSELF is in no script on the Windows
    side (Volta is Windows-only): `volta install @earendil-works/pi-coding-agent@<pi_host_npm_version>`, the
-   version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest` (HD-1094, HD-1095).
+   version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest` (HD-1111, HD-1112).

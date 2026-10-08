@@ -80,12 +80,20 @@ implementation. **This is the ruling; the rows do not restate it.**
 | 4 | **Guest** | **Same as Home** |
 | 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought |
 
-⚠ **Two consequences of ruling 1 the owner should keep in view** (accepted with the ruling, recorded so a
+> ✅ **2026-10-08 (owner): ruling 1 is SUPERSEDED — the Home/Guest tier carries NO block list.** The Hagezi
+> `multi` + `privacy` pair was never adopted, and the reason is operational, not philosophical: a tier that
+> answers the operator's own tailnet traffic is a tier where a false positive is self-inflicted, and the
+> enforcement the family actually needs (Kids) is an **upstream** (Cloudflare Families), not a list. Recorded
+> in [network-rejected.md](network-rejected.md). **The consequence inverts:** a tier with no list must read
+> `enableBlocking=false`, while all three instances today run `enableBlocking=true` with `blockListUrls=null`
+> — blocking switched on with nothing loaded, which is the silent-failure shape HD-480 exists to kill.
+>
+⚠ **Ruling 1's two consequences stay true as facts about topology even with the lists gone** (recorded so a
 later session does not "discover" them): (a) Home clients, **away clients and tailnet clients all resolve
-through the VPS primary** (`dns_primary_ip` is the VPS's public address), so Home block lists apply to the
-operator's own VPN traffic too; (b) acceptance is therefore per-**instance**, not per-VLAN — a list loaded
-on one of the three instances is a fleet policy with three failure modes (HD-483 is the drift-proofing half
-of exactly that).
+through the VPS primary** (`dns_primary_ip` is the VPS's public address), so whatever the Home tier loads
+applies to the operator's own VPN traffic too; (b) acceptance is therefore per-**instance**, not per-VLAN — a
+setting loaded on one of the three instances is a fleet policy with three failure modes (HD-483 is the
+drift-proofing half of exactly that).
 
 ⛔ **Acceptance is a device, not a `dig`** (HD-481): an unsupervised device on each path fails to resolve a
 filtered name while `kogler.si` still resolves. And because the Kids mechanism is an *upstream*, prove it by
@@ -186,7 +194,9 @@ reopens that claim).
 ## Host-side resolver — what a box asks its OWN `/etc/resolv.conf` (HD-484)
 
 ✅ **live on oldsrv 2026-10-01** (`home_servers.yml --tags nm-resolver` → `changed=2 failed=0`, then
-`changed=0` on the re-run). Everything above this section is about what an *instance* asks outward.
+`changed=0` on the re-run) and ✅ **on the Pi 2026-10-08** (`raspberry_pi.yml --tags nm-pi` → keyfile +
+`reload NetworkManager`, `getent llm.kogler.si` went from empty to spark's Home address **on the Pi itself** — the
+leg `scripts/README.md` and HD-465 had each documented a workaround for). Everything above this section is about what an *instance* asks outward.
 This is the other axis: which resolver **the host itself** asks. Every home host inherited
 `bootstrap_dns_servers` (`1.1.1.1`) — sound at boot, because a box that hosts the DNS tier must not need
 it to boot, and disqualifying for the running box: oldsrv could not name one split-horizon service of
@@ -224,8 +234,22 @@ self-heals), and asserts the file at the end.
 `ha_keepalived_interface` names). Two docs used to say "networkd renders and NM wins the race for
 `resolv.conf`" — wrong in the way that matters: there is no race, the netd path is inert, and the fix
 had to go through the installer's NM profile (`Wired connection 1`, written on disk **without** the
-`.nmconnection` suffix the Pi/spark keyfiles carry). The unfinished config-manager decision is
-**HD-487**; `netd_phys_name: eno1` and those dead unit files are its evidence, not this row's.
+`.nmconnection` suffix the Pi/spark keyfiles carry). The config-manager decision was **ruled 2026-10-08: one manager per box, NetworkManager fleet-wide**
+([network-rejected.md](network-rejected.md) 2026-10-08 row, **HD-487**); `netd_phys_name: eno1` and those dead unit files are its evidence, not this row's.
+
+**The Pi needed no nmcli leg, and that is a fact about the two boxes, not a shortcut.** oldsrv's uplink
+profile is installer-owned, so HD-484 had to read/modify/reapply it; the Pi's keyfile is rendered by
+`roles/network` (`pi-eth0.nmconnection.j2`), so the fix was one template line — `dns=` now comes from
+`host_resolver_dns`, with `bootstrap_dns_servers` kept as the fallback for a host that has not defined a
+steady-state pair — and the existing `reload NetworkManager` handler re-committed `/etc/resolv.conf`
+without touching the link (verified with the HD-415 watchdog on `traefik-ha`: GREEN, `RestartCount` 0, HA
+200 through the VIP before and after). Pair on the Pi = own instance first (`dns_tertiary_ip`) then oldsrv,
+same rule as oldsrv, VPS absent for the reason above.
+
+⚠ **`nas` is not in this class and the measurement says so** (2026-10-08): its `resolv.conf` is
+`dns_tertiary_ip, dns_primary_ip, dns_secondary_ip` — Pi, VPS, oldsrv, in that order — so internal names resolve — but the VPS sits between two home
+rungs, which is precisely the rung this design refuses, and `systemd-networkd` is **inactive** there, so
+which manager owns the file is HD-487's open question. Fixing it through this template would be guessing.
 
 **Session-safe mechanism — `device reapply`, never `connection up`.** `connection modify` writes the
 profile; the file is rewritten only when NM re-commits it. `connection up` tears the interface down and
@@ -288,6 +312,28 @@ clients stay on the home LAN while WAN/tailnet clients keep the VPS edge. Record
 > depend on WAN (the HD-349 drill finding). The home edge (`traefik-internal`,
 > [services-traefik.md](services-traefik.md) §Edge model) serves them from `oldsrv_home_ip`; the VPS
 > primary keeps `dns_primary_ip` so WAN/tailnet reach the VPS first.
+>
+> ⚠ **The consequence nobody wrote down until a TV broke (measured 2026-10-07, HD-1095):** a split-horizon
+> answer is a *promise*, and a promise with no route behind it is a 404. The VPS primary answers the
+> home-hosted names with `dns_primary_ip` while the VPS edge carried **no router** for them, so a client that
+> asks the VPS first got `media.kogler.si` → `dns_primary_ip` → **HTTP 404**, while the same name asked of
+> either home instance returned `oldsrv_home_ip` → **302 → `/web/`** and played. Measured pair from the
+> Shield's VLAN: `dig @<VPS> media.kogler.si` → the VPS address, `dig @<Pi>` / `@oldsrv` → the oldsrv Home
+> address, and `curl --resolve media.kogler.si:443:<VPS IP>` → 404 vs `:443:<oldsrv Home IP>` → 302.
+> **Which resolver a VLAN queries first is therefore a reachability switch, not a preference** — see
+> §DNS Flow and `network_vlans[].lan_first_dns`.
+>
+> **As-built the same evening (HD-1095): both halves exist.** (a) `lan_first_dns` now gives VLAN 10 **and 50**
+> a home resolver first, and (b) the VPS edge routes `media` / `seerr` / `seerrng` to the home edge over
+> WG S2S (`traefik/dynamic/routes.yml.j2`, the `ha` route as precedent, `crowdsec-only@file` per the
+> [security.md](security.md) §1 law), so the VPS answer is now served rather than merely pointed at.
+> `media.kogler.si` is published publicly (`public: true` + the Cloudflare CNAME, owner's call — see
+> [services-media.md](services-media.md) §How to reach it from anywhere); `seerr` / `seerrng` are routed at
+> the VPS edge but stay **unpublished**, so they are reachable by name only where a resolver is told.
+> Re-measured after the converge: `--resolve media.kogler.si:443:<VPS IP>` → **302** and the same URL's
+> `/System/Info/Public` returns Jellyfin JSON through the two-hop chain. The invariant to keep:
+> **an answer plane and an edge route must move together** — "works on the Home VLAN, 404 everywhere else"
+> is the signature of this defect, not of a dead service.
 
 ---
 
@@ -300,19 +346,50 @@ Client → Technitium (DHCP-pushed chain, see below)
 
 - **Resolver chain pushed by DHCP (RouterOS caps `dns-server` at 3 values — a 4th is silently dropped,
   so the router IP is deliberately NOT in the list):**
-  - **Home VLAN 10:** **Pi tertiary → VPS primary → oldsrv secondary** (HD-334) — the durable reason is
+  - **Home VLAN 10 and Media VLAN 50** (`lan_first_dns: true` on the `network_vlans` row — SSOT, the flag
+    both the role and the converge render from, never a hardcoded VLAN id):
+    **Pi tertiary → VPS primary → oldsrv secondary** (HD-334). For VLAN 10 the durable reason is
     **HA-independence**: HA's primary runs on the Pi and the standby on oldsrv, so Home must keep resolving
     with oldsrv down, and the resolver must never sit behind the standby. ⚠ The reason this bullet used to
     give — *per-device query visibility in the Pi's log* — **is not delivered**: `logQueries = false` on the
     Pi (measured 2026-09-29), so the Pi's query log does not exist (HD-476). Note the pushed address is the
     Pi's **node IP** (`dns_tertiary_ip`), not the VIP: the resolver does **not** currently float with HA —
     see **HD-477**.
-  - **All other VLANs (guest/mgmt/iot/media):** **VPS primary → oldsrv secondary → Pi tertiary** — they
-    are not per-device filtered.
+    VLAN 50 was added to this list **2026-10-07 (HD-1095)** for the other half of the same mechanism: the
+    first resolver decides which **split-horizon answer** that VLAN gets for the home-hosted app names —
+    see §Per-Instance Split-Horizon for the measured 404 that made this a requirement, not a preference.
+  - **Every other VLAN (guest 30 / kids 40 / mgmt 99):** **VPS primary → oldsrv secondary → Pi tertiary** —
+    they are not per-device filtered, and their devices are expected to reach internal apps through the
+    **VPS** edge. That expectation held for the VPS-hosted apps and was **false for the home-hosted ones until
+    2026-10-07 evening**, when the VPS edge gained routes for `media`/`seerr`/`seerrng` (**HD-1095**) — a
+    VPS-first VLAN can open them now, and a missing route on that edge is the thing to look for if it cannot. (IoT 20 and the Kids MACs are separate: the router `dst-nat`s their `:53` to a
+    chosen instance regardless of this order — see §Per-Subnet DNS Policy.)
   - The router's `/ip dns` is the **implicit** last resort via its own upstream (the same chain first +
     Cloudflare `1.1.1.1`/`1.0.0.1` last); its WAN egress is what the VPS `dns-allow-home` nft set permits.
-  - `.rsc`/role parity: the DHCP `dns-server` is rendered from the same SSOT in both
-    `roles/router/tasks/main.yml` and `rb4011_converge.rsc.j2`.
+  - `.rsc`/role parity: the DHCP `dns-server` is rendered from the same SSOT in
+    `roles/router/tasks/main.yml`, `rb4011_converge.rsc.j2` and the transient
+    `rb4011_dns_resolver_delta.rsc.j2` — all three read `network_vlans[].lan_first_dns`, so no
+    apply path can hand a VLAN a different resolver order than the other two.
+  - ⚠ **The rendered order is NOT what RouterOS stores (measured 2026-10-07 while applying
+    HD-1095).** `/import … set dns-server=<secondary>,<tertiary>,<primary>` (in `group_vars` IP order) reads
+    back as `<tertiary>,<secondary>,<primary>` — **the list is re-sorted numerically on any write that
+    actually changes it**; a `set` whose value already matches is a no-op, so the rows nobody rewrites
+    keep whatever historical order they were created with (VLAN 10 still shows `tertiary, primary,
+    secondary`, which no current render can produce). Two consequences, both live now:
+    (a) the invariant a `lan_first_dns` VLAN actually gets is *a home address sorts first* — true here
+    only because the home resolvers sit on the Home-VLAN range and `dns_primary_ip` is a public address,
+    which makes this **address-dependent, not a guaranteed property of the render**; (b) if a future converge ever *changes* one of
+    the VPS-first VLANs, its list gets re-sorted too and that VLAN silently becomes home-first — the
+    flip is invisible in the diff and in the template.
+    **So the render is never the evidence; read the device:**
+    ```bash
+    ssh router ':foreach n in=[/ip dhcp-server network find] do={ :put (\
+      [/ip dhcp-server network get $n address] . " -> " . [/ip dhcp-server network get $n dns-server]) }'
+    ```
+    ⚠ `/ip dhcp-server network print where address=…` and `print as-value` return **nothing** over
+    non-interactive SSH on this build — the empty result is the probe failing, not the row missing
+    (`[find …]` also resolves against the *current* menu, so a bare `find` at the root menu returns
+    nothing and `set [find …]` silently changes nothing). Use the `foreach` form above.
 - **Clients must query the Technitium instances DIRECTLY** — do NOT point DHCP at the router and let
   `/ip dns` forward: RouterOS `/ip dns` is a single global resolver/cache and cannot differentiate
   per-VLAN, so the per-subnet policy above would collapse into one upstream.
@@ -433,7 +510,12 @@ Client → Technitium (DHCP-pushed chain, see below)
 
 ## Single Namespace & Split-Horizon
 
-Everything uses one namespace **`kogler.si`** (DHCP option 15, hosts, services).
+Everything uses one namespace **`kogler.si`** (DHCP option 15 — see [network-vlans.md](network-vlans.md) §DHCP for how it is actually delivered, hosts, services).
+
+⚠ **One namespace is not one answer set.** A name has to be *seeded* to be answered: until
+HD-1097 the LAN view carried service names and no host names, so the namespace was intact and the
+bare `\\nas\media` path was held up by a broadcast fallback. §Local Name Resolution records what the
+zone answers today.
 
 - **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs, and auto-creates records from DHCP leases.
 - **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `dns`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
@@ -674,6 +756,11 @@ listener's router list — with a validator that fails the build on the mismatch
 below), and an optional **generated** per-workstation alias file for unqualified names, so no hosts entry
 is ever typed again by hand.
 
+✅ **Ruled 2026-10-08 (owner): in an unattended window, only the dry-diff runs** — render both remaining
+consumers against `zone_kogler_si_render.py`, write the diff into the report as the artifact, converge
+nothing. The two converges stay owner-present (they re-render live edge routing), and HD-1083's
+routes→`*_url` half is deliberately **not** bundled with them.
+
 **Measured 2026-09-22, the drift those validators exist to catch** — every row is a bug found by
 comparing the four sources, none of which noticed:
 
@@ -750,7 +837,31 @@ SSOT `dns_primary_ip`/`dns_secondary_ip`/`dns_tertiary_ip`). Clients on every ot
 
 ## Local Name Resolution & mDNS
 
-- **DHCP lease integration:** Technitium queries the RouterOS REST API for `/ip/dhcp-server/lease` → auto-creates `*.kogler.si` records. The VPS primary binds the **public** IP; the home secondaries bind the **Home**-VLAN IPs of oldsrv + Pi (per SSOT) — cross-VLAN DNS is permitted by the forward rules above.
+- **Host names in the LAN zone (HD-1097, 2026-10-07).** `nas` / `oldsrv` / `pi` / `router` now carry
+  LAN A records (`internal: true`, `lan_only: true`, `tailnet: none` in `zone_kogler_si`) so a
+  machine is reachable **by name over any link**. Before that the zone answered *service* names
+  only — measured on both home resolvers: `nas.kogler.si` → **NXDOMAIN with the `aa` flag**, while
+  `media.kogler.si` and `cockpit-nas.kogler.si` answered normally. Nothing looked broken because
+  Windows does not need DNS for `\\nas\media`: with no answer it falls through to **LLMNR/NetBIOS
+  broadcast**, which a wired switch port delivers and a Wi-Fi client does not. The measured shape of
+  that gap was the owner's laptop on `Kogler`: mount by IP **works**, mount by name **does not**,
+  Samba itself healthy on both legs (`smbd` + `nmbd` active, ARP entry for the wireless client, TCP
+  445 open both ways). A broadcast fallback that happens to work on one link is not name resolution,
+  which is why the fix is the record plus the suffix (DHCP option 15,
+  [network-vlans.md](network-vlans.md) §DHCP) and not a Wi-Fi setting.
+  - ⛔ `switch` and `ilo` stay unpublished on purpose: their only address is Mgmt-99, which a Home
+    client cannot route to — the answer-must-be-routable rule above. Publishing them would turn a
+    clean `NXDOMAIN` into a black hole.
+  - ⛔ No `hosts` entries as the mechanism (rejected — [network-rejected.md](network-rejected.md)
+    "hosts-file aliases as the answer mechanism"), and no mDNS reflection across VLANs either
+    (rejected, same file). Both would fix exactly this symptom and make every future read of the
+    zone untrustworthy on the one machine you debug with.
+- **DHCP lease integration (⚠ claim corrected 2026-10-07, it was standing as achieved when it was not
+  live):** this section used to say Technitium queries the RouterOS REST API for
+  `/ip/dhcp-server/lease` and auto-creates `*.kogler.si` records. **It does no such thing on this
+  fleet** — no lease-derived records exist for any host name (the NXDOMAIN above), and no instance
+  carries that integration. The LAN answer set is exactly what `zone_kogler_si` seeds. If the
+  integration is ever wanted, it is a decision against that list, not a box to tick.
 - **mDNS reflector:** Technitium bridges `.local` names across all VLANs (RouterOS built-in mDNS is bridge-wide only, cannot cross VLANs). (RouterOS/Avahi cross-VLAN reflection is rejected — [network-rejected.md](network-rejected.md) mDNS reflection.)
 
 ---

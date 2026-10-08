@@ -162,6 +162,14 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `scripts/check_self_converge_guard.py` goes red) over prose that asserts coverage. Same rule
   for live claims: prove the thing you are about to rely on (`ssh-keygen -F`, one read-only
   converge, a fresh auth) rather than reasoning that it probably works.
+- **A duplicate YAML mapping key is a silent no-op — ansible keeps the LAST one and only warns.** Same
+  silent-failure class, cheaper to introduce than to notice: a second `tags:` on a task **strips a tag**
+  (surgical `--tags` runs then skip it forever), a second `no_log:` **prints a secret**, a second `when:`
+  silently re-gates the task, and `--syntax-check` + the converge both stay green. Three were live on
+  `main` until 2026-10-08 (HD-1098). The gate is `scripts/check_yaml_dup_keys.py` (validate-all item 30,
+  with ansible's own stderr as the second witness); when you fix one, **prove the fix is a no-op** — the
+  render matrix byte-identical before/after, not "the values looked the same".
+  Precedent: [docs/deployment-ansible.md](docs/deployment-ansible.md) §Three ways a converge lies to you.
 - **Collapsible `<details>` sections:** human/family-facing browser-rendered docs only (`readme-humans.md`, `docs/manual/*`) and only for optional asides (troubleshooting, FAQ) — **never** in agent-facing docs (owning specs, runbooks incl. `deployment-manual.md`, ledger, todo, or the frozen `reports/*` archives): the primary readers are AI agents working on raw text, where folds hurt grep-ability and add noise. Blank lines between the HTML tags and the inner Markdown are mandatory, else fences/tables render as raw text. Precedent: `readme-humans.md` §Za družino troubleshooting fold.
 
 ---

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # pi-settings-config.sh — the settings plane of the pi seats: merge the repo-owned
-#   keys into ~/.pi/agent/settings.json on the seat that runs it (HD-1093).
+#   keys into ~/.pi/agent/settings.json on the seat that runs it (HD-1110).
 #
 # WHAT THIS SYNCS, AND WHAT IT MUST NOT
 # -------------------------------------

@@ -153,49 +153,116 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 ## Samba (SMB) shares on the NAS
 
 `roles/storage/tasks/samba.yml` + `templates/smb.conf.j2`, rendered on **nas** only. Three kinds of share,
-all `valid users = @storage_gid` or a named account, all with `force user/group = storage_uid` on the shared
-ones so files land `media`-owned (uid/gid 1005) and stay usable by the arrs:
+the two shared ones force-owned by the neutral **`media`** account (`force user`/`force group`, uid/gid
+1005 via `storage_user`/`storage_group`) so files land `media`-owned and stay usable by the arrs:
 
-| Share | Path (nas) | Also visible on oldsrv as | Purpose |
-|-------|------------|---------------------------|---------|
-| `\\nas\media` | `/tank/data/shared` | `/mnt/nas/data/shared` | family shared tree (HD-131) |
-| `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move (HD-362, added 2026-10-07) |
-| `\\nas\<user>` | `/tank/data/users/<user>` | — | per-user private drive, `valid users = <user>`, NO force user (own uid = the isolation) |
+| Share | Path (nas) | Also visible on oldsrv as | `valid users` | Purpose |
+|-------|------------|---------------------------|---------------|---------|
+| `\\nas\media` | `/tank/data/shared` | `/mnt/nas/data/shared` | `@media` (any family account) | family shared tree (HD-131) |
+| `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | `shared` only | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move (HD-362, added 2026-10-07) |
+| `\\nas\<user>` | `/tank/data/users/<user>` | — | `<user>` | per-user private drive, NO force user (own uid = the isolation) |
 
-- ⚠ **The `\\nas\<user>` row describes an outcome that has never happened.** Those drives are provisioned by the
-  `sync-authentik-users.sh` glue (D5/HD-131), and on the NAS that unit exits **127 on every hourly run** — measured
-  2026-10-07: `sync-authentik-users.sh: line 28: op: command not found`, **823 failures since 2026-09-03**, i.e. since it
-  first fired, so nothing regressed. `op` is simply not installed on the NAS and carries no token file there. Downstream,
-  measured in the same probe: `/tank/data/users` does not exist, no family unix users exist, and `/etc/samba/share-*.conf`
-  is empty of fragments. **This is the unix-account half of the Authentik-managed-accounts decision above** — with
-  `ldapsam` a member can bind, but with no local uid/gid to map to, the mount still fails. Tracked as **HD-1092**.
-- ⚠ **Second, latent:** the glue appends `include = /etc/samba/share-*.conf` to `smb.conf` when it writes a fragment,
-  and `roles/storage/templates/smb.conf.j2` does not carry that include — so the first storage **converge** after a
-  successful provisioning silently deletes every runtime-created family drive. The fix belongs with HD-1092: either the
-  template owns the include, or the glue writes under the include the template already has (`/etc/samba/smb-share.conf`).
+**How a client addresses these shares (HD-1097, 2026-10-07).** `nas.kogler.si` answers on the LAN plane
+and DHCP delivers the `kogler.si` suffix, so `\\nas\media` mounts over Wi-Fi as well as over cable.
+Before that the zone carried no `nas` record at all and the UNC worked only through the NetBIOS/LLMNR
+broadcast fallback — wired mounted, the same laptop on Wi-Fi did not, while mounting at the NAS's Home
+address (SSOT row `nas` in [network-addresses-generated.md](network-addresses-generated.md)) mounted on
+both. Keep that split as the diagnostic: **IP mounts and the name does not ⇒ resolution, not Samba**
+— read the DNS answer before touching the share, the accounts or the firewall. Mechanism and the
+decision not to paper over it with a `hosts` file:
+[network-dns.md](network-dns.md) §Local Name Resolution & mDNS.
 
+⚠ **Samba resolves these directives by NAME, not by id.** `force user = 1005` and
+`valid users = @1005` parse fine, load fine, and resolve to NOTHING: authentication succeeds and
+the **tree connect** then fails — `NT_STATUS_ACCESS_DENIED`, or `NT_STATUS_NO_SUCH_USER` when it is
+the force-owner that is unresolvable. Both forms shipped until 2026-10-07, so `media` and `music`
+had **never** been mountable by anyone; nothing noticed because no Samba account existed to
+authenticate with either (measured in the matrix below). `storage_user`/`storage_group` carry the
+names, and samba.yml asserts they still resolve to `storage_uid`/`storage_gid` — because the
+failure mode is a client-side "wrong password", not a red converge.
+
+### Accounts: local, and the repo is the SSOT
+
+`passdb backend = tdbsam`. One **unix account + one Samba password per entry in
+`storage_samba_users`** (`host_vars/nas.kogler.si.yml`): the converge creates the unix user, makes
+its private tree owned by that user, and writes the password from 1Password `smb-<name>_login`
+with `smbpasswd -a -s`. The member types that username+password at mount time; nothing federates
+it. Live set (2026-10-07): `domen` (personal drive + `media`) and `shared` (a service account —
+`drive: false`, no login shell — which is the credential for `\\nas\music`).
+
+Three properties of this shape are deliberate, and each has a live lesson behind it:
+
+- **No external dependency on the auth path.** Mounting a drive from the sofa touches the LAN and
+  the NAS only. The design that used to sit here — Samba pulling auth from an Authentik LDAP
+  outpost on the VPS (D7/HD-132/HD-360) — is **retired 2026-10-07**, for two independent measured
+  reasons: (1) it made a family drive depend on the VPS, its outpost, its outpost *token* and the
+  WG S2S tunnel (and that tunnel's `:3389` publish refused TCP from both `nas` and `oldsrv` when
+  probed), and (2) it could never have worked — Samba answers a Windows NTLM challenge with
+  `MD4(UTF-16LE(password))`, which an ldapsam backend reads out of the directory's
+  `sambaNTPassword`, while Authentik stores PBKDF2 and its LDAP provider/outpost ship **no Samba
+  attribute at all** (measured on 2026.5.6: zero `samba` matches in the server package and in the
+  `/ldap` outpost binary; the only LDAP property mappings are `DN to User Path`, `Name`, `mail`).
+  A user's portal password is therefore *not* a Samba credential, anywhere in this fleet. See
+  [storage-rejected.md](storage-rejected.md).
+- **Who can mount is a repo edit, not a directory sync.** The retired
+  `sync-authentik-users.sh` glue (D5/HD-131) used to own this by reading the Authentik `family`
+  group every hour. It is deleted, and so is the `include = /etc/samba/share-*.conf` drop-in hook it
+  appended: the per-user share sections now come from the template. Its teardown tasks stop a unit
+  that had never completed a run — `op` is not installed on the NAS, so it exited **127 on all 823
+  runs since 2026-09-03** while the timer looked `active` (HD-1092, closed by the retirement).
+- **Rotation needs one extra word.** A passdb write is a target-side act, so rotating the vault item
+  changes nothing on the NAS by itself (CONVENTIONS §2 rotation propagation). Rotate the item, then
+  converge with `-e storage_samba_password_force=<name>`.
+  ✅ **Rotated by the owner 2026-10-08** (`smb-domen_login` + `smb-shared_login`, both up to policy length),
+  so the vault is now **ahead of** the box: the remaining leg is pure AI — one `nas` converge with the flag
+  above, then read `pdbedit -L` back. Nothing waits on a human (HD-1093). Without that flag the password task only
+  fires when the account is absent from `pdbedit -L`, which is what keeps a routine converge from
+  resetting a member's password on every run.
+- ⚠ **`smbpasswd -a -s` exits 0 while writing nothing, and its stdin contract differs by case**
+  (Samba 4.22.10 / Debian 13, measured on a throwaway account in all three combinations):
+  a **new** entry reads `NEW`, `REENTER` — two identical lines, prints `Added user x.`, mounts.
+  An **existing** entry reads `OLD`, `NEW`, `REENTER` — two lines leave it "Unable to get new
+  password", **rc 0**, and the entry keeps the old hash. So the task removes the entry first and
+  always takes the create path (one code path, not two), then proves the write by mounting
+  `\\nas\media` over SMB with the value it just wrote — a green task is not evidence a client can
+  authenticate. Re-adding can hand the account a new RID/SID; harmless while isolation is POSIX.
+
+- **Proving it works is a tree connect, not a listing.** `smbclient -L` succeeds anonymously on this
+  host, so it proves Samba is *serving* and nothing about auth. The honest probe (run it as a matrix,
+  because a right answer on one share hides a wrong one on another — that is how the numeric-id bug
+  survived):
+
+  ```bash
+  # on the NAS: creds go in through stdin so no password lands in argv (CONVENTIONS §6 never-print)
+  printf '%s' "$PASS" | sudo tee /root/.c >/dev/null   # written as [global]/username/password
+  sudo smbclient //localhost/<share> -A /root/.c -c 'ls' && echo OK
+  ```
+  The 2026-10-07 result, with `storage_samba_users = [domen, shared]`:
+
+  | account | `media` | `music` | `domen` (private) |
+  |---|---|---|---|
+  | `domen` | ✅ | ⛔ by design | ✅ |
+  | `shared` | ✅ | ✅ (its share) | ⛔ isolation |
+
+  On the NAS itself: `sudo pdbedit -L` lists the accounts and `sudo testparm -s | grep -iE 'passdb|valid
+  users|force '` shows what is rendered — read `testparm`, never the template, when a share misbehaves
+  (and note `testparm` needs root here because it reports on the running config).
 - **Why the `music` share exists**: the `bulk/media` export names the oldsrv Home address as its **only** client
   (`/etc/exports` is IaC-rendered; addresses live in [network-addresses-generated.md](network-addresses-generated.md)), so before
   it nothing Windows-facing could reach the library at all — `\\nas\media` points
   at a different pool. A manual add used to mean "copy to the share, then a privileged `mv` on oldsrv".
-- ⚠ **Authentication is the open half — and its shape is now ruled.** `passdb backend = tdbsam` is the live
-  value and **`pdbedit -L` returns nothing** (`storage_samba_users: []`), so the shares are **served**
-  (`smbclient -L` lists both) but every tree connect is `NT_STATUS_ACCESS_DENIED`: measured 2026-10-07, nobody
-  can mount any share from Windows today.
-  **Decision (owner, 2026-10-07): Samba accounts are managed in Authentik.** The local path is closed, in both
-  halves — no `smbpasswd` task ever ships in `samba.yml` (a local password would shadow a member's
-  self-service credential and break the pull model), and provisioning one tdbsam account by hand as a stopgap
-  was **explicitly rejected** — see [storage-rejected.md](storage-rejected.md). So the actionable row is
-  **HD-360** (split from HD-132 2026-09-14): declare the LDAP provider + `svc_samba` + the outpost object in the
-  `ks-oidc.yml` Blueprint, mint a fresh `authentik-ldap_bind` token, redeploy `authentik-ldap`, prove the base
-  DN answers over the WG leg, and only then flip `storage_samba_passdb: ldapsam` on the NAS. Ordered gates and
-  the two live blockers: [deployment-compose.md](deployment-compose.md) §Samba ↔ Authentik-as-LDAP.
-  Consequence of the ruling, restated so nobody rediscovers it: **an Authentik or outpost outage takes the
-  family drives with it** (pull model, no local fallback — accepted, D7).
+- ✅ **OpenCloud no longer needs anything the retired glue did.** Its step 4 had best-effort pre-seeded an
+  OpenCloud account per family member with the `opencloud-service_api` service account, so that item and
+  `authentik-nas_api` now have **no consumer** and are measured absent from the vault (`op item list`,
+  134 items, 2026-10-07). OpenCloud JIT-provisions OIDC users on first login — **the owner logged into
+  `file.kogler.si` the same day**, which closes the leg HD-149 registered as never observed. What was NOT
+  measured is the account list itself: with no service-account item left there is no API seat to read it
+  from, so an account-visibility audit would need a freshly minted Graph consumer.
 - **Scoped converge:** `--tags samba` (or `storage,samba`) works only because BOTH halves of the HD-468 tag
   rule are in place — the `include_tasks: samba.yml` line carries the tag *and* every task inside does.
   Verified 2026-10-07 by measuring the opposite: with neither, the run printed `ok=24 changed=0 failed=0`
   and executed only `always`-tagged guards. A share change applied that way is a no-op that reports success.
+  (The per-user private-tree task was one of the untagged ones until this change.)
 
 ---
 

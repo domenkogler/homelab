@@ -19,7 +19,7 @@
 #   bash scripts/install-pi-wsl.sh --reload        # informational: report pi + config state
 #
 # SSOT (deploy direction = repo -> ~/.pi/agent). The root update_pi.cmd that did the
-#   Windows half with robocopy is retired (HD-1095): scripts/pi-seat-sync.sh is the path.
+#   Windows half with robocopy is retired (HD-1112): scripts/pi-seat-sync.sh is the path.
 #   skills/        -> ~/.pi/agent/skills/       (artifact-ignore: net.json, __pycache__, zero-byte markers)
 #   pi-agent/      -> ~/.pi/agent/               (AGENTS.md + prompts/*)
 #   packages below -> `pi install npm:...`        (tracked in-repo, not a drift copy)
@@ -169,7 +169,7 @@ if [ "$MODE" != "--pi-only" ]; then
     info "no scripts/pi-tui-config.sh in this clone — the footer-hostname leg was NOT run"
   fi
 
-  # The settings plane (HD-1093): the harness keys come from pi-agent/settings-ssot.json and are
+  # The settings plane (HD-1110): the harness keys come from pi-agent/settings-ssot.json and are
   # MERGED, so this runner's workstation keys (externalEditor, lastChangelogVersion, tuiMode) and
   # any seat-local package survive — §5's "the block is the part that must match", enforced.
   say "settings plane (pi-agent/settings-ssot.json -> ~/.pi/agent/settings.json)"

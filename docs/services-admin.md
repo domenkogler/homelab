@@ -72,7 +72,7 @@ tags: [services, admin, ops, gitops, security, backup]
 | `homelable_mcp` | API Credential — `credential` | `MCP_API_KEY` | Only consumed when `homelable_mcp_enabled`; catalog-created so the flag flip never needs a manual seed. |
 
 ### Onboarding stage (CONVENTIONS §5)
-Authored against upstream **v3.4.1** (registry-verified on GHCR for backend/frontend/mcp). Register the row as **Stage 8/10** — steps 1–8 (exposure/secrets/compose/registry/edge-decision/state/observability/validation) are authored in this section + the compose + the docs; **step 9 (deploy gate) is owner-gated** and step 10 (docs close) follows the live verify.
+Authored against upstream **v3.4.1** (pin is `3.5.1` since 2026-10-08 ⏳) (registry-verified on GHCR for backend/frontend/mcp). Register the row as **Stage 8/10** — steps 1–8 (exposure/secrets/compose/registry/edge-decision/state/observability/validation) are authored in this section + the compose + the docs; **step 9 (deploy gate) is owner-gated** and step 10 (docs close) follows the live verify.
 
 | # | Onboarding step | State |
 |---|-----------------|-------|
@@ -95,7 +95,7 @@ Authored against upstream **v3.4.1** (registry-verified on GHCR for backend/fron
 4. **(Optional, later)** flip `homelable_mcp_enabled: true` + converge for AI-tool access once the canvas is curated; add a tailnet Pattern-A route for remote use.
 
 ### Known gaps / upstream caveats
-- **v3.4.x is young and fast-moving** — pin is `3.4.1`; re-verify the image/tag and re-check the release notes at first deploy (HD-134/§7 discipline).
+- **v3.4.x is young and fast-moving** — pin is `3.5.1` (2026-10-08); re-verify the image/tag and re-check the release notes at first deploy (HD-134/§7 discipline).
 - Scanner MAC caveat: with host networking the backend sees real MACs; without it every device is MAC-less (avoided here by design).
 - No upstream Prometheus/VictoriaMetrics import yet — HD-343 integration is curation-based (see i/ii/iii above).
 - The tool is not a metrics/logs/alert backend — Grafana/VictoriaMetrics stay authoritative for that (observability.md).

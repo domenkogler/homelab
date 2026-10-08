@@ -1,6 +1,10 @@
 ---
 # RouterOS configuration playbook
-# Configures the MikroTik RB4011 via RouterOS REST API
+# Configures the MikroTik RB4011 over the RouterOS **API** (tcp/8728, the binary API that
+# `community.routeros` speaks — NOT the REST/`:8728/rest/` endpoint, which is a different
+# protocol on the same port: an https probe there answers `SSL: WRONG_VERSION_NUMBER`).
+# `connection: local` because the API is driven from the controller, so the runner needs
+# `librouteros` — see group_vars/network.yml + scripts/bootstrap-runner.sh.
 - hosts: router
   gather_facts: false
   connection: local

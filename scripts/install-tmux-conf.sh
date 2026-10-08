@@ -243,7 +243,7 @@ probe_live() {
   case "$got" in on|external) ;; *) err "live: set-clipboard is '$got'"; fails=$((fails+1));; esac
   got="$(tmux show -g terminal-overrides 2>/dev/null)"
   case "$got" in *Ms=*) ;; *) err "live: no Ms in terminal-overrides on the running server"; fails=$((fails+1));; esac
-  # pi's own start-up check (HD-1095): it reads these two options back via `tmux show -gv`
+  # pi's own start-up check (HD-1112): it reads these two options back via `tmux show -gv`
   # whenever $TMUX is set, so THIS is the arm that says whether the warning the operator
   # sees is config or a stale server. An empty answer means tmux < 3.3 (no such option) —
   # reported, not failed, because pi stays silent there too and there is nothing to set.

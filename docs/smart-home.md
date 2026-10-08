@@ -111,6 +111,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
 
 - **Host (node):** `pi.kogler.si` (Raspberry Pi 4, in daily use) — **primary**; accessed via the VIP `ha.kogler.si`
 - **Fallback:** `home-assistant-standby` Docker container on oldsrv (systemd unit, disabled by default) — **active/standby failover, manual trigger + manual failback**
+  MEASURED 2026-10-08 from the runner: **the standby container does not exist on oldsrv** (`docker ps -a | grep -c home-assistant` = 0 there, and 0 on vps/spark/nas; the only HA container in the fleet is `home-assistant-primary` on the Pi). The template and the VIP path exist; the deploy never happened — so "manual failover" is currently a template, not a capability.
 - **Configs:** In this homelab repo (moved from HA's own GitHub repo)
 
 > **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
