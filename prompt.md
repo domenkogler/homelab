@@ -106,33 +106,28 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    §What actually raises a 1Password prompt).
 6. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
-7. ✅ **HD-1099** — fleet image-pin refresh is **live on all five hosts** (converged from the VPS runner 2026-10-08:
-   `ok=377/162/159/178/624`, `failed=0`, zero restarting or unhealthy containers; `alloy 1.20.1-1` fleet-wide, which also
-   closed **1094**). It left three tails: **1100** (the Postgres/broker migrations, now the top task below), **1101** (the
-   HD-484 assert gate + corrupted tailscale `.deb` digests — fixed and vendor-verified, `image-pin-probe.py --debs` now
-   covers deb pins), and **1107** (sanoid). Two lessons worth keeping: a **phantom pin** is invisible to every gate in the
-   repo — only `python3 scripts/image-pin-probe.py --verify` sees one; and a `*_image` digest pin is the load-bearing
-   value, never bump the tag under it.
-8. ⏳ **HD-1100** — **the next live work: Postgres 16 → 18.** The model is proven and the blocker is gone; the runbook is
-   [docs/backup.md](docs/backup.md) §Postgres major upgrades. Order by blast radius: `litellm-db` (re-run as the proof that
-   the version-conditional mount works) → `onlyoffice-postgres` (+ the RabbitMQ 3.13→4.x question, in the same window) →
-   `forgejo-db` → `zipline-db` → `lan-litellm-db` on oldsrv → **`authentik-postgres` last** (fleet SSO). Owner holds the four
-   middle legs until legs 1 and 5 prove the model. **What the first leg cost, so nobody repeats it:** 18 images run
-   `PGDATA=/var/lib/postgresql/18/docker` and refuse a cluster at the old path, so a pin bump alone crash-loops the DB —
-   the bind target moves with the major via `pg_data_mount`; and rollback is datadir **and** pin together. Oldsrv separately
-   owes its **`wireguard`** leg (restarts the tunnel server; run it alone, last, then re-verify every tunnel path).
-9. ⏳ **apt upgrade phase** — deliberately left OUT of the converge wave. Needs `apt-mark hold` for Ansible-pinned packages
+7. ⏳ **HD-1100** — **Postgres 16 → 18: both legs the owner authorized are DONE and verified** (`litellm-db`,
+   then `authentik-postgres`, both on `18.6-alpine`; `pg_control version number: 1800` on each, key-table counts identical
+   before and after, SSO live and login flow answering). The four **middle legs stay held by owner ruling** — `onlyoffice-postgres`
+   (+ the RabbitMQ 3.13→4 question in the same window), `forgejo-db`, `zipline-db`, `lan-litellm-db` on oldsrv. Runbook + the four
+   rules that took three attempts to learn (pin `PGDATA`; never the upstream parent mount under `cap_drop: ALL`; dumps over **STDIN**
+   because `read_only: true` rejects `docker cp`; stop everything but the DB before restoring) are
+   [docs/backup.md](docs/backup.md) §What PG 18 actually requires. Two things owed here: the next `db-backup` run (03:25) is the
+   end-to-end proof that DB01/DB04 still dump the migrated clusters, and **oldsrv still owes its `wireguard` leg** — it restarts the
+   tunnel server, so run it alone, last, then re-verify every tunnel path. immich stays out of scope (14.19 upstream composite with
+   `vchord`/`vector` live in the schema).
+8. ⏳ **apt upgrade phase** — deliberately left OUT of the converge wave. Needs `apt-mark hold` for Ansible-pinned packages
    (`alloy`, `tailscale`, `docker-ce`, `kopia`) landed in IaC first, or a bare `apt upgrade` re-creates the HD-1094 drift and
    stacks kernel reboots onto a DB-migration window. The `roles/updates` design (visibility → unattended security pocket →
    gated full upgrade with holds) is still an owner go/no-go.
 
 **New unbriefed rows from the 2026-10-08 maintenance window** (no session launches from them): **HD-1107**
 (nas ZFS **policy** snapshots never ran — our own generated `sanoid.service` said `/usr/local/bin/sanoid`, the package
-installs `/usr/sbin/sanoid`, so every timer fire died `203/EXEC`; fixed, ran `exit=0`, first `hourly.*` still pending a tick)
+installs `/usr/sbin/sanoid`, so every timer fire died `203/EXEC`; fixed and live (converged), ran `exit=0`; still owed: confirm `hourly.*` snapshots appear and decide whether /etc/cron.d/sanoid should stay (dual scheduling))
 · **HD-1105** (three enabled-but-dead units on nas: `zfs-share`, `winbind` with `smb` enabled, and `sync-authentik-users`
 with an EMPTY `ExecStart`) · **HD-1106** (20 dangling VPS volumes, 644 MB, two of them 47 MB with unverified provenance —
 not deleted; the HD-247 volume→bind pattern is the suspect) · **HD-1103 tail** (`/var/log` on pi is mode `1777`, so
-logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it).
+logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it). · **HD-1114** (`validate-all.sh` is red on clean `main` because `22a2cb58` retired `host-status.ts` in the repo while the seat still deploys it — a gate every session inherits red, which is how a gate dies; fix belongs to HD-1093's lane, and until then any merge carries it as a recorded known-red exception)
 
 7. ⏳ **HD-1110 tail — the pi.dev seat fan-out exists but has never run against a seat that was
    at its own commit.** `scripts/pi-seat-sync.sh` is the one deploy path now (seat × plane; the root
