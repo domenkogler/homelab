@@ -39,9 +39,16 @@ Domača stran na **`kogler.si`** je glavna vstopna točka za vse storitve.
 
 The repo's **`skills/` folder is the single source of truth** for the pi coding
 agent's skills on the management laptop. Edit there, commit, then run
-**`update_pi.cmd`** to deploy them into the global pi skills folder
+**`bash scripts/pi-seat-sync.sh --push`** to deploy them into the global pi skills folder
 (`%USERPROFILE%\.pi\agent\skills\`). Do **not** edit the global copy directly —
 it is refreshed from this repo.
+
+The same command converges every other harness plane (extensions, settings, the model
+contract, the TUI key, tmux, the font) on every seat, so there is exactly ONE deploy
+path. The root-level `update_pi.cmd` that used to do the Windows half was **deleted
+2026-10-08 (HD-1095)**: its `volta install ...@latest` and `pi update --extensions`
+ignored the `versions.yml` pins, and its `robocopy /E` cannot delete, so a retired
+extension stayed loaded on the seat forever.
 
 | Skill | Purpose |
 |-------|---------|
@@ -49,17 +56,24 @@ it is refreshed from this repo.
 | `mikrotik` | Read RouterOS config/state via the RouterOS API. |
 | `shelly` | Manage WiFi Shelly devices (switch, dim, colors, WiFi). |
 
-**Session-start config** ships from `pi-agent/` and is also deployed by
-`update_pi.cmd`:
+**Session-start config** ships from `pi-agent/` and is deployed by the same driver:
 - `AGENTS.md` → `%USERPROFILE%\.pi\agent\AGENTS.md` — auto-loaded at session
   start; instructs the agent to run `platform-env` and state the environment
   before acting.
 - `prompts/start.md` → `%USERPROFILE%\.pi\agent\prompts\start.md` — `/start`
   prompt template (on-demand trigger for the same environment check).
 
-> ⚠ `update_pi.cmd` **overwrites** `~/.pi/agent/AGENTS.md` and
-> `~/.pi/agent/prompts/\*` with the repo copies. If you customize your global
-> `AGENTS.md` or prompts elsewhere, keep them in this repo instead.
+> ⚠ The deploy planes **overwrite** the repo-owned files: `~/.pi/agent/AGENTS.md` and
+> `~/.pi/agent/prompts/*`. Keep customizations in this repo instead. What the driver
+> does **not** do is flatten a seat: `settings.json` is MERGED (workstation keys and
+> seat-local packages survive), a hand-written `~/.tmux.conf` is a REFUSAL, and a seat
+> whose clone trails this commit is reported `STALE-CLONE` with its planes NOT run.
+>
+> **Updating pi itself on Windows** is the one leg no script owns (Volta is
+> Windows-only): `volta install @earendil-works/pi-coding-agent@<pin>`, reading the
+> version from `IaC/ansible/group_vars/all/versions.yml` (`pi_host_npm_version`) - never
+> bare `@latest`. That unpinned upgrade is what put this seat a pi release ahead of its
+> pin and produced an `[Extension issues]` panel at start-up (HD-1094).
 
 ---
 

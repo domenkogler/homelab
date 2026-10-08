@@ -243,6 +243,21 @@ probe_live() {
   case "$got" in on|external) ;; *) err "live: set-clipboard is '$got'"; fails=$((fails+1));; esac
   got="$(tmux show -g terminal-overrides 2>/dev/null)"
   case "$got" in *Ms=*) ;; *) err "live: no Ms in terminal-overrides on the running server"; fails=$((fails+1));; esac
+  # pi's own start-up check (HD-1095): it reads these two options back via `tmux show -gv`
+  # whenever $TMUX is set, so THIS is the arm that says whether the warning the operator
+  # sees is config or a stale server. An empty answer means tmux < 3.3 (no such option) —
+  # reported, not failed, because pi stays silent there too and there is nothing to set.
+  got="$(tmux show -gv extended-keys 2>/dev/null)"
+  case "$got" in
+    "")      info "live: this tmux has no extended-keys option (< 3.3) — pi will not warn about it either" ;;
+    on|always) ;;
+    *)       err "live: extended-keys is '$got' — pi warns 'Modified Enter keys may not work'; run --reload (the server keeps the OLD value until sourced)"; fails=$((fails+1)) ;;
+  esac
+  got="$(tmux show -gv extended-keys-format 2>/dev/null)"
+  case "$got" in
+    "")      ;;
+    xterm)   err "live: extended-keys-format is xterm — pi wants csi-u and warns about it"; fails=$((fails+1)) ;;
+  esac
   # Informational, deliberately NOT an assertion: this flag is tmux's belief about
   # the terminal NAME, not a capability read. --verify's OSC 52 arm is the proof.
   got="$(tmux display -p '#{client_termfeatures}' 2>/dev/null)"

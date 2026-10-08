@@ -18,7 +18,8 @@
 #   bash scripts/install-pi-wsl.sh --config-only   # deploy repo skills/AGENTS/prompts/packages
 #   bash scripts/install-pi-wsl.sh --reload        # informational: report pi + config state
 #
-# SSOT (deploy direction = repo -> ~/.pi/agent, same as update_pi.cmd):
+# SSOT (deploy direction = repo -> ~/.pi/agent). The root update_pi.cmd that did the
+#   Windows half with robocopy is retired (HD-1095): scripts/pi-seat-sync.sh is the path.
 #   skills/        -> ~/.pi/agent/skills/       (artifact-ignore: net.json, __pycache__, zero-byte markers)
 #   pi-agent/      -> ~/.pi/agent/               (AGENTS.md + prompts/*)
 #   packages below -> `pi install npm:...`        (tracked in-repo, not a drift copy)
