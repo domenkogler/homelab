@@ -242,7 +242,26 @@
 #                                     was 17 × interpreter startup, not work; each leg keeps its own
 #                                     stderr file, so the duplicate-key witness is unchanged.
 #
-# Exit 0 only when all pass. `set -e` stops at the first failure.
+# HOW THIS RUNS (2026-10-09, HD-1117): the items above are QUEUED and run CONCURRENTLY,
+#   8 in flight on an 8-core runner — 32 s -> 12 s. They are independent: every check is
+#   read-only over the repo (the sweeps write only gitignored __pycache__, the self-tests
+#   sandbox in temp dirs / private sockets, nothing here writes to the tree).
+#   The numbered list above is the WHY of each check and is HISTORICAL — item numbers moved
+#   when the long legs were moved to the front of the queue; `--list` prints the real set,
+#   in launch order. Long items first, because queue order IS the schedule.
+#
+# Exit 0 only when all pass. ⚠ It no longer stops at the first failure: `set -e` could not
+# survive a pool, and stopping early was worth less than the answer — one broken file used to
+# hide the other nine. Every item runs, every failure prints with its own output, and the run
+# ends with the list of what failed. `--serial` restores one-at-a-time (33 s) for bisecting a
+# host that misbehaves under concurrency; `--only <substring>` runs a subset.
+#
+# ⚠ A gate that is not invoked is the same as a gate that is deleted, and this file proved it
+#   on itself: while removing a DUPLICATED `check_iac_backend_strings.py` block (HD-404) the
+#   edit matched both copies and deleted BOTH — every run from 223b571b to 17d8dd13 was green
+#   while item 19 ran never, and the self-test that is supposed to catch a muted ratchet was
+#   muted with it. The parallel rewrite restored it; `--list | wc -l` (59) against a previous
+#   commit is now the audit that catches this class — do not trust the numbered comments.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -273,7 +292,7 @@ export PYTHONUTF8=1
 if [ "$PY" = "python3" ] && [ -f "$HOME/ansible-venv/bin/activate" ]; then
   # shellcheck disable=SC1091
   . "$HOME/ansible-venv/bin/activate"
-  echo "launcher: ~/ansible-venv activated — python3=$(command -v python3) ansible-playbook=$(command -v ansible-playbook || echo absent)"
+  echo "launcher: ~/ansible-venv activated — python3=$(command -v python3) ansible-playbook=$(command -v ansible-playbook || echo absent)" >&2
 fi
 
 # Preflight, before 20 validators can fail one at a time: the interpreter chosen above must carry
@@ -289,331 +308,359 @@ if ! "$PY" -c "import jinja2, yaml" >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "== guard-session.sh --validate-mode (session-discipline hard gate, HD-253) =="
-bash scripts/guard-session.sh --validate-mode
 
-echo "== guard-session.sh --self-test (sandboxed guard fixture, HD-253) =="
-bash scripts/guard-session.sh --self-test
+# --- CLI: --list (print the items and stop), --only SUBSTR (run a subset),          #
+#     --serial (one at a time, the pre-parallel behaviour, for bisecting an issue).  #
+ONLY=""; LIST=0; SERIAL=0
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --list)   LIST=1 ;;
+    --serial) SERIAL=1 ;;
+    --only)   shift; [ $# -gt 0 ] || { echo "error: --only needs a substring" >&2; exit 2; }; ONLY="$1" ;;
+    --only=*) ONLY="${1#--only=}" ;;
+    -h|--help) echo "usage: bash scripts/validate-all.sh [--list] [--only SUBSTRING] [--serial]"; exit 0 ;;
+    *) echo "note: ignoring unknown argument '$1'" >&2 ;;
+  esac
+  shift
+done
 
-echo "== guarded-converge.sh --self-test (post-converge liveness verdict, HD-436) =="
-bash scripts/guarded-converge.sh --self-test
+# SERIAL, FIRST, FAIL-FAST — nothing else should run if this fails: HD-253 session
+# discipline. --validate-mode hard-fails on primary+main+DIRTY; a clean-main merge-station
+# run stays exempt, session worktrees and detached-HEAD/CI pass through.
+if [ "$LIST" != 1 ]; then
+  echo "== guard-session.sh --validate-mode (session-discipline hard gate, HD-253) =="
+  bash scripts/guard-session.sh --validate-mode
+fi
 
-echo "== git-bootstrap.sh --self-test (each 1Password refusal state says the right thing) =="
-# HD-485 runner lesson: one grep of `op vault list` was answering three different questions, so
-# the script told a signed-in operator to sign in, on a loop. The fixtures are throwaway and the
-# children run under a sandbox HOME/SRC, so this is offline and side-effect-free.
-bash scripts/git-bootstrap.sh --self-test
+# --------------------------------------------------------------------------- #
+# Runner — the checks below are QUEUED and run CONCURRENTLY.                #
+#                                                                           #
+# WHY: the gate was 58 s and the trace said why — ~50 items, of which a dozen cost   #
+# 0.3–5 s and thirty cost 20–80 ms, and ALL of them were waiting on each other.      #
+# The checks are independent: every one of them is read-only over the repo (the two  #
+# sweeps write only gitignored __pycache__, the self-tests sandbox themselves in      #
+# temp dirs / private sockets, and nothing here writes to the tree). Parallelism is   #
+# therefore free: 32 s → single digits, with no change to what is checked.            #
+#                                                                                    #
+# SEMANTICS CHANGED, on purpose: `set -e` used to stop at the FIRST failure, so one  #
+# broken file hid the other nine. Now every item runs and the report prints every     #
+# failure with its own output. Exit is 0 only when all passed. `--serial` restores    #
+# the old one-at-a-time behaviour for debugging.                                      #
+#                                                                                    #
+# Two things stay SERIAL and fail fast, because everything else depends on them:      #
+# the interpreter preflight above (a gate that cannot import is not a gate) and       #
+# `guard-session.sh --validate-mode` (a primary+main+dirty checkout must not spend    #
+# 10 s discovering that its edits are in the wrong place).                            #
+# --------------------------------------------------------------------------- #
+RUN="$(mktemp -d)"; trap 'rm -rf "$RUN"' EXIT
+MAXPAR=4
+command -v nproc >/dev/null 2>&1 && MAXPAR="$(nproc)"
+[ "$SERIAL" = 1 ] && MAXPAR=1
+# The two ansible legs spawn children of their own; give them half the pool each so a
+# nested fan-out cannot multiply the process count past the cores (8 slots → 4 each).
+GATE_NPAR=4
+command -v nproc >/dev/null 2>&1 && GATE_NPAR="$(( $(nproc) / 2 > 2 ? $(nproc) / 2 : 2 ))"
+export GATE_NPAR
+echo "gate: $MAXPAR items in flight (GATE_NPAR=$GATE_NPAR for the ansible legs)" >&2
 
-echo "== validate-docker-services.py =="
-$PY scripts/validate-docker-services.py
+n_items=0; labels=(); pids=(); states=()
 
-echo "== validate_blueprints.py =="
-$PY scripts/validate_blueprints.py
+_queue() {
+  local label="$1"; shift
+  local i=$n_items; n_items=$((n_items+1))
+  labels+=("$label")
+  if [ "$LIST" = 1 ]; then states+=("listed"); pids+=("0"); return 0; fi
+  if [ -n "$ONLY" ] && [[ "$label" != *"$ONLY"* ]]; then states+=("filtered"); pids+=("0"); return 0; fi
+  ( "$@" >"$RUN/$i.log" 2>&1; echo "$?" >"$RUN/$i.rc" ) &
+  local pid=$!
+  states+=("run"); pids+=("$pid")
+  printf '  -> %2d  %s\n' "$i" "$label" >&2
+  if [ "$MAXPAR" -le 1 ]; then
+    wait "$pid" >/dev/null 2>&1 || true     # --serial: block here, no polling in the loop
+  else
+    while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done
+  fi
+}
 
-echo "== check_doc_ips.py =="
-$PY scripts/check_doc_ips.py
+# item "<label>" <command...>   — one command, run in the background
+item() { local label="$1"; shift; _queue "$label" "$@"; }
 
-echo "== check_traefik_host_rules.py =="
-$PY scripts/check_traefik_host_rules.py
+# item_blk "<label>" <function> — a multi-command block; the function is defined above
+item_blk() { _queue "$1" "$2"; }
 
-echo "== validate_doc_templates.py =="
-$PY scripts/validate_doc_templates.py
-
-echo "== validate-secrets.py =="
-$PY scripts/validate-secrets.py
-
-echo "== check_doc_map.py =="
-$PY scripts/check_doc_map.py
-
-echo "== check_generated_suffix.py =="
-$PY scripts/check_generated_suffix.py
-
-echo "== check_vault_name.py =="
-$PY scripts/check_vault_name.py
-
-echo "== check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated) =="
-$PY scripts/check_ledger_state.py
-
-echo "== check_runbook_purity.py (runbook = imperative procedure only) =="
-$PY scripts/check_runbook_purity.py
-
-echo "== check_vault_docs.py (every IaC-read vault item is documented) =="
-$PY scripts/check_vault_docs.py
-
-echo "== check_placeholders.py =="
-$PY scripts/check_placeholders.py
-
-echo "== check_todo_done.py (CONVENTIONS §4(a) done-row sweep) =="
-$PY scripts/check_todo_done.py
-
-echo "== check_todo_done.py --self-test (marker grammar: glyphs or UPPERCASE words, never prose) =="
-$PY scripts/check_todo_done.py --self-test
-
-echo "== check_secrets.py (secret shapes in the tracked tip, archive members included) =="
-$PY scripts/check_secrets.py
-
-echo "== check_secrets.py --self-test (the speed prefilter must not have narrowed a shape) =="
-$PY scripts/check_secrets.py --self-test
-
-echo "== check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity) =="
-$PY scripts/check_dns_seed_drift.py
-
-echo "== check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436) =="
-$PY scripts/check_zone_kogler_si_parity.py
-$PY scripts/check_zone_kogler_si_parity.py --self-test
-
-echo "== check_self_converge_guard.py (HD-413 guardrail completeness, static) =="
-# Runs on any host with python3+PyYAML — it reads YAML, it does not need Ansible.
-$PY scripts/check_self_converge_guard.py
-
-echo "== testdata/check-vault-items/run.sh (scanner self-test, HD-244/245) =="
-# 2026-10-09: this item printed its header and ran NOTHING — the runner exists and passes, but
-# the only reference to it was the portability sweep's `bash -n` loop, so the *_item registry-key
-# parsing and the --strict contract were ungated while the gate reported the item green.
-bash scripts/testdata/check-vault-items/run.sh
-
-echo "== testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime) =="
-# Needs a functional ansible-playbook (it EXECUTES the guard) — SKIPs itself on hosts where
-# Ansible is absent/non-functional (native Windows) or `uname` is missing, like the syntax gate.
-bash scripts/testdata/self-converge-guard/run.sh
-
-echo "== portability sweep (bash -n + python3 -m py_compile, HD-256) =="
-# bash -n every POSIX/bash shebang script under scripts/ (incl. the testdata runner).
-# bash-shebang scripts must parse cleanly on the Debian/WSL ext4 primary (HD-259);
-# POSIX 'sh' scripts (collect-disk-facts.sh, collect-smart-live.sh) are checked here
-# too because bash is a POSIX superset and the repo gates run under bash. Silent no-op
-# on hosts without bash (Windows) — those scripts are exercised under WSL/CI.
-if command -v bash >/dev/null 2>&1; then
-  bash_fail=0
-  for f in scripts/*.sh scripts/testdata/check-vault-items/run.sh \
-           scripts/testdata/self-converge-guard/run.sh; do
-    [ -f "$f" ] || continue
-    case "$(head -n1 "$f")" in
-      *bash|*sh)
-        bash -n "$f" >/dev/null 2>&1 || { echo "bash -n FAIL: $f" >&2; bash_fail=$((bash_fail+1)); }
-        ;;
+_report() {
+  local i rc fails=0 ran=0 filt=0
+  for i in "${!labels[@]}"; do
+    local label="${labels[$i]}"
+    case "${states[$i]}" in
+      listed)   continue ;;
+      filtered) filt=$((filt+1)); continue ;;
     esac
-  done
-  [ "$bash_fail" -eq 0 ] || exit 1
-  echo "OK: all bash/sh scripts pass bash -n"
-else
-  echo "SKIP: bash not on PATH — bash -n sweep runs under WSL/CI"
-fi
-
-# python3 -m py_compile every scripts/*.py (byte-compiles to gitignored __pycache__).
-if command -v python3 >/dev/null 2>&1; then
-  py_fail=0
-  for f in scripts/*.py; do
-    [ -f "$f" ] || continue
-    python3 -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL: $f" >&2; py_fail=$((py_fail+1)); }
-  done
-  [ "$py_fail" -eq 0 ] || exit 1
-  echo "OK: all scripts/*.py compile under python3"
-else
-  echo "SKIP: python3 not on PATH — py_compile sweep skipped"
-fi
-
-echo "== sync-skills.sh --check --strict (skill drift gate, HD-254) =="
-# repo skills/ must equal ~/.pi/agent/skills (repo = SSOT). Guarded: a host without a
-# pi agent (bare CI / non-pi laptop) has no ~/.pi/agent/skills — the gate SKIPs there so
-# it never breaks validation on a stateless runner; on a pi-configured primary the check
-# is real and deploy is an explicit 'sync-skills.sh --push'.
-if [ -d "$HOME/.pi/agent/skills" ]; then
-  bash scripts/sync-skills.sh --check --strict
-else
-  echo "SKIP: no ~/.pi/agent/skills on this host (bare CI / non-pi laptop) — skill gate runs where pi is configured"
-fi
-
-echo "== knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project) =="
-$PY scripts/knx-hass-gen.py --self-test
-
-echo "== check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule) =="
-$PY scripts/check_md_tables.py
-
-echo "== check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary) =="
-$PY scripts/check_md_tables.py --self-test
-
-echo "== check_merge_markers.py (HD-453: no conflict markers in tracked files) =="
-$PY scripts/check_merge_markers.py
-
-echo "== check_merge_markers.py --self-test (HD-453 canary) =="
-$PY scripts/check_merge_markers.py --self-test
-
-echo "== check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries) =="
-$PY scripts/check_spark_llm_gate.py
-
-echo "== check_doc_path_refs.py (HD-490: a path a doc cites must exist) =="
-# Docs and IaC comments cite several hundred paths between them, and until this item existed
-# nothing in the repo looked at a single one of them — which is how a lane brief shipped
-# `scripts/llm_serving_bench.py`, a tool that was never in the tree, as if it were the harness
-# for a 20-minute boot leg. First run: 47 stale citations, all fixed.
-$PY scripts/check_doc_path_refs.py
-
-echo "== check_doc_path_refs.py --self-test (HD-490 canary) =="
-$PY scripts/check_doc_path_refs.py --self-test
-
-echo "== check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op) =="
-$PY scripts/check_yaml_dup_keys.py
-
-echo "== check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe) =="
-$PY scripts/check_yaml_dup_keys.py --self-test
-
-echo "== spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate) =="
-# The gate proves the ARITHMETIC; this proves the RENDER. A profile can satisfy every
-# invariant and still render an engine that boots for 20 minutes and then cannot find its
-# PLE table, because the catalogue references images and host roots by NAME and only the
-# compose template turns those names into paths. Runs the real template, offline, per arm.
-$PY scripts/spark-llm-render-matrix.py
-
-echo "== laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE) =="
-# Deliberately NOT the deploy-time `gate`: on a box whose probes have never run, that gate fails
-# on purpose (uncertified profiles + unpinned auto-updating engine). The hard gate is the canary
-# self-test — the invariants must be proven to bite. See scripts/README.md.
-$PY scripts/laptop-llm.py gate --self-test
-
-echo "== laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine) =="
-# Offline drift check against models-spec.yml; self-skips off the scoped host (`hosts:`).
-$PY scripts/laptop-llm.py probe-client
-
-echo "== sync-extensions.sh (HD-254 family: repo pi-agent/extensions == deployed) =="
-# Item 13's sibling for hand-written extensions. The self-test runs everywhere (it is
-# sandboxed in a temp dir and touches nothing), because an unchecked drift detector
-# cannot be trusted to keep detecting; the drift check itself is guarded like the skill
-# gate — no ~/.pi/agent/extensions means no pi seat here, so it SKIPs rather than
-# breaking validation on a stateless runner.
-bash scripts/sync-extensions.sh --self-test
-if [ -d "$HOME/.pi/agent/extensions" ]; then
-  bash scripts/sync-extensions.sh --check --strict
-else
-  echo "SKIP: no ~/.pi/agent/extensions on this host — extension gate runs where pi is configured (deploy: sync-extensions.sh --push)"
-fi
-
-echo "== install-tmux-conf.sh (HD-1085: repo pi-agent/tmux/tmux.conf == ~/.tmux.conf AND effective) =="
-# The self-test runs everywhere: it is sandboxed in a temp dir, starts its own throwaway
-# servers on private sockets, and touches no real ~/.tmux.conf. It exists because a tmux
-# config that fails mid-load returns 0 and leaves the defaults standing — so the ONLY
-# proof is loading the file and reading the options back, which is what these canaries
-# do (and what caught this script's own first bug: `-eq 1` against a failure COUNT also
-# matches the SKIP code 2, which made the inert canaries pass).
-bash scripts/install-tmux-conf.sh --self-test
-if [ -f "$HOME/.tmux.conf" ]; then
-  bash scripts/install-tmux-conf.sh --check --strict
-else
-  echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
-fi
-
-echo "== pi-self-update.sh / pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1110, HD-1115: the seat planes) =="
-# Four gates, one per plane the seat-sync driver fans out to, so the driver can never report
-# OK on a plane nothing ever validated. Each self-test runs EVERYWHERE (they are sandboxed in
-# a temp dir and need no seat); the --check half is guarded to SKIP where the target does not
-# exist on this host, exactly like items 13/27/29 — a gate that cannot run says SKIP.
-#   pi-tui-config      pi-open-tui's footer hostname key — the pi-open-tui DEFAULT IS FALSE, so
-#                      an installed-but-unconfigured seat has an anonymous footer: this is what
-#                      replaced host-status.ts (docs/pi-harness.md §5a), and the package install
-#                      alone does NOT buy it.
-#   pi-settings-config the harness keys of ~/.pi/agent/settings.json vs pi-agent/settings-ssot.json
-#                      (§5, the 2026-10-08 owner ruling that replaced the hand-copied doc block),
-#                      packages composed from the versions.yml pins, workstation keys never touched.
-#   install-nerd-font  the pinned nerd-fonts release the TUI icons come from: release == pin,
-#                      a per-file sha256 manifest, AND `fc-list` listing the family where
-#                      fontconfig exists (absent fontconfig is a printed SKIP, not a pass).
-#   pi-seat-sync       the fan-out driver itself: its verdict logic is proven on STUBBED seats
-#                      (clean / drift / failed / unreachable / stale-clone / skip), because a
-#                      driver that reports IN SYNC without reaching a seat is the failure this
-#                      file exists to prevent — and the real legs need network + SSH, so this is
-#                      the only half that can be gated. Run it live yourself, do not trust a gate.
-bash scripts/pi-self-update.sh --self-test
-bash scripts/pi-tui-config.sh --self-test
-bash scripts/pi-settings-config.sh --self-test
-bash scripts/install-nerd-font.sh --self-test
-bash scripts/pi-seat-sync.sh --self-test
-# The pi BUILD on this host vs pi_host_npm_version — BEHIND and AHEAD are both drift (a seat
-# ahead of its pin is the shape every file plane misses). rc 2 = no pi binary here = SKIP,
-# printed and never counted green (CONVENTIONS: a SKIP is not a pass).
-rc_piself=0
-bash scripts/pi-self-update.sh --check --strict || rc_piself=$?
-case "$rc_piself" in
-  0) echo "OK: the pi build on this host equals pi_host_npm_version" ;;
-  2) echo "SKIP: no pi binary on this host — the pi-self plane runs where pi is installed (pi-seat-sync.sh --push)" ;;
-  *) echo "FAIL: the pi build drifts from pi_host_npm_version — run: bash scripts/pi-self-update.sh --push"; exit 1 ;;
-esac
-if [ -f "$HOME/.pi/agent/settings.json" ]; then
-  bash scripts/pi-settings-config.sh --check --strict
-else
-  echo "SKIP: no ~/.pi/agent/settings.json on this host — the settings plane runs where pi is configured (deploy: pi-seat-sync.sh --push)"
-fi
-if [ -f "$HOME/.pi/agent/open-tui.json" ]; then
-  bash scripts/pi-tui-config.sh --check --strict
-else
-  echo "SKIP: no ~/.pi/agent/open-tui.json on this host — the TUI footer gate runs where pi-open-tui is installed"
-fi
-if [ -d "${NERD_FONT_DIR:-$HOME/.local/share/fonts}" ] || command -v fc-list >/dev/null 2>&1; then
-  NERD_FONT_DIR="${NERD_FONT_DIR:-$HOME/.local/share/fonts}"/JetBrainsMono-Nerd-Font bash scripts/install-nerd-font.sh --check --strict \
-    || echo "NOTE: the font plane is not green on this host — on the Windows seat the leg that matters is scripts/win/install-nerd-font.ps1"
-else
-  echo "SKIP: no user font dir / no fontconfig here — the font plane runs where the TUI's glyphs are drawn"
-fi
-
-echo "== ansible-playbook --syntax-check (WSL/CI-gated) =="
-# HD-197: catch unresolvable modules / broken YAML in every playbook at gate time.
-# Requires the Ansible venv (WSL/CI); skipped gracefully on native Windows like the
-# Ansible render path (see scripts/README.md).
-# 23. HD-489/HD-380 gate-7 reader: the bucketing bug this tool exists to prevent was a real
-# false-RED (a naive (max-first)/hours over the live CSV printed 2,663 MiB/h because gpu_top_pid
-# is not always the engine), so the classifier and its "empty window is never a pass" rule are
-# gated here rather than trusted. Read-only over the CSV; synthetic fixtures only.
-echo "== gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak) =="
-python3 spark/bench/gate7-read.py --self-test
-
-# HD-256: like ansible-run.sh, export ANSIBLE_CONFIG + ANSIBLE_ROLES_PATH so the
-# role path resolves when running from the repo root on the Debian/WSL primary
-# (otherwise ansible finds no config here and every `roles: - xxx` fails to resolve).
-REPO_ROOT="$(pwd)"
-export ANSIBLE_CONFIG="$REPO_ROOT/IaC/ansible/ansible.cfg"
-export ANSIBLE_ROLES_PATH="$REPO_ROOT/IaC/ansible/roles"
-if command -v ansible-playbook >/dev/null 2>&1 && ansible-playbook --version >/dev/null 2>&1; then
-  # 2026-10-09: run the playbooks CONCURRENTLY. Measured on the 8-core runner: serial 8.4 s,
-  # -P 8 = 3.0 s, and per playbook 0.37-1.5 s of which ~95 % is ansible-playbook interpreter
-  # startup — there is no work here to optimise, only waiting. Syntax-checking is read-only and
-  # every playbook gets its own stderr/rc file, so the duplicate-key witness below still sees
-  # exactly what ansible printed for each playbook, and a playbook cannot affect another's rc.
-  NPAR=4
-  command -v nproc >/dev/null 2>&1 && NPAR="$(nproc)"
-  SC_DIR="$(mktemp -d)"; trap 'rm -rf "$SC_DIR"' EXIT
-  names=(); files=(); i=0
-  for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
-    n="pb$i"
-    ( ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check \
-        >/dev/null 2>"$SC_DIR/$n.err"; echo "$?" > "$SC_DIR/$n.rc" ) &
-    names+=("$n"); files+=("$pb"); i=$((i+1))
-    while [ "$(jobs -rp | wc -l)" -ge "$NPAR" ]; do wait -n >/dev/null 2>&1 || true; done
-  done
-  wait
-  # HD-1098: ansible's own parser is the second witness for duplicate mapping keys. It prints
-  # `Found duplicate mapping key … Using last defined value only.` on stderr and carries on, so
-  # the warning has to be caught here or the FIRST definition silently stays dead.
-  rc_all=0
-  for j in "${!names[@]}"; do
-    n="${names[$j]}"; pb="${files[$j]}"; rc=0
-    [ -f "$SC_DIR/$n.rc" ] && rc="$(cat "$SC_DIR/$n.rc")" || rc=1
-    if grep -q "Found duplicate mapping key" "$SC_DIR/$n.err" 2>/dev/null; then
-      echo "FAIL: ansible reported a duplicate mapping key while parsing $pb — it keeps the LAST"
-      echo "      definition and drops the first, so the earlier one is dead (HD-1098):"
-      grep -A3 "Found duplicate mapping key" "$SC_DIR/$n.err" | sed 's/^/  /'
-      exit 1
-    fi
-    if [ "$rc" -ne 0 ]; then
-      # unchanged HD-197 semantics: a real syntax failure still fails the run (the duplicate-key
-      # leg above must not have turned this loop into a warning collector)
-      echo "FAIL: ansible-playbook --syntax-check failed for $pb (rc $rc)" >&2
-      cat "$SC_DIR/$n.err" >&2
-      rc_all="$rc"
+    printf '\n== %s ==\n' "$label"
+    wait "${pids[$i]}" >/dev/null 2>&1 || true
+    rc="$(cat "$RUN/$i.rc" 2>/dev/null || echo 1)"
+    [ -f "$RUN/$i.log" ] && cat "$RUN/$i.log"
+    ran=$((ran+1))
+    if [ "$rc" != "0" ]; then
+      printf 'FAILED (rc %s): %s\n' "$rc" "$label"
+      fails=$((fails+1))
     fi
   done
-  [ "$rc_all" -eq 0 ] || exit "$rc_all"
-  echo "OK: all playbooks pass --syntax-check (parallel, $NPAR at a time)"
-else
-  echo "SKIP: ansible-playbook not functional on this host (absent or native-Windows WinError 87) — syntax gate runs under WSL/CI"
-fi
+  [ "$fails" -eq 0 ] || { printf '\n%d of %d items FAILED:\n' "$fails" "$ran"
+    for i in "${!labels[@]}"; do
+      [ "${states[$i]}" = "run" ] || continue
+      [ "$(cat "$RUN/$i.rc" 2>/dev/null || echo 1)" != "0" ] && printf '  - %s\n' "${labels[$i]}"
+    done; exit 1; }
+  [ "$filt" -gt 0 ] && echo "($filt items filtered by --only)"
+  echo "OK: all validators passed"
+}
 
-echo "OK: all validators passed"
+# --------------------------------------------------------------------------- #
+# Blocks too big to be a single `item` line. They are the SAME commands that   #
+# used to sit inline; moving them here is what lets them run in the background. #
+# --------------------------------------------------------------------------- #
+
+# The HD-413 guard fixture and the playbook syntax loop each fan out over ansible
+# themselves. GATE_NPAR bounds that fan-out when the parent pool is smaller than the
+# box, so the two legs together stay inside the core count.
+blk_guard_fixture() {
+  bash scripts/testdata/self-converge-guard/run.sh
+}
+
+blk_ansible_syntax() {
+  # HD-256: like ansible-run.sh, export ANSIBLE_CONFIG + ANSIBLE_ROLES_PATH so the
+  # role path resolves when running from the repo root on the Debian/WSL primary
+  # (otherwise ansible finds no config here and every `roles: - xxx` fails to resolve).
+  # Kept INSIDE this item: the other items must not inherit an Ansible environment they
+  # never asked for.
+  local REPO_ROOT; REPO_ROOT="$(pwd)"
+  export ANSIBLE_CONFIG="$REPO_ROOT/IaC/ansible/ansible.cfg"
+  export ANSIBLE_ROLES_PATH="$REPO_ROOT/IaC/ansible/roles"
+  if command -v ansible-playbook >/dev/null 2>&1 && ansible-playbook --version >/dev/null 2>&1; then
+    # Measured on the 8-core runner: serial 8.4 s, concurrent 3.0 s, and per playbook
+    # 0.37-1.5 s of which ~95 % is ansible-playbook interpreter startup — there is no
+    # work here to optimise, only waiting. Syntax-checking is read-only and every
+    # playbook gets its own stderr/rc file, so the duplicate-key witness below still sees
+    # exactly what ansible printed for each playbook, and one playbook cannot affect another's rc.
+    local SC_DIR; SC_DIR="$(mktemp -d)"; trap 'rm -rf "$SC_DIR"' EXIT
+    local names=() files=() i=0 pb n rc_all=0 rc
+    for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
+      n="pb$i"
+      ( ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check \
+          >/dev/null 2>"$SC_DIR/$n.err"; echo "$?" > "$SC_DIR/$n.rc" ) &
+      names+=("$n"); files+=("$pb"); i=$((i+1))
+      while [ "$(jobs -rp | wc -l)" -ge "$GATE_NPAR" ]; do sleep 0.05; done
+    done
+    wait
+    # HD-1098: ansible's own parser is the second witness for duplicate mapping keys. It
+    # prints `Found duplicate mapping key … Using last defined value only.` on stderr and
+    # carries on, so the warning has to be caught here or the FIRST definition stays dead.
+    for j in "${!names[@]}"; do
+      n="${names[$j]}"; pb="${files[$j]}"; rc=0
+      [ -f "$SC_DIR/$n.rc" ] && rc="$(cat "$SC_DIR/$n.rc")" || rc=1
+      if grep -q "Found duplicate mapping key" "$SC_DIR/$n.err" 2>/dev/null; then
+        echo "FAIL: ansible reported a duplicate mapping key while parsing $pb — it keeps the LAST"
+        echo "      definition and drops the first, so the earlier one is dead (HD-1098):"
+        grep -A3 "Found duplicate mapping key" "$SC_DIR/$n.err" | sed 's/^/  /'
+        exit 1
+      fi
+      if [ "$rc" -ne 0 ]; then
+        # unchanged HD-197 semantics: a real syntax failure still fails this item (the
+        # duplicate-key leg above must not have turned this loop into a warning collector)
+        echo "FAIL: ansible-playbook --syntax-check failed for $pb (rc $rc)" >&2
+        cat "$SC_DIR/$n.err" >&2
+        rc_all="$rc"
+      fi
+    done
+    [ "$rc_all" -eq 0 ] || exit "$rc_all"
+    echo "OK: all playbooks pass --syntax-check (parallel, $GATE_NPAR at a time)"
+  else
+    echo "SKIP: ansible-playbook not functional on this host (absent or native-Windows WinError 87) — syntax gate runs under WSL/CI"
+  fi
+}
+
+# Portability sweep, HD-256. Split into its two halves so they overlap: both used to
+# sit in one serial block. bash -n is a no-op on hosts without bash (Windows); the
+# py_compile half deliberately uses python3, not $PY — the claim is about python3.
+blk_bash_n_sweep() {
+  if command -v bash >/dev/null 2>&1; then
+    local f bash_fail=0
+    for f in scripts/*.sh scripts/testdata/check-vault-items/run.sh \
+             scripts/testdata/self-converge-guard/run.sh; do
+      [ -f "$f" ] || continue
+      case "$(head -n1 "$f")" in
+        *bash|*sh)
+          bash -n "$f" >/dev/null 2>&1 || { echo "bash -n FAIL: $f" >&2; bash_fail=$((bash_fail+1)); }
+          ;;
+      esac
+    done
+    [ "$bash_fail" -eq 0 ] || exit 1
+    echo "OK: all bash/sh scripts pass bash -n"
+  else
+    echo "SKIP: bash not on PATH — bash -n sweep runs under WSL/CI"
+  fi
+}
+
+blk_py_compile_sweep() {
+  if command -v python3 >/dev/null 2>&1; then
+    local f py_fail=0
+    for f in scripts/*.py; do
+      [ -f "$f" ] || continue
+      python3 -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL: $f" >&2; py_fail=$((py_fail+1)); }
+    done
+    [ "$py_fail" -eq 0 ] || exit 1
+    echo "OK: all scripts/*.py compile under python3"
+  else
+    echo "SKIP: python3 not on PATH — py_compile sweep skipped"
+  fi
+}
+
+# The seat/host-state gates: each SKIPs where the thing it checks is absent, so a
+# stateless runner is never broken by them (and a SKIP is printed, never counted green).
+blk_skills_drift() {
+  if [ -d "$HOME/.pi/agent/skills" ]; then
+    bash scripts/sync-skills.sh --check --strict
+  else
+    echo "SKIP: no ~/.pi/agent/skills on this host (bare CI / non-pi laptop) — skill gate runs where pi is configured"
+  fi
+}
+
+blk_extensions_check() {
+  if [ -d "$HOME/.pi/agent/extensions" ]; then
+    bash scripts/sync-extensions.sh --check --strict
+  else
+    echo "SKIP: no ~/.pi/agent/extensions on this host — extension gate runs where pi is configured (deploy: sync-extensions.sh --push)"
+  fi
+}
+
+blk_tmux_check() {
+  if [ -f "$HOME/.tmux.conf" ]; then
+    bash scripts/install-tmux-conf.sh --check --strict
+  else
+    echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
+  fi
+}
+
+# rc 2 = no pi binary here = SKIP, printed and never counted green (CONVENTIONS: a SKIP
+# is not a pass). BEHIND and AHEAD are both drift — a seat ahead of its pin is the shape
+# every file plane misses.
+blk_pi_self_check() {
+  local rc_piself=0
+  bash scripts/pi-self-update.sh --check --strict || rc_piself=$?
+  case "$rc_piself" in
+    0) echo "OK: the pi build on this host equals pi_host_npm_version" ;;
+    2) echo "SKIP: no pi binary on this host — the pi-self plane runs where pi is installed (pi-seat-sync.sh --push)" ;;
+    *) echo "FAIL: the pi build drifts from pi_host_npm_version — run: bash scripts/pi-self-update.sh --push"; exit 1 ;;
+  esac
+}
+
+blk_pi_settings_check() {
+  if [ -f "$HOME/.pi/agent/settings.json" ]; then
+    bash scripts/pi-settings-config.sh --check --strict
+  else
+    echo "SKIP: no ~/.pi/agent/settings.json on this host — the settings plane runs where pi is configured (deploy: pi-seat-sync.sh --push)"
+  fi
+}
+
+blk_pi_tui_check() {
+  if [ -f "$HOME/.pi/agent/open-tui.json" ]; then
+    bash scripts/pi-tui-config.sh --check --strict
+  else
+    echo "SKIP: no ~/.pi/agent/open-tui.json on this host — the TUI footer gate runs where pi-open-tui is installed"
+  fi
+}
+
+# The font plane is the one item that is allowed to be red without failing the gate, and
+# that is deliberate (the Windows leg is scripts/win/install-nerd-font.ps1). It is printed
+# as a NOTE so a green run still says which plane it did not prove.
+blk_font_check() {
+  if [ -d "${NERD_FONT_DIR:-$HOME/.local/share/fonts}" ] || command -v fc-list >/dev/null 2>&1; then
+    NERD_FONT_DIR="${NERD_FONT_DIR:-$HOME/.local/share/fonts}"/JetBrainsMono-Nerd-Font \
+      bash scripts/install-nerd-font.sh --check --strict \
+      || echo "NOTE: the font plane is not green on this host — on the Windows seat the leg that matters is scripts/win/install-nerd-font.ps1"
+  else
+    echo "SKIP: no user font dir / no fontconfig here — the font plane runs where the TUI's glyphs are drawn"
+  fi
+}
+
+# --------------------------------------------------------------------------- #
+# The queue. Longest items FIRST — the pool launches in this order, so putting #
+# the multi-second items here is the scheduling, not a priority system.        #
+# --------------------------------------------------------------------------- #
+
+# The two ansible legs (each fans out internally).
+item_blk "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" blk_guard_fixture
+item_blk "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
+
+# The corpus walkers.
+item "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/check_secrets.py
+item "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/check_secrets.py --self-test
+item "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/check_yaml_dup_keys.py
+item "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" $PY scripts/check_yaml_dup_keys.py --self-test
+item "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" $PY scripts/check_zone_kogler_si_parity.py
+item "check_zone_kogler_si_parity.py --self-test" $PY scripts/check_zone_kogler_si_parity.py --self-test
+item "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/check_dns_seed_drift.py
+item "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/check_self_converge_guard.py
+item "validate-docker-services.py" $PY scripts/validate-docker-services.py
+item "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/spark-llm-render-matrix.py
+item "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/check_doc_path_refs.py
+item "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/check_doc_path_refs.py --self-test
+item "validate_doc_templates.py" $PY scripts/validate_doc_templates.py
+item "check_vault_name.py" $PY scripts/check_vault_name.py
+item "check_placeholders.py" $PY scripts/check_placeholders.py
+item "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
+item "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
+
+# Seat planes — self-tests run everywhere (sandboxed), the --check half SKIPs per host.
+item "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/install-nerd-font.sh --self-test
+item "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" bash scripts/pi-settings-config.sh --self-test
+item "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" bash scripts/pi-tui-config.sh --self-test
+item "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/pi-seat-sync.sh --self-test
+item "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/pi-self-update.sh --self-test
+item "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/install-tmux-conf.sh --self-test
+item "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
+item "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
+item "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
+item "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
+item "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
+item "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
+item "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" bash scripts/sync-extensions.sh --self-test
+item "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
+
+# Everything else — cheap, but they add up, so they are in the pool too.
+item "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" bash scripts/guard-session.sh --self-test
+item "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/guarded-converge.sh --self-test
+item "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" bash scripts/git-bootstrap.sh --self-test
+item "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" bash scripts/testdata/check-vault-items/run.sh
+item "validate_blueprints.py" $PY scripts/validate_blueprints.py
+item "check_doc_ips.py" $PY scripts/check_doc_ips.py
+item "check_traefik_host_rules.py" $PY scripts/check_traefik_host_rules.py
+item "validate-secrets.py" $PY scripts/validate-secrets.py
+item "check_doc_map.py" $PY scripts/check_doc_map.py
+item "check_generated_suffix.py" $PY scripts/check_generated_suffix.py
+item "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/check_ledger_state.py
+item "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/check_runbook_purity.py
+item "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/check_vault_docs.py
+item "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/check_todo_done.py
+item "check_todo_done.py --self-test (marker grammar: glyphs or UPPERCASE words, never prose)" $PY scripts/check_todo_done.py --self-test
+item "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/check_merge_markers.py
+item "check_merge_markers.py --self-test (HD-453 canary)" $PY scripts/check_merge_markers.py --self-test
+item "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $PY scripts/check_md_tables.py
+item "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/check_md_tables.py --self-test
+item "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/check_iac_backend_strings.py
+item "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/check_iac_backend_strings.py --self-test
+item "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/check_spark_llm_gate.py
+item "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/knx-hass-gen.py --self-test
+item "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/laptop-llm.py gate --self-test
+item "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/laptop-llm.py probe-client
+item "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY spark/bench/gate7-read.py --self-test
+
+# --------------------------------------------------------------------------- #
+# Drain and report.                                                           #
+# --------------------------------------------------------------------------- #
+if [ "$LIST" = 1 ]; then
+  for i in "${!labels[@]}"; do printf '%2d  %s\n' "$i" "${labels[$i]}"; done
+  exit 0
+fi
+wait
+_report
