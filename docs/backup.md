@@ -498,8 +498,15 @@ Expected, not drift: `pg_roles` goes **15 → 17** because PG 18 adds two defaul
 `pg_maintain`), and an anonymous volume appears at `/var/lib/postgresql` because the image declares it. Verify the
 leg with `pg_controldata /var/lib/postgresql/data` (the directory argument is required — without it the command
 prints nothing useful), `datcollate=en_US.utf8`, pre/post table counts, and a `pg_dump --list` TOC count that
-matches the pre-migration dump. The litellm leg closed 2026-10-08 on `18.6-alpine`: 83 tables, 189
-`_prisma_migrations` rows, 9 tokens, TOC 457 in and 457 out, app readiness `{"db":"connected"}`.
+matches the pre-migration dump. Both authorized legs closed 2026-10-08 on `18.6-alpine` - litellm: 83 tables, 189
+`_prisma_migrations` rows, TOC 457 in / 457 out, readiness `{"db":"connected"}`; authentik (fleet SSO): 230
+tables, 827 indexes, 60 sequences, `core_user`=5 / `core_group`=4 / `core_token`=2 identical before and after,
+live `200`, login flow `200`, worker error-free with tasks completing.
+
+The acceptance read that actually works is `pg_controldata -D /var/lib/postgresql/data` ->
+`pg_control version number: 1800`. Grep it case-insensitively: the neighbouring line says `Catalog version
+number`, so `grep "catalog version"` matches nothing and a green cluster then looks like a failed one (it cost
+me a false alarm on this leg).
 **Sequencing by blast radius:** `litellm-db` → `onlyoffice-postgres` (+ the RabbitMQ 3.13 → 4.3
 question in the same window, while ONLYOFFICE is already down) → `forgejo-db` → `zipline-db` →
 `lan-litellm-db` on oldsrv → **`authentik-postgres` last**, because it is the fleet's SSO and every
