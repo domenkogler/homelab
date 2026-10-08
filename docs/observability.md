@@ -244,6 +244,23 @@ update, or queries keep 401-ing despite correct rendered files.
   rules (`victoria-*-down`, `wg-s2s-down`) keep `Alerting`. Anything whose series may legitimately be
   absent (UPS metrics while healthy, `probe_ssl_earliest_cert_expiry` — blackbox does not emit SSL expiry,
   SNMP interfaces before SNMP ships) must be set explicitly, not left at the default.
+- **⚠ A filtered-empty result is the SAME `NoData` state as no-series — measured 2026-10-08.** Grafana
+  cannot tell "the query matched nothing because the condition is false" from "the series does not exist",
+  so `expr: <something> > 900` **under `noDataState: Alerting` fires while everything is healthy**: the
+  comparison deletes every series on a good evaluation. Two rules follow from the shape, and both are
+  required for a staleness alert:
+  1. **Keep the comparison in the threshold expression, not in the PromQL.** A must return a value on a
+     healthy evaluation; the `gt`/`lt` lives in `data` B (`eval_type` / `eval_params` in
+     `roles/monitoring/vars/main.yml`). That is what `spark-host-mem-oom-critical` does — same tier, same
+     `noDataState: Alerting`, reads `Normal`.
+  2. **A plain selector cannot age.** The 5-min staleness horizon drops the last sample *before* a
+     900-second threshold becomes reachable, so a dead exporter can only reach the rule as NoData — it
+     pages without naming a host, and goes blind entirely once the host leaves the database. Wrap the
+     metric in a range window (`max_over_time(<metric>[6h])`) so a silent series keeps evaluating.
+  Victim: `hygiene-collector-stale`, which fired continuously for ~19 h on a 5/5-healthy fleet while the
+  other 24 rules correctly read `Normal (NoData)`. The read that shows it in one line:
+  `GET /api/prometheus/grafana/api/v1/alerts` — every entry prints its reason, `Alerting (NoData)` versus
+  `Normal (NoData)` versus a real `Normal`.
 - **Alert rules must match the live backend.** After a backend migration, orphan rules survive in the live
   Grafana DB (provenance = file, but absent from the rendered rules file). Delete orphans after any
   backend change — a stale `prometheus-down` rule alerts about a component that no longer exists.
@@ -384,13 +401,27 @@ scheduled renewal, which is how an alert class gets muted. Shipped: **WARN 14 d 
 `pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
 
 **The fleet leg landed 2026-10-08** (`nas` + the VPS monitoring converge, both `failed=0`), so the exporter
-now runs on `oldsrv · pi · nas · vps` and `homelab_hygiene_scrape_ok` is in VictoriaMetrics for all four
-(`count by (instance) (homelab_hygiene_scrape_ok)` → 1 each). `spark` is the one remaining leg — it is the
-converge every spark lane is told not to run unattended, so the rule there evaluates nothing until a
-spark-slot session converges `monitoring`. The five rules are in Grafana: of 24 rules loaded, **5 reference
-`homelab_*`** — `cert-pair-missing` (CRIT, 5 m), `cert-age-critical` (`< 7 d`, CRIT, 10 m),
-`hygiene-collector-stale` (CRIT, 15 m), `unit-last-result-failed` (WARN, 5 m), `cert-age-warning`
-(`< 14 d`, WARN, 30 m).
+now runs on `oldsrv · pi · nas · vps`, and `spark` joined the same day: `count by (instance)
+(homelab_hygiene_scrape_ok)` → **1 for each of the five**, heartbeats 12–51 s old. The five rules are in
+Grafana: of 24 rules loaded, **5 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
+`cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
+(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m).
+
+**`hygiene-collector-stale` shipped broken and paged for 19 h on a healthy fleet (2026-10-08).** The
+expression was `time() - homelab_hygiene_scrape_ok > 900` with `for: 15m` and `noDataState: Alerting`, and
+it was wrong in both directions at once: **healthy** → the filter removes all five series → NoData →
+Alerting, so it fired from the moment the rules loaded (`activeAt 2026-10-08T01:13 CEST`, never moved) and
+re-poked the family group every 30 min; **broken** → the plain selector drops a dead collector's heartbeat
+at the 5-min staleness horizon, ten minutes before 900 s is reachable, so the only path to firing was
+NoData, which carries no `instance=` and could not say which host had gone blind. `Value: [no value]` in
+the Signal card was the tell. Live proof, one read each: the rule's own query through the datasource proxy
+returns `result: []` while `homelab_hygiene_scrape_ok` is 12–51 s fresh on all five hosts, and
+`/api/prometheus/grafana/api/v1/alerts` lists it as `Alerting (NoData)` against `Normal (NoData)` for the
+other 23. Fixed to the shape the general rule in §Alerting demands — unfiltered A
+(`time() - max_over_time(homelab_hygiene_scrape_ok[6h])`) + `gt [900]` in B, `for: 5m`, noData=Alerting
+kept — which verified live at 20:01 CEST as **five series of 12–51 s** (so: Normal when fresh, per-host
+`instance=` at ~20 min of silence, and NoData only if no host has collected in 6 h).
+⏳ **The corrected expression is not live until `monitoring` converges on the VPS.**
 
 **Three reads answer, and two confidently lie** (all measured the same night, so the next session does not
 re-derive them):
