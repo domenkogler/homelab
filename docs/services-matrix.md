@@ -58,7 +58,7 @@ tags: [services, matrix, chat, messaging]
 > registration (MSC2966), and simplified sliding sync (`org.matrix.simplified_msc3575`). What *is*
 > old is the pinned client build: `group_vars/all/versions.yml` pins
 > `element_web_version: "v1.11.96"`, while upstream Element Web is on the 1.12 line, which has had
-✅ **Shipped 2026-09-26: `element_web_version` went `v1.11.96` → `v1.12.29`**, so the browser
+✅ **Shipped 2026-09-26: `element_web_version` went `v1.11.96` → `v1.12.29`; `element_web_version` is `v1.12.30` since 2026-10-08 ⏳ (same 1.12 OIDC line, no config change)**, so the browser
 > client now speaks the same generation as the homeserver. Live proof: the `chat` container runs
 > `ghcr.io/element-hq/element-web:v1.12.29` (healthy) and `https://chat.kogler.si/version` answers
 > `1.12.29`; the converge was scoped with `docker_services_scope=chat` (`ok=31 changed=2

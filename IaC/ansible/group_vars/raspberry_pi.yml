@@ -13,11 +13,10 @@
 # this var alone carries a converge, measured 2026-09-19).
 ansible_ssh_common_args: "-o ProxyJump=vps"
 
-# HA container pin (HD-192): semver replaces the `stable` mutable alias — primary +
-# standby MUST run the same version for clean manual failover (HD-39 rationale).
-# Tag scheme is calver; REGISTRY-VERIFY at first deploy (GHCR tag list truncated on
-# the 2026-08-21 probe), then Renovate keeps it current.
-home_assistant_version: "2026.8.1"
+# HA container pin (HD-192): semver replaced the `stable` mutable alias — primary + standby
+# MUST run the same version for clean manual failover (HD-39 rationale). The pin itself lives in
+# `group_vars/all/versions.yml` (§7 one-place rule, 2026-10-08: this file used to carry a second
+# copy of it, which is how a primary/standby pair drifts). Tag scheme is calver.
 home_assistant_install_method: docker   # 'docker' or 'supervised' — use docker for keepalived/VIP
 # The Pi also runs a minimal VIP-bound edge (`traefik-ha`) that keeps ha.kogler.si
 # reachable when oldsrv is down — see docs/smart-home-failover.md.

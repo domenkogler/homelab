@@ -78,7 +78,7 @@ services:
       - forgejo-db
 
   forgejo-db:
-    image: postgres:16-alpine
+    image: postgres:{{ forgejo_db_version }}
     cap_drop:
       - ALL
     cap_add:

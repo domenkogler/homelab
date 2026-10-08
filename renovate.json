@@ -11,6 +11,14 @@
     {
       "matchManagers": ["ansible-galaxy", "pip_requirements"],
       "stabilityDays": 3
+    },
+    {
+      "matchManagers": ["npm"],
+      "stabilityDays": 3,
+      "description": "The one npm-managed pin in the repo is the pi stack in group_vars/all/versions.yml (pi_host_*/pi_dev_*/pi_web_*) — it is an APPLICATION version, not a Docker base image, so §7's stabilityDays argument applies verbatim. `pi_host_web_npm_version` is exempt: the pi-web cockpit self-updates inside @beta from the phone, so pinning that string would break its own update path (HD-484)."
     }
-  ]
+  ],
+  "fileMatch": {
+    "jsonnet": ["**/*.jsonnet", "**/*.libsonnet"]
+  }
 }

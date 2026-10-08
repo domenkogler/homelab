@@ -134,12 +134,13 @@ monitoring_hygiene_certs:
   - consumer: traefik-internal
     path: "/opt/traefik-internal/certs/{{ wildcard_cert_file }}"
 
-# HD-450 (found while deploying the hygiene exporter, 2026-10-07): the fleet pin is `alloy=1.19.2-1`
-# (`group_vars/all/versions.yml`) while THIS box had moved to 1.20.1-1 on its own — so the monitoring
-# role's install task asked apt for the pinned older version, apt answered "Packages were downgraded
-# and -y was used without --allow-downgrades", and EVERY converge that touched the monitoring role
-# failed here on that one task (reproduced: rc 100 at `Install Alloy package`). Correcting the pin for
-# the host that is actually ahead is the truth-sync; downgrading a working collector to match a file is
-# not. The fleet-wide question (bring spark / vps / nas / pi to 1.20.1 as well, or hold them) is a
-# separate owner call and is registered as HD-1094 — do not fold it in here.
-alloy_version: "1.20.1-1"
+# HD-450 (found while deploying the hygiene exporter, 2026-10-07) / HD-1094 (2026-10-08):
+# this box had moved to alloy 1.20.1-1 on its own while the fleet pin was `1.19.2-1`, so the
+# monitoring role's install task asked apt for the OLDER version and every converge that touched
+# the role failed here on "Packages were downgraded and -y was used without --allow-downgrades"
+# (reproduced: rc 100 at `Install Alloy package`). Correcting the pin for the host that is
+# actually ahead was the truth-sync; downgrading a working collector to match a file is not.
+# CLOSED 2026-10-08: the fleet pin in `group_vars/all/versions.yml` is now `1.20.1-1` and this
+# host-level override is DELETED (not set to null — host_vars outrank group_vars, so even a null
+# override would win and render `apt: name=alloy=` in roles/monitoring). The drift is now gone in
+# BOTH directions: a future 1.21 raises one pin instead of leaving this box ahead of the file.

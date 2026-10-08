@@ -19,7 +19,7 @@
 #     opencloud_db      (Database — reserved for future Postgres migration)
 services:
   opencloud:
-    image: opencloudeu/opencloud-rolling:{{ opencloud_version | default('7.4.0') }}
+    image: opencloudeu/opencloud-rolling:{{ opencloud_version }}
     cap_drop:
       - ALL
     read_only: true
