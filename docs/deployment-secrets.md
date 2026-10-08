@@ -689,6 +689,14 @@ traps, all measured, recorded so the next session does not rediscover them:
   would otherwise restore it on a rebuild: `scripts/git-bootstrap.sh --ssh-auth` and the repo template
   `scripts/git/gitconfig-nightly`. Everything else on this page stays true as the record of HOW
   signing worked and what to change if a key is ever registered again.
+  ⚠ **A DEBIAN seat has neither of those files.** `~/.gitconfig-github` is the Windows seat's
+  `includeIf` file and `~/.gitconfig-nightly` is only installed there by `git-bootstrap-win11.sh
+  --git-identity`, so on oldsrv (and any bare Debian seat) the ONLY git config is `~/.gitconfig`, and
+  leaving it at `gpgsign = true` keeps the hang while every repo-side path reads green. Converged on
+  oldsrv 2026-10-08 that way — `commit.gpgsign=false` + a `[tag]` section, backup kept as
+  `~/.gitconfig.pre-signing-*`, the key-file entries left standing so old commits still verify — proven
+  by the acceptance form above: a commit under a `github.com` remote from a bare `env -i` shell returned
+  in 4 ms with `%G?` = `N`.
 * **The repo's own `.git/config` outranks every global file** and pinned `user.signingkey` to the
   public-key string, so the file alone was not enough — `--git-identity` rewrites the local pin to the
   key path (it was `git-bootstrap.sh` that wrote the string form in the first place).
