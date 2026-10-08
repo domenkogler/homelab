@@ -79,17 +79,18 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    `cloudflare_dns_records`). Re-renders live edge routing → owner-present. ⚠ **The blocker that was mechanical is gone**: the
    seat drives the RouterOS API now (HD-495, 2026-10-08 — `librouteros` + the interpreter pinned for the `network` group; router
    and switch both read 7.24.4), so what remains is the owner window, not the tooling. → [prompt-436.md](prompt-436.md)
-4. ⏳ **HD-450** — the silent-failure rules are **live**: the VPS + nas monitoring converges landed 2026-10-08 (`failed=0`),
-   the five `homelab_*` rules read back through the Grafana ruler API and the exporter answers on **all five** hosts (`spark`
-   joined 2026-10-08, heartbeats 12–51 s). What is owed is now four things, not a probe: **(1)** the end-to-end Signal
-   acceptance read — **parked by the owner 2026-10-08** because a deliberate failure pages the family group, so it runs with
-   them awake (command in the row); **(2)** ⏳ **a VPS `monitoring` converge (detached)** to load the corrected
-   `hygiene-collector-stale` expression — the version live in Grafana right now pages the family every 30 min **while every
-   collector is healthy** (~19 h on 2026-10-08: a filtered-empty result and a missing series are the same NoData state, so
-   `noDataState: Alerting` + `> 900` inside the PromQL fires on green; the fix moves the comparison to the threshold and ages
-   the metric through `max_over_time[6h]` — shape and proof in the doc), and until that converge the alert is noise, not a
-   signal; **(3)** leg (c), the NUT client→master **metric**, untouched — unit results are not
-   "this client can reach the master"; **(4)** export the VPS **box** cert (acme.sh) — it has no series at all, so no rule can
+4. ✅→⏳ **HD-450** — the silent-failure rules are **live and now honest**: the VPS + nas monitoring converges landed
+   2026-10-08 (`failed=0`) and the **corrected** `hygiene-collector-stale` expression went live with the VPS monitoring
+   converge at **22:13 CEST** — the five `homelab_*` rules read back through the Grafana ruler API, the exporter answers on
+   **all five** hosts (`spark` joined 2026-10-08, heartbeats 12–51 s), and the rule that paged the family every 30 min for
+   ~19 h **on a healthy fleet** now enumerates five per-host `Normal` series instead of one valueless `Alerting (NoData)`
+   (shape and proof in the doc: a filtered-empty result and a missing series are the same NoData state; the fix keeps the
+   comparison in the threshold and ages the metric through `max_over_time[6h]`). What is owed is now three things:
+   **(1)** the end-to-end Signal acceptance read — **un-parked by the owner 2026-10-08**: the "Homelab Alerts" group's only
+   human is the operator, so a canary pages nobody else and it may run unattended (`systemd-run --wait
+   --unit=hd450-canary.service /bin/false` on any monitoring host, wait one `unit-last-result-failed` interval, read the
+   Signal group, `systemctl reset-failed hd450-canary.service`); **(2)** leg (c), the NUT client→master **metric**, untouched — unit results are not
+   "this client can reach the master"; **(3)** export the VPS **box** cert (acme.sh) — it has no series at all, so no rule can
    exist for it yet (measured at the `__name__` level; the trap of writing a rule against an imagined metric is in the doc).
    → [docs/observability.md](docs/observability.md) §Silent-failure hygiene, §Alerting
 5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 442–444 · 465 — the 442–444
