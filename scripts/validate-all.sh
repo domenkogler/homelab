@@ -489,7 +489,7 @@ else
   echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
 fi
 
-echo "== pi-self-update.sh / pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1110, HD-1114: the seat planes) =="
+echo "== pi-self-update.sh / pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1110, HD-1115: the seat planes) =="
 # Four gates, one per plane the seat-sync driver fans out to, so the driver can never report
 # OK on a plane nothing ever validated. Each self-test runs EVERYWHERE (they are sandboxed in
 # a temp dir and need no seat); the --check half is guarded to SKIP where the target does not

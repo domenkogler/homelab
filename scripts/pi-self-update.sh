@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # pi-self-update.sh — the pi BUILD each seat runs is a pinned artifact, and this
-#                     script is what keeps the running binary equal to the pin.  (HD-1114)
+#                     script is what keeps the running binary equal to the pin.  (HD-1115)
 #
 # WHY THIS IS A PLANE AND NOT A SENTENCE
 # --------------------------------------

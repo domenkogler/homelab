@@ -2164,7 +2164,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    cd /home/domen/source/homelab && git pull --ff-only
    bash scripts/pi-seat-sync.sh --check          # read-only seat x plane matrix
    bash scripts/pi-seat-sync.sh --push           # or the planes one at a time:
-   #   scripts/pi-self-update.sh --push     the pi build itself -> pi_host_npm_version (HD-1114): Volta on the
+   #   scripts/pi-self-update.sh --push     the pi build itself -> pi_host_npm_version (HD-1115): Volta on the
    #                                      Windows seat, npm at $PI_NODE_PREFIX on the Debian seats, then the
    #                                      binary is RE-PROBED. BEHIND and AHEAD are both drift.
    #   scripts/sync-skills.sh --push          skills/                       -> ~/.pi/agent/skills/
