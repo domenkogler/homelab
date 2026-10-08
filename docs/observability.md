@@ -202,7 +202,7 @@ update, or queries keep 401-ing despite correct rendered files.
 | Logs | Alloy → VictoriaLogs | VictoriaLogs (90d, Kopia) |
 | RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) (HD-313) |
 | Live logs (ops day-to-day tail) | Dozzle viewers — VPS `logs.kogler.si` (tailnet) + home hub `llogs.kogler.si` (LAN, oldsrv, pi/spark agents) | ephemeral — nothing persisted |
-| Alerts | Grafana Alerting → n8n → Signal/email | alert delivery |
+| Alerts | Grafana Alerting → n8n → Matrix (target) / Signal / email | alert delivery — **channel ruled 2026-10-08: Matrix/Element becomes the delivery surface (HD-1108)** |
 | Display | Grafana + Homepage | — |
 
 ---
@@ -218,6 +218,16 @@ update, or queries keep 401-ing despite correct rendered files.
   **inline** (see [hardware-ups.md](hardware-ups.md)).
   - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress** — verified live — so **2525 is the SSOT port**, not 587).
 - **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. **Recipient value (owner confirmed 2026-09-21, HD-347): alerts go to the WHOLE group, and `signal_alert_recipients` takes the group ID that signal-cli reports** (read it from the linked daemon on oldsrv, read-only) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. ✅ **LIVE 2026-09-28:** the ID is in `group_vars/all/main.yml` (`group.NVZ6Y21…`, read off `GET 127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` → `.id` on oldsrv) and delivery was **proven end to end**: n8n executed the alerting + resolved legs, the gateway logged two `POST /v2/send` → **201**, and signal-cli returned a **delivery receipt**. Two mutes had to be removed first — both are in §Alert delivery below, and both had made a dead leg look healthy. An `invite_link` is not a recipient, and the ID is still only readable from the linked daemon (never reconstructed from a message-store backup, which would mean reading private messages).
+- **Matrix is the target channel (owner ruling 2026-10-08, HD-1108).** Two facts made it a decision, not a
+  preference: the `signal-cli-rest-api` daemon is **linked to the operator's personal number** and the
+  "Homelab Alerts" group's **only human member is the operator** — so nothing in this fleet pages anyone
+  else — and the operator reads **Element**, not Signal, so a Signal-only alert is an alert with no reader.
+  Shape: the same Grafana → n8n chain posts to a dedicated **`#homelab-alerts` room** on the live Tuwunel
+  (a dedicated alert user, not the operator's own account; token in the `Homelab-ansible` vault per §6, never
+  a literal), the **Grafana-native SMTP contact point keeps running in parallel** as the "n8n/Matrix is down"
+  fail-safe, and only then does Signal demote to a documented fallback or come out. ⛔ Delivery is proven by
+  **the room's event**, never by the workflow's `200` — that exact mistake is why HD-347 stayed open (§Alert
+  delivery), and both `onError: continueRegularOutput` mutes have to stay removed on the new leg too.
 
 ### Operational gotchas (learned live — the rules that keep them from coming back)
 
@@ -432,9 +442,11 @@ re-derive them):
 | Did the series reach the backend? | Query **through the datasource proxy**: `…/api/datasources/proxy/uid/prometheus/api/v1/query?query=…`. | A direct `curl` to `victoria-metrics:8428` answers **400** even with correct basic auth (this VM build wants a request shape curl's `-G` does not produce) — a 400 there is NOT "no data", and a 401 is often just the absent `OP_SERVICE_ACCOUNT_TOKEN`, because the vault lookup then yields nothing. |
 | Is the exporter up on a host? | `curl -s 127.0.0.1:9098/metrics \| grep -c '^homelab_'` on that host (oldsrv: 9). | The unit being `active` — the collector can be up and its `systemctl show` loop empty. |
 
-**One acceptance is still open, deliberately:** force one listed unit to fail and see the message arrive in
-the Signal alert group. Parked by the owner on 2026-10-08 — an intentional alert pages the family group, and
-the night's work was unattended. To close it: `systemd-run --wait --unit=hd450-canary.service /bin/false`
+**One acceptance is still open:** force one listed unit to fail and see the message arrive in
+the alert channel. **Un-parked by the owner on 2026-10-08:** the group's only human member is the operator,
+so the canary pages nobody else and it **may run unattended** (the earlier park, same day, assumed a family
+audience that does not exist). Once HD-1108 lands the read moves from the Signal group to the
+`#homelab-alerts` room; the trigger does not change. To close it: `systemd-run --wait --unit=hd450-canary.service /bin/false`
 on any monitoring host, wait one rule interval (`unit-last-result-failed`, `for: 5m`), read the Signal
 group, then `systemctl reset-failed hd450-canary.service`. The canary shape itself is already proven
 off-box (the exporter's own `--self-test` fails it closed).

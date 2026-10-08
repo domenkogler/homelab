@@ -407,10 +407,20 @@ Cockpit is a host service (not a Docker container), so its routes are a Traefik
   `tailnet_ts_only_subdomains` (since `97d9fbf`) and the live headscale config carries the record — the earlier
   claim that the name was never published read a stale copy of that list. ⛔ It belongs in that list and **not**
   in `tailnet_subdomains`, which renders BOTH namespaces (the HD-382/389 ambiguity trap).
-  **Placement decided 2026-09-27 (owner):** the Cockpit surfaces stay pinned to **oldsrv's** node; the deciding
-  fact was the type of the 2026-09-23 outage — a human poweroff at the chassis button, not a lost leg
-  ([hardware-oldsrv.md](hardware-oldsrv.md) §Remote Management) — so the record stays rather than being
-  re-pointed at the Pi. Accepted cost: one node behind both doors.
+  **Placement ruled 2026-10-08 (owner): BOTH nodes serve the Cockpit tailnet surfaces — this supersedes the
+  2026-09-27 "pinned to oldsrv's node" ruling.** The reasoning that made the old one cheap — the 2026-09-23
+  outage was a human poweroff at the chassis button, not a lost leg
+  ([hardware-oldsrv.md](hardware-oldsrv.md) §Remote Management) — is still true, and it is exactly why it
+  was reversed: a console route that dies with a *healthy* box is the same class HD-435 already refused for
+  HA's tailnet answer. The acceptance becomes **the name answers with either box shut**, not "answers off
+  oldsrv".
+  ⚠ The load-bearing fact the old ruling rested on does **not** go away and must be solved, not ignored:
+  `pi-oldsrv.ts.kogler.si` (the pi-web seat) and `cockpit-nas.ts.kogler.si` are both served by **oldsrv's own
+  `websecure-ts` listener** — so the Pi leg needs its **own** tailnet listener + router on that box (never a
+  re-point of the seat's name), and the name publishes **`tailnet: dual`** through HD-436's mechanism, not a
+  `tailnet_subdomains` bolt-on (that renders both namespaces, the HD-382/389 trap).
+  ⏳ AI: deploy `cockpit.yml` on **both** edges — oldsrv's deployed file is the **2026-09-03** LAN-only render
+  and the Pi carries no cockpit router at all — then run the browser acceptance once per node.
   ⚠ **A published name and an `online` node are still not a route (measured 2026-09-27):** oldsrv's deployed
   `/opt/traefik/dynamic/cockpit.yml` is the **2026-09-03** render and carries only the two LAN `Host()` rules, so
   `Host: cockpit-nas.ts.kogler.si` against the tailnet listener answers **404** while headscale publishes that

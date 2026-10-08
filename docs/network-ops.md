@@ -96,6 +96,10 @@ wrong with the network.)* Away from home, router/switch work is **deferred, not 
 
 ### IPv6 on the RB4011 — measured facts, the outside-in probe, the rollback (HD-414, 2026-09-22)
 
+> ⏸ **Deferred by the owner 2026-10-08** — the VPS-side v6 publish (HD-460) and the family-agnostic accept
+> parity verdict (HD-448) are both parked, **including** the `meta nfproto ipv4` scoping half: nothing is
+> authorized here, so no session narrows the rule set "as a safety improvement" while the question is parked.
+
 Plan of record (what is advertised, which VLANs, the filter's rule order, the invariants):
 **[network-vlans.md](network-vlans.md) §IPv6.** This section is the *operating* half: how to measure it, how to
 prove it is actually filtering, and how to put it back.

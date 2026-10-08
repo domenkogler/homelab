@@ -738,7 +738,10 @@ The **coding plane** (IaC/Ansible, C#, React/Vue, homelab epics) is a **separate
 research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from the laptop.
 
 - **Memory = agent-memory.dev, per project (the wording of this rule is under an open owner call — see the
-  2026-09-21 probe note below).** One instance per project (project = 1+ repos), records tagged
+  2026-09-21 probe note below).** ⏸ **Deferred 2026-10-08 (owner): the blueprint stays parked** — nothing
+  installed, no plane chosen, no row minted; the OQ-12/OQ-13 answers stand as recorded in [../todo.md](../todo.md)
+  §1, OQ-14 stays unanswered, and no AI work waits on any of them (the durable negative also stands: LLM memory
+  compression scored **R5 0/5** — it rewrites identifiers out of existence). One instance per project (project = 1+ repos), records tagged
   project+repo; **cross-project recall is opt-in, not default**. Data under `~/.agentmemory/<project>`,
   ports 3111+N, MCP = `@agentmemory/mcp`, consolidation LLM via a LiteLLM scoped key. **OpenViking is rejected
   outright** (2026-09-21, owner): both candidate roles are dead — the corpus index because its markdown index is
@@ -811,7 +814,9 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
   credentials on an internet-facing host is the largest attack-surface increase available). Supervised
   approvals; MCP → agentmemory.
 - **CrewAI** = long/epic homelab coding orchestration with mandatory human stop-points. Pilot starts only
-  when the homelab is finished; kill criterion = a 2-week vertical slice or abandon.
+  when the homelab is finished; kill criterion = a 2-week vertical slice or abandon. ✅ **Park reaffirmed
+  2026-10-08 (owner): not now** — no pilot, no spike, no compose; re-open trigger is one real multi-agent epic
+  that a single lane demonstrably mishandles (HD-491).
 
 ### 9b-1. Coding-seat surfaces on oldsrv — the placement decision (HD-409 pi-web, HD-411 Paseo)
 

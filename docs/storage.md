@@ -212,7 +212,10 @@ Three properties of this shape are deliberate, and each has a live lesson behind
   runs since 2026-09-03** while the timer looked `active` (HD-1092, closed by the retirement).
 - **Rotation needs one extra word.** A passdb write is a target-side act, so rotating the vault item
   changes nothing on the NAS by itself (CONVENTIONS §2 rotation propagation). Rotate the item, then
-  converge with `-e storage_samba_password_force=<name>`. Without that flag the password task only
+  converge with `-e storage_samba_password_force=<name>`.
+  ✅ **Rotated by the owner 2026-10-08** (`smb-domen_login` + `smb-shared_login`, both up to policy length),
+  so the vault is now **ahead of** the box: the remaining leg is pure AI — one `nas` converge with the flag
+  above, then read `pdbedit -L` back. Nothing waits on a human (HD-1093). Without that flag the password task only
   fires when the account is absent from `pdbedit -L`, which is what keeps a routine converge from
   resetting a member's password on every run.
 - ⚠ **`smbpasswd -a -s` exits 0 while writing nothing, and its stdin contract differs by case**

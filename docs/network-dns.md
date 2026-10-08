@@ -80,12 +80,20 @@ implementation. **This is the ruling; the rows do not restate it.**
 | 4 | **Guest** | **Same as Home** |
 | 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought |
 
-⚠ **Two consequences of ruling 1 the owner should keep in view** (accepted with the ruling, recorded so a
+> ✅ **2026-10-08 (owner): ruling 1 is SUPERSEDED — the Home/Guest tier carries NO block list.** The Hagezi
+> `multi` + `privacy` pair was never adopted, and the reason is operational, not philosophical: a tier that
+> answers the operator's own tailnet traffic is a tier where a false positive is self-inflicted, and the
+> enforcement the family actually needs (Kids) is an **upstream** (Cloudflare Families), not a list. Recorded
+> in [network-rejected.md](network-rejected.md). **The consequence inverts:** a tier with no list must read
+> `enableBlocking=false`, while all three instances today run `enableBlocking=true` with `blockListUrls=null`
+> — blocking switched on with nothing loaded, which is the silent-failure shape HD-480 exists to kill.
+>
+⚠ **Ruling 1's two consequences stay true as facts about topology even with the lists gone** (recorded so a
 later session does not "discover" them): (a) Home clients, **away clients and tailnet clients all resolve
-through the VPS primary** (`dns_primary_ip` is the VPS's public address), so Home block lists apply to the
-operator's own VPN traffic too; (b) acceptance is therefore per-**instance**, not per-VLAN — a list loaded
-on one of the three instances is a fleet policy with three failure modes (HD-483 is the drift-proofing half
-of exactly that).
+through the VPS primary** (`dns_primary_ip` is the VPS's public address), so whatever the Home tier loads
+applies to the operator's own VPN traffic too; (b) acceptance is therefore per-**instance**, not per-VLAN — a
+setting loaded on one of the three instances is a fleet policy with three failure modes (HD-483 is the
+drift-proofing half of exactly that).
 
 ⛔ **Acceptance is a device, not a `dig`** (HD-481): an unsupervised device on each path fails to resolve a
 filtered name while `kogler.si` still resolves. And because the Kids mechanism is an *upstream*, prove it by
@@ -226,8 +234,8 @@ self-heals), and asserts the file at the end.
 `ha_keepalived_interface` names). Two docs used to say "networkd renders and NM wins the race for
 `resolv.conf`" — wrong in the way that matters: there is no race, the netd path is inert, and the fix
 had to go through the installer's NM profile (`Wired connection 1`, written on disk **without** the
-`.nmconnection` suffix the Pi/spark keyfiles carry). The unfinished config-manager decision is
-**HD-487**; `netd_phys_name: eno1` and those dead unit files are its evidence, not this row's.
+`.nmconnection` suffix the Pi/spark keyfiles carry). The config-manager decision was **ruled 2026-10-08: one manager per box, NetworkManager fleet-wide**
+([network-rejected.md](network-rejected.md) 2026-10-08 row, **HD-487**); `netd_phys_name: eno1` and those dead unit files are its evidence, not this row's.
 
 **The Pi needed no nmcli leg, and that is a fact about the two boxes, not a shortcut.** oldsrv's uplink
 profile is installer-owned, so HD-484 had to read/modify/reapply it; the Pi's keyfile is rendered by
@@ -747,6 +755,11 @@ rendered into: the Technitium seed, the watched records JSON, the public Cloudfl
 listener's router list — with a validator that fails the build on the mismatch classes (see the table
 below), and an optional **generated** per-workstation alias file for unqualified names, so no hosts entry
 is ever typed again by hand.
+
+✅ **Ruled 2026-10-08 (owner): in an unattended window, only the dry-diff runs** — render both remaining
+consumers against `zone_kogler_si_render.py`, write the diff into the report as the artifact, converge
+nothing. The two converges stay owner-present (they re-render live edge routing), and HD-1083's
+routes→`*_url` half is deliberately **not** bundled with them.
 
 **Measured 2026-09-22, the drift those validators exist to catch** — every row is a bug found by
 comparing the four sources, none of which noticed:

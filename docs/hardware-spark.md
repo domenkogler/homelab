@@ -869,6 +869,9 @@ must implement when it lands:
   appending entrypoint+route pairs in the template). JupyterLab spawns **on demand** from the dashboard's
   JupyterLab panel — until a lab is Running, loopback:11002 has no listener and the route idles (the
   healthcheck stays on :11000 only). Once Running, browse to `http://spark.kogler.si:11002`.
+  ✅ **Frozen by the owner, reaffirmed 2026-10-08:** the accept step stays un-run **on purpose** — a 502 with
+  no lab running is the correct shape of an on-demand backend, not a defect. No session starts a lab here and
+  no session re-asks; the freeze lifts only on the owner's word (HD-366 keeps the record).
 - **GB10 bring-up reference:** [`martimramos/dgx-spark-ml-guide`](https://github.com/martimramos/dgx-spark-ml-guide) —
   PyTorch-nightly (sm_121), no ARM64 wheels, CPU/Python gotchas; run ML **container-native** (Docker
   isolates CUDA/Python — the guide's own recommended path).
