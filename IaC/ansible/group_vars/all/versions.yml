@@ -233,7 +233,13 @@ litellm_version: "v1.104.0"
 #   on the VPS — authentik-postgres + forgejo-db (`postgres:16-alpine`, the alias the templates
 #   hardcoded), litellm-db / onlyoffice-postgres / zipline-db (`16.15-alpine`), immich-postgres on
 #   its own composite `14-vectorchord…` tag. OLDSRV's only Postgres is `lan-litellm-db` (this var).
-litellm_db_version: "16.15-alpine"
+litellm_db_version: "18.6-alpine"   # ⚠ LEG RUN 2026-10-08 (HD-1100): the old cluster is preserved at
+                                  #   /srv/docker/litellm/postgres.16-20261008 on the VPS, with roles + data
+                                  #   dumped to /root/pg18/litellm-db/. Rollback = flip this back to
+                                  #   "16.15-alpine" AND move that directory back — the pin alone is not a
+                                  #   rollback, and an 18 image over a 16 datadir crash-loops instead of
+                                  #   failing at any gate. oldsrv's cluster keeps its OWN pin
+                                  #   (lan_litellm_db_version, 3 lines below) and stays at 16 this window.
 # The LAN inference gateway on OLDSRV runs its OWN cluster (measured 2026-10-08: it is a separate
 # container `lan-litellm-db`, 78 MB, and until now shared this var with the VPS cluster — so a pin
 # bump here would migrate both hosts at once, or neither. HD-1100 needs one host per window, so the
