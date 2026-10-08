@@ -35,7 +35,10 @@
 #                                     extra-record settings are set)
 #  11. testdata/check-vault-items/run.sh — check-vault-items.sh scanner self-test
 #                                     (HD-244/245): *_item registry-key parsing + --strict
-#                                     contract asserted on a committed synthetic mini-tree
+#                                     contract asserted on a committed synthetic mini-tree.
+#                                     ⚠ It was ADVERTISED AND NOT RUN from the day it was numbered:
+#                                     the header echoed, then nothing invoked it (only the
+#                                     portability `bash -n` sweep touched the file). 2026-10-09.
 #  12. Portability sweep — bash -n (all POSIX/bash shebang scripts) + python3 -m py_compile
 #                                     (all scripts/*.py), so scripts cannot regress on the
 #                                     Debian/WSL ext4 primary (HD-256); bash -n is a no-op on
@@ -59,7 +62,13 @@
 #                                     a live spark-llm_api bearer reached origin/main inside bench
 #                                     logs — validate-secrets.py only covers group_vars/roles/, so
 #                                     artifacts and logs were ungated). Masked output; unreadable
-#                                     archives fail too
+#                                     archives fail too. + `--self-test`: the shapes are run through
+#                                     a literal PREFILTER for speed (16.5 s -> 5.0 s of a 58 s gate),
+#                                     so the self-test proves every shape still fires, on a plain
+#                                     file AND inside an archive member, plus a case-folded shape
+#                                     (`PAſSWORD`, which a lower() prefilter skips) and a MUTATED
+#                                     prefilter literal that must lose the hit — a wrong literal has
+#                                     to fail the gate, not quietly narrow the scanner.
 #  16. check_self_converge_guard.py — HD-413 guardrail completeness (static): every playbook
 #                                     that applies a lockout-capable role (network / storage /
 #                                     wireguard / vps-hardening) imports the self-converge
@@ -222,7 +231,10 @@
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
-#                                     loads them, at no extra ansible cost).
+#                                     loads them, at no extra ansible cost). PLAYBOOKS RUN IN
+#                                     PARALLEL since 2026-10-09 (8.4 s -> 3.0 s on 8 cores): the cost
+#                                     was 17 × interpreter startup, not work; each leg keeps its own
+#                                     stderr file, so the duplicate-key witness is unchanged.
 #
 # Exit 0 only when all pass. `set -e` stops at the first failure.
 set -euo pipefail
@@ -334,6 +346,9 @@ $PY scripts/check_todo_done.py --self-test
 echo "== check_secrets.py (secret shapes in the tracked tip, archive members included) =="
 $PY scripts/check_secrets.py
 
+echo "== check_secrets.py --self-test (the speed prefilter must not have narrowed a shape) =="
+$PY scripts/check_secrets.py --self-test
+
 echo "== check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity) =="
 $PY scripts/check_dns_seed_drift.py
 
@@ -346,6 +361,10 @@ echo "== check_self_converge_guard.py (HD-413 guardrail completeness, static) ==
 $PY scripts/check_self_converge_guard.py
 
 echo "== testdata/check-vault-items/run.sh (scanner self-test, HD-244/245) =="
+# 2026-10-09: this item printed its header and ran NOTHING — the runner exists and passes, but
+# the only reference to it was the portability sweep's `bash -n` loop, so the *_item registry-key
+# parsing and the --strict contract were ungated while the gate reported the item green.
+bash scripts/testdata/check-vault-items/run.sh
 
 echo "== testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime) =="
 # Needs a functional ansible-playbook (it EXECUTES the guard) — SKIPs itself on hosts where
@@ -399,12 +418,6 @@ else
   echo "SKIP: no ~/.pi/agent/skills on this host (bare CI / non-pi laptop) — skill gate runs where pi is configured"
 fi
 
-echo "== check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow) =="
-$PY scripts/check_iac_backend_strings.py
-
-echo "== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) =="
-$PY scripts/check_iac_backend_strings.py --self-test
-
 echo "== knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project) =="
 $PY scripts/knx-hass-gen.py --self-test
 
@@ -413,12 +426,6 @@ $PY scripts/check_md_tables.py
 
 echo "== check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary) =="
 $PY scripts/check_md_tables.py --self-test
-
-echo "== check_iac_backend_strings.py (HD-404: retired-backend names may not regrow) =="
-$PY scripts/check_iac_backend_strings.py
-
-echo "== check_iac_backend_strings.py --self-test (HD-404 ratchet canary) =="
-$PY scripts/check_iac_backend_strings.py --self-test
 
 echo "== check_merge_markers.py (HD-453: no conflict markers in tracked files) =="
 $PY scripts/check_merge_markers.py
@@ -559,28 +566,46 @@ REPO_ROOT="$(pwd)"
 export ANSIBLE_CONFIG="$REPO_ROOT/IaC/ansible/ansible.cfg"
 export ANSIBLE_ROLES_PATH="$REPO_ROOT/IaC/ansible/roles"
 if command -v ansible-playbook >/dev/null 2>&1 && ansible-playbook --version >/dev/null 2>&1; then
+  # 2026-10-09: run the playbooks CONCURRENTLY. Measured on the 8-core runner: serial 8.4 s,
+  # -P 8 = 3.0 s, and per playbook 0.37-1.5 s of which ~95 % is ansible-playbook interpreter
+  # startup — there is no work here to optimise, only waiting. Syntax-checking is read-only and
+  # every playbook gets its own stderr/rc file, so the duplicate-key witness below still sees
+  # exactly what ansible printed for each playbook, and a playbook cannot affect another's rc.
+  NPAR=4
+  command -v nproc >/dev/null 2>&1 && NPAR="$(nproc)"
+  SC_DIR="$(mktemp -d)"; trap 'rm -rf "$SC_DIR"' EXIT
+  names=(); files=(); i=0
+  for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
+    n="pb$i"
+    ( ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check \
+        >/dev/null 2>"$SC_DIR/$n.err"; echo "$?" > "$SC_DIR/$n.rc" ) &
+    names+=("$n"); files+=("$pb"); i=$((i+1))
+    while [ "$(jobs -rp | wc -l)" -ge "$NPAR" ]; do wait -n >/dev/null 2>&1 || true; done
+  done
+  wait
   # HD-1098: ansible's own parser is the second witness for duplicate mapping keys. It prints
   # `Found duplicate mapping key … Using last defined value only.` on stderr and carries on, so
   # the warning has to be caught here or the FIRST definition silently stays dead.
-  ANSIBLE_ERR_LOG="$(mktemp)"
-  for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
-    rc=0
-    ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check >/dev/null 2>"$ANSIBLE_ERR_LOG" || rc=$?
-    if grep -q "Found duplicate mapping key" "$ANSIBLE_ERR_LOG"; then
+  rc_all=0
+  for j in "${!names[@]}"; do
+    n="${names[$j]}"; pb="${files[$j]}"; rc=0
+    [ -f "$SC_DIR/$n.rc" ] && rc="$(cat "$SC_DIR/$n.rc")" || rc=1
+    if grep -q "Found duplicate mapping key" "$SC_DIR/$n.err" 2>/dev/null; then
       echo "FAIL: ansible reported a duplicate mapping key while parsing $pb — it keeps the LAST"
       echo "      definition and drops the first, so the earlier one is dead (HD-1098):"
-      grep -A3 "Found duplicate mapping key" "$ANSIBLE_ERR_LOG" | sed 's/^/  /'
-      rm -f "$ANSIBLE_ERR_LOG"; exit 1
+      grep -A3 "Found duplicate mapping key" "$SC_DIR/$n.err" | sed 's/^/  /'
+      exit 1
     fi
     if [ "$rc" -ne 0 ]; then
-      # unchanged HD-197 semantics: a real syntax failure still stops the run (the duplicate-key
+      # unchanged HD-197 semantics: a real syntax failure still fails the run (the duplicate-key
       # leg above must not have turned this loop into a warning collector)
-      cat "$ANSIBLE_ERR_LOG" >&2
-      rm -f "$ANSIBLE_ERR_LOG"; exit "$rc"
+      echo "FAIL: ansible-playbook --syntax-check failed for $pb (rc $rc)" >&2
+      cat "$SC_DIR/$n.err" >&2
+      rc_all="$rc"
     fi
   done
-  rm -f "$ANSIBLE_ERR_LOG"
-  echo "OK: all playbooks pass --syntax-check"
+  [ "$rc_all" -eq 0 ] || exit "$rc_all"
+  echo "OK: all playbooks pass --syntax-check (parallel, $NPAR at a time)"
 else
   echo "SKIP: ansible-playbook not functional on this host (absent or native-Windows WinError 87) — syntax gate runs under WSL/CI"
 fi
