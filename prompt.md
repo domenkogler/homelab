@@ -105,15 +105,33 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    §What actually raises a 1Password prompt).
 6. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
-7. ⏳ **HD-1099** — fleet image-pin refresh merged 2026-10-08 (63 of 89 pins; newest stable ≥3 days
-   old, majors included, digest pins left alone by rule). The deploy IS the work and the tails are
-   migrations, not restarts: PGDATA 16→18 on five sidecars needs dump/restore first, RabbitMQ 3→4
-   cannot read the old mnesia dir, authentik is a chained-minor upgrade, homepage v1→v2 re-reads its
-   config, Alloy 1.19.2→1.20.1 on four hosts (which also closes **1094** — fleet pin raised, oldsrv's
-   override deleted). Re-derive any pin with `python3 scripts/image-pin-probe.py --verify`; it is the
-   only thing in the repo that can see a phantom pin, and two were live (`db_backup_version:
-   4.1.100`, Sunshine `v2026.821.30050-…`). Never bump a digest-pinned `*_image` — the digest is the
-   load-bearing value there.
+7. ✅ **HD-1099** — fleet image-pin refresh is **live on all five hosts** (converged from the VPS runner 2026-10-08:
+   `ok=377/162/159/178/624`, `failed=0`, zero restarting or unhealthy containers; `alloy 1.20.1-1` fleet-wide, which also
+   closed **1094**). It left three tails: **1100** (the Postgres/broker migrations, now the top task below), **1101** (the
+   HD-484 assert gate + corrupted tailscale `.deb` digests — fixed and vendor-verified, `image-pin-probe.py --debs` now
+   covers deb pins), and **1107** (sanoid). Two lessons worth keeping: a **phantom pin** is invisible to every gate in the
+   repo — only `python3 scripts/image-pin-probe.py --verify` sees one; and a `*_image` digest pin is the load-bearing
+   value, never bump the tag under it.
+8. ⏳ **HD-1100** — **the next live work: Postgres 16 → 18.** The model is proven and the blocker is gone; the runbook is
+   [docs/backup.md](docs/backup.md) §Postgres major upgrades. Order by blast radius: `litellm-db` (re-run as the proof that
+   the version-conditional mount works) → `onlyoffice-postgres` (+ the RabbitMQ 3.13→4.x question, in the same window) →
+   `forgejo-db` → `zipline-db` → `lan-litellm-db` on oldsrv → **`authentik-postgres` last** (fleet SSO). Owner holds the four
+   middle legs until legs 1 and 5 prove the model. **What the first leg cost, so nobody repeats it:** 18 images run
+   `PGDATA=/var/lib/postgresql/18/docker` and refuse a cluster at the old path, so a pin bump alone crash-loops the DB —
+   the bind target moves with the major via `pg_data_mount`; and rollback is datadir **and** pin together. Oldsrv separately
+   owes its **`wireguard`** leg (restarts the tunnel server; run it alone, last, then re-verify every tunnel path).
+9. ⏳ **apt upgrade phase** — deliberately left OUT of the converge wave. Needs `apt-mark hold` for Ansible-pinned packages
+   (`alloy`, `tailscale`, `docker-ce`, `kopia`) landed in IaC first, or a bare `apt upgrade` re-creates the HD-1094 drift and
+   stacks kernel reboots onto a DB-migration window. The `roles/updates` design (visibility → unattended security pocket →
+   gated full upgrade with holds) is still an owner go/no-go.
+
+**New unbriefed rows from the 2026-10-08 maintenance window** (no session launches from them): **HD-1107**
+(nas ZFS **policy** snapshots never ran — our own generated `sanoid.service` said `/usr/local/bin/sanoid`, the package
+installs `/usr/sbin/sanoid`, so every timer fire died `203/EXEC`; fixed, ran `exit=0`, first `hourly.*` still pending a tick)
+· **HD-1105** (three enabled-but-dead units on nas: `zfs-share`, `winbind` with `smb` enabled, and `sync-authentik-users`
+with an EMPTY `ExecStart`) · **HD-1106** (20 dangling VPS volumes, 644 MB, two of them 47 MB with unverified provenance —
+not deleted; the HD-247 volume→bind pattern is the suspect) · **HD-1103 tail** (`/var/log` on pi is mode `1777`, so
+logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it).
 
 **Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
 [todo-table.md](todo-table.md) §B): **1094** *(minted 2026-10-07 by the same session that shipped HD-450's exporter: `alloy_version` pins 1.19.2-1 while oldsrv had drifted to 1.20.1-1, which made every monitoring converge there die in apt. Resolved for that host; the fleet bump is the owner's call and until it is decided, the four hosts still on the pin will tell you the same way.)* · **1093** *(owner tail: rotate both SMB passwords, then land them with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
