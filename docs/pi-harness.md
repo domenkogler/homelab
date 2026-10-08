@@ -366,9 +366,12 @@ drifting again (§9: the seat trailing the laptop is the failure this pair exist
 
 ## 5a. Seat identity — which box the footer names (2026-10-06)
 
-Two seats run this harness today — **Win11** and **the oldsrv cockpit**; the WSL Debian seat is retired
-(2026-10-07, [../prompt.md](../prompt.md) §1), which is also why the "two seats on ONE machine" case below is
-now theoretical rather than daily. **Pi has no setting for footer
+Three seats exist and two run this harness daily — **Win11** and **the oldsrv cockpit**. The WSL Debian
+seat is **retained but rarely used** (owner ruling 2026-10-09, superseding the 2026-10-07 “retired”
+wording in [../prompt.md](../prompt.md) §1), and it stays in `pi-seat-sync.sh`'s `SEATS` on purpose: a
+fan-out must still name it, and it will keep reporting `UNREACHABLE`/drift honestly until
+`install-pi-wsl.sh` has been run there (its `pi` on PATH is the Windows Volta shim). That is also why the
+"two seats on ONE machine" case below is occasional rather than daily. **Pi has no setting for footer
 content** — `settings.md` §Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else,
 and the default footer shows folder / model / context / cost. So "which machine am I typing to" is only
 answerable from an extension, and this section is the only place that fact is written down.
@@ -425,7 +428,9 @@ answerable from an extension, and this section is the only place that fact is wr
   **LIVE on oldsrv 2026-10-08:** all eight planes green run from the seat (`pi-self` included, measured after the
   merge — 1.1.0 == the `pi_host_npm_version` pin), and `validate-all.sh`
   exits 0 there with the retired `host-status.ts` gone — that clears HD-1114's `oldsrv` half; the
-  Win11 seat's deployed copy is still owed, and only a push from that box can remove it.
+  The Win11 copy is now removed by that seat's own `--push` (owner-confirmed 2026-10-09), which CLOSES
+  HD-1114: the retirement mechanism has finally reached every seat, and `validate-all.sh`'s RETIRED arm
+  has nothing left to fail on.
 - **Running the driver ON the oldsrv box (seat == host, 2026-10-08):** all three of
   [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh)'s legs are laptop-side — `win11` is "this
   shell" only on the Windows workstation, `wsl` needs `wsl.exe`, and `oldsrv` sshes to `oldsrv-domen`,

@@ -116,8 +116,39 @@ if [ "${1:-}" = "--self-test" ]; then
     echo "SELFTEST FAIL [sandbox]: a non-empty key file escaped into the sandbox home"
     fails=$((fails+1))
   fi
+  # THE DELETED-ITEM CASE (owner act 2026-10-09: the `GitHub sign` item is gone from the vault, the key
+  # having left GitHub on 2026-10-08). None of the five cases above can see this bug: they all REFUSE
+  # before step 2, so the read that killed the run was never exercised. What it broke is not signing —
+  # it is the TRANSPORT: the sign key was read FIRST and `exit 1` took the whole path down, so a Debian
+  # rebuild could not even get its push key because of a key nobody uses. Fixture: vault visible, the
+  # AUTH read answers, the SIGN read fails like a deleted item.
+  mkdir -p "$TMP/authonly"
+  cat > "$TMP/authonly/op" <<'EOS'
+#!/bin/sh
+case "$1" in
+  vault)   echo 'Homelab-ansible'; exit 0;;
+  account) echo 'SHORTHAND    URL'; echo 'my           https://my.1password.eu'; exit 0;;
+  read)    case "$2" in
+             *"/GitHub auth/"*) printf 'FAKE-AUTH-PEM\n'; exit 0;;
+             *) exit 1;;            # the deleted 'GitHub sign' item: op says no such item
+           esac;;
+esac
+exit 1
+EOS
+  chmod +x "$TMP/authonly/op"
+  out=$(run "$TMP/authonly" "" "Homelab-ansible")
+  if printf '%s' "$out" | grep -qi "could not read 'GitHub sign'"; then
+    echo "SELFTEST FAIL [deleted-sign-item]: a deleted signing item still kills the TRANSPORT setup"
+    fails=$((fails+1))
+  fi
+  printf '%s' "$out" | grep -qi "commits stay UNSIGNED\|signing key is present but UNUSED" \
+    || { echo "SELFTEST FAIL [deleted-sign-item]: the retired path never said what it did — got: $(printf '%s' "$out" | tail -2)"; fails=$((fails+1)); }
+  if [ -e "$TMP/home/.ssh/github_signing" ]; then
+    echo "SELFTEST FAIL [deleted-sign-item]: the failed read still created ~/.ssh/github_signing (it must leave an absent key absent, and never truncate an existing one)"
+    fails=$((fails+1))
+  fi
   if [ "$fails" = 0 ]; then
-    echo "SELFTEST OK: git-bootstrap refuses each state with the right message (5 cases, sandboxed)"
+    echo "SELFTEST OK: git-bootstrap refuses each state with the right message (6 cases, sandboxed)"
     exit 0
   fi
   exit 1
@@ -251,16 +282,31 @@ if [ "$SSH_AUTH" = 1 ]; then
 
   SSH_DIR="$HOME/.ssh"; mkdir -p "$SSH_DIR"; chmod 700 "$SSH_DIR"
 
-  # 2. Pull the two GitHub keys from the vault (raw-space item + field names; see op read docs).
+  # 2. Pull the GitHub keys (raw-space item + field names; see op read docs). THE ORDER AND THE
+  #    STRICTNESS ARE THE POINT (owner act 2026-10-09: the `GitHub sign` ITEM IS DELETED, the key
+  #    having left GitHub on 2026-10-08, HD-1116). Reading it FIRST and `exit 1`-ing on failure made
+  #    this whole path die at step 2 on every Debian rebuild — which loses the AUTH key too, i.e. the
+  #    transport: a seat that only wanted to be able to PUSH got nothing, with an error message about a
+  #    key nobody uses. So: the AUTH key is required, the SIGN key is best-effort, and it is read into a
+  #    temp file so a failure can never truncate a key file the seat already has — deleting a seat's
+  #    working key in the name of hygiene is data loss, and the oldsrv seat still carries one.
   SIGN_KEY="$SSH_DIR/github_signing"
   AUTH_KEY="$SSH_DIR/github_auth"
-  echo "==> Reading 'GitHub sign' / 'GitHub auth' private keys from $OP_VAULT"
-  op read "op://${OP_VAULT}/${OP_SIGN_ITEM}/private key" > "$SIGN_KEY" 2>/dev/null \
-    || { echo "FAIL: could not read 'GitHub sign' private key from $OP_VAULT" >&2; exit 1; }
-  chmod 600 "$SIGN_KEY"
+  SIGN_PRESENT=0
+  echo "==> Reading '$OP_AUTH_ITEM' (the transport) from $OP_VAULT"
   op read "op://${OP_VAULT}/${OP_AUTH_ITEM}/private key" > "$AUTH_KEY" 2>/dev/null \
     || { echo "FAIL: could not read 'GitHub auth' private key from $OP_VAULT" >&2; exit 1; }
   chmod 600 "$AUTH_KEY"
+  if tmp_sign="$(mktemp)"; then
+    if op read "op://${OP_VAULT}/${OP_SIGN_ITEM}/private key" > "$tmp_sign" 2>/dev/null && [ -s "$tmp_sign" ]; then
+      mv -f "$tmp_sign" "$SIGN_KEY"; chmod 600 "$SIGN_KEY"; SIGN_PRESENT=1
+      echo "==> read '$OP_SIGN_ITEM' — kept only so allowed-signers can verify OLD commits"
+    else
+      rm -f "$tmp_sign"
+      echo "==> '$OP_SIGN_ITEM' is not in the vault (deleted 2026-10-09) — commits stay UNSIGNED, which IS"
+      echo "    the policy (HD-1116). Continuing: transport + attribution are all this path owns now."
+    fi
+  fi
 
   # 3. Ensure an ssh-agent is reachable, then load both keys + derive public halves.
   #    Prefer the systemd per-user agent socket (see systemctl --user status ssh-agent); fall back
@@ -275,10 +321,14 @@ if [ "$SSH_AUTH" = 1 ]; then
   else
     eval "$(ssh-agent -s)" >/dev/null 2>&1 || true
   fi
-  ssh-add "$SIGN_KEY" 2>/dev/null || true
   ssh-add "$AUTH_KEY" 2>/dev/null || true
   ssh-keygen -y -f "$AUTH_KEY" > "$AUTH_KEY.pub" 2>/dev/null || true
-  ssh-keygen -y -f "$SIGN_KEY" > "$SIGN_KEY.pub" 2>/dev/null || true
+  # The sign half is touched only when there IS one — read just now, or left over on a seat that
+  # predates the deletion (derive its pub so allowed_signers can still verify that history).
+  if [ "$SIGN_PRESENT" = 1 ] || [ -s "$SIGN_KEY" ]; then
+    ssh-add "$SIGN_KEY" 2>/dev/null || true
+    ssh-keygen -y -f "$SIGN_KEY" > "$SIGN_KEY.pub" 2>/dev/null || true
+  fi
 
   # 4. ~/.ssh/config: force github.com to use the AUTH key (IdentitiesOnly).
   #    Create the config file if missing; only append the block once.
@@ -337,10 +387,20 @@ EOF
     echo "    note: this writes the CLONE's config; worktrees share it, other repos need"
     echo "          'git config --global' equivalents (the oldsrv seat carries a global ~/.gitconfig)."
   else
-    echo "!! no public half for GitHub sign key — skipping signing config" >&2
+    # No sign key anywhere. ASSERT the policy rather than rely on absence: a clone that inherits
+    # gpgsign=true from a global file hangs the next non-interactive committer (cron, a converge, pi),
+    # so silence here would be HD-1116's failure mode wearing a clean exit code.
+    git config gpg.format ssh
+    git config commit.gpgsign false
+    echo "==> no signing key by design (HD-1116): wrote commit.gpgsign=false explicitly. `%G?` = N on every"
+    echo "    commit is now the EXPECTED value, not a failure — there is nothing to verify."
   fi
 
-  echo "==> OK: SSH auth (github.com via GitHub auth) + commit signing (GitHub sign) configured."
+  if [ "$SIGN_PRESENT" = 1 ] || [ -s "$SIGN_KEY" ]; then
+    echo "==> OK: SSH auth (github.com via '$OP_AUTH_ITEM') configured; a signing key is present but UNUSED (HD-1116)."
+  else
+    echo "==> OK: SSH auth (github.com via '$OP_AUTH_ITEM') configured; commits unsigned by policy (HD-1116)."
+  fi
 fi
 
 # --- sync (fetch + ff-only pull) only when explicitly requested -------------

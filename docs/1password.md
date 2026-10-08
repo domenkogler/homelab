@@ -128,7 +128,12 @@ Two identity models are in use on the runner:
 
 ### GitHub signing + auth keys (HD-495) — a third job for the same agent
 
-`GitHub sign` and `GitHub auth` are SSH_KEY items in **`Homelab-ansible`** (moved out of the
+⚠ **Status 2026-10-09: `GitHub sign` is DELETED** and signing is retired (HD-1116) — what is left of
+this mechanism is `GitHub auth`, the transport key, which is also the only key still registered on the
+GitHub account. Everything below stays as the record of how the pair worked, because that is what a
+re-registration would have to re-establish.
+
+`GitHub sign` and `GitHub auth` were SSH_KEY items in **`Homelab-ansible`** (moved out of the
 `Private` vault 2026-10-06). Two consequences worth naming, because the whole "seat cannot sign"
 restriction was built on the old location:
 

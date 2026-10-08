@@ -218,11 +218,10 @@ bash scripts/git-bootstrap-win11.sh --ssh-auth      # idempotent
 
 **The seat default is the modal-free identity** (owner decision — the route above blocks
 whenever nobody is at the keyboard, which is every bench leg, subagent and scheduled task). It signs and
-authenticates from key **files**, so on a seat that has never had them, pull them from the vault once —
-with a human present, since each `op read` is a prompt:
+authenticates from a key **file** (commit signing is retired, HD-1116), so on a seat that has never had
+the key, pull it from the vault once — with a human present, since `op read` is a prompt:
 
 ```bash
-umask 077; op read "op://Homelab-ansible/GitHub sign/private key" > ~/.ssh/github_signing
 umask 077; op read "op://Homelab-ansible/GitHub auth/private key" > ~/.ssh/github_auth
 ```
 
