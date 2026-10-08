@@ -409,3 +409,74 @@ single disk. Closing **HD-191** is what makes those legs real; editing these uni
   the dump volume to the storage box. Until one exists, the VPS is the one host in the homelab whose
   own data has no second copy.
 - **Bulk media off-site:** live + backup Hybrid Storage Boxes (BX11, bought/planned 2026); bulk media library stays local-only on NAS (ZFS), only configs/DBs + Immich originals go off-site. Off-site copy via Kopia over SSH/SFTP (port 23); **no S3 / Object Storage** (Hetzner Storage Box is not S3 — handled via CIFS mount + Kopia over SSH).
+
+## Postgres major upgrades (HD-1100) — what the 16 → 18 legs actually need
+
+Measured 2026-10-08 from the VPS runner, read-only, against the live clusters. This is the input
+that replaced my assumptions; every number below came off the boxes, not off a wiki.
+
+**In scope:** the five VPS sidecars — `authentik-postgres`, `forgejo-db`, `litellm-db`,
+`onlyoffice-postgres`, `zipline-db` — plus `lan-litellm-db` on oldsrv. All six are `16.15-alpine`,
+`server_version_num=160015`, and app data totals **362 MB** fleet-wide. Nothing exceeds 1 GB, so
+each window is dominated by procedure overhead, not data: `pg_dump -Fc` of the largest cluster
+(authentik, 171 MB app DB) took **1.80 s**, `pg_restore --list` 0.49 s / 1 819 TOC entries.
+Restore-side wall time was **not** measured and is normally 2–5× the dump — still minutes.
+
+**Out of scope, and it is not a 16 → 18 hop:** `immich-postgres` is **14.19** on an immich-owned
+composite (`14-vectorchord0.4.3-pgvectors0.2.0`) that ships PG 14 only, with **`vchord/0.4.3` and
+`vector/0.8.1` live in the schema** (`face_index`, `clip_index` use `USING vchordrq`). Those two are
+the only out-of-tree extensions in the fleet and their PG 18 availability is **unverified**; the
+composite also runs `data_checksums=on`, which rules out `pg_upgrade --link` there anyway. immich
+moves when upstream ships a composite, not when we bump a pin.
+
+### Four traps, each of which breaks a leg written the obvious way
+
+1. **Collation, the one that fails silently.** All six clusters are libc `en_US.utf8`
+   (`datcollate=en_US.utf8`, provider = default/libc). **PG 18 `initdb` defaults to ICU.** A new
+   18 cluster created with defaults restores the same rows with different sort semantics — wrong
+   `ORDER BY`, different index ordering, no error. The templates now pin
+   `POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"` on all seven Postgres
+   services (landed first, before any pin moves; harmless on 16 and ignored on a non-empty datadir).
+   Verified against a scratch `postgres:18.6-alpine`: `datcollate=en_US.utf8` ✓. `--locale-provider`
+   has existed since 15, which is why landing it early costs nothing.
+2. **There is no `postgres` role anywhere.** Every cluster's superuser is the **service name**
+   (`-U authentik`, `-U forgejo`, …), so any command copy-pasted as `-U postgres` fails with a
+   confusing auth error — that is exactly how a first probe of these clusters came back empty.
+3. **A per-database dump silently drops cluster roles.** `pg_dump -Fc` carries no roles;
+   `forgejo-db` has a **`metabase_ro`** role created outside compose env. Run
+   `pg_dumpall --roles-only -U <svc>` first and re-apply it into the new cluster before the data
+   restore, or owners and grants vanish.
+4. **`onlyoffice-postgres` is in no dump target.** `db-backup` covers DB01 `authentik-postgres`,
+   DB02 `forgejo-db`, DB03 `immich-postgres`, DB04 `litellm-db`, DB05 `zipline-db` — and ONLYOFFICE
+   keeps its datadir in a **named volume** (`onlyoffice-docs_onlyoffice-pgdata`), not under
+   `/srv/docker/*`, so both the backup config and any checklist that derives targets from
+   `/srv/docker` miss it. Its compose comment calls that state "REGENERABLE" (HD-230); that is a
+   reason to move fast, not a reason to migrate blind — dump it by hand first.
+
+### One leg, in order (do one cluster per window)
+
+```
+SVC=<service> C=<db container> U=<svc user>            # NOT postgres — see trap 2
+docker exec $C pg_dumpall -U $U --roles-only > /root/pg18/$SVC/roles.sql
+docker exec $C pg_dump -Fc -U $U -d $U        > /root/pg18/$SVC/data.dump     # ~2 s at this size
+pg_restore --list /root/pg18/$SVC/data.dump | wc -l                          # prove the dump is readable
+# record pre-migration counts (tables + row counts for the 3 largest tables) to /root/pg18/$SVC/pre.txt
+docker compose -f /opt/$SVC/docker-compose.yml stop <app> && docker compose -f /opt/$SVC/docker-compose.yml stop db
+mv /srv/docker/$SVC/postgres /srv/docker/$SVC/postgres.16-$(date +%Y%m%d)     # named volume: RENAME it, never rm
+# flip <var> to 18.6-alpine, converge THIS service only — initdb runs with the pinned libc locale
+docker compose -f /opt/$SVC/docker-compose.yml up -d db                        # wait: healthy
+psql "host=... user=$U" -f /root/pg18/$SVC/roles.sql                           # trap 3: roles first
+pg_restore -d $U --no-owner -1 /root/pg18/$SVC/data.dump                       # trap 2 again: -U $U
+# re-run the counts into post.txt and DIFF against pre.txt, then start the app and test it FOR REAL
+```
+
+Rollback is deliberately boring: the `.16-<date>` datadir is still on disk, so flip the pin back and
+move the directory back. Keep it until the next snapshot cycle proves the new cluster. Verify after
+each leg that `db-backup` still dumps that cluster (it addresses services by container name, so it
+survives a name-preserving leg — but "survives" has to be read back, not assumed), and re-run the
+restore spot-check the way the Forgejo dump was proven (130 tables against production's 130).
+
+**Sequencing by blast radius:** `litellm-db` → `onlyoffice-postgres` (+ the RabbitMQ 3.13 → 4.3
+question in the same window, while ONLYOFFICE is already down) → `forgejo-db` → `zipline-db` →
+`lan-litellm-db` on oldsrv → **`authentik-postgres` last**, because it is the fleet's SSO and every
+other leg depends on it.
