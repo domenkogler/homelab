@@ -45,14 +45,29 @@ grafana_alert_rules:
       execErrState: Error
     - uid: hygiene-collector-stale
       title: Silent-failure collector stopped reporting
-      for: 15m
-      expr: "time() - homelab_hygiene_scrape_ok > 900"
-      summary: !unsafe "homelab-hygiene collector stale on {{ $labels.instance }} (>15 min) — unit-result and cert-age coverage is blind there"
-      # Who watches the watcher: the collector is itself a systemd timer, the exact class HD-450 hunts.
-      # Its heartbeat timestamp is the only honest way to tell "healthy" from "nobody looked". A host
-      # that has NEVER run it has no series at all, so this one keeps noData=Alerting on purpose.
+      # for 5 m (was 15 m): the threshold is in A now, so `for` is only the anti-jitter hold — the page
+      # lands ~20 min after the last successful collection (900 s + 5 m), not 30.
+      for: 5m
+      # ⚠ UNFILTERED on purpose. The OLD shape (`time() - homelab_hygiene_scrape_ok > 900`, `for: 15m`)
+      # was MEASURED wrong in both directions and paged the family every 30 min for 19 h on a fleet that
+      # was healthy on all five hosts (2026-10-08 01:13 → 20:00 CEST, `activeAt` never moved,
+      # `Value: [no value]`, no `instance=`). Two independent bugs in one line:
+      #  (a) a FILTERED-EMPTY result is the same NoData state as no-series, so with noData=Alerting the
+      #      rule fired exactly WHEN EVERYTHING WAS FRESH. The comparison therefore lives in the
+      #      threshold expression (B, `eval_type`/`eval_params` below) — the shape
+      #      spark-host-mem-oom-critical further down already uses and which reads Normal.
+      #  (b) a plain selector cannot age: the 5-min staleness horizon drops the last heartbeat TEN
+      #      MINUTES BEFORE a 900 s threshold is reachable, so a dead collector could only ever reach
+      #      this rule as NoData — paging without ever naming which host went blind. `max_over_time[6h]`
+      #      keeps a silent host visible for 6 h, so the page now carries `instance=`.
+      # noData=Alerting stays, now honestly: every leg reports healthy → A has a value → Normal; A is
+      # empty only when NO host has collected in 6 h, which IS the blind-coverage case.
+      expr: "time() - max_over_time(homelab_hygiene_scrape_ok[6h])"
+      summary: !unsafe "homelab-hygiene collector stale on {{ $labels.instance }} (no collection for >15 min) — unit-result and cert-age coverage is blind there"
       noDataState: Alerting
       execErrState: Error
+      eval_type: gt
+      eval_params: [900]
     - uid: ups-battery-low
       title: UPS battery low
       for: 1m
