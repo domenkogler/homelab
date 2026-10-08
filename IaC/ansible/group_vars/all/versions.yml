@@ -390,7 +390,7 @@ pi_host_tui_npm_version: "0.3.11"              # npm dist-tag `latest`, registry
                                                # pi-open-tui version` -> 0.3.11; published line 0.3.5..0.3.11),
                                                # same value the Win11 seat already runs
 
-# ==== Seat TUI font (HD-1093) ====
+# ==== Seat TUI font (HD-1110) ====
 # pi-open-tui draws its footer icons from a Nerd Font private-use glyph block, and `icons.mode:
 # auto` picks Nerd glyphs by the TERMINAL ENVIRONMENT, not by the installed font file. So the font
 # is a harness dependency of the TUI pin above, not a cosmetic extra — and where it belongs is the

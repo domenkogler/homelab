@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # =====================================================================
 # pi-tui-config.sh — prove and repair ONE key of the seat TUI config:
-#   ~/.pi/agent/open-tui.json -> footerSegments.hostname == true      (HD-1093)
+#   ~/.pi/agent/open-tui.json -> footerSegments.hostname == true      (HD-1110)
 #
 # WHY A SCRIPT FOR ONE KEY
 # ------------------------
 # The seat TUI is the pi package `pi-open-tui` (pin `pi_host_tui_npm_*`), and its footer
 # is what answers "which box am I typing to" — the job `pi-agent/extensions/host-status.ts`
-# used to do with `ctx.ui.setStatus`, retired by HD-1093. The mechanism is now the package's
+# used to do with `ctx.ui.setStatus`, retired by HD-1110. The mechanism is now the package's
 # own footer segment (`extensions/open-tui/footer.ts`: `os.hostname()` truncated to the short
 # form). So installing the package is NOT enough: pi-open-tui's `DEFAULT_CONFIG` ships
 # `footerSegments.hostname: false`, and a seat that only ran `pi install` gets a footer with

@@ -287,7 +287,7 @@ next install.
 no longer the only source.** `render-pi-config.py --vendor` speaks `pi` / `pi_auth` / `continue` /
 `all`; the spec renders the **model contract**, never someone's editor settings
 ([`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) says so in its own
-comment). What changed 2026-10-08 (owner ruling, HD-1093) is that the harness keys became a repo
+comment). What changed 2026-10-08 (owner ruling, HD-1110) is that the harness keys became a repo
 file plus a merge script instead of a hand-copied doc block — the re-decision is recorded here, not
 buried in an edit, because §5 had said "this doc is the reference copy" since HD-388 and
 `models-spec.yml` line 248 named `settings.json` as machine-local. The parts it named are still
@@ -369,7 +369,7 @@ content** — `settings.md` §Terminal and display carries `theme`/`tuiMode`/`te
 and the default footer shows folder / model / context / cost. So "which machine am I typing to" is only
 answerable from an extension, and this section is the only place that fact is written down.
 
-- **The mechanism today (2026-10-08, HD-1093):** the pi package `pi-open-tui` (pin
+- **The mechanism today (2026-10-08, HD-1110):** the pi package `pi-open-tui` (pin
   `pi_host_tui_npm_*`) draws the whole footer, and its `footerSegments.hostname` segment prints
   `os.hostname()` in short form. The hand-written `pi-agent/extensions/host-status.ts` is **retired**
   with it — a `ctx.ui.setStatus` line under a package-drawn footer is two sources of truth for one

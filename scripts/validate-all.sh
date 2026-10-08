@@ -160,7 +160,7 @@
 #                                     (a machine-local file one seat carries on purpose) is reported
 #                                     as LOCAL and does NOT fail the gate, or that seat would fail
 #                                     forever and the gate would get muted (the HD-417 failure mode).
-#                                     The ONE exception is the script's RETIRED list (HD-1093): names
+#                                     The ONE exception is the script's RETIRED list (HD-1110): names
 #                                     the repo deleted — host-status.ts, remote-bash.ts, both retired
 #                                     2026-10-08 — which --push removes and --check --strict fails
 #                                     while still deployed, because --push preserving a deployed-only
@@ -464,7 +464,7 @@ else
   echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
 fi
 
-echo "== pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1093: the seat planes) =="
+echo "== pi-tui-config.sh / pi-settings-config.sh / install-nerd-font.sh / pi-seat-sync.sh (HD-1110: the seat planes) =="
 # Four gates, one per plane the seat-sync driver fans out to, so the driver can never report
 # OK on a plane nothing ever validated. Each self-test runs EVERYWHERE (they are sandboxed in
 # a temp dir and need no seat); the --check half is guarded to SKIP where the target does not

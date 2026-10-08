@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# pi-seat-sync.sh — ONE command, every pi.dev seat, every harness plane (HD-1093).
+# pi-seat-sync.sh — ONE command, every pi.dev seat, every harness plane (HD-1110).
 #
 # WHY THIS EXISTS
 # ---------------

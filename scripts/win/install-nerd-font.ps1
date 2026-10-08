@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Install and PROVE the pinned Nerd Font family for the pi seat TUI on Windows (HD-1093).
+  Install and PROVE the pinned Nerd Font family for the pi seat TUI on Windows (HD-1110).
 .DESCRIPTION
   The Debian sibling is scripts/install-nerd-font.sh; THIS is the leg that matters on this
   machine, because the terminal that rasterises pi's footer glyphs runs on Windows — on the

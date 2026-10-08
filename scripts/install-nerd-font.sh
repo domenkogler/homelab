@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =====================================================================
 # install-nerd-font.sh — place and PROVE the pinned Nerd Font family the seat
-#   TUI's icons come from (nerd-fonts release, HD-1093). Debian/WSL side; the
+#   TUI's icons come from (nerd-fonts release, HD-1110). Debian/WSL side; the
 #   Windows side is scripts/win/install-nerd-font.ps1.
 #
 # WHY THIS IS NOT JUST `apt install fonts-...`

@@ -2160,4 +2160,4 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    A seat that carries its own extra pi package (this cockpit runs pi-web itself) is KEPT and printed by the
    settings plane — never deleted to make a check go green. Updating pi ITSELF is in no script on the Windows
    side (Volta is Windows-only): `volta install @earendil-works/pi-coding-agent@<pi_host_npm_version>`, the
-   version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest` (HD-1094, HD-1095).
+   version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest` (HD-1111, HD-1112).

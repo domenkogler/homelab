@@ -67,12 +67,12 @@ same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` — never a
 6. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
    window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
 
-7. ⏳ **HD-1093 tail — the pi.dev seat fan-out exists but has never run against a seat that was
+7. ⏳ **HD-1110 tail — the pi.dev seat fan-out exists but has never run against a seat that was
    at its own commit.** `scripts/pi-seat-sync.sh` is the one deploy path now (seat × plane; the root
-   `update_pi.cmd` is deleted, HD-1095). Owed, in order: run `install-pi-wsl.sh` on the `wsl` seat (its `pi`
+   `update_pi.cmd` is deleted, HD-1112). Owed, in order: run `install-pi-wsl.sh` on the `wsl` seat (its `pi`
    on PATH is still the Windows Volta shim and dies with `volta: command not found`), fix `oldsrv`’s `node`
    on a non-login PATH (HD-446 class), then one `bash scripts/pi-seat-sync.sh --push` from clones at the SAME
-   commit — `STALE-CLONE` is the refusal to expect, not a bug. HD-1094’s pin raise is live on the Win11
+   commit — `STALE-CLONE` is the refusal to expect, not a bug. HD-1111’s pin raise is live on the Win11
    seat only. From this laptop the oldsrv leg stays down until HD-443’s `IdentityFile
    ~/.ssh/ansible-admin_ssh.pub` is fixed — run that seat from WSL. [docs/pi-harness.md](docs/pi-harness.md)
    §1, §5, §5a · [scripts/README.md](scripts/README.md)
