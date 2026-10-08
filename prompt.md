@@ -14,8 +14,9 @@
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
-fleet's live set (harness state in [docs/pi-harness.md](docs/pi-harness.md)). The laptop's WSL Debian clone
-is **retired as a seat (owner, 2026-10-07)**. Two refs were unique to that box — a stash (`On main: never_evict
+fleet's live set (harness state in [docs/pi-harness.md](docs/pi-harness.md)). The laptop's WSL Debian clone is **retained but
+rarely used as a seat (owner ruling 2026-10-09, which supersedes the 2026-10-07 “retired” wording)** —
+it stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state. Two refs were unique to that box — a stash (`On main: never_evict
 pin experiment`, 2026-10-03) and `session/arr-door-20261006`, whose remote ref the arr-door lane had deleted
 after landing its work. Neither is live, and both are closed: the stash re-armed a flag main REJECTED on
 2026-10-05 (`group_vars/spark.yml` §never-evict — the pin held 0 blocks, and `check_spark_llm_gate.py` refuses
@@ -40,11 +41,15 @@ file-path identity the seat default (`--check` shows the route, `--1password` op
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt.
 Secrets → 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders. Multi-line bash heredocs with
 backslashes/backticks get mangled through `bash -c` — write script bodies to a temp file and run them.
-**Signed-commit gotcha:** keys `~/.ssh/github_signing` / `github_auth`, both in `Homelab-ansible` (HD-495), so
-`git-bootstrap.sh --ssh-auth` needs no `op signin`. On the **oldsrv seat** `user.signingkey` is the key FILE, not
-`key::<pub>` — the `key::` form needs `SSH_AUTH_SOCK` and fails `Couldn't get agent socket?` in a non-interactive
-shell, which is how an agent runs here. `Couldn't find key in agent` on a `key::` config →
-`ssh-add ~/.ssh/github_signing ~/.ssh/github_auth`.
+**Git identity on a seat — signing is RETIRED (HD-1116), so commit plainly.** `git log -1 --format='%G?'` → `N`
+is the expected value on every commit and is not a failure; never `git commit -s` (that trailer signs nothing).
+The only vault item left in this area is **`GitHub auth`**, the transport key — `GitHub sign` was deleted
+2026-10-09 and `git-bootstrap.sh --ssh-auth` now treats it as optional, because requiring it used to abort the
+run before it pulled the auth key, which is the part a seat actually needs. `commit.gpgsign=false` is written
+explicitly by that path and by the seat template, and `%G?` on the OLD commits still verifies via
+`~/.ssh/allowed_signers` (the public half stays for exactly that). Seat file map — Windows uses
+`~/.gitconfig-github` + `~/.gitconfig-nightly`, a DEBIAN seat has only `~/.gitconfig` — is in
+[docs/deployment-secrets.md](docs/deployment-secrets.md) §6.
 
 **Reachability is settled — read the one SSOT, do not re-derive it:**
 [network-vpn.md](docs/network-vpn.md) §Reaching LAN nodes when away (measured matrix + traps) and §The laptop alias
@@ -96,7 +101,7 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    → [docs/observability.md](docs/observability.md) §Silent-failure hygiene, §Alerting
 5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 442–444 · 465 — the 442–444
    rows keep owner-gated tails).
-   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses signing silently 's signing half retired 2026-10-08 by HD-1116: the owner deleted the key and ruled commits unsigned, so a rebuild recovers `gpgsign=false` instead of a hang — the row stays OPEN for its seat legs). The seat's
+   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses the key files + config silently). Its **signing** half was retired 2026-10-08 by HD-1116 — the key was deleted and commits ruled unsigned, so a rebuild recovers `gpgsign=false` instead of a hang, and what is left to own is the transport key + the global `~/.gitconfig`. the row stays OPEN for its seat legs). The seat's
    **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
    playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself. The same session also gave the
    seat its RouterOS API path (dep in the venv + `bootstrap-runner.sh`, `ansible_python_interpreter` pinned for the `network`

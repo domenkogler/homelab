@@ -187,13 +187,20 @@ export XDG_RUNTIME_DIR=/run/user/$(id -u)               # [MANUAL] if your shell
 set -a; . ~/.config/op/homelab-sa-token; set +a         # read-scope SA token (Phase 0); sourced, not
                                                         # printed — an already-running shell keeps the
                                                         # OLD value and the environment beats the file
-bash scripts/git-bootstrap.sh --ssh-auth                # idempotent; pulls both keys, ssh-adds them,
+bash scripts/git-bootstrap.sh --ssh-auth                # idempotent; pulls the AUTH key (the `GitHub sign`
+                                                        # item is deleted — it is read only if present, since
+                                                        # requiring it aborted this step before the transport
+                                                        # key was pulled), ssh-adds it,
                                                         # sets gpg.format=ssh + gpgsign=false (commit signing retired —
                                                         # [docs/deployment-secrets.md](docs/deployment-secrets.md)) +
                                                         # allowedSignersFile, and CHOOSES the
                                                         # user.signingkey form: a passphrase-free key
                                                         # gets its file path (signs with no agent), a
                                                         # passphrase-protected one gets `key::<pub>`
+git config --global commit.gpgsign false                # the DEBIAN seat's own global file: the command above
+                                                        # writes the CLONE's config only, and a seat left at
+                                                        # `true` hangs the next cron/converge/pi committer
+                                                        # (seat file map: docs/deployment-secrets.md §6)
 ```
 
 ✔-evidence: `ssh-add -l` lists two identities, `git config --get user.signingkey` prints a path, and
