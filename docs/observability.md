@@ -447,14 +447,40 @@ re-derive them):
 | Did the series reach the backend? | Query **through the datasource proxy**: `…/api/datasources/proxy/uid/prometheus/api/v1/query?query=…`. | A direct `curl` to `victoria-metrics:8428` answers **400** even with correct basic auth (this VM build wants a request shape curl's `-G` does not produce) — a 400 there is NOT "no data", and a 401 is often just the absent `OP_SERVICE_ACCOUNT_TOKEN`, because the vault lookup then yields nothing. |
 | Is the exporter up on a host? | `curl -s 127.0.0.1:9098/metrics \| grep -c '^homelab_'` on that host (oldsrv: 9). | The unit being `active` — the collector can be up and its `systemctl show` loop empty. |
 
-**One acceptance is still open:** force one listed unit to fail and see the message arrive in
-the alert channel. **Un-parked by the owner on 2026-10-08:** the group's only human member is the operator,
-so the canary pages nobody else and it **may run unattended** (the earlier park, same day, assumed a family
-audience that does not exist). Once HD-1108 lands the read moves from the Signal group to the
-`#homelab-alerts` room; the trigger does not change. To close it: `systemd-run --wait --unit=hd450-canary.service /bin/false`
-on any monitoring host, wait one rule interval (`unit-last-result-failed`, `for: 5m`), read the Signal
-group, then `systemctl reset-failed hd450-canary.service`. The canary shape itself is already proven
-off-box (the exporter's own `--self-test` fails it closed).
+**✅ The end-to-end acceptance is CLOSED — 2026-10-09 00:00 CEST, Signal + email both confirmed received.**
+
+⚠ **The recipe this section carried before could not fire, and it stays recorded so nobody runs it again:**
+`systemd-run --wait --unit=hd450-canary.service /bin/false` creates a unit the exporter never looks at.
+`homelab-hygiene.py` reports **only** the units in `monitoring_hygiene_units` for that host — measured on
+oldsrv: three series, `traefik-cert-pull` + `nut-monitor` + `nut-client`. An unlisted canary emits no series,
+and a rule with nothing to compare is silent. Listing the canary would fire it as `result="missing"` (the
+fail-loud branch doing its job), but that costs a `host_vars` edit + a converge, and failing a real watched
+unit to test a notification means breaking the cert puller or the NUT clients. **What was used instead
+breaks nothing and tests the exact class the rule exists for:**
+
+```bash
+ssh <host> 'sudo systemctl stop homelab-hygiene'    # one monitoring host; nothing else reads :9098
+# …wait for the rule (timing measured below), read the alert channel, then:
+ssh <host> 'sudo systemctl start homelab-hygiene'
+```
+
+No other rule keys on `up{job="homelab-hygiene"}` (all 24 checked), so exactly one rule can fire, and only
+that host is blind for the length of the test. Measured end to end — the first real numbers behind the
+`> 900` + `for: 5m` arithmetic, and the first real fire of the corrected expression:
+
+| Moment (CEST) | `time() - max_over_time(…[6h])` | Rule state |
+|---|---|---|
+| 23:38:47 — last collection before `stop` | 0 s | `Normal` |
+| 23:53:47 | 900 s | condition true |
+| 23:55:00 | 964 s | **Pending** (series `activeAt` moves) |
+| 00:00:00 | 1253 s | **Alerting** — Signal + email, `instance=nas.kogler.si`, `value` populated |
+| 00:01:25 — exporter started again | 26 s | still `Alerting` (next evaluation not yet due) |
+| 00:03:00 | fresh | resolved |
+
+**So a page lands 20–21 min after the last collection and clears ~1.5 min after the cause is fixed** (next
+scrape + the 1 m rule interval). The other four hosts stayed `Normal` throughout and nothing else in the
+fleet fired. Once HD-1108 lands the read moves from the Signal group to the `#homelab-alerts` room; the
+trigger does not change.
 
 ⚠ **`textfile` was tried first and does not work on this Alloy.** `prometheus.exporter.unix` here accepts a
 `textfile {}` block but rejects every attribute name that would point it at a directory — probed against

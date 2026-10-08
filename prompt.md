@@ -79,18 +79,19 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
    `cloudflare_dns_records`). Re-renders live edge routing → owner-present. ⚠ **The blocker that was mechanical is gone**: the
    seat drives the RouterOS API now (HD-495, 2026-10-08 — `librouteros` + the interpreter pinned for the `network` group; router
    and switch both read 7.24.4), so what remains is the owner window, not the tooling. → [prompt-436.md](prompt-436.md)
-4. ✅→⏳ **HD-450** — the silent-failure rules are **live and now honest**: the VPS + nas monitoring converges landed
-   2026-10-08 (`failed=0`) and the **corrected** `hygiene-collector-stale` expression went live with the VPS monitoring
+4. ⏳ **HD-450** — the silent-failure rules are **live, honest and now proven end to end**: the VPS + nas monitoring
+   converges landed 2026-10-08 (`failed=0`) and the **corrected** `hygiene-collector-stale` expression went live with that
    converge at **22:13 CEST** — the five `homelab_*` rules read back through the Grafana ruler API, the exporter answers on
-   **all five** hosts (`spark` joined 2026-10-08, heartbeats 12–51 s), and the rule that paged the family every 30 min for
-   ~19 h **on a healthy fleet** now enumerates five per-host `Normal` series instead of one valueless `Alerting (NoData)`
-   (shape and proof in the doc: a filtered-empty result and a missing series are the same NoData state; the fix keeps the
-   comparison in the threshold and ages the metric through `max_over_time[6h]`). What is owed is now three things:
-   **(1)** the end-to-end Signal acceptance read — **un-parked by the owner 2026-10-08**: the "Homelab Alerts" group's only
-   human is the operator, so a canary pages nobody else and it may run unattended (`systemd-run --wait
-   --unit=hd450-canary.service /bin/false` on any monitoring host, wait one `unit-last-result-failed` interval, read the
-   Signal group, `systemctl reset-failed hd450-canary.service`); **(2)** leg (c), the NUT client→master **metric**, untouched — unit results are not
-   "this client can reach the master"; **(3)** export the VPS **box** cert (acme.sh) — it has no series at all, so no rule can
+   **all five** hosts (`spark` joined 2026-10-08, heartbeats 12–51 s), and the rule that paged every 30 min for ~19 h
+   **on a healthy fleet** now enumerates five per-host `Normal` series instead of one valueless `Alerting (NoData)` (shape and
+   proof in the doc: a filtered-empty result and a missing series are the same NoData state; the fix keeps the comparison in
+   the threshold and ages the metric through `max_over_time[6h]`). **The end-to-end alert read is CLOSED 2026-10-09 00:00
+   CEST — Signal and email both confirmed**, triggered by silencing one host's collector and restoring it; measured timing
+   in the doc (page 20–21 min after the last collection, resolved ~1.5 min after the cause is fixed). ⚠ **The canary recipe
+   this handoff and the row carried could not fire** — a transient unit that is not in `monitoring_hygiene_units` is invisible
+   to the exporter; the working trigger is now in the doc, do not resurrect the `hd450-canary.service` form. What is owed is
+   now two things: **(1)** leg (c), the NUT client→master **metric**, untouched — unit results are not
+   "this client can reach the master"; **(2)** export the VPS **box** cert (acme.sh) — it has no series at all, so no rule can
    exist for it yet (measured at the `__name__` level; the trap of writing a rule against an imagined metric is in the doc).
    → [docs/observability.md](docs/observability.md) §Silent-failure hygiene, §Alerting
 5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 442–444 · 465 — the 442–444
