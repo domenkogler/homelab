@@ -416,8 +416,18 @@ Measured 2026-10-08 from the VPS runner, read-only, against the live clusters. T
 that replaced my assumptions; every number below came off the boxes, not off a wiki.
 
 **In scope:** the five VPS sidecars — `authentik-postgres`, `forgejo-db`, `litellm-db`,
-`onlyoffice-postgres`, `zipline-db` — plus `lan-litellm-db` on oldsrv. All six are `16.15-alpine`,
-`server_version_num=160015`, and app data totals **362 MB** fleet-wide. Nothing exceeds 1 GB, so
+`onlyoffice-postgres`, `zipline-db` — plus `lan-litellm-db` on oldsrv.
+
+**Status read-back (the fleet truth, re-derive before trusting it):** `postgres:18.6-alpine` —
+`litellm-db`, `authentik-postgres`. `postgres:16.15-alpine` — `forgejo-db`, `zipline-db`,
+`onlyoffice-postgres`, `lan-litellm-db` (held by owner ruling until the two completed legs were
+proven, which they were). `immich-postgres` is 14.19 on an upstream composite and is not in this
+migration at all. Check with:
+`for c in authentik-postgres forgejo-db litellm-db onlyoffice-postgres zipline-db; do docker inspect -f
+"{{.Config.Image}}" $c; done` on the VPS, and `lan-litellm-db` on oldsrv.
+
+At the time of the pre-flight all six were `16.15-alpine` (`server_version_num=160015`), with app
+data totalling **362 MB** fleet-wide. Nothing exceeds 1 GB, so
 each window is dominated by procedure overhead, not data: `pg_dump -Fc` of the largest cluster
 (authentik, 171 MB app DB) took **1.80 s**, `pg_restore --list` 0.49 s / 1 819 TOC entries.
 Restore-side wall time was **not** measured and is normally 2–5× the dump — still minutes.
