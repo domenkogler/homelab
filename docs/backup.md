@@ -463,11 +463,13 @@ pg_restore --list /root/pg18/$SVC/data.dump | wc -l                          # p
 # record pre-migration counts (tables + row counts for the 3 largest tables) to /root/pg18/$SVC/pre.txt
 docker compose -f /opt/$SVC/docker-compose.yml stop <app> && docker compose -f /opt/$SVC/docker-compose.yml stop db
 mv /srv/docker/$SVC/postgres /srv/docker/$SVC/postgres.16-$(date +%Y%m%d)     # named volume: RENAME it, never rm
-mkdir -p /srv/docker/$SVC/postgres && chown 70:70 /srv/docker/$SVC/postgres      # fresh empty mountpoint
+mkdir -p /srv/docker/$SVC/postgres && chown 70:70 "$_" && chmod 700 "$_"        # MUST be empty: a nested
+                                                                              #   mountpoint left by an earlier
+                                                                              #   shape makes initdb abort
 # flip <var> to 18.6-alpine, converge THIS service only — initdb runs with the pinned libc locale
 docker compose -f /opt/$SVC/docker-compose.yml up -d db                        # wait: healthy
-psql "host=... user=$U" -f /root/pg18/$SVC/roles.sql                           # trap 3: roles first
-pg_restore -d $U --no-owner -1 /root/pg18/$SVC/data.dump                       # trap 2 again: -U $U
+docker exec -i $C psql -U $U -d $U < $W/roles.sql                              # trap 3: roles first (STDIN)
+docker exec -i $C pg_restore -U $U -d $U --no-owner < $W/data.dump             # STDIN: rootfs is read-only
 # re-run the counts into post.txt and DIFF against pre.txt, then start the app and test it FOR REAL
 ```
 
@@ -477,20 +479,27 @@ each leg that `db-backup` still dumps that cluster (it addresses services by con
 survives a name-preserving leg — but "survives" has to be read back, not assumed), and re-run the
 restore spot-check the way the Forgejo dump was proven (130 tables against production's 130).
 
-### What PG 18 actually requires: pin `PGDATA`, not the bind target
+### What PG 18 actually requires (three things, all measured 2026-10-08 on the litellm leg)
 
-PG 18 images default `PGDATA` to the version-specific `/var/lib/postgresql/18/docker`, and their entrypoint
-**refuses to start** when the cluster sits anywhere else. The layout they recommend (one mount at
-`/var/lib/postgresql`) does **not** work on this fleet: the DB containers run `cap_drop: ALL`, so the entrypoint's
-root phase has no `CAP_DAC_OVERRIDE` and cannot write the uid-70 `0700` directory it is handed — measured on the
-VPS as `mkdir: can't create directory '/var/lib/postgresql/18/': Permission denied`, repeated on every restart.
-The fix is one env line, `PGDATA: /var/lib/postgresql/data`, which keeps ONE mount shape for 16 and 18. Probed
-2026-10-08 with the service's own caps: `server_version 18.6`, `datcollate=en_US.utf8`, `ready to accept
-connections`. A first attempt at this migration landed the bind-target version conditional instead; it was wrong
-and was reverted in the same window — if a `pg_data_mount` ever reappears in a template, it is stale.
-Rollback after an 18 leg needs the datadir back AND the pin back; an 18 image over a 16 cluster **crash-loops
-instead of failing at any gate**.
+1. **Pin `PGDATA`.** The 18 images default it to the version-specific `/var/lib/postgresql/18/docker` and their
+   entrypoint refuses to start when the cluster sits elsewhere. `PGDATA: /var/lib/postgresql/data` in the DB env
+   keeps ONE mount shape for 16 and 18.
+2. **Do NOT use the upstream parent mount on this fleet.** It needs the entrypoint to create `/var/lib/postgresql/18`
+   as root inside the container, but our DB services run `cap_drop: ALL` (adds: CHOWN, DAC_READ_SEARCH, FOWNER,
+   SETUID, SETGID — **no `CAP_DAC_OVERRIDE`**), so writing the uid-70 `0700` bind dir fails: `mkdir: can't create
+   directory '/var/lib/postgresql/18/': Permission denied`. A bind target conditional in the template is therefore
+   wrong; if `pg_data_mount` ever reappears, it is stale.
+3. **Move dumps over STDIN, not `docker cp`.** The DB containers are `read_only: true`, so `docker cp f C:/f` fails
+   with `container rootfs is marked read-only` — the restore then dies on a missing file *after* the datadir swap.
+   `docker exec -i C pg_restore -U <svc> -d <db> --no-owner < dump` (and `psql -f -` for roles) works; `/tmp` is a
+   tmpfs and writable if a file is genuinely needed.
 
+Expected, not drift: `pg_roles` goes **15 → 17** because PG 18 adds two default roles (`pg_checkpoint`,
+`pg_maintain`), and an anonymous volume appears at `/var/lib/postgresql` because the image declares it. Verify the
+leg with `pg_controldata /var/lib/postgresql/data` (the directory argument is required — without it the command
+prints nothing useful), `datcollate=en_US.utf8`, pre/post table counts, and a `pg_dump --list` TOC count that
+matches the pre-migration dump. The litellm leg closed 2026-10-08 on `18.6-alpine`: 83 tables, 189
+`_prisma_migrations` rows, 9 tokens, TOC 457 in and 457 out, app readiness `{"db":"connected"}`.
 **Sequencing by blast radius:** `litellm-db` → `onlyoffice-postgres` (+ the RabbitMQ 3.13 → 4.3
 question in the same window, while ONLYOFFICE is already down) → `forgejo-db` → `zipline-db` →
 `lan-litellm-db` on oldsrv → **`authentik-postgres` last**, because it is the fleet's SSO and every
