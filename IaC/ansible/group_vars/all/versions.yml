@@ -233,13 +233,19 @@ litellm_version: "v1.104.0"
 #   on the VPS — authentik-postgres + forgejo-db (`postgres:16-alpine`, the alias the templates
 #   hardcoded), litellm-db / onlyoffice-postgres / zipline-db (`16.15-alpine`), immich-postgres on
 #   its own composite `14-vectorchord…` tag. OLDSRV's only Postgres is `lan-litellm-db` (this var).
-litellm_db_version: "18.6-alpine"   # ⚠ LEG RUN 2026-10-08 (HD-1100): the old cluster is preserved at
-                                  #   /srv/docker/litellm/postgres.16-20261008 on the VPS, with roles + data
-                                  #   dumped to /root/pg18/litellm-db/. Rollback = flip this back to
-                                  #   "16.15-alpine" AND move that directory back — the pin alone is not a
-                                  #   rollback, and an 18 image over a 16 datadir crash-loops instead of
-                                  #   failing at any gate. oldsrv's cluster keeps its OWN pin
-                                  #   (lan_litellm_db_version, 3 lines below) and stays at 16 this window.
+litellm_db_version: "16.15-alpine"   # ⚠ ROLLED BACK 2026-10-08 mid-leg (HD-1100). The leg ran and FAILED
+                                  #   for a reason no offline check can see: the PostgreSQL 18 OFFICIAL
+                                  #   IMAGES CHANGED THEIR DATA LAYOUT — PGDATA is now the version-specific
+                                  #   /var/lib/postgresql/18/docker and the entrypoint REFUSES TO START when
+                                  #   it finds a cluster at the old /var/lib/postgresql/data mount, while
+                                  #   attaching an anonymous volume at /var/lib/postgresql. So a pin bump
+                                  #   alone crash-loops the database on first boot; the BIND PATH is part of
+                                  #   the version and has to move with it (templates must mount
+                                  #   <dir>:/var/lib/postgresql for >= 18 and :/var/lib/postgresql/data
+                                  #   below it). Rollback was: datadir back in place + this line at 16.15,
+                                  #   never the datadir alone. No data was lost — dumped first (457 TOC
+                                  #   entries) and the 16 cluster was preserved, untouched, at
+                                  #   /srv/docker/litellm/postgres.16-20261008 during the attempt.
 # The LAN inference gateway on OLDSRV runs its OWN cluster (measured 2026-10-08: it is a separate
 # container `lan-litellm-db`, 78 MB, and until now shared this var with the VPS cluster — so a pin
 # bump here would migrate both hosts at once, or neither. HD-1100 needs one host per window, so the
