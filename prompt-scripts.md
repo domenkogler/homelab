@@ -99,8 +99,9 @@ Commit: one commit, `validate-all` green. **Do not start Stage 3 in the same ses
    (`install-pi-wsl.sh:62`, no version → whatever npm answers) and reaches the other seats only because a session hand-ran
    `pi install` there; the settings plane classifies it as seat-local and keeps it, so nothing converges or pins it. Same
    treatment for `@season179/pi-worktree`, `@ogulcancelik/pi-ssh-tools`, `pi-deepseek-optimized`.
-3. Converge the seats with `bash scripts/harness/pi-seat-sync.sh --push` (or Stage 1's path, `scripts/pi-seat-sync.sh`)
-   **after** the paths move, not before — the driver's command strings are literal and the pre-flight compares each seat's
+3. Converge the seats with `bash scripts/pi-seat-sync.sh --push` — **after** the paths move, not before (Stage 3 relocates
+   the driver into its own folder; the command is otherwise unchanged) — because the driver's command strings are literal and
+   the pre-flight compares each seat's
    `git rev-parse HEAD` with this checkout, so a seat on an old commit is `STALE-CLONE` by design, not a bug.
 
 ## Stage 3 — the moves (one commit per folder, ordered by risk, `git mv` only)
@@ -133,7 +134,8 @@ git grep -n 'scripts/<moved-file>' -- . ':!reports'   # must print nothing
   `check_doc_path_refs.py` catches dangling ones — treat a green there as necessary, not sufficient, for comments that are
   only prose-quoted.
 - The seat driver (`pi-seat-sync.sh`) and both installers carry **literal command strings**; after the move, run
-  `bash scripts/harness/pi-seat-sync.sh --self-test` (stubbed seats) **and** `--list`, and confirm every plane still reports a
+  `bash scripts/pi-seat-sync.sh --self-test` (stubbed seats) **and** `--list` — at whichever path Stage 3 leaves it at —
+  and confirm every plane still reports a
   verdict rather than `FAILED` with `No such file`.
 - `install-pi-wsl.sh` / `install-pi-debian.sh` are invoked by the runbook with paths in `deployment-manual.md` Phase 0/4c —
   sweep that file too (`check_runbook_purity.py` keeps it honest but does not check path existence beyond the ref checker).
@@ -172,7 +174,7 @@ exception note is affected — which is why the note is prose in the registry he
 
 - `bash scripts/validate-all.sh` green in the worktree, exit code read from `$?` (never from a filtered view of the output).
 - `git grep 'scripts/[a-z-]*\.\(sh\|py\|ps1\)'` returns **no** reference to a path that does not exist.
-- `bash scripts/harness/pi-seat-sync.sh --self-test` all canaries caught, and `--list` prints the same plane set the
+- the seat driver's `--self-test` (wherever Stage 3 puts it) has all canaries caught, and its `--list` prints the same plane set the
   registry declares.
 - The registry row + this brief report: files moved, the two IaC touchpoints, and any plane that had to be re-converged on a
   seat.
