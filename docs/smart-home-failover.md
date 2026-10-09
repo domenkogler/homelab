@@ -265,7 +265,7 @@ Forward-Auth. Direct fallback `pi:5380` on the LAN.
   the last synced cert still serves `ha.kogler.si` / `dns-pi.kogler.si` (ACME
   cannot renew, but it does not need to). The Companion app requires a valid cert, so it must work fully offline
   (WAN loss is not a failover trigger and is not required in fallback).
-- **`trusted_proxies`:** HA must trust both edges so real client IPs are preserved.
+- **`trusted_proxies`:** HA must trust both edges so real client IPs are preserved. ⚠ **One measured contradiction stands here:** `ha_trusted_proxies` lists the oldsrv Home-IP (`group_vars/all/main.yml`, since `c9c36f23` 2026-09-11) and that var renders the list, yet the 2026-09-20 probe from oldsrv still got `400` on `Host: ha.kogler.si` + XFF. Until the **active** HA host's rendered `configuration.yaml` is read, this stays "configured, not proven" — and the standby edge is not evidence of anything until a takeover-shaped request returns 200. Tracked as HD-418; do not conclude from either half alone.
 
 ---
 
