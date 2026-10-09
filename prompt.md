@@ -1,10 +1,11 @@
 > **Role:** entry point for the next session — a **lean handoff**, a pointer index and nothing else. Every item's authority
 > is its [todo.md](todo.md) row; permanent knowledge is the owning doc ([docs/index.md](docs/index.md) map); the permanent
-> process contract (working rules, orchestrator mode O1–O8, launch, merge/cleanup) is
+> process contract (working rules, orchestrator mode O1–O9, launch, merge/cleanup) is
 > [docs/orchestration.md](docs/orchestration.md) §4; the planning view for the human is [todo-table.md](todo-table.md).
 > **No history lives here** — session accounts live in owning-doc status blocks + git history (archive-only:
 > `reports/changelog.md`, `reports/deployment-journal.md`). A `prompt-*.md` brief carries a lane's contract and order of
-> work; it never restates a row.
+> work; it never restates a row. **Briefs are named for a host + domain, never for an HD** (CONVENTIONS §6), so every
+> pointer below is a domain brief and the row stays the authority for what is owed.
 > **Linked from:** [README.md](README.md) §0/§2 · [CONVENTIONS.md](CONVENTIONS.md) §4/§6 · [todo.md](todo.md) ·
 > [todo-table.md](todo-table.md) · [docs/orchestration.md](docs/orchestration.md)
 
@@ -66,120 +67,110 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
 
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 
-1. ⏳ **HD-469** — spark LLM profile switch: take the **under-cap baseline** trace (only a sustained `clocks.sm` trace under
-   load proves the clock regime on GB10), then `reasoning` gates 5–7. Run it from a session whose own model is **not**
-   spark (rule 0). Split out of it: ⏳ **HD-475** (`fast`'s triton fix — code-first) and ⛔ **HD-473**
-   (engine pin, upstream-blocked, ~40 s re-check). → [prompt-llm.md](prompt-llm.md)
-2. ⏳ **HD-489 tail** — the winner is live, every leg ran, and **one** certificate item is left: the owner ruled
-   gate 6's battery up to `max_tokens 16,384` (16 × 2^10) on 2026-10-07 — **recorded, not applied** — and applying it
-   means re-running the **B1 baseline in the same change**, because grading the reasoning arm against a baseline made
-   under the old 1024 budget is not a measurement. **Gate 7 is CLOSED**: read twice on 2026-10-07 over the accruing
-   window and PASS both times — a bounded fill, one +5,626 MiB step then flat at 99,649 MiB, 0.0 MiB/h tail, 0 restarts
-   ([`spark/reports/hd489-tail-gate7-20261007/`](spark/reports/hd489-tail-gate7-20261007/RESULTS.md));
-   `fast.certified_evidence` now says the shape's real history, so the row can go once the battery lands. The gate-6
-   confound it replaces is in [`spark/reports/hd489-tail-gate6-20261006-2349/`](spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md).
-   ⛔ B10's gates 6/8/9 were **declined by owner** and B9 · B5 · B8 are closed — do not re-run any of them. → [prompt-remaining-bench.md](prompt-remaining-bench.md)
-3. ⏳ **HD-436** — the transport lane's hinge: the derived `zone_kogler_si` list is already on `main`; switch the two
-   consumers that still hand-author (`vps.yml`'s two subdomain lists, `roles/cloudflare_dns/vars`
-   `cloudflare_dns_records`). Re-renders live edge routing → owner-present. ⚠ **The blocker that was mechanical is gone**: the
-   seat drives the RouterOS API now (HD-495, 2026-10-08 — `librouteros` + the interpreter pinned for the `network` group; router
-   and switch both read 7.24.4), so what remains is the owner window, not the tooling. → [prompt-436.md](prompt-436.md)
-4. ⏳ **HD-450** — the silent-failure rules are **live, honest and now proven end to end**: the VPS + nas monitoring
-   converges landed 2026-10-08 (`failed=0`) and the **corrected** `hygiene-collector-stale` expression went live with that
-   converge at **22:13 CEST** — the five `homelab_*` rules read back through the Grafana ruler API, the exporter answers on
-   **all five** hosts (`spark` joined 2026-10-08, heartbeats 12–51 s), and the rule that paged every 30 min for ~19 h
-   **on a healthy fleet** now enumerates five per-host `Normal` series instead of one valueless `Alerting (NoData)` (shape and
-   proof in the doc: a filtered-empty result and a missing series are the same NoData state; the fix keeps the comparison in
-   the threshold and ages the metric through `max_over_time[6h]`). **The end-to-end alert read is CLOSED 2026-10-09 00:00
-   CEST — Signal and email both confirmed**, triggered by silencing one host's collector and restoring it; measured timing
-   in the doc (page 20–21 min after the last collection, resolved ~1.5 min after the cause is fixed). ⚠ **The canary recipe
-   this handoff and the row carried could not fire** — a transient unit that is not in `monitoring_hygiene_units` is invisible
-   to the exporter; the working trigger is now in the doc, do not resurrect the `hd450-canary.service` form. What is owed is
-   now two things: **(1)** leg (c), the NUT client→master **metric**, untouched — unit results are not
-   "this client can reach the master"; **(2)** export the VPS **box** cert (acme.sh) — it has no series at all, so no rule can
-   exist for it yet (measured at the `__name__` level; the trap of writing a rule against an imagined metric is in the doc).
-   → [docs/observability.md](docs/observability.md) §Silent-failure hygiene, §Alerting
-5. ⏳ Cockpit / coding-seat / grants cluster → [prompt-361.md](prompt-361.md) (rows 361 · 411 · 442–444 · 465 — the 442–444
-   rows keep owner-gated tails).
-   ⏳ **HD-495**: role-own the oldsrv seat's git plumbing (a rebuild still loses the key files + config silently). Its **signing** half was retired 2026-10-08 by HD-1116 — the key was deleted and commits ruled unsigned, so a rebuild recovers `gpgsign=false` instead of a hang, and what is left to own is the transport key + the global `~/.gitconfig`. the row stays OPEN for its seat legs). The seat's
-   **venv is not the gap** the row claimed — ansible core 2.21.5 is installed in `~/ansible-venv`, and the
-   playbook syntax gate runs green there now that `validate-all.sh` activates the venv itself. The same session also gave the
-   seat its RouterOS API path (dep in the venv + `bootstrap-runner.sh`, `ansible_python_interpreter` pinned for the `network`
-   group) and wrote the four probes-that-lie into [deployment-ansible.md](docs/deployment-ansible.md) §Network devices. The row now also carries the
-   **Win11 sibling** — signing SUPERSEDED 2026-10-08 by HD-1116 (the key is gone from GitHub; the same install path now lands `gpgsign=false`): the modal-free identity is still the *seat default* — `scripts/git/gitconfig-nightly`, installed
-   and included last by `git-bootstrap-win11.sh --git-identity` — so a rebuild recovers it instead of losing it
-   (measured dialog timings + the traps in [docs/deployment-secrets.md](docs/deployment-secrets.md)
-   §What actually raises a 1Password prompt).
-6. Owner-gated tails (exact steps in the rows): 377 Grafana render re-do · 444 the phone-crossing drill · 418 the HA restart
-   window · HD-06 the UPS drill · HD-47 the federation join · 454 the human's own buy decision · 411 the cockpit resume word.
-7. ⏳ **HD-1100** — **Postgres 16 → 18: both legs the owner authorized are DONE and verified** (`litellm-db`,
-   then `authentik-postgres`, both on `18.6-alpine`; `pg_control version number: 1800` on each, key-table counts identical
-   before and after, SSO live and login flow answering). The four **middle legs stay held by owner ruling** — `onlyoffice-postgres`
-   (+ the RabbitMQ 3.13→4 question in the same window), `forgejo-db`, `zipline-db`, `lan-litellm-db` on oldsrv. Runbook + the four
-   rules that took three attempts to learn (pin `PGDATA`; never the upstream parent mount under `cap_drop: ALL`; dumps over **STDIN**
-   because `read_only: true` rejects `docker cp`; stop everything but the DB before restoring) are
-   [docs/backup.md](docs/backup.md) §What PG 18 actually requires. Two things owed here: the next `db-backup` run (03:25) is the
-   end-to-end proof that DB01/DB04 still dump the migrated clusters, and **oldsrv still owes its `wireguard` leg** — it restarts the
-   tunnel server, so run it alone, last, then re-verify every tunnel path. immich stays out of scope (14.19 upstream composite with
-   `vchord`/`vector` live in the schema).
-8. ⏳ **apt upgrade phase** — deliberately left OUT of the converge wave. Needs `apt-mark hold` for Ansible-pinned packages
-   (`alloy`, `tailscale`, `docker-ce`, `kopia`) landed in IaC first, or a bare `apt upgrade` re-creates the HD-1094 drift and
-   stacks kernel reboots onto a DB-migration window. The `roles/updates` design (visibility → unattended security pocket →
-   gated full upgrade with holds) is still an owner go/no-go.
-9. ⏳ **HD-1118 — `scripts/` restructure: the tree is agreed, the code is not yet moved.** Target folders (toolchain-named:
-   `lib/ gate/ ansible/ secrets/ git/ harness/ bench/ hardware/`, both umbrella entry points staying at the top), the full
-   per-file assignment and the four stages are in [prompt-scripts.md](prompt-scripts.md); the rows carry the measurements.
-   **Stage 1 is the gate on everything else and is safe to start immediately** — one repo-root resolver replacing the fixed-depth
-   assumptions (22 bash + 29 python sites, measured 2026-10-09), because a moved validator that resolves its root wrongly
-   walks nothing and prints green. Its own trap: `validate-all.sh` judges the INDEX, so a new file (or a new checker) is
-   invisible until `git add` — the exact miss this session made and then fixed in `447a77e8`. Sits behind HD-1119 for the
-   folder-name question only at Stage 4 (the layout checker asserts folder ≡ the cited doc's domain).
+Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** —
+the brief, not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the
+host/slot rule that decides what may run together are [docs/orchestration.md](docs/orchestration.md) §4 (O1–O9);
+the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named for a host + domain, never for an HD
+(CONVENTIONS §6), so nothing here points at a per-HD brief any more.
 
-**New unbriefed rows from the 2026-10-08 maintenance window** (no session launches from them): **HD-1107**
-(nas ZFS **policy** snapshots never ran — our own generated `sanoid.service` said `/usr/local/bin/sanoid`, the package
-installs `/usr/sbin/sanoid`, so every timer fire died `203/EXEC`; fixed and live (converged), ran `exit=0`; still owed: confirm `hourly.*` snapshots appear and decide whether /etc/cron.d/sanoid should stay (dual scheduling))
-· **HD-1105** (three enabled-but-dead units on nas: `zfs-share`, `winbind` with `smb` enabled, and `sync-authentik-users`
-with an EMPTY `ExecStart`) · **HD-1106** (20 dangling VPS volumes, 644 MB, two of them 47 MB with unverified provenance —
-not deleted; the HD-247 volume→bind pattern is the suspect) · **HD-1103 tail** (`/var/log` on pi is mode `1777`, so
-logrotate fails nightly; no role owns that path, which is why it drifted — needs an owning-role decision before IaC sets it).
+1. ⏳ **The spark engine lane** — the under-cap `clocks.sm` baseline for **HD-469** (only a sustained trace under
+   load proves the regime; run it from a session whose own model is **not** spark — rule 0), `fast`'s triton fix
+   (**HD-475**), the upstream-blocked engine pin (**HD-473**), and **HD-489**'s last certificate item: gate 6's
+   battery at `max_tokens 16,384` is **recorded, not applied**, and applying it means re-running the B1 baseline
+   in the same change. Gate 7 is CLOSED (read twice 2026-10-07, PASS both); B10's gates 6/8/9 were declined by
+   owner and B9 · B5 · B8 are closed — do not re-run any of them. **HD-494**'s re-derive is arithmetic-complete
+   with the value deliberately unchanged — price the 2026-10-06 transient before touching the var, and read
+   [docs/hardware-spark.md](docs/hardware-spark.md) first. →
+   [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-376 · 400 · 359 · 367 · 380 ride it too)
+2. ⏳ **The transport / answer plane** — **HD-436**'s hinge: the derived `zone_kogler_si` list is on `main`; switch
+   the two consumers that still hand-author (`vps.yml`'s subdomain lists, `roles/cloudflare_dns/vars`). The
+   blocker that was mechanical is gone — the seat drives the RouterOS API now (**HD-495**, 2026-10-08) — so what
+   remains is the owner-present window, not the tooling. Alongside it: **HD-477** (make the resolver actually float
+   with the VIP; premise measured green, the row carries the three gates), **HD-487** (config-manager truth per host
+   — `scripts/probe-net-manager.sh` reads the verdict off the interface the default route rides: oldsrv/pi =
+   NetworkManager with dead networkd renders on disk, vps = networkd, **spark = both managers on one box**,
+   **nas = neither**), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed and was verified
+   2026-10-08**; spark still waits on a spark-slot converge, nas on HD-487), and the DNS-policy rows **HD-480–483**.
+   → [prompt-dns-transport.md](prompt-dns-transport.md)
+3. ⏳ **Silent-failure alerting** — **HD-450**'s rules are live and proven end to end (the alert read closed
+   2026-10-09); two things are owed: leg (c), the NUT client→master **metric**, and exporting the VPS **box** cert,
+   which has no series at all. ⚠ The canary recipe this handoff used to carry could not fire — a transient unit
+   outside `monitoring_hygiene_units` is invisible to the exporter; the working trigger is in the doc. **HD-1094**
+   is **proof-owed, not closed**: the fleet pin IS `alloy_version: "1.20.1-1"`
+   (`IaC/ansible/group_vars/all/versions.yml:347`) with no per-host override left, so the decision is taken — what
+   remains is reading each monitoring host's **running** version against the pin and quoting `up{job="alloy"}` after
+   its restart. A `dpkg` read is not a health read, and ⛔ never add `--allow-downgrades`. →
+   [prompt-observability-alerting.md](prompt-observability-alerting.md)
+4. ⏳ **The media / music ladder** — **HD-362** keeps two Lidarr legs to verify (one album through `lidarr-ydl`,
+   one Aurral → Lidarr add) and the Tube Archivist `path.repo` note; the slskd login question is CLOSED (the vault
+   was right; the compose carried four env names slskd does not read — probe with
+   `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose) and the Soulseek password
+   rotation is **DECLINED and risk-accepted on record** — do not re-open either. **HD-1090** owes one grab started
+   in Prowlarr's own UI, **HD-1089** one read from a real tailnet client, **HD-1091** the Soulseek→Lidarr bridge
+   (Lidarr 3.1 has no Slskd download client at all), **HD-1088** the `music → Storage Box` leg, **HD-1092** the
+   Authentik→NAS provisioning run that has never completed. → [prompt-media-arrs.md](prompt-media-arrs.md)
+5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
+   1110 · 1115**) with its owner-gated tails intact. **HD-495**: role-own the oldsrv seat's git plumbing — its
+   **signing** half was retired 2026-10-08 by HD-1116, so a rebuild now recovers `gpgsign=false` instead of hanging;
+   what is left to own is the transport key and the global `~/.gitconfig`. **HD-1110**: `scripts/pi-seat-sync.sh` is
+   the one deploy path; the oldsrv leg closed 2026-10-08 on all eight planes, so what remains is the `wsl` seat's
+   `install-pi-wsl.sh` leg (its `pi` on PATH is still the Volta shim) and the Win11 `pi_auth` drift — the seat holds
+   an **OAuth** openrouter entry where the spec renders `api_key`; mint it under the HD-484 auth lane and never
+   overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
+6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: our own generated
+   `sanoid.service` pointed at `/usr/local/bin/sanoid` while the package installs `/usr/sbin/sanoid`, so every
+   timer fire died `203/EXEC` — fixed and converged, still owed: confirm `hourly.*` snapshots appear and decide
+   whether `/etc/cron.d/sanoid` should stay), **HD-1105** (three enabled-but-dead units on nas), **HD-1106**
+   (20 dangling VPS volumes, two with unverified provenance — not deleted), **HD-1093** (**owner**: rotate both
+   family SMB passwords, then land them with `storage_samba_password_force` — a vault rotate alone changes nothing
+   on the box), **HD-207** and **HD-238**. → [prompt-storage-backup.md](prompt-storage-backup.md)
+7. ⏳ **The Pi's own box** — **HD-418** (the HA restart window, owner-gated; pair it with **HD-1103** so the box
+   reboots once: `/var/log` is mode `1777`, so logrotate refuses every file nightly and no role owns the path),
+   **HD-1109** (the HA standby is not deployed, so the failover the docs record as proven has one node),
+   **HD-1101** (**open, not fixed** — the pi's resolver leg still has no shape guard of its own; HD-484's fail-loud
+   assertion is oldsrv-shaped and reads `nm_oldsrv_profile`, so nothing checks the resolver list the Pi writes),
+   plus **HD-04 · 434 · 438 · 439 · 319 · 17 · 217**. → [prompt-smart-home.md](prompt-smart-home.md)
+8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (which seat owns the family Immich library
+   — an owner pick), **HD-458 · 459** (zipline, the published names), **HD-112**. ⏸ **HD-47** stays an owner act,
+   **Deferred by owner 2026-10-08**: the external-room join is unscheduled; everything publishable is published and
+   measured. → [prompt-edge-identity.md](prompt-edge-identity.md)
+9. ⏳ **The LiteLLM consumer chain** — scoped keys, the thinking control, voice's LLM leg, n8n, the `/ui` deep-link
+   404 (**HD-384 · 403 · 387 · 373 · 249**). **HD-387** is the one with a live contradiction in it: a recorded
+   measurement and the pinned source disagree, and the failure mode is silent thinking-ON at HTTP 200. →
+   [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
+10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency and **HD-476** the VL `mmproj` on the iGPU. The
+    laptop's local **agent** leg is retired (owner ruling 2026-10-09), so this brief is FIM + vision only and claims
+    no converge host — which is why it can run beside anything except a live pi-seat lane. →
+    [prompt-laptop-legs.md](prompt-laptop-legs.md)
+11. ⏳ **The `scripts/` restructure** — the tree is agreed, the code is not yet moved. **Stage 1 is the gate on
+    everything else**: one repo-root resolver replacing the fixed-depth assumptions (22 bash + 29 python sites,
+    measured 2026-10-09), because a moved validator that resolves its root wrongly walks nothing and prints green.
+    Its own trap: `validate-all.sh` judges the INDEX, so a new file is invisible until `git add`. **HD-1119** is the
+    same naming decision one level up — `docs/` has no `harness` domain, so harness decisions sit where the §0
+    prior-art sweep cannot reach them; decide it before Stage 4. → [prompt-scripts.md](prompt-scripts.md)
+12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
+    drill · **418** the HA restart window · **HD-06** the UPS drill · **411** the cockpit resume word ·
+    **HD-230/207** the decisions taken at the drill. ⏸ **Deferred by owner 2026-10-08: HD-454** (buy an out-of-band
+    power path for oldsrv, or accept presence-only — nothing purchased, no WoL window scheduled) and **HD-47** above.
+13. ⏳ **Unrowed, but not free** — **HD-1100**'s held legs: both owner-authorized PG legs are DONE and verified
+    (`litellm-db`, `authentik-postgres`), four middle legs stay held by owner ruling, and two things are still owed —
+    the next `db-backup` run is the end-to-end proof the migrated clusters still dump, and **oldsrv still owes its
+    `wireguard` leg** (it restarts the tunnel server, so run it alone, last, then re-verify every tunnel path).
+    Rowless but blocking: the **apt upgrade phase** stays OUT of the converge wave until `apt-mark hold` for the
+    Ansible-pinned packages (`alloy`, `tailscale`, `docker-ce`, `kopia`) lands in IaC, or a bare `apt upgrade`
+    re-creates the HD-1094 drift and stacks kernel reboots onto a DB-migration window; the `roles/updates` design is
+    an owner go/no-go.
 
-7. ⏳ **HD-1110 tail — the pi.dev seat lane has a driver and eight planes; two live legs remain.**
-   `scripts/pi-seat-sync.sh` is the one deploy path (`pi-self` now covers the pi build itself, HD-1115, and
-   `update_pi.cmd` is gone). Owed, in order: run `install-pi-wsl.sh` on the `wsl` seat (its `pi` on PATH is still the Windows Volta shim that dies with
-   `volta: command not found`) — ⚠ the seat is RETAINED, just rarely used (owner ruling 2026-10-09, which
-   supersedes §5a's earlier “retired” wording), so this leg is low priority rather than stale. From this laptop the oldsrv leg stays down until HD-443’s `IdentityFile`
-   is fixed, so run it from WSL, or ON the seat (§5a carries the local `planes_for_seat oldsrv` form). `oldsrv` itself is
-   in sync on all eight planes — that leg closed 2026-10-08, nothing left there.
-   NEW, owner-shaped: the Win11 seat shows `pi_auth` DRIFT — it holds an **OAuth** openrouter entry while the spec
-   renders `api_key`. Mint it under the HD-484 auth lane; do not overwrite live tokens to green a check.
-   [docs/pi-harness.md](docs/pi-harness.md) §1, §5, §5a · [scripts/README.md](scripts/README.md)
-
-
-**Unbriefed open rows** (no session launches from them; the rows live in [todo.md](todo.md) +
-[todo-table.md](todo-table.md) §B): **1119** *(the `docs/` half of the same naming decision — the `harness` domain is missing, so
-`pi-harness.md` declares `domain: services` and harness decisions sit in `services-ai-rejected.md` / `services-rejected.md` where
-the §0 prior-art sweep cannot reach them; the row carries the proposed split + the append-only and §8.1 host-class traps. Decide it
-before HD-1118 Stage 4.)* · **1094** *(minted 2026-10-07 by the same session that shipped HD-450's exporter: `alloy_version` pins 1.19.2-1 while oldsrv had drifted to 1.20.1-1, which made every monitoring converge there die in apt. Resolved for that host; the fleet bump is the owner's call and until it is decided, the four hosts still on the pin will tell you the same way.)* · **1093** *(owner tail: rotate both SMB passwords, then land them with `storage_samba_password_force`)* · 238 · 421 · 459 · 461 · 448 · **472** *(103 left this list 2026-10-07 — its conversion gate closed with HD-471)* · **477** (make the resolver actually
-float with the VIP — premise measured green, the row carries the three gates and its place in the sequence) · **488** (the same host-resolver class beyond oldsrv: **the Pi leg landed and was verified 2026-10-08** — it resolves internal
-names on the box now, and the two documents that carried workarounds for the broken state were corrected in the same change.
-⏳ spark waits on a spark-slot converge (its keyfile still says `dns=1.1.1.1;`) and nas waits on HD-487, because no manager owns
-its uplink) · **487** (config-manager truth per host, now a command instead of folklore — `scripts/probe-net-manager.sh`, verdict read off the
-interface the default route rides: oldsrv/pi = NetworkManager with dead networkd renders on disk, vps = networkd, **spark = both
-managers on one box**, **nas = neither**. ⏳ oldsrv's dead renders go (ruled, lockout-class, off-box, run alone); spark needs a
-ruling it never had; nas needs its owner found before any address/DNS leg converges there) · **494** (the re-derive of the global host-floor ceiling is **arithmetic-complete 2026-10-08, value deliberately unchanged** —
-read the four priced candidates in [docs/hardware-spark.md](docs/hardware-spark.md) before touching the var, and note the
-precondition: the global was restated in four places, so a re-derive would have changed nothing until those copies went.
-Pricing the 2026-10-06 transient burst moves the ceiling DOWN, not up, so "raise it and delete `fast`'s exception" and "price
-the transient" cannot both be true. ⏳ one 1 s `usable` sampler across one heavy prefill, then the owner picks the floor:
-
-HD-380's `gpu_top_mib` growth check (gate 7) **closed 2026-10-07** and the **peak** for that arithmetic is measured, not
-inferred (99,649 MiB flat — 6,558 MiB over the watchdog's committed baseline, 1,634 MiB under the recycle trigger); the
-gate-4/gate-5 legs closed inside the **spark** slot of the HD-489 tail lane, so do not open a second writer there · **1085** (the tmux seat harness: one
-owner act — mouse-drag text inside a tmux pane on oldsrv and paste it where you typed, which is the OSC 52 leg no in-repo
-probe can reach — plus one `--push` wired into `install-pi-debian.sh`; mechanism and traps in
-[docs/pi-harness.md](docs/pi-harness.md) §5b, do not edit `~/.tmux.conf` by hand). · **1086** (ruled and landed 2026-10-07: the mount shape stays, seeding now ends at **ratio 2 → pause**, owned in
-IaC and read back from the client. ⚠ The import itself is unchanged — an arr still MOVES the file (`ln` → EXDEV
-across the two binds, Radarr 6.3 removed Import Mode / Link Type), so an imported torrent stops seeding at the import
-whatever the goal says; that is the accepted cost, not an open question. ⏳ Left: the Jellyfin/Radarr ID disagreement
-on `Svadba.2026`, and the import path's own procedure in [deployment-manual.md](deployment-manual.md) §P3.6 step 8 — the section number is P3.6; there is no P3.6.8 ·
-[docs/services-downloads.md](docs/services-downloads.md) §Hardlink import is impossible…) · **1089** (`sab.ts.kogler.si` answers 403 because SABnzbd counts tailnet IPs as the internet — seed the tailnet range into its locality option; the router and the LAN leg are fine, do not re-open them) · **362 tail** (the Lidarr credential is fixed and authenticates, but nobody has pushed an album through `lidarr-ydl` or exercised Aurral's add path since — verify the legs, do not re-litigate the key. The slskd login question is CLOSED: the vault was right all along, the compose carried four env names slskd 0.26 does not read — probe with `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose. ⏳ What the fix left standing: **nothing imports a completed Soulseek album, because Lidarr 3.1 has no Slskd download client at all** (its own `downloadclient/schema`: 18 types, usenet/torrent only) — so the ladder's "#2 Soulseek" is a human rule until a bridge is wired — **minted as HD-1091** (`mrusse/soularr`). The `\\nas\music` share now **mounts** — ruled again the same day and implemented: local tdbsam accounts, SSOT = `storage_samba_users` in `host_vars/nas.kogler.si.yml`, and `music` is mounted with the **`shared`** service account (**HD-1093**; LDAP/`ldapsam` retired, evidence in [docs/storage-rejected.md](docs/storage-rejected.md)) The owner still owes the Soulseek password rotation. See [docs/services-media.md](docs/services-media.md) §Music Pillar and [docs/storage.md](docs/storage.md) §Samba (SMB) shares on the NAS) · **1083** (ruled and landed 2026-10-07 for the routed group — binds, publish and edge URLs moved in one render. ✅ 2026-10-08: `lan_litellm_url` minted and referenced, render-proven identical, nothing converged. ⚠ The music trio's "var exists but the publish hard-codes the address" premise no longer describes the tree — read §Reachability rule in the doc below BEFORE editing routes or publishes. ⏳ the routes→`*_url` half in an owner-present edge window (it strands containers whose labels were already rewritten), plus `llogs`' inline literal; `dozzle` stays a compose-DNS service name on purpose. [docs/services-traefik.md](docs/services-traefik.md) §Reachability rule)  · **1090** (the IaC is done and needs no re-derivation: Prowlarr now gets the same qBittorrent client the three arrs carry, plus a `prowlarr` category with its own save path. ⏳ One oldsrv converge under `qbittorrent_seed` + `arr_client_seed` — the qbit half restarts the container once — then `POST /api/v1/downloadclient/test` → 200 and one Prowlarr-side grab lands in `complete/prowlarr`. Do not touch the arr-side clients: Prowlarr syncs indexers, never download clients) 
+**Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
+list is **derived** in [todo-table.md](todo-table.md) §B0 (46 rows at this commit), so only the ones an owner or a
+lane should not lose are named here: **HD-357** (the launchpad tiles — the family-surface brief was retired and
+**no domain brief took this row**; the work is wiring, and it wants a promoting decision, not a re-scope) ·
+**HD-1083** (the routed group's routes→`*_url` half, owner-present edge window — read §Reachability rule in
+[docs/services-traefik.md](docs/services-traefik.md) before touching a route or a publish) · **HD-1089** (one read
+from a real tailnet client; the fix is live) · **HD-1116** / **HD-1117** (the two gate halves of the same hygiene
+pass: the non-`oldsrv` Debian seats still carry `gpgsign=true` until they converge, and
+`render_network_addresses.py` stamps a wall clock into a tracked file so its `--check` can never be clean) ·
+**HD-421** (a pre-seeded writable Docling artifacts bind — chowning `/models` cannot work, the mechanism is in
+[docs/services-ai.md](docs/services-ai.md)) · **HD-412** (two enrolment sessions, and ⛔ never on oldsrv: a rescue
+tool behind the thing it rescues is not a rescue) · **HD-406** · **HD-440** · **HD-472** · **HD-454** (⏸ owner) ·
+and the long tail in §B0.
