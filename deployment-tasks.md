@@ -612,8 +612,6 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 - [ ] **HD-336** — the coding plane: agent-memory.dev per-project memory on oldsrv (MCP + a LiteLLM key), the
       ZeroClaw system-mgmt runner, CrewAI gated on the homelab being finished. · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-376** — harness-side context/timeout tuning (its `HD-388` half — client model config rendered from one repo spec — shipped 2026-09-23 and that row is deleted; record [pi-harness.md](docs/pi-harness.md) §4)
-- [ ] **HD-373** — LiteLLM admin UI: the `/ui/login` deep-link 404s (no nginx SPA fallback in the container);
-      workaround `https://litellm.kogler.si/fallback/login`. Fix = SPA fallback or route-scoped `/ui/*`. · [services-ai.md](docs/services-ai.md)
 - [ ] **HD-369** — the tail of the tier row: Ollama stays as the **embed fallback** (the owner keeps it), and
       the rerank leg still has **no consumer** — `rag-mcp` is a compose stub, so nothing calls the reranker yet. · [services-ai.md](docs/services-ai.md)
 - [x] **HD-393** — **CLOSED 2026-09-28.** Attributed: a `CONSTRAINT_MEMCG` kill of the 1g-capped pinned-tier
@@ -650,8 +648,6 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
       "5000"` converged together; the acceptance was measured on external traffic — `count_over_time(node_load1{instance=~"spark.*"}[1m])`
       = 12 (re-read 2026-09-23: still 12), and the sidecar under load held **anon 56–59 MiB of the 256M cap**
       (re-measured 2026-09-23; no limit change). · [observability.md](docs/observability.md)
-- [ ] **HD-387** — the thinking-control re-measure **through the gateway** (a recorded contradiction between a
-      recommendation and a measurement is still open). · [services-ai-bench.md](docs/services-ai-bench.md)
 - [ ] **HD-366** — DGX Dashboard JupyterLab on the LAN (`:11002`) — the integrated lab assigns per-user ports. ⏸ **Frozen by the owner 2026-10-08, not scheduled** (the 502 with no lab running is correct for an on-demand backend; see todo.md HD-366). · [hardware-spark.md](docs/hardware-spark.md)
       template instead of hand-kept files. · [services-ai.md](docs/services-ai.md)
 - [x] **HD-383 / HD-384** — LAN-LiteLLM bootstrap-keys glue UNPARKED and the first LAN key minted, 2026-09-28: `bootstrap_keys: true` on `lan-litellm` + the `docker_services` converge, the glue ran inside that service's pass and exited 0, minting `home-assistant_api`, which answers `GET /v1/models` with **exactly** `['spark/qwen3.8-flash-next']` (the decided ROW-only grant, `rpm: 30`, no wildcard). HD-383's server-side act also landed: the orphan alias `dsh` was found on the **VPS** DB (never in the LAN DB) and deleted — 9 keys → 8, re-listed to confirm. · [services-ai.md](docs/services-ai.md)

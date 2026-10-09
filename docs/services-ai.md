@@ -445,6 +445,40 @@ entry in the **same change** — a scoped key must never still authorize a model
 **manual / OpenRouter models are never touched** (deletes are scoped to previously-synced names, so a
 hand-added model cannot be clobbered even on a name collision). Today the equivalent is this manual runbook.
 
+### 4c. The LiteLLM admin UI (`/ui`) — what the pinned image actually serves (HD-373, closed 2026-10-09)
+
+The row's diagnosis ("container ships no nginx SPA fallback, so `/ui/login` 404s, use `/fallback/login`") was
+written against `v1.83.10-stable`. **The fleet pins `litellm_version: v1.104.0` now**
+([`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml)) and on that build the
+defect does not exist — measured on both instances, from oldsrv, at the app and through the edges:
+
+* **Still true:** the image contains **no nginx at all** (`command -v nginx` → nothing; no `nginx.conf` anywhere in
+  `/app`, no `_experimental`-serving web server). The UI is a **Next.js static export** shipped inside the Python
+  package at `…/site-packages/litellm/proxy/_experimental/out/` and served by the FastAPI app itself (Starlette
+  `StaticFiles(html=True)`), which is what the row's "upstream normally ships `ui/nginx.conf`" assumption got wrong.
+* **No longer true:** `/ui/login` does **not** 404. The export carries a real `login/index.html`, so the request gets
+  **307 → `/ui/login/` → 200** (24.5 KB of HTML). Swept across every exported route on the LAN instance — `login`,
+  `api-keys`, `teams`, `models-and-endpoints`, `model_hub`, `usage`, `cost-tracking`, `playground`,
+  `router-settings`, `guardrails`, `mcp-servers`, `organizations`, `users`, `access-groups`, `budgets`, `caching`,
+  `chat`, `prompts`, `skills`, `workflows`, `vector-stores`, `search-tools`, `tool-policies`, `transform-request`,
+  `ui-theme`, `memory`, `logs` — **27 of 28 resolve**, and the one that did not (`agent-settings`) is a path I made
+  up, not a route in the export. `/fallback/login` still answers 200; it is no longer the only way in.
+* **The one honest wrinkle, and why it is not a bug:** the 307's `Location` is built **scheme-blind** (`http://…`,
+  uvicorn runs without `--proxy-headers`), so the browser is told to hop to plain HTTP. Both edges absorb it: the
+  home edge and the tailnet edge each run `:80` as **redirect-only** and put `hsts@file` on `websecure`, so the hop
+  lands on `:80`, is 301'd back to HTTPS, and the page loads — measured `code=200` after 1 redirect against
+  `https://llitellm.kogler.si/ui/login`, with `strict-transport-security: max-age=31536000; includeSubDomains` on the
+  response so an HSTS-aware browser skips the hop entirely. One wasted round-trip, no user-visible failure.
+* **The residual class nobody asked for:** a path **below** an exported route (`/ui/teams/<id>`) has no directory and
+  no `[param]` segment in the export, so it 404s server-side. Those URLs are client-side transitions inside the SPA,
+  not deep links this homelab shares — if that ever changes, the fix is an nginx hop with `proxy_redirect` + a
+  `/ui/`-scoped `error_page 404` fallback (⛔ not forward-auth on `/ui/*` route-wide, which breaks the same-host API
+  bearer consumers), and the nginx hop belongs in front of the container's published port so the edges stay untouched.
+
+So: **nothing shipped for HD-373**, because the upgrade that closed it was the 2026-10-08 fleet pin move, and a
+sidecar for a defect that measures absent is how a lane invents its own failure surface. `⏳` tail cleared; the
+close-out record is this section.
+
 ---
 
 ## Docling OCR engine selection (HD-402) — measured, bench closed 2026-09-28
@@ -1018,9 +1052,53 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 | **whisper-server can be made OpenAI-shaped by a flag.** | `--inference-path /v1/audio/transcriptions` relocates the route (`/inference` → 404, `/health` stays at root) and the OpenAI multipart fields (`model`, `language`, `response_format`) are accepted. | **No wrapper service needed**; HA Assist is satisfied by the flag alone. |
 | **DB-stored `litellm_params` do NOT expand `os.environ/…`.** | Measured live on the pinned image: the literal string is forwarded upstream → engine 401, both through the proxy and in-process. | Keys for DB rows come from the **container env** (`OPENAI_API_KEY`), never from a `os.environ/` reference in the row. |
 | **`jina_ai/` rerank accepts a custom `api_base` and rewrites the path.** | `litellm/llms/jina_ai/rerank/transformation.py` in the pinned image: `get_complete_url` replaces any path with `/v1/rerank`. | A llama.cpp `/v1/rerank` endpoint is routable through LiteLLM with **no path in `api_base`** — this closed the "how do we route a local reranker" question. |
-| **`openai/` chat provider param allow-list is narrow.** | `OpenAIGPTConfig.get_supported_openai_params` carries `temperature`, `top_p`, `max_tokens`, `stream_options`, `tools`, … and **not** `top_k`, `chat_template_kwargs`, `thinking_token_budget`; an **unknown** model alias (`OpenAIUnknownModelConfig`) gets that list **+ `reasoning_effort` only**. Repo-wide: `chat_template_kwargs` is handled by `hosted_vllm`/`together`/`fireworks`, `thinking_token_budget` by Bedrock only. | Under `drop_params: true` an unsupported key is **dropped silently**; for the thinking switch the silent outcome is thinking **ON** — a cost/latency regression that returns HTTP 200. (⚠ open contradiction to re-measure: a live run observed `reasoning_tokens: 0` through the gateway. The grep is from `main`, not the pinned image ⇒ **HD-387**; until measured on the pin, do not treat "thinking control works through the gateway" as true, and never let a harness depend on it.) |
+| **`openai/` chat provider param allow-list looks narrow — and it does NOT govern what reaches the engine.** | `OpenAIGPTConfig.get_supported_openai_params` carries `temperature`, `top_p`, `max_tokens`, `stream_options`, `tools`, … and **not** `top_k`, `chat_template_kwargs`, `thinking_token_budget`. A repo-wide grep therefore predicts `drop_params: true` eats them. **Measured on the pin, it does not** (2026-10-09, both gateways): the three knobs arrive at the engine unchanged through the `openai/` provider. | ⛔ **Do not re-derive param survival from that allow-list** — it is a conversion table, not the forwarded body. The reasoning/knob question is answered by measurement, in **§9d** (method + numbers, HD-387). What the grep still legitimately governs: params LiteLLM itself *consumes* (`reasoning_effort`, `max_completion_tokens`, tool schemas) and provider selection for rerank/embed. |
 | **ONNX Runtime ROCm / MIGraphX support is Instinct-only** (`gfx942`, `gfx950`). | AMD docs. | There is **no ONNX-GPU on RDNA3** — "CPU fallback if ONNX-GPU proves fragile" is a dead branch on this card. |
 | **Per-runtime host RAM is the oldsrv constraint, not VRAM.** | Each ROCm/PyTorch process holds its own rocBLAS/hipBLASLt/MIOpen workspace (~0.5–1.5 GB RSS); a C++ ggml binary sits at ~150–350 MiB. | On a 48 GB host the binding constraint is **host RAM**, which is an argument for one backend family across the tier. |
+
+---
+
+### 9d. The thinking control THROUGH the gateway — measured on the pin (HD-387, closed 2026-10-09)
+
+The §9c source read and a live run contradicted each other, so the pin was made the referee. Same body in every
+cell — one fixed arithmetic prompt, `temperature: 0`, `max_tokens: 320`, model row
+`spark/qwen3.8-flash-next` (provider `openai/`, `api_base https://llm.kogler.si/v1`), **master key, no client
+change**. Under test: LiteLLM `litellm_version: v1.104.0`
+([`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml)) over engine build
+`vllm-0.1.dev20073+g8e685d198`.
+
+| Probe | LAN gateway (`llitellm.kogler.si`) | VPS gateway (`litellm.kogler.si`) | Direct engine (control, the decision #26 route) |
+|---|---|---|---|
+| bare — no switch | 200 · prompt 98 · reasoning **320** (the `max_tokens` cap) | 200 · reasoning **320** | 200 · reasoning **320** |
+| `chat_template_kwargs {enable_thinking: false}` | 200 · prompt **58** · reasoning **0** | 200 · prompt **58** · reasoning **0** | 200 · prompt **58** · reasoning **0** |
+| `thinking_token_budget: 96` | 200 · reasoning **95** | not re-run | 200 · reasoning **95** |
+| `thinking_token_budget: 96` + thinking off | 200 · reasoning **0** | — | — |
+| `top_k: -5` — the discriminator | **400** `top_k must be 0 (disable), or at least 1, got -5`, wrapped `OpenAIException` | **400**, the same engine text | **400** (engine directly) |
+| `totally_bogus_param_zz: 123` | 200 (tolerated — not this path) | — | — |
+
+**Verdict: the gateway IS thinking-controllable on the pin.** Every through-gateway number equals its direct-engine
+control, and the `top_k` probe fails identically at both hops, so neither proxy drops nor rewrites these fields. The
+§9c contradiction is closed **in favour of the live measurement**; the silent-thinking-ON regression it warned about
+is not real on this pair, and the §9c row now says so instead of leaving the question open.
+
+**The method, because a 200 proves nothing here** (the failure mode is silent thinking ON at HTTP 200): two
+discriminating shapes, each with its own bare-request control in the same run. (a) the **token-count signature** —
+`reasoning_tokens` 320 → 0 *and* `prompt_tokens` 98 → 58, the thinking block vanishing from the rendered template is
+something a proxy cannot fake by ignoring a field; (b) the **out-of-range value** — `top_k: -5` produces a 400 whose
+message is vLLM's own validator, which can only appear if the field travelled end to end. A probe that would print
+the same numbers without the switch is not evidence (CONVENTIONS §6).
+
+**Protocol step (5) — "the proxy's own dropped-params log" — is not available evidence at the shipped log level.**
+`docker logs lan-litellm` across the run printed only the propagated 400; under `drop_params: true` with default
+verbosity LiteLLM logs no drop line. ⛔ Do not raise the proxy log level to chase it: that logs token-bearing
+request bodies. Use (a)+(b).
+
+**What does not change:** decision #26 stands — generation harnesses still go **direct** to the engine, the gateway
+serves the simple-querier tier, and nothing here moves the harness route. pi's
+`compat.thinkingFormat: "qwen-chat-template"` control is now proven at **both** hops
+([pi-harness.md](pi-harness.md) §2 carries the harness-side numbers: 82 capped vs 121 uncapped on *its* prompt — the
+absolute counts are prompt-dependent, the 0 / capped / uncapped relation is what generalises). `reasoning_effort`
+was **not** re-tested through the gateway and stays unsupported there.
 
 ---
 
@@ -1034,6 +1112,6 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 | **HD-267 tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |
 | **HD-248** Open WebUI instance split | One instance today; the public/internal capability split is undecided work. |
 | **HD-383** stale `dsh_api` bearer | **CLOSED 2026-09-28** — vault-side CLEARED 2026-09-26 (the consumer stays rejected, decision #26: do not restore the record) and the orphan alias `dsh` deleted from the **VPS** DB (9 → 8, behind an alias guard). Findings, including the endpoint shapes and the untouched same-class residue: §4a above. |
-| **HD-387** thinking-parameter re-measure | Open (see §9c). |
+| **HD-387** thinking-parameter re-measure | **CLOSED 2026-10-09 by measurement** — the thinking control works through both gateways on `v1.104.0`; the §9c contradiction is resolved and the method that settles it is in **§9d**. |
 | **HD-402** Docling OCR engine | **Closed 2026-09-28 by measurement: keep RapidOCR.** The swap premise was inverted (production already runs RapidOCR, not EasyOCR) and EasyOCR is 3.2–3.4× slower with its own diacritic/merge defects on the same real Slovenian scans. Full numbers + method: §Docling OCR engine selection. Residual work became **HD-471** (empty markdown, `noexec /tmp`) and **HD-472** (prose-page recall). |
 | **Mem0 / OpenHands** | Planned spark services; neither onboarded. |

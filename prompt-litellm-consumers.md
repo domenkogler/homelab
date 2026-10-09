@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the LiteLLM gateway and its consumers. **The rows are the authority**
 > for what is missing and how to do it — this file carries the contract, the order of work, the decided shape and the traps,
-> nothing else: [todo.md](todo.md) **HD-384 · HD-403 · HD-387 · HD-373 · HD-249**
+> nothing else: [todo.md](todo.md) **HD-384 · HD-403 · HD-249**
 > (row ids as of `9e661845` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
@@ -24,11 +24,9 @@ that recreates the same containers, and `docs/services-ai*.md` is single-writer.
 
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
-| 1 | **HD-384** | Read `GET /model/info` on **both** gateways, then land the `llm`-router client credential that stops `spark-llm_api` being triple-used (own credential vs an edge allow-list on the `llm` router — name the shape, do not split the difference silently) | ⚠ `/model/list` is unusable with the master key and both gateways return **one row each**, so `ollama/bge-m3` is a fallback **rung**, not a row. ⚠ The mint glue lives **inside** the `lan-litellm` deploy pass (`--tags docker_services` alone never runs it — name the service tag) and is **create-only**: a live key keeps its old allow-list until `/key/update` exists or the key is deliberately re-minted, so a grant cannot ship by editing records |
-| 2 | **HD-387** | Run the written probe protocol against the LAN instance **on the current pin**: baseline `reasoning_tokens` → `chat_template_kwargs {enable_thinking: false}` → `thinking_token_budget: 96` with thinking on/off plus the direct-engine control pair → `top_k: 20` → the proxy's own dropped-params log; write the table + a **verdict** into §9d | The failure mode is silent thinking **ON** at HTTP 200, so a passing HTTP status is not the result. Master-key path, **no client change**; the harness route does not move either way (decision #26). ⚠ Both rows quote a pin that `versions.yml:231` no longer carries — re-read the pin first, because the whole point is measuring **on the image we ship**, not on `main` |
-| 3 | **HD-403** | Point HA's **stock `litellm` conversation integration** at the LAN gateway through its config flow, add the agent to the Assist pipeline, and accept with one Slovenian intent turn end-to-end | ⛔ There is **no `LITELLM_BASE_URL`** — URL + key live in `.storage/core.config_entries`, config-flow only, no YAML import, so no compose template changes. The flow calls `/v1/models` **before** the entry can be created, so the mint lands first. ⏳ The key then sits in plaintext in `/config/.storage`, which the standby rsync copies to oldsrv: that ruling is owed to the secrets doc **before** the entry exists — park it if it is not written. Verify the Pi resolves and TLS-validates the gateway name (`extra_hosts` is the fallback) |
-| 4 | **HD-373** | Re-check the SPA-fallback premise **on the current image** (`docker exec … ls` for the UI's nginx config / a request to `/ui/login`), then land one fix: the SPA fallback, or a `PathPrefix(/ui/)` rewrite | The row's diagnosis names a build the fleet no longer pins, so treat "no nginx in the container" as a hypothesis until you look. `/fallback/login` already works — this is a real fix, not a fire. ⛔ Never put Authentik/forward-auth on `/ui/*` **route-wide**: it breaks the same-host API bearer consumers |
-| 5 | **HD-249** | Audit the `WEBHOOK_URL` + external-webhook dependency (no inbound public webhook may break), then give n8n's AI nodes a budgeted key of its own | n8n rides the tailnet edge; its key is one of HD-384's consumers, so it ships after row 1. `versions.yml:300` is its pin |
+| 1 | **HD-384** | Read `GET /model/info` on **both** gateways, then land the `llm`-router client credential that stops `spark-llm_api` being triple-used — **owner ruled shape (a), the gateway's own credential** (2026-10-09), not an edge allow-list | ⚠ `/model/list` is unusable with the master key. **Catalog read measured 2026-10-09: the LAN instance answers FOUR rows** (`spark/qwen3.8-flash-next`, `local-rerank`, `bge-m3-vk`, `local-stt`) **and the VPS instance one**, so `ollama/bge-m3` is a fallback **rung**, not a row — read `/model/info`, do not trust the old "one row each". ⚠ The mint glue lives **inside** the `lan-litellm` deploy pass (`--tags docker_services` alone never runs it — name the service tag) and is **create-only**: a live key keeps its old allow-list until `/key/update` exists or the key is deliberately re-minted, so a grant cannot ship by editing records |
+| 2 | **HD-403** | Point HA's **stock `litellm` conversation integration** at the LAN gateway through its config flow, add the agent to the Assist pipeline, and accept with one Slovenian intent turn end-to-end | ⛔ There is **no `LITELLM_BASE_URL`** — URL + key live in `.storage/core.config_entries`, config-flow only, no YAML import, so no compose template changes. The flow calls `/v1/models` **before** the entry can be created, so the mint lands first. ⏳ The key then sits in plaintext in `/config/.storage`, which the standby rsync copies to oldsrv: that ruling is owed to the secrets doc **before** the entry exists — park it if it is not written. Verify the Pi resolves and TLS-validates the gateway name (`extra_hosts` is the fallback) |
+| 3 | **HD-249** | Audit the `WEBHOOK_URL` + external-webhook dependency (no inbound public webhook may break), then give n8n's AI nodes a key of its own — **owner 2026-10-09: no budget cap, local rows only** | n8n rides the tailnet edge; its key is one of HD-384's consumers, so it ships after row 1. `versions.yml` `n8n_version` is its pin |
 
 ## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
 
@@ -66,9 +64,8 @@ generated `*-generated.md`.
 
 Every item returns `PASS` / `FAIL` / `BLOCKED` / `PARKED` + the number + the evidence path; a claim with no path counts as
 not run. Concretely: `/model/info` on both gateways showing the decided rows · each scoped consumer authenticating with **its
-own** key with one request proven end-to-end per consumer (HA Assist answering is the visible one) · HD-387's probe table in
-§9d with a **verdict**, the pin it was taken on, and the direct-engine control pair beside it · the `llm`-router credential
+own** key with one request proven end-to-end per consumer (HA Assist answering is the visible one) · the `llm`-router credential
 shape named and the triple-use broken in the render, or the alternative shape recorded with the owner's call parked ·
-`/ui/login` deep-link verified on the pinned image with the fix that ships · the plaintext-`.storage` ruling written before any
+`/ui/login` deep-link verified on the pinned image (done — the defect did not survive the 2026-10-08 pin, §4c) · the plaintext-`.storage` ruling written before any
 HA config entry exists · every minted item in the secrets catalog · rows deleted or trimmed to their tails, no history in the
 row · `bash scripts/validate-all.sh` green **in this worktree** → **stop**.
