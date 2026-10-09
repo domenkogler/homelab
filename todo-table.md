@@ -348,9 +348,7 @@ VPS `monitoring` converge both ran 2026-09-23; the rest of this section is indep
 ### B9. Full open-row index — every open row, derived from [todo.md](todo.md) 2026-10-09
 
 The tables above are the curated shortlists; **this appendix is the complete redundancy** — one line per open row,
-truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's first pending segment. **131 rows,
-re-derived at this commit** — the count is `grep -c '^| HD-' todo.md`, never typed, and a row listed here that the
-registry no longer carries is a bug, not a record.
+truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's first pending segment. **Every open row in `todo.md`, re-derived at this commit** — the count is `grep -c '^| HD-' todo.md`, never typed, and a row listed here that the registry no longer carries is a bug, not a record.
 
 | Row | P | Who | Module | What it is | ⏳ What is left (truncated) | Brief |
 |---|---|---|---|---|---|---|

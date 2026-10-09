@@ -165,7 +165,7 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
     an owner go/no-go.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
-list is **derived** in [todo-table.md](todo-table.md) §B0 (46 rows at this commit), so only the ones an owner or a
+list is **derived** in [todo-table.md](todo-table.md) §B0, so only the ones an owner or a
 lane should not lose are named here: **HD-357** (the launchpad tiles — the family-surface brief was retired and
 **no domain brief took this row**; the work is wiring, and it wants a promoting decision, not a re-scope) ·
 **HD-1083** (the routed group's routes→`*_url` half, owner-present edge window — read §Reachability rule in
