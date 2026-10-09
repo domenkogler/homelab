@@ -2,8 +2,9 @@
 # gitconfig-nightly — the UNATTENDED git identity for a Win11 pi.dev seat.
 #
 # THIS IS THE SEAT DEFAULT, not an opt-in: scripts/git-bootstrap-win11.sh --git-identity
-# installs this file to ~/.gitconfig-nightly and includes it LAST from ~/.gitconfig, so no
-# git command — interactive, subagent, or scheduled — can raise a 1Password window.
+# installs this file to ~/.gitconfig-nightly and includes it LAST from ~/.gitconfig, scoped to
+# github remotes by hasconfig:, so no git command in a github clone — interactive, subagent, or
+# scheduled — can raise a 1Password window.
 # The name is historical (it was minted 2026-10-03 for the overnight benches, when it WAS
 # opt-in via GIT_CONFIG_GLOBAL). On 2026-10-07 the owner ruled the modal-free route the
 # default; the 1Password route is now the opt-back:
@@ -22,10 +23,19 @@
 #     format") — precisely why the interactive route reaches the 1Password pipe instead.
 #   * belt — IdentityAgent=none + BatchMode=yes mean a stray git at 03:00 FAILS in ~15 s into
 #     its log. It can never raise a dialog.
-#   * ORDER MATTERS — the per-remote includeIf blocks in ~/.gitconfig run BEFORE this file
-#     (.gitconfig-github sets user.signingkey to the PUBLIC-KEY STRING, which with no
-#     gpg.ssh.program is not a path and signs nothing). Last include wins, so this file is
-#     APPENDED as the final [include] — never placed beside .gitconfig-windows.
+#   * ORDER AND SCOPE MATTER — ~/.gitconfig includes this file as
+#       [includeIf "hasconfig:remote.*.url:*github.com*/**"]  path = .gitconfig-nightly
+#     with that path listed AFTER the .gitconfig-github include, because last include wins and
+#     .gitconfig-github sets user.signingkey to the PUBLIC-KEY STRING, which with no
+#     gpg.ssh.program is not a path and signs nothing (beside .gitconfig-windows it loses). Scoped
+#     rather than a plain [include] because the sshCommand below names the GITHUB key: a global
+#     include would hand it to the stroka / kogler clones too, whose legs authenticate with a
+#     credential helper (HD-1126).
+#   * THE ONE EDGE CASE SCOPE BUYS — outside any clone (a bare directory, `git ls-remote <url>`)
+#     hasconfig: has no remote to match, so nothing here fires and the transport falls back to
+#     .gitconfig-windows' Windows OpenSSH, which does resolve the 1Password agent and can prompt.
+#     Inside a github clone it cannot. `--check` prints `route: PARTIAL` when you are in that
+#     fallback, so the seat is never silently on the agent route.
 #
 # Keys are the 1Password-vault copies already on this disk in ~/.ssh (the WSL seat uses the
 # same pair). This file changes WHICH PATH git takes, not what is on the machine: delete or

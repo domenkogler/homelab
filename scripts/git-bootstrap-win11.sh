@@ -79,6 +79,14 @@ GITCFG="$BASE/.gitconfig"
 NIGHTLY_SRC="${NIGHTLY_SRC:-$SCRIPT_DIR/git/gitconfig-nightly}"
 NIGHTLY_CFG="$BASE/.gitconfig-nightly"
 NIGHTLY_INCLUDE=".gitconfig-nightly"
+# The payload is included PER REMOTE, not globally. A plain [include] would hand its
+# core.sshCommand (which pins ~/.ssh/github_auth and IdentityAgent=none) to EVERY remote this box
+# knows — ~/.gitconfig carries includeIf blocks for git.stroka.si and git.kogler.si, and those legs
+# authenticate with a credential helper, not with this key. The pattern is the same hasconfig: one
+# the .gitconfig-github block already uses, so the payload still lands last for github remotes.
+# Always used quoted: the globbing characters must reach git verbatim.
+NIGHTLY_MATCH='hasconfig:remote.*.url:*github.com*/**'
+NIGHTLY_INCLUDE_KEY="includeIf.$NIGHTLY_MATCH.path"
 # Git for Windows' own ssh: reads the PKCS#8 key FILES directly, so no agent is needed.
 GITSH="${GIT_BUNDLED_SSH:-C:/PROGRA~1/Git/usr/bin/ssh.exe}"
 KEYDIR="${KEYDIR:-$BASE/.ssh}"
@@ -91,11 +99,24 @@ winpath() {
 WINHOME="$(winpath "$BASE")"   # diagnostics only (the config itself paths off __KEYDIR__)
 
 # Back up a file before an in-place edit (O3-style: every mutation is preceded by a backup).
+# The first backup of a second wins: one run can edit ~/.gitconfig more than once inside the same
+# second, and overwriting the earlier copy would throw away the pristine state.
 backup() {
   [ -f "$1" ] || return 0
   local b="$1.bak-$(date +%Y%m%d-%H%M%S)"
+  [ -e "$b" ] && return 0
   cp -p "$1" "$b"
   echo "    backup: $b"
+}
+
+# Is the payload wired into ~/.gitconfig, and by which form? `if` = the per-remote includeIf this
+# script appends (HD-1126); `plain` = a bare [include] left by a pre-HD-1126 run, which leaks the
+# github-only transport onto every remote. Defined before --check, which is the first caller.
+nightly_included() {
+  case "$1" in
+    if)    git config --global --get-all "$NIGHTLY_INCLUDE_KEY" 2>/dev/null | grep -qxF "$NIGHTLY_INCLUDE" ;;
+    plain) git config --global --get-all include.path           2>/dev/null | grep -qxF "$NIGHTLY_INCLUDE" ;;
+  esac
 }
 
 SSH_AUTH=0
@@ -122,27 +143,46 @@ if [ "$MODE" = "--check" ]; then
   echo "==> git identity route as resolved in $(pwd)"
   prog="$(git config --get gpg.ssh.program 2>/dev/null || true)"
   key="$(git config --get user.signingkey 2>/dev/null || true)"
+  sshc="$(git config --get core.sshCommand 2>/dev/null || true)"
   echo "    gpg.ssh.program = ${prog:-(absent)}"
   echo "    user.signingkey = ${key:-(absent)}"
-  echo "    core.sshCommand = $(git config --get core.sshCommand 2>/dev/null || echo '(absent)')"
+  echo "    core.sshCommand = ${sshc:-(absent)}"
   echo "    includes         : $(git config --global --get-all include.path 2>/dev/null | tr '\n' ' ')(global) $(git config --file "$REPO/.git/config" --get-all include.path 2>/dev/null | tr '\n' ' ')(local)"
-  if [ -z "$prog" ] && [ -n "$key" ] && [ -f "$key" ]; then
-    echo "==> route: UNATTENDED — signs from a key file, no 1Password window possible"
-  elif [ -n "$prog" ]; then
+  # Both include forms are reported: --check would otherwise print an empty global list on a seat
+  # that is correctly configured, and a legacy plain include would be invisible in the list it does
+  # print. The key it reads here is the same key --1password has to clean.
+  nightly_via=""
+  if nightly_included if; then nightly_via="includeIf \"$NIGHTLY_MATCH\""; fi
+  if nightly_included plain; then nightly_via="${nightly_via:+$nightly_via + }a global [include] (legacy, hits every remote)"; fi
+  echo "    nightly payload  : ${nightly_via:-NOT included — this seat is on the 1Password route}"
+  # The transport belongs in the verdict, not just the key list: the payload fires on github remotes
+  # only, so anywhere else (a bare directory, a stroka clone) core.sshCommand resolves back to
+  # .gitconfig-windows' Windows OpenSSH, which reaches the 1Password pipe. Naming that is the point.
+  agent_transport=1
+  case "$sshc" in *IdentityAgent=none*) agent_transport=0 ;; esac
+  if [ -n "$prog" ]; then
     echo "==> route: 1PASSWORD — every git call can block on a consent dialog"
     echo "    modal-free instead: bash scripts/git-bootstrap-win11.sh --git-identity"
-  else
+  elif [ -z "$key" ] || [ ! -f "$key" ]; then
     echo "==> route: INCOMPLETE — commit signing will fail (signingkey does not resolve to a file)"
+  elif [ "$agent_transport" = 0 ]; then
+    echo "==> route: UNATTENDED — key-file signing over IdentityAgent=none, no 1Password window possible"
+  else
+    echo "==> route: PARTIAL — signing is modal-free, but the transport here reaches the 1Password agent"
+    echo "    no github remote in scope: the payload is included by hasconfig:, so in a directory"
+    echo "    without one git falls back to ${sshc%% *}. Re-run inside a github clone:"
+    echo "    cd <github clone> && bash scripts/git-bootstrap-win11.sh --check"
   fi
   exit 0
 fi
 
 # --- UNATTENDED git identity: the Win11 seat default (HD-495) -------------------
-# Payload -> ~/.gitconfig-nightly, included LAST from ~/.gitconfig, and gpg.ssh.program
-# removed everywhere it appears. The order is the whole mechanism: git cannot "unset" a key
-# from a later include, so the program line has to go, and the per-remote includeIf blocks
-# (.gitconfig-github -> user.signingkey = PUBLIC-KEY STRING) only lose because this include is
-# appended after them.
+# Payload -> ~/.gitconfig-nightly, included LAST from ~/.gitconfig FOR GITHUB REMOTES, and
+# gpg.ssh.program removed everywhere it appears. Two things are the whole mechanism: the order —
+# git cannot "unset" a key from a later include, so the program line has to go and the
+# .gitconfig-github block (user.signingkey = PUBLIC-KEY STRING) only loses because this include is
+# appended after it — and the scope: a plain [include] would hand the payload's github-only
+# transport to the stroka and kogler clones too (HD-1126).
 install_unattended_identity() {
   [ -f "$NIGHTLY_SRC" ] || { echo "FAIL: payload not found: $NIGHTLY_SRC" >&2; exit 1; }
   [ -d "$KEYDIR" ] || { echo "FAIL: no key dir at $KEYDIR — run git-bootstrap-win11.sh --ssh-auth first,"
@@ -165,12 +205,23 @@ install_unattended_identity() {
   # Git for Windows' own ssh is the transport; System32's OpenSSH cannot read these key files.
   [ -e "$GITSH" ] || echo "  !! bundled ssh not at $GITSH — check git.core.sshCommand (auth will fail closed)" >&2
 
-  # 2. Include it LAST from ~/.gitconfig (append -> new [include] section at EOF).
-  if git config --global --get-all include.path 2>/dev/null | grep -qxF "$NIGHTLY_INCLUDE"; then
-    echo "==> ~/.gitconfig already includes $NIGHTLY_INCLUDE"
+  # 2. Include it for github remotes, read AFTER the block that pins the pubkey string. `git config
+  #    --add` appends the value to the [includeIf] section with this exact pattern, so the path lands
+  #    below .gitconfig-github's (a seat without that section gets a new one at EOF) — last for
+  #    github remotes either way, which is what the order is for. The form is scoped, not a plain
+  #    [include]: this payload's sshCommand names the GITHUB key, and a pre-HD-1126 run may have left
+  #    a global include that also points the stroka / kogler legs at it. Remove that one.
+  if nightly_included if; then
+    echo "==> ~/.gitconfig already includes $NIGHTLY_INCLUDE for github remotes (read last)"
   else
-    backup "$GITCFG"; git config --global --add include.path "$NIGHTLY_INCLUDE"
-    echo "==> ~/.gitconfig: appended [include] path = $NIGHTLY_INCLUDE (last -> wins)"
+    backup "$GITCFG"; git config --global --add "$NIGHTLY_INCLUDE_KEY" "$NIGHTLY_INCLUDE"
+    echo "==> ~/.gitconfig: [includeIf \"$NIGHTLY_MATCH\"] path += $NIGHTLY_INCLUDE (after .gitconfig-github -> wins)"
+  fi
+  if nightly_included plain; then
+    backup "$GITCFG"
+    git config --global --unset include.path "^${NIGHTLY_INCLUDE//./\\.}$" \
+      && echo "==> removed the global [include] of $NIGHTLY_INCLUDE (pre-HD-1126 form: it pinned every remote)" \
+      || echo "  !! could not remove the plain include by regex; remove the [include] block by hand" >&2
   fi
 
   # 3. gpg.ssh.program must be ABSENT, not empty (an empty value makes git spawn ""
@@ -213,12 +264,18 @@ revert_to_1password() {
   [ -f "$SIGNER" ] || echo "  !! signer not at $SIGNER — the dialog route will fail instead of prompting" >&2
   backup "$GFCFG"; git config --file "$GFCFG" gpg.ssh.program "$SIGNER"
   echo "==> .gitconfig-windows: gpg.ssh.program = $SIGNER"
-  if git config --global --get-all include.path 2>/dev/null | grep -qxF "$NIGHTLY_INCLUDE"; then
+  # Both include forms have to go. An includeIf block left behind by a previous --git-identity keeps
+  # the modal-free transport for github remotes, which would make this revert report a route it is
+  # not on (HD-1126).
+  for key in include.path "$NIGHTLY_INCLUDE_KEY"; do
+    if ! git config --global --get-all "$key" 2>/dev/null | grep -qxF "$NIGHTLY_INCLUDE"; then
+      continue
+    fi
     backup "$GITCFG"
-    git config --global --unset include.path "^${NIGHTLY_INCLUDE//./\\.}$" \
-      && echo "==> removed the $NIGHTLY_INCLUDE include" \
-      || echo "  !! could not remove the include by regex; remove the [include] block by hand" >&2
-  fi
+    git config --global --unset "$key" "^${NIGHTLY_INCLUDE//./\\.}$" \
+      && echo "==> removed the $NIGHTLY_INCLUDE include ($key)" \
+      || echo "  !! could not remove the include at $key by regex; remove the [include…] block by hand" >&2
+  done
   # With op-ssh-sign back, the signer looks the key up in the agent BY PUBLIC-KEY STRING;
   # a file path here makes it fail with "bad output from command" (measured 2026-10-03).
   pub="$(git config --file "$BASE/.gitconfig-github" --get user.signingkey 2>/dev/null \

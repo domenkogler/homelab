@@ -678,20 +678,35 @@ blast radius on the fleet, not just the GitHub pair. The ACL proof that it is **
 **Unattended git on Win11 — this is the seat DEFAULT since 2026-10-07, not an opt-in.**
 [`../scripts/git/gitconfig-nightly`](../scripts/git/gitconfig-nightly) is the payload and
 [`../scripts/git-bootstrap-win11.sh`](../scripts/git-bootstrap-win11.sh)` --git-identity` installs it
-to `~/.gitconfig-nightly` and includes it, so no git call on the seat — interactive, subagent, or
-scheduled — can raise a dialog (`--1password` is the opt-back, `--check` prints which route the seat
-will take). It carries `IdentityAgent=none` + `BatchMode=yes` (fail into the log in 15 s) and
-file-path signing, because a leg that runs while nobody is watching must fail rather than wait. Four
-traps, all measured, recorded so the next session does not rediscover them:
+to `~/.gitconfig-nightly` and includes it — appended last and scoped to github remotes with
+`includeIf "hasconfig:remote.*.url:*github.com*/**"` — so no git call in a github clone on this seat,
+interactive, subagent, or scheduled, can raise a dialog (`--1password` is the opt-back, `--check`
+prints which route the seat will take). It carries `IdentityAgent=none` + `BatchMode=yes` (fail into
+the log in 15 s) and file-path signing, because a leg that runs while nobody is watching must fail
+rather than wait. The traps, all measured, recorded so the next session does not rediscover them:
 
 * **`gpg.ssh.program` must be ABSENT, not empty.** Git cannot un-set a key from a later include, so
   the script removes it from `.gitconfig-windows` instead of overriding it; `-c gpg.ssh.program=`
   (empty) makes git try to spawn `""` → `cannot spawn : No such file or directory` (2026-10-07).
-* **Include order is the mechanism.** The per-remote `includeIf` blocks in `~/.gitconfig` run before
-  this one and `.gitconfig-github` sets `user.signingkey` to the public-key string, so the nightly
-  include is **appended last** — beside `.gitconfig-windows` it loses and signing silently reverts to
-  the agent route. Proven in a fabricated seat carrying that exact `includeIf` block: the commit came
-  out signed (`%G?` = `G`) with no dialog.
+* **Include order is the mechanism — and scope is why the form is an `includeIf`.**
+  `.gitconfig-github` sets `user.signingkey` to the public-key string, so the payload must be READ
+  AFTER it. It is added as `[includeIf "hasconfig:remote.*.url:*github.com*/**"] path =
+  .gitconfig-nightly`, which puts that path directly below `.gitconfig-github`'s in the section that
+  fires for github remotes (`git config --add` appends the value to the section whose pattern
+  matches rather than writing a new one at EOF — measured 2026-10-09); beside `.gitconfig-windows`
+  it loses and signing silently reverts to the agent route. Proven in a fabricated seat carrying
+  that exact `includeIf` block: the commit came out signed (`%G?` = `G`) with no dialog. Why
+  `includeIf` and not a plain `[include]`: the payload's `core.sshCommand` names `~/.ssh/github_auth`,
+  and a global include would hand that key to the `git.stroka.si` / `git.kogler.si` legs as well —
+  those authenticate with a credential helper, and this seat has two HTTPS stroka clones under
+  `D:/source/stroka` (HD-1126).
+* **The one edge case that scope buys: no remote, no payload.** `hasconfig:` matches against a
+  remote URL, so OUTSIDE a clone — `git ls-remote <url>` or `git fetch <url>` in a bare directory —
+  there is no remote to match, the payload never fires, and the transport falls back to
+  `.gitconfig-windows`' `C:/Windows/System32/OpenSSH/ssh.exe`, which does resolve the 1Password named
+  pipe and can prompt. Inside any github clone it cannot. `git-bootstrap-win11.sh --check` reports
+  this as **`route: PARTIAL`** rather than claiming the seat default, so the fallback is visible
+  instead of assumed (`--check` is always honest about the directory it is run from).
 * **Retired 2026-10-08 (owner decision, HD-1116): commits are no longer signed.** The SSH signing key
   was deleted from GitHub, which turns `commit.gpgsign=true` from a policy into a HANG — git blocks
   waiting for an agent to sign with a key nothing can validate any more, and it does that in the
