@@ -371,6 +371,12 @@ fi
 # `guard-session.sh --validate-mode` (a primary+main+dirty checkout must not spend    #
 # 10 s discovering that its edits are in the wrong place).                            #
 # --------------------------------------------------------------------------- #
+# ONE temp dir for the whole gate, removed by ONE EXIT trap. A leg must not `mktemp -d` +
+# install its own `trap … EXIT`: legs run inside the item subshells created by `_queue`, and
+# measured 2026-10-09 a trap set there came back to fire at the PARENT's exit — it replaced
+# this one (bash keeps a single EXIT handler), leaked the directory that trap owned, and
+# printed `SC_DIR: unbound variable` because the function-local it named was long gone.
+# Legs that need scratch space take a subdirectory of `$RUN` (see the syntax-check leg).
 RUN="$(mktemp -d)"; trap 'rm -rf "$RUN"' EXIT
 MAXPAR=4
 command -v nproc >/dev/null 2>&1 && MAXPAR="$(nproc)"
@@ -461,7 +467,7 @@ blk_ansible_syntax() {
     # work here to optimise, only waiting. Syntax-checking is read-only and every
     # playbook gets its own stderr/rc file, so the duplicate-key witness below still sees
     # exactly what ansible printed for each playbook, and one playbook cannot affect another's rc.
-    local SC_DIR; SC_DIR="$(mktemp -d)"; trap 'rm -rf "$SC_DIR"' EXIT
+    local SC_DIR="$RUN/syntax-check.$BASHPID"; mkdir -p "$SC_DIR"  # a $RUN subdir: the gate's single EXIT trap owns it — never re-trap here
     local names=() files=() i=0 pb n rc_all=0 rc
     for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
       n="pb$i"

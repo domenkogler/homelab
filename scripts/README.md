@@ -187,6 +187,14 @@ inputs, not tools. `collect-smart.ps1` is the Windows PowerShell sibling of
    walkers list files with `git ls-files`, so an untracked file is invisible to them. Measured 2026-10-09: a new root-level
    doc passed the whole gate while untracked and failed it the moment a merge made it tracked (three citations to a path that
    does not exist yet). For a **new validator** the same trap is worse — a green run in which the new check never executed.
+- **`validate-all.sh` keeps ONE `EXIT` trap, on the gate's own `$RUN`, and legs take a **subdirectory** of it.** A leg that
+   runs `mktemp -d` + its own `trap … EXIT` is the bug that shipped: legs execute inside the item subshells `_queue`
+   creates, and measured 2026-10-09 a trap set there came back to fire at the **parent's** exit — it replaced the trap that
+   owned `$RUN` (bash keeps a single EXIT handler), leaked that directory, and printed `SC_DIR: unbound variable` because
+   the function-local its text named was long gone. Both symptoms were invisible per-item and showed up once per **run**,
+   in the gate's own output, where anyone bisecting a flake would read it as part of the run. A leg therefore writes under
+   `"$RUN/<leg-name>.$BASHPID"` and never re-traps (`$$` is the parent's PID inside a subshell — `BASHPID` is what
+   distinguishes two legs).
 - **Layout:** `scripts/` is one flat directory today (79 executables at top level, measured 2026-10-09) plus `git/`,
    `pi-config/`, `laptop-llm/`, `win/`, `testdata/`. The agreed target structure, the per-file assignment and the stage order
    are [../prompt-scripts.md](../prompt-scripts.md) / [`todo.md`](../todo.md) HD-1118 — read that before proposing a move,
