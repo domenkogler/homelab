@@ -117,13 +117,15 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
 5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
    1110 · 1115**) with its owner-gated tails intact. **HD-495**: role-own the oldsrv seat's git plumbing — its
    **signing** half was retired 2026-10-08 by HD-1116, so a rebuild now recovers `gpgsign=false` instead of hanging;
-   what is left to own is the transport key and the global `~/.gitconfig`. Its **SA-token leg** moved this round
-   (2026-10-09): both service accounts are rotated and both oldsrv installs are re-seated and proven, and what remains is
-   the **laptop-WSL** copy plus the **`/etc/op/provision-token`** refresh — the latter converges only from the laptop
-   (the role-based self-converge lockout in [docs/deployment-ansible.md](docs/deployment-ansible.md)), so it needs an
-   owner-present window, not a tooling fix. Read [docs/1password.md](docs/1password.md) §1 first:
-   the leak response killed the "two-token finding" as a **mis-seed** (the seat was running the *write*-scoped item, and
-   `op vault list` cannot tell the scopes apart — prove scope with the `op whoami` Integration ID).
+   what is left to own is the transport key and the global `~/.gitconfig`. Its **SA-token leg** closed on 2026-10-09:
+both service accounts are rotated and all three Debian installs (laptop, oldsrv runner, oldsrv seat) are re-seated to
+the read-scoped `op_api` and proven by an `op item list` that answers rows; the Win11 seat is confirmed to hold no SA
+token at all, which is its designed state. ⏳ **One leg left:** the **`/etc/op/provision-token`** hosts (`oldsrv`, `vps`),
+which still carry the superseded write value — measured 2026-10-09 18:46, both `be1939305745`, both still accepted
+inside the grace window. Only a full `docker_services` converge (`scope_is_all`) issued FROM the laptop refreshes it, and
+the run's "Probe the deployed token is actually accepted" task is the verdict. Read [docs/1password.md](docs/1password.md) §1
+first: the leak response killed the "two-token finding" as a **mis-seed** — both seats were running the *write*-scoped
+item, and `op vault list` cannot tell the scopes apart, so prove scope with the `op whoami` **Integration ID**.
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/pi-seat-sync.sh` is
    the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID — the driver ran only
    its first plane on an ssh leg until `bcf776ab` (HD-1110), and the cockpit re-verified genuinely green 8/8 on

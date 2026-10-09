@@ -29,7 +29,7 @@ one vault), both re-issued:
 
 | Item | Scope | Who uses it |
 |---|---|---|
-| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder: the Phase 0/5 "`op_api` as a runner secret" premise was answered 2026-09-25 — **there is no Forgejo runner holding it** (HD-396, [../deployment-tasks.md](../deployment-tasks.md) §Vault inventory), and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) carries no OP secret. ✅ **Rotated by the owner 2026-10-08** (leak response), the superseded value stops working ~2026-10-15; ✅ **re-seated 2026-10-09 on the oldsrv control node and the oldsrv seat** (HD-495 carries the leg). ⏳ laptop-WSL copy and `/etc/op/provision-token` hosts still owed — see the rotation-round block below |
+| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder: the Phase 0/5 "`op_api` as a runner secret" premise was answered 2026-09-25 — **there is no Forgejo runner holding it** (HD-396, [../deployment-tasks.md](../deployment-tasks.md) §Vault inventory), and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) carries no OP secret. ✅ **Rotated by the owner 2026-10-08** (leak response), the superseded value stops working ~2026-10-15; ✅ **re-seated 2026-10-09 on all three Debian installs** — the oldsrv control node, the oldsrv seat and the laptop (HD-495 carries the leg) — so the item is again the **single mint point**. ⏳ `/etc/op/provision-token` hosts still owed (the `op-write_api` leg, see the rotation-round block below) |
 | `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted). ⚠ **Rotated by the owner 2026-10-09 in the same leak response** — every `/etc/op/provision-token` copy in the fleet now carries the SUPERSEDED value and 403s once the grace window closes; it reaches them only through an `op-provision-token` converge ([deployment-secrets.md](deployment-secrets.md) §`op-write_api`) |
 
 > **Superseded design (kept for the record, do not re-implement):** this section used to say the
@@ -43,12 +43,12 @@ one vault), both re-issued:
 |---|---|---|
 | **`oldsrv` — the on-site control node** (`ansible-admin`, seeds 2026-09-22, proving logs 2026-09-23) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` on the laptop — the value never crossed a prompt or a shell history. ✅ **re-seated to the rotated value 2026-10-09** (`op item list` = rows, not 403) |
 | **`oldsrv` SEAT — `domen`, the cockpit/authoring account** (HD-495, 2026-10-06) | `op_api` | `~/.config/op/homelab-sa-token` (0600, owner `domen`), sourced from `~/.bashrc`. This is what closed "the seat cannot author" in [deployment-ansible.md](deployment-ansible.md) §Runner placement. ⚠ **Until 2026-10-09 this file held the WRITE-scoped token, not `op_api`** — see the corrected finding below; ✅ re-seated to the read-scoped value 2026-10-09, now proven by SA identity, not by `op vault list` (which cannot tell the two scopes apart) |
-| **control node (rescue)** — this WSL Debian laptop. No longer "the only place `ansible-playbook` is run interactively" (HD-407 closed that), and it stays installed as the door you open when the on-site runner is the thing that is broken | `op_api`… **nominally** — see the corrected finding below | `~/.config/op/homelab-sa-token` (0600) |
+| **control node (rescue)** — this WSL Debian laptop. No longer "the only place `ansible-playbook` is run interactively" (HD-407 closed that), and it stays installed as the door you open when the on-site runner is the thing that is broken | `op_api` | `~/.config/op/homelab-sa-token` (0600). ✅ **re-seated 2026-10-09 and measured**: `be1939305745` **before** — the write item, so this install was mis-seeded too, which is what finally closes the "two-token finding" below — and `6a1342f44e65` / Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` after, `op item list` answering rows |
 | ~~Forgejo CI runner~~ | ~~`op_api`~~ | **no holder** (HD-396, settled 2026-09-25): no `.forgejo/` workflow, no runner. The Phase 0/5 "renew it in CI after every rotation" line has nothing to renew |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
-| **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
+| **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`). ✅ **verified absent 2026-10-09** (file missing, history clean) — but note the one task that would make it a consumer: `scripts/render-pi-config.py` falls back to this same file, so mint `pi_auth` from a Debian seat, or strip the CR if you ever pipe `op.exe` output into it |
 
 ### The "two-token finding" was wrong: the second value was the WRITE-scoped item
 
@@ -67,6 +67,12 @@ one vault), both re-issued:
 > 2. **Rotating `op_api` revoked nothing on that box.** A rotation of item A does not touch item B, so
 >    a leak-response rotation silently left the mis-seated consumer holding a live credential. That is
 >    the HD-442 class again, one level up: the check passes, the credential is wrong.
+>
+> **Measured on both installs 2026-10-09, so this is now a fact and not an inference:** the laptop's copy
+> hashed `be1939305745` immediately before its re-seat, the same value the seat carried. There was never
+> a second mint point — the "vault-invisible token" this section used to warn about was `op-write_api`
+> installed in two places, and `op_api/credential` is again the single source of truth for all three
+> Debian installs (laptop, oldsrv runner, oldsrv seat).
 
 `sha256(token)[:12]`, values never printed (CONVENTIONS §6). Current pair after the 2026-10 leak response:
 
@@ -87,10 +93,12 @@ for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token; do \
     ; printf '%s  %s\n' "$f" "$(printf %s "$OP_SERVICE_ACCOUNT_TOKEN" | sha256sum | cut -c1-12)" ); done
 ```
 
-⏳ Still open from this round: the **laptop-WSL** copy (docs-recorded as `be1939305745` = the write
-item, re-measure and overwrite it from `op read`) and every **`/etc/op/provision-token`** host, which
-holds the superseded write value until an `op-provision-token` converge replaces it — issued FROM the
-laptop, never from oldsrv (HD-413 self-converge lockout, [deployment-secrets.md](deployment-secrets.md)).
+✅ **Closed by this round:** the laptop-WSL copy (`be1939305745` → `6a1342f44e65`, measured 2026-10-09)
+and the Win11 seat (confirmed to hold no SA token).
+⏳ **The only leg still open:** every **`/etc/op/provision-token`** host — today `oldsrv` and `vps` —
+holds the superseded write value until an `op-provision-token` converge replaces it, and that converge
+needs `scope_is_all` and must be issued FROM the laptop, never from oldsrv (HD-413 self-converge lockout,
+[deployment-secrets.md](deployment-secrets.md)). Unlike a seat file, nothing refreshes that path.
 
 ### Rotating the control-node token
 `scripts/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
