@@ -255,6 +255,12 @@ CATALOG = [
     # consumed by spark-ai compose (`--api-key`) + the two LiteLLMs as `llm_api` for the
     # llm.kogler.si base_url. First vault item for the spark node (was vault-free by design).
     ("API Credential", "spark-llm_api", lambda: [f"credential={gen_token(32)}"]),
+    # HD-384 (owner shape (a), 2026-10-09): the gateway's OWN credential for the engine leg, so
+    # `spark-llm_api` stops being triple-used (engine `--api-key` + both LiteLLM `OPENAI_API_KEY`
+    # values + the direct harness). The vLLM engine accepts BOTH (`--api-key` is nargs='+'). The
+    # LiteLLM containers consume it as `OPENAI_API_KEY` once the spark half has converged (the
+    # engine only starts accepting it at its next boot) — ordering is in services-ai.md §4.
+    ("API Credential", "litellm-engine_api", lambda: [f"credential={gen_token(32)}"]),
 ]
 
 # Items never auto-rotated by this tool (external/app coupling). Kept here as a
@@ -287,6 +293,12 @@ NOT_AUTO_ROTATABLE = {
     "openclaw-opencloud_api",   # OpenCloud app-password pair
     "pi-harness_forgejo_api",   # pi-dev PR-only Forgejo token (HD-268c)
     "dsh_forgejo_api",            # DSH PR-only Forgejo token (HD-268c)
+    "spark-llm_api",        # HD-384 (2026-10-09): the engine's ACCEPTED-KEY list lives in vLLM's argv,
+                            # so any rotation of either engine-side key needs a spark converge (engine
+                            # restart) to take effect — rotating the vault value alone leaves the running
+                            # engine accepting the OLD value and the re-rendered consumers holding a new one.
+    "litellm-engine_api",   # HD-384: same coupling as above (the gateway's own engine credential is an
+                            # accepted-key value on the engine as well as OPENAI_API_KEY in two containers).
     "opencloud_login",      # admin login created at first boot
     # HD-268 tailnet sidecars: headscale preauth keys (mint via the running
     # headscale: `docker exec headscale headscale preauthkeys create --reusable

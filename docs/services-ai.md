@@ -331,7 +331,8 @@ driver. Nothing here adds a scrape target or a dashboard.
 | `litellm_api` | api → `credential` | admin/bootstrap ONLY — **this IS the master key** (`LITELLM_MASTER_KEY`); there is no `litellm_master_key` item, despite how the name gets typed (HD-247) |
 | `litellm_db` | db → `password` | litellm-db runtime DB (models-in-DB) |
 | scoped keys (`owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `dsh_api`, `openclaw-litellm_api`, `rag-int-svc_api`) | api → `credential` | per-consumer minted keys (HD-247) |
-| `spark-llm_api` | api → `credential` | the spark engine's bearer (container env, never a DB row) |
+| `spark-llm_api` | api → `credential` | the spark engine's bearer (container env, never a DB row) **and** the direct-harness copy in the rendered seat configs — until the HD-384 switch below completes it is also what both gateways send upstream |
+| `litellm-engine_api` | api → `credential` | **HD-384 (2026-10-09): the gateway's own engine credential** — the second accepted `--api-key` value on the engine, and `OPENAI_API_KEY` in both LiteLLM containers once step (2) of the switch lands. Guard-listed in `provision-secrets.py`: rotating it needs a spark restart, like `spark-llm_api` |
 | `openwebui_secret` | password → `password` | Open WebUI session/encryption secret |
 | `qdrant_db` | api → `credential` | Qdrant (no username; single static API key via `QDRANT__SERVICE__API_KEY`) |
 
@@ -353,6 +354,27 @@ what the `home-assistant` row must satisfy is visibility of `spark/qwen3.8-flash
 ⚠ The allow-lists still name `ollama/*` model names that no longer exist after decision #27 — correcting
 them (and adding the real rows for the real consumers) is **HD-384**, and the model-catalog doctrine
 below governs how.
+
+**The engine credential is split — `spark-llm_api` stops being triple-used** (HD-384, owner shape (a),
+2026-10-09). The item was load-bearing in three places at once: the engine's own `--api-key`, the
+`OPENAI_API_KEY` **both** LiteLLM instances send upstream, and the direct-harness credential in the rendered
+seat configs — which is why
+[deployment-ai-stack-secrets.md](deployment-ai-stack-secrets.md) §4a treats it as a set-rotation rather than a
+value. A separate item, **`litellm-engine_api`** (catalog row + vault item, 32-char token, value verified
+distinct), gives the **gateway leg its own credential**. It works because vLLM accepts MULTIPLE keys —
+`--api-key` is `nargs='+'` (measured on the running build: `[--api-key API_KEY [API_KEY ...]]`) — so the
+`spark-ai` template renders both accepted values, harness key **first**, because
+`roles/spark/files/spark-oom-watchdog.sh` reads the token following the first `--api-key` as its `/metrics`
+bearer. ⚠ **SGLang is the exception**: its `api_key` is `Optional[str]` (`server_args.py`, one key), so a
+fast-sglang profile cannot carry both credentials and the gateway leg must be re-decided (edge allow-list or
+a translation hop) before that profile ever goes live. ⚠ **Ordering is a landmine if inverted** — the engine
+only accepts the new key from its **next boot** onward, so the switch is two converges, in this order:
+**(1)** spark (`spark-ai`, an engine restart — PLE-table load, `start_period` ~20 min, so an owner-window
+action, not a blind one), then **(2)** `lan-litellm` on oldsrv + `litellm` on the VPS with
+`OPENAI_API_KEY: vault['litellm-engine_api'].credential`. Step (2) is deliberately **not rendered yet**; before
+flipping it, prove the engine already accepts the new credential —
+`curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(op read 'op://Homelab-ansible/litellm-engine_api/credential')" https://llm.kogler.si/v1/models`
+must answer **200**.
 ⚠ **The glue is CREATE-ONLY, and that decides what "grant a consumer" means** (read off the template
 2026-09-26): a vault item that already holds a value is only *probed* (`GET /v1/models`; 200 = keep,
 401/403 = `ABORT rc2`) — its server-side params are never updated. So editing `models:` or budgets on an

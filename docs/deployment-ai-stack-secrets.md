@@ -88,7 +88,7 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 >
 > | Holder | What it is | Verified |
 > |---|---|---|
-> | spark engine `--api-key` | **the authority** — vLLM's own argv, rendered from `spark-ai` compose | argv hash == vault |
+> | spark engine `--api-key` | **the authority** — vLLM's own argv, rendered from `spark-ai` compose. Since HD-384 (2026-10-09) this is a **list of two accepted keys** (`--api-key` is `nargs='+'`): `spark-llm_api` first, then `litellm-engine_api` | argv hash == vault (first position) |
 > | VPS `litellm` `OPENAI_API_KEY` | what LiteLLM sends **upstream** to spark | env hash == vault |
 > | oldsrv `lan-litellm` `OPENAI_API_KEY` | same, LAN leg | host was down |
 | ~~Forgejo CI runner~~ | **does not exist** — this was HD-396's last open consumer, settled 2026-09-25 by five "
@@ -107,11 +107,28 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 > `llm.ts` in both directions and compares consumer env hashes, which is what is actually checkable.
 
 **What the item actually is.** Not a LiteLLM virtual key: it is **vLLM's `--api-key`** on the spark
-engine (`templates/docker_services/spark-ai/docker-compose.yml.j2`), and the SAME string is what both
-LiteLLM instances send upstream as `OPENAI_API_KEY` (`litellm/` + `lan-litellm/` compose). So exactly
-one secret guards the raw inference endpoint on every path — LAN `:443`, VPS edge and tailnet over
-WG/S2S. Catalog row: `provision-secrets.py` → `("API Credential", "spark-llm_api", gen_token(32))`,
-and it is **not** in `NOT_AUTO_ROTATABLE`.
+engine (`templates/docker_services/spark-ai/docker-compose.yml.j2`), and — until the HD-384 switch completes —
+the SAME string is what both LiteLLM instances send upstream as `OPENAI_API_KEY`
+(`litellm/` + `lan-litellm/` compose). So exactly one secret guards the raw inference endpoint on every path —
+LAN `:443`, VPS edge and tailnet over WG/S2S. Catalog row: `provision-secrets.py` →
+`("API Credential", "spark-llm_api", gen_token(32))`.
+
+> **HD-384 changed this section's topology (owner shape (a), 2026-10-09).** A second item,
+> **`litellm-engine_api`**, is now the **gateway leg's own credential**: it is rendered as the engine's *second*
+> accepted `--api-key` value and, once step (2) of the switch lands, as `OPENAI_API_KEY` in both LiteLLM
+> containers. Consequences for anyone rotating here:
+> * **Both items are now in `NOT_AUTO_ROTATABLE`.** The accepted-key list lives in the engine's **argv**, so a
+>   vault-only rotation leaves the running engine accepting the old value while re-rendered consumers hold the
+>   new one — `--rotate spark-llm_api` used to be "safe, just redeploy"; it is not.
+> * **Order:** spark first (engine restart picks up the new accepted list), then the two gateway instances.
+>   Inverted, the gateways 401 upstream against a key the running engine has never seen.
+> * **`rotate-spark-llm-key.sh` does not know about the second key.** Its engine check hashes the token in the
+>   position *after* the first `--api-key` (still `spark-llm_api`, so the check itself stays correct), but nothing
+>   it runs proves the second accepted value is live. Do that by hand — `curl -H "Authorization: Bearer $(op read
+>   'op://Homelab-ansible/litellm-engine_api/credential')" https://llm.kogler.si/v1/models` must answer **200**
+>   before the gateway halves are converged.
+> * ⚠ **SGLang accepts ONE key** (`api_key: Optional[str]` in `server_args.py`), so under a fast-sglang profile
+>   this two-credential shape is impossible and the gateway leg must be re-decided before that profile runs.
 
 **The leak (found by scanning, not by looking).** `vllm bench serve` prints its own parsed argv, which
 includes `header=['Authorization=Bearer <key>']`. Every stability/bench step log therefore carried the

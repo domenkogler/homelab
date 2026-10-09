@@ -252,11 +252,17 @@ services:
       # SGLang later serves the same id (spark_engine_port flips); keep the id stable across.
       - --served-model-name
       - {{ spark_vllm_served_name }}
-      # HD-370: bearer auth on the OpenAI endpoint — vLLM --api-key (same flag exists in
-      # SGLang), NOT a secret-free engine anymore: llm.kogler.si is edge-exposed (TLS + this
-      # key both required). The spark-ai template now carries its first vault item (spark-llm_api).
+      # HD-370: bearer auth on the OpenAI endpoint — vLLM --api-key, NOT a secret-free engine
+      # anymore: llm.kogler.si is edge-exposed (TLS + a key both required).
+      # HD-384 (owner shape (a), 2026-10-09) ends `spark-llm_api`'s TRIPLE USE: the engine accepts
+      # BOTH the harness/direct key and the gateway's own `litellm-engine_api`, so rotating one no
+      # longer invalidates the other. Multiple keys are ONE flag with N values — vLLM's arg is
+      # nargs='+' (measured on the running build: `--help` prints `[--api-key API_KEY [API_KEY ...]]`).
+      # ⚠ ORDER IS LOAD-BEARING: roles/spark/files/spark-oom-watchdog.sh reads the token FOLLOWING
+      # the first `--api-key` as its /metrics bearer, so the harness key (`spark-llm_api`) must stay FIRST.
       - --api-key
       - "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
+      - "{{ vault['litellm-engine_api'].credential | replace('$','$$') }}"
       # compression: NEVER force --quantization. The staged checkpoints declare their
       # own packed format in config.json (AWQ build = compressed-tensors, primitive-ai
       # mixed NVFP4/FP8 = compressed-tensors too, verified 2026-09-28 against the HF
@@ -327,6 +333,11 @@ services:
     # same --model path, same served id, same --api-key, same port, same parsers.
     # Pool semantics DIFFER: SGLang sizes its KV by --mem-fraction-static /
     # --max-total-tokens (both in args_extra), NOT by --kv-cache-memory-bytes.
+    # ⚠ ONE REAL DIVERGENCE (HD-384, 2026-10-09): SGLang's `api_key` is `Optional[str]`
+    # (python/sglang/srt/server_args.py, "Set API key of the server") — ONE key, unlike vLLM's
+    # nargs='+'. So this branch cannot hold both the harness key and the gateway's own credential,
+    # and if a SGLang profile ever goes live the gateway leg of HD-384 must be re-decided (edge
+    # allow-list or a key-translation hop) BEFORE the LiteLLM containers are pointed at it.
     command:
       - --model-path
       - /model

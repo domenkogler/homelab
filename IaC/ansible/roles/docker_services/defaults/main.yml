@@ -461,7 +461,7 @@ _template_vault_items:
   renovate: {'forgejo_api'}
   rustdesk-server: {'rustdesk_login'}   # HD-412 — the hbbs/hbbr keypair (username=public, password=secret); NOT catalog-generated (rustdesk-utils mints it, manual-value class) and NOT auto-rotatable (rotating orphans every enrolled client)
   signal-cli-rest-api: {'signal-internal_api', 'signal_api'}
-  spark-ai: {'spark-llm_api'}   # HD-370: first vault item for spark (was intentionally vault-free: engine --api-key bearer auth on llm.kogler.si)
+  spark-ai: {'spark-llm_api', 'litellm-engine_api'}   # HD-370: first vault item for spark (was intentionally vault-free: engine --api-key bearer auth on llm.kogler.si). HD-384 (2026-10-09) adds `litellm-engine_api` — the engine now accepts the harness key AND the gateway's own credential, which is what ends spark-llm_api's triple use
   technitium: {'technitium_login', 'technitium_api'}
   traefik: {'cloudflare_api', 'crowdsec-bouncer_api'}
   traefik-tailnet: {'crowdsec-bouncer_api', 'tailscale-sidecar_api'}   # middlewares LAPI key + sidecar auth key (HD-258)
