@@ -689,6 +689,17 @@ Two rules decide every block:
 Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and
 `C:\Users\domen\.ssh\config` (Windows OpenSSH).
 
+**And a third variable decides them: WHICH `ssh` runs them (measured 2026-10-09, HD-492).** The
+contract's `.pub`-as-`IdentityFile` form is not self-sufficient — it selects a key an AGENT must hold.
+Windows OpenSSH reaches the 1Password agent and authenticates (`Offering public key: … explicit agent`);
+the Git-Bash build — which is what a script's bare `ssh` resolves to when the script runs under Git-Bash —
+cannot load that same file (`Load key "…ansible-admin_ssh.pub": invalid format`), offers no key at all, and
+dies `Permission denied`. Identical config, identical host, opposite verdict; the missing trailing newline on
+those `.pub` files is NOT the cause (probed with a newline-terminated copy through that same binary). So an
+automation that shells out to `ssh` inherits whatever build its PATH holds — the contract's alias blocks are
+correct on both, and a script must know which seat-side build it is invoking (or be run from the seat that
+can reach the leg).
+
 **A third copy exists, and it is deliberately NOT a laptop copy: the oldsrv seat's own `~/.ssh/config`** — the box
 this repo is authored on (HD-445 cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
 Home address and carry **no `ProxyJump`**: on-site a jump would hairpin through the VPS for no benefit, and
