@@ -284,7 +284,7 @@ Every script must run natively in WSL Debian; paths use `$HOME`, `$SRC`, `$REPO`
 | `gen-media-post-install.sh` | bash | none (self-derived `$REPO`; output to `IaC/host/`) | 🟢 portable |
 | `testdata/check-vault-items/run.sh` | bash | none | 🟢 portable |
 | `testdata/check-vault-items/run.sh` | bash | none | 🟢 portable |
-| `validate-all.sh` | bash | `py -3` fallback is fine (Windows path); new sweep uses `python3` | 🟢 portable |
+| `validate-all.sh` | bash | **interpreter is PROBED, not name-tested** (2026-10-09): `python3` → `py -3` → `python`, first one that imports `jinja2, yaml` wins, and the chosen launcher + version prints. A name test picked the Microsoft Store alias STUB on the Win11 seat (on PATH, exits 49, runs nothing), which made the `py -3` fallback unreachable and the seat unable to reach a verdict — HD-1124's class. The `py_compile` sweep follows the same probed launcher; FAIL-closed if none imports (canary: `PATH=/usr/bin:/bin`) | 🟢 portable — 61 items green from Git-Bash on the Win11 seat, 2026-10-09 |
 | all other `*.py` (check_doc_*, validate_*, render_*) | python3 | none | 🟢 portable |
 
 > Portability discipline is owned by `CONVENTIONS.md`; this section is the per-script map — the owning specs remain authoritative.

@@ -284,48 +284,47 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# Python launcher: prefer python3 (Linux/CI), fall back to py -3 (Windows).
-# PYTHONUTF8=1 keeps Windows console output from crashing on non-ASCII.
-if command -v python3 >/dev/null 2>&1; then
-  PY="python3"
-elif command -v py >/dev/null 2>&1; then
-  PY="py -3"
-else
-  echo "error: no python3 or py on PATH" >&2
-  exit 1
-fi
+# Python launcher: chosen by PROBE, not by name. WHY it is a probe (measured 2026-10-09 on the Win11
+# seat): the Microsoft Store's `python3` alias STUB sits on PATH, `command -v python3` finds it, and it is
+# NOT an interpreter — it prints "Python was not found; run without arguments to install from the
+# Microsoft Store" and exits 49. The old name-based order therefore selected the stub, the preflight below
+# correctly refused, and the `py -3` fallback written four lines further down could NEVER fire on exactly
+# the host it was written for. Consequence: this seat could not reach a verdict at all — the HD-1124 class
+# one step further back, a gate that dies before any validator runs. Candidates stay ordered so a
+# Debian/CI runner still gets its real python3 first, and the launcher is PRINTED because a verdict has to
+# say which interpreter produced it.
 export PYTHONUTF8=1
-
-# Activate the runner venv when this host has one (2026-10-06). WHY this exists: the Python
-# validators import jinja2 + PyYAML at module scope, and on a Debian/WSL seat those arrive ONLY as
-# pip deps of `pip install ansible` inside ~/ansible-venv (bootstrap-runner.sh §3) — dpkg has never
-# carried python3-jinja2/python3-yaml here. The venv enters PATH through the
-# `source ~/ansible-venv/bin/activate` line bootstrap-runner.sh appends to ~/.bashrc, and a
-# NON-interactive shell never reaches that line: ~/.bashrc's own interactivity guard returns first.
-# Measured consequence: from cron/pi/a converge the gate died at validate-docker-services.py line 26
-# (`from jinja2 import ...` ModuleNotFoundError) while the SAME commit run from an interactive shell
-# went green two hours earlier, and the ansible --syntax-check half degraded to SKIP for the same
-# reason (ansible-playbook lives in the same bin/). That is "validates on my machine" in a gate, and
-# a green-red-per-invocation gate is not a gate. Sourced exactly like ansible-run.sh; NEVER required,
-# so a bare CI runner keeps its system python3 instead of failing on a missing venv.
-if [ "$PY" = "python3" ] && [ -f "$HOME/ansible-venv/bin/activate" ]; then
+# The venv is sourced BEFORE the probe (unchanged 2026-10-06 reasoning): on a Debian/WSL seat jinja2 and
+# PyYAML arrive ONLY as pip deps of ansible inside ~/ansible-venv (bootstrap-runner.sh §3), and that venv
+# enters PATH through a `source …activate` line in ~/.bashrc which a NON-interactive shell never reaches,
+# because the file's interactivity guard returns first. Measured: from cron/pi/a converge the gate died on
+# `from jinja2 import …` fifteen steps deep while the SAME commit went green from an interactive shell —
+# a green-red-per-invoker gate is not a gate. NEVER required, so a bare CI runner keeps its system python3.
+if [ -f "$HOME/ansible-venv/bin/activate" ]; then
   # shellcheck disable=SC1091
   . "$HOME/ansible-venv/bin/activate"
-  echo "launcher: ~/ansible-venv activated — python3=$(command -v python3) ansible-playbook=$(command -v ansible-playbook || echo absent)" >&2
+  echo "launcher: ~/ansible-venv activated — python3=$(command -v python3 || echo absent) ansible-playbook=$(command -v ansible-playbook || echo absent)" >&2
 fi
-
-# Preflight, before 20 validators can fail one at a time: the interpreter chosen above must carry
-# what the validators import at module scope. Without this the first signal is a traceback fifteen
-# steps deep, which reads like a broken validator rather than a missing venv (that is precisely how
-# the 2026-10-06 incident got misread).
-if ! "$PY" -c "import jinja2, yaml" >/dev/null 2>&1; then
-  echo "FAIL: launcher '$PY' has no jinja2/PyYAML — the Python validators cannot run." >&2
+PY=""
+for _cand in python3 "py -3" python; do
+  # shellcheck disable=SC2086
+  if $_cand -c "import jinja2, yaml" >/dev/null 2>&1; then PY="$_cand"; break; fi
+done
+# Preflight, before 20 validators can fail one at a time: the interpreter chosen above must carry what the
+# validators import at module scope. Without this the first signal is a traceback fifteen steps deep, which
+# reads like a broken validator rather than a missing venv (that is how the 2026-10-06 incident got misread).
+if [ -z "$PY" ]; then
+  echo "FAIL: no interpreter on PATH imports jinja2 + PyYAML (tried: python3, py -3, python) — the Python validators cannot run." >&2
+  echo "      ⚠ A Microsoft Store alias STUB counts as present on PATH but is not an interpreter; if" >&2
+  echo "        'python3' resolves to one here, install a real Python or run the gate where ~/ansible-venv exists." >&2
   echo "      On a Debian/WSL runner both arrive as pip deps of ansible inside ~/ansible-venv:" >&2
   echo "        bash scripts/bootstrap-runner.sh          # or: source ~/ansible-venv/bin/activate" >&2
   echo "      On a bare CI host:  python3 -m pip install jinja2 PyYAML" >&2
   echo "      Refusing to continue: a gate that cannot import is not a gate." >&2
   exit 1
 fi
+# shellcheck disable=SC2086
+echo "launcher: $PY ($($PY -c 'import sys; print(sys.version.split()[0])' 2>/dev/null || echo '?'))" >&2
 
 
 # --- CLI: --list (print the items and stop), --only SUBSTR (run a subset),          #
@@ -527,17 +526,20 @@ blk_bash_n_sweep() {
 }
 
 blk_py_compile_sweep() {
-  if command -v python3 >/dev/null 2>&1; then
-    local f py_fail=0
-    for f in scripts/*.py; do
-      [ -f "$f" ] || continue
-      python3 -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL: $f" >&2; py_fail=$((py_fail+1)); }
-    done
-    [ "$py_fail" -eq 0 ] || exit 1
-    echo "OK: all scripts/*.py compile under python3"
-  else
-    echo "SKIP: python3 not on PATH — py_compile sweep skipped"
-  fi
+  # Usability, not existence (2026-10-09): on a Win11 seat `python3` resolves to the Microsoft Store alias
+  # STUB — it is on PATH, it is not an interpreter, and `command -v` cannot tell. Gating on existence made
+  # every file print `py_compile FAIL` on that seat, which is a misleading RED, not a gate; CONVENTIONS §6
+  # requires an environment boundary to print SKIP naming the reason. $PY (probed above) carries the sweep
+  # when python3 is unusable, so the portability claim still runs — under a named interpreter.
+  local _pc="$PY" f py_fail=0
+  if python3 -c "import sys" >/dev/null 2>&1; then _pc="python3"; fi
+  for f in scripts/*.py; do
+    [ -f "$f" ] || continue
+    # shellcheck disable=SC2086
+    $_pc -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under $_pc" >&2; py_fail=$((py_fail+1)); }
+  done
+  [ "$py_fail" -eq 0 ] || exit 1
+  echo "OK: all scripts/*.py compile under $_pc"
 }
 
 # The seat/host-state gates: each SKIPs where the thing it checks is absent, so a
