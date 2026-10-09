@@ -278,8 +278,9 @@
 #   on itself: while removing a DUPLICATED `check_iac_backend_strings.py` block (HD-404) the
 #   edit matched both copies and deleted BOTH — every run from 223b571b to 17d8dd13 was green
 #   while item 19 ran never, and the self-test that is supposed to catch a muted ratchet was
-#   muted with it. The parallel rewrite restored it; `--list | wc -l` (59) against a previous
-#   commit is now the audit that catches this class — do not trust the numbered comments.
+#   muted with it. The parallel rewrite restored it; `--list | wc -l` — counted at run time against
+#   a previous commit, never typed here, because the count moves the moment an item is added — is
+#   now the audit that catches this class; do not trust the numbered comments.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
