@@ -1,12 +1,14 @@
-> **Role:** one-time work plan — replace the eight `prompt-<HD>.md` lane briefs with ten **domain** briefs,
-> add the context-budget rule the current rulebook lacks, and retire the laptop's LM Studio agent leg.
+> **Role:** one-time work plan — replace the eight `prompt-<HD>.md` lane briefs with ten new **domain** briefs
+> (a domain-named one already exists on `main`), add the context-budget rule the current rulebook lacks, and
+> retire the laptop's LM Studio agent leg.
 > It is a **dispatch plan for several sessions**, not a lane brief: no HD row is owned here, nothing is
 > executed from it beyond the phase it names.
 > **Linked from:** [prompt.md](prompt.md) §2 · [todo-table.md](todo-table.md) §B0
 > **Status:** active from P0; **delete this file in P4's cleanup commit** (the last phase that needs it).
 
-**Plan pinned at:** `main` = `2d1c107d` (2026-10-08 22:47). Every phase re-derives the HD ids at its own
-`HEAD` before writing — ids **moved under this plan** (see §1), so an id typed from memory is a defect.
+**Plan pinned at:** `main` = `a1ae0f0a` (2026-10-09 01:51) — it moved **twice** while this plan was written
+(12 merges to `2d1c107d`, then 5 more). Every phase re-derives the HD ids at its own `HEAD` before writing —
+ids **moved under this plan** (see §1), so an id typed from memory is a defect.
 
 ---
 
@@ -28,7 +30,7 @@
 
 ## 1. State at planning time — what `main` did while this was being planned
 
-Twelve merges landed in ~1 h (`aa89d54f` → `2d1c107d`). What changes about the plan:
+Fifty-four commits landed while this was being planned (`aa89d54f` … `a1ae0f0a`, ~4 h). What changes about the plan:
 
 | Change | Consequence for the rework |
 |---|---|
@@ -37,6 +39,11 @@ Twelve merges landed in ~1 h (`aa89d54f` → `2d1c107d`). What changes about the
 | **`291b504e` put the corrected `hygiene-collector-stale` rule live**; HD-450's converge tail closed | The observability brief's tail is now three items, not four |
 | **A whole new domain landed: the pi.dev seat plane** (`scripts/pi-seat-sync.sh`, `pi-settings-config.sh`, `pi-tui-config.sh`, `install-nerd-font.*`, `RETIRED` list in `sync-extensions.sh`; rows HD-1110…1113; root `update_pi.cmd` deleted) | Goes to the **seat** brief (it is the same host and the same files: `pi-agent/**`, `scripts/install-pi-*`, `docs/pi-harness.md` §1/§5/§5a). It also means **P1 and a live seat lane both edit `scripts/pi-config/`** — see the hazard in §5 |
 | **`b0816936` deleted four zero-byte junk files `git add -A` had swept in**; `validate-all.sh` grew to **item 30** (`check_yaml_dup_keys.py`) | Numbered gate items are cited in prose elsewhere (`todo.md` HD-1085 names "item 29" for the tmux gate — right today, brittle by construction), so the new briefs name a gate, never number it |
+| **HD-1116 retired commit signing** (the owner deleted the SSH signing key; `commit.gpgsign=false`, and HD-1116 swept README §4 step 6 / CONVENTIONS §6 / orchestration close-out) | **Phases commit with plain `git commit`, never `-s`.** A new brief must not ask a lane to sign, and must not repeat the `ssh-add ~/.ssh/github_signing` recovery — that plumbing is retired, and `-s` on a key the remote no longer knows is a hang in unattended shells |
+| **`prompt-scripts.md` already exists** on `main` — a **domain-named** brief for HD-1118 (`scripts/` → `lib/ gate/ ansible/ secrets/ git/ harness/ bench/ hardware/ testdata/`) + HD-1119 (a `harness` docs domain) | The roster is **eleven**, and this rework is *not* the first domain-named brief — it is the one that finishes the habit. It is also a **path hazard**: `scripts/check_todo_done.py` → `gate/`, `scripts/laptop-llm.py` → `harness/`, `spark/bench/*.sh` → `bench/spark/`. Phases P1/P5 and P4's link sweep must resolve paths **after** HD-1118's stages, or name the file and let the move carry it — never hard-code a path both trees could have |
+| **HD-1115 (the pi BUILD plane per seat)** landed on top of the seat domain; `git worktree list` also shows `session/hd1119-docs-domain-20261009-0033` still open | HD-1115 joins the seat brief's rows. And an open `hd1119` branch means `docs/` file names may move **while P1 writes its docs** — check `git worktree list` + `git log --oneline -3 -- docs/` before P1's docs hunks (hazard in §5) |
+| **HD-1117 made `validate-all.sh` concurrent — 58 s → 12 s** | Commit small and validate every commit: the gate is now cheap enough that "I'll validate at the end" is no longer excusable in any phase |
+| **HD-1116 retired commit signing** (`d28b56e2`) and swept README §4 step 6, CONVENTIONS §6 and `docs/deployment-secrets.md` | Every phase commits with **plain `git commit`** — never `-s` (that trailer signs nothing) and never `%G?`-as-a-check. One line is still stale: `docs/orchestration.md` §Close-out says "signed commit" → **P0 fixes it** |
 
 **The structural consequence:** `todo.md` (130 open rows) and `prompt.md` are **hot files right now** — every
 live lane writes its own rows, and the orchestrator alone writes the views. Therefore the rework must do all
@@ -47,7 +54,8 @@ be able to finish while those views move underneath it.
 
 ## 2. Target end-state (agreed 2026-10-08)
 
-Ten briefs, named for the **host + domain**, keeping the `prompt-` prefix on purpose: `check_doc_map.py`,
+Eleven briefs — **ten to write, one (`prompt-scripts.md`) already on `main`** — named for the **host + domain**,
+keeping the `prompt-` prefix on purpose: `check_doc_map.py`,
 `check_doc_ips.py`, `check_placeholders.py` and `check_vault_name.py` all skip `prompt-*`, so a `lanes/`
 directory would pull the briefs into four fail-closed linters for no benefit.
 
@@ -59,16 +67,18 @@ directory would pull the briefs into four fail-closed linters for no benefit.
 | `prompt-litellm-consumers.md` | scoped keys, the thinking control, voice, n8n, `/ui` | 384 · 403 · 387 · 373 · 249 |
 | `prompt-smart-home.md` | HA primary/standby, KNX, failover, the Pi's box hygiene | 04 · 418 · 434 · 438 · 439 · 319 · 1109 · 1103 · 1101 · 17 · 217 |
 | `prompt-edge-identity.md` | SSO tails, Matrix, zipline, published names (VPS) | 147 · 457 · 458 · 459 · 112 · 47 |
-| `prompt-seat-cockpit-grants.md` | cockpit, the coding seat, grants, signing, **the seat plane** | 361 · 442 · 443 · 465 · 444 · 411 · 495 · 1085 · **1110–1113** |
+| `prompt-seat-cockpit-grants.md` | cockpit, the coding seat, grants, signing, **the seat plane** | 361 · 442 · 443 · 465 · 444 · 411 · 495 · 1085 · **1110–1113** · 1115 |
 | `prompt-observability-alerting.md` | silent-failure rules, Matrix alerting, boards | 450 · 1108 · 342 · 344 · 315 · 343 · 377 · 1094 |
 | `prompt-storage-backup.md` | nas/ZFS/NUT units, Kopia, DR | 06 · 207 · 1105 · 1106 · 1107 · 191 · 238 · 1093 |
 | `prompt-laptop-legs.md` | Win11 seat: **FIM + vision only** | 474 · 476 |
+| `prompt-scripts.md` | **exists** — the `scripts/` tree + the `harness` docs domain | 1118 · 1119 |
 
 **Deliberately brief-less** (the §B0 "unbriefed" concept is still legal work): **1100** (PG 16→18 — owner-paced,
 one leg per window, and it spans every host so no single domain owns it), 32 · 57 · 133 · 412 · 421 · 459 · 461 ·
-472 · 474-tail. If that list keeps growing, P4 (or any later view edit) may promote an **11th brief**
-(`prompt-platform-upgrades.md` = 1100 + the apt-hold wave + 1094) — adding a brief is a view edit, not a
-contract change, so do not treat the roster of ten as sacred.
+472 · 474-tail. If that list keeps growing a further brief can be promoted later
+(e.g. `prompt-platform-upgrades.md` = 1100 + the apt-hold wave + 1094) — adding a brief is a view edit, not a
+contract change, so do not treat this roster as sacred. What P4 **does** owe the roster is completeness:
+no live row may be named by two briefs, and no brief may name a row that no longer exists.
 
 **The rule that makes the roster usable (O9, drafted in P0, verbatim target):**
 
@@ -130,7 +140,9 @@ owning docs. A brief-drafting phase should land at **80–140 k used**, leaving 
       its rows **as of its worktree's commit**; ids are re-derived, never copied.
 - [ ] `README.md`: §2's handoff-family note (the `prompt.md §3 wave table` claim and the retired-brief
       archaeology), and the `State of the world (as of 2026-09-08)` banner — restate to "as of the rows;
-      check `deployment-tasks.md`", since the phase prose there is a month old.
+      check `deployment-tasks.md`", since the phase prose there is a month old. Its §4 step 6 and
+      CONVENTIONS §6's signing wording are **already retired** by HD-1116 — do not re-edit them; the one
+      leftover is `docs/orchestration.md` §Close-out's "signed commit", which this phase owns.
 - [ ] Do **not** touch `todo.md` / `todo-table.md` / `prompt.md` in this phase (they are hot; P4 owns them).
 
 ### P1 — the laptop legs, decided not deferred (1 session, ~120 k)
@@ -158,7 +170,7 @@ tools, then in the rows:
 - [ ] ⚠ `scripts/install-pi-wsl.sh` / `pi-seat-sync.sh` deploy the seat render — if a live seat lane
       (HD-1110's tails) is in flight, **park P1's `models-spec.yml` hunk** and note it; do not race it.
 
-### P2 / P3 — draft the ten briefs (1 session each, ~100–140 k each)
+### P2 / P3 — draft the ten new briefs (1 session each, ~100–140 k each)
 
 Additive only: write the new file, **leave the old one in place** (so no link breaks and the views stay
 honest until P4). Per brief, the required content — and nothing else:
@@ -204,6 +216,10 @@ manually); no pinned version quoted without a `versions.yml` line; no "done/clos
 
 - [ ] Rebase onto current `main`, **re-derive every HD id** the new briefs name (see §1's renumber), and fix
       the briefs that moved.
+- [ ] **Sweep for briefs this plan never saw.** `ls prompt-*.md` plus
+      `git log --all --diff-filter=A --name-only --format='%h' -- 'prompt-*.md'` — live lanes mint new
+      domain briefs while this runs (one branch at plan time carried `prompt-pi-seat-restore.md`), and a
+      brief left behind by the switch is a dangling link the moment its rows close.
 - [ ] `git rm` the 8 old briefs **in the same commit as** every link fix (O7). Inbound link inventory,
       measured at plan time: `todo.md` **28**, `todo-table.md` **26**, `prompt.md` **4**,
       `docs/spark-llm-profiles.md` 2, `docs/orchestration.md` 1, `docs/hardware-workstation.md` 1,
@@ -229,7 +245,9 @@ Extend `check_todo_done.py` (it already parses row ids, and already reads only `
 keep that asymmetry) with a **reference-existence** pass over `prompt*.md`: every `HD-<digits>` named in any
 brief must exist in `todo.md`, else FAIL and name the file:line. Register it as a numbered
 `validate-all.sh` item with the usual `--self-test` that breeds a red. This is the check that would have
-flagged HD-445/446 in `prompt-361.md` and `todo-table.md` §B0 the day those rows closed.
+flagged HD-445/446 in `prompt-361.md` and `todo-table.md` §B0 the day those rows closed. ⚠ Name the file by
+where it lives **at your `HEAD`** — HD-1118 moves validators into `scripts/gate/`, and a path in this plan is
+not a promise about the tree.
 
 ---
 
@@ -247,6 +265,14 @@ flagged HD-445/446 in `prompt-361.md` and `todo-table.md` §B0 the day those row
   row's ⏳ tail (O4 form).
 - **Do not mint HDs anywhere in this rework.** It is a rename + two closures; a new id here is a false
   record of new work.
+- **Structural work is moving files under this plan.** HD-1118 relocates `scripts/**` into named folders and
+  HD-1119 introduces a `harness` docs domain — both are in flight (`session/hd1119-docs-domain-20261009-0033`
+  was open at plan time). A phase therefore resolves a path at **its own** `HEAD`, cites the file by name in
+  prose where a move is plausible, and runs `check_doc_path_refs.py` before claiming a link is good.
+- **Check the room before you start.** `git worktree list` + `git log --oneline -3 -- <dir>` first: an open
+  lane on `docs/` or `scripts/` is a rebase to expect, not a surprise to discover at merge time. Refs also
+  moved twice while this plan was written — a commit seen on another branch was unreachable an hour later —
+  so trust **your own `git log`**, never a note in a file.
 - **No history in the new briefs.** Sessions live in owning-doc status blocks + git; if a sentence reads like
   a diary, it belongs in a commit message.
 
@@ -257,7 +283,8 @@ flagged HD-445/446 in `prompt-361.md` and `todo-table.md` §B0 the day those row
 Each phase ends by writing, into this file's **Status** line, the phase id, the worktree/branch, and the
 next unwritten item — then committing. The next session starts from `prompt.md` §2 → this file:
 
-- **Status:** P0 · P1 · P2 · P3 · P4 · P5 — all open · plan pinned at `2d1c107d`
+- **Status:** P0 · P1 · P2 · P3 · P4 · P5 — all open · plan pinned at `a1ae0f0a` (2026-10-09 01:51, 132 open
+  rows) · this file lives on `session/briefs-rewrite-20261008-2302` until P0 or P4 picks it up
 - **P0 resume:** `docs/orchestration.md` §4 O9 → O7/§wave-pointer → `CONVENTIONS.md` §6/§4 → `README.md` §2
 - **P1 resume:** profiles + models-spec (same commit) → `laptop-llm.py` → docs/log → rows 486/474/476
 - **P2 resume:** spark, dns-transport, media-arrs, litellm-consumers, smart-home (in that order)
