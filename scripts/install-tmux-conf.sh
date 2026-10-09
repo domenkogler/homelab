@@ -335,7 +335,14 @@ do_check() {
     2) info "load probe SKIP — no tmux here, so effectiveness is UNPROVEN (not a pass)" ;;
   esac
   if [ "$rc" -eq 0 ] && [ "$state" = identical ]; then
-    info "OK: seat tmux config == repo SSOT and effective"
+    # The verdict line must not outrun the probe (CONVENTIONS §6): with no tmux here the load probe
+    # SKIPPED, so "and effective" was a claim this host never measured — a green-shaped LIE printed
+    # two lines after an honest SKIP. Same rc, different words: in place ≠ effective.
+    if [ "$lp" -eq 2 ]; then
+      info "SKIP: seat tmux config == repo SSOT and IN PLACE; effectiveness UNPROVEN here (no tmux) — a SKIP, not a pass"
+    else
+      info "OK: seat tmux config == repo SSOT and effective"
+    fi
   elif [ "$rc" -eq 0 ]; then
     info "reported, not failed: $state (add --strict for the gate form; effectiveness is always enforced)"
   fi

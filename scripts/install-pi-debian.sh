@@ -5,9 +5,13 @@
 # Purpose: bring a clean Debian 13 box (or a fresh user account on one — the
 #   oldsrv cockpit seat `domen` is the reference target) to the SAME pi harness
 #   this repo's other seat runs: pinned Node, the pinned pi coding-agent, the
-#   rendered model contract/auth, the repo skills, the seat TUI package, and
-#   (optionally) the web cockpit. Rebuildable instead of remembered: the seat must
-#   survive a rebuild without a session having to remember what was hand-installed.
+#   rendered model contract/auth, the repo skills + extensions, the seat's terminal
+#   harness (`~/.tmux.conf`: mouse + OSC 52 clipboard, HD-1085), the seat TUI
+#   package, and (optionally) the web cockpit. Rebuildable instead of remembered:
+#   the seat must survive a rebuild without a session having to remember what was
+#   hand-installed. The tmux leg is the SAME gap HD-446 closed for extensions — a
+#   package DECISION (`seat_packages: [tmux]`, roles/seat) whose CONFIG was never
+#   deployed, so a rebuilt seat had tmux and no seat config.
 #
 # SIBLING, NOT FORK (the row's own trap): [`install-pi-wsl.sh`](install-pi-wsl.sh)
 #   is the WSL shape — `/mnt/c`, drive letters, a Windows-side mirror. Nothing
@@ -255,7 +259,18 @@ install_config() {
   # This was HD-1085's known gap — the installer never called the tmux installer, so a freshly
   # bootstrapped seat had no mouse and no OSC 52 clipboard. --push REFUSES a foreign ~/.tmux.conf
   # rather than clobbering it, so a hand-configured seat is a loud stop, not a silent overwrite.
-  bash "$REPO/scripts/install-tmux-conf.sh" --push || info "install-tmux-conf.sh reported a problem (a foreign ~/.tmux.conf is a REFUSAL by design — diff it, then --force)"
+  # rc-aware on purpose: --push ENDS in the load probe, so its exit code carries three states —
+  # 0 = installed AND effective, 1 = a real defect (refusal / CRLF / inert file), 2 = installed but
+  # UNPROVEN because no tmux binary is here. Collapsing those into one `|| info` made rc 1 (a real
+  # defect) print as a note, and counting 2 as either a pass or a failure would be a lie —
+  # CONVENTIONS §6: an environment boundary prints SKIP, never a verdict (docs/pi-harness.md §5b).
+  local tmrc=0
+  bash "$REPO/scripts/install-tmux-conf.sh" --push || tmrc=$?
+  case "$tmrc" in
+    0) info "~/.tmux.conf installed and the load probe read the options back — effective" ;;
+    2) info "SKIP: installed, but tmux is not on PATH here, so effectiveness is UNPROVEN (not a pass). roles/seat owns the package; then: bash scripts/install-tmux-conf.sh --verify" ;;
+    *) err "tmux seat harness is NOT in place/effective (rc $tmrc) — a tmux config that errors mid-load still exits 0, so trust this, never the reload: bash scripts/install-tmux-conf.sh --check" ;;
+  esac
   say "seat TUI font (the pinned nerd-fonts release the footer icons come from)"
   # Honest scope: on a headless seat this PLACES the font (and proves the placement); the leg
   # that buys visible glyphs is the terminal you draw pi with — on the Windows side, where the
@@ -281,10 +296,23 @@ check() {
   fi
   python3 "$REPO/scripts/render-pi-config.py" --vendor all --check >/dev/null 2>&1 \
     && info "models.json + auth.json match the spec" || { err "model contract drift (or not rendered)"; bad=1; }
-  bash "$REPO/scripts/sync-skills.sh" --check 2>&1 | tail -2
-  bash "$REPO/scripts/sync-extensions.sh" --check 2>&1 | tail -2
+  # `|| bad=1` is NOT decoration: this script runs under `set -euo pipefail`, so a bare
+  # `X --check | tail -2` ABORTS the whole check on the first drift (measured: `false 2>&1 | tail -2`
+  # under those options exits 1 and never reaches the next line). Until 2026-10-09 the first skill
+  # drift therefore ended check() before the settings/font/tmux legs and before the GREEN-or-DRIFT
+  # summary — a seat reported nothing at all, which reads like a quiet box rather than a broken gate.
+  bash "$REPO/scripts/sync-skills.sh" --check 2>&1 | tail -2 || bad=1
+  bash "$REPO/scripts/sync-extensions.sh" --check 2>&1 | tail -2 || bad=1
   bash "$REPO/scripts/pi-settings-config.sh" --check --strict || bad=1
-  bash "$REPO/scripts/install-nerd-font.sh" --check 2>&1 | tail -2
+  bash "$REPO/scripts/install-nerd-font.sh" --check 2>&1 | tail -2 || bad=1
+  # The tmux seat harness. --strict so a seat-side hand edit counts as drift (repo is the SSOT),
+  # guarded at the host boundary: a box with neither the tmux binary nor a ~/.tmux.conf is not a
+  # tmux seat, and printing that as DRIFT would mute the gate (validate-all item 29 guards the same way).
+  if [ -f "$HOME/.tmux.conf" ] || command -v tmux >/dev/null 2>&1; then
+    bash "$REPO/scripts/install-tmux-conf.sh" --check --strict || bad=1
+  else
+    info "tmux: SKIP — no tmux binary and no ~/.tmux.conf here (roles/seat's seat_packages owns it); a SKIP is not a pass"
+  fi
   [ -d "$HOME/.pi/agent/sessions" ] && info "sessions dir present" || { err "~/.pi/agent/sessions missing (pi-web exits 1 without it)"; bad=1; }
   check_cockpit_unit || bad=1
   check_tui || bad=1

@@ -604,6 +604,30 @@ the ⏳ tail of the row in [`../todo.md`](../todo.md) and not a bug in the scrip
 bootstrapped seat still gets no `~/.tmux.conf` — the same gap HD-446 closed for extensions. Run it once
 per seat until that step lands.
 
+### The three ways this plane's own scripts lied — all closed 2026-10-09
+
+Two arrived as a **rescue** from a merged-but-dirty lane worktree (`session/hd-1085-osc52-leg`: the branch was
+already an ancestor of `main`, so `git branch -d` would have succeeded and the work would have died with the
+directory — only `git status --porcelain` inside the lane sees it, see [orchestration.md](orchestration.md) §4
+step 5); the third was found while proving the second. All three are the CONVENTIONS §6 class — a verdict
+printed at an environment boundary.
+
+1. **The installer collapsed a three-state rc into one note.** `install-tmux-conf.sh --push` ends in the load
+   probe, so **0 = installed AND effective, 1 = a real defect** (refusal / CRLF / inert file), **2 = installed
+   but UNPROVEN** (no tmux binary here). `… --push || info "…reported a problem"` printed rc 1 as a note, so a
+   genuinely broken seat harness configured GREEN. `install-pi-debian.sh` now `case`s all three.
+2. **`check()` aborted at the first drift and printed nothing.** Under `set -euo pipefail` a bare
+   `X --check 2>&1 | tail -2` is a failing pipeline, so `set -e` killed the script at that line: the settings,
+   font, tmux and tui legs and the `check: GREEN|DRIFT` summary never ran — the first skill drift made the
+   whole seat gate go silent. Proved both ways: `set -euo pipefail; false 2>&1 | tail -2; echo REACHED` prints
+   **nothing**; with `|| bad=1` it prints `REACHED` and `bad=1`. Three sites carried the bug
+   (`sync-skills`, `sync-extensions`, `install-nerd-font`); the residue fixed two, the third is identical.
+3. **`--check` said "and effective" while printing SKIP.** With no tmux the load probe returns 2, the
+   byte-compare passes, and the verdict line printed `OK: … == repo SSOT and effective` two lines after an
+   honest SKIP. Both arms measured after the fix: `oldsrv` (tmux 3.5a) → `load probe OK … and effective`; a
+   tmux-less seat → `SKIP: … IN PLACE; effectiveness UNPROVEN — a SKIP, not a pass`. Same rc, honest words:
+   **in place ≠ effective**.
+
 ## 6. KV-pool contention — the parallel-lane rule (read before running subagents)
 
 The pool is **one shared budget of ~262–268k token slots** (`spark_vllm_kv_cache_memory`), while
