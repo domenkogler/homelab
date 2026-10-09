@@ -161,7 +161,7 @@ legs (`matrix`, `profile <name>`) touch the repo only — no HTTP, no vault, no 
 `effort <level>` → `ctx <tokens>` → `concurrent <n>` → `all --profile <name>`. The accuracy + needle
 gate for an uncertified profile is
 [`spark/llm-profiles/README.md`](../spark/llm-profiles/README.md); the operator handoff for the whole
-sequence is [`prompt-llm.md`](../prompt-llm.md). Timed legs (`ctx`, `concurrent`, anything feeding a
+sequence is [`prompt-spark-llm.md`](../prompt-spark-llm.md). Timed legs (`ctx`, `concurrent`, anything feeding a
 tok/s claim) must be run **from a session whose model is not spark** — see the gate README's rule 0.
 
 ---
@@ -170,7 +170,7 @@ tok/s claim) must be run **from a session whose model is not spark** — see the
 
 Upstream [qwen3.8-Flash-DGX-UltraFast](https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast)
 v16b (Apache-2.0, pinned `0c391a3` in `group_vars/all/versions.yml`) arrives as **12 candidate
-arms on this dial**, not as a second stack. Lane brief: [../prompt-remaining-bench.md](../prompt-remaining-bench.md)
+arms on this dial**, not as a second stack. Lane brief: [../prompt-spark-llm.md](../prompt-spark-llm.md)
 (the funnel itself is measured and closed; the tail is what is left).
 
 **A profile now NAMES things instead of hardcoding them** — `image: base|ultrafast|sglang`,

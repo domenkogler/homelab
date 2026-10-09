@@ -35,7 +35,7 @@
 # Requires: curl, xz, tar, git. `--config-only`/full also needs 1Password access
 #   on the machine running it (render-pi-config.py resolves credentials at render
 #   time); without it, render on a machine that has access and use --out + scp.
-# Owner: seat lane (prompt-pi.md, HD-446). Record in docs/pi-harness.md §1.
+# Owner: the pi.dev seat lane (`prompt-seat-cockpit-grants.md`). Record in docs/pi-harness.md §1.
 # =====================================================================
 set -euo pipefail
 

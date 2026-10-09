@@ -222,7 +222,7 @@ models:
 # ── PROFILES ────────────────────────────────────────────────────────────────────────────
 # Each profile resolves a model + an engine config + a CLIENT contract. The client_* fields are
 # what scripts/pi-config/models-spec.yml and Continue's config must carry: a client window above
-# num_ctx is exactly the defect prompt-llm.md §6 warns about (pi 400s mid-session).
+# num_ctx 400s pi mid-session, so the two move in ONE commit (prompt-laptop-legs.md).
 profiles:
 
   # THE VISION LEG (HD-476) — the dial's active profile. Same GPU, same carve, and nothing else is

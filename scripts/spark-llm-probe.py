@@ -120,7 +120,8 @@ def active_profile(cat):
 def kv_slots(spec, cat):
     """(bytes/token, slots, ok_flags) for one profile. A PROJECTION, always printed as
     one: the authoritative number is the engine's own `Available KV cache memory` /
-    `GPU KV cache size` boot-log pair (prompt-llm.md §0.2)."""
+    `GPU KV cache size` boot-log pair — a projection is never the authoritative number
+    (the spark lane brief `prompt-spark-llm.md`)."""
     per_tok = cat["spark_llm_kv_bytes_per_token"]
     dtype = spec["kv_cache_dtype"]
     pool = int(spec["kv_cache_memory"])

@@ -186,7 +186,7 @@ def gate(cfg, names=None):
         cwin, mt = p.get("client_context_window"), p.get("client_max_tokens")
         if cwin and ctx and cwin > ctx:
             errs.append(f"profile {n}: client contextWindow {cwin} > num_ctx {ctx} — the harness would "
-                        "400 mid-session (prompt-llm.md §6)")
+                        "400 mid-session if the two ship apart (prompt-laptop-legs.md)")
         if cwin and mt and mt >= cwin:
             errs.append(f"profile {n}: maxTokens {mt} must leave headroom below contextWindow {cwin}")
         inp = p.get("input") or ["text"]

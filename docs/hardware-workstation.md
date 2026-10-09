@@ -342,7 +342,7 @@ bandwidth-bound and the MoE-A3B family is still the only one that answers (§Leg
 ~24 GB from what Windows and the WSL2 guest can use; re-measure before trusting any ledger number.
 
 **The session that finishes this leg runs on the Windows seat** — pin the engine version, fetch the
-weights, boot, and run the six probes: the brief is [`prompt-lmstudio.md`](../prompt-lmstudio.md).
+weights, boot, and run the six probes: the brief is [`prompt-laptop-legs.md`](../prompt-laptop-legs.md).
 
 ## NPU: out of the AI tier
 

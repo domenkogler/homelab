@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 spark-fp8-image-probe.py — decide whether fp8 main KV is REACHABLE, without booting
-anything (HD-469 run #2, step 2 of prompt-llm.md).
+anything (HD-469 run #2, step 2 of the spark lane brief `prompt-spark-llm.md`).
 
 WHY. The `graded` profile dies at EngineCore init on the pinned image with
 `NotImplementedError: QSA requires a BF16 main KV cache` (qsa.py:187). That line is a
@@ -9,7 +9,7 @@ dtype guard in the BUILD, not a property of the model: fp8 main KV on the QSA pa
 merged upstream as vllm#55557 on 2026-09-16, and the pin here is a day-0 build. The
 way to settle "does the image we could pin actually carry it" is TWO READ-ONLY PROBES
 that cost seconds and no GPU — not a 20-minute engine boot, and not a converge at all
-(prompt-llm.md: "read-only beats reboot-first").
+(`prompt-spark-llm.md`: "read-only beats reboot-first").
 
 Leg A (--skip-box, runs anywhere with egress): what does the tag point at NOW — digest,
 push date, and which ARCHITECTURES. CONVENTIONS §7 requires a registry-verified arm64
@@ -273,7 +273,7 @@ def main():
     busy = converge_running(None if a.skip_box else a.ssh_host)
     if busy:
         die(f"a converge is in flight ({busy}) — this probe never runs against a "
-            f"half-applied host (prompt-llm.md non-negotiables)", 2)
+            f"half-applied host (prompt-spark-llm.md: read-only, never during a converge)", 2)
 
     undecided = 0
     box = None
@@ -289,7 +289,7 @@ def main():
     if box is None:
         print("UNDECIDED — the box leg (the only one that reads the engine's own qsa.py) did")
         print("not run. An inconclusive probe is not a verdict: fix the leg, or say in the")
-        print("report that the dtype question is OPEN (prompt-llm.md §2).")
+        print("report that the dtype question is OPEN (prompt-spark-llm.md: an UNDECIDED run is not a verdict).")
         return 1
     strong = [m for m in ("IS_FP8", "fp8_e4m3") if box["marks"].get(m)]
     declared = box.get("declared") or ""
