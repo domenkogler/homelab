@@ -278,7 +278,7 @@ spark_headless: true
 # converge of anything else on this host silently inherits permission to boot an uncertified arm:
 #   -e spark_llm_profile=awq-mmap -e spark_llm_allow_uncertified=true
 # The converge-back that ends a bench run omits both, which is what returns the box to `fast`
-# (prompt-remaining-bench.md §Overnight run). Writing `true` into host_vars is the shape that
+# (the spark bench lane — `prompt-spark-llm.md`). Writing `true` into host_vars is the shape that
 # leaves an arm bootable by whoever converges the host next.
 # ============================================================================
 spark_llm_profile: reasoning
@@ -490,7 +490,7 @@ spark_llm_profiles:
   #   * vLLM v0.30.0 does NOT carry it either (v0.30 = indexer-side fp8 #54890).
   # So `graded` = an engine-pin change + a full re-cert = todo.md HD-473, not a config
   # flip. Do not vendor the AGPL overlay patch and do not hand-edit a container's
-  # site-packages to make this boot (prompt-llm.md §2).
+  # site-packages to make this boot (`prompt-spark-llm.md`, HD-473).
   graded:
     label: "Graded thinking — AWQ W4A16 + PLE INT4, fp8 KV (~1.7x slots) — BLOCKED ON IMAGE PIN (HD-473)"
     engine: vllm

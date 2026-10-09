@@ -52,7 +52,7 @@ the same way. Engine diagnostics:
   `No available shared memory broadcast block found in 60 seconds` engine timeout
   (`shm_broadcast.py:801`) → 502.
 
-This is the exact condition prompt-llm.md step 4(a) warned about:
+This is the exact condition the retired `prompt-llm` lane brief, step 4(a), warned about:
 "`VLLM_GDN_DECODE_KERNEL=triton` is set by the profile — the *plain* NVFP4 build
 must drop it". It is a **config/weights-build incompatibility**, not a gate defect.
 

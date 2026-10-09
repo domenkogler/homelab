@@ -4,7 +4,7 @@
 `-n 8`, the gate legs still owed on the new 25 GB / `max_num_seqs 8` shape, an fp8 re-probe, then the
 `reasoning` arm and the paired McNemar against it) lived in `prompt-gemma4.md`; that brief is retired
 and the run-sheet now lives in
-[`prompt-remaining-bench.md`](../../../prompt-remaining-bench.md) §Overnight driver. This is the
+the `prompt-remaining-bench` lane brief, §Overnight driver — since retired; its rows are indexed in [../../../todo-table.md](../../../todo-table.md) §B0. This is the
 evidence directory for run `20261004-0804`, executed by `runner=DomenP14s/external-model` (raw files
 in `raw/`, verbatim).
 
@@ -71,7 +71,7 @@ python3 - <<'EOF'
 import csv; rows=list(csv.DictReader(open('raw/mmlu-fast-items.csv')))
 c=sum(int(r['correct']) for r in rows); print(len(rows),'items', c, f'{100*c/len(rows):.2f} %')
 EOF
-# the reasoning arm, when it is owed (prompt-remaining-bench.md §Overnight driver), then pair on question_id:
+# the reasoning arm, when it is owed (the retired `prompt-remaining-bench` lane brief, §Overnight driver), then pair on question_id:
 #   b = {id: correct} for each arm; McNemar's exact test on (b_a=1,b_b=0) vs (b_a=0,b_b=1)
 ```
 

@@ -208,7 +208,7 @@ def run():
         # max_tokens 1024, NOT 64. The first pass of this probe burned its whole 64-token budget on
         # reasoning (usage: completion_tokens=64, reasoning_tokens=61), `content` came back EMPTY,
         # and the needle check reported False. That is the same test bug that made probe-vision call
-        # a working projector blind (prompt-lmstudio.md §0 / README §6 D4): this server cannot switch
+        # a working projector blind (the retired `prompt-lmstudio` lane brief, §0 / README §6 D4): this server cannot switch
         # thinking off, so a small budget measures the thinking channel, not the model's memory.
         # The verdict therefore reads content FIRST and falls back to reasoning, and prints both
         # tails so a truncated answer is visible as one instead of being read as a failure.

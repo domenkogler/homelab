@@ -5,7 +5,7 @@ AMD Ryzen AI 9 HX PRO 370, Radeon 890M (`gfx1150` family), 32 GiB BIOS UMA carve
 **Runtime:** LM Studio **`0.4.25+1`**, `lms` CLI commit **`69d945a`**, service **`llmster v0.0.25+1`**
 (GUI closed, `lms daemon status` = running). Engine: llama.cpp **Vulkan** (no Windows ROCm path for
 this APU).
-**Sessions:** 2026-09-29 → 2026-09-30 (overnight). Lane brief: [`../../prompt-lmstudio.md`](../../prompt-lmstudio.md).
+**Sessions:** 2026-09-29 → 2026-09-30 (overnight). Lane brief: the `prompt-lmstudio` lane brief, since retired (the laptop's serving legs now run from the domain brief named in [../../todo-table.md](../../todo-table.md) §B0).
 **Rule 0** (no timed numbers from a session the engine itself serves): this run was driven from a
 pi.dev session served by **`spark/qwen3.8-flash-next`** (remote GB10), not by `laptop-lmstudio`, so
 timed measurement was permitted. Stated here because the brief requires the session to say which it did.

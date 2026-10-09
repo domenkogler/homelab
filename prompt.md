@@ -106,9 +106,10 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    was right; the compose carried four env names slskd does not read — probe with
    `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose) and the Soulseek password
    rotation is **DECLINED and risk-accepted on record** — do not re-open either. **HD-1090** owes one grab started
-   in Prowlarr's own UI, **HD-1089** one read from a real tailnet client, **HD-1091** the Soulseek→Lidarr bridge
-   (Lidarr 3.1 has no Slskd download client at all), **HD-1088** the `music → Storage Box` leg, **HD-1092** the
-   Authentik→NAS provisioning run that has never completed. → [prompt-media-arrs.md](prompt-media-arrs.md)
+   in Prowlarr's own UI, **HD-1091** the Soulseek→Lidarr bridge (Lidarr 3.1 has no Slskd download client at all),
+   **HD-1088** the `music → Storage Box` leg, **HD-1092** the Authentik→NAS provisioning run that has never
+   completed. (**HD-1089**, the SABnzbd locality read, is the same lane's subject but no brief claims the row —
+   it is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
 5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
    1110 · 1115**) with its owner-gated tails intact. **HD-495**: role-own the oldsrv seat's git plumbing — its
    **signing** half was retired 2026-10-08 by HD-1116, so a rebuild now recovers `gpgsign=false` instead of hanging;

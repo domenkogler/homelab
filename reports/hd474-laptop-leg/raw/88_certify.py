@@ -14,7 +14,7 @@ Order matters:
   3. the vision leg last, because it leaves the biggest thing resident - and the box is then left
      unloaded by the caller, not by this script.
 
-Rule 0 (prompt-lmstudio.md §0): timed numbers may not be taken by a session that is itself served
+Rule 0 (the retired `prompt-lmstudio` lane brief, §0): timed numbers may not be taken by a session that is itself served
 by this engine. This run was driven from a session served by spark (remote GB10), which is the
 allowed side of that rule. Record that in the report, not just here.
 """

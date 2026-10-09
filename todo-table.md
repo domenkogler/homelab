@@ -36,6 +36,13 @@
 > ±60/+90 characters (six shapes pinned by `--self-test`; the contract is in
 > [scripts/README.md](scripts/README.md)).
 > **Re-synced 2026-10-08 (pi.dev seat lane, HD-1110/1114):** the lane is no longer a plan — the driver and every plane script exist, the Win11 seat is in sync on all planes it can run, and the pi BUILD is pinned and gated (`pi-self-update.sh`). Three rows left the registry as done (HD-1111 pins, HD-1112 the deleted root `update_pi.cmd`, HD-1113 tmux §keyboard); what remains is the two Debian seats’ live legs and the Win11 `pi_auth` auth-mode divergence the driver surfaced (HD-1110’s tail). Also retired this evening (HD-1116): commit signing — the SSH key is gone from GitHub, `gpgsign=false` is the seat default and the rebuild paths say so too, so nothing restores a policy that would only hang a non-interactive committer.
+> **Re-synced 2026-10-09 (the brief restructure switch):** the eight per-HD lane briefs are **deleted** and their
+> rows redistributed across 11 domain briefs (§B0 is the index; CONVENTIONS §6 now requires the host+domain name).
+> No row was minted, closed or re-scoped to make that true — a row with no successor here is **unbriefed**, and
+> HD-357 is the one that lost a brief rather than gaining one. The restructure plan itself (`prompt-tasks-rework.md`)
+> went with them, and §B9 was re-derived complete at 131 rows because the appendix had silently fallen 18 rows
+> behind the registry. Dated entries above this one keep their wording: where they name a brief that no longer
+> exists, that is what the tree looked like on that date.
 > **Re-synced 2026-10-05 (the pi-seat lane closed):** **445 · 446 · 484** rows are gone and **442 · 443 · 492 · 493** carry what is
 > actually left, all of it owner-gated. `prompt-pi.md` died with its lane (O7); the oldsrv slot is free for **prompt-361**.
 > **Re-synced 2026-10-01 (HD-484 landed and live-verified on the box):** oldsrv now has a deliberate host-side resolver — own Technitium instance first, Pi tertiary second — so the AI seat there names `llm.kogler.si` and the engine leg works end to end ([network-dns.md](docs/network-dns.md) §Host-side resolver). Minted from the same pass: **HD-488** (the same host-resolver class on the Pi / nas / spark) and **HD-487** (the unfinished networkd-vs-NetworkManager decision on oldsrv: the role renders inert units naming a NIC that does not exist). **HD-484** stays open, trimmed to its seat-local pi-defaults tail.

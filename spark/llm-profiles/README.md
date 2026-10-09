@@ -2,7 +2,7 @@
 
 Part of [spark/README.md](README.md) · config: `IaC/ansible/group_vars/spark.yml`
 `spark_llm_profiles` · subsystem doc: [docs/spark-llm-profiles.md](../../docs/spark-llm-profiles.md) ·
-operator handoff: [prompt-llm.md](../../prompt-llm.md)
+operator handoff: the retired `prompt-llm` lane brief (its work now runs from the spark-lane domain brief named in [todo-table.md](../../todo-table.md) §B0)
 
 A profile starts **uncertified** and `roles/spark-llm-profile` refuses to converge it without
 `spark_llm_allow_uncertified: true`. That flag is the cheap part. This file is the expensive part:

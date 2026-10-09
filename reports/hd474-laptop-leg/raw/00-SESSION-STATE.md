@@ -1,7 +1,7 @@
 # 00 · SESSION STATE — recovery note for the next session
 
 Written 2026-09-30 ~01:12 by the session that ran 2026-09-29 late evening. **Read this before
-touching the GPU.** The lane brief is [`prompt-lmstudio.md`](../../../prompt-lmstudio.md); this file is
+touching the GPU.** The lane brief was the `prompt-lmstudio` lane brief, since retired; this file is
 only "what is true on this box right now".
 
 ## Live right now
@@ -178,7 +178,7 @@ chosen without looking at it settled it in one pass —
 Image tokens **saturate at ~4.1 k**: the full frame and a 3264×3672 quarter cost the same. So the rule for
 any seam reading small text is **crop, never shrink** — a crop is free relative to the big photo and it
 reads. Docs updated in the same change: `docs/hardware-workstation.md`, `docs/services-ai.md` #28,
-`prompt-lmstudio.md`, the profile's `vision_caveat`, and the vision todo row. The 2026-09-29 "OCR'd it
+the `prompt-lmstudio` lane brief, the profile's `vision_caveat`, and the vision todo row. The 2026-09-29 "OCR'd it
 verbatim" claim stays corrected — it was never reproducible *on the frame it named*.
 
 **Kept / deleted artifacts:** `96_crop.ps1`, `96_probe.py`, `96-crop-probe.txt` and `96-tile-r0c0.jpg`

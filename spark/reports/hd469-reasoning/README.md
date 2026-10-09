@@ -7,7 +7,7 @@ stability is certified.
 
 This directory existed because the catalogue's `certified_evidence:` had **no report of its
 own** — run #1 proved the lane against the live engine and wrote the result into `todo.md`
-and the commit message instead of into an evidence directory (prompt-llm.md run #2 lists it
+and the commit message instead of into an evidence directory (the retired `prompt-llm` lane brief, run #2, lists it
 as a defect). So: what is actually on the record, with provenance, and what is still owed.
 
 ## What run #1 measured (2026-09-28, session `spark-llm-cert-1445`)
@@ -35,7 +35,7 @@ The stability evidence this profile rides on is [`../stability/README.md`](../st
 ## Read-only state check, 2026-09-28 18:5x (the HD-469 prep session)
 
 Taken by a session that is **served by this engine**, which is exactly why it took
-read-only state reads and no bench numbers (prompt-llm.md non-negotiables, incident #6).
+read-only state reads and no bench numbers (the retired `prompt-llm` lane brief, non-negotiables, incident #6).
 Commands are one ssh round-trip each; re-run them, they are cheap:
 
 ```

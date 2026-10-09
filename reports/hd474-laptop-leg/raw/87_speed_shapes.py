@@ -3,7 +3,7 @@
 WHY a generator instead of `"xxxx" * n` or `"word " * n`: the engine's own tokenizer makes a lie of
 character arithmetic - a run of `xxxx` lands near 2:1 chars/token and `word word word` near
 3 tokens/word, while real prose is ~4.5:1. Two probes on this box measured HALF and THREE TIMES the
-window they claimed because of exactly that (prompt-lmstudio.md §Traps). A degenerate repeat also
+window they claimed because of exactly that (the retired `prompt-lmstudio` lane brief, §Traps). A degenerate repeat also
 prefix-caches into nothing, so the number stops meaning anything.
 
 So: real repository prose, chunked round-robin out of docs/*.md so no paragraph repeats inside one
