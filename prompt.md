@@ -133,8 +133,9 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/pi-seat-sync.sh` is
    the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID — the driver ran only
    its first plane on an ssh leg until `bcf776ab` (HD-1110), and the cockpit re-verified genuinely green 8/8 on
-   2026-10-09, so what remains is the `wsl` seat's
-   `install-pi-wsl.sh` leg (its `pi` on PATH is still the Volta shim) and the Win11 `pi_auth` drift — the seat holds
+   2026-10-09, so what remains is `install-pi-wsl.sh` **owning PATH persistence** (the WSL seat's own pi is
+   fixed — `4677cd05` found a dead PATH shim hiding a healthy pinned-prefix pi 1.1.0, so the old "Volta shim"
+   premise is history, not a task) and the Win11 `pi_auth` drift — the seat holds
    an **OAuth** openrouter entry where the spec renders `api_key`; mint it through the `pi_auth` vendor lane of
    [`scripts/render-pi-config.py`](scripts/render-pi-config.py) (§4 of [docs/pi-harness.md](docs/pi-harness.md)) and
    never overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
