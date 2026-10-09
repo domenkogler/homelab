@@ -142,8 +142,13 @@ def tables(lines: list[str]):
 
 
 def tracked_md() -> list[str]:
+    # encoding="utf-8" is required, not cosmetic: git emits path NUL-separated with RAW UTF-8
+    # bytes, and text=True without an explicit encoding decodes with the platform locale —
+    # cp1252 on Windows, which dies on any non-ASCII filename (measured 2026-10-09 on a seat
+    # holding "Načrt Homelab sistema_.md": UnicodeDecodeError 0x8d, validate-all red at HEAD).
     out = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "*.md"],
-                         capture_output=True, text=True, check=True).stdout
+                         capture_output=True, text=True, check=True,
+                         encoding="utf-8", errors="surrogateescape").stdout
     files = []
     for f in out.split("\0"):
         if f and not f.startswith(EXCLUDE):

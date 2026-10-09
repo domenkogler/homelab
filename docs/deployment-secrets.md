@@ -655,14 +655,25 @@ VS Code's `git.autofetch` produced dialogs nobody ran (now `false` on this seat 
 prompt is not a refusal, it is a wait**).
 
 **The correction this forces on the `key / credential` row in §Config vs credential split.**
-"Never on disk" is true of the fleet keys (`ansible-admin_ssh`, `domen_ssh`), which the agent serves
-from the vault. It is **not** true of the laptop's GitHub pair: `~/.ssh/github_signing` and
+"Never on disk" was true of the fleet keys (`ansible-admin_ssh`, `domen_ssh`) only as told from the
+agent side: `domen_ssh` has been a plain file on the Windows disk since the WSL bootstrap, and since
+2026-10-09 so has the automation key (below). It is **not** true of the laptop's GitHub pair: `~/.ssh/github_signing` and
 `~/.ssh/github_auth` exist as unencrypted PKCS#8 files on BOTH seats — the WSL bootstrap writes them
 out with `op read`, and the Win11 seat carries the same two files (168 bytes each). So the Win11
 `op-ssh-sign` path guards nothing that is not already on that disk; it only decides **who has to be
 asked**. Stated plainly for two reasons: it is why the unattended identity below is not a new
 exposure, and it is why this laptop's GitHub pair must be inventoried as a disk-resident secret
 wherever the laptop goes.
+
+**Same inventory, one rung higher, since 2026-10-09 (HD-492 option C): `ansible-admin_ssh`, the
+fleet-wide root-capable automation key, is now disk-resident on the Windows laptop** — an unencrypted
+PKCS#8 private half at `C:\Users\domen\.ssh\ansible-admin_ssh`, exported headless from the vault, because
+Git-Bash's `ssh` has no agent to ask (`SSH_AUTH_SOCK` unset) and the `.pub` hint therefore selected a key
+that does not exist there. The disk-resident-secret inventory above now covers the key with the widest
+blast radius on the fleet, not just the GitHub pair. The ACL proof that it is **not world-readable**
+(`icacls C:\Users\domen\.ssh\ansible-admin_ssh`, measured 2026-10-09) lists exactly three principals —
+`NT AUTHORITY\SYSTEM:(F)`, `BUILTIN\Administrators:(F)`, `DOMEN_P14S\domen:(F)` — no `Everyone`, no
+`Authenticated Users`, no `Users`; the same reading applies to `domen_ssh`.
 
 **Unattended git on Win11 — this is the seat DEFAULT since 2026-10-07, not an opt-in.**
 [`../scripts/git/gitconfig-nightly`](../scripts/git/gitconfig-nightly) is the payload and

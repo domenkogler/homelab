@@ -700,7 +700,8 @@ agreement problem was never the aliases, it was the identity FILES those aliases
 file names below, and §The Win11 `~/.ssh` retirement list for the order in which the divergent names are retired.
 
 **And a third variable decides them: WHICH `ssh` runs them (measured 2026-10-09, HD-492).** The
-contract's `.pub`-as-`IdentityFile` form is not self-sufficient — it selects a key an AGENT must hold.
+contract's former `.pub`-as-`IdentityFile` form (retired on both laptop classes the same day, HD-492
+option C) is not self-sufficient — it selects a key an AGENT must hold.
 Windows OpenSSH reaches the 1Password agent and authenticates (`Offering public key: … explicit agent`);
 the Git-Bash build — which is what a script's bare `ssh` resolves to when the script runs under Git-Bash —
 cannot load that same file (`Load key "…ansible-admin_ssh.pub": invalid format`), offers no key at all, and
@@ -732,7 +733,7 @@ fingerprints only — this doc never carries key material, and it never will.
 | Identity (what it IS) | Canonical file(s) | Vault item | Private half lives | `SHA256` fingerprint |
 |---|---|---|---|---|
 | **The operator** — a human, interactive, every seat | `~/.ssh/domen_ssh` + `.pub` | `domen_ssh` (`SSH_KEY`: `public key` / `fingerprint` / `private key` / `key type`) | **private on every seat**, incl. Windows (HD-492 option C) | `SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA` |
-| **Automation** — `ansible-admin`, the fleet's SSH user | `~/.ssh/ansible-admin_ssh` + `.pub` | `ansible-admin_ssh` (same shape) | private on **WSL + cockpit seat**; on Windows only the **`.pub` hint**, the agent holds the private half (HD-490) | `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` |
+| **Automation** — `ansible-admin`, the fleet's SSH user | `~/.ssh/ansible-admin_ssh` + `.pub` | `ansible-admin_ssh` (same shape) | **private on every seat**, incl. Windows (HD-492 option C, executed 2026-10-09: the `.pub`-hint form is retired — Git-Bash's `ssh` has no agent to ask, `SSH_AUTH_SOCK` unset, so the hint selected a key that does not exist there; the private PKCS#8 half proved green on BOTH Windows builds) | `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` |
 | GitHub **auth** (the seat deploy key, repo-scoped) | `~/.ssh/github_auth` + `.pub` | `GitHub auth` | per-seat, seeded by [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) | (per key, HD-449) |
 | GitHub **signing** | `~/.ssh/github_signing` + `.pub` | — | **retired**: the owner deleted the signing key (HD-1116); a local pair left on a seat is a leftover, not an identity | — |
 | **Machine-local** host key (`HostName`/`IdentityAgent` legacy, ssh's own default) | `~/.ssh/id_ed25519` + `.pub` | — | per-machine, **never referenced by an alias** | `SHA256:YbldrWp8ndNOOGx7YMKJYulSoIqZmk5w9fnNkezsVOk` (Windows seat) |

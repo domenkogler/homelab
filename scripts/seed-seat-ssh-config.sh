@@ -114,11 +114,18 @@ command -v sha256sum >/dev/null 2>&1 || { err "sha256sum is required — the dig
 [ -r "$TMPL" ] || { err "template not readable: $TMPL"; exit 2; }
 
 # --- the seat-class table ------------------------------------------------------
-# These values ARE the seat deltas; everything else in the template is common. Two axes:
-#  * which leg a name reaches — jump vs on-site-direct, and the Mgmt set a host seat does not have;
-#  * which FORM an identity takes here — a real key file vs the 1Password `.pub` hint the Windows
-#    agent serves (docs/deployment-secrets.md §What actually raises a 1Password prompt: the same
-#    `.pub` that Windows OpenSSH authenticates with, Git-Bash's ssh cannot load at all — HD-492).
+# These values ARE the seat deltas; everything else in the template is common. ONE axis remains, and
+# it is laptop-vs-host, not laptop-vs-laptop: which leg a name reaches (jump vs on-site-direct) and
+# which Mgmt set the seat has. Measured 2026-10-09 (HD-492 option C), the second axis that used to
+# live here — the Windows seat serving the automation identity from the 1Password `.pub` hint — is
+# GONE, and the measurement that killed it is: `SSH_AUTH_SOCK` is UNSET in Git-Bash, so the build
+# that every script here resolves `ssh` to has no agent to ask at all; the `.pub` is only a key
+# SELECTION, never a key. Naming the private half instead proved green on BOTH builds on the same
+# seat (`ssh -i ~/.ssh/ansible-admin_ssh -o IdentitiesOnly=yes vps hostname` → rc 0 from Git-Bash
+# AND from C:/Windows/System32/OpenSSH/ssh.exe 9.5p2, which reads the exported PKCS#8 file fine), so
+# the hint bought nothing on either build and cost a second name for one identity. The posture that
+# pays for it — the fleet's automation key is now disk-resident on the Windows laptop — is written
+# down in docs/network-vpn.md §Canonical identity file names, not here.
 seat_vars() {
   V_IDENT='~/.ssh/domen_ssh'                  # operator identity: a PRIVATE half on every seat
   V_PI_PAT=''; V_PI_HN='10.10.1.20'; V_PI_USER='domen'; V_PI_ID='~/.ssh/domen_ssh'
@@ -126,8 +133,9 @@ seat_vars() {
   V_SPARK_PAT=''; V_SPARK_HN='10.10.1.40'
   V_OLDSRV_PAT='oldsrv oldsrv.kogler.si 10.10.1.30'; V_OLDSRV_HN='10.10.1.30'
   case "$1" in
-    laptop-win11) V_ADMIN='~/.ssh/ansible-admin_ssh.pub' ;;
-    laptop-wsl)   V_ADMIN='~/.ssh/ansible-admin_ssh' ;;
+    # The two laptop classes take the same identity FORM; the private half is on disk on both
+    # (HD-492 option C). They render byte-identically — arm 8a holds that down.
+    laptop-win11|laptop-wsl) V_ADMIN='~/.ssh/ansible-admin_ssh' ;;
     cockpit)
       V_ADMIN='~/.ssh/ansible-admin_ssh'
       # On-site: no jump anywhere, the FQDN+address spellings ride the alias line, no Mgmt set.
@@ -504,9 +512,11 @@ FIX
     h="$(mkhome "class-$cls")"
     run "6a $cls renders, writes, and reads IN SYNC" 0 "$h" --seat "$cls" --push
   done
-  has   "6b win11 serves the admin leg from the 1Password .pub hint" "$root/class-laptop-win11/.ssh/config" 'IdentityFile ~/\.ssh/ansible-admin_ssh\.pub$'
-  has   "6c wsl serves it from a real key file" "$root/class-laptop-wsl/.ssh/config" 'IdentityFile ~/\.ssh/ansible-admin_ssh$'
+  has   "6b win11 serves the admin leg from the PRIVATE file (HD-492 option C: SSH_AUTH_SOCK is unset in Git-Bash, so a .pub there selects a key that does not exist; Windows OpenSSH 9.5p2 reads the same PKCS#8 file too)" "$root/class-laptop-win11/.ssh/config" 'IdentityFile ~/\.ssh/ansible-admin_ssh$'
+  has   "6c wsl serves it from the same canonical name" "$root/class-laptop-wsl/.ssh/config" 'IdentityFile ~/\.ssh/ansible-admin_ssh$'
   lacks "6d wsl never points at a .pub its ssh cannot load (HD-492)" "$root/class-laptop-wsl/.ssh/config" 'IdentityFile ~/\.ssh/[a-z0-9-]+\.pub$'
+  lacks "6d2 NO class points at a .pub IdentityFile — one identity, one file, on every seat" "$root/class-laptop-win11/.ssh/config" 'IdentityFile ~/\.ssh/[a-z0-9-]+\.pub$'
+  lacks "6d3 the cockpit class names no .pub either" "$root/class-cockpit/.ssh/config" 'IdentityFile ~/\.ssh/[a-z0-9-]+\.pub$'
   has   "6e the laptop classes jump the Home legs" "$root/class-laptop-wsl/.ssh/config" '^  ProxyJump vps$'
   lacks "6f the cockpit class jumps nothing (the directive, not the word in a comment)" "$root/class-cockpit/.ssh/config" '^[[:space:]]*ProxyJump'
   has   "6g the cockpit class owns a self-alias as dome" "$root/class-cockpit/.ssh/config" '^Host oldsrv oldsrv\.kogler\.si 10\.10\.1\.30$'
@@ -559,12 +569,19 @@ FIX
   # ⚠ `diff … | grep -q` is a trap under `set -o pipefail`: grep -q exits at its first match, diff
   # then dies of SIGPIPE, and the PIPELINE status becomes 141 — so a diff that DID find the line
   # reports failure. This single pipeline was arm 8a's whole defect; capture the text, match that.
-  local d8; d8="$(diff "$root/render-laptop-win11.txt" "$root/render-laptop-wsl.txt" || true)"
-  case "$d8" in
-    *'IdentityFile '*)
-      pass=$((pass+1)); echo "ok   8a the two laptop renders differ in an IdentityFile (the .pub/private axis is real)" ;;
-    *) fails=$((fails+1)); echo "FAIL 8a the two laptop renders are identical — the identity-form axis is not real" ;;
-  esac
+  local d8; d8="$(diff -I '^# alias-contract: seat=' "$root/render-laptop-win11.txt" "$root/render-laptop-wsl.txt" || true)"
+  # The claim is FLIPPED from the pre-2026-10-09 form ("the renders must differ in an IdentityFile,
+  # the .pub/private axis is real"): HD-492 option C put the private half on the Windows disk, so
+  # nothing distinguishes the two laptop bodies any more — only the `seat=` label does. Asserting
+  # equality is the only version that CAN fail: an `if [ -n "$d8" ]` would go green on ANY future
+  # divergence, which is exactly how an unagreed seat delta would land. If these two ever must
+  # differ, that is a new decision, not drift. `-I` skips the label line; the digests are compared
+  # separately, and they hash the body only, so equal digests = identical bytes.
+  local g11 gwsl; g11="$(sed -n 's/.*sha256=\([0-9a-f]*\).*/\1/p' "$root/render-laptop-win11.txt" | head -1)"
+  gwsl="$(sed -n 's/.*sha256=\([0-9a-f]*\).*/\1/p' "$root/render-laptop-wsl.txt" | head -1)"
+  if [ -z "$d8" ] && [ -n "$g11" ] && [ "$g11" = "$gwsl" ]; then
+    pass=$((pass+1)); echo "ok   8a the two laptop renders are identical but for the seat label (digest $g11 on both) — the identity-form axis is GONE; the surviving axis is laptop-vs-cockpit (arm 8b)"
+  else fails=$((fails+1)); echo "FAIL 8a the two laptop bodies differ ($g11 vs $gwsl) — a new win11/wsl delta appeared, which HD-492 option C removed on purpose:"; printf '%s\n' "$d8" | sed 's/^/     | /' | head -8; fi
   local ncockpit nlaptop
   ncockpit="$(grep -c '^Host ' "$root/render-cockpit.txt")"
   nlaptop="$(grep -c '^Host ' "$root/render-laptop-wsl.txt")"
