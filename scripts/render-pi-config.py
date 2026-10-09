@@ -39,6 +39,20 @@ import sys
 import tempfile
 from pathlib import Path
 
+def _need_reexec(sys_executable: str, venv_py: Path, flag: str) -> bool:
+    """True = re-exec into the ansible venv is needed AND possible. Verbatim the predicate in
+    scripts/ansible_query.py (whose --self-test section 9 is the witness for both — this file has no
+    self-test of its own).
+
+    Compare the LAUNCH PATH, never `.resolve()`: a venv's `bin/python3` is a symlink to the base
+    interpreter, so resolving made the two look identical and the guard skipped the re-exec —
+    measured on the oldsrv cockpit 2026-10-09 (`~/ansible-venv/bin/python3 -> /usr/bin/python3`,
+    PyYAML 6.0.3 inside the venv, the run still on /usr/bin/python3 reporting `PyYAML missing`)."""
+    if os.environ.get(flag) == "1" or not venv_py.is_file():
+        return False
+    return Path(sys_executable) != venv_py
+
+
 def _ensure_deps() -> None:
     """HD-446's other leg: a seat leg (`ssh seat '…'`) reads no profile, so it runs this with the
     system python3 even on a seat that HAS `~/ansible-venv` with PyYAML in it. Re-exec there rather
@@ -51,8 +65,7 @@ def _ensure_deps() -> None:
     except ImportError:
         pass
     venv_py = Path.home() / "ansible-venv" / "bin" / "python3"
-    same = Path(sys.executable).resolve() == venv_py.resolve() if venv_py.exists() else True
-    if os.environ.get("PI_RENDER_REEXEC") == "1" or not venv_py.is_file() or same:
+    if not _need_reexec(sys.executable, venv_py, "PI_RENDER_REEXEC"):
         sys.exit(
             f"FAIL: PyYAML is required and not importable by {sys.executable}.\n"
             "      Remedy: ~/ansible-venv/bin/python3 scripts/render-pi-config.py …\n"

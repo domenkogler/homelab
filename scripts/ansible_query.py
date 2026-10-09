@@ -80,6 +80,21 @@ from pathlib import Path
 # --------------------------------------------------------------------------- #
 # Dependency guard — must run before the yaml/jinja2 imports below
 # --------------------------------------------------------------------------- #
+def _need_reexec(sys_executable: str, venv_py: Path, flag: str) -> bool:
+    """True = re-exec into the ansible venv is needed AND possible.
+
+    Compare the LAUNCH PATH, never `.resolve()`: a venv's `bin/python3` is a symlink to the base
+    interpreter (`~/ansible-venv/bin/python3 -> /usr/bin/python3`, measured on the oldsrv cockpit
+    2026-10-09), so resolving the two paths makes them look identical and the guard concludes
+    "already the venv" — the run then stayed on /usr/bin/python3 and died on `PyYAML missing`
+    although the venv held PyYAML 6.0.3. The venv is selected by the path it is launched through
+    (that is what finds its pyvenv.cfg and site-packages), so that is the only comparison that
+    means anything. `flag` breaks the loop if the venv itself lacks the dep."""
+    if os.environ.get(flag) == "1" or not venv_py.is_file():
+        return False
+    return Path(sys_executable) != venv_py
+
+
 def _ensure_deps() -> None:
     try:
         import yaml  # noqa: F401
@@ -88,8 +103,7 @@ def _ensure_deps() -> None:
     except ImportError:
         pass
     venv_py = Path.home() / "ansible-venv" / "bin" / "python3"
-    same = Path(sys.executable).resolve() == venv_py.resolve() if venv_py.exists() else True
-    if os.environ.get("HD456_REEXEC") == "1" or not venv_py.is_file() or same:
+    if not _need_reexec(sys.executable, venv_py, "HD456_REEXEC"):
         sys.exit(
             "FAIL: PyYAML + Jinja2 are required and not importable by "
             f"{sys.executable}.\n"
@@ -1086,6 +1100,25 @@ def self_test() -> int:
         # 8. line numbers are real, not 0
         check("definition line numbers resolved",
               any(d.path.endswith("defaults/main.yml") and d.line == 1 for d in tree.defs))
+
+        # 9. the venv guard itself (the shape render-pi-config.py's guard copies verbatim, so this
+        #    arm is the witness for both). A venv's bin/python3 is a SYMLINK to the base interpreter:
+        #    the first version compared .resolve() paths, saw "the same python", skipped the re-exec,
+        #    and the seat run died on PyYAML it actually had (2026-10-09, HD-1110 models plane).
+        link = tmp / "venv-python3"
+        link.symlink_to(Path(sys.executable))
+        base = str(Path(sys.executable))
+        check("guard: a symlinked venv python is still a re-exec target",
+              _need_reexec(base, link, "HD456_REEXEC_ST") is True,
+              f"{base} vs {link} -> {link.resolve()}")
+        check("guard: launching through the venv path is not a re-exec",
+              _need_reexec(str(link), link, "HD456_REEXEC_ST") is False)
+        os.environ["HD456_REEXEC_ST"] = "1"
+        check("guard: the env flag breaks a loop when the venv itself lacks the dep",
+              _need_reexec(base, link, "HD456_REEXEC_ST") is False)
+        del os.environ["HD456_REEXEC_ST"]
+        check("guard: no venv on disk is never a re-exec",
+              _need_reexec(base, tmp / "absent-python3", "HD456_REEXEC_ST") is False)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

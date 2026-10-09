@@ -674,6 +674,9 @@ item "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the E
 item "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/laptop-llm.py gate --self-test
 item "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/laptop-llm.py probe-client
 item "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY spark/bench/gate7-read.py --self-test
+# Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
+# verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
+item "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible_query.py --self-test
 
 # --------------------------------------------------------------------------- #
 # Drain and report.                                                           #
