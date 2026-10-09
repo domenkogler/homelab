@@ -115,7 +115,24 @@ if [ "$PULL" = "1" ]; then
         echo "NOTE: branch '$BRANCH' has no upstream (a session worktree) — NOT pulling." >&2
     else
         echo "==> Runner self-update: git -C $REPO pull --ff-only"
-        git -C "$REPO" pull --ff-only
+        if ! git -C "$REPO" pull --ff-only; then
+            # A detached converge inherits this branch's exit, so a dead pull leaves a log whose
+            # ONLY content is a git error: no PLAY RECAP, no RECAP-at-all, and nothing in the
+            # operator's poll pattern says "this converge never started". Measured 2026-10-09: two
+            # nohup converges died here (`fatal: Cannot fast-forward to multiple branches.` from a
+            # branch configured with more than one merge ref) while both target hosts sat unchanged
+            # and every poll said "still running". Fail loud, name the shape, offer the bypass.
+            echo "FAIL: the runner self-update died, so ansible-playbook NEVER RAN — nothing was" >&2
+            echo "      converged. A log that ends here has no PLAY RECAP; absence of a RECAP is this" >&2
+            echo "      failure, not a slow run." >&2
+            echo "      branch:  $BRANCH   upstream: $(git -C "$REPO" rev-parse --abbrev-ref '@{u}' 2>&1 | head -1)" >&2
+            echo "      merge refs configured for this branch:"
+            git -C "$REPO" config --get-all "branch.$BRANCH.merge" 2>/dev/null | sed 's/^/        /' >&2
+            echo "      Escape hatch NOW:  git -C $REPO pull --ff-only origin $BRANCH   (one explicit ref)," >&2
+            echo "      then re-issue the converge with --no-pull. Durable fix if >1 merge ref is" >&2
+            echo "      listed above: git config --unset-all branch.$BRANCH.merge && git config branch.$BRANCH.remote origin && git config branch.$BRANCH.merge refs/heads/$BRANCH" >&2
+            exit 1
+        fi
     fi
 else
     echo "NOTE: --no-pull — converging the working tree as-is." >&2

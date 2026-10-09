@@ -687,6 +687,21 @@ upstream is reported and left alone, because converging from one is a legitimate
 Every run prints the commit it is about to converge; that line is the thing to read first when
 a converge does not do what the tip of `main` says it should.
 
+⚠ **And when that pull dies, the converge never started — which is invisible in a detached log
+until 2026-10-09.** Two `nohup` converges launched from the laptop seat both ended on log line 3
+with `fatal: Cannot fast-forward to multiple branches.`, produced **no `PLAY RECAP`**, and left both
+target hosts untouched; the poll said "still running" for 15 minutes because the only thing that
+would have distinguished *never started* from *still going* was a RECAP that never appeared. The git
+side is a branch carrying **more than one merge ref** (`git config --get-all branch.<name>.merge`
+printing two different refs — `git pull` then has two heads to fast-forward to and refuses); the
+launcher side was the real defect, because a tool that prints one line and exits cannot be told apart
+from a job that is merely slow. `ansible-run.sh` now catches it: `FAIL: the runner self-update died,
+so ansible-playbook NEVER RAN`, the branch + upstream + the configured merge refs, and the two exits
+(`git pull --ff-only origin <branch>` then re-issue with `--no-pull`, or collapse the merge refs).
+Proven three ways on throwaway clones: two merge refs → reproduces the exact fatal and the launcher
+refuses with rc=1; an unreachable remote (any other pull failure) → same loud refusal; healthy clone
+→ quiet, rc=0. **Read a converge log for the presence of a RECAP, never for its absence of news.**
+
 **The seat clone did not exist until this decision was written down.** Measured 2026-09-23:
 no `.git` anywhere under `/home/domen`, and `~/.pi/agent/sessions` empty — so the cockpit was
 a live, token-gated listener with no repository and no sessions to drive. Creating it is

@@ -123,7 +123,10 @@ the read-scoped `op_api` and proven by an `op item list` that answers rows; the 
 token at all, which is its designed state. ⏳ **One leg left:** the **`/etc/op/provision-token`** hosts (`oldsrv`, `vps`),
 which still carry the superseded write value — measured 2026-10-09 18:46, both `be1939305745`, both still accepted
 inside the grace window. Only a full `docker_services` converge (`scope_is_all`) issued FROM the laptop refreshes it, and
-the run's "Probe the deployed token is actually accepted" task is the verdict. Read [docs/1password.md](docs/1password.md) §1
+the run's "Probe the deployed token is actually accepted" task is the verdict. ⏳ **It is blocked on the laptop clone, not on
+the fleet:** the two runs launched from there today died in `ansible-run.sh`'s self-update (`fatal: Cannot fast-forward to
+multiple branches.`, no `PLAY RECAP`) — `git config --get-all branch.main.merge` on that box, collapse it to one ref, then
+re-launch with `--no-pull`. Read [docs/1password.md](docs/1password.md) §1
 first: the leak response killed the "two-token finding" as a **mis-seed** — both seats were running the *write*-scoped
 item, and `op vault list` cannot tell the scopes apart, so prove scope with the `op whoami` **Integration ID**.
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/pi-seat-sync.sh` is
