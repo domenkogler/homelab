@@ -15,10 +15,13 @@
 #     router (tailnet-only by construction).
 #   * pi-on-path.conf — pi-web shells out to `pi` for the model list, every chat
 #     turn and its own self-update, and a systemd USER unit gets no login shell,
-#     so it never sees ~/.profile. Without the Node bin dir on the unit's PATH
-#     every send dies with `exec: "pi": executable file not found in $PATH` —
-#     what a phone reported on 2026-10-01, and `pi`'s shebang is
-#     `#!/usr/bin/env node`, so a lone `pi` symlink is not enough.
+#     so it never sees ~/.profile. Without the pi dirs on the unit's PATH every
+#     send dies with `exec: "pi": executable file not found in $PATH` — what a
+#     phone reported on 2026-10-01, and `pi`'s shebang is `#!/usr/bin/env node`,
+#     so a lone `pi` symlink is not enough. BOTH pi layouts get a dir on PATH
+#     (seat_pi_bin + seat_pi_node_bin): a seat that runs `pi update` moves to pi's
+#     OWN managed launcher (~/.pi/agent/bin) and a node-dir-only PATH goes blind
+#     there — the live oldsrv case of 2026-10-09.
 # Rendering ONE of them and not the other reproduces exactly that incident.
 #
 # What stays OUT of this file, deliberately:
@@ -136,7 +139,9 @@
   # Read-after-write proof of the ONE property that broke the phone path, taken from
   # the LIVE unit rather than the file: a drop-in that exists but was never reloaded
   # proves nothing (the `enable --now` lesson from Phase 4c — enabling does not
-  # restart a running unit, only `restart` does).
+  # restart a running unit, only `restart` does). BOTH dirs are asserted: the unit that
+  # passed this on 2026-10-01 (node dir only) could not find pi at all once the seat
+  # migrated to pi's managed launcher on 2026-10-09, so one dir is not the property.
   ansible.builtin.command: systemctl --user cat pi-web.service
   become: true
   become_user: "{{ seat_user }}"
@@ -149,3 +154,4 @@
   failed_when: >-
     (seat_unit_live.rc | default(1)) != 0
     or seat_pi_node_bin not in (seat_unit_live.stdout | default(''))
+    or seat_pi_bin not in (seat_unit_live.stdout | default(''))

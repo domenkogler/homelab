@@ -20,9 +20,24 @@
 #   pinned official tarball under ~/.local/share/pi-node/ is the shape BOTH the
 #   laptop and the oldsrv seat actually use, so this script installs that shape.
 #
+# TWO PI LAYOUTS (measured on oldsrv 2026-10-09 — the reason TWO PATH blocks are persisted):
+#   npm -g   -> <pi-node prefix>/bin/pi, the symlink npm creates next to the pinned node binary.
+#              What install_pi() installs, and what the oldsrv seat had until 2026-10-09.
+#   managed  -> ~/.pi/agent/bin/pi, a launcher over ~/.pi/agent/install/releases/<ver>/ (layout
+#              `releases-v1`). pi 1.1.0's `pi update` MIGRATES a global install to this layout and
+#              removes the node-dir symlink (its own CHANGELOG: "`pi update` on global npm
+#              installations now recommends migrating to the managed installation").
+# Both are working pi installs; only ONE is on PATH when a seat exports just the node bin dir,
+# which is how a seat that ran `pi update` inside a session woke up with `pi: command not found`
+# while pi itself was healthy. So: PATH carries BOTH dirs, every probe here goes through pi_bin()
+# (never a bare `command -v pi`), and scripts/pi-self-update.sh names the managed layout instead
+# of reporting SKIP for it.
+#
 # Usage (run AS the seat user, on the seat):
 #   bash scripts/install-pi-debian.sh              # full: node + pi + config + skills
 #   bash scripts/install-pi-debian.sh --pi-only    # pinned node + pi, no config sync
+#   bash scripts/install-pi-debian.sh --path-only  # only the two PATH blocks — the repair for a
+#                                                  # seat whose pi moved to the managed layout
 #   bash scripts/install-pi-debian.sh --config-only# skills/AGENTS/prompts + model contract
 #   bash scripts/install-pi-debian.sh --cockpit    # + the pi-web cockpit package
 #   bash scripts/install-pi-debian.sh --tui        # + the seat TUI package only (pi-open-tui)
@@ -44,7 +59,9 @@ REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 PI_SEAT_ROOT="${PI_SEAT_ROOT:-$HOME/.local/share/pi-node}"
 VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
 NODE_BIN_DIR="$PI_SEAT_ROOT/current/bin"
+PI_ENTRY_DIR="${PI_ENTRY_DIR:-$HOME/.pi/agent/bin}"   # pi's own launcher dir (managed layout)
 PROFILE_MARK="# pi-seat node (install-pi-debian.sh)"
+PROFILE_MARK_PI="# pi-seat pi entrypoint (install-pi-debian.sh)"
 
 say()  { printf '\n== %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
@@ -115,7 +132,29 @@ persist_path() {
     { printf '\n%s\nexport PATH="%s:$PATH"\n' "$PROFILE_MARK" "$NODE_BIN_DIR"; } >> "$f"
     info "appended the node bin dir to $(basename "$f")"
   done
+  # The pi ENTRYPOINT dir, under its OWN mark. A seat whose node block predates 2026-10-09 has
+  # the node mark (so the loop above skips it) yet lost 'pi' when 'pi update' migrated it to the
+  # managed layout — this second block is that repair, and a separate mark is what lets it append
+  # one line instead of rewriting a block a previous run already owns.
+  for f in "$HOME/.bashrc" "$HOME/.profile"; do
+    [ -e "$f" ] || continue
+    grep -qF "$PROFILE_MARK_PI" "$f" && { info "pi entrypoint block already in $(basename "$f")"; continue; }
+    { printf '\n%s\nexport PATH="%s:$PATH"\n' "$PROFILE_MARK_PI" "$PI_ENTRY_DIR"; } >> "$f"
+    info "appended the pi entrypoint dir to $(basename "$f")"
+  done
   info "NOTE: neither file is read by a systemd user unit — that needs roles/seat's Environment=PATH drop-in"
+}
+
+# ---- resolve the pi binary across BOTH layouts ----------------------------
+# PATH first (it is what the operator typed into), then the managed launcher. Anything asking
+# "does pi exist here?" must call this and NOT a bare `command -v pi`: on a migrated seat the
+# latter is empty while pi runs perfectly at ~/.pi/agent/bin/pi (the 2026-10-09 oldsrv class).
+pi_bin() {
+  local p
+  p="$(command -v pi 2>/dev/null || true)"
+  [ -n "$p" ] && [ -x "$p" ] && { printf '%s' "$p"; return 0; }
+  [ -x "$PI_ENTRY_DIR/pi" ] && { printf '%s' "$PI_ENTRY_DIR/pi"; return 0; }
+  return 1
 }
 
 # ---- pi + packages -------------------------------------------------------
@@ -123,24 +162,27 @@ install_pi() {
   say "installing ${PI_PKG}@${PI_V} into the pinned prefix"
   npm_config_prefix="$PI_SEAT_ROOT/current" npm install -g --no-fund --no-audit "${PI_PKG}@${PI_V}" >/dev/null \
     || { err "npm install -g ${PI_PKG}@${PI_V} failed"; exit 1; }
-  command -v pi >/dev/null 2>&1 || { err "pi not on PATH after install"; exit 1; }
-  info "pi $(pi --version 2>&1 | head -1)"
+  local pb; pb="$(pi_bin || true)"
+  [ -n "$pb" ] || { err "no pi binary answers after install (looked on PATH and in $PI_ENTRY_DIR)"; exit 1; }
+  info "pi $("$pb" --version 2>&1 | head -1) [$pb]"
 }
 install_tui() {
   # The seat's TUI skin (docs/pi-harness.md §5a): pi-open-tui owns the footer, and the
   # footer's hostname segment is what answers "which box am I typing to" — the job the
   # retired pi-agent/extensions/host-status.ts used to do. Fleet-wide, not seat-local:
   # the version is the pi_host_tui_npm_version pin, never a bare `pi install npm:…`.
-  command -v pi >/dev/null 2>&1 || { info "pi not on PATH — skipping the ${TUI_PKG} package (run --pi-only first)"; return 0; }
+  local pb; pb="$(pi_bin || true)"
+  [ -n "$pb" ] || { info "no pi binary found — skipping the ${TUI_PKG} package (run --pi-only first)"; return 0; }
   say "installing the seat TUI package ${TUI_PKG}@${TUI_V}"
-  pi install "npm:${TUI_PKG}@${TUI_V}" 2>&1 | tail -2 || { err "pi install npm:${TUI_PKG}@${TUI_V} failed"; return 1; }
+  "$pb" install "npm:${TUI_PKG}@${TUI_V}" 2>&1 | tail -2 || { err "pi install npm:${TUI_PKG}@${TUI_V} failed"; return 1; }
   bash "$REPO/scripts/pi-tui-config.sh" --push || return 1
 }
 check_tui() {
-  command -v pi >/dev/null 2>&1 || { err "pi: not on PATH (cannot read the TUI package)"; return 1; }
-  if pi list 2>/dev/null | grep -q "$TUI_PKG"; then
+  local pb; pb="$(pi_bin || true)"
+  [ -n "$pb" ] || { err "pi: no binary found (neither PATH nor $PI_ENTRY_DIR) — cannot read the TUI package"; return 1; }
+  if "$pb" list 2>/dev/null | grep -q "$TUI_PKG"; then
     info "tui package: ${TUI_PKG} installed (pin ${TUI_V})"
-    pi list 2>/dev/null | grep "$TUI_PKG" | sed 's/^/      /'
+    "$pb" list 2>/dev/null | grep "$TUI_PKG" | sed 's/^/      /'
   else
     err "tui package: ${TUI_PKG} NOT installed — pi install npm:${TUI_PKG}@${TUI_V}"; return 1
   fi
@@ -160,11 +202,26 @@ check_cockpit_unit() {
   # IaC/ansible/roles/cockpit — never hand-write it here (that is the HD-445 class).
   command -v systemctl >/dev/null 2>&1 || return 0
   systemctl --user cat pi-web.service >/dev/null 2>&1 || { info "no pi-web user unit yet (roles/cockpit renders it)"; return 0; }
-  if systemctl --user cat pi-web.service 2>/dev/null | grep -q "Environment=PATH="; then
-    info "pi-web unit carries Environment=PATH= (good)"
+  local unit_path d found="" dirs
+  unit_path="$(systemctl --user cat pi-web.service 2>/dev/null | sed -n 's/^Environment=PATH=//p' | tail -1)"
+  if [ -n "$unit_path" ]; then
+    # "It carries an Environment=PATH=" is not the property that matters; the property is that
+    # one of those directories holds an executable pi. Reading the PATH instead of grepping for
+    # the key works on either layout and is blind to neither (CONVENTIONS §6: prove the probe).
+    IFS=':' read -r -a dirs <<< "$unit_path"
+    for d in "${dirs[@]}"; do
+      [ -x "$d/pi" ] && { found="$d/pi"; break; }
+    done
+  fi
+  if [ -n "$found" ]; then
+    info "pi-web unit PATH finds pi: $found"
+  elif [ -n "$unit_path" ]; then
+    err "pi-web unit PATH lists no directory holding an executable pi (PATH=$unit_path)"
+    err "remediation: converge roles/seat (renders pi-on-path.conf carrying BOTH pi dirs), do not hand-write the drop-in"
+    return 1
   else
     err "pi-web unit has NO Environment=PATH= — every chat send will die with: exec: \"pi\": executable file not found in \$PATH"
-    err "remediation: converge roles/cockpit (renders pi-on-path.conf), do not hand-write the drop-in"
+    err "remediation: converge roles/seat (renders pi-on-path.conf), do not hand-write the drop-in"
     return 1
   fi
 }
@@ -209,10 +266,17 @@ check() {
   local bad=0
   say "check (write nothing)"
   node_pinned_ok && info "node: pinned ${NODE_V} OK" || { err "node: pinned ${NODE_V} NOT at $NODE_BIN_DIR"; bad=1; }
-  if command -v pi >/dev/null 2>&1; then
-    local pv; pv="$(pi --version 2>&1 | head -1 | tr -d '[:space:]')"
-    [ "$pv" = "$PI_V" ] && info "pi: ${pv} == pin" || { err "pi: ${pv} != pin ${PI_V}"; bad=1; }
-  else err "pi: not on PATH"; bad=1; fi
+  local pb; pb="$(pi_bin || true)"
+  if [ -z "$pb" ]; then
+    err "pi: no binary found (neither PATH nor $PI_ENTRY_DIR)"; bad=1
+  else
+    local pv; pv="$("$pb" --version 2>&1 | head -1 | tr -d '[:space:]')"
+    [ "$pv" = "$PI_V" ] && info "pi: ${pv} == pin [$pb]" || { err "pi: ${pv} != pin ${PI_V} [$pb]"; bad=1; }
+    # The exact 2026-10-09 oldsrv state: pi present, PATH unaware. Name the repair.
+    if [ "$pb" = "$PI_ENTRY_DIR/pi" ] && ! command -v pi >/dev/null 2>&1; then
+      err "pi: found at $PI_ENTRY_DIR/pi but that dir is NOT on PATH — typing 'pi' fails. Repair: bash $0 --path-only"; bad=1
+    fi
+  fi
   python3 "$REPO/scripts/render-pi-config.py" --vendor all --check >/dev/null 2>&1 \
     && info "models.json + auth.json match the spec" || { err "model contract drift (or not rendered)"; bad=1; }
   bash "$REPO/scripts/sync-skills.sh" --check 2>&1 | tail -2
@@ -229,10 +293,11 @@ check() {
 case "$MODE" in
   --check)      check ;;
   --pi-only)    require_cmds curl tar xz git; install_node; persist_path; install_pi ;;
+  --path-only)  persist_path ;;
   --config-only) install_config ;;
   --cockpit)    require_cmds curl tar xz git; install_node; persist_path; install_pi; install_config; install_cockpit ;;
   --tui)        require_cmds curl tar xz git; install_node; persist_path; install_pi; install_tui ;;
   full|"")      require_cmds curl tar xz git; install_node; persist_path; install_pi; install_config ;;
-  *)            err "unknown option: $MODE"; echo "  use: (none) | --pi-only | --config-only | --cockpit | --check" >&2; exit 2 ;;
+  *)            err "unknown option: $MODE"; echo "  use: (none) | --pi-only | --path-only | --config-only | --cockpit | --tui | --check" >&2; exit 2 ;;
 esac
 say "done"

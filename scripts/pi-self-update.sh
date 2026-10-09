@@ -28,6 +28,19 @@
 # A host where neither exists is a FAILURE, never a shrug: silently skipping "update the
 # thing you run" is how a fleet accumulates six different pis.
 #
+# THREE LAYOUTS, ONE PROBE (measured on oldsrv 2026-10-09, why the SKIP arm was lying)
+#   on PATH      whatever the operator types — a Volta shim on Windows, an npm -g symlink on
+#                the pinned Node tarball on Debian/WSL.
+#   managed      ~/.pi/agent/bin/pi, pi's OWN launcher over ~/.pi/agent/install/releases/<ver>/.
+#                pi 1.1.0's `pi update` migrates a global npm install HERE and removes the
+#                node-dir symlink. This probe did not look there, so the seat that ran pi 1.1.0
+#                perfectly reported `SKIP — no pi binary answers on this host` with rc 0: the
+#                binary plane went blind exactly when a seat moved, the CONVENTIONS §6 class
+#                ("a gate that cannot see the file cannot fail either").
+#   pinned prefix $PI_NODE_PREFIX/bin/pi — what npm -g writes.
+# The layout of the ANSWERING binary picks the installer, so a managed seat is never "converged"
+# with an npm -g install that would leave two layouts and a version that depends on PATH order.
+#
 # MODES
 #   --check (default)  OK · BEHIND · AHEAD · NO-PI(SKIP) · NO-INSTALLER. Drift is
 #                      report-only unless --strict (same rc contract as the other planes).
@@ -44,8 +57,9 @@
 #
 # Env (sandbox hooks only): REPO, PI_SELF_PI (probe binary), PI_SELF_VERSION_FILE (print
 # the installed version from a file instead of running pi — the self-test's hook),
-# PI_SELF_INSTALLER (volta|npm|stub), PI_SELF_INSTALL_LOG, PI_NODE_PREFIX (default
-# $HOME/.local/share/pi-node, the prefix install-pi-debian.sh creates).
+# PI_SELF_INSTALLER (volta|npm|managed|stub), PI_SELF_INSTALL_LOG,
+# PI_NODE_PREFIX (default $HOME/.local/share/pi-node, the prefix install-pi-debian.sh creates),
+# PI_ENTRY_DIR (default $HOME/.pi/agent/bin, pi's own launcher dir — the managed layout).
 # Portability: bash + the platform installer; `$HOME`/self-derived paths only.
 #
 # Owning rule: docs/pi-harness.md §1 (the pin table) · §5 (what the harness is).
@@ -55,6 +69,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
 PI_NODE_PREFIX="${PI_NODE_PREFIX:-$HOME/.local/share/pi-node}"
+PI_ENTRY_DIR="${PI_ENTRY_DIR:-$HOME/.pi/agent/bin}"   # pi's own launcher dir (managed layout)
 
 MODE="check"; STRICT=0
 
@@ -92,24 +107,33 @@ while [ "$#" -gt 0 ]; do
 done
 
 # --- probe: what pi does this host actually run? ------------------------------
-# Order matters: a file override (self-test) beats an explicit binary, which beats PATH,
-# which beats the pinned prefix. PATH first on purpose — PATH is what the operator typed
-# into, and a seat whose PATH pi is NOT the pinned prefix is precisely the drift HD-1112
-# left behind (the Windows Volta shim shadowing the pinned install).
+# Order matters: a file override (self-test) beats an explicit binary, which beats PATH, which
+# beats pi's OWN managed launcher, which beats the pinned prefix. PATH first on purpose - PATH is
+# what the operator typed into, and a seat whose PATH pi is NOT the pinned prefix is precisely the
+# drift HD-1112 left behind (the Windows Volta shim shadowing the pinned install). The managed
+# launcher was missing from this candidate list until 2026-10-09: see THREE LAYOUTS in the header.
+pi_candidate() {
+  local c
+  [ -n "${PI_SELF_PI:-}" ] && { printf '%s' "$PI_SELF_PI"; return 0; }
+  # PI_SELF_PROBE_ONLY=1 (the self-test) keeps PATH and both installed dirs OUT of the probe:
+  # without it a canary on a host that really runs pi would find that pi and report OK, so the
+  # SKIP arm could never be proven on the one machine people run the test on.
+  [ -n "${PI_SELF_PROBE_ONLY:-}" ] && return 1
+  c="$(command -v pi 2>/dev/null || true)"
+  [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }
+  [ -x "$PI_ENTRY_DIR/pi" ] && { printf '%s' "$PI_ENTRY_DIR/pi"; return 0; }
+  [ -x "$PI_NODE_PREFIX/bin/pi" ] && { printf '%s' "$PI_NODE_PREFIX/bin/pi"; return 0; }
+  return 1
+}
+
 installed_version() {
   if [ -n "${PI_SELF_VERSION_FILE:-}" ]; then
     [ -f "$PI_SELF_VERSION_FILE" ] && tr -d '[:space:]"' < "$PI_SELF_VERSION_FILE" && return 0
     return 1
   fi
-  # PI_SELF_PROBE_ONLY=1 (the self-test) keeps PATH and the pinned prefix OUT of the probe:
-  # without it a canary on a host that really runs pi would find that pi and report OK, so
-  # the SKIP arm could never be proven on the one machine people run the test on.
+  # The candidate ORDER lives in pi_candidate(), so installer_kind() asks the same question.
   local b cand
-  [ -n "${PI_SELF_PI:-}" ] && cand="$PI_SELF_PI"
-  if [ -z "${PI_SELF_PROBE_ONLY:-}" ]; then
-    [ -z "${cand:-}" ] && cand="$(command -v pi 2>/dev/null || true)"
-    [ -z "${cand:-}" ] && cand="$PI_NODE_PREFIX/bin/pi"
-  fi
+  cand="$(pi_candidate || true)"
   for b in "${cand:-}"; do
     [ -n "$b" ] && [ -x "$b" ] || continue
     local out
@@ -121,6 +145,12 @@ installed_version() {
 
 installer_kind() {
   [ -n "${PI_SELF_INSTALLER:-}" ] && { printf '%s' "$PI_SELF_INSTALLER"; return 0; }
+  # The layout of the ANSWERING binary picks the installer, so a managed seat is never "converged"
+  # by an npm -g install that would leave two layouts and a version decided by PATH order.
+  local b; b="$(pi_candidate || true)"
+  case "$b" in
+    "$PI_ENTRY_DIR"/*|*/.pi/agent/bin/pi|*/install/releases/*) printf 'managed'; return 0 ;;
+  esac
   case "$(uname -s 2>/dev/null || echo unknown)" in
     MING*|MSYS*|CYGWIN*) command -v volta >/dev/null 2>&1 && { printf 'volta'; return 0; } ;;
   esac
@@ -134,6 +164,11 @@ install_pinned() {  # $1 = pkg, $2 = version
   case "$kind" in
     volta) volta install "$pkg@$v" ;;
     npm)   PATH="$PI_NODE_PREFIX/bin:$PATH" npm install -g "$pkg@$v" ;;
+    managed)
+           err "this pi is pi's OWN managed install (~/.pi/agent/bin + install/releases): 'pi update self' owns that layout and installs the LATEST release, not a version it is handed (the pi.dev installer takes no version either)."
+           err "two legal moves, in order: (1) run 'pi update self' on the seat, then move pi_host_npm_version AND pi_dev_npm_version to what it reports (an owner ruling, CONVENTIONS §7); (2) move the seat back onto the pinned layout with 'bash scripts/install-pi-debian.sh --pi-only'."
+           err "refusing to npm install -g over a managed install: it leaves TWO layouts and makes 'which pi' a PATH-order question."
+           return 1 ;;
     stub)  printf '%s\n' "$pkg@$v" >> "${PI_SELF_INSTALL_LOG:?self-test must set PI_SELF_INSTALL_LOG}";
            [ -n "${PI_SELF_VERSION_FILE:-}" ] && printf '%s\n' "$v" > "$PI_SELF_VERSION_FILE"
            printf 'stub installed %s@%s\n' "$pkg" "$v" ;;
@@ -148,7 +183,7 @@ do_check() {
   # self-test canary now holds the behaviour down (arm 5).
   want="$(pin pi_host_npm_version)" || exit 1; PKG="$(pin pi_host_npm_package)" || exit 1
   if ! got="$(installed_version)"; then
-    info "pi build:        SKIP — no pi binary answers on this host (install-pi-debian.sh / Volta installs it)"
+    info "pi build:        SKIP — no pi binary answers on this host (looked on PATH, $PI_ENTRY_DIR and $PI_NODE_PREFIX/bin)"
     return 2
   fi
   kind="$(installer_kind)" || kind="none"
@@ -247,6 +282,38 @@ do_selftest() {
   printf '%s' "$skipout" | grep -q SKIP \
     && info "skip-honest        GREEN (a SKIP is printed, not passed)" \
     || { err "canary: no-binary did not report SKIP"; fails=$((fails+1)); }
+
+  # 7. the MANAGED layout must be SEEN (2026-10-09 oldsrv: pi ran perfectly under ~/.pi/agent/bin
+  #    and this plane answered `SKIP — no pi binary answers` with rc 0 — a green it had not
+  #    earned), and --push there must REFUSE rather than npm -g a second layout under it.
+  mkdir -p "$tmp/managed" "$tmp/sandbox-node"
+  printf '#!/bin/sh\necho 9.9.9\n' > "$tmp/managed/pi"; chmod +x "$tmp/managed/pi"
+  local sysbin bashbin mout
+  sysbin="$(dirname "$(command -v grep)")"; bashbin="$(command -v bash)"
+  # Never let a canary reach a real installer: PI_NODE_PREFIX points at an empty sandbox and the
+  # repo copy names a package that does not exist, so even a broken kind-detection cannot npm
+  # install anything real from a self-test.
+  sed -E 's/^pi_host_npm_version:.*/pi_host_npm_version: "9.9.9"/; s/^pi_host_npm_package:.*/pi_host_npm_package: "pi-self-update-canary"/' \
+    "$VERSIONS" > "$tmp/repo/IaC/ansible/group_vars/all/versions.yml"
+  # PATH neutered to the system dirs so a pi that really lives on the test host (a Volta shim, a
+  # pinned prefix) cannot answer for the canary and make it pass for the wrong reason.
+  mout="$(env -u PI_SELF_VERSION_FILE -u PI_SELF_PI -u PI_SELF_INSTALLER -u PI_SELF_PROBE_ONLY \
+         PATH="$sysbin:/bin" PI_ENTRY_DIR="$tmp/managed" PI_NODE_PREFIX="$tmp/sandbox-node" \
+         REPO="$tmp/repo" "$bashbin" "$me" --check --strict 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ] && printf '%s' "$mout" | grep -q OK; then
+    info "managed-probe      GREEN (a ~/.pi/agent/bin pi is seen, not SKIPped)"
+  else err "canary passed: a managed-install seat read as no-pi (rc $rc) $mout"; fails=$((fails+1)); fi
+  # and --push there must REFUSE rather than npm -g a second layout under it — which only becomes
+  # visible when that seat is OFF its pin (an in-sync seat runs NOTHING, arm 1's rule).
+  printf '#!/bin/sh\necho 9.9.10\n' > "$tmp/managed/pi"
+  mout="$(env -u PI_SELF_VERSION_FILE -u PI_SELF_PI -u PI_SELF_INSTALLER -u PI_SELF_PROBE_ONLY \
+         PATH="$sysbin:/bin" PI_ENTRY_DIR="$tmp/managed" PI_NODE_PREFIX="$tmp/sandbox-node" \
+         REPO="$tmp/repo" "$bashbin" "$me" --push 2>&1)"; rc=$?
+  # rc alone cannot tell the managed refusal from "no installer found" — the same trap CONVENTIONS
+  # §6 names (a test whose verdict is the same either way proves nothing). Assert the REASON.
+  if [ "$rc" -ne 0 ] && printf '%s' "$mout" | grep -q "pi update self"; then
+    info "managed-push       caught (refuses to npm -g over pi's own layout, and says why)"
+  else err "canary passed: --push installed a second layout over a managed install"; fails=$((fails+1)); fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo 'OK — all canaries caught' || echo "$fails canary/canaries NOT caught")"
   return "$fails"

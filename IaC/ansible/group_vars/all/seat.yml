@@ -10,6 +10,12 @@ seat_bind: 127.0.0.1                  # loopback only: peers reach the cockpit t
                                       # pi-oldsrv-ts router, never a LAN interface
 seat_pi_web_port: "{{ cockpit_pi_web_port }}"   # one port value, two consumers (IaC §2)
 seat_pi_node_bin: "/home/{{ seat_user }}/.local/share/pi-node/current/bin"
+# pi's OWN launcher dir — the managed install (`releases-v1`: ~/.pi/agent/bin/pi over
+# ~/.pi/agent/install/releases/<ver>/). pi 1.1.0's `pi update` MIGRATES an npm -g seat here and
+# removes the node-dir symlink, so the unit PATH must carry BOTH dirs: with only the node dir,
+# every chat send dies `exec: "pi": executable file not found in $PATH` (live on oldsrv
+# 2026-10-09, one `pi update` after the HD-445 drop-in went green).
+seat_pi_bin: "/home/{{ seat_user }}/.pi/agent/bin"
 seat_unit_dir: "/home/{{ seat_user }}/.config/systemd/user"
 seat_pi_web_bin: ".pi/agent/bin/pi-web"   # written by `pi install npm:@ygncode/pi-web`
 seat_pi_web_vault_item: cockpit-pi-web_api  # token source; never a literal (§6)

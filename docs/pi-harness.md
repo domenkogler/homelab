@@ -41,6 +41,23 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
   vault, HD-370). Never commit the literal and never print its value (CONVENTIONS §6).
 - Reload: `models.json` is re-read every time `/model` is opened in a running session; a new session
   picks it up at start. `settings.json` is read at start → restart pi.
+- **Where the pi BINARY lives — two layouts, one PATH (measured on oldsrv 2026-10-09).** `npm -g`
+  installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
+  [`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) does); pi's own installer writes a
+  launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).
+  **`pi update` run inside a session migrates the first layout into the second and deletes the
+  node-dir symlink** (1.1.0's own CHANGELOG recommends the migration), so a seat can lose `pi` from
+  PATH on the day it updates while pi itself runs perfectly — which is what happened to oldsrv, and
+  what made the cockpit die with `exec: "pi": executable file not found in $PATH`.
+  Three places carry **both** dirs from that date: the seat's `.bashrc`/`.profile`
+  (`install-pi-debian.sh --path-only` is the repair for a seat whose block predates it), the cockpit
+  unit (`roles/seat` → `pi-on-path.conf`, `seat_pi_bin` + `seat_pi_node_bin`, asserted in the live
+  unit), and every probe (`pi_bin()` / `pi_candidate()`) — a probe that reads only PATH reports
+  "no pi here" for a seat that has one, the reason `pi-self-update.sh` printed `SKIP` with rc 0 on a
+  seat running the pinned build. `pi update self` installs the LATEST release and takes no version
+  flag, so a managed seat off its pin is an **owner** action — move `pi_host_npm_version` +
+  `pi_dev_npm_version` to what it reports, or move the seat back to the pinned layout with
+  `install-pi-debian.sh --pi-only`; the script refuses to npm-install a second layout underneath it.
 
 ---
 

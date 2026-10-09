@@ -83,18 +83,33 @@ require_cmds() {
   for c in "$@"; do command -v "$c" >/dev/null 2>&1 || { echo "error: missing '$c' (apt install $c)" >&2; exit 1; }; done
 }
 
+# ---- resolve pi across BOTH layouts (see install-pi-debian.sh's header) --------------------
+# The official pi.dev installer used below writes pi's OWN managed layout (~/.pi/agent/bin over
+# install/releases), which is NOT the npm -g shape the Debian sibling installs; and a seat that
+# ran `pi update` can be migrated there with the node-dir symlink deleted. A bare `command -v pi`
+# is empty in exactly those cases while pi runs fine (oldsrv, 2026-10-09).
+PI_ENTRY_DIR="${PI_ENTRY_DIR:-$HOME/.pi/agent/bin}"
+pi_bin() {
+  local p
+  p="$(command -v pi 2>/dev/null || true)"
+  [ -n "$p" ] && [ -x "$p" ] && { printf '%s' "$p"; return 0; }
+  [ -x "$PI_ENTRY_DIR/pi" ] && { printf '%s' "$PI_ENTRY_DIR/pi"; return 0; }
+  return 1
+}
+
 # ---- --reload: informational only -------------------------------------------
 if [ "$MODE" = "--reload" ]; then
   say "install-pi (REPO=$REPO)"
-  if command -v pi >/dev/null 2>&1; then
-    info "pi:        $(command -v pi) -> $(pi --version 2>/dev/null || echo '?')"
+  pb="$(pi_bin || true)"
+  if [ -n "$pb" ]; then
+    info "pi:        $pb -> $("$pb" --version 2>/dev/null || echo '?')"
     info "pi config: $(ls -d "$HOME/.pi/agent" 2>/dev/null || echo 'ABSENT')"
   else
     info "pi:        NOT installed (run: bash scripts/install-pi-wsl.sh)"
     exit 0
   fi
   info "skills:    $(ls "$HOME/.pi/agent/skills" 2>/dev/null | tr '\n' ' ')"
-  info "packages:  $(pi list 2>/dev/null | tail -n +1)"
+  info "packages:  $("$pb" list 2>/dev/null | tail -n +1)"
   echo; echo "    then: cd $REPO && bash scripts/guard-session.sh"
   exit 0
 fi
@@ -112,14 +127,18 @@ if [ "$MODE" != "--config-only" ]; then
   # Official installer: installs/repairs pi + ensures a new-enough node.
   curl -fsSL https://pi.dev/install.sh | sh
   # Refresh PATH for this session (installer may have appended a standalone node bin).
-  if ! command -v pi >/dev/null 2>&1; then
-    hash -r 2>/dev/null || true
+  pb="$(pi_bin || true)"
+  if [ -z "$pb" ]; then hash -r 2>/dev/null || true; pb="$(pi_bin || true)"; fi
+  [ -n "$pb" ] || { echo "error: no pi after install (looked on PATH and in $PI_ENTRY_DIR) — add the installer's bin dir to your shell profile" >&2; exit 1; }
+  if [ "$pb" = "$PI_ENTRY_DIR/pi" ] && ! command -v pi >/dev/null 2>&1; then
+    echo "    NOTE: pi lives at $PI_ENTRY_DIR and that dir is NOT on PATH — add it to ~/.bashrc or 'pi' will not resolve in a shell" >&2
   fi
-  command -v pi >/dev/null 2>&1 || { echo "error: pi not on PATH after install — add the installer-suggested node bin to your shell profile" >&2; exit 1; }
-  info "pi:  $(command -v pi) -> $(pi --version)"
+  info "pi:  $pb -> $("$pb" --version)"
 else
-  require_cmds pi
+  pb="$(pi_bin || true)"
+  [ -n "$pb" ] || { echo "error: no pi found (neither PATH nor $PI_ENTRY_DIR) — run without --config-only" >&2; exit 1; }
 fi
+PI_BIN="$pb"
 
 # ============================ repo config sync ===============================
 if [ "$MODE" != "--pi-only" ]; then
@@ -161,9 +180,9 @@ if [ "$MODE" != "--pi-only" ]; then
       ''|' '*) continue ;;
     esac
     info "pi install $pkg"
-    pi install "$pkg"
+    "$PI_BIN" install "$pkg"
   done
-  info "installed: $(pi list 2>/dev/null | tr '\n' ' ')"
+  info "installed: $("$PI_BIN" list 2>/dev/null | tr '\n' ' ')"
 
   # The seat TUI package carries ONE harness-relevant key: the footer's hostname segment,
   # which is what answers "which box am I typing to" (docs/pi-harness.md §5a — the job the
