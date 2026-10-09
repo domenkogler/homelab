@@ -115,6 +115,36 @@ tags: [services, rejected, decision-log]
 | `url-dl.` subdomain                                                | superseded | renamed `lidarr-ydl.`                                              |
 | WireGuard / `modem-lan` in `local_ranges`                          | rejected   | peer ranges are not "this house"                                   |
 | `ydl.` as the downloader subdomain                                 | rejected   | tool is music-only, name says lidarr                               |
+| Actual Budget nightly image (native EB sync)                       | rejected   | mutable tag; no Renovate semver trail                              |
+| Actual Budget on the VPS                                           | rejected   | financial data stays on the LAN plane                              |
+| AI copilot container for Actual categorization                     | rejected   | the n8n-native loop covers it                                      |
+| Authentik client / Forward-Auth on office.kogler.si                | rejected   | WOPI uses a shared JWT; breaks the editor                          |
+| Classic Element (Android/iOS) as the mobile client                 | rejected   | Tuwunel serves no `r0` SSO-redirect route                          |
+| Cloudflare proxy (orange cloud)                                    | rejected   | CrowdSec needs real client IPs at the edge                         |
+| Credit-card SMS/email alert parsing (Phase 1)                      | dropped    | monthly CSV is the anchor                                          |
+| CrowdSec's bundled Metabase image                                  | rejected   | CrowdSec Web UI is its dashboard surface                           |
+| Crypto.com / Curve integration                                     | dropped    | both accounts unused                                               |
+| Direct exposure without Cloudflare DNS                             | rejected   | same result, no benefit                                            |
+| Edge rewrite of r0->v3 for classic Element                         | rejected   | imitates an API the origin does not serve                          |
+| Hand-authoring MSC2965 into the client well-known                  | rejected   | forks homeserver identity into IaC                                 |
+| Hand-created OIDC providers in the Authentik UI                    | rejected   | blueprint config-as-code plus credential glue                      |
+| Home-app DNS "everything -> VIP"                                   | rejected   | VIP normally sits on the Pi                                        |
+| Homelable native OIDC login                                        | dropped    | single-owner admin tool behind the LAN ACL                         |
+| `labels: publish=` compose mechanism                               | superseded | publishes thread through `*_bind` vars                             |
+| LibreOffice / OpenOffice on Linux clients                          | rejected   | ONLYOFFICE preserves MS formatting better                          |
+| Matrix `/_matrix/*` behind Forward-Auth                            | rejected   | federation and native clients need direct reach                    |
+| nftables rate limiting for the RustDesk relay                      | rejected   | a silent drop is a dead support session                            |
+| One OpenCloud OIDC provider per client type                        | rejected   | one issuer; single `OC_OIDC_ISSUER`                                |
+| ONLYOFFICE Docs-native TLS                                         | rejected   | keeps single-cert issuer + CrowdSec on every edge                  |
+| ONLYOFFICE Documents app as the phone's cloud client               | rejected   | connectors need a password, no SSO                                 |
+| OpenCloud photo backup                                             | rejected   | Immich owns family photos                                          |
+| Pairdrop LAN-only exposure                                         | superseded | public P2P on both pairdrop and drop names                         |
+| Persisted vault token `authentik-provision_api`                    | dropped    | upstream auto-rotation invalidates it                              |
+| RustDesk WebSocket ports 21118/21119                               | rejected   | web client unused; X-Real-IP spoofable there                       |
+| `tailscale serve :8080..8085` dashboard sidecar                    | superseded | traefik-tailnet edge serves clean URLs                             |
+| `traefik-internal` started on forward takeover                     | dropped    | edge runs always on oldsrv                                         |
+| `vps-op-write_api` vault item name                                 | superseded | renamed to `op-write_api`                                          |
+| Wine / VM / Windows license on the oldsrv desktop                  | rejected   | native Debian + native ONLYOFFICE                                  |
 
 > **Not a services-domain decision:** hypervisor / deploy / storage / network / smart-home UI rejections (Proxmox, Doco-CD, iDrive, MinIO, TileBoard, netplan…) live in their own `<domain>-rejected.md` files — see [`deployment-rejected.md`](deployment-rejected.md), [`storage-rejected.md`](storage-rejected.md), [`network-rejected.md`](network-rejected.md), [`smart-home-rejected.md`](smart-home-rejected.md).
 > **SSOT note:** this log is the decision-log SSOT for the services domain.
