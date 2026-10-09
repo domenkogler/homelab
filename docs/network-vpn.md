@@ -648,7 +648,13 @@ The jump is a property of **the inventory**, not of a runner: `ansible_ssh_commo
 in `group_vars/home_servers.yml`, `group_vars/storage.yml`, `group_vars/raspberry_pi.yml` and
 `group_vars/spark.yml` (`playbooks/spark.yml` keeps its identical play-level copy — play vars win over
 group vars, same value, no conflict). **A laptop-local `~/.ssh/config` is not a durable artifact** — it is
-the convenience layer, specified in §The laptop alias contract below. Proven off-LAN with a stub config that
+the convenience layer, specified in §The laptop alias contract below. **Amended 2026-10-09 (HD-1123): that
+sentence was written when the only alternative was Ansible.** It is now a durable artifact in one specific
+sense: the marker-delimited block that
+[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) renders from
+[`ssh/aliases.tmpl`](../ssh/aliases.tmpl) is a repo-owned, digest-pinned, per-seat-class *seat plane*, and a
+seat's file is reproducible from the repo. What is still not durable — and what the plane exists to retire —
+is the **hand-kept** copy, the part of the file no script can prove or rebuild. Proven off-LAN with a stub config that
 contains **only** the `Host vps` block (`ANSIBLE_SSH_ARGS="-F <stub>" ansible <host> -m ping`): pong for all
 four behind-NAT hosts — the repo alone carries the path.
 
@@ -683,11 +689,15 @@ Two rules decide every block:
 | `nas`, `….1.10` | Home | `vps` | the group var AND the alias must both carry the jump |
 | `oldsrv`, `….1.30` | Home | `vps` | `ssh oldsrv` = the **Home** address; mgmt access is `oldsrv99` |
 | `spark`, `….1.40` | Home | `vps` | the precedent both the play and the group var copy |
-| `oldsrv-domen` | Home | `vps` | **the coding seat** (HD-492): the same leg and the same jump as `oldsrv`, but `User domen` with `IdentityFile ~/.ssh/domen_ed25519` + `IdentitiesOnly yes`. Key-only — `PasswordAuthentication` stays `no` by policy, so a block that offers a password method (the Windows twin did) can never work. There is no tailnet-direct form: the ACL grants `tag:dev:443`, not 22 |
+| `oldsrv-domen` | Home | `vps` | **the coding seat** (HD-492): the same leg and the same jump as `oldsrv`, but `User domen` with `IdentityFile ~/.ssh/domen_ssh` + `IdentitiesOnly yes` (HD-1123 renamed the file; §Canonical identity file names). Key-only — `PasswordAuthentication` stays `no` by policy, so a block that offers a password method (the Windows twin did) can never work. There is no tailnet-direct form: the ACL grants `tag:dev:443`, not 22 |
 | `pi99`, `oldsrv99`, `nas99`, `router`, `switch`, `ap-spalnica`, `ap-dnevna`, `ap-spare` | Mgmt (VLAN 99) | **none — never add one** | on-site admin paths only (decision A); `oldsrv99`/`nas99` are the explicit on-site legs |
 
 Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and
-`C:\Users\domen\.ssh\config` (Windows OpenSSH).
+`C:\Users\domen\.ssh\config` (Windows OpenSSH). **Since HD-1123 they are not maintained by hand: both are the
+render of one [`ssh/aliases.tmpl`](../ssh/aliases.tmpl) for a declared seat class, written by
+[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) inside a marker block.** The remaining
+agreement problem was never the aliases, it was the identity FILES those aliases name — §Canonical identity
+file names below, and §The Win11 `~/.ssh` retirement list for the order in which the divergent names are retired.
 
 **And a third variable decides them: WHICH `ssh` runs them (measured 2026-10-09, HD-492).** The
 contract's `.pub`-as-`IdentityFile` form is not self-sufficient — it selects a key an AGENT must hold.
@@ -712,6 +722,87 @@ with `Host key verification failed`, which is a missing-alias-and-key symptom, n
 Ansible never reads this file: the jump it needs travels in `ansible_ssh_common_args` (`group_vars/storage.yml`,
 `raspberry_pi.yml`, …), so a seat alias never changes how a converge reaches a host — direct aliases are a human
 and `scp`/`rsync` convenience, the same role the `Host <ip>` blocks serve on the laptop.
+
+#### Canonical identity file names (SSOT — one name per identity, the same name on every seat)
+
+The aliases above are only half the contract; the other half is **which file they point at**, and that is
+where the seats drifted. One identity, one file name, on Windows, WSL and the cockpit seat alike. Names and
+fingerprints only — this doc never carries key material, and it never will.
+
+| Identity (what it IS) | Canonical file(s) | Vault item | Private half lives | `SHA256` fingerprint |
+|---|---|---|---|---|
+| **The operator** — a human, interactive, every seat | `~/.ssh/domen_ssh` + `.pub` | `domen_ssh` (`SSH_KEY`: `public key` / `fingerprint` / `private key` / `key type`) | **private on every seat**, incl. Windows (HD-492 option C) | `SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA` |
+| **Automation** — `ansible-admin`, the fleet's SSH user | `~/.ssh/ansible-admin_ssh` + `.pub` | `ansible-admin_ssh` (same shape) | private on **WSL + cockpit seat**; on Windows only the **`.pub` hint**, the agent holds the private half (HD-490) | `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` |
+| GitHub **auth** (the seat deploy key, repo-scoped) | `~/.ssh/github_auth` + `.pub` | `GitHub auth` | per-seat, seeded by [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) | (per key, HD-449) |
+| GitHub **signing** | `~/.ssh/github_signing` + `.pub` | — | **retired**: the owner deleted the signing key (HD-1116); a local pair left on a seat is a leftover, not an identity | — |
+| **Machine-local** host key (`HostName`/`IdentityAgent` legacy, ssh's own default) | `~/.ssh/id_ed25519` + `.pub` | — | per-machine, **never referenced by an alias** | `SHA256:YbldrWp8ndNOOGx7YMKJYulSoIqZmk5w9fnNkezsVOk` (Windows seat) |
+| Out-of-band console | `~/.ssh/id_rsa_ilo` + `.pub` | — | where it is used (iLO/IOMesh); not a fleet identity | — |
+| Host **trust**, not identity | `known_hosts`, `allowed_signers` | — | per-seat; a `Host*` line in `allowed_signers` is the trap HD-1110 named | — |
+| Vendor leftovers | `Hetzner-SSH-key.pub` | — | a hint of someone else's key; retire it when no alias names it | — |
+
+**The rule, in one line:** an alias may name a file from this table and nothing else — a key file that is
+neither named here nor named by an alias is an accident, and gets retired. `scripts/seed-seat-ssh-config.sh`
+enforces the alias half and refuses to render an `IdentityFile` outside this list.
+
+Three facts that make the renames cheap rather than scary:
+
+- **The 1Password agent matches on key bytes, not file names.** Renaming `laptop-domen_ssh.pub` →
+  `domen_ssh.pub` is a **rename, not a re-issue**: no dialog, no unlock, no new enrollment, same fingerprint,
+  same admission. This is the HD-490 mechanism stated as a rule instead of a footnote.
+- **There is no vault act in this migration.** The item's title is already `domen_ssh` — the owner renamed it
+  from `laptop-domen_ssh` on 2026-09-25 ([deployment-secrets.md](deployment-secrets.md) §SSH Key Separation
+  and §Rename Map) — so
+  nothing is renamed, unlocked or re-registered here; the Windows private half is exported headless from WSL
+  with `op read` (HD-492's tail). `dome_ssh` was never the item's name and survives only as stale repo prose.
+- **This table governs seat-side FILE names for human/automation identities.** Service identities
+  (`ai_ssh` → `ai-debug`, the OpenVPN peer, the Postgres roles) are registered in
+  [deployment-secrets.md](deployment-secrets.md) §Master Secret List / §SSH Key Separation and have no business being named by a laptop
+  alias; if one turns up in `ssh/aliases.tmpl`, that is the bug, not the exception.
+- **A file that is a copy of an identity is still a second identity to a reader.** WSL's `domen_ed25519` and
+  the Windows `laptop-domen_ssh.pub` are both the operator key under two names; both move to `domen_ssh`, and
+  the old names are removed in the order below — not the other way round.
+
+#### The Win11 `~/.ssh` retirement list (ordered — prove the new path BEFORE you rename the old one)
+
+HD-443's ruling applies to files as well as keys: **place, prove, then remove.** Reordering those three
+produces exactly the outage the row records — an alias pointing at a name that no longer resolves, and a
+seat that can no longer authenticate because the copy it used silently became the only one. Every step keeps
+a dated copy: `cp -p` to `<name>.retired-20261009` for files, `config.bak-<UTC>` for the config (which
+`seed-seat-ssh-config.sh` writes for you), and nothing is deleted until a later session proves nothing read it.
+
+Measured on this seat 2026-10-09 (`C:\Users\domen\.ssh`), which is the starting state:
+`ansible-admin_ssh.pub` · `laptop-domen_ssh.pub` · `github_auth{,.pub}` · `github_signing{,.pub}` ·
+`id_ed25519{,.pub}` · `id_rsa_ilo{,.pub}` · `Hetzner-SSH-key.pub` · `allowed_signers` · `known_hosts{,.old}` ·
+`1Password/` · `agent/` · `config` (+ two `config.bak-*`). **There is no `domen_ssh` file at all** — the
+operator identity has never had a file on this seat, which is the hole step 1 fills.
+
+1. **Place** `domen_ssh` (+ `.pub`) — `op read "op://Private/domen_ssh/private key"` from WSL into
+   `C:\Users\domen\.ssh\domen_ssh`, `chmod 600`, then verify the fingerprint equals the table above. Write
+   nothing else, rename nothing yet.
+2. **Prove** one leg per identity FROM Windows, with the exact file an alias will name: `ssh.exe -G vps` (what
+   OpenSSH resolves), `ssh vps` (the agent-held `ansible-admin_ssh.pub` path), and a temporary
+   `-o IdentityFile=~/.ssh/domen_ssh -o IdentitiesOnly=yes ssh oldsrv-domen` (the operator path). Record the
+   build too — Windows OpenSSH and the Git-Bash `ssh` give opposite verdicts on a `.pub` hint (HD-492).
+3. **Push the plane**: `bash scripts/seed-seat-ssh-config.sh --push`. Expect **REFUSAL(shadow)** first, because
+   the hand-kept contract region declares the same aliases outside the markers — move that region out (its
+   content is now generated), keep the dated `.bak-`, re-push. Same sequence on WSL.
+4. **Rename the duplicates into the canonical name**, one at a time, with a dated copy kept in place:
+   `laptop-domen_ssh.pub` → `domen_ssh.pub`; on WSL `domen_ed25519` → `domen_ssh` (and `.pub`). Re-run the
+   step-2 legs after each rename; the agent needs nothing, but a typo is indistinguishable from a revocation
+   until something proves it.
+5. **Retire the leftovers, only once no alias and no script names them**: `github_signing{,.pub}` (signing is
+   retired, HD-1116), `Hetzner-SSH-key.pub`, `known_hosts.old`, and any `config.bak-*` older than this
+   migration. `id_rsa_ilo` stays if a console leg still uses it. `known_hosts` stays: it is trust, not identity.
+6. **Leave alone**: `1Password/`, `agent/` (the agent's own state, not a key), `id_ed25519` — machine-local, and
+   the one file that must never appear in an alias, because an alias that authenticates as the *machine* is
+   how an automation ends up reading like a human (HD-154's `MaxAuthTries` failure mode).
+
+**No IaC blast radius — read this before grepping.** The string `laptop-domen` also appears in
+`IaC/ansible/group_vars/all/main.yml`, `IaC/ansible/group_vars/router.yml`,
+`IaC/ansible/roles/router/tasks/main.yml` and the `IaC/router/templates/*.j2` that render from them. That is
+the router's **static-host / DNS name for this laptop** — a different namespace, not a key file and not an
+alias. Renaming these files touches none of it; `network-addresses-generated.md` and `network-vlans.md` are
+generated from the address SSOT and stay untouched by this migration.
 
 ### The tailnet is not observable from the VPS host
 
