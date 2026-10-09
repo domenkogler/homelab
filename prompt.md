@@ -153,7 +153,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    **Deferred by owner 2026-10-08**: the external-room join is unscheduled; everything publishable is published and
    measured. → [prompt-edge-identity.md](prompt-edge-identity.md)
 9. ⏳ **The LiteLLM consumer chain** — one ordered pair left (**HD-384**).
-   Four of the lane's five items are closed 2026-10-09: the thinking control IS honoured through both gateways on
+   The rows this brief no longer carries reached ground 2026-10-09: the thinking control IS honoured through both gateways on
    the pinned image ([docs/services-ai.md](docs/services-ai.md) §9d); the `/ui/login` deep-link defect did not
    survive the 2026-10-08 pin (§4c); **voice has an LLM to call** — HA's `litellm` entry, its conversation agent
    and the Assist wire are live, proven by a Slovenian turn end to end
