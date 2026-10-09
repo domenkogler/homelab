@@ -142,6 +142,18 @@ grep -q "homelab-sa-token" ~/.bashrc || printf '\n[ -f %s ] && source %s\n' "$OP
 # Last assignment wins in bash, so a leftover inline export shadows or duplicates the file.
 sed -i '/^export OP_SERVICE_ACCOUNT_TOKEN=/d' ~/.bashrc
 
+# A token that ever reached a command line is stored VERBATIM in shell history. The line above
+# scrubs ~/.bashrc; ~/.bash_history is a different file and nothing touched it — found live
+# 2026-10-09 on the oldsrv seat (one plaintext line in a 0600 file), which is how a "value that
+# never crossed a prompt" ended up readable by anything running as that uid. Warn; do not rewrite
+# a human's history file from a bootstrap script.
+for HIST_FILE in "$HOME/.bash_history" "$HOME/.zsh_history"; do
+    if [ -f "$HIST_FILE" ] && grep -q '^export OP_SERVICE_ACCOUNT_TOKEN=' "$HIST_FILE" 2>/dev/null; then
+        echo "⚠ WARNING: $HIST_FILE holds a plaintext OP_SERVICE_ACCOUNT_TOKEN export — the 0600 file above protects nothing while that line stands."
+        echo "  Scrub it:  sed -i '/^export OP_SERVICE_ACCOUNT_TOKEN=/d' $HIST_FILE"
+    fi
+done
+
 # Make the systemd ssh-agent socket (if present) the default SSH agent for git commit
 # signing + SSH auth (HD-265). Guarded: only exported when the socket actually exists.
 # Kept here (host environment, not git-bootstrap) so every shell can use the loaded keys.

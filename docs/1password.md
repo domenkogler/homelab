@@ -29,8 +29,8 @@ one vault), both re-issued:
 
 | Item | Scope | Who uses it |
 |---|---|---|
-| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) any CI runner that resolves the vault (HD-315's `vault-gate`; Phase 0/5 of [../deployment-tasks.md](../deployment-tasks.md) store `op_api` as a runner secret — renew it there after every rotation, or CI's vault access starts 403-ing). ✅ **Rotated by the owner 2026-10-08**; the superseded value stops working ~2026-10-15, so re-seed + re-verify every consumer before then (HD-495 carries the leg) |
-| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted) |
+| `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder: the Phase 0/5 "`op_api` as a runner secret" premise was answered 2026-09-25 — **there is no Forgejo runner holding it** (HD-396, [../deployment-tasks.md](../deployment-tasks.md) §Vault inventory), and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) carries no OP secret. ✅ **Rotated by the owner 2026-10-08** (leak response), the superseded value stops working ~2026-10-15; ✅ **re-seated 2026-10-09 on the oldsrv control node and the oldsrv seat** (HD-495 carries the leg). ⏳ laptop-WSL copy and `/etc/op/provision-token` hosts still owed — see the rotation-round block below |
+| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted). ⚠ **Rotated by the owner 2026-10-09 in the same leak response** — every `/etc/op/provision-token` copy in the fleet now carries the SUPERSEDED value and 403s once the grace window closes; it reaches them only through an `op-provision-token` converge ([deployment-secrets.md](deployment-secrets.md) §`op-write_api`) |
 
 > **Superseded design (kept for the record, do not re-implement):** this section used to say the
 > runner token was item **`Service Account Auth Token: ansible`** in a separate **Private vault**,
@@ -41,43 +41,85 @@ one vault), both re-issued:
 ### Where a token is installed (the whole list)
 | Host / system | Token | Source of truth |
 |---|---|---|
-| **`oldsrv` — the on-site control node** (seeds 2026-09-22, proving logs 2026-09-23) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` on the laptop — the value never crossed a prompt or a shell history |
-| **`oldsrv` SEAT — `domen`, the cockpit/authoring account** (HD-495, 2026-10-06) | `op_api` | `~/.config/op/homelab-sa-token` (0600, owner `domen`), sourced from `~/.bashrc`. Read scope verified: `op vault list` returns `Homelab-ansible` and nothing else. This is what closed "the seat cannot author" in [deployment-ansible.md](deployment-ansible.md) §Runner placement |
-| **control node (rescue)** — this WSL Debian laptop. No longer "the only place `ansible-playbook` is run interactively" (HD-407 closed that), and it stays installed as the door you open when the on-site runner is the thing that is broken | `op_api`… **nominally** — see the two-token finding below | `~/.config/op/homelab-sa-token` (0600) |
-| **Forgejo CI runner** (the `vault-gate` job + any playbook it runs) | `op_api` | a Forgejo secret |
+| **`oldsrv` — the on-site control node** (`ansible-admin`, seeds 2026-09-22, proving logs 2026-09-23) | `op_api` | `~/.config/op/homelab-sa-token` (0600), written by `bootstrap-runner.sh --token-stdin` from `op read` on the laptop — the value never crossed a prompt or a shell history. ✅ **re-seated to the rotated value 2026-10-09** (`op item list` = rows, not 403) |
+| **`oldsrv` SEAT — `domen`, the cockpit/authoring account** (HD-495, 2026-10-06) | `op_api` | `~/.config/op/homelab-sa-token` (0600, owner `domen`), sourced from `~/.bashrc`. This is what closed "the seat cannot author" in [deployment-ansible.md](deployment-ansible.md) §Runner placement. ⚠ **Until 2026-10-09 this file held the WRITE-scoped token, not `op_api`** — see the corrected finding below; ✅ re-seated to the read-scoped value 2026-10-09, now proven by SA identity, not by `op vault list` (which cannot tell the two scopes apart) |
+| **control node (rescue)** — this WSL Debian laptop. No longer "the only place `ansible-playbook` is run interactively" (HD-407 closed that), and it stays installed as the door you open when the on-site runner is the thing that is broken | `op_api`… **nominally** — see the corrected finding below | `~/.config/op/homelab-sa-token` (0600) |
+| ~~Forgejo CI runner~~ | ~~`op_api`~~ | **no holder** (HD-396, settled 2026-09-25): no `.forgejo/` workflow, no runner. The Phase 0/5 "renew it in CI after every rotation" line has nothing to renew |
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
 | **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
 
-### Two live read-scope values, three installs (hashes re-measured 2026-10-06)
+### The "two-token finding" was wrong: the second value was the WRITE-scoped item
 
-`sha256(token)[:12]`, values never printed — the method the rotation section already prescribes:
+> **CORRECTED 2026-10-09, measured during the rotation re-seat.** This section documented a
+> "vault-invisible" second read-scope token living only on the laptop's disk, and concluded that
+> rotating `op_api` could not revoke it. The premise was a **mis-seed, not a mystery**: the value in
+> question (`be1939305745`) is byte-identical to `op://Homelab-ansible/**op-write_api**/credential` —
+> the **read+write**-scoped service account. Whoever seeded the oldsrv seat on **2026-10-07 01:05**
+> (file mtime) read the write item instead of `op_api`. Two things follow, and both were invisible to
+> every check this repo had:
+>
+> 1. **A seat was running a write-scoped credential** for ten months' worth of authoring work, and
+>    `op vault list` — the probe this doc cited as "read scope verified" — **cannot distinguish the two
+>    scopes**: both list the one vault. Scope is proven by the **`op whoami` Integration ID** (the two
+>    service accounts are different integrations) or by a write attempt that fails.
+> 2. **Rotating `op_api` revoked nothing on that box.** A rotation of item A does not touch item B, so
+>    a leak-response rotation silently left the mis-seated consumer holding a live credential. That is
+>    the HD-442 class again, one level up: the check passes, the credential is wrong.
 
-| Where | length | hash prefix |
+`sha256(token)[:12]`, values never printed (CONVENTIONS §6). Current pair after the 2026-10 leak response:
+
+| Item / install | value | service account |
 |---|---|---|
-| laptop `~/.config/op/homelab-sa-token` | 850 | `be1939305745` |
-| `op://Homelab-ansible/op_api/credential` (the item the docs call the source of truth) | 850 | `adc2aada8f6e` |
-| oldsrv `~/.config/op/homelab-sa-token` | 850 | `adc2aada8f6e` — matches the vault item |
-| **oldsrv seat `~/.config/op/homelab-sa-token`** (`domen`, HD-495) | 850 | `adc2aada8f6e` — matches the vault item, so the seat is an install of the canonical value, not a new mint point |
+| `op_api` — **current** | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
+| `op_api` — superseded 2026-10-08 | `adc2aada8f6e` | dead ~2026-10-15 (probed alive 2026-10-09: 137 vault rows) |
+| `op-write_api` — **current** (2026-10-09) | `b61f34e3bc95` | Integration `PR4Z2FGWW5BRXNL6OR3FNYL3R4` (read+write) |
+| `op-write_api` — superseded 2026-10-09 | `be1939305745` | Integration `MBMQSOLDYBBDVDTSVT7WDRPMQM`; this is the value the "two-token finding" thought was vault-invisible |
 
-So the laptop's installed token is **not** the token the vault says is canonical, and both work.
-Consequence, stated plainly: **rotating or deleting `op_api` does not revoke the laptop's token.**
-An SA token that exists only on a disk and in no vault item is invisible to every procedure written
-against the vault, which is the same class of defect as `oldsrv-rsync` (HD-416) in a different
-subsystem. ⏳ Decide deliberately: either re-seat the laptop from `op read` and let the vault item be
-the single mint point, or mint/record the second token as its own vault item with a named consumer.
-Not this lane's call — it is a credential-revocation decision, and revoking the wrong one locks the
-rescue runner out of the vault.
+**The revocation rule, restated so the next rotation does not repeat this:** a rotation revokes the
+consumers of **that item**, and only them. Enumerate consumers by *value hash*, not by *doc row* — the
+seat appeared in the `op_api` row and carried the write item. Sweep form (hashes only, never values):
+
+```bash
+for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token; do \
+  [ -f "$f" ] || continue; ( set -a; . "$f"; set +a \
+    ; printf '%s  %s\n' "$f" "$(printf %s "$OP_SERVICE_ACCOUNT_TOKEN" | sha256sum | cut -c1-12)" ); done
+```
+
+⏳ Still open from this round: the **laptop-WSL** copy (docs-recorded as `be1939305745` = the write
+item, re-measure and overwrite it from `op read`) and every **`/etc/op/provision-token`** host, which
+holds the superseded write value until an `op-provision-token` converge replaces it — issued FROM the
+laptop, never from oldsrv (HD-413 self-converge lockout, [deployment-secrets.md](deployment-secrets.md)).
 
 ### Rotating the control-node token
 `scripts/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
-rotation it prints *"token already stored"* and changes nothing. Rotate with:
+rotation it prints *"token already stored"* and changes nothing. Prefer the **pipe form**, which needs
+no paste box and leaves no literal in history or in a transcript (needs any still-working token on the
+box, since it reads the item itself — do it inside the grace window, not after):
+```bash
+umask 077; install -d -m 700 ~/.config/op
+op read "op://Homelab-ansible/op_api/credential" </dev/null | \
+  { IFS= read -r T; printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' "$T"; } \
+  > ~/.config/op/homelab-sa-token && chmod 600 ~/.config/op/homelab-sa-token
+unset OP_SERVICE_ACCOUNT_TOKEN; set -a; . ~/.config/op/homelab-sa-token; set +a
+op whoami && printf 'len=%s sha256[:12]=%s\n' "${#OP_SERVICE_ACCOUNT_TOKEN}" \
+  "$(printf %s "$OP_SERVICE_ACCOUNT_TOKEN" | sha256sum | cut -c1-12)"
+```
+Only a paste box is available (a fresh box, or after the old value died) — then use `read -rsp` so the
+value never lands on a command line, and scrub history afterwards:
 ```bash
 read -rsp "new op_api token: " T && printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' "$T" \
   > ~/.config/op/homelab-sa-token && unset T && chmod 600 ~/.config/op/homelab-sa-token \
   && set -a && . ~/.config/op/homelab-sa-token && set +a && op whoami
+sed -i '/^export OP_SERVICE_ACCOUNT_TOKEN=/d' ~/.bash_history
 ```
+⚠ **`~/.bashrc` is scrubbed by `bootstrap-runner.sh` step 5; `~/.bash_history` is not.** A token typed
+into a `printf … 'PASTE_TOKEN' > …` command line — the form this doc used to recommend — is stored
+verbatim in history (found live 2026-10-09 on the oldsrv seat, one line, mode 0600, purged in place).
+The sweep is the `sed` above; the audit is `grep -c '^export OP_SERVICE_ACCOUNT_TOKEN=' ~/.bash_history`.
+**Check the same file on every seat, and check the pi transcripts** — a value that crossed a transcript
+cannot be scrubbed from the repo, only rotated.
 **Trap that bites every time:** an already-running shell keeps exporting the OLD value, and the
 environment beats the file. `op whoami` returning `403 … You aren't authorized to access this
 resource` with a freshly-written file means exactly that — re-`source` the file (or open a new
@@ -99,10 +141,15 @@ op whoami                          # shows User Type: SERVICE_ACCOUNT
 ```
 
 ### Install on a fresh runner (repo bootstrap convention)
+Never put the literal in the command line — the form below takes it from a prompt, so history and
+transcripts stay clean (the older `'PASTE_TOKEN'` form in this line's place leaked into
+`~/.bash_history` exactly as described above):
 ```bash
 mkdir -p ~/.config/op
 umask 077
-printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' 'PASTE_TOKEN' > ~/.config/op/homelab-sa-token
+read -rsp "op_api service-account token: " OP_TOKEN && echo
+printf 'export OP_SERVICE_ACCOUNT_TOKEN=%q\n' "$OP_TOKEN" > ~/.config/op/homelab-sa-token
+unset OP_TOKEN
 chmod 600 ~/.config/op/homelab-sa-token
 [ -f ~/.config/op/homelab-sa-token ] && source ~/.config/op/homelab-sa-token
 grep -q "homelab-sa-token" ~/.bashrc || \
