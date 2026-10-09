@@ -714,12 +714,18 @@ can reach the leg).
 **A third copy exists, and it is deliberately NOT a laptop copy: the oldsrv seat's own `~/.ssh/config`** — the box
 this repo is authored on (HD-445 cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
 Home address and carry **no `ProxyJump`**: on-site a jump would hairpin through the VPS for no benefit, and
-`ssh nas` / `ssh pi` complete directly in under a second. Only the `Host vps` block is machine-managed there
-([`scripts/seed-runner-ssh.sh`](../scripts/seed-runner-ssh.sh), HD-407) plus the marker-delimited `Host github.com`
-block from [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) (HD-449) — the host aliases are
-hand-kept, which is exactly why they belong to this table: **a rebuilt seat that runs only the seeder gets `vps`
-and `spark` and silently has no `nas` / `pi`** (measured 2026-10-07: every `ssh nas|pi|oldsrv` from that seat died
-with `Host key verification failed`, which is a missing-alias-and-key symptom, not a dead host — trap 1 above).
+`ssh nas` / `ssh pi` complete directly in under a second. **Since 2026-10-09 those aliases are no longer
+hand-kept either: this seat is the render of the `cockpit` class**, pushed by
+[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) after its hand-kept blocks — the HD-467
+`seat-home-leg` marker block and two unmarked `Host spark` / `Host vps` stanzas — were moved out with a dated
+backup. Two blocks stay foreign to the plane and were preserved byte for byte: the marker-delimited
+`Host github.com` deploy-key block ([`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh),
+HD-449), and — measured, not assumed — `seed-runner-ssh.sh` now reports its own HD-407 region as
+`already present (not authored here): … names Host vps — left alone`, so a later run of that machine-managed
+seeder cannot resurrect a second `Host vps` behind the plane's back. The reason the seat needed this at all
+stands: **a rebuilt seat that runs only the runner seeder gets `vps` and silently has no `nas` / `pi`**
+(measured 2026-10-07: every `ssh nas|pi|oldsrv` from that seat died with `Host key verification failed`, which
+is a missing-alias-and-key symptom, not a dead host — trap 1 above).
 Ansible never reads this file: the jump it needs travels in `ansible_ssh_common_args` (`group_vars/storage.yml`,
 `raspberry_pi.yml`, …), so a seat alias never changes how a converge reaches a host — direct aliases are a human
 and `scp`/`rsync` convenience, the same role the `Host <ip>` blocks serve on the laptop.
@@ -736,7 +742,7 @@ fingerprints only — this doc never carries key material, and it never will.
 | **Automation** — `ansible-admin`, the fleet's SSH user | `~/.ssh/ansible-admin_ssh` + `.pub` | `ansible-admin_ssh` (same shape) | **private on every seat**, incl. Windows (HD-492 option C, executed 2026-10-09: the `.pub`-hint form is retired — Git-Bash's `ssh` has no agent to ask, `SSH_AUTH_SOCK` unset, so the hint selected a key that does not exist there; the private PKCS#8 half proved green on BOTH Windows builds) | `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` |
 | GitHub **auth** (the seat deploy key, repo-scoped) | `~/.ssh/github_auth` + `.pub` | `GitHub auth` | per-seat, seeded by [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) | (per key, HD-449) |
 | GitHub **signing** | `~/.ssh/github_signing` + `.pub` | — | **retired**: the owner deleted the signing key (HD-1116); a local pair left on a seat is a leftover, not an identity | — |
-| **Machine-local** host key (`HostName`/`IdentityAgent` legacy, ssh's own default) | `~/.ssh/id_ed25519` + `.pub` | — | per-machine, **never referenced by an alias** | `SHA256:YbldrWp8ndNOOGx7YMKJYulSoIqZmk5w9fnNkezsVOk` (Windows seat) |
+| **Machine-local** host key (`HostName`/`IdentityAgent` legacy, ssh's own default) | `~/.ssh/id_ed25519` + `.pub` | — | per-machine, **never referenced by an alias** — ⚠ the *name*, not the *contents*: measured 2026-10-09, on WSL and on the cockpit seat this path holds the **vault's automation key**, not a machine key (step 6 of the retirement list) | `SHA256:YbldrWp8ndNOOGx7YMKJYulSoIqZmk5w9fnNkezsVOk` (Windows seat); `SHA256:1uKzm…` on WSL + cockpit, = `ansible-admin_ssh` byte for byte |
 | Out-of-band console | `~/.ssh/id_rsa_ilo` + `.pub` | — | where it is used (iLO/IOMesh); not a fleet identity | — |
 | Host **trust**, not identity | `known_hosts`, `allowed_signers` | — | per-seat; a `Host*` line in `allowed_signers` is the trap HD-1110 named | — |
 | Vendor leftovers | `Hetzner-SSH-key.pub` | — | a hint of someone else's key; retire it when no alias names it | — |
@@ -761,7 +767,9 @@ Three facts that make the renames cheap rather than scary:
   alias; if one turns up in `ssh/aliases.tmpl`, that is the bug, not the exception.
 - **A file that is a copy of an identity is still a second identity to a reader.** WSL's `domen_ed25519` and
   the Windows `laptop-domen_ssh.pub` are both the operator key under two names; both move to `domen_ssh`, and
-  the old names are removed in the order below — not the other way round.
+  the old names are removed in the order below — not the other way round. The same fact holds for the automation
+  key on WSL and on the cockpit seat, where it sits at `~/.ssh/id_ed25519`; those two are named by no alias today
+  and their rename is gated on HD-1125, for the reason in step 6.
 
 #### The Win11 `~/.ssh` retirement list (ordered — prove the new path BEFORE you rename the old one)
 
@@ -794,9 +802,39 @@ operator identity has never had a file on this seat, which is the hole step 1 fi
 5. **Retire the leftovers, only once no alias and no script names them**: `github_signing{,.pub}` (signing is
    retired, HD-1116), `Hetzner-SSH-key.pub`, `known_hosts.old`, and any `config.bak-*` older than this
    migration. `id_rsa_ilo` stays if a console leg still uses it. `known_hosts` stays: it is trust, not identity.
-6. **Leave alone**: `1Password/`, `agent/` (the agent's own state, not a key), `id_ed25519` — machine-local, and
-   the one file that must never appear in an alias, because an alias that authenticates as the *machine* is
-   how an automation ends up reading like a human (HD-154's `MaxAuthTries` failure mode).
+6. **Leave alone**: `1Password/`, `agent/` (the agent's own state, not a key), `id_ed25519` — machine-local on
+   the Windows seat, and the one file that must never appear in an alias, because an alias that authenticates as
+   the *machine* is how an automation ends up reading like a human (HD-154's `MaxAuthTries` failure mode).
+
+**Step 6's `id_ed25519` carve-out is wrong on the two Debian seats, and "retire it anyway" is not safe yet
+either — owner ruling 2026-10-09, so it is recorded as a decision and not as a rule that quietly stopped
+applying.** Measured on WSL and on the cockpit seat: `~/.ssh/id_ed25519` is **byte-identical to the vault's
+`ansible-admin_ssh` private half** (`cmp` clean, `SHA256:1uKzm…`) — so it is not machine-local, it is a
+superseded NAME, and on the letter of this list it should have been renamed to `.retired-20261009` with the
+rest. It was not, because it is still load-bearing for a reason this migration did not remove: the path is
+also **ssh's default identity**, and the repo scripts connect by **bare FQDN**, which matches no alias —
+contract rule 2 says OpenSSH matches the name ACTUALLY TYPED, and the laptop classes carry the alias and the
+`Host <ip>` spellings but **not the `.kogler.si` spelling**. Those legs work only by accident, because the
+accident-key happens to be the fleet's automation key. **Ruling: leave it in place, named by no alias, and
+retire it only when [todo.md HD-1125](../todo.md) removes the dependence** — a measured dependence, not an
+exemption. The four callers: `scripts/ak-shell.sh`, `scripts/provision-vault.sh`, `seed-runner-ssh.sh`'s
+`KEY="$HOME/.ssh/id_ed25519"`, and `restore-runner-key.sh`, which treats that path as the canonical runner key.
+
+The measurement behind it (both seats, reversible — the file was moved aside and put back, never copied or
+edited), worth quoting wherever the retirement order is quoted:
+
+```
+ssh -o BatchMode=yes -o ConnectTimeout=15 ansible-admin@vps.kogler.si hostname
+  id_ed25519 in place     -> rc 0  (`vps`)
+  id_ed25519 moved aside  -> rc 255 `Permission denied (publickey)`
+ssh -o BatchMode=yes -o ConnectTimeout=15 -o IdentityFile=~/.ssh/ansible-admin_ssh ansible-admin@vps.kogler.si hostname
+  -> rc 0 on BOTH seats even with id_ed25519 moved aside
+```
+
+The second command is the future fix proven rather than asserted: FQDN spelling + canonical identity already
+works, so HD-1125 is a wiring job — add the `.kogler.si` spellings to the laptop classes in
+[`ssh/aliases.tmpl`](../ssh/aliases.tmpl) and repoint those four scripts — and only then does step 6 become a
+plain rename.
 
 **No IaC blast radius — read this before grepping.** The string `laptop-domen` also appears in
 `IaC/ansible/group_vars/all/main.yml`, `IaC/ansible/group_vars/router.yml`,
