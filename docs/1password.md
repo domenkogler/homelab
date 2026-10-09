@@ -95,10 +95,12 @@ for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token; do \
 
 ✅ **Closed by this round:** the laptop-WSL copy (`be1939305745` → `6a1342f44e65`, measured 2026-10-09)
 and the Win11 seat (confirmed to hold no SA token).
-⏳ **The only leg still open:** every **`/etc/op/provision-token`** host — today `oldsrv` and `vps` —
-holds the superseded write value until an `op-provision-token` converge replaces it, and that converge
-needs `scope_is_all` and must be issued FROM the laptop, never from oldsrv (HD-413 self-converge lockout,
-[deployment-secrets.md](deployment-secrets.md)). Unlike a seat file, nothing refreshes that path.
+✅ **The last leg closed the same evening:** both **`/etc/op/provision-token`** hosts — `oldsrv` and `vps` —
+were refreshed by a full `docker_services` converge (`scope_is_all`) issued FROM the laptop and now re-hash
+to `b61f34e3bc95` (written 21:26 / 21:27), the role's own "Probe the deployed token is actually accepted"
+task green on both and no container left `unhealthy`/`exited`. Getting there needed the laptop (HD-413
+self-converge lockout), and the first attempt at 18:37 died in the launcher's own self-update — see
+[deployment-ansible.md](deployment-ansible.md) §Runner placement.
 
 ### Rotating the control-node token
 `scripts/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a

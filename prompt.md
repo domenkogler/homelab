@@ -120,13 +120,14 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    what is left to own is the transport key and the global `~/.gitconfig`. Its **SA-token leg** closed on 2026-10-09:
 both service accounts are rotated and all three Debian installs (laptop, oldsrv runner, oldsrv seat) are re-seated to
 the read-scoped `op_api` and proven by an `op item list` that answers rows; the Win11 seat is confirmed to hold no SA
-token at all, which is its designed state. ⏳ **One leg left:** the **`/etc/op/provision-token`** hosts (`oldsrv`, `vps`),
-which still carry the superseded write value — measured 2026-10-09 18:46, both `be1939305745`, both still accepted
-inside the grace window. Only a full `docker_services` converge (`scope_is_all`) issued FROM the laptop refreshes it, and
-the run's "Probe the deployed token is actually accepted" task is the verdict. ⏳ **It is blocked on the laptop clone, not on
-the fleet:** the two runs launched from there today died in `ansible-run.sh`'s self-update (`fatal: Cannot fast-forward to
-multiple branches.`, no `PLAY RECAP`) — `git config --get-all branch.main.merge` on that box, collapse it to one ref, then
-re-launch with `--no-pull`. Read [docs/1password.md](docs/1password.md) §1
+token at all, which is its designed state. ✅ **Closed the same evening:** the **`/etc/op/provision-token`** hosts (`oldsrv`, `vps`) were refreshed by a full
+`docker_services` converge (`scope_is_all`) issued FROM the laptop — both re-hash to the current `op-write_api` value,
+the run's "Probe the deployed token is actually accepted" task green on both, no container left `unhealthy`/`exited`.
+⚠ The first attempt (18:37) died in `ansible-run.sh`'s self-update with `fatal: Cannot fast-forward to multiple
+branches.` and no `PLAY RECAP`; this handoff blamed that clone's merge refs, and **that was wrong** — `git config
+--get-all branch.main.merge` prints exactly one ref, and the same launcher succeeded at 21:26 with no config change.
+The git-side cause is therefore unidentified; what was durable is the launcher fix, which now prints the branch, its
+upstream and the merge refs **at the moment of failure**, so the next occurrence arrives with its own diagnosis. Read [docs/1password.md](docs/1password.md) §1
 first: the leak response killed the "two-token finding" as a **mis-seed** — both seats were running the *write*-scoped
 item, and `op vault list` cannot tell the scopes apart, so prove scope with the `op whoami` **Integration ID**.
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/pi-seat-sync.sh` is

@@ -691,16 +691,19 @@ a converge does not do what the tip of `main` says it should.
 until 2026-10-09.** Two `nohup` converges launched from the laptop seat both ended on log line 3
 with `fatal: Cannot fast-forward to multiple branches.`, produced **no `PLAY RECAP`**, and left both
 target hosts untouched; the poll said "still running" for 15 minutes because the only thing that
-would have distinguished *never started* from *still going* was a RECAP that never appeared. The git
-side is a branch carrying **more than one merge ref** (`git config --get-all branch.<name>.merge`
-printing two different refs — `git pull` then has two heads to fast-forward to and refuses); the
-launcher side was the real defect, because a tool that prints one line and exits cannot be told apart
-from a job that is merely slow. `ansible-run.sh` now catches it: `FAIL: the runner self-update died,
-so ansible-playbook NEVER RAN`, the branch + upstream + the configured merge refs, and the two exits
-(`git pull --ff-only origin <branch>` then re-issue with `--no-pull`, or collapse the merge refs).
-Proven three ways on throwaway clones: two merge refs → reproduces the exact fatal and the launcher
-refuses with rc=1; an unreachable remote (any other pull failure) → same loud refusal; healthy clone
-→ quiet, rc=0. **Read a converge log for the presence of a RECAP, never for its absence of news.**
+would have distinguished *never started* from *still going* was a RECAP that never appeared. **The
+git-side cause was never established.** This section first blamed a branch carrying more than one merge
+ref — a shape that does produce this exact fatal in a fixture — but the box itself printed **one** ref
+(`git config --get-all branch.main.merge` → `refs/heads/main`) and the identical command succeeded three
+hours later with no config change, so the theory is refuted and the cause is unidentified. What WAS a
+defect is the launcher: a tool that prints one line and exits cannot be told apart from a job that is
+merely slow. `ansible-run.sh` now catches it — `FAIL: the runner self-update died, so ansible-playbook
+NEVER RAN`, with the branch, its upstream and the merge refs read **at the moment of failure**, plus the
+two exits (`git pull --ff-only origin <branch>`, then re-issue with `--no-pull`). That last clause is the
+point of the whole change: the next occurrence reports its own diagnosis instead of leaving a stranger to
+guess. Proven three ways on throwaway clones: two distinct merge refs → reproduces the exact fatal and the
+launcher refuses with rc=1; an unreachable remote (any other pull failure) → the same loud refusal; healthy
+clone → quiet, rc=0. **Read a converge log for the presence of a RECAP, never for its absence of news.**
 
 **The seat clone did not exist until this decision was written down.** Measured 2026-09-23:
 no `.git` anywhere under `/home/domen`, and `~/.pi/agent/sessions` empty — so the cockpit was
