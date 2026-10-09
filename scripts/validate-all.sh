@@ -234,6 +234,24 @@
 #                                     sibling mappings, multi-doc, Jinja scalars) and proves the
 #                                     corpus was actually walked. Archives (brainstorming/,
 #                                     docs/assets/references/, reports/) are excluded by path.
+#  31. check_todo_done.py --refs   — a `prompt*.md` brief may only name a row that EXISTS.
+#                                     CONVENTIONS §4 DELETES a closed row and renumbers a colliding
+#                                     id, so every brief that named one keeps a pointer to nothing —
+#                                     and no gate looked. The status-claim half of this checker is
+#                                     blind to it by construction: a false pointer is usually a
+#                                     HISTORICAL mention of closed work, never an open-work claim.
+#                                     On its first run (at be7a4684) every finding was exactly that
+#                                     class. FAILs naming `file:line`.
+#                                     ⚠ Asymmetric ON PURPOSE, keep it that way: a STATUS claim is
+#                                     read from `prompt.md` alone (that file IS the handoff), a
+#                                     REFERENCE is checked across every root brief (a dead id
+#                                     misleads whoever reads it). Root-level only, non-recursive: a
+#                                     `prompt.md` under `brainstorming/obsolete/` is a frozen
+#                                     artifact, not a handoff. Both directions are canaried by the
+#                                     `check_todo_done.py --self-test` item, which also refuses a
+#                                     real brief that dangles (the fixture green must not be the
+#                                     only proof the pass can be green). Milliseconds: a glob over
+#                                     the briefs, no subprocess, so the pool does not notice it.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -642,7 +660,8 @@ item "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" 
 item "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/check_runbook_purity.py
 item "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/check_vault_docs.py
 item "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/check_todo_done.py
-item "check_todo_done.py --self-test (marker grammar: glyphs or UPPERCASE words, never prose)" $PY scripts/check_todo_done.py --self-test
+item "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/check_todo_done.py --refs
+item "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/check_todo_done.py --self-test
 item "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/check_merge_markers.py
 item "check_merge_markers.py --self-test (HD-453 canary)" $PY scripts/check_merge_markers.py --self-test
 item "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $PY scripts/check_md_tables.py
