@@ -8,7 +8,7 @@ tags: [observability, grafana, prometheus, monitoring]
 # Observability
 
 > **Role:** Single source of truth — the complete observability stack as a domain (VictoriaMetrics/VictoriaLogs/Grafana + Alloy/exporters + alerting).
-> **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`, `services.md`
+> **Links to:** `interfaces.md`, `deployment-ansible.md`, `smart-home.md`, `backup.md`, `services.md`, `observability-rejected.md`
 > **Linked from:** `index.md`, `interfaces.md`, `services.md`
 
 > **Status: 🟢 live.** The backend is the **Victoria stack on the VPS** — **VictoriaMetrics** (metrics,
@@ -957,6 +957,7 @@ generation harness **direct** on the engine name edge precisely so there is no e
 proxy re-buys the hop, the key management and the failure surface that decision removed. The engine stays
 the token SSOT (it needs no change); attribution comes from the access log (HD-1120). Wanting per-key
 spend *as measurement* later means re-opening #26 — that is an owner call, never an implementation detail.
+The rejection itself is logged in [observability-rejected.md](observability-rejected.md).
 
 ### The trap that makes HD-1120 silently wrong: which address is the client?
 
