@@ -54,6 +54,33 @@ prompt.md handoff check (same run):
 Marker grammar (provable: `python3 scripts/check_todo_done.py --self-test`): a completion
 marker is a ✅/✔ glyph or an UPPERCASE marker word at a word boundary. Lowercase prose is
 never a marker, so "the live headscale config" does not claim the row is finished.
+
+Reference-existence pass — `python3 scripts/check_todo_done.py --refs`, its own validate-all.sh item:
+  * every `HD-<digits>` token named in ANY root `prompt*.md` brief must exist as a row in
+    todo.md (`^| HD-<id> `), else FAIL naming `file:line` (exit 1).
+
+  WHY: CONVENTIONS §4 says an `HD` id is not stable prose — a closed row is DELETED (§4(a)) and a
+  renumbered row moves — so a brief that names one keeps a pointer to nothing. Nothing complained:
+  the first run of this pass found the pointers only in HISTORICAL mentions of rows that closed,
+  which is exactly the text no STATUS claim reads, so the whole existing prompt.md half of this
+  checker was blind to it. Fixing a finding means re-pointing the fact at whatever carries it now
+  (the owning doc, the decision log, the commit) — never minting an id, never re-opening a row,
+  never a skip list (a skip list is the same rot with a maintenance cost).
+
+  ⚠ THE ASYMMETRY IS THE POINT, keep it: a STATUS claim stays `prompt.md`-only (§2/§4 ARE the
+  handoff), a REFERENCE is checked across every root brief (a dead id misleads whoever reads it).
+  Do not widen the claim half to the domain briefs and do not narrow this half back to prompt.md.
+
+  Scope: ROOT `prompt*.md`, non-recursive — a `prompt.md` under `brainstorming/obsolete/` is a
+  frozen artifact, not a handoff. A token is the full `HD-<id>` form; a letter-suffixed id is
+  satisfied by its PARENT row (the same inheritance `scan_prompt` applies). An abbreviated cluster
+  (`HD-361 · 411 · 442`) therefore checks its HEAD only: a bare number is prose, not an id — the
+  naming rule is to repeat the prefix when a row is named.
+
+Run:   python3 scripts/check_todo_done.py            (row sweep + prompt.md claims)
+       python3 scripts/check_todo_done.py --refs     (reference existence over the briefs)
+       python3 scripts/check_todo_done.py --self-test
+Exit:  0 = clean, 1 = violations found. Wired into `scripts/validate-all.sh`.
 """
 from __future__ import annotations
 
@@ -146,9 +173,9 @@ _STEM_RE = re.compile(r"^(\d+)([A-Za-z]*)$")
 SUBTASK_PAIRS: frozenset[str] = frozenset()
 
 
-def _rows() -> list[tuple[str, str]]:
+def _rows(todo: Path = TODO) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
-    for line in TODO.read_text(encoding="utf-8").splitlines():
+    for line in todo.read_text(encoding="utf-8").splitlines():
         if not line.startswith("| HD-"):
             continue
         parts = line.split("|")
@@ -259,9 +286,9 @@ def classify(body: str) -> str:
     return "fully_done"
 
 
-def _open_todo_ids() -> set[str]:
+def _open_todo_ids(todo: Path = TODO) -> set[str]:
     """IDs of HD rows still open in todo.md (present as a row at all)."""
-    return {ident for ident, _ in _rows()}
+    return {ident for ident, _ in _rows(todo)}
 
 
 # ── Where a claim belongs: structure, not proximity (HD-466) ──────────────────────────
@@ -395,6 +422,91 @@ def scan_prompt(open_ids: set[str], text: str | None = None) -> tuple[list[str],
     return prompt_done, prompt_contradiction, info
 
 
+# ── Reference existence: a brief may only name a row that exists (CONVENTIONS §4) ────────
+# The pointer half of the same problem the row sweep solves. §4(a) DELETES a closed row, and §4
+# (Backlog) says an HD id is not stable prose — so every brief that named that row now points at
+# nothing. Rows are re-derived at each doc's own commit precisely because a copied list decays into
+# a false pointer, and until this pass nothing checked it.
+_BRIEF_GLOB = "prompt*.md"
+
+
+def _brief_paths(root: Path = ROOT) -> list[Path]:
+    """Every ROOT-level prompt brief, sorted: `prompt.md` + one `prompt-<domain>.md` per domain.
+
+    Non-recursive on purpose — a `prompt.md` left under `brainstorming/obsolete/` is a frozen
+    artifact of an old plan, not a handoff, and sweeping it would fail on prose nobody maintains.
+    """
+    return sorted(root.glob(_BRIEF_GLOB))
+
+
+def _hd_refs(text: str) -> list[tuple[int, str]]:
+    """[(1-based line, id)] for every `HD-<id>` token in a brief, in document order.
+
+    Scanned line by line rather than with one regex over the file, because the finding has to name
+    `file:line` — the unit a human edits. No subprocess per file: this runs inside a concurrent gate
+    whose whole budget is seconds, and a dozen briefs cost milliseconds.
+    """
+    return [(i, m.group(1))
+            for i, line in enumerate(text.splitlines(), 1)
+            for m in _HD_RE.finditer(line)]
+
+
+def scan_brief_refs(todo: Path = TODO,
+                    root: Path = ROOT) -> tuple[list[tuple[str, int, str]], int, int]:
+    """(dangling refs `[(file, line, id)]`, tokens examined, briefs examined).
+
+    A reference dangles when todo.md carries no `^| HD-<id>` row for the token. A letter-suffixed
+    id (HD-318a) is satisfied by its PARENT row, which is the same inheritance `scan_prompt` applies
+    to status claims: a sub-ID is part of its parent's row, it never has a row of its own. An
+    orphan sub-ID whose parent is gone is still a dead pointer and still fails.
+    """
+    ids = _open_todo_ids(todo)
+    briefs = _brief_paths(root)
+    dangling: list[tuple[str, int, str]] = []
+    refs = 0
+    for path in briefs:
+        for line_no, ident in _hd_refs(path.read_text(encoding="utf-8")):
+            refs += 1
+            if ident in ids:
+                continue
+            base = ident[:-1] if ident[-1:].isalpha() else ident
+            if base in ids:
+                continue
+            ref = (path.name, line_no, ident)
+            if ref not in dangling:      # one line naming the same dead id twice is one finding
+                dangling.append(ref)
+    return dangling, refs, len(briefs)
+
+
+def run_refs() -> int:
+    """The `--refs` verdict: reference existence only, no status claims."""
+    if not TODO.exists():
+        print(f"FAIL: {TODO} not found", file=sys.stderr)
+        return 1
+    dangling, refs, briefs = scan_brief_refs()
+    if dangling:
+        print(
+            f"FAIL: {len(dangling)} HD reference(s) in the root prompt briefs name a todo.md row "
+            "that does not exist — a false pointer (§4: a closed row is deleted, a colliding id is "
+            "renumbered, so a brief must re-derive its ids):"
+        )
+        for name, line_no, ident in sorted(dangling):
+            print(f"  - {name}:{line_no}: HD-{ident} → no `| HD-{ident}` row in todo.md")
+        print(
+            "  Fix: keep the FACT and drop the dead id — point at what carries it now (the owning "
+            "doc, the <domain>-rejected.md log, the commit) or rephrase to the invariant. Never mint "
+            "an id to satisfy this gate, never re-open a closed row, and never add a skip list: the "
+            "skip list is the same rot with a maintenance cost."
+        )
+        print(f"\n({refs} HD references examined over {briefs} root prompt briefs)")
+        return 1
+    print(
+        f"OK: {refs} HD references over {briefs} root prompt briefs all resolve to a todo.md row "
+        "(CONVENTIONS §4 — a closed row is deleted, so a brief must re-derive its ids)"
+    )
+    return 0
+
+
 def main() -> int:
     if not TODO.exists():
         print(f"FAIL: {TODO} not found", file=sys.stderr)
@@ -525,6 +637,11 @@ _ST_NOT_REJECT = ("this is unresolved, not a rejection", "supersede logic in low
 
 
 def _self_test() -> int:
+    # The canaries need a scratch tree: the marker/claim cases are pure strings, the reference and
+    # duplicate-ID cases write fixtures. `tempfile`/`os` are imported ONCE here, for both canaries.
+    import tempfile
+    import os
+
     fails: list[str] = []
     for s in _ST_NOT_DONE:
         m = _DONE_MARKER_RE.search(s)
@@ -611,12 +728,65 @@ def _self_test() -> int:
                 if not any(lo <= _a and _b <= hi for lo, hi in _units):
                     fails.append(f"HD-{_ident}'s claim region crosses its entry boundary ({_why})")
 
-    # ── Duplicate-ID gate (HD-485). The canary writes into todo.md and restores it from a
-    # byte-for-byte snapshot in `finally`: the assertion "the gate sees the duplicate" is only
-    # evidence if a crash cannot leave a fabricated row in the backlog.
+        # ── Reference existence (`--refs`): a brief may only name a row that exists ────────────
+    # Both directions, on a throwaway tree, because the shape to catch is a brief naming a CLOSED
+    # row and that cannot be bred in the real registry without deleting a live row. `HD-900` is the
+    # reserved FIXTURE id (see the note on SUBTASK_PAIRS / RESERVED_IDS in scripts/next-hd.sh); the
+    # GREEN half names `HD-{_live}` derived from the real todo.md by `_mint_evidence()`, so the green
+    # case points at a live row rather than at a second fixture (CONVENTIONS §4: never type an id).
     import tempfile
     import os
 
+    _live = str(_mint_evidence()[0])
+    _ref_registry = f"| HD-{_live} | 2 | AI | 1 | synthetic registry — ⏳ tail · [x](docs/index.md) |\n"
+    _REF_BRIEF = "prompt-900.md"      # any name matching prompt*.md; the name is not the point
+
+    def _ref_gate(briefs: dict[str, str], registry: str = _ref_registry,
+                  others: dict[str, str] | None = None) -> list[tuple[str, int, str]]:
+        """Run the reference pass over a throwaway tree: a synthetic todo.md plus the named files.
+        Paths are INJECTED (no global swapping), so a crash cannot leave a fixture in the registry."""
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            (tmp / "todo.md").write_text(registry, encoding="utf-8")
+            for files in (briefs, others or {}):
+                for name, body in files.items():
+                    p = tmp / name
+                    p.parent.mkdir(parents=True, exist_ok=True)
+                    p.write_text(body, encoding="utf-8")
+            return scan_brief_refs(tmp / "todo.md", tmp)[0]
+
+    # The red this exists for, and the green that proves it is not always-red.
+    _dead = _ref_gate({_REF_BRIEF: f"- **HD-900** names a row this registry does not have\n"})
+    if _dead != [(_REF_BRIEF, 1, "900")]:
+        fails.append(f"the reference pass did not breed the red it exists for: {_dead}")
+    _green = _ref_gate({_REF_BRIEF: f"- **HD-{_live}** names a row this registry HAS\n"})
+    if _green:
+        fails.append(f"the reference pass calls an existing row a dangling ref: {_green}")
+    # A sub-ID inherits its parent row — both halves, or the inheritance is an untested branch.
+    if _ref_gate({_REF_BRIEF: f"- **HD-{_live}z** is a sub-task of the row above\n"}):
+        fails.append("a sub-ID under an existing parent row was called dangling")
+    if [i for _, _, i in _ref_gate({_REF_BRIEF: "- **HD-900z** has no parent row either\n"})] != ["900z"]:
+        fails.append("an orphan sub-ID with no parent row was not called dangling")
+    # Scope is the ROOT briefs and nothing else: an archived brief in a subfolder and a file that is
+    # not a brief must both be left alone, or the gate sweeps frozen prose it cannot be true about.
+    if _ref_gate({_REF_BRIEF: ""},
+                 others={"archive/prompt-901.md": "- **HD-900** archived prose, out of scope\n",
+                         "notes.md": "- **HD-900** not a brief\n"}):
+        fails.append("the reference pass swept something that is not a root prompt*.md brief")
+    # The real tree, as the discriminator the duplicate-ID canary has: the fixture green must not be
+    # the only thing proving the pass can be green over REAL briefs, and if a real brief dangles the
+    # `--refs` item is red too, so both say so at the same moment.
+    _real_dangling, _real_refs, _real_briefs = scan_brief_refs()
+    if _real_dangling:
+        fails.append("a real root brief names a row todo.md does not have (the --refs item fails too): "
+                     + ", ".join(f"{n}:{l}=HD-{i}" for n, l, i in sorted(_real_dangling)))
+    if _real_briefs < 2:
+        fails.append(f"the reference pass found only {_real_briefs} brief(s) at the repo root — "
+                     f"the `{_BRIEF_GLOB}` glob is not matching the briefs")
+
+# ── Duplicate-ID gate (HD-485). The canary writes into todo.md and restores it from a
+    # byte-for-byte snapshot in `finally`: the assertion "the gate sees the duplicate" is only
+    # evidence if a crash cannot leave a fabricated row in the backlog.
     dup_row = ("| HD-476 | 2 | AI | 1 | canary second claimant — ⏳ a tail so it is not "
                "also flagged fully_done · [x](docs/index.md) |\n")
     sub_row = ("| HD-900z | 2 | AI | 1 | canary sub-ID — ⏳ tail · [x](docs/index.md) |\n")
@@ -680,7 +850,8 @@ def _self_test() -> int:
     n = len(_ST_NOT_DONE) + len(_ST_DONE) + len(_ST_REJECT) + len(_ST_NOT_REJECT)
     print(
         f"OK: check_todo_done self-test passed ({n} marker-grammar cases, 8 row-classification cases, "
-        f"{len(_ST_ATTR)} claim-attribution cases)"
+        f"{len(_ST_ATTR)} claim-attribution cases, and the reference pass bred its red and its green "
+        f"— {_real_refs} HD references over {_real_briefs} real briefs all resolve)"
     )
     return 0
 
@@ -688,4 +859,6 @@ def _self_test() -> int:
 if __name__ == "__main__":
     if "--self-test" in sys.argv[1:]:
         sys.exit(_self_test())
+    if "--refs" in sys.argv[1:]:
+        sys.exit(run_refs())
     sys.exit(main())
