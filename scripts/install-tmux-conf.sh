@@ -283,7 +283,23 @@ do_push() {
       cp -p "$DEST" "$DEST.foreign-$stamp" && info "backup of the FOREIGN file kept: $DEST.foreign-$stamp"
     else
       err "REFUSAL: $DEST exists and was not written by this script (no '$MARKER' line)."
-      err "It is not necessarily the SSOT's — diff it first, then re-run with --force to replace it (a timestamped backup is kept)."
+      # Name WHAT stands there. "An operator's own config" and "my own install from another layout"
+      # are different decisions and rc 1 cannot tell them apart — measured on oldsrv 2026-10-09, where
+      # the standing file's only difference from the SSOT was a header naming scripts/harness/… (a
+      # lane mid-HD-1118-Stage-3), and the refusal said only "foreign", so the session had to diff it
+      # by hand to find there was nothing to decide.
+      found="$(grep -m1 'managed-by:' "$DEST" 2>/dev/null || true)"
+      if [ -n "$found" ]; then
+        err "  its own marker line: $found"
+        err "  — a marker that differs from this script's own is an install made by another version"
+        err "    or layout of this script, not an operator's file."
+      else
+        err "  it carries no managed-by: line at all — an operator's own config, or another tool's."
+      fi
+      changed="$(diff "$SRC" "$DEST" 2>/dev/null | grep -c '^[<>]')"
+      real="$(diff "$SRC" "$DEST" 2>/dev/null | grep '^[<>]' | grep -cvE '^[<>][[:space:]]*(#|$)')"
+      err "  content differs in ${changed:-?} line(s), ${real:-?} of them not comments."
+      err "Diff it first, then re-run with --force to replace it (the foreign file is kept as .foreign-<stamp>)."
       return 1
     fi
   fi
@@ -373,6 +389,20 @@ self_test() {
   mk_sandbox "$tmp/foreign"; printf '# hand-made by an operator\nset -g mouse off\n' > "$tmp/foreign/tmux.conf"
   run_at "$tmp/foreign" --push && { err "canary passed: --push clobbered a foreign file"; fails=$((fails+1)); } \
     || info "foreign-refusal   caught"
+
+  # 4a2. the file carries a DIFFERENT managed-by: line — an install by another layout of this very
+  #      script (the oldsrv state of 2026-10-09). Still a REFUSAL, but the message must NAME the
+  #      marker it found and say how far apart the two files are; rc 1 alone cannot make that call.
+  mk_sandbox "$tmp/marker"
+  sed '1s|.*|# managed-by: pi-agent/tmux/tmux.conf (installed by scripts/harness/install-tmux-conf.sh)|' \
+      "$REPO/pi-agent/tmux/tmux.conf" > "$tmp/marker/tmux.conf"
+  mout="$(REPO="$tmp/marker/repo" TMUX_CONF="$tmp/marker/tmux.conf" TMUX_SOCKET="hl-selftest-$$" \
+          bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --push 2>&1)" && mrc=0 || mrc=$?
+  if [ "$mrc" -ne 0 ] && printf '%s' "$mout" | grep -q REFUSAL \
+     && printf '%s' "$mout" | grep -q 'its own marker line: ' \
+     && grep -q 'scripts/harness/install-tmux-conf.sh' "$tmp/marker/tmux.conf"; then
+    info "marker-provenance GREEN (refusal names the marker found; nothing overwritten)"
+  else err "canary: the refusal did not name the foreign marker, or it overwrote the file"; fails=$((fails+1)); fi
   # 4b. --force replaces it and keeps a backup.
   #     The replacement itself is provable everywhere, so assert it with `cmp` instead of trusting
   #     the exit code alone: `--push` ENDS in the load probe, which returns 2 (SKIP, see `have tmux`
