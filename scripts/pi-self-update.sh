@@ -65,7 +65,9 @@
 # Owning rule: docs/pi-harness.md §1 (the pin table) · §5 (what the harness is).
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `:-$0` for the pipe-over-ssh form (`ssh seat 'bash -s' < this-file`), where BASH_SOURCE is unset
+# and `set -u` turns the plain form into an "unbound variable" error on every run.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
 PI_NODE_PREFIX="${PI_NODE_PREFIX:-$HOME/.local/share/pi-node}"
@@ -230,7 +232,7 @@ do_selftest() {
 
   local c
   for c in bash grep sed sort mktemp rm; do command -v "$c" >/dev/null 2>&1 || { err "self-test needs $c"; return 1; }; done
-  local me; me="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+  local me; me="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]:-$0}")"
 
   # 1. equal -> OK, and --push must run NOTHING (the arm that turns a sync into a reinstall storm).
   printf '9.9.9\n' > "$vf"

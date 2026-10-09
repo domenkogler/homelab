@@ -41,7 +41,9 @@
 set -euo pipefail
 
 # ---- locate repo root (allow override) -----------------------------------
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `:-$0` for the pipe-over-ssh form (`ssh seat 'bash -s' < this-file`), where BASH_SOURCE is unset
+# and `set -u` turns the plain form into an "unbound variable" error on every run.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 # ---- pi packages to install (tracked here, mirror of Windows settings.json) --

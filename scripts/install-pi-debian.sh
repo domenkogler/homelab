@@ -54,7 +54,9 @@
 # =====================================================================
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# `:-$0` because the pipe-over-ssh form (`ssh seat 'bash -s' < this-file`) leaves BASH_SOURCE
+# unset, and `set -u` made every such run print "BASH_SOURCE[0]: unbound variable".
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 PI_SEAT_ROOT="${PI_SEAT_ROOT:-$HOME/.local/share/pi-node}"
 VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
