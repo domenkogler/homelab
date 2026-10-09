@@ -1661,6 +1661,25 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
 | embed | `hosted_vllm/bge-m3` | **not** `openai/` — that provider forwards `encoding_format: null` and llama.cpp 500s |
 | STT | `openai/whisper-1` with `/v1` | whisper.cpp exposes the OpenAI-shaped path |
 
+**Hand the gateways their own engine credential (HD-384) `[Ansible + verify — the ORDER is the whole risk]`**
+
+> Why: `spark-llm_api` was triple-used (engine `--api-key` + both LiteLLMs' `OPENAI_API_KEY` + the direct
+> harness). Shape and caveats: [services-ai.md](docs/services-ai.md) §4 +
+> [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a.
+
+1. **Mint once:** the item is in the `provision-secrets.py` catalog, so `--create --yes` seeds it; never reuse
+   `spark-llm_api`'s value — the point is two distinct secrets.
+2. **Spark first** (the engine only accepts a key from its next boot): converge `spark-ai` guarded, wait for
+   healthy, then prove it — `curl -H "Authorization: Bearer $(op read
+   'op://Homelab-ansible/litellm-engine_api/credential')" https://llm.kogler.si/v1/models` must print **200**.
+   A 401 here means the engine has not rebooted with the new accepted list: **stop, do not touch the gateways.**
+3. **Then the two gateways:** `OPENAI_API_KEY` in `templates/docker_services/lan-litellm/` and
+   `templates/docker_services/litellm/` reads `vault['litellm-engine_api'].credential`; converge oldsrv
+   (`--tags docker_services`, never `--diff`) and the VPS instance, then re-run a chat completion through each.
+4. **Never rotate either engine-side item outside this order** — both are guard-listed in
+   `provision-secrets.py`: the accepted-key list lives in the engine's argv, so a vault-only rotation leaves the
+   running engine holding the old value.
+
 
 ---
 
@@ -1837,6 +1856,37 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
 
 > Open items on this host are the ledger's Phase 4 block ([deployment-tasks.md](deployment-tasks.md)) and
 > [home-assistant-current.md](docs/home-assistant-current.md).
+
+### 4.5 Voice LLM leg — HA's `litellm` entry, its conversation agent, the Assist wire `[MANUAL — config-flow only, no template]`
+
+> Why this shape and what it costs: [smart-home-voice.md](docs/smart-home-voice.md) header table + the
+> plaintext-replication ruling in [deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that
+> leaves the vault. **Write that ruling before creating the entry** — the standby rsync copies the minted key to
+> oldsrv the moment the entry exists. Prerequisite: `home-assistant_api` minted on the LAN instance and
+> `https://llitellm.kogler.si/v1/models` answering **200** with it (the config flow calls that endpoint *before*
+> it will create the entry).
+
+1. **Prove reachability from inside the HA container** (skip this and a mis-resolved split name looks like a
+   LiteLLM bug): `docker exec home-assistant-primary python3 -c "import urllib.request;..."` against
+   `https://llitellm.kogler.si/v1/models` → **401** without a key is the PASS (DNS + TLS both fine).
+2. **Create the entry** — `POST /api/config/config_entries/flow` `{"handler":"litellm"}` in the UI
+   (Settings → Voice agents), or headlessly: progress the flow with `{"url":"https://llitellm.kogler.si","api_key":"<home-assistant_api>"}`.
+   The integration appends `/v1` itself; entering `/v1` yourself is tolerated, not required.
+3. **Create the conversation agent as a SUBENTRY**, not an options flow:
+   `POST /api/config/config_entries/subentries/flow` with `"handler": ["<entry_id>", "conversation"]` — the
+   handler field is a **2-tuple**; a bare string returns 500. Progress it with `model` =
+   `spark/qwen3.8-flash-next`, `llm_hass_api: ["assist"]`, and a prompt that asks for one short Slovenian sentence.
+   The agent entity is `conversation.spark_qwen3_8_flash_next`.
+4. **Wire the Assist pipeline** — websocket only (this build ships no REST for it):
+   `assist_pipeline/pipeline/list` → `assist_pipeline/pipeline/update` with the item's own fields plus
+   **`pipeline_id`** set to the pipeline's id, and `conversation_engine` = the agent entity.
+   ⚠ **Do not send the item's `id` field** — it collides with the websocket **message** id, the reply then
+   carries the pipeline id, and a naive "wait for my id" loop hangs forever.
+5. **Accept with a text turn** (no satellite needed): `assist_pipeline/run` with `start_stage: intent`,
+   `end_stage: intent`, `input: {"text": "Živjo, kolikšno temperaturo ima dnevna soba?", "language": "sl"}` —
+   PASS = an `intent-end` carrying a Slovenian answer and `processed_locally: false`.
+6. **Rollback is one field, not a converge:** set `conversation_engine` back to `conversation.home_assistant` on
+   the same pipeline.
 
 ---
 
