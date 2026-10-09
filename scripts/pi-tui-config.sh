@@ -80,12 +80,21 @@ done
 
 # The read is done by node (the only runtime guaranteed next to pi). Where it is missing or
 # broken NOTHING was read, and a silent 0 here would be a gate that passes by not running.
-# PI_TUI_NODE is the sandbox hook; unset it and the lookup is plain PATH.
+# PI_TUI_NODE is the sandbox hook (it wins outright); PI_TUI_NODE_PREFIX points the pinned-prefix
+# search at a sandbox dir. Otherwise: HD-446's node lesson — `ssh seat '…'` is a NON-interactive
+# non-login shell that reads NO profile, so PATH may not carry node even on a seat that runs pi
+# perfectly (measured on the oldsrv cockpit leg 2026-10-09, where this plane answered SKIP while the
+# settings plane on the same leg read the file fine). The pinned seat prefix is searched BEFORE PATH,
+# exactly as pi-settings-config.sh does it.
 NODE="${PI_TUI_NODE:-}"
-[ -n "$NODE" ] || NODE="$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)"
+if [ -z "$NODE" ]; then
+  for c in "${PI_TUI_NODE_PREFIX:-$HOME/.local/share/pi-node}/current/bin/node" "$(command -v node 2>/dev/null || true)" "$(command -v node.exe 2>/dev/null || true)"; do
+    [ -n "$c" ] && [ -x "$c" ] && { NODE="$c"; break; }
+  done
+fi
 require_node() {
   if [ -z "$NODE" ] || ! "$NODE" -e 'process.exit(0)' >/dev/null 2>&1; then
-    info "SKIP: no usable node (looked for '${NODE:-PATH node}') — $CONF was NOT read; a SKIP is not a pass"
+    info "SKIP: no usable node (looked for '${NODE:-PATH node}', then the pinned seat prefix) — $CONF was NOT read; a SKIP is not a pass"
     return 2
   fi
   return 0
@@ -218,6 +227,25 @@ self_test() {
     bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --check --strict >/dev/null 2>&1 || rc=$?
   [ "$rc" -eq 2 ] && info "skip-arm         GREEN (rc 2 = SKIP, not a pass)" \
     || { err "canary: the no-node path returned $rc — a SKIP must be 2, never 0 or 1"; fails=$((fails+1)); }
+
+  # 5b. a NON-LOGIN leg: PATH carries no node, but the pinned seat prefix does (HD-446). The seat
+  #     must be READ, not SKIPPED. Deleting the pinned-prefix leg from the lookup reddens this arm:
+  #     the search finds nothing and the script answers rc 2.
+  mkdir -p "$tmp/prefix/current/bin"
+  real_node="$(command -v node 2>/dev/null || command -v node.exe 2>/dev/null || true)"
+  sysbin="/usr/bin:/bin"
+  if [ -z "$real_node" ]; then
+    info "pinned-node      SKIP — no node on this host to stage the fixture with"
+  elif env PATH="$sysbin" sh -c 'command -v node' >/dev/null 2>&1; then
+    info "pinned-node      SKIP — node is in $sysbin here, the bare-PATH fixture would prove nothing"
+  else
+    ln -sf "$real_node" "$tmp/prefix/current/bin/node"
+    rc=0
+    env -u PI_TUI_NODE PATH="$sysbin" PI_TUI_NODE_PREFIX="$tmp/prefix" PI_TUI_CONFIG="$tmp/rest.json" \
+      "$(command -v bash)" "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --check >/dev/null 2>&1 || rc=$?
+    [ "$rc" -ne 2 ] && info "pinned-node      GREEN (the seat prefix is read when PATH is bare)" \
+      || { err "canary: a bare-PATH leg SKIPPED although the pinned prefix holds node (HD-446)"; fails=$((fails+1)); }
+  fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"

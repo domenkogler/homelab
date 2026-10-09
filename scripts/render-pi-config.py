@@ -39,10 +39,32 @@ import sys
 import tempfile
 from pathlib import Path
 
-try:
-    import yaml
-except ImportError:  # pragma: no cover
-    sys.exit("PyYAML missing — use the ansible venv or `pip install pyyaml`")
+def _ensure_deps() -> None:
+    """HD-446's other leg: a seat leg (`ssh seat '…'`) reads no profile, so it runs this with the
+    system python3 even on a seat that HAS `~/ansible-venv` with PyYAML in it. Re-exec there rather
+    than let an ImportError read as a broken spec — the cockpit's `models` plane did exactly that on
+    2026-10-09 and the DRIFT line named python, not the seat. Precedent: ansible_query.py's guard and
+    `ansible-run.sh` resolving the same venv."""
+    try:
+        import yaml  # noqa: F401
+        return
+    except ImportError:
+        pass
+    venv_py = Path.home() / "ansible-venv" / "bin" / "python3"
+    same = Path(sys.executable).resolve() == venv_py.resolve() if venv_py.exists() else True
+    if os.environ.get("PI_RENDER_REEXEC") == "1" or not venv_py.is_file() or same:
+        sys.exit(
+            f"FAIL: PyYAML is required and not importable by {sys.executable}.\n"
+            "      Remedy: ~/ansible-venv/bin/python3 scripts/render-pi-config.py …\n"
+            "      (no venv at all → bash scripts/bootstrap-runner.sh)"
+        )
+    os.environ["PI_RENDER_REEXEC"] = "1"
+    os.execv(str(venv_py), [str(venv_py), str(Path(__file__).resolve()), *sys.argv[1:]])
+
+
+_ensure_deps()
+
+import yaml  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 SPEC = REPO / "scripts" / "pi-config" / "models-spec.yml"
