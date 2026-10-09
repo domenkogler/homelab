@@ -16,11 +16,40 @@ tags: [smart-home, voice, whisper, piper]
 > simple querier — never a direct engine URL. See [services-ai.md](services-ai.md) §Architecture for the
 > routing model and §9c for the GPU model.
 >
-> ⚠ **That leg does not exist yet — what is missing is the gateway and one HA config entry, NOT a Home Assistant surface.**
-> Measured on the live primary (Pi): the container's environment is `TZ` + s6 internals only; `configuration.yaml`
-> carries no `llm:` / `conversation:` / `assist_pipeline:` key; `custom_components/` does not exist; and
-> `.storage/core.config_entries` contains **no LLM provider entry at all** — voice has never had an LLM, so this
-> is a gap, not a regression.
+> ✅ **The leg is LIVE (2026-10-09, HD-403) — voice has an LLM to call.** The LAN gateway already had the scoped
+> key (`home-assistant_api`, minted 2026-09-27) and Home Assistant already shipped the surface; what was missing
+> was the config entry, and that is now in place on the Pi primary:
+>
+> | Piece | Value (as read back live 2026-10-09) |
+> |---|---|
+> | config entry | `litellm` domain, `entry_id 01M4GR0Y3WZTVFPX5DCCYMF235`, title `llitellm.kogler.si`, state `loaded`, source `user` |
+> | entry data | `url = https://llitellm.kogler.si/v1` (the integration appends `/v1` itself) + the scoped `api_key` — in `.storage/core.config_entries`, **no template involved** |
+> | conversation agent | subentry `spark/qwen3.8-flash-next` → entity **`conversation.spark_qwen3_8_flash_next`**, `llm_hass_api: [assist]`, prompt asks for one short Slovenian sentence |
+> | Assist wire | the default pipeline `01m1k4tamb53mwh074jt2n9sfg` now has `conversation_engine: conversation.spark_qwen3_8_flash_next` (was `conversation.home_assistant`) |
+> | acceptance | one Slovenian turn through the pipeline: *"Živjo, kolikšno temperaturo ima dnevna soba?"* → the agent called `homeassistant__GetLiveContext` three times and answered **"Trenutna temperatura v dnevni sobi je -10,0 °C."** (`intent-end`, `processed_locally: false`) |
+> | reachability | the HA container resolves `llitellm.kogler.si` to the oldsrv home-leg address (see [network-addresses-generated.md](network-addresses-generated.md)) and TLS-validates it (`ssl_verify_result=0`, `401` without a key), so **no `extra_hosts` fallback was needed** |
+> | replication | the standby copy on oldsrv carries the entry within one sync cycle — the plaintext-replication ruling in [deployment-secrets.md](deployment-secrets.md) §Runtime plaintext that leaves the vault is **not theoretical**, it was verified on the file |
+>
+> **Two honest caveats from the same run.** (a) The answer was *wrong*: there is **no exposed entity for the living
+> room and no area named "Dnevna soba"**, so the agent settled on `Rekuperator Room Temperature` (-10 °C, the
+> ventilation unit's outside-facing reading). The LLM leg works; the **entity/area exposure is the gap** — minted
+> as its own row, not folded in here. (b) `language`/`conversation_language` on the pipeline are still **`en`** —
+> the Slovenian reply came from the agent's prompt, which is fine for a text turn but will matter for the STT/TTS
+> legs (they read the pipeline language), so that value belongs to the voice-hardware work, not this row.
+> **Rollback (one line, no converge):** set `conversation_engine` back to `conversation.home_assistant` on the same
+> pipeline — the built-in intent agent stays installed and needs no LLM.
+>
+> **How the entry was created without a browser** (the row said "config-flow only", which is true — it does **not**
+> mean "a human must click"): `POST /api/config/config_entries/flow {"handler":"litellm"}` → progress with
+> `{"url":…,"api_key":…}`; the agent itself is a **subentry**, started with
+> `POST /api/config/config_entries/subentries/flow {"handler":["<entry_id>","conversation"]}` (the handler field is a
+> **2-tuple**, not a name — anything else returns 500) and progressed with `model`/`llm_hass_api`/`prompt`. Pipelines
+> are **websocket-only** in this build (`components/config/assist_pipeline.py` does not exist): `assist_pipeline/pipeline/list`
+> then `assist_pipeline/pipeline/update` with the item's fields plus **`pipeline_id`** — ⚠ do **not** send the item's
+> own `id` key, it collides with the websocket **message** id and the reply then carries the pipeline id, which makes a
+> naive "wait for my id" loop hang forever. A text-only pipeline run is `assist_pipeline/run` with
+> `start_stage: intent`, `end_stage: intent`, `input: {text, language}` — that is the shape that proves an Assist turn
+> without anyone speaking to a satellite.
 >
 > ✅ **The HA-side surface is stock and already in the pinned version — no vendored component, no HA bump, and
 > decision #24 stays intact** (measured from primary sources 2026-09-26). Home Assistant ships a `litellm`
@@ -55,10 +84,11 @@ tags: [smart-home, voice, whisper, piper]
 > item** (the old fail-closed-render worry was aimed at a render that should never have existed);
 > **(4)** ⚠ the same storage means the minted **virtual key sits in plaintext** in `/config/.storage/`, and the
 > standby sync (`roles/home_assistant/templates/ha-config-sync.sh.j2` — `rsync --delete`, excluding only
-> `secrets.yaml`) **replicates it to oldsrv**. That placement is owed to
-> [deployment-secrets.md](deployment-secrets.md) **before** the entry is created.
-> The STT engine underneath it is live. Tracked in **HD-403**, whose owner call (vendor / wait / relax #24) is
-> **closed by this finding** — see [smart-home-rejected.md](smart-home-rejected.md).
+> `secrets.yaml`) **replicates it to oldsrv**. ✅ That placement is **ruled and recorded** in
+> [deployment-secrets.md](deployment-secrets.md) §Runtime plaintext that leaves the vault (ACCEPT, 2026-10-09, with
+> the reopen trigger) — and the entry now exists, so the ruling is in effect.
+> Tracked in **HD-403** (closed 2026-10-09), whose owner call (vendor / wait / relax #24) was
+> **answered by the stock integration** — see [smart-home-rejected.md](smart-home-rejected.md).
 >
 > **Engine = `whisper.cpp` `main-vulkan`, digest-pinned** (decision #27) — RADV, native RDNA3, no ROCm
 > userspace. Two earlier recipes were ruled out by evidence, not preference: a ROCm/`GGML_HIP` build
