@@ -19,7 +19,7 @@ tags: [network, topology]
 |-------------|-------|------|
 | `router.kogler.si` | MikroTik RB4011iGS+ | PPPoE, VLAN routing, firewall, WireGuard server, CAPsMAN |
 | `switch.kogler.si` | MikroTik CRS328-24P-4S+ | Layer-2 VLAN-aware, PoE for APs, trunk via SFP+ |
-| APs | **wAP ac (garaža) = DEAD (hardware fault, needs replacement — ether1 reserved)**, hAP ac² (spalnica), hAP ac (dnevna) + spare hAP ac² | CAPsMAN-managed, all wired (no mesh) |
+| APs | hAP ac² (spalnica), hAP ac² (dnevna), hAP ac² spare, **wAP ac (garaža) = DEAD (hardware fault, needs replacement — ether1 reserved)** | CAPsMAN-managed, all wired (no mesh) |
 
 ---
 
@@ -33,14 +33,11 @@ tags: [network, topology]
   no GUA at all, and because there is no NAT to hide behind there the v6 filter is the inbound protection: it
   drops everything from the WAN except stateless ICMPv6/DHCPv6, and refuses v6 egress from the untrusted VLANs.
   Plan of record, invariants and the two-switch rollback: [network-vlans.md](network-vlans.md) §IPv6;
-  measurement + probe runbook: [network-ops.md](network-ops.md) §IPv6. (Until 2026-09-22 this line read "fully
-  enabled" while the device held **no IPv6 addresses at all** — that line described an intent, not the device;
-  the delegation it asserted turned out to be real and unused, which is why the away-session rows below were
-  blocked on it.)
+  measurement + probe runbook: [network-ops.md](network-ops.md) §IPv6.
 
-### Comtrend modem management path (HD-302)
+### Comtrend modem management path
 
-> **✅ live** (HD-302) — laptop → modem web UI answers (401 auth page).
+> **✅ live** — laptop → modem web UI answers (401 auth page).
 
 The Comtrend GRG-4260us is a consumer ONT in **PPPoE-bridge mode** — the RB4011
 dials the PPPoE session on `ether1` via `pppoe-telekom`. The Comtrend's own
@@ -95,8 +92,8 @@ Internet → ONT → router ether1 (WAN)
   (☠️ garage AP DEAD — hardware fault, ether1 reserved for replacement)
 ```
 
-- **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable; host-side dual-home (Home 10 untagged + Mgmt 99 tagged) via the `network` role's systemd-networkd units (HD-311)
-- **nas** connects via access port (VLAN 10 Home, VLAN 99 tagged for Mgmt — dual-home via the same netd role units, HD-311)
+- **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable; host-side dual-home (Home 10 untagged + Mgmt 99 tagged) via the `network` role's systemd-networkd units
+- **nas** connects via access port (VLAN 10 Home, VLAN 99 tagged for Mgmt — dual-home via the same netd role units)
 
 ---
 
@@ -111,7 +108,7 @@ Internet → ONT → router ether1 (WAN)
   internet may reach a home host over v6 — the WAN input chain has **no inbound accept at all**, and adding
   one requires a row that names the one host and port (invariants: [network-vlans.md](network-vlans.md) §IPv6)
 
-> **Status:** VLAN segmentation is **LIVE** — the network is no longer flat. VLAN definitions, subnets
+> **Status:** VLAN segmentation is **LIVE** — the network is segmented, not flat. VLAN definitions, subnets
 > and firewall rules: [`network-vlans.md`](network-vlans.md); subnets/DHCP/SSIDs SSOT:
 > [`network-addresses-generated.md`](network-addresses-generated.md).
 
