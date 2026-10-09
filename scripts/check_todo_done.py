@@ -675,14 +675,18 @@ def _self_test() -> int:
         fails.append("row classifier no longer reports rejected_info for a REJECTED row")
     # Row classification: marker + no tail = fully_done (must be deleted); an explicit ⏳
     # or stated remaining work keeps the row; no marker = open backlog.
-    for body, want in (
+    # Row classification: marker + no tail = fully_done; an explicit ⏳ or stated remaining work
+    # keeps the row; no marker = open backlog. NAMED, because the OK line counts it — a typed case
+    # count in a self-test rots the same way a typed count anywhere else does (CONVENTIONS §2).
+    _ST_CLASSIFY = (
         ("✅ all legs LIVE", "fully_done"),
         ("✅ IaC merged ⏳ deploy on oldsrv", "keep"),
         ("✅ shipped. Remaining: the LAN alias delete", "keep"),
         ("open work, no marker here", "keep"),
         ("the live headscale config, nothing else", "keep"),
         ("REJECTED by decision #26", "rejected_info"),
-    ):
+    )
+    for body, want in _ST_CLASSIFY:
         got = classify(body)
         if got != want:
             fails.append(f"classify({body!r}) = {got}, expected {want}")
@@ -849,7 +853,8 @@ def _self_test() -> int:
         return 1
     n = len(_ST_NOT_DONE) + len(_ST_DONE) + len(_ST_REJECT) + len(_ST_NOT_REJECT)
     print(
-        f"OK: check_todo_done self-test passed ({n} marker-grammar cases, 8 row-classification cases, "
+        f"OK: check_todo_done self-test passed ({n} marker-grammar cases, "
+        f"{len(_ST_CLASSIFY)} row-classification cases, "
         f"{len(_ST_ATTR)} claim-attribution cases, and the reference pass bred its red and its green "
         f"— {_real_refs} HD references over {_real_briefs} real briefs all resolve)"
     )
