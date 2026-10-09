@@ -22,15 +22,19 @@ version: 1
 
 # ── THE DIAL ────────────────────────────────────────────────────────────────────────────
 # Valid names are exactly the keys of `profiles`. Uncertified ones need allow_uncertified: true.
-# Changed 2026-09-29 (HD-474, owner): the certified agent leg is Gemma 4 26B A4B. It was
-# already on disk (no 21 GB fetch), its KV is the same 20 KiB/token as the Qwen3.6 row, and
-# it leaves ~11 GiB of carve margin where Qwen3.6 left ~8.75.
-active: agent-gemma-26b
-# true SINCE 2026-10-03: the owner raised the agent leg from 32 768 to 150 016 tokens. The HD-474
-# certificate was issued AT 32k (recall needle at 28 984 tokens = 92 % of THAT window), so carrying
-# `certified: true` over a 4.6x larger window would be the gate vouching for a measurement that was
-# never taken. The dial stays usable while the two owed numbers are collected (needle at >= 90 % of
-# 150 016, and the cold-prefill ladder at the new window) — flip it back to false the moment they land.
+# RULING 2026-10-09 (owner): this runtime serves FIM and vision only, so the dial selects between
+# `vision-qwen3vl-30b` (the resident leg) and `fim-coder-3b` (Continue's tab model). The agent legs
+# are retired and out of the catalogue, `client_context_window: 150016` with them (DELETED, not
+# reduced). The reason is cold prefill on this iGPU, not the carve — docs/hardware-workstation.md
+# §Served leg states the ruling once and docs/services-ai-rejected.md logs it, so nothing here
+# re-litigates it. Generation harnesses reach spark directly (docs/services-ai.md §9 decision #26):
+# this dial is NOT the agent slot, and it does not fall back to spark.
+active: vision-qwen3vl-30b
+# Still true after the 2026-10-09 retirement for ONE reason: the FIM leg's trigger latency inside
+# Continue's 150-400 ms budget has never been measured (HD-401 gate 5), so `switch -Profile
+# fim-coder-3b` must stay possible while its `certified: false` stands. It is not a licence for an
+# agent leg - there is none left to run - and it is not a licence for an uncertified vision load
+# either: the vision profile is `certified: true` from raw/88-certify.txt.
 allow_uncertified: true
 
 # ── HOST FACTS (the gate's ceiling reads these; §10 numbers are owner-set/measured) ──────
@@ -100,19 +104,20 @@ runtime:
 # Multiplier on bf16 bytes/token. The gate re-derives every profile's KV from the model row ×
 # num_ctx × this factor, so a profile that claims q8_0 but is loaded as f16 is a budget lie.
 #
-# WHY f16 IS THE DEFAULT HERE, AND WHY THAT IS NOT AN OVERSPEND
-# This architecture is cheap per token: only the 10 full-attention layers of 40 hold a KV cache
-# (layout 10 × (3 × Gated DeltaNet → 1 × Gated Attention)), at 2 KV heads × head_dim 256 →
-# 20 480 B/token, i.e. 20 KiB — NOT the 96 KiB/token the docs quote for the older
-# Qwen3-30B-A3B family (48 layers, 4 KV heads × 128). So at 32k:
-#     f16 0.63 GiB   |   q8_0 0.31 GiB   |   q4_0 0.19 GiB      (of an 18.6 GiB weight load)
-# Quantizing saves ~0.3 GiB — 1.6 % of a 20 GiB budget whose scarce half is the weights. What it
-# costs: llama.cpp only honours a quantized KV cache when flash attention is on, Vulkan FA on a
-# hybrid-GDN arch is UNPROVEN here, and long-context recall under a quantized cache is an
-# accuracy question nobody has answered on this box. Cheaper to keep the honest default and
-# spend q8_0 only where it actually buys window (the 64k arm and up).
-# The same logic says the FIM leg gains nothing from q8_0 (0.29 → 0.15 GiB) while putting an FA
-# dependency on the latency-critical tab path — kept as the owner chose, flagged in its row.
+# WHY f16 IS THE DEFAULT ON THE VISION LEG, AND WHY THAT IS NOT AN OVERSPEND
+# Qwen3-VL-30B-A3B is dense attention: 48 layers x 4 KV heads x head_dim 128 -> 98 304 B/token,
+# i.e. 96 KiB, so 32 768 tokens is 3.0 GiB of KV on top of 16.50 GiB of weights and 1.01 GiB of
+# projector, and nothing else is resident with it. q8_0 would halve that 3.0 GiB - the only leg
+# where a quantized KV cache would buy real window - but llama.cpp honours it only with flash
+# attention ON, FA-on-Vulkan is UNPROVEN for this arch here, and long-context recall under a
+# quantized cache is an accuracy question nobody has answered on this box. So the vision leg keeps
+# the honest f16 default and the quant is spent where it is cheap and already FA-gated anyway.
+# On the FIM leg q8_0 moves 0.29 -> 0.15 GiB and buys no window at all; it stays because the owner
+# chose it (2026-09-28), and the FA dependency it drags onto the tab-completion path is flagged in
+# that profile's row, not hidden here.
+# For reference when pricing a hybrid-GDN family (10 of 40 layers hold a KV cache at 2 KV heads x
+# head_dim 256 -> 20 480 B/token): that arithmetic priced the retired arms and is kept so the
+# 96 KiB number above is not copied onto a model that does not hold KV in every layer.
 kv_factor:
   f16: {factor: 1.00, requires: null}
   q8_0: {factor: 0.50, requires: flash_attention}
@@ -120,33 +125,6 @@ kv_factor:
 
 # ── THE MODELS (structure from the published configs; LM Studio's load log confirms) ─────
 models:
-
-  # Text + vision in ONE model, per the owner's 2026-09-28 choice. Vision is real at the FILE
-  # level here: the repo ships mmproj-BF16.gguf and mmproj-F32.gguf beside the weights.
-  qwen36-35b-a3b-mtp:
-    upstream: 'unsloth/Qwen3.6-35B-A3B-MTP-GGUF'
-    quant: Q4_K_M
-    # 4-bit lands at ~20 GB for this family (unsloth's own hardware table: 3-bit 16 GB /
-    # 4-bit 20 GB / 6-bit 25 GB / 8-bit 31 GB / BF16 56 GB).
-    weights_bytes: 20000000000
-    mmproj_bytes: 1000000000              # mmproj-BF16.gguf
-    # HYBRID architecture — this is where a copy-paste of the Qwen3-30B number goes wrong.
-    # Published config: 40 layers, layout 10 × (3 × Gated DeltaNet → 1 × Gated Attention), so
-    # only the 10 full-attention layers hold a KV cache; those are 16 Q / **2 KV** heads with
-    # head_dim **256**. 2 × 10 × 2 × 256 × 2 B = 20 480 B/token = 20 KiB/token. The 30 linear
-    # layers hold a constant recurrent state per sequence instead (order ~tens of MiB, not per
-    # token), which is why this family tolerates long windows on a ~90 GB/s bus.
-    kv_bytes_per_token: 20480
-    state_bytes_per_sequence: 67108864    # 64 MiB, ⏳ derived-order estimate — confirm from the load log
-    native_context_window: 262144
-    active_params: '~3B of 35B (256 experts, 8 routed + 1 shared)'
-    vision: mmproj
-    # The fetch target layout scripts/win/lmstudio-llm.ps1 creates under the library. Before the
-    # file exists the preset is incomplete, and `presets` warns instead of emitting a blind model.
-    mmproj_path: 'D:\llm\models\unsloth\Qwen3.6-35B-A3B-MTP-GGUF\mmproj-BF16.gguf'
-    vision_evidence: 'unsloth/Qwen3.6-35B-A3B-MTP-GGUF ships mmproj-BF16.gguf + mmproj-F32.gguf (repo file list, 2026-09-28)'
-    kv_basis: 'published Qwen/Qwen3.6-35B-A3B config (40L, 10 full-attn, 2 KV heads, head_dim 256) — confirm against the engine load log'
-    on_disk: false                         # NOT in D:\llm\models as of 2026-09-28: ~21 GB to fetch once
 
   # The FIM leg. Already on disk (1.80 GiB, lmstudio-community).
   qwen25-coder-3b-fim:
@@ -201,82 +179,13 @@ models:
     vision_evidence: >-
       MEASURED 2026-09-28: the header carries architecture qwen35moe and NO *.vision.* keys,
       and the directory holds no sibling mmproj-*.gguf. Owner confirmed the same conclusion.
-      Kept as a text-only alternative arm, not as a vision model.
-    kv_basis: 'same published hybrid config as qwen36-35b-a3b-mtp'
+      Documented because the file is on D: and its header is evidence — NO profile references it.
+    kv_basis: 'published Qwen/Qwen3.6-35B-A3B config (40L, 10 full-attn layers, 2 KV heads, head_dim 256)'
     on_disk: true
     path: 'D:\llm\models\hesamation--Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled-GGUF\Qwen3.6-35B-A3B-Claude-4.6-Opus-Reasoning-Distilled.Q5_K_M.gguf'
 
-  # Vision + long context with NOTHING to download: weights and the projector are already in the
-  # library (owner's 2026-05 pulls). Numbers below are read from the GGUF header of the file on
-  # D:, measured 2026-09-29, NOT from the model card.
-  gemma4-26b-a4b:
-    upstream: 'lmstudio-community/gemma-4-26B-A4B-it-GGUF'
-    quant: Q4_K_M
-    weights_bytes: 16796015040            # the file as it sits on D: (15.64 GiB)
-    mmproj_bytes: 1194827744              # mmproj-gemma-4-26B-A4B-it-BF16.gguf (1.11 GiB)
-    # HYBRID SLIDING-WINDOW ARCH, and the header is the only honest source for it.
-    # 30 layers; gemma4.attention.sliding_window_pattern = [1,1,1,1,1,0, ...] so 5 layers are
-    # GLOBAL (5, 11, 17, 23, 29) and 25 are bounded by sliding_window = 1024. Only the 5 global
-    # layers carry per-token KV, and THEY use head_count_kv = 2 with key_length 512 (the windowed
-    # layers use 8 heads x 256 and are window-bounded). So:
-    #     2 * 5 global * 2 kv-heads * 512 * 2 B = 20 480 B/token = 20 KiB
-    # which is the SAME 20 KiB/token the Qwen3.6 row derives by a different route (Gated DeltaNet).
-    # Do not copy the 240 KiB figure you get by multiplying 30 layers x 8 heads x 256 - that
-    # assumes every layer holds full-sequence KV at the wider head count, and it is 12x wrong.
-    kv_bytes_per_token: 20480
-    # The windowed layers are not free, they are just BOUNDED: 25 layers x 2 x 8 heads x 256 x 2 B
-    # x 1024-token window = 200 MiB per sequence, constant with context length. Counted as state.
-    state_bytes_per_sequence: 209715200
-    native_context_window: 262144
-    active_params: '~3.8B of 25.2B (128 experts, 8 routed + shared)'
-    vision: mmproj
-    identifier: 'google/gemma-4-26b-a4b'          # what `lms ls` reports; the agent leg does NOT use
-                                          # this row - it loads the no-mmproj twin above
-    mmproj_path: 'D:\llm\models\lmstudio-community\gemma-4-26B-A4B-it-GGUF\mmproj-gemma-4-26B-A4B-it-BF16.gguf'
-    vision_evidence: 'mmproj-gemma-4-26B-A4B-it-BF16.gguf sits beside the weights in the library (verified on disk 2026-09-29)'
-    kv_basis: 'gemma4 GGUF header on D: (sliding_window_pattern, head_count_kv, key_length 512 / key_length_swa 256, sliding_window 1024) - read from the file 2026-09-29'
-    on_disk: true
-    path: 'D:\llm\models\lmstudio-community\gemma-4-26B-A4B-it-GGUF\gemma-4-26B-A4B-it-Q4_K_M.gguf'
-    # Sampling comes from the file too: general.sampling.temp 1.0 / top_p 0.95 / top_k 64.
-    fim_surface: null
-    fim_probe: not-applicable
-
-  # The SAME WEIGHT BYTES, loaded without the projector. `lms load` has no vision flag in 0.4.25
-  # (--gpu --identifier -c -y --parallel --ttl --estimate-only --speculative-* are all of them) and
-  # the adapter attaches simply because a sibling mmproj-*.gguf sits in the folder - so the only way
-  # to take the vision tower off the agent leg is a folder WITHOUT the file. Made with
-  # `lms import --hard-link`: zero extra disk (verified - same inode as the row above,
-  # 5764607523036758544, both 16 796 015 040 B), and `lms ls` indexes it as
-  # `gemma-4-26b-a4b-textonly`. WHY: images belong to the Qwen leg (owner ruling 2026-09-29), and
-  # this Gemma build KILLS THE ENGINE on any image whose long side exceeds ~1120 px, so advertising
-  # eyes here is a crash button, not a feature. Projector cost measured at 32k idle: 1.11 GiB.
-  gemma4-26b-a4b-textonly:
-    upstream: 'domen/gemma-4-26b-a4b-textonly'          # hard-linked copy of the row above
-    quant: Q4_K_M
-    weights_bytes: 16796015040            # same bytes, same inode as gemma4-26b-a4b (15.64 GiB)
-    mmproj_bytes: 0                       # THE POINT OF THE ROW: no adapter, no ViT, no crash path
-    kv_bytes_per_token: 20480             # identical architecture, so identical KV arithmetic
-    state_bytes_per_sequence: 209715200
-    native_context_window: 262144
-    active_params: '~3.8B of 25.2B (128 experts, 8 routed + shared)'
-    vision: none
-    mmproj_path: null
-    identifier: 'gemma-4-26b-a4b-textonly'   # what `lms ls` reports and `lms load` accepts
-    vision_evidence: >-
-      NONE by construction, not by omission. The folder holds no mmproj-*.gguf. Measured ceiling of
-      the sibling vision row: images with a long side above ~1120 px kill the engine
-      (STATUS_STACK_BUFFER_OVERRUN 3221226505, server answers {"error":"terminated"}) on TWO weight
-      files, so this leg is text-only by evidence as well as by budget
-      (reports/hd474-laptop-leg/raw/62,64,66 + the must-fail probe in raw/88-certify.txt).
-    kv_basis: 'same gemma4 GGUF header as gemma4-26b-a4b (5 global layers x 2 KV heads x 512) - the
-      weights are the same file'
-    on_disk: true
-    path: 'D:\llm\models\domen\gemma-4-26b-a4b-textonly\gemma-4-26B-A4B-it-Q4_K_M.gguf'
-    fim_surface: null
-    fim_probe: not-applicable
-
-  # THE VISION LEG (HD-476, owner ruling 2026-09-29: two legs, one GPU - Gemma thinks, this one
-  # looks). Numbers are read from the GGUF header of the file on D: with
+  # THE VISION LEG (HD-476) — and since the 2026-10-09 ruling, the runtime's ACTIVE leg. Numbers
+  # are read from the GGUF header of the file on D: with
   # reports/hd474-laptop-leg/raw/gguf_hdr.py (qwen3vlmoe, 48 blocks, 4 KV heads, key_length 128,
   # context_length 262144, NO sliding window, NO vision keys in the main file - the tower lives in
   # the sibling mmproj) and measured on this engine, not from the model page.
@@ -316,133 +225,9 @@ models:
 # num_ctx is exactly the defect prompt-llm.md §6 warns about (pi 400s mid-session).
 profiles:
 
-  # Default. Text + vision from one resident model, which is what removes the
-  # docs/hardware-workstation.md:137 "unload the agent, load the VL model" dance.
-  # Budget (binary GiB, what the script prints): 18.63 weights + 0.93 projector + 0.63 KV(f16,
-  # 32k) + 0.06 GDN state + 3.00 held floor = 23.25 of 32 GiB ⇒ 8.75 GiB margin. f16 KV is the
-  # default for the reason in the kv_factor header: 0.31 GiB of savings is not worth an
-  # unproven flash-attention dependency on a Vulkan/hybrid-GDN combination.
-  agent-unified:
-    label: 'Qwen3.6-35B-A3B Q4_K_M + mmproj, f16 KV, 32k — text AND vision in one load'
-    model: qwen36-35b-a3b-mtp
-    num_ctx: 32768
-    kv_cache_type: f16
-    flash_attention: false
-    mtp: false                            # MUST stay false here: --mmproj and MTP conflict
-    offload_layers: max                   # LM Studio's GPU-offload slider
-    env_extra: {}
-    reasoning_surface: binary
-    client_context_window: 32768
-    client_max_tokens: 8192
-    input: [text, image]
-    sampling_params: {temperature: 0.6, top_p: 0.95, top_k: 20}
-    capabilities: [tool]
-    tool_probe: pending
-    vision_probe: pending                 # one real image; the ONLY thing that makes input:[image] true
-    certified: false
-    uncertified_reason: >-
-      Never booted on this box. Open: tool-call reliability of this build, image prefill cost on
-      16 CU (HD-401 gate 4 — "mmproj offloaded to iGPU" is assumed nowhere), and the fact that
-      the weights are not on disk yet (~21 GB one-time fetch into the library).
-    certified_evidence: null
-
-  # Faster text arm, MTP speculative decoding on, vision unavailable in this load.
-  # The two profiles are the same model: switching is an engine config change, not a download,
-  # and never a second resident model (OLLAMA_MAX_LOADED_MODELS does not exist here — LM Studio
-  # caps loaded models in its own settings; the applier asserts one loaded model at a time).
-  agent-unified-mtp:
-    label: 'Qwen3.6-35B-A3B Q4_K_M, MTP speculative decoding ON — text only (--mmproj unsupported with MTP)'
-    model: qwen36-35b-a3b-mtp
-    num_ctx: 32768
-    kv_cache_type: f16
-    flash_attention: false
-    mtp: true
-    mtp_draft_tokens: 2                   # unsloth's own example uses --spec-draft-n-max 2
-    offload_layers: max
-    env_extra: {}
-    reasoning_surface: binary
-    client_context_window: 32768
-    client_max_tokens: 8192
-    input: [text]
-    sampling_params: {temperature: 0.6, top_p: 0.95, top_k: 20}
-    capabilities: [tool]
-    tool_probe: pending
-    certified: false
-    uncertified_reason: >-
-      lmstudio-bug-tracker #1951: MTP "failing to initialize" with ZERO speedup on the 35B MoE
-      in 0.4.14 beta (the dense 9B got 40-60 %). Enable it only after a measured A/B on this
-      model — a speculative decoder that never accepts a draft costs you the verify pass.
-    certified_evidence: null
-
-  # MEASURED 2026-09-30 (raw/90-speed.txt, `probe-speed --ttft` against real repo prose, thinking
-  # ON because this server cannot switch it off, max_tokens 256):
-  #   prompt_tokens   cold TTFT   prefill    decode    warm TTFT (prefix-cache hit)
-  #   2 462           9.63 s      256 t/s    21.1 t/s  0.30 s
-  #  10 610          69.42 s      153 t/s    18.3 t/s  0.38 s
-  #  31 137        1806.83 s       17 t/s     8.3 t/s  (not run)
-  # Two things that are not in any model card: decode FALLS with context (21 -> 18 -> 8 t/s), and
-  # cold prefill of the SAME 10 610-token prompt measured 259 s once and 69 s another time - 3.7x,
-  # corroborating raw/80's 277-899 s spread. Plan around the prefill, not the page.
-  # The owner's chosen agent leg (2026-09-29), CERTIFIED BY MEASUREMENT 2026-09-30 (HD-474/477).
-  # TEXT-ONLY, and that is an evidence decision, not a simplification: this Gemma build dies
-  # (engine exit 3221226505 = STATUS_STACK_BUFFER_OVERRUN, server {"error":"terminated"}) on any
-  # image whose long side exceeds ~1120 px, reproduced on two weight files and on a 2000x160 strip
-  # that has a QUARTER of the pixels of a passing 1280x960 - so the trigger is max side length, and
-  # the failure mode is a dead runtime, not a refused request. Images go to `vision-qwen3vl-30b`.
-  # Loading the hard-linked no-mmproj copy is what makes the budget honest: the projector would
-  # otherwise cost 1.11 GiB resident for a capability the profile does not advertise.
-  # Budget (binary GiB): 15.64 weights + 0 projector + 0.62 KV(f16, 32k) + 0.20 window state
-  # + 3.00 held floor = 19.46 of 32 GiB => +12.54 margin. MEASURED against that: 18.87 GiB of PDH
-  # dedicated GPU memory with a 2.21 GiB idle desktop under it (raw/80 phase 3), i.e. 16.66 GiB of
-  # model - the arithmetic was 0.2 GiB pessimistic, which is the right direction to be wrong.
-  agent-gemma-26b:
-    label: 'Gemma 4 26B A4B Q4_K_M, TEXT-ONLY (no projector), f16 KV, 150k - the agent leg'
-    model: gemma4-26b-a4b-textonly
-    # 150 016, not 150 000: llama.cpp rounds the request up to a multiple of 32 and `lms ps` reports
-    # 150016, so this is the number the engine actually serves - writing 150000 here would put a
-    # number in the catalogue that no load ever produced. Owner asked for 150k on 2026-10-03.
-    # MEASURED at this window (PDH Dedicated Usage, same box, same weights): 21.42 GiB, against
-    # 19.17 GiB at 32 768 => +2.25 GiB over 117 248 tokens = 20 650 B/token, which confirms
-    # kv_bytes_per_token = 20 480 from the header and REFUTES `lms load --estimate-only`, which
-    # predicts 27.96 GiB here (~83 KiB/token, 4x pessimistic). Plan by the PDH counter, not the
-    # estimator: by the estimator 262 144 does not fit, by the counter it costs ~5 GiB of KV.
-    # What the bigger window does NOT buy: prefill. See docs/hardware-workstation.md - 20 816 tokens
-    # measured 359 / 899 / 277 s across three loads, so a cold 150k turn is the cost being accepted.
-    num_ctx: 150016
-    kv_cache_type: f16
-    flash_attention: false
-    mtp: false                            # no MTP story for this family; that is the trade vs Qwen3.6
-    offload_layers: max
-    parallel: 1                           # measured load shape (`--parallel 1`); one sequence
-    env_extra: {}
-    reasoning_surface: binary
-    client_context_window: 150016         # == num_ctx; models-spec.yml must carry the SAME number
-                                          # or pi compacts early (smaller) or 400s (larger)
-    client_max_tokens: 8192
-    input: [text]                         # see the 1120 px ruling above; do not add image here
-    sampling_params: {temperature: 1.0, top_p: 0.95, top_k: 64}   # from general.sampling.* in the file
-    capabilities: [tool]
-    tool_probe: passed                    # 2026-09-30 on THIS load: well-formed tool_calls, no
-                                          # tool_choice sent (0.4.25 400s on it) - raw/88-certify
-    vision_probe: not-applicable          # input is [text]. Not a shrug: the SERVER enforces it.
-                                          # probe-vision against this load returns HTTP 400
-                                          # "agent-gemma-26b does not support image inputs" in 0 s
-                                          # because no projector is attached - the loud failure.
-    certified: false                      # the 32k certificate does not transfer to 150k. Everything
-                                          # HD-474 proved (tool calls, three prompt shapes, the image
-                                          # ceiling) is window-independent and still stands; what is
-                                          # unproven is behaviour AT this depth.
-    uncertified_reason: >-
-      Window raised 32 768 -> 150 016 on 2026-10-03 by owner request. Memory is measured and fits
-      (21.42 GiB of the 32 GiB carve); what is owed before this row goes green again: (a) a recall
-      needle at >= 90 % of 150 016 tokens, 3/3 - HD-474's 28 984-token pass was 92 % of the OLD
-      window and says nothing about 135 k; (b) the cold-prefill ladder at the new window, because
-      HD-486's 359 / 899 / 277 s spread is the price this profile now accepts on a cache miss.
-    certified_evidence: 'reports/hd474-laptop-leg (raw/62-80, raw/88-certify.txt, raw/90-speed.txt) — measured at num_ctx 32768; 150016 load memory measured 2026-10-03 (PDH 21.42 GiB, lms ps CONTEXT 150016)'
-
-  # THE VISION LEG (HD-476). Same GPU, same carve, NEVER resident at the same time as the agent leg:
-  # 96 KiB/token means 32k alone is 3.0 GiB of KV on top of 16.50 GiB of weights and 1.01 GiB of
-  # projector, and the adapter only attaches to a load that has room for it.
+  # THE VISION LEG (HD-476) — the dial's active profile. Same GPU, same carve, and nothing else is
+  # resident with it: 96 KiB/token means 32k alone is 3.0 GiB of KV on top of 16.50 GiB of weights
+  # and 1.01 GiB of projector.
   # Budget: 16.50 + 1.01 + 3.00 KV(f16, 32k) + 0 + 3.00 floor = 23.51 of 32 GiB => +8.49 margin.
   # Measured PDH dedicated memory at this load: 23.92 GiB of a ~24 GiB adapter (raw/ctx32k.out),
   # which is why the rule is one resident model, not "two fit".
@@ -493,41 +278,16 @@ profiles:
       tested and is strictly worse (whole frame at 1/5: 'NOT VISIBLE'). Practical: still verify a
       transcribed identifier against the inventory, and when a reading disagrees, re-ask of a crop
       before believing either answer.
-    certified: true                       # certified by measurement 2026-09-30 (laptop vision leg;
-                                          # the todo row id is pending renumber - the laptop lane's
-                                          # HD-476/477 collide with the DNS lane's; see the report
-                                          # §8 for the collision note before citing either id.
+    certified: true                       # certified by measurement 2026-09-30 (laptop vision leg,
+                                          # HD-476 — the id this lane's row carries today; ids are
+                                          # re-derived from todo.md, never copied, CONVENTIONS §4).
     uncertified_reason: null
     certified_evidence: 'reports/hd474-laptop-leg (raw/68,72,73, ctx32k.out, raw/88-certify.txt, raw/91,92)'
 
-  # The 64k arm — the ONLY place a quantized KV cache earns its keep: q8_0 saves 0.63 GiB here
-  # (1.25 → 0.63), which is what makes 64k fit with margin. Same weights, same projector.
-  # Budget: 18.63 + 0.93 + 0.63 KV + 0.06 + 3.00 = 23.25 of 32 ⇒ 8.75 GiB margin.
-  agent-unified-64k:
-    label: 'Qwen3.6-35B-A3B Q4_K_M + mmproj, q8_0 KV, 64k — UNCERTIFIED (KV quant unproven here)'
-    model: qwen36-35b-a3b-mtp
-    num_ctx: 65536
-    kv_cache_type: q8_0
-    flash_attention: true                 # q8_0 KV is honoured only with FA on; UNPROVEN on Vulkan+GDN
-    mtp: false
-    offload_layers: max
-    env_extra: {}
-    reasoning_surface: binary
-    client_context_window: 65536
-    client_max_tokens: 8192
-    input: [text, image]
-    sampling_params: {temperature: 0.6, top_p: 0.95, top_k: 20}
-    capabilities: [tool]
-    tool_probe: pending
-    vision_probe: pending
-    certified: false
-    uncertified_reason: 'q8_0 KV accuracy never measured on this model, and it requires flash attention, which is unproven for this arch on Vulkan; 64k prefill latency never measured on 16 CU.'
-    certified_evidence: null
-
-  # FIM stays SEPARATE by design (decision #28: the laptop's legs are FIM + visual judgment;
-  # generation is spark's or external). It is also the only profile that may be resident
-  # *alongside* a text profile: 1.8 GiB + 0.15 GiB KV is nothing, but the docs warn three
-  # resident models leak slots, and LM Studio unloads on switch anyway.
+  # FIM is the runtime's OTHER leg and it stays SEPARATE by design (decision #28: the laptop's legs
+  # are FIM + visual judgment; generation is spark's, reached directly — see THE DIAL above). It is
+  # also the only profile that may be resident *alongside* another: 1.8 GiB + 0.15 GiB KV is nothing,
+  # but the docs warn three resident models leak slots, and LM Studio unloads on switch anyway.
   fim-coder-3b:
     label: 'Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV, 8k — Continue tab completion'
     model: qwen25-coder-3b-fim
@@ -575,10 +335,9 @@ vision_policy:
   # MEASURED CEILING (2026-09-30, raw/62,64,66 + this session's re-run): the gemma4 vision tower on
   # this Vulkan build dies above ~1120 px on the LONG SIDE - 320/640/896/1120 answer, 1280 and even
   # a 2000x160 strip kill the engine. It is not the quant, not the file, not the pixel count. The
-  # qwen3vl tower takes 8160x6120 untouched. So a client that can pick either leg must be told the
-  # rule in the contract: images at a Gemma leg need a resize first, and this box does not have a
-  # Gemma leg any more - `agent-gemma-26b` is input: [text] precisely so that the crash is not
-  # reachable from the picker.
+  # qwen3vl tower takes 8160x6120 untouched. That is why no catalogue entry offers a Gemma vision
+  # surface: a capability whose failure mode is a dead runtime does not belong in a client contract,
+  # and the crash was never reachable from the picker.
 
 # ── client contract pointers (what probe-client drift-checks against) ────────────────────
 # The pi provider row and the Continue rows live in scripts/pi-config/models-spec.yml — ONE spec
@@ -589,8 +348,10 @@ client:
   # Must name the row for the ACTIVE profile: probe-client drift-checks the active profile against
   # THIS row, and pi 400s mid-session when the two disagree. Switching the dial means switching this
   # pointer in the same commit. The row id is the profile name because that is what `--identifier`
-  # makes the server serve; the vision leg's row is `vision-qwen3vl-30b` (one GPU, one resident leg).
-  pi_model: agent-gemma-26b
+  # makes the server serve. Since 2026-10-09 the active profile is the vision leg, and it is also
+  # the ONLY pi-facing row this provider offers — the FIM row is a Continue `insert` model, never a
+  # harness brain, and the agent row is retired (THE DIAL above).
+  pi_model: vision-qwen3vl-30b
 
 # ── reuse_contract: why nothing downloads twice ─────────────────────────────────────────
 # 1. ONE library, one home. settings.json.downloadsFolder points at D:\llm\models, which is

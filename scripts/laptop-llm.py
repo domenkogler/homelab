@@ -16,7 +16,7 @@ Nothing is hardcoded — no profile name, no path, no model identifier.
 
     python3 scripts/laptop-llm.py matrix
     python3 scripts/laptop-llm.py gate --self-test
-    python3 scripts/laptop-llm.py budget --profile agent-unified-64k
+    python3 scripts/laptop-llm.py budget --profile vision-qwen3vl-30b
     python3 scripts/laptop-llm.py probe-client
     python3 scripts/laptop-llm.py probe-ctx --model <lmstudio identifier>
 """
@@ -219,18 +219,24 @@ def gate(cfg, names=None):
 
 # Each canary breaks ONE invariant and must fail loudly — an invariant no canary tests is an
 # invariant nobody knows is enforced. Paths are write-targets inside the parsed config.
+#
+# 2026-10-09: the runtime's agent legs left the catalogue (docs/hardware-workstation.md §Served
+# leg), and seven canaries targeted those profiles or their model row. Every one of them moved to a
+# surviving target that exercises the SAME invariant — none was dropped, none was softened, and the
+# count is what `gate --self-test` prints, not what this list is aiming at.
 CANARIES = [
     ("typo-canary", "active", "nonsense-profile-name", "is not in the catalogue"),
     ("nopin-canary", "runtime.version", None, "runtime.version is null"),
-    ("zerokv-canary", "models.qwen36-35b-a3b-mtp.kv_bytes_per_token", 0, "makes the budget check pass"),
-    ("native-canary", "profiles.agent-unified.num_ctx", 10_000_000, "> native window"),
-    ("tool-canary", "profiles.agent-unified.tool_probe", "failed", "tool_probe"),
-    ("mtpvision-canary", "profiles.agent-unified.mtp", True, "not support --mmproj"),
-    ("client-canary", "profiles.agent-unified.client_context_window", 1_048_576, "would 400 mid-session"),
-    ("badkvtype-canary", "profiles.agent-unified.kv_cache_type", "q8-x", "not in kv_factor"),
-    ("nofa-canary", "profiles.agent-unified-64k.flash_attention", False, "needs flash_attention: true"),
+    ("zerokv-canary", "models.qwen3vl-30b-a3b.kv_bytes_per_token", 0, "makes the budget check pass"),
+    ("native-canary", "profiles.vision-qwen3vl-30b.num_ctx", 10_000_000, "> native window"),
+    ("tool-canary", "profiles.vision-qwen3vl-30b.tool_probe", "failed", "tool_probe"),
+    ("mtpvision-canary", "profiles.vision-qwen3vl-30b.mtp", True, "not support --mmproj"),
+    ("client-canary", "profiles.vision-qwen3vl-30b.client_context_window", 1_048_576,
+     "would 400 mid-session"),
+    ("badkvtype-canary", "profiles.vision-qwen3vl-30b.kv_cache_type", "q8-x", "not in kv_factor"),
+    ("nofa-canary", "profiles.fim-coder-3b.flash_attention", False, "needs flash_attention: true"),
     ("model-canary", "profiles.fim-coder-3b.model", "no-such-model", "is not in models"),
-    ("blind-canary", "models.qwen36-35b-a3b-mtp.mmproj_bytes", 0, "not budgeted"),
+    ("blind-canary", "models.qwen3vl-30b-a3b.mmproj_bytes", 0, "not budgeted"),
     ("budget-canary", "host.gpu_carve_bytes", 12 * GiB, "raise the carve"),
     ("uncert-canary", "allow_uncertified", False, "not certified"),
 ]
@@ -491,6 +497,17 @@ def _fim_verdict(txt, case):
     return True, "bridged the gap"
 
 
+def _fim_profile(cfg):
+    """The FIM leg's profile name, found by its capability rather than by the dial. Since the
+    2026-10-09 retirement the active profile is the resident GENERATION leg (vision), so defaulting
+    this probe to `active` would silently measure the wrong model — and a probe that measures the
+    wrong model and prints a verdict is worse than one that fails. `capabilities: [insert]` is what
+    marks the tab-completion row in the catalogue."""
+    hits = [n for n, p in (dig(cfg, "profiles", {}) or {}).items()
+            if "insert" in (p.get("capabilities") or [])]
+    return hits[0] if len(hits) == 1 else None
+
+
 def cmd_probe_fim(cfg, a):
     """docs/hardware-workstation.md:64 demands a FIM-trained model and says Instruct variants "do
     not do it"; Qwen2.5-Coder's own card documents chat-template FIM on Instruct. Settle the
@@ -502,10 +519,22 @@ def cmd_probe_fim(cfg, a):
     model completed 'def is_palindrome' perfectly and the probe called it an echo."""
     if a.self_test:
         return fim_self_test()
-    prof = dig(cfg, f"profiles.{a.profile}") or {}
+    prof_name = a.profile or _fim_profile(cfg)
+    if not prof_name:
+        print("probe-fim: the catalogue does not name exactly one FIM leg (a profile with "
+              "capabilities: [insert]), so the probe cannot pick a model for itself. Pass --profile.")
+        return 2
+    prof = dig(cfg, f"profiles.{prof_name}") or {}
+    if not prof:
+        print(f"probe-fim: profile '{prof_name}' is not in the catalogue "
+              f"(valid: {', '.join((dig(cfg, 'profiles', {}) or {}).keys())})")
+        return 2
     m = dig(cfg["models"], prof.get("model")) or {}
     model = a.model or m.get("identifier")
     passes, results = 0, []
+    print(f"FIM leg: profile '{prof_name}' -> model {model!r} "
+          f"(the dial is active={dig(cfg, 'active')!r}; the FIM leg is found by its `insert` "
+          "capability, not by what is resident)")
     for case in FIM_CASES:
         # Both shapes: the raw cursor gap, and the chat-template FIM form the model card documents.
         prompt = a.prompt_tmpl.format(prefix=case["prefix"], suffix=case["suffix"]) if a.prompt_tmpl \
@@ -769,8 +798,9 @@ def cmd_probe_vision(cfg, a):
             print("  MODALITY VERDICT, and a useful one: the server itself refuses images for this")
             print("  load, because no projector is attached. That is the text-only leg behaving as")
             print("  the contract says - keep `image` out of that profile's input list. Measured")
-            print("  2026-09-30 on agent-gemma-26b: HTTP 400 'agent-gemma-26b does not support image")
-            print("  inputs' in 0 s, which is the LOUD failure this contract was shaped to have.")
+            print("  2026-09-30 on a load with no projector attached: HTTP 400 in 0 s naming the")
+            print("  served id and 'does not support image inputs' - the LOUD failure this contract")
+            print("  was shaped to have.")
             return 1
         if "terminat" in body:
             print("  ENGINE CRASH signature. This is a real capability failure: this build dies on")
@@ -866,8 +896,14 @@ def cmd_probe_client(cfg, a):
         print(f"client drift: FAIL — model '{a.model}' not under provider '{a.provider}'.models")
         return 1
     errs = []
+    # `reasoning` compares the client row against the PROFILE's thinking surface, not against the
+    # spec row's own field: a row that says `reasoning: true` while the engine has no thinking
+    # channel is the empty-`content` bug this repo already paid for, and comparing the row to itself
+    # could never fail, so it proved nothing (CONVENTIONS §6: a check that cannot fail is not
+    # evidence).
     want = {"contextWindow": p.get("client_context_window"), "maxTokens": p.get("client_max_tokens"),
-            "input": p.get("input") or ["text"], "reasoning": bool(m.get("reasoning"))}
+            "input": p.get("input") or ["text"],
+            "reasoning": (p.get("reasoning_surface") or "none") != "none"}
     for k, v in want.items():
         if m.get(k) != v:
             errs.append(f"{k}: client says {m.get(k)!r}, active profile '{act}' serves {v!r}")
@@ -1031,7 +1067,10 @@ def main():
             s.add_argument("--self-test", action="store_true",
                            help="check the verdict classifier against known wrong answers")
         if name == "probe-fim":
-            s.add_argument("--profile", default=dig(load(), "active"))
+            # No default here on purpose: the FIM leg is resolved inside the probe from its
+            # `insert` capability, because the ACTIVE profile is a generation leg and would be the
+            # wrong model to put a cursor gap in front of.
+            s.add_argument("--profile", default=None)
             s.add_argument("--self-test", action="store_true",
                            help="breed wrong verdicts and refuse any detector that passes them")
             s.add_argument("--prompt-tmpl", default=None,
@@ -1051,8 +1090,11 @@ def main():
 
     a = ap.parse_args()
     cfg = load(a.spec)
-    if a.cmd.startswith("probe-") and not getattr(a, "model", None) and a.cmd != "probe-client":
+    if a.cmd.startswith("probe-") and not getattr(a, "model", None) and a.cmd not in ("probe-client",
+                                                                                       "probe-fim"):
         # The engine's identifier comes from the catalogue + `lms ls`, never from this script.
+        # probe-fim is excluded: it resolves its own leg, because the active profile is not the
+        # FIM model.
         p = dig(cfg, f"profiles.{dig(cfg,'active')}") or {}
         a.model = a_ident(cfg, p)
     sys.exit(a.fn(cfg, a) or 0)

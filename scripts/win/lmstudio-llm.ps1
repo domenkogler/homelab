@@ -16,7 +16,7 @@
 
 .EXAMPLE
     powershell -File scripts\win\lmstudio-llm.ps1 init
-    powershell -File scripts\win\lmstudio-llm.ps1 switch -Profile agent-gemma-26b
+    powershell -File scripts\win\lmstudio-llm.ps1 switch -Profile fim-coder-3b
     powershell -File scripts\win\lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b
     powershell -File scripts\win\lmstudio-llm.ps1 status
     powershell -File scripts\win\lmstudio-llm.ps1 verify

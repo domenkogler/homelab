@@ -142,9 +142,13 @@ providers:
   #
   # The engine ceiling, the KV budget and the thinking surface all live in
   # scripts/laptop-llm/profiles.yml; `laptop-llm.py probe-client` FAILS if this block drifts from
-  # the active profile. The two laptop rows below are MEASURED legs as of 2026-09-30
-  # (HD-474/HD-476) — the windows each one actually booted, with the tok/s, TTFT and GiB behind them
-  # in reports/hd474-laptop-leg/README.md. The FIM row stays declared-but-unmeasured for now.
+  # the active profile. What this provider offers, since the owner's 2026-10-09 ruling, is the
+  # laptop's TWO legs — vision and FIM (HD-474/HD-476; the windows below are the ones each leg
+  # actually booted, with the tok/s, TTFT and GiB behind them in reports/hd474-laptop-leg/README.md,
+  # and the FIM row still declared-but-unmeasured). **No agent model lives here any more**: the
+  # runtime's agent leg was retired on a prefill measurement, and a generation harness reaches spark
+  # directly (docs/services-ai.md §9 decisions #26 and #28) — this provider does not proxy it and
+  # does not fall back to it.
   - id: laptop-lmstudio
     description: local LM Studio server on the admin laptop (iGPU, 32 GiB carve) — loopback, no cost
     # MEASURED on the seat 2026-09-30: `socket.gethostname()` returns `Domen_P14s`. It is written
@@ -176,37 +180,15 @@ providers:
       supportsReasoningEffort: false
       supportsStrictMode: false
     models:
-      # TWO ROWS, ONE GPU. The served id is the PROFILE NAME in scripts/laptop-llm/profiles.yml
-      # (`lms load ... --identifier <profile>`), because /v1/models must list exactly what pi sends
-      # and a hand-kept identifier is a second copy that drifts. JIT loading is OFF on this install,
-      # so only the RESIDENT leg answers: the picker shows both rows and exactly one of them is dead
-      # until `lmstudio-llm.ps1 switch -Profile <name>` moves the GPU. That trade is deliberate — a
-      # dead row is loud (400 "model not loaded"), a silently-wrong one is not. The expensive mistake
-      # is sending an image to the text row, so the rule is written where the picker is described:
-      # docs/hardware-workstation.md §Served leg.
-      - id: agent-gemma-26b
-        name: Local Gemma 4 26B A4B (laptop iGPU, text-only, 150k)
-        # reasoning true: gemma4 thinks into reasoning_content and this server cannot switch thinking
-        # off (chat_template_kwargs / enable_thinking are IGNORED by LM Studio 0.4.25 — all four
-        # spellings measured 2026-09-30). A client that budgets 80 tokens gets an EMPTY `content`
-        # back and concludes the model is broken. It is not: budget >= 1024.
-        # input [text] ONLY — not because the weights are blind, but because this build dies
-        # (STATUS_STACK_BUFFER_OVERRUN, engine exit 3221226505) on any image whose long side exceeds
-        # ~1120 px. Image input here would be a crash button, so the client is not given one.
-        reasoning: true
-        input: [text]
-        contextWindow: 150016
-        # Raised from 32768 on 2026-10-03 (owner). It must equal `num_ctx` in
-        # scripts/laptop-llm/profiles.yml — that equality is what `laptop-llm.py probe-client` exists
-        # to enforce, because a client window above the engine window is a mid-session 400.
-        # 150016, not 150000: llama.cpp rounds up and `lms ps` reports 150016.
-        # Cost of the row, in the two currencies that matter: 21.42 GiB of the 32 GiB carve (measured,
-        # PDH Dedicated Usage), and PREFILL — cold prefill of >=20k tokens measured 359 / 899 / 277 s
-        # across three loads of the same prompt (docs/hardware-workstation.md), while a prefix-cache
-        # hit is 0.3 s. So 150k is cheap to HOLD and slow to FILL: keep the resident prefix stable.
-        maxTokens: 8192
-        cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
-        continue: {capabilities: [tool]}
+      # ONE GPU, ONE RESIDENT LEG, TWO ROWS. The served id is the PROFILE NAME in
+      # scripts/laptop-llm/profiles.yml (`lms load ... --identifier <profile>`), because /v1/models
+      # must list exactly what pi sends and a hand-kept identifier is a second copy that drifts. JIT
+      # loading is OFF on this install, so only the RESIDENT leg answers: the picker shows the vision
+      # row and it is dead until `lmstudio-llm.ps1 switch -Profile vision-qwen3vl-30b` moves the GPU.
+      # That trade is deliberate — a dead row is loud (400 "model not loaded"), a silently-wrong one
+      # is not, and `probe-client` checks residency because this endpoint does not police the `model`
+      # field. The rules are written where the picker is described: docs/hardware-workstation.md
+      # §Served leg.
       - id: vision-qwen3vl-30b
         name: Local Qwen3-VL-30B-A3B-Instruct (laptop iGPU, vision, 32k)
         reasoning: false
@@ -215,8 +197,8 @@ providers:
         maxTokens: 8192
         cost: {input: 0, output: 0, cacheRead: 0, cacheWrite: 0}
         # COST OF AN IMAGE, measured on this engine: the untouched 8160x6120 rack photo = 4060
-        # prompt_tokens and 66 s of prefill (61.2 t/s). This leg takes everything the Gemma leg
-        # cannot, but eight full-resolution photos are a third of this window and ~9 minutes of
+        # prompt_tokens and 66 s of prefill (61.2 t/s). This is the box's only vision surface, and
+        # eight full-resolution photos are a third of this window and ~9 minutes of
         # prefill — describe once, freeze the text (docs/hardware-workstation.md §Leg 2, seam rule 1).
         continue: {capabilities: [tool]}
       - id: qwen/qwen2.5-coder-3b-instruct
