@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the LiteLLM gateway and its consumers. **The rows are the authority**
 > for what is missing and how to do it — this file carries the contract, the order of work, the decided shape and the traps,
-> nothing else: [todo.md](todo.md) **HD-384 · HD-249**
+> nothing else: [todo.md](todo.md) **HD-384** (HD-249 is audited shut; its key waits for a consumer)
 > (row ids as of `9e661845` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
@@ -24,8 +24,8 @@ that recreates the same containers, and `docs/services-ai*.md` is single-writer.
 
 | # | Row | Do | Gate / trap |
 |---|-----|----|-------------|
-| 1 | **HD-384** | Read `GET /model/info` on **both** gateways, then land the `llm`-router client credential that stops `spark-llm_api` being triple-used — **owner ruled shape (a), the gateway's own credential** (2026-10-09), not an edge allow-list | ⚠ `/model/list` is unusable with the master key. **Catalog read measured 2026-10-09: the LAN instance answers FOUR rows** (`spark/qwen3.8-flash-next`, `local-rerank`, `bge-m3-vk`, `local-stt`) **and the VPS instance one**, so `ollama/bge-m3` is a fallback **rung**, not a row — read `/model/info`, do not trust the old "one row each". ⚠ The mint glue lives **inside** the `lan-litellm` deploy pass (`--tags docker_services` alone never runs it — name the service tag) and is **create-only**: a live key keeps its old allow-list until `/key/update` exists or the key is deliberately re-minted, so a grant cannot ship by editing records |
-| 2 | **HD-249** | Audit the `WEBHOOK_URL` + external-webhook dependency (no inbound public webhook may break), then give n8n's AI nodes a key of its own — **owner 2026-10-09: no budget cap, local rows only** | n8n rides the tailnet edge; its key is one of HD-384's consumers, so it ships after row 1. `versions.yml` `n8n_version` is its pin |
+| 1 | **HD-384** | Finish the ordered pair: after spark has rebooted with `litellm-engine_api` in its accepted-key list, point `lan-litellm` + `litellm` `OPENAI_API_KEY` at it and converge both; then the OWUI grant, which cannot ship by editing records (create-only glue until `/key/update`) | ⚠ **Order is the whole risk** — the engine only accepts the new credential from its next boot; flipping the gateways first 401s every upstream call. Prove `GET https://llm.kogler.si/v1/models` answers **200** with the new bearer before touching either gateway. ⚠ `/model/list` is unusable with the master key; **`GET /model/info` on the LAN instance answers FOUR rows** (`spark/qwen3.8-flash-next`, `local-rerank`, `local-stt`, `bge-m3-vk`) and the VPS one, so `ollama/bge-m3` is a *fallback rung*, not a row. ⚠ The mint glue lives **inside** the `lan-litellm` deploy pass (name the service tag) and is **create-only**: a live key keeps its old allow-list until `/key/update` exists or the key is deliberately re-minted |
+| 2 | **HD-249** | Nothing to execute today: the audit is **done** (one workflow, one active webhook, caller is Grafana on the docker network, `auto.kogler.si` tailnet-only) and n8n has **no AI node**, so there is no key to mint yet | When an AI node appears: mint on the **LAN** instance with **no `max_budget`** and **local rows only** (`spark/qwen3.8-flash-next`) per the owner's 2026-10-09 ruling — an unused scoped key is a liability, not a head start |
 
 ## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
 

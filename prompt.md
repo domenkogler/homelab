@@ -152,16 +152,21 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    — an owner pick), **HD-458 · 459** (zipline, the published names), **HD-112**. ⏸ **HD-47** stays an owner act,
    **Deferred by owner 2026-10-08**: the external-room join is unscheduled; everything publishable is published and
    measured. → [prompt-edge-identity.md](prompt-edge-identity.md)
-9. ⏳ **The LiteLLM consumer chain** — the `llm`-router credential and n8n's key (**HD-384 · 249**).
-   Three of the lane's five items closed 2026-10-09: the thinking control IS honoured through both gateways on the
-   pinned image ([docs/services-ai.md](docs/services-ai.md) §9d), the `/ui/login` deep-link defect did not survive
-   the 2026-10-08 pin (§4c), and **voice has an LLM to call** — HA's `litellm` entry, its conversation agent and the
-   Assist wire are live, proven by a Slovenian turn end to end ([docs/smart-home-voice.md](docs/smart-home-voice.md)
-   header table; the plaintext-replication ruling it required is in
-   [docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault). The turn also
-   surfaced a real defect that is NOT the gateway's: Assist cannot resolve "dnevna soba" (**HD-1127**). Owner
-   rulings taken: the gateway gets its **own** credential (not an edge allow-list), n8n's key carries **no budget
-   cap** and **local rows only**, an Assist-API turn is sufficient proof. → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
+9. ⏳ **The LiteLLM consumer chain** — one ordered pair left (**HD-384**).
+   Four of the lane's five items are closed 2026-10-09: the thinking control IS honoured through both gateways on
+   the pinned image ([docs/services-ai.md](docs/services-ai.md) §9d); the `/ui/login` deep-link defect did not
+   survive the 2026-10-08 pin (§4c); **voice has an LLM to call** — HA's `litellm` entry, its conversation agent
+   and the Assist wire are live, proven by a Slovenian turn end to end
+   ([docs/smart-home-voice.md](docs/smart-home-voice.md) header table; the plaintext-replication ruling it required
+   is in [docs/deployment-secrets.md](docs/deployment-secrets.md) §Runtime plaintext that leaves the vault); and
+   **n8n is audited shut** — one workflow, one webhook called by Grafana on the docker network, tailnet-only, and
+   **no AI node**, so there is no key to mint yet
+   ([docs/services-utilities.md](docs/services-utilities.md)). That turn also surfaced a defect that is NOT the
+   gateway's: Assist cannot resolve "dnevna soba" (**HD-1127**).
+   What remains is **sequencing, not thinking**: `litellm-engine_api` is minted and rendered into spark's
+   accepted-key list, and the gateways may only be pointed at it **after** spark reboots with it — a spark engine
+   restart is an owner-window action (PLE load, ~20 min), so step 2 is parked rather than slipped in.
+   → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
 10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency and **HD-476** the VL `mmproj` on the iGPU. The
     laptop's local **agent** leg is retired (owner ruling 2026-10-09), so this brief is FIM + vision only and claims
     no converge host — which is why it can run beside anything except a live pi-seat lane. →

@@ -38,7 +38,20 @@ tags: [services, utilities, tools, automation]
 
 - **n8n** is the alert **router** (dedup / tier / format) from Grafana Alerting — see [`observability.md`](observability.md).
 - **signal-cli** is the Signal delivery leg that n8n drives ("Homelab Alerts" group).
-- ⏳ **HD-249 (planned, v2):** n8n moves INTERNAL -- `auto.kogler.si` public route dropped, editor via tailnet-sidecar Pattern B, scoped LiteLLM key (+ budget cap) for AI workflow nodes. Prerequisite: audit external webhook dependencies before cutting the route.
+- ✅ **HD-249 audited 2026-10-09 — the route question is answered, and the key has no consumer yet.**
+  Measured, not remembered: n8n holds **exactly one workflow** (`homelab-alerts`, active) whose only inbound
+  surface is **one production webhook** `POST /webhook/homelab-alerts`; its only caller is **Grafana's contact
+  point** posting to `http://n8n:5678/webhook/homelab-alerts` on the docker network
+  (`grafana_alert_webhook_url`, [observability.md](observability.md)), and `auto.kogler.si` appears **only** in
+  `traefik-tailnet` routes — **zero** hits in `traefik-public` — so dropping the public route broke nothing
+  inbound, which is exactly what the row asked to verify. `WEBHOOK_URL=https://auto.kogler.si` is therefore only
+  the URL n8n *advertises* (editor/callback links), never the alert path. And ⚠ **the workflow has no AI or
+  LangChain node at all** — n8n makes no LLM call today, so there is no credential to replace and no key to
+  scope. Minting one now would add an unused vault item + an unused LiteLLM key, the pattern HD-386 had to
+  document; the owner's ruling (2026-10-09) fixes its SHAPE for the day an AI node appears: **no `max_budget`
+  cap, local rows only** (`spark/qwen3.8-flash-next`; `rpm` as KV-contention protection per decision #26), minted
+  through the **LAN** instance (`lan-litellm` → `home_servers.yml` `litellm_scoped_keys`), which is where every
+  internal querier's key lives.
 - n8n also runs **office automation** flows — see [`services-office.md`](services-office.md).
 
 ## Zipline — public bin & shortener (HD-112)
