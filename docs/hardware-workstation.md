@@ -82,8 +82,8 @@ Model: **`Qwen3-VL-30B-A3B-Instruct`** GGUF (unsloth `UD-Q4_K_XL`, 17 715 664 60
 engine 2026-09-30**. The **A3B MoE is preferred over a dense 8B** reasoning survives the 2026-09-27
 correction and is in fact *stronger* on a ~90 GB/s bus, which punishes dense weights harder. What
 does **not** survive is the speed figure, and here is the one that replaces it: **decode 23.84 t/s**,
-which is *faster* than the agent leg's decode at the same depth (18.3 t/s at a 10.6 k-token prompt,
-8.3 t/s at 31 k — the agent leg's speed table is below), so the community's ~100 t/s-class number is
+which is *faster* than the retired agent leg's decode at the same depth (18.3 t/s at a 10.6 k-token
+prompt, 8.3 t/s at 31 k — its speed table is below), so the community's ~100 t/s-class number is
 dead and dense-4B is no longer needed as a fast-round-trip fallback — the MoE is the fast one here.
 
 **What vision actually costs on this box** (`raw/68`, `raw/72`, `raw/73`, `raw/88`, `raw/91`,
@@ -118,15 +118,14 @@ prefix caching: the text part sits before the image in the message, so changing 
 invalidates the cached image tokens. Any seam that asks several things of one photo must put the
 image first or freeze the question — otherwise it pays image prefill per question.
 
-**Why the agent leg does NOT also do images (this is the reason the legs are split).** Gemma 4 26B
+**Why images never belonged on a Gemma leg.** Gemma 4 26B
 A4B on this Vulkan build dies on any image whose **long side exceeds ~1120 px** — engine exit
 `3221226505` = `STATUS_STACK_BUFFER_OVERRUN`, server answers `{"error":"terminated"}`. Reproduced on
 TWO weight files (lmstudio-community Q4_K_M and unsloth QAT `UD-Q4_K_XL`) and on a **2000×160**
 strip, which is a quarter of the pixels of a 1280×960 that fails: so it is not the quant, not the
 file, not the pixel count — it is max side length. 320 / 640 / 896 / 1120 answer; 1280 and 2000 kill
 it (`raw/62`, `raw/64`, `raw/66`). A capability whose failure mode is a dead runtime does not belong
-in a client contract, so `agent-gemma-26b` is `input: [text]` and the projector is not even loaded
-(a hard-linked folder without the mmproj — 1.11 GiB resident cheaper).
+in a client contract — and it is one more reason the box has no Gemma leg at all (§Served leg).
 
 **This leg is scoped to *judgment*, not reading:**
 
@@ -185,44 +184,57 @@ MESSAGE), `ADAPTER mmproj` 500s (#15346), two `FROM` lines hang (#17491), and `q
 to its vendored llama.cpp (#14730/#15898) until PR #15899 + #16031. LM Studio already reads the
 152 GB library on `D:` — one library, zero duplicate bytes.
 
-**The two legs, from one runtime, measured on the box (the catalogue is
+**The legs, from one runtime, measured on the box (the catalogue is
 `scripts/laptop-llm/profiles.yml`; the budget, the gate and the probes are `scripts/laptop-llm.py`;
-the applier is `scripts/win/lmstudio-llm.ps1`). Owner ruling 2026-09-29: **two legs, one GPU** —
-Gemma does the agentic work, Qwen-VL does images. Not one model doing both, and the reason is a
-measured failure, not taste: this Gemma build kills the engine on an image whose long side exceeds
-~1120 px (§Leg 2):**
+the applier is `scripts/win/lmstudio-llm.ps1`).**
+
+**RULING 2026-10-09 (owner): this runtime serves FIM and vision only — the agent leg is retired, not
+deferred.** It supersedes the 2026-09-29 split (Gemma doing the agentic work, Qwen-VL looking), and it
+rests on a measurement of **prefill**, not of the carve: one 20 816-token prompt cost
+**359 / 899 / 277 s** on three fresh loads of the same weights, and identical 10 610-byte prompts cost
+**259.15 s** once and **69.42 s** another time. Minutes before the first token, with no repeatable
+number to plan a session around, is not an agent leg at any quant or window — and memory was never
+the blocker (**21.42 GiB measured of the 32 GiB carve** at `num_ctx 150 016`), which is why neither a
+bigger window nor a smaller quant reopens it. The two numbers that leg was owed are retired **with**
+it rather than parked on a queue. No capability leaves the fleet: a generation harness reaches the
+spark name edge **directly** ([`services-ai.md`](services-ai.md) §9 decision #26), so this runtime was
+never the agent slot and does not fall back to spark.
 
 | Profile | Model | Window | Budget against the 32 GiB carve (declared → measured) |
 |---------|-------|--------|----------------------------------------------------------|
-| **`agent-gemma-26b`** (active) | Gemma 4 26B A4B Q4_K_M, **text-only** — a hard-linked folder with NO mmproj in it | 150 016 f16 KV | 15.64 + 0 projector + 2.86 KV + 0.20 state + 3.00 floor = **21.70** ⇒ +10.30 margin · **measured 21.42 GiB** of PDH dedicated memory under a 2.21 GiB idle desktop |
-| **`vision-qwen3vl-30b`** | Qwen3-VL-30B-A3B-Instruct UD-Q4_K_XL **+ mmproj-BF16** | 32k f16 KV | 16.50 + 1.01 + 3.00 KV + 0 + 3.00 floor = **23.51** ⇒ +8.49 margin · **measured 23.92 GiB** at 32k (`raw/ctx32k.out`) |
-| `fim-coder-3b` | Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV | 8k | 1.80 + 0.14 + floor = **4.94** (FIM probe passed; trigger latency still unmeasured) |
-| `agent-unified` / `-mtp` / `-64k` | Qwen3.6-35B-A3B Q4_K_M — **weights not on `D:`** (~21 GB) | 32k / 64k | declared only. Nothing measured here certifies them, and the agent leg now beats `agent-unified` on margin without a download |
+| **`vision-qwen3vl-30b`** (active — the dial's resident leg) | Qwen3-VL-30B-A3B-Instruct UD-Q4_K_XL **+ mmproj-BF16** | 32 768 f16 KV | 16.50 + 1.01 + 3.00 KV + 0 + 3.00 floor = **23.51** ⇒ +8.49 margin · **measured 23.92 GiB** at 32k (`raw/ctx32k.out`) |
+| `fim-coder-3b` | Qwen2.5-Coder-3B-Instruct Q4_K_M, q8_0 KV | 8 192 | 1.80 + 0.14 + floor = **4.94** — the only leg small enough to share the carve. `fim_probe` passed; **trigger latency is still unmeasured**, which is what `allow_uncertified: true` on the dial is for |
+
+Out of the catalogue with the ruling: `agent-gemma-26b` (15.64 weights + 2.86 KV + 0.20 state + 3.00
+floor = 21.70 declared, **21.42 GiB measured** on 2026-10-03) and the three declared `agent-unified*`
+arms, whose Qwen3.6 weights were never fetched (~21 GB). `laptop-llm.py matrix` no longer offers any
+of them; their measurements stay in [`../reports/hd474-laptop-leg/`](../reports/hd474-laptop-leg/)
+and in git.
 
 **One leg is resident. That is not a preference, it is the arithmetic.** Qwen3-VL holds 96 KiB/token
 (48 layers × 4 KV heads × 128, no sliding window), so 32k of it is **3.0 GiB of KV** on top of
 16.50 GiB of weights and 1.01 GiB of projector; the measured load sits at 23.92 GiB of the ~24 GiB
 adapter. `lms unload --all` before every load, and the applier enforces it.
 
-**What the client sees (and the trap in it).** `scripts/pi-config/models-spec.yml` carries BOTH rows
-— `agent-gemma-26b` (`input: [text]`) and `vision-qwen3vl-30b` (`input: [text, image]`) — while
-JIT loading is OFF, so only the resident one answers. The picker therefore shows two rows and one is
-always dead until `lmstudio-llm.ps1 switch -Profile <name>` moves the GPU. **Do not trust the picker
+**What the client sees (and the trap in it).** `scripts/pi-config/models-spec.yml` carries the
+laptop's remaining rows — `vision-qwen3vl-30b` (`input: [text, image]`, the only local chat row) and
+`qwen/qwen2.5-coder-3b-instruct` (`capabilities: [insert]`, Continue's tab model and never a harness
+brain) — while JIT loading is OFF, so only the resident leg answers and a row naming a leg that is not
+loaded is dead until `lmstudio-llm.ps1 switch -Profile <name>` moves the GPU. **Do not trust the picker
 to be honest for you, because the endpoint will not:** LM Studio's OpenAI server does **not** police
 the `model` field. Measured 2026-09-30 with only the vision leg loaded — a request naming
 `no-such-model-here` was answered (`'PONG'`, 0.4 s) **by the resident model**. So a dead row is not
 loud on the text path, it is *silent and wrong*: you get an answer from the other leg and never know.
 Images are the one path that IS policed (`400 "does not support image inputs"` in 0 s), which is why
-the text-only leg fails correctly. The guard is `probe-client`, which now compares the row it
-certifies against live `/v1/models` and FAILs when that leg is not resident. The other expensive
-mistake is quiet by construction — an over-1120 px image at a Gemma leg. Both rules are written into
-the spec next to the rows so whoever picks has them in front of them.
+the leg with no projector fails correctly. The guard is `probe-client`, which now compares the row it
+certifies against live `/v1/models` and FAILs when that leg is not resident. The rule is written into
+the spec next to the rows so whoever picks has it in front of them.
 
 **Measured speed on this engine, this carve (2026-09-29/30, `raw/69`–`73`, `raw/80`, `raw/88`):**
 
 | Leg | Decode | Prefill | TTFT | Note |
 |-----|--------|---------|------|------|
-| Gemma 4 26B A4B (text) | **21.1 / 18.3 / 8.3 t/s at 2 462 / 10 610 / 31 137 prompt tokens** — decode is NOT a constant on this box | **256 / 153 / 17 t/s** cold at those same sizes | **9.63 / 69.42 / 1806.83 s** cold; **0.30–0.38 s** warm on a prefix-cache hit at any size | thinking is ON and cannot be switched off server-side — budget ≥ 1024 reply tokens or `content` comes back empty (`raw/90`) |
+| Gemma 4 26B A4B (text) — **the retired agent leg** | **21.1 / 18.3 / 8.3 t/s at 2 462 / 10 610 / 31 137 prompt tokens** — decode is NOT a constant on this box | **256 / 153 / 17 t/s** cold at those same sizes | **9.63 / 69.42 / 1806.83 s** cold; **0.30–0.38 s** warm on a prefix-cache hit at any size | the cold column is the retirement evidence above; thinking is ON and cannot be switched off server-side — budget ≥ 1024 reply tokens or `content` comes back empty (`raw/90`) |
 | Qwen3-VL-30B-A3B | **23.84 t/s** | **~56–66 t/s image prefill** — the 8160×6120 rack photo = 4042–4060 tokens in 61–72 s; 31 809 text tokens in 915 s | — | 23.92 GiB at 32k; over-window requests are refused in 0 s (clean 400, no crash) |
 
 **Memory is cheap, the prompt is the wall, and the wall is erratic.** Same weights, SAME 20 816-token
@@ -245,39 +257,42 @@ at 131 072, **36.82 GiB at 262 144 - which is the tool saying the native window 
 carve.** The PDH counter disagrees. Same weights, two fresh loads on 2026-10-03: **19.17 GiB at
 32 768 and 21.42 GiB at 150 016**, a delta of 2.25 GiB over 117 248 tokens = **20 650 B/token**, the
 header arithmetic's 20 480 to within 1 %. Memory was never the constraint, and the estimator's "no"
-is a question, not a verdict. That is what let the owner take the agent leg to
-**`num_ctx 150016`** on 2026-10-03 (`lms ps` reports 150016, llama.cpp rounding 150 000 up); the
-price is paid in the currency this section is about, so `allow_uncertified: true` stands on the dial
-until two numbers land - a recall needle at >= 90 % of the new window (HD-474's 28 984-token pass was
-92 % of the OLD one) and the cold-prefill ladder at it.
+is a question, not a verdict. That is what let the owner take what was then the agent leg to
+**`num_ctx 150016`** on 2026-10-03 (`lms ps` reports 150016, llama.cpp rounding 150 000 up). That
+window is **deleted**, not reduced, with the 2026-10-09 ruling above, and the two numbers it was owed
+(a recall needle at ≥ 90 % of it, the cold-prefill ladder at it) are unmeasurable on a leg that no
+longer exists — retired with it. What the paragraph still decides is the shape of the ceiling: memory
+is cheap here, the prompt is the wall, and `allow_uncertified: true` therefore stays on the dial for
+the **FIM** leg's unmeasured trigger latency and for nothing else.
 
-**Ledger correction — this family's KV is 20 KiB/token, not 96.** §Memory & residency's
+**Ledger correction — the Qwen3.6 family's KV is 20 KiB/token, not 96.** §Memory & residency's
 “≈96 KiB/token” is right for **Qwen3-30B-A3B** (48 layers, 4 KV heads × 128 head_dim).
 Qwen3.6-35B-A3B is **hybrid**: 40 layers in 10 × (3 × Gated DeltaNet → 1 × Gated Attention), so
 only **10** layers hold a KV cache, at 2 KV heads × head_dim 256 ⇒ `2×10×2×256×2 = 20 480 B/token`.
 The 30 linear layers hold a **constant** recurrent state per sequence instead. Consequence: a 32k
-window costs 0.62 GiB, and q8_0 KV only saves 0.31 GiB — which is why `agent-unified` keeps **f16
-KV**: llama.cpp honours a quantized KV cache **only with flash attention on**, FA-on-Vulkan for this
-arch is unproven, and 1.6 % of the budget is not worth an unproven dependency plus an unmeasured
-recall risk. `agent-unified-64k` is where q8_0 earns its keep (it halves a 1.25 GiB KV).
+window costs 0.62 GiB, and q8_0 KV only saves 0.31 GiB — which is why that family stays **f16** KV
+where it is priced at all: llama.cpp honours a quantized KV cache **only with flash attention on**,
+FA-on-Vulkan for this arch is unproven, and 1.6 % of the budget is not worth an unproven dependency
+plus an unmeasured recall risk. The same arithmetic is why q8_0 earns its keep only on the small FIM
+window, where the FA dependency is the only one already paid.
 
 **MTP and vision cannot share a load.** Unsloth's own README: “`--mmproj` is not yet supported with
-MTP” — so `agent-unified-mtp` is text-only by construction, and lmstudio-bug-tracker #1951 reports
+MTP” — so an MTP arm is text-only by construction, and lmstudio-bug-tracker #1951 reports
 MTP failing to initialise on the 35B **MoE** (the dense 9B got 40–60 %). MTP stays off until an A/B
 on this box shows an actual gain.
 
 **Closed 2026-09-30 (HD-474), and what is still open.** Closed: `runtime.version` is **pinned**
 (`0.4.25+1`, read three ways — `resources\app\package.json`, the exe `FileVersion`, the uninstall
 registry — all agreeing; `lms` CLI commit `69d945a`; `llmster v0.0.25+1` is the service). The
-agent-leg and vision-leg weights are on `D:` and both booted. `fim_probe` is **passed** and the
+vision-leg weights are on `D:` and booted. `fim_probe` is **passed** and the
 §Leg 1 contradiction is settled: both papers were describing DIFFERENT SURFACES — the raw
 `/v1/completions` gap ignores the suffix and literal `<|im_start|>` markers echo back (so
 §Leg 1's "Instruct variants do not do it" is TRUE for that surface), while the instruction-fenced
 shape Continue actually sends infills correctly (so Qwen's card is TRUE for that one).
 `raw/40-coder-probes.txt`, `fim_surface: instruction-fenced`.
 Still open, and the gate is what keeps them open: **FIM trigger latency** has never been measured
-(HD-401 gate 5, sub-second is an assumption), the **Qwen3.6 `agent-unified*` arms have no weights on
-disk**, `:1234` LAN exposure is an **owner decision that is still outstanding** (no firewall rule is
+(HD-401 gate 5, sub-second is an assumption), `:1234` LAN exposure is an **owner decision that is still
+outstanding** (no firewall rule is
 added as a side effect), and the client render is verified only by `probe-client` while 1Password is
 signed out — `render-pi-config.py --check` needs `op`, which is a human step (§6).
 
@@ -348,17 +363,15 @@ this is not. At 55.6 GB visible with a ~90 GB/s bus the honest version — **mea
 counter, not inferred from host RAM** — is: **one 30B-class leg fits, two do not.** The counter is
 `\GPU Adapter Memory(luid_0x00000000_0x0001a051_phys_0)\Dedicated Usage` in **bytes**; the engine's
 `offloaded N/N layers` line is absent at verbosity 3 on this Vulkan build, so it proves nothing here.
-Idle desktop under a load reads **2.15–3.12 GiB** (two days of readings), the text-only Gemma leg at
-32k reads **18.87 GiB**, the same weights with the projector **19.81 GiB**, and the Qwen-VL leg at 32k
+Idle desktop under a load reads **2.15–3.12 GiB** (two days of readings) and the Qwen-VL leg at 32k
 **23.92 GiB** of the 32 GiB carve (the 2026-09-28 UMA change: 64 GiB of RAM in two sticks, 31.6 GiB
 visible to Windows, the rest is the iGPU's island — so the carve is a real dedicated pool and the
 desktop/WSL2 cannot compete with a load for it).
 
 | Resident set | Footprint | Verdict |
 |---|---|---|
-| one agent leg: `agent-gemma-26b` (text-only, 150 016) | 15.64 weights + 2.86 KV + 0.20 window state, **21.42 GiB measured on 2026-10-03** (19.17 GiB at the old 32 768) | **this is the resident default.** ~10.6 GiB of the carve left. It is still not room for a second 30B-class model, and the arithmetic above was 0.28 GiB pessimistic — the same direction it was wrong in at 32k |
-| one vision leg instead: `vision-qwen3vl-30b` (32k) | 16.50 + 1.01 mmproj + **3.00 KV** (96 KiB/token), **23.92 GiB measured** | fits ALONE. It **replaces** the agent leg for the duration of a vision session; it does not join it |
-| `fim-coder-3b` alongside either | ~1.93 + 0.14 KV | the only thing small enough to share, and LM Studio unloads on switch anyway — the applier keeps it one-at-a-time |
+| `vision-qwen3vl-30b` (32 768) — the dial's active leg | 16.50 weights + 1.01 mmproj + **3.00 KV** (96 KiB/token), **23.92 GiB measured** | **this is the resident default.** ~8 GiB of the carve left, which is still not room for a second 30B-class model |
+| `fim-coder-3b` alongside it | ~1.93 + 0.14 KV | the only thing small enough to share, and LM Studio unloads on switch anyway — the applier keeps it one-at-a-time |
 
 What the 2026-09-30 run proved about the second half of the old note (**"unloading must actually
 return the allocation"**): it does. Every phase-3 step ran `lms unload --all` → reload at a bigger
@@ -374,9 +387,10 @@ documented order: **unload → confirm release → load**, never optimistically 
 2. **LLVM target:** `gfx1150` vs `gfx1151` is **still unconfirmed for this APU** (§Platform). It does
    not block this lane — the Vulkan engine is chosen by LM Studio's own build and no artifact here
    names a target — but it blocks any build, driver pin or quantization script that would.
-3. **Bandwidth is ≈90 GB/s, not ≈256 GB/s** — **measured here 2026-09-30**: agent leg decode
-   **17.5–17.8 t/s**, vision leg **23.84 t/s**, prefill ~250 t/s at 1.8–2.2k falling to ~58 t/s at
-   20.8k. The FIM leg's ~150–400 ms budget is a claim about a THIRD model (`fim-coder-3b`, 3B dense)
+3. **Bandwidth is ≈90 GB/s, not ≈256 GB/s** — **measured here 2026-09-30**: vision leg
+   **23.84 t/s** decode, prefill ~250 t/s at 1.8–2.2k falling to ~58 t/s at
+   20.8k — that collapse past 20 k is what retired the agent leg (§Served leg). The FIM leg's
+   ~150–400 ms budget is a claim about the other model on this box (`fim-coder-3b`, 3B dense)
    and its trigger latency is still unmeasured — so gate 5 is open even though gate 3 is not.
 4. **VL multimodal path on the chosen backend** — **CLOSED: the tower runs on the GPU.** Image
    prefill measured **61.2 t/s** on the 8160×6120 photo (4060 tokens, 66 s) with dedicated memory at
