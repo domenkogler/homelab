@@ -582,9 +582,24 @@ fleet-wide with no sudo; the Pi uses the same `ansible-admin` shape as every oth
 (`check_ssh_grants.py`, `gen-custom-script.sh`, `gen-media-post-install.sh`, `get-bootstrap-keys.sh`)
 plus every doc row moved in the same change — a rename that spans item + scripts in one window is the
 only safe form, because a script reading the old item name breaks every bootstrap path mid-flight.
-⚠ **Laptop-side tail (owner, not AI-doable):** rename the SSH-agent stub `~/.ssh/laptop-domen.pub` →
-`~/.ssh/domen_ssh.pub` and point `IdentityFile` at it — the 1Password agent matches by item name, so a
-stale stub makes `ssh` offer nothing and report `invalid format`.
+✅ **Laptop-side tail — DONE 2026-10-09, and it was never an owner act** (HD-492 option C, re-measured from
+the Win11 seat 2026-10-09: `vps` `nas` `pi` `spark` `oldsrv-domen` all rc 0 with `SSH_AUTH_SOCK` empty). What
+moved was a **file on the seat's disk** — `laptop-domen_ssh.pub` → `domen_ssh.pub`, the old name kept as
+`*.retired-20261009`, the private halves placed from the vault, the `IdentityFile`s repointed by the alias plane
+(HD-1123). No vault write, no unlock, no dialog: the item has been titled `domen_ssh` since the owner's
+2026-09-25 rename.
+
+⚠ **Two corrections to the wording this paragraph carried since 2026-09-25.** (1) The agent matches the key's
+**bytes, not an item or file name** — a rename is a rename, not a re-issue. (2) The `invalid format` it blamed
+on a stale stub is a **client** fact, not an agent fact: `OpenSSH_for_Windows` (9.5p2, LibreSSL) cannot parse the
+vault's PKCS#8 export at all — the transport row above, now reproduced on the fleet keys and not just the GitHub
+pair. Measured on ONE file, both builds, same seat: the Git-Bash build (`/usr/bin/ssh`, 10.5p1/OpenSSL)
+authenticates; `C:/WINDOWS/System32/OpenSSH/ssh.exe` answers `Load key "…\.ssh/ansible-admin_ssh": invalid
+format` → `Permission denied (publickey)`. Stripping CR changes nothing (so it is not a text-mode artifact), and
+`openssl pkey` reads the file as a valid Ed25519 PKCS#8 PEM, so the key is sound — only the parser differs.
+Re-encoding with `ssh-keygen -p -f <key> -o` does make the System32 build load it (measured rc 0), but it forks
+that seat's copy from the vault export and from every other seat, so the answer stays **name the OpenSSL build**.
+Seat-leg measurement: [network-vpn.md](network-vpn.md) §The laptop alias contract.
 
 **Not "the same keys everywhere" — measured per host (2026-09-22 sweep, `scripts/check_ssh_grants.py`).**
 The three vault keys did **not** all ride on every host: `ansible-admin_ssh` is on all five managed

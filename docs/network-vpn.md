@@ -711,6 +711,21 @@ automation that shells out to `ssh` inherits whatever build its PATH holds — t
 correct on both, and a script must know which seat-side build it is invoking (or be run from the seat that
 can reach the leg).
 
+**With the private halves on disk the verdicts invert (re-measured on the win11 seat 2026-10-09, five legs).**
+The Git-Bash build (`/usr/bin/ssh`, OpenSSH 10.5p1 / OpenSSL) now authenticates everything — `vps` `nas` `pi`
+`spark` `oldsrv-domen` → **rc 0 with `SSH_AUTH_SOCK` empty**, alias digest `773069cc32fb` — while
+`C:/WINDOWS/System32/OpenSSH/ssh.exe` (9.5p2 / **LibreSSL**) fails one step *earlier* than it used to, on the key
+file itself: `Load key "C:\Users\domen/.ssh/ansible-admin_ssh": invalid format` → `Permission denied
+(publickey)`. The key is not broken and it is not a text-mode artifact: `openssl pkey` reads the file as a valid
+Ed25519 **PKCS#8** PEM (the shape `op read` exports), and a CR-stripped copy fails identically. `OpenSSH_for_Windows`
+simply cannot parse PKCS#8 — the same class the git transport already documents for `github_auth`
+([deployment-secrets.md](deployment-secrets.md) §Unattended git on Win11), reproduced here on the fleet keys.
+Re-encoding a copy with `ssh-keygen -p -f <key> -o` makes the System32 build load it (measured rc 0), but it
+forks that seat's file from the vault export and from every other seat, so **the fix stays on the transport**:
+namely the OpenSSL build — a bare `ssh` under Git-Bash already is one, and `git-bootstrap-win11.sh` pins it
+explicitly for git (HD-1126). A harness that resolves `ssh` off a Windows-native PATH therefore loses legs it
+proved from Git-Bash, which is why the driver's transport must never be left to PATH.
+
 **A third copy exists, and it is deliberately NOT a laptop copy: the oldsrv seat's own `~/.ssh/config`** — the box
 this repo is authored on (HD-445 cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
 Home address and carry **no `ProxyJump`**: on-site a jump would hairpin through the VPS for no benefit, and
@@ -784,6 +799,17 @@ Measured on this seat 2026-10-09 (`C:\Users\domen\.ssh`), which is the starting 
 `id_ed25519{,.pub}` · `id_rsa_ilo{,.pub}` · `Hetzner-SSH-key.pub` · `allowed_signers` · `known_hosts{,.old}` ·
 `1Password/` · `agent/` · `config` (+ two `config.bak-*`). **There is no `domen_ssh` file at all** — the
 operator identity has never had a file on this seat, which is the hole step 1 fills.
+
+**Executed state (both laptop seats, 2026-10-09) — the list below is the ORDER, this is where it stands.**
+Steps **1–4 are DONE**: `domen_ssh` (+`.pub`, `SHA256:XTmK3tR…`) placed from the vault on each seat, the plane
+pushed (`digest 773069cc32fb` on both, the shadow refusal handled as step 3 says), then the duplicates renamed
+with dated copies — win11 `laptop-domen_ssh.pub` → `domen_ssh.pub`, WSL `domen_ed25519` → `domen_ssh` — and the
+legs re-proved **after** each rename (five rc 0 from win11 Git-Bash with `SSH_AUTH_SOCK` empty, six rc 0 from
+WSL). ⚠ Step 2's build caveat is the paragraph above, not a footnote: those legs hold on the OpenSSL build only.
+**Step 5 is still owed on the win11 seat** — `github_signing{,.pub}`, `Hetzner-SSH-key.pub`, `known_hosts.old`
+and four `config.bak-*` are all still in `~/.ssh` (re-listed 2026-10-09), and nothing reads them today but
+nothing refuses them either. Step 6 stands exactly as ruled below, and its Debian `id_ed25519` carve-out stays
+blocked by [todo.md HD-1125](../todo.md).
 
 1. **Place** `domen_ssh` (+ `.pub`) — `op read "op://Private/domen_ssh/private key"` from WSL into
    `C:\Users\domen\.ssh\domen_ssh`, `chmod 600`, then verify the fingerprint equals the table above. Write
