@@ -117,7 +117,8 @@ bash scripts/validate-all.sh > /tmp/v.log 2>&1; echo "exit=$?"; grep -iE 'FAIL|O
 git grep -n 'scripts/<moved-file>' -- . ':!reports'   # must print nothing
 ```
 
-⛔ Never bundle two folders in one commit — a bad rebase here is exactly how the HD-453 merge-marker class happened.
+⛔ Never bundle two folders in one commit — a bad rebase here is exactly how the merge-marker class happened, the
+one `scripts/check_merge_markers.py` now refuses.
 
 **Named traps for this stage (each one is silent or expensive, all are measured):**
 
@@ -153,8 +154,8 @@ git grep -n 'scripts/<moved-file>' -- . ':!reports'   # must print nothing
    fail-closed on links, this one on commands);
 3. **the depth ratchet**: no `parent.parent` / `SCRIPT_DIR/..` root derivation survives outside `lib/` — this is what keeps
    the Stage-1 fix from regrowing one file at a time;
-4. no second `pin()` / second tree-sync engine outside `lib/` (a ratchet with floor 1, HD-417-style: one finding at rest,
-   not 41);
+4. no second `pin()` / second tree-sync engine outside `lib/` (a ratchet with floor 1 — the width-rule lesson
+   `scripts/check_md_tables.py` carries: one finding at rest, not 41);
 5. no `.ps1` and no data file at `scripts/` top level; `testdata/**` excluded from the registry requirement.
 
 Then restructure `scripts/README.md` into one section per folder (the file's own §"Validation gate" / "Renderers" /

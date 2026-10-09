@@ -116,8 +116,9 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    what is left to own is the transport key and the global `~/.gitconfig`. **HD-1110**: `scripts/pi-seat-sync.sh` is
    the one deploy path; the oldsrv leg closed 2026-10-08 on all eight planes, so what remains is the `wsl` seat's
    `install-pi-wsl.sh` leg (its `pi` on PATH is still the Volta shim) and the Win11 `pi_auth` drift — the seat holds
-   an **OAuth** openrouter entry where the spec renders `api_key`; mint it under the HD-484 auth lane and never
-   overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
+   an **OAuth** openrouter entry where the spec renders `api_key`; mint it through the `pi_auth` vendor lane of
+   [`scripts/render-pi-config.py`](scripts/render-pi-config.py) (§4 of [docs/pi-harness.md](docs/pi-harness.md)) and
+   never overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
 6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: our own generated
    `sanoid.service` pointed at `/usr/local/bin/sanoid` while the package installs `/usr/sbin/sanoid`, so every
    timer fire died `203/EXEC` — fixed and converged, still owed: confirm `hourly.*` snapshots appear and decide
@@ -128,8 +129,9 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
 7. ⏳ **The Pi's own box** — **HD-418** (the HA restart window, owner-gated; pair it with **HD-1103** so the box
    reboots once: `/var/log` is mode `1777`, so logrotate refuses every file nightly and no role owns the path),
    **HD-1109** (the HA standby is not deployed, so the failover the docs record as proven has one node),
-   **HD-1101** (**open, not fixed** — the pi's resolver leg still has no shape guard of its own; HD-484's fail-loud
-   assertion is oldsrv-shaped and reads `nm_oldsrv_profile`, so nothing checks the resolver list the Pi writes),
+   **HD-1101** (**open, not fixed** — the pi's resolver leg still has no shape guard of its own; the fail-loud
+   assertion that landed with the oldsrv host-resolver leg is oldsrv-shaped and reads `nm_oldsrv_profile`, so
+   nothing checks the resolver list the Pi writes ([docs/network-dns.md](docs/network-dns.md) §Host-side resolver)),
    plus **HD-04 · 434 · 438 · 439 · 319 · 17 · 217**. → [prompt-smart-home.md](prompt-smart-home.md)
 8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (which seat owns the family Immich library
    — an owner pick), **HD-458 · 459** (zipline, the published names), **HD-112**. ⏸ **HD-47** stays an owner act,
