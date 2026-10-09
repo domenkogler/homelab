@@ -42,8 +42,10 @@
 # HD-492 door over the vps jump). Env sandbox hooks: PI_SEATS, PI_WSL_DISTRO, PI_WSL_REPO,
 # PI_OLDSRV_TARGET, PI_OLDSRV_REPO, PI_SSH_OPTS, PI_SEAT_STUB (the self-test's transport).
 #
-# Exit: 0 all seats OK or printed-SKIP · 1 a plane drifted or failed, or a seat was UNREACHABLE
-# or STALE-CLONE · 2 usage. A SKIP is never counted as in-sync.
+# Exit: 0 all seats OK or printed-SKIP · 1 a plane drifted or failed, a seat was UNREACHABLE or
+# STALE-CLONE, or a seat's declared planes did NOT all run (`coverage`) · 2 usage. A SKIP is never
+# counted as in-sync, and a seat that "synced" by skipping its plane list is a FAILURE — the loop
+# reads on FD 3 and the ssh transport takes `-n` for exactly that reason (see sync_seat).
 #
 # Owning rule: docs/pi-harness.md §1 + §5/§5a · CONVENTIONS §6.
 set -uo pipefail
@@ -145,7 +147,7 @@ run_on_seat() {
            elif command -v wsl.exe >/dev/null 2>&1; then
              wsl.exe -d "$WSL_DISTRO" -- bash -lc "cd $WSL_REPO && $cmd" 2>&1 | tr -d '\000'
            else info "wsl.exe absent — this host cannot reach the WSL seat"; return 3; fi ;;
-    oldsrv) ssh $SSH_OPTS "$OLDSRV_TARGET" "cd $OLDSRV_REPO && $cmd" 2>&1 ;;
+    oldsrv) ssh -n $SSH_OPTS "$OLDSRV_TARGET" "cd $OLDSRV_REPO && $cmd" 2>&1 </dev/null ;;
     *) err "unknown seat: $seat"; return 2 ;;
   esac
 }
@@ -209,7 +211,19 @@ sync_seat() {
   fi
   printf '  %-8s %-11s %s (%s)\n' "$seat" "pre-flight" "OK" "$head"
   tally OK ""
-  while IFS= read -r spec; do
+  # THE LOOP READS ON FD 3, and the ssh transport takes `-n` + `</dev/null`. Both are load-bearing,
+  # measured on oldsrv 2026-10-09: a `while read` fed by a process substitution owns stdin, and a
+  # bare `ssh` inside the loop forwards that stdin to the remote shell — so the FIRST plane ate the
+  # rest of the plane list, the loop ended cleanly, and the seat reported `IN SYNC` with SEVEN OF
+  # EIGHT PLANES NEVER RUN. CONVENTIONS §6's stdin rule names the piped-`bash -s` form; a loop list
+  # streamed on stdin is the same trap, and this is the form a fleet driver is built out of. FD 3
+  # is the invariant (a plane that reads stdin truncates nothing); `-n` is the transport's own half.
+  local ran=0 expected=0 s n
+  while IFS= read -r -u 3 s; do
+    n="$(printf '%s' "$s" | cut -d'|' -f1)"
+    { [ -z "$WANT_PLANE" ] || [ "$WANT_PLANE" = "$n" ]; } && expected=$((expected+1))
+  done 3< <(planes_for_seat "$seat")
+  while IFS= read -r -u 3 spec; do
     name="$(printf '%s' "$spec" | cut -d'|' -f1)"
     ccmd="$(printf '%s' "$spec" | cut -d'|' -f2)"
     pcmd="$(printf '%s' "$spec" | cut -d'|' -f3)"
@@ -220,7 +234,18 @@ sync_seat() {
     printf '  %-8s %-11s %s\n' "$seat" "$name" "$verdict"
     [ "$verdict" = OK ] || printf '%s\n' "$out" | sed 's/^/           /'
     tally "$verdict" "$seat/$name"
-  done < <(planes_for_seat "$seat")
+    ran=$((ran+1))
+  done 3< <(planes_for_seat "$seat")
+  # Tripwire: never trust the plane count to equal the plane list. An IN SYNC that skipped planes
+  # is the mute gate CONVENTIONS §6 names, and the exit code cannot tell the two states apart.
+  if [ "$ran" -ne "$expected" ]; then
+    printf '  %-8s %-11s %s\n' "$seat" "coverage" "FAILED"
+    info "   only $ran of $expected declared planes ran on this seat — the run was truncated"
+    info "   (something inside the loop consumed the plane list). A seat that synced by NOT running"
+    info "   its planes is the failure this file exists to kill; do not read the line above as OK."
+    tally FAILED "$seat coverage ($ran/$expected planes)"
+    return 1
+  fi
   return 0
 }
 
@@ -262,6 +287,11 @@ run_on_seat() { local seat="\$1"; shift; case "\$seat" in
   fail)  bash "$tmp/fail"  "\$*" ;;
   down)  bash "$tmp/down"  "\$*" ;;
   stale) bash "$tmp/stale" "\$*" ;;
+  # like 'good', but the transport drains stdin the way a bare ssh does — the fixture for the
+  # truncated-plane-list defect measured on oldsrv 2026-10-09 (1 of 8 planes ran, the run reported
+  # IN SYNC). The -t 0 guard keeps the drain from hanging on an interactive terminal.
+  # (No backticks in this heredoc: it is UNQUOTED, so a backtick here runs a command substitution.)
+  eat)   bash "$tmp/good" "\$*"; [ -t 0 ] || cat >/dev/null ;;
 esac; }
 seat_repo() { printf '/stub/%s' "\$1"; }
 EOS
@@ -299,6 +329,14 @@ EOS
   # 6. a SKIP is not a pass and is not a failure either — printed, counted, exit 0.
   out="$(run_stub skip --check)"; rc=$?
   if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q "SKIP  skip/tmux"; then info "skip-honest      GREEN (a SKIP is named, not passed)"; else err "canary: a SKIP was not reported as a SKIP leg"; fails=$((fails+1)); fi
+
+  # 7. a transport that drains stdin must not truncate the plane list. Deleting the `-u 3` / `3< <()`
+  #    pairing reddens this arm — the first plane eats the loop's list, so `tui` never prints AND the
+  #    coverage tripwire fires: both halves held down, not just the happy path.
+  out="$(run_stub eat --check)"; rc=$?
+  if [ "$rc" -eq 0 ] && [ "$(plane_line eat tui)" = OK ] && ! printf '%s' "$out" | grep -q 'coverage'; then
+    info "stdin-drain      GREEN (every declared plane ran)"
+  else err "canary passed: a stdin-eating transport truncated the plane list"; fails=$((fails+1)); fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
