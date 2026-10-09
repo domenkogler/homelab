@@ -99,7 +99,11 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    is **proof-owed, not closed**: the fleet pin IS `alloy_version: "1.20.1-1"`
    (`IaC/ansible/group_vars/all/versions.yml:347`) with no per-host override left, so the decision is taken — what
    remains is reading each monitoring host's **running** version against the pin and quoting `up{job="alloy"}` after
-   its restart. A `dpkg` read is not a health read, and ⛔ never add `--allow-downgrades`. →
+   its restart. A `dpkg` read is not a health read, and ⛔ never add `--allow-downgrades`. **LLM token accounting
+   (HD-1120 · 1121 · 1122, minted 2026-10-09)** is now in the same brief: the engine counters report for **every**
+   caller (totals known, attribution not), the two LiteLLM gateways and the oldsrv serving tier report **nothing**, and
+   attribution is taken from the **edge access log** — a metering proxy hop was ruled out because it re-buys the hop
+   decision #26 removed. Spec + the XFF trap: [docs/observability.md](docs/observability.md) §LLM token accounting. →
    [prompt-observability-alerting.md](prompt-observability-alerting.md)
 4. ⏳ **The media / music ladder** — **HD-362** keeps two Lidarr legs to verify (one album through `lidarr-ydl`,
    one Aurral → Lidarr add) and the Tube Archivist `path.repo` note; the slskd login question is CLOSED (the vault

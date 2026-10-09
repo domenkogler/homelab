@@ -932,6 +932,81 @@ open.
 
 ---
 
+## LLM token accounting — the three instruments (HD-1120 · HD-1121 · HD-1122)
+
+> **Role:** what the fleet can actually prove about LLM usage, and where the blind spots are — so nobody
+> reports a per-client token number that no instrument produced.
+> **Linked from:** §LLM Dashboard · [services-ai.md](services-ai.md) §9 decision #26
+
+Three instruments touch LLM traffic. **Only one of them reports today.**
+
+| Instrument | Where it sits | In VM? | What it can prove |
+|---|---|---|---|
+| **Engine counters** `vllm:*` | spark's own `/metrics` on the API port, scraped by `vllm` + `vllm_hot` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:517`, `:546`) | ✅ live | **tokens** — prompt / generation / cached / by-source, for **every caller**, because the counter is on the engine and does not care who sent the request. Labels: `model_name` + `instance` + `job` — no client, key or user dimension exists. |
+| **LiteLLM gateways** (`litellm` on the VPS, `lan-litellm` on oldsrv) | the proxy's own process | ❌ nothing | per-key / per-user spend and `rpm` — the attribution the fleet could get for *free*. `grep -rn litellm IaC/ansible/roles/monitoring/` = **0 hits**: no `job="litellm"`, so those numbers live only in the gateway's Postgres + Admin UI. |
+| **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers | ❌ nothing | llama.cpp publishes request/token counters behind a `--metrics` flag **the rendered command lists do not carry** (`IaC/ansible/templates/docker_services/embed/docker-compose.yml.j2:39`, `IaC/ansible/templates/docker_services/reranker/docker-compose.yml.j2:43`). whisper.cpp has no metrics surface. |
+
+The honest sentence this section exists to force: **totals are known, attribution is not.**
+`sum(increase(vllm:generation_tokens_total[1d]))` is a measurement; "this machine / this harness used N
+tokens" is available nowhere today, and an average-tokens-per-request × request-count product is an
+estimate, not a series.
+
+**The ruling (owner 2026-10-09): metering is observed at the edge, not bought with a proxy hop.** Routing
+the coding harnesses through LiteLLM for accounting was weighed and declined — decision #26 puts a
+generation harness **direct** on the engine name edge precisely so there is no extra hop, and a metering
+proxy re-buys the hop, the key management and the failure surface that decision removed. The engine stays
+the token SSOT (it needs no change); attribution comes from the access log (HD-1120). Wanting per-key
+spend *as measurement* later means re-opening #26 — that is an owner call, never an implementation detail.
+
+### The trap that makes HD-1120 silently wrong: which address is the client?
+
+`llm.kogler.si` is served on two paths and they do not present the same peer to the spark edge:
+
+```
+Home-VLAN client ─────────────────────────────▶ spark :443 (traefik-spark) ─▶ engine
+Tailnet client ─▶ traefik-tailnet (VPS) ─▶ WG S2S ─▶ spark_home_ip:443 ─▶ engine
+```
+
+(`IaC/ansible/templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2:563` proxies to `https://{{ spark_home_ip }}:443`.) So unless
+`X-Forwarded-For` is preserved **and** trusted at the spark edge, every tailnet request is logged there
+with the tunnel hop as its client and the per-client table collapses into one healthy-looking row. Same
+class as HA's exact-match `ha_trusted_proxies` rule ([network-vpn.md](network-vpn.md) §Reaching LAN nodes
+when away): a header the upstream edge adds is worthless if the reader does not trust the sender. **Read
+the peer address off one live request on each path before choosing the shape**, then name the choice —
+per-client where the path allows it, per-plane (Home vs tailnet) where it does not.
+
+### Rules for these three rows
+
+1. **Tokens are not in the access log.** Traefik logs the request (`ClientHost`, `RouterName`,
+   `ServiceName`, `DownstreamStatus`, `RequestSizeBytes`), never the completion — so a per-client token
+   figure is derived and must be labelled as derived. Never graph it as a counter.
+2. **Per-client comes from logs, not metrics.** The Traefik series (`traefik_entrypoint_requests_total`,
+   the v3 name — see the metric-name list above) carry no source-IP label; that cardinality is unbounded
+   by design.
+3. **The log plumbing already exists.** `loki.source.file "container_logs"` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:183`) ships
+   every container's JSON log to VictoriaLogs, so `--accesslog=true` on the edge is the whole change.
+   The HD-280 host-file bind exists because **fail2ban cannot read the Docker JSON log** — copying it here
+   adds a host bind for nothing. `traefik-spark` carries neither `--accesslog.*` nor
+   `--metrics.prometheus=true` today (`IaC/ansible/templates/docker_services/spark-dashboard/docker-compose.yml.j2:47`).
+4. **Probe the pin before writing a scrape job.** Whether the pinned LiteLLM image exposes a Prometheus
+   surface, on which port, and with which names is a runtime read — the container's own API port is 4000
+   (`IaC/ansible/templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2:570`), and the same rule covers llama.cpp's `--metrics` on the
+   pinned `llama_cpp_vulkan_image`. Quote names from a live render; the metric-name list above is the
+   graveyard of guesses.
+5. **New jobs land at 60 s cold**, hot only by named family (§What resolution costs: ≈0.33 B/sample,
+   ≈51 MB/day for all of spark today). A gateway job is tens of series — it does not start in the hot set.
+6. **GPU numbers on oldsrv come from sysfs, not `rocm-smi`** — the host does not ship it
+   ([services-ai-bench.md](services-ai-bench.md) read VRAM from the `amdgpu` sysfs counter for that
+   reason). The publish path is the **collector's direct-publish pattern** the HD-450 hygiene collector
+   uses (§Silent-failure hygiene), **not** a `textfile` directory — textfile is unusable on this Alloy
+   build.
+7. **The RX 7600 is the only host that can show VRAM** — GB10 exposes none (§LLM Dashboard → GPU). The
+   board says so itself (`IaC/ansible/roles/monitoring/files/dashboards/homelab-llm.json:5114`), and its
+   engine-count readiness panel reads **1** today (`:253`): landing HD-1122 should move that panel to 2,
+   which is its own acceptance check.
+
+---
+
 ## Scrape cadence and metric resolution (HD-420)
 
 Every job on every host scrapes at Alloy's default **60 s** — `scrape_interval` is set nowhere in the deployed

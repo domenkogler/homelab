@@ -2,8 +2,8 @@
 
 > **Role:** dispatch note for **one** lane session on the observability + alerting domain. **The rows are the authority**
 > for what is missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-450 · HD-1108 · HD-342 · HD-344 · HD-315 · HD-343 · HD-377 · HD-1094**
-> (row ids as of `16177f19` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
+> [todo.md](todo.md) **HD-450 · HD-1108 · HD-342 · HD-344 · HD-315 · HD-343 · HD-377 · HD-1094 · HD-1120 ·
+> HD-1121 · HD-1122** (row ids as of `939ad5e7` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
 **Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O9) — read it once; it overrides README §4 and
@@ -16,6 +16,11 @@ collector-only legs of the same role. One converge in flight per host, detached,
 router slot is global, so never bundle one with a monitoring converge.
 ⛔ **Do not share a wave with another VPS lane**: `monitoring` and `docker_services` on the VPS restart the scrape tier under
 a sibling's feet, and an Alloy restart drops a scrape cycle on every host's data.
+**The LLM-telemetry rows widen this lane's host set** (HD-1120 · HD-1121 · HD-1122, spec in
+[docs/observability.md](docs/observability.md) §LLM token accounting): enabling the spark edge's access log converges
+**spark** (`templates/docker_services/spark-dashboard`), and the `--metrics` flag converges **oldsrv** `docker_services`
+(`templates/docker_services/{embed,reranker}`) — so neither runs inside a spark bench window and neither shares a wave with
+another oldsrv lane. Land those two hunks in a clean window; the scrape jobs themselves are monitoring-only and always safe.
 
 **Read first:** [docs/observability.md](docs/observability.md) → §Alerting → §Silent-failure hygiene → §Component Table →
 §Network Clients Dashboard → §LLM Dashboard → §MCP · [docs/services-matrix.md](docs/services-matrix.md) §Alert room ·
@@ -32,7 +37,10 @@ a sibling's feet, and an Alloy restart drops a scrape cycle on every host's data
 | 5 | **HD-342** | The only open tail is off-site protection for `/srv/docker/victoria-{metrics,logs}/data`, and it belongs to the VPS backup client (HD-191): name the dependency in the row, do not add paths to an include list | ⛔ The VPS runs `kopia-server` — the repository endpoint — and has **no client of its own** (no binary, no client config, no `kopia-agent` entry). Wiring two paths to a nonexistent client is the fiction [docs/backup.md](docs/backup.md) warns about |
 | 6 | **HD-343** | Verify the live wifi source (`/interface/wifi/registration-table` vs the legacy path) against what the RB4011 actually answers, then render-verify the board on `stats.kogler.si` | The exporter runs in a dedicated venv with its own pinned `routeros-api` because trixie ships no `python3-routeros-api`; the unit runs `networkclients` with `0750 root:networkclients` (`0700 root` breaks the unprivileged unit). Read the union `/metrics` before touching the join |
 | 7 | **HD-315** | Render-verify the technical boards **with data** (host overview, probe tables) — the metric-name work is done, the eyeball is not | Owner leg → park with the exact URL + board list (O4). An empty panel is a question, not a verdict: check the series exists in VM before calling a panel broken |
-| 8 | **HD-377** | Re-render `homelab-llm` for the owner's sign-off; on sign-off, delete the three superseded vLLM board JSONs and re-converge `--tags monitoring` | ⛔ The merged board is **generated** — chain is upstream → `scripts/adapt-vllm-dashboards.py` → `scripts/build-llm-dashboard.py` (`--check` is the CI form); never hand-edit `homelab-llm.json`. Guards that keep it honest: the picker must join with `=~` (All → `.*`, and `=` is equality → zero series), a joined `{__name__=~"a\|b"}` selector must not carry one engine's label, and a `sum()` across two engines is not a metric |
+| 8 | **HD-1120** | Attribute LLM traffic **at the edge** (the metering-proxy shape is rejected, owner 2026-10-09): read which peer the spark edge logs on each path, enable `--accesslog=true` on `traefik-spark`, deliver a per-client VictoriaLogs read | ⛔ Measure the peer address **before** building: the tailnet path arrives through `traefik-tailnet` over WG S2S, so without XFF preserved **and** trusted every tailnet client logs as the tunnel hop and the table collapses to one healthy-looking row. ⚠ Tokens are NOT in the access log — per-client tokens stay a labelled estimate, never a counter. ⚠ No HD-280-style host bind (that exists for fail2ban); stdout already reaches VictoriaLogs |
+| 9 | **HD-1121** | Scrape the two LiteLLM gateways (`litellm` VPS + `lan-litellm` oldsrv) so gateway-side token/spend usage is in VM at all | **Probe the pin first** — if the pinned image publishes no Prometheus surface, the finding is the deliverable, not a config guess. Quote names from the live render; explicit `job`/`instance` so the two instances never merge; 60 s cold. ⚠ Counts only traffic that passes a gateway — never the direct harness leg (decision #26) |
+| 10 | **HD-1122** | Make the oldsrv serving tier report: llama.cpp `--metrics` on `embed`/`reranker` (verify the flag on the pin, read-only, first), then the RX 7600 counters from `amdgpu` sysfs | The host ships no `rocm-smi`; publish through the collector's direct-publish pattern — ⛔ no `textfile` dir (unusable on this Alloy build). Acceptance moves the board's engine-count readiness panel from **1 → 2**; if it cannot move, correct the panel text instead of leaving the claim |
+| 11 | **HD-377** | Re-render `homelab-llm` for the owner's sign-off; on sign-off, delete the three superseded vLLM board JSONs and re-converge `--tags monitoring` | ⛔ The merged board is **generated** — chain is upstream → `scripts/adapt-vllm-dashboards.py` → `scripts/build-llm-dashboard.py` (`--check` is the CI form); never hand-edit `homelab-llm.json`. Guards that keep it honest: the picker must join with `=~` (All → `.*`, and `=` is equality → zero series), a joined `{__name__=~"a\|b"}` selector must not carry one engine's label, and a `sum()` across two engines is not a metric |
 
 ## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
 
@@ -64,6 +72,10 @@ a sibling's feet, and an Alloy restart drops a scrape cycle on every host's data
 river template) and `IaC/ansible/templates/docker_services/{victoria-metrics,victoria-logs,grafana,n8n,mcp-victoriametrics,mcp-victorialogs,blackbox-exporter}/**`
 as your rows name them, `scripts/build-llm-dashboard.py`, `scripts/adapt-vllm-dashboards.py`, the `alloy_version` /
 `victoria_*` / `mcp_*` regions of `group_vars`, and your own `todo.md` rows.
+**Owns additionally for the telemetry rows:** the `--accesslog` hunk in
+`templates/docker_services/spark-dashboard/**`, the one `--metrics` line in each of
+`templates/docker_services/{embed,reranker}/**`, and `templates/docker_services/{litellm,lan-litellm}/**` **only** for a
+metrics flag HD-1121's probe proves necessary — the gateway internals, keys and model rows stay the litellm lane's.
 **Never:** `prompt.md` / `todo-table.md` (O2) or another brief's rows; the Matrix **room/homeserver** provisioning beyond the
 alert user this row names (the edge-identity lane owns Tuwunel and its OIDC); the VPS backup client and every Kopia/backup row
 (HD-191 is the dependency, not your work); `roles/access`, `roles/cockpit` and the seat plane; LiteLLM gateway internals and
@@ -80,4 +92,7 @@ host's running Alloy == `1.20.1-1` with `up{job="alloy"}` after the restart, or 
 quoted · the MCP endpoints registered in each named consumer, ports taken from the vars · HD-342's tail phrased as the HD-191
 dependency, with no include-list edit · the wifi-reg source named from a live router answer · the two board render-verifications
 either owner-signed or `PARKED` with the URL and board list, and the vLLM trio deleted only in the same change as the sign-off ·
+HD-1120's per-client read named by path (Home vs tailnet) with the XFF decision stated, and no per-client **token** counter
+shipped · HD-1121 with `up{job="litellm"}` on both instances and one named series quoted, or the no-surface finding written ·
+HD-1122 with each new `up` quoted and the engine-count panel moved to 2 (or its text corrected) ·
 rows trimmed to their tails or deleted, no history in the row · `bash scripts/validate-all.sh` green **in this worktree** → **stop**.
