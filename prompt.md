@@ -114,7 +114,9 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    1110 · 1115**) with its owner-gated tails intact. **HD-495**: role-own the oldsrv seat's git plumbing — its
    **signing** half was retired 2026-10-08 by HD-1116, so a rebuild now recovers `gpgsign=false` instead of hanging;
    what is left to own is the transport key and the global `~/.gitconfig`. **HD-1110**: `scripts/pi-seat-sync.sh` is
-   the one deploy path; the oldsrv leg closed 2026-10-08 on all eight planes, so what remains is the `wsl` seat's
+   the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID — the driver ran only
+   its first plane on an ssh leg until `bcf776ab` (HD-1110), and the cockpit re-verified genuinely green 8/8 on
+   2026-10-09, so what remains is the `wsl` seat's
    `install-pi-wsl.sh` leg (its `pi` on PATH is still the Volta shim) and the Win11 `pi_auth` drift — the seat holds
    an **OAuth** openrouter entry where the spec renders `api_key`; mint it through the `pi_auth` vendor lane of
    [`scripts/render-pi-config.py`](scripts/render-pi-config.py) (§4 of [docs/pi-harness.md](docs/pi-harness.md)) and

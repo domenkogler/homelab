@@ -463,8 +463,11 @@ answerable from an extension, and this section is the only place that fact is wr
   counting chunks so a GREEN can tell "drained" from "this host's buffer absorbed it"), and it fails
   red against the pre-fix probe. **Generalise: under `pipefail`, never `producer | grep -q`** — the
   early exit is a bug in the probe, never news about the producer.
-  **LIVE on oldsrv 2026-10-08:** all eight planes green run from the seat (`pi-self` included, measured after the
-  merge — 1.1.0 == the `pi_host_npm_version` pin), and `validate-all.sh`
+  **LIVE on oldsrv 2026-10-08 — VOID, re-measured 2026-10-09:** this line read "all eight planes green run from
+  the seat", but the fan-out ran only its FIRST plane on any ssh-based leg (the plane loop streamed its list on
+  stdin and the transport's bare `ssh` ate the rest — HD-1110, fixed in `bcf776ab`), and a run FROM the cockpit
+  reaches it over `ssh oldsrv-domen` too, so the reading was a partial run wearing a full one. Re-measured with
+  the fixed driver: 8/8 green, including `pi-self` (1.1.0 == the `pi_host_npm_version` pin), and `validate-all.sh`
   exits 0 there with the retired `host-status.ts` gone — that clears HD-1114's `oldsrv` half; the
   The Win11 copy is now removed by that seat's own `--push` (owner-confirmed 2026-10-09), which CLOSES
   HD-1114: the retirement mechanism has finally reached every seat, and `validate-all.sh`'s RETIRED arm
