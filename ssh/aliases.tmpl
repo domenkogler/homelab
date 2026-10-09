@@ -1,0 +1,209 @@
+# ssh/aliases.tmpl — the alias-contract PLANE. Rendered by scripts/seed-seat-ssh-config.sh into
+# ONE marker-delimited block inside a seat's ~/.ssh/config. It is not an ssh config and is never
+# installed as one.
+#
+# WHY A PLANE AND NOT A README. The prose SSOT for these blocks is
+# [../docs/network-vpn.md](../docs/network-vpn.md) §The laptop alias contract, and for a year the
+# blocks themselves lived only in three hand-kept seat files, which is how they drifted: a
+# duplicate `Host ap-dnevna`, a missing `ap-spare`, a `Host pi99` still logging in as the
+# neutralized Pi `admin`, and a seat with no self-alias at all. Prose cannot fail, so none of that
+# was ever reported. This file is the same contract in the one form a script can diff.
+#
+# TEMPLATE GRAMMAR — the whole language, three rules (the renderer enforces it and fails loud on
+# an unknown placeholder or an unterminated region):
+#   NAME at-signs  a placeholder (the name wrapped in at-signs) replaced from the seat-class
+#                  table in scripts/seed-seat-ssh-config.sh — an unresolved one fails the render
+#   #% seat: a b   emit the following lines only for classes a/b; a following `#% seat:` line
+#                  starts the next region; `#% end` returns to "every class"
+#   anything else  emitted verbatim for every class
+#
+# ADDRESSES are literals HERE on purpose: an ssh payload reads no group_vars, and the SSOT rows
+# they come from are [../docs/network-addresses-generated.md](../docs/network-addresses-generated.md).
+# What this file buys is that the address is repeated in ONE repo file instead of three seat files.
+#
+# IDENTITY FILE NAMES are not free text: every `IdentityFile` here is a canonical name from
+# [../docs/network-vpn.md](../docs/network-vpn.md) §Canonical identity file names, and the
+# renderer refuses a render that names any other file or any path that is not `~/.ssh/…`.
+
+# Three rules decide every block (measurements live in the doc section above):
+#   1. a behind-NAT node is reached on its HOME (VLAN 10) leg through `ProxyJump vps`, on every
+#      network — the Mgmt leg is never an away path (HD-398 decision A);
+#   2. OpenSSH matches the name ACTUALLY TYPED, so a node gets an alias block AND a block for the
+#      address a human, `scp` or `rsync` would type (Ansible needs neither: its jump travels in
+#      `ansible_ssh_common_args` — HD-397);
+#   3. the Mgmt plane (VLAN 99) is a same-site plane: its aliases are jump-less, and a `ProxyJump`
+#      on a `10.10.99.x` alias converts a fast failure into a ~90 s banner timeout. Never add one.
+
+# --- the jump -----------------------------------------------------------------
+# The only public address in the contract. `AddressFamily inet` is not decoration (HD-407):
+# `vps.kogler.si` carries an AAAA, a dual-stack seat prefers it, TCP/22 to it times out, and every
+# jumped leg — including the seat's own address — then reads `Connection timed out during banner
+# exchange`. The laptop never hits it because it has no IPv6 at all; the line is there so a seat
+# that grows an IPv6 route does not discover it as a mystery.
+Host vps
+  HostName vps.kogler.si
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  AddressFamily inet
+
+# --- pi: the human leg on a laptop, the admin leg on a host seat ----------------
+# `User domen` since HD-443 neutralized the Pi's `admin` account: a `Host pi99`/`Host pi` still
+# naming `admin` is the bug this plane carries as a quick fix, because the account is disabled on
+# the box and the alias is the only thing that never noticed.
+Host pi @PI_PAT@
+  HostName @PI_HN@
+  User @PI_USER@
+  IdentityFile @PI_ID@
+  IdentitiesOnly yes
+#% seat: laptop-win11 laptop-wsl
+  ProxyJump vps
+#% seat: cockpit
+  AddressFamily inet
+#% end
+
+# --- nas / spark: admin legs ----------------------------------------------------
+Host nas @NAS_PAT@
+  HostName @NAS_HN@
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+#% seat: laptop-win11 laptop-wsl
+  ProxyJump vps
+#% seat: cockpit
+  AddressFamily inet
+#% end
+
+Host spark @SPARK_PAT@
+  HostName @SPARK_HN@
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+#% seat: laptop-win11 laptop-wsl
+  ProxyJump vps
+#% seat: cockpit
+  AddressFamily inet
+#% end
+
+# --- oldsrv: the Home leg away, the seat itself at home -------------------------
+#% seat: laptop-win11 laptop-wsl
+Host oldsrv
+  HostName @OLDSRV_HN@
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  ProxyJump vps
+#% end
+#% seat: cockpit
+# ON-SELF: this seat IS oldsrv. Measured 2026-10-09: `ssh oldsrv` from the cockpit seat died
+# `domen@oldsrv: Permission denied` because no block named it, so ssh used the login user, picked
+# the box's own key and offered a key `domen` is not authorized for. The self-alias is the fix:
+# the human identity, direct, no jump (a jump here would hairpin through the VPS to reach the box
+# the shell is already on).
+Host @OLDSRV_PAT@
+  HostName @OLDSRV_HN@
+  User domen
+  IdentityFile @IDENT@
+  IdentitiesOnly yes
+  AddressFamily inet
+#% end
+
+# --- oldsrv-domen: the coding seat, away (HD-492) --------------------------------
+#% seat: laptop-win11 laptop-wsl
+Host oldsrv-domen
+  HostName @OLDSRV_HN@
+  User domen
+  IdentityFile @IDENT@
+  IdentitiesOnly yes
+  ProxyJump vps
+#% end
+
+# --- the typed-address blocks (laptop seats only) --------------------------------
+# The pair of `ansible_ssh_common_args`: OpenSSH only matches what is typed, so `scp`/`rsync`/`git`
+# and a human typing an address need these. Load-bearing for scp, NOT for Ansible (HD-397). On the
+# cockpit seat they are unnecessary: the alias lines above already carry the address spellings.
+#% seat: laptop-win11 laptop-wsl
+Host 10.10.1.10
+  HostName 10.10.1.10
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  ProxyJump vps
+Host 10.10.1.20
+  HostName 10.10.1.20
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  ProxyJump vps
+Host 10.10.1.30
+  HostName 10.10.1.30
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  ProxyJump vps
+Host 10.10.1.40
+  HostName 10.10.1.40
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  ProxyJump vps
+#% end
+
+# --- the Mgmt plane (VLAN 99): ON-SITE ADMIN PATHS ONLY --------------------------
+# Jump-less by decision, not by omission (HD-398 A): the VPS site-to-site tunnel is sealed from
+# VLAN 99 on purpose and the router scopes its own SSH to the VLAN-99 subnet. Away from the house
+# these are dead ADDRESSES, not dead hosts. On the laptop the route is the Mgmt99 vNIC —
+# `wsl-nat-resolv.ps1 -EnableMgmt99`, and verify with `ip -br addr` in WSL that a VLAN-99 route
+# exists, not just eth0. The cockpit seat declares none of these: a host reaching the Mgmt plane
+# is a routing question no seat has measured (HD-487 is still open on exactly that point), so it is
+# absent as a MEASURED fact, not as a decision.
+#% seat: laptop-win11 laptop-wsl
+Host pi99
+  HostName 10.10.99.20
+  User domen
+  IdentityFile @IDENT@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+Host oldsrv99
+  HostName 10.10.99.30
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+Host nas99
+  HostName 10.10.99.10
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+Host router
+  HostName 10.10.99.1
+  User ansible
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+Host switch
+  HostName 10.10.99.2
+  User ansible
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+Host ap-spalnica
+  HostName 10.10.99.4
+  User ansible
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+Host ap-dnevna
+  HostName 10.10.99.5
+  User ansible
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+Host ap-spare
+  HostName 10.10.99.6
+  User ansible
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
+#% end
