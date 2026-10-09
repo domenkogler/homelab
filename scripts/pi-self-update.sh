@@ -37,7 +37,15 @@
 #                perfectly reported `SKIP — no pi binary answers on this host` with rc 0: the
 #                binary plane went blind exactly when a seat moved, the CONVENTIONS §6 class
 #                ("a gate that cannot see the file cannot fail either").
-#   pinned prefix $PI_NODE_PREFIX/bin/pi — what npm -g writes.
+#   pinned prefix $PI_NODE_PREFIX/current/bin/pi — what npm -g writes at the prefix
+#                install-pi-debian.sh creates (NODE_BIN_DIR=$PI_SEAT_ROOT/current/bin, :63). The
+#                spelling $PI_NODE_PREFIX/bin/pi alone could never resolve on either Debian seat,
+#                which is what made a SKIP look justified.
+# A candidate that EXISTS and does not ANSWER is not a verdict either, so the probe tries EVERY
+# candidate instead of stopping at the first executable: the WSL seat read `SKIP` with rc 0 while
+# it ran the pinned build (HD-1110, 2026-10-09), because its PATH pi is the Windows Volta shim at
+# /mnt/c/Users/domen/AppData/Local/Volta/bin/pi — it exists, it is executable, and it dies with
+# `volta: command not found`.
 # The layout of the ANSWERING binary picks the installer, so a managed seat is never "converged"
 # with an npm -g install that would leave two layouts and a version that depends on PATH order.
 #
@@ -114,17 +122,34 @@ done
 # what the operator typed into, and a seat whose PATH pi is NOT the pinned prefix is precisely the
 # drift HD-1112 left behind (the Windows Volta shim shadowing the pinned install). The managed
 # launcher was missing from this candidate list until 2026-10-09: see THREE LAYOUTS in the header.
-pi_candidate() {
+pi_candidates() {
   local c
-  [ -n "${PI_SELF_PI:-}" ] && { printf '%s' "$PI_SELF_PI"; return 0; }
+  [ -n "${PI_SELF_PI:-}" ] && { printf '%s\n' "$PI_SELF_PI"; return 0; }
   # PI_SELF_PROBE_ONLY=1 (the self-test) keeps PATH and both installed dirs OUT of the probe:
   # without it a canary on a host that really runs pi would find that pi and report OK, so the
   # SKIP arm could never be proven on the one machine people run the test on.
   [ -n "${PI_SELF_PROBE_ONLY:-}" ] && return 1
   c="$(command -v pi 2>/dev/null || true)"
-  [ -n "$c" ] && [ -x "$c" ] && { printf '%s' "$c"; return 0; }
-  [ -x "$PI_ENTRY_DIR/pi" ] && { printf '%s' "$PI_ENTRY_DIR/pi"; return 0; }
-  [ -x "$PI_NODE_PREFIX/bin/pi" ] && { printf '%s' "$PI_NODE_PREFIX/bin/pi"; return 0; }
+  [ -n "$c" ] && [ -x "$c" ] && printf '%s\n' "$c"
+  [ -x "$PI_ENTRY_DIR/pi" ] && printf '%s\n' "$PI_ENTRY_DIR/pi"
+  [ -x "$PI_NODE_PREFIX/current/bin/pi" ] && printf '%s\n' "$PI_NODE_PREFIX/current/bin/pi"
+  [ -x "$PI_NODE_PREFIX/bin/pi" ] && printf '%s\n' "$PI_NODE_PREFIX/bin/pi"
+  return 1
+}
+
+# The candidate that ANSWERS, not the first that EXISTS — the candidate ORDER lives here, so
+# installer_kind() asks the same question. "Executable" is not the same as "answers": the WSL
+# seat's PATH pi is the Windows Volta shim, which exists, is executable, and prints
+# `volta: command not found`, and the probe used to stop THERE and conclude SKIP while the pinned
+# prefix two directories away ran the pinned build (CONVENTIONS §6: a gate that cannot see the
+# binary cannot fail either).
+answering_pi() {
+  local b v
+  while IFS= read -r b; do
+    [ -n "$b" ] && [ -x "$b" ] || continue
+    v="$("$b" --version 2>/dev/null | tr -d '[:space:]"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" || true
+    [ -n "$v" ] && { printf '%s' "$b"; return 0; }
+  done < <(pi_candidates || true)
   return 1
 }
 
@@ -133,15 +158,14 @@ installed_version() {
     [ -f "$PI_SELF_VERSION_FILE" ] && tr -d '[:space:]"' < "$PI_SELF_VERSION_FILE" && return 0
     return 1
   fi
-  # The candidate ORDER lives in pi_candidate(), so installer_kind() asks the same question.
-  local b cand
-  cand="$(pi_candidate || true)"
-  for b in "${cand:-}"; do
-    [ -n "$b" ] && [ -x "$b" ] || continue
-    local out
-    out="$("$b" --version 2>/dev/null | tr -d '[:space:]"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" || true
-    [ -n "$out" ] && { printf '%s' "$out"; return 0; }
-  done
+  # answering_pi() runs `pi --version` once per candidate to learn WHICH one answers, and this
+  # reads the winner again for the number: a print, not a start-up, and the alternative would be
+  # choosing the installer from a binary that never answered.
+  local b out
+  b="$(answering_pi || true)"
+  [ -n "$b" ] || return 1
+  out="$("$b" --version 2>/dev/null | tr -d '[:space:]"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" || true
+  [ -n "$out" ] && { printf '%s' "$out"; return 0; }
   return 1
 }
 
@@ -149,7 +173,7 @@ installer_kind() {
   [ -n "${PI_SELF_INSTALLER:-}" ] && { printf '%s' "$PI_SELF_INSTALLER"; return 0; }
   # The layout of the ANSWERING binary picks the installer, so a managed seat is never "converged"
   # by an npm -g install that would leave two layouts and a version decided by PATH order.
-  local b; b="$(pi_candidate || true)"
+  local b; b="$(answering_pi || true)"
   case "$b" in
     "$PI_ENTRY_DIR"/*|*/.pi/agent/bin/pi|*/install/releases/*) printf 'managed'; return 0 ;;
   esac
@@ -185,7 +209,7 @@ do_check() {
   # self-test canary now holds the behaviour down (arm 5).
   want="$(pin pi_host_npm_version)" || exit 1; PKG="$(pin pi_host_npm_package)" || exit 1
   if ! got="$(installed_version)"; then
-    info "pi build:        SKIP — no pi binary answers on this host (looked on PATH, $PI_ENTRY_DIR and $PI_NODE_PREFIX/bin)"
+    info "pi build:        SKIP — no pi binary answers on this host (looked on PATH, $PI_ENTRY_DIR, $PI_NODE_PREFIX/current/bin and $PI_NODE_PREFIX/bin)"
     return 2
   fi
   kind="$(installer_kind)" || kind="none"
