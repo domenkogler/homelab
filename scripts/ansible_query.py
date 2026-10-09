@@ -955,17 +955,39 @@ def q_context(tree: Tree, limit: int) -> int:
 # --------------------------------------------------------------------------- #
 # Self-test: a sandbox fixture + canaries that FAIL under a naive implementation
 # --------------------------------------------------------------------------- #
+def _utf8_streams() -> None:
+    """A Windows seat hands this script a cp1252 stdout, so a single `→` in the report text
+    raises UnicodeEncodeError and the run dies with rc 1 WITHOUT its answer — measured 2026-10-09
+    on `--self-test`, and it is the reason no lane could report a green `validate-all.sh` on the
+    Windows seat. Reconfigure rather than transliterate: `errors="replace"` can only ever bite a
+    glyph the console cannot render, never a result. Streams that are not reconfigurable
+    (captured, closed, an odd redirect) are left exactly as they were."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if (getattr(stream, "encoding", "") or "").lower().replace("-", "") != "utf8":
+                stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError):
+            pass
+
+
 def self_test() -> int:
     """Fixture built in a temp dir; every assertion is chosen to distinguish the correct
     implementation from the obvious wrong one (CONVENTIONS §6: a test that cannot fail is
     not evidence)."""
+    _utf8_streams()
     tmp = Path(tempfile.mkdtemp(prefix="hd456-selftest-"))
     fails: list[str] = []
+    skips: list[str] = []
 
     def check(label, cond, detail=""):
         print(f"  {'ok  ' if cond else 'FAIL'}  {label}" + (f"   [{detail}]" if detail and not cond else ""))
         if not cond:
             fails.append(label)
+
+    def skip(label, why):
+        # A boundary is reported, never counted as a pass (CONVENTIONS §6).
+        print(f"  SKIP  {label}   [{why}]")
+        skips.append(label)
 
     try:
         A = tmp / "ansible"
@@ -1106,23 +1128,38 @@ def self_test() -> int:
         #    the first version compared .resolve() paths, saw "the same python", skipped the re-exec,
         #    and the seat run died on PyYAML it actually had (2026-10-09, HD-1110 models plane).
         link = tmp / "venv-python3"
-        link.symlink_to(Path(sys.executable))
         base = str(Path(sys.executable))
-        check("guard: a symlinked venv python is still a re-exec target",
-              _need_reexec(base, link, "HD456_REEXEC_ST") is True,
-              f"{base} vs {link} -> {link.resolve()}")
-        check("guard: launching through the venv path is not a re-exec",
-              _need_reexec(str(link), link, "HD456_REEXEC_ST") is False)
-        os.environ["HD456_REEXEC_ST"] = "1"
-        check("guard: the env flag breaks a loop when the venv itself lacks the dep",
-              _need_reexec(base, link, "HD456_REEXEC_ST") is False)
-        del os.environ["HD456_REEXEC_ST"]
+        try:
+            link.symlink_to(Path(sys.executable))
+        except OSError as e:
+            # Windows refuses symlink creation without SeCreateSymbolicLinkPrivilege (developer
+            # mode): WinError 1314. The three arms below need a real symlink on disk, so on that
+            # seat they are SKIPPED and printed as skipped — never passed. Where symlinks work
+            # (any POSIX seat, a developer-mode Windows seat) they still run and still FAIL.
+            for _lbl in ("guard: a symlinked venv python is still a re-exec target",
+                         "guard: launching through the venv path is not a re-exec",
+                         "guard: the env flag breaks a loop when the venv itself lacks the dep"):
+                skip(_lbl, f"cannot build the fixture: {e}")
+        else:
+            check("guard: a symlinked venv python is still a re-exec target",
+                  _need_reexec(base, link, "HD456_REEXEC_ST") is True,
+                  f"{base} vs {link} -> {link.resolve()}")
+            check("guard: launching through the venv path is not a re-exec",
+                  _need_reexec(str(link), link, "HD456_REEXEC_ST") is False)
+            os.environ["HD456_REEXEC_ST"] = "1"
+            check("guard: the env flag breaks a loop when the venv itself lacks the dep",
+                  _need_reexec(base, link, "HD456_REEXEC_ST") is False)
+            del os.environ["HD456_REEXEC_ST"]
         check("guard: no venv on disk is never a re-exec",
               _need_reexec(base, tmp / "absent-python3", "HD456_REEXEC_ST") is False)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
-    print(f"\nself-test: {'PASS' if not fails else 'FAIL — ' + ', '.join(fails)}")
+    verdict = "PASS" if not fails else "FAIL — " + ", ".join(fails)
+    if skips:
+        verdict += (f" | {len(skips)} arm(s) SKIPPED at a privilege boundary "
+                    "(symlink on Windows without developer mode) — not counted as passes")
+    print(f"\nself-test: {verdict}")
     return 0 if not fails else 1
 
 
@@ -1137,6 +1174,7 @@ def _capture(fn) -> str:
 
 # --------------------------------------------------------------------------- #
 def main(argv=None) -> int:
+    _utf8_streams()          # a report that dies on its own arrow glyph is worse than no report
     ap = argparse.ArgumentParser(
         prog="ansible_query.py",
         description="Read-only Ansible fact queries over this repo (HD-456). "
