@@ -726,6 +726,36 @@ namely the OpenSSL build — a bare `ssh` under Git-Bash already is one, and `gi
 explicitly for git (HD-1126). A harness that resolves `ssh` off a Windows-native PATH therefore loses legs it
 proved from Git-Bash, which is why the driver's transport must never be left to PATH.
 
+**The transport is a plane: [`../scripts/seat-ssh-build.sh`](../scripts/seat-ssh-build.sh) +
+[`../ssh/transport-block.ps1`](../ssh/transport-block.ps1).** It renders one marker-delimited block
+(`# >>> seat-ssh-build: HD-1128 >>>`) into the **current-user, all-hosts profile of every PowerShell installed**, and
+that block defines `function global:ssh` calling the pinned OpenSSL binary plus `$env:PI_SSH_BIN`. It is the partner of
+[`../ssh/aliases.tmpl`](../ssh/aliases.tmpl) and the split is the point: that file decides which HOST a name reaches,
+this one decides which BINARY reads it — a correct config read by the wrong build still fails at the VPS hop.
+Verdicts and the refuse-instead-of-merge contract match the alias plane's; `--check` asks each shell which build answers,
+and `--prove` fails unless the profile-loaded answer differs from `-NoProfile`.
+
+Constraints that are properties of the mechanism, not preferences:
+
+- **The pinned path carries no space.** OpenSSH builds the `ProxyCommand` it derives from a `ProxyJump` out of its own
+  path **unquoted**, so pinning a path with a space (`C:/Program Files/Git/usr/bin/ssh.exe`) makes every jumped leg die
+  `/bin/sh: line 1: /c/Program: No such file or directory`. Hence the 8.3 form `C:/PROGRA~1/...` — the same reason
+  `git-bootstrap-win11.sh` pins it (HD-1126).
+- **A probe rebuilds PATH from the registry** (Machine + User) before asking a shell which `ssh` it resolves. Inherited
+  from Git-Bash, the child's PATH carries Git's `usr/bin` first and the answer is OpenSSL whatever the block does: a check
+  that cannot fail.
+- **A profile is only half of “will this load”.** Script execution can be disabled per shell, and then PowerShell loads
+  NO profile at all — neither this block nor the operator's own lines. On the win11 seat that holds for Windows
+  PowerShell 5.1 and not for `pwsh` 7.6. The state reports as a boundary naming the move that clears it
+  (`Set-ExecutionPolicy -Scope CurrentUser RemoteSigned`, owner-only), not as drift: a red that no `--push` can clear gets
+  muted.
+
+Coverage is the profile's: `pwsh -NoProfile`, `cmd.exe`, and any child process that resolves `ssh` off PATH are outside it.
+Verify from a clean-PATH shell: `ssh -V` answers `OpenSSL`, and `ssh -o BatchMode=yes <host> hostname` answers per alias.
+⛔ Never re-encode the key files to make the System32 build load them — that forks the seat copy from the vault
+export and from every other seat. The render refuses a block naming a System32 path in code, so the rejected fix cannot
+regrow.
+
 **A third copy exists, and it is deliberately NOT a laptop copy: the oldsrv seat's own `~/.ssh/config`** — the box
 this repo is authored on (HD-445 cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
 Home address and carry **no `ProxyJump`**: on-site a jump would hairpin through the VPS for no benefit, and
