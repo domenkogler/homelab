@@ -528,6 +528,17 @@ pi_host_tui_npm_version: "0.3.11"              # npm dist-tag `latest`, registry
                                                # pi-open-tui version` -> 0.3.11; published line 0.3.5..0.3.11),
                                                # same value the Win11 seat already runs
 
+# The two agent-work pi packages every pi.dev seat carries (HD-1118 Stage 2, the "packages
+# from the pins" piece). Before 2026-10-09 each was a NAME-only line in one script
+# (`install-pi-wsl.sh`, `pi install npm:<name>` with no version → whatever npm answered), the
+# settings plane classified both as seat-local and kept them, and the other seats got them only
+# because a session hand-ran `pi install` there — so nothing converged and no version was
+# recorded anywhere. Naming them here is what makes them fleet state.
+pi_host_subagents_npm_package: "pi-subagents"      # the subagent/orchestrator extension this repo's own lane workflow runs on
+pi_host_subagents_npm_version: "0.76.1"            # npm dist-tag `latest`, registry-verified 2026-10-09 (`latest` published 2026-10-06, the version already installed on the WSL seat — pin records the observed value, it moves nothing)
+pi_host_deepseek_npm_package: "pi-deepseek-optimized"   # DeepSeek-aware provider/harness tuning for the seats
+pi_host_deepseek_npm_version: "1.0.4"              # npm dist-tag `latest`, registry-verified 2026-10-09 (`latest` published 2026-06-21, and the version already installed on the WSL seat)
+
 # ==== Seat TUI font (HD-1110) ====
 # pi-open-tui draws its footer icons from a Nerd Font private-use glyph block, and `icons.mode:
 # auto` picks Nerd glyphs by the TERMINAL ENVIRONMENT, not by the installed font file. So the font

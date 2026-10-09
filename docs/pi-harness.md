@@ -27,7 +27,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 | `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Was: "this doc is the reference copy" (HD-388 closed that). Rendered on **two** machines as of 2026-09-23: the laptop, and oldsrv's cockpit account `domen` (HD-409) — so the harness is no longer "admin workstation only", and the second machine got its contract from `--out` + scp rather than a copied file |
 | `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`) was the last hand-kept credential file on the client; proven byte-identical to the render 2026-09-23 |
 | `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`, HD-409) | **§5's harness block is a repo file now** — [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), merged into each seat's file by [`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh) (owner ruling 2026-10-08; before that this doc WAS the SSOT and the seats agreed only because a session remembered to copy it — HD-484/HD-493). The merge owns the harness keys and the `packages` list (composed from the `versions.yml` pins, §7); `externalEditor` / `lastChangelogVersion` / `tuiMode` stay machine-local and §5 remains the place that says WHY each key is what it is |
-| pi packages (`pi install npm:…`), **the pi build itself** + the seat TUI font | every pi.dev seat | git — the pin pairs `pi_host_tui_npm_*` / `pi_host_web_npm_*` / `nerd_fonts_*` in `IaC/ansible/group_vars/all/versions.yml`, installed by the two `install-pi-*.sh` scripts and re-converged by [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh) (the fan-out driver: seat × plane matrix, unreachable seat = failed run) |
+| pi packages (`pi install npm:…`), **the pi build itself** + the seat TUI font | every pi.dev seat | git — the pin pairs `pi_host_tui_npm_*` / `pi_host_web_npm_*` / `pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*` / `nerd_fonts_*` in `IaC/ansible/group_vars/all/versions.yml`, installed by the two `install-pi-*.sh` scripts and re-converged by [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh) (the fan-out driver: seat × plane matrix, unreachable seat = failed run) |
 | `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/sync-skills.sh`](../scripts/sync-skills.sh), `extensions/` via [`../scripts/sync-extensions.sh`](../scripts/sync-extensions.sh) (HD-254 family; the Debian seat had **no** extension step at all until 2026-10-06, so it carried whatever was hand-placed) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
 | `~/.tmux.conf` (the seat's terminal harness) | repo [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → installed by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh) | git (the SSOT) — **not** the file in `$HOME`; it carries a `managed-by:` line so an installed copy is nameable, and a foreign `~/.tmux.conf` is a REFUSAL rather than a silent overwrite. Mouse + OSC 52 clipboard: **§5b**. Not yet called by the seat installer (the row in [`../todo.md`](../todo.md) keeps that) |
 | spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT, HD-374) |
@@ -268,6 +268,24 @@ since 2026-10-08 that "must" is enforced rather than asserted: the keys live in
 file (owned keys replaced, everything else preserved, timestamped backup, an unparseable file is a
 REFUSAL; `packages` is composed from the `versions.yml` pins and a seat-local package the repo does
 not name — the cockpit's pi-web — is KEPT and printed, never deleted).
+
+**The owned package set, and what "seat-local" was hiding (2026-10-09, HD-1118 Stage 2).** The set
+this plane writes is `pi-web-access` + `pi-open-tui` + `pi-subagents` + `pi-deepseek-optimized`, each
+at its pin. The last two were the discovery: both were named only in one unversioned line of
+[`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh), so the settings plane classified them
+as **seat-local and kept them** — which read as "fine, nothing to do" while in fact nothing converged
+them, no version was recorded anywhere, and the other seats carried them only because a session
+hand-ran `pi install` there. `seat-local` is where an unmanaged package hides; the fix is to pin and
+own the ones every seat is meant to run, and the plane now fails (`--check --strict`) when a seat is
+missing one, with `--push` restoring it at the pin — an arm of `--self-test` proves that half, and
+another proves the cockpit's pi-web still survives the same write. `@season179/pi-worktree` and
+`@ogulcancelik/pi-ssh-tools` are still NOT in the set — they remain unversioned lines in the WSL
+installer and owned by no plane, which is HD-1118's remaining residue rather than a ruling that they
+are seat-only. What is left seat-local after this is exactly
+the placement a fleet key must not own — the cockpit's `@ygncode/pi-web` (`--with-package`) — plus,
+on the laptop until 2026-10-09, a `context-mode` entry that was a per-machine install rather than a
+fleet key; it was removed from that seat with `pi remove`, which is the seat-side way to retire an
+entry (the sync never deletes one).
 
 **Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — HD-484). Before 2026-10-08 no plane could see the binary: every other plane compares files, so the Win11 seat quietly ran a pi release the repo had not reviewed (HD-1112's unpinned `volta install @latest`). `scripts/pi-self-update.sh` closes that (HD-1115): `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer. The owner ruled both pins to 1.1.0 on 2026-10-08, waiving the 3-day hold, with the reasoning written into the pin lines rather than copied into prose.
 

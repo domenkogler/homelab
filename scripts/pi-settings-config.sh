@@ -94,10 +94,16 @@ pin() {
 }
 
 # The packages the harness owns: NAME here, VERSION from the pin (§7). pi-web-access is the
-# web-tool leg every seat should have, pi-open-tui the TUI/footer leg (docs/pi-harness.md §5a).
+# web-tool leg every seat should have, pi-open-tui the TUI/footer leg (docs/pi-harness.md §5a),
+# and the last pair is the agent-work set — the subagent extension the lane workflow runs on and
+# the DeepSeek tuning. Those two were `seat-local, kept` until 2026-10-09: named in exactly one
+# executable line (`install-pi-wsl.sh`, unversioned) they were never converged and never pinned
+# (HD-1118 Stage 2).
 PKG_BASE=(
   "npm:pi-web-access@$(pin pi_web_access_version)"
   "npm:$(pin pi_host_tui_npm_package)@$(pin pi_host_tui_npm_version)"
+  "npm:$(pin pi_host_subagents_npm_package)@$(pin pi_host_subagents_npm_version)"
+  "npm:$(pin pi_host_deepseek_npm_package)@$(pin pi_host_deepseek_npm_version)"
 )
 
 # node: pi's own shebang is `#!/usr/bin/env node`, so a seat always HAS node — but a
@@ -252,16 +258,20 @@ self_test() {
   require_node || { err "self-test needs node — it cannot prove anything without it"; return 1; }
   SEAT_EXTRA="npm:@ygncode/pi-web"
 
-  # A compliant seat file: every SSOT key + workstation keys + a seat-local package.
+  # A compliant seat file: every SSOT key + workstation keys + a seat-local package. The owned
+  # package list comes from PKG_BASE itself and is NEVER restated here — a fixture that names the
+  # packages by hand turns red the day the owned set grows, and a red self-test whose real meaning
+  # is "the set changed" teaches nobody to update the fixture.
   mk_seat() {
     "$NODE" -e '
       const fs = require("fs");
-      const s = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+      const [ssotPath, seatExtra, outPath, ...owned] = process.argv.slice(1);
+      const s = JSON.parse(fs.readFileSync(ssotPath, "utf8"));
       s.lastChangelogVersion = "1.1.0";
       s.externalEditor = "notepad.exe -multiInst";
-      s.packages = ["npm:pi-web-access@" + process.argv[3], "npm:pi-open-tui@" + process.argv[4], process.argv[2]];
-      fs.writeFileSync(process.argv[5], JSON.stringify(s, null, 2) + "\n", "utf8");
-    ' "$SSOT" "$SEAT_EXTRA" "$(pin pi_web_access_version)" "$(pin pi_host_tui_npm_version)" "$1"
+      s.packages = [...owned, seatExtra];
+      fs.writeFileSync(outPath, JSON.stringify(s, null, 2) + "\n", "utf8");
+    ' "$SSOT" "$SEAT_EXTRA" "$1" "${PKG_BASE[@]}"
   }
   mk_seat "$tmp/rest.json"
 
@@ -287,6 +297,16 @@ self_test() {
 
   # 4. a seat-local package (the cockpit pi-web) survives every write.
   if json_val "$tmp/rest.json" packages | grep -q "@ygncode/pi-web"; then info "seat-local-kept  GREEN (cockpit pi-web survived)"; else err "canary: --push deleted a seat-local package"; fails=$((fails+1)); fi
+
+  # 4b. an OWNED package the seat does not carry at all — the class the owned set grew to close
+  #     (pi-subagents / pi-deepseek-optimized were seat-local until 2026-10-09, so whichever seat
+  #     ran `pi install` last was the only seat that had them, and no version was recorded
+  #     anywhere) -> strict RED, and --push brings it back AT THE PIN without touching pi-web.
+  poke "$tmp/rest.json" 'c.packages=c.packages.filter(p=>!String(p).startsWith("npm:'"$(pin pi_host_subagents_npm_package)"'@"))'
+  if run_at "$tmp/rest.json" --check --strict; then err "canary passed: a missing owned package stayed green"; fails=$((fails+1)); else info "pkg-absent       caught"; fi
+  run_at "$tmp/rest.json" --push
+  if json_val "$tmp/rest.json" packages | grep -q "$(pin pi_host_subagents_npm_package)@$(pin pi_host_subagents_npm_version)"; then info "pkg-restored     GREEN (owned package back at its pin)"; else err "canary: --push did not restore the missing owned package"; fails=$((fails+1)); fi
+  if json_val "$tmp/rest.json" packages | grep -q "@ygncode/pi-web"; then info "seat-local-again GREEN"; else err "canary: restoring an owned package deleted the seat-local one"; fails=$((fails+1)); fi
 
   # 5. missing file -> strict RED; --push creates it WITH the pinned packages.
   if run_at "$tmp/none.json" --check --strict; then err "canary passed: MISSING settings stayed green"; fails=$((fails+1)); else info "missing-canary   caught"; fi

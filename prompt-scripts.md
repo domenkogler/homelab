@@ -95,10 +95,14 @@ Commit: one commit, `validate-all` green. **Do not start Stage 3 in the same ses
    second harness — `vendors: continue:` in the models spec), so the next harness is a row and not a restructure.
 2. **Packages from the pins**: move the package inventory into `group_vars/all/versions.yml` (name + version + scope:
    `fleet | seat`), composed by `pi-settings-config.sh`. Delete the unversioned literal list in `install-pi-wsl.sh:60-66`.
-   This is the change that makes `npm:pi-subagents` fleet-wide: today it is named in **one** executable line
-   (`install-pi-wsl.sh:62`, no version → whatever npm answers) and reaches the other seats only because a session hand-ran
-   `pi install` there; the settings plane classifies it as seat-local and keeps it, so nothing converges or pins it. Same
+   This is the change that makes `npm:pi-subagents` fleet-wide: before 2026-10-09 it was named in **one** executable line
+   (`install-pi-wsl.sh:62`, no version → whatever npm answers) and reached the other seats only because a session hand-ran
+   `pi install` there; the settings plane classified it as seat-local and kept it, so nothing converges or pins it. Same
    treatment for `@season179/pi-worktree`, `@ogulcancelik/pi-ssh-tools`, `pi-deepseek-optimized`.
+   ✅ **2026-10-09 (part, seat lane):** `pi-subagents` + `pi-deepseek-optimized` now have pins
+   (`pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*`) and belong to the settings plane's owned set, and
+   `install-pi-wsl.sh` versions those two from the pins instead of naming them bare. ⏳ Left: the inventory's
+   `scope: fleet | seat` shape (still plain scalar pins) and the remaining two names, unversioned and owned by nobody.
 3. Converge the seats with `bash scripts/pi-seat-sync.sh --push` — **after** the paths move, not before (Stage 3 relocates
    the driver into its own folder; the command is otherwise unchanged) — because the driver's command strings are literal and
    the pre-flight compares each seat's

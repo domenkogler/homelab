@@ -56,12 +56,21 @@ pin() {
 }
 TUI_PKG="$(pin pi_host_tui_npm_package)"
 TUI_V="$(pin pi_host_tui_npm_version)"
+SUB_PKG="$(pin pi_host_subagents_npm_package)"
+SUB_V="$(pin pi_host_subagents_npm_version)"
+DSH_PKG="$(pin pi_host_deepseek_npm_package)"
+DSH_V="$(pin pi_host_deepseek_npm_version)"
 
+# Versioned where the settings plane owns the package (pi-open-tui, pi-subagents,
+# pi-deepseek-optimized): this list is the eager install for a from-zero seat, and
+# `pi-settings-config.sh --push` is what keeps it pinned in steady state — two sources for one
+# version is how a seat ends up on `latest` with a pin elsewhere (§7, HD-1118 Stage 2). The two
+# names still unversioned below are the ones no plane owns yet.
 PI_PACKAGES="${PI_PACKAGES:-
   npm:@ogulcancelik/pi-ssh-tools
-  npm:pi-subagents
+  npm:${SUB_PKG}@${SUB_V}
   npm:@season179/pi-worktree
-  npm:pi-deepseek-optimized
+  npm:${DSH_PKG}@${DSH_V}
   npm:${TUI_PKG}@${TUI_V}
 }"
 
