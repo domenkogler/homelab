@@ -1,7 +1,7 @@
 > **Role:** the PERMANENT process contract for repo sessions — the working contract (§3) and the
-> lane-session orchestrator mode (§4, overrides O1–O8, launch, merge/cleanup). It was moved out of
+> lane-session orchestrator mode (§4, overrides O1–O9, launch, merge/cleanup). It was moved out of
 > [prompt.md](../prompt.md) on 2026-09-28 when the handoff was slimmed; the LIVE wave table is NOT here —
-> it lives in [prompt.md](../prompt.md) §3. Where the contract below is silent,
+> it lives in [todo-table.md](../todo-table.md) §B0. Where the contract below is silent,
 > [README.md](../README.md) §4 and [CONVENTIONS.md](../CONVENTIONS.md) §6 stand and outrank everything.
 > **Linked from:** [prompt.md](../prompt.md) · [README.md](../README.md) §4 · [todo-table.md](../todo-table.md) §B0 · [CONVENTIONS.md](../CONVENTIONS.md) §4/§6
 
@@ -24,9 +24,9 @@
 
 ## 4. Orchestrator mode — independent lane sessions, one merge station
 
-> **Read this first if you were launched from a `prompt-<HD>.md` brief.** This section is the **parent**
+> **Read this first if you were launched from a `prompt-<domain>.md` brief.** This section is the **parent**
 > contract for running two (or more) independent lane sessions in parallel, and it is an **OVERRIDE, not a
-> restatement**: the eight items **O1–O8** below deliberately behave differently from [README.md](../README.md)
+> restatement**: the nine items **O1–O9** below deliberately behave differently from [README.md](../README.md)
 > §4 and [CONVENTIONS.md](../CONVENTIONS.md) §6 + its Session close-out row. **Where this section is silent,
 > README and CONVENTIONS stand and outrank everything.** A brief is a dispatch note: it can narrow §4, never
 > widen it, and if a brief contradicts §4 then **§4 wins and the brief is wrong** — fix the brief, do not
@@ -49,12 +49,13 @@
 | **O4** | README §4.7 + CONVENTIONS: planned / multi-host / deploy-gated → **stop and ask** | **Park and continue.** An owner gate reached inside a lane is written into that row's ⏳ tail as the *exact* blocked action; the lane finishes everything unblocked and names the park in its final report. It does not stall the sibling lane and does not end its session early | A lane that waits unattended burns the whole parallel slot — and every brief contains at least one owner-gated row |
 | **O5** | CONVENTIONS §worktree: the primary checkout is a merge station | Kept **strictly**, and it also binds the **orchestrator**: the cleanup commit (view re-sync, brief deletion, link fixes) is made in **its own worktree/branch**. `scripts/guard-session.sh` refuses edits while primary sits on `main`, and `validate-all.sh` **hard-fails on primary + main + dirty** — only a *clean* main validation is the exempt form | The merge station is not an edit site, not even for tidying up after a merge |
 | **O6** | README §4.8: ownership follows the action; the session that did the work writes the runbook line | **Unchanged, and it is on the lane.** `deployment-manual.md` is deliberately claimed by no brief, so a lane that performed any hand-repeatable step writes the imperative line **in its own commit** | The exact hole README §4.8 was written for; the orchestrator must not be expected to notice it after the fact |
-| **O7** | CONVENTIONS §lifecycle: a closed row is deleted from `todo.md` | Kept for the lane. The **brief file itself** is deleted by the **orchestrator**, in the cleanup commit, **in the same commit as the link fixes** in `prompt.md`, `todo.md` and `todo-table.md` | `scripts/check_doc_map.py` scans every root `*.md` **except `prompt-*`**: a dangling link from `todo.md`/`todo-table.md`/`prompt.md` fails the gate, while a link from one brief to another is not checked at all (this corrects the belief recorded in `prompt-414.md` row 8) |
+| **O7** | CONVENTIONS §lifecycle: a closed row is deleted from `todo.md` | Kept for the lane. The **domain brief file itself** is deleted by the **orchestrator**, in the cleanup commit, **in the same commit as the link fixes** in `prompt.md`, `todo.md` and `todo-table.md` | `scripts/check_doc_map.py` scans every root `*.md` **except `prompt-*`**: a dangling link from `todo.md`/`todo-table.md`/`prompt.md` fails the gate, while a link from one brief to another is not checked at all (this corrects the belief recorded in `prompt-414.md` row 8) |
 | **O8** | CONVENTIONS §worktree: on a path collision, abort and pick a new name | Hard rule for the parent too: it **never** `rm`s / moves / renames a worktree it did not create; lane worktrees are removed **after** the merge, **by name**, with `git worktree remove`; branches die by `git branch -d` (**never `-D`**) | The 2026-08-23 incident; and `-d`'s refusal is the cheap proof that nothing was stranded |
+| **O9** | README §4.7 + CONVENTIONS §6: nothing bounds how many **sessions** a run may have — O3 caps *converge slots*, not contexts, so launching a lane per brief is legal on its face | Sessions are cheap, **contexts are not**. At most **8 concurrent agent sessions** and at most **2 full-context sessions — the orchestrator counts as one**. The default shape is *orchestrator + one lane*; a **third** is allowed only when the other two are near done, and **4 is the ceiling, never exceeded**. Anything beyond must be a **narrow-context child** (a bounded single-deliverable subagent with its own fresh, small context — README §4 "Orchestrator + reviewer discipline") and never a second full lane wearing a brief. The brief pool is a **dispatch queue, not a parallelism licence** | A full lane session pays the README §0/§1 boot ritual (~60 k tokens of `todo.md` alone), so parallel lanes are paid for out of the context budget, not the session budget; rows queued behind an occupied host slot (O3) are **waiting, not missing** |
 
 
 
-> **The live lane map (waves) is state, not contract — it lives in [prompt.md](../prompt.md) §3.**
+> **The live lane map (waves) is state, not contract — it lives in [todo-table.md](../todo-table.md) §B0.**
 > Pairing constraints (never two lanes on one converge host, O3) are contract; which brief is
 > live this week is not.
 
@@ -122,6 +123,6 @@
    [todo-table.md](../todo-table.md) §B.
 
 **A lane's own close-out is deliberately shorter than CONVENTIONS §close-out**: owning doc + row tail + runbook
-line if it did a manual step (O6) + signed commit + `validate-all.sh` green **in its worktree** → **stop**. The
+line if it did a manual step (O6) + plain `git commit` (signing retired, HD-1116) + `validate-all.sh` green **in its worktree** → **stop**. The
 merge, the views and the brief's death belong to the parent.
 
