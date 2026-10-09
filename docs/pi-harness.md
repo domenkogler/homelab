@@ -297,9 +297,12 @@ installed manifest's `dependencies` against `HOST_PROVIDED_EXTENSION_PACKAGES` (
 dependencies`. Not style: an extension that installs its OWN `typebox` gets a second runtime module
 beside the host's, bypassing the extension loader. `pi-web-access` 0.25.0 did exactly that, so the
 panel appeared the moment the seat moved to pi 1.1.0 — a **pin** problem wearing an extension's
-clothes. The fix is the pin (`pi_web_access_version` → 0.37.0, which declares
-`peerDependencies.typebox: "*"`; upstream moved it in 0.32.0, registry-verified across all 46
-published versions), never an edit into someone's `node_modules`: the predicate is one read of a
+clothes. The fix is the pin, never an edit into someone's `node_modules` — and no pin had to move:
+`pi_web_access_version` is `0.36.0`, whose installed manifest declares `peerDependencies.typebox: "*"`
+and carries no `typebox` entry in `dependencies` (read off the seat's own manifest 2026-10-09;
+upstream moved the declaration in 0.32.0, registry-verified across all 46 published versions). This
+paragraph named `→ 0.37.0` until 2026-10-09 — a version this repo never pinned, and the value of a pin
+is its `versions.yml` line, not a number quoted in prose. The predicate is one read of a
 manifest, so `pi list` plus a manifest scan proves it, and deleting a hoisted copy is undone by the
 next install.
 
