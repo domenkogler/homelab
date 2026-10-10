@@ -43,8 +43,11 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 - The instance runs on a **Raspberry Pi 4 B** as **Debian + HA Container**, rendered by the `home_assistant` role.
 - **Versions** are pinned in `IaC/ansible/group_vars/all/versions.yml` — never read them from this file.
 - **198 entities**, spanning KNX (blinds, lights, heat-recovery ventilator, appliance power), Homematic IP (6 room thermostats + weather station + alarm), Shelly (<lights, buttons, overpowering>), media (Nvidia Shield via Android-TV-Remote **and** Cast, Sony BRAVIA via DLNA), Companion mobile apps, and weather.
-- **Community plugins:** **HACS v2.0.5** is the only entry in `custom_components/`; `motion`, `ai_task`,
-  OneDrive, go2rtc and card-mod are **not present** (§7.1). The forecast source is core `meteoblue` (§6.4).
+- **Community plugins:** **HACS v2.0.5** is the only entry in `custom_components/`, and **card-mod v3.4.4 is
+  present** — a frontend resource loaded from `www/`, so a `custom_components/` listing does not show it (§7.1,
+  [`interfaces.md`](interfaces.md) §HA Dashboard (native)). Genuinely absent from `custom_components/`: `motion`,
+  `ai_task`, OneDrive and go2rtc — go2rtc is not a custom component and no camera entities live (§7.1). The
+  forecast source is core `meteoblue` (§6.4).
 - **HACS and its custom components live inside HA Core**, not the Supervisor, so they behave identically under
   HA Container. The HAOS-only surface is the **Supervisor services + the dev add-ons** — §8 lists what replaces
   each of them.
@@ -143,8 +146,9 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 | **meteoblue** (core) | `weather.meteoblue_kogler_si_maribor` | **Single authoritative source** (Maribor, `{{ home_latitude }}/{{ home_longitude }}`). Key = `meteoblue_api` (1Password Homelab-ansible). Hourly + 7-day forecast; Slovenia is modeled well. Configured in `configuration.yaml.j2` (IaC). |
 
 ### 6.5 Host-level surface
-`supervisor` (`hassio`), the HAOS **backup** manager and the Raspberry Pi integrations (`rpi_power`,
-`raspberry_pi`) are **not part of HA Container**: Pi health (undervoltage, EEPROM) and backups are host-level
+`supervisor` (`hassio`), the HAOS **backup** manager, the Raspberry Pi integrations (`rpi_power`,
+`raspberry_pi`) and `homeassistant_hardware` — the component that carries the RPi **firmware** entity — are
+**not part of HA Container**: Pi health (undervoltage, EEPROM/firmware) and backups are host-level
 concerns (§8, [`backup.md`](backup.md)).
 
 ### 6.6 Presence of *missing* integrations (important for device claims)
@@ -163,21 +167,24 @@ concerns (§8, [`backup.md`](backup.md)).
 |---|---|---|---|---|---|
 | **HACS** | Integration (core) | 2.0.5 | 2.0.5 | Community add-on store / install manager | ✅ Yes |
 | **OneDrive Backup** (`onedrive`) | HACS integration | *(api)* | — | Cloud backup to Microsoft OneDrive (used space/free space/drive state sensors) | ✅ Yes |
-| **go2rtc** (`go2rtc`) | HACS integration | *(api)* | — | Camera/RTSP streaming (camera/ffmpeg/stream/web_rtc loaded; **no live camera entities yet**) | ✅ Yes |
+| **go2rtc** (`go2rtc`) | Not a custom component | — | — | Camera/RTSP streaming plumbing (`camera`/`ffmpeg`/`stream`/`web_rtc` loaded); **no camera entities live** | ✅ Yes |
 | **card-mod** (`card_mod`) | HACS frontend card | v3.4.4 | v4.2.1 (skipped) | Custom Lovelace card CSS/modification (frontend resource — lives under `www/`, not `custom_components/`) | ✅ Yes |
 
-> **Verified on disk:** `/config/custom_components/` contains **exactly one directory: `hacs`**. The
-> components a REST pass had attributed to HACS/custom (OneDrive, go2rtc, card-mod, `motion`, `ai_task`) are
-> **not** there — frontend resources such as card-mod load from `www/`, and `ai_task` is a core integration,
-> not a custom component. So there is nothing to port except HACS itself (+ any `www/` frontend resources);
-> adding OneDrive or go2rtc is a fresh-deploy decision, not a migration step.
+> **Verified on disk:** `/config/custom_components/` contains **exactly one directory: `hacs`**. What is
+> genuinely **missing** from it is `motion`, `ai_task`, OneDrive and go2rtc — and two of those were never
+> `custom_components/` candidates: `ai_task` is a core integration, and go2rtc is not a custom component (no
+> camera entities live). **card-mod v3.4.4 is present**: it is a HACS *frontend* resource and loads from `www/`,
+> which is why a `custom_components/` listing does not show it (row above; the dashboard style note in
+> [`interfaces.md`](interfaces.md) §HA Dashboard (native)). So there is nothing to port except HACS itself + the
+> `www/` frontend resources; adding OneDrive is a fresh-deploy decision, not a migration step.
 
 ### 7.2 No Supervisor surface
 The dev-tool add-ons an HAOS host would carry — `a0d7b954_ssh` (Advanced SSH & Web Terminal),
 `core_configurator` (File editor), `a0d7b954_vscode` (Studio Code Server) — do not exist under HA Container;
 their equivalents are containers (`lscr.io/linuxserver/code-server`, an SSHD container) or host tools. No
-MQTT (Mosquitto), Zigbee2MQTT or media add-ons are in the design. No camera entities are live; go2rtc would be
-a plain custom component if cameras are ever added.
+MQTT (Mosquitto), Zigbee2MQTT or media add-ons are in the design. No camera entities are live; go2rtc is not a
+custom component — the loaded `camera`/`web_rtc` plumbing is core, so a camera would be an integration choice,
+not a HACS install.
 
 **Host facts:** `lsusb` = **hub only, zero user USB devices** (no ESP32-S3 serial device, no RF stick — the
 Homematic HAP is a cloud device); NIC = `end0` (+ `wlan0`).
@@ -195,7 +202,7 @@ Supervisor, so they behave identically here. The HAOS-only surface and what repl
 | Add-on store ecosystem (community repos) | none — there is no Supervisor |
 | Supervisor auto-backup / add-on lifecycle / watchdog | host backup per [`backup.md`](backup.md) + Docker restart policies |
 | OS / firmware (RPi EEPROM) updates | host `apt` / `rpi-eeprom-update`, outside HA |
-| RPi undervoltage + hardware integration | `rpi_power` / `raspberry_pi` are not part of HA Container — detect at the OS level |
+| RPi undervoltage + hardware integration | `rpi_power` / `raspberry_pi` / `homeassistant_hardware` are not part of HA Container — detect at the OS level |
 | VRRP / keepalived for the failover VIP | ✅ native on the host — the enabler for `smart-home-failover.md` |
 | Config + auth + entity parity with the standby | one Ansible `home_assistant` role renders both nodes (see `deployment-ansible.md`) |
 

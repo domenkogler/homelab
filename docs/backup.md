@@ -183,10 +183,12 @@ already mounts:
   PG 16 restore at line 12) and the new `\restrict`/`\unrestrict` meta-commands, and `CREATE ROLE
   <dbuser>` before restoring, or every `OWNER TO` fails.
 * **Still not covered:** Matrix/tuwunel (RocksDB state *and* the signing identity),
-  Headscale, CrowdSec decisions, Qdrant, OpenCloud, Grafana, the **Forgejo git repos**, and the
-  immich originals — the Box holds no immich originals, so they are on the VPS
-  disk too (289 MB under `/srv/docker/immich/upload`), which contradicts the `cifs` role header's
-  "Immich originals live on the Box" claim. And this is rsync to a CIFS share, **not** the
+  Headscale, CrowdSec decisions, Qdrant, OpenCloud, Grafana, the **Forgejo git repos**, and any Immich
+  original not yet on the Box. The rule is the **live Hetzner Box** for originals — what the `cifs` role
+  mounts and [`storage.md`](storage.md) §Immich Hybrid Storage states — so an original sitting on VPS NVMe is
+  misplaced rather than duplicated, and this push neither carries it nor needs to. ⏳ Residue to move:
+  **289 MB under `/srv/docker/immich/upload`** on the VPS; the Immich storage-template migration job is what
+  files them onto the CIFS mount. And this is rsync to a CIFS share, **not** the
   encrypted snapshot Kopia would give: the kopia-client gap above is unchanged.
 
 **The slot-numbering rule.** `tiredofit/db-backup` builds one `dbbackup-NN` scheduler per configured

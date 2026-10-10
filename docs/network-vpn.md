@@ -782,11 +782,22 @@ over it by design.
 
 ## Slovenian exit node — Pi, toggle-only
 
-**Purpose:** when abroad, reach `rtvslo.si` and other Slovenia-only content without geo-limitations — a **genuine Slovenian residential IP** (home WAN) is the most geo-acceptable egress (datacenter IPs are often blocked).
+**The Pi is the tailnet's exit node** — no other node here offers an exit, and it is the egress a member device
+uses when it needs a Slovenian address. Selecting the Pi as exit node moves that device's **internet-bound default
+route** onto the Pi: the traffic arrives over the **tailnet leg** (WireGuard to the Pi's own `100.64.x` node
+address), the Pi forwards it, and it leaves over the **home leg** — the Pi's `eth0` on VLAN 10, up the home ISP —
+so the peer sees a **genuine Slovenian residential IP** from the home WAN. Nothing else rides it: the traffic of
+the toggling device toward other tailnet nodes keeps its direct path, the home LAN's own traffic never enters
+the exit, and the exit is **egress only** — it opens no inbound path into any home subnet, so the §Tailnet
+boundary invariant (no LAN bridge, no advertised routes) is untouched.
 
-- **Node:** the **Pi** (reliable tier) runs **native `tailscaled` in kernel mode** (`/dev/net/tun`) as a tailscale exit node — `tailscale up --advertise-exit-node`. **Not** the router (RouterOS has no tailscaled; would be a manual WireGuard peer, losing the app toggle) and **not** oldsrv (disposable tier — the exit node must be available exactly when travelling).
+**What the exit is for:** reaching `rtvslo.si` and other Slovenia-only geo-limited content from abroad, where a
+residential Slovenian IP is accepted and datacenter egress usually is not. Home services themselves are reached
+by their node addresses, not through the exit.
+
+- **Node:** the **Pi** (reliable tier) runs **native `tailscaled` in kernel mode** (`/dev/net/tun`). **Not** the router (RouterOS has no tailscaled; would be a manual WireGuard peer, losing the app toggle) and **not** oldsrv (disposable tier — the exit node must be available exactly when travelling).
 - **Selection is client-side and toggled:** the phone/laptop picks the Pi as exit node in the Tailscale app **only when** a Slovenian IP is needed (then switches back). Not always-on — so home power/ISP is never a dependency for everyday phone traffic.
-- **Headscale double opt-in:** the Pi advertises `0.0.0.0/0`, the control server must **approve the route** (manual, headscale CLI), and the policy needs an **`autogroup:internet`** rule (new concept for the user-email-based `policy.hujson`) so tailnet members may use it.
+- ⏳ **Not yet advertised in IaC:** `host_vars/pi.kogler.si.yml` asserts the opposite posture — the `tailscale-node` join carries no `--advertise-exit-node`, and the role states "no exit node" for every host it enrols — and `policy.hujson.j2` carries no **`autogroup:internet`** rule, so an exit that was advertised would still be unusable: that email-based policy admits the ports it names and nothing toward the internet. Closing the item is the double opt-in in both halves — advertise on the Pi, then **approve the route** on headscale (CLI) and add the `autogroup:internet` accept rule (a new concept for this policy file) that lets members use it.
 - **Ceiling while on:** the Pi 4 CPU + the home upload cap mobile throughput (~100–300 Mbit/s, single stream OK). Android tailscale supports **per-app split tunneling** to scope it; iOS is all-or-nothing.
 - **Alternative (future, only if home fails acceptance/speed):** a Slovenian VPS terminated at the VPS, policy-routed for RTV-bound traffic.
 

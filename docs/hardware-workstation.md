@@ -258,7 +258,7 @@ Still open, and the gate is what keeps them open: **FIM trigger latency** has ne
 (gate 5, sub-second is an assumption), `:1234` LAN exposure is an **owner decision that is still
 outstanding** (no firewall rule is
 added as a side effect), and the client render is verified only by `probe-client` while 1Password is
-signed out — `render-pi-config.py --check` needs `op`, which is a human step (§6).
+signed out — `render-pi-config.py --check` needs `op`, which is a human step.
 
 **Client contract — and the seat it is addressed to:** local models are
 served to **pi.dev running ON Win11**. `providers.laptop-lmstudio` in
@@ -311,7 +311,7 @@ bandwidth-bound and the MoE-A3B family is still the only one that answers (§Leg
 |---|---|
 | Vision encoder on NPU? | **No.** XDNA wants static, bounded graphs; a Qwen3-VL tower is dynamic-resolution (patch count varies per image). No stack in AMD's XDNA toolchain runs a VL encoder there — it lands on the iGPU/CPU regardless |
 | LLM on NPU? | Possible (`llm-aie` llama.cpp plugin / Ryzen AI SwarmLLM) but a curated, **repacked** model list, INT4-only, coupled to `amdxdna` kernel + NPU firmware versions |
-| What it buys | **Watts only.** The NPU shares the same LPDDR5x pool, so it buys no bandwidth — the iGPU already serves both legs |
+| What it buys | **Watts only.** The NPU shares the **system SODIMM pool** — the same two DDR5-5600 sticks and the same ≈89.6 GB/s bus the CPU and iGPU already contend over (this is a SODIMM Strix Point board: there is no separate LPDDR5x pool to buy bandwidth from) — so it buys no bandwidth, and the iGPU already serves both legs |
 | Why it stays out anyway | It is exactly the fragility the homelab retired elsewhere: a mutable-plugin + pinned-driver stack with no artifact trail (`hardware-gpu.md` / decision #27 precedent: "no published artifact ⇒ self-build with no Renovate trail") |
 
 **Revisit trigger:** a concrete low-power, always-on consumer (fanless/battery ASR or an idle prefill
