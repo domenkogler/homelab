@@ -675,7 +675,7 @@ read-scope account cannot reach. What the seat runs:
 | Vault read | `~/.config/op/homelab-sa-token` (0600), the `op_api` read-scoped value — `sha256[:12] 6a1342f44e65`, `len 850`, matching the vault item and the runner. ⚠ Scope is proven by the `op whoami` **Integration ID**, not by `op vault list`, which cannot tell the read and write scopes apart: [1password.md](1password.md) §1 |
 | Keys | `~/.ssh/github_signing` + `github_auth` pulled with `op read`, fingerprints equal to the items' `fingerprint` fields, **passphrase-free** (proved with `ssh-keygen -y -P '' -f`, which is also what selects the file-path signing form) |
 | Attribution | a **global** `~/.gitconfig` (worktrees share the clone's config; other repos need global) with `gpg.format=ssh`, `commit.gpgsign=**false**` + `[tag] gpgsign=false` — **signing is retired**; `user.signingkey` = the key file and `gpg.ssh.allowedSignersFile` stay in place so the signed history still verifies. ⛔ `commit.gpgsign=true` must not come back: with a key GitHub no longer holds, git then blocks on an agent in the shells nobody watches. The seat-level file map is in [deployment-secrets.md](deployment-secrets.md) §6: a Debian seat has NO `~/.gitconfig-github` / `~/.gitconfig-nightly`, only `~/.gitconfig` |
-| Proof | **unsigned by policy:** a commit under a `github.com` remote returns in milliseconds with `git log -1 --format='%G?'` → `N`, no prompt and no agent — in an ordinary shell AND in a bare `env -i` shell (the cron/converge class), 4 ms each. **For pre-2026-10-08 commits the signed form still holds:** `git verify-commit HEAD` → `Good "git" signature for domen@kogler.si with ED25519 key SHA256:I3kz4JY7…`, the decoded pubkey inside the `gpgsig` header being the same key the laptop used, so history stays continuous; `%G?` → `G` there **with `SSH_AUTH_SOCK` unset**, the pi/cron case |
+| Proof | **unsigned by policy:** a commit under a `github.com` remote returns in milliseconds with `git log -1 --format='%G?'` → `N`, no prompt and no agent — in an ordinary shell AND in a bare `env -i` shell (the cron/converge class), 4 ms each. **Commits made while commit signing was still enabled verify with the signed form:** `git verify-commit HEAD` → `Good "git" signature for domen@kogler.si with ED25519 key SHA256:I3kz4JY7…`, the decoded pubkey inside the `gpgsig` header being the same key the laptop used, so history stays continuous; `%G?` → `G` on those commits **with `SSH_AUTH_SOCK` unset**, the pi/cron case |
 
 ⚠ **Do not copy the laptop's `key::<pub>` config onto a seat.** That form asks the ssh-agent and dies
 in every shell without `SSH_AUTH_SOCK`: `error: Couldn't get agent socket?` then
@@ -916,6 +916,10 @@ IaC/ansible/
 ```
 
 ### ansible-core 2.24 readiness
+
+The control node runs **ansible-core 2.21.5** — the version is read, not remembered:
+`~/ansible-venv/bin/ansible --version` prints `ansible [core 2.21.5]` as its first line, and
+`scripts/ansible-run.sh` activates that same venv for every converge.
 
 `ansible.cfg` sets `inject_facts_as_vars: false` (the default True is deprecated and removed
 at core 2.24): tasks must reference facts via `ansible_facts['service_mgr']` (never bare

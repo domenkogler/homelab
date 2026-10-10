@@ -384,6 +384,7 @@ sibling services have no auth. Apply minimum auth per service:
   `-httpAuth.password` (plaintext basic auth) via `victoria-metrics_api`/`victoria-logs_api`;
   endpoints stay loopback + wg-s2s-bound.
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
+- **Expiry-bearing infra tokens:** a token is non-expiring by design or named in a rotation runbook at the moment it is minted — an expiring token with no rotator decays silently while every gate stays green (the runbook index is [deployment-secrets.md](deployment-secrets.md))
 
 #### Sibling-auth coverage map
 
@@ -400,7 +401,7 @@ overlay can't write to a sibling. Cross-host reaches (`immich-app→immich-ml`,
 | litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ |
 | open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_api` | ✅ |
 | openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ |
-| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ |
+| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ live-verified 2026-09-08 |
 | renovate → forgejo API | VPS | `RENOVATE_TOKEN` | `forgejo_api` | ✅ |
 | recyclarr → sonarr/radarr | oldsrv | API key | `sonarr_api` / `radarr_api` | ✅ |
 | db-backup → postgres (immich/opencloud/forgejo) | VPS | postgres password (`db-internal`) | `*_db` | ✅ |
@@ -408,7 +409,7 @@ overlay can't write to a sibling. Cross-host reaches (`immich-app→immich-ml`,
 
 Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native server auth → stays on
 `llm-backend`, reachable only by LiteLLM) and **docling** (no supported API key → see
-`services-ai.md`; treated like Ollama). *Cross-ref: `security.md` internal-service auth.*
+`services-ai.md`; treated like Ollama). *Cross-ref: `security.md` §6a Internal sibling auth.*
 
 ⚠ **Retiring a compose service does not stop its container, and a green converge hides that.**
 `docker_compose_v2` never passes `--remove-orphans`, so deleting a service block re-renders the file,
@@ -418,6 +419,8 @@ second act on the host: `docker compose -f /opt/<service>/docker-compose.yml up 
 and the flag belongs AFTER `up` (`docker compose --remove-orphans up` fails with `unknown flag`).
 Prove removal with `docker ps -a --format '{{.Names}}' | grep -c <name>` → 0, never with the
 playbook recap.
+
+`authentik-ldap` and the `storage_samba_passdb` / `storage_samba_ldap` vars are **deleted, not defaulted** — NAS SMB auth is local **tdbsam** ([storage-rejected.md](storage-rejected.md) row *Samba Authentik-as-LDAP passdb*).
 
 Auth tokens for internal services live in 1Password `Homelab-ansible` vault under the
 `<service>-internal_api` naming pattern. Referenced via `lookup('community.general.onepassword', ...)` at template render time.
