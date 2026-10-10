@@ -1,15 +1,14 @@
 ---
 # home_assistant role — PRIMARY node tasks (raspberry_pi / pi.kogler.si)
 # Included from tasks/main.yml when inventory_hostname == 'pi.kogler.si'.
-# Scope: HA Container config + keepalived PRIMARY (VIP) configs (HD-17 completion);
-# Pi SD-card wear mitigation (HD-19). The remaining PRIMARY scope (cert sync, state
-# sync, traefik-ha wiring details) is pending — see the role spec in tasks/main.yml.
+# Scope: HA Container config + keepalived PRIMARY (VIP) configs, and the Pi SD-card
+# wear mitigation. The remaining PRIMARY scope (cert sync, state sync, traefik-ha
+# wiring details) is not implemented here — see the role spec in tasks/main.yml.
 #
 # The HA container itself (home-assistant-primary) is deployed by docker_services
-# (group_vars/raspberry_pi.yml) — this file renders its config/keepalived files
-# first (playbook order since HD-204: home_assistant → docker_services — render-first,
-# superseding KOPS-063/HD-117 on the Pi so bind-mount sources never get auto-created
-# as directories; deploy-service.yml asserts them before every `compose up`).
+# (group_vars/raspberry_pi.yml), so this file renders its config/keepalived files
+# FIRST (playbook order home_assistant → docker_services): bind-mount sources must
+# exist as files before `compose up`, else Docker auto-creates them as directories.
 
 - name: Render HA configuration.yaml (with recorder trim)
   ansible.builtin.template:
@@ -77,14 +76,12 @@
 
 
 
-# ---- secrets.yaml (HD-185/HD-204 pending renderer) ----
-# Render the 1Password-backed secrets file BEFORE docker_services brings the
-# compose up (render-first order). Values resolve via inline community.general.onepassword
-# lookups — the same mechanism configuration.yaml.j2 uses — because the docker_services
-# `vault` dict is NOT yet populated on the Pi (home_assistant runs before docker_services;
-# HD-204 render-first). Fail-closed per HD-91: a missing 1Password item aborts the render
-# loudly (no default('')). Each field uses block-scalar `>-` (HD-233) so characters in the
-# 1Password value (:, ", #, $, …) can never break HA's YAML parse.
+# ---- secrets.yaml ----
+# Render BEFORE docker_services brings the compose up (render-first order). Values use
+# inline community.general.onepassword lookups (as configuration.yaml.j2 does) because
+# the docker_services `vault` dict is not populated on the Pi. Fail-closed — no
+# default(''): a missing 1Password item aborts the render. Each field is a `>-` block
+# scalar so : " # $ in the value cannot break HA's YAML parse.
 - name: Render HA secrets.yaml (1Password-backed, block-scalar, fail-closed)
   ansible.builtin.template:
     src: secrets.yaml.j2
@@ -203,7 +200,7 @@
     - ha-config-sync.timer
   tags: [ha_failover, hd17]
 
-# ---- Pi SD-card wear mitigation (HD-19) ----
+# ---- Pi SD-card wear mitigation ----
 
 - name: Set journald to volatile (RAM-only, Pi SD-card wear)
   ansible.builtin.lineinfile:
