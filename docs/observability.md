@@ -13,8 +13,7 @@ tags: [observability, grafana, prometheus, monitoring]
 
 > **Status: 🟢 live.** The backend is the **Victoria stack on the VPS** — **VictoriaMetrics** (metrics,
 > 365 d) + **VictoriaLogs** (logs, 90 d) + **Grafana** + blackbox-exporter, all on the tailnet-only edge.
-> Collectors: **Alloy** per host (VPS loopback, oldsrv, spark, and — pending — nas +
-> Pi), oldsrv's SNMP + network-clients exporters, RouterOS syslog over RFC5424, `nut_exporter` on nas,
+> Collectors: **Alloy** per host (VPS loopback, oldsrv, spark, nas, Pi), oldsrv's SNMP + network-clients exporters, RouterOS syslog over RFC5424, `nut_exporter` on nas,
 > `zfs_exporter`, blackbox probes. Alerting: **Grafana → n8n (`homelab-alerts` webhook) → Signal + email**,
 > with Grafana-native SMTP in parallel as the fail-safe. The ruled delivery surface is a Matrix
 > `#homelab-alerts` room — see §Alerting.

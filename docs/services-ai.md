@@ -141,7 +141,7 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models via a LiteLLM scoped key. |
 | **kapa-inspired-rag-mcp** *(stub)* | MCP hybrid reader | `services-internal` | Intended flow: hybrid search in Qdrant → top-20 → rerank via LiteLLM `jina_ai/` → top-5 clean markdown. Not implemented — see the status block and §10. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
-| **Ollama** | **embed fallback rung** | `llm-backend` | `ollama:0.32.15-rocm` serving (live; the pin is `0.35.1-rocm` ⏳ — the container moves at the oldsrv converge) `bge-m3` (1024-dim, E2E-verified, 833–899 MiB VRAM, ~500 ms/chunk). The **documented fallback rung** of the same 1024-dim space (#27). **Not** a rerank host and **not** an STT host (§9c). |
+| **Ollama** | **embed fallback rung** | `llm-backend` | ⚠ **declared but not deployed** — IaC enables `ollama` on oldsrv, yet the host has no `/srv/docker/ollama`, nothing listens on `11434` on any box, and no edge route names it; the pin `0.35.1-rocm` is unused `bge-m3` (1024-dim, E2E-verified, 833–899 MiB VRAM, ~500 ms/chunk). The **documented fallback rung** of the same 1024-dim space (#27). **Not** a rerank host and **not** an STT host (§9c). |
 | **whisper / reranker / embed** | pinned-AI tier | `llm-backend` | oldsrv RX 7600 / Vulkan — §3a. |
 | **Mem0** *(planned)* | Long-term memory for OWUI | `services-internal` | Backed by Qdrant; per-user/per-project scoping (§5c D). Onboarding is open work (§10). |
 | **OpenHands** *(planned)* | Agentic coding harness | oldsrv / spark | A third coding cockpit; would be served by the LAN LiteLLM (scoped key) + a PR-only Forgejo token. |
@@ -154,7 +154,7 @@ The one table for **what AI runs on oldsrv, on what device, with which model**. 
 | Leg | Engine | Model (quant) | Device | VRAM (measured) | Latency (measured) | Status |
 |-----|--------|---------------|--------|-----------------|--------------------|--------|
 | **Embeddings** | `llama.cpp server-vulkan` (`--embedding --pooling cls --embd-normalize 2`) | `bge-m3` **Q8_0** (634.6 MB) | RX 7600 / Vulkan | **~326 MiB** | **15 ms**/chunk · 51-doc batch 0.86–1.40 s · **0.45 s deployed** | ✅ live (`embed`, :9002, gateway row `bge-m3-vk`, dim 1024, ‖v‖=1.0) · cos 0.9996 vs the Ollama vectors ⇒ **no re-embed penalty** |
-| ↳ embed fallback rung | `ollama:0.32.15-rocm` (`/api/embed`) | `bge-m3` (fp16) | RX 7600 / ROCm | **833–899 MiB** | ~470–545 ms/chunk | ✅ live — the fallback rung of the SAME 1024-dim space; a **service + model, not a catalog row** |
+| ↳ embed fallback rung | `ollama:0.32.15-rocm` (`/api/embed`) | `bge-m3` (fp16) | RX 7600 / ROCm | **833–899 MiB** | ~470–545 ms/chunk | ⚠ **no runtime deployed** — the fallback rung of the SAME 1024-dim space; a **service + model, not a catalog row** |
 | **Reranker** | `llama.cpp server-vulkan` (`--embedding --pooling rank --rerank`), routed as LiteLLM **`jina_ai/`** | `bge-reranker-v2-m3` **Q8_0** (635.7 MB) | RX 7600 / Vulkan | **~327 MiB** | **0.34–0.50 s** / 20 docs · **0.95 s** solo deployed · 1.15 s under three-way load | ✅ live (`reranker`, :9001, row `local-rerank`, ranking verified) · **ships DORMANT** (its consumer does not exist yet — §10) |
 | **STT (voice)** | `whisper.cpp:main-vulkan` (`--inference-path /v1/audio/transcriptions`) | `large-v3-turbo` **fp16** (q5_0 = −1.0 GiB option) | RX 7600 / Vulkan | **1788 MiB** (Δ1722) · q5_0 **786** | **0.40 s** per 11 s WAV · **0.53–0.60 s** on real Slovenian radio speech | ✅ live (`whisper`, :9000, row `local-stt`) · CPU fallback native at init: 17.5 s |
 | **Gateway** | `lan-litellm` + own Postgres | — | CPU | — | — | ✅ live; the three pinned rows are in its DB and each answered **through** the gateway (§4a) |
@@ -489,7 +489,7 @@ the app and through the edges:
 
 ## Docling OCR engine selection — measured on the live service
 
-Measured on the **live VPS service** (`quay.io/docling-project/docling-serve-cpu:v1.30.0`) against
+Measured against `quay.io/docling-project/docling-serve-cpu:v1.30.0` (the pin has since moved to `v1.36.0` — re-verify the numbers on it) against
 **two real Slovenian scans** — a UKC Ljubljana discharge
 summary, page 1 = crisp form + diagnosis table, page 2 = small light-print prose. A synthetic render is not a
 scan, so everything below is measured on the real pages.
@@ -500,7 +500,7 @@ scan, so everything below is measured on the real pages.
 |---|---|
 | Which OCR engine does the served pipeline use? | **RapidOCR / onnxruntime, PP-OCRv6 small.** Served log, on every conversion: `Auto OCR model selected rapidocr with onnxruntime.` + `[RapidOCR] Using …/RapidOcr/PP-OCRv6_{det,rec}_small.onnx` + `ch_ppocr_mobile_v2.0_cls_mobile.onnx`. `OcrAutoModel` on Linux resolves nemotron → **rapidocr+onnxruntime** → easyocr, and this image has rapidocr, so EasyOCR is never reached |
 | Is `rapidocr` installed in the pinned image? | **Yes** — `rapidocr 3.9.2`, alongside `easyocr 1.7.2`, `onnxruntime 1.28.0`, `docling-slim 2.118.0`, `docling-serve 1.30.0`, `torch 2.13.0+cpu` (`pip list` + `GET /version`) |
-| Which image tag is live? | The IaC pin (`docling_version`) is **`v1.30.0`**; **2.118.0 is the docling-slim library version** that `/version` reports. Two different numbers, not pin drift |
+| Which image tag is live? | The IaC pin (`docling_version`) is **`v1.36.0`** — the pin is the SSOT for what is deployed; **2.118.0 is the docling-slim library version** that `/version` reports. Two different numbers, not pin drift |
 | Does `sl` need a download? | **No.** `sl` is a first-class PP-OCRv6 code (`rapidocr.utils.model_resolver.PP_OCRV6_LANGS`, 52 codes, `sl in` → True) and PP-OCRv6 `rec_small` is **multilingual** — the same baked weights serve `ch` (docling's RapidOCR default) and `sl`. EasyOCR's `sl` → the `latin_g2` recognizer, also baked |
 
 ### Request-level levers on `/v1/convert/file` (measured, this build)
