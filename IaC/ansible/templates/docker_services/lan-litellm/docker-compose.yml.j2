@@ -1,50 +1,42 @@
 # lan-litellm docker-compose.yml — LAN LiteLLM instance (oldsrv; dev-AI tier)
 #   SECOND LiteLLM for the DEV side (dsh / pi-dev / future OpenHands), separate
-#   from the VPS family instance. Decided 2026-09-10 (HD-356): LiteLLM splits —
-#   VPS instance (family: open-webui, openclaw, docling, qdrant, rag-mcp) + LAN
-#   instance (dev: dsh + pi-dev on oldsrv) with spark (GB10 / Triton NVFP4) as its
-#   local inference backend. Each instance owns its OWN Postgres (litellm-db) +
-#   scoped keys, both Kopia-backed.
+#   from the VPS family instance: VPS = family (open-webui, openclaw, docling, qdrant, rag-mcp),
+#   LAN = dev (dsh + pi-dev on oldsrv) with spark as its local inference backend. Each instance
+#   owns its OWN Postgres (litellm-db) + scoped keys, both Kopia-backed.
+#   → docs/services-ai.md §AI hosting split — family AI on the VPS, dev/pinned AI on oldsrv + spark
 #
-#   ⏳ DEPLOY-GATED ON SPARK (HD-335/HD-337): this service is kept `enabled: false`
-#   in group_vars/home_servers.yml until the spark node is provisioned. Do NOT
-#   flip it live. The template (mode is a thin clone of templates/docker_services/
-#   litellm/) is authored so the IaC/catalog story is complete and the deploy-gated
-#   verification checklist (deployment-tasks.md) can tick it when spark arrives.
+#   DEPLOY-GATED ON SPARK: this service stays `enabled: false` in group_vars/home_servers.yml
+#   until the spark node is provisioned. Do NOT flip it live. (Thin clone of
+#   templates/docker_services/litellm/.)
 #
-#   Reach model (HD-356/HD-370): the LAN instance serves `llitellm.kogler.si` via the
-#   oldsrv traefik-internal HOME edge (name + TLS, not ports — the llogs pattern). The
-#   home edge is host-net and reaches this container on oldsrv_home_ip:4000, so the
-#   compose keeps the oldsrv_home_ip:4000 publish (that IS how host-net edges reach
-#   backends — see jellyfin/lan-litellm precedent). No 0.0.0.0 bind; no VPS-side exposure
-#   (the VPS edge/tailnet serves `litellm.kogler.si`, this LAN instance is LAN-only).
-#   LOCAL INFERENCE (HD-370 / HD-382): this instance's spark model entry uses
-#   `https://llm.kogler.si/v1` as base_url (LAN name -> spark_home_ip -> spark's own :443
-#   name edge -> engine :8000) with the spark-llm_api bearer key. https, NOT http: spark's
-#   :80 edge is redirect-only, and the OpenAI SDK does not follow a 307 on POST
-#   /v1/chat/completions (HD-382 doc correction). The key reaches the entry as the container
-#   env `OPENAI_API_KEY` (the openai-provider credential, from 1P `spark-llm_api` below), so
-#   the DB row carries NO key and the literal never enters the Kopia-backed lan-litellm-db
-#   (`api_key: os.environ/…` in a DB param is NOT expanded by v1.83.10 — live 2026-09-17).
-#   Resolution: `extra_hosts` glue below — oldsrv's
-#   host resolv.conf is public-only (WAN-out survival by design) and /etc/hosts is NOT
-#   inherited by containers, so the home Technitium answer never reached this container
-#   (live 2026-09-17: NXDOMAIN in both LiteLLMs). Management API stays docker-exec-only (HD-62 parallel).
+#   Reach model: `llitellm.kogler.si` is served by the oldsrv traefik-internal HOME edge (name +
+#   TLS, not ports — the llogs pattern). The home edge is host-net and reaches this container on
+#   oldsrv_home_ip:4000, so the compose keeps that publish (that IS how host-net edges reach
+#   backends — see jellyfin/lan-litellm precedent). No 0.0.0.0 bind; no VPS-side exposure.
+#   LOCAL INFERENCE: the spark model entry uses `https://llm.kogler.si/v1` as base_url (LAN name
+#   -> spark_home_ip -> spark's own :443 name edge -> engine :8000) with the spark-llm_api bearer
+#   key. https, NOT http: spark's :80 edge is redirect-only and the OpenAI SDK does not follow a
+#   307 on POST /v1/chat/completions.
+#   The key reaches the entry as the container env `OPENAI_API_KEY` (the openai-provider
+#   credential, from 1P `spark-llm_api` below), so the DB row carries NO key and the literal never
+#   enters the Kopia-backed lan-litellm-db — `api_key: os.environ/…` in a DB param is NOT expanded
+#   by this LiteLLM version. Resolution: `extra_hosts` glue below — oldsrv's host resolv.conf is
+#   public-only (WAN-out survival by design) and /etc/hosts is NOT inherited by containers, so a
+#   container cannot resolve home-split names itself. Management API stays docker-exec-only.
 #
-#   Secrets (all fail-closed, HD-65): reuses the SAME 1Password items as the VPS
-#   instance — litellm_api, openrouter_api, litellm_db, spark-llm_api (HD-382) — and the
-#   db_backup DB06 story applies unchanged. On spark convergence, the litellm-db
-#   POSTGRES_* values fan out from the same vault items.
-#   SCOPED KEYS: this instance currently mints NONE (HD-386, 2026-09-17): the dsh_api +
-#   pi-harness_openai_api records left with their removed consumers, so the registry entry
-#   carries `bootstrap_keys: false` (the glue fail-louds on an empty spec list) and
-#   `litellm_scoped_keys` is `[]` — NOT a commented-out key (YAML would make that None and
-#   `| default([])` does not rescue None). The first records back are the SIMPLE-QUERIER
-#   allow-lists (HomeAssistant / Docling / OWUI) under decision #26 + HD-384, and they must
-#   flip `bootstrap_keys: true` in the same change. Per decision #26 the coding harnesses
-#   are not consumers of this instance — they reach spark directly.
+#   Secrets (all fail-closed): reuses the SAME 1Password items as the VPS instance — litellm_api,
+#   openrouter_api, litellm_db, spark-llm_api — and the db_backup DB06 story applies unchanged.
+#   On spark convergence the POSTGRES_* values fan out from the same vault items.
+#   → docs/deployment-ai-stack-secrets.md
+#   SCOPED KEYS: this instance mints NONE — the registry entry carries `bootstrap_keys: false`
+#   (the glue fail-louds on an empty spec list) and `litellm_scoped_keys` is `[]`, NOT a
+#   commented-out key (YAML would make that None and `| default([])` does not rescue None). The
+#   first records back are the SIMPLE-QUERIER allow-lists (HomeAssistant / Docling / OWUI), and
+#   they must flip `bootstrap_keys: true` in the same change. Coding harnesses are not consumers
+#   of this instance — they reach spark directly.
+#   → docs/services-ai.md §4. LLM routing & keys
 {# The Postgres bind target is deliberately version-INDEPENDENT: PGDATA is pinned in the env
-#   block below, which is what lets one mount shape serve 16 and 18 (HD-1100). #}
+#   block below, which is what lets one mount shape serve 16 and 18. #}
 services:
   lan-litellm:
     image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}
@@ -55,18 +47,18 @@ services:
       - /tmp
     container_name: lan-litellm
     restart: unless-stopped
-    # HD-382: container-local glue for the LAN-only spark name (see header). Same value on
+    # Container-local glue for the LAN-only spark name (see header). Same value on
     # both LiteLLMs — spark_home_ip is SSOT-derived, not hand-typed.
     extra_hosts:
       - "llm.kogler.si:{{ spark_home_ip }}"
     ports:
-      - "{{ oldsrv_home_ip }}:4000:4000"     # HD-370: host-net home-edge reach for llitellm.kogler.si (llogs pattern); never 0.0.0.0
+      - "{{ oldsrv_home_ip }}:4000:4000"     # host-net home-edge reach for llitellm.kogler.si (llogs pattern); never 0.0.0.0
     networks:
       - services-internal
       - llm-backend                 # reach local inference (spark/Triton) once provisioned
       - db-internal                 # reach lan-litellm-db
     volumes:
-      - ./config.yaml:/app/config.yaml:ro          # HD-356: rendered from config.yaml.j2 (same pattern as the VPS litellm)
+      - ./config.yaml:/app/config.yaml:ro          # rendered from config.yaml.j2 (same pattern as the VPS litellm)
       - /srv/docker/lan-litellm:/app/.data        # misc app state (Kopia scope)
     depends_on:
       lan-litellm-db:
@@ -75,11 +67,11 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ vault['litellm_api'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
-      # HD-382: spark engine bearer key (1P `spark-llm_api`) as the openai-provider credential,
-      # so the DB model entry carries NO key (v1.83.10 does not expand os.environ/ in DB params).
+      # spark engine bearer key (1P `spark-llm_api`) as the openai-provider credential, so
+      # the DB model entry carries NO key (this build does not expand os.environ/ in DB params).
       # CAVEAT: a future bare `openai/…` entry without its own api_key inherits this key.
       OPENAI_API_KEY: "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
-      # Cohere retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24).
+      # No Cohere provider: embed/rerank are local on the oldsrv RX 7600.
       STORE_MODEL_IN_DB: "true"
       DATABASE_URL: >-
         postgres://{{ vault['litellm_db'].username | urlencode }}:{{ vault['litellm_db'].password | urlencode }}@lan-litellm-db:5432/litellm
@@ -111,21 +103,15 @@ services:
     volumes:
       - /srv/docker/lan-litellm/postgres:/var/lib/postgresql/data
     environment:
-      # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
-      #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
-      #   = default/libc on all six). Left to the default, an 18 cluster would restore the same
-      #   rows with different sort semantics and silently change ORDER BY / index ordering, so
-      #   the provider is pinned HERE, in the template, before any pin moves. Harmless on 16
-      #   (--locale-provider exists since 15) and ignored on a non-empty datadir. Measured against
-      #   postgres:18.6-alpine: datcollate=en_US.utf8. HD-1100.
+      # ⚠ PG 18 defaults to the ICU locale provider; every cluster here was initdb-ed with
+      #   libc/en_US.utf8. Left to the default, an 18 cluster restores the same rows with
+      #   different sort semantics — ORDER BY / index ordering changes silently. Pin it here.
       POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"
-      # PG 18 images moved PGDATA to the version-specific /var/lib/postgresql/18/docker and their
+      # PG 18 images move PGDATA to the version-specific /var/lib/postgresql/18/docker and their
 #   entrypoint REFUSES to start when it finds a cluster anywhere else - and the parent-mount layout
 #   it recommends does not work under this fleet's cap_drop: ALL, because the root phase then lacks
-#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory (measured: "mkdir: can't create
-#   directory /var/lib/postgresql/18/: Permission denied"). Pinning PGDATA to the existing mount keeps
-#   ONE mount shape for 16 and 18; probed 2026-10-08 with the service's own caps -> server_version
-#   18.6, datcollate=en_US.utf8, "ready to accept connections". HD-1100.
+#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory. Pinning PGDATA to the existing mount
+#   keeps ONE mount shape for 16 and 18.
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: litellm
       POSTGRES_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"

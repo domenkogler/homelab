@@ -888,7 +888,7 @@ spark_llm_profiles:
       num_speculative_tokens: 3
       rejection_sample_method: block
       draft_sample_method: probabilistic
-    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
+    never_evict_prompt: *nev            # "" — the ONE value; pin-capable lineage only
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     artifact_sets: [b1-awq, ple-int4]
     fixed_cost_bytes: 86900000000
@@ -968,38 +968,24 @@ spark_llm_profiles:
     # profile declares it). The CERTIFIED global `spark_llm_pool_ceiling_bytes` stays 16 GiB —
     # hardware-spark.md:301 "do not raise it further" — so every other profile is still gated at
     # 16 GiB and this arm's bigger pool is visible as a deliberate, named exception.
-    # 25 GB → 20 GB: the 25 GB step left the box with NO host floor — usable
-    # (MemAvailable − CmaFree) RESTED at 7.76-7.99 GiB, inside the watchdog's CRIT band, so the
-    # enforcer restarted the engine at 09:22:41Z for a steady state instead of an excursion.
-    # 20 GB is not a taste choice: with the measured fixed cost below it is the LARGEST
-    # 1-GB-rounded pool that still leaves the WARN band (12 GiB) of host reserve at rest
-    # (pool_max = 112.70e9 − 92.13e9 = 20.64 GB). · docs/hardware-spark.md §Unified-memory budget
+    # 20 GB is the LARGEST 1-GB-rounded pool that still leaves the watchdog's WARN band
+    # (12 GiB) of host reserve at rest: pool_max = device_hold_ceiling_bytes − fixed_cost_bytes.
+    # A larger pool rests usable inside CRIT, and the enforcer then restarts the engine for a
+    # steady state rather than an excursion. · docs/hardware-spark.md §Unified-memory budget
     pool_ceiling_bytes: 20000000000
-    max_num_seqs: 8                   # 8 concurrent streams (the owner's step after 20 GB + 8 booted clean)
+    max_num_seqs: 8                   # 8 concurrent streams — the pool must supply tokens/stream for all of them
     kv_cache_memory: "20000000000"    # = 644,600 slots = 2.46 × the 262,144 window (20e9 / 31,027 B/token);
-                                      # 80,575 tokens/stream at the seqs-8 ceiling (25 GB had 100,719)
-    # The host floor for THIS profile, MEASURED. The global
-    # `spark_llm_device_hold_ceiling_bytes` (104.113e9) is MemTotal − 6.9 GiB − 17.78 GiB and
-    # BOTH its terms are wrong for this checkpoint: the non-engine term measures 4.93e9 B here
-    # (MemTotal − MemAvailable 15 s after the 09:22:45Z restart, cached then only 5.43 GiB), and
-    # the 17.78 GiB "worst usable" belongs to the AWQ/16 GiB lane, not to the AR-hybrid. Restated
-    # on measured terms + the watchdog's own WARN reserve as the target: 130.594e9 − 4.934e9 −
-    # 12.885e9 = 112.775e9, taken DOWN to 112.70e9 rather than up. Then fixed + pool = 112.13e9,
-    # margin 0.57e9 B, usable-at-rest 12.60 GiB — and the same model run at pool = 25e9 predicts
-    # 7.94 GiB, which is what the box actually read all morning: the ledger is validated against
-    # the box, not merely balanced. ⚠ This is a measured EXCEPTION, not a re-cert of the global:
-    # every other profile stays gated at 104.113e9 — and since 2026-10-08 it is gated by the GLOBAL
-    # for real: the per-profile/anchor copies of 104113000000 were deleted, because a copy that
-    # restates the global makes a re-derive silently do nothing (HD-1098 class). The re-derive itself
-    # is docs/hardware-spark.md §Re-deriving the GLOBAL ceiling: on the measured OS term alone it lands
-    # at 112.774e9 (which would make THIS override redundant), but the 2026-10-06 transient priced
-    # against a floor lands at 101.951e9 and makes 7 certified arms illegal, so the global stays 104.113e9
-    # until a 1 s prefill-window sampler decides which floor the reserve is priced against.
+                                      # 80,575 tokens/stream at the seqs-8 ceiling
+    # Host-floor EXCEPTION for this arm: the global 104.113e9 ceiling is priced from terms that do
+    # not hold for this checkpoint, so this override is priced from the arm's own non-engine reserve
+    # plus the watchdog's WARN reserve. Never restate the global per profile — a copy wins silently
+    # and makes a re-derive do nothing.
+    # → docs/hardware-spark.md §The GLOBAL ceiling: spark_llm_device_hold_ceiling_bytes
     device_hold_ceiling_bytes: 112700000000
-    # ple_dispatch above is LOAD-BEARING on this checkpoint: without the A4 dispatch env the AR
-    # arm fails to boot (root cause 2026-10-03) — B9 is the arm that measures what it costs.
+    # ple_dispatch above is LOAD-BEARING on this checkpoint: without the kernel-dispatch env the
+    # AR arm does not boot at all.
 
-    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
+    enforce_eager: true               # mmap × CUDA-graph pinning: eager is required on this path
     spec_config:
       method: mtp
       num_speculative_tokens: 3
@@ -1008,34 +994,23 @@ spark_llm_profiles:
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8]
     certified: true
-    # One evidence line, and it must survive a YAML re-read: this key appeared TWICE here until
-    # 2026-10-03 (the second, empty one silently won — `certified: true` with no evidence is the
-    # exact shape the gate is supposed to refuse). If an arm is certified, say what with paths.
+    # Keep exactly ONE `certified_evidence` key here: a duplicated YAML key resolves to the LAST
+    # definition with only a warning, so a second empty one silently wins — and `certified: true`
+    # with no evidence is the exact shape the gate is supposed to refuse.
     certified_evidence: "spark/reports/hd489-ar-blk/README.md · spark/reports/hd489-tail-b2/README.md · spark/reports/hd489-tail-b3/README.md · spark/reports/hd489-legs-20261006-1228/RESULTS.md · spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md · spark/reports/hd489-tail-gate7-20261007/RESULTS.md · spark/llm-profiles/README.md — shape history: 16 GB / seqs 4 (KV 515,786 = 1.97×, gates 3/4 PASS), then 25 GB + seqs 8 (gate 4 at conc 8 PASS, spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log), then POOL 25 → 20 GB on 2026-10-05 (HD-494: 25 GB left the host no reserve) and that is the live shape. Re-taken ON 20 GB on 2026-10-06: gate 4 at conc 8 and gate 5 (needle at depth, 3/3) — both PASS in hd489-legs-20261006-1228, which also closed HD-494's two legs. Gate 6 (accuracy) 2026-10-06 PASS with one named exception in hd489-tail-gate6-20261006-2349: code-fib returned empty on finish_reason=length because 1024 completion tokens all went to reasoning, i.e. the battery's budget, not the engine's ability. Gate 7 2026-10-07: 19.79 h bounded fill — one +5,626 MiB step at hour +2 then 17 h flat at 99,649 MiB, tail slope 0.0 MiB/h, 0 restarts. Gate 7 was read twice on 2026-10-07 and PASSED both times — 19.79 h and then, once the working day filled, 21.49 h: 22 hourly maxima with 19 of them at exactly 99,649 MiB, least-squares +127.1 MiB/h against the 2048 MiB/h gate, 0 restarts; the fill it hands HD-494 is +5,626 MiB of fixed cost with the peak +6,558 MiB over the watchdog baseline. OWED on this shape, one item, and it is not an engine question: the gate-6 battery at max_tokens 16384 (16 × 2^10, owner ruling 2026-10-07) RE-RUN TOGETHER WITH the B1 baseline in the same change — raising one side only moves the comparison basis, and this key is evidence, so it must not be re-graded against a battery that changed underneath it"
     fixed_cost_bytes: 92130000000
     fixed_cost_basis: "MEASURED 2026-10-05 (HD-494) by the MemAvailable-jump method that docs/spark-incidents.md §Incidents #4/#5/#6 names the TRUE footprint: MemAvailable 7.94 → 117.03 GiB across the 09:22:45Z restart ⇒ engine held 117.13e9 B; minus the live 25e9 KV pool ⇒ 92.13e9 B non-KV. Supersedes the two BOOT-LOG derivations below, which under-count this checkpoint by 15.83e9 B (14.75 GiB) — the gap is the whole reason a 25 GB pool passed the host-floor gate and then ate the host reserve."
-    # HD-489 tail A3 history, KEPT because it is where the 76.3e9 came from and it is still the
-    # cheapest derivation to reproduce from a committed artifact:
-    #   boot log 2026-10-03: "Model loading took 68.35 GiB memory"  ≈  73.4e9 B
-    #   (so fixed + 16 GB pool = 89.4e9 B, still inside the 104.113e9 B host-floor ceiling)
-    # Disagreement he kept in writing: the engine-pid-at-rest derivation
-    #   (nvidia-smi pid MiB − engine-printed 14.9 GiB KV = 88,921 − 15,290 ≈ 73.6 GiB ≈ 79.0e9 B)
-    # reads ~+6 GB higher because nvidia-smi under-counts the engine's multi-process pool by
-    # ~10 GiB (docs/hardware-spark.md §Unified-memory budget & OOM governance, and the incident-#6
-    # measurement trick in docs/spark-incidents.md); both were recorded, the BOOT LOG was chosen.
-    # HD-494 settles the disagreement by MEASURING it: of the three numbers (73.4e9 / 79.0e9 /
-    # 92.13e9) only the last is a reading of what the box actually cannot use, and it is the only
-    # one that predicts the observed usable. Weight-load logs count what the loader touched, not
-    # what the process ends up pinning (CUDA graphs, activations, the FP8 PLE mmap's resident
-    # pages, the engine's own host anon, its share of swap).
+    # fixed_cost must be what the engine HOLDS, not what a loader touched: a boot-log
+    # "Model loading took N GiB" and an nvidia-smi per-pid reading both under-count the pinned
+    # footprint (CUDA graphs, activations, mmap resident pages, host anon, swap share). Only a
+    # MemAvailable-jump reading predicts the usable the box actually shows.
+    # → docs/spark-incidents.md §Incidents #4/#5/#6 — the projected reserve never existed
     generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
 
-  # ── B9 (HD-489 tail): ar-blk WITHOUT the A4 kernel-dispatch env ──────────────
+  # ── B9: ar-blk WITHOUT the kernel-dispatch env ──────────────
   # Same checkpoint + FP8 mmap table + spec as ar-blk, but ple_dispatch: false ⇒ the
-  # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered. Answers the B9
-  # question: if 39.7 survives without the dispatch knobs, the win is the checkpoint
-  # (and the quality risk is real); if it falls to ~25, the win is env (B10 becomes the
-  # cheap certified path). Owner-gated: must boot with allow_uncertified, one variable.
+  # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered, so this varies exactly one
+  # thing against ar-blk. Uncertified: it boots only with spark_llm_allow_uncertified.
   ar-blk-lean:
     <<: *u_x
     label: "HD-489 tail B9 — ar-blk with the dispatch env REMOVED (A4 isolation)"
@@ -1063,41 +1038,29 @@ spark_llm_profiles:
     uncertified_reason: "B9 A4 isolation: identical to ar-blk EXCEPT the 7 kernel-dispatch env are removed. Owner-gated boot: set spark_llm_allow_uncertified: true, converge detached, C2+C2L, compare to ar-blk's 39.7 tok/s C2L."
     certified_evidence: ""
 
-  # ── B10 (HD-489 tail): AWQ on the winner's machinery (awq-mmap) ─────────────
-  # The owner's question: AWQ W4A16 (the certified lane's weights) served from the
-  # patched lineage + the FP8 PLE mmap table + the dispatch bundle — does eager AWQ
-  # + the bundle beat or approach ar-blk (39.7 C2L)? Pre-flight done (brief §B10):
-  # ple-table-fp8 DOES carry …ple.ple_embedding.ngram_embedding.shard_0…130.weight
-  # (33 shards, +1024 fp8 expert weight_scale_inv) — unlike ples_nvfp4, so nv-patch
-  # died; ples_int4 is a different layout (weight_i4 + weight_scale) the mmap loader
-  # cannot read. The FP8 table is the trained n-gram tensor, not AR-specific — its
-  # loader pairs with VLLM_FP8_HYBRID: plausible-and-unverified, not nonsense.
-  # THE PAIRING IS NOW ASSERTED, not remembered (2026-10-06, this change). The checkpoint and the
-  # table are tied in TWO places: the static registry `spark_llm_ple_pairing` (this arm's pair
-  # reads UNVERIFIED, the honest word for the question being asked) and the staged checkpoint's
-  # own `config.json` quantization, re-read at converge. The second is what caught this arm's
-  # authoring bug: `models_root: os` named /opt/homelab/models/Qwen3.8-Flash-Next-AWQ, a path that
-  # has never existed — the AWQ checkpoint is staged on XFS (`b1-awq` → spark_models_dir) while
-  # the FP8 TABLE legitimately lives on `/`. `models_root` is the CHECKPOINT's coordinate and
-  # `ple_host_root` the TABLE's; they may differ, and only reading what is actually in the
-  # directory separates "wrong store" from "right store" (gate invariant `ple-pairing` + the
-  # role's staged-identity assert).
+  # ── B10: AWQ on the winner's machinery (awq-mmap) ─────────────
+  # AWQ W4A16 weights on the patched lineage + the FP8 PLE mmap table + the dispatch bundle.
+  # The FP8 table is the trained n-gram tensor and is not AR-specific; ples_nvfp4 and ples_int4
+  # carry layouts the mmap loader cannot read, so only ple-table-fp8 pairs with VLLM_FP8_HYBRID
+  # (plausible, unverified on the base image).
+  # The pairing is ASSERTED, not remembered, in two places: the static registry
+  # `spark_llm_ple_pairing` (this arm's pair reads UNVERIFIED) and the staged checkpoint's own
+  # `config.json` quantization, re-read at converge. `models_root` is the CHECKPOINT's store and
+  # `ple_host_root` the TABLE's — they may legitimately differ; the asserts are what separate a
+  # wrong store from a right one.
   awq-mmap:
     <<: *u_x
     label: "HD-489 tail B10 — AWQ W4A16 + FP8 PLE mmap + dispatch bundle (owner's question)"
-    models_root: xfs               # the CHECKPOINT's store: `b1-awq` stages AWQ on XFS. This was
-                                   # `os` when the arm was authored (2026-10-03) — a path that has
-                                   # never existed, so the converge's staged-artifact stat refused
-                                   # the arm and it could not boot at all. The TABLE stays on `/`.
+    models_root: xfs               # the CHECKPOINT's store: `b1-awq` stages AWQ on XFS, while the FP8
+                                   # TABLE legitimately lives on `/` (`ple_host_root`). A
+                                   # `models_root` naming a store the checkpoint was never staged
+                                   # in fails the staged-artifact stat and cannot boot.
     model_subdir: Qwen3.8-Flash-Next-AWQ
-    kv_cache_memory: "14000000000"  # 14 GB, not the anchor's 16. This arm inherits the AWQ lane's
-                                   # fixed cost (86.9e9), and that ledger carries NO term for the
-                                   # FP8 mmap table's resident set (HD-489 B5: ~4 GB pinned out of
-                                   # the 47.7 GiB table). 86.9 + 16 = 102.9 GB leaves 1.2 GB under
-                                   # the 104.113 GB floor — the same shape HD-494 measured as a
-                                   # 12 GiB overage. The pool is not this arm's variable (single-
-                                   # stream decode; 14 GB = 451k slots = 1.72 × the window), so the
-                                   # margin is bought where it costs nothing.
+    kv_cache_memory: "14000000000"  # 14 GB, not the anchor's 16: the AWQ lane's fixed cost (86.9e9)
+                                   # carries NO term for the FP8 mmap table's resident set (~4 GB
+                                   # pinned of the 47.7 GiB table), so a 16 GB pool crosses the
+                                   # 104.113 GB floor. Single-stream decode — the pool is not this
+                                   # arm's variable, so the margin is bought where it is free.
     ple_offload: false
     ple_overlay: false
     ple_host_base: models
@@ -1133,7 +1096,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
-    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
+    enforce_eager: true               # mmap × CUDA-graph pinning: eager is required on this path
     draft_vocab: true
     spec_config:
       method: mtp
@@ -1170,7 +1133,7 @@ spark_llm_profiles:
     draft_vocab: true
     max_num_seqs: 8
     max_cudagraph_capture_size: 8
-    max_num_batched_tokens: 8192        # upstream's value; our house value is 4096 (HD-381)
+    max_num_batched_tokens: 8192        # upstream's value; the house value is 4096
     spec_config:                        # — v16b-s4 is that delta, measured
       method: mtp
       num_speculative_tokens: 3
@@ -1243,7 +1206,7 @@ spark_llm_profiles:
       draft_sample_method: probabilistic
     cudagraph_piecewise: true
     prompt_tokens_details: true
-    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
+    never_evict_prompt: *nev            # "" — the ONE value; pin-capable lineage only
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
@@ -1252,12 +1215,9 @@ spark_llm_profiles:
     uncertified_reason: "Same CHANGEME gate as u4-pin (a placeholder substring is an invisible no-op). On this arm the pin also competes with the drafter's KV, so record prefix-hit rate from /metrics across a real session, not a synthetic one."
     certified_evidence: ""
 
-# The shared argv/env fragments live in the "Shared argv/env fragments" section below, which
-# also defines `spark_llm_ultrafast_cudagraph_args` / `spark_llm_ultrafast_diag_args`. They
-# were ALSO defined here until 2026-10-08 (HD-1098): a duplicated copy of that section landed
-# above this one, ansible kept the LAST definition and printed only a warning, so this copy
-# was dead text sitting next to a live one — editing it would have changed nothing.
-# `spark_llm_ple_mmap_env` below is NOT a duplicate: it is the only definition.
+# The shared argv/env fragments live in the "Shared argv/env fragments" section below — that
+# section is the only definition. A duplicated copy of it here is DEAD TEXT: Ansible keeps the
+# LAST mapping key and only warns, so editing the earlier copy changes nothing.
 # The upstream mmap knobs (recipe/config/v16b/env + serve.sh pins), one SSOT list. Each is a
 # plain non-secret string ⇒ quoted, not `>-` (CONVENTIONS §3 applies that rule to 1P values).
 spark_llm_ple_mmap_env:
@@ -1272,12 +1232,9 @@ spark_llm_ple_mmap_env:
   - "VLLM_PLE_MMAP_FAST_PATH=1"
   - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
   - "VLLM_DRAFTER_EXPERTS_FP8=1"
-# HD-489 A4: the KERNEL-DISPATCH knobs are split OUT of the table set (they live in
-# spark_llm_ple_dispatch_env below and render only when a profile opts in via
-# `ple_dispatch: true`). The funnel compared tier 2/3 arms (which rendered this whole
-# bundle) against tier-1 arms (which rendered none of it) — the +68 % was
-# "weights + table + ~7 dispatch knobs" vs "weights + table", a confound. VLLM_FP8_HYBRID is
-# only meaningful on the patched build; it is inert on the base image.
+# KERNEL-DISPATCH knobs are split OUT of the table set: they live in
+# spark_llm_ple_dispatch_env and render only when a profile sets `ple_dispatch: true`, so a
+# comparison varies one thing at a time. VLLM_FP8_HYBRID is inert on the base image.
 
 # ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
 # Plain LISTS at top level, on purpose: a Jinja expression inside `spark_llm_profiles` is
@@ -1310,12 +1267,10 @@ spark_llm_ple_dispatch_env:
 
 # Resolve the active profile. Unknown profile name = undefined key = the render
 # aborts (fail-loud); roles/spark-llm-profile names the valid list up front.
-# Engine entrypoints per engine family (HD-469). A DICT, not a Jinja-templated
-# alias, on purpose: scripts/validate-docker-services.py loads group_vars natively
-# but stringifies any value containing `{{ }}`, so a `spark_llm: "{{ profiles[...] }}"`
-# alias is unusable in the offline render. Templates therefore index
-# `spark_llm_profiles[spark_llm_profile]` DIRECTLY (native dict in both worlds) and
-# only the SCALAR flat pass-throughs below use the alias-free one-level form.
+# Engine entrypoints per engine family. A DICT, not a Jinja-templated alias, on purpose:
+# scripts/validate-docker-services.py loads group_vars natively but stringifies any value
+# containing `{{ }}`, so an alias is unusable in the offline render. Templates therefore index
+# `spark_llm_profiles[spark_llm_profile]` DIRECTLY; only the scalar pass-throughs below are flat.
 spark_llm_engine_entrypoints:
   vllm: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
   sglang: ["python3", "-m", "sglang.launch_server"]
@@ -1328,11 +1283,9 @@ spark_llm_image_pins:
   vllm: "{{ spark_vllm_image }}"
   sglang: "{{ spark_sglang_image }}"
 
-# Profile-referenced image pins (HD-489). A profile names a LOGICAL image, never a pin:
-# CONVENTIONS §7 keeps every pin in group_vars/all/versions.yml, and this map is the only
-# place a name becomes a reference. `ultrafast` is EMPTY until the patched lineage is built
-# and its image ID recorded — and an empty pin IS the gate (the spark_sglang_image
-# precedent): roles/spark-llm-profile refuses the profile before anything renders.
+# Profile-referenced image pins. A profile names a LOGICAL image, never a pin: every pin lives in
+# group_vars/all/versions.yml (CONVENTIONS §7) and this map is the only place a name becomes a
+# reference. An EMPTY pin IS the gate — roles/spark-llm-profile refuses the profile before render.
 spark_llm_profile_images:
   base: "{{ spark_vllm_image }}"
   ultrafast: "{{ spark_vllm_ultrafast_image }}"
@@ -1344,140 +1297,86 @@ spark_llm: "{{ spark_llm_profiles[spark_llm_profile] }}"
 
 # vLLM (B1 proven — spark/BENCHMARK-PLAN.md §1)
 spark_vllm_container: "{{ spark_llm_profiles[spark_llm_profile].container }}"
-# HD-370: engine-port indirection for the llm.kogler.si route. Today vLLM :8000; when the
-# SGLang lane (S2/S3) wins the bench its port replaces this — the spark edge route and the
-# LiteLLM base_urls never change. Must match the engine's own listen port (healthcheck too).
+# Engine-port indirection for the llm.kogler.si route: an engine swap changes this value only —
+# the spark edge route and the LiteLLM base_urls never change. It MUST match the engine's own
+# listen port, healthcheck included.
 spark_engine_port: 8000
-# HD-370: OpenAI served-model id (llm.kogler.si /v1/models). Engine-swap-ready: vLLM serves
-# it via --served-model-name; SGLang via served-model-name. Both LiteLLMs + pi see this id.
+# OpenAI served-model id (llm.kogler.si /v1/models): vLLM serves it via --served-model-name,
+# SGLang via served-model-name. Both LiteLLMs and pi see this id.
 spark_vllm_served_name: "{{ spark_llm_profiles[spark_llm_profile].served_name }}"
 spark_vllm_log_level: INFO
 spark_vllm_cpu_offload: 1
 spark_vllm_ple_offload_ready_timeout: 3600
 spark_vllm_omp_num_threads: "1"
-# Peak-bound term 1 (HD-381, 2026-09-17): the allocator form matters on a UNIFIED pool.
-# `max_split_size_mb:512` forbids splitting any block ≥512 MB, so every new request shape
-# forces a FRESH slab that is never returned — the exact curve measured in incidents #7/#8
-# (engine top-pid 88,773 MiB at boot → 109,785 MiB after ~30 min of light agent traffic,
-# FLAT at idle all night = cumulative, not an idle leak). `expandable_segments:True` lets
-# segments grow/shrink in place instead of stranding per-shape slabs. BENCHMARK-PLAN §6
-# step 3 already classed this change as T1 safe ("less fragmentation → fewer OOM/preemptions").
-# Evidence: docs/spark-incidents.md #7/#8 · docs/hardware-spark.md §Unified-memory budget
+# Peak-bound term 1: the allocator form matters on a UNIFIED pool. `max_split_size_mb:512` forbids
+# splitting any block ≥ 512 MB, so each new request shape forces a fresh slab that is never
+# returned — cumulative growth, not an idle leak. `expandable_segments:True` lets segments grow in
+# place instead of stranding per-shape slabs. Evidence: docs/spark-incidents.md #7/#8.
 spark_vllm_pytorch_cuda_alloc_conf: "max_split_size_mb:512,expandable_segments:True"
-# Peak-bound term 2 (HD-381, 2026-09-17): the chunked-prefill slab ceiling. #8 died with
-# `VLLM::EngineCor` oom_score_adj=-500 (the scheduler itself) at 51% KV / 664 running tok
-# = a LOAD-TIME allocation failure, with 9.58 GiB of the "free" 9.63 GiB stranded in
-# free_cma. 16384-token prefill chunks are the largest transient the engine produces, so
-# 4096 shrinks both the per-chunk slab and the number of distinct shapes the allocator sees
-# (HD-380 open item 1 named this as the next lever). Cost = prefill TTFT on long prompts;
-# this box sacrifices throughput for uptime — global OOM here kills alloy/traefik/dcgm and
-# wedges the box (invariants #2/#3), it does not merely restart a container.
+# Peak-bound term 2: the chunked-prefill slab ceiling. A prefill chunk is the largest transient
+# allocation the engine produces, so a smaller chunk shrinks both the slab and the number of
+# distinct shapes the allocator sees. Cost = prefill TTFT on long prompts: this box trades
+# throughput for uptime, because a global OOM wedges the whole box, not just the container.
 spark_vllm_max_num_batched_tokens: "{{ spark_llm_profiles[spark_llm_profile].max_num_batched_tokens }}"
 spark_vllm_shm_size: 32g
 spark_vllm_memlock: -1
 spark_vllm_stack: 67108864
-# Memory cage (HD-367 B1-on-GB10 memfit 2026-09-15): the container must NEVER be able to
-# claim the whole unified pool. 126G (old) sat ABOVE the 121.62 GiB coherent pool, so the
-# kernel global OOM fired on load and took nvidia-persistenced with it (the engine and the
-# GPU stack died together). 105G = weights/PLE/KV budget + a margin; a relapse now kills
-# ONLY this container, never the driver.
-# ⚠ Read OUTSIDE the template by roles/spark/files/spark-oom-watchdog.sh — it now
-# follows the active profile, so the watchdog's cage travels with the flip.
+# Memory cage: the container must NEVER be able to claim the whole unified pool. A limit above the
+# coherent-pool size lets the kernel's global OOM fire under load and take the GPU stack with the
+# engine; the cage must sit below the pool so a relapse kills ONLY this container.
+# ⚠ Read OUTSIDE the template by roles/spark/files/spark-oom-watchdog.sh — it follows the active
+# profile, so the watchdog's cage travels with the flip.
 spark_vllm_memory_limit: "{{ spark_llm_profiles[spark_llm_profile].memory_limit }}"
-# spark_vllm_quantization removed 2026-09-14: the staged B1 weights pack compressed-tensors
-# (config.json quant_method), so forcing --quantization awq mismatched and the engine died at
-# ModelConfig validation. vLLM reads the packed format from the model config when omitted.
+# Removed key: the staged weights pack compressed-tensors (config.json quant_method), so forcing
+# --quantization awq mismatches and the engine dies at ModelConfig validation. vLLM reads the
+# packed format from the model config when the flag is omitted.
 spark_vllm_max_num_seqs: "{{ spark_llm_profiles[spark_llm_profile].max_num_seqs }}"
-# A-cal (2026-09-15, measured on box): pool = 121.62 GiB (MemTotal 127,532,360 kB).
-# B1-as-authored demanded ~113 GiB GPU reserve (0.93 util) + ~57 GiB CPU PLE mirror +
-# pinned buffers ≈ 170 GiB > pool → guaranteed global OOM at load. max_model_len 173400
-# forces a 1.06M-token KV pool on top of the 75.17 GiB weights — unaffordable. 65536 (64k)
-# is a realistic S1/S2 context that fits the shrunken KV; the plan's 262k+/512k profiles
-# become SGLang-on-NVFP4 targets (bench matrix D), not B1-on-GB10-with-PLE-CPU-offload.
-#
-# S1 STABILITY SWEEP (2026-09-15, measured): util ceiling measured on box — 0.82 is MAX
-# servable (0.70–0.82 boot+serve+host alive; 0.84/0.86 CRASH engine during single-session
-# serve — global OOM, host wedges, power-cycle needed; 0.88 boots but no serving headroom,
-# MEM_FLOOR blocks). ctx: 262,144 = model's native max_position_embeddings (config.json) —
-# 300k rejects at startup validation (VLLM_ALLOW_LONG_MAX_MODEL_LEN would be needed +
-# YaRN; needle-test gate). 250k/262k serve at 95% fill, 0 preemptions, host alive.
+# Sizing: `usable = MemAvailable − CmaFree`. max_model_len must fit the shrunken KV pool inside the
+# coherent pool together with weights + PLE mirror + pinned buffers — an over-subscribed context
+# size guarantees a global OOM at load. Native ceiling and the bench matrix:
+# docs/hardware-spark.md §Bench + engine selection
 spark_vllm_max_model_len: "{{ spark_llm_profiles[spark_llm_profile].max_model_len }}"
-# spark_vllm_swap_space removed 2026-09-14: this vLLM build (0.1.dev20073+g8e685d198)
-# DROPPED swap_space from EngineArgs — `--swap-space` is unrecognized and crashes the
-# engine at argv-parse. B1's swap-space=4 no longer has a CLI knob; the engine config
-# now manages offload internally. See docs/hardware-spark.md for the bench note.
-#   swap_space: 4
+# Removed key: this vLLM build dropped swap_space from EngineArgs — `--swap-space` is unrecognized
+# and crashes the engine at argv-parse. Offload is managed inside the engine config.
+# See docs/hardware-spark.md for the bench note.
 spark_vllm_kv_cache_dtype: "{{ spark_llm_profiles[spark_llm_profile].kv_cache_dtype }}"
-# ===== GPU×host unified-memory governance (HD-374, 2026-09-16) =====
-# GB10 has ONE 121.62 GiB pool for GPU and host. vLLM's percentage budget is
-# replace-by-percentage arithmetic: KV_pool = util×total − fixed(80.90 GiB), and
-# every GiB of pool is a GiB the OS/docker/Alloy/dashboard do not get. Three global
-# OOMs in 24 h (2026-09-15 ×2, 2026-09-16 ×1 — incl. the engine serving itself, 502s)
-# all came from the 0.82 budget leaving only ~21.9 GiB for the host, then the kernel
-# global OOM killer (NOT the cgroup cage — GPU pages are not cgroup-charged) killed
-# the user session, then the container. Full model + sizing table + incident log:
-# docs/hardware-spark.md §Unified-memory budget & OOM governance + docs/spark-incidents.md.
+# ===== GPU×host unified-memory governance =====
+# GB10 has ONE 121.62 GiB pool for GPU and host: every GiB of KV pool is a GiB the
+# OS/docker/Alloy/dashboard do not get, and the stopping force is the kernel's global OOM killer,
+# NOT the cgroup cage (GPU pages are not cgroup-charged).
+# Model + sizing table: docs/hardware-spark.md §Unified-memory budget & OOM governance
 #
-# Governor (2026-09-16): explicit KV pool via --kv-cache-memory-bytes as the ONLY dial
-# (this build ignores gpu_memory_utilization when kv_cache_memory_bytes is set — verified
-# in the container's own CacheConfig/gpu_worker source). 8.2 GiB ≈ 275k tokens ≥ the
-# 262,144 boot-gate with margin; total device footprint ≈ weights 77.69 + act 2.99 + graphs
-# 0.22 + KV 8.2 ≈ 89.1 GiB → host reserve ≈ 32.5 GiB (was ~21.9).
+# Governor: the explicit KV pool (--kv-cache-memory-bytes) is the ONLY dial — this build ignores
+# gpu_memory_utilization once kv_cache_memory_bytes is set (its CacheConfig/gpu_worker source).
+# Certified sizing: docs/hardware-spark.md §Chosen governor
 #
-# 16 GiB (2026-09-18, ✅ CONVERGED + STRESS-CERTIFIED — this is the stable config):
-#   target = 2× full 262,144-token windows (the owner's daily workload: two concurrent
-#   full-context sessions). Nominal 16 GiB → vLLM reserves 14.9 GiB = 515,786 tokens =
-#   1.97× concurrency (vs 8.2 GiB's 283,398 / 1.08×).
-#   CERTIFIED by the 3-rung load chain 2026-09-18 09:21–10:54Z (rung123 → compact 2×200k
-#   → fullwindow 2×240k = 480,105 tok ≈ 94.6 % of pool): 0 kernel OOM, 0 engine restarts,
-#   0 guard-fires, usable worst 17.78 GiB, engine top-pid +1,278 MiB over ~1.5 h.
-#   Evidence: spark/reports/stability/README.md · runbook spark/stability-test.md.
-#   CONSEQUENCES now true on the box (do not re-derive):
-#     · idle usable 30.5 → 18.5 GiB — WARN 12 / CRIT 8 still clear, margin is 6.5 GiB.
-#     · CEILING: measured headroom after the raise is runtime +5.5 / boot-side +5.4 GiB,
-#       and BOOT is the binding side (Initial free memory 114.07 GiB, engine holds ~96.7).
-#       DO NOT raise further in bf16 — the next KV byte is --kv-cache-dtype fp8's job.
-#     · bench-guard floors are on usable (not raw MemAvailable) at 16 GiB; the certified
-#       run's worst moment sat 0.72 GiB above that floor, so do not "give it more margin"
-#       by lowering it, and do not raise it without re-measuring (spark/stability-test.md §2).
+# DO NOT raise the KV pool further in bf16 — BOOT-side headroom is the binding side, and the next
+# KV byte is --kv-cache-dtype fp8's job. Bench-guard floors are on `usable` (MemAvailable −
+# CmaFree), not raw MemAvailable: do not move them without re-measuring (spark/stability-test.md §2).
 spark_vllm_kv_cache_memory: "{{ spark_llm_profiles[spark_llm_profile].kv_cache_memory }}"
-# spark_vllm_gpu_memory_utilization REMOVED 2026-09-16 (HD-374): with kv_cache_memory_bytes
-# set, this build's determine_available_memory() skips memory profiling and ignores the
-# parameter entirely — keeping it would be dead config and a false sense of a "ceiling".
-# The explicit KV pool IS the whole budget decision on GB10; the only other guard is the
-# 105G container memory cage (host-RSS backstop only — GPU pages aren't cgroup-charged).
+# Do not reintroduce a gpu_memory_utilization key: with kv_cache_memory_bytes set this build's
+# determine_available_memory() skips memory profiling and ignores the parameter entirely, so it
+# would be dead config and a false ceiling. The explicit KV pool IS the budget decision on GB10;
+# the container memory cage above is a host-RSS backstop only (GPU pages aren't cgroup-charged).
 spark_vllm_distributed_executor_backend: "{{ spark_llm_profiles[spark_llm_profile].distributed_executor_backend }}"
-# ---- cudagraph capture-size cap (HD-380, 2026-09-16) ----
-# This build captures CUDA graphs for batch sizes [1,2,4,8,16,24,32] while
-# max_num_seqs=4 caps the decode batch at 4 — sizes 8/16/24/32 are captured and can
-# NEVER be used by this config, i.e. stranded memory in the ONE 121.62 GiB pool that
-# the host and the engine share. Why this is on the critical path: with the HD-374
-# KV governor live, the engine still held 103,449 MiB per-pid at REST
-# (nvidia-smi --query-compute-apps — GB10 reports memory.total/used as N/A, so this
-# is the only device-side gauge) while its own log accounts for only weights 75.17 +
-# KV 8.2 = 83.4 GiB; host MemAvailable measured 16.7 GiB, not the ~32.5 GiB HD-374
-# predicted. Two further global OOMs followed the fix (2026-09-16 16:31Z with NO
-# client attached, 20:21Z with two sessions at 8.8%/9.1% ctx) — so capping KV alone
-# is not sufficient; the unprofiled non-KV allocation is the live defect, and
-# --kv-cache-memory-bytes makes vLLM SKIP memory profiling by design.
-# Delta in per-pid MiB after this restart is the measurement of how much graph
-# memory was stranded (HD-374 assumed graphs=0.22 GiB — never verified on a live
-# boot). Surgical on purpose: --enforce-eager would also drop CUDA graphs but costs
-# decode throughput; incident log: docs/spark-incidents.md.
+# ---- cudagraph capture-size cap ----
+# Cap CUDA-graph capture at the decode batch (max_num_seqs): this build captures
+# [1,2,4,8,16,24,32] and every size above the batch is captured but can NEVER be used — stranded
+# memory in the ONE pool the host and the engine share. Cap it here rather than with
+# --enforce-eager, which also drops graphs and costs decode throughput.
+# Gauge: nvidia-smi --query-compute-apps (GB10 reports memory.total/used as N/A) ·
+# docs/spark-incidents.md
 spark_vllm_max_cudagraph_capture_size: "{{ spark_llm_profiles[spark_llm_profile].max_cudagraph_capture_size }}"
 spark_vllm_enforce_eager: false          # per-profile: template reads spark_llm.enforce_eager
 spark_vllm_spec_method: "{{ spark_llm_profiles[spark_llm_profile].spec_method }}"
 spark_vllm_spec_tokens: "{{ spark_llm_profiles[spark_llm_profile].spec_tokens }}"
-# spark_vllm_spec_disable_by_batch_size removed 2026-09-14: `disable_by_batch_size`
-# was dropped from SpeculativeConfig in this build — replaced by
-# num_speculative_tokens_per_batch_size (list of (start,end,K) inclusive ranges).
-# B1 = plain MTP-3 (method=mtp, num_speculative_tokens=3); the dynamic schedule is a
-# future ladder row (BENCHMARK-PLAN §6 step 6).
+# Do not reintroduce `disable_by_batch_size`: this build dropped it from SpeculativeConfig in
+# favour of num_speculative_tokens_per_batch_size (a list of inclusive (start,end,K) ranges), so
+# the old key fails at parse time. A dynamic spec schedule needs the new key.
 
-# llm-d router REMOVED (HD-367 2026-09-14): the real llm-d project is a Kubernetes
-# inference-pool stack (endpoint-picker/disagg-sidecar route Envoy+K8s pools, not a
-# single-node :8080 gateway). LiteLLM (family) fronts the vLLM :8000 endpoint instead —
-# no local router container. group_vars/all/versions.yml pin was removed with it.
+# No local router container: llm-d is a Kubernetes inference-pool stack (endpoint-picker /
+# disagg-sidecar route Envoy+K8s pools), not a single-node :8080 gateway, so LiteLLM fronts the
+# engine endpoint directly.
 
 # logging
 spark_logging_driver: json-file
