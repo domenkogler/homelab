@@ -163,8 +163,13 @@ README's rule 0.
 ## 7. The ultra-fast funnel
 
 Upstream [qwen3.8-Flash-DGX-UltraFast](https://github.com/dime-online/qwen3.8-Flash-DGX-UltraFast)
-v16b (Apache-2.0, pinned `0c391a3` in `group_vars/all/versions.yml`) is **12 candidate
-arms on this dial**, not a second stack.
+v16b (Apache-2.0, pinned `0c391a3` in `group_vars/all/versions.yml`) is **13 candidate arms on this
+dial**, not a second stack. The count is the catalogue's, and it is checkable: the keys of
+`spark_llm_profiles` in `IaC/ansible/group_vars/spark.yml` minus the `_x` merge anchor and minus the three
+profiles this funnel did not introduce (`reasoning`, `graded`, `fast-sglang`) = 13 arms. The tier bullets
+below name 11 of them; the two they leave out are the funnel's tail arms `ar-blk-lean` (the dispatch-env
+isolation) and `awq-mmap` (AWQ on the winner's machinery), both live catalogue entries with their own
+rejected-log row, and the winner is catalogued under its dial name `fast` rather than its arm name `ar-blk`.
 
 **A profile NAMES things instead of hardcoding them** — `image: base|ultrafast|sglang`,
 `models_root: xfs|os`, `ple_host_base: mount|models`, one PLE mechanism (`ple_overlay` XOR

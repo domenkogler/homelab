@@ -27,6 +27,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
 | `agentmemory` central instance as briefed | rejected | Loopback REST, one shared bearer, no per-user isolation |
 | `agentmemory` LLM compression (consolidation, graph extraction) | rejected | Drops every identifier: retrieval-key 0/5 |
+| `ar-blk-lean` (ar-blk minus the ple_dispatch env) | rejected | crashes at first shard; knobs constitutive |
 | `ar-dv` (AR-hybrid + draft-vocab slice) | rejected | Slice lowers MTP acceptance 54.7 to 36.8 %, slows decode |
 | `ar-mmap` (AR-hybrid + FP8 PLE mmap) | rejected | Control arm, on par with tier-1, not a candidate |
 | `awq-mmap` / B10 (AWQ on the winner's machinery) | dropped | Owner certified the AR-hybrid winner instead |
@@ -82,6 +83,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Routing-domain split for `.ts.kogler.si` names | rejected | Ruled out; the generated alias artifact is the remedy |
 | TEI (text-embeddings-inference) on the RX 7600 | rejected | No RDNA3 path; a 7-step self-build, flash-attn dropped |
 | `u1-patch` (patched lineage + AWQ, no spec decode) | rejected | Isolation control, beat by ar-blk |
+| `u2-blk` (patched AWQ + block rejection) | rejected | beat by the AR-hybrid ar-blk |
 | `u3-s8` (u2-blk + seqs=8 + piecewise graphs) | rejected | No speed win; the +40 GB stranding claim was a PID misread |
 | `u4-pin` (u2-blk + never-evict 0.03) | rejected | Neutral: identical recompute delta, zero preemptions |
 | `v16b` (full upstream recipe) | rejected | Below ar-blk and memory-infeasible at C2L |
@@ -90,6 +92,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Vision on spark | rejected | spark runs a text-only engine (#28) |
 | Vision-LLM leg on the RX 7600 | rejected | Vision is a workstation text cascade (#28) |
 | `whisper.cpp` HIP/ROCm image for STT | rejected | No published ROCm artifact; self-build, no digest trail |
+| Workload discipline on sessions served by spark | rejected | the memory budget is the lever, not session policing |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
 
 ## What would reopen OV
