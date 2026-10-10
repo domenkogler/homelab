@@ -1,25 +1,21 @@
 ---
-# arr-client-torrent.yml — register qBittorrent as a torrent download client in each app that asks for
-# one: the three arrs AND Prowlarr (HD-1090). Everything below says "arr" and means "the app in scope";
-# the one Prowlarr-specific difference is the category field name (`category`, not `tvCategory`/…), which
-# is data in `arr_torrent_client`, never a branch in this file or the helper.
-# Included once per app from docker_services/main.yml, gated on `template_dir in arr_torrent_client`
-# + the deploy scope + `not ansible_check_mode` (every task drives a live API).
+# arr-client-torrent.yml — register qBittorrent as a torrent download client in each app that asks
+# for one: the three arrs AND Prowlarr. "arr" below means "the app in scope"; the one
+# Prowlarr-specific difference is its category field name (`category`, not `tvCategory`/…), which is
+# data in `arr_torrent_client` — never a branch in this file or in the helper.
+# Included once per app from docker_services/main.yml, gated on `template_dir in
+# arr_torrent_client` + the deploy scope + `not ansible_check_mode` (every task drives a live API).
 #
 # WHY IT IS OWNED HERE: a download client is APP state — it lives in each app's own SQLite, not in
-# compose env — so a from-zero converge leaves three arrs with working indexers, a working downloader
-# and nothing joining them. That is precisely the "every UI is green, nothing downloads" state HD-496
-# was opened for, and it is why the root folders (tasks/arr-seed.yml) and this client are both seeded
-# instead of written into the runbook.
+# compose env — so a from-zero converge leaves apps with working indexers, a working downloader and
+# nothing joining them. That is why the root folders (tasks/arr-seed.yml) and this client are seeded
+# rather than written into a runbook.
 #
-# POLICY (docs/services-downloads.md §"Which half of Prowlarr to trust"): indexers stay Prowlarr-synced,
-# download clients are registered IN EACH APP. That is still true, and it is why this file owns the
-# arrs. What changed 2026-10-07 (HD-1090) is the reason this file used to cite against touching
-# Prowlarr at all: it claimed a Prowlarr client would give the arrs two enabled clients of one protocol
-# and make them round-robin. It cannot — Prowlarr syncs INDEXERS, never download clients, so an arr
-# never sees Prowlarr's list. Prowlarr is therefore in scope for the one thing its own client governs:
-# a job started IN Prowlarr (its search UI), which until now had no torrent client at all and produced
-# failed grabs from three registered torrent indexers.
+# POLICY (docs/services-downloads.md §Which half of Prowlarr to trust): indexers stay Prowlarr-synced,
+# download clients are registered IN EACH APP. A Prowlarr client cannot make the arrs round-robin two
+# clients of one protocol — Prowlarr syncs INDEXERS, never download clients, so an arr never sees
+# Prowlarr's list. Prowlarr is in scope only for what its own client governs: a job started in
+# Prowlarr's search UI.
 #
 # Ordering: this include sits AFTER qbittorrent-seed.yml on purpose. That seed is what proves the
 # WireGuard tunnel actually carries qBittorrent's egress; enabling a torrent client behind a dead
@@ -53,23 +49,21 @@
   tags: [docker_services, arr_client_seed]
 
 - name: "arr-torrent-client: extract the instance key"
-  # The instance's own key, not the vault's *_api copy — those are consumer-side copies and they
-  # demonstrably drift (the lidarr_api case is recorded in tasks/arr-seed.yml). The capture group in
-  # the pattern is load-bearing: regex_search without parentheses raises "no such group" (HD-1081).
-  # ORDER IS LOAD-BEARING TOO: this task reads `_tc_cfg` from the slurp above. Splitting a register/use
-  # pair and re-inserting the halves in the wrong order is how this failed its first live converge —
-  # undefined `_tc_cfg` on the first loop iteration, empty key, and the fail-closed assert reported
-  # "no ApiKey in config.xml" about a file that plainly has one (measured 2026-10-07). The `\\1` is
-  # load-bearing too: inside a YAML double-quoted scalar a bare `\1` is a ScannerError, and YAML must
-  # hand Jinja a literal `\1`.
+  # The instance's OWN key, not the vault's *_api copy: those are consumer-side copies and they drift
+  # (the lidarr_api case is recorded in tasks/arr-seed.yml). The capture group is load-bearing —
+  # regex_search without parentheses raises "no such group". The register/use ORDER is load-bearing
+  # too: this reads `_tc_cfg` from the slurp above, and splitting the pair across the wrong order
+  # yields an undefined `_tc_cfg`, an empty key and a fail-closed assert that claims config.xml has
+  # no ApiKey when it plainly does. `\\1` is load-bearing as well: in a double-quoted YAML scalar a
+  # bare `\1` is a ScannerError, and Jinja must receive a literal `\1`.
   ansible.builtin.set_fact:
     _tc_key: "{{ (_tc_cfg.content | b64decode) | regex_search('<ApiKey>([^<]*)</ApiKey>', '\\1') | first | default('') | trim }}"
   no_log: true
   tags: [docker_services, arr_client_seed]
 
 - name: "arr-torrent-client: discover the {{ svc.name }} container IP"
-  # Same shape as arr-seed.yml: host→container routing is live on oldsrv since the orphan-bridge
-  # cleanup (HD-318), and this does not depend on the service also having a host publish.
+  # Same shape as arr-seed.yml: host→container routing works on oldsrv since the orphan-bridge cleanup,
+  # and this does not depend on the service also having a host publish.
   ansible.builtin.shell:
     cmd: >-
       docker inspect {{ svc.name }}
@@ -102,9 +96,8 @@
   tags: [docker_services, arr_client_seed]
 
 - name: "arr-torrent-client: check what this arr is missing (read-only)"
-  # argv is (origin, api_base): the helper joins them itself (BASE + API + path), so putting
-  # api_base into the origin too produced `…/api/v3/api/v3/downloadclient` → 404 on the first
-  # live run (measured 2026-10-07). Origin = scheme://host:port, nothing more.
+  # argv is (origin, api_base) and the helper joins them (BASE + API + path), so putting api_base in
+  # the origin too produces `…/api/v3/api/v3/downloadclient` → 404. Origin = scheme://host:port.
   ansible.builtin.command:
     cmd: >-
       /usr/local/sbin/arr-torrent-client-{{ svc.name }}.py
@@ -124,21 +117,19 @@
   tags: [docker_services, arr_client_seed]
 
 - name: "arr-torrent-client: write the client and let the app test it"
-  # `--apply` writes ONLY when something drifted. That is not a micro-optimisation: Prowlarr 2.5.2 runs
-  # its own client test *at save time* and answers a re-PUT of its own live body with
-  #   400 [{"errorMessage": "Test was aborted due to an error: Object reference not set to an instance of an object."}]
-  # while `POST /downloadclient/test` gives the SAME fields 200 (measured 2026-10-07). An unconditional
-  # write therefore failed every converge on Prowlarr, and on the other three it churned app state for
-  # nothing. The verification legs still run every time (read-back assert + the app's own
-  # /downloadclient/test), so an unchanged client is still re-tested each converge — that is what makes a
-  # silent vault rotation fail the next run instead of failing the next download.
+  # `--apply` writes ONLY when something drifted, and that is load-bearing: Prowlarr 2.5.2 runs its
+  # own client test at save time and answers a re-PUT of its own live body with 400 "Test was
+  # aborted due to an error: Object reference not set to an instance of an object", while
+  # POST /downloadclient/test accepts the same fields. An unconditional write therefore fails every
+  # converge on Prowlarr and churns app state on the others. The verification legs still run every
+  # time (read-back assert + the app's own /downloadclient/test), so an unchanged client is still
+  # re-tested — a silent vault rotation fails the next run instead of the next download.
   #
-  # ⚠ Why the verdict is tee'd to a file: `no_log` is required here (the instance key and the qBittorrent
-  # password both arrive on stdin), and it also censored the helper's own failure line — diagnosing the
-  # 2026-10-07 failure cost three runs because the only output was "the output has been hidden due to the
-  # fact that 'no_log: true' was specified". The rescue echoes the tee'd verdict instead. Safe by
-  # construction: the helper's messages name host/port/category/status codes and nothing else, and the two
-  # credentials enter through stdin and are never echoed.
+  # ⚠ The verdict is tee'd to a file because `no_log` is required here (the instance key and the
+  # qBittorrent password arrive on stdin) and it also censors the helper's own failure line — with
+  # nothing but "output has been hidden due to no_log" a failure is undiagnosable. The rescue
+  # echoes the tee'd verdict. Safe by construction: the helper's messages name only
+  # host/port/category/status codes, and the credentials enter through stdin and are never echoed.
   block:
     - name: "arr-torrent-client: run the helper"
       ansible.builtin.shell:

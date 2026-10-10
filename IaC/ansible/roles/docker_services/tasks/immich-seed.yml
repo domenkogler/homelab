@@ -1,30 +1,20 @@
 ---
-# immich-seed.yml — ensure Immich's OAuth (Authentik) system config (HD-147 foto leg / HD-148)
-# Runs from docker_services/main.yml AFTER the immich-app stack is up. Gated at the include site
-# on `template_dir == 'immich-app'` + the deploy scope + `not ansible_check_mode` (every task
-# here drives the live API — `uri`/`shell` do not run in check mode, so a preview must skip the
-# whole block rather than fake a token; docs/deployment-ansible.md §Dry-run Mode).
+# immich-seed.yml — ensure Immich's OAuth (Authentik) system config.
+# Runs from docker_services/main.yml AFTER the immich-app stack is up. Gated at the include site on
+# `template_dir == 'immich-app'` + the deploy scope + `not ansible_check_mode` (every task here drives
+# the live API — `uri`/`shell` do not run in check mode, so a preview must skip the whole block rather
+# than fake a token; docs/deployment-ansible.md §Dry-run Mode).
 #
-# WHY A SEED TASK AND NOT COMPOSE ENV (measured 2026-09-25 on the live vps, image
-# ghcr.io/immich-app/immich-server:v3.2.2 — this is the whole reason the SSO button was missing):
-#   * Immich v3 has NO OAuth environment variables. `grep -rI 'IMMICH_OAUTH' dist/ node_modules/`
-#     returns 0 hits; the only env reader is dist/repositories/config.repository.js getEnv(), a
-#     whitelist of BOOTSTRAP vars (DB_*, IMMICH_MEDIA_LOCATION, IMMICH_LOG_LEVEL,
-#     IMMICH_CONFIG_FILE, IMMICH_WORKERS_*, …).
-#   * dist/utils/config.js buildConfig() loads the settings partial from EITHER the DB row
-#     system_metadata.key='system-config' (default) OR a file when IMMICH_CONFIG_FILE is set. The
-#     Admin UI writes it via PUT /api/admin/config, and services/server.service.js getFeatures()
-#     derives the `oauth` feature flag from THAT config — which is what the login page renders the
-#     button from. No env var is ever consulted.
-#   * So an API seed is the only way IaC can own these values. The compose block it replaced
-#     (IMMICH_OAUTH_ENABLED / _ISSUER_URL / _CLIENT_ID / _CLIENT_SECRET / _SCOPE /
-#     _STORAGE_LABEL_CLAIM) was silently inert for six weeks — autopsy in
-#     templates/docker_services/immich-app/docker-compose.yml.j2.
+# WHY A SEED TASK AND NOT COMPOSE ENV: Immich v3 has NO OAuth environment variables — the only env
+# reader is a whitelist of BOOTSTRAP vars — and buildConfig() loads settings from the DB row
+# system_metadata.key='system-config' (or a file if IMMICH_CONFIG_FILE is set), which is also what
+# derives the `oauth` feature flag the login page renders the button from. So an API seed is the only
+# way IaC can own these values; OAuth env in compose renders NOTHING. → docs/services-media.md
 #
-# WHY THE DB AND NOT IMMICH_CONFIG_FILE: buildConfig() reads the file INSTEAD OF the DB partial,
-# so adopting the file would silently revert every UI-set setting — the live row already carries
-# `storageTemplate.enabled=true` (the HD-135 originals-on-Box naming, a deliberate UI setting).
-# DB + an idempotent seed keeps the Admin UI usable by the family admin.
+# WHY THE DB AND NOT IMMICH_CONFIG_FILE: buildConfig() reads the file INSTEAD OF the DB partial, so
+# adopting the file silently reverts every UI-set setting (the live row already carries
+# `storageTemplate.enabled=true`, a deliberate UI setting). DB + an idempotent seed keeps the Admin UI
+# usable by the family admin.
 #
 # Idempotence: read the live config, compare ONLY the keys this task owns, PUT only on drift.
 # A whole-config PUT is what the Admin UI does too, so no other setting gets invented here.
