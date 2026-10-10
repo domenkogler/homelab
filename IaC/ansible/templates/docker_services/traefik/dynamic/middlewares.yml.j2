@@ -1,10 +1,10 @@
 # traefik — file-provider middlewares (deployed as /opt/traefik/dynamic/middlewares.yml)
 #
-# Vault-escape note: this file is consumed by Traefik's file-provider (NOT `docker compose`
-# interpolation), so `vault['<item>']` values pass through unchanged. Compose's `$`-substitution
-# only applies to compose YAML (HD-270/HD-233 lesson). Raw `vault['crowdsec-bouncer_api'].credential`
-# here is safe — no `| replace('$','$$')` needed. (Literal braces are never used in these
-# comments: an opening Jinja brace pair would render/crash here even in a `#` comment.)
+# Vault-escape note: this file is consumed by Traefik's file-provider, NOT by `docker compose`
+# interpolation, so `vault['<item>']` values pass through unchanged — compose's `$`-substitution
+# applies only to compose YAML. Raw `vault['crowdsec-bouncer_api'].credential` here is safe and
+# needs no `| replace('$','$$')`. Literal braces must stay out of these comments: an opening
+# Jinja brace pair would render (or crash) even inside a `#` comment.
 # Middleware chain for public services:
 #   1. CrowdSec bouncer plugin — queries CrowdSec LAPI, blocks malicious IPs
 #   2. Authentik Forward-Auth — delegates auth to the SSO provider
@@ -12,19 +12,17 @@
 # Services that can use Forward-Auth reference the chain:
 #   traefik.http.routers.<svc>.middlewares: authentik-forward-auth@file
 #
-# Self-auth'd services (own login / Matrix-native SSO / Companion flow that breaks
-# with Forward-Auth) instead use the CrowdSec-only middleware, so they still get
-# IP-level blocklist protection without the auth-proxy (KOPS-004/018/025/047/054,
-# HD-60/118/119/120):
+# Self-auth'd services (own login / Matrix-native SSO / a Companion flow that breaks with
+# Forward-Auth) instead use the CrowdSec-only middleware: IP-level blocklist protection
+# without the auth-proxy:
 #   traefik.http.routers.<svc>.middlewares: crowdsec-only@file
-#   (ha, jellyfin, matrix, seerr, chat, ha-standby, sso (HD-194), cockpit routes
-#   (HD-188) — docs/services-traefik.md §Middleware)
+#   (ha, jellyfin, matrix, seerr, chat, ha-standby, sso, cockpit routes —
+#   docs/services-traefik.md §Middleware Chain)
 # See services-traefik.md §Middleware Chain.
 
 http:
   middlewares:
-    # Chain: CrowdSec → Authentik. Services reference this by name.
-    # No service template changes needed — the middleware name stayed the same.
+    # Chain: CrowdSec -> Authentik. Services reference this by name.
     authentik-forward-auth:
       chain:
         middlewares:
@@ -32,35 +30,34 @@ http:
           - authentik-forward-auth-inner
 
     # CrowdSec-only: for routes that must NOT use Forward-Auth (own login / Matrix SSO /
-    # Companion flow) but still need CrowdSec blocklist protection (HD-60/118/119/120).
+    # Companion flow) but still need CrowdSec blocklist protection.
     crowdsec-only:
       chain:
         middlewares:
           - crowdsec-bouncer
 
-    # HD-1095 Fix B: the :80 → :443 redirect used to reference a middleware THIS edge never
-    # declared — Traefik's own log said `middleware "redirect-to-https@file" does not exist`
-    # and the router silently served nothing. Declare it here; the router that uses it lives
-    # in routes.yml.j2 with the v3-valid `HostRegexp(`.+`)` rule (the v2 `{host:.+}` template
-    # parses but matches nothing, which is the other half of the same outage).
+    # The :80 -> :443 redirect middleware is declared HERE because the router that uses it
+    # lives in routes.yml.j2: naming a middleware this edge never declared makes Traefik log
+    # `middleware "redirect-to-https@file" does not exist` and serve nothing, silently. That
+    # router uses the v3-valid `HostRegexp(`.+`)` rule — the v2 `{host:.+}` template form
+    # parses, reports itself enabled, and matches nothing.
     redirect-to-https:
       redirectScheme:
         scheme: https
         permanent: true
 
-    # ONLYOFFICE CSP upgrade (HD-166 layer-6): DS builds browser-facing cache URLs
-    # (Editor.bin etc.) with an http:// scheme behind our TLS edge (upstream issue
-    # ONLYOFFICE/DocumentServer#2186 class) -> mixed content -> browser blocks the
-    # fetch -> "Download failed" + empty document. This response header tells the
-    # BROWSER to upgrade every http:// request from the office.kogler.si pages to
-    # https:// transparently - no DS-internals patch needed.
+    # ONLYOFFICE CSP upgrade: DS builds browser-facing cache URLs (Editor.bin etc., upstream
+    # ONLYOFFICE/DocumentServer#2186 class) with an http:// scheme behind our TLS edge -> mixed
+    # content -> the browser blocks the fetch -> "Download failed" + an empty document. This
+    # response header tells the BROWSER to upgrade every http:// request from the
+    # office.kogler.si pages to https:// — no patch inside DS is needed.
     onlyoffice-csp:
       headers:
         contentSecurityPolicy: "upgrade-insecure-requests"
 
-    # CrowdSec bouncer plugin — checks the client IP against CrowdSec's
-    # blocklist (LAPI). Registered in traefik's static config via
-    # --experimental.plugins.crowdsec-bouncer.* (v1.7.1 requires the LAPI key - Wave-3 R5).
+    # CrowdSec bouncer plugin — checks the client IP against CrowdSec's blocklist (LAPI).
+    # Registered in traefik's static config via --experimental.plugins.crowdsec-bouncer.*;
+    # plugin v1.7.1 requires the LAPI key.
     crowdsec-bouncer:
       plugin:
         crowdsec-bouncer:
@@ -71,11 +68,11 @@ http:
 
     # Authentik Forward-Auth — validates the user session, redirects to
     # sso.kogler.si if not authenticated. Passes user info as headers.
-    # HD-240 (2026-08-25): authResponseHeaders MUST be the LIST of header names
-    # (Traefik schema). The previous map form ("X-authentik-email: email") decoded to
-    # NOTHING — traefik silently dropped the field, so identity headers never reached
-    # header-consuming backends (grafana [auth.proxy] saw anonymous requests → bare
-    # /login for every SSO user). Wire/decode-proven via a throwaway traefik config dump.
+    # Authentik Forward-Auth — validates the user session, redirects to sso.kogler.si if not
+    # authenticated, and passes user info as headers. authResponseHeaders MUST be the LIST of
+    # header names (Traefik's schema): the map form decodes to NOTHING, Traefik drops the field
+    # silently, and header-consuming backends see anonymous requests (Grafana [auth.proxy] then
+    # sends every SSO user to a bare /login).
     authentik-forward-auth-inner:
       forwardAuth:
         address: "http://authentik-server:9000/outpost.goauthentik.io/auth/traefik"

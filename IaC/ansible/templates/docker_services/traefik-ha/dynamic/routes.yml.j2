@@ -6,11 +6,10 @@
 #              edge so it survives an oldsrv outage; backend = local host
 #              {{ technitium_secondary_ip }}:5380). No Forward-Auth — a
 #              management surface with its own login, internal-only.
-#   NOTE — no crowdsec-only here (HD-118): CrowdSec runs on oldsrv and is DOWN whenever
-#   this failover edge is live (oldsrv is down). Adding the bouncer here would query a
-#   dead LAPI and fail the ha route open/closed at exactly the moment it must survive,
-#   so the Pi edge intentionally stays CrowdSec-free. oldsrv's own `traefik` ha route
-#   (which has local CrowdSec) is the HD-118 target.
+#   NOTE — no crowdsec-only here: CrowdSec runs on oldsrv and is DOWN whenever this failover
+#   edge is live, so the bouncer would query a dead LAPI and fail the ha route open/closed at
+#   exactly the moment it must survive. The Pi edge stays CrowdSec-free by design; oldsrv's own
+#   `traefik` ha route (which has local CrowdSec) carries the bouncer.
 #   - http-redirect: catch-all :80 → :443 (the `web` entrypoint).
 #   ACME is DISABLED on this edge — TLS comes from the cert files pulled from the
 #   VPS (the single ACME issuer; see tls.certificates below). No certResolver is
@@ -19,10 +18,9 @@
 http:
   middlewares:
 {% if tailnet_pi_ip is defined and tailnet_pi_ip %}
-    # HD-435: HA rejects X-Forwarded-* from a proxy it does not trust, and `ha_trusted_proxies`
-    # covers the edge container addresses — not a tailnet node address. Same fix as
-    # traefik-internal's `ha-ts` router: strip the headers on the tailnet leg instead of
-    # widening HA's trust list to a tailnet range.
+    # HA rejects X-Forwarded-* from a proxy it does not trust, and `ha_trusted_proxies` covers
+    # the edge container addresses — not a tailnet node address. Strip the headers on the
+    # tailnet leg instead of widening HA's trust list to a tailnet range.
     ha-ts-strip-forwarded:
       headers:
         customRequestHeaders:
@@ -53,27 +51,22 @@ http:
       # NOTE: no authentik-forward-auth on the dns-pi route (own-login mgmt surface)
     http-redirect:
       rule: "HostRegexp(`.+`)"
-      # HD-1095 Fix B: v3 needs the PLAIN regex. The v2 template form
-      # HostRegexp(`{host:.+}`) parses and reports the router as `enabled` while
-      # matching NOTHING — measured 2026-10-07 in a clean v3.7.11 container (404 with
-      # the template, 301 with this form), which is why http:// has 404-ed on every
-      # edge for the whole life of this file while the config text read correctly.
+      # v3 needs the PLAIN regex. The v2 template form HostRegexp(`{host:.+}`) parses and
+      # reports the router as `enabled` while matching NOTHING — http:// then 404s on every
+      # edge even though the config text reads correctly.
       entryPoints:
         - web
       middlewares:
         - redirect-to-https
       service: noop@internal
 {% if tailnet_pi_ip is defined and tailnet_pi_ip %}
-    # --- HA over the TAILNET (HD-435) — the away path, node-direct, survives oldsrv down ---
+    # --- HA over the TAILNET — the away path, node-direct, survives oldsrv down ---
     # Matches `ha.{{ tailnet_base_domain }}` (the tailnet-only twin published by
-    # tailnet_ts_only_subdomains) and this node's own MagicDNS name, so it answers BEFORE any
-    # `ha.kogler.si` extra-record exists — which is deliberate: publishing the PLAIN name into
-    # MagicDNS answers it client-side for a phone that is standing at home, taking HA off the
-    # VIP and onto a node for people who did not ask for that. The plain-name dual-A publish is
-    # the HD-435/HD-436 `zone_kogler_si` `tailnet: dual` step and lands with the record
-    # vocabulary, not here.
-    # NO authentik-forward-auth — same reason as the `ha` route above: it breaks the Companion
-    # app's token/WebSocket flow (docs/smart-home.md).
+    # tailnet_ts_only_subdomains) and this node's MagicDNS name, so it answers BEFORE any
+    # `ha.kogler.si` extra-record exists. Publishing the PLAIN name into MagicDNS would answer
+    # it client-side for a phone standing at home and move HA off the VIP onto a node unasked,
+    # so the dual-A publish belongs to the record vocabulary, not to this router.
+    # NO authentik-forward-auth — as above, it breaks the Companion token/WebSocket flow.
     ha-ts:
       rule: "Host(`ha.{{ tailnet_base_domain }}`) || Host(`{{ tailnet_pi_node_name }}.{{ tailnet_base_domain }}`)"
       entryPoints:
@@ -94,8 +87,8 @@ http:
         servers:
           - url: "http://{{ technitium_secondary_ip }}:5380"
 
-# Wildcard *.kogler.si cert pair, pulled from the VPS `traefik` (the single ACME
-# issuer, HD-178/HD-181/HD-204; Cloudflare DNS-01) by the ha-cert-sync timer.
+# Wildcard *.kogler.si cert pair, pulled from the VPS `traefik` (the single ACME issuer,
+# Cloudflare DNS-01) by the ha-cert-sync timer. File names come from the shared
 # File names come from the shared
 # `wildcard_cert_file` / `wildcard_cert_key_file` vars in group_vars/all/ so the
 # VPS issuer, the pull timer and this config can never drift.

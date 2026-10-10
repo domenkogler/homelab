@@ -9,8 +9,8 @@
 #   - ttl:     TTL seconds (default 300)
 #   - proxied: only for A/AAAA/CNAME (we use DNS-only, so false vs. Cloudflare proxy)
 #
-# Only the internet-facing subset belongs here (docs/network-dns.md §A/AAAA policy —
-# internal-only hosts get NO public record; WAN firewall blocks them).
+# Only the internet-facing subset belongs here: internal-only hosts get NO public record
+# (the WAN firewall blocks them). Reference set: docs/network-dns.md.
 #
 # ── SCOPE & BEHAVIOR (read before editing) ────────────────────────────────
 # The playbook applies ONLY the records listed below, each with `state: present`
@@ -18,15 +18,9 @@
 # other Cloudflare records). Scope is driven by THIS list, not by an inventory
 # group: whatever is here gets ensured. It is currently VPS-only by design.
 #
-# Migration plan (incremental → full SSOT):
-#   1. Now:        only the VPS host records (below) — safe, VPS-only.
-#   2. As each public app moves onto the VPS (foto, file, git, sso, …):
-#      uncomment/add its record here and re-run — this file becomes the
-#      authority for that record (URLs unchanged, decision HD-93).
-#   3. Eventually: migrate ALL public `*.kogler.si` records into this file so
-#      it is the complete public-DNS SSOT (Option B / full declaration), and
-#      reconcile the Cloudflare zone against it. Until then the live Cloudflare
-#      zone and this file are two sources of truth — keep them in sync by hand.
+# Migration to full SSOT: add a record here as its app lands on the VPS. Until every
+# public *.kogler.si record lives here, the live Cloudflare zone and this file are two
+# sources of truth — keep them in sync by hand.
 # ───────────────────────────────────────────────────────────────────────────
 # NOTE: the token (cloudflare_api) is IP-filtered to 193.77.156.222, so this
 # playbook must run from a machine behind that egress IP (home control plane),
@@ -48,7 +42,7 @@ cloudflare_dns_records:
     ttl: 300
     proxied: false
 
-  # --- SMTP2Go sender setup (HD-54, SMTP relay) — verification / DKIM / tracking ---
+# --- SMTP2Go sender setup (SMTP relay) — verification / DKIM / tracking ---
   # CNAMEs required by the SMTP2Go domain-setup wizard for kogler.si (return-path
   # verification, DKIM signing, open-tracking). Applied to Cloudflare (DNS-only).
   # Consumed by SMTP2Go; not by our Traefik edge. Do not proxied (CNAME to
@@ -72,15 +66,11 @@ cloudflare_dns_records:
     proxied: false
 
 # ---------------------------------------------------------------------------
-# Public service records — ADD these as each public app moves onto the VPS
-# (decision HD-93: public Traefik + apps terminate on the VPS, URLs unchanged).
-# Point them at 159.195.111.66 instead of oldsrv when the VPS actually serves them.
-# Reference the internet-facing set from docs/network-dns.md:
-#   kogler.si (root), foto, file, git, sso, ha, vpn, matrix, chat
-#
-# ADDED 2026-08-22 (Wave-3, HD-218 loop): the Phase-1 VPS app set is LIVE — all CNAMEs
-# flatten to the vps host record (single IP source). sso unblocks headscale OIDC discovery
-# + every forward-auth route; root = family launchpad (HD-180). ha STAYS unpublished until
+# Public service records — ADD one as each public app moves onto the VPS: the public edge
+# terminates there and the URLs stay the same. Every CNAME flattens to the vps host record,
+# so there is a single IP source; a name belongs here only once the VPS edge answers it.
+# Reference the internet-facing set in docs/network-dns.md. `ha` stays unpublished: it is
+# internal-only, and a record the edge does not answer is a dead pointer.
 # the Phase-4 HA cutover. Revisit: tighten this list if an app is pulled.
   - { name: kogler.si, type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # apex - CF flattens
   - { name: sso,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
@@ -93,24 +83,19 @@ cloudflare_dns_records:
   - { name: ai,        type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: pdf,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: vpn,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
-  - { name: dns,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-317: Technitium web UI (bootstrap path to the VPS DNS admin; the user added the CNAME live 2026-09-03 — now under IaC per HD-198 incremental)
+  - { name: dns,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # Technitium web UI: bootstrap path to the VPS DNS admin.
   - { name: drop,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
-  - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # KEPT + IaC-tracked (HD-230): pairdrop.kogler.si stays live alongside drop
-  - { name: bin,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-112: Zipline public bin/shortener
-  - { name: home,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-230: was missing from CF entirely (route 000 since HD-219 wave)
-  # HD-1095 (2026-10-07): the owner created this CNAME live so Jellyfin is reachable while
-  # traveling; the VPS edge now actually serves it (routes.yml.j2 → home edge over WG S2S),
-  # so the record is a true answer, not a dead pointer. IaC-owns the live record here — same
-  # incremental path as `dns` (HD-198): created by hand first, then put under IaC.
-  - { name: media,     type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # HD-1095: Jellyfin public, own login + crowdsec-only
+  - { name: pairdrop,  type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # pairdrop.kogler.si stays live alongside drop.
+  - { name: bin,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # Zipline public bin/shortener.
+  - { name: home,      type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # Family launchpad (root) - served by the VPS edge.
+  # The VPS edge serves this name (routes.yml.j2 → home edge over the WG S2S link), so the
+  # record is a true answer rather than a dead pointer.
+  - { name: media,     type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # Jellyfin public: own login + crowdsec-only.
 #
-# OBSERVABILITY IS TAILNET-ONLY (HD-135b follow-up, 2026-08-28): stats / sec / traefik /
-# auto had public CNAMEs here from the Phase-1 wave, contradicting the internal-only docs.
-# They are REMOVED from this SSOT — the observability dashboards (Grafana/Metabase/Traefik-
-# dash/n8n) are admin-only and reachable over the tailnet (headscale), never from WAN.
-# NOTE: this file only manages state:present — it does NOT delete already-live records.
-# The owner must DELETE stats/sec/traefik/auto from the Cloudflare zone at deploy time
-# (deploy-gated; see docs/network-dns.md + docs/security.md).
+# OBSERVABILITY IS TAILNET-ONLY: stats / sec / traefik / auto get no public record — the
+# dashboards (Grafana/Metabase/Traefik-dash/n8n) are admin-only, reached over the tailnet.
+# This file manages state:present only: it never deletes a live record, so dropping a name
+# from the list is NOT a deletion — the Cloudflare zone must be cleaned up by hand.
 # Example (once foto.kogler.si is served by VPS Traefik):
 #   - name: foto
 #     type: A

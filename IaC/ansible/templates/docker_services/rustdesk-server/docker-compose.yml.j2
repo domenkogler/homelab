@@ -1,67 +1,55 @@
-# rustdesk-server docker-compose.yml — self-hosted RustDesk rendezvous (hbbs) + relay (hbbr), HD-412
-#   The family-support introduction point. Placement is DECIDED and logged in
-#   docs/services-rejected.md (2026-09-20): the server lives on the **VPS**, never on oldsrv
-#   (a rescue tool behind the thing it rescues is not a rescue, and making it reachable at home
-#   would need a public listener on the crown-jewel host). Full owning section:
+# rustdesk-server docker-compose.yml — self-hosted RustDesk rendezvous (hbbs) + relay (hbbr)
+#   The family-support introduction point. The server lives on the **VPS**, never on oldsrv: a
+#   rescue tool behind the thing it rescues is not a rescue, and making it reachable at home
+#   would need a public listener on the crown-jewel host. Owning section:
 #   docs/services-admin.md §RustDesk.
 #
-#   IMAGE = rustdesk/rustdesk-server-s6 — the SUPERVISOR image (busybox:stable + s6-overlay
-#   3.2.0.0, verified from the upstream Dockerfile at the pinned tag 2026-09-21). It runs hbbs and
-#   hbbr as two supervised services in ONE container sharing one working dir (/data), which is what
-#   makes the key model work: both binaries `cd /data` and load the SAME id_ed25519 keypair, and
-#   s6 orders hbbs after `key-secret` + hbbr. The non-s6 image (rustdesk/rustdesk-server) is two
-#   containers with no supervisor and none of the env conveniences below.
-#     * WorkingDir /data (declared VOLUME), Entrypoint /init, ExposedPorts 21115-21119.
-#     * HEALTHCHECK is baked into the image (`s6-svstat` on the hbbs + hbbr service dirs), so it is
-#       INHERITED, not overridden: unlike the whisper leg (HD-391, where the image's hardcoded
-#       HEALTHCHECK lied), this one checks supervision state, which is exactly the signal we have —
-#       hbbs/hbbr expose no HTTP surface to probe.
+#   IMAGE = rustdesk/rustdesk-server-s6, the SUPERVISOR image (busybox:stable + s6-overlay).
+#   hbbs and hbbr run as two supervised services in ONE container sharing one working dir
+#   (/data): both binaries `cd /data` and load the SAME id_ed25519 keypair, and s6 orders hbbs
+#   after `key-secret` + hbbr. The non-s6 image is two containers with no supervisor and none of
+#   the env knobs below. WorkingDir /data (VOLUME), Entrypoint /init, ExposedPorts 21115-21119.
+#     * HEALTHCHECK is baked into the image (`s6-svstat` on the two service dirs), so it is
+#       INHERITED, not overridden: hbbs/hbbr expose no HTTP surface, so supervision state is the
+#       only health signal.
 #     * s6 republishes the CONTAINER environment into each service via `with-contenv`, so every
-#       knob below must arrive as container env (a `.env` in the compose dir would NOT reach them).
+#       knob below must arrive as container env — a `.env` file would not reach them.
 #
-#   network_mode: host — the CONVENTIONS §3 justification for host networking + host ports:
-#     hbbs performs UDP rendezvous + TCP hole punching and must observe the REAL source
-#     address/port of every client to classify NAT type and punch correctly; the NAT-type test
-#     listener (21115) and the UDP 21116 heartbeat are address-sensitive by protocol. Docker's
-#     userland proxy SNATs container-network traffic to the bridge gateway (172.17.0.1), which
-#     destroys exactly that information — upstream's own deployment guidance is `--net=host` on
-#     Linux for this reason, and says to drop `-p` when host networking works. Consequences, all
-#     accepted: NO docker port publishing (so no DNAT path — every packet hits the host INPUT
-#     chain, where roles/vps-hardening decides reach), NO docker networks (so no Traefik route and
-#     no CrowdSec HTTP bouncer for this service), and the loopback-only admin consoles of
-#     hbbs (21115) / hbbr (21117) become host-loopback-only too, which is where they belong.
+#   network_mode: host: hbbs does UDP rendezvous + TCP hole punching and must see the REAL source
+#   address/port of every client to classify NAT type and punch correctly; 21115 (NAT-type test)
+#   and UDP 21116 (heartbeat) are address-sensitive by protocol. Docker's userland proxy SNATs
+#   container-network traffic to the bridge gateway, which destroys exactly that information, and
+#   upstream specifies `--net=host` on Linux for this reason. Consequences, all accepted: NO
+#   `ports:` (no DNAT — every packet hits the host INPUT chain, where roles/vps-hardening decides
+#   reach), NO docker networks (no Traefik route, no CrowdSec HTTP bouncer), and the hbbs (21115)
+#   / hbbr (21117) admin consoles become host-loopback-only, which is where they belong.
 #
-#   REACH (enforced in roles/vps-hardening/templates/nftables.conf.j2, NOT here — the input policy
-#   is drop and host-net has no DNAT): allow 21115/tcp, 21116/tcp+udp, 21117/tcp.
-#   21118 (hbbs WebSocket) + 21119 (hbbr WebSocket) are DELIBERATELY NOT ALLOWED. They exist only
-#   for the RustDesk **web client**, which we do not use, and upstream warns that on those two
-#   ports hbbs/hbbr trust unvalidated `X-Real-IP`/`X-Forwarded-For` headers — anyone who can reach
-#   them can forge the client IP recorded in logs and walk past IP-based blocking. There is also NO
-#   web console here at all: the `:21114`-class HTTP console is a **Pro** feature; the OSS server is
-#   configured by env/flags and administered over its loopback command console
-#   (`printf 'always-use-relay Y' | nc 127.0.0.1 21115`, `printf 'h' | nc 127.0.0.1 21117`).
-#   The container still BINDS 21118/21119 (upstream builds them in; the `-b/--bind` restriction
-#   flag needs 1.1.17 and we pin 1.1.16), so the firewall is what closes them — see services-admin.md.
+#   REACH is enforced in roles/vps-hardening/templates/nftables.conf.j2, NOT here: the input
+#   policy is drop and host networking has no DNAT. Allow 21115/tcp, 21116/tcp+udp, 21117/tcp.
+#   21118 (hbbs WebSocket) and 21119 (hbbr WebSocket) are DELIBERATELY NOT ALLOWED: they exist
+#   only for the RustDesk web client, which is not used, and on those ports hbbs/hbbr trust
+#   unvalidated `X-Real-IP`/`X-Forwarded-For` headers, so anyone who can reach them can forge the
+#   client IP in logs and walk past IP-based blocking. The container still BINDS both (upstream
+#   builds them in; the `-b/--bind` flag needs a newer release than the pin), so the firewall is
+#   what closes them — see docs/services-admin.md §RustDesk. There is no web console: the HTTP
+#   console is a **Pro** feature, and the OSS server is configured by env/flags and administered
+#   over its loopback command console (`printf 'always-use-relay Y' | nc 127.0.0.1 21115`,
+#   `printf 'h' | nc 127.0.0.1 21117`).
 #
-#   SECRETS (bulk vault pre-pass, HD-258 dict; fail-loud, no default() — HD-65):
-#     rustdesk_login  Login item: `username` = the server PUBLIC key (base64),
-#                              `password` = the server SECRET key (base64).
-#       Generated once, OFFLINE, into the vault (procedure: deployment-manual.md §1.11). The seed
-#       is one-shot by upstream design: the s6 `key-secret` step copies KEY_PUB/KEY_PRIV into
-#       /data ONLY when the file does not already exist, then chmod 0600 + `rustdesk-utils
-#       validatekeypair`, and HALTS the container if the pair is half-present or mismatched. So the
-#       live file is authoritative while /data survives, and editing the vault item alone changes
-#       nothing — which is exactly why this item is NOT_AUTO_ROTATABLE (rotating orphans every
-#       enrolled client, whose saved key no longer matches). docs/deployment-secrets.md carries the
-#       row + reason. ⚠ The keypair is visible in `docker inspect` output (compose env) — treat
-#       inspect output on this container as secret-bearing.
+#   SECRETS (fail-loud, no default()) — rustdesk_login: `username` = the server PUBLIC key and
+#   `password` = the server SECRET key (base64), generated once OFFLINE into the vault
+#   (docs/deployment-secrets.md). The s6 `key-secret` step seeds /data only when the file is
+#   absent, then chmod 0600 + `rustdesk-utils validatekeypair`, and HALTS on a half-present or
+#   mismatched pair — so the live file is authoritative and editing the vault item alone changes
+#   nothing. The item is NOT_AUTO_ROTATABLE: rotating it orphans every enrolled client, whose
+#   saved key no longer matches. The keypair appears in `docker inspect` output (compose env),
+#   so treat that output as secret-bearing.
 #
-#   BANDWIDTH is the real cost of this service, not RAM (quota arithmetic + why these numbers:
-#   docs/services-admin.md §Relay bandwidth cap). The caps are the OSS hbbr knobs read at start-up
-#   from the environment (verified in src/relay_server.rs at the pinned tag 1.1.16; unit = Mb/s
-#   counted as 1024² bit/s). ALWAYS_USE_RELAY=N keeps sessions on hole-punched direct paths, so
-#   the relay — and therefore the quota — is only spent when punching fails.
-#   The five caps are SSOT'd in the registry row (group_vars/vps.yml, HD-412 region) and read as
+#   BANDWIDTH is the real cost of this service, not RAM — quota arithmetic and the reasoning are
+#   in docs/services-admin.md §Relay bandwidth cap. The caps are OSS hbbr knobs read from the
+#   environment at start-up (unit = Mb/s counted as 1024² bit/s), and ALWAYS_USE_RELAY=N keeps
+#   sessions on hole-punched direct paths, so the relay — and the quota — is spent only when
+#   punching fails. The five caps are SSOT'd in the registry row (group_vars/vps.yml) and read as
 #   svc.* here, so they stay group_vars-authored per CONVENTIONS §2.
 services:
   rustdesk-server:
@@ -77,16 +65,14 @@ services:
     security_opt:
       - no-new-privileges:true
     # Both binaries write only in /data (bind-mounted below); s6-overlay needs /run writable
-    # (it is also /var/run via the image's symlink) and busybox wants /tmp. If a first apply
-    # shows EROFS anywhere else, the honest fix is a narrower tmpfs for that path — recorded in
-    # the HD-412 deploy gate, not papered over by dropping read_only.
+    # (also /var/run via the image's symlink) and busybox wants /tmp. If an apply shows EROFS
+    # anywhere else, the honest fix is a narrower tmpfs for that path — not dropping read_only.
     read_only: true
     tmpfs:
       - /tmp
-      # :exec is REQUIRED, not cosmetic — s6-overlay stage0 execs /run/s6/basedir/bin/init, and
-      # docker's default tmpfs opts are noexec → the container restart-loops on exit 126
-      # (`/run/s6/basedir/bin/init: Permission denied`). Same finding as the HD-318 s6 batch
-      # (sonarr/radarr/lidarr/qbittorrent carry `/run:exec` for exactly this reason).
+      # :exec is REQUIRED, not cosmetic — s6-overlay stage0 execs /run/s6/basedir/bin/init and
+      # docker's default tmpfs opts are noexec, so the container restart-loops on exit 126
+      # (`/run/s6/basedir/bin/init: Permission denied`). s6 images need /run mounted with :exec.
       - /run:exec
     volumes:
       # THE state of this service: id_ed25519 + id_ed25519.pub (+ db_v2.sqlite3, blacklists).
@@ -115,9 +101,9 @@ services:
       LIMIT_SPEED: "{{ svc.relay_limit_mbps }}"
       DOWNGRADE_THRESHOLD: "{{ svc.relay_downgrade_threshold }}"
       DOWNGRADE_START_CHECK: "{{ svc.relay_downgrade_start_check_s }}"
-      # Compose-parsed text ⇒ escape `$` (HD-270 Population A). A RustDesk key is base64
-      # (`A–Z a–z 0–9 + / =`), so the filter is a no-op today; it is here so a hand-pasted or
-      # re-issued value can never be silently truncated by compose interpolation.
+      # Compose-parsed text ⇒ escape `$`. A RustDesk key is base64 (`A–Z a–z 0-9 + / =`), so the
+      # filter is a no-op today; it stays so a hand-pasted or re-issued value can never be
+      # silently truncated by compose interpolation.
       KEY_PUB: >-
         {{ vault['rustdesk_login'].username | replace('$','$$') }}
       KEY_PRIV: >-
@@ -125,7 +111,7 @@ services:
     deploy:
       resources:
         limits:
-          # Quoted string — compose's schema requires limits.memory to be a string (HD-162).
+          # Quoted string — compose's schema requires limits.memory to be a string.
           # Upstream's own floor for this server is "a basic cloud server… you can also use a
           # Raspberry Pi"; the relay buffers are bounded by the Mb/s caps above, so this is a
           # ceiling against a runaway process, not a working-set estimate.

@@ -22,14 +22,13 @@
   set_fact:
     routeros_api_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
   no_log: true
-  # Same tag discipline as the router role (HD-313 deploy-gate fix): every
-  # api_facts/api_modify here references routeros_api_password and the HD-161
-  # identity assert is `tags: always`; an untagged set_fact is skipped by any
-  # surgical --tags filter. Tagged always = prerequisite tier.
+  # Same tag discipline as the router role: every api_facts/api_modify here references
+  # routeros_api_password, and the identity assert below is `tags: always` — an untagged
+  # set_fact is skipped by any surgical --tags filter. Tagged always = prerequisite tier.
   tags: always
 
 # -------------------------------------------------------------------------
-# Assert-before-mutate (HD-161): read device identity once and refuse to apply
+# Assert-before-mutate: read device identity once and refuse to apply
 # any api_modify if the target is not the CRS328 switch we expect. Guards against
 # a wrong-target or swapped-host applying switch config to the wrong gear.
 # Runs once per role run, before the first api_modify below.
@@ -60,12 +59,9 @@
 # -------------------------------------------------------------------------
 # Ensure bridge exists (VLAN filtering enabled LAST — see end of role)
 # -------------------------------------------------------------------------
-# SAFETY ORDER (learned live 2026-08-31): enabling `vlan-filtering` on the
-# bridge BEFORE the trunk + access ports + mgmt IP are configured severs the
-# switch's own mgmt path (no ARP to its mgmt IP -> unreachable, and the play
-# times out mid-run). Mirroring the router role's guard: filtering is enabled
-# by the LAST task of this role, so a half-applied run leaves the bridge
-# filtering-off and the switch reachable.
+# SAFETY ORDER: enabling `vlan-filtering` on the bridge BEFORE the trunk + access ports +
+# mgmt IP are configured severs the switch's own mgmt path (no ARP to its mgmt IP ->
+# unreachable, and the play times out mid-run). Filtering is enabled by the LAST task here.
 - name: Ensure bridge exists (VLAN filtering enabled last)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -186,16 +182,12 @@
 
 
 # -------------------------------------------------------------------------
-# Access ports are UNTAGGED members of their role VLAN (HD-328)
+# Access ports are UNTAGGED members of their role VLAN
 # -------------------------------------------------------------------------
-# A CRS328 access port with ingress-filtering on the bridge only forwards frames
-# for VLANs it is a member of — pvid alone is NOT enough. On this fleet the pvid
-# access ports (Home 10 printer/nas, IoT 20 KNX, Media 50 Shield/console) must
-# ALSO be untagged members of the matching bridge VLAN. Previously only the wifi
-# AP ports (wifi_ports) were added tagged; the Media/console/other access ports
-# were pvid-set but never membership-added -> traffic dropped at ingress -> empty
-# ARP + no WAN (HD-308 signature, re-hit on Shield 2026-09-04). This loops over
-# switch_port_map and adds one bridge-VLAN entry per role VLAN carrying its ports.
+# A CRS328 access port with bridge ingress-filtering only forwards frames for VLANs it is a
+# member of — pvid alone is NOT enough. Every pvid access port (Home 10, IoT 20, Media 50)
+# must ALSO be an untagged member of the matching bridge VLAN, or frames die at ingress:
+# empty ARP + no WAN on that port. Hence one bridge-VLAN entry per role VLAN in the map.
 - name: Add access ports as untagged members of their role VLAN (HD-328)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -223,7 +215,7 @@
 
 
 # -------------------------------------------------------------------------
-# Wifi AP uplink ports are TAGGED members of the wifi SSID VLANs (HD-339)
+# Wifi AP uplink ports are TAGGED members of the wifi SSID VLANs
 # -------------------------------------------------------------------------
 # The APs do per-SSID VLAN tagging on their CAP bridge (wifi3 -> pvid20, wifi8 ->
 # pvid30, etc). Their switch uplink ports (wifi_ports: ether11=ap-dnevna,
@@ -231,8 +223,7 @@
 # tagged frames are dropped at switch ingress -> clients associate + authenticate
 # but never get DHCP ('phone/Shelly disconnect', empty ARP, KNX lag on VLAN 20).
 # PVID alone (untagged-99) is NOT enough for tagged traffic. Parity with
-# crs328_converge.rsc.j2 (HD-338 rule: edit BOTH or NEITHER; live-applied
-# 2026-09-07 delta on the CRS328, folded here).
+# crs328_converge.rsc.j2: edit BOTH or NEITHER — a delta must land in both.
 - name: Add wifi AP ports as tagged members of wifi SSID VLANs (HD-339)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -354,7 +345,7 @@
 
 
 # -------------------------------------------------------------------------
-# Management services — lockdown state (HD-301 parity with crs328_initial.rsc.j2)
+# Management services — lockdown state (parity with crs328_initial.rsc.j2)
 # -------------------------------------------------------------------------
 # The bootstrap template owns the `available-from` CIDR binding on every service
 # (community.routeros api_modify 3.x does NOT support `available-from` for path
@@ -404,14 +395,12 @@
         port: 8291
 
 # -------------------------------------------------------------------------
-# INPUT-chain mgmt lockdown (HD-301 parity with crs328_initial.rsc.j2)
+# INPUT-chain mgmt lockdown (parity with crs328_initial.rsc.j2)
 # -------------------------------------------------------------------------
 # The CRS328 is L2-only but still exposes management services (api/www-ssl/ssh/
-# winbox on 22/8728/8729/8291/80/443); without an INPUT firewall those listen on
-# every interface. This block gates them to the Management VLAN + trusted-admin
-# hosts only, mirroring the router role's HD-78 INPUT chain. The bootstrap .rsc
-# applied the floor on the mgmt access ports; this is the steady-state input
-# policy so a converge cannot drift it open.
+# The CRS328 is L2-only but still exposes management services (api/www-ssl/ssh/winbox on
+# 22/8728/8729/8291/80/443); without an INPUT firewall those listen on every interface. Gate
+# them to the Management VLAN + trusted-admin hosts, mirroring the router role's INPUT chain.
 - name: Ensure switch INPUT-chain mgmt-lockdown rules (HD-301 parity)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"

@@ -1,25 +1,21 @@
 # immich-app docker-compose.yml — Photo management (foto.kogler.si)
 #   Immich v3: server + PostgreSQL + Valkey. Microservices merged into server.
-#   Storage decision (HD-135, 2026-08-18) — Immich runs on the VPS; three-way split:
-#     * Local NVMe (/srv/docker/immich): Postgres DB + Valkey + upload/thumbs (hot).
-#     * Live Hetzner Box (CIFS /mnt/storagebox): originals (library/) AND encoded-video
-#       (cold/bulk, sequential reads) — via the Immich storage template (a DB/UI setting
-#       at deploy, configured on the VPS after first deploy, NOT compose env).
-#     * ML on oldsrv GPU — IMMICH_MACHINE_LEARNING_URL = {{ immich_ml_url }}
-#       (SSOT-derived in group_vars/all/; cross-host over the WG S2S tunnel,
-#       HD-184 — Docker DNS cannot resolve across hosts; immich-ml publishes
-#       :3003 bound to oldsrv's Home IP).
-#   Supersedes the older "originals on S3/MinIO" plan — the live Box is CIFS, not S3.
-#   Addons: DB (Postgres), Valkey. Auth: native OIDC (HD-148), not Forward-Auth — but the OIDC
-#   settings are NOT in this file: Immich v3 reads no OAuth env var at all (see the note in the
-#   environment block); they live in the DB-backed system config, written by immich-seed.yml.
+#   Storage (docs/storage.md §Immich Hybrid Storage): Immich runs on the VPS — local NVMe
+#   /srv/docker/immich for Postgres/Valkey/thumbs (hot), the Hetzner Box over CIFS for
+#   originals + encoded-video (cold), set in the Immich storage template, never compose env.
+#   ML runs on oldsrv's GPU: IMMICH_MACHINE_LEARNING_URL is SSOT-derived in group_vars/all/ and
+#   crosses hosts over the WG S2S tunnel, because Docker DNS cannot resolve across hosts;
+#   immich-ml publishes :3003 bound to oldsrv's Home IP.
+#   Auth: native OIDC, not Forward-Auth — but the OIDC settings are NOT in this file: Immich v3
+#   reads no OAuth env var at all (see the note in the environment block); they live in the
+#   DB-backed system config, written by immich-seed.yml.
 #
 #   Secrets (deployment-secrets.md):
 #     immich_db  (Database) — Postgres
 #     immich_oidc (api) — Authentik OIDC client (username=client_id, credential=client_secret).
 #         Consumed by the SEED task (API PUT), NOT by this compose.
 #     immich-admin_login (login) — the Immich admin seat (username=email, password). SEED task only.
-#     immich-ml-internal_api (api) — shared ML API-key auth immich-app -> immich-ml (HD-160)
+#     immich-ml-internal_api (api) — shared ML API-key auth immich-app -> immich-ml
 services:
   immich-server:
     image: ghcr.io/immich-app/immich-server:{{ immich_version }}
@@ -48,45 +44,31 @@ services:
       DB_USERNAME: "{{ vault['immich_db'].username | replace('$','$$') }}"
       DB_PASSWORD: "{{ vault['immich_db'].password | replace('$','$$') }}"
       DB_DATABASE_NAME: immich
-      DB_HOSTNAME: immich-postgres   # upstream var IS DB_HOSTNAME (DB_HOST is silently ignored - Wave-2 triage 2026-08-22)
+      DB_HOSTNAME: immich-postgres   # upstream var IS DB_HOSTNAME (DB_HOST is silently ignored).
       DB_PORT: "5432"
       REDIS_HOSTNAME: immich-valkey
-      # HD-184: immich-ml runs on oldsrv — the container name is unresolvable from
-      # the VPS. SSOT-derived cross-host URL (WG S2S; key auth below, HD-160).
+      # immich-ml runs on oldsrv, so its container name is unresolvable from the VPS: an
+      # SSOT-derived cross-host URL over the WG S2S tunnel (key auth below).
       IMMICH_MACHINE_LEARNING_URL: "{{ immich_ml_url }}"
-      # HD-160: ML API-key auth — immich-ml validates this header so only immich-app can
-      # drive ML inference (fail-loud: missing item aborts render). Shared with immich-ml.
+      # ML API-key auth: immich-ml validates this header so only immich-app can drive ML
+      # inference (fail-loud: a missing item aborts the render). Shared with immich-ml.
       IMMICH_MACHINE_LEARNING_KEY: "{{ vault['immich-ml-internal_api'].credential | replace('$','$$') }}"
-      # (Immich originals + encoded-video -> live Hetzner Box CIFS via the Immich storage
-      # template, HD-135; thumbs/DB stay on local /data. MinIO/S3 retired — minio_login removed.)
+      # Originals + encoded-video live on the Hetzner Box CIFS mount, configured through the
+      # Immich storage template (a DB/UI setting, not compose env); thumbs/DB stay on /data.
 
-      # === OIDC via Authentik (HD-148) — NOTHING here, and the six vars that used to be had no effect ===
-      # ⛔ Immich v3 does not read a single `IMMICH_OAUTH_*` variable. Measured 2026-09-25 on the live
-      #   container (ghcr.io/immich-app/immich-server:v3.2.2): grep -rI 'IMMICH_OAUTH' over
-      #   /usr/src/app/server/dist + node_modules = 0 hits. The only env reader is
-      #   dist/repositories/config.repository.js getEnv(), a whitelist of BOOTSTRAP vars
-      #   (DB_*, IMMICH_MEDIA_LOCATION, IMMICH_LOG_LEVEL, IMMICH_CONFIG_FILE, IMMICH_WORKERS_*, …).
-      #   utils/config.js buildConfig() takes the settings partial from EITHER the DB row
-      #   system_metadata.key='system-config' (default) OR a file when IMMICH_CONFIG_FILE is set —
-      #   never from the environment — and services/server.service.js getFeatures() derives the
-      #   `oauth` feature flag (what the login page renders the button from) off THAT config.
-      #   This block was inert decoration: the container carried all six vars, was RECREATED (not
-      #   merely restarted), foto.kogler.si still showed only e-pošta/geslo, and the login page's own
-      #   /api/server/features answered "oauth": false. A comment is not a config — and neither is an
-      #   env var the program never reads (HD-147 foto leg; the same wrong conclusion had been
-      #   recorded once already as "oauth.enabled defaults false, so set IMMICH_OAUTH_ENABLED").
-      #   Settings are written by tasks/immich-seed.yml (PUT /api/admin/config) from the values in
-      #   roles/docker_services/defaults/main.yml (immich_oauth_*) + 1Password `immich_oidc`.
-      #   Acceptance is the BUTTON on the login page, then an OIDC login as `domen` — not this file.
+      # === OIDC: no env var here has any effect — Immich v3 reads no `IMMICH_OAUTH_*` (its env
+      # whitelist is BOOTSTRAP vars only). Settings live in the DB row
+      # system_metadata.key='system-config', written by tasks/immich-seed.yml from
+      # immich_oauth_* + the `immich_oidc` item. Acceptance is the OIDC button on the login page,
+      # then a real login — not this file. → docs/deployment-oidc.md §Immich native-OIDC note
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
       traefik.enable: "true"
       traefik.http.routers.immich.rule: "Host(`foto.kogler.si`)"
       traefik.http.routers.immich.entrypoints: websecure
       {{ 'traefik.http.routers.immich.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      # HD-148: native OIDC enabled (mobile OAuth). NOT behind Forward-Auth — replacing with
-      # crowdsec-only@file so the mobile app.immich:///oauth-callback OAuth isn't blocked by a
-      # browser-redirect SSO layer, while keeping WAF protection.
+      # Native OIDC (mobile OAuth), NOT behind Forward-Auth: the mobile OAuth callback must not
+      # cross a browser-redirect SSO layer, so this router uses crowdsec-only@file + WAF.
       traefik.http.routers.immich.middlewares: crowdsec-only@file
       traefik.http.services.immich.loadbalancer.server.port: "2283"
     depends_on:
