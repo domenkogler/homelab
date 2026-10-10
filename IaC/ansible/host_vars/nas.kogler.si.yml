@@ -3,7 +3,7 @@
 ansible_host: 10.10.1.10           # VLAN 10 (Home) — static (Cockpit/NFS/NUT master)
 # Physical uplink NIC for the network role netd units (systemd-networkd):
 # eno1 = HP MicroServer Gen8 onboard NIC #1 -> CRS328 ether10 (SSOT switch_port_map nas-eno1).
-# Port model (HD-310): Home (10) untagged + Mgmt (99) tagged on this NIC.
+# Port model: Home (10) untagged + Mgmt (99) tagged on this NIC.
 netd_phys_name: eno1
 mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native
 ilo_ip: 10.10.99.11                # iLO4 remote mgmt
@@ -13,33 +13,31 @@ nut_mode: master
 nut_driver: usbhid-ups
 nut_serial: auto                    # USB HID auto-detect (no serial/RS-485)
 shutdown_delay_seconds: 0           # power down immediately on critical
-# SMTP relay (HD-54/Option B): SMTP2Go — dedicated transactional relay for NUT
+# SMTP relay: SMTP2Go — dedicated transactional relay for NUT
 # power-loss email. Credentials: smtp_login (Login) in 1Password. Only the
 # master (nas) renders upssched-cmd that sends mail; clients keep the role default.
 # Host/port derive from the SMTP2Go connection SSOT in group_vars/all/ (smtp2go_*).
 nut_smtp_server: "{{ smtp2go_host }}:{{ smtp2go_port }}"
-# Wake-after-recharge (WoL, master-only): when mains returns and battery recharges
-# to >= 90%, nas sends a WoL magic packet to oldsrv (halted at 75% during the outage)
-# so it comes back automatically. oldsrv NIC enp0s31f6 supports WoL (wake-on g, live
-# verified 2026-09-09); BIOS S5 WoL setting is the remaining unknown (test will tell).
+# Wake-after-recharge (WoL, master-only): when mains returns and battery recharges to
+# >= 90%, nas sends a WoL magic packet to oldsrv so it comes back automatically. oldsrv
+# NIC enp0s31f6 supports WoL (wake-on g); BIOS S5 WoL setting is the remaining unknown.
 nut_wake_enabled: true
 nut_wake_charge: 80
 nut_wake_macs:
   oldsrv: "70:85:c2:2d:6f:04"
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
 
-# HD-361 — which vault item holds THIS host's Cockpit console password (roles/cockpit).
+# Which vault item holds THIS host's Cockpit console password (roles/cockpit).
 # Per-host on purpose: one shared item would give two management consoles the same password.
 # Value lives only in 1Password; the host gets a sha512 crypt hash in /etc/shadow.
 cockpit_maint_vault_item: nas-cockpit_login
 
 # ---------------------------------------------------------------------------
-# Samba family shares (D4/HD-131; roles/storage/tasks/samba.yml) — LOCAL tdbsam accounts.
+# Samba family shares (roles/storage/tasks/samba.yml) — LOCAL tdbsam accounts.
 # SSOT for "who can mount the NAS" is THIS list: a repo edit + one `--tags samba` converge,
-# no directory sync and no VPS in the auth path (the Authentik-as-LDAP design that used to
-# own this was retired 2026-10-07 — docs/storage-rejected.md + storage.md §Samba).
+# no directory sync and no VPS in the auth path — docs/storage-rejected.md, storage.md §Samba.
 #   * vault_item is a `*_item:` registry key on purpose, so scripts/check-vault-items.sh
-#     sees the dependency (CONVENTIONS §2 item-reference coverage; HD-244 lesson).
+#     sees the dependency (CONVENTIONS §2 item-reference coverage).
 #   * `shell` is pinned only for the service account; `domen` keeps whatever login shell
 #     the box already gives it, because that account also SSHes here (an interactive leg
 #     an ansible.builtin.user task must not silently take away).
@@ -50,7 +48,7 @@ cockpit_maint_vault_item: nas-cockpit_login
 storage_samba_users:
   - { name: domen,  vault_item: smb-domen_login }
   - { name: shared, vault_item: smb-shared_login, shell: /usr/sbin/nologin, drive: false }
-# The music share (the Lidarr root, HD-362) is mounted with the shared service account, so
+# The music share (the Lidarr root) is mounted with the shared service account, so
 # no personal credential is typed on a family laptop / relative's machine.
 storage_samba_music_valid_users: shared
 
