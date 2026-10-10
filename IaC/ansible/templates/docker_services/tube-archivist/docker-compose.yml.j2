@@ -1,4 +1,4 @@
-# tube-archivist docker-compose.yml — Personal YouTube archive (HD-362, oldsrv)
+# tube-archivist docker-compose.yml — Personal YouTube archive (oldsrv)
 #   "Own YouTube": headless yt-dlp wrapper that downloads channels/playlists/single
 #   videos (incl. subtitles + comments) on a schedule — NO Google account needed.
 #   https://github.com/tubearchivist/tubearchivist
@@ -12,14 +12,13 @@
 #   (homelable precedent). Requires HOST sysctl vm.max_map_count=262144 for ES
 #   (set by the docker_services role — see roles/docker_services/tasks/main.yml).
 #
-#   STORAGE: downloads in a NEW `bulk/media/tube` subdir on nas (SAME bulk/media
-#   dataset — hardlink-import stays valid; owner decision 2026-09-14).
-#
-#   AUTH: own browser login at first run (internal edge; no Forward-Auth). All vault
-#   lookups fail-closed; escape '$' (HD-270). Jellyfin plugin keys optional later.
+#   STORAGE: downloads live in a `bulk/media/tube` subdir on nas — the SAME bulk/media
+#   dataset, so hardlink-import stays valid.
+#   AUTH: own browser login at first run (internal edge; no Forward-Auth). All vault lookups
+#   fail-closed and escape '$'. Jellyfin plugin keys optional later.
 #
 #   VERSION PINS: app {{ tube_archivist_version }}, ES {{ tube_archivist_es_version }},
-#   redis 7-alpine (registry-verified 2026-09-14). ES/Redis carry no secrets.
+#   redis 7-alpine. ES/Redis carry no secrets.
 services:
   tube-archivist:
     image: bbilly1/tubearchivist:{{ tube_archivist_version }}
@@ -40,26 +39,24 @@ services:
       - archivist-redis
     environment:
       # Required env vars (upstream compose).
-      # ES_URL must be HTTPS: tubearchivist-es enables xpack.security and serves TLS
-      # (self-signed bundle baked into the image) — plaintext http:// is rejected with
-      # "received plaintext http traffic on an https channel" and TA never bootstraps
-      # (live 2026-09-14: ES was https, TA:ES_URL was http). TA 0.x bundles the CA/self-
-      # signed acceptance for the es container on the service overlay.
+      # ES_URL must be HTTPS: tubearchivist-es enables xpack.security and serves TLS (a
+      # self-signed bundle baked into the image); plaintext http:// is rejected with "received
+      # plaintext http traffic on an https channel" and TA never bootstraps. TA 0.x bundles the
+      # CA/self-signed acceptance for the es container on the service overlay.
       ES_URL: "https://archivist-es:9200"
       REDIS_CON: "redis://archivist-redis:6379"
       HOST_UID: "{{ storage_uid }}"
       HOST_GID: "{{ storage_gid }}"
       TA_HOST: "http://tube.kogler.si"     # hostname (internal-only)
-      # NOTE: these 1P values go through folded block scalars `>-` — never inline
-      # quotes (HD-233/HD-166 live lesson): a secret containing `\d`, `"`, `'`, `:`
-      # etc. breaks the quoted scalar and go-yaml aborts the compose config (live
-      # 2026-09-14: TA_PASSWORD held `\d` → "found unknown escape character").
+      # NOTE: these 1P values go through folded block scalars `>-`, never inline quotes: a
+      # secret containing `\d`, `"`, `'`, `:` breaks a quoted scalar and go-yaml aborts the
+      # compose config ("found unknown escape character").
       TA_USERNAME: >-
         {{ vault['tube-archivist_login'].username | replace('$','$$') }}
       TA_PASSWORD: >-
         {{ vault['tube-archivist_login'].credential | replace('$','$$') }}
-      # ES 'elastic' superuser password — the SAME value the archivist-es container
-      # gets as ELASTIC_PASSWORD (TA fails its env-check without it; HD-362 live).
+      # ES 'elastic' superuser password — the SAME value the archivist-es container gets as
+      # ELASTIC_PASSWORD (TA fails its env-check without it).
       ELASTIC_PASSWORD: >-
         {{ vault['tube-archivist-es'].password | replace('$','$$') }}
       # tubearchivist-es serves TLS with its self-signed bundled CA (http_ca.crt);
@@ -88,8 +85,8 @@ services:
       - services-internal
     environment:
       ES_JAVA_OPTS: "-Xms512m -Xmx512m"    # keep ES heap modest on oldsrv (48 GB RAM)
-      # Same bootstrap password the TA app uses (ELASTIC_PASSWORD) — the tubearchivist-es
-      # image enables ES security and expects this as the 'elastic' password (HD-362).
+      # The same bootstrap password the TA app uses (ELASTIC_PASSWORD): the tubearchivist-es
+      # image enables ES security and expects it as the 'elastic' password.
       ELASTIC_PASSWORD: >-
         {{ vault['tube-archivist-es'].password | replace('$','$$') }}
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
