@@ -2,28 +2,27 @@
 # Spark (DGX GB10) — NVIDIA ThinkStation PGX node.
 # Headless AI inference tier (LLM serving + embeddings/rerank/STT/TTS plan). See
 # docs/hardware-spark.md (role + bench plan) + spark/ (standalone reference stack).
-# Not yet provisioned: DGX OS install + first-key touch pending (HD-335/HD-337/HD-359).
 
-ansible_host: "{{ spark_home_ip }}"     # VLAN 10 (Home) — SSH + inference endpoint (SSOT-derived, HD-359)
+ansible_host: "{{ spark_home_ip }}"     # VLAN 10 (Home) — SSH + inference endpoint (SSOT-derived)
 mgmt_ip: "{{ spark_mgmt_ip }}"          # VLAN 99 (Management) — SSOT-derived; static reservation
 ansible_user: ansible-admin         # provisioned on first touch (no preseed — DGX OS; see deployment-manual spark section)
 homelab_mode: headless
-# HD-364: headless contract enforced at converge (sleep masks + multi-user default.target).
+# Headless contract is enforced at converge: sleep masks + multi-user default.target.
 # Group-var default is true; set false explicitly to keep the DGX graphical desktop.
 spark_headless: true
 
-# ══ THE LLM CONFIG DIAL (HD-469) ═════════════════════════════════════════
+# ══ THE LLM CONFIG DIAL ══════════════════════════════════════════════════
 # One var + one converge = a different engine config behind the SAME endpoint
 # (llm.kogler.si), the SAME served id (spark/qwen3.8-flash-next) and the SAME
 # bearer key. Valid names + every value each one renders: group_vars/spark.yml
 # §LLM SERVING PROFILES; gate + evidence: docs/hardware-spark.md §LLM serving
 # profiles; test loop: spark/llm-profiles/README.md.
-#   reasoning     = live certified B1 (AWQ W4A16 + PLE INT4 + MTP3)             ← today
-#   graded        = same weights, fp8 KV (~1.7× slots) — BLOCKED ON THE IMAGE PIN,
-#                   needs the engine-pin lane (todo.md HD-473) + a re-cert, NOT a flip
-#   fast          = NVFP4 weights, bf16 KV (1.35 × 262k) — UNCERTIFIED, never benched here
-#   fast-sglang   = second engine (SGLang) — blocked: no image pin AND its measured
-#                   single-Spark pool cannot hold the 262,144 window we serve
+#   reasoning     = certified B1 (AWQ W4A16 + PLE INT4 + MTP3)
+#   graded        = same weights, fp8 KV (~1.7× slots) — needs an engine image pin and a
+#                   re-cert before it is servable, NOT a flip of this var
+#   fast          = NVFP4 weights, bf16 KV (1.35 × 262k) — UNCERTIFIED, no bench result here
+#   fast-sglang   = second engine (SGLang) — unusable here: no image pin AND a single-Spark
+#                   pool cannot hold the 262,144 window we serve
 # Uncertified profiles need `spark_llm_allow_uncertified: true` alongside this.
 # Flipping is NOT free: ~20 min boot (converge DETACHED), and the CLIENT window in
 # scripts/pi-config/models-spec.yml must be set to the profile's client_context_window.
@@ -32,10 +31,9 @@ spark_llm_allow_uncertified: false
 # Big artifact downloads stay explicit: --tags spark-artifacts with
 # -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
 # ════════════════════════════════════════════════════════════════════════
-# AI stack is NOT yet enabled — benches + winner-engine promotion are deploy-gated (HD-359).
+# AI stack is NOT enabled: benches + winner-engine promotion are deploy-gated.
 # spark.enabled flips to true in group_vars/home_servers.yml after bench certification.
-# spark_partition_enable — operator-set true AFTER first-boot inspection (2026-09-14:
-# p2 SHRUNK to 450G root; p3 = ~503G free-space carve; role auto-computes p3 start
-# 944769024 = end-of-p2+1, verified live). HD-363: p2 is the LIVE ROOT — the role's
-# HARD REFUSE guard protects it; XFS data goes on p3.
+# spark_partition_enable — operator-set true AFTER first-boot inspection.
+# p2 is the live root: the role's HARD REFUSE guard protects it, so XFS data goes on p3
+# (p3 start is auto-computed as end-of-p2 + 1; do not hardcode it).
 spark_partition_enable: true
