@@ -3,11 +3,11 @@ title: Hardware Overview
 role: index
 domain: hardware
 status: active
-tags: [hardware, phases]
+tags: [hardware]
 ---
 # Hardware Overview
 
-> **Role:** Index — the hardware domain hub. Machine roster, phase strategy, and links to each `hardware-*.md` stack doc.
+> **Role:** Index — the hardware domain hub. Machine roster, the inference-tiering strategy, and links to each `hardware-*.md` stack doc.
 > **Links to:** `hardware-oldsrv.md`, `hardware-gpu.md`, `hardware-nas.md`, `hardware-ups.md`, `hardware-spark.md`
 > **Linked from:** `index.md`
 
@@ -54,7 +54,7 @@ oldsrv (desk)
 nas (rack) — Debian 13, ZFS
 ├── Boot: Crucial MX300 525 GB SSD (no image backup — pools are self-describing)
 ├── ZFS pool "tank" (mirror) — HGST 4TB + Seagate IronWolf Pro 4TB — user data, BACKED UP
-│   └── data/{immich, documents, services, db-dumps}
+│   └── data/{services, db-dumps}
 ├── ZFS pool "bulk" (RAIDZ2) — SilverStone via miniSAS — MIXED role
 │   ├── media/                active *arr library + downloads (hardlinks, NOT backed up)
 │   ├── data/                 syncoid replicas of tank/data/* (hourly)
@@ -97,3 +97,4 @@ nas (rack) — Debian 13, ZFS
 - [PowerWalker VFI ICT/ICR IoT 3000 (UPS)](hardware-ups.md)
 - [spark — NVIDIA GB10 vLLM node](hardware-spark.md)
 - [workstation — admin laptop as client-side inference tier](hardware-workstation.md)
+- [Hardware Rejected / Dropped (decision log)](hardware-rejected.md)

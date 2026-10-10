@@ -81,6 +81,7 @@ docs/
 ├── network-ops.md                         Router config storage & versioning
 │
 ├── hardware.md                            Index: phases, all machines, links to hardware-*.md
+├── hardware-rejected.md                  Append-only hardware decision log
 ├── hardware-oldsrv.md                    i7-7700K internal/GPU/LAN host (GPU + media + DNS + HA standby)
 ├── hardware-gpu.md                        Shared GPU resource (cross-cutting)
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)

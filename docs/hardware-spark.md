@@ -8,7 +8,7 @@ tags: [hardware, gpu, spark, gb10, grace-blackwell, ai]
 # spark — Lenovo ThinkStation PGX (NVIDIA GB10 Grace Blackwell)
 
 > **Role:** Detail — the headless AI inference node (`spark.kogler.si`): the homelab's big-model generation
-> tier. It replaced the planned Phase-2 Ryzen/Proxmox build
+> tier. It is the machine that took the place of the planned Ryzen/Proxmox build
 > ([deployment-rejected.md](deployment-rejected.md)).
 > **Links to:** `hardware-gpu.md`, `services-ai.md`, `hardware-workstation.md`, `network-vlans.md`
 > **Linked from:** `hardware.md`, `index.md`, `services-ai.md`
@@ -961,4 +961,4 @@ tree is the reference implementation.
 | Spark benchmark + engine bench plan | [`../spark/BENCHMARK-PLAN.md`](../spark/BENCHMARK-PLAN.md) |
 | **Unified-memory budget / GPU×host memory sizing** | this doc §Unified-memory budget & OOM governance |
 | **OOM / engine-restart incidents (append-only)** | [`spark-incidents.md`](spark-incidents.md) |
-| Old superseded Phase-2 build | decision log [`deployment-rejected.md`](deployment-rejected.md) |
+| The Ryzen/Proxmox build it replaced | decision log [`deployment-rejected.md`](deployment-rejected.md) |
