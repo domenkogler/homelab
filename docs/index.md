@@ -33,7 +33,6 @@ tags: [index, dispatcher, ai]
 | **Triage a candidate service / check past rejections** | [`services-review.md`](services-review.md) + [`services-rejected.md`](services-rejected.md) | `services.md`, `CONVENTIONS.md` §8.3 |
 | **Triage a storage candidate / check past rejections** | [`storage-review.md`](storage-review.md) + [`storage-rejected.md`](storage-rejected.md) | `storage.md`, `CONVENTIONS.md` §8.3 |
 | **Provision Authentik OIDC clients (Blueprint + glue)** | [`deployment-oidc.md`](deployment-oidc.md) | `services-authentik.md`, `deployment-secrets.md`, `deployment-compose.md`, `deployment-ansible.md`, `security.md` |
-| **Backlog / open decisions** | [`todo.md`](../todo.md) | — |
 | **Cross-cutting conventions / onboarding a service** | [`CONVENTIONS.md`](../CONVENTIONS.md) | owning docs (`deployment-*.md`, `network-*.md`, `services.md`) |
 | **Find a script / validation gate / renderer** | [`../scripts/README.md`](../scripts/README.md) | `CONVENTIONS.md` §8, [`validate-all.sh`](../scripts/validate-all.sh) |
 | **Understand personal finance / budgeting** | [`services-finance.md`](services-finance.md) | `services.md`, `services-office.md`, `deployment-compose.md` |
@@ -41,14 +40,14 @@ tags: [index, dispatcher, ai]
 | **Network / rack topology dashboard (Homelable)** | [`services-admin.md`](services-admin.md) §Homelable | `observability.md` (§Network Clients Dashboard), `network-rack.md`, `deployment-compose.md`, `deployment-secrets.md` |
 | **Music pillar** | [`services-media.md`](services-media.md) §Music Pillar | `deployment-secrets.md` (lidarr_api, slskd_login, lastfm/metabrainz, tube_archivist_*, lidarr-url-dl_login) · `deployment-manual.md` §oldsrv first-boot follow-ups · `services-downloads.md` §VPN |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
-| **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md`, `../todo.md` |
-| **Switch / certify a spark LLM config (reasoning · graded · fast · fast-sglang)** | [`spark-llm-profiles.md`](spark-llm-profiles.md) | `hardware-spark.md` (pool budget), `pi-harness.md` (measured reasoning surface), `../spark/llm-profiles/README.md` (certify gate), `../todo.md` |
+| **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md` |
+| **Switch / certify a spark LLM config (reasoning · graded · fast · fast-sglang)** | [`spark-llm-profiles.md`](spark-llm-profiles.md) | `hardware-spark.md` (pool budget), `pi-harness.md` (measured reasoning surface), `../spark/llm-profiles/README.md` (certify gate) |
 | **Measure spark LLM speed (throughput · TTFT · power) or run a profile leg** | [`../spark/bench/run-scenario.sh`](../spark/bench/run-scenario.sh) — **the** timed instrument; it lives outside `scripts/`, so a brief that searches only `scripts/` will miss it | `../spark/llm-profiles/README.md` (the gate ladder it feeds), `../spark/bench/vm-window.sh` + `observability.md` §Scrape cadence (what VictoriaMetrics keeps, at what resolution, and what it cannot attribute), `hardware-spark.md` §Unified-memory budget, `deployment-ai-stack-secrets.md` (the bearer-scrub rule this harness carries) |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook), `hardware-gpu.md` |
 | **Triage an AI-plane candidate / check past rejections (RAG, memory, gateways, harnesses)** | [`services-ai-rejected.md`](services-ai-rejected.md) — append-only decision log | `services-ai.md`, `services-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Check a past observability / alerting rejection (where a signal is taken from, what will not be instrumented)** | [`observability-rejected.md`](observability-rejected.md) — append-only decision log | `observability.md`, `services-ai-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Decide where an AI leg runs (generation vs client-side FIM/vision vs pinned services)** | [`hardware-workstation.md`](hardware-workstation.md) (client-side tier) + [`services-ai.md`](services-ai.md) §9 decision #28 | `hardware-spark.md` (text-only engine), `hardware-gpu.md` (8 GiB ledger), `pi-harness.md` |
-| **Size / pick an AI inference engine or device on oldsrv (STT, rerank, VRAM budget)** | [`services-ai-bench.md`](services-ai-bench.md) — measured numbers, not arithmetic | `services-ai.md` (§3a plan of record + §9 #24/#25/#27 + §9c), `hardware-gpu.md`, `smart-home-voice.md`, `../todo.md` |
+| **Size / pick an AI inference engine or device on oldsrv (STT, rerank, VRAM budget)** | [`services-ai-bench.md`](services-ai-bench.md) — measured numbers, not arithmetic | `services-ai.md` (§3a plan of record + §9 #24/#25/#27 + §9c), `hardware-gpu.md`, `smart-home-voice.md` |
 | **Live MS Office via Open WebUI (Word/Excel/PPT)** | [`services-office.md`](services-office.md) | `services-ai.md`, [`client/office-bridge/`](../client/office-bridge/) |
 | **HA failover / high availability** | [`smart-home-failover.md`](smart-home-failover.md) | `smart-home.md`, `network-dns.md`, `deployment-ansible.md` |
 | **Current HA instance — live inventory** | [`home-assistant-current.md`](home-assistant-current.md) | `smart-home.md`, `smart-home-failover.md` |
@@ -86,7 +85,7 @@ docs/
 ├── hardware-gpu.md                        Shared GPU resource (cross-cutting)
 ├── hardware-nas.md                       HP MicroServer Gen8 ZFS storage (+ external SilverStone case)
 ├── hardware-ups.md                       PowerWalker VFI ICT/ICR IoT 3000 (UPS) — links, Modbus TCP, NUT status
-├── hardware-spark.md                       NVIDIA GB10 vLLM inference node (spark.kogler.si) — the current inference tier (Ryzen/R9700 build archived in `hardware-rejected.md` + git)
+├── hardware-spark.md                       NVIDIA GB10 vLLM inference node (spark.kogler.si) — the current inference tier (Ryzen/R9700 build archived in `deployment-rejected.md` + git)
 ├── spark-llm-profiles.md                  One-var LLM config switching (`spark_llm_profile`): profile catalogue, KV/quant math, what the gate refuses, client-contract split
 ├── hardware-workstation.md               Admin laptop (Strix Point) = client-side inference tier: FIM autocomplete + visual judgment; NPU out
 ├── spark-incidents.md                       spark OOM / engine-restart incident log (append-only; knowledge = hardware-spark.md §Unified-memory budget)
@@ -128,7 +127,6 @@ docs/
 ├── interfaces.md                          Dashboard + management interface matrix
 ├── services-inventory-generated.md        Service inventory (generated from group_vars docker_services; never hand-edited)
 │
-├── todo.md                              Planned work + open decisions backlog (single source)
 ├── CONVENTIONS.md                        Cross-cutting rules index + service-onboarding checklist (repo root)
 │
 ├── smart-home.md                          Index: HA, devices, architecture, links to smart-home-*.md
