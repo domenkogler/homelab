@@ -25,8 +25,8 @@ tags: [smart-home, rejected, decision-log]
 | Automatic failover/failback supervision                  | rejected     | Manual only: no false negatives, no split-brain        |
 | Bose & Denon (HEOS) audio                                | rejected     | Cloud dependency; Bose dropped old-model support       |
 | HA LLM leg shape (vendor component / wait / relax #24)   | superseded   | Core ships a stock litellm conversation integration    |
-| HA recorder database on a remote Postgres                | rejected     | HA history would depend on a remote host               |
 | HAOS box as the HA host                                  | superseded   | HA primary runs on the Pi                              |
+| HA recorder database on a remote Postgres                | rejected     | HA history would depend on a remote host               |
 | HmIP-RFUSB stick (local Homematic)                       | rejected     | HAP cloud stays; IP-only failover, no RaspberryMatic   |
 | JBL Authentics audio                                     | rejected     | Look does not fit; needs a separate floor subwoofer    |
 | Minisforum MS-A2 as a voice/AI processor                 | rejected     | Central LLM on the oldsrv GPU avoids a second device   |

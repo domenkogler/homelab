@@ -24,7 +24,6 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 
 | Subject | Status | Why |
 |---------|--------|-----|
-| A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
 | `agent-gemma-26b` / `agent-unified*` laptop arms | superseded | Agent leg retired: cold prefill, minutes per turn |
 | `agentmemory` central instance as briefed | rejected | Loopback REST, one shared bearer, no per-user isolation |
 | `agentmemory` LLM compression (consolidation, graph extraction) | rejected | Drops every identifier: retrieval-key 0/5 |
@@ -32,20 +31,23 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `ar-dv` (AR-hybrid + draft-vocab slice) | rejected | Slice lowers MTP acceptance 54.7 to 36.8 %, slows decode |
 | `ar-mmap` (AR-hybrid + FP8 PLE mmap) | rejected | Control arm, on par with tier-1, not a candidate |
 | `awq-mmap` / B10 (AWQ on the winner's machinery) | dropped | Owner certified the AR-hybrid winner instead |
+| A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
 | Bigger window or smaller quant to reopen the agent leg | rejected | The wall is cold prefill, not the carve or context |
 | Coding harnesses behind the LAN LiteLLM hop | rejected | Decision #26 puts harnesses direct on the spark name edge |
 | Coding-seat surfaces in a container | rejected | Would mount the whole watched home tree: theatre |
+| `context-mode` laptop seat entry | dropped | Per-machine install, not a fleet key |
 | Copying a laptop settings.json to a seat | rejected | Settings have no renderer; pi-harness §5 is the source |
 | CrewAI pilot | dropped | Parked until one real multi-agent epic mishandles a lane |
 | Cross-encoder rerank computed from `/api/embed` embeddings | rejected | A cross-encoder cannot be rebuilt from two embeddings |
 | Dedicated exporter or scrape target for the pinned AI legs | dropped | Alloy host metrics plus `amdgpu` sysfs counters cover them |
-| Docling `/tmp:exec` | rejected | Makes a `read_only` container's tmpfs writable plus executable |
+| `defaultThinkingLevel: off` on the harness | superseded | Thinking on from the first turn (high) |
 | Docling `do_ocr=false` on scans | rejected | A scanner's own text layer carries no diacritics |
 | Docling `HF_HOME` repoint | rejected | `artifacts_path` is set: the served path never downloads |
 | Docling on the RX 7600 | rejected | Accelerator set has no Vulkan/ROCm; CPU only |
 | Docling tesseract for Slovenian | rejected | The image ships only `eng` + `osd` traineddata |
-| `dsh` / `pi-dev` as `docker_services` entries | superseded | Dedicated deployments now; their routes answer 502 by design |
+| Docling `/tmp:exec` | rejected | Makes a `read_only` container's tmpfs writable plus executable |
 | `dsh_api` scoped consumer | rejected | Harnesses go direct (#26); the record is not restored |
+| `dsh` / `pi-dev` as `docker_services` entries | superseded | Dedicated deployments now; their routes answer 502 by design |
 | EasyOCR as the Docling OCR engine | rejected | 3.2–3.4× slower, with its own diacritic and merge defects |
 | External APIs as a proxy fallback | rejected | A harness-side fallback, never a gateway fallback |
 | `fallback/login` as the LiteLLM login path | rejected | `/ui/login` resolves on the pinned build |
@@ -65,23 +67,26 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Ollama as the primary embed engine | superseded | The llama.cpp Vulkan leg is the row; Ollama stays the fallback |
 | Ollama as the rerank host | rejected | No rerank API at any released version |
 | ONNX Runtime GPU on RDNA3 | rejected | ROCm/MIGraphX is Instinct-only (gfx942, gfx950) |
-| Open WebUI built-in RAG as the retrieval plane | rejected | The vector store stays independent of any UI shell |
 | `openai/` provider for the embed row | rejected | Forwards `encoding_format: null`; llama.cpp rejects null |
 | OpenViking as the corpus / knowledge index | rejected | 12/51 byte-identical; H1-slug directories, not reversible |
 | OpenViking as the memory plane | rejected | LLM-bound write path taxes the shared KV pool |
 | OpenViking deferred as 'Docker-only' | rejected | False: venv-native install in about 2 minutes |
+| Open WebUI built-in RAG as the retrieval plane | rejected | The vector store stays independent of any UI shell |
 | `os.environ/` references in DB `litellm_params` | rejected | Not expanded; the literal string reaches the engine |
 | Paseo coding seat on oldsrv | dropped | Parked; acceptance needs a hand on the phone |
 | PGVector as the vector store | superseded | Qdrant stands alone, hybrid dense + sparse |
 | Phase-2 Ryzen 9 9900X / R9700 build | superseded | spark (ThinkStation PGX / GB10) replaces it (#22) |
-| `pi` shim in `~/.local/bin` for the pi-web PATH | rejected | Node's bin dir must be on PATH, not a login-shell path |
 | `pi-agent/extensions/host-status.ts` seat-identity footer | superseded | `pi-open-tui` footer `hostname` segment is the single source |
-| `pi-web` behind gateway-auth | rejected | Phone-driven cockpit: no browser for an Authentik flow |
-| `pi-web` on a `tailscale0` address bind | rejected | Plain HTTP, no cert, unreachable from every other node |
 | `pi.kogler.si` as the oldsrv seat URL | rejected | That FQDN is the RPi4 node; hence the `-oldsrv` suffix |
 | Pinned legs on the flat `services-internal` network | rejected | The network is the boundary; LiteLLM alone reaches them |
+| `pi` shim in `~/.local/bin` for the pi-web PATH | rejected | Node's bin dir must be on PATH, not a login-shell path |
+| `pi-web` behind gateway-auth | rejected | Phone-driven cockpit: no browser for an Authentik flow |
+| `pi-web` on a `tailscale0` address bind | rejected | Plain HTTP, no cert, unreachable from every other node |
 | Raising the LiteLLM proxy log level to see dropped params | rejected | It logs token-bearing request bodies |
 | Reflex key rotation after a partial-value leak | rejected | The documented rotation procedure carries it |
+| `remote-bash.ts` seat extension | dropped | Windows-only sshpass/drive paths, never in repo |
+| Rendering `settings.json` from a spec vendor | rejected | A vendor would delete a seat's packages |
+| Retiring the WSL Debian pi seat | superseded | Seat retained and rarely used |
 | Routing-domain split for `.ts.kogler.si` names | rejected | Ruled out; the generated alias artifact is the remedy |
 | `spark/*` wildcard in a scoped-key allow-list | rejected | The named row is granted; a wildcard over-grants the engine |
 | TEI (text-embeddings-inference) on the RX 7600 | rejected | No RDNA3 path; a 7-step self-build, flash-attn dropped |
@@ -92,16 +97,11 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `v16b` (full upstream recipe) | rejected | Below ar-blk and memory-infeasible at C2L |
 | `v16b-pin` (`v16b-s4` + never-evict 0.03) | rejected | Pin neutral; recipe below ar-blk (MTP 19.3 %) |
 | `v16b-s4` (`v16b` at seqs=4) | rejected | Ran, but −17 % vs ar-blk: the draft-vocab drag |
-| Vision on spark | rejected | spark runs a text-only engine (#28) |
 | Vision-LLM leg on the RX 7600 | rejected | Vision is a workstation text cascade (#28) |
+| Vision on spark | rejected | spark runs a text-only engine (#28) |
 | `whisper.cpp` HIP/ROCm image for STT | rejected | No published ROCm artifact; self-build, no digest trail |
 | Workload discipline on sessions served by spark | rejected | The memory budget is the lever, not session policing |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
-| `context-mode` laptop seat entry | dropped | Per-machine install, not a fleet key |
-| `defaultThinkingLevel: off` on the harness | superseded | Thinking on from the first turn (high) |
-| `remote-bash.ts` seat extension | dropped | Windows-only sshpass/drive paths, never in repo |
-| Rendering `settings.json` from a spec vendor | rejected | A vendor would delete a seat's packages |
-| Retiring the WSL Debian pi seat | superseded | Seat retained and rarely used |
 
 ## What would reopen OV
 

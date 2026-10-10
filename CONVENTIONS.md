@@ -262,8 +262,12 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   3. **Stale**: if a `-review` entry is untouched for **30 days**, it must be promoted to `todo.md` or
      moved to `-rejected`. (Deliberate anti-`todo.md` guard: review must not become a second backlog.)
 - **`<domain>-rejected.md`** = *decision-log SSOT* (per domain, replaces the retired changelog
-  decision log). **Append-only** — never edit or reorder an entry, only add. Sorted by **service
-  name** (stable key for `git grep` / `git log -S`). Each entry:
+  decision log). **Append-only in content** — never rewrite or delete an entry's text; adding a row
+  is the only content change. The table is kept in **one sorted sequence by subject**, using the
+  canonical key: lowercase, non-alphanumerics dropped (so `` `--foo` `` sorts as `foo`, `/health …`
+  as `health`, `WSL `mirrored`` as `wslmirrored`). Appending and then re-sorting is expected — a
+  re-sort moves lines and changes no text, so it is not an edit (stable key for `git grep` /
+  `git log -S`). Each entry:
   `| <service> | <rejected|dropped|superseded> | <why, ≤ ~12 words> |` — a short fact: **no date, no
   evidence link, no prose paragraph** (the reasoning trail is git and the owning doc). When a
   decision changes, the old entry is left unchanged and a new one is appended (do **not** strike the

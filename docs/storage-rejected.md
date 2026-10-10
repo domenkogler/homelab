@@ -36,8 +36,8 @@ tags: [storage, rejected, decision-log]
 | Local tdbsam Samba accounts (`pdbedit`)                             | superseded | its first rejection is void, re-adopted as the design     |
 | Manual music ingest: copy plus a privileged `mv`                    | superseded | the `music` share writes the Lidarr root directly         |
 | MinIO                                                               | dropped    | Immich originals are Box CIFS; the Box is not S3          |
-| NAS ZFS snapshots as the family per-file version UI                 | superseded | OpenCloud native versions on the Box                      |
 | NAS-local `immich`/`documents` archive datasets                     | dropped    | the Box + Kopia is the recovery path                      |
+| NAS ZFS snapshots as the family per-file version UI                 | superseded | OpenCloud native versions on the Box                      |
 | Numeric uid/gid in `force user` / `valid users`                     | rejected   | Samba resolves by name; an id resolves to nothing         |
 | oldsrv `push-face-thumbs` unit                                      | dropped    | the thumb tree lives on the VPS                           |
 | oldsrv `push-services` unit (Forgejo/n8n state)                     | dropped    | those containers live on the VPS                          |

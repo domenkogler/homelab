@@ -22,10 +22,10 @@ tags: [observability, alerting, rejected, decision-log]
 | Subject                                         | Status     | Why                                              |
 |-------------------------------------------------|------------|--------------------------------------------------|
 | A durable log store on the Raspberry Pi         | rejected   | bounded buffer only; VictoriaLogs stores logs    |
-| A second `nut_exporter` per host                | rejected   | one exporter on the NUT master avoids redundancy |
 | Age-tiering / downsampling of stored metrics    | rejected   | absent from the VictoriaMetrics community binary |
-| Alerting on `probe_ssl_earliest_cert_expiry`    | dropped    | blackbox emits no SSL expiry series              |
 | Alerting on intentionally-empty state           | rejected   | unprovisioned links are not incident-worthy      |
+| Alerting on `probe_ssl_earliest_cert_expiry`    | dropped    | blackbox emits no SSL expiry series              |
+| A second `nut_exporter` per host                | rejected   | one exporter on the NUT master avoids redundancy |
 | Blanket 5 s scrape cadence for every series     | rejected   | 365 d cost; 50 panel series cover the need       |
 | Client list derived from router logs via Loki   | rejected   | brittle parsing; logs miss lease/ARP events      |
 | DCGM profiling (DCP) metrics on GB10            | rejected   | NVIDIA will not support DCGM on Spark            |

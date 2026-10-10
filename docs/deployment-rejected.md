@@ -32,11 +32,15 @@ tags: [deployment, rejected, decision-log]
 | `doco-cd_password` webhook HMAC                                                | superseded | single Ansible-only deploy path                                 |
 | DSH as LiteLLM consumer (`dsh_api`)                                            | rejected   | harness removed; parked, not re-minted                          |
 | `dsh`/`pi-dev` tailscale preauth keys                                          | dropped    | harnesses removed, rows `enabled: false`                        |
+| Edge 401 with the old bearer as containment test                               | rejected   | That host authenticates with the engine key                     |
 | Emergency root password on homelab hosts                                       | rejected   | key-only SSH; identical placeholder-hash risk                   |
 | Excluding `core.config_entries` from HA standby rsync                          | rejected   | standby loses the voice pipeline on failover                    |
+| Forgejo CI runner as `spark-llm_api` holder                                    | dropped    | No runner exists, origin is GitHub                              |
 | `gen_wg_key()` provisioner helper                                              | dropped    | unused; `wg genkey` is authoritative                            |
 | `git bundle` runner seeding                                                    | rejected   | plants a commit GitHub has never seen                           |
+| `git filter-repo` scrub of the leaked bearer                                   | dropped    | Rotated value inert, rewrite buys hygiene only                  |
 | gluetun `qm12` fork image                                                      | superseded | upstream `qmcgaw/gluetun` is current                            |
+| /health wait to prove a re-render                                              | rejected   | Engine answers 200 before recreation                            |
 | iDrive e2 S3 (`kopia-s3_api`)                                                  | superseded | Kopia targets the backup Box over SSH/SFTP                      |
 | Kogler IOT WAN SSID / VLAN 21                                                  | superseded | collapsed into Kogler IOT plus `wan_allow`                      |
 | Kogler Kids SSID                                                               | superseded | firewall MAC list on VLAN 10; the VLAN 40 definition remains    |
@@ -46,6 +50,7 @@ tags: [deployment, rejected, decision-log]
 | `Mitogen`                                                                      | rejected   | speedup gate never fired; bulk op pre-pass removed the cost     |
 | "oldsrv has NO write path at all" as a standing state                          | superseded | push by seat, pull by runner: a scoped write key exists         |
 | `oldsrv-rsync` runner key                                                      | superseded | shredded; no live grant accepts it                              |
+| One shared bearer for engine + gateway legs                                    | superseded | Gateway leg holds `litellm-engine_api`                          |
 | Parallel LiteLLM `bootstrap-keys`                                              | superseded | reverted; the `docker exec -i` probe cannot fan out             |
 | Persisted Authentik api-intent token (`authentik-provision_api`)               | superseded | ephemeral per-run token via `ak shell`                          |
 | Phase-2 build — AMD Ryzen 9 9900X + Radeon AI PRO R9700 + Proxmox VE (~€4,449) | superseded | spark GB10 gives more local inference per euro                  |
@@ -55,6 +60,7 @@ tags: [deployment, rejected, decision-log]
 | Proxmox role + VM lab                                                          | superseded | spark GB10 is a bare-metal node, no hypervisor                  |
 | raspi.debian.net Pi image                                                      | rejected   | rainbow screen on Pi 4; kernel/firmware mismatch                |
 | RouterOS REST API transport                                                    | rejected   | management speaks the binary API on tcp/8728                    |
+| Scoped/tag-limited converge to land a key                                      | rejected   | Reports green while skipping the service                        |
 | Second `Private` vault for the runner (`op_api` note)                          | superseded | one vault, one lookup credential                                |
 | `SLSKD_TOKEN` token option                                                     | superseded | slskd 0.26 removed it; use `SLSKD_PASSWORD`                     |
 | `soulseek_login` duplicate item                                                | superseded | merged into `slskd_login`; env names were the bug               |
@@ -72,12 +78,6 @@ tags: [deployment, rejected, decision-log]
 | WSL Bridged networking                                                         | superseded | NIC pin fails on WiFi/hotspot; NAT is durable                   |
 | WSL `mirrored` networking                                                      | rejected   | wedges ARP for the gateway, survives `wsl --shutdown`           |
 | `Yacht web UI`                                                                 | rejected   | extra VPS web surface, drifts from the Ansible compose model    |
-| /health wait to prove a re-render                                              | rejected   | Engine answers 200 before recreation                            |
-| Edge 401 with the old bearer as containment test                               | rejected   | That host authenticates with the engine key                     |
-| Forgejo CI runner as `spark-llm_api` holder                                    | dropped    | No runner exists, origin is GitHub                              |
-| `git filter-repo` scrub of the leaked bearer                                   | dropped    | Rotated value inert, rewrite buys hygiene only                  |
-| One shared bearer for engine + gateway legs                                    | superseded | Gateway leg holds `litellm-engine_api`                          |
-| Scoped/tag-limited converge to land a key                                      | rejected   | Reports green while skipping the service                        |
 
 > **Not a deployment-domain decision:** guest-network / storage / services rejections live in their own
 > `<domain>-rejected.md` files — see [`services-rejected.md`](services-rejected.md),

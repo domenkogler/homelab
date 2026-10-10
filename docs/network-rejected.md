@@ -17,7 +17,6 @@ tags: [network, rejected, decision-log]
 
 | Decision | Status     | Why                                                                                                                                    |
 | -------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `.pub` hint as `IdentityFile` on seats | superseded | No agent under Git-Bash; private halves on disk |
 | Advertised routes to user nodes, including a tailnet-routable VIP | rejected | User nodes get no routes; home subnets become reachable from any network |
 | Aggressive Home block-list tier (Hagezi multi+ / premium / PRO) | rejected | Answers the operator's own tailnet traffic, so false positives are self-inflicted |
 | Block lists on the IoT tier | rejected | Appliance firmware shares CDN ranges with ad endpoints; Quad9 upstream only |
@@ -30,12 +29,12 @@ tags: [network, rejected, decision-log]
 | Deblab 00:15:5D:01:67:1E | dropped | Hyper-V VM, deleted; the MAC left the inventory |
 | DFS channels on the CAPsMAN 5GHz band | rejected | Auto-selected DFS breaks association on many phones; 5GHz pins channel 36 |
 | DHCP pointed at the router /ip dns for LAN clients | rejected | A single global resolver cannot differentiate per-VLAN upstreams |
-| DNS primary on oldsrv | superseded | VPS is always-on and WAN-reachable, so resolution does not depend on home |
 | dns.nameservers.split for kogler.si over the tailnet | rejected | LAN answers away, unreachable, and a split domain is never retried |
 | dns.override_local_dns: true | rejected | Forces every device query through home: a DNS exit, not resolution |
+| DNS primary on oldsrv | superseded | VPS is always-on and WAN-reachable, so resolution does not depend on home |
 | Dozzle and CrowdSec UI published on the public edge | rejected | Puts container logs and the security console on the open internet |
-| Exit node on the router | rejected | RouterOS has no tailscaled; loses the app toggle |
 | Exit-node host moved from the Pi to oldsrv | rejected | Widens the tailnet boundary; the Pi throughput constraint stays accepted |
+| Exit node on the router | rejected | RouterOS has no tailscaled; loses the app toggle |
 | Fleet-wide logQueries on every DNS instance | rejected | Per-device behaviour record; only the Pi dst-nat target needs one |
 | Floating the host resolver address with the HA VIP | rejected | It replaces the first entry instead of adding a rung |
 | Full router.yml converge for mgmt-plane-sensitive changes | rejected | Re-asserting the bridge dropped VLAN-99 memberships and locked mgmt clients |
@@ -46,8 +45,8 @@ tags: [network, rejected, decision-log]
 | Headplane docker-socket integration | dropped | UI DNS editing needs a socket proxy first |
 | Home block lists (Hagezi multi + privacy) | superseded | Home and Guest load no list; this tier answers the operator's tailnet |
 | Home hosts joined to the tailnet for off-LAN admin | rejected | Widens the tailnet boundary; the Home leg through the VPS jump works |
-| Home node joined by interactive OIDC login | rejected | Node lands under the user and inherits `:*` |
 | Home→IoT new-connection gating via trusted-admin | superseded | Narrowed to trusted-ha: oldsrv plus ha-vip, nas excluded |
+| Home node joined by interactive OIDC login | rejected | Node lands under the user and inherits `:*` |
 | Hosts-file aliases as the answer mechanism | rejected | Overrides DNS per machine, reaches no device, hides a wrong zone answer |
 | Inbound v6 accept for tailscale punches | dropped | Phone sends nothing; the destination would get no packet |
 | Inbound v6 exception in chain=input | superseded | Host traffic is forwarded; input never sees it |
@@ -60,8 +59,8 @@ tags: [network, rejected, decision-log]
 | Laptop→Mgmt plane via ProxyJump pi | superseded | The Windows Mgmt99 vNIC reaches .99.x directly on-site |
 | LiteLLM on the flat traefik-public bridge | rejected | Keeps the key-holding spine off the public-route apps bridge |
 | mDNS reflection across VLANs (RouterOS repeater / Avahi) | rejected | Re-couples broadcast domains the VLAN plan separates; no integration needs it |
-| Mgmt VLAN 99 reachable over the VPS site-to-site tunnel | rejected | A compromised VPS would gain admin-plane reach toward router, switch, oldsrv |
 | Mgmt-access plus single-VLAN port model | superseded | Dual-home instead: untagged access VLAN, tagged Mgmt 99, same port |
+| Mgmt VLAN 99 reachable over the VPS site-to-site tunnel | rejected | A compromised VPS would gain admin-plane reach toward router, switch, oldsrv |
 | n8n firmware workflow: temporary iot-wan-allow toggles | superseded | The per-device wan_allow flag already gives cloud-IoT permanent WAN |
 | NAS as a third tailnet node | rejected | Scope stays the two home nodes; owner decision |
 | Netplan | rejected | Ubuntu default plus an extra python3/libnetplan layer; NM for Debian hosts |
@@ -79,6 +78,7 @@ tags: [network, rejected, decision-log]
 | Plain `ha.kogler.si` as a MagicDNS extra_record | rejected | A tailnet-enabled phone at home bypasses the VIP |
 | Plain systemd-networkd `[WireGuardPeer]` on the VPS | superseded | networkd 257 silently never applies the peer block |
 | Port-based tailnet sidecar on fixed ports 8080-8085 | superseded | The traefik-tailnet edge serves subdomains on 443 with wildcard certs |
+| `.pub` hint as `IdentityFile` on seats | superseded | No agent under Git-Bash; private halves on disk |
 | Public/VPS third rung in a home host resolver pair | rejected | It answers NXDOMAIN for these names: worse than a timeout |
 | RecursionNetworkACL as the only recursion gate | rejected | The network-level gate is authoritative; the ACL alone does not enforce |
 | Remote desktop over the relayed tailnet path | dropped | Relayed 70–240 ms; a direct session is required first |
