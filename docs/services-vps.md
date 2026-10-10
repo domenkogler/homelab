@@ -15,7 +15,7 @@ tags: [services, vps, netcup]
 > (public Traefik + CrowdSec + Authentik + public apps terminate TLS on the VPS over WG S2S →
 > oldsrv backends); the rest of this doc is the implementation spec for what ships there.
 >
-> **Live** (Phase 1): all enabled services deployed behind real LE TLS
+> **Live**: all enabled services deployed behind real LE TLS
 > (wildcard `*.kogler.si`). Only the WG S2S tunnel stays ⏳ deploy-gated.
 
 ### netcup edge firewall (SCP-verified)
@@ -78,11 +78,8 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 
 ```
                          INTERNET
-                            │
-                    ┌───────▼────────┐
-                    │   Cloudflare   │ DDoS, geo-blocking (optional)
-                    └───────┬────────┘
-                            │ :443
+                            │ :443   Cloudflare is DNS-only for kogler.si — the records
+                            │        answer with this VPS address, no proxy in front
                     ┌───────▼────────┐
                     │    Traefik     │ Reverse proxy, auto-SSL, Forward Auth
                     │  + CrowdSec    │ Brute-force protection
@@ -107,9 +104,12 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 
 ## Security Hardening
 
-### Layer 1: Cloudflare (TBD)
-- Proxy (orange cloud) hides real VPS IP, WAF geo-blocking, DDoS absorption
-- Alternative: direct exposure with Traefik + CrowdSec only
+### Layer 1: Edge exposure — direct, Cloudflare is DNS-only
+- `kogler.si` resolves straight to the VPS address: Cloudflare is **DNS-only** here, no proxy (orange
+  cloud) in front — CrowdSec bans on the real client IP, which a proxy would replace with its own
+  ([`services-rejected.md`](services-rejected.md) row *Cloudflare proxy (orange cloud)*).
+- So the filtering is host-side: Traefik headers (§Layer 2), CrowdSec bans (§Layer 3), the nftables
+  input chain (§VPS-Specific Firewall). No CDN / DDoS-absorption layer sits in front of this box.
 
 ### Layer 2: Traefik Security Headers
 (See [`services-traefik.md`](services-traefik.md))
@@ -136,9 +136,10 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 
 - Immich app server + database on VPS
 - Raw photos on Hetzner Storage Box (CIFS)
-- **Machine learning offloaded to home server GPU** via Immich remote ML feature
-- Phase 1: targets oldsrv immich-ml container (RX 7600)
-- Phase 2: targets **spark** (ThinkStation PGX / GB10 — [`hardware-spark.md`](hardware-spark.md))
+- **Machine learning runs on oldsrv**: the `immich-ml` container on the RX 7600, dialed cross-host
+  from the VPS over the WG S2S tunnel (`immich_ml_url` → `oldsrv_home_ip`). It is **not** a spark
+  workload — spark holds the generation tier only
+  ([`hardware-spark.md`](hardware-spark.md) §Current role in the AI tier)
 
 ---
 

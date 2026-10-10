@@ -349,11 +349,12 @@ it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seq
 > fabricates a spurious 2,663 MiB/h "growth". It carries a self-test (8 cases: flat, +3 GiB/h leak,
 > two-pid artifact, empty, too-short, bounded fill, fill-then-still-climbing, recovered spike) and exits
 > non-zero when the gate fails or the window is too small to decide — an empty read never prints a pass.
-> **The current regime's curve:** one bounded fill step (94,023 → 99,649 MiB, +5,626 MiB), then flat —
-> a bounded fill, not a leak. The plateau sits **+6,558 MiB above the watchdog's committed 93,091 MiB
-> baseline and 1,634 MiB under the recycle trigger (101,283 MiB)** — which tightens the
-> recycle-silence assumption and feeds the ceiling re-derive; it is not a gate-7 verdict, which needs
-> the full window
+> **The current regime's curve:** one bounded fill step (94,023 → 99,649 MiB, +5,626 MiB), then flat,
+> host usable floor **11.73 GiB** across the read — below the watchdog's 12 GiB WARN band, so the fill
+> costs host margin as well as pool. A bounded fill, not a leak. The plateau sits **+6,558 MiB above
+> the watchdog's committed 93,091 MiB baseline and 1,634 MiB under the recycle trigger (101,283 MiB)**,
+> which tightens the recycle-silence assumption and feeds the ceiling re-derive; it is not a gate-7
+> verdict, which needs the full window
 > ([`spark/reports/hd489-gate7-partial-20261006/RESULTS.md`](../spark/reports/hd489-gate7-partial-20261006/RESULTS.md)).
 
 ### Boot-floor numbers (the baselines future curves compare against)
