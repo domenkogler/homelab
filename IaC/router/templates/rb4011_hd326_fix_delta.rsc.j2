@@ -1,44 +1,39 @@
-{#- RB4011 — HD-326/HD-312 live apply DELTA (2026-09-08).
-    Purpose: converge the live router's firewall to SSOT for the HD-326 per-MAC
-    kids controls + HD-312/325 cloud-IoT WAN egress, without a full converge import.
+{#- RB4011 — per-MAC kids controls + cloud-IoT WAN egress live-apply DELTA.
+    Purpose: converge the live router's firewall to SSOT for the per-MAC kids
+    controls and the cloud-IoT WAN egress, without a full converge import.
 
-    Live state found 2026-09-08 (before this delta):
-      FORWARD chain tail (rules ~44-61) appended AFTER the Home->WAN accept (13)
-      and the Default deny (29) — so the HD-326 bedtime/DoT drops, the
-      iot-wan-allow accepts, and the HD-342 DoT drops were ALL placed BELOW the
-      Home->WAN accept / IoT->WAN drop that already permits egress → first-match
-      wins → the per-MAC machinery was INERT (cloud-IoT WAN still blocked; kids
-      bedtime/DoT not enforced).
-      Also: 4 duplicate HD-326 bedtime WAN-drop rules + 2 duplicate HD-342
-      DoT-drop rules (from double imports, 2026-09-07), and the HD-326
-      tablet-valentina filtered-DNS NAT was MISSING (only tablet-ipad present).
+    The failure this fixes: rules appended at the END of the forward chain sit
+    BELOW the Home->WAN accept and the Default deny, so first-match-wins makes the
+    per-MAC machinery INERT — cloud-IoT WAN stays blocked, kids bedtime/DoT drops
+    never fire. Double imports also stack duplicate rows, and a NAT row rendered
+    for only part of the kids set leaves one device unfiltered.
 
     This delta (idempotent, comment-driven, safe to re-import):
-      A) REMOVE every HD-326 per-MAC filter rule + every iot-wan-allow accept +
-         the HD-342 DoT drops (all re-added below at the correct position).
+      A) REMOVE every kids filter rule + every iot-wan-allow accept + the IoT DoT
+         drops (all re-added below at the correct position).
       B) ADD the cloud-IoT iot-wan-allow accepts ABOVE the IoT->WAN drop, in SSOT
          order (cursor-based move — each rule placed before the previous one).
-      C) ADD the HD-326 kids DoT + bedtime drops ABOVE the Home->WAN accept, in
-         SSOT order per device (DoT then bedtime, tablet-valentina then ipad).
-      D) ADD the HD-342 DoT drops (one tcp + one udp) above the Default deny.
-      E) NAT: ensure per-MAC kids filtered DNS (udp+tcp) for BOTH kids devices —
-         the live device only had the iPad; add tablet-valentina (idempotent).
+      C) ADD the kids DoT + bedtime drops ABOVE the Home->WAN accept, in SSOT order
+         per device (DoT then bedtime).
+      D) ADD the IoT DoT drops (one tcp + one udp) above the Default deny.
+      E) NAT: ensure per-MAC kids filtered DNS (udp+tcp) for EVERY row with
+         `kids: true`.
 
     Apply: /import rb4011_hd326_fix_delta.rsc  (via scripts/routeros-apply-delta.sh)
-    Fold-back: the SSOT converge template rb4011_converge.rsc.j2 now carries the
-    full set + order (2026-09-08); this delta is TRANSIENT and is deleted once the
-    converge import is the live state (network-ops.md 3-tier).
+    Fold-back: the SSOT converge template rb4011_converge.rsc.j2 carries the full set
+    + order; this delta is TRANSIENT and is deleted once the converge import is the
+    live state (network-ops.md 3-tier).
 -#}
 # =============================================================================
-# RB4011 — HD-326 kids + HD-312/325 cloud-IoT WAN live-apply DELTA (2026-09-08)
+# RB4011 — kids controls + cloud-IoT WAN live-apply DELTA
 # =============================================================================
 :log warning "rb4011_hd326_fix_delta.rsc: start"
 
-# ---- A. REMOVE all HD-326 + iot-wan-allow + HD-342-DoT tail rules (re-add below) ----
-# The live device has these as double-import residue at the END of the forward
-# chain (BELOW the Default deny) — remove every copy, then the fresh set is
-# re-created at the correct positions in B/C/D. Also remove the duplicate NAT
-# rows are handled idempotently in E (guarded). Comment-driver: safe to re-import.
+# ---- A. REMOVE all kids + iot-wan-allow + IoT-DoT tail rules (re-add below) ----
+# A double import leaves these at the END of the forward chain (BELOW the Default
+# deny) — remove every copy, then the fresh set is re-created at the correct
+# positions in B/C/D. The NAT rows are handled idempotently in E. Comment-driven,
+# so a re-import is safe.
 /ip firewall filter remove [find where comment~"HD-326 kids DoT-bypass drop"]
 /ip firewall filter remove [find where comment~"HD-326 kids bedtime WAN drop"]
 /ip firewall filter remove [find where comment~"IoT cloud device -> WAN allowed via iot-wan-allow"]
@@ -57,7 +52,7 @@
 # advancing $prev to the just-placed rule — so the SSOT order is preserved with
 # the FIRST wan_allow device highest and the IoT->WAN drop immediately after the LAST.
 
-# ---- C. HD-326 kids controls ABOVE the Home->WAN accept ----
+# ---- C. Kids controls ABOVE the Home->WAN accept ----
 :local homeWan [/ip firewall filter find where chain=forward and comment="Home -> WAN allowed (HD-309 row 73)"]
 :if ($homeWan = "") do={ :error "HD-326 delta: Home->WAN accept rule not found — aborting" }
 :local prev $homeWan
@@ -72,7 +67,7 @@
 # Order: for each kids device DoT-drop then bedtime-drop, placed above the
 # Home->WAN accept in SSOT device order (the first kids device's DoT is highest).
 
-# ---- D. HD-342 DoT drops (IoT) ABOVE the Default deny ----
+# ---- D. IoT DoT drops ABOVE the Default deny ----
 :local defDeny [/ip firewall filter find where chain=forward and comment="Default deny inter-VLAN"]
 :local prev $defDeny
 :if ([/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop tcp (HD-342)"] = "") do={
@@ -87,9 +82,9 @@
 :local u [/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop udp (HD-342)"]
 :if ($u != "") do={ /ip firewall filter move $u destination=$prev }
 
-# ---- E. NAT: ensure per-MAC kids filtered DNS for BOTH kids devices ----
-# The live NAT only had the iPad (tablet-ipad); add the missing tablet-valentina
-# (and re-assert the iPad rows — idempotent).
+# ---- E. NAT: ensure per-MAC kids filtered DNS for EVERY kids device ----
+# One dstnat pair (udp+tcp) per SSOT row with `kids: true`; add whichever the device
+# is missing and re-assert the rest (idempotent).
 :local vip {{ dns_primary_ip }}
 {% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
 :if ([/ip firewall nat find where chain=dstnat and src-address=10.10.1.0/24 and src-mac-address={{ h.mac }} and protocol=udp and dst-port=53] = "") do={

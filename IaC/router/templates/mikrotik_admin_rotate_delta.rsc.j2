@@ -1,12 +1,11 @@
 # =====================================================================
-# mikrotik_admin_rotate_delta — HD-321: rotate shared RouterOS admin password
+# mikrotik_admin_rotate_delta — rotate the shared RouterOS admin password
 # ---------------------------------------------------------------------
-# Vault `mikrotik-admin_login` is the SSOT: `old-password` = the value being
-# superseded (now FAILING), `password` = the new live value (the only one the
-# converge/initial templates render, via the render playbook's 1Password
-# lookup). This minimal delta applies ONLY the admin password change to a
-# device — lighter than re-applying a full converge, sanctioned by
-# network-ops.md §Rotating the shared admin password (HD-321).
+# Vault `mikrotik-admin_login` is the SSOT: `old-password` = the value that is
+# no longer live, `password` = the live value the converge/initial templates
+# render. This delta applies ONLY the admin password change to one device —
+# lighter than re-applying a full converge, per
+# network-ops.md §Rotating the shared admin password.
 #
 # Apply per device (RB4011 10.10.99.1, CRS328 10.10.99.2, APs .4/.5/.6):
 #   bash scripts/routeros-apply-delta.sh <device> mikrotik_admin_rotate_delta.rsc

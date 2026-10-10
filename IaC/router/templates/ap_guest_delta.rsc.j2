@@ -1,14 +1,12 @@
-{#- AP CAP — HD-312 guest turn-up DELTA: CAP bridge VLAN 30 (2026-09-03).
-    Once CAPsMAN provisions 'Kogler guest' on the 5GHz radio, the CAP dynamically creates
-    a slave interface (wifi* on the 5GHz radio) whose SSID is cfg-kogler-guest. The slave
-    needs a bridge VLAN-30 entry so its frames get tagged on the ether1 uplink (matching
-    the live Kogler=10 / IOT=20 pattern). Run AFTER the router provisioning change +
-    after the slave appears (check /interface wifi on the AP).
-    Idempotent: guarded — safe to re-import.
-    NOTE: the slave interface name is dynamic (wifi27 on spalnica, wifi8 on dnevna as of
-    2026-09-03) — find it by its master SSID 'Kogler guest'. -#}
+{#- AP CAP — guest turn-up DELTA: CAP bridge VLAN 30.
+    Once CAPsMAN provisions 'Kogler guest' on the 5GHz radio, the CAP creates a dynamic
+    slave interface whose configuration is cfg-kogler-guest. The slave needs a bridge
+    VLAN-30 entry so its frames are tagged on the ether1 uplink (the Kogler=10 /
+    IOT=20 pattern). Run AFTER the router provisioning change and after the slave
+    appears (check /interface wifi on the AP). Idempotent: guarded, safe to re-import.
+    The slave interface NAME is dynamic — select it by its SSID, never by a literal. -#}
 # =============================================================================
-# HD-312 guest — AP CAP bridge VLAN 30 DELTA (apply per AP: ap-spalnica, ap-dnevna)
+# Guest — AP CAP bridge VLAN 30 DELTA (apply per AP: ap-spalnica, ap-dnevna)
 # =============================================================================
 
 # Find the 5GHz slave interface that carries cfg-kogler-guest: it is the wifi

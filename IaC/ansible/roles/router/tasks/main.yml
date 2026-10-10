@@ -1,26 +1,23 @@
 ---
 # router role — MikroTik RouterOS configuration via REST API
-# Implements: VLAN interfaces, DHCP, firewall, CAPsMAN, WireGuard, AP DHCP reservations
+# VLAN interfaces, DHCP, firewall, CAPsMAN, WireGuard, AP DHCP reservations.
 #
-# ⚠️ APPLY-MODEL BOUNDARY (network-ops.md §Apply model, HD-338):
-#   The **converge .rsc import is the apply of record** for RouterOS multi-step
-#   state (bridges, VLANs, trunk/port memberships, firewall chains). This role
-#   exists for (a) IDEMPOTENT single-object state (DHCP leases/reservations,
-#   firewall address-lists), (b) fail-loud identity assert (HD-161), and
-#   (c) VERIFICATION via api_facts/api. Do NOT add day-to-day apply logic here
-#   as api_modify tasks — edit the converge template (rb4011_converge.rsc.j2)
-#   and import. Any api_modify task in this role that mirrors converge state
-#   MUST stay byte-identical to the template; a drift here regresses the live
-#   device on the next converge (live lesson 2026-09-07: the trunk task's
-#   untagged VLAN-99 membership had drifted and would have dropped ether2/3/10
-#   off the tagged-99 backplane). Parity rule: edit BOTH or NEITHER.
+# ⚠️ APPLY-MODEL BOUNDARY: the converge .rsc import is the APPLY OF RECORD for RouterOS
+#   multi-step state (bridges, VLANs, trunk/port memberships, firewall chains). This role
+#   exists for (a) idempotent single-object state (DHCP leases/reservations, firewall
+#   address-lists), (b) the fail-loud identity assert, (c) verification via api_facts/api.
+#   Do NOT add day-to-day apply logic here as api_modify tasks — edit the converge
+#   template (rb4011_converge.rsc.j2) and import it.
+#   → docs/network-ops.md §Router Config Lifecycle
 #
-# Connection/auth decision:
-# The bootstrap creates `ansible` (SSH-key only, empty password) and `admin` (password + key).
-# For community.routeros modules, we use the RouterOS API (username+password).
-# We authenticate as `admin` using mikrotik-admin_login from 1Password.
+#   PARITY: any api_modify task in this role that mirrors converge state MUST stay
+#   byte-identical to the template — a drift here regresses the live device on the next
+#   converge. Edit BOTH or NEITHER.
 #
-# Note: community.routeros collection is required. Added to requirements.yml.
+# Connection/auth: the bootstrap creates `ansible` (SSH-key only, empty password) and
+# `admin` (password + key). community.routeros uses the RouterOS API, authenticated as
+# `admin` with mikrotik-admin_login from 1Password. The community.routeros collection is
+# required (requirements.yml).
 
 - name: Refuse router runs as ai-debug or unknown users (local connection allowed via 1Password auth)
   assert:
@@ -39,29 +36,23 @@
   set_fact:
     routeros_api_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
   no_log: true
-  # HD-313 deploy-gate fix (2026-09-03): must run under ANY --tags filter — every
-  # api_facts/api_modify in this role references routeros_api_password, and the
-  # HD-161 identity assert is `tags: always`; an untagged set_fact is skipped by
-  # surgical (`--tags network,router-logging`) runs and the assert fails on an
-  # undefined password. Tagging it `always` (prerequisite tier, like the admin
-  # assert above) resolves the password no matter the filter.
+  # `tags: always` is load-bearing: every api_facts/api_modify in this role references
+  # routeros_api_password and the identity assert is `tags: always`, so an untagged
+  # set_fact is skipped by a `--tags network,router-logging` run and the assert then
+  # fails on an undefined password.
   tags: always
 
 # -------------------------------------------------------------------------
-# VLAN interface naming (SSOT-compatible with the bootstrap, HD-304 follow-up,
-# observed live 2026-08-31): the bootstrap `.rsc` creates the mgmt VLAN interface
-# as `vlan{{ mgmt.id }}-mgmt` (e.g. vlan99-mgmt), NOT `vlan{id}-{name|lower}`
-# (vlan99-management). community.routeros api_modify matches interface-vlan
-# entries by primary key `name`; a desired name that does not equal the existing
-# one is treated as a NEW entry and re-created -> `already have such vlan` on the
-# already-bootstrapped device. Every task below therefore names the mgmt VLAN
-# `vlan<mgmt_vlan_id>-mgmt` and others `vlan<id>-<name|lower>`.
+# VLAN interface naming: community.routeros api_modify matches interface-vlan
+# entries by the primary key `name`, so a desired name that differs from the
+# device's is treated as a NEW entry and re-created -> `already have such vlan`.
+# The mgmt VLAN interface is therefore the bootstrap's `vlan<mgmt_vlan_id>-mgmt`
+# (NOT `vlan99-management`); every other VLAN is `vlan<id>-<name|lower>`.
 
 # -------------------------------------------------------------------------
-# Assert-before-mutate (HD-161): read device identity once and refuse to apply
-# any api_modify if the target is not the RB4011 we expect. Guards against a
-# wrong-target or swapped-host applying router config to the wrong gear.
-# Runs once per role run, before the first api_modify below.
+# Assert-before-mutate: read the device identity once and refuse every api_modify
+# below if the target is not the expected router — a wrong-target or swapped host
+# must never receive this config. Runs once per role run, before the first mutate.
 # -------------------------------------------------------------------------
 - name: Assert device identity before any mutate (HD-161)
   community.routeros.api_facts:
@@ -123,9 +114,9 @@
       - name: "vlan{{ item.id }}-{{ (item.name | lower) if item.id != mgmt_vlan_id else 'mgmt' }}"
         vlan-id: "{{ item.id }}"
         interface: bridge-lan
-        # NOTE: `disabled` deliberately omitted — it defaults to False on the device and the
-        # module's entry-match (primary key name) compares ALL provided fields; passing
-        # `disabled: no` previously made the desired mgmt vlan never match the bootstrap one.
+        # NOTE: `disabled` is deliberately omitted — the module's entry-match compares
+        # EVERY provided field, so adding `disabled: no` makes the desired mgmt vlan
+        # never match the device's existing row and the task re-creates it.
   loop: "{{ vlans | selectattr('unused', 'undefined') | list }}"  # skip VLAN 1 Blackhole (unused: true)
   loop_control:
     label: "VLAN{{ item.id }}"
@@ -152,12 +143,13 @@
     label: "VLAN{{ item.id }} gateway"
 
 # -------------------------------------------------------------------------
-# Comtrend modem mgmt address on ether1 (HD-302)
+# Comtrend modem mgmt address on ether1
 # -------------------------------------------------------------------------
-# Gives the RB4011 a /32 management address on the Comtrend's own LAN
-# (192.168.1.0/24) so the modem's web UI at 192.168.1.1 stays reachable from
-# the homelab for the twice-yearly PPPoE-redial dance — no physical cable swap.
-# Gated by comtrend_modem.enabled (opt-out per host). Idempotent.
+# A management address on the Comtrend's own LAN (192.168.1.0/24) so the modem's web UI
+# at 192.168.1.1 stays reachable from the homelab for the twice-yearly PPPoE-redial
+# dance — no physical cable swap. The address must carry the SUBNET prefix
+# (comtrend_modem.router_on_modem, a /24): a /32 leaves no connected route and the
+# modem is unreachable via forward. Opt-out per host via comtrend_modem.enabled.
 - name: Configure Comtrend modem mgmt IP on ether1
   when: comtrend_modem.enabled | bool
   community.routeros.api_modify:
@@ -208,23 +200,16 @@
       - address: "{{ item.subnet }}"
         gateway: >-
           {{ (network_static_hosts | selectattr('vlan', '==', item.id) | selectattr('name', '==', 'router') | list | first).ip }}
-        # Resolver chain per network-dns.md (HD-182 parity + HD-317 3-instance):
-        # Technitium PRIMARY (VPS) -> SECONDARY (oldsrv) -> TERTIARY (Pi) by default.
-        # HOME-FIRST (TERTIARY -> PRIMARY -> SECONDARY) is a per-VLAN SWITCH, not a
-        # hardcoded VLAN id: it comes from `lan_first_dns` on the `network_vlans` row
-        # (SSOT, group_vars/all) so the role and rb4011_converge.rsc.j2 cannot half-flip.
-        # VLAN 10 carries it for HA-independence (HD-334 — ⚠ NOT for per-device query
-        # visibility, that reason is dead: `logQueries = false` on the Pi, HD-476).
-        # VLAN 50 (Media) gained it 2026-10-07 (HD-1095): with the VPS first, the Shield
-        # resolves media.kogler.si to the VPS edge, which then had no route for the home-hosted
-        # names and answered 404 — a Media VLAN device could then never reach Jellyfin. (The VPS-edge
-        # routes landed the same evening; the home-first chain stays as WAN-out survival.)
-        # RouterOS /ip dhcp-server network caps dns-server at 3 values (a 4th is
-        # silently dropped — the earlier 4-entry render dropped Pi), so the router
-        # /ip dns is NOT in the DHCP list; it's the implicit final fallback via its
-        # own upstream (see the /ip dns task). Direct-to-Technitium is REQUIRED so
-        # per-subnet filtering works (Technitium sees the source VLAN, not the
-        # router). All three are SSOT-derived.
+        # Resolver chain (docs/network-dns.md §DNS Flow): Technitium PRIMARY (VPS) ->
+        # SECONDARY (oldsrv) -> TERTIARY (Pi) by default. HOME-FIRST (TERTIARY ->
+        # PRIMARY -> SECONDARY) is a per-VLAN SWITCH from `lan_first_dns` on the
+        # `network_vlans` row (SSOT, group_vars/all), never a hardcoded VLAN id, so the
+        # role and rb4011_converge.rsc.j2 cannot half-flip. It buys that VLAN independence
+        # when the WAN or the VPS resolver is down.
+        # RouterOS caps dns-server at 3 values — a 4th is silently dropped — so the router's
+        # own /ip dns is NOT in the DHCP list; it is the implicit final fallback via its own
+        # upstream (see the /ip dns task). Direct-to-Technitium is REQUIRED so per-subnet
+        # filtering sees the source VLAN, not the router. All three are SSOT-derived.
         dns-server: >-
           {{ ([dns_tertiary_ip, dns_primary_ip, dns_secondary_ip]
               if (item.lan_first_dns | default(false))
@@ -247,13 +232,12 @@
       - name: "dhcp-{{ item.id }}"
         interface: "vlan{{ item.id }}-{{ item.name | lower }}"
         address-pool: "pool-vlan{{ item.id }}"
-        # HD-1097 — DHCP option 15 (the search suffix) is NOT set here. There is no `domain=`
-        # property in RouterOS 7 (a `set … domain=` aborts with `Script Error: bad parameter
-        # domain`), so option 15 rides an `/ip dhcp-server option` row referenced by
-        # `dhcp-option`, and `rb4011_converge.rsc.j2` owns both halves: api_modify cannot express
-        # a `[find]` reference, and a second writer of that reference is how it drifts.
-        # Consequence to keep honest: a role-only run neither sets nor clears it — read the
-        # device back (`dhcp-option` via get, not a filtered print) instead of assuming.
+        # DHCP option 15 (the search suffix) is NOT set here: RouterOS 7 has no `domain=`
+        # property (`set … domain=` aborts with `Script Error: bad parameter domain`), so
+        # option 15 rides an `/ip dhcp-server option` row referenced by `dhcp-option`, and
+        # rb4011_converge.rsc.j2 owns both halves — api_modify cannot express a `[find]`
+        # reference, and a second writer of that reference is how it drifts. Consequence:
+        # a role-only run neither sets nor clears it — read `dhcp-option` back with get.
         disabled: no
   loop: "{{ network_vlans }}"
   when: item.id not in [1, 99]
@@ -262,12 +246,10 @@
 # -------------------------------------------------------------------------
 # DHCP Static Reservations
 # -------------------------------------------------------------------------
-# NOTE (R-2 live-finding): the steady-state role creates DHCP servers named `dhcp-<vlan>`
-# for VLANs 10/20/30/40/50 (loop below excludes 1 and 99; VLAN 21 removed HD-325), but the management plane's
-# DHCP server is `dhcp-mgmt` (named in the BOOTSTRAP, not recreated here) — so the original
-# AP reservation block below (server: `dhcp-99`) could never match a real server and APs fell
-# back to dynamic mgmt-pool IPs. Fixed at the Phase 1.5 cutover (2026-08-31): vlan-99 AP
-# reservations now target the bootstrap's `dhcp-mgmt`.
+# The mgmt plane's DHCP server is `dhcp-mgmt` — named in the BOOTSTRAP and not recreated
+# here — while this role creates `dhcp-<vlan>` for 10/20/30/40/50. Every VLAN-99
+# reservation below therefore targets `dhcp-mgmt`: a `dhcp-99` server matches nothing and
+# the APs silently fall back to dynamic mgmt-pool addresses.
 
 - name: Configure DHCP static reservations for APs (unchanged legacy behavior)
   community.routeros.api_modify:
@@ -424,22 +406,15 @@
         list: vps_s2s_peer
         comment: "VPS S2S peer (HD-155) - least-access source"
 
-# --- HD-312 phase 3: per-MAC WAN egress for cloud-IoT devices (rendered from SSOT) ---
-# iot-wan-allow          = cloud-IoT devices (LG/Bosch/HAP) that may reach WAN from
-#                          VLAN 20 (IOT); they DO have MACs in network_static_hosts
-#                          (they were on the IOT-WAN SSID, moved to Kogler IOT VLAN 20
-#                          on 2026-09-03 when IOT-WAN was deleted; WAN is now cut for them
-#                          — phase 3's forward rule restores it via src-mac-address).
-#                          Permanent membership (these stay): SSOT rows with wan_allow: true
-#                          (cloud-IoT, HD-325 — was selectattr vlan==21 pre-HD-325).
-#                          Temporary (n8n firmware-window, HD-312d): to be driven by the
-#                          router API user (HD-313) — never hand-edit.
-# NOTE (live 2026-09-07): RouterOS /ip firewall address-list accepts IP/CIDR only —
-# MACs are NOT valid there ('not a valid dns name'). The per-MAC mechanism is the
-# src-mac-address forward-accept below (Ensure per-MAC IoT cloud-device WAN egress
-# accepts), NOT an address-list. The old kids-* address-list task is REMOVED (HD-326
-# lived here and failed every --tags network converge, blocking the NAT/filter rules
-# after it). kids controls use the src-mac-address dst-nat/drop below, same as iot-wan-allow.
+# --- Per-MAC WAN egress for cloud-IoT devices (rendered from SSOT) ---
+# iot-wan-allow = the cloud-IoT devices (LG/Bosch/HAP) that may reach WAN from
+# VLAN 20 (IOT); they carry MACs in network_static_hosts. Permanent membership =
+# SSOT rows with wan_allow: true; a temporary firmware window is driven through the
+# router API user — never hand-edit it.
+#
+# RouterOS /ip firewall address-list accepts IP/CIDR only — a MAC is rejected
+# ('not a valid dns name'). Per-MAC matching is therefore a src-mac-address rule: the
+# forward accepts here and the kids dst-nat/drop below, never an address-list entry.
 
 - name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
   community.routeros.api_modify:
@@ -477,12 +452,10 @@
 # Firewall - NAT Masquerade
 # -------------------------------------------------------------------------
 - name: Configure NAT masquerade for outbound traffic
-  # RECONCILE (not "ignore"): converge .rsc + this role both own these 3 NAT
-  # rows. With handle_absent_entries: ignore (the old behavior) a converge-import
-  # stacked its 3 rows on top of the role's 3, and neither side removed them ->
-  # live duplex NAT (2x masquerade + 2x Kids DNS, found 2026-09-01). Mirror the
-  # forward-chain pattern so the NAT table converges to exactly these rows no
-  # matter the prior state.
+  # RECONCILE, not `ignore`: the converge .rsc and this task both own these NAT rows,
+  # and with `handle_absent_entries: ignore` a converge import stacks its rows on top of
+  # the role's and neither side removes them — a live duplex NAT (two masquerades).
+  # Reconciling makes the table converge to exactly these rows from any prior state.
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -502,12 +475,12 @@
         out-interface: pppoe-telekom
         action: masquerade
         comment: "NAT masquerade -> WAN"
-      # --- Kids VLAN 40 forced filtered DNS (HD-182) ---
-      # Hijack any DNS (53 udp/tcp) leaving the Kids VLAN — hardcoded-resolver
-      # devices included — to the Technitium primary, which enforces the
-      # Kids-Group policy (Cloudflare Families, network-dns.md). NAT runs before
-      # the forward chain, so the rewritten packets match the LAN→resolver accept
-      # rule above. DoT (853) bypass is dropped in the filter chain.
+      # --- Kids VLAN 40 forced filtered DNS ---
+      # Hijack every DNS query (53 udp/tcp) leaving the Kids VLAN — hardcoded-resolver
+      # devices included — to the Technitium primary, which enforces the Kids-Group
+      # policy (Cloudflare Families, network-dns.md). NAT runs BEFORE the forward chain,
+      # so the rewritten packets match the LAN→resolver accept above; the DoT (853)
+      # bypass is dropped in the filter chain.
       - chain: dstnat
         src-address: "{{ vlan_subnets[40] }}"
         protocol: udp
@@ -524,12 +497,11 @@
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
         comment: "Kids forced filtered DNS - TCP 53 -> Technitium (HD-182)"
-      # --- HD-342: IoT VLAN 20 DNS visibility (owner, 2026-09-07) ---
-      # Per-device DNS visibility for IoT/WAN devices: hijack plain :53 from
-      # VLAN 20 to the PI tertiary (dns_tertiary_ip = Pi Technitium, which the
-      # owner reads via dns-pi.kogler.si) so each IoT device's queries are logged
-      # per-source-IP in the Pi query log (instead of the VPS-primary / WAN egress
-      # collapsing them). DoT(853) bypass is dropped in the filter chain below.
+      # --- IoT VLAN 20 per-device DNS visibility ---
+      # Hijack plain :53 from VLAN 20 to the Pi tertiary (dns_tertiary_ip = the Pi
+      # Technitium, read via dns-pi.kogler.si) so each IoT device's queries are logged
+      # per source IP instead of collapsing at the VPS primary / WAN egress. The DoT(853)
+      # bypass is dropped in the filter chain below.
       - chain: dstnat
         src-address: "{{ vlan_subnets[20] }}"
         protocol: udp
@@ -547,12 +519,11 @@
         to-ports: 53
         comment: "IoT forced DNS - TCP 53 -> Pi (HD-342 DNS visibility)"
 
-# HD-326: per-MAC kids filtered DNS on Home VLAN 10 (kids join Kogler SSID,
-# VLAN 10, per HD-312 — the VLAN-40 hijack above does NOT cover them).
-# Redirect only the kids-tablets' DNS (53) to the Technitium primary, which
-# enforces the Kids-Group policy (Cloudflare Families, network-dns.md).
-# src-mac-address per device (kids: true marker). Least-tested piece —
-# needs live-verify of the Kids-Group filter binding per MAC after deploy.
+# Per-MAC kids filtered DNS on Home VLAN 10 (the kids join the Kogler SSID, so the
+# VLAN-40 hijack above does NOT cover them): redirect each kids tablet's DNS (53) to the
+# Technitium primary, which enforces the Kids-Group policy (Cloudflare Families,
+# network-dns.md). Selection is the `kids: true` marker in SSOT, matched per device by
+# src-mac-address.
 - name: Ensure per-MAC kids filtered DNS dst-nat (HD-326)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -600,15 +571,13 @@
 # connections (inter-VLAN and WAN return) are permitted before the default-deny.
 
 - name: Ensure inter-VLAN forward firewall rules (idempotent, ordered)
-  # GATED OFF 2026-09-10 (HD-03 residual audit): the forward chain is OWNED BY
-  # rb4011_converge.rsc.j2 (apply-of-record, rsc import). A live role reconcile
-  # here would delete the per-MAC rows that live ONLY in the converge template
-  # (iot-wan-allow HD-312/325 + HD-326 kids tablet drops) — those rows exist in
-  # the GATED-OFF tasks below, not in this task's data, so handle_absent_entries:
-  # remove would drop them from the live chain. network-ops.md apply model: the
-  # API path is for idempotent/order-independent state only; day-to-day chain
-  # state lands in the converge template, import is the apply. Keep this task
-  # byte-synced OR gated like its siblings at @904/@940.
+  # GATED OFF deliberately: the forward chain is OWNED BY rb4011_converge.rsc.j2 (the
+  # apply of record is the rsc import). A live reconcile here would DELETE the per-MAC
+  # rows that exist ONLY in the converge template (the iot-wan-allow accepts and the
+  # kids tablet drops) — they are not in this task's data, so
+  # `handle_absent_entries: remove` would drop them from the live chain. The API path is
+  # for idempotent, order-independent state only; keep this task byte-synced with the
+  # template OR gated, never half-running.
   when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -649,10 +618,10 @@
         connection-state: established,related
         action: accept
         comment: "Home -> IoT (established/related)"
-      # KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT
-      # in trusted-admin (node, not admin host — HD-310 Mgmt-strict posture), so
-      # HA's KNX tunnel needs its own narrow new-UDP exception. Same pattern as the
-      # CoAP 5683 reverse exception above. dst = knx_router_ip (SSOT, VLAN 20).
+      # KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT in
+      # trusted-admin (a node, not an admin host), so HA's KNX tunnel needs its own
+      # narrow new-UDP exception. Same pattern as the CoAP 5683 reverse exception above.
+      # dst = knx_router_ip (SSOT, VLAN 20).
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ knx_router_ip }}"
@@ -660,12 +629,10 @@
         dst-port: 3671
         action: accept
         comment: "Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"
-      # Shelly Gen1 RGBW2 REST (HA on the Pi -> Shelly fleet on IoT): same reason
-      # as the KNX exception above — the Pi is a node, NOT in trusted-admin
-      # (HD-310 Mgmt-strict posture), so HA's outbound new-TCP to the Shelly HTTP
-      # API needs its own narrow exception. dst-port 80 only (Gen1 REST; the CoAP
-      # 5683 push path is the reverse direction, already covered by trusted-ha
-      # above). Same pattern as the KNX narrow exception (HD-319).
+      # Shelly Gen1 RGBW2 REST (HA on the Pi -> the Shelly fleet on IoT): the Pi is a
+      # node, not an admin host, so HA's outbound new-TCP to the Shelly HTTP API needs its
+      # own narrow exception. dst-port 80 only (Gen1 REST); the CoAP 5683 push path is the
+      # reverse direction and is covered by trusted-ha above.
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[20] }}"
@@ -673,15 +640,11 @@
         dst-port: 80
         action: accept
         comment: "Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
-      # (VLAN 21 / IoT-Internet removed HD-325: the former "Trusted admin ->
-      # IoT-Internet (new)" and "Home -> IoT-Internet (est/rel)" accepts are
-      # deleted with the VLAN. Cloud-IoT devices now live on VLAN 20 and get
-      # WAN via the per-MAC iot-wan-allow accepts below; no inter-VLAN
-      # Home/trusted-admin -> 10.10.21.0/24 reach is needed — the devices were
-      # never reachable-from-Home by design (cloud-bound, IoT tier).)
-      # UPS moved to IoT VLAN 20 (no wan_allow) — the former trusted-admin -> UPS
-      # web UI forward (ups_management) is DELETED (no consumer; NUT/USB is the
-      # monitoring path, hardware-ups.md).
+      # Cloud-IoT devices live on IoT VLAN 20 and reach WAN only through the per-MAC
+      # iot-wan-allow accepts; they are cloud-bound by design and never reachable from
+      # Home, so no inter-VLAN accept for them belongs here.
+      # The UPS sits on IoT VLAN 20 with no WAN and no web-UI consumer — NUT/USB is the
+      # monitoring path (docs/hardware-ups.md), so no forward rule targets it.
       - chain: forward
       - chain: forward
         src-address-list: internal_lan
@@ -697,9 +660,9 @@
         dst-port: 53,853
         action: accept
         comment: "LAN -> DNS resolver (Technitium) tcp"
-      # Secondary-resolver parity (HD-182, network-dns.md): the Pi resolver must be
-      # reachable from every VLAN exactly like the primary — without this rule the
-      # default-deny below blocks it once the Pi secondary takes over.
+      # Secondary-resolver parity (network-dns.md): the Pi resolver must be reachable
+      # from every VLAN exactly like the primary — without this rule the default-deny
+      # below blocks it once the Pi takes over.
       - chain: forward
         src-address-list: internal_lan
         dst-address: "{{ dns_secondary_ip }}"
@@ -728,23 +691,14 @@
         dst-port: 53,853
         action: accept
         comment: "IoT -> DNS resolver tcp"
-      # --- WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN
-      # Allowed (masqueraded)") ---
-      # HD-309 deep-dive (2026-09-01): the forward chain had NO explicit
-      # WAN accept for Home/Guest/Media/Mgmt (only VLAN 21 was
-      # accepted; IoT 20 dropped) — but RouterOS default-accepts the
-      # unmatched, so egress "worked" accidentally. Docs row 73 says these
-      # VLANs must reach WAN (masqueraded): add explicit accepts on
-      # pppoe-telekom. EXCEPT Kids(40): its accept sits BELOW the bedtime
-      # time= drop (later in the chain) so the 22:00-07:00 block always
-      # wins; the accept only enables out-of-window egress. IoT(20) stays
-      # dropped (row 66). Mgmt(99) reaching WAN is fine — the INPUT chain
-      # still gates the router's own services.
-      # HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 (kids are
-      # ON Home per HD-312). These src-mac-address drops MUST sit ABOVE the
-      # Home->WAN accept (the next rule) — a drop placed below is shadowed.
-      # (Implemented as the dedicated looped task below — this static block
-      # keeps only the VLAN-wide Home->WAN accept.)
+      # --- WAN egress: every VLAN except IoT, masqueraded — docs/network-vlans.md
+      # §Inter-VLAN Firewall Rules ---
+      # RouterOS default-accepts whatever no rule matches, so these accepts make the
+      # documented egress policy explicit rather than accidental. IoT(20) stays dropped;
+      # Kids(40) accepts only BELOW its bedtime time= drop, so the in-window block wins.
+      # Mgmt(99) egress is fine — the INPUT chain still gates the router's own services.
+      # The per-MAC kids drops sit ABOVE the Home->WAN accept (looped task below) — a
+      # drop placed below it is shadowed by first-match-wins.
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         out-interface: pppoe-telekom
@@ -792,11 +746,10 @@
         dst-address: "{{ vlan_subnets[10] }}"
         action: accept
         comment: "Media -> Home (media server)"
-      # Mgmt VLAN (99) -> Home VLAN (10) — admin/laptop access to the Pi (HD-307)
-      # and the other Home hosts (nas/oldsrv Home IPs). Whole-Mgmt-VLAN scope
-      # per owner decision 2026-09-01 (the laptop lives on eth3/VLAN99; without
-      # this rule the default-deny below blocks every cross-VLAN path to Home,
-      # including Pi discovery + HD-307 provisioning). Placed above default-deny.
+      # Mgmt VLAN (99) -> Home VLAN (10) — admin/laptop access to the Pi and the other
+      # Home hosts, scoped to the whole Mgmt VLAN, not per-host. Without it the
+      # default-deny below blocks every cross-VLAN path to Home, including Pi discovery
+      # and provisioning. Placed above the default-deny.
       - chain: forward
         src-address: "{{ vlan_subnets[99] }}"
         dst-address: "{{ vlan_subnets[10] }}"
@@ -807,12 +760,11 @@
         dst-address-list: internal_lan
         action: drop
         comment: "Guest -> LAN drop"
-      # --- HD-342: IoT VLAN 20 DoT (853) bypass drop (owner, 2026-09-07) ---
-      # Same pattern as the Kids DoT drop below: encrypted DoT (853) to anything
-      # but the Pi resolver (accepted above) is dropped so IoT/WAN devices cannot
-      # bypass the forced-DNS visibility path (their plain :53 is dst-nat'ed to the
-      # Pi by HD-342 above). Residual bypass: DoH/443 (accepted — can't filter
-      # arbitrary HTTPS without TLS interception, same accepted residual as Kids).
+      # --- IoT VLAN 20 DoT (853) bypass drop ---
+      # Same pattern as the Kids DoT drop below: encrypted DNS to anything but the Pi
+      # resolver (accepted above) is dropped, so IoT devices cannot bypass the forced-DNS
+      # path (their plain :53 is dst-nat'ed to the Pi). Residual bypass: DoH/443 stays
+      # accepted — arbitrary HTTPS cannot be filtered without TLS interception.
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         protocol: tcp
@@ -825,13 +777,12 @@
         dst-port: 853
         action: drop
         comment: "IoT -> DoT bypass drop - forced DNS to Pi (HD-342) udp"
-      # --- Kids VLAN 40 controls (HD-182; decision HD-179 — implement at Phase 1.5) ---
-      # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium
-      # primary (ip firewall nat below) which enforces the Kids-Group policy
-      # (Cloudflare Families upstream, network-dns.md); encrypted DoT (853) to
-      # anything but the resolver (allowed above) is dropped here so DNS cannot
-      # bypass the filter. Residual bypass: DoH/443 — accepted (kids' browsers can
-      # reach arbitrary HTTPS; upstream filtering still applies on the resolver).
+      # --- Kids VLAN 40 controls ---
+      # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium primary
+      # (ip firewall nat above), which enforces the Kids-Group policy (Cloudflare
+      # Families, network-dns.md); DoT (853) to anything but the resolver is dropped here
+      # so DNS cannot bypass the filter. Residual bypass: DoH/443 — accepted, upstream
+      # filtering still applies on the resolver.
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         protocol: tcp
@@ -849,53 +800,44 @@
         dst-address: "{{ vlan_subnets[10] }}"
         action: drop
         comment: "Kids -> Home drop (HD-182)"
-      # Bedtime hard block (network-vlans.md matrix row). Implemented with the
-      # RouterOS NATIVE time-based filter parameter, deliberately NOT a
-      # /system scheduler enable/disable toggle: under declarative api_modify a
-      # toggled rule's disabled flag gets reset on every re-run (a 23:00 run would
-      # silently lift the block until 07:00) and the state would not survive a
-      # reboot mid-window. The time= param is stateless, reboot-safe and idempotent.
-      # RouterOS 7 validates the value strictly: bare `22:00:00-07:00:00` (no weekday
-      # suffix) is rejected with `invalid value for argument time` — the weekday list
-      # (mon,tue,wed,thu,fri,sat,sun) must be present (probed live 2026-08-31). The
-      # overnight (22h-7h cross-midnight) span RENDERS and WORKS on RouterOS 7 —
-      # verified live 2026-09-01. Note: a time= rule that is currently OUTSIDE its
-      # active window reads `invalid=true` / `inactive time` (normal RouterOS display,
-      # NOT a syntax error) — confirmed by a controlled live probe (a currently-active
-      # time rule reads `invalid=false`). This rule's `invalid=true` outside 22:00-07:00
-      # is expected, not a bug. (The earlier "stale clock -> inactive rule" reading was
-      # incorrect: the clock was NTP-synced and this display is time-window-based, not
-      # clock-based.)
+      # Bedtime hard block (docs/network-vlans.md §Inter-VLAN Firewall Rules), with the
+      # RouterOS NATIVE time-based filter parameter — deliberately NOT a /system
+      # scheduler enable/disable toggle: under declarative api_modify a toggled rule's
+      # `disabled` flag is reset on every re-run and the block would not survive a reboot
+      # mid-window, while `time=` is stateless and reboot-safe.
+      # RouterOS 7 validates the value strictly: the weekday list must be present — a bare
+      # `22:00:00-07:00:00` is rejected with `invalid value for argument time`. The
+      # cross-midnight span (22:00-07:00) renders and works.
+      # A time= rule that is currently OUTSIDE its window reads `invalid=true` /
+      # `inactive time` — normal RouterOS display for a time-window rule (an active one
+      # reads `invalid=false`), not a syntax error.
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         out-interface: pppoe-telekom
         time: "22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun"
         action: drop
         comment: "Kids bedtime WAN block 22:00-07:00 (HD-182)"
-      # Kids -> WAN allowed OUT of window (HD-309 row 73). Placed BELOW the
-      # bedtime drop so the time= block always wins in-window; the accept
-      # only enables egress 07:00-22:00. DoT/DoH bypass drops for Kids sit
-      # above and still win. This closes the row-73 gap for VLAN 40.
+      # Kids -> WAN allowed OUT of window. Placed BELOW the bedtime drop so the time=
+      # block always wins in-window; this accept only enables egress 07:00-22:00. The
+      # DoT/DoH bypass drops sit above and still win.
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         out-interface: pppoe-telekom
         action: accept
         comment: "Kids -> WAN allowed out-of-window (HD-309 row 73)"
-      # Default deny LAST — merged into this ordered block (was a second
-      # chain=forward api_modify whose handle_absent_entries: remove would have
-      # deleted every rule above on each run; HD-182).
+      # Default deny LAST within this ordered block. A second `chain: forward`
+      # api_modify with `handle_absent_entries: remove` would delete every rule above
+      # it on each run.
       - chain: forward
         src-address-list: internal_lan
         dst-address-list: internal_lan
         action: drop
         comment: "Default deny inter-VLAN"
-      # --- HD-302: Comtrend modem mgmt (WAN-side single-LAN admin path) ---
-      # The Comtrend (192.168.1.1) lives on the modem's own LAN, not on any
-      # homelab VLAN. The FORWARD default is `accept` so a rule is required
-      # to *restrict* access — only trusted-admin hosts (the laptop) reach
-      # the modem's web UI; every other homelab host is dropped. The Comtrend
-      # is a consumer device with a default-password admin UI; default-deny
-      # to anything but the admin laptop.
+      # --- Comtrend modem mgmt (WAN-side single-LAN admin path) ---
+      # The Comtrend (192.168.1.1) sits on the modem's own LAN, not on any homelab VLAN.
+      # The FORWARD default is `accept`, so a rule is needed to RESTRICT it: only
+      # trusted-admin hosts reach the modem's web UI, everything else is dropped. The
+      # Comtrend is a consumer device with a default-password admin UI.
       - chain: forward
         src-address-list: trusted-admin
         dst-address: "{{ comtrend_modem.modem_mgmt_ip }}"
@@ -909,20 +851,18 @@
         comment: "HD-302: default-deny all other homelab hosts -> Comtrend subnet"
 
 # -------------------------------------------------------------------------
-# HD-312 phase 3: cloud-IoT per-MAC WAN egress (iot-wan-allow, 2026-09-03).
-# The IOT-WAN SSID was deleted (3-SSID consolidation) — the LG/Bosch/HAP cloud
-# devices now ride VLAN 20 (Kogler IOT) where the IoT drop above cuts their WAN.
-# This accept (rendered per MAC) restores internet for exactly those devices:
-# permanent membership = SSOT rows with wan_allow: true; temporary = n8n
-# firmware-window via the router API (HD-312d).
+# Cloud-IoT per-MAC WAN egress (iot-wan-allow), rendered from SSOT.
+# The cloud devices ride VLAN 20 (Kogler IOT), where the IoT drop above cuts their
+# WAN; this accept restores internet for exactly the SSOT rows with wan_allow: true,
+# and a temporary firmware window is driven through the router API user.
 #
-# ⚠️ APPLY-MODEL (2026-09-08): the FORWARD-chain accept rows are owned by the
-# CONVERGE template (rb4011_converge.rsc.j2) — the apply of record. A role
-# api_modify append-at-end is what created the live-shadowed placement below the
-# IoT->WAN drop (2026-09-08 diagnosis; now fixed live + in converge). The role
-# does NOT own forward-chain day-to-day state (network-ops §Apply model). This
-# task is GATED OFF — VERIFICATION + the converge import are the only paths.
-# When in doubt: drop the role task and rely on the import (network-ops).
+# ⚠️ APPLY-MODEL: the FORWARD-chain accept rows are owned by the CONVERGE template
+# (rb4011_converge.rsc.j2) — the apply of record. A role api_modify APPENDS AT THE END,
+# which places the rule below the IoT->WAN drop, where first-match-wins makes it inert.
+# This task is GATED OFF: verification + the converge import are the only paths. When in
+# doubt, drop the role task and rely on the import.
+# → docs/network-ops.md §Ordering pitfall — a new FORWARD accept must sit ABOVE the
+#   default-deny
 - name: Ensure per-MAC IoT cloud-device WAN egress accepts (HD-312 phase 3 / HD-325 wan_allow)
   when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
@@ -949,16 +889,13 @@
     label: "HD-312/325 iot-wan-allow accept for {{ item.name }}"
   tags: [network]
 
-# HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 — bedtime WAN
-# hard-block (22:00-07:00) + DoT (853) bypass drop. Kids join Kogler SSID /
-# VLAN 10 per HD-312. These MUST sit ABOVE the Home->WAN accept — a drop
-# placed below is shadowed (first-match-wins, live-found 2026-09-08).
+# Per-MAC kids controls on Home VLAN 10 — bedtime WAN hard-block (22:00-07:00) +
+# DoT (853) bypass drop, one pair per SSOT row with `kids: true`.
 #
-# ⚠️ APPLY-MODEL (2026-09-08): the FORWARD-chain drops are owned by the CONVERGE
-# template (rb4011_converge.rsc.j2, add chain=forward ... src-mac-address ...
-# ABOVE the Home->WAN accept) — the apply of record. A role api_modify
-# append-at-end was the live-broken mechanism (rules landed below the accept).
-# This task is GATED OFF — VERIFICATION + the converge import are the only paths.
+# ⚠️ APPLY-MODEL: the FORWARD-chain drops are owned by the CONVERGE template
+# (rb4011_converge.rsc.j2, which places them ABOVE the Home->WAN accept) — the apply of
+# record. A role api_modify appends at the end, where the accept shadows the drop. This
+# task is GATED OFF: verification + the converge import are the only paths.
 - name: Ensure per-MAC kids bedtime WAN drop + DoT-bypass (HD-326)
   when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
@@ -995,7 +932,7 @@
   tags: [network]
 
 # -------------------------------------------------------------------------
-# Firewall - INPUT Chain (router management planes)  (HD-78 / KOPS-003/009)
+# Firewall - INPUT Chain (router management planes)
 # -------------------------------------------------------------------------
 # The default RouterOS input policy is `accept`: without explicit input rules the
 # router's own management services (API 8728, WinBox 8291, SSH 22, www/www-ssl
@@ -1050,7 +987,7 @@
         dst-port: 22,8728,8729,8291,80,443
         action: drop
         comment: "Drop mgmt services from non-mgmt sources (HD-78)"
-      # --- SNMP (HD-53): RO poller from Mgmt VLAN only ---
+      # --- SNMP: RO poller from the Mgmt VLAN only ---
       - chain: input
         src-address: "{{ vlan_subnets[99] }}"
         protocol: udp
@@ -1062,10 +999,10 @@
         dst-port: 161
         action: drop
         comment: "Drop SNMP from non-mgmt sources (HD-53)"
-      # --- Router resolver as DNS tertiary (HD-182, network-dns.md) ---
-      # DHCP hands out primary → secondary → router; the input rule lets LAN
-      # sources query the router's own /ip dns when both resolvers are down
-      # (unfiltered last resort — accepted tradeoff documented in network-dns.md).
+      # --- Router resolver as DNS tertiary (network-dns.md) ---
+      # DHCP hands out primary → secondary → router; this input rule lets LAN sources
+      # query the router's own /ip dns when both resolvers are down (unfiltered last
+      # resort — an accepted tradeoff documented in network-dns.md).
       - chain: input
         src-address-list: internal_lan
         protocol: tcp
@@ -1078,24 +1015,22 @@
         dst-port: 53
         action: accept
         comment: "Allow DNS input from LAN - router resolver tertiary (HD-182) udp"
-      # --- WireGuard S2S (HD-285): accept the handshake/input on the wg listen
-      # port. MUST stay above any full default-deny input (the converge template's
-      # PPPoE brute-force floor drops new-WAN; without this the VPS-initiated
-      # handshake never completes). Port = wg_s2s_vps.listen_port (SSOT).
+      # --- WireGuard S2S: accept the handshake/input on the wg listen port ---
+      # MUST stay above any full default-deny input: the converge template's PPPoE
+      # brute-force floor drops new-WAN traffic, and without this the VPS-initiated
+      # handshake never completes. Port = wg_s2s_vps.listen_port (SSOT).
       - chain: input
         protocol: udp
         dst-port: "{{ wg_s2s_vps.listen_port }}"
         action: accept
         comment: "Allow WireGuard S2S handshake/input (HD-285)"
 
-# The router /ip dns only answers queries with allow-remote-requests=yes
-# (RouterOS default: no) — required for the tertiary above to work.
-# HD-309: also set upstream servers — the tertiary is per-VLAN gateway and
-# was SERVFAILing because `/ip dns servers` was EMPTY (network-dns.md line 104
-# says it must forward to "Technitium + 1.1.1.1"; 1.1.1.1/1.0.0.1 are the final
-# fallbacks until Technitium primary/secondary are live on Phases 3/4).
-# Requires community.routeros >= 2.17 (settings-path support in api_modify);
-# fails loud at deploy on older collections rather than silently skipping.
+# The router resolver answers LAN queries only with allow-remote-requests=yes (the
+# RouterOS default is no) — required for the tertiary above, and it needs `/ip dns
+# servers` populated or every query SERVFAILs. Cloudflare here is the last resort behind
+# the Technitium chain. → docs/network-dns.md §Resolver upstream (forwarders)
+# Requires community.routeros >= 2.17 (settings-path support in api_modify); an older
+# collection fails loud at deploy rather than silently skipping.
 - name: Allow the router resolver to answer LAN queries (DNS tertiary, HD-182)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"

@@ -1,21 +1,20 @@
 # =============================================================================
-# RB4011 — HD-307: Pi/laptop static addressing + Mgmt->Home forward allow DELTA
+# RB4011 — Pi/laptop static addressing + Mgmt->Home forward allow DELTA
 # Rendered from SSOT (group_vars/all/ network_static_hosts).
 # IDEMPOTENT: every /add guarded with :if-find — safe to re-import.
 # Apply: /import rb4011_hd307_delta.rsc
 # -----------------------------------------------------------------------------
 # What it does:
-#   1. Laptop (48:2A:E3:9D:31:85) static DHCP reservation -> 10.10.99.80 on dhcp-mgmt
-#      (was dynamic .99.90). Owner decision 2026-09-01.
-#   2. Pi mgmt-99 static reservation 10.10.99.20 (already present — ensure) and,
-#      critically, RELEASE the stale dynamic .97 lease the Pi is sitting on so the
-#      next DHCP request binds the static .99.20 (static reservation precedence).
-#   3. FORWARD accept Mgmt(99) -> Home(10) for the whole Mgmt VLAN (owner decision:
-#      whole-Mgmt scope, not per-host), placed above the default-deny inter-VLAN so
-#      the laptop can discover/provision the Pi (and reach Home hosts).
-# Idempotency notes / live lessons (2026-09-01):
-#   - A dynamic lease must never be `set` ('can not change dynamic lease'); the
-#     static reservation wins on the next renewal once the stale dynamic row is gone.
+#   1. Laptop (48:2A:E3:9D:31:85) static DHCP reservation -> 10.10.99.80 on dhcp-mgmt.
+#   2. Pi mgmt-99 static reservation 10.10.99.20 (ensure) and, critically, RELEASE the
+#      stale dynamic lease the Pi is sitting on so its next request binds the static
+#      address — a static reservation takes precedence.
+#   3. FORWARD accept Mgmt(99) -> Home(10) for the whole Mgmt VLAN (whole-Mgmt scope,
+#      not per-host), above the default-deny inter-VLAN, so a Mgmt client can
+#      discover/provision the Pi and reach the other Home hosts.
+# Lease rules:
+#   - Never `set` a dynamic lease ('can not change dynamic lease') — remove it and let
+#     the static reservation win on the next renewal.
 #   - :if-find guards keep re-imports clean (no duplicate-abort).
 # =============================================================================
 

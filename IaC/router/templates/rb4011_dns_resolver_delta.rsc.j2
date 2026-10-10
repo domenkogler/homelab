@@ -1,24 +1,21 @@
 # =====================================================================
-# rb4011_dns_resolver_delta — HD-317: TECHNETIUM DNS-PRIMARY ON ROUTER (DHCP + /ip dns)
+# rb4011_dns_resolver_delta — resolver chain per VLAN (DHCP + /ip dns)
 # ---------------------------------------------------------------------
-# Transient delta (network-ops.md 3-tier): sets the DHCP dns-server chain per VLAN —
-# VPS PRIMARY -> oldsrv SECONDARY -> Pi TERTIARY by default, HOME-FIRST (Pi -> VPS ->
-# oldsrv) on every VLAN whose `network_vlans` row carries `lan_first_dns: true`.
-# RouterOS /ip dhcp-server network accepts AT MOST 3 dns-server values (a 4th is silently
-# dropped; the earlier 4-entry rendition dropped Pi), so the router /ip dns is NOT part of
-# the DHCP list. The router's own /ip dns upstream (below) is the implicit
-# final fallback: clients that can't reach any of the 3 resolvers still have the
-# router-resolver as their gateway.
-# ⚠ The ORDER is not cosmetic: the three instances answer the home-hosted app names with
-# DIFFERENT addresses (per-instance split-horizon, docs/network-dns.md §Per-Instance
-# Split-Horizon), so whichever instance a VLAN queries first decides whether that VLAN sees
-# the home edge or the VPS edge. HD-1095 (2026-10-07) put VLAN 50 (Media) home-first for
-# exactly that reason: with the VPS first the Shield got media.kogler.si = dns_primary_ip
-# and the VPS edge answered 404 for the home-hosted names — those VPS-edge routes landed the same
-# evening, so this chain is resilience (home-first keeps the Media VLAN working if WAN or the VPS
-# resolver is down), not the thing that makes media resolve.
-# Final state is ALSO folded into rb4011_converge.rsc.j2 (its idempotency is
-# partial by design — /add dupes abort re-imports before the DNS section) and into
+# Transient delta: sets the DHCP dns-server chain per VLAN — VPS PRIMARY ->
+# oldsrv SECONDARY -> Pi TERTIARY, HOME-FIRST (Pi -> VPS -> oldsrv) on every VLAN
+# whose `network_vlans` row carries `lan_first_dns: true`.
+#
+# RouterOS /ip dhcp-server network takes AT MOST 3 dns-server values (a 4th is
+# silently dropped), so the router's own /ip dns is not in the DHCP list — it is
+# the implicit final fallback for clients that reach none of the three.
+#
+# The ORDER is not cosmetic: the instances answer the home-hosted app names with
+# DIFFERENT addresses, so whichever a VLAN queries first decides whether that VLAN
+# sees the home edge or the VPS edge (docs/network-dns.md §Per-Instance Split-Horizon).
+# A home-first chain is WAN/VPS-outage resilience for that VLAN.
+#
+# Final state is ALSO folded into rb4011_converge.rsc.j2 (whose idempotency is
+# partial by design — an /add duplicate aborts before the DNS section) and into
 # roles/router/tasks/main.yml — all three read the same `lan_first_dns` SSOT.
 # Render: playbooks/render-converge.yml; apply: scripts/routeros-apply-delta.sh.
 # =====================================================================

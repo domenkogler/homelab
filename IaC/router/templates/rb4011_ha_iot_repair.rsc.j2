@@ -1,13 +1,11 @@
 # =============================================================================
-# RB4011 — REPAIR delta: clean up the HD-319/HD-320 apply residue (2026-09-03)
+# RB4011 — REPAIR delta: KNX/Shelly rows to ONE copy, above the default-deny
 # -----------------------------------------------------------------------------
-# The FIRST import of rb4011_ha_iot_delta.rsc used dst-address in the find
-# guards — RouterOS 7 `find where dst-address=<CIDR>` returns EMPTY (does not
-# match the stored value), so:
-#   - the KNX add-guard missed an EXISTING row (rule 14 from HD-319) -> DUPLICATE (50)
-#   - the move-guards saw empty ids -> Shelly (51) left BELOW the default-deny (dead)
-# This script repairs to the intended single-row, above-denied state, comment-anchored
-# only (the pattern that works — see rb4011_hd307_delta.rsc). Idempotent by design:
+# A guard keyed on `dst-address` cannot work here: RouterOS 7
+# `find where dst-address=<CIDR>` returns EMPTY, so an add-guard misses an existing row
+# (duplicate) and a move-guard sees no id (the rule stays below the default-deny = dead).
+# This script repairs to the intended state, comment-anchored only (the pattern that
+# works — see rb4011_hd307_delta.rsc). Idempotent by design:
 #   - KNX: keep exactly ONE row; remove extras, move the survivor above default-deny.
 #   - Shelly: ensure ONE row above default-deny (add only if missing).
 # Apply: /import rb4011_ha_iot_repair.rsc
@@ -17,7 +15,7 @@
 :local knxRows [/ip firewall filter find where chain=forward and comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"]
 :local knxCount [:len $knxRows]
 :if ($knxCount > 1) do={
-    # Remove all but the FIRST (the original, positioned from HD-319 apply)
+    # Remove all but the FIRST (the originally positioned row)
     :local idx 1
     :while ($idx < $knxCount) do={
         /ip firewall filter remove ($knxRows->$idx)
