@@ -129,6 +129,11 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
     roles runs. The tier is never a *skip-default*: a full converge (no `--tags`) runs everything
     in order; `base` only makes the rare roles *selectable as a set*. Roles keep their own tags
     so they can still be run individually (`--tags common`).
+  - **Lane sub-tags** make a single role surgical: `monitoring` tasks carry `alloy`, `grafana`,
+    `ha_token`, `hygiene`, `network-clients`, `routeros-syslog` alongside the role tag, so
+    `--tags hygiene` converges just the hygiene-exporter leg. Selection is a UNION, so
+    `--tags monitoring,hygiene` is the WHOLE role, not an intersection — a filter narrows only by
+    naming fewer tags (`--list-tags` prints the live set).
   - Partial application is the failure mode to fear (renders without up, service changed but
     its Traefik routes stale): prefer the canonical forms below and verify with
     `--list-tasks --tags <filter>` before running.
@@ -748,25 +753,29 @@ bash scripts/ansible-run.sh playbooks/dns.yml                               --ch
 #     green in a tree that carries the fix.
 ```
 
-**The IPv6 trap — it will bite the next dual-stack runner too.** On oldsrv
+**The IPv6 trap — a v6 jump leg that dies reads as a dead control node.** On oldsrv
 `vps.kogler.si` resolves **AAAA first** and the box has real IPv6 egress, while the laptop has no
 IPv6 at all, so the laptop cannot reproduce this class of failure even when it is the one converging.
-TCP/22 to the VPS over IPv6 times out (`ssh -4 vps` ok, `ssh -6 vps` timeout), so
-every `-o ProxyJump=vps` leg dies as `Connection timed out during banner exchange / Connection to
-UNKNOWN port 65535 timed out` — **including the leg to oldsrv's own inventory address**, which reads
-like a dead control node and is not. Direct LAN `ssh ansible-admin@10.10.1.10` from oldsrv works while
-the same `-J vps` leg times out, which is what localises the failure to the jump's address family.
-The `AddressFamily inet` pin written by step 3 is the narrow fix. The VPS-side cause is that
-`roles/vps-hardening/templates/nftables.conf.j2` accepts `ip protocol icmp`, which is the **IPv4**
-upper-proto field and matches nothing for v6: under `policy drop` the chain discards the provider
-router's neighbour- and router-advertisement replies, so NDP to `fe80::1` never resolves and IPv6 is
+This is the observation behind the **`AddressFamily inet`** pin written by step 3, not a claim about
+what the VPS does today: measured on a chain that carried only `ip protocol icmp` for ICMP — the
+**IPv4** upper-proto field, which matches nothing for v6 — `policy drop` discarded the provider
+router's neighbour- and router-advertisement replies, so NDP to `fe80::1` never resolved and IPv6 was
 dead in both directions (`ping6 fe80::1%eth0` → 100 % loss, `curl -6` → FAIL) even though the VPS
-answers on `[::]:22`, its `inet filter input` accepts `tcp dport 22` for both families and the upstream
-ruleset accepts everything. The template's `meta l4proto icmpv6` accepts covering NDP + PMTUD
+answered on `[::]:22`, its `inet filter input` accepted `tcp dport 22` for both families and the
+upstream ruleset accepted everything. TCP/22 over IPv6 timed out (`ssh -4 vps` ok, `ssh -6 vps`
+timeout), so every `-o ProxyJump=vps` leg died as `Connection timed out during banner exchange /
+Connection to UNKNOWN port 65535 timed out` — **including the leg to oldsrv's own inventory address**,
+which reads like a dead control node and is not. The diagnostic that separates the two: a direct LAN
+`ssh ansible-admin@10.10.1.10` from oldsrv keeps working while the same `-J vps` leg times out, so what
+fails is the jump's address family, not the control node. That contrast is also why the pin stays: a
+jumped leg then never depends on the VPS's v6 path being correct. The VPS-side rules that answer for
+that path are
+`roles/vps-hardening/templates/nftables.conf.j2`'s `meta l4proto icmpv6` accepts covering NDP + PMTUD
 (`nd-neighbor-solicit`, `nd-neighbor-advert`, `nd-router-solicit`, `nd-router-advert` scoped to link-local
-sources, plus the unscoped `destination-unreachable` / `packet-too-big` errors and `echo-request`) are what
-keep IPv6 alive: **any path that depends on the VPS having IPv6 depends on those rules**, the VPS `/64` on
-the Cloudflare allowlist included.
+sources, plus the unscoped `destination-unreachable` / `packet-too-big` errors and `echo-request`): they
+are what keep IPv6 alive, so **any path that depends on the VPS having IPv6 depends on those rules**,
+the VPS `/64` on the Cloudflare allowlist included
+([services-vps.md](services-vps.md) §VPS-Specific Firewall).
 
 **`dns.yml` and the Cloudflare filter: the filter is on the egress ADDRESS, not on "being home."**
 `roles/cloudflare_dns/tasks/main.yml:10` and `dns.yml`'s header both say "Egress IP must be

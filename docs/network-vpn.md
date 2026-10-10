@@ -441,10 +441,10 @@ outage. Method and the counter technique: [network-ops.md](network-ops.md) §IPv
   `IPv6: yes, [<GUA>]:<port>` line is the **DERP-side STUN observation** and it varies between runs; the socket
   a peer must reach is 41641.
 - **No unsolicited inbound IPv6 reaches the delegated prefix** at all while v4 scans arrive continuously, so an
-  `AAAA` record pointing at a home service would be unreachable from the v6 internet. Home publishes none, and what
-  keeps it that way is an **operator-side monitoring rule that bans a home `AAAA`** — not an artifact in this tree
-  ([network-vlans.md](network-vlans.md) §IPv6). Not proven from the inside: the clean proof is an external v6
-  prober ([network-ops.md](network-ops.md) §IPv6).
+  `AAAA` record pointing at a home service would be unreachable from the v6 internet. Home publishes none, and the
+  ban is enforced by an **operator-side monitoring rule named `nagios-dns-v6`** — no file in this repo implements
+  it, so there is no path to cite ([network-vlans.md](network-vlans.md) §IPv6). Not proven from the inside: the
+  clean proof is an external v6 prober ([network-ops.md](network-ops.md) §IPv6).
 - **The lever that survives carrier NAT is phone-initiated WireGuard:** the router is the responder with a
   public address, so the phone's carrier has no unsolicited inbound to block. The chosen vehicle is **MikroTik
   Back To Home**, deferred.
