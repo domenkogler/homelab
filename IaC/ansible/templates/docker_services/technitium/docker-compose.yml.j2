@@ -56,7 +56,7 @@ services:
       services-internal: {}
 {% endif %}
     ports:
-      - "53:53/udp"                # required: clients query DNS on the standard port — network-wide by design (HD-62)
+      - "53:53/udp"                # required: clients query DNS on the standard port - network-wide by design
       - "53:53/tcp"
 {% if _inst != 'primary' %}
       # TERTIARY (Pi) web UI: host :5380 — the Pi traefik-ha edge (network_mode: host) routes
@@ -76,7 +76,7 @@ services:
       # /srv/docker dataset layout. Kopia covers /opt/*, so backup coverage is intact — see
       # docs/deployment-compose.md §Volume Strategy.
       - /opt/technitium/config:/etc/technitium      # persistent DB + settings
-      - /opt/technitium/dns:/etc/dns                # DURABLE: zones/auth/records (was tmpfs — HD-317)
+      - /opt/technitium/dns:/etc/dns                # DURABLE: zones/auth/records live here, so it must not be tmpfs
 {% if _inst == 'primary' %}
     labels:
       traefik.enable: "true"
