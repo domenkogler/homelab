@@ -1,20 +1,20 @@
-# kopia-agent docker-compose.yml — oldsrv off-site backup CLIENT (HD-191)
-#   Containerized Kopia agent on oldsrv (decided HD-204): snapshots oldsrv-LOCAL
-#   state to the kopia-server repository (VPS) over the WireGuard S2S tunnel —
-#   parity with the VPS-side agent. The repo backend is the Hetzner Storage Box
-#   **backup** (SFTP) behind kopia-server; the agent never touches storage itself.
+# kopia-agent docker-compose.yml — oldsrv off-site backup CLIENT
+#   Containerized Kopia agent on oldsrv: snapshots oldsrv-LOCAL state to the
+#   kopia-server repository (VPS) over the WireGuard S2S tunnel — parity with the
+#   VPS-side agent. The repo backend is the Hetzner Storage Box **backup** (SFTP) behind
+#   kopia-server; the agent never touches storage itself.
 #
-#   NAS-independent by invariant (backup.md): sources below are oldsrv-local paths
+#   NAS-independent by invariant (docs/backup.md): the sources below are oldsrv-local paths
 #   only, mounted READ-ONLY. Never mounted: NAS mounts (/mnt/nas/*), model weights
-#   (/srv/models — regenerable), Docker layers, TSDB (not on oldsrv any more).
+#   (/srv/models — regenerable), Docker layers and TSDB.
 #
 #   Transport: kopia-server :51515 is published ONLY on the VPS WG tunnel address
 #   (wg_s2s_vps.ip — see the kopia-server template); home-initiated connect is
-#   allowed by the S2S scoping (HD-155). Reach is deploy-gated live-verify.
+#   allowed by the S2S scoping.
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     kopia-server-internal_api (API Credential) — the SAME item kopia-server auths
-#       with (HD-59): `username` = the user@host identity the agent presents via
+#       with: `username` = the user@host identity the agent presents via
 #       HTTP Basic Auth, `credential` = its password. No new 1Password item.
 #   Config vars: none new — server address derives from `wg_s2s_vps.ip` (all.yml SSOT).
 services:
@@ -29,10 +29,9 @@ services:
     tmpfs:
       - /tmp
       - /app/logs   # image sets KOPIA_LOG_DIR=/app/logs - EROFS under read_only without it (kopia-server precedent)
-    # Wave-2 triage 2026-08-22 (kopia-server precedent): image ENTRYPOINT is /bin/kopia;
-    # without clearing it the command below resolved to `kopia sh -c ...` and died
-    # instantly ("expected command but got sh"). entrypoint: [] makes the sh -c
-    # bootstrap script PID 1 argv.
+    # The image ENTRYPOINT is /bin/kopia: without clearing it the command below resolves to
+    # `kopia sh -c ...` and exits instantly ("expected command but got sh"). entrypoint: []
+    # makes the sh -c bootstrap script PID 1 argv.
     entrypoint: []
     container_name: kopia-agent
     restart: unless-stopped
@@ -43,28 +42,20 @@ services:
       - -c
       - |
         set -e
-        # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never run an
-        # agent that would silently skip auth (the server would reject it anyway).
+        # Fail loud: the server auth identity is REQUIRED — never run an agent that would
+        # silently skip auth (the server would reject it anyway).
         : "$${KOPIA_SERVER_USER:? kopia-server-internal_api.username missing — aborting}"
         : "$${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
         if [ ! -f /app/config/repository.config ]; then
           echo "Connecting to kopia-server over the WG S2S tunnel..."
-          # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth
-          # is carried in the URL userinfo, and the repo master password on -p.
-          # The server password may contain URL-hostile chars ((){}@ etc.) — percent-
-          # encode it or the URL parser rejects it ("invalid character } in host
-          # name", live 2026-09-08). Pure-bash encoder (no perl URI::Escape in the
-          # kopia image, and Jinja chokes on the open-brace-hash sequence — verified 2026-09-08).
-          # NOTE: docker compose interpolates $$NAME in the command block — every
-          # bash var stays a simple name (compose warns "variable is not set" and
-          # blanks it, which is harmless at compose-parse time; the bash runtime
-          # re-reads $$NAME from the environment at exec). The ONLY hard error is the
-          # $${var:offset} substring form (invalid interpolation format) — avoided.
-          # fold is present in the kopia image (verified 2026-09-08). All $$NAME
-          # forms are simple names: docker compose interpolates unknown $$NAMEs to a
-          # harmless blank at parse time (the bash runtime re-reads them from env at
-          # exec), and we avoid $${var:...} substring syntax entirely (that is the
-          # only form that hard-errors compose: "invalid interpolation format").
+          # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth rides in
+          # the URL userinfo, the repo master password on -p. Percent-encode the password — it
+          # can carry URL-hostile chars ( (){}@ ) and the parser rejects them. Pure bash only:
+          # the image has no perl URI::Escape and Jinja cannot read an open-brace-hash.
+          # Compose interpolates $${NAME} in the command block: unknown names blank out at parse
+          # time (a warning, harmless — bash re-reads $${NAME} from the environment at exec), and
+          # only the $${var:offset} substring form hard-errors. So: simple var names only.
+          # `fold` is available in the kopia image.
           _urlenc() {
             printf '%s' "$$1" | fold -w1 | while IFS= read -r c; do
               case "$$c" in
@@ -82,8 +73,8 @@ services:
             --override-hostname=oldsrv.kogler.si \
             --override-username=oldsrv-agent
         fi
-        # Scheduled worker (no UI): snapshot loop, first pass at start-up. Interval
-        # is env-tunable; exact window + server-side policy tuning = deploy-gated.
+        # Scheduled worker (no UI): snapshot loop, first pass at start-up; the interval is
+        # env-tunable. Server-side retention policy lives on kopia-server, not in this file.
         while :; do
           echo "[kopia-agent] snapshot create $$(date -u +%FT%TZ)"
           kopia snapshot create /mnt/src/opt /mnt/src/dumps /mnt/src/immich-upload || echo "[kopia-agent] snapshot create FAILED — retrying next interval"
@@ -104,20 +95,17 @@ services:
     environment:
       # VPS peer address on the wg-s2s /30 (SSOT: group_vars/all/ wg_s2s_vps.ip).
       KOPIA_SERVER_ADDR: "{{ wg_s2s_vps.ip }}:51515"
-      # HD-318a: kopia 0.23.x only connects to https:// servers; the self-signed
-      # kopia-server cert lives under /srv/docker/kopia-server/config/tls.crt and is
-      # pinned here by its stable SHA-256 fingerprint (lowercase hex). The fingerprint
-      # is a service identity, NOT a user secret — but it is a trust anchor, so it is
-      # kept in 1Password (`kopia-server_fingerprint`, catalog-generated) and read via
-      # the same vault dict the compose uses. Changing the cert REQUIRES re-seeding the
-      # fingerprint 1P item + re-render (NOT_AUTO_ROTATABLE, see provision-secrets.py).
+      # kopia 0.23.x only connects to https:// servers, so the self-signed kopia-server cert is
+      # pinned here by its stable SHA-256 fingerprint (lowercase hex). A fingerprint is a trust
+      # anchor, so it lives in 1Password (`kopia-server_fingerprint`, NOT_AUTO_ROTATABLE):
+      # replacing the cert requires re-seeding the item and re-rendering.
       KOPIA_SERVER_FINGERPRINT: "{{ vault['kopia-server_fingerprint'].password | replace('$','$$') }}"
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
-      # HD-318a: the URL userinfo identity must be the SAME user@host the session
-      # presents (--override-username/--override-hostname), i.e. the kopia-server
-      # htpasswd entry — otherwise the server rejects the session ('access denied'
-      # for <user@host>). kopia_agent_user is the group_vars SSOT (all.yml).
+      # The URL userinfo identity must be the SAME user@host the session presents
+      # (--override-username/--override-hostname), i.e. the kopia-server htpasswd entry —
+      # otherwise the server rejects the session ('access denied' for <user@host>).
+      # kopia_agent_user is the group_vars SSOT (all.yml).
       KOPIA_AGENT_USER: "{{ kopia_agent_user | replace('$','$$') }}"
       KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"   # repo master password (kopia-server precedent)
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
