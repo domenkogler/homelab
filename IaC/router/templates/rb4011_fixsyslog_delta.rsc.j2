@@ -30,8 +30,9 @@
     /system scheduler add name=fixsyslog on-event=fixsyslog start-time=startup interval=0 policy=read,write,test
 }
 # =====================================================================
-# Verify: /system script print, /system scheduler print, then on the next
-# reboot check the VPS rsyslog/CrowdSec/Loki receives routeros-syslog
-# (`cscli alerts list`, Loki {job="routeros-syslog"}) and the wg-s2s sniffer:
+# Verify: /system script print, /system scheduler print, then on the next reboot check
+# that the VPS collector receives routeros-syslog (`cscli alerts list`) and the wg-s2s
+# sniffer:
 #   /tool sniffer quick interface=wg-s2s ip-protocol=udp port=514
+# → docs/network-ops.md §Central log shipping — RouterOS logs → VPS CrowdSec + VictoriaLogs
 # =====================================================================

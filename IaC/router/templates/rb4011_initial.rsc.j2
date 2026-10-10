@@ -1,8 +1,8 @@
 {#- RB4011 bootstrap template — rendered by render-routeros.yml (never commit rendered/).
     IPs/VLANs from group_vars/all/; secrets from 1Password at render time. -#}
 # =============================================================================
-# RB4011 — Kogler Homelab — Bootstrap (RENDERED — do not edit, regenerate)
-# Source template: IaC/router/templates/rb4011_initial.rsc.j2
+# RB4011 — Kogler Homelab — Bootstrap (Jinja SOURCE TEMPLATE — rendered to the gitignored rendered/*.rsc)
+# This template: IaC/router/templates/rb4011_initial.rsc.j2
 # =============================================================================
 # Purpose: Minimal bootstrap that establishes the Management (VLAN {{ mgmt.id }})
 #          plane with a static gateway IP + DHCP for temporary hosts, so the
