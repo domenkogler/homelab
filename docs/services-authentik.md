@@ -272,7 +272,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   a token's `intent`, that is the secret value. A read-only sweep of what really exists, worth running
   before believing any "the provider/outpost is deployed" claim: `LDAPProvider.objects.all()`,
   `LDAPSource.objects.all()`, `Outpost.objects.all()` — the Samba ↔ Authentik-as-LDAP design is retired
-  ([storage-rejected.md](storage-rejected.md) row *Samba Authentik-as-LDAP passdb*),
+  ([storage-rejected.md](storage-rejected.md) row *Authentik LDAP outpost as the Samba passdb (ldapsam)*),
   so an empty LDAP sweep is the expected state.
 - **`scripts/ak-shell.sh` reports EVERY failure as "runner key / VPS unreachable"**: it runs the remote
   command with `2>/dev/null`, so a Python exception inside `ak shell` (wrong import or field — the common

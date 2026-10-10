@@ -418,9 +418,9 @@ brings the stack up, and leaves the old container RUNNING — the only trace is 
 second act on the host: `docker compose -f /opt/<service>/docker-compose.yml up -d --remove-orphans`,
 and the flag belongs AFTER `up` (`docker compose --remove-orphans up` fails with `unknown flag`).
 Prove removal with `docker ps -a --format '{{.Names}}' | grep -c <name>` → 0, never with the
-playbook recap.
-
-`authentik-ldap` and the `storage_samba_passdb` / `storage_samba_ldap` vars are **deleted, not defaulted** — NAS SMB auth is local **tdbsam** ([storage-rejected.md](storage-rejected.md) row *Samba Authentik-as-LDAP passdb*).
+playbook recap. `authentik-ldap` and the `storage_samba_passdb` / `storage_samba_ldap` vars are
+**deleted, not defaulted** — NAS SMB auth is local **tdbsam**
+([storage-rejected.md](storage-rejected.md) row *Authentik LDAP outpost as the Samba passdb (ldapsam)*).
 
 Auth tokens for internal services live in 1Password `Homelab-ansible` vault under the
 `<service>-internal_api` naming pattern. Referenced via `lookup('community.general.onepassword', ...)` at template render time.
