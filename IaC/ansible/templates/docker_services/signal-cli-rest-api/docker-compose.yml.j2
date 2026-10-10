@@ -5,25 +5,17 @@
 #   NOT acceptable (docs/observability.md). Secrets (signal_api) via
 #   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #
-# ── HD-353 TOKEN AUTH (read this before touching the ports) ─────────────────────────
-#   The banner comment this file used to carry ("API token auth (KOPS-002 / HD-125):
-#   require an X-Api-Key header") was FALSE for this image. `bbernhard/
-#   signal-cli-rest-api` has NO auth feature at all — live-proven 2026-09-10:
-#   unauthenticated POST /v2/send -> 201 (delivered), GET /v1/about -> 200 with no
-#   key, a bogus key, and a bogus bearer. The binary contains no `API_TOKEN` /
-#   `X-Api-Key` string. `SIGNAL_CLI_API_TOKEN` below is therefore INERT: it is kept
-#   only because the gateway now sources its token from the same 1P item, and it is
-#   still handy for anyone debugging the raw upstream container in place.
-#   Real enforcement is the `secured-signal-api` service in THIS file, which fronts
-#   the upstream container and is the only thing published off-host.
+# ── TOKEN AUTH (read this before touching the ports) ─────────────────────────
+#   `bbernhard/signal-cli-rest-api` has NO auth feature: an unauthenticated POST /v2/send
+#   delivers and GET /v1/about answers, and the binary contains no `API_TOKEN`/`X-Api-Key` string.
+#   `SIGNAL_CLI_API_TOKEN` below is therefore INERT — it is kept only because the gateway sources
+#   its token from the same 1P item. Real enforcement is `secured-signal-api` in THIS file.
 #
-#   PORT DESIGN (this is the substantive change): only the GATEWAY is published.
-#   `signal-cli-rest-api` itself gets NO host port, so the raw unauthenticated API is
-#   no longer reachable from the Home VLAN at all. The published leg is the same
-#   cross-host pattern as actual-budget :5006 / immich-ml :3003 (HD-184/HD-347) —
-#   bound to oldsrv's Home-VLAN address because n8n runs on a different host (VPS).
-#   Residual: :8080 stays reachable from within services-internal (and therefore from
-#   every container on it), which is exactly why the gateway exists.
+#   PORT DESIGN: only the GATEWAY is published. `signal-cli-rest-api` itself gets NO host port, so
+#   the raw unauthenticated API is unreachable from the Home VLAN. The published leg is the same
+#   cross-host pattern as actual-budget :5006 / immich-ml :3003 — bound to oldsrv's Home-VLAN
+#   address because n8n runs on a different host (VPS). Residual: :8080 stays reachable from within
+#   services-internal, which is exactly why the gateway exists.
 services:
   signal-cli-rest-api:
     image: bbernhard/signal-cli-rest-api:{{ signal_cli_rest_api_version }}
@@ -41,18 +33,18 @@ services:
     # tmpfs /tmp MUST be exec (signal-cli/libsignal-client native lib extraction):
     # signal-cli 0.14.x extracts libsignal_jni_*.so to /tmp and mmap-execs it. Docker's
     # bare-tmpfs default is noexec,nodev,nosuid -> "failed to map segment from shared
-    # object" -> the daemon never starts and the REST API never comes up (live 2026-09-09).
+    # object" -> the daemon never starts and the REST API never comes up.
     tmpfs:
       - /tmp:exec
     restart: unless-stopped
     environment:
       SIGNAL_CLI_PHONE_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
-      # INTENTIONAL default('', true) (HD-202): the Signal captcha token is an OPTIONAL
+      # INTENTIONAL default('', true): the Signal captcha token is an OPTIONAL
       # anti-bot value — signal-cli starts and receives fine without it; a missing 1Password
       # field must not abort the whole render (fail-loud law applies to REQUIRED secrets only).
       SIGNAL_CLI_CAPTCHA: "{{ vault['signal_api'].credential | default('', true) | replace('$','$$') }}"
       MODE: json-rpc
-      # INERT on this image (see the HD-353 banner above) — no auth feature exists.
+      # INERT on this image (see the TOKEN AUTH banner above) — no auth feature exists.
       # The enforcing copy of this same token is the gateway's config.yaml; kept here
       # so the raw upstream container documents the intent and debugging stays easy.
       SIGNAL_CLI_API_TOKEN: "{{ vault['signal-internal_api'].credential | replace('$','$$') }}"
@@ -60,20 +52,20 @@ services:
       - services-internal
     volumes:
       - signal-cli-data:/home/.local/share/signal-cli      # identity persists across restarts
-    # NO `ports:` — DELIBERATE (HD-353). The unauthenticated upstream API must not be
+    # NO `ports:` — DELIBERATE. The unauthenticated upstream API must not be
     # reachable off-host; the gateway below is the only published surface. See that
     # service's ports block for the cross-host rationale (n8n on the VPS over wg-s2s).
     healthcheck:
       # Healthy once /v1/about answers. json-rpc mode keeps the JVM+daemon resident, so
       # a few startup seconds are normal; start_period covers that without flapping.
-      # Uses `curl` (NOT wget — verified live 2026-09-10: this image ships curl, no wget).
+      # Uses `curl` (NOT wget — this image ships curl, no wget).
       test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/v1/about >/dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 30s
 
-  # ── HD-353 auth gateway: the ONLY published Signal surface ────────────────────────
+  # ── auth gateway: the ONLY published Signal surface ────────────────────────
   # Fronts the container above, requires a token on every request, and exposes just the
   # endpoints n8n needs. Config is the sibling config.yaml (config.yaml.j2 here); the
   # signal-cli identity is untouched — this is a pure proxy.
@@ -99,7 +91,7 @@ services:
       - ./config.yaml:/config/config.yml:ro
       # HTTP/gateway state DB (rate-limiting, scheduled sends, token state). REQUIRED:
       # with read_only: true and NO /db mount the gateway FATALs on boot
-      # “unable to open database file: out of memory (14)” → Restarting(1) (live, 2026-09-10).
+      # “unable to open database file: out of memory (14)” → Restarting(1).
       - gateway-db:/db
     networks:
       - services-internal
@@ -107,10 +99,9 @@ services:
       # Cross-host API leg for the VPS n8n over wg-s2s, bound to the Home-VLAN address
       # (never 0.0.0.0) — same pattern as actual-budget :5006 / immich-ml :3003.
       # Inside the overlay, consumers may instead use http://secured-signal-api:8880.
-      # Port 8080: HD-355 pi-dev owns oldsrv_home_ip:8080 on this host (VPS tailnet
-      # edge + ks-forward-auth + vps.yml all couple to it) — the signal gateway was
-      # added to 8080 by the 2026-09-14 converge and must NOT steal pi-dev's port.
-      # Moved to :8082 (free; sequential with the MCP :8080/:8081 publishes).
+      # Port 8080: pi-dev owns oldsrv_home_ip:8080 on this host (VPS tailnet
+      # edge + ks-forward-auth + vps.yml all couple to it) — this gateway must NOT steal
+      # it, so it publishes :8082 (free; sequential with the MCP :8080/:8081 publishes).
       - "{{ oldsrv_home_ip }}:8082:8880"
     healthcheck:
       # `wget` WITHOUT a token gets 401 and exits 1 — so the probe must carry the
@@ -119,7 +110,7 @@ services:
       # NOT from the container env: compose does NOT interpolate `$${...}` inside a
       # CMD-SHELL healthcheck test array on this compose version — a `$$`-literal
       # survives into the shell as `148{SIGNAL_GATEWAY_TOKEN}` and the probe 401s
-      # forever (live-proven 2026-09-14). Read the folded-scalar token from the
+      # forever. Read the folded-scalar token from the
       # config instead; the probe target /v1/about is in the config's allow-list.
       # Never echo the token: the sed output is piped straight into the header.
       test:
