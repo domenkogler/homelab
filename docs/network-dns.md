@@ -570,7 +570,7 @@ above, so do not re-derive them:**
    stop/start, and every tailnet device reconnects.
 3. **What actually needs a resolver is narrower than the chain assumes.** MagicDNS
    (`100.100.100.100`, first in the chain) answers the **tailnet dashboard set** — `stats`/`logs`/
-   `csui`/`sec`/`traefik`/`auto` in both namespaces — **client-side on any network**, because those are
+   `csui`/`traefik`/`auto` in both namespaces — **client-side on any network**, because those are
    `extra_records` in `config.yaml.j2`. The **home-hosted app names** (`media`, `seerr`, the *arr set, downloads)
    are **not** `extra_records`, so they still need a reachable resolver: away that is the VPS Technitium
    (`dns_primary_ip`), and at home with the WAN pulled it is the **oldsrv entry**. So case (c) does not get
