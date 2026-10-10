@@ -1,6 +1,6 @@
 ---
-# VPS host configuration — netcup RS 2000 G12 (bought 2026-08-18, HD-93/HD-40B)
-# Replaces the earlier planned Contabo Storage VPS 30. Plain Debian root server with
+# VPS host configuration — netcup RS 2000 G12
+# Plain Debian root server with
 # Docker CE — the VPS is NOT a Proxmox node (no proxmox_bridges here, see home
 # `proxmox` role / homelab_mode). Host identity facts live here; billing lives in
 # `subscriptions.yml` (cost, renewal, status).
@@ -8,7 +8,7 @@
 vps_host:
   provider: netcup
   model: RS 2000 G12
-  purchased: 263.52           # EUR, 12 months prepaid (2026-08-18)
+  purchased: 263.52           # EUR, 12 months prepaid
   monthly: 21.96              # EUR/mo effective
   valid_until: "2027-08-18"
   specs:
@@ -20,227 +20,224 @@ vps_host:
     iface_gbit: 2.5          # flatrate traffic; throttled to 300 MBit/s if >3 TB rolling / 24 h
   # SSH connection facts (ansible_user, ansible_host) live in host_vars/vps.kogler.si.yml.
 
-# Grafana SMTP relay (HD-241 companion fix 2026-09-08): the VPS is its own group (not home_servers),
-# so the home_servers.yml `grafana_smtp_host` never applied — VPS Grafana fell back to `localhost:25`
-# (dead). Derive from the smtp2go SSOT (2525) so VPS Grafana can send alerts/emails.
+# Grafana SMTP relay: the VPS is its own group (not home_servers),
+# so a `grafana_smtp_host` set only in home_servers.yml never applies here and VPS Grafana
+# falls back to `localhost:25` (dead). Derive from the smtp2go SSOT (2525).
 grafana_smtp_host: "{{ smtp2go_host }}:{{ smtp2go_port }}"
 
 docker_services:
-  # ORDERING CONSTRAINT (HD-146): `authentik` MUST appear before every native-OIDC consumer
+  # ORDERING CONSTRAINT: `authentik` MUST appear before every native-OIDC consumer
   # (opencloud, immich-app, forgejo, open-webui, matrix, headscale…). The docker_services
-  # role runs the secret-egress glue (HD-143) in an explicit pre-pass
-  # (tasks/prepass-authentik.yml, HD-162) BEFORE the deploy loop, seeding 1Password
+  # role runs the secret-egress glue in an explicit pre-pass
+  # (tasks/prepass-authentik.yml) BEFORE the deploy loop, seeding 1Password
   # client creds that the consumers' compose `lookup()` reads at render time — so a consumer
-  # rendered BEFORE authentik would get empty/placeholder OIDC creds (fail-loud, HD-65).
+  # rendered BEFORE authentik would get empty/placeholder OIDC creds (fail-loud).
   # The pre-pass is gated on `authentik`'s presence, so `authentik` must stay in this list
   # (not removed or reorder-after an OIDC consumer).
   # Do not remove/reorder authentik after a native-OIDC service.
-  # === Edge tier (self-contained public edge — HD-40A / HD-135) ===
+  # === Edge tier (self-contained public edge) ===
   - { name: traefik,        template_dir: traefik,   enabled: true }
   - { name: crowdsec,       template_dir: crowdsec,  enabled: true }
-  # Technitium DNS PRIMARY on the VPS (HD-299, 2026-09-03): always-on resolver for LAN
+  # Technitium DNS PRIMARY on the VPS: always-on resolver for LAN
   # + tailnet; dedicated dns-servers overlay pinned to dns_primary_ip (172.25.0.2),
   # host :53 published. Web UI at dns.kogler.si (Forward-Auth) via the subdomain label.
   # oldsrv (secondary) + Pi (tertiary) keep the home-LAN failure-domain split.
-  # HD-476 (owner call 2026-09-30): forwards to the SSOT upstreams instead of chasing every cold
+  # Forwards to the SSOT upstreams instead of chasing every cold
   # public name from the root — this instance is FIRST for guest/mgmt/iot/media + the tailnet chain,
-  # so its chase tail (root→TLD→auth, serialised) was the fleet's. Egress-only: no client-facing
+  # so its chase tail (root→TLD→auth, serialised) is the fleet's. Egress-only: no client-facing
   # address changes, and `*.kogler.si` stays authoritative so HA name resolution cannot ride it.
   - { name: technitium,     template_dir: technitium, subdomain: dns, public: true, enabled: true,
       technitium_forwarders: "{{ dns_resolver_upstreams }}" }
-  # db_role_sync (2026-08-23 incident): postgres images apply POSTGRES_PASSWORD ONLY at
+  # db_role_sync: postgres images apply POSTGRES_PASSWORD ONLY at
   # first cluster init — a rotated 1Password db item re-renders compose envs but the persisted
-  # cluster keeps the OLD role password (forgejo/renovate crash-loop precedent). Opt-in per
+  # cluster keeps the OLD role password (a crash-loop precedent). Opt-in per
   # service: deploy-service.yml re-syncs the ROLE password from the same vault item post-up.
   - { name: authentik,      template_dir: authentik, subdomain: sso, public: true, enabled: true,
       db_role_sync: true, db_item: authentik_db, db_pg_container: authentik-postgres }  # + bundled pg/redis
-  # Family launchpad at the public edge (HD-180/HD-183): kogler.si root + home alias via
+  # Family launchpad at the public edge: kogler.si root + home alias via
   # the compose's Docker-provider labels; Forward-Auth consumer (not native OIDC), so it
   # may sit anywhere after authentik.
   - { name: homepage,       template_dir: homepage, subdomain: home, public: true, enabled: true }
   # === Public live-data apps + co-located DBs (NVMe) ===
   - { name: opencloud,      template_dir: opencloud, subdomain: file, public: true, enabled: true, bind_owner_uid: "{{ storage_uid }}", bind_dirs: ['config', 'data'] }  # + bundled db
-  - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, public: true, enabled: true,  # WOPI helper for opencloud (HD-166); NO auth surface
-      db_role_sync: true, db_item: onlyoffice_db, db_pg_container: onlyoffice-postgres }       # rotation-drift guard. NOTE (HD-230): pg+redis moved to NAMED volumes — the old nested host binds under /srv/docker/onlyoffice-docs got chown-corrupted by DS init (uid 105 walk); no bind_owner_uid needed anymore.
+  - { name: onlyoffice-docs, template_dir: onlyoffice-docs, subdomain: office, public: true, enabled: true,  # WOPI helper for opencloud; NO auth surface
+      db_role_sync: true, db_item: onlyoffice_db, db_pg_container: onlyoffice-postgres }       # rotation-drift guard. The pg+redis moved to NAMED volumes — the old nested host binds under /srv/docker/onlyoffice-docs got chown-corrupted by DS init (uid 105 walk); no bind_owner_uid needed anymore.
   - { name: immich-app,     template_dir: immich-app, subdomain: foto, public: true, enabled: true,  # + pg/valkey; ML->oldsrv
       db_role_sync: true, db_item: immich_db, db_pg_container: immich-postgres }
   - { name: forgejo,        template_dir: forgejo,   subdomain: git, public: true, enabled: true,   # + bundled db
       db_role_sync: true, db_item: forgejo_db, db_pg_container: forgejo-db }
-  # PUBLIC bin/shortener/QR (HD-112): crowdsec-only tier, native-OIDC dashboard,
+  # PUBLIC bin/shortener/QR: crowdsec-only tier, native-OIDC dashboard,
   # guestbin dropzone seeded post-deploy (compose header = deploy-gate runbook).
   - { name: zipline,        template_dir: zipline,   subdomain: bin, public: true, enabled: true,
       db_role_sync: true, db_item: zipline_db, db_pg_container: zipline-db }
-  # === AI stack (public/gateway tier — HD-100..104) ===
+  # === AI stack (public/gateway tier) ===
   - { name: litellm,        template_dir: litellm,   public: false, enabled: true,    # llm-backend -> oldsrv ollama over WG
       bootstrap_keys: true,
       db_role_sync: true, db_item: litellm_db, db_pg_container: litellm-db }
-  - { name: qdrant, template_dir: qdrant, public: false, enabled: true }  # AI RAG hybrid vector store on db-internal (HD-267/268; replaces PGVector — not postgres, so NO db_role_sync/db_item/db_pg_container)
+  - { name: qdrant, template_dir: qdrant, public: false, enabled: true }  # AI RAG hybrid vector store on db-internal — not postgres, so NO db_role_sync/db_item
   - { name: docling,        template_dir: docling,   public: false, enabled: true,   # OCR (services-internal)
-      # HD-471: the `cache` bind carries torch-inductor's compiled kernels, which must be dlopen-able.
+      # the `cache` bind carries torch-inductor's compiled kernels, which must be dlopen-able.
       # The image runs as uid 1001 → Docker would auto-create the host dir root-owned and the layout
-      # stage would fail again, this time with a PermissionError instead of the noexec one.
+      # stage would fail with a PermissionError instead of the noexec one.
       bind_owner_uid: "1001", bind_dirs: ['models', 'cache'] }
   - { name: open-webui,     template_dir: open-webui, subdomain: ai, public: true, enabled: true }
-  # === AI dual coding harness (HD-268c → HD-355, 2026-09-10): MOVED to OLDSRV ===
-  # The dev-AI tier moved dsh + pi-dev to oldsrv (group_vars/home_servers.yml) and
-  # dropped their VPS tailscale sidecars. The names stay served on the VPS tailnet
+  # === AI coding harness: dsh + pi-dev live on OLDSRV, not here ===
+  # The dev-AI tier is oldsrv's (group_vars/home_servers.yml);
+  # there are no VPS tailscale sidecars for them. The names stay served on the VPS tailnet
   # edge (traefik-tailnet -> WG -> oldsrv_home_ip) — see the DSH/pi-dev subdomain
   # entries + route re-point under `tailnet_subdomains` / traefik-tailnet routes.
-  # (VPS entries removed; not part of the VPS container set anymore.)
-  # === AI MCP stubs (HD-268b) — placeholders; do not yet deploy a runnable unit ===
+  # === AI MCP stubs — placeholders; do not yet deploy a runnable unit ===
   - { name: rag-mcp,        template_dir: rag-mcp,   enabled: false }  # TODO(impl) kapa-style hybrid reader (Qdrant→rerank→top5)
   - { name: forgejo-mcp,    template_dir: forgejo-mcp, enabled: false }  # TODO(impl) Forgejo OKF-wiki read/write bridge
-  # bind_owner_uid/bind_dirs (Wave-2 triage 2026-08-22): Docker auto-created these host
+  # bind_owner_uid/bind_dirs: Docker auto-creates these host
   # bind dirs root-owned; the images run non-root (grafana=472, n8n/openclaw=1000 node)
-  # and crashed with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
+  # and crash with EACCES. deploy-service.yml pre-creates/chowns them (Class-A fix).
   - { name: openclaw,       template_dir: openclaw,  public: false, enabled: true, bind_owner_uid: "1000", bind_dirs: ['.', 'workspace', 'auth'] }
-  # === Observability backend (VPS = reliable tier; VPS self-observes loopback, HD-135b) ===
-  # Victoria* stack replaces Prometheus/Loki (HD-341/342): VM = metrics (pure storage, Alloy scrapes),
+  # === Observability backend (VPS = reliable tier; VPS self-observes loopback) ===
+  # The Victoria* stack replaces Prometheus/Loki: VM = metrics (pure storage, Alloy scrapes),
   # VL = logs. Grafana + Dozzle + blackbox-exporter stay.
   - { name: victoria-metrics, template_dir: victoria-metrics, public: false, enabled: true }
   - { name: victoria-logs,    template_dir: victoria-logs,    public: false, enabled: true }
   - { name: grafana,        template_dir: grafana,    subdomain: stats, public: false, enabled: true, bind_owner_uid: "472", bind_dirs: ['data', 'provisioning'] }
   - { name: blackbox-exporter, template_dir: blackbox-exporter, public: false, enabled: true }
-  - { name: dozzle,         template_dir: dozzle,        subdomain: logs, public: false, enabled: true }   # HD-135b: live per-container log viewer moved from oldsrv (logs.kogler.si)
-  # HD-135b follow-up: admin dashboards are TAILNET-ONLY. traefik-tailnet = the
+  - { name: dozzle,         template_dir: dozzle,        subdomain: logs, public: false, enabled: true }   # live per-container log viewer (logs.kogler.si)
+  # Admin dashboards are TAILNET-ONLY. traefik-tailnet = the
   # tailnet Traefik edge + its tailscale sidecar (vps-obs, tag:sidecar) in ONE project
   # (compose v2 requires network_mode: service:X to be same-file). It serves
   # stats/traefik/logs/csui/auto (and *.ts.kogler.si twins) over headscale with
   # clean subdomain URLs — NO public records, NO port-number `tailscale serve`.
-  # The auth key (tailscale-sidecar_api) is owner-seeded (2026-08-28); edge IP pinned
+  # The auth key (tailscale-sidecar_api) is owner-seeded; the edge IP is pinned
   # to 172.20.0.250 (traefik_edge_ips in group_vars/all/main.yml) for header-trust.
   - { name: traefik-tailnet, template_dir: traefik-tailnet, public: false, enabled: true }
   # === Alert brain (WG-down -> net mail/Signal; independent of tunnel) ===
-  # n8n INTERNAL-ONLY (HD-135b follow-up): public auto.kogler.si route removed from
-  # the main edge labels; served only by traefik-tailnet over the tailnet.
+  # n8n INTERNAL-ONLY: the public auto.kogler.si route is not on the main edge
+  # labels; it is served only by traefik-tailnet over the tailnet.
   - { name: n8n,            template_dir: n8n,       public: false, enabled: true, bind_owner_uid: "1000", bind_dirs: ['data'] }
   # === Backup agents (Kopia -> backup Box; db-backup dumps) ===
   - { name: kopia-server,   template_dir: kopia-server, public: false, enabled: true }
   - { name: db-backup,      template_dir: db-backup,    public: false, enabled: true }
-  # === Matrix — public + federated (HD-46/47; homeserver next to the public edge) ===
+  # === Matrix — public + federated (homeserver next to the public edge) ===
   - { name: matrix,         template_dir: matrix,    public: true, enabled: true }
   - { name: chat,           template_dir: element-web, subdomain: chat, public: true, enabled: true }
-  # === Edge accessories (moved from oldsrv — VPS residency, HD-135 deliberations) ===
+  # === Edge accessories (VPS residency) ===
   - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true }  # public coordination (rev. network-vpn.md)
-  # Metabase — RETIRED from the VPS 2026-09-14 (never used; no data to lose; VPS RAM tight).
-  # If ever needed again it runs on OLDSRV (docs/services-admin.md). Entry kept `enabled: false`
-  # so the deploy loop tears the container down. The db_ro_* keys are REMOVED (commented here)
-  # so the `metabase_ro` role in forgejo-db is no longer re-synced; vault item
-  # `metabase-forgejo_ro` intentionally left in place (owner: leave as-is).
+  # Metabase — RETIRED (never used; no data to lose; VPS RAM tight).
+  # The IaC is KEPT, not deleted: this line is the switch,
+  # and `enabled: false` means "declared here, ignored by the converge" — which is what a
+  # retired-but-not-forgotten service should look like. It now reaches further than the
+  # container: the Authentik → 1Password secret-egress glue renders its `metabase:metabase_oidc`
+  # entry only while this line says enabled, so a retired service cannot seed — or, per
+  # HD-441, *mint* — a vault item. An `enabled: false` service that can still mint is the gap
+  # that produces phantom vault items for a service that is off.
+  # The `metabase_ro` role in forgejo-db is no longer re-synced; the db_ro_* keys are dropped
+  # and the vault item `metabase-forgejo_ro` is intentionally left in place (owner: leave as-is).
+  # If ever needed again it runs on OLDSRV (docs/services-admin.md).
   - { name: metabase,       template_dir: metabase,  subdomain: sec, public: false, enabled: false }
-  #   RETIRED (source dropped): db_ro_sync: true, db_ro_item: metabase-forgejo_ro, db_pg_container: forgejo-db
-  #
-  # Metabase — RETIRED 2026-09-23 (owner decision). The IaC is KEPT, not deleted: this line is the switch,
-  # and `enabled: false` means "declared here, ignored by the converge" — which is what a retired-but-not-
-  # forgotten service should look like. It now reaches further than the container: the Authentik → 1Password
-  # secret-egress glue renders its `metabase:metabase_oidc` entry only while this line says enabled, so a
-  # retired service cannot seed — or, per HD-441, *mint* — a vault item. That closes the gap that let four
-  # phantom `metabase_oidc,` items appear over a service that had been off for weeks.
   # ⚠ What this switch does NOT gate (tracked in its own row, not silently): the Authentik provider + app in
   #   templates/docker_services/authentik/blueprints/ks-oidc.yml, and the two `edge-sec` proxy providers, two
   #   `edge-metabase*` apps and their `outpost_embedded` references in ks-forward-auth.yml. Those files are
   #   copied **unrendered** (deploy-service.yml uses `copy:`, and only `_extra_templates` entries get `template:`),
   #   so there is no Jinja hook; and they cannot be split into their own blueprint file because `!KeyOf` resolves
   #   per blueprint file while `outpost_embedded` is one shared object listing every proxy provider — a dangling
-  #   KeyOf fails the whole import, which is an IdP outage. They are inert (no Traefik route has targeted
-  #   metabase:3000 since 2026-09-14) but they are still asserted whenever blueprints are applied.
-  # HD-272: CrowdSec Web UI (csui.kogler.si) — richer ops surface alongside Metabase.
+  #   KeyOf fails the whole import, which is an IdP outage. They are inert (no Traefik route targets
+  #   metabase:3000) but they are still asserted whenever blueprints are applied.
+  # CrowdSec Web UI (csui.kogler.si) — richer ops surface alongside Metabase.
   # INTERNAL-ONLY (NO public CNAME); Forward-Auth; LAPI watcher auth (crowdsec-webui_lapi_api).
   - { name: crowdsec-web-ui, template_dir: crowdsec-web-ui, subdomain: csui, public: false, enabled: true }
   - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, public: true, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, public: true, enabled: true }
-  - { name: renovate,       template_dir: renovate,  public: false, enabled: true }  # co-located with Forgejo/GitOps. RE-ENABLED 2026-08-24 (task 5): domen/homelab not migrated yet, so RENOVATE_REPOSITORIES currently points at domen/test temporarily (template) — switch back to domen/homelab when that repo lands. Playbook run is OWNED by the other session; do NOT converge here.
-  # HD-354 (2026-09-10): Navidrome (music.kogler.si) — music server on the VPS; library
+  - { name: renovate,       template_dir: renovate,  public: false, enabled: true }  # co-located with Forgejo/GitOps; the platform comes from the compose env, not renovate.json; see docs/deployment-renovate.md
+  # Navidrome (music.kogler.si) — music server on the VPS; library
   # on the Hetzner Storage Box (CIFS /mnt/storagebox/music, no host-port publish); music
-  # moved OFF nas (hardlink→copy-import for music); INTERNAL-ONLY (no public record).
+  # lives OFF nas (hardlink→copy-import for music); INTERNAL-ONLY (no public record).
   - { name: navidrome,      template_dir: navidrome,  subdomain: music, public: false, enabled: true }
-  # === HD-412 RustDesk — family-support rendezvous (hbbs) + relay (hbbr) on the VPS ===
-  # Placement DECIDED 2026-09-20 (services-rejected.md): the VPS, never oldsrv. No subdomain and
+  # === RustDesk — family-support rendezvous (hbbs) + relay (hbbr) on the VPS ===
+  # Placement: the VPS, never oldsrv (services-rejected.md). No subdomain and
   # `public: false` because it has NO Traefik route: it is `network_mode: host`, so no docker
   # network reaches it — its reach is the nftables allow of 21115/21116(tcp+udp)/21117 in
   # roles/vps-hardening (21118/21119 stay dropped: web client unused + X-Real-IP spoof risk).
   # `enabled` is gated on the keypair existing: the compose is FAIL-CLOSED on the `rustdesk_login`
   # vault item, so enabling before that item is seeded aborts EVERY VPS docker_services converge (the
-  # HD-386 class — a missing 1P item takes the whole run with it). Item seeded 2026-09-21; the
-  # manual-value write rules (including the op-CLI field-shape trap that renders empty keys) are in
+  # HD-386 class — a missing 1P item takes the whole run with it), so the
+  # `rustdesk_login` item must be seeded before this flips on. The manual-value write rules
+  # (including the op-CLI field-shape trap that renders empty keys) are in
   # docs/deployment-secrets.md §Creation & Rotation Workflow item 7.
   # The five relay_* values are the bandwidth policy (the compose reads them as svc.* — the one
   # channel by which a group_vars value reaches a compose render without a validator mock).
   # Derivation + the quota they are bounded against: services-admin.md §Relay bandwidth cap.
-  # Caps CONFIRMED by the owner 2026-09-21 (short sessions by design ⇒ quota pressure negligible):
+  # Owner-confirmed caps (short sessions by design ⇒ quota pressure negligible):
   # TOTAL 48 / SINGLE 24 / LIMIT 8 Mb/s, no nftables shaping.
   - { name: rustdesk-server, template_dir: rustdesk-server, public: false, enabled: true,
       relay_single_mbps: 24, relay_total_mbps: 48, relay_limit_mbps: 8,
       relay_downgrade_threshold: "0.66", relay_downgrade_start_check_s: 1800 }
 
-# docling-serve memory ceiling (HD-471). String, not int — compose's schema (HD-162).
+# docling-serve memory ceiling. String, not int — compose's schema.
 # Measured basis in docs/services-ai.md §Operational facts measured on the way: rapidocr path peak
 # 3.263 GiB sampled; a bench container capped at 7 GiB was OOM-killed twice while adding an EasyOCR
 # converter. 6 GiB = ~1.8× the measured peak on a 16 GB VPS with NO swap, so a runaway converter is
 # OOM-killed by its own cgroup instead of taking the host down.
 docling_memory_limit: "6g"
 
-# HD-268 tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
-# when these flags are true. HD-355 (2026-09-10): dsh + pi-dev MOVED to oldsrv and
-# their tailscale sidecars are REMOVED — the flags are now permanently false on the
-# VPS (the names are still served by the tailnet edge over WG). They stay for the
-# historical 2026-08-27 pattern + never again accidentally re-enable the sidecars.
+# Tailnet sidecar opt-ins: render the `*-tailscale` Pattern-A sidecar only
+# when these flags are true. dsh + pi-dev moved to oldsrv and
+# their tailscale sidecars are REMOVED — the flags are permanently false on the
+# VPS (the names are still served by the tailnet edge over WG). They stay so a
+# re-enable has to be a deliberate edit and cannot happen by accident.
 dsh_tailnet_sidecar_enabled: false
 pi_dev_tailnet_sidecar_enabled: false
 
-# Single cert issuer (HD-178/HD-181): THIS host is the only ACME (DNS-01) issuer for
+# Single cert issuer: THIS host is the only ACME (DNS-01) issuer for
 # *.kogler.si — traefik runs the letsencrypt resolver + certs-dumper; every other host
 # consumes the synced pair (role default false, see roles/docker_services/defaults).
 traefik_acme_issuer: true
 
-# Scoped virtual keys (HD-247) — SSOT consumed by BOTH the bootstrap-keys glue
+# Scoped virtual keys — SSOT consumed by BOTH the bootstrap-keys glue
 # (roles/docker_services/templates/litellm-bootstrap-keys.sh.j2 mints each key into its
 # vault item at converge) AND scripts/check-vault-items.sh (the entry-record `*_item:`
 # rule parses `vault_item:` from these records; items are glue-seeded => excluded from
 # MISSING). One PHYSICAL line per record (closing brace ends the record).
 # models: comma-separated LiteLLM model names (wildcards allowed); empty = all models.
 # max_budget/budget_duration: LiteLLM budget semantics (USD per period); blank = uncapped.
-# rpm: optional, LAST field — requests/minute, blank = uncapped. Added 2026-09-26 (HD-384):
-#   the decided simple-querier caps had NO code path before that date, so a record carrying
-#   rpm minted an uncapped key and looked green. Records without the field still render
-#   (default('', true)) — do not "clean up" the six-field format back to five.
+# rpm: optional, LAST field — requests/minute, blank = uncapped.
+#   A record carrying rpm without a code path for the field mints an UNCAPPED key and
+#   looks green. Records without the field still render (default('', true)) — do not
+#   "clean up" the six-field format back to five.
 litellm_scoped_keys:
   - { alias: owui-public-chat, vault_item: owui-public-chat_api, models: "ollama/*,openrouter/*", max_budget: "20", budget_duration: "30d" }
-  - { alias: owui-public-rag, vault_item: owui-public-rag_api, models: "ollama/bge-m3,ollama/bge-reranker-v2-m3", max_budget: "5", budget_duration: "30d" }  # decision #24 (2026-09-15): Cohere retired → local bge-m3/bge-reranker on oldsrv RX 7600 (Ollama :rocm); rerank included DEVIATION: HD-246 routes /rerank through this same key — embed-only would hard-break the decided RAG pipeline
-    # ⚠ STALE NAMES under decision #27 (2026-09-18) / HD-391: embed moves to the Vulkan `embed`
+  - { alias: owui-public-rag, vault_item: owui-public-rag_api, models: "ollama/bge-m3,ollama/bge-reranker-v2-m3", max_budget: "5", budget_duration: "30d" }  # rag key for Open WebUI; see the stale-model note below
+    # ⚠ STALE NAMES: embed moves to the Vulkan `embed`
     # leg and rerank to the Vulkan `reranker` leg routed as LiteLLM `jina_ai/…`, so
     # `ollama/bge-reranker-v2-m3` names a model that no longer exists anywhere (it was never
     # the pulled name either — that was ollama/qllama/bge-reranker-v2-m3:q8_0). The allow-list
-    # is NOT re-pointed here: model rows live in the LiteLLM DB (decision 13, never
-    # git-rendered), these two keys have no live consumer until rag-mcp is implemented
-    # (HD-268b), and the VPS instance does not host the pinned-AI legs — lan-litellm does.
+    # is NOT re-pointed here: model rows live in the LiteLLM DB (never git-rendered), these two
+    # keys have no live consumer until rag-mcp is implemented, and the VPS instance does not
+    # host the pinned-AI legs — lan-litellm does.
     # Re-point both records in the SAME change as the rag-mcp consumer wiring.
   - { alias: owui-int-wife, vault_item: owui-int-wife_api, models: "ollama/*,openrouter/*", max_budget: "40", budget_duration: "30d" }
   - { alias: owui-int-owner, vault_item: owui-int-owner_api, models: "", max_budget: "", budget_duration: "" }  # full access (models unset = all)
-  # dsh + pi-harness MOVED to the LAN instance 2026-09-15 (HD-356/HD-370, owner go):
-  # dsh/pi-dev re-pointed at lan-litellm (oldsrv), so their scoped keys live in the
-  # LAN DB — the records now render from group_vars/home_servers.yml (its own
-  # `litellm_scoped_keys`). ⚠ Until 2026-09-28 these lines claimed the old VPS-DB alias keys
-  # for dsh/pi-harness "were deleted server-side". THEY HAD NOT BEEN: `/key/list` + `/key/info`
-  # on the VPS instance showed alias `dsh` AND alias `pi-harness` still present (both created
-  # 2026-09-15, both `last_used=None`). `dsh` is now genuinely deleted (HD-383: 9 keys → 8,
-  # re-listed to confirm); `pi-harness` is deliberately left — its vault item still holds a
-  # value, so it is a parked key of a parked consumer (HD-386), not an orphan. The rc-4 ABORT
-  # guard this note cited is real, and it is exactly why a cleared/DELETED vault item must never
+  # dsh + pi-harness live on the LAN instance:
+  # dsh/pi-dev are served by lan-litellm (oldsrv), so their scoped keys live in the
+  # LAN DB — the records render from group_vars/home_servers.yml (its own
+  # `litellm_scoped_keys`). ⚠ "deleted server-side" must be re-listed, not asserted:
+  # `/key/list` + `/key/info` on the VPS instance is the only evidence, and an alias
+  # can be reported gone while still present with `last_used=None`. `pi-harness` is
+  # deliberately left: its vault item still holds a value, so it is a parked key of a
+  # parked consumer, not an orphan. The rc-4 ABORT
+  # guard is real, and it is exactly why a cleared/DELETED vault item must never
   # share the spec list with a live alias: the glue would mint, LiteLLM would refuse the
   # duplicate alias, and the converge would go red for a key nobody consumes.
   # ⚠ Endpoint shape on the pin (v1.83.10): `POST /key/delete` wants `{"keys":[…]}` or
   # `{"key_aliases":[…]}` — the singular `key` is a 422, and `/key/info` 404s without `?key=`.
   - { alias: openclaw-litellm, vault_item: openclaw-litellm_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }  # NOT openclaw_api — that name is TAKEN by the OpenClaw OIDC client (secret-egress glue PROVIDERS)
-  - { alias: rag-int-svc, vault_item: rag-int-svc_api, models: "ollama/bge-m3,ollama/bge-reranker-v2-m3", max_budget: "5", budget_duration: "30d" }  # decision #24 (2026-09-15): Cohere retired → local bge-m3/bge-reranker on oldsrv RX 7600 (Ollama :rocm) — ⚠ same stale-names caveat as owui-public-rag above (decision #27 / HD-391)
+  - { alias: rag-int-svc, vault_item: rag-int-svc_api, models: "ollama/bge-m3,ollama/bge-reranker-v2-m3", max_budget: "5", budget_duration: "30d" }  # rag key for the internal RAG service; see the stale-model note on the record above
 
-# Homepage HA-failover buttons (HD-17/HD-217): render the HA Forward Takeover /
+# Homepage HA-failover buttons: render the HA Forward Takeover /
 # Reverse Failback cards in templates/homepage_services.yaml.j2 ONLY when true.
-# Stays false until HD-17 goes live (Phase 4: ha-failover_api vault item seeded +
-# HmIP-RFUSB stick moved at runbook time), then flips true.
+# Stays false until failover goes live (the `ha-failover_api` vault item seeded +
+# the HmIP-RFUSB stick moved at runbook time), then flips true.
 homepage_failover_button: false
 
-# Homepage family-vs-technical split (HD-316):
+# Homepage family-vs-technical split:
 #   - homepage_show_technical (default true): render the "Domen · technical"
 #     group (tailnet-only admin dashboards: stats/logs/csui/traefik/auto/
 #     dsh/pi-dev/vpn). Grafana (stats) is Domen's dashboard — never a family tile.
@@ -251,31 +248,30 @@ homepage_show_technical: true
 homepage_show_soon: true
 
 # HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the Phase-4 HA
-# cutover (HD-04). Today nothing can populate the bearer-token file (no vault item, no
+# cutover. Today nothing can populate the bearer-token file (no vault item, no
 # monitoring render) and ha_vip serves no HA yet - a live job would just fail. Flip true at
-# HD-04 with the HA long-lived-token item seeded, the Alloy compose mount added, and the
-# token path renamed off the retired product name — measured 2026-09-26 on the VPS: Alloy
-# has NO mount for the path this block would read, so enabling the gate alone yields a
-# scrape that cannot see its own token (see the same-change rule in roles/monitoring/tasks).
+# the cutover with the HA long-lived-token item seeded, the Alloy compose mount added, and
+# the token path renamed off the retired product name: Alloy has NO mount for the path this
+# block reads, so enabling the gate alone yields a scrape that cannot see its own token
+# (see the same-change rule in roles/monitoring/tasks).
 # The gate is named for what it gates (Alloy's ha_exporter job), not for the retired
 # backend. HA's endpoint really is /api/prometheus, so THAT name stays.
 alloy_ha_exporter: false
 
-# HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge (traefik-tailnet)
+# Tailnet-only dashboards: the tailnet Traefik edge (traefik-tailnet)
 # is served on the headscale sidecar node `vps-obs` (tag:sidecar). headscale
 # `dns.extra_records` maps the clean subdomain names (stats/logs/csui/traefik/auto
 # AND their *.ts.kogler.si twins) to this node's tailnet IPv4.
 # Tailnet IPv4s are assigned SEQUENTIALLY by headscale at node join. This value is
 # filled at deploy time from `headscale nodes list` after the sidecar joins (empty →
 # headscale renders no extra_records).
-# ⚠ Do NOT re-type a node map here (derived-values ban). The last one this file carried
-# ("100.64.0.3 laptop, 100.64.0.4 phone") was contradicted by live state on 2026-09-23:
-# `ss` on oldsrv showed its `pi-web` listener bound to 100.64.0.3, so .3 is oldsrv's
-# node, not the laptop's. Read `headscale nodes list`; never trust a remembered pair.
+# ⚠ Do NOT re-type a node map here (derived-values ban): a remembered
+# `IP -> node` pair will eventually contradict live state, and the check is `ss` on the
+# host plus `headscale nodes list`. Read the command output; never trust a remembered pair.
 tailnet_sidecar_ip: "100.64.0.1"
-# HD-268c (2026-08-29): Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev).
-# HD-355 (2026-09-10): the sidecars are REMOVED (dsh/pi-dev moved to oldsrv) —
-# these are now retained as historical/no-op values: the clean-URL DNS still
+# Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev): the sidecars are REMOVED
+# (dsh/pi-dev moved to oldsrv) —
+# these are retained as historical/no-op values: the clean-URL DNS still
 # resolves to the edge (tailnet_sidecar_ip), and the edge reaches the backends
 # over WG to {{ oldsrv_home_ip }}:3080/:8080 (NOT via these sidecar IPs). They
 # stay only so any dangling config that references them resolves; do NOT rely on
@@ -286,7 +282,7 @@ tailnet_pi_dev_ip: "100.64.0.5"
 # Subdomains served by the tailnet edge (watched by headscale config.yaml.j2
 # extra_records render). Each entry is `{name: <sub>, ip: <tailnet IPv4>}`.
 # `ip` defaults to `tailnet_sidecar_ip` (the traefik-tailnet observability
-# edge on `vps-obs`, 100.64.0.1) when omitted. HD-297 (2026-08-31): EVERY
+# edge on `vps-obs`, 100.64.0.1) when omitted. EVERY
 # clean-URL FQDN (incl. dsh/pi) must resolve to this edge — it terminates TLS
 # (wildcard cert) + Host-routes to the backends. Do NOT pin the Pattern-A
 # sidecar IPs here: the sidecars only serve plain HTTP (:3080/:8080) with no
@@ -306,14 +302,14 @@ tailnet_subdomains:
   - { name: stats }
   - { name: logs }
   - { name: csui }
-  # sec REMOVED 2026-09-14 — Metabase retired from the VPS.
+  # sec REMOVED — Metabase retired from the VPS.
   - { name: traefik }
   - { name: auto }
-  # --- DSH / pi-dev (HD-355: resolve to the edge, hosted on OLDSRV): the tailnet
+  # --- DSH / pi-dev: resolve to the edge, hosted on OLDSRV; the tailnet
   # edge serves the clean URLs + the *.ts twins; it reaches the backends over WG
   # to {{ oldsrv_home_ip }}:3080/:8080 (the dsh/pi-dev route re-point lives in
   # templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2) ---
-  # ⚠ PARKED 2026-09-17 (HD-386, decision #26): the BACKENDS DO NOT EXIST any more —
+  # ⚠ PARKED: the BACKENDS DO NOT EXIST any more —
   # dsh/pi-dev are removed (and the coding harnesses are dedicated deployments now, not
   # oldsrv containers), so these two names resolve and the edge answers 502 BY DESIGN.
   # This is NOT an outage to chase. Left in place deliberately: dropping the entries
@@ -321,9 +317,9 @@ tailnet_subdomains:
   # nothing — the records are harmless and the routes cost no failure. Remove both here
   # AND the dsh-backend/pi-backend blocks in routes.yml.j2 together, in one change, if
   # the owner decides the names should stop resolving.
-  - { name: dsh }     # -> edge -> dsh-backend    http://{{ oldsrv_home_ip }}:3080 (over WG; old: dsh:3080) — backend PARKED (HD-386), 502 expected
-  - { name: pi-dev }  # -> edge -> pi-backend     http://{{ oldsrv_home_ip }}:8080 (over WG; old: pi-dev:8080) — backend PARKED (HD-386), 502 expected
-  # HD-370: spark AI endpoints + LiteLLM admin — resolve to the vps-obs edge (same as above);
+  - { name: dsh }     # -> edge -> dsh-backend    http://{{ oldsrv_home_ip }}:3080 (over WG) — backend PARKED, 502 expected
+  - { name: pi-dev }  # -> edge -> pi-backend     http://{{ oldsrv_home_ip }}:8080 (over WG) — backend PARKED, 502 expected
+  # spark AI endpoints + LiteLLM admin — resolve to the vps-obs edge (same as above);
   # the tailnet edge Host-routes db-spark/llm to spark's edge over WG + litellm to the VPS
   # container. The .ts twins get the same extra_records (MagicDNS).
   - { name: db-spark }   # -> edge -> db-spark-backend  https://{{ spark_home_ip }}:443 (over WG; spark's own edge)
