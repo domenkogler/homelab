@@ -16,9 +16,8 @@ tags: [hardware, oldsrv, docker]
 > secondary, smart-home, backup agent, LAN AI tier), the Home Assistant **standby** render (cold standby +
 > keepalived BACKUP + failover variant), and the thin monitoring collector.
 > ⏳ **Remaining:** the kopia-agent connect gate (needs the VPS kopia-server leg), signal-cli phone
-> registration (owner), the battery-pull test (HD-06), and nas's Mgmt-99 `eno1.99` leg (convenience only).
+> registration (owner), the battery-pull test, and nas's Mgmt-99 `eno1.99` leg (convenience only).
 >
-> Execution history for this host = [deployment-tasks.md](../deployment-tasks.md) + git log.
 > **NIC map:** `enp0s31f6` = onboard Intel (boot/main, Home VLAN) · `enp5s0f0` / `enp5s0f1` = Intel i350-T2
 > (port 2 = `enp5s0f1`) · `wlp9s0` = WLAN card, blacklisted (`module_blacklist=iwlwifi`); consider
 > disabling in BIOS.
@@ -42,9 +41,7 @@ tags: [hardware, oldsrv, docker]
 
 > by-ids **verified on Linux** (Debian live USB, [disk-facts report](../reports/disk-facts-oldsrv-20260822-191419.txt)):
 > `nvme-eui.0025385c61b048c2` = 960 EVO 500 GB, S/N `S3EUNX0HC06971Z` (**system**) ·
-> `nvme-eui.0025385b0143f12e` = 970 EVO 1 TB, S/N `S5H9NS1NB12680T` (**data**). Do not infer the mapping
-> from an old Windows report — the pre-reinstall Windows `C:\` lived on the 970, and both disks were
-> wiped and re-purposed at deploy.
+> `nvme-eui.0025385b0143f12e` = 970 EVO 1 TB, S/N `S5H9NS1NB12680T` (**data**).
 | OS | Debian with XFCE or GNOME desktop |
 | Location | Workstation desk (not rack-mounted) |
 
@@ -98,13 +95,13 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ---
 
-## Docker Services (HD-135 split — oldsrv = GPU/LAN core)
+## Docker Services (oldsrv = GPU/LAN core)
 
 > **Single source of truth:** the canonical service catalog is [`services.md`](services.md).
 > `oldsrv` runs the **GPU/LAN/storage-bound core** — media/*arr, downloads, DNS secondary, HA standby,
 > immich-ML, Sunshine, signal-cli and the pinned-AI legs; the public edge, live-data apps, the
-> observability **backend**, GitOps and the log viewer (Dozzle) live on the VPS (HD-135/HD-135b —
-> independent of the home hosts). GPU-enabled containers are listed in `hardware-gpu.md`.
+> observability **backend**, GitOps and the log viewer (Dozzle) live on the VPS — independent of the home
+> hosts. GPU-enabled containers are listed in `hardware-gpu.md`.
 > **There is no family-LLM serving tier here:** big-model generation runs on spark, vision on the
 > workstation ([`services-ai.md`](services-ai.md) §9).
 
@@ -126,12 +123,16 @@ Containers start at boot via systemd units **before any user logs in**:
 - **Metrics/logs storage:** the observability **backend is on the VPS** —
   VictoriaMetrics/VictoriaLogs data on **VPS NVMe** (`/srv/docker/victoria-*/data`), not on oldsrv. Oldsrv
   runs only the thin **Alloy collector** (host metrics + logs) forwarding over the `wg-s2s` tunnel
-  (`alloy_backend_host`). Metrics/logs are **Kopia-backed** (HD-341/342). The VPS runs its **own** Alloy
+  (`alloy_backend_host`). Metrics/logs are **Kopia-backed**. The VPS runs its **own** Alloy
   (loopback → local VictoriaMetrics/VictoriaLogs) + its own Dozzle, so it never depends on oldsrv for its
   own observability. See `observability.md` §Placement.
 - **Disk headroom:** monitor the `nvme` pool (oldsrv) + OS disk **and** the VPS NVMe in Grafana — pool ≥70% Warning / ≥80% Critical (see `observability.md`), OS disk ≥90% Critical.
-- **SPOF (accepted, HD-135, narrowed HD-135b):** the observability **backend** now lives on the **VPS** — if the VPS (or the home↔VPS `wg-s2s` tunnel) is down, *home* metrics/logs are unavailable in Grafana (aggregation is buffered/replayed on reconnect; the VPS's own stack stays observable locally via its loopback Alloy + Dozzle). NUT-side `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in `observability.md` §Placement.
-- Adds RAM weight vs original: n8n + VictoriaLogs are the main additions; i7-7700K / 48 GB handles the collector side.
+- **SPOF (accepted):** the observability **backend** lives on the **VPS** — if the VPS (or the home↔VPS
+  `wg-s2s` tunnel) is down, *home* metrics/logs are unavailable in Grafana (aggregation is buffered/replayed
+  on reconnect; the VPS's own stack stays observable locally via its loopback Alloy + Dozzle). NUT-side
+  `notifycmd`/`upssched-cmd` on nas remains the independent power-loss alert path. Documented in
+  `observability.md` §Placement.
+- **RAM weight:** n8n + VictoriaLogs are the main additions; i7-7700K / 48 GB handles the collector side.
 
 ---
 
@@ -149,26 +150,22 @@ Containers start at boot via systemd units **before any user logs in**:
 
 ## Remote Management
 
-**There is none.** The board (ASRock Z270 Extreme4) carries no BMC/IPMI, and the **GL.iNet Comet KVM
-(GL-RM1)** this section long listed as installed hardware **was never bought** — it is a line in the costed
-shopping list (`brainstorming/Stroškovnik za novi strežnik.md`), and the owner confirmed on 2026-09-27 that no
-such device exists on site. The section was reading a wish as an inventory item, which is why four lanes spent
-2026-09-24 waiting to be let into a machine that had only been switched off. No address, network, account or
-off-site check can be recorded for it, because there is nothing to record.
+**There is none.** The board (ASRock Z270 Extreme4) carries no BMC/IPMI, and no out-of-band KVM exists on
+site: the **GL.iNet Comet KVM (GL-RM1)** is a line in the costed shopping list
+(`brainstorming/Stroškovnik za novi strežnik.md`), never a purchased device, so it holds no address, no
+network, no account and no off-site check.
 
 The power paths that exist are therefore exactly two: the **chassis button**, and **a human at home**.
 
-> **What is durable about power here, and what is not:** a short press of the chassis power button is wired to
-> a clean `systemd-logind` poweroff, so a silent oldsrv is a **power state first and a fault second** — read
-> `journalctl --list-boots` (a gap between boots is not a lost box) before diagnosing anything. A four-day
-> `L2-dead` reading (2026-09-23 21:39:55 → 2026-09-27 22:11) cost the fleet its home edge and was a button.
-> **WoL is unproven, not spent:** `enp0s31f6` reads `Supports Wake-on: pumbg` / `Wake-on: g`, so the 2026-09-24
-> silence was measured against a box with no standby power, not against an unarmed NIC — one re-test at a planned
-> power-off settles it. Whether to buy a real out-of-band path, and where such a device may sit (VLAN 99 is
-> sealed same-site by HD-398 A), is an owner call: [../todo.md](../todo.md) **HD-454**. ⏸ **Deferred again 2026-10-08
-> (owner): no purchase, no ruling, no WoL window scheduled** — nothing in this section may be written as a
-> device that exists, and no session may treat remote power control as available.
-> What does outlive any single outage is the topology: a down
+> **Power state first, fault second:** a short press of the chassis power button is wired to a clean
+> `systemd-logind` poweroff, so a silent oldsrv is a **power state before it is a fault** — read
+> `journalctl --list-boots` (a gap between boots is not a lost box) before diagnosing anything.
+> **WoL is unproven, not spent:** `enp0s31f6` reads `Supports Wake-on: pumbg` / `Wake-on: g`; one re-test at
+> a planned power-off settles it. Whether to buy a real out-of-band path, and where such a device may sit
+> (VLAN 99 is sealed same-site), is an **open owner decision**: no purchase, no ruling, no WoL window
+> scheduled — nothing in this section may be written as a device that exists, and no session may treat
+> remote power control as available.
+> The topology outlives any single outage: a down
 > oldsrv takes the home edge with it, including the nas's own Cockpit route, because
 > `/opt/traefik/dynamic/cockpit.yml` is rendered onto oldsrv by the cockpit role
 > ([services-traefik.md](services-traefik.md) §Cockpit Routes).
@@ -180,5 +177,5 @@ The power paths that exist are therefore exactly two: the **chassis button**, an
 
 oldsrv is **bare-metal Debian + Docker** — no local hypervisor, no GPU passthrough. One shared dGPU serves
 both the desktop and the AI containers, and a single host gains no HA from VMs. The `infra`/`desktop` VM
-split was considered and never installed (a re-install option at most).
+split is not installed (a re-install option at most).
 Decision log: [deployment-rejected.md](deployment-rejected.md) (Proxmox rows).
