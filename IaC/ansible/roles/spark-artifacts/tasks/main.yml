@@ -2,7 +2,7 @@
 # role: spark-artifacts — download/verify the GPU-inference artifact store.
 # General, config-agnostic layer: manifest (`spark_artifacts:`) maps HF repo →
 # local XFS dir; engine configs mount the store read-only (never own downloads).
-# See defaults/main.yml for the design + deploy-gating notes (HD-359).
+# See defaults/main.yml for the design + deploy-gating notes.
 
 - name: Assert safe execution context (spark-artifacts is spark-node-only)
   ansible.builtin.assert:
@@ -138,7 +138,7 @@
     # under --local-dir, which fails there. With --local-dir = ples_int4/ and
     # --include "ples_int4/*", the repo-relative path nests → ples_int4/ples_int4/*;
     # the flatten task below moves the nested dir's contents up after download.
-    # HD-469 cert (2026-09-28): the idempotency guard must test the INSTALLED
+    # The idempotency guard must test the INSTALLED
     # FLAT state, not the transient nested dir — the flatten task removes the
     # nested dir after download, so a guard on the nested path is NEVER satisfied
     # on a previously-staged store and re-downloads ~60 GB on every flip.
@@ -180,18 +180,17 @@
     # `mv dir/. dir/` refuses to move a dir into itself (Device or resource busy)
     # — move the CONTENTS up via glob (incl. dotfiles), then rmdir the empty
     # nested shell. Idempotent via `removes` (runs only when nested exists).
-    # 2026-09-28 (HD-469 cert): with an EMPTY nested dir the bare `mv "$inner"/*`
+    # With an EMPTY nested dir the bare `mv "$inner"/*`
     # is a no-arg mv → error exit; guard the mv on content and always rmdir so an
     # empty leftover (created by the dir-ensure task) is cleaned, not retried.
-    # 2026-09-29 (run #3): the task once reported `changed` while the nested dir
-    # was still full (transient mv failure mid-download); verify the flat result
-    # and fail the converge loudly so the next run re-flattens instead of the
-    # gate rejecting the profile on a nested store.
+    # Verify the flat result and fail the converge loudly: a transient mv failure
+    # mid-download leaves the nested dir full, so the next run re-flattens instead
+    # of the gate rejecting the profile on a nested store.
   become: "{{ spark_artifacts_become | default(false) }}"
   loop: "{{ spark_artifacts | selectattr('kind', 'equalto', 'tables') | list }}"
   tags: [spark, spark-artifacts, artifacts]
 
-# ── HD-489 kinds: repo-root / asset / built ─────────────────────────────
+# ── kinds: repo-root / asset / built ─────────────────────────────────────
 # The upstream (v16b) artifacts do not all fit the shapes this role was written for, and
 # inventing a flag per shape inside one task is how a role stops being readable:
 #   * repo-root — the FP8 PLE table ships at the REPO ROOT, so the `tables` kind's
