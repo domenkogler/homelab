@@ -13,7 +13,7 @@ tags: [observability, grafana, prometheus, monitoring]
 
 > **Status: 🟢 live.** The backend is the **Victoria stack on the VPS** — **VictoriaMetrics** (metrics,
 > 365 d) + **VictoriaLogs** (logs, 90 d) + **Grafana** + blackbox-exporter, all on the tailnet-only edge.
-> Collectors: **Alloy** per host (VPS loopback, oldsrv, and — pending — nas +
+> Collectors: **Alloy** per host (VPS loopback, oldsrv, spark, and — pending — nas +
 > Pi), oldsrv's SNMP + network-clients exporters, RouterOS syslog over RFC5424, `nut_exporter` on nas,
 > `zfs_exporter`, blackbox probes. Alerting: **Grafana → n8n (`homelab-alerts` webhook) → Signal + email**,
 > with Grafana-native SMTP in parallel as the fail-safe. The ruled delivery surface is a Matrix
@@ -53,9 +53,9 @@ nut_exporter (UPS, on nas) ─────────────────�
 
 ### The Victoria stack — the shape and why
 
-**One** metrics store (**VictoriaMetrics**, `victoriametrics:8428`) + **one** log store
-(**VictoriaLogs**, `victoriametrics-logs:9428`), both on the **VPS**, with **many writers** (Alloy
-collectors on VPS/oldsrv/nas/Pi, blackbox/nut/zfs exporters, MikroTik syslog) remote-writing into them.
+**One** metrics store (**VictoriaMetrics**, `victoria-metrics:8428`) + **one** log store
+(**VictoriaLogs**, `victoria-logs:9428`), both on the **VPS**, with **many writers** (Alloy
+collectors on VPS/oldsrv/nas/Pi/spark, blackbox/nut/zfs exporters, MikroTik syslog) remote-writing into them.
 **Grafana stays** in front of both. **MCP AI-debugging servers run on oldsrv** (much more RAM there) and
 point at the VPS endpoints over wg-s2s — **storage stays on the VPS, tooling stays at home.**
 Research + rationale: [`brainstorming/recent/Prometheus-Vs-victoriastack.md`](../brainstorming/recent/Prometheus-Vs-victoriastack.md).
@@ -72,7 +72,7 @@ VictoriaLogs    ──▶ Grafana (logs datasource)
 mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet──▶ VPS Victoria endpoints
 ```
 
-- **Writers stay on home infra** (oldsrv/nas/Pi Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability).
+- **Writers stay on home infra** (oldsrv/nas/Pi/spark Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability).
 - **MCP AI servers on oldsrv** (≈600–700 MB RAM each) — not on the VPS, not on the Pi.
 - **Dozzle is kept alongside VictoriaLogs.** They are different tools: Dozzle is a live per-container tail
   with no storage, VictoriaLogs is the searchable 90-day store. Replacing one with the other loses an
@@ -110,15 +110,17 @@ servers carry the backend auth themselves, so the client config carries **no sec
 All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 
 - **pi (pi.dev)** — add an MCP server entry in the pi agent config pointing at
-  `http://oldsrv:8080` (metrics) / `http://oldsrv:8081` (logs), transport `http` (SSE
-  alias for Streamable HTTP). Exact config lives in `pi-agent/` prompts/extension docs.
+  `http://oldsrv:8083` (metrics) / `http://oldsrv:8084` (logs), transport `http` (SSE
+  alias for Streamable HTTP). No such entry is authored in `pi-agent/` yet — its `prompts/` holds
+  `start.md` only.
 - **Open WebUI** — register both as **Tools** (Admin → Tools → MCP) with `url:
-  http://oldsrv:8080` / `http://oldsrv:8081` (Streamable HTTP), tagged for the internal
+  http://oldsrv:8083` / `http://oldsrv:8084` (Streamable HTTP), tagged for the internal
   `ai.kogler.si` instance so agent-role users can query metrics/logs.
 - **OpenClaw** — add both MCP servers to the OpenClaw MCP config (`http://oldsrv:8083` /
   `:8084`), gated to the same tailnet/LAN path.
-- The URLs above are the **SSOT contract**; the client-side config is environment-specific and lives
-  with each tool ([services-ai.md](services-ai.md)).
+- ⏳ **Concrete client config files are not authored here yet** — the URLs above are the **SSOT
+  contract**; the client-side config is environment-specific and lives with each tool
+  ([services-ai.md](services-ai.md)).
 
 ---
 
@@ -126,7 +128,7 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 
 | Layer | Service | Role | Network | Retention |
 |-------|---------|------|---------|-----------|
-| Agent | **Alloy** (per-node: vps/oldsrv/nas/pi) | Host metrics + logs + SNMP (oldsrv only for SNMP/network-clients) | host (`docker.sock`) → `services-internal` | — |
+| Agent | **Alloy** (per-node: vps/oldsrv/nas/pi/spark) | Host metrics + logs + SNMP (oldsrv only for SNMP/network-clients) | host (`docker.sock`) → `services-internal` | — |
 | Backend | **VictoriaMetrics** | Sole metrics store (pure storage/query — Alloy does ALL scraping, topology B) | `db-internal` | 365d (Kopia-backed) |
 | Backend | **VictoriaLogs** | Log aggregation, single-node/SSD | `db-internal` | 90d (Kopia-backed) |
 | Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in VictoriaMetrics |
@@ -187,7 +189,7 @@ update, or queries keep 401-ing despite correct rendered files.
 
 | Data | Owner | Where it lives |
 |------|-------|----------------|
-| Host + SNMP metrics | per-node Alloy (vps/oldsrv/nas/pi host exporters) + oldsrv SNMP → VictoriaMetrics | VictoriaMetrics (365d, Kopia) |
+| Host + SNMP metrics | per-node Alloy (vps/oldsrv/nas/pi/spark host exporters) + oldsrv SNMP → VictoriaMetrics | VictoriaMetrics (365d, Kopia) |
 | Service scrape (Traefik, CrowdSec) | Alloy (VPS loopback) → VictoriaMetrics | VictoriaMetrics (365d) |
 | HA entity metrics (weather, ComfoAir) | HA exporter → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
 | External reachability | blackbox → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
@@ -210,7 +212,10 @@ update, or queries keep 401-ing despite correct rendered files.
   Grafana (compose env), Pi + oldsrv HA (`secrets.yaml`), and **NUT `upssched-cmd` on nas**, which embeds it
   **inline** (see [hardware-ups.md](hardware-ups.md)).
   - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress**, so **2525 is the SSOT port**, not 587).
-- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. Delivery is **✅ live 2026-09-28**. **Recipient: the WHOLE group** — `signal_alert_recipients` takes the **group ID** that signal-cli reports, read off `GET 127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` → `.id` on the linked oldsrv daemon and stored in `group_vars/all/main.yml` (`group.NVZ6Y21…`) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. The ID is only readable from the linked daemon; never reconstruct it from a message-store backup, which would mean reading private messages.
+- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. Delivery is **✅ live 2026-09-28**. **Recipient: the WHOLE group** — `signal_alert_recipients` takes the **group ID** that signal-cli reports, read off
+`GET http://127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` **inside the container** (that raw upstream
+API has no auth and NO host port — hence `docker exec`, exactly as the `group_vars/all/main.yml` comment
+shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml` (`group.NVZ6Y21…`) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. The ID is only readable from the linked daemon; never reconstruct it from a message-store backup, which would mean reading private messages.
 - **Matrix is the target delivery channel (owner ruling).** Two facts make it a decision, not a
   preference: the `signal-cli-rest-api` daemon is **linked to the operator's personal number** and the
   "Homelab Alerts" group's **only human member is the operator** — so nothing in this fleet pages anyone
@@ -333,8 +338,9 @@ update, or queries keep 401-ing despite correct rendered files.
 The container memory cage cannot protect a GB10 host (GPU pages are not cgroup-charged) and Docker reports
 `OOMKilled: false` on a host-side kill, so **host memory is the only early warning** there. Rules
 `spark-host-mem-oom-warning` / `spark-host-mem-oom-critical`; the on-box enforcer is
-`spark-oom-watchdog` (`roles/spark`: CRIT < 8 GiB → planned engine restart, max 2 per 2 h, arm-off file,
-idle recycle at baseline +8 GiB).
+`spark-oom-watchdog` (`roles/spark`: CRIT < 8 GiB → planned engine restart, max 2 per 2 h, arm-off file;
+the idle-recycle term is **OFF** — `spark_oom_watchdog_recycle: false` — and hardware-spark.md
+§Unified-memory budget proves it live).
 
 - **Gauge: `usable = MemAvailable − CmaFree`** (`node_memory_MemAvailable_bytes -
   node_memory_CmaFree_bytes`, `job="alloy"`, `instance=~"spark.*"`). On GB10 the GPU carve is CMA and CMA
@@ -360,8 +366,8 @@ idle recycle at baseline +8 GiB).
 
 Two signal classes a plain metric scrape does not produce: a systemd unit's *result*, and the cert pair a
 **consumer** holds. A timer that fails on every run changes **no series anywhere**, so no rule can see it;
-and a rule reading `probe_ssl_earliest_cert_expiry` is structurally dead, because blackbox emits no SSL
-expiry and that metric has **zero series**.
+and the rule `ssl-cert-expiring` reads `probe_ssl_earliest_cert_expiry`, which is structurally dead
+because blackbox emits no SSL expiry and that metric has **zero series**.
 
 `roles/monitoring` ships `homelab-hygiene.py` on every monitoring host (loopback `:9098`, scraped by
 that host's Alloy into the same remote_write path as everything else):
@@ -376,7 +382,8 @@ that host's Alloy into the same remote_write path as everything else):
 
 ⚠ **What the cert legs do NOT cover**, at the metric-name level (VM
 `/api/v1/label/__name__/values`): the only cert families in the backend are `homelab_cert_days_left` (both series
-`consumer="traefik-*"`), `homelab_cert_pair_present` and blackbox `probe_ssl_earliest_cert_expiry`. **The VPS box cert
+— `consumer="traefik-internal"` on oldsrv, `consumer="traefik-ha"` on the Pi), `homelab_cert_pair_present` and
+blackbox `probe_ssl_earliest_cert_expiry`. **The VPS box cert
 (acme.sh, `/etc/letsencrypt/live/…`, 61-day cycle, failing renewal step) is in none of them**, so no rule can ever
 catch it and its state has to be read from `/var/log/acme.sh.log` rather than a graph
 (→ [`network-dns.md`](network-dns.md) §Cert chain). Exporting it is a collector leg on the VPS, not a rule; a rule
@@ -466,7 +473,7 @@ them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back r
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
 | **Critical** | oldsrv disk ≥90%, **nas ZFS pool usage ≥80% (`tank` & `bulk`)**, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
-| **Warning** | container restart loop, high CPU/load, HA unreachable, MikroTik link down, **nas pool ≥70%** · **UPS on-battery / mains lost (auto-clear on return)** | Signal (deduped) | sent once |
+| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (deleted — an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).
@@ -492,7 +499,7 @@ them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back r
   Dozzle viewer) runs on the **VPS** — the reliable tier. **The VPS is self-sufficient for its own
   observability**: it runs its own Alloy with `alloy_backend_host` defaulting to `127.0.0.1`, so VPS
   metrics/logs land locally with no tunnel, and its own Dozzle viewer (`logs.kogler.si`).
-  **oldsrv/nas/Pi run thin Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel
+  **oldsrv/nas/Pi/spark run thin Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel
   (nas's Alloy is host-exporter only — it has no Docker — and nas is still scraped for its `nut`/`zfs`
   exporters by oldsrv). **Dashboards are tailnet-only**: no public exposure, reached over the headscale
   mesh via the `traefik-tailnet` edge with clean subdomain URLs. **n8n (`auto`) is internal-only** (no
@@ -954,8 +961,11 @@ per-client where the path allows it, per-plane (Home vs tailnet) where it does n
 
 ## Scrape cadence and metric resolution
 
-Every job on every host scrapes at Alloy's default **60 s** — `scrape_interval` is set nowhere in the deployed
-`/etc/alloy/config.alloy`. Fine history therefore exists nowhere downstream, and no Grafana setting invents it.
+Every job scrapes at Alloy's default **60 s** except spark's three named hot jobs — on spark the rendered
+`/etc/alloy/config.alloy` carries `scrape_interval = "5s"` exactly three times (`host_metrics_hot`,
+`vllm_hot`, `dcgm` in `roles/monitoring/templates/alloy.river.j2`); the three latency histogram families
+ride `vllm_hot`. Everywhere else the 60 s default stands, so
+fine history exists nowhere else downstream, and no Grafana setting invents it.
 This is the other half of the OOM blind spot above, and the reason the spark GPU/engine panels read as a step
 chart next to the DGX System Monitor, which samples **1 Hz**.
 
@@ -965,10 +975,10 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 |---|---|---|
 | `node_*` (Alloy host job) | kernel counters, 100 Hz jiffies | sub-second |
 | `vllm:*` on `:8000/metrics` | **≈ 1 Hz under load** | `vllm:generation_tokens_total` advanced on **every one** of 17 consecutive 1 s scrapes taken during a live request (178,079 → 178,249). `VLLM_LOG_STATS_INTERVAL: "10"` is the engine's **log** heartbeat, not a publication cap — log-only lines (`running/waiting/… req/s`, `p: … reqs`) are capped at 10 s, cumulative counters are not ⇒ **no engine restart is needed** for one-second engine data |
-| `DCGM_FI_DEV_*` on `:9400/metrics` | **once per 30 s** | `DCGM_EXPORTER_INTERVAL: "30000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; `DCGM_FI_DEV_GPU_UTIL` returned `86` on twelve consecutive 1 Hz reads. Scraping faster than this stores copies of one sample |
+| `DCGM_FI_DEV_*` on `:9400/metrics` | **once per `DCGM_EXPORTER_INTERVAL`** (5 s today) | `DCGM_EXPORTER_INTERVAL: "5000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; at measurement time the var was `"30000"` and `DCGM_FI_DEV_GPU_UTIL` returned `86` on twelve consecutive 1 Hz reads. Scraping faster than the exporter's own interval stores copies of one sample |
 | DGX System Monitor (the 1 s picture) | 1 Hz | authenticated `POST /api/login` (the JSON field is `token`) then `GET /api/v1/gpu_telemetry/stream` yields `percentage_utilization`, `memory_available_in_kib` / `memory_total_in_kib` (25,676,736 / 127,533,336 KiB = 19.7 % of the **host** pool — not a VRAM counter, see §LLM Dashboard → GPU), `temperature_in_c`, `power_draw_in_w`. It polls the **same** `spark-dcgm` exporter: the difference is cadence, plus a host-memory stat Alloy already scrapes directly |
 
-### What resolution costs (measured on the VPS, VictoriaMetrics v1.151.0)
+### What resolution costs (measured on the VPS, VictoriaMetrics v1.151.0 — the pin is `victoria_metrics_version: v1.153.0` today, so re-measure before quoting these numbers)
 
 | Quantity | Value |
 |---|---|
@@ -981,7 +991,9 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 | 50 hot series @ 1 s | +49 rows/s · ≈ +0.5 GB/yr |
 
 **Age-tiering is not available in this stack.** `-downsampling.period` and `-retentionFilter` are both **absent
-from the VictoriaMetrics community binary** (checked against `--help` of the deployed v1.151.0; the docs state
+from the VictoriaMetrics community binary** (checked against `--help` of the v1.151.0 build deployed at
+measurement time — the pin is `victoria_metrics_version: v1.153.0` in `group_vars/all/versions.yml` now, so
+re-run `--help` before trusting the absence; the docs state
 community supports a single retention and one storage tier), and OpenObserve's downsampling is an enterprise rule
 set as well. Resolution is therefore bought **at write time** — scrape only what needs it faster — not by
 collapsing old buckets afterwards. Memory, not disk, is the VPS ceiling (4.3 GiB available, no swap) and it tracks
@@ -1089,9 +1101,9 @@ from the `basic_auth` block of `/etc/alloy/config.alloy` on the VPS — parse th
 print them):
 
 ```bash
-ssh spark 'grep -c scrape_interval /etc/alloy/config.alloy'        # 0 → Alloy default 60 s everywhere
+ssh spark 'grep -c scrape_interval /etc/alloy/config.alloy'        # 3 on spark (the hot jobs); 0 elsewhere
 ssh spark 'curl -s -o /dev/null -w "%{size_download} %{time_total}\n" localhost:8000/metrics'
-ssh spark 'curl -s localhost:9400/metrics | grep GPU_UTIL'          # repeat at 1 Hz: the value holds for 30 s
+ssh spark 'curl -s localhost:9400/metrics | grep GPU_UTIL'          # repeat at 1 Hz: the value holds for 5 s
 # per-minute samples per job: Alloy's own prometheus_forwarded_samples_total over a 60 s window
 # VM write rate + active series: vm_rows_inserted_total, vm_active_time_series
 ```
@@ -1224,12 +1236,12 @@ firewall accepts mgmt services (`22,8728,8729,8291,80,443`) and SNMP/161 **only 
 `trusted-admin`** (`roles/router/tasks/main.yml`), then drops everything else, including the wg-s2s side.
 The collector reuses the existing read-only API pattern: `skills/mikrotik/scripts/mikrotik-read.py` on
 RouterOS API `:8728` with a scoped `read`-group user (the `logpipe` precedent,
-`roles/router/tasks/main.yml` L1405). Exposes Prometheus-format metrics; the existing oldsrv
+`roles/router/tasks/main.yml` L1429). Exposes Prometheus-format metrics; the existing oldsrv
 Alloy `remote_write`s them over `wg-s2s` → VPS VictoriaMetrics (same channel as SNMP). **No
 new firewall open, no VPS reachability change.**
 
 **SNMP stays a backstop only.** The `prometheus.exporter.snmp` block already runs on oldsrv
-(`alloy.river.j2` L111) and can walk ARP `1.3.6.1.2.1.4.22` + FDB `1.3.6.1.2.1.17.4.3` + the MikroTik DHCP
+(`alloy.river.j2` L287) and can walk ARP `1.3.6.1.2.1.4.22` + FDB `1.3.6.1.2.1.17.4.3` + the MikroTik DHCP
 MIB in `snmp.yml.j2`, but it gives no lease hostname/status richness and **no wifi-qcom-ac client data at
 all** (registration lives in the API path only). Device-side SNMP enablement is still an owner deploy step.
 
