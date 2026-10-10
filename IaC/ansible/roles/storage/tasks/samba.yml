@@ -1,11 +1,11 @@
 ---
-# Samba (SMB/CIFS) shares on the NAS — D4 / HD-131 family-access model.
+# Samba (SMB/CIFS) shares on the NAS — the family-access model.
 #
 #   - ONE shared media share (any family account can map `\\nas\media`).
 #   - ONE private drive per family account (`\\nas\<user>`, valid users = that account;
 #     other accounts cannot map it) — driven by `storage_samba_users` (host_vars/nas).
 #   - ONE service-account share (`music`, the Lidarr root) whose `valid users` is the one
-#     shared account, so a laptop drops albums without a personal credential (HD-362).
+#     shared account, so a laptop drops albums without a personal credential.
 #
 # Authentication is LOCAL (tdbsam): each account is a unix user on the NAS with its Samba
 # password written from 1Password `smb-<name>_login` at converge. Members type that
@@ -13,20 +13,20 @@
 # from `valid users` + each drive being owned by its OWN account; the shared trees are owned
 # by the neutral `media`/storage_uid account and force-owned on write.
 #
-# ⚠ The Authentik-as-LDAP passdb (D7/HD-132) that used to live here is RETIRED 2026-10-07 —
-# see defaults/main.yml and docs/storage-rejected.md. Two independent reasons, both measured:
-# (1) it made a LAN-local drive mount depend on the VPS, its LDAP outpost and the WG S2S
-# tunnel (and that tunnel leg refused `:3389` when probed), and (2) Authentik's LDAP provider
+# ⚠ No Authentik-as-LDAP passdb — see defaults/main.yml and docs/storage-rejected.md. Two
+# independent reasons:
+# (1) it would make a LAN-local drive mount depend on the VPS, its LDAP outpost and the WG S2S
+# tunnel, and (2) Authentik's LDAP provider
 # carries no Samba attribute at all, so it can never answer the NTLM challenge a Windows
-# client sends — `ldapsam` here was unwinnable, not merely unfinished. The `smbpasswd` task
-# this had removed is restored below; rotation reaches the host via
+# client sends — `ldapsam` here is unwinnable, not merely unfinished. The `smbpasswd` task
+# below is the credential path; rotation reaches the host via
 # `storage_samba_password_force`, because a passdb write is a target-side act (§2 rotation).
 #
 # Runs on nas (the storage host that owns the shared datasets). The per-user + shared
 # trees live under /tank/data (a ZFS dataset: xattr=sa, acltype=posixacl — inherited by
 # the per-user directories, which is what makes Samba's vfs acl_xattr work on them).
 #
-# ⚠ Every task in this file carries [samba, storage] (HD-468 rule, roles/storage/tasks/main.yml):
+# ⚠ Every task in this file carries [samba, storage]:
 # an UNTAGGED child is filtered out of a `--tags samba` run, so the scoped form that ships a
 # share change would silently converge nothing but the user accounts and still print
 # `changed=0 failed=0`. Tag them or the scoped run is a lie.
@@ -41,7 +41,7 @@
 # Samba resolves `force user`/`force group`/`@group` by NAME, so those two vars must keep naming
 # the SAME account that storage_uid/storage_gid point at. A rename on either side would not fail
 # the converge — it would fail every tree connect on the shared shares with what looks exactly like
-# a wrong password (measured 2026-10-07 with the numeric form). Assert it instead of documenting it.
+# a wrong password. Assert it instead of documenting it.
 - name: Resolve the account and group behind the Samba force-owner names
   ansible.builtin.shell: "id -u {{ storage_user }}; getent group {{ storage_group }} | cut -d: -f3"
   changed_when: false
@@ -95,8 +95,8 @@
 
 # Idempotency probe: the passdb is the SSOT for "does this account's credential already
 # exist", so a routine converge never re-writes a member's password. `pdbedit -L` is the
-# only honest probe — a unix account can exist while its passdb entry does not, which is
-# exactly the state that left every tree connect at ACCESS_DENIED (HD-362, 2026-10-07).
+# only honest probe — a unix account can exist while its passdb entry does not, which leaves every
+# tree connect at ACCESS_DENIED.
 - name: Probe which family Samba accounts are absent from the passdb
   ansible.builtin.shell: "pdbedit -L | grep -qw '{{ item.name }}' && echo present || echo absent"
   changed_when: false
@@ -125,13 +125,13 @@
     - (item.stdout | trim) == 'absent'
   tags: [samba, storage]
 
-# Per-user private trees — AFTER the accounts exist, and owned BY the account (the old
-# `item.uid | default(storage_uid)` made the tree media-owned while `valid users` named the
-# member, i.e. a mode-0700 directory the mounter could not write to).
+# Per-user private trees — AFTER the accounts exist, and owned BY the account: an
+# `item.uid | default(storage_uid)` owner makes the tree media-owned while `valid users` names the
+# member, i.e. a mode-0700 directory the mounter could not write to.
 #
 # ⚠ The parent is created FIRST and explicitly. `file:` creates missing parents itself, and when
-# it does it stamps them with THIS item's owner+mode — so the first member's private drive left
-# `/tank/data/users` itself `drwx------ domen media` (measured 2026-10-07), which locks every
+# it does it stamps them with THIS item's owner+mode — so the first member's private drive leaves
+# `/tank/data/users` itself `drwx------` for that first member, which locks every
 # later member's drive behind the first member's uid and makes the next private drive unmountable
 # while reporting a green converge.
 - name: Create the private-drive root (shared parent, traversable by every family account)
@@ -159,8 +159,8 @@
     - item.drive | default(true)
   tags: [samba, storage]
 
-# (The private-drive task above carried NO tag in the version this replaced — the HD-468 rule
-# below is the reason it now does; an untagged child is invisible to `--tags samba`.)
+# Every task here carries [samba, storage]: an untagged child is invisible to `--tags samba`, so a
+# scoped run would converge nothing and still report success.
 - name: Render smb.conf (per-user + shared media shares)
   ansible.builtin.template:
     src: smb.conf.j2
@@ -178,8 +178,8 @@
 #   * new entry      → reads NEW, REENTER            (2 lines ⇒ "Added user x.", mounts)
 #   * existing entry → reads OLD, NEW, REENTER       (2 lines ⇒ "Unable to get new password.", rc=0,
 #                                                     the entry is left holding the OLD password)
-# Both facts were measured on Samba 4.22.10 (Debian 13) on 2026-10-07, on a throwaway account, in
-# all three combinations (new/rotate × 1-line/2-line); the middle case is the one that silently
+# Both facts hold on Samba 4.22 (Debian 13), in all three combinations (new/rotate × 1-line/2-line);
+# the middle case is the one that silently
 # lies, and it is the case the rotate path hits. So the task deletes any existing entry first and
 # always takes the create path, which makes one code path out of two, and then PROVES the result by
 # mounting a share over SMB with the value it just wrote — because "the task was green" is not
@@ -216,13 +216,13 @@
   tags: [samba, storage]
 
 # ---------------------------------------------------------------------------
-# RETIRED: the Authentik → NAS provisioning glue (D5/HD-131) — an hourly systemd
+# Teardown of the Authentik → NAS provisioning glue: an hourly systemd
 # timer that read the Authentik `family` group and created the unix account + drive.
-# Deleted with the ldapsam decision: its share of the job is now `storage_samba_users`
-# above (a repo edit), and the password half could only ever have been a PUSH, which
-# D7 rejected. It also never worked: `op` is not installed on the NAS, so the unit
-# exited 127 on all 823 runs since 2026-09-03 (HD-1092) — which is how the family
-# drives stayed unprovisioned for five weeks with a green-looking timer.
+# Its share of the job is now `storage_samba_users`
+# above (a repo edit), and the password half could only ever have been a PUSH, which the
+# ldapsam decision rejected. It cannot work either: `op` is not installed on the NAS, so the unit
+# exits 127 on every run — which is how a green-looking timer can leave family drives
+# unprovisioned.
 # The teardown below is what stops the hourly failure on a live host; on a fresh host
 # the unit files simply do not exist, hence the stat guard.
 # ---------------------------------------------------------------------------
