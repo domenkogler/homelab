@@ -1,19 +1,19 @@
-# traefik-internal — dynamic routes (file provider). Home-LAN internal all-app edge (HD-350).
+# traefik-internal — dynamic routes (file provider). Home-LAN internal all-app edge.
 #   Serves THE FULL route table ("all routes on all three nodes" — VPS traefik-tailnet
 #   + this + Pi traefik-ha). Home-hosted backends are on the oldsrv LAN IP (host-net —
 #   these are the same containers the main public/label edge serves); VPS-hosted
-#   backends are reached via the VPS traefik-tailnet edge (HD-333 WG-S2S, :4443).
+#   backends are reached via the VPS traefik-tailnet edge (WG-S2S, :4443).
 #
 #   - NO Forward-Auth and NO crowdsec-only middleware anywhere on this edge: both
 #     depend on VPS containers (Authentik, CrowdSec LAPI) and would fail exactly when
 #     this edge must survive WAN-out. Every app here owns its login (*arr/downloaders =
-#     built-in Forms auth, HD-60 reversal; Jellyfin/Seerr/SeerrNG = local login).
+#     built-in Forms auth; Jellyfin/Seerr/SeerrNG = local login).
 #   - http-redirect: catch-all :80 → :443 on BOTH entrypoint pairs (web + web-lan).
 #   - ACME is DISABLED — TLS comes from the pulled wildcard pair (tls.certificates
 #     below, same pattern as traefik-ha). Offline-safe.
 #
 # Route set (home-hosted 13 + ha + dns-pi + VPS-hosted set):
- #   media (jellyfin, loopback-published :8096, HD-419) · seerr (:5055) · seerrng (:5055) · sonarr (:8989) ·
+ #   media (jellyfin, loopback-published :8096) · seerr (:5055) · seerrng (:5055) · sonarr (:8989) ·
 #   radarr (:7878) · lidarr (:8686) · prowlarr (:9696) · bazarr (:6767) ·
 #   profilarr (:6868) · sab (:8080) · torrent (:8080) · ha (→ VIP:8123) ·
 #   dns-pi (→ VIP → technitium-secondary:5380) · VPS set (foto/file/git/ai/… via
@@ -21,17 +21,17 @@
 http:
   middlewares:
     # HA refuses any request that carries X-Forwarded-For unless the SENDING socket is in
-    # HA's `trusted_proxies` (live 2026-09-20: from oldsrv, `Host: ha.kogler.si` + XFF -> 
-    # 400 Bad Request from aiohttp, without XFF -> 200; direct VIP:8123 -> 200). oldsrv
-    # answered 400 that day even though `ha_trusted_proxies` has listed `oldsrv_home_ip`/32 since
-    # `c9c36f23` (2026-09-11) — the reading that survives both facts is that the ACTIVE HA host had not
-    # rendered the var yet, and **HD-418 carries that measurement** (read the rendered
-    # `configuration.yaml` before editing anything here). Strip the forwarding headers on
+    # HA's `trusted_proxies`: from oldsrv, `Host: ha.kogler.si` + XFF -> 400 Bad Request
+    # from aiohttp, without XFF -> 200; direct VIP:8123 -> 200. Check what the ACTIVE HA
+    # host actually rendered before trusting the symptom: `ha_trusted_proxies` lists
+    # `oldsrv_home_ip`/32, but an HA host that has not rendered the var still answers 400
+    # (read the rendered `configuration.yaml` before editing anything here). Strip the
+    # forwarding headers on
     # the tailnet router ONLY: HA then sees a plain, non-proxied request, keeps the Host the
     # client used, and no smart-home config has to change (fixing it on the HA side would
     # mean trusting oldsrv as a proxy + a HA restart). Cost: HA logs the src as oldsrv for
     # this one path, so an HA brute-force ban here would hit the node, not the phone.
-    # The honest end-state is HD-418's: HA trusts this edge (the var has said so since 2026-09-11) and
+    # End-state: HA trusts this edge and
     # serves HA direct, which also repairs the standby edge; this middleware stays until the rendered
     # `trusted_proxies` on the active HA host has been read and the XFF-present → 200 proof is taken.
     ha-ts-strip-forwarded:
@@ -49,7 +49,7 @@ http:
       redirectScheme:
         scheme: https
         permanent: true
-    # HD-370: HSTS for every :443 route — assigned ENTRYPOINT-wide in the compose CLI
+    # HSTS for every :443 route — assigned ENTRYPOINT-wide in the compose CLI
     # (--entrypoints.websecure[.lan].http.middlewares=hsts@file; see its header for why
     # this lives here and not as CLI flags).
     hsts:
@@ -137,7 +137,7 @@ http:
         - websecure-lan
       service: torrent-backend
       tls: true
-    # --- music trio (HD-362, door landed by HD-1087) ---
+    # --- music trio ---
     # Own logins (Aurral/Slskd local auth + the slskd token), NO forward-auth anywhere on this
     # edge — the home edge carries none by design (WAN-out survival). Backends are the oldsrv
     # publishes in group_vars/all/main.yml (`*_url`), never a literal address here.
@@ -162,7 +162,7 @@ http:
         - websecure-lan
       service: lidarr-ydl-backend
       tls: true
-    # LAN log hub (Dozzle multi-host, HD-343 ride-along 2026-09-15): llogs.kogler.si
+    # LAN log hub (Dozzle multi-host): llogs.kogler.si
     # served by the traefik-internal HOME edge (WAN-out survival — no VPS dependency).
     # Backend = the oldsrv Dozzle hub (:8081); it shows oldsrv + pi + spark containers
     # (remote agents on the Home VLAN). LAN-only — the split-horizon record resolves
@@ -174,7 +174,7 @@ http:
         - websecure-lan
       service: llogs-backend
       tls: true
-    # HD-370: the LAN LiteLLM (oldsrv, dev-side AI spine — serves dsh/pi-dev/OpenHands with
+    # The LAN LiteLLM (oldsrv, dev-side AI spine — serves dsh/pi-dev/OpenHands with
     # spark/llm.kogler.si as its inference backend). LLitellm.kogler.si on the HOME edge so
     # LAN clients get it name-based + TLS (wildcard from the pulled pair), same as llogs.
     # Backend = the lan-litellm container published on oldsrv_home_ip:4000 (host-net edge
@@ -194,13 +194,13 @@ http:
         - websecure-lan
       service: ha-backend
       tls: true
-    # --- HA over the TAILNET (HD-405) — the away-from-home path, node-direct ---
+    # --- HA over the TAILNET — the away-from-home path, node-direct ---
 {% if tailnet_oldsrv_ip is defined and tailnet_oldsrv_ip %}
     # The plain `ha.kogler.si` above stays LAN/VIP-only on purpose: MagicDNS answers
     # extra_records CLIENT-SIDE on Android/iOS, so repointing the plain name would also send
     # a tailnet-enabled phone *at home* through oldsrv instead of the VIP — a new oldsrv
     # dependency inside the failure domain smart-home-failover.md is about. A `.ts` twin has
-    # no resolver to fight (docs/network-dns.md §Split-Horizon, HD-382/389 rule #1).
+    # no resolver to fight (docs/network-dns.md §Split-Horizon rule #1).
     # NO forward-auth here either — same reason as `ha`: Authentik would break the Companion
     # app's token/WebSocket flow (docs/smart-home.md).
     ha-ts:
@@ -211,11 +211,11 @@ http:
         - ha-ts-strip-forwarded
       service: ha-backend
       tls: true
-    # The pi agent web UI (HD-409 seat, `pi-web` under `domen`) — tailnet-only BY CONSTRUCTION:
+    # The pi agent web UI (`pi-web` under `domen`) — tailnet-only BY CONSTRUCTION:
     # headscale publishes only `pi-oldsrv.{{ tailnet_base_domain }}` (tailnet_ts_only_subdomains),
     # this listener exists only on oldsrv's own tailnet address, and the seat binds loopback, so
     # the door set is {tailnet ACL, this router, the daemon's own PI_WEB_TOKEN}. NO
-    # authentik-forward-auth: measured in HD-409 that a phone-driven PWA cannot complete an
+    # authentik-forward-auth: a phone-driven PWA cannot complete an
     # Authentik sub-request, and a token-gated cockpit does not need a second identity that it
     # cannot answer. No `web`-entrypoint redirect here on purpose — this edge declares no :80 on
     # the tailnet address, so a plain-HTTP client never reaches it at all.
@@ -225,15 +225,14 @@ http:
         - websecure-ts
       service: pi-oldsrv-backend
       tls: true
-    # --- home-hosted *arr / media / downloaders / music trio over the TAILNET (HD-1087, landed
-    #     2026-10-07 from the arr-door lane's `18913c63`) ---
+    # --- home-hosted *arr / media / downloaders / music trio over the TAILNET (the arr door) ---
     # Away-from-home path for the whole home set: node-direct on oldsrv's OWN tailnet address, the
     # same posture as ha-ts / pi-oldsrv-ts / cockpit-nas-ts — NO VPS hop, so it works during a
     # WAN-out at home and off-LAN. The `.ts` twins live in `tailnet_ts_only_subdomains` and publish
     # the `.ts` namespace ONLY (MagicDNS answers client-side; the plain home name must never be
-    # re-pointed — HD-382/389). NO forward-auth: the tailnet ACL is the gate and every app here owns
-    # its login (a phone PWA cannot complete an Authentik sub-request, measured in HD-409).
-    # Backends are the same `*_url` vars the LAN routers use — which is why a future HD-1083 flip
+    # re-pointed). NO forward-auth: the tailnet ACL is the gate and every app here owns
+    # its login (a phone PWA cannot complete an Authentik sub-request).
+    # Backends are the same `*_url` vars the LAN routers use — which is why a future flip
     # (loopback-only publishes) has to move these routes in the SAME converge, or this set 502s
     # exactly the way `38f918c` recorded for the LAN leg.
     media-ts:
@@ -328,7 +327,7 @@ http:
         - websecure-lan
       service: dns-pi-backend
       tls: true
-    # --- VPS-hosted set (via the wg-s2s traefik-tailnet edge, HD-333) ---
+    # --- VPS-hosted set (via the wg-s2s traefik-tailnet edge) ---
     foto:
       rule: "Host(`foto.kogler.si`)"
       entryPoints:
@@ -359,9 +358,9 @@ http:
       tls: true
     http-redirect:
       rule: "HostRegexp(`.+`)"
-      # HD-1095 Fix B: v3 needs the PLAIN regex. The v2 template form
+      # Traefik v3 needs the PLAIN regex. The v2 template form
       # HostRegexp(`{host:.+}`) parses and reports the router as `enabled` while
-      # matching NOTHING — measured 2026-10-07 in a clean v3.7.11 container (404 with
+      # matching NOTHING — verified in a clean v3.7.11 container (404 with
       # the template, 301 with this form), which is why http:// has 404-ed on every
       # edge for the whole life of this file while the config text read correctly.
       entryPoints:
@@ -372,7 +371,7 @@ http:
       service: noop@internal
 
   services:
-    # HD-419: Jellyfin publishes on loopback only (see `jellyfin_url` in group_vars) — the
+    # Jellyfin publishes on loopback only (see `jellyfin_url` in group_vars) — the
     # container itself is on the overlay networks, so an edge on the host has no path to it
     # until that publish exists. This line was 502 for exactly that reason.
     media-backend:
@@ -449,7 +448,7 @@ http:
     # pi-web under `domen`, loopback-bound (Phase 4c). This edge is `network_mode: host`, so it
     # reaches the host's own loopback — which is what lets the seat stay OFF the LAN entirely.
     # Port from the reservation var (`cockpit_pi_web_port`, group_vars/all/main.yml); before this
-    # router existed that var was a reservation no template read (HD-445).
+    # router existed that var was a reservation no template read.
     pi-oldsrv-backend:
       loadBalancer:
         servers:
@@ -479,7 +478,7 @@ tls:
   certificates:
     - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
       keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"
-    # HD-405: the second issued wildcard, already carried by the cert-pull timer and (until
+    # The second issued wildcard, already carried by the cert-pull timer and (until
     # now) unused here. Serves the `*.<ts>` hosts on the tailnet listener; without it Traefik
     # answers that SNI with the default (wrong-name) cert. Guarded by the same condition as
     # the listener, and defaulted, so the standalone validator render (which whitelists its
