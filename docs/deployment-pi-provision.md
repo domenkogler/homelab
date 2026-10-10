@@ -9,8 +9,7 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 
 > **Role:** Detail — imperative, step-by-step runbook to provision (or re-provision) the
 > Raspberry Pi 4 as the **Home Assistant primary** node. It is the concrete executor for
-> `deployment-manual.md` §Phase 4 / `deployment-tasks.md` §Phase 4 / HD-04 / HD-307 /
-> HD-319, and includes the KNX + dashboard pieces.
+> `deployment-manual.md` §Phase 4 / `deployment-tasks.md` §Phase 4, and includes the KNX + dashboard pieces.
 > **Links to:** `deployment-manual.md` (§Phase 4), `deployment-tasks.md` (§Phase 4),
 > `smart-home.md` (KNX decision), `smart-home-failover.md` (VIP/failover),
 > `home-assistant-current.md` (HA instance inventory), `network-addresses-generated.md` (IPs)
@@ -20,12 +19,12 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 > **home-assistant-primary** (HA + keepalived MASTER on the `ha-vip` VIP), **technitium-secondary**
 > and **traefik-ha** (TLS `*.kogler.si`), on the dual-home network (`pi-eth0` Home + `pi-mgmt`
 > tagged-99). HA boots with zero config errors and `https://ha.kogler.si/` serves through
-> `traefik-ha`. This is the **live HA instance** — the old HAOS box is gone.
+> `traefik-ha`. This is the **live HA instance**.
 >
 > **Remaining on this host:** the KNX dashboard render check is an owner UI step (§4), the HA metrics
 > scrape stays off until `alloy_ha_exporter` + the `ha_api` item exist, and the **failover
-> runbook** belongs to HD-04 ([smart-home-failover.md](smart-home-failover.md)).
-> Authentik OIDC on `ha` is **not wanted** (owner decision, HD-310).
+> runbook** lives in [smart-home-failover.md](smart-home-failover.md). Authentik OIDC on `ha` is
+> **not wanted** (§4, step 3).
 
 ---
 
@@ -47,7 +46,7 @@ tags: [deployment, raspberry-pi, homeassistant, knx, phase4, runbook, provision]
 ## 1. Dry-run first (must be green)
 
 > ⚠ **`--check` can fail on stale units that no longer exist in the role.** A partial earlier run can
-> leave broken timer units behind (`ha-cert-sync` / `ha-config-sync` did: invalid `OnCalendar=:0/15` plus
+> leave broken timer units behind (`ha-cert-sync` / `ha-config-sync`: invalid `OnCalendar=:0/15` plus
 > a missing trailing newline). `--check` does not write, so the `systemd` enable task re-validates the old
 > broken unit and fails — **check-mode failing on a unit the role no longer renders is stale host state,
 > not a role bug.** Clear it, then re-check:
@@ -73,11 +72,11 @@ bash scripts/ansible-run.sh playbooks/raspberry_pi.yml
 
 This (re)renders on the Pi:
 - `network` — idempotent re-apply of the dual-home NM keyfiles (no change if already correct).
-- `home_assistant` (render-first, HD-204/185) — `config/configuration.yaml` (**now with `knx:
+- `home_assistant` (render-first) — `config/configuration.yaml` (**includes `knx:
   !include knx-entities.yaml` + `lovelace-stanovanje` + scripts**), `config/knx-entities.yaml`,
   `config/knx/StanovanjeKogler_v1_0.knxproj`, `config/lovelace/*` (4 views), **`secrets.yaml`
-  (4 keys, mode 0600)** — all as **regular files** before `compose up` (HD-185 guard passes).
-  **Shelly wiring (HD-320/HD-323):** the lovelace views include the 4× Shelly RGBW2 LED
+  (4 keys, mode 0600)** — all as **regular files** before `compose up` (the first-boot guard passes).
+  **Shelly wiring:** the lovelace views include the 4× Shelly RGBW2 LED
   strips (`light.kuhinja`, `light.wc_4_channel_1..4`, `light.orhideje`, `light.kopalnica_2`) —
   all four devices are added with entities bound. Required for the “add by IP” flow to
   succeed: the Pi→IoT **firewall rules** (REST tcp/80 + **CoAP client udp/5683** — the Gen1 config
@@ -87,7 +86,7 @@ This (re)renders on the Pi:
   host/VIP; the devices' CoIoT peer must point at the VIP (`ha-vip` — SSOT
   `network-addresses-generated.md`), not a stale host IP.
 - `docker_services` — installs the `docker-compose@.service` unit + brings up
-  `home-assistant-primary`, `technitium-secondary`, `traefik-ha` (the HD-185 first-boot guard
+  `home-assistant-primary`, `technitium-secondary`, `traefik-ha` (the first-boot guard
   asserts `./config/configuration.yaml`, `./keepalived.conf`, `./secrets.yaml` are regular files).
 - `monitoring` — Alloy only (HA token file gated off until `alloy_ha_exporter`).
 
@@ -126,32 +125,32 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
 2. **Monitoring scrape:** create the `ha_api` 1Password item and set `alloy_ha_exporter: true` so
    the Alloy HA exporter has a token (note: `ha_api` is a **monitoring** credential, not a HA YAML secret —
    it must **not** appear in `secrets.yaml.j2`).
-3. **No Authentik OIDC on `ha`** — considered and declined: HA stays local-auth and WAN-independent
+3. **No Authentik OIDC on `ha`** — by design: HA stays local-auth and WAN-independent
    ([smart-home-failover.md](smart-home-failover.md)), and `ha.kogler.si` is served by the Pi's own
    `traefik-ha` edge with no Forward-Auth.
 
 ---
 
-## 5. Gotchas / live lessons (do not skip)
+## 5. Gotchas (do not skip)
 
-- **Three role bugs a `--check` would have surfaced** (each is a general Ansible trap, not a Pi quirk):
+- **Three general Ansible traps, not Pi quirks** — `--check` makes each of them cheap:
   ① a role variable computed by a lookup that runs **only on the master** crashes every client that
   references it (`nut`'s `_nut_exporter_release` → `'dict' has no attribute 'json'`) — gate the lookup and
   parse with `content | from_json`; ② `copy:` srcs resolve **relative to the role's `files/`**, so a
   template that lives in `templates/` silently 404s at copy time; ③ same trap with `remote_src: true` —
-  use an absolute path. `--check` is what makes these cheap.
+  use an absolute path.
 - **NM profile-switch is dangerous:** never `nmcli connection up <new-profile>` on the
   Pi — it deactivates the DHCP connection and drops SSH. The `network` role uses `pi-eth0`/
   `pi-mgmt` ids that persist; a re-apply is safe.
-- **render-first is load-bearing (HD-185/204):** `home_assistant` MUST run before `docker_services`.
+- **render-first is load-bearing:** `home_assistant` MUST run before `docker_services`.
   If reordered, Docker auto-creates `config/` etc. as empty dirs and HA silently runs default
   config. The `deploy-service.yml` guard fails loud if that happens (remove the dir + re-run).
 - **`ha_api` is NOT a HA secret** — the monitoring role writes `/etc/prometheus/ha_token` under
   `alloy_ha_exporter`; it is absent from the vault pre-gate and correctly excluded from
   `secrets.yaml.j2`.
-- **KNX addresses are the .knxproj SSOT, not the old maps:** `knx-entities.yaml` is generated from
-  the ETS project; the old hand-maps (`docs/assets/references/old-ha/knx-*.yaml`) used stale
-  addresses (e.g. `10/0/0` vs the project's `0/0/1`). Regenerate with `scripts/knx-hass-gen.py`.
+- **KNX addresses are the .knxproj SSOT:** `knx-entities.yaml` is generated from
+  the ETS project; the hand-maps (`docs/assets/references/old-ha/knx-*.yaml`) are not the SSOT and
+  carry stale addresses (e.g. `10/0/0` vs the project's `0/0/1`). Regenerate with `scripts/knx-hass-gen.py`.
 - **Re-provision is idempotent** — re-running the playbook re-renders configs + restarts compose
   on config change (restart-on-config-change guard), but does NOT churn containers when nothing
   changed.
@@ -171,4 +170,4 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
 - [x] `ha.kogler.si` → VIP; keepalived MASTER on the Pi (priority 110), TLS verify 0
 - [x] `validate-all.sh` green on the session worktree
 
-Progress lives in `todo.md` + the owning docs; this file is the runbook, not a log.
+This file is the runbook, not a log.

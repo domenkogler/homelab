@@ -14,7 +14,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 > measured engine facts behind them. Server-side (vLLM on spark) numbers stay in
 > [`hardware-spark.md`](hardware-spark.md) — direction of truth: engine → harness, never the reverse.
 > **Linked from:** [`index.md`](index.md) (Document Map + dispatcher) ·
-> [`services-ai.md`](services-ai.md) §pi.dev + DSH · [`../todo.md`](../todo.md) HD-376
+> [`services-ai.md`](services-ai.md) §pi.dev + DSH
 > **Engine-side owner (NOT this doc):** [`hardware-spark.md`](hardware-spark.md) — vLLM args, unified-memory
 > governance, S1 certification; incident history in [`spark-incidents.md`](spark-incidents.md).
 
@@ -24,37 +24,36 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 
 | Item | Where it lives | Managed by |
 |------|----------------|-----------|
-| `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Was: "this doc is the reference copy" (HD-388 closed that). Rendered on **two** machines as of 2026-09-23: the laptop, and oldsrv's cockpit account `domen` (HD-409) — so the harness is no longer "admin workstation only", and the second machine got its contract from `--out` + scp rather than a copied file |
-| `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`) was the last hand-kept credential file on the client; proven byte-identical to the render 2026-09-23 |
-| `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`, HD-409) | **§5's harness block is a repo file now** — [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), merged into each seat's file by [`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh) (owner ruling 2026-10-08; before that this doc WAS the SSOT and the seats agreed only because a session remembered to copy it — HD-484/HD-493). The merge owns the harness keys and the `packages` list (composed from the `versions.yml` pins, §7); `externalEditor` / `lastChangelogVersion` / `tuiMode` stay machine-local and §5 remains the place that says WHY each key is what it is |
-| pi packages (`pi install npm:…`), **the pi build itself** + the seat TUI font | every pi.dev seat | git — the pin pairs `pi_host_tui_npm_*` / `pi_host_web_npm_*` / `pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*` / `nerd_fonts_*` in `IaC/ansible/group_vars/all/versions.yml`, installed by the two `install-pi-*.sh` scripts and re-converged by [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh) (the fan-out driver: seat × plane matrix, unreachable seat = failed run, and a seat whose declared planes did not all run fails as `coverage` — a bare `ssh` inside the plane loop once ate the loop's stdin and reported `IN SYNC` after 1 of 8 planes, 2026-10-09) |
-| `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/sync-skills.sh`](../scripts/sync-skills.sh), `extensions/` via [`../scripts/sync-extensions.sh`](../scripts/sync-extensions.sh) (HD-254 family; the Debian seat had **no** extension step at all until 2026-10-06, so it carried whatever was hand-placed) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
-| `~/.tmux.conf` (the seat's terminal harness) | repo [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → installed by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh) | git (the SSOT) — **not** the file in `$HOME`; it carries a `managed-by:` line so an installed copy is nameable, and a foreign `~/.tmux.conf` is a REFUSAL rather than a silent overwrite. Mouse + OSC 52 clipboard: **§5b**. Not yet called by the seat installer (the row in [`../todo.md`](../todo.md) keeps that) |
-| spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT, HD-374) |
+| `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Rendered on **two** machines: the laptop, and oldsrv's cockpit account `domen` — the harness is therefore not "admin workstation only", and a second machine is contracted through `--out` + scp, not a copied file |
+| `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`); the client's file is byte-identical to the render |
+| `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`) | **§5's harness block is a repo file** — [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), merged into each seat's file by [`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh): the merge owns the harness keys and the `packages` list (composed from the `versions.yml` pins, §7); `externalEditor` / `lastChangelogVersion` / `tuiMode` stay machine-local and §5 remains the place that says WHY each key is what it is |
+| pi packages (`pi install npm:…`), **the pi build itself** + the seat TUI font | every pi.dev seat | git — the pin pairs `pi_host_tui_npm_*` / `pi_host_web_npm_*` / `pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*` / `nerd_fonts_*` in `IaC/ansible/group_vars/all/versions.yml`, installed by the two `install-pi-*.sh` scripts and re-converged by [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh) (the fan-out driver: seat × plane matrix, unreachable seat = failed run, and a seat whose declared planes did not all run fails as `coverage` — a bare `ssh` inside the plane loop eats the loop's stdin) |
+| `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/sync-skills.sh`](../scripts/sync-skills.sh), `extensions/` via [`../scripts/sync-extensions.sh`](../scripts/sync-extensions.sh) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
+| `~/.tmux.conf` (the seat's terminal harness) | repo [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → installed by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh) | git (the SSOT) — **not** the file in `$HOME`; it carries a `managed-by:` line so an installed copy is nameable, and a foreign `~/.tmux.conf` is a REFUSAL rather than a silent overwrite. Mouse + OSC 52 clipboard: **§5b**. Not yet called by the seat installer |
+| spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT) |
 
-- The harness talks **directly to the spark edge** (`llm.kogler.si`, HD-370), not through LiteLLM. That
-  is a DECIDED boundary as of **decision #26**, [services-ai.md](services-ai.md) §9 row 26 +
+- The harness talks **directly to the spark edge** (`llm.kogler.si`), not through LiteLLM. That
+  is a DECIDED boundary (**decision #26**, [services-ai.md](services-ai.md) §9 row 26 +
   the evidence appendix §9d), not an accident of history — see **§1b** below. The LAN/VPS LiteLLM
-  instances (HD-356) front the same engine for the **simple-querier tier** (HomeAssistant, Docling,
+  instances front the same engine for the **simple-querier tier** (HomeAssistant, Docling,
   Open WebUI) — the model id `spark/qwen3.8-flash-next` is deliberately stable across every path.
 - **Secret:** the provider `apiKey` is the `spark-llm_api` credential (1Password `Homelab-ansible`
-  vault, HD-370). Never commit the literal and never print its value (CONVENTIONS §6).
+  vault). Never commit the literal and never print its value (CONVENTIONS §6).
 - Reload: `models.json` is re-read every time `/model` is opened in a running session; a new session
   picks it up at start. `settings.json` is read at start → restart pi.
-- **Where the pi BINARY lives — two layouts, one PATH (measured on oldsrv 2026-10-09).** `npm -g`
+- **Where the pi BINARY lives — two layouts, one PATH.** `npm -g`
   installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
   [`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) does); pi's own installer writes a
   launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).
   **`pi update` run inside a session migrates the first layout into the second and deletes the
   node-dir symlink** (1.1.0's own CHANGELOG recommends the migration), so a seat can lose `pi` from
-  PATH on the day it updates while pi itself runs perfectly — which is what happened to oldsrv, and
-  what made the cockpit die with `exec: "pi": executable file not found in $PATH`.
-  Three places carry **both** dirs from that date: the seat's `.bashrc`/`.profile`
+  PATH on the day it updates while pi itself runs perfectly — the cockpit then dies with
+  `exec: "pi": executable file not found in $PATH`.
+  Three places carry **both** dirs: the seat's `.bashrc`/`.profile`
   (`install-pi-debian.sh --path-only` is the repair for a seat whose block predates it), the cockpit
   unit (`roles/seat` → `pi-on-path.conf`, `seat_pi_bin` + `seat_pi_node_bin`, asserted in the live
   unit), and every probe (`pi_bin()` / `pi_candidate()`) — a probe that reads only PATH reports
-  "no pi here" for a seat that has one, the reason `pi-self-update.sh` printed `SKIP` with rc 0 on a
-  seat running the pinned build. `pi update self` installs the LATEST release and takes no version
+  "no pi here" for a seat that has one. `pi update self` installs the LATEST release and takes no version
   flag, so a managed seat off its pin is an **owner** action — move `pi_host_npm_version` +
   `pi_dev_npm_version` to what it reports, or move the seat back to the pinned layout with
   `install-pi-debian.sh --pi-only`; the script refuses to npm-install a second layout underneath it.
@@ -70,10 +69,10 @@ hand out *client-side semantics*, because `pi` reads its model contract from a l
 
 | Part of §4 | Through the gateway? | Note |
 |---|---|---|
-| `contextWindow`, `maxTokens`, `input` | Partially — as LiteLLM `model_info` (`max_input_tokens` / `max_output_tokens`, live in both DBs since HD-382) | **pi does not read it** — the field must still be in `models.json`; and the numbers differ on purpose: the DB carries 245,760 = window − reserve, pi needs the engine ceiling 262,144 |
+| `contextWindow`, `maxTokens`, `input` | Partially — as LiteLLM `model_info` (`max_input_tokens` / `max_output_tokens`, live in both DBs) | **pi does not read it** — the field must still be in `models.json`; and the numbers differ on purpose: the DB carries 245,760 = window − reserve, pi needs the engine ceiling 262,144 |
 | `samplingParams` (temperature/top_p) | Yes, if put in the DB entry's `litellm_params` | But `top_k` is **not** on the `openai/` provider allow-list → silently dropped |
-| `compat.thinkingFormat` → `chat_template_kwargs.enable_thinking` | ⚠ **Unverified on the pinned image** — HD-387 | Not on the `openai/` allow-list on `main`; if dropped, the failure mode is thinking **ON** with HTTP 200 |
-| `compat.thinkingTokenBudgetField` → `thinking_token_budget` | ⚠ Same open question (HD-387) | `main` handles it for Bedrock only |
+| `compat.thinkingFormat` → `chat_template_kwargs.enable_thinking` | ⚠ **Unverified on the pinned image** | Not on the `openai/` allow-list on `main`; if dropped, the failure mode is thinking **ON** with HTTP 200 |
+| `compat.thinkingTokenBudgetField` → `thinking_token_budget` | ⚠ Same open question | `main` handles it for Bedrock only |
 | `reasoning`, `thinkingLevelMap`, `supportsUsageInStreaming`, `maxTokensField`, `supportsDeveloperRole`, `supportsStrictMode`, `supportsReasoningEffort`, `cost` | **No — never** | These describe how *pi* speaks and how *pi* renders; a proxy cannot transmit them |
 | timeouts / compaction (§5) | **No — never** | Harness-side policy |
 
@@ -89,7 +88,7 @@ lives **here**, as a second provider entry whose `contextWindow` is also correct
 "spark-dr": {
   "baseUrl": "https://litellm.kogler.si/v1",
   "api": "openai-completions",
-  "apiKey": "(litellm master key, or a scoped key once HD-384 grants one)",
+  "apiKey": "(litellm master key, or a scoped key once the gateway leg grants one)",
   "models": [ { "id": "spark/qwen3.8-flash-next", "name": "spark via VPS gateway (backup leg)",
                 "contextWindow": 262144, "maxTokens": 16384, "reasoning": true } ]
 }
@@ -146,7 +145,7 @@ the transcript past the engine's gate and hard-fail the request minutes into a s
 ## 4. The rendered `~/.pi/agent/models.json` (generated — edit the spec)
 
 **This block is an OUTPUT, not the thing to edit.** The editable form is
-[`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) (HD-388); the field-by-field
+[`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml); the field-by-field
 rationale below still explains every value, because the spec carries the same reasoning in its comments.
 
 ```bash
@@ -155,14 +154,14 @@ python3 scripts/render-pi-config.py             # render (0600, timestamped back
 ```
 
 Two properties worth knowing before you reach for the file:
-* **The render is a proven no-op on the machine that had the hand-kept copy** — `--check` reports
+* **The render is a proven no-op** — `--check` reports
   `matches the spec (byte-identical: True)` against the laptop's live file, which is what makes it safe
-  to switch a workstation from hand-maintenance to rendering. Verified 2026-09-23.
+  to switch a workstation from hand-maintenance to rendering.
 * **Credentials are resolved at render time**, so no key is in git, in the spec, or in the `--check` output
   (masked): `models.json` ← `spark-llm_api` + `entrim_api`; `auth.json` (vendor `pi-auth`) ←
-  `openrouter_api` + `opencode-go`. Both items classes were minted 2026-09-23 and **every one of them
-  hash-matched what the machine already held**, which is why adopting the render was a no-op rather
-  than an event. `--check` covers both files: `--vendor all` renders them together.
+  `openrouter_api` + `opencode-go`. Every one of those items hash-matches what the machine already holds,
+  which is why adopting the render is a no-op rather than an event. `--check` covers both files:
+  `--vendor all` renders them together.
 * **Takeover rule for a credential file**: if the target holds a provider the spec does not name, the
   render **preserves it and prints why**. A silent drop in `auth.json` is a lockout you discover by
   being locked out; a printed NOTE is a task someone can finish.
@@ -233,8 +232,8 @@ Field rationale (defaults in parentheses come from `pi-coding-agent/docs/models.
 
 ## 4b. The same spec, second vendor (Continue.dev) — why it is a *block*, not a config
 
-HD-388's premise is that the model contract has exactly one editable form, and that adding a client
-means adding a vendor rather than copying numbers. `--vendor continue` renders the same models into a
+The model contract has exactly one editable form, and adding a client means adding a vendor rather
+than copying numbers. `--vendor continue` renders the same models into a
 Continue-shaped `models:` block at `~/.continue/homelab-models.generated.yaml`:
 
 ```bash
@@ -278,135 +277,118 @@ row stays open until it happens.
 ```
 
 Other keys in the real file (`lastChangelogVersion`, `externalEditor`, `tuiMode`) are workstation
-state, not spec — the block above plus `theme` and `packages` is the part that must match, and
-since 2026-10-08 that "must" is enforced rather than asserted: the keys live in
+state, not spec — the block above plus `theme` and `packages` is the part that must match, and that
+"must" is enforced rather than asserted: the keys live in
 [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) and
 [`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh) merges them into each seat's
 file (owned keys replaced, everything else preserved, timestamped backup, an unparseable file is a
 REFUSAL; `packages` is composed from the `versions.yml` pins and a seat-local package the repo does
 not name — the cockpit's pi-web — is KEPT and printed, never deleted).
 
-**The owned package set, and what "seat-local" was hiding (2026-10-09, HD-1118 Stage 2).** The set
-this plane writes is `pi-web-access` + `pi-open-tui` + `pi-subagents` + `pi-deepseek-optimized`, each
-at its pin. The last two were the discovery: both were named only in one unversioned line of
-[`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh), so the settings plane classified them
-as **seat-local and kept them** — which read as "fine, nothing to do" while in fact nothing converged
-them, no version was recorded anywhere, and the other seats carried them only because a session
-hand-ran `pi install` there. `seat-local` is where an unmanaged package hides; the fix is to pin and
-own the ones every seat is meant to run, and the plane now fails (`--check --strict`) when a seat is
-missing one, with `--push` restoring it at the pin — an arm of `--self-test` proves that half, and
-another proves the cockpit's pi-web still survives the same write. `@season179/pi-worktree` and
-`@ogulcancelik/pi-ssh-tools` are still NOT in the set — they remain unversioned lines in the WSL
-installer and owned by no plane, which is HD-1118's remaining residue rather than a ruling that they
-are seat-only. What is left seat-local after this is exactly
-the placement a fleet key must not own — the cockpit's `@ygncode/pi-web` (`--with-package`) — plus,
-on the laptop until 2026-10-09, a `context-mode` entry that was a per-machine install rather than a
-fleet key; it was removed from that seat with `pi remove`, which is the seat-side way to retire an
-entry (the sync never deletes one).
+**The owned package set.** The set this plane writes is `pi-web-access` + `pi-open-tui` + `pi-subagents` +
+`pi-deepseek-optimized`, each at its pin. `seat-local` is where an unmanaged package hides: a package named
+only in an unversioned installer line is classified seat-local and **kept**, which reads as "fine, nothing to
+do" while nothing converges it, no version is recorded anywhere, and a seat carries it only because someone
+hand-ran `pi install` there. So every package a seat is meant to run is pinned and owned: the plane fails
+(`--check --strict`) when a seat is missing one and `--push` restores it at the pin — an arm of `--self-test`
+proves that half, and another proves the cockpit's pi-web still survives the same write.
+`@season179/pi-worktree` and `@ogulcancelik/pi-ssh-tools` are NOT in the set: they are unversioned lines in
+[`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) owned by no plane — residue, not a ruling that
+they are seat-only. What stays seat-local is exactly the placement a fleet key must not own: the cockpit's
+`@ygncode/pi-web` (`--with-package`). A seat-local entry is retired on the seat with `pi remove` — the sync
+never deletes one.
 
-**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — HD-484). Before 2026-10-08 no plane could see the binary: every other plane compares files, so the Win11 seat quietly ran a pi release the repo had not reviewed (HD-1112's unpinned `volta install @latest`). `scripts/pi-self-update.sh` closes that (HD-1115): `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer. The owner ruled both pins to 1.1.0 on 2026-10-08, waiving the 3-day hold, with the reasoning written into the pin lines rather than copied into prose.
+**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — both are `1.1.0`, and the reasoning lives in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/pi-self-update.sh`](../scripts/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
 
-**One rule about that `packages` list no doc here stated until it bit (2026-10-08, pi 1.1.0):** an
+**One rule about that `packages` list:** an
 extension package must NOT list a host-provided module in `dependencies`. pi's loader compares each
 installed manifest's `dependencies` against `HOST_PROVIDED_EXTENSION_PACKAGES` (`typebox`,
 `@sinclair/typebox`, the `pi-ai` / `pi-tui` / `pi-coding-agent` families) and prints on every start:
 `Host-provided extension packages must be declared in peerDependencies with a "*" range, not
 dependencies`. Not style: an extension that installs its OWN `typebox` gets a second runtime module
-beside the host's, bypassing the extension loader. `pi-web-access` 0.25.0 did exactly that, so the
-panel appeared the moment the seat moved to pi 1.1.0 — a **pin** problem wearing an extension's
-clothes. The fix is the pin, never an edit into someone's `node_modules` — and no pin had to move:
+beside the host's, bypassing the extension loader — a **pin** problem wearing an extension's clothes.
+The fix is the pin, never an edit into someone's `node_modules`, and no pin has to move:
 `pi_web_access_version` is `0.36.0`, whose installed manifest declares `peerDependencies.typebox: "*"`
-and carries no `typebox` entry in `dependencies` (read off the seat's own manifest 2026-10-09;
-upstream moved the declaration in 0.32.0, registry-verified across all 46 published versions). This
-paragraph named `→ 0.37.0` until 2026-10-09 — a version this repo never pinned, and the value of a pin
-is its `versions.yml` line, not a number quoted in prose. The predicate is one read of a
+and carries no `typebox` entry in `dependencies` (upstream moved the declaration in 0.32.0,
+registry-verified across all 46 published versions). The value of a pin is its `versions.yml` line, not a
+number quoted in prose. The predicate is one read of a
 manifest, so `pi list` plus a manifest scan proves it, and deleting a hoisted copy is undone by the
 next install.
 
-**There is no settings VENDOR in `render-pi-config.py`, and that boundary still holds — but §5 is
-no longer the only source.** `render-pi-config.py --vendor` speaks `pi` / `pi_auth` / `continue` /
+**There is no settings VENDOR in `render-pi-config.py`, and that boundary holds — but §5 is
+not the only source.** `render-pi-config.py --vendor` speaks `pi` / `pi_auth` / `continue` /
 `all`; the spec renders the **model contract**, never someone's editor settings
 ([`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) says so in its own
-comment). What changed 2026-10-08 (owner ruling, HD-1110) is that the harness keys became a repo
-file plus a merge script instead of a hand-copied doc block — the re-decision is recorded here, not
-buried in an edit, because §5 had said "this doc is the reference copy" since HD-388 and
-`models-spec.yml` line 248 named `settings.json` as machine-local. The parts it named are still
-machine-local; the harness block is not. The earlier wording "render settings.json from the spec"
-(HD-484, 2026-10-01) still described a command that does not exist, and still must not be revived:
+comment). The harness keys are a repo file plus a merge script, not a hand-copied doc block — the
+re-decision is recorded here, not buried in an edit. `models-spec.yml` names `settings.json` as
+machine-local, and the keys it names are machine-local; the harness block is not. "Render
+`settings.json` from the spec" names a command that does not exist and must not be revived:
 a vendor would rewrite the whole file and delete a seat's own packages. Both carriers today: the laptop, and
-oldsrv's seat (the §5 block + `packages`, live 2026-10-01 — before that the seat held `{"packages": […]}`
-only, so its picker defaulted to a cloud model and thought every turn).
+oldsrv's seat (the §5 block + `packages`, live 2026-10-01).
 
-**2026-10-05 — `defaultThinkingLevel` flipped `off` → `high` (owner ruling; supersedes the HD-376 value).**
-HD-376 chose `off` to make invisible thinking *stop*; this is the opposite call, so it is recorded as a
-re-decision, not an edit. What the flip actually does, read off pi's own resolver and compat code rather
-than inferred from a UI label: the startup level comes from **settings.json only**
+**`defaultThinkingLevel: high` — thinking ON from the first turn.** What the setting actually does, read off
+pi's own resolver and compat code rather than inferred from a UI label: the startup level comes from
+**settings.json only**
 (`modelThinkingLevels["<provider>/<modelId>"]` → `defaultThinkingLevel` → pi's built-in `medium`) —
 **models.json has no default-thinking field**; its `ModelDefinitionSchema` carries `reasoning` /
 `thinkingLevelMap` / `samplingParams*`, which decide which levels *exist* and what each *sends*, never
 which one starts a session. And because §4's `thinkingLevelMap` nulls every level except `off`/`high`,
 **`high` is the only ON level this model has** — `medium`/`xhigh` clamp *up* to it — so `high` is the one
-correct spelling of "thinking on by default". Cost, in the currencies §2 already measured: every turn now
-sends `chat_template_kwargs.enable_thinking: true` plus `thinking_token_budget: 8192`
-(`thinkingBudgets.high`); the controlled-but-off path spent none, the *uncontrolled* template spent
-23–121 hidden reasoning tokens/turn, thinking-on decode is ~11 tok/s, and reasoning tokens occupy blocks
-in the shared ~262k KV pool — so a long turn is minutes and a concurrent lane feels it (§6). Rows with
+correct spelling of "thinking on by default". Cost, in the currencies §2 measures: every turn sends
+`chat_template_kwargs.enable_thinking: true` plus `thinking_token_budget: 8192`
+(`thinkingBudgets.high`); the *uncontrolled* template would spend 23–121 hidden reasoning tokens/turn,
+thinking-on decode is ~11 tok/s, and reasoning tokens occupy blocks in the shared ~262k KV pool — so a long
+turn is minutes and a concurrent lane feels it (§6). Rows with
 `reasoning: false` (the laptop's vision + FIM legs) are untouched; pi clamps them to `off`.
-**Seat state, measured 2026-10-05:** the Win11 seat already carried `high`, the WSL seat carried `off` —
-the two halves of one laptop had silently divided, and the `--check` drift gate cannot see it because
-settings.json sits deliberately outside the render. Both now read `high`. oldsrv's cockpit seat was
-re-read **from the seat itself** on 2026-10-06 (the file is 0600 `domen`, so the runner key cannot see it,
-but an owner session on the box can): the §5 block reads `high` — and `theme` was **absent**, which the
-HD-493 note below wrongly reported as "stayed".
+**Seat state:** all three seats read `high`. The `--check` drift gate cannot see this key because
+settings.json sits deliberately outside the render — a seat can disagree with §5 in silence, and only a
+`pi-settings-config.sh` merge (or a human) proves it. The seat's own file is 0600 `domen`, so the runner key
+cannot read it; an owner session on the box can.
 
-**2026-10-06 — `theme`: the seat carried none, which is why the two seats looked different.**
+**`theme` — why an unset `theme` makes two seats look different.**
 pi's default theme is `system`: it queries the terminal's background and 16 ANSI colors and rebuilds its
 palette from the answer, so an unset `theme` key means *the terminal decides*. pi's truecolor hint is
 `COLORTERM=truecolor|24bit` or `TERM=*-direct` (read off `detectCapabilitiesFromEnvironment` in pi's own
 bundle, not inferred from a UI label); the seat's leg is plain SSH with **`COLORTERM` unset** and
-`TERM=xterm-256color` (measured 2026-10-06), so pi gamut-maps the derived palette down to the 256-color
-set — a visibly flatter picture than the laptop's seat in the same session. Fixed on the seat with
+`TERM=xterm-256color`, so pi gamut-maps the derived palette down to the 256-color
+set — a visibly flatter picture than the laptop's seat in the same session. Set it on a seat with
 `"theme": "dark"` (pi's built-in terminal-independent palette; `/reload` to apply).
-**The boundary did not move.** `render-pi-config.py --vendor` still has no settings vendor and
+**The boundary does not move.** `render-pi-config.py --vendor` still has no settings vendor and
 `models-spec.yml` still forbids `theme` in the spec, so this stays a hand-written per-machine key with
-this section as its source — the drift gate remains blind to it, exactly the blindness that let the
-`defaultThinkingLevel` halves divide above. **Closed 2026-10-06: the laptop seats (Win11 + WSL) read
-`dark` too — owner-REPORTED, not measured.** There is no oldsrv→laptop leg (`domenp14s` is a `hosts:`
+this section as its source — and the drift gate remains blind to it, the same blindness that lets the
+`defaultThinkingLevel` halves divide. **Seat state:** all three seats read `dark` at rest; the laptop half is
+owner-REPORTED, not measured. There is no oldsrv→laptop leg (`domenp14s` is a `hosts:`
 label for the renderer, not an ssh target), so nothing on this box can read that half, and §5 has no
-renderer to check it with either. So the honest state is: both carriers matched at rest on this date,
-and if they diverge again the only detector is a human running `grep '"theme"' ~/.pi/agent/settings.json`
-on each machine — which is the standing cost of keeping this key outside the render.
+renderer to check it with either. If they diverge, the only detector is a human running
+`grep '"theme"' ~/.pi/agent/settings.json` on each machine — the standing cost of keeping this key outside
+the render.
 
 | Setting | Value | Why on this box |
 |---------|-------|-----------------|
-| `defaultThinkingLevel` | `high` (was `off` from HD-376 until 2026-10-05) | thinking ON from the first turn: `enable_thinking: true` + the 8192-token `thinkingBudgets.high` cap. `high` is the only ON level the §4 map leaves, so any other spelling clamps to this anyway. HD-376's saving (≈20–120 hidden reasoning tokens/turn) is now a deliberate cost — see the note above |
+| `defaultThinkingLevel` | `high` | thinking ON from the first turn: `enable_thinking: true` + the 8192-token `thinkingBudgets.high` cap. `high` is the only ON level the §4 map leaves, so any other spelling clamps to this anyway. The ≈20–120 hidden reasoning tokens/turn that `off` would save are a deliberate cost — see the note above |
 | `compaction.reserveTokens` | 16384 | pi compacts when context > `contextWindow − reserveTokens` = **245,760**; this is the "use the whole window" dial |
 | `compaction.keepRecentTokens` | 32768 (default 20000) | larger verbatim tail survives a compaction — cheaper to keep when the window is 262k |
 | `httpIdleTimeoutMs` | 900000 (default 300000) | a cold prefill of a large prompt emits no tokens until the first token; the 5-min default can kill the turn mid-prefill |
 | `retry.provider.timeoutMs` | 1800000 | same reason, per-request ceiling (SDK default is far below a 200k cold prefill) |
 | `showCacheMissNotices` | `true` | server-side `--enable-prefix-caching` is the only reason a 200k turn is cheap — the notice shows when the harness broke a cached prefix |
 | `thinkingBudgets` | 1k/2k/4k/8k | only applied when thinking is ON (needs `thinkingTokenBudgetField`); bounds what "high" can spend |
-| `theme` | `dark` (absent on the oldsrv seat until 2026-10-06) | `dark` is terminal-independent, and absence is not neutral: it selects pi's `system` theme, which paints from the terminal's own palette — over the seat's SSH leg (`COLORTERM` unset) that lands on the 256-color approximation, so the cockpit and the laptop did not match. All three seats read `dark` at rest 2026-10-06; the laptop half is owner-reported, not measured. Still NOT rendered (§1, `models-spec.yml`) |
+| `theme` | `dark` | `dark` is terminal-independent, and absence is not neutral: it selects pi's `system` theme, which paints from the terminal's own palette — over the seat's SSH leg (`COLORTERM` unset) that lands on the 256-color approximation, so the cockpit and the laptop do not match. All three seats read `dark`; the laptop half is owner-reported, not measured. Still NOT rendered (§1, `models-spec.yml`) |
 
 ---
 
-**Both carriers are now real, and the block matches (2026-10-05, HD-493).** The seat's file held the
-§5 block's *shape* but `defaultThinkingLevel: medium` — the owner's ruling of the same date says
-`high`, and the seat now reads `high` with the rest of the block written **from this section**, not
-copied off the laptop (§1: no renderer exists for this file by design, and §5 is the source; the
-seat's extra `modelThinkingLevels`/`lastChangelogVersion`-class keys are workstation state and stayed —
-this paragraph listed `theme` among them, and that one word was wrong: measured 2026-10-06 the seat
-carried no `theme` key at all, see the note above). The host-side bootstrap that used to be a WSL-only script is a sibling now:
-[`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) (HD-446) installs the pinned
-Node tarball + the pinned pi for a bare Debian seat and reads its pins from
-`IaC/ansible/group_vars/all/versions.yml` — the same `pi_host_*` pins that keep the two seats from
-drifting again (§9: the seat trailing the laptop is the failure this pair exists to prevent).
+**Carriers.** No renderer exists for `settings.json` by design ("render settings.json from the spec" names a
+command that must not be revived), so §5 is the source and the seat's block is written **from this section**,
+not copied off the laptop; a seat's own extra `modelThinkingLevels` / `lastChangelogVersion`-class keys are
+workstation state and are preserved by the merge. The host-side bootstrap for a bare Debian seat is
+[`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) — it installs the pinned
+Node tarball + the pinned pi and reads its pins from
+`IaC/ansible/group_vars/all/versions.yml`, the same `pi_host_*` pins that keep a seat from trailing the
+laptop (§1).
 
-## 5a. Seat identity — which box the footer names (2026-10-06)
+## 5a. Seat identity — which box the footer names
 
 Three seats exist and two run this harness daily — **Win11** and **the oldsrv cockpit**. The WSL Debian
-seat is **retained but rarely used** (owner ruling 2026-10-09, superseding the 2026-10-07 “retired”
-wording in [../prompt.md](../prompt.md) §1), and it stays in `pi-seat-sync.sh`'s `SEATS` on purpose: a
+seat is **retained but rarely used**, and it stays in `pi-seat-sync.sh`'s `SEATS` on purpose: a
 fan-out must still name it, and it will keep reporting `UNREACHABLE`/drift honestly until
 `install-pi-wsl.sh` has been run there (its `pi` on PATH is the Windows Volta shim). That is also why the
 "two seats on ONE machine" case below is occasional rather than daily. **Pi has no setting for footer
@@ -414,14 +396,14 @@ content** — `settings.md` §Terminal and display carries `theme`/`tuiMode`/`te
 and the default footer shows folder / model / context / cost. So "which machine am I typing to" is only
 answerable from an extension, and this section is the only place that fact is written down.
 
-- **The mechanism today (2026-10-08, HD-1110):** the pi package `pi-open-tui` (pin
+- **The mechanism:** the pi package `pi-open-tui` (pin
   `pi_host_tui_npm_*`) draws the whole footer, and its `footerSegments.hostname` segment prints
   `os.hostname()` in short form. The hand-written `pi-agent/extensions/host-status.ts` is **retired**
   with it — a `ctx.ui.setStatus` line under a package-drawn footer is two sources of truth for one
-  line, and the package owns the line now. Retirement is a MECHANISM, not a deletion:
+  line, and the package owns the line. Retirement is a MECHANISM, not a deletion:
   `sync-extensions.sh --push` never deletes a deployed-only file, so without the script's
   `RETIRED` list a deleted extension stays loaded on every seat forever, invisible to a gate that
-  compares only repo-side files. Retired the same day on the owner's instruction: `remote-bash.ts`
+  compares only repo-side files. Also on that list: `remote-bash.ts`
   (Windows `sshpass.exe` + drive-letter paths, never in the repo by design).
 - **The trap that makes this a script and not a note:** pi-open-tui's `DEFAULT_CONFIG` ships
   `footerSegments.hostname: false`. A seat that only ran `pi install npm:pi-open-tui` therefore has
@@ -432,47 +414,36 @@ answerable from an extension, and this section is the only place that fact is wr
   `/open-tui`, and REFUSES to rewrite an unparseable file. Both installers call it; `validate-all.sh`
   gates it (self-test + `--check --strict`).
 - **Deploy direction:** repo `pi-agent/` + `skills/` is SSOT → `bash scripts/pi-seat-sync.sh --push`
-  runs every plane on every seat (that is what replaced "a session remembers which planes it did"),
+  runs every plane on every seat,
   and per plane `sync-skills.sh` / [`sync-extensions.sh`](../scripts/sync-extensions.sh) (item 27).
   A **deployed-only** extension is still deliberately NOT drift — it is reported `LOCAL`, never
   deleted, never imported; only a name on the `RETIRED` list is removed. The self-test asserts both
   halves, so the retirement rule cannot quietly swallow the `LOCAL` rule.
-- **Keyboard, not just mouse (HD-1113, and that row is closed, so this is the record):** inside tmux pi 1.1.0 runs `tmux show -gv extended-keys` at start-up and warns unless the answer is `on`/`always`, then warns AGAIN when `extended-keys-format` is `xterm`, because pi speaks CSI-u. Measured on oldsrv (tmux 3.5a): the defaults are `extended-keys=off` AND `extended-keys-format=xterm` — tmux still defaults the FORMAT to xterm, so setting only the first option swaps one warning for the other. Both lines live in `pi-agent/tmux/tmux.conf`; `install-tmux-conf.sh --reload` sources the RUNNING server, because a server that was already up keeps its old values whatever the file says — and on tmux < 3.3 neither option exists, where pi stays silent too, so an option-absent answer is reported and never failed.
+- **Keyboard, not just mouse:** inside tmux pi 1.1.0 runs `tmux show -gv extended-keys` at start-up and warns unless the answer is `on`/`always`, then warns AGAIN when `extended-keys-format` is `xterm`, because pi speaks CSI-u. On tmux 3.5a the defaults are `extended-keys=off` AND `extended-keys-format=xterm` — tmux still defaults the FORMAT to xterm, so setting only the first option swaps one warning for the other. Both lines live in `pi-agent/tmux/tmux.conf`; `install-tmux-conf.sh --reload` sources the RUNNING server, because a server that was already up keeps its old values whatever the file says — and on tmux < 3.3 neither option exists, where pi stays silent too, so an option-absent answer is reported and never failed.
 - **The font is part of this, not a nicety:** pi-open-tui's icons are Nerd Font private-use glyphs,
   and its `icons.mode: auto` chooses them from the TERMINAL ENVIRONMENT, never from the installed
-  font file. The release is pinned (`nerd_fonts_version`, verified 2026-10-08) and installed by
+  font file. The release is pinned (`nerd_fonts_version`) and installed by
   [`../scripts/install-nerd-font.sh`](../scripts/install-nerd-font.sh) on the Debian seats and by
   [`../scripts/win/install-nerd-font.ps1`](../scripts/win/install-nerd-font.ps1) per-user on the
-  Windows one — and **the Windows leg is the one that draws** (on this workstation that leg is already satisfied **machine-wide**: the owner installed JetBrainsMono globally, 2026-10-08, and `install-nerd-font.ps1 -Check` reports `OK (machine-wide)` rather than nagging for a duplicate per-user install — an operator who already did the thing is DONE, not drift), because on WSL and on every SSH leg
+  Windows one — and **the Windows leg is the one that draws** (on this workstation that leg is already satisfied **machine-wide**: JetBrainsMono is installed globally and `install-nerd-font.ps1 -Check` reports `OK (machine-wide)` rather than nagging for a duplicate per-user install — an operator who already did the thing is DONE, not drift), because on WSL and on every SSH leg
   the terminal runs on the machine you type from. Having the font installed is not the same as the
   terminal selecting it: that stays a `fontFace` choice in the terminal profile, and `unicode` mode
   is the documented fallback when a box has no patched font.
-- **The font plane was red on a seat that had the font — `grep -q` + `pipefail` (HD-1110, live on
-  oldsrv 2026-10-08).** The effectiveness probe was `fc-list | grep -qi "$FAMILY"`. `grep -q` exits at
-  the FIRST match; `fc-list` is still writing, so it dies of SIGPIPE (rc **141**), and `set -o
-  pipefail` promotes the dead producer to a failed pipeline even though grep found the family and
-  returned 0 — so the script printed "the files are on disk but the font is not usable" over an
-  install that was placed, hashed, AND registered. Measured ten runs each way on the seat: the piped
-  form **141 ten times out of ten**, the fixed form (capture the listing, then search the captured
-  text — the producer is then finished before grep starts, so there is no race) **0 ten times out of
-  ten**. Two things make this a rule and not a one-liner: it bit at **52,885 bytes / 389 families**,
-  well under the 64 KiB pipe, because `fc-list` emits in chunks across its cache scan and grep exits
-  during the scan; and the self-test could not see it, because its fake `fc-list` printed ONE line,
-  which fits in the pipe buffer — the same "a test that cannot fail is not evidence" trap as §5b's
-  `-eq 1` (CONVENTIONS §6). Self-test arm 8 now breeds it (family first, ~160 KB of filler after it,
-  counting chunks so a GREEN can tell "drained" from "this host's buffer absorbed it"), and it fails
-  red against the pre-fix probe. **Generalise: under `pipefail`, never `producer | grep -q`** — the
-  early exit is a bug in the probe, never news about the producer.
-  **LIVE on oldsrv 2026-10-08 — VOID, re-measured 2026-10-09:** this line read "all eight planes green run from
-  the seat", but the fan-out ran only its FIRST plane on any ssh-based leg (the plane loop streamed its list on
-  stdin and the transport's bare `ssh` ate the rest — HD-1110, fixed in `bcf776ab`), and a run FROM the cockpit
-  reaches it over `ssh oldsrv-domen` too, so the reading was a partial run wearing a full one. Re-measured with
-  the fixed driver: 8/8 green, including `pi-self` (1.1.0 == the `pi_host_npm_version` pin), and `validate-all.sh`
-  exits 0 there with the retired `host-status.ts` gone — that clears HD-1114's `oldsrv` half; the
-  The Win11 copy is now removed by that seat's own `--push` (owner-confirmed 2026-10-09), which CLOSES
-  HD-1114: the retirement mechanism has finally reached every seat, and `validate-all.sh`'s RETIRED arm
-  has nothing left to fail on.
-- **Running the driver ON the oldsrv box (seat == host, 2026-10-08):** all three of
+- **Under `pipefail`, never `producer | grep -q`** — the early exit is a bug in the probe, never news about
+  the producer. `grep -q` exits at the FIRST match while `fc-list` is still writing, so `fc-list` dies of
+  SIGPIPE (rc **141**) and `set -o pipefail` promotes the dead producer to a failed pipeline even though grep
+  found the family and returned 0 — a red font plane on a seat whose font is placed, hashed AND registered.
+  It bites well under the 64 KiB pipe, because `fc-list` emits in chunks across its cache scan. The fix is to
+  capture the listing and search the captured text: the producer is finished before grep starts, so there is
+  no race. A self-test whose fake producer prints one line cannot see this — the same "a test that cannot
+  fail is not evidence" trap as §5b's `-eq 1` (CONVENTIONS §6) — so self-test arm 8 breeds it (family first,
+  ~160 KB of filler after it, counting chunks so a GREEN can tell "drained" from "this host's buffer
+  absorbed it").
+  **Seat state:** the fixed driver run from the cockpit gives 8/8 green including `pi-self` (1.1.0 == the
+  `pi_host_npm_version` pin), and `validate-all.sh` exits 0 there. The retired `host-status.ts` is gone from
+  every seat — the Win11 copy is removed by that seat's own `--push` — so the retirement mechanism has
+  reached every seat and `validate-all.sh`'s RETIRED arm has nothing left to fail on.
+- **Running the driver ON the oldsrv box (seat == host):** all three of
   [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh)'s legs are laptop-side — `win11` is "this
   shell" only on the Windows workstation, `wsl` needs `wsl.exe`, and `oldsrv` sshes to `oldsrv-domen`,
   an alias that exists in the *workstation's* ssh config. Run the driver on oldsrv itself and every
@@ -483,18 +454,14 @@ answerable from an extension, and this section is the only place that fact is wr
   the `models` plane resolves credentials at render time, so a `TLS handshake timeout` from `op` is a
   transient 1Password/network fault — retry it, and never reach for `--keep-legacy-credentials`, which
   would paper over a provider the spec expects to be managed.
-- **Proven, not assumed:** with the file in `~/.pi/agent/extensions/`, `pi --mode rpc` with an empty
-  stdin emits
-  `{"type":"extension_ui_request","method":"setStatus","statusKey":"host","statusText":"@ oldsrv"}`.
-- **Closed on the laptop seat (owner-ran, 2026-10-06 — the only leg nothing here can reach):** one
-  `bash scripts/sync-extensions.sh --push` there, then `/reload`. The footer reads **`@ DomenP14s`**, and the
-  same run took `bash scripts/validate-all.sh` **non-interactively** to `OK: all validators passed` with the
-  `launcher: ~/ansible-venv activated` line — so the launcher fix holds on the second Debian seat too, on a
-  path nothing on oldsrv could have tested.
+- **The laptop seat is the only leg nothing on the oldsrv box can reach:** one
+  `bash scripts/sync-extensions.sh --push` there, then `/reload`, and the footer reads **`@ DomenP14s`**.
+  The same kind of run takes `bash scripts/validate-all.sh` **non-interactively** to `OK: all validators
+  passed` with the `launcher: ~/ansible-venv activated` line.
 - **Bonus invariant, not decoration:** the token the footer prints is the one `host_norm()`
   (`../scripts/render-pi-config.py`) uses for a provider's `hosts:` scope — `DomenP14s` normalises to the
-  spec row `domenp14s`. HD-474 wrote that normaliser because a case/SEPARATOR mismatch there silently
-  dropped a provider from the picker in both directions; the footer makes that invariant visible, so the
+  spec row `domenp14s`. A case/SEPARATOR mismatch there silently
+  drops a provider from the picker in both directions; the footer makes that invariant visible, so the
   wrong machine shows up before it becomes a missing provider.
 - **What it does NOT distinguish is two seats on ONE machine** — Win11 and WSL Debian report the same
   Windows-derived hostname. It answers "which box" (the cockpit-vs-laptop question over SSH, where the
@@ -502,9 +469,9 @@ answerable from an extension, and this section is the only place that fact is wr
   `laptop-llm.py` already reads) and deliberately NOT used here: a second host-identity signal invented in
   a footer would drift from the one `host_norm()` owns.
 
-## 5b. The seat's terminal harness — tmux mouse + OSC 52 clipboard (2026-10-06)
+## 5b. The seat's terminal harness — tmux mouse + OSC 52 clipboard
 
-pi runs inside tmux on the Debian seats — **one now**, oldsrv, since the WSL seat retired (HD-445's package call put `tmux` on oldsrv), and two things a
+pi runs inside tmux on the Debian seats — **one in active use**, oldsrv — and two things a
 session touches every minute are **terminal-level, not pi-level**: the mouse and the clipboard. Repo
 SSOT [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → `~/.tmux.conf`, installed and *proved*
 by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh), drift-gated by
@@ -534,7 +501,7 @@ exit 0 with empty stderr** (tmux reports a config failure as a client *message*;
 | backslash-continued command | same | EFFECTIVE |
 | one bad command (`select-pane -t = extra extra extra`) | `mouse off`, `2000`, `emacs` | **INERT** |
 | unknown command | same defaults | **INERT** |
-| nested wrapped `if-shell { } { }` (what actually broke this seat) | same defaults | **INERT** |
+| nested wrapped `if-shell { } { }` | same defaults | **INERT** |
 | unterminated quote at the end | `mouse on`, `mode-keys emacs` | **PARTIAL** |
 
 Two conclusions, both load-bearing: **which part** of a file survives an error is not predictable from
@@ -542,9 +509,8 @@ the parser (last row — a later option applied while an earlier one did not), a
 bad block" rule cannot be written honestly, because the first two wrapped shapes load fine while the
 nested one does not. So the gate starts a throwaway server on a private socket and **reads the options
 back** — and its own canaries mutate the fixture, not the checker (CONVENTIONS §6: a test that cannot
-fail is not evidence). That mechanism earned its keep immediately: the load probe's first version
-tested `-eq 1` on a raw failure *count*, so two failed assertions read as `2` — which is also the SKIP
-code — and the inert canaries went green. They are what found it.
+fail is not evidence). The probe must not key on a raw failure *count*: two failed assertions read as `2`,
+which is also the SKIP code, so a count-shaped verdict can print green over inert canaries.
 
 ### The clipboard leg — OSC 52, measured
 
@@ -570,7 +536,7 @@ Three facts that are easy to get wrong, each measured here rather than assumed:
   `copy-selection-and-cancel`, i.e. what a mouse drag or `y` does) produces the sequence. A probe built
   on `set-buffer` reports a working clipboard no user can reach.
 - **`#{client_termfeatures}` is a belief about the terminal's NAME, not a capability read.** Its
-  `clipboard` flag tracked the wire in every row above, then lied under the script's own feet: a probe
+  `clipboard` flag tracks the wire in the rows above but is not a read of the capability: a probe
   client with `TERM=tmux-256color` reports no `clipboard` while tmux emits OSC 52 for it. The gate reads
   the **bytes** (attach a `script(1)` pty client, capture, grep for `\033]52;`); the flag is printed as
   information only.
@@ -597,34 +563,34 @@ End-to-end by hand, the way a person notices it: select text with the mouse in a
 it on the machine you are sitting at. If nothing arrives, the seat's config is fine and the **outer
 terminal is refusing OSC 52** — `xterm` needs the `allowWindowOps: true` resource; VTE ≥ 0.60, kitty,
 wezterm, foot and alacritty accept by default. Nothing inside tmux can fix that leg, which is why it is
-the ⏳ tail of the row in [`../todo.md`](../todo.md) and not a bug in the script.
+an ⏳ owner-gated tail and not a bug in the script.
 
 **Not wired yet:** neither [`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) nor
 [`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) calls this installer, so a freshly
-bootstrapped seat still gets no `~/.tmux.conf` — the same gap HD-446 closed for extensions. Run it once
+bootstrapped seat still gets no `~/.tmux.conf`. Run it once
 per seat until that step lands.
 
-### The three ways this plane's own scripts lied — all closed 2026-10-09
+### The three ways this plane's own scripts can lie
 
-Two arrived as a **rescue** from a merged-but-dirty lane worktree (`session/hd-1085-osc52-leg`: the branch was
-already an ancestor of `main`, so `git branch -d` would have succeeded and the work would have died with the
-directory — only `git status --porcelain` inside the lane sees it, see [orchestration.md](orchestration.md) §4
-step 5); the third was found while proving the second. All three are the CONVENTIONS §6 class — a verdict
-printed at an environment boundary.
+All three are the CONVENTIONS §6 class — a verdict printed at an environment boundary. The rescue path that
+surfaced two of them is [orchestration.md](orchestration.md) §4 step 5: a lane branch can already be an
+ancestor of `main`, so `git branch -d` succeeds and uncommitted work dies with the directory — only
+`git status --porcelain` inside the lane sees it.
 
 1. **The installer collapsed a three-state rc into one note.** `install-tmux-conf.sh --push` ends in the load
    probe, so **0 = installed AND effective, 1 = a real defect** (refusal / CRLF / inert file), **2 = installed
    but UNPROVEN** (no tmux binary here). `… --push || info "…reported a problem"` printed rc 1 as a note, so a
-   genuinely broken seat harness configured GREEN. `install-pi-debian.sh` now `case`s all three.
+   genuinely broken seat harness configured GREEN. `install-pi-debian.sh` `case`s all three.
 2. **`check()` aborted at the first drift and printed nothing.** Under `set -euo pipefail` a bare
    `X --check 2>&1 | tail -2` is a failing pipeline, so `set -e` killed the script at that line: the settings,
    font, tmux and tui legs and the `check: GREEN|DRIFT` summary never ran — the first skill drift made the
    whole seat gate go silent. Proved both ways: `set -euo pipefail; false 2>&1 | tail -2; echo REACHED` prints
-   **nothing**; with `|| bad=1` it prints `REACHED` and `bad=1`. Three sites carried the bug
-   (`sync-skills`, `sync-extensions`, `install-nerd-font`); the residue fixed two, the third is identical.
-3. **`--check` said "and effective" while printing SKIP.** With no tmux the load probe returns 2, the
-   byte-compare passes, and the verdict line printed `OK: … == repo SSOT and effective` two lines after an
-   honest SKIP. Both arms measured after the fix: `oldsrv` (tmux 3.5a) → `load probe OK … and effective`; a
+   **nothing**; with `|| bad=1` it prints `REACHED` and `bad=1`. Three sites carry the pattern — the
+   `sync-skills`, `sync-extensions` and `install-nerd-font` checks in `install-pi-debian.sh` — and every one
+   of them needs the `|| bad=1` guard.
+3. **`--check` must not say "and effective" while printing SKIP.** With no tmux the load probe returns 2, the
+   byte-compare passes, and the verdict line can print `OK: … == repo SSOT and effective` two lines after an
+   honest SKIP. The two arms are: tmux present → `load probe OK … and effective`; a
    tmux-less seat → `SKIP: … IN PLACE; effectiveness UNPROVEN — a SKIP, not a pass`. Same rc, honest words:
    **in place ≠ effective**.
 
@@ -669,8 +635,8 @@ per-run choice, not a global default.
 |------|-----|-----------|
 | Cap normal-turn output | add `"max_tokens": 8192` to `samplingParams` | pi sends **no** `max_tokens` on normal turns, so the model may decode to the window end (~11 tok/s → tens of minutes). A key here wins over pi's own caps, including the compaction-summary cap — size it above `0.8 × reserveTokens` |
 | Agentic sampling preset | `"temperature": 0.6, "top_p": 0.95, "top_k": 20` | greedier → more reliable tool-call JSON, worse divergent reasoning; needs an A/B on a real task before switching |
-| fp8 KV cache (SERVER) | `spark_llm_profiles.graded` (`--kv-cache-dtype fp8`) | **blocked on the image, not on the model** (2026-09-28): the pinned build's QSA kernel declares `["auto","bfloat16"]` and raises, so it will not boot here — and fp8 buys **1.70–1.89×** tokens, not the ~2× this row used to promise (main K/V only; the QSA side-caches + GDN state stay bf16). Upstream merged it as vllm#55557 after our tag was built ⇒ engine-pin lane **HD-473**, then re-cert, then the long-context needle + MTP-acceptance gates in [`spark-llm-profiles.md`](spark-llm-profiles.md) / [`../spark/llm-profiles/README.md`](../spark/llm-profiles/README.md) |
-| Bigger prefill chunk (SERVER) | `spark_vllm_max_num_batched_tokens: 32768` | halves chunked-prefill iterations on 200k prompts, spikes activation memory — re-measure against the HD-374 governor |
+| fp8 KV cache (SERVER) | `spark_llm_profiles.graded` (`--kv-cache-dtype fp8`) | **blocked on the image, not on the model**: the pinned build's QSA kernel declares `["auto","bfloat16"]` and raises, so it will not boot here — and fp8 buys **1.70–1.89×** tokens, not ~2× (main K/V only; the QSA side-caches + GDN state stay bf16). Upstream merged it as vllm#55557 after our tag was built ⇒ an engine-pin lane, then re-cert, then the long-context needle + MTP-acceptance gates in [`spark-llm-profiles.md`](spark-llm-profiles.md) / [`../spark/llm-profiles/README.md`](../spark/llm-profiles/README.md) |
+| Bigger prefill chunk (SERVER) | `spark_vllm_max_num_batched_tokens: 32768` | halves chunked-prefill iterations on 200k prompts, spikes activation memory — re-measure against the memory governor ([`hardware-spark.md`](hardware-spark.md) §Unified-memory budget) |
 | Beyond 262k (SERVER) | `VLLM_ALLOW_LONG_MAX_MODEL_LEN=1` + YaRN | already rejected as ungated ([`hardware-spark.md`](hardware-spark.md)); needle test first |
 | Vision input | `"input": ["text","image"]` | do NOT — no vision path in this build |
 
@@ -687,17 +653,13 @@ pi -p --model spark/qwen3.8-flash-next "Reply with exactly: SMOKE_OK"
 ```
 
 Verified: the row renders `262.1K / 16.4K / thinking yes`, and the smoke test returns
-`SMOKE_OK` (rc=0) through the new compat block. Footer should read the window as 262.1K.
+`SMOKE_OK` (rc=0) through the compat block. Footer should read the window as 262.1K.
 
 ---
 
 ## 9. Open tails
 
-- ✅ **CLOSED:** the "`pi-dev` re-point" tail is **moot** — `dsh`/`pi-dev` are PARKED as
-  services (HD-386) and per decision #26 the harnesses reach the engine directly, so there is nothing
-  left to re-point. The LAN model entry itself landed (HD-382) and stays for the
-  simple-querier tier.
-- ⏳ **HD-387:** re-measure whether the thinking control (`chat_template_kwargs.enable_thinking` +
+- ⏳ Re-measure whether the thinking control (`chat_template_kwargs.enable_thinking` +
   `thinking_token_budget`) actually survives the LiteLLM path on the **pinned** image. It does not
   change the harness's route (direct, decision #26) — it decides whether the *simple queriers* may rely
   on thinking being off.
@@ -706,4 +668,4 @@ Verified: the row renders `262.1K / 16.4K / thinking yes`, and the smoke test re
   experimental.
 - ⏳ `spark-lane` profile (§6) is authored-on-paper only; promote it into the reference config once a
   real orchestrator run measures lane-vs-preemption behavior.
-- **Pointer (not a tail):** the workstation's two other local model legs — **FIM autocomplete** and **Qwen3-VL visual judgment** (vision reaches spark only as *text*; the engine is text-only) — are owned by [`hardware-workstation.md`](hardware-workstation.md) + decision #28 in [`services-ai.md`](services-ai.md) §9 (HD-401). Nothing here changes; the harness stays direct-to-engine (decision #26).
+- **Pointer (not a tail):** the workstation's two other local model legs — **FIM autocomplete** and **Qwen3-VL visual judgment** (vision reaches spark only as *text*; the engine is text-only) — are owned by [`hardware-workstation.md`](hardware-workstation.md) + decision #28 in [`services-ai.md`](services-ai.md) §9. Nothing here changes; the harness stays direct-to-engine (decision #26).

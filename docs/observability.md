@@ -13,17 +13,15 @@ tags: [observability, grafana, prometheus, monitoring]
 
 > **Status: 🟢 live.** The backend is the **Victoria stack on the VPS** — **VictoriaMetrics** (metrics,
 > 365 d) + **VictoriaLogs** (logs, 90 d) + **Grafana** + blackbox-exporter, all on the tailnet-only edge.
-> Prometheus and Loki are gone. Collectors: **Alloy** per host (VPS loopback, oldsrv, and — pending — nas +
+> Collectors: **Alloy** per host (VPS loopback, oldsrv, spark, and — pending — nas +
 > Pi), oldsrv's SNMP + network-clients exporters, RouterOS syslog over RFC5424, `nut_exporter` on nas,
 > `zfs_exporter`, blackbox probes. Alerting: **Grafana → n8n (`homelab-alerts` webhook) → Signal + email**,
-> with Grafana-native SMTP in parallel as the fail-safe.
+> with Grafana-native SMTP in parallel as the fail-safe. The ruled delivery surface is a Matrix
+> `#homelab-alerts` room — see §Alerting.
 >
 > ⏳ **Open:** the **nas + Pi Alloy collectors** (converge adds their `node_*` to the Host Overview),
-> **Signal delivery** (no linked device yet — HD-318d; until then the Signal leg silently delivers nothing
-> and email is the only working channel), contact-point/datasource passwords in the HD-211 rotation batch,
-> device-side SNMP enablement (HD-03 cutover), and the Kopia wiring for
-> `/srv/docker/victoria-*/data`. The spark host-memory alert rules (HD-375) are **closed 2026-09-22** — see
-> §Alerting.
+> the Matrix `#homelab-alerts` delivery leg, contact-point/datasource password rotation,
+> device-side SNMP enablement, and the Kopia wiring for `/srv/docker/victoria-*/data`.
 
 ---
 
@@ -52,13 +50,12 @@ nut_exporter (UPS, on nas) ─────────────────�
 
 - **Single source of truth** for every type of data; no redundant backends.
 - **Display:** Grafana (admin analytics) + Homepage (status widget — reachability eyeball view).
-- **Removed from earlier drafts:** InfluxDB, Telegraf, Promtail, Uptime Kuma — none are used.
 
-### The Victoria stack (HD-341/342) — the shape and why
+### The Victoria stack — the shape and why
 
-**One** metrics store (**VictoriaMetrics**, `victoriametrics:8428`) + **one** log store
-(**VictoriaLogs**, `victoriametrics-logs:9428`), both on the **VPS**, with **many writers** (Alloy
-collectors on VPS/oldsrv/nas/Pi, blackbox/nut/zfs exporters, MikroTik syslog) remote-writing into them.
+**One** metrics store (**VictoriaMetrics**, `victoria-metrics:8428`) + **one** log store
+(**VictoriaLogs**, `victoria-logs:9428`), both on the **VPS**, with **many writers** (Alloy
+collectors on VPS/oldsrv/nas/Pi/spark, blackbox/nut/zfs exporters, MikroTik syslog) remote-writing into them.
 **Grafana stays** in front of both. **MCP AI-debugging servers run on oldsrv** (much more RAM there) and
 point at the VPS endpoints over wg-s2s — **storage stays on the VPS, tooling stays at home.**
 Research + rationale: [`brainstorming/recent/Prometheus-Vs-victoriastack.md`](../brainstorming/recent/Prometheus-Vs-victoriastack.md).
@@ -75,24 +72,23 @@ VictoriaLogs    ──▶ Grafana (logs datasource)
 mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet──▶ VPS Victoria endpoints
 ```
 
-- **Writers stay on home infra** (oldsrv/nas/Pi Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability).
+- **Writers stay on home infra** (oldsrv/nas/Pi/spark Alloy + exporters), buffering over wg-s2s; the **single backend is on the VPS** (reliability).
 - **MCP AI servers on oldsrv** (≈600–700 MB RAM each) — not on the VPS, not on the Pi.
 - **Dozzle is kept alongside VictoriaLogs.** They are different tools: Dozzle is a live per-container tail
   with no storage, VictoriaLogs is the searchable 90-day store. Replacing one with the other loses an
   operator reflex, so both stay — but Dozzle must never become a second log backend.
 
-### MCP AI-debugging servers on oldsrv (HD-344) — implemented form
+### MCP AI-debugging servers on oldsrv
 
 > **Status: ✅ live** — two `docker_services` on **oldsrv**, `mcp-victoriametrics` (`:8083`) and
 > `mcp-victorialogs` (`:8084`), fronting the VPS Victoria backend for AI tools (pi, Open WebUI, OpenClaw).
-> They require the VPS backend to be reachable, which is why they were deploy-gated until the Victoria
-> stack landed.
+> They require the VPS backend to be reachable.
 
 - **Endpoint reachability — wg-s2s now, tailnet later.** The MCP servers point at the VPS
   backend via `victoria_backend_host` (group_vars/all/main.yml), which **defaults to
-  `wg_s2s_vps.ip`** — the same guaranteed-reachable tunnel the Alloy collector uses. The
-  owner plans a full s2s-wg→tailnet redo (future HD): that redo re-plumbs **this one var**
-  to the VPS tailnet address and the compose needs no other change. **No VPS tailnet IP
+  `wg_s2s_vps.ip`** — the same guaranteed-reachable tunnel the Alloy collector uses. The planned
+  s2s-wg→tailnet redo re-plumbs **this one var** to the VPS tailnet address and the compose needs no
+  other change. **No VPS tailnet IP
   exists in the SSOT yet — do not invent one** (see network-vpn.md before the redo).
 - **Exposure — LAN/tailnet-only, never public/WAN.** Ports publish on oldsrv's Home-VLAN
   address (`oldsrv_home_ip`, actual-budget :5006 / immich-ml :3003 precedent); the future
@@ -111,20 +107,20 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 Each AI client registers the MCP server as a **Streamable HTTP** MCP endpoint pointing at
 the oldsrv MCP listen address (`http://oldsrv:8083` metrics / `:8084` logs). The MCP
 servers carry the backend auth themselves, so the client config carries **no secrets**.
-All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
+All endpoints are **LAN/tailnet-only** (served on the oldsrv hosts above).
 
 - **pi (pi.dev)** — add an MCP server entry in the pi agent config pointing at
-  `http://oldsrv:8080` (metrics) / `http://oldsrv:8081` (logs), transport `http` (SSE
-  alias for Streamable HTTP). Exact config lives in `pi-agent/` prompts/extension docs
-  once the service is live; authoring placeholder here (HD-344 tail).
+  `http://oldsrv:8083` (metrics) / `http://oldsrv:8084` (logs), transport `http` (SSE
+  alias for Streamable HTTP). No such entry is authored in `pi-agent/` yet — its `prompts/` holds
+  `start.md` only.
 - **Open WebUI** — register both as **Tools** (Admin → Tools → MCP) with `url:
-  http://oldsrv:8080` / `http://oldsrv:8081` (Streamable HTTP), tagged for the internal
+  http://oldsrv:8083` / `http://oldsrv:8084` (Streamable HTTP), tagged for the internal
   `ai.kogler.si` instance so agent-role users can query metrics/logs.
 - **OpenClaw** — add both MCP servers to the OpenClaw MCP config (`http://oldsrv:8083` /
   `:8084`), gated to the same tailnet/LAN path.
-- ⏳ **Concrete client config files are authored here once the backend (HD-342) + oldsrv
-  (HD-318) are live** — the URLs above are the SSOT contract; the client-side config is
-  environment-specific and lives with each tool (services-ai.md).
+- ⏳ **Concrete client config files are not authored here yet** — the URLs above are the **SSOT
+  contract**; the client-side config is environment-specific and lives with each tool
+  ([services-ai.md](services-ai.md)).
 
 ---
 
@@ -132,13 +128,12 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 
 | Layer | Service | Role | Network | Retention |
 |-------|---------|------|---------|-----------|
-| Agent | **Alloy** (per-node: vps/oldsrv/nas/pi) | Host metrics + logs + SNMP (oldsrv only for SNMP/network-clients); replaces Promtail/Telegraf/scraper | host (`docker.sock`) → `services-internal` | — |
+| Agent | **Alloy** (per-node: vps/oldsrv/nas/pi/spark) | Host metrics + logs + SNMP (oldsrv only for SNMP/network-clients) | host (`docker.sock`) → `services-internal` | — |
 | Backend | **VictoriaMetrics** | Sole metrics store (pure storage/query — Alloy does ALL scraping, topology B) | `db-internal` | 365d (Kopia-backed) |
 | Backend | **VictoriaLogs** | Log aggregation, single-node/SSD | `db-internal` | 90d (Kopia-backed) |
 | Exporter | **blackbox** | External reachability (`probe_success`) | `services-internal` | in VictoriaMetrics |
 | Exporter | **HA exporter** | HA entities → VictoriaMetrics (Alloy scrape, gated `alloy_ha_exporter`) | `services-internal` | in VictoriaMetrics |
 | Exporter | **nut_exporter** | UPS status (battery/runtime/voltage/load) → VictoriaMetrics · single instance on **nas** (NUT master) | `services-internal` | in VictoriaMetrics |
-| ~~Exporter~~ | ~~**minio_exporter**~~ | ~~MinIO S3 store~~ — **retired (HD-135): Immich originals = live Hetzner Box (CIFS), not S3/MinIO** | — | — |
 | UI | **Grafana** | Dashboards, `stats.kogler.si` (**internal**) | `traefik-public` **+** `db-internal` | — |
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
@@ -146,13 +141,14 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 
 ## Access & login path (stats.kogler.si)
 
-**Tailnet-only:** the observability dashboards (`stats`/`traefik`/`logs`/`llogs`/`csui`/`auto`
+**Tailnet-only:** the observability dashboards (`stats`/`traefik`/`logs`/`csui`/`auto`
 and by extension the underlying victoria-metrics/victoria-logs/blackbox) have **no public DNS record** and are **not
 WAN-reachable**. They are reached over the **headscale tailnet** from admin devices via the
 **`traefik-tailnet` edge** (node `vps-obs`) — a consumer-mode Traefik (+ userspace tailscale sidecar
 sharing its netns) that serves the dashboards with **clean subdomain URLs** and no port numbers
 (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services and the `docker_services/traefik-tailnet`
-compose):
+compose). The one exception is the home log hub **`llogs`**: **LAN-only**, served by the oldsrv
+`traefik-internal` edge for WAN-out survival — no tailnet route, no public record (§Dozzle multi-host).
 
 | App | URL (tailnet) |
 |-----|---------------|
@@ -163,26 +159,26 @@ compose):
 | Traefik dashboard (`traefik`) | `https://traefik.kogler.si` / `https://traefik.ts.kogler.si` |
 | n8n (`auto`, **internal-only**) | `https://auto.kogler.si` / `https://auto.ts.kogler.si` |
 
-The plain `*.kogler.si` names resolve via headscale MagicDNS (`dns.search_domains: [kogler.si]`, and **`dns.nameservers` must put the MagicDNS loop `100.100.100.100` FIRST** — HD-371) and carry
+The plain `*.kogler.si` names resolve via headscale MagicDNS (`dns.search_domains: [kogler.si]`, and **`dns.nameservers` must put the MagicDNS loop `100.100.100.100` FIRST**) and carry
 **Authentik Forward-Auth** (same chain as the public edge). The `*.ts.kogler.si` MagicDNS twins are
 **ACL-gated** (no forward-auth — the headscale ACL `tag:sidecar:443` is the gate; tailnet-only by
-construction). The public CNAMEs from the Phase-1 wave are removed from the IaC SSOT and deleted from
-Cloudflare at deploy time (owner action).
+construction). The public CNAMEs are removed from the IaC SSOT and deleted from Cloudflare at deploy
+time (owner action).
 
-> **Why the loop must come first (HD-371).** With only the Technitium VPS primary in `dns.nameservers`, a
-> tailnet device on a foreign network (mobile hotspot) sent `stats.kogler.si` to the system resolver →
-> NXDOMAIN → `ERR_NAME_NOT_RESOLVED`, while `stats.ts.kogler.si` still resolved and the phone on the same
-> hotspot worked (its client-side MagicDNS `extra_records` answered). Ordering the MagicDNS loop first
-> resolves **both** namespaces locally on any network. Symptom shape to remember: "one suffix works, the
-> other does not, and it depends on the network you are on" is a **resolver order** bug, not a routing bug.
+> **Why the loop must come first.** With only the Technitium VPS primary in `dns.nameservers`, a tailnet
+> device on a foreign network (mobile hotspot) sends `stats.kogler.si` to the system resolver → NXDOMAIN →
+> `ERR_NAME_NOT_RESOLVED`, while `stats.ts.kogler.si` still resolves — a device whose client-side MagicDNS
+> `extra_records` are populated answers regardless. Ordering the MagicDNS loop first resolves **both**
+> namespaces locally on any network. Symptom shape: "one suffix works, the other does not, and it depends
+> on the network you are on" is a **resolver order** bug, not a routing bug.
 
 Forward-Auth (Traefik chain) still gates the route; Grafana then auto-logs-in via `[auth.proxy]`,
 trusting the `X-authentik-email` header ONLY from the pinned Traefik edge IP (`traefik_edge_ip_pin`
 via compose `ipv4_address`, whitelisted through `GF_AUTH_PROXY_WHITELIST` = `traefik_edge_ips`).
 The native login form is disabled (`GF_AUTH_DISABLE_LOGIN_FORM`), so a **logo-only bare `/login`
 page means Grafana rejected proxy auth** — either a whitelist/edge-IP mismatch or no matching user:
-`AUTO_SIGN_UP` is off by design (HD-190), so every user must be mapped explicitly via the
-break-glass admin API before SSO works for them. Two operational caveats learned live (HD-240):
+`AUTO_SIGN_UP` is off by design, so every user must be mapped explicitly via the
+break-glass admin API before SSO works for them. Two operational caveats:
 Docker's dynamic bridge assignment can silently drift the edge IP off the whitelist (pin prevents
 it), and Grafana provisioning does NOT overwrite `secureJsonData` of an EXISTING datasource — a
 rotated datasource password must be re-applied via delete+recreate with the same uid or an API
@@ -194,15 +190,15 @@ update, or queries keep 401-ing despite correct rendered files.
 
 | Data | Owner | Where it lives |
 |------|-------|----------------|
-| Host + SNMP metrics | per-node Alloy (vps/oldsrv/nas/pi host exporters) + oldsrv SNMP → VictoriaMetrics | VictoriaMetrics (365d, Kopia) |
+| Host + SNMP metrics | per-node Alloy (vps/oldsrv/nas/pi/spark host exporters) + oldsrv SNMP → VictoriaMetrics | VictoriaMetrics (365d, Kopia) |
 | Service scrape (Traefik, CrowdSec) | Alloy (VPS loopback) → VictoriaMetrics | VictoriaMetrics (365d) |
 | HA entity metrics (weather, ComfoAir) | HA exporter → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
 | External reachability | blackbox → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
 | UPS status (battery, runtime, voltage, load, online/on-batt) | nut_exporter (on nas) → Alloy → VictoriaMetrics | VictoriaMetrics (365d) |
 | Logs | Alloy → VictoriaLogs | VictoriaLogs (90d, Kopia) |
-| RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) (HD-313) |
+| RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) |
 | Live logs (ops day-to-day tail) | Dozzle viewers — VPS `logs.kogler.si` (tailnet) + home hub `llogs.kogler.si` (LAN, oldsrv, pi/spark agents) | ephemeral — nothing persisted |
-| Alerts | Grafana Alerting → n8n → Matrix (target) / Signal / email | alert delivery — **channel ruled 2026-10-08: Matrix/Element becomes the delivery surface (HD-1108)** |
+| Alerts | Grafana Alerting → n8n → Matrix (target) / Signal / email | alert delivery — **Matrix/Element is the ruled delivery surface; Signal + email deliver today** |
 | Display | Grafana + Homepage | — |
 
 ---
@@ -213,12 +209,15 @@ update, or queries keep 401-ing despite correct rendered files.
 - **Router:** alerts → n8n webhook → normalize / dedup / tier / format → Signal + email. n8n also serves office automation ([`services-office.md`](services-office.md)).
 - **Webhook:** Grafana's contact point posts to `grafana_alert_webhook_url` (group_var, default `http://n8n:5678/webhook/homelab-alerts`, traefik-public). ⚠ The n8n workflow **`homelab-alerts`** on that route must exist before the first alert fires (created at n8n setup; payload = Grafana alert-notification webhook, see the monitoring role `grafana-contactpoints.yml.j2`).
 - **Fail-safe:** Grafana-native SMTP contact point runs in parallel — alerts still go out if n8n/signal-cli is down.
-- **SMTP relay (HD-54, Option B — decided):** SMTP2Go (`mail-eu.smtp2go.com:2525`, STARTTLS). Dedicated transactional relay, free-tier 1000/mo, chosen independently of the Infomaniak kSuite decision (HD-30) so the alert fail-safe isn't coupled to personal email. Grafana + NUT share it; creds = `smtp_login` / `smtp_login` (Login items in 1Password). Rotating `smtp_login` means re-converging **every** consumer and verifying the rendered value: VPS
+- **SMTP relay:** SMTP2Go (`mail-eu.smtp2go.com:2525`, STARTTLS). Dedicated transactional relay, free-tier 1000/mo, deliberately independent of the Infomaniak kSuite mailbox so the alert fail-safe isn't coupled to personal email. Grafana + NUT share it; creds = `smtp_login` / `smtp_login` (Login items in 1Password). Rotating `smtp_login` means re-converging **every** consumer and verifying the rendered value: VPS
   Grafana (compose env), Pi + oldsrv HA (`secrets.yaml`), and **NUT `upssched-cmd` on nas**, which embeds it
   **inline** (see [hardware-ups.md](hardware-ups.md)).
-  - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress** — verified live — so **2525 is the SSOT port**, not 587).
-- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. **Recipient value (owner confirmed 2026-09-21, HD-347): alerts go to the WHOLE group, and `signal_alert_recipients` takes the group ID that signal-cli reports** (read it from the linked daemon on oldsrv, read-only) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. ✅ **LIVE 2026-09-28:** the ID is in `group_vars/all/main.yml` (`group.NVZ6Y21…`, read off `GET 127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` → `.id` on oldsrv) and delivery was **proven end to end**: n8n executed the alerting + resolved legs, the gateway logged two `POST /v2/send` → **201**, and signal-cli returned a **delivery receipt**. Two mutes had to be removed first — both are in §Alert delivery below, and both had made a dead leg look healthy. An `invite_link` is not a recipient, and the ID is still only readable from the linked daemon (never reconstructed from a message-store backup, which would mean reading private messages).
-- **Matrix is the target channel (owner ruling 2026-10-08, HD-1108).** Two facts made it a decision, not a
+  - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress**, so **2525 is the SSOT port**, not 587).
+- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. Delivery is **✅ live 2026-09-28**. **Recipient: the WHOLE group** — `signal_alert_recipients` takes the **group ID** that signal-cli reports, read off
+`GET http://127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` **inside the container** (that raw upstream
+API has no auth and NO host port — hence `docker exec`, exactly as the `group_vars/all/main.yml` comment
+shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml` (`group.NVZ6Y21…`) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. The ID is only readable from the linked daemon; never reconstruct it from a message-store backup, which would mean reading private messages.
+- **Matrix is the target delivery channel (owner ruling).** Two facts make it a decision, not a
   preference: the `signal-cli-rest-api` daemon is **linked to the operator's personal number** and the
   "Homelab Alerts" group's **only human member is the operator** — so nothing in this fleet pages anyone
   else — and the operator reads **Element**, not Signal, so a Signal-only alert is an alert with no reader.
@@ -226,10 +225,10 @@ update, or queries keep 401-ing despite correct rendered files.
   (a dedicated alert user, not the operator's own account; token in the `Homelab-ansible` vault per §6, never
   a literal), the **Grafana-native SMTP contact point keeps running in parallel** as the "n8n/Matrix is down"
   fail-safe, and only then does Signal demote to a documented fallback or come out. ⛔ Delivery is proven by
-  **the room's event**, never by the workflow's `200` — that exact mistake is why HD-347 stayed open (§Alert
-  delivery), and both `onError: continueRegularOutput` mutes have to stay removed on the new leg too.
+  **the room's event**, never by the workflow's `200` (§Alert delivery), and both `onError:
+  continueRegularOutput` mutes have to stay removed on the new leg too.
 
-### Operational gotchas (learned live — the rules that keep them from coming back)
+### Operational gotchas
 
 **Grafana**
 
@@ -254,7 +253,7 @@ update, or queries keep 401-ing despite correct rendered files.
   rules (`victoria-*-down`, `wg-s2s-down`) keep `Alerting`. Anything whose series may legitimately be
   absent (UPS metrics while healthy, `probe_ssl_earliest_cert_expiry` — blackbox does not emit SSL expiry,
   SNMP interfaces before SNMP ships) must be set explicitly, not left at the default.
-- **⚠ A filtered-empty result is the SAME `NoData` state as no-series — measured 2026-10-08.** Grafana
+- **⚠ A filtered-empty result is the SAME `NoData` state as no-series.** Grafana
   cannot tell "the query matched nothing because the condition is false" from "the series does not exist",
   so `expr: <something> > 900` **under `noDataState: Alerting` fires while everything is healthy**: the
   comparison deletes every series on a good evaluation. Two rules follow from the shape, and both are
@@ -267,8 +266,7 @@ update, or queries keep 401-ing despite correct rendered files.
      900-second threshold becomes reachable, so a dead exporter can only reach the rule as NoData — it
      pages without naming a host, and goes blind entirely once the host leaves the database. Wrap the
      metric in a range window (`max_over_time(<metric>[6h])`) so a silent series keeps evaluating.
-  Victim: `hygiene-collector-stale`, which fired continuously for ~19 h on a 5/5-healthy fleet while the
-  other 24 rules correctly read `Normal (NoData)`. The read that shows it in one line:
+  The read that shows the state in one line:
   `GET /api/prometheus/grafana/api/v1/alerts` — every entry prints its reason, `Alerting (NoData)` versus
   `Normal (NoData)` versus a real `Normal`.
 - **Alert rules must match the live backend.** After a backend migration, orphan rules survive in the live
@@ -288,9 +286,9 @@ update, or queries keep 401-ing despite correct rendered files.
   **and** the lookup must declare `type: DisplayString`; otherwise labels are missing (`interface [no value]`)
   and values render as hex (`0x65746865…`). Give each device its own `instance` label or two devices
   collapse into one flat series.
-- **Do not alert on intentionally-empty state.** A `mikrotik-link-down` rule fired on every unpatched switch
-  port (ten simultaneous instances on ports with no cable). Unprovisioned is not incident-worthy: alert on
-  the loss of a link that carries something.
+- **Do not alert on intentionally-empty state.** Unprovisioned is not incident-worthy: a link rule that
+  matches every switch port pages on the ports that carry nothing (ten simultaneous instances on ports with
+  no cable). Alert on the loss of a link that carries something.
 
 **Alert delivery**
 
@@ -299,8 +297,8 @@ update, or queries keep 401-ing despite correct rendered files.
   `roles/monitoring/files/n8n/homelab-alerts.workflow.json` and created/activated through the n8n public API
   (`n8n_api`, `POST /api/v1/workflows` + `/activate`). Verify with a POST expecting
   `200 "Workflow was started"`.
-- **⚠ That 200 proves the run STARTED, never that anything was delivered.** Measured 2026-09-28: the
-  webhook answered 200 for executions that sent **nothing**. The delivery evidence is downstream and
+- **⚠ That 200 proves the run STARTED, never that anything was delivered.** The
+  webhook can answer 200 for executions that send **nothing**. The delivery evidence is downstream and
   specific — n8n's **execution status** for the Signal node, the gateway's `POST /v2/send` → **201**, and
   the **delivery receipt** signal-cli logs. Ask for those three; a green webhook is not one of them.
 - **n8n 2.x blocks `$env` in workflow expressions BY DEFAULT, which silently kills the Signal leg.**
@@ -309,30 +307,27 @@ update, or queries keep 401-ing despite correct rendered files.
   every `{{ $env.* }}` throws `access to env vars denied`, and the render's `SIGNAL_*` values (the whole
   SSOT→runtime handoff: token, URL, recipients, phone) never reach the node. The compose therefore sets
   `N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"` explicitly; typing the four values into the workflow instead
-  would fork the SSOT, which is what the row's design refused. Consequence to remember: **env access is
+  would fork the SSOT, which is what the row's design refuses. Consequence: **env access is
   now ON for every workflow this instance can run** — bounded by n8n being admin-only over the tailnet
   (`auto.ts.kogler.si`, no public route).
-- **`onError` on a delivery node is a mute, so it must be `stopWorkflow`.** Both Signal nodes ran with
-  `continueRegularOutput`, which turned "no recipient configured", "wrong-shaped recipient" and "access
-  to env vars denied" into `status=success`. An alerting path that swallows its own send failure cannot
-  ever be trusted; from 2026-09-28 a failed send is a **RED execution** (applied to the live n8n DB by
-  `PUT` + `/activate`, and the repo copy kept byte-in-step).
+- **`onError` on a delivery node is a mute, so it must be `stopWorkflow`.** `continueRegularOutput` turns
+  "no recipient configured", "wrong-shaped recipient" and "access to env vars denied" into
+  `status=success`. An alerting path that swallows its own send failure cannot ever be trusted, so a failed
+  send must be a **RED execution**.
 - **⚠ The versioned workflow JSON is NOT deployed by anything.** The live copy lives in n8n's SQLite
   (created through the API), so `roles/monitoring/files/n8n/homelab-alerts.workflow.json` drifts
-  silently: measured on 2026-09-28 the repo copy still sent `X-Api-Key` while the live copy had carried
-  `Authorization: Bearer` since HD-353 (2026-09-10). Two consequences: editing the repo file changes
+  silently from it. Two consequences: editing the repo file changes
   nothing until it is PUT to the API, and a re-provision from the repo copy would re-break delivery
   **after** a green converge. Any change therefore lands in **both** places in one act.
 - **A missing Signal device is silent by design — for the LINK, not for the send.** An unlinked
   `signal-cli` must not be able to break email delivery, so email is a separate parallel Grafana contact
   point (§above) rather than a node downstream of the Signal node. Linking the "Homelab Alerts" device is
-  an owner action (HD-318d).
+  an owner action.
 - **`signal-cli-rest-api` is published on `{{ oldsrv_home_ip }}:8082`** because the alert brain (n8n) runs on
   the VPS and cannot resolve an oldsrv-only overlay name — the cross-host API-leg pattern (precedents:
-  actual-budget `:5006`, immich-ml `:3003`). **`:8080` belongs to something else**, which is exactly how the
-  collision was found. **⚠ The gateway takes the token ONLY as `Authorization: Bearer <token>`** — measured
-  from the VPS against `:8082` on 2026-09-28: `X-Api-Key` → **401**, `Bearer` → **200** on `/v1/about`.
-  The older `X-Api-Key` wording here (KOPS-002/HD-125) describes the intent, not this build's behaviour.
+  actual-budget `:5006`, immich-ml `:3003`). **`:8080` belongs to something else** — never reuse it here.
+  **⚠ The gateway takes the token ONLY as `Authorization: Bearer <token>`**: against `:8082`,
+  `X-Api-Key` → **401** and `Bearer` → **200** on `/v1/about`.
 - **Three converge-time traps that are repo rules:** every vault item a template reads must be declared in
   `_template_vault_items`, or the render dies with `dict has no attribute …`; Jinja `default()` fallbacks in
   YAML need single quotes, or the fallback renders nested quotes and `docker compose config` fails; and a
@@ -344,8 +339,9 @@ update, or queries keep 401-ing despite correct rendered files.
 The container memory cage cannot protect a GB10 host (GPU pages are not cgroup-charged) and Docker reports
 `OOMKilled: false` on a host-side kill, so **host memory is the only early warning** there. Rules
 `spark-host-mem-oom-warning` / `spark-host-mem-oom-critical`; the on-box enforcer is
-`spark-oom-watchdog` (`roles/spark`: CRIT < 8 GiB → planned engine restart, max 2 per 2 h, arm-off file,
-idle recycle at baseline +8 GiB).
+`spark-oom-watchdog` (`roles/spark`: CRIT < 8 GiB → planned engine restart, max 2 per 2 h, arm-off file;
+the idle-recycle term is **OFF** — `spark_oom_watchdog_recycle: false` — and hardware-spark.md
+§Unified-memory budget proves it live).
 
 - **Gauge: `usable = MemAvailable − CmaFree`** (`node_memory_MemAvailable_bytes -
   node_memory_CmaFree_bytes`, `job="alloy"`, `instance=~"spark.*"`). On GB10 the GPU carve is CMA and CMA
@@ -356,28 +352,24 @@ idle recycle at baseline +8 GiB).
 - **Thresholds are measured, not designed:** `WARN < 12 GiB for 2m` (`noDataState: OK`) /
   `CRIT < 8 GiB for 1m` (`noDataState: Alerting`). Both observed kills were at **1.62 / 1.64 GiB**, but the
   lowest value a 60 s scrape ever recorded inside those windows was **5.01** — a rule set at the kill point
-  could not have fired. The sampling gap behind that sentence is its own row: **§Scrape cadence and metric
-  resolution (HD-420)**.
+  could not have fired. The sampling gap behind that sentence is its own section: **§Scrape cadence and
+  metric resolution**.
 - **Preflight before touching these rules:** confirm `node_memory_CmaFree_bytes` exists in VictoriaMetrics.
   It is **not** in node_exporter's default meminfo whitelist, and on a CRIT rule with
   `noDataState: Alerting` a missing series is a false-positive machine.
 - **Operating point:** at the certified 16 GiB KV pool, idle `usable` is **18.5 GiB** (6.5 GiB of WARN
   margin) and the certified worst case bottoms at **17.78 GiB**. The thresholds still clear — but there is
   **no room for another KV raise in bf16**, because that would put WARN inside routine-transient range.
-- ✅ **CLOSED 2026-09-22 (owner):** the two host-memory rules were taken as confirmed on the owner's call —
-  the row is deleted from the backlog per CONVENTIONS §4(a); the record stays here. Deployed state unchanged:
-  both rules load in the ruler (`vps.yml --tags monitoring`, failed=0, 2026-09-17 22:33C), CRIT
-  `noDataState: Alerting`, and the WARN summary/label mismatch is fixed.
+- Both rules load in the ruler (`vps.yml --tags monitoring`) with CRIT `noDataState: Alerting`.
 
-### Silent-failure hygiene: unit results and consumer cert age as series (HD-450, live 2026-10-07)
+### Silent-failure hygiene: unit results and consumer cert age as series (live 2026-10-07)
 
-The gap that HD-350 exposed: `traefik-cert-pull.timer` failed every 15 min for DAYS and **no series changed
-anywhere**. Not "the alert was mis-tuned" — two whole classes were unrepresented in the database: a systemd
-unit's *result* was scraped by nothing, and the cert pair a **consumer** holds was exported by nothing
-(`ssl-cert-expiring` reads `probe_ssl_earliest_cert_expiry`, which has **zero series** — blackbox emits no
-SSL expiry, so that rule has been structurally dead since it was written).
+Two signal classes a plain metric scrape does not produce: a systemd unit's *result*, and the cert pair a
+**consumer** holds. A timer that fails on every run changes **no series anywhere**, so no rule can see it;
+and the rule `ssl-cert-expiring` reads `probe_ssl_earliest_cert_expiry`, which is structurally dead
+because blackbox emits no SSL expiry and that metric has **zero series**.
 
-`roles/monitoring` now ships `homelab-hygiene.py` on every monitoring host (loopback `:9098`, scraped by
+`roles/monitoring` ships `homelab-hygiene.py` on every monitoring host (loopback `:9098`, scraped by
 that host's Alloy into the same remote_write path as everything else):
 
 | Series | Meaning |
@@ -388,58 +380,48 @@ that host's Alloy into the same remote_write path as everything else):
 | `homelab_cert_days_left{consumer=}` | days to expiry of the pair this edge loads |
 | `homelab_hygiene_scrape_ok` | the collector's own heartbeat — the collector is a systemd service, i.e. the same failure class |
 
-⚠ **What the cert legs do NOT cover, measured 2026-10-08 at the metric-name level** (VM
+⚠ **What the cert legs do NOT cover**, at the metric-name level (VM
 `/api/v1/label/__name__/values`): the only cert families in the backend are `homelab_cert_days_left` (both series
-`consumer="traefik-*"`), `homelab_cert_pair_present` and blackbox `probe_ssl_earliest_cert_expiry`. **The VPS box cert
-(acme.sh, `/etc/letsencrypt/live/…`, 61-day cycle, renewal step failing since 2026-08-24) is in none of them** — so no
-rule could ever have caught it, and HD-510's premise had to be proven from `/var/log/acme.sh.log` rather than a graph
+— `consumer="traefik-internal"` on oldsrv, `consumer="traefik-ha"` on the Pi), `homelab_cert_pair_present` and
+blackbox `probe_ssl_earliest_cert_expiry`. **The VPS box cert
+(acme.sh, `/etc/letsencrypt/live/…`, 61-day cycle, failing renewal step) is in none of them**, so no rule can ever
+catch it and its state has to be read from `/var/log/acme.sh.log` rather than a graph
 (→ [`network-dns.md`](network-dns.md) §Cert chain). Exporting it is a collector leg on the VPS, not a rule; a rule
 written against a plausible-sounding name like `cert_age_days{name="vps-cert"}` would sit green forever on a series
 that has never existed, which is the failure mode this whole section exists to prevent.
 
-*Fail-loud by construction*, because a monitor that says "healthy" about what it cannot see is how the
-September incident ran for four days: a listed unit that is not installed → `0`/`missing` (so a wrong list
+*Fail-loud by construction*, because a monitor that says "healthy" about what it cannot see is the worst
+failure here: a listed unit that is not installed → `0`/`missing` (so a wrong list
 costs a visible alert, never silence); a unit whose `systemctl show` gives no output at all → `0`/`unknown`;
 an absent cert file → `pair_present = 0`, **not** a NaN days-left value, because `NaN < 14` is false and a
 vanished pair would have read as "not expiring". All four branches are canaried, including a real failed
 transient unit (`systemd-run --wait --unit=… /bin/false` → `0`/`failed`).
 
-**Thresholds are measured, not copied.** The row proposed WARN 30 d / CRIT 14 d. The live pair is a **90-day
-cert** (`notBefore 2026-08-22 → notAfter 2026-11-20`) and the issuer renews late in that window, so a healthy
-consumer's `days_left` bottoms out near three weeks — a 30-day warning would have fired for days before every
-scheduled renewal, which is how an alert class gets muted. Shipped: **WARN 14 d / CRIT 7 d** + a critical on
+**Thresholds are measured, not copied.** The live pair is a **90-day cert** (`notAfter 2026-11-20`) and the
+issuer renews late in that window, so a healthy consumer's `days_left` bottoms out near three weeks — a
+30-day warning would fire for days before every scheduled renewal, which is how an alert class gets muted.
+Shipped: **WARN 14 d / CRIT 7 d** + a critical on
 `pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
 
-**The fleet leg landed 2026-10-08** (`nas` + the VPS monitoring converge, both `failed=0`), so the exporter
-now runs on `oldsrv · pi · nas · vps`, and `spark` joined the same day: `count by (instance)
-(homelab_hygiene_scrape_ok)` → **1 for each of the five**, heartbeats 12–51 s old. The five rules are in
+**Fleet coverage:** the exporter runs on `oldsrv · pi · nas · vps · spark` — `count by (instance)
+(homelab_hygiene_scrape_ok)` → **1 for each of the five**. The five rules are in
 Grafana: of 24 rules loaded, **5 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
 `cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
 (WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m).
 
-**`hygiene-collector-stale` shipped broken and paged for 19 h on a healthy fleet (2026-10-08).** The
-expression was `time() - homelab_hygiene_scrape_ok > 900` with `for: 15m` and `noDataState: Alerting`, and
-it was wrong in both directions at once: **healthy** → the filter removes all five series → NoData →
-Alerting, so it fired from the moment the rules loaded (`activeAt 2026-10-08T01:13 CEST`, never moved) and
-re-poked the family group every 30 min; **broken** → the plain selector drops a dead collector's heartbeat
-at the 5-min staleness horizon, ten minutes before 900 s is reachable, so the only path to firing was
-NoData, which carries no `instance=` and could not say which host had gone blind. `Value: [no value]` in
-the Signal card was the tell. Live proof, one read each: the rule's own query through the datasource proxy
-returns `result: []` while `homelab_hygiene_scrape_ok` is 12–51 s fresh on all five hosts, and
-`/api/prometheus/grafana/api/v1/alerts` lists it as `Alerting (NoData)` against `Normal (NoData)` for the
-other 23. Fixed to the shape the general rule in §Alerting demands — unfiltered A
-(`time() - max_over_time(homelab_hygiene_scrape_ok[6h])`) + `gt [900]` in B, `for: 5m`, noData=Alerting
-kept — which verified live at 20:01 CEST as **five series of 12–51 s** (so: Normal when fresh, per-host
-`instance=` at ~20 min of silence, and NoData only if no host has collected in 6 h).
-✅ **Live 2026-10-08 22:13 CEST** (the VPS `monitoring` converge; Grafana restarted by the role's own handler). The read-back
-is itself the proof the shape is right: `GET /api/prometheus/grafana/api/v1/alerts` now lists this rule as **five series,
-one per host, each carrying `instance=` and all `Normal`** — before the fix it was ONE valueless `Alerting (NoData)`
-series, because a filtered result has no labels to enumerate. Fleet state after the restart: 29 rule-series, nothing
-`Alerting`/`Pending`. The end-to-end delivery read (⏳ in the HD-450 row) is still owed — this fix proves the rule
-*evaluates*, not that a firing one reaches the Signal group.
+**`hygiene-collector-stale` must be written as unfiltered A + a threshold expression**, the shape
+§Alerting demands: `time() - max_over_time(homelab_hygiene_scrape_ok[6h])` in A, `gt [900]` in B, `for: 5m`,
+`noDataState: Alerting`. Read back it yields **five series, one per host, each carrying `instance=`** and
+`Normal` when fresh. A filtered expression (`time() - homelab_hygiene_scrape_ok > 900`) instead deletes
+every series on a healthy evaluation, so the rule fires on a healthy fleet as ONE valueless
+`Alerting (NoData)` series — a filtered result has no labels to enumerate — and a genuinely dead collector
+reaches the rule as NoData (no `instance=`, so no host name) rather than as a value, because the 5-min
+staleness horizon drops the heartbeat long before 900 s is reachable. Wrapping the metric in
+`max_over_time(…[6h])` fixes the second half: **Normal when fresh, a per-host `instance=` page at ~20 min of
+silence, NoData only if no host has collected in 6 h**. A page lands **20–21 min after the last collection**
+and clears **~1.5 min after the cause is fixed** (next scrape + the 1 m rule interval).
 
-**Three reads answer, and two confidently lie** (all measured the same night, so the next session does not
-re-derive them):
+**Three reads answer, and two confidently lie**:
 
 | Question | The read that answers | The read that misleads |
 |---|---|---|
@@ -447,58 +429,41 @@ re-derive them):
 | Did the series reach the backend? | Query **through the datasource proxy**: `…/api/datasources/proxy/uid/prometheus/api/v1/query?query=…`. | A direct `curl` to `victoria-metrics:8428` answers **400** even with correct basic auth (this VM build wants a request shape curl's `-G` does not produce) — a 400 there is NOT "no data", and a 401 is often just the absent `OP_SERVICE_ACCOUNT_TOKEN`, because the vault lookup then yields nothing. |
 | Is the exporter up on a host? | `curl -s 127.0.0.1:9098/metrics \| grep -c '^homelab_'` on that host (oldsrv: 9). | The unit being `active` — the collector can be up and its `systemctl show` loop empty. |
 
-**✅ The end-to-end acceptance is CLOSED — 2026-10-09 00:00 CEST, Signal + email both confirmed received.**
+End-to-end delivery is **✅ live 2026-10-09** — Signal + email both confirmed received. Once the Matrix
+delivery leg lands the read moves from the Signal group to the `#homelab-alerts` room; the trigger does not
+change.
 
-⚠ **The recipe this section carried before could not fire, and it stays recorded so nobody runs it again:**
-`systemd-run --wait --unit=hd450-canary.service /bin/false` creates a unit the exporter never looks at.
-`homelab-hygiene.py` reports **only** the units in `monitoring_hygiene_units` for that host — measured on
-oldsrv: three series, `traefik-cert-pull` + `nut-monitor` + `nut-client`. An unlisted canary emits no series,
-and a rule with nothing to compare is silent. Listing the canary would fire it as `result="missing"` (the
-fail-loud branch doing its job), but that costs a `host_vars` edit + a converge, and failing a real watched
-unit to test a notification means breaking the cert puller or the NUT clients. **What was used instead
-breaks nothing and tests the exact class the rule exists for:**
+⚠ **A canary must be a unit the collector actually reports.** `homelab-hygiene.py` reports **only** the
+units in `monitoring_hygiene_units` for that host (oldsrv: three series, `traefik-cert-pull` +
+`nut-monitor` + `nut-client`), so `systemd-run --wait --unit=<name> /bin/false` outside that list emits no
+series and a rule with nothing to compare is silent. Listing a canary would fire it as `result="missing"`
+(the fail-loud branch doing its job), but that costs a `host_vars` edit + a converge, and failing a real
+watched unit to test a notification means breaking the cert puller or the NUT clients. **What tests the
+exact class the rule exists for without breaking anything:**
 
 ```bash
 ssh <host> 'sudo systemctl stop homelab-hygiene'    # one monitoring host; nothing else reads :9098
-# …wait for the rule (timing measured below), read the alert channel, then:
+# …wait ~20 min for the rule, read the alert channel, then:
 ssh <host> 'sudo systemctl start homelab-hygiene'
 ```
 
 No other rule keys on `up{job="homelab-hygiene"}` (all 24 checked), so exactly one rule can fire, and only
-that host is blind for the length of the test. Measured end to end — the first real numbers behind the
-`> 900` + `for: 5m` arithmetic, and the first real fire of the corrected expression:
+that host is blind for the length of the test. The other hosts stay `Normal`.
 
-| Moment (CEST) | `time() - max_over_time(…[6h])` | Rule state |
-|---|---|---|
-| 23:38:47 — last collection before `stop` | 0 s | `Normal` |
-| 23:53:47 | 900 s | condition true |
-| 23:55:00 | 964 s | **Pending** (series `activeAt` moves) |
-| 00:00:00 | 1253 s | **Alerting** — Signal + email, `instance=nas.kogler.si`, `value` populated |
-| 00:01:25 — exporter started again | 26 s | still `Alerting` (next evaluation not yet due) |
-| 00:03:00 | fresh | resolved |
-
-**So a page lands 20–21 min after the last collection and clears ~1.5 min after the cause is fixed** (next
-scrape + the 1 m rule interval). The other four hosts stayed `Normal` throughout and nothing else in the
-fleet fired. Once HD-1108 lands the read moves from the Signal group to the `#homelab-alerts` room; the
-trigger does not change.
-
-⚠ **`textfile` was tried first and does not work on this Alloy.** `prometheus.exporter.unix` here accepts a
+⚠ **`textfile` is unusable on this Alloy build.** `prometheus.exporter.unix` here accepts a
 `textfile {}` block but rejects every attribute name that would point it at a directory — probed against
 v1.20.1 on the box: `collectors_dir`, `directories`, `paths`, `files`, `syntax_version` each return
-`unrecognized attribute name`, while `textfile {}` with an empty body parses. Writing to a directory nobody
-could name is not a design, so the exporter follows the shape the same role already proves live (the HD-343
-network-clients exporter). The probe that established this is why `set_collectors` does NOT list `textfile`.
+`unrecognized attribute name`, while `textfile {}` with an empty body parses. Collector-side data therefore
+follows the shape the same role already proves live (the network-clients exporter), never a textfile
+directory; that is also why `set_collectors` does NOT list `textfile`.
 
-Live 2026-10-07 (query in VM, both hosts): 9 series each — oldsrv `traefik-cert-pull` + `nut-monitor` +
-`nut-client`, Pi `ha-cert-sync` + the two NUT units, all `last_success = 1`; `cert_days_left = 44.14` on
-`traefik-internal` and `traefik-ha`. Two things are NOT claimed: **(a)** the alert rules are authored in
-`roles/monitoring/vars/main.yml` but reach Grafana only through a VPS converge, so nothing has fired yet;
-**(b)** the NUT client→master leg is still not a metric — the exporter reports the NUT *units'* results,
-which is not the same claim as "this client can reach the master" (HD-467's 23-day loopback-only window
-would still have been invisible between converges).
+**Coverage today:** 9 series per host — oldsrv `traefik-cert-pull` + `nut-monitor` +
+`nut-client`, Pi `ha-cert-sync` + the two NUT units, all `last_success = 1`. One limit stands: **the NUT
+client→master leg is not a metric** — the exporter reports the NUT *units'* results, which is not the same
+claim as "this client can reach the master", so a loopback-only window between converges stays invisible.
 
-⚠ **Debugging gotcha found the hard way the same day:** dumping `/etc/alloy/config.alloy` to inspect the
-remote_write block prints the VictoriaMetrics **and** VictoriaLogs basic-auth passwords. The file is 0600
+⚠ **Never dump `/etc/alloy/config.alloy` to inspect the
+remote_write block**: it prints the VictoriaMetrics **and** VictoriaLogs basic-auth passwords. The file is 0600
 root but it is not a safe thing to `grep -A40`. Take credentials through the vault lookup the role already
 uses, or read them into a shell variable and never echo them — this is why the monitoring tasks template
 them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back rendered files.
@@ -508,7 +473,7 @@ them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back r
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
 | **Critical** | oldsrv disk ≥90%, **nas ZFS pool usage ≥80% (`tank` & `bulk`)**, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
-| **Warning** | container restart loop, high CPU/load, HA unreachable, MikroTik link down, **nas pool ≥70%** · **UPS on-battery / mains lost (auto-clear on return)** | Signal (deduped) | sent once |
+| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).
@@ -529,12 +494,12 @@ them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back r
 ## Microservice Notes
 
 - **MikroTik SNMP:** poll at **5–15 s**; the "1s" in dashboards is a *refresh* interval, not a poll.
-- **Retention is deliberate:** 30d metrics / 14d logs. TSDB data is **regenerable and not backed up** (see [backup.md](backup.md)); long-term metric history is a deferred option (remote-write/downsampling).
+- **Retention is deliberate:** 365d metrics / 90d logs, Kopia-backed (see [backup.md](backup.md)); long-term metric history beyond the retention window is a deferred option (remote-write/downsampling).
 - **Placement:** the observability **backend** (VictoriaMetrics/VictoriaLogs/Grafana/blackbox + the VPS
   Dozzle viewer) runs on the **VPS** — the reliable tier. **The VPS is self-sufficient for its own
   observability**: it runs its own Alloy with `alloy_backend_host` defaulting to `127.0.0.1`, so VPS
   metrics/logs land locally with no tunnel, and its own Dozzle viewer (`logs.kogler.si`).
-  **oldsrv/nas/Pi run thin Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel
+  **oldsrv/nas/Pi/spark run thin Alloy collectors** forwarding *home* telemetry over the `wg-s2s` tunnel
   (nas's Alloy is host-exporter only — it has no Docker — and nas is still scraped for its `nut`/`zfs`
   exporters by oldsrv). **Dashboards are tailnet-only**: no public exposure, reached over the headscale
   mesh via the `traefik-tailnet` edge with clean subdomain URLs. **n8n (`auto`) is internal-only** (no
@@ -595,12 +560,11 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
      Private DNS / VPN / DoH). Fix it client-side or with a router DNS force — **do not** add `llogs` to the
      VPS primary to make the symptom go away.
 
-- **Log/metric store access control (HD-342):** VictoriaLogs and VictoriaMetrics authenticate with **real
+- **Log/metric store access control:** VictoriaLogs and VictoriaMetrics authenticate with **real
   Basic Auth** (`-httpAuth.username/-httpAuth.password`) from the `victoria-logs_api` /
   `victoria-metrics_api` items — consumed by Alloy (push/remote_write) and the Grafana datasources, and by
-  the oldsrv MCP servers via `*_INSTANCE_HEADERS`. **This is a credential gate, not tenant isolation** —
-  which was the accepted weakness of the previous backend, where a compromised `db-internal` container could
-  forge a tenant header. Exposure: **loopback + the `wg-s2s` address only**, never a WAN or LAN-facing
+  the oldsrv MCP servers via `*_INSTANCE_HEADERS`. **This is a credential gate, not tenant isolation.**
+  Exposure: **loopback + the `wg-s2s` address only**, never a WAN or LAN-facing
   bind. Fail-loud lookups (no `default()`); the `$` in rendered values must be escaped for compose.
 - ⚠ **The Victoria images are tool-less** (`/victoria-*-prod` only — no `sh`, `wget`, `curl`, `nc`), so a
   `CMD` healthcheck **cannot work** and Docker would mark the container unhealthy forever. Cover them with an
@@ -608,16 +572,16 @@ OLDSRV Dozzle HUB (llogs.kogler.si, :8081, traefik-internal edge — WAN-out sur
 - **Pi keeps only a tiny bounded local log buffer.** The Raspberry Pi primary holds **no durable log store** — Docker uses log driver `local` (`max-size: 10m, max-file: 2`) as RAM/disk resilience when oldsrv/VictoriaLogs is down; the durable, searchable copy lives in VictoriaLogs. Host OS logs run on tmpfs (`journald Storage=volatile` + `/var/log` tmpfs). See [Pi SD-card wear strategy](#pi-sd-card-wear-strategy).
 - **HA exporter** on the HA instance (Raspberry Pi 4 primary; cold-standby container on oldsrv — see [`smart-home-failover.md`](smart-home-failover.md)). Only the live instance is scraped (via the VIP); on failover the same URL resumes with no replay.
 - **Conventions that are settled:** the Alloy `instance` label is `{{ inventory_hostname }}` per host, so
-  series do not collide across hosts (HD-116); the MikroTik SNMP community is a dedicated **read-only**
-  `network-snmp_api` item (fail-loud lookup in `snmp.yml.j2`) behind a Mgmt-VLAN-only INPUT ACL (HD-53) —
-  the **device-side** `/snmp enable` + community setting is still an HD-03 deploy step.
+  series do not collide across hosts; the MikroTik SNMP community is a dedicated **read-only**
+  `network-snmp_api` item (fail-loud lookup in `snmp.yml.j2`) behind a Mgmt-VLAN-only INPUT ACL —
+  the **device-side** `/snmp enable` + community setting is still an owner deploy step.
 
 ---
 
 ## Pi SD-card wear strategy
 
 The Raspberry Pi 4 primary runs HA from a **microSD** (`storage.md`), so the dominant continuous SD-wear
-source is **HA's recorder DB**, plus rolling Docker/OS logs. Strategy (HD-19, applies to the Pi; the standby on
+source is **HA's recorder DB**, plus rolling Docker/OS logs. Strategy (applies to the Pi; the standby on
 oldsrv is on NVMe and mostly unaffected):
 
 1. **HA recorder → trim, NOT disable.** Grafana (central VictoriaMetrics, 365d) replaces HA for *long-term analytics*,
@@ -629,14 +593,14 @@ oldsrv is on NVMe and mostly unaffected):
    recorder, and do NOT move HA to Postgres (worse microSD wear + failover coupling — see `smart-home.md`).
 2. **Docker container logs → stream + bounded local buffer.** Docker log driver `local`, `max-size: 10m, max-file: 2`
    on the Pi (and standby): small RAM/disk buffer survives an oldsrv/VictoriaLogs outage, while **Alloy ships logs → VictoriaLogs
-   (14d, VPS NVMe)** and Dozzle streams live — no durable on-Pi log store.
+   (90d, VPS NVMe)** and Dozzle streams live — no durable on-Pi log store.
 3. **OS logs off the SD.** `journald Storage=volatile` + `/var/log` mounted as tmpfs (fstab) — host OS logs live in
    RAM, lost on reboot (acceptable; VictoriaLogs retains the useful logs). Cheap, well-tested Pi-SD saver.
 4. *(Optional)* **Docker *log* directory on tmpfs** to guarantee zero *transient* SD writes — must stay hard-capped
    (`max-size`/`max-file`); **never** tmpfs the Docker data-root (`/var/lib/docker`/overlay2, that holds images &
-   containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/RaspberryMatic/Technitium) allows.
+   containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/Technitium) allows.
 
-> Not addressed via ramdisk: the HA recorder DB and Technitium / RaspberryMatic state stay on the microSD but are
+> Not addressed via ramdisk: the HA recorder DB and Technitium state stay on the microSD but are
 > kept small (trimmed recorder, reduced log verbosity). tmpfs-ing the recorder would throw away state/history on
 > every reboot — see the energy/logbook caveats above.
 
@@ -649,25 +613,23 @@ oldsrv is on NVMe and mostly unaffected):
 > uid is **`prometheus`** (kept even though the backend is VictoriaMetrics — it is a Prometheus-compatible
 > datasource, and renaming it would churn every provisioned panel).
 >
-> ✅ **The SNMP series were never missing — the LABELS were (HD-345 — fixed and LIVE since the 2026-09-23
-> oldsrv converge).** `match[]={job="alloy-snmp"}` used to return 0 series, which is what every consumer
-> asks for, while `match[]=ifOperStatus` returned the data carrying `job="integrations/snmp/<dev>"` and
-> `instance="prometheus.exporter.snmp.<dev>"`. Alloy's `prometheus.exporter.snmp` stamps its own component
-> path onto the emitted target and OVERWRITES the `job` the scrape target asks for, so no walk/community/
-> device change could fix it: the fix is a post-scrape `prometheus.relabel` that re-asserts
-> `job="alloy-snmp"` + `instance="<dev>"` (`up` included), in `templates/alloy.river.j2`. Proven on the
-> backend after `home_servers.yml --limit oldsrv.kogler.si --tags monitoring` (`failed=0`):
+> ✅ **SNMP series carry `job="alloy-snmp"` + `instance="<dev>"` only because a relabel says so.**
+> Alloy's `prometheus.exporter.snmp` stamps its own component path onto the emitted target and OVERWRITES
+> the `job` the scrape target asks for, so the raw series arrive as
+> `job="integrations/snmp/<dev>"` + `instance="prometheus.exporter.snmp.<dev>"` and a consumer asking for
+> `match[]={job="alloy-snmp"}` sees nothing. The fix is a post-scrape `prometheus.relabel` that re-asserts
+> `job="alloy-snmp"` + `instance="<dev>"` (`up` included), in `templates/alloy.river.j2`.
+> Live on the backend:
 > **`up{job="alloy-snmp",instance="router"}=1` and `up{…,instance="switch"}=1`**, and
-> `count by (instance) (ifOperStatus)` = **23 router + 31 switch** (= 54 series total — the earlier "54
-> router + 54 switch" line here was the `seriesFetched` total read as a per-device count; the per-device
-> split is 23/31, and `ifAdminStatus` carries the same labels).
-> ⚠ **An empty SNMP panel was never evidence that SNMP was off** — the data arrived the whole time under
-> labels no consumer queried. Check the labels before believing a `No data` panel.
-> The SNMP wiring that had to be correct to get here: `exporter.snmp` needs a valid `forward_to`, every SNMP
+> `count by (instance) (ifOperStatus)` = **23 router + 31 switch** (54 series total); `ifAdminStatus`
+> carries the same labels.
+> ⚠ **An empty SNMP panel is not evidence that SNMP is off** — the data can be arriving under labels no
+> consumer queries. Check the labels before believing a `No data` panel.
+> The SNMP wiring that has to be correct: `exporter.snmp` needs a valid `forward_to`, every SNMP
 > target needs a `name`, and the auth block's `timeout`/`retries` must be valid for the module — an invalid
 > one fails the whole Alloy reload, not just that target.
 
-> **The vLLM dashboards (HD-368) — how they are derived, so nobody hand-edits a JSON.**
+> **The vLLM dashboards — how they are derived, so nobody hand-edits a JSON.**
 >
 > Three grafana.com exports (25502 / 24756 / 25043) were adapted into this folder. The adaptation is a
 > **script, not a hand edit**: [`scripts/adapt-vllm-dashboards.py`](../scripts/adapt-vllm-dashboards.py)
@@ -702,50 +664,42 @@ oldsrv is on NVMe and mostly unaffected):
 | Dashboard | uid | View | Panels back on |
 |-----------|-----|------|----------------|
 | **Overview** | `homelab-overview` | top-level entry point — down-counts (public/hosts/tunnel/stack), VPS CPU+mem, links to all dashboards | `probe_success{job=blackbox_*}` · `up{job=…}` · `node_*{job="alloy"}` |
-| **Host Overview** | `homelab-host-overview` | per-instance node resources: CPU, mem, load, uptime, network + **disk capacity AND disk work** — throughput B/s, IOPS, device busy %, avg wait ms — and **hwmon/thermal-zone temperatures** (HD-378); multi-host (instance template var) | `node_cpu_seconds_total` · `node_memory_*` · `node_load*` · `node_filesystem_*` · `node_network_*` · `node_boot_time_seconds` · **`node_disk_read_bytes_total`/`written_bytes_total`/`reads_completed_total`/`writes_completed_total`/`io_time_seconds_total`/`read_time_seconds_total`/`write_time_seconds_total`** · ⚙ `node_hwmon_temp_celsius` (+ `_max_celsius`/`_crit_celsius`/`sensor_label`) · `node_thermal_zone_temp` — all `job="alloy"`; ⚙ the hwmon/thermal_zone series need the Alloy `set_collectors` converge (HD-378), the disk ones are live already |
+| **Host Overview** | `homelab-host-overview` | per-instance node resources: CPU, mem, load, uptime, network + **disk capacity AND disk work** — throughput B/s, IOPS, device busy %, avg wait ms — and **hwmon/thermal-zone temperatures**; multi-host (instance template var) | `node_cpu_seconds_total` · `node_memory_*` · `node_load*` · `node_filesystem_*` · `node_network_*` · `node_boot_time_seconds` · **`node_disk_read_bytes_total`/`written_bytes_total`/`reads_completed_total`/`writes_completed_total`/`io_time_seconds_total`/`read_time_seconds_total`/`write_time_seconds_total`** · ⚙ `node_hwmon_temp_celsius` (+ `_max_celsius`/`_crit_celsius`/`sensor_label`) · `node_thermal_zone_temp` — all `job="alloy"`; ⚙ the hwmon/thermal_zone series need the Alloy `set_collectors` converge, the disk ones are live already |
 | **Service Reachability** | `homelab-service-reachability` | blackbox probe tables (HTTP + ICMP) + latency + TLS cert expiry | `probe_success` · `probe_duration_seconds` · `probe_ssl_earliest_cert_expiry` (`job=blackbox_*`) |
 | **WAN & Tunnel** | `homelab-wan-tunnel` | wg-s2s liveness, Traefik requests, CrowdSec decisions, stack up | `probe_success{job=wg_icmp}` · `traefik_entrypoint_requests_total` · **`cs_active_decisions`** (NOT `crowdsec_decisions` — real CrowdSec metric, labels `origin`/`action`/`reason`) · `up{job=…}` |
 | **Stack Health** | `homelab-selfmonitoring` | observability self-monitoring: up() per component | `up{job=victoria-metrics\|victoria-logs\|n8n\|blackbox-exporter\|crowdsec\|traefik}` (Alloy self-scrapes VM/VL /metrics; topology B) — **no alloy**: Alloy remote-writes its own series, so `up{job="alloy"}` has no series by design |
 | **UPS** | `homelab-ups` | (pre-existing) NUT battery/load/voltages + status flags panel + **over-time: Output voltage, Load, Runtime, Battery charge** | `network_ups_tools_*` (DRuggeri/nut_exporter v3) |
-| **LLM Inference (vLLM/SGLang)** | `homelab-llm-inference` | unified vLLM+SGLang inference view (grafana.com gnet 25502): request volume, token throughput, latency quantiles, queue/KV-cache, engine/TP-rank | **vLLM half live** (`vllm:*` `{job="vllm"}`, spark). 36 of 74 queries stay empty **by design**: they are the `sglang:*` mirrors — they light up when the SGLang throughput lane lands (HD-367/S2-S3) |
-| **vLLM Monitoring V2** | `homelab-vllm-monitoring-v2` | vLLM server monitoring (gnet 24756): scheduler state by reason, KV-cache %, token rates, latency p50/p95/p99, prefix-cache, preemption, engine RSS/GC | **all 29 queries live** — `vllm:num_requests_{running,waiting,waiting_by_reason}` · `vllm:kv_cache_usage_perc` · `vllm:generation_tokens_total` · `vllm:time_to_first_token_seconds_bucket` · `vllm:num_preemptions_total` … (`num_requests_swapped` was V0 → replaced 2026-09-16) |
-| **vLLM Dashboard** | `homelab-vllm-dashboard` | vLLM overview (gnet 25043, the production-stack template): engine count, QPS, latency e2e/TTFT/ITL, prefix-cache hit rate + spark host CPU/mem/disk | **all 14 queries live** — `up{job="vllm"}` · `rate(vllm:request_success_total)` · `vllm:e2e_request_latency_seconds_{sum,count}` · `vllm:prefix_cache_*` · `node_*{job="alloy",instance="spark.kogler.si"}` (production-stack `current_qps`/`healthy_pods_total`/`router_*` replaced 2026-09-16) |
-| **★ LLM** *(HD-377, ✅ provisioned; ❌ first owner render 2026-09-23 rejected it; ⏳ owner re-render)* | `homelab-llm` | **the unified inference dashboard — the merge of the three rows above into one board** (owner: "instead of many dashboards, I want 1"): readiness → spark node (CPU/RAM/GPU + **disk capacity and disk I/O**) → scheduling → engine internals & cache → latency → throughput → request shape → per-engine detail → forward-look. Generated by [`scripts/build-llm-dashboard.py`](../scripts/build-llm-dashboard.py); see **§LLM Dashboard** below. The three HD-368 dashboards stay provisioned until the owner signs off — and two of them are now the **reference layout** the owner asked to be reproduced. | 53 panels / 9 rows. ⚠ **Corrected claim:** the 2026-09-22 line "every query sits on a series proven in VM" was true of *metric names* and false of *panels* — **15 of the 53 rendered nothing** on the owner's screen, killed by template-variable interpolation and by a joined selector carrying a one-family label. Fixed, guarded, and replayed query-by-query against VM on 2026-09-23 (live `version` 3); the only blanks left are `sglang:*` siblings and two stats that now read "not deployed" / "probe not wired". Read **§The first owner render** for the method that actually proves a board. The three `DCGM_FI_PROF_*` panels stay **deleted** — they can never load on GB10 — and the six real GB10 signals are wired in their place: utilisation, die temperature, power draw **with the energy-counter rate beside it**, SM clock, PCIe replays, and `DCGM_FI_DEV_XID_ERRORS` as a readiness stat. The 7 whitelisted `job="dcgm"` series were re-confirmed live (`match[]={job="dcgm"}` → exactly 7 names) and joined the build script's `LIVE_DCGM_METRICS` allowlist · `vllm:*` + `node_*{job="alloy",instance="spark.kogler.si"}` + `process_*{job=~"vllm\|sglang"}` · every query joined `by (job, instance)` + scoped to `$instance` · The three `DCGM_FI_PROF_*` panels are **deleted** — they can never load on GB10 — and the six real GB10 signals are wired in their place: utilisation, die temperature, power draw **with the energy-counter rate beside it**, SM clock, PCIe replays, and `DCGM_FI_DEV_XID_ERRORS` as a readiness stat. The 7 whitelisted `job="dcgm"` series were re-confirmed live (`match[]={job="dcgm"}` → exactly 7 names) and joined the build script's `LIVE_DCGM_METRICS` allowlist, so the empty-panel guard PROVES them instead of accepting prose about them (see §LLM Dashboard → GPU) · `vllm:*` + `node_*{job="alloy",instance="spark.kogler.si"}` + `process_*{job=~"vllm\|sglang"}` · every query joined `by (job, instance)` + scoped to `$instance` |
+| **LLM Inference (vLLM/SGLang)** | `homelab-llm-inference` | unified vLLM+SGLang inference view (grafana.com gnet 25502): request volume, token throughput, latency quantiles, queue/KV-cache, engine/TP-rank | **vLLM half live** (`vllm:*` `{job="vllm"}`, spark). 36 of 74 queries stay empty **by design**: they are the `sglang:*` mirrors — they light up when the SGLang throughput lane lands |
+| **vLLM Monitoring V2** | `homelab-vllm-monitoring-v2` | vLLM server monitoring (gnet 24756): scheduler state by reason, KV-cache %, token rates, latency p50/p95/p99, prefix-cache, preemption, engine RSS/GC | **all 29 queries live** — `vllm:num_requests_{running,waiting,waiting_by_reason}` · `vllm:kv_cache_usage_perc` · `vllm:generation_tokens_total` · `vllm:time_to_first_token_seconds_bucket` · `vllm:num_preemptions_total` … (`vllm:num_requests_swapped` is a V0 name → `vllm:num_requests_waiting_by_reason`) |
+| **vLLM Dashboard** | `homelab-vllm-dashboard` | vLLM overview (gnet 25043, the production-stack template): engine count, QPS, latency e2e/TTFT/ITL, prefix-cache hit rate + spark host CPU/mem/disk | **all 14 queries live** — `up{job="vllm"}` · `rate(vllm:request_success_total)` · `vllm:e2e_request_latency_seconds_{sum,count}` · `vllm:prefix_cache_*` · `node_*{job="alloy",instance="spark.kogler.si"}` (production-stack `current_qps`/`healthy_pods_total`/`router_*` do not exist here) |
+| **★ LLM** *(✅ provisioned, live `version` 3; ⏳ owner sign-off pending)* | `homelab-llm` | **the unified inference dashboard — the merge of the three rows above into one board** (owner: "instead of many dashboards, I want 1"): readiness → spark node (CPU/RAM/GPU + **disk capacity and disk I/O**) → scheduling → engine internals & cache → latency → throughput → request shape → per-engine detail → forward-look. Generated by [`scripts/build-llm-dashboard.py`](../scripts/build-llm-dashboard.py); see **§LLM Dashboard** below. The three vLLM boards above stay provisioned until the owner signs off — two of them are the **reference layout** the owner asked to be reproduced. | 53 panels / 9 rows; the only blanks are the `sglang:*` siblings and two stats that read "not deployed" / "probe not wired". Verification is the query replay in **§LLM Dashboard**, not the metric-name inventory. The three `DCGM_FI_PROF_*` panels are **deleted** — they can never load on GB10 — and the six real GB10 signals are wired in their place: utilisation, die temperature, power draw **with the energy-counter rate beside it**, SM clock, PCIe replays, and `DCGM_FI_DEV_XID_ERRORS` as a readiness stat. The 7 whitelisted `job="dcgm"` series are live (`match[]={job="dcgm"}` → exactly 7 names) and are in the build script's `LIVE_DCGM_METRICS` allowlist, so the empty-panel guard proves them (see §LLM Dashboard → GPU) · `vllm:*` + `node_*{job="alloy",instance="spark.kogler.si"}` + `process_*{job=~"vllm\|sglang"}` · every query joined `by (job, instance)` + scoped to `$instance` |
 
 ---
 
-### LLM Dashboard (HD-377)
+### LLM Dashboard
 
 > **Role:** design SSOT for the **single** LLM/inference Grafana board (`homelab-llm`,
-> `stats.kogler.si`) — the merge of the three HD-368 vLLM dashboards plus the spark node
-> + readiness panels the owner asked for. Registered as HD-377 in `todo.md` §2.12.
-> **✅ provisioned on the VPS 2026-09-22** (`vps.yml --tags monitoring`, `changed=3 failed=0`; the file
-> provider hot-reloads the JSON in ~30 s). ⛔ It was **NOT signed off**: the owner's first render
-> (2026-09-23) came back "*mostly No data*" on two rows — read **§The first owner render** below
-> before quoting any panel count in this section as a success.
-> ⛔ Retiring the three HD-368 boards still waits on that sign-off, and two of them are now the
-> **reference layout** the owner asked to be reproduced — deleting them early would delete the answer.
+> `stats.kogler.si`) — the merge of the three vLLM dashboards above plus the spark node
+> + readiness panels the owner asked for.
+> **✅ provisioned** — the file provider hot-reloads the JSON in ~30 s; live as `version` 3.
+> ⛔ **Owner sign-off is pending**, so the three vLLM boards stay provisioned — two of them are the
+> **reference layout** the owner asked to be reproduced, and deleting them early would delete the answer.
 
-**The first owner render (2026-09-23): "mostly No data", and the three bug classes behind it.**
-The owner's verdict on `homelab-llm` was: **"Throughput & Workload" and "Per-engine / TP-rank
-detail" are mostly No data — this is not good enough yet**, and the views they *do* want are
-"Engine Internal & Cache" (`vLLM Monitoring V2`) and "Token Throughput (Prefill / Decode)" +
-"Decode Throughput" (`LLM Inference (vLLM/SGLang)`). HD-377 therefore **stays open**. Both of
-those preferred views were already *in* the merged board, and both were dead or scattered —
-which is how the audit found the causes. Measured on the board as merged (100 query targets):
-**51 targets returned zero series and 15 of the 53 panels rendered nothing at all** — Latency
-4/4, Per-engine/TP-rank 4/4, Throughput 3/4, Scheduling 3/8, Cache 1/3.
+**The three ways a merged board renders blank.** The owner's required views are "Engine Internal &
+Cache" (`vLLM Monitoring V2`) and "Token Throughput (Prefill / Decode)" + "Decode Throughput"
+(`LLM Inference (vLLM/SGLang)`); this board reproduces them as rows. Every blank panel on a merged board
+comes from one of these classes:
 
 | Class | Mechanism | Measured proof | Now enforced by |
 |---|---|---|---|
-| **1. A picker behind exact `=`** | `$model_name` carries `includeAll` + `allValue: ".*"`. With All selected Grafana substitutes the literal `.*`, and PromQL `=` is **equality**, so `model_name=".*"` matches nothing. The SAME query renders on the donor boards because *their* picker has no All and always resolves to a concrete value — that asymmetry is why the bug survived three rounds of "it works over there" | `count(vllm:num_requests_running{model_name=".*"})` → **0 series**; `{model_name=~".*"}` → **1** (and 39.6 tok/s of real traffic through the regex form). `sum by (engine) (rate(vllm:generation_tokens_total{model_name=".*"}[5m]))` → 0 | `normalize_picker_operators()` rewrites every emitted picker match to `=~`, and `guard_picker_operators()` fails the build if an exact one survives (removing the rewrite turns the build RED — checked) |
-| **2. A joined selector carrying a family-only label** | `{__name__=~"vllm:x\|sglang:y"}` applies its label matchers to **both** names. `cache_source="device"` and `stage="decode"` exist only on SGLang, so vLLM — the engine that is actually running — was filtered out by its own panel | "Prefix cache hit rate (both engines)" → **0 series** while `vllm:prefix_cache_hits_total` was live and the picker resolved; the decode leg of "Inference Stage Breakdown" likewise dead | `guard_joined_selectors()` refuses any two-family alternation carrying a label outside `instance`/`job`. Both panels now query per engine (`v2:202` is deliberately vLLM-only, said in its description) |
-| **3. Empty-by-design rendered as an outage** | A stat with no series shows `No data`, which is indistinguishable from "the engine is broken" on a board whose first row is readiness | "SGLang engine — ready" and "Engine /health probe" returned 0 series *correctly* | both now carry `fieldConfig.defaults.noValue` (`not deployed`, `probe not wired`) — an honest empty, generated not hand-painted |
+| **1. A picker behind exact `=`** | `$model_name` carries `includeAll` + `allValue: ".*"`. With All selected Grafana substitutes the literal `.*`, and PromQL `=` is **equality**, so `model_name=".*"` matches nothing. The SAME query renders on a donor board whose picker has no All and always resolves to a concrete value | `count(vllm:num_requests_running{model_name=".*"})` → **0 series**; `{model_name=~".*"}` → **1** (and 39.6 tok/s of real traffic through the regex form). `sum by (engine) (rate(vllm:generation_tokens_total{model_name=".*"}[5m]))` → 0 | `normalize_picker_operators()` rewrites every emitted picker match to `=~`, and `guard_picker_operators()` fails the build if an exact one survives (removing the rewrite turns the build RED — checked) |
+| **2. A joined selector carrying a family-only label** | `{__name__=~"vllm:x\|sglang:y"}` applies its label matchers to **both** names. `cache_source="device"` and `stage="decode"` exist only on SGLang, so vLLM — the engine that is actually running — is filtered out by its own panel | "Prefix cache hit rate (both engines)" → **0 series** while `vllm:prefix_cache_hits_total` is live and the picker is resolved; the decode leg of "Inference Stage Breakdown" likewise empty | `guard_joined_selectors()` refuses any two-family alternation carrying a label outside `instance`/`job`. Both panels query per engine (`v2:202` is deliberately vLLM-only, said in its description) |
+| **3. Empty-by-design rendered as an outage** | A stat with no series shows `No data`, which is indistinguishable from "the engine is broken" on a board whose first row is readiness | "SGLang engine — ready" and "Engine /health probe" return 0 series *correctly* | both carry `fieldConfig.defaults.noValue` (`not deployed`, `probe not wired`) — an honest empty, generated not hand-painted |
 
-⚠ **The method matters more than the fix.** Every earlier verification of this board — the
-metric-name inventory, the byte-identical file comparison, the datasource health check, the
-API `version` read — passed while 15 panels were blank, because **none of them exercised the
-code path that failed: template-variable interpolation.** The check that does is cheap and
+⚠ **The method matters more than the fix.** A metric-name inventory, a byte-identical file
+comparison, a datasource health check and the API `version` read all pass while panels are blank, because
+**none of them exercises the code path that fails: template-variable interpolation.** The check that does
+is cheap and
 reproducible: take every `targets[].expr` out of the JSON, substitute the picker's own values
 (the All value `.*`, `$__rate_interval` → 5 m, `$__range` → 1 h), POST all ~100 queries at
 VictoriaMetrics and count `data.result`. Run that way, the rebuilt board returns series for
@@ -753,19 +707,19 @@ every panel **except** the two that now say so in words, and the only remaining 
 are the 23 `sglang:*` siblings, which are unverifiable by definition (0 `sglang:` names exist
 in the DB). Do not call a dashboard verified until that replay has been run on it.
 
-**What the engine actually exposes (re-measured 2026-09-23, 24 h window).** 106 `vllm:*` names
+**What the engine actually exposes** (24 h window). 106 `vllm:*` names
 / 61 families for `job="vllm", instance="spark.kogler.si"`, labels `engine`, `finished_reason`,
 `instance`, `job`, `model_name` — so `engine` is a **real label** (`engine="0"`) and the
 per-engine panels are honest, while **`tp_rank` does not exist** (SGLang's) and `sglang:*` has
 **zero** series. `model_name` is `spark/qwen3.8-flash-next`.
 
-**Layout after the fix (2026-09-23, live as `version` 3, 53 panels / 9 rows).** The two
+**Layout** (live as `version` 3, 53 panels / 9 rows). The two
 groupings the owner named are reproduced rather than re-invented: a row **"Engine internals &
 cache"** carries the v2 row's six panels (KV usage, prefix hit rate, scheduler state, Python
 GC/memory, finish-reason distribution, throughput-vs-success) plus cached-token stats, and
-**"Decode Throughput" / "Prefill Throughput"** moved up into **"Throughput & Workload"**
-instead of hiding in a row titled for TP-ranks. `Cache` and `Reliability` were dissolved into
-those, which is why the row count is 9 and the panel count is unchanged at 53.
+**"Decode Throughput" / "Prefill Throughput"** sit in **"Throughput & Workload"**
+instead of in a row titled for TP-ranks; the `Cache` and `Reliability` groupings are folded into
+those rows, which is why the count is 9 rows and 53 panels.
 
 **Generation chain (SSOT direction).**`grafana.com exports (25502/24756/25043)` → [`adapt-vllm-dashboards.py`](../scripts/adapt-vllm-dashboards.py)
 → the three repo JSONs → [`build-llm-dashboard.py`](../scripts/build-llm-dashboard.py) →
@@ -777,8 +731,8 @@ hand-edit it**; a query fix belongs in the adapter (vLLM-side) or in the merge s
 **Why the merge is not a concatenation.** The three exports overlap heavily — three TTFT
 panels, three KV-cache panels, two E2E latency, two prefix-cache hit rate, three
 running/queued. The script's `DROPPED` map carries every cut **with its reason**, and
-`guard_layout_consistency()` fails the build if the map and the layout ever disagree
-(it caught two of the author's own documentation errors on first run). gnet 25043 is
+`guard_layout_consistency()` fails the build if the map and the layout ever disagree.
+gnet 25043 is
 cut 100 % — every one of its 14 queries is covered by a better-scoped panel elsewhere.
 
 **The join rule (the part that matters for the RX 7600 later).** Every carried query is
@@ -800,9 +754,9 @@ panel and would hide exactly that. ⏳ The `/health` probe is **authored empty**
 target is spark loopback, and the VPS blackbox-exporter has no path to `127.0.0.1:8000`
 on spark — wiring it needs a blackbox exporter reachable from spark's Alloy (a
 sidecar on spark, or scrape the probe from spark's Alloy the way the `vllm` job is
-scraped). Not built in this HD; specified here so the panel is not mistaken for a bug.
+scraped). Not built; specified here so the panel is not mistaken for a bug.
 
-**GPU on a GB10 — what is and is NOT obtainable** (verified live on the box, twice).
+**GPU on a GB10 — what is and is NOT obtainable.**
 ```
 spark# nvidia-smi -q -d MEMORY   → FB/BAR1 Total/Used/Free: N/A
 spark# nvidia-smi dmon -s um     → fb / bar1 columns: '-'
@@ -813,8 +767,8 @@ spark# docker images | grep dcgm → nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.0
 "Not Supported" for memory because "the DGX Spark has a unified memory architecture" and
 reports memory utilisation only when there is dedicated VRAM — for memory usage they point
 to `top`/`htop`/`free` or the DGX Dashboard. So the honest GPU picture is unified-pool RAM
-(where the allocation actually is), engine RSS (the process's share of it, vs the HD-374
-105 GiB cage) and the engine's own per-GPU work estimates
+(where the allocation actually is), engine RSS (the process's share of it, vs the 105 GiB engine
+cage) and the engine's own per-GPU work estimates
 (`vllm:estimated_flops_per_gpu_total`, `estimated_read_bytes_per_gpu_total` — live today,
 plotted in "GPU work — engine reported").
 
@@ -839,9 +793,8 @@ stated there are **no plans to support DCGM profiling on Spark** (not a datacent
 | `MEM_COPY_UTIL` (0), `MEMORY_TEMP` (**0 = bogus**), `ENC_UTIL`/`DEC_UTIL` (0), `NVLINK_BANDWIDTH_TOTAL` (0), `VGPU_LICENSE_STATUS` (0) | **no** — constant or wrong on GB10; do not chart |
 | `FB_USED`/`FB_FREE`/`FB_RESERVED`, `MEM_CLOCK`, all `DCGM_FI_PROF_*` | **impossible** — not emitted |
 
-**Corollary — the three `DCGM_FI_PROF_*` panels HD-377 authored must be DELETED, not
-wired.** They were written on the assumption that wiring DCGM would fill them; that
-assumption is dead (NVIDIA statement + exporter log + live probe). The `DCGM_FI_DEV_*`
+**Corollary — the three `DCGM_FI_PROF_*` panels are DELETED, not
+wired.** Wiring DCGM cannot fill them (NVIDIA statement + exporter log + live probe). The `DCGM_FI_DEV_*`
 row above is what to wire instead: `nvidia/dcgm-exporter` loopback-published on `:9400` +
 a `prometheus.scrape "dcgm"` block in `alloy.river.j2` under
 `{% if inventory_hostname == 'spark.kogler.si' %}`, `job="dcgm"` +
@@ -860,11 +813,11 @@ informs nothing here beyond corroborating the unified-memory finding. (Its temps
 sit between DCGM's 50–58 °C and the acpitz zones' 65–73 °C — three different sensors; never
 plot them as one series.)
 
-**DCGM is wired (HD-379) — the signals that are real on GB10.**
+**DCGM is wired — the signals that are real on GB10.**
 
 | Layer | What ships |
 |---|---|
-| Compose service | **`spark-dcgm`** (`templates/docker_services/spark-dcgm/`) — `dcgm-exporter` on **loopback only** `127.0.0.1:9400`, the same publish discipline as `spark_metrics_publish` (HD-368): no Traefik route, no Home VLAN, no auth on `/metrics`. `cap_drop ALL` + `cap_add SYS_ADMIN`, `read_only`, `pid: host`, GPU device reservation, **no memory limits** (a ~30 MB read-only observer must not compete with the HD-374 cage). Registered in `group_vars/spark.yml` (`enabled: true`). |
+| Compose service | **`spark-dcgm`** (`templates/docker_services/spark-dcgm/`) — `dcgm-exporter` on **loopback only** `127.0.0.1:9400`, the same publish discipline as `spark_metrics_publish`: no Traefik route, no Home VLAN, no auth on `/metrics`. `cap_drop ALL` + `cap_add SYS_ADMIN`, `read_only`, `pid: host`, GPU device reservation, **`mem_limit: 256m`** (≈1.8× the measured peak, so a read-only observer can never eat into the engine memory cage). Registered in `group_vars/spark.yml` (`enabled: true`). |
 | Image pin | `spark_dcgm_exporter_image` in `group_vars/all/versions.yml` — **digest**-pinned (`nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:ec962b…f8870`, arm64 manifest, digest taken from spark's own image store where it was run live). Port comes from `spark_dcgm_exporter_port` (9400) — declared in group_vars, **not** `\| default()`'d: §1 fail-loud, and `validate-docker-services.py`'s mock `default` would silently render an empty port. |
 | Scrape | `prometheus.scrape "dcgm"` + `prometheus.relabel "dcgm"` in `alloy.river.j2`, spark-gated, `job="dcgm"` + `instance="spark.kogler.si"` (the exporter's own `Hostname` label is the **container id** → `labeldrop`, it churns on every recreate). |
 | **Metric policy** | Lives in the Alloy relabel as a **whitelist**, not in a counter CSV inside the image: `keep DCGM_FI_DEV_(GPU_UTIL\|GPU_TEMP\|POWER_USAGE\|TOTAL_ENERGY_CONSUMPTION\|SM_CLOCK\|XID_ERRORS\|PCIE_REPLAY_COUNTER)`. Dropped on evidence: `MEMORY_TEMP` (bogus **0** while the NVMe beside it reads 46 °C), `MEM_COPY_UTIL`/`ENC_UTIL`/`DEC_UTIL` (always 0), `NVLINK_BANDWIDTH_TOTAL` (no NVLink), `VGPU_LICENSE_STATUS` (no vGPU). |
@@ -875,19 +828,17 @@ the exporter refuses them (`metric not enabled`) and NVIDIA states profiling wil
 on Spark. A new driver making them appear should be an explicit, reviewed IaC edit, not a silent
 cardinality change.
 
-**Deployed and live-verified:** `VM {job="dcgm"}` returns **exactly the 7 whitelisted
+**Live in the backend:** `VM {job="dcgm"}` returns **exactly the 7 whitelisted
 series** (`GPU_UTIL`, `GPU_TEMP` 46 °C, `POWER_USAGE` 10.25 W, `TOTAL_ENERGY_CONSUMPTION`,
-`SM_CLOCK` 2411 MHz, `XID_ERRORS`, `PCIE_REPLAY_COUNTER`) and the host temperatures arrived too
-(`node_hwmon_temp_celsius` per instance: spark 12, oldsrv 17, nas 9, pi 2 sensors — HD-378's
-⏳ panels are now live). The vLLM engine was **not** restarted by any of it.
+`SM_CLOCK` 2411 MHz, `XID_ERRORS`, `PCIE_REPLAY_COUNTER`), and the host temperatures are there too
+(`node_hwmon_temp_celsius` per instance: spark 12, oldsrv 17, nas 9, pi 2 sensors).
 
-**⚠ Operational gotcha found the hard way (worth 30 seconds of anyone's time):** a service's own
+**⚠ Operational gotcha:** a service's own
 deploy tasks carry `tags: "{{ svc.name }}"` (`docker_services/tasks/deploy-service.yml`), so
 `--tags monitoring,docker_services` on a **NEW** service renders the loop but **skips every inner
-task** — the first converge reported rc=0 while deploying nothing (the `dgx-dashboard` tombstone
-teardown *did* run, because teardown is tagged `docker_services`). **A first deploy needs the
+task** — `rc=0` while deploying nothing. **A first deploy needs the
 service's own tag**: `--tags monitoring,docker_services,spark-dcgm`. rc=0 is not proof of deploy;
-the proof was `docker ps` + `VM {job="dcgm"}`.
+proof is `docker ps` + `VM {job="dcgm"}`.
 
 **Memory (answering "can we trim the exporter's RAM via the counters CSV?") — measured, A/B on
 the box.** Image default `default-counters.csv` (18 fields) = **143.2 MiB anon**; a 7-field CSV
@@ -902,22 +853,22 @@ via `DCGM_EXPORTER_COLLECTORS` = **138.8 MiB anon** (≈ **−3 %**); the same t
     do nothing. `docker stats` readings drift 130–155 MiB with page cache; `memory.stat` `anon`
     is the number to trust.
   * So the lever that actually matters on this box is a **hard cap**, not trimming: the compose
-    now sets `mem_limit: 256m` (~1.8× the measured peak, so the cap can never OOM it in normal
+    sets `mem_limit: 256m` (~1.8× the measured peak, so the cap can never OOM it in normal
     operation) — an unbounded leak in a sidecar must not be able to eat into the 105 GiB engine
-    cage (HD-374) on a host that has already OOM-killed (HD-375). Revisit the CSV only if a future
+    cage on a host that has already OOM-killed. Revisit the CSV only if a future
     driver starts emitting profiling fields.
 
 **spark RAM reading — read the floor, not the ceiling.** On this box the useful signal is
 `node_memory_MemAvailable_bytes` (live: 9.5 GiB of 121.6 GiB with the engine loaded),
 not utilisation %: every global OOM in `spark-incidents.md` came from replace-by-percent
-GPU-reserve arithmetic against this pool. The RAM panel and the HD-375 alert rules read the **same**
+GPU-reserve arithmetic against this pool. The RAM panel and the host-memory alert rules read the **same**
 gauge — `usable = MemAvailable − CmaFree`, warn **< 12 GiB**, crit **< 8 GiB** — never raw
 `MemAvailable` and never utilisation %, both of which hide the reserve on this box.
 
 **Known limits, recorded rather than hidden.**
 - Every `sglang:*` sibling comes from SGLang's documented metric names + the gnet 25502
   author's pairing — **never from a live scrape** (no SGLang engine has run here). Expect
-  HD-368-style corrections; the fix goes in this script, not in the JSON.
+  the same class of metric-name corrections seen on the donor boards; the fix goes in this script, not in the JSON.
 - SGLang has no prefix-cache *queries* counter, so the SGLang hit-rate leg divides by
   total prompt tokens → an **upper bound**, flagged in the panel tooltip.
 - SGLang has no `finished_reason` label, so "Success rate" and "Preemptions" are vLLM-only
@@ -932,7 +883,7 @@ open.
 
 ---
 
-## LLM token accounting — the three instruments (HD-1120 · HD-1121 · HD-1122)
+## LLM token accounting — the three instruments
 
 > **Role:** what the fleet can actually prove about LLM usage, and where the blind spots are — so nobody
 > reports a per-client token number that no instrument produced.
@@ -951,15 +902,15 @@ The honest sentence this section exists to force: **totals are known, attributio
 tokens" is available nowhere today, and an average-tokens-per-request × request-count product is an
 estimate, not a series.
 
-**The ruling (owner 2026-10-09): metering is observed at the edge, not bought with a proxy hop.** Routing
-the coding harnesses through LiteLLM for accounting was weighed and declined — decision #26 puts a
+**The ruling: metering is observed at the edge, not bought with a proxy hop.** Routing
+the coding harnesses through LiteLLM for accounting is declined — decision #26 puts a
 generation harness **direct** on the engine name edge precisely so there is no extra hop, and a metering
 proxy re-buys the hop, the key management and the failure surface that decision removed. The engine stays
-the token SSOT (it needs no change); attribution comes from the access log (HD-1120). Wanting per-key
+the token SSOT (it needs no change); attribution comes from the edge access log. Wanting per-key
 spend *as measurement* later means re-opening #26 — that is an owner call, never an implementation detail.
 The rejection itself is logged in [observability-rejected.md](observability-rejected.md).
 
-### The trap that makes HD-1120 silently wrong: which address is the client?
+### The trap that makes per-client accounting silently wrong: which address is the client?
 
 `llm.kogler.si` is served on two paths and they do not present the same peer to the spark edge:
 
@@ -986,7 +937,7 @@ per-client where the path allows it, per-plane (Home vs tailnet) where it does n
    by design.
 3. **The log plumbing already exists.** `loki.source.file "container_logs"` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:183`) ships
    every container's JSON log to VictoriaLogs, so `--accesslog=true` on the edge is the whole change.
-   The HD-280 host-file bind exists because **fail2ban cannot read the Docker JSON log** — copying it here
+   The host-file bind for Traefik exists because **fail2ban cannot read the Docker JSON log** — copying it here
    adds a host bind for nothing. `traefik-spark` carries neither `--accesslog.*` nor
    `--metrics.prometheus=true` today (`IaC/ansible/templates/docker_services/spark-dashboard/docker-compose.yml.j2:47`).
 4. **Probe the pin before writing a scrape job.** Whether the pinned LiteLLM image exposes a Prometheus
@@ -998,20 +949,23 @@ per-client where the path allows it, per-plane (Home vs tailnet) where it does n
    ≈51 MB/day for all of spark today). A gateway job is tens of series — it does not start in the hot set.
 6. **GPU numbers on oldsrv come from sysfs, not `rocm-smi`** — the host does not ship it
    ([services-ai-bench.md](services-ai-bench.md) read VRAM from the `amdgpu` sysfs counter for that
-   reason). The publish path is the **collector's direct-publish pattern** the HD-450 hygiene collector
+   reason). The publish path is the **collector's direct-publish pattern** the hygiene collector
    uses (§Silent-failure hygiene), **not** a `textfile` directory — textfile is unusable on this Alloy
    build.
 7. **The RX 7600 is the only host that can show VRAM** — GB10 exposes none (§LLM Dashboard → GPU). The
    board says so itself (`IaC/ansible/roles/monitoring/files/dashboards/homelab-llm.json:5114`), and its
-   engine-count readiness panel reads **1** today (`:253`): landing HD-1122 should move that panel to 2,
-   which is its own acceptance check.
+   engine-count readiness panel reads **1** today (`:253`): scraping the oldsrv serving tier must move that
+   panel to 2, which is its own acceptance check.
 
 ---
 
-## Scrape cadence and metric resolution (HD-420)
+## Scrape cadence and metric resolution
 
-Every job on every host scrapes at Alloy's default **60 s** — `scrape_interval` is set nowhere in the deployed
-`/etc/alloy/config.alloy`. Fine history therefore exists nowhere downstream, and no Grafana setting invents it.
+Every job scrapes at Alloy's default **60 s** except spark's three named hot jobs — on spark the rendered
+`/etc/alloy/config.alloy` carries `scrape_interval = "5s"` exactly three times (`host_metrics_hot`,
+`vllm_hot`, `dcgm` in `roles/monitoring/templates/alloy.river.j2`); the three latency histogram families
+ride `vllm_hot`. Everywhere else the 60 s default stands, so
+fine history exists nowhere else downstream, and no Grafana setting invents it.
 This is the other half of the OOM blind spot above, and the reason the spark GPU/engine panels read as a step
 chart next to the DGX System Monitor, which samples **1 Hz**.
 
@@ -1021,10 +975,10 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 |---|---|---|
 | `node_*` (Alloy host job) | kernel counters, 100 Hz jiffies | sub-second |
 | `vllm:*` on `:8000/metrics` | **≈ 1 Hz under load** | `vllm:generation_tokens_total` advanced on **every one** of 17 consecutive 1 s scrapes taken during a live request (178,079 → 178,249). `VLLM_LOG_STATS_INTERVAL: "10"` is the engine's **log** heartbeat, not a publication cap — log-only lines (`running/waiting/… req/s`, `p: … reqs`) are capped at 10 s, cumulative counters are not ⇒ **no engine restart is needed** for one-second engine data |
-| `DCGM_FI_DEV_*` on `:9400/metrics` | **once per 30 s** | `DCGM_EXPORTER_INTERVAL: "30000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; `DCGM_FI_DEV_GPU_UTIL` returned `86` on twelve consecutive 1 Hz reads. Scraping faster than this stores copies of one sample |
+| `DCGM_FI_DEV_*` on `:9400/metrics` | **once per `DCGM_EXPORTER_INTERVAL`** (5 s today) | `DCGM_EXPORTER_INTERVAL: "5000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; `DCGM_FI_DEV_GPU_UTIL` holds one value across twelve consecutive 1 Hz reads. Scraping faster than the exporter's own interval stores copies of one sample |
 | DGX System Monitor (the 1 s picture) | 1 Hz | authenticated `POST /api/login` (the JSON field is `token`) then `GET /api/v1/gpu_telemetry/stream` yields `percentage_utilization`, `memory_available_in_kib` / `memory_total_in_kib` (25,676,736 / 127,533,336 KiB = 19.7 % of the **host** pool — not a VRAM counter, see §LLM Dashboard → GPU), `temperature_in_c`, `power_draw_in_w`. It polls the **same** `spark-dcgm` exporter: the difference is cadence, plus a host-memory stat Alloy already scrapes directly |
 
-### What resolution costs (measured on the VPS, VictoriaMetrics v1.151.0)
+### What resolution costs (measured on the VPS VictoriaMetrics — re-measure before quoting these numbers; the pin is `victoria_metrics_version: v1.153.0`)
 
 | Quantity | Value |
 |---|---|
@@ -1037,7 +991,9 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 | 50 hot series @ 1 s | +49 rows/s · ≈ +0.5 GB/yr |
 
 **Age-tiering is not available in this stack.** `-downsampling.period` and `-retentionFilter` are both **absent
-from the VictoriaMetrics community binary** (checked against `--help` of the deployed v1.151.0; the docs state
+from the VictoriaMetrics community binary** (absent from `--help` on the deployed build — the pin is
+`victoria_metrics_version: v1.153.0` in `group_vars/all/versions.yml`, so re-run `--help` before trusting
+the absence; the docs state
 community supports a single retention and one storage tier), and OpenObserve's downsampling is an enterprise rule
 set as well. Resolution is therefore bought **at write time** — scrape only what needs it faster — not by
 collapsing old buckets afterwards. Memory, not disk, is the VPS ceiling (4.3 GiB available, no swap) and it tracks
@@ -1045,7 +1001,8 @@ collapsing old buckets afterwards. Memory, not disk, is the VPS ceiling (4.3 GiB
 
 ### The hot set — 50 series, which is the whole fine-resolution ask
 
-Owner scope 2026-09-21: fine data for these panels only, **everything else (latency, histograms) stays at 60 s**.
+Owner scope: fine data for these panels only, **everything else stays at 60 s** — the one exception is the
+three latency histogram families below.
 50 of spark's ~1,893 series — the 9 panels do not need 1,745 series, and the 365-day cost of blanket 5 s is what
 the exclusions avoid:
 
@@ -1061,28 +1018,26 @@ the exclusions avoid:
 | Scheduler / preemption | `vllm:num_requests_waiting`, `vllm:num_requests_waiting_by_reason{reason=…}` ×2, `vllm:num_preemptions_total` |
 | load (the Monitor's other two numbers) | `node_load1`, `node_load5` |
 
-**Amended 2026-10-02 (HD-489) — three latency histogram families join the hot set.** This is the
-one thing the owner scope above explicitly excluded ("everything else (latency, histograms) stays
-at 60 s"), and the reason is that the scope was drawn for *panels*: the HD-489 funnel measures
+**Three latency histogram families join the hot set.** This is the
+one thing the owner scope above excludes ("everything else (latency, histograms) stays
+at 60 s"), and the reason is that the scope was drawn for *panels*: the bench funnel measures
 per-arm TTFT / ITL / TPOT, and a 20 s decode leg moves each `_bucket{}` line at most once, so a
-window rate has no second point to differentiate. Measured on the live store that day:
-`rate(vllm:time_to_first_token_seconds_bucket[1m])` evaluated over a real window returned **EMPTY**
-for TTFT p50/p95 while every 5 s counter resolved; with the padded leg window it returns
+window rate has no second point to differentiate.
+`rate(vllm:time_to_first_token_seconds_bucket[1m])` evaluated over a real window returns **EMPTY**
+for TTFT p50/p95 while every 5 s counter resolves; with the padded leg window it returns
 `p50 4.58 s / p95 29.0 s`, and TPOT p50 `0.0375 s` agrees with `rate(vllm:generation_tokens_total[1m])`
 = 26.3 tok/s from the other side — two independent paths, one number, which is the point of having
 both.
 
-Cost, **DERIVED** from the measured table below (not measured again): the three `_bucket` families
+Cost, **DERIVED** from the measured cost table (not measured again): the three `_bucket` families
 are 63 series on this engine (read off `/metrics`: TTFT 23 + ITL 20 + TPOT 20), so 60 s → 5 s is
 12× sampling on 63 series ≈ **+11.6 rows/s ≈ +120 MB/yr ≈ +2.5 MB/day wire** — the small side of
 the same curve the table already prices (50 series ≈ +95 MB/yr), and nowhere near the blanket
 1,745-series case that plateaus at retention. `_sum`/`_count` of those families stay at 60 s.
 Revert = delete the three names from `hot_vllm` in `roles/monitoring/templates/alloy.river.j2`;
 both jobs emit the one string, so hot/cold stay disjoint and no query or alert changes.
-⚠ **Deploy-gated:** this is Alloy config — until the spark monitoring converge runs, the store
-still holds those three at 60 s and `spark/bench/vm-window.sh` corroboration stays cold.
 
-⏳ **The work, in order (HD-420):**
+**Implementation shape:**
 
 1. **Split spark's scrapes into hot + cold jobs** in `roles/monitoring/templates/alloy.river.j2`, gated on the
    inventory host so only spark pays: `scrape_interval = "5s"` + `scrape_timeout = "3s"` on the hot jobs, and
@@ -1093,7 +1048,7 @@ still holds those three at 60 s and `spark/bench/vm-window.sh` corroboration sta
 2. **`DCGM_EXPORTER_INTERVAL: "30000"` → `"5000"`** in
    `templates/docker_services/spark-dcgm/docker-compose.yml.j2`, otherwise 5 s scraping records six copies of one
    GPU sample. Sidecar restart only — never the engine. ⛔ Pre-flight first: that sidecar carries
-   `mem_limit: 256M` + `workers: 1` *because it grew past its cap during HD-378* — A/B its CPU and `memory.stat`
+   `mem_limit: 256M` + `workers: 1` — A/B its CPU and `memory.stat`
    anon against that cap at 5 s before converging.
 3. **Fix the Grafana interval floor.** The Prometheus datasource carries **no `jsonData.timeInterval`**, so
    `$__interval` / `$__rate_interval` are floored at Grafana's default **15 s**, not 5 s. Set
@@ -1108,83 +1063,70 @@ still holds those three at 60 s and `spark/bench/vm-window.sh` corroboration sta
    5 s data changes what a rule *sees*, not how often it runs; raising the alert interval is a separate,
    deliberate decision (it multiplies ruler load and shortens `for:` windows into noise).
 
-**State (HD-420): the whole thing is LIVE 2026-09-23** — VPS half (datasource `timeInterval` floor + the `rate()` fix, 2026-09-22) **and** the spark half (hot/cold Alloy jobs + `DCGM_EXPORTER_INTERVAL: "5000"` + the 5 s acceptance on external traffic).
+**State: LIVE** — the VPS half (datasource `timeInterval` floor + the `rate()` fix) **and** the spark half (hot/cold Alloy jobs + `DCGM_EXPORTER_INTERVAL: "5000"`) are converged.
 
-- **LIVE on the VPS (item 3 + item 4's `rate()` fix):** proved by converging
-  `vps.yml --tags monitoring` twice — `failed=0 changed=3`, then **`changed=0`** with the new
-  datasource task reporting `skipping`, so the floor is not a changed-on-every-run task.
-  Live read-back of the datasource: `jsonData {"timeInterval": "5s"}`, `basicAuthPassword`
-  still set (the PUT re-sends the vault secret because PUT replaces the record), health OK.
-- **The spark half is LIVE 2026-09-23:** the hot/cold Alloy jobs,
-  `DCGM_EXPORTER_INTERVAL: "5000"` and the datasource floor are all converged; the acceptance was
-  measured on **external** traffic (three 2k-token completions from the laptop through
-  `llm.kogler.si`): `count_over_time(node_load1{instance=~"spark.*"}[1m])` = **12**,
+- **VPS:** the datasource read-back is `jsonData {"timeInterval": "5s"}` with `basicAuthPassword`
+  still set (the PUT re-sends the vault secret because PUT replaces the record), health OK, and the
+  provisioning task reports `skipping` — the floor is not a changed-on-every-run task.
+- **spark cadence read:** `count_over_time(node_load1{instance=~"spark.*"}[1m])` = **12**,
   `count_over_time(vllm:generation_tokens_total[…][1m])` = **12**,
   `count_over_time(DCGM_FI_DEV_GPU_UTIL[…][1m])` = **12**, while cold-only names
   (`node_cpu_seconds_total{mode="user"}`, `vllm:e2e_request_latency_seconds_bucket`) read **1/1m**
-  — the hot `keep` / cold `drop` are disjoint and matching, no `-dedup` change owed. GPU util 84 %, die
-  64 °C, power 34 W, SM 2489, XID 0 on the loaded samples; cadence re-read after the oldsrv converge:
-  `count_over_time(node_load1{instance=~"spark.*"}[1m])` = **12**.
-- **The sidecar cap stays 256 MiB — re-measured under load.** `dcgm-exporter-spark` at
-  `DCGM_EXPORTER_INTERVAL=5000`: cgroup `memory.stat` **anon 56–59 MiB** (before / during / after three
-  2 k-token completions), `memory.current` 66–69 MiB, `docker stats` 63–66 MiB of the 256 MiB limit ⇒ ≥
-  4× headroom, so `spark_dcgm_exporter_memory_limit` is **not** raised. ⚠ **Do not read a single anon
-  number as the floor:** the HD-378 A/B above recorded **138.8–143.2 MiB anon** for the same sidecar, and
-  this 3.5 h-old instance reads ~60 MiB. Both are `memory.stat` anon, so the difference is instance age /
-  DCGM context state, not cadence or the counters CSV (which is the image default here — no
+  — the hot `keep` / cold `drop` are disjoint and matching, so no `-dedup` change is owed.
+- **Sidecar cap:** `dcgm-exporter-spark` at
+  `DCGM_EXPORTER_INTERVAL=5000` sits at cgroup `memory.stat` **anon 56–59 MiB**, `memory.current` 66–69 MiB,
+  `docker stats` 63–66 MiB of the 256 MiB limit ⇒ ≥ 4× headroom, so `spark_dcgm_exporter_memory_limit` stays
+  at 256 MiB. ⚠ **Do not read a single anon number as the floor:** the same sidecar reads
+  **138.8–143.2 MiB anon** once it is aged. Both are `memory.stat` anon, so the difference is instance age /
+  DCGM context state, not cadence or the counters CSV (the image default here — no
   `DCGM_EXPORTER_COLLECTORS` is set). Treat the ~200 MiB raise-threshold as a check on an **aged**
   sidecar, not a one-time verdict.
 - **The two spark halves are one coupled pair** — `alloy.river.j2` (hot/cold) and the `spark-dcgm`
   `DCGM_EXPORTER_INTERVAL` converge together, because a 5 s scrape of a 30 s collector writes six copies
   of one sample; the acceptance read is
   `count_over_time(node_load1{instance=~"spark.*"}[1m])` = **12**.
-- **Item 4's other half is not a panel bug.** The hard-coded `[5m]` gauge lives only on
-  `vllm-master-v2.json` (id 402), one of the three retired HD-368 boards whose deletion waits on
-  the owner's HD-377(a) sign-off; the board of record already carries that ratio as a
+- **The hard-coded `[5m]` gauge is a retired-board artefact, not a panel bug.** It lives only on
+  `vllm-master-v2.json` (id 402), one of the three donor vLLM boards whose deletion waits on the owner's
+  `homelab-llm` sign-off; the board of record already carries that ratio as a
   `rate(…[$__rate_interval])` time series. Deleting the retired board is the fix — rebuilding a
   panel on a board scheduled for deletion is not.
 - ⚠ **`--diff` on the `monitoring` role is the same secret-dump class as on `docker_services`:**
   `alloy.river.j2` renders the Victoria* `basic_auth` credentials straight out of the vault, so a
   diff prints them. `--check` is fine; `--diff` is not.
-- The first converge rewrote `/etc/alloy/config.alloy` and the alert-rules file on the VPS: both
-  had **drifted from a fresh render of `main`** (the new render is byte-identical to HEAD's —
-  proved offline, `alloy.river.j2` for vps/nas/pi). Pre-existing drift, not a change from this
-  lane, recorded because the `restart alloy` handler rides it.
 
 **Re-measure instead of trusting this section** (everything below is read-only; the VM query credentials come
 from the `basic_auth` block of `/etc/alloy/config.alloy` on the VPS — parse them into shell variables, never
 print them):
 
 ```bash
-ssh spark 'grep -c scrape_interval /etc/alloy/config.alloy'        # 0 → Alloy default 60 s everywhere
+ssh spark 'grep -c scrape_interval /etc/alloy/config.alloy'        # 3 on spark (the hot jobs); 0 elsewhere
 ssh spark 'curl -s -o /dev/null -w "%{size_download} %{time_total}\n" localhost:8000/metrics'
-ssh spark 'curl -s localhost:9400/metrics | grep GPU_UTIL'          # repeat at 1 Hz: the value holds for 30 s
+ssh spark 'curl -s localhost:9400/metrics | grep GPU_UTIL'          # repeat at 1 Hz: the value holds for 5 s
 # per-minute samples per job: Alloy's own prometheus_forwarded_samples_total over a 60 s window
 # VM write rate + active series: vm_rows_inserted_total, vm_active_time_series
 ```
 
 ---
 
-## Host sensors and disk I/O (HD-378)
+## Host sensors and disk I/O
 
 The board must cover **CPU, GPU, RAM and DISK io/throughput**
-from spark — and temperatures belong on **Host Overview**, not on the LLM board. Two gaps
-were found and closed; one turned out not to be a gap at all.
+from spark — and temperatures belong on **Host Overview**, not on the LLM board.
 
-**Disk I/O needed no new telemetry.** `prometheus.exporter.unix "host"` has enabled the
-`diskstats` collector from the start, so the I/O families were already in VM — verified per
+**Disk I/O needs no new telemetry.** `prometheus.exporter.unix "host"` enables the
+`diskstats` collector, so the I/O families are in VM — present per
 family for `instance="spark.kogler.si", device="nvme0n1"`:
 `node_disk_read_bytes_total`, `node_disk_written_bytes_total`,
 `node_disk_reads_completed_total`, `node_disk_writes_completed_total`,
 `node_disk_io_time_seconds_total`, `node_disk_io_time_weighted_seconds_total`,
 `node_disk_read_time_seconds_total`, `node_disk_write_time_seconds_total`,
-`node_disk_io_now`, `node_disk_info` (+ merged/flush families). The gap was purely in the
-panels: every dashboard had capacity (`node_filesystem_*`, "how full") and none had work
-("how hard"). **Host Overview** gains a 4-panel row — throughput (B/s), IOPS (ops/s),
+`node_disk_io_now`, `node_disk_info` (+ merged/flush families). The gap is in the panels, not
+the data: every dashboard has capacity (`node_filesystem_*`, "how full") and none has work
+("how hard"). **Host Overview** carries a 4-panel row — throughput (B/s), IOPS (ops/s),
 busy % (saturation) and avg wait per op (latency: io-time / completions, `clamp_min`'d so
 idle windows stay finite) — plus two top-row stats (**Busiest disk** = peak device busy %,
-**Hottest sensor**), and the **LLM board** gains throughput / IOPS / saturation panels for
-spark (HD-377). USE-method set: saturation and latency are the two that actually flag a
+**Hottest sensor**), and the **LLM board** carries throughput / IOPS / saturation panels for
+spark. USE-method set: saturation and latency are the two that actually flag a
 contended data device; capacity alone never does.
 
 **spark's block layout limits the granularity:** one device (`nvme0n1`) serves BOTH the EXT4
@@ -1192,13 +1134,11 @@ root and the 503 GiB XFS weights/KV mount (`/mnt/spark_nvme`), so block-layer I/
 attributed per mount. Capacity stays per-mount, work stays per-device — said in-panel so
 nobody reads a device series as "the XFS mount".
 
-**Temperatures: the collectors were pinned off, nothing was missing on the box.**
-`set_collectors` enumerated a minimal collector list that omitted `hwmon` and
-`thermal_zone`, so `node_hwmon_*`/`node_thermal_zone_temp` were absent **for every host**
-(VM check across 30 d: 0 series) even though the sensors are live in `/sys`. Added both
-collectors (valid Alloy `prometheus.exporter.unix` collectors; spark ran Alloy 1.19.2 until the 2026-10-08 fleet pin move to 1.20.1-1 ⏳).
-Verified the exact series + label shape with a throwaway `node_exporter` v1.9.1 binary on
-spark — names and labels below are measured, not guessed:
+**Temperatures: `hwmon` and `thermal_zone` have to be enabled in `set_collectors`.** A minimal
+collector list that omits them yields **no** `node_hwmon_*`/`node_thermal_zone_temp` series **for any host**,
+even though the sensors are live in `/sys`. Both are valid Alloy `prometheus.exporter.unix` collectors
+(Alloy fleet pin 1.20.1-1, spark's converge to it ⏳).
+The series and label shape below is measured on spark, not guessed:
 
 | Chip / sensor (measured on spark) | Reading | Note |
 |---|---|---|
@@ -1220,7 +1160,7 @@ out-of-tree `antheas/spark_hwmon` SPBM driver, which is what would expose the pe
 power split (CPU-P/CPU-E/SoC/DRAM/system). That is **not** wired here: it is a DKMS kernel
 module (self-described as experimental, upstream states "vibe coded", and older firmware
 genuinely misreports its CPU channels until `fwupdmgr update`), and loading it on the box
-with the HD-375 OOM history is an owner risk decision, not a monitoring decision. Its
+with an OOM history is an owner risk decision, not a monitoring decision. Its
 reward is also thin — the SPBM `gpu` channel "matches nvidia-smi", which DCGM already
 delivers; the unique part is the CPU-rail split, which NVIDIA says has no supported
 interface at all. If it is ever wanted, the wiring is already prepared: it lands in
@@ -1230,20 +1170,20 @@ change**. Same for the community `dgx-spark-exporter` (Go, `:9876/metrics`) — 
 (CPU/mem/disk-IO/filesystem/network/load/fd), its GPU trio is nvidia-smi again, and it
 carries no VRAM and no profiling either; not adopted.
 
-**Verified from the backend, not from the playbook recap:** `node_hwmon_temp_celsius` exists per
-instance (spark 12, oldsrv 17, nas 9, pi 2 sensors). The disk panels needed no converge at all — the
-families were already in VM; they shipped with the dashboard copy. **If a temperature panel renders
+**In the backend:** `node_hwmon_temp_celsius` exists per
+instance (spark 12, oldsrv 17, nas 9, pi 2 sensors). The disk panels need no converge — the
+families are already in VM. **If a temperature panel renders
 empty for one host, that host's Alloy has not picked up `set_collectors` yet** (check the
 `alloy.service` restart) — it is not a dashboard bug.
 
-⚠ **Converge trap (HD-379):** a new/changed Alloy config converges under `--tags monitoring`, but the
+⚠ **Converge trap:** a new/changed Alloy config converges under `--tags monitoring`, but the
 **first deploy of a compose service needs that service's own tag**
 (`--tags monitoring,docker_services,<name>`) or the deploy tasks are silently skipped while the run
 still reports `failed=0`. Proof = a backend query or `docker ps`, never the recap.
 
 
-> **Metric names that are not what you would guess** — every one of these was guessed once and cost a
-> dead panel:
+> **Metric names that are not what you would guess** — each has a plausible wrong name that renders an
+> empty panel:
 > - Traefik: **`traefik_entrypoint_requests_total`** (v3). `traefik_requests_total` is the v2 name and is
 >   a phantom here. The metrics endpoint is enabled on the main edge (`--metrics.prometheus=true`,
 >   `--entryPoints.metrics.address=:8082`) with a `db-internal` join so the collector can resolve
@@ -1254,16 +1194,16 @@ still reports `failed=0`. Proof = a backend query or `docker ps`, never the reca
 > - CrowdSec: **`cs_active_decisions`** (labels `reason`/`origin`/`action`), not `crowdsec_decisions`.
 > - Host metrics: the Alloy `unix` exporter is node_exporter-compatible (`node_cpu_seconds_total`,
 >   `node_uname_info`, …) in the `job="alloy"` namespace — **and an Alloy component that is declared but
->   not consumed is silently dead** (`prometheus.exporter.unix` produced zero `node_*` series until a
->   `discovery.relabel` + `prometheus.scrape` pair consumed it). Lazy evaluation is the usual cause of
+>   not consumed is silently dead** (`prometheus.exporter.unix` emits zero `node_*` series unless a
+>   `discovery.relabel` + `prometheus.scrape` pair consumes it). Lazy evaluation is the usual cause of
 >   "the exporter is running but the metric does not exist".
 
 ---
 
-## Network Clients Dashboard (HD-343)
+## Network Clients Dashboard
 
 > **Role:** design SSOT for the "all network clients, grouped per VLAN" Grafana dashboard
-> (`homelab-network-clients`) at `stats.kogler.si`; HD-343 in `todo.md`.
+> (`homelab-network-clients`) at `stats.kogler.si`.
 > **Status: ✅ exporter live on oldsrv, ⏳ owner render-verification owed.**
 > Deployment shape (all of it load-bearing): host binary + venv under `/opt/network-clients-exporter`
 > (`routeros-api==0.21.0` pinned — Debian has no `python3-routeros-api` package and the exporter imports
@@ -1285,30 +1225,23 @@ still reports `failed=0`. Proof = a backend query or `docker ps`, never the reca
 | DHCP leases | `/ip/dhcp-server/lease` | DHCP-issued clients (hostname, mac, address, status) | lease `server` → pool → subnet → VLAN |
 | ARP table | `/ip/arp` | any host that has talked (IP+MAC) | ARP row's interface name (`vlan10-home` → 10) |
 | Bridge host table (FDB) | `/interface/bridge/host` | L2-attached MACs, wired + wireless | bridge/vlan attribute |
-| WiFi registration | `/interface/wifi/registration-table` (modern wifi-qcom-ac, HD-232) | active wireless clients (mac, ssid, iface, signal) | SSID/interface → VLAN |
+| WiFi registration | `/interface/wifi/registration-table` (modern wifi-qcom-ac) | active wireless clients (mac, ssid, iface, signal) | SSID/interface → VLAN |
 | SSOT static hosts (not scraped) | `network_static_hosts` | every static host + its true VLAN | `vlan` attr — naming/VLAN ground truth |
 
-**Data path decision (HD-343).** A small **RouterOS-API collector on `oldsrv`** is the
-primary pipe, not SNMP and not the VPS:
+**Data path.** A small **RouterOS-API collector on `oldsrv`** is the primary pipe:
+oldsrv sits on the Mgmt plane + the tunnel legs, so the RouterOS API is INPUT-legal — the router INPUT
+firewall accepts mgmt services (`22,8728,8729,8291,80,443`) and SNMP/161 **only from the Mgmt VLAN +
+`trusted-admin`** (`roles/router/tasks/main.yml`), then drops everything else, including the wg-s2s side.
+The collector reuses the existing read-only API pattern: `skills/mikrotik/scripts/mikrotik-read.py` on
+RouterOS API `:8728` with a scoped `read`-group user (the `logpipe` precedent,
+`roles/router/tasks/main.yml` L1429). Exposes Prometheus-format metrics; the existing oldsrv
+Alloy `remote_write`s them over `wg-s2s` → VPS VictoriaMetrics (same channel as SNMP). **No
+new firewall open, no VPS reachability change.**
 
-- **VPS → router API direct: rejected** — the router INPUT firewall accepts mgmt services
-  (`22,8728,8729,8291,80,443`) and SNMP/161 **only from the Mgmt VLAN + `trusted-admin`**
-  (`roles/router/tasks/main.yml`, HD-78/HD-53), then drops everything else (including the
-  wg-s2s side). Opening wg-s2s to mgmt ports is a security regression.
-- **SNMP extension (walk ARP `1.3.6.1.2.1.4.22` + FDB `1.3.6.1.2.1.17.4.3` + MikroTik DHCP
-  MIB in `snmp.yml.j2`): kept as a **backstop only**.** Already-plumbed (the
-  `prometheus.exporter.snmp` block already runs on oldsrv, `alloy.river.j2` L111),
-  but gives no lease hostname/status richness and **no wifi-qcom-ac client data at all**
-  (registration lives in the API path only). Device-side SNMP stays HD-03 deploy-gated.
-- **Loki log-derivation: rejected** — brittle string-parsing; router logs don't emit every
-  lease/ARP event with structured fields.
-- **API collector on oldsrv (chosen).** oldsrv is on the Mgmt plane + tunnel legs, so the
-  API is INPUT-legal — the same reachability that already justifies its SNMP exporter.
-  Reuses the existing read-only API pattern: `skills/mikrotik/scripts/mikrotik-read.py` on
-  RouterOS API `:8728` with a scoped `read`-group user (the `logpipe` precedent,
-  `roles/router/tasks/main.yml` L1405). Exposes Prometheus-format metrics; the existing oldsrv
-  Alloy `remote_write`s them over `wg-s2s` → VPS VictoriaMetrics (same channel as SNMP). **No
-  new firewall open, no VPS reachability change.**
+**SNMP stays a backstop only.** The `prometheus.exporter.snmp` block already runs on oldsrv
+(`alloy.river.j2` L287) and can walk ARP `1.3.6.1.2.1.4.22` + FDB `1.3.6.1.2.1.17.4.3` + the MikroTik DHCP
+MIB in `snmp.yml.j2`, but it gives no lease hostname/status richness and **no wifi-qcom-ac client data at
+all** (registration lives in the API path only). Device-side SNMP enablement is still an owner deploy step.
 
 **Metric shape.** One gauge series, info-card style, enriched at authoring time from the
 rendered SSOT (`network_static_hosts` is available to the Ansible-rendered exporter):
@@ -1324,7 +1257,7 @@ mikrotik_client{dhcp_status="bound", vlan="10", hostname="phone-domen", mac="AA:
   `{% if inventory_hostname == 'oldsrv.kogler.si' %}`.
 
 **Dashboard.** New `homelab-network-clients` in the monitoring role (folder `Homelab`, uid
-convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboards):
+convention `homelab-*`, datasource uid `prometheus` — same as the other dashboards):
 
 | Panel | View | Query basis |
 |-------|------|-------------|
@@ -1340,7 +1273,7 @@ convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboard
   (legacy `/interface/wireless/registration-table` in `skills/mikrotik` is the old path).
 - ⏳ Router API reachable from oldsrv (Mgmt) — already the case for the SNMP exporter; re-verify with
   a read-only `mikrotik-read.py` call at deploy time.
-- ⏳ Device-side SNMP enable (“if used as backstop”) stays HD-03 deploy-gated; the API collector
+- ⏳ Device-side SNMP enable (“if used as backstop”) is still an owner deploy step; the API collector
   needs only the API service (`/ip/service set api disabled=no`), already INPUT-scoped to Mgmt.
 
 ---
@@ -1349,11 +1282,10 @@ convention `homelab-*`, datasource uid `prometheus` — same as HD-315 dashboard
 
 | Item | When | Notes |
 |------|------|-------|
-| Pi recorder trim + log strategy | after observability live (HD-19) | recorder trimmed, **not disabled** (keep Logbook/Energy-Dashboard LTS/history_stats); Pi logs → VictoriaLogs + `local` driver buffer + `/var/log` tmpfs — see [Pi SD-card wear strategy](#pi-sd-card-wear-strategy)
-| Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | **parked (HD-13)** — HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
+| Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | **parked** — HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
 | Container memory working-set metrics (Docker API → VictoriaMetrics) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |
-| **Homelable** (interactive topology/rack visualizer) | **Authored, deploy-gated (HD-45)** — oldsrv, internal-only dashboard. Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. **Not** a metrics/logs/alert backend — it complements Grafana/HD-343 (see §Network Clients Dashboard). Owns the "who's on my network + where" visual that Grafana's per-VLAN tables don't. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable. |
-| Route alerts to a **Matrix room** (`#homelab`) | with the Matrix stack (HD-46) | optional consolidation — alongside the Signal + SMTP fail-safe; homeserver/exporter only. · [`services-matrix.md`](services-matrix.md) |
-| **Home-side tunnel check** (S14) | after Phase 1.5 cutover | blackbox `wg_icmp` probes run FROM the VPS (HD-159); add a router-side netwatch → SNMP trap (or equivalent) so a home↔VPS outage is also observable from home when the VPS path is the broken side |
+| **Homelable** (interactive topology/rack visualizer) | **Authored, deploy-gated** — oldsrv, internal-only dashboard. Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. **Not** a metrics/logs/alert backend — it complements Grafana and the network-clients dashboard (see §Network Clients Dashboard). Owns the "who's on my network + where" visual that Grafana's per-VLAN tables don't. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable. |
+| Route alerts to a **Matrix room** (`#homelab`) | with the Matrix stack | optional consolidation — alongside the Signal + SMTP fail-safe; homeserver/exporter only. · [`services-matrix.md`](services-matrix.md) |
+| **Home-side tunnel check** (S14) | after Phase 1.5 cutover | blackbox `wg_icmp` probes run FROM the VPS; add a router-side netwatch → SNMP trap (or equivalent) so a home↔VPS outage is also observable from home when the VPS path is the broken side |
 | **Monitoring role split** (W6) | only when dashboard/rule iteration gets slow | Alloy+VictoriaMetrics+VictoriaLogs+Grafana live in one `monitoring` role — any rule tweak redeploys the chain; split into `tasks/{alloy,victoria-metrics,victoria-logs,grafana}.yml` includes + tags (no structural move needed until it hurts) |
 | **Grafana alert-rule provisioning schema** (monitoring role `grafana-rules.yml.j2`) | first deploy of the monitoring role | ⚠ **needs live check:** query+threshold data-model + folder auto-creation unverified against a running Grafana — confirm rules load (Grafana logs) and fire once before trusting alerting |

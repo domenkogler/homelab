@@ -22,11 +22,11 @@ tags: [network, vpn, wireguard, headscale]
 
 > **Strategy:** WireGuard is **site-to-site only**. User devices use Headscale. There is **no** WireGuard
 > road-warrior endpoint and **no** travel router — Headscale replaces them, and nothing falls back to them.
-> **Update 2026-09-22 (owner decision, HD-406):** one admin path is coming back, as **MikroTik Back To Home** —
-> WireGuard with MikroTik relay fallback — **not yet built**. It is a deliberate exception to the sentence above and
-> it does not restore the *family* road-warrior surface; the two caveats the implementing lane must clear first (it
-> writes router config outside `roles/router`, which the converge rebuilds; and it adds a vendor relay) are in the
-> HD-406 row and [todo.md](../todo.md).
+> **Planned exception (not yet built):** one **admin-only** path — **MikroTik Back To Home**, WireGuard with
+> MikroTik relay fallback. It does not restore the *family* road-warrior surface. Two caveats must be cleared before
+> it is built: it writes router config outside `roles/router`, which the converge rebuilds, and it adds a vendor
+> relay. Whether it takes the **direct** WireGuard path or silently uses a **MikroTik relay** is unverified and must
+> be measured when it is built.
 
 ### Reserved Subnets
 
@@ -48,12 +48,12 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 - Home router: static route `wg-vps-services` → via the VPS S2S peer
 - VPS: route `site` → via the home S2S peer
 
-> **Least-access (HD-155):** the VPS S2S peer's **AllowedIPs** (both sides) cover **only** the scoped home targets —
+> **Least-access:** the VPS S2S peer's **AllowedIPs** (both sides) cover **only** the scoped home targets —
 > `nas` (nut:9199 / zfs:9198), `ha-vip` (HA:8123), `oldsrv` + `pi` (probes / app backends when wired), `router`/`switch`
 > (ICMP) — **not** the whole `site` /16. The RB4011 additionally enforces a forward ACL (`vps_s2s_peer` →
 > `vps_scoped_home` accept, else drop). See [`security.md`](security.md) §9.
 
-> **The VPS-side tunnel is not a plain systemd-networkd setup (HD-306 / HD-285) — mechanism, do not "simplify" it:**
+> **The VPS-side tunnel is not a plain systemd-networkd setup — mechanism, do not "simplify" it:**
 >
 > - **Two distinct keypairs (never one).** Each side needs its own keypair: the router uses
 >   `wg_password` (pub `wg_s2s_router_public_key`), the VPS uses `wg_password_vps` (pub
@@ -75,7 +75,7 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 >   `ip route replace <cidr> dev wg-s2s` for **every** AllowedIPs entry (idempotent; `replace` also
 >   clobbers a stale wrong-device route back onto `wg-s2s`; non-fatal WARN on failure) on every run/boot —
 >   nothing else restores them while the interface is `Unmanaged`.
-> - **Router forward ordering (HD-155):** the `VPS S2S -> scoped home targets` accept must sit **above** the
+> - **Router forward ordering:** the `VPS S2S -> scoped home targets` accept must sit **above** the
 >   `Default deny inter-VLAN` rule, or it is shadowed (see [network-ops.md](network-ops.md) §Ordering pitfall).
 
 ## Layer 2: Headscale (Mobile Mesh)
@@ -83,39 +83,40 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 > **Naming + policy contract:** headscale ≥ 0.24 REJECTS a
 > `server_url` inside `base_domain`, so node names live under the dedicated subtree
 > **`<node>.ts.kogler.si`** (`base_domain: ts.kogler.si`); the control plane stays
-> `https://vpn.kogler.si`. **The ACL is deny-by-default (HD-252 ④):**
+> `https://vpn.kogler.si`. **The ACL is deny-by-default:**
 > each family user (by OIDC email) may reach only their OWN nodes (see `policy.hujson.j2`; currently single user
 > `domen@kogler.si`). Enrolment itself remains Authentik-OIDC-gated; add one accept rule
 > per family member as they join.
 
-- Runs on the **VPS** as a Docker container (HD-135: public coordination server, VPS residency)
+- Runs on the **VPS** as a Docker container (public coordination server, VPS residency)
 - Overlay subnet: `headscale` (CIDR per SSOT)
 - Clients: Android/iOS Tailscale app, laptops
 - **Home RB4011:** static route + firewall rules so the Headscale overlay reaches the Home VLAN
-- **MagicDNS (HD-135b follow-up):** `dns.extra_records` maps the tailnet dashboard
+- **MagicDNS:** `dns.extra_records` maps the tailnet dashboard
   subdomains (and their `*.ts.kogler.si` twins) to the
   `vps-obs` tailnet IP (`tailnet_sidecar_ip`, group_vars/vps.yml).
   **Answer scope:** Tailscale client MagicDNS ANSWERS only its
   `base_domain` (`ts.kogler.si`) — the `*.ts.kogler.si` twins work out of the box. For a FQDN
   matching a `search_domain` (`kogler.si`), the client queries its **configured nameserver for
-  that domain**, NOT MagicDNS — so unless the MagicDNS loop is first in `dns.nameservers` (HD-371,
-  see §Tailnet-exposed services) the plain `*.kogler.si` names resolve through Technitium
+  that domain**, NOT MagicDNS — so unless the MagicDNS loop is first in `dns.nameservers` (see
+  §Tailnet-exposed services) the plain `*.kogler.si` names resolve through Technitium
   (VPS primary), which carries the split-horizon A records → `tailnet_sidecar_ip`
   (see [`network-dns.md`](network-dns.md) static-records section).
   `dns.search_domains: [kogler.si]` is set (helps short-name resolution) but does NOT make MagicDNS
   serve the plain names.
 - **VPS:** routes the home `site` + `wg-vps-services` over the S2S tunnel to reach home resources
 - **Mesh clients** → VPS Headscale (public, its purpose) → over S2S → home LAN; each node has an ACL-gated path home
-- **Registration & ACL (HD-84 / KOPS-022):** OIDC-authenticated clients are **auto-approved** by
+- **Registration & ACL:** OIDC-authenticated clients are **auto-approved** by
   Headscale (no separate registration gate in `config.yaml`). The traffic boundary is therefore a **real
-  ACL policy** (`policy.hujson`, rendered alongside `config.yaml`). **User-based (current, HD-252 ④):**
+  ACL policy** (`policy.hujson`, rendered alongside `config.yaml`). **User-based (current):**
   deny-by-default — each OIDC user's email may reach only that user's own nodes; `tagOwners` stays empty
   because headscale v2 requires tags be DECLARED before an ACL may reference them and there is no
-  `autogroup:admin` source here, so ACLs are user-email-based. **Tag model for later (HD-84 target):** if/when a shared-service `tag:kogler` is wanted, declare it + its owner in `tagOwners` and
+  `autogroup:admin` source here, so ACLs are user-email-based. **Tag model for later:** if/when a
+  shared-service `tag:kogler` is wanted, declare it + its owner in `tagOwners` and
   switch these rules to `tag:kogler:*` (only the mesh admin applies the tag; untagged/rogue nodes are
   denied by default).
 
-### Admin UI: Headplane (HD-233, `https://vpn.kogler.si/admin`)
+### Admin UI: Headplane (`https://vpn.kogler.si/admin`)
 
 > Stock Headscale has **no built-in web UI** — visiting `https://vpn.kogler.si` returns a 123-byte
 > empty shell (`BlankPage()` template, upstream by design). Administration happens through
@@ -126,8 +127,8 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
   `Host(vpn.kogler.si) && PathPrefix(/admin)` — longer rule wins priority over the control-plane
   router, so `/ts2021`, DERP and `/oidc/*` are untouched). Same crowdsec-only tier.
 - **Auth:** OIDC via Authentik, deliberately the **same OAuth client as Headscale itself**
-  (upstream best practice: identical `client_id`) — the `ks-oidc.yml` provider gained a second
-  redirect URI `…/admin/oidc/callback`. First login becomes the Headplane **owner**; later users
+  (upstream best practice: identical `client_id`) — the `ks-oidc.yml` provider also carries the
+  `…/admin/oidc/callback` redirect URI. First login becomes the Headplane **owner**; later users
   get `default_role: member`. `disable_api_key_login: true` (API-key field removed — recovery =
   temporarily set false + re-render if the IdP ever breaks).
 - **Headscale API key (required for OIDC mode):** mint ONCE on the VPS —
@@ -143,10 +144,6 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
   crash-loops on BOTH headscale + headplane). See
   `deployment-secrets.md` "Rendering a secret into a YAML config file" + CONVENTIONS §2.
 
-### Transition
-1. Family installs the Tailscale app (one-by-one migration off the removed road-warrior / travel-router paths)
-2. WireGuard road-warrior and the travel router are **gone** — no fallback surface to maintain
-
 ---
 
 ## Tailnet-exposed services (management plane)
@@ -154,26 +151,26 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 > **Policy (security.md §10 Capability-tiering):** internet-facing surfaces hold only limited-capability
 > credentials; full-power access requires tailnet membership. **New admin/UI surfaces default tailscale-first**
 > -- never Traefik-public unless explicitly decided. Applied to the AI stack
-> ([services-ai.md](services-ai.md)) and the **observability admin dashboards** (HD-135b follow-up) —
+> ([services-ai.md](services-ai.md)) and the **observability admin dashboards** —
 > `stats`/`traefik`/`logs`/`csui`/`auto` are tailnet-only with **no public records**.
 >
 > **Laptop access:** with the Tailscale app connected, the dashboards resolve on the tailnet — headscale
 > **MagicDNS** on the `ts.kogler.si` base domain answers the `*.ts.kogler.si` twin names (e.g.
 > `stats.ts.kogler.si`), and `dns.extra_records` maps every tailnet subdomain (incl. `llm`/`db-spark`/
 > `litellm`) in BOTH namespaces to the `vps-obs` edge (`tailnet_sidecar_ip`).
-> **HD-371:** the `dns.nameservers` list puts the **MagicDNS loop first** — so a tailnet client resolves
+> The `dns.nameservers` list puts the **MagicDNS loop first** — so a tailnet client resolves
 > EVERY `*.kogler.si` / `*.ts.kogler.si` name **locally on any network** (hotspot/travel), not only when the
 > Technitium VPS primary is reachable. The Technitium entries (VPS primary + oldsrv + Pi) follow, giving the
 > full namespace + per-subnet filtering on the LAN. Without the loop-first ordering the plain names depend on
 > the configured nameserver for `kogler.si` (Technitium VPS primary, reachable only from home-WAN /
-> tailnet-CGNAT — source-allow HD-299), so a remote mobile network falls through to the system resolver →
+> tailnet-CGNAT by source-allow), so a remote mobile network falls through to the system resolver →
 > NXDOMAIN / `ERR_NAME_NOT_RESOLVED`, while the `.ts` twins keep working. On Windows the client also needs
 > the loop pushed onto the Tailscale adapter (`netsh … set dnsservers Tailscale 100.100.100.100`).
 > There is **no public `*.kogler.si` record** for these names. The tailnet Traefik edge (`traefik-tailnet`,
 > node `vps-obs`) is the only tailnet surface for the admin dashboards (see the compose template
 > `docker_services/traefik-tailnet` for the routing + serve details).
 >
-> **Mgmt-99 SSH from the laptop — same-site only (HD-398 owner decision A):** the laptop reaches the Mgmt
+> **Mgmt-99 SSH from the laptop — same-site only (owner decision A, §The settled rule):** the laptop reaches the Mgmt
 > plane **directly** via the Windows **Mgmt99 vNIC** (`wsl-nat-resolv.ps1 -EnableMgmt99`: the laptop's `.99.80`
 > address + IP forwarding) — no ProxyJump hop, and **no away path**: the plane is sealed from the VPS tunnel on
 > purpose. It is usable **on-site AND only when that adapter actually has link** — verify with `ip -br addr`
@@ -191,7 +188,7 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 ### Pattern A -- loopback-capable apps (preferred)
 App binds `127.0.0.1` only; tailscale sidecar shares its network namespace (`network_mode: service:<app>`) and
 `tailscale serve` proxies the tailnet socket to the loopback port. **Nothing listens on shared overlay networks**
--- nothing on `services-internal` can even reach it. Live example planned: DSH cockpit (:3080).
+-- nothing on `services-internal` can even reach it.
 
 ### Pattern B -- apps bound to `0.0.0.0`
 Dedicated per-service docker network containing ONLY app + tailscale sidecar (never `services-internal` for the UI leg);
@@ -199,57 +196,54 @@ sidecar serves to the app over that private network. Functional service-to-servi
 
 | Node | Serves | App-level auth | ACL tag |
 |------|--------|----------------|---------|
-| ~~dsh (on oldsrv)~~ | ~~cockpit :3080~~ | **PARKED (HD-386)** — harness removed by the owner; the row + its tailnet route/DNS record remain and answer 502. Pattern-A, not B. |
-| vps-obs (`traefik-tailnet` + its userspace sidecar, HD-135b follow-up) | **clean subdomain URLs over the tailnet** — `stats`, `traefik`, `logs`, `csui`, `auto` (n8n), and the AI names `db-spark`, `llm`, `litellm` (HD-370/HD-372) plus their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si`, `https://db-spark.kogler.si`, `https://llm.kogler.si` (spark OpenAI-API, bearer-gated), `https://litellm.kogler.si` (spine admin) — **no ports** (wildcard certs + second Traefik edge). `litellm` reaches the edge through the `tailnet-apps` app→edge overlay (HD-372), not `services-internal`. **`/ui/login` deep-link 404s (no nginx SPA fallback) → use `/fallback/login` (intended flow, HD-373)** | plain `*.kogler.si` = Authentik Forward-Auth (AI names: engine/LiteLLM own-login, no forward-auth); **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
-| ~~pi-dev (on oldsrv)~~ | ~~TUI/CLI agent~~ | **PARKED (HD-386)** — same; its LiteLLM consumer was deleted in both DBs (`dsh_api` remediation, HD-383). |
+| ~~dsh (on oldsrv)~~ | ~~cockpit :3080~~ | **PARKED** — backend gone; its tailnet route + DNS record remain and answer 502. Pattern-A, not B. |
+| vps-obs (`traefik-tailnet` + its userspace sidecar) | **clean subdomain URLs over the tailnet** — `stats`, `traefik`, `logs`, `csui`, `auto` (n8n), and the AI names `db-spark`, `llm`, `litellm` plus their `*.ts.kogler.si` twins: `https://stats.kogler.si` / `https://stats.ts.kogler.si`, `https://logs.kogler.si`, `https://csui.kogler.si`, `https://traefik.kogler.si`, `https://auto.kogler.si`, `https://db-spark.kogler.si`, `https://llm.kogler.si` (spark OpenAI-API, bearer-gated), `https://litellm.kogler.si` (spine admin) — **no ports** (wildcard certs + second Traefik edge). `litellm` reaches the edge through the `tailnet-apps` app→edge overlay, not `services-internal` | plain `*.kogler.si` = Authentik Forward-Auth (AI names: engine/LiteLLM own-login, no forward-auth); **`*.ts.kogler.si` = ACL-gated** (tailnet-only names, `tag:sidecar:443` is the gate) | tag:sidecar |
+| ~~pi-dev (on oldsrv)~~ | ~~TUI/CLI agent~~ | **PARKED** — backend gone, no LiteLLM consumer; its tailnet route + DNS record remain and answer 502. |
 | litellm-ui | admin :4000/ui | bearer keys | tag:litellm |
-| owui-int (`ai.kogler.si`, HD-248) | internal OWUI | Authentik OIDC | tag:owui-int |
+| owui-int (`ai.kogler.si`) | internal OWUI | Authentik OIDC | tag:owui-int |
 | openclaw | control/gateway | gateway token | tag:openclaw |
-| headplane (HD-251 candidate) | mesh admin `/admin` | OIDC | tag:mgmt |
+| headplane | mesh admin `/admin` | OIDC | tag:mgmt |
 
 - Serve mode: plain TCP forward is simplest (WireGuard already encrypts); HTTPS mode needs Headscale TLS config -- verify at deploy.
-- ACL defaults: inbound-only per node (e.g., DSH needs ZERO outbound tailnet destinations); tag hygiene audit quarterly.
-- Rollout: HD-251 (phase-2 fleet rework); first applications: litellm-ui + owui-int (HD-247/248);
-  **tailnet dashboard edge (HD-135b follow-up) LIVE** — `traefik-tailnet` (consumer-mode Traefik + a userspace
+- ACL defaults: inbound-only per node; tag hygiene audit quarterly.
+- **Tailnet dashboard edge — LIVE:** `traefik-tailnet` (consumer-mode Traefik + a userspace
   tailscale sidecar sharing its netns, node `vps-obs`) serves the admin dashboards over the tailnet with clean
   subdomain URLs on port 443 (`tailscale serve --tcp=443` → the edge's TLS listener), see
-  `docker_services/traefik-tailnet` + `policy.hujson.j2`. The old port-based skeleton (a `tailscale-sidecar`
-  dir with fixed `:8080–8085` ports) is gone — see [network-rejected.md](network-rejected.md).
-- **HD-333 (WG/tailnet reach for the internal edge — this doc is the SSOT):** ✅ LIVE. the internal all-app edge
-  (`traefik-tailnet` growth, HD-331/332) is reached two ways:
+  `docker_services/traefik-tailnet` + `policy.hujson.j2`.
+- **WG/tailnet reach for the internal edge — this doc is the SSOT:** ✅ LIVE. The internal all-app edge
+  (`traefik-tailnet`) is reached two ways:
   - **Tailnet (existing):** the `vps-obs` userspace sidecar already serves `--tcp=443` → the edge's TLS listener; family nodes are ACL-allowed (`policy.hujson`, deny-by-default + per-user own nodes). No change unless the ACL needs extending for a new family member.
-  - **WireGuard S2S:** the internal edge's TLS listener (:443, the edge container IP pinned per HD-240) is published **only on the `wg-s2s` VPS address** (`{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}`, the vps.yml SSOT port) via the traefik-tailnet compose `ports:` (docker's own PREROUTING DNAT → container `:443` — same precedent as `kopia-server :51515`, HD-62; no manual nftables DNAT). An **nftables input allow** (vps-hardening, HD-313 pattern: `iifname "wg-s2s" ip saddr <router peer> tcp dport {{ wg_internal_edge_port }} accept`) is added for defense-in-depth. SSOT: `wg_internal_edge_port` / `wg_internal_edge_target_ip` in `group_vars/vps.yml` (derived-values ban — never re-type in compose/nftables/docs).
-  - **Reach scope (HD-155 least-access):** the VPS wireguard peer `wg_s2s_vps.allowed_ips` accepts ONLY home infra hosts (`nas/ha-vip/oldsrv/pi/router/switch` — group_vars/all/main.yml). So the internal edge is reachable over WG **from those scoped home hosts**. End-user devices (laptop/phone) at home use the **tailnet** path (sidecar + headscale ACL) — WG is the infra/automation path, not the family path.
+  - **WireGuard S2S:** the internal edge's TLS listener (:443, the edge container IP is pinned) is published **only on the `wg-s2s` VPS address** (`{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}`, the vps.yml SSOT port) via the traefik-tailnet compose `ports:` (docker's own PREROUTING DNAT → container `:443` — same precedent as `kopia-server :51515`; no manual nftables DNAT). An **nftables input allow** (vps-hardening pattern: `iifname "wg-s2s" ip saddr <router peer> tcp dport {{ wg_internal_edge_port }} accept`) is added for defense-in-depth. SSOT: `wg_internal_edge_port` / `wg_internal_edge_target_ip` in `group_vars/vps.yml` (derived-values ban — never re-type in compose/nftables/docs).
+  - **Reach scope (least-access):** the VPS wireguard peer `wg_s2s_vps.allowed_ips` accepts ONLY home infra hosts (`nas/ha-vip/oldsrv/pi/router/switch` — group_vars/all/main.yml). So the internal edge is reachable over WG **from those scoped home hosts**. End-user devices (laptop/phone) at home use the **tailnet** path (sidecar + headscale ACL) — WG is the infra/automation path, not the family path.
   - **Deploy verify (after a VPS `docker_services` converge `docker_services_scope=traefik-tailnet` + `vps-hardening`):**
     1. VPS-side listener: `ss -ltnp | grep :{{ wg_internal_edge_port }}` → bound to the `wg-s2s` VPS address (`{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}`).
-    2. From a scoped home host over WG (e.g. `oldsrv`/`nas`/`pi`): `curl -k -I https://<wg-s2s VPS address>:{{ wg_internal_edge_port }}` → HTTP/2 302 (or the edge's TLS response); split-horizon alternative once the `vpn/home/dns` records (HD-334) are seeded: `curl -k -I https://kogler.si -H 'Host: kogler.si'` resolved via the tunnel, or `https://{{ wg_internal_edge_target_ip }}:{{ wg_internal_edge_port }}` from a scoped home host.
+    2. From a scoped home host over WG (e.g. `oldsrv`/`nas`/`pi`): `curl -k -I https://<wg-s2s VPS address>:{{ wg_internal_edge_port }}` → HTTP/2 302 (or the edge's TLS response); split-horizon alternative once the `vpn/home/dns` records are seeded: `curl -k -I https://kogler.si -H 'Host: kogler.si'` resolved via the tunnel, or `https://{{ wg_internal_edge_target_ip }}:{{ wg_internal_edge_port }}` from a scoped home host.
     3. Tailnet path unchanged: tailnet device → `https://stats.kogler.si` / `https://<app>.ts.kogler.si` still works.
     4. Heading home with Tailscale on reaches `ha.kogler.si` via the LAN (Option A).
   - **Tailnet ACL:** `policy.hujson` already allows family nodes → `tag:sidecar` on :443 (deny-by-default + per-user own nodes). No extension needed for the existing owner set; extend only if a new family member node is added.
 
-**Parked names stay published, and their 502 is the design (HD-386).** `dsh.kogler.si` / `pi-dev.kogler.si` and
+**Parked names stay published, and their 502 is the design.** `dsh.kogler.si` / `pi-dev.kogler.si` and
 their `.ts` twins keep their headscale `extra_records` **and** their `traefik-tailnet` routers, even though the
-backends are gone (HD-355 moved them off the VPS; the `dsh-backend` / `pi-backend` load-balancer URLs still
-point at `oldsrv:3080` / `oldsrv:8080` over the WG S2S, where nothing listens any more). So the names resolve
+backends are gone: the `dsh-backend` / `pi-backend` load-balancer URLs point at `oldsrv:3080` / `oldsrv:8080`
+over the WG S2S, where nothing listens. So the names resolve
 and the edge answers **502** — that is not an outage to chase, and `group_vars/vps.yml` says so where the
 records live. Deleting them is a decision of its own, because it deletes MagicDNS records: do it as ONE change
 that drops the `tailnet_subdomains` entries, the routers and the two service blocks together.
 
-**A published name is only as live as the node it points at (measured 2026-09-26).** `tailnet_ts_only_subdomains`
-entries inherit `ip: tailnet_oldsrv_ip` unless they say otherwise, so `cockpit-nas.ts.kogler.si` — present in the
-live headscale config since the 2026-09-25 converge — resolves to the **oldsrv node's** address while
+**A published name is only as live as the node it points at.** `tailnet_ts_only_subdomains`
+entries inherit `ip: tailnet_oldsrv_ip` unless they say otherwise, so `cockpit-nas.ts.kogler.si`
+resolves to the **oldsrv node's** address while
 `headscale nodes list` reports that node **offline**. Resolution succeeds and the console is unreachable anyway:
 a MagicDNS record is a pointer to a *node*, not to a service, so the question a `.ts` name ever answers is
 "is that node up", never "is that app up". Re-pointing such a record at a live node is a routing decision, not a
 fix — the target must actually serve the route. ⚠ **And the obvious read-back instrument is missing at home:**
 the Pi does not accept tailscale DNS (`/etc/resolv.conf` is `1.1.1.1`, not `100.100.100.100`), so it cannot resolve
 any `.ts` name and proves nothing about a record; a `.ts` read-back needs a client with MagicDNS enabled.
-Also note what the overlay is actually for now: `tailnet-apps` is no longer the sidecar trick its compose header
-describes — its live user is `litellm`.
+The overlay's live user is `litellm`.
 
-### Reach matrix for the tailnet-only admin names (HD-382 / HD-389)
+### Reach matrix for the tailnet-only admin names
 
-> The symptom this documents: **a tailnet-only name works on the phone but 404s on the laptop with Tailscale
+> The symptom: **a tailnet-only name works on the phone but 404s on the laptop with Tailscale
 > connected at home.** Two different resolver paths answer the same name:
 >
 > | where the answer comes from | `litellm.kogler.si` → | result |
@@ -266,24 +260,24 @@ describes — its live user is `litellm`.
 > MagicDNS/extra_records, so it cannot be hijacked by the LAN answer;
 > (2) keep Tailscale connected at home (the documented posture: end-user devices at home use the tailnet
 > path); (3) a durable LAN-native fix would mean home-seeding `litellm` → `oldsrv_home_ip` + a
-> `traefik-internal` router proxying over WG S2S to the internal edge (`:4443`, the HD-350 double-hop) —
-> that **exposes the key-holding spine's admin UI on the LAN edge**, a design change that needs its own
-> decision; NOT done.
+> `traefik-internal` router proxying over WG S2S to the internal edge (`:4443`) — that
+> **exposes the key-holding spine's admin UI on the LAN edge**, a design change that needs its own
+> decision; not built.
 >
-> **The spark AI names (`llm`/`db-spark`) had a DIFFERENT root cause (HD-389, fixed):** for them "use the
+> **The spark AI names (`llm`/`db-spark`) work differently:** for them "use the
 > `.ts` twin" is a dead end by itself — MagicDNS answers both namespaces to the tailnet edge and the edge's
 > `llm-tailnet`/`db-spark-tailnet` routers match, but the
-> TLS-in-TLS backend hop **forwards the client's SNI** to spark's own edge — and spark's Traefik had **no
-> router for the `.ts` names** (only `Host(`llm.kogler.si`)`), so `llm.ts.kogler.si` got a routerless-vHost
-> 404 *before* auth while `litellm.ts` (VPS-container backend, no TLS-in-TLS) stayed 200. Fix = spark's name
-> edge now routes the `.ts` twins + serves the `*.ts.kogler.si` pair (HD-389). Verify:
+> TLS-in-TLS backend hop **forwards the client's SNI** to spark's own edge, so spark's Traefik must route the
+> `.ts` twin names too (`Host(`llm.ts.kogler.si`)` alongside `Host(`llm.kogler.si`)`); a missing twin router
+> answers a routerless-vHost 404 *before* auth, while `litellm.ts` (VPS-container backend, no TLS-in-TLS)
+> stays 200. Spark's name edge routes the `.ts` twins and serves the `*.ts.kogler.si` pair. Verify:
 > `curl -sk -o /dev/null -w '%{http_code}' https://db-spark.ts.kogler.si/` → 200;
 > `curl -sk -H "Authorization: Bearer <spark-llm_api>" https://llm.ts.kogler.si/v1/models` → 200.
 >
-> **Client-side half (HD-389) — plain names failing from WSL/Windows is a workstation resolver problem, not a
+> **The client-side half — plain names failing from WSL/Windows is a workstation resolver problem, not a
 > service bug.** With Tailscale connected, the **plain** `*.kogler.si` names fail from WSL/Windows when the
 > plain namespace is not routed to MagicDNS **on that client**:
-> WSL's auto-generated `resolv.conf` carried only the NAT forwarder, and the Windows NRPT carved only
+> WSL's auto-generated `resolv.conf` carries only the NAT forwarder, and the Windows NRPT carves only
 > `*.ts.kogler.si` + the CGNAT reverse zones. Two durable client-side changes fix it (both on the laptop,
 > neither in Ansible):
 >
@@ -299,31 +293,31 @@ describes — its live user is `litellm`.
 > succeeds while the laptop fails = client DNS, every time. A routerless-vHost 404 on a `.ts` name and a 502
 > on the plain name are two different layers — do not conflate them.
 
-## Tailnet boundary — mobile devices + ONE home host, never a LAN bridge
+## Tailnet boundary — mobile devices + the home nodes, never a LAN bridge
 
 The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and the difference matters:
 
 * **Via the VPS edge (the family default):** `mobile → tailnet → VPS traefik-tailnet → (WG S2S) → home backends`.
   Every `*.{ts.,}kogler.si` app name works this way, and it survives a home-WAN outage but **not a VPS outage**.
-* **Node-direct (HD-405, 2026-09-20):** `mobile → oldsrv's own tailnet node`. The VPS carries **no byte of the
+* **Node-direct:** `mobile → a home node's own tailnet node`. The VPS carries **no byte of the
   data plane** — only the control plane (registration/netmap, and DERP if hole-punching fails). This exists so
   the owner's own remote development does not stop when the VPS does, and it is possible because
-  [network.md](network.md) §WAN is a **static public IPv4** — P2P is available and we had been routing around it.
+  [network.md](network.md) §WAN is a **static public IPv4** — P2P is available.
 
-**Two home nodes are permitted on the tailnet, and the NAS is not one of them** (owner decision
-2026-09-25, logged in [network-rejected.md](network-rejected.md) §Decisions). Node **`oldsrv`**: `tag:dev`,
-headscale node id 11, joined by `roles/tailscale-node`. Node **`pi`** (HD-435, live since 2026-09-25):
+**Two home nodes are permitted on the tailnet, and the NAS is not one of them**
+(the decision is logged in [network-rejected.md](network-rejected.md)). Node **`oldsrv`**: `tag:dev`,
+headscale node id 11, joined by `roles/tailscale-node`. Node **`pi`**:
 headscale id 13, address in SSOT `tailnet_pi_ip`, tag `tag:home-edge`, granted **`tcp/443` from
 `domen@kogler.si` and nothing else** — and the tag is **read back** from `headscale nodes list -o json`
 rather than trusted from the mint command, because the grant follows whatever tag the node actually landed
 with.
-✅ Measured 2026-09-25 from a laptop's own tailnet client: `https://pi.ts.kogler.si/` → **200**, the peer
+✅ `https://pi.ts.kogler.si/` → **200** from a laptop's own tailnet client, the peer
 listed as `active; direct 193.77.156.222:41641` — a direct session, no relay.
 
 ⚠ **`tag:home-edge` is deliberate, and the tag IS the reach surface.** An ACL grants by TAG, so joining the
 Pi as `tag:dev` would widen every existing `tag:dev` rule to a second box (the DNS-tertiary host) and hand it
-every dev-seat port someone adds later — the same silent-inheritance hazard HD-415 was about — while a
-dedicated tag keeps the Pi's entire inbound tailnet surface at the one `ha` listener that motivated the row.
+every dev-seat port someone adds later — a silent-inheritance hazard — while a
+dedicated tag keeps the Pi's entire inbound tailnet surface at the one `ha` listener.
 For the same reason the Pi gets **no** tailnet `udp/53` grant and none may be inferred from oldsrv's rule below: the Pi's
 Technitium TERTIARY role is a LAN role (network-dns.md §The answer-plane model), and naming a tailnet
 nameserver is its own address-scoped decision. What the Pi does serve there is HA, from its own `traefik-ha`
@@ -331,254 +325,154 @@ nameserver is its own address-scoped decision. What the Pi does serve there is H
 node-direct shape as oldsrv's, which is what makes HA survivable when either home box dies.
 
 ⚠ **The edge survives either box; the ANSWER does not yet.** MagicDNS answers `ha.ts.kogler.si` with
-**oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), so when that node is not answering (it was powered off,
-not lost, for four days to 2026-09-27) the away path that still works is `pi.ts.kogler.si`. Publishing both addresses is HD-436's `tailnet: dual` step.
+**oldsrv's node address** (SSOT `tailnet_oldsrv_ip`), so when that node is not answering the away path that
+still works is `pi.ts.kogler.si`. Publishing **both** addresses (`tailnet: dual`) is what makes the answer
+survive either box.
 
 `tailscale_node_expected_ip` (host_vars) is the **per-host** address the join guard compares the assignment
 against — its default is `""`, which reads as "not yet asserted", not as "wrong".
 
 The scope is enforced, not intended:
 no `--advertise-routes` (so `headscale routes list` stays empty and no home subnet is reachable from the
-tailnet at all), no exit node (§Exit-node stays the Pi — HD-408 decided 2026-09-21, row deleted), no Tailscale SSH,
+tailnet at all), no exit node (the exit node stays the Pi — §Slovenian exit node), no Tailscale SSH,
 `--accept-dns=false` (oldsrv *runs* a Technitium instance; a DNS takeover would put a resolver in front of
 the tier it serves), and the ACL admits **`tag:dev:443`** plus **one DNS rule** — `udp 53` to that node's own
 address, written on the address rather than on the tag so a second `tag:dev` node cannot inherit a resolver
-grant (HD-415, 2026-09-22; docs/network-dns.md §The resolution requirement). Port 443 and UDP/53 on one node,
+grant (docs/network-dns.md §The resolution requirement). Port 443 and UDP/53 on one node,
 not `:*` on the box that holds the vault token — and no TCP/53, no other port, nothing by tag. The boundary's
 purpose survives on purpose: Shelly/KNX/IoT/guest stay
-non-tailnet-reachable, and VLAN 99 keeps its seal (HD-398 decision A).
+non-tailnet-reachable, and VLAN 99 keeps its seal (decision A).
 
 Because a preauth-key node lands in headscale's synthetic `tagged-devices` user rather than the owner's
 user, `dst: ["domen@kogler.si:*"]` cannot reach it — the ONLY path in is the explicit `tag:dev:443` rule in
 `policy.hujson.j2`. Joining by interactive OIDC login instead would put the node under the user and inherit
 `:*`; the preauth key is therefore a security control, not just a bootstrap convenience.
 
-**What oldsrv serves on that node** is its own home edge (`traefik-internal`, new `websecure-ts` entrypoint
+**What oldsrv serves on that node** is its own home edge (`traefik-internal`, a `websecure-ts` entrypoint
 bound to the **node's tailnet IP** — never `0.0.0.0`), with TLS from the already-synced `*.ts.kogler.si`
-pair, and — since HD-415 — the internal zone on **`udp 53`** at that same address (the container's published
+pair, and the internal zone on **`udp 53`** at that same address (the container's published
 port reached by DNAT from `tailscale0`, which is what makes the node usable as a tailnet nameserver).
-Today exactly one route is exposed there: `ha-ts` → `ha.ts.kogler.si` (+ the free node name
-`oldsrv.ts.kogler.si`) → the HA VIP. Home Assistant was the one service with **no** away-from-home path at
-all: no public record, no `traefik-tailnet` route, and a VIP-only listener. The plain `ha.kogler.si` name
-stays LAN/VIP-only — see [network-dns.md](network-dns.md) §Split-Horizon for why overloading it was rejected.
+Exactly one route is exposed there: `ha-ts` → `ha.ts.kogler.si` (+ the free node name
+`oldsrv.ts.kogler.si`) → the HA VIP. This node-direct `.ts` route is HA's only away-from-home path: no public
+record, no `traefik-tailnet` route, and a VIP-only listener. The plain `ha.kogler.si` name
+stays LAN/VIP-only — see [network-dns.md](network-dns.md) §Split-Horizon, which owns the one-URL plan for it.
 
-**First-run record (2026-09-20, join + node-direct path):** node `oldsrv` joined on its assigned tailnet
-address (`tailnet_oldsrv_ip`, group_vars/all/main.yml), headscale node id 11, user `tagged-devices`,
-`tag:dev`, **zero advertised routes**; tailscaled control URL asserted to be our headscale (the `vps-obs`
-public-control-plane incident is now a fail-loud guard in the role); `/etc/resolv.conf` on oldsrv untouched
-(`--accept-dns=false` proven, not assumed); the headscale policy re-render left `headscale` at restarts=0 with
-MagicDNS still answering (`stats.kogler.si` → the sidecar's tailnet address, edge 302).
-`dig @<MagicDNS loop> ha.ts.kogler.si` on a node → the oldsrv node address. To that node: **443 open,
-80/22/8081 blocked** (the ACL is really port-scoped); `https://ha.ts.kogler.si` → **200**, TLS
-`CN=*.ts.kogler.si`, ~70 ms.
+**The join is guarded:** tailscaled's control URL is asserted to be this
+headscale by a fail-loud guard in `roles/tailscale-node`, and `/etc/resolv.conf` on oldsrv stays untouched
+(`--accept-dns=false`). The node lands in headscale's `tagged-devices` user with **zero advertised routes**.
 
-> ⛔ **That `→ 200` is not true and cannot have been true when it was written (measured 2026-09-22).** The
-> `ha-ts` rule shipped, in the very commit that introduced it, with literal spaces inside the matcher —
-> `Host(`ha. {{ tailnet_base_domain }} `)` — so it rendered as `Host(`ha. ts.kogler.si `)`. Traefik compares
-> a Host matcher **byte-for-byte**, so the router could never match a request and answered its default
-> **404** while everything around it was healthy: entrypoint bound to the node's tailnet address, ACL
-> accepting 443, MagicDNS extra_record published, backend pointed at the HA VIP. Reproduced at 404 from an
-> off-site laptop and again from an on-LAN laptop reaching the node over the tailnet. Fixed the same day (one
-> line, the spaces) and re-measured: `https://ha.ts.kogler.si/api/` → **401**, and the node-name host in the
-> same rule likewise — 401 is Home Assistant answering behind the proxy, which is the intended answer.
-> Two consequences that matter more than the typo: **the 2026-09-21 ✅ acceptance matrix could not have
-> exercised T1 through this router**, so that T1 is unverified history rather than a closed fact (re-verify
-> on the phone, HD-433); and the bug class — Jinja whitespace inside a matcher — passes `--check`, survives
-> review, and is silent at runtime, so it now has a validator, `scripts/check_traefik_host_rules.py`,
-> mutation-tested by re-injecting the space.
->
-> ⛔ **…and that was only the first of two. The name was unreachable for a second, independent reason
-> (found the same evening, 2026-09-22): the `*.ts.kogler.si` certificate never loaded.** The `tls:` block in
-> the same template read `certFile: "/etc/traefik/certs/ {{ wildcard_ts_cert_file }} "` — spaces around the
-> expression — so the rendered path was `…/certs/ ts.kogler.si.pem `, which does not exist. Traefik does not
-> fail on a certificate it cannot open, so the listener came up and answered that SNI with its generated
-> `CN=TRAEFIK DEFAULT CERT` (SAN `…traefik.default`). Effect: **no browser has ever loaded a `.ts` name at
-> home** — every client rejects the chain — while `curl -k` returned the backend's 401 and made the router
-> look healthy. That is how the first fix's acceptance test passed on a name that still did not work: `-k`
-> switched off the only check that mattered. The pair itself was already on the host (`/opt/traefik-internal/
-> certs/ts.kogler.si.pem`, carried by the cert-pull timer since HD-135b put it on the VPS edge) — nothing was
-> missing but two spaces. After the fix, browser-grade verified against the node's tailnet address: SNI
-> `ha.ts.kogler.si` → `CN=*.ts.kogler.si`, issuer Let's Encrypt, `ssl_verify_result=0`, **HTTP 401** and
-> `curl` exit **0** without `-k`; the LAN edge is unchanged (`CN=*.kogler.si`, media 302). The gate now covers
-> quoted certificate paths as well as matchers for exactly this reason — 11 self-test cases, both shipped
-> instances among them, each mutation-killed.
+**What that node answers:** `dig @<MagicDNS loop> ha.ts.kogler.si` → the oldsrv node address; **443 open,
+80/22/8081 blocked** (the ACL is port-scoped); SNI `ha.ts.kogler.si` → `CN=*.ts.kogler.si`, issuer Let's
+Encrypt, `ssl_verify_result=0`, **401** — Home Assistant answering behind the proxy, which is the intended
+answer. A loopback `curl` to the name returns **HTTP 000** because `websecure-ts` binds the node's tailnet IP
+only: probe `tailnet_oldsrv_ip` (group_vars) and it answers 200 in ~21 ms. `headscale routes list` does not
+exist in this headscale build (no `routes` subcommand) — read the netmap view.
 
-> ✅ **T1 RE-RUN FOR REAL — 2026-09-22, the owner's phone, both radios under test.** After both fixes the
-> name serves Home Assistant to a phone on cellular: **`https://ha.ts.kogler.si` works with Wi-Fi off and
-> the tailnet connected** — and the home cell was measured on its own afterwards, Wi-Fi on + tailnet on,
-> because an expected cell is not a measured one and that exact combination is what failed pre-fix. The pass was a full 4-state matrix (Wi-Fi × Tailscale), which is the shape this
-> acceptance should have had from the start:
->
-> | name | Wi-Fi on + tailnet on | Wi-Fi on + tailnet off | Wi-Fi off + tailnet on | Wi-Fi off + tailnet off |
-> |---|---|---|---|---|
-> | `ha.ts.kogler.si` | ✅ measured | ✗ by design (the name lives in the netmap) | ✅ **T1, measured** | ✗ by design |
-> | `ha.kogler.si` | ✅ | ✅ | ✗ (HD-432: advisory chain) | ✗ (no LAN DNS, no WAN) |
-> | `media.kogler.si` | ✅ | ✅ | ✗ (HD-432: advisory chain) | ✗ |
->
-> What that pins down beyond HA: Android answers the `.ts` extra_record **client-side from the netmap** (so
-> the tailnet twin needs no resolver reachability at all), the per-address `443` grant carries a real user
-> node's browser session, and the `*.<ts>` listener serves a publicly-trusted chain with no internal CA on
-> the device. Consequence for the twin design: **the pattern is portable** — any home app can get an away
-> path by adding a `.ts` twin + a router on the same listener, which is a cheaper route to "apps work away"
-> than making the whole zone resolve over the tailnet (the argument that opened HD-432).
->
-> The 2026-09-21 ✅ above stands as history, but it verified a router that could not match a request; T1 was
-> closed then on a measurement that could not have produced its result. This is the first run that did.
+> **Traefik matcher and certificate-path constraint.** A Jinja expression must sit in the same token as the
+> text around it. A rendered space inside a `Host(…)` matcher makes the router unable to match any request — it
+> answers its default 404 while the entrypoint, the ACL, the extra_record and the backend are all healthy — and
+> a rendered space in a `certFile:` path makes Traefik serve its generated `CN=TRAEFIK DEFAULT CERT` **without
+> failing to start**. Both are silent at runtime and survive `--check`, so
+> `scripts/check_traefik_host_rules.py` validates matchers and quoted certificate paths (mutation-tested).
+> Verify without `-k`: the flag switches off the only check that detects the certificate half.
 
-> ✅ **Decided 2026-09-22 — the tailnet's job is to hand out *reachable answers*, and HA has one URL.**
-> With the plain `ha.kogler.si` published as an extra_record (plus the existing `.ts` alias) the same URL
-> serves home and away: at home with the tailnet off the LAN zone answers the VIP, with the tailnet on the
-> netmap answers a home node address and the path is direct over the LAN, and away it is the node path this
-> matrix just proved. The HA Companion app holds exactly one URL, which is what forced the decision rather
-> than preference. `dns.nameservers.split` was evaluated and **declined** ([network-dns.md](network-dns.md)
-> §The answer-plane model, HD-432), as was `override_local_dns: true`.
-> **Opened as HD-435:** the Pi joins the tailnet and `ha.kogler.si` is published with **two A records**
-> (Pi + oldsrv), so the answer survives either box. Both home proxies target the VIP, so after the manual
-> takeover the surviving box serves both planes. ⚠ **Not yet measured:** multi-A fall-over on a real client
-> (expect a timeout on the dead first answer, not an instant switch) and MagicDNS actually returning both
-> records — both are acceptance criteria of that row, not assumptions of this one.
->
-> **HD-415 is closed on this evidence.** Its case (a) and case (c) passed; case (b) — a phone on cellular
-> failing to resolve an internal-zone name — was re-scoped: the cause is `override_local_dns: false` making
-> the delivered chain advisory, and the fix is a reachable answer per name (this design), not a resolver
-> ordering. Recorded rather than dropped, because "the chain is advisory" is the finding, not a footnote.
+**Reach of these names from a phone, by radio state.**
 
+| name | Wi-Fi on + tailnet on | Wi-Fi on + tailnet off | Wi-Fi off + tailnet on | Wi-Fi off + tailnet off |
+|---|---|---|---|---|
+| `ha.ts.kogler.si` | ✅ | ✗ by design (the name lives in the netmap) | ✅ | ✗ by design |
+| `ha.kogler.si` | ✅ | ✅ | ✗ (advisory chain) | ✗ (no LAN DNS, no WAN) |
+| `media.kogler.si` | ✅ | ✅ | ✗ (advisory chain) | ✗ |
 
-> ⚠ **The verification host was NOT off-LAN.** The laptop chosen for this pass had a *wired* home path live:
-> its Windows default route pointed at the home router over the `VLAN-Switch` vNIC (a Home-VLAN address per
-> [network-addresses-generated.md](network-addresses-generated.md)), so probes to Home-VLAN and IoT-VLAN
-> addresses from it tested the router's inter-VLAN firewall, **not** the tailnet — and any "it resolved / it
-> connected" result there says nothing about being away. Probes to tailnet addresses are valid, because those
-> destinations always ride the Tailscale interface. **The published acceptance matrix still requires the
-> phone on cellular** (headscale stopped / tailnet off / IoT+guest unreachable); until that runs, this row is
-> ⏳ open, not done. Reading the hotspot off the owner's description instead of off the routing table was the
-> mistake here — check the routing table before trusting any "away" claim.
-> *(The matrix has since run — see the ✅ block below. The routing-table lesson stands: it is why the T2
-> window was validated from the containers and the control-plane HTTP code, not from a description.)*
+- Android answers a `.ts` extra_record **client-side from the netmap**, so a tailnet twin needs no resolver
+  reachability at all, and the `*.ts.kogler.si` listener serves a publicly-trusted chain with no internal CA on
+  the device. The pattern is portable: any home app gets an away path from a `.ts` twin + a router on the same
+  listener — cheaper than making a whole zone resolve over the tailnet.
+- **`override_local_dns: false` makes the resolver chain headscale delivers advisory:** a client keeps its own
+  resolver for `kogler.si`, so a device on cellular can fail to resolve an internal-zone name. The answer is a
+  reachable record per name (a `.ts` twin), not resolver ordering. `dns.nameservers.split` and
+  `override_local_dns: true` are both declined — [network-dns.md](network-dns.md) §The answer-plane model.
+- **The data plane never touches the VPS.** With headscale + headplane stopped
+  (`docker compose -p headscale … stop` — `stop`, never `down`) an enrolled node keeps serving from its cached
+  netmap, on reload and in a fresh incognito session. **Cold enrollment fails while the control plane is down,
+  by design**, and must not be logged as a fault.
+- **IoT and guest stay unreachable** from the tailnet: `PrimaryRoutes` is empty on every peer
+  (`tailscale status --json`) and no home subnet is advertised.
+- **The tailnet's job is to hand out *reachable answers*.** For HA the target is **one URL**:
+  `ha.kogler.si` published as an extra_record beside the `.ts` alias, so one address serves home (LAN zone →
+  VIP) and away (the node path), and the HA Companion app holds one entry. Pending: publishing **both** home
+  node addresses (Pi + oldsrv) as two A records, so the answer survives either box — both home proxies target
+  the VIP. ⚠ **Unmeasured:** multi-A fall-over on a real client (expect a timeout on the dead first answer, not
+  an instant switch) and MagicDNS returning both records.
+- **An "away" claim needs the routing table.** A host with a live wired home path is not off-LAN: probes to
+  Home-VLAN and IoT-VLAN addresses from it test the router's inter-VLAN firewall, not the tailnet. Probes to
+  tailnet addresses are always valid, because those destinations ride the Tailscale interface. The acceptance
+  path is a phone on cellular.
 
-> ✅ **Acceptance matrix RUN on the owner's phone on cellular — 2026-09-21. HD-405 is closed.**
-> **T1** `https://ha.ts.kogler.si` reachable on mobile data with the tailnet connected. **T2 — the control-plane
-> test, the one the row actually existed for:** headscale + headplane stopped on the VPS
-> (`docker compose -p headscale … stop` — `stop`, never `down`) for **162 s** (21:54:25Z → 21:57:07Z), with the
-> plane *provably* dead (`vpn.kogler.si` → **404**, no backend); during the window the phone reloaded the same
-> URL **and opened a new incognito session** — both worked. The data plane therefore never touches the VPS,
-> which is the whole premise of the row. Home side throughout: cached netmap intact (3 nodes), node edge
-> answering 200 in 21 ms. Restore verified — `restarts=0`, both containers healthy, nodes 5/6/11 `online`,
-> control plane back to 200, and the temporary stop scripts deleted: **no hand-applied delta left**.
-> ⚠ **What T2 proves, and what it does not:** clients cache their netmap, so this is *data-plane independence*
-> for already-enrolled nodes — **not** cold enrollment. A fresh enrollment fails while the plane is down, by
-> design, and must not be logged as a fault. **T3** HA Companion works on `https://ha.ts.kogler.si` (no
-> LAN-URL arbitration problem). **T4** IoT stays unreachable — an IoT-VLAN (20) device address failed from the phone (address per [network-addresses-generated.md](network-addresses-generated.md)), and the
-> strong form re-measured client-side: **`PrimaryRoutes` empty on every peer** (`tailscale status --json`).
-> **Two measurement traps found:** `headscale routes list` **does not exist** in this headscale build (no
-> `routes` subcommand — use the netmap view), and a loopback `curl` to `ha.ts.kogler.si` returns **HTTP 000**
-> because `websecure-ts` binds the node's tailnet IP only — probe `tailnet_oldsrv_ip` (group_vars) and you get 200 in ~21 ms.
+> **HA answers `400 Bad Request` to a proxy it does not trust:** any `X-Forwarded-For` from a source outside
+> `ha_trusted_proxies` is rejected. The tailnet router **strips the forwarding headers** rather than changing
+> smart-home config; the trust-list fix (`oldsrv_home_ip` in `ha_trusted_proxies`, needs a HA restart) is owned
+> by [smart-home-failover.md](smart-home-failover.md).
 
-> 🔎 **Two pre-existing faults surfaced by the new path, neither caused by it.** (a) **HA rejects requests
-> proxied from oldsrv**: any `X-Forwarded-For` from a source outside `ha_trusted_proxies` gets
-> `400 Bad Request` (proven: `Host: ha.kogler.si` + XFF → 400, without → 200), which means the standby edge's
-> `ha` router has never worked and the same would bite during a takeover. The tailnet router strips the
-> forwarding headers instead of changing smart-home config — the honest fix is adding `oldsrv_home_ip` to
-> `ha_trusted_proxies` (needs a HA restart, so it is an owner call, not a transport-lane side effect).
-> (b) **`media.kogler.si` answers 502 from the home edge** (also locally on oldsrv): jellyfin publishes no
-> host port on `oldsrv_home_ip`, unlike the `actual-budget:5006` / `immich-ml:3003` precedent. Owner call.
+**An away session from a phone on cellular RELAYS.** Public DERP, 70–90 ms; the reciprocal home→phone test
+reports `via DERP(fra)` with `direct connection not established`. The home side has everything a puncher wants —
+IPv6 on the Home VLAN with a GUA on oldsrv, an endpoint-independent IPv4 mapping, `tailscaled` on UDP/41641,
+unrestricted egress, `UDP: true` and `MappingVariesByDestIP: false` in `tailscale netcheck` — and still does not
+establish. Relayed still serves the apps (a `.ts` name answers 200 over it), so this is a quality limit, not an
+outage. Method and the counter technique: [network-ops.md](network-ops.md) §IPv6.
 
-> 📡 **Measured 2026-09-20: the away session RELAYS — the assumption this section was written under did not survive.** > The first real away session to the home node ever run (owner's phone, cellular, tailnet connected) reported > **`Relayed connection (FRA)`, 60–90 ms RTT**: the data path left the VPS as designed and landed on a **public Tailscale DERP relay in Frankfurt** instead. > Home-side `tailscale netcheck`: `UDP: true`, external address = the home static IPv4 with a **rewritten source port** (the RB4011 is NATing, single NAT — the > observed external address is the public one, so there is no routing-modem double NAT), `MappingVariesByDestIP: false`, **no UPnP/PCP mapping**, **no IPv6 > anywhere on the LAN**, nearest DERP fra ≈18 ms. Endpoint-independent mapping is the *punchable* case, so the block was attributed to the carrier and/or the router > dropping the punch — and the honest reading is that **"static public IPv4 ⇒ P2P always wins" was never measured until now, and it is false for cellular clients here.** > Consequences: HD-410 (self-hosted DERP) must not be decided before the IPv6 experiment (HD-414, a static /56 is available), because a VPS-hosted DERP would > re-insert the VPS into the data path this section exists to remove; and HD-412 (remote desktop) should not ship onto a relayed path. **Relayed still works** — > `ha.ts.kogler.si` answered 200 over it — so this is a quality finding, not an outage.
+- **The block is the phone leg, upstream of this network.** With `log=yes` on the WAN drop rules, **zero**
+  packets from the phone arrive on either family across punch bursts, while the same rules log internet scan
+  traffic continuously — so the silence is evidence, not an absent probe. A carrier NAT/APN grants the UE no
+  unsolicited inbound, and nothing opened here can produce a direct session.
+- **The VPS tailnet node needs a pinned AND published listen port.** `tailscale-sidecar` shares
+  `traefik-tailnet`'s netns, so `41641/udp` is published on the **netns owner** and the daemon is pinned with
+  `TS_TAILSCALED_EXTRA_ARGS=--port=41641`; an unpinned sidecar binds **ephemeral** sockets, which no firewall
+  rule can publish, and that node stays relayed. ⚠ Residue: the host publishes **IPv4 only** (no `[::]:41641`).
+  [services-vps.md](services-vps.md). This says nothing about the home node's carrier NAT.
+- **A self-hosted DERP is not the answer:** a DERP is one more relay leg and the cost lives on the
+  phone↔DERP leg, which the VPS's location does not shorten.
+- **No inbound hole-punch exception belongs on the router.** A punch makes the far side's packets *replies* from
+  the home node's point of view and `established,related` is rule 1 in both v6 chains, so the common case needs
+  no inbound accept; and oldsrv's Home NIC is stable-privacy + temporary-address, so there is no destination to
+  pin. `41641` therefore appears nowhere in the router converge — by design, not an omission.
+- **`tailscaled`'s listen port is pinned:** `/etc/default/tailscaled` `PORT="41641"`, owned by the
+  `tailscale-node` role; `ss` shows `0.0.0.0:41641` + `[::]:41641`. ⚠ Netcheck's trailing port on the
+  `IPv6: yes, [<GUA>]:<port>` line is the **DERP-side STUN observation** and it varies between runs; the socket
+  a peer must reach is 41641.
+- **No unsolicited inbound IPv6 reaches the delegated prefix** at all while v4 scans arrive continuously, so an
+  `AAAA` record pointing at a home service would be unreachable from the v6 internet. Home publishes none, and the
+  ban is enforced by an **operator-side monitoring rule named `nagios-dns-v6`** — no file in this repo implements
+  it, so there is no path to cite ([network-vlans.md](network-vlans.md) §IPv6). Not proven from the inside: the
+  clean proof is an external v6 prober ([network-ops.md](network-ops.md) §IPv6).
+- **The lever that survives carrier NAT is phone-initiated WireGuard:** the router is the responder with a
+  public address, so the phone's carrier has no unsolicited inbound to block. The chosen vehicle is **MikroTik
+  Back To Home**, deferred.
+- **RouterOS rules that read as success while doing nothing:** `place-before=` is **silently ignored** when
+  handed the printed `#` number — rule ids are hex `*N`, resolve them with `find`; `find where
+  connection-state=established,related` matches **nothing** because the value contains a comma, so match on
+  `comment`; `/log` is memory-capped, so a foreign `/system logging` rule can rotate away the window under
+  measurement ([network-ops.md](network-ops.md) §Central log shipping).
+- **Chain placement:** a WAN packet addressed to a *host* traverses **`chain=forward`**; `chain=input` only ever
+  sees traffic addressed to the router itself. An inbound exception for a host belongs in `forward`, above the
+  `no unsolicited v6 into any VLAN` drop — an `input` rule would never match, show zero counters, and look like
+  success.
 
-> 🔬 **2026-09-21, same pass: "the home side is the *punchable* case" was overstated.** `tailscale ping` from
-> oldsrv: the laptop answered **direct on a site-local Mgmt-VLAN (99) endpoint in 2 ms** — but that is a *site-local*
-> Mgmt-VLAN address, so it proves same-site discovery, **not** a WAN punch; the phone answered `via DERP(fra)`
-> in 104 / 188 ms with "direct connection not established". The off-site probe that would settle it is
-> unavailable **by design**: `vps-obs` is not an `oldsrv` peer at all (*"no matching peer"*), because `tag:dev`
-> and `tag:sidecar` have no path between them — correct ACL behaviour, inconvenient measurement surface. And
-> the router converge as written (checked 2026-09-21) has `chain=input action=drop in-interface=pppoe-telekom`
-> with the **WG S2S listen port as its only UDP exemption**, **no `dstnat` and no accept for tailscale's UDP**
-> (`41641` appears nowhere in the converge), while `tailscaled` runs unpinned — so an unsolicited punch packet
-> dies in *our own* input chain. The relayed result therefore **cannot** be attributed to the carrier on this
-> evidence; both causes stay open. HD-414 (IPv6) is what forces the answer, and if v6 also comes back relayed
-> the cheap next experiment is a v4 `dst-nat` + input accept on one pinned UDP port to one host — not a DERP.
->
-> 📡 **Updated 2026-09-22: HD-414 landed, so that precondition is now true — and one of the two open causes is
-> already closed.** IPv6 is live on the Home VLAN ([network-vlans.md](network-vlans.md) §IPv6), oldsrv took a GUA
-> by SLAAC, and `tailscale netcheck` on it went from `IPv6: no, but OS has support` to **`IPv6: yes`, fra 14.5 ms**.
-> Two corrections to the paragraph above, both measured rather than inferred: (1) it is true that **`41641`
-> appears nowhere in the converge, and that is correct** — the "unsolicited punch packet dies in our own input
-> chain" argument does not hold, because the punch makes the far side's packets *replies* from oldsrv's point of
-> view and `established,related` is rule 1 in both v6 chains; so no inbound accept was needed for the common case
-> and none was shipped (HD-414's deliberate non-implementation: oldsrv's Home NIC is stable-privacy +
-> temporary-address, so there is no destination to pin). (2) `tailscaled` is no longer unpinned —
-> `/etc/default/tailscaled` `PORT="41641"` is owned by the `tailscale-node` role and `ss` confirms
-> `0.0.0.0:41641` + `[::]:41641`. ⚠ **Do not read netcheck's trailing port as the disco port:** the
-> `IPv6: yes, [<GUA>]:<port>` line is the *DERP-side STUN observation* and it differed between two runs minutes
-> apart; the socket a peer must reach is 41641. ⛔ **The one number that decides HD-406/HD-410 is still
-> unmeasured:** whether the phone on cellular now negotiates **Direct**. That is a 3-minute owner measurement
-> (`tailscale ping <oldsrv's tailnet address, SSOT `tailnet_oldsrv_ip`>` over LTE + the app's session-type line, with `/ipv6 firewall filter print stats`
-> before/after on the router). ✅ **Corrected 2026-09-24 (HD-448): the VPS can take a v6 probe now.** It had a GUA
-> and a v6 default route but no working IPv6, and this file attributed that to the provider; it was our own
-> `vps-hardening` input chain discarding the router's NDP replies (`ip protocol icmp` is the IPv4 upper-proto
-> field, so everything v6 met `policy drop`). Fixed and measured live, so the VPS is usable as the off-net v6
-> probe host again. **The punch conclusion does not move:** the two live causes are the phone leg (carrier NAT —
-> upstream, proven by the counter test) and the VPS `tailscale-sidecar`'s ephemeral listen sockets, and neither is
-> a firewall rule. Method + the counter technique: [network-ops.md](network-ops.md) §IPv6.
->
-> 📡 **Measured 2026-09-22 (owner's phone on cellular, plus the reciprocal test from oldsrv): IPv6 did NOT make the
-> away session direct.** Phone→oldsrv **relayed via FRA, 70–90 ms**; phone→VPS **relayed via NUE, 50–70 ms**;
-> oldsrv→phone `via DERP(fra)` with **`direct connection not established`** at 73→244 ms. The hypothesis this
-> section carried — "static IPv4 + carrier blockage, IPv6 is the fix" — is **falsified for this path**: the home
-> side now has everything a puncher wants (GUA, EIM IPv4, disco on 41641, free egress) and still cannot establish.
-> Two causes were untangled from that one report, and they are **not** the same: **(1) the phone leg** lacks
-> unsolicited inbound to the UE (carrier NAT / APN behaviour — not ours to fix); **(2) the VPS leg** is ours —
-> `tailscale-sidecar` shares another container's netns with `ports=map[]` and its tailscaled binds **ephemeral**
-> sockets (`0.0.0.0:39417`, `[::]:35131`) instead of 41641, so no firewall could ever allow it and that node is
-> permanently relayed; pinning **and** publishing that listen port is the pair that fixes it — that is **HD-460**, live since
-> 2026-09-25 ([services-vps.md](services-vps.md)). ⛔ It says nothing about the HOME node's carrier NAT. ⛔ Neither is
-> an argument for a self-hosted DERP: a DERP is another relay leg and the cost lives on the phone↔FRA/NUE leg, which
-> the VPS's location does not shorten — HD-410's decision holds.
->
-> **The discriminator ran minutes later (same day) and the block is upstream of this network — nothing we open
-> here can produce a direct session.** Two things make that test easy to fake, so they are recorded with it.
-> First, **no hole is needed**: put `log=yes` on the WAN drop rules and read whether the packets arrive at all.
-> Second, **validate the instrument before believing its silence** — a rule that known traffic certainly
-> crossed logged 83 entries, and internet scan traffic produced 17 drops in the same window, so "nothing" is
-> evidence here rather than an absent probe. Measured over three punch bursts with the phone online: **zero
-> packets from the phone arrived on either family.** Nothing touched the v6 WAN drops; on v4 the only `41641`
-> traffic was a scanner repeating every 6 s from a hosting provider, correctly dropped. Meanwhile `netcheck`
-> reports our side as textbook-punchable — `UDP: true`, `MappingVariesByDestIP: false`, disco on 41641 on both
-> families, unrestricted egress. ⇒ Both remedies this file carried are **retired**: the single inbound v6 accept
-> (its destination would receive nothing) and the v4 `dst-nat` experiment (same reason — the scan traffic proves
-> the mechanism works, it is the phone that cannot ask). The only levers left are the VPS listen-port fix above
-> and **phone-initiated** WireGuard (HD-406), which survives carrier NAT because the UE's own NAT state carries
-> the reply instead of requiring unsolicited inbound to it. **Chosen vehicle (owner, 2026-09-22): MikroTik Back To
-> Home, deferred.** That reasoning is why it works where the punch did not — the router is the responder with a
-> public address, so the phone's carrier has no unsolicited inbound to block. Unproven part, to check when it is
-> built: whether BTH picks the **direct** WireGuard path or silently uses a **MikroTik relay**, because a vendor
-> relay is the same 70–240 ms shape measured above.
-> ⚠ **Chain correction, written wrong here once already:** a WAN packet addressed to a *host* (old-srv, not the
-> router) traverses **`chain=forward`**; `chain=input` only ever sees traffic addressed to the router itself. A
-> future inbound-v6 exception therefore belongs in `forward`, above the `no unsolicited v6 into any VLAN` drop —
-> an `input` rule would silently never match, show zero counters, and look like success.
->
-> **Side-fact worth more than the test it came from: no unsolicited inbound IPv6 reached the delegated prefix
-> at all** in those windows, while v4 scans arrive continuously. Consistent with the ISP filtering inbound v6 on
-> a delegated prefix (egress and replies granted, inbound not). Not proven — the clean proof is an external v6
-> prober, which this site has never had (network-ops §IPv6) — but act on it now: **an `AAAA` record pointing at a
-> home service would be unreachable from the v6 internet**, which makes `nagios-dns-v6`'s ban on AAAA at home
-> correct rather than conservative, and means "publish something over v6 from home" is unavailable at any amount
-> of firewall effort.
->
-> **RouterOS traps that cost three aborted attempts**, so the next person does not relive them: `place-before=`
-> is **silently ignored** when handed the printed rule number (rule ids are hex `*N` and do **not** equal the `#`
-> column — resolve ids with `find`); `find where connection-state=established,related` matches **nothing**
-> (because the value contains a comma), so match on `comment` instead; and `/log` is memory-capped while a
-> **non-default `/system logging` rule (`ssh → memory`) floods ~1000 packet-dump lines per 3 min**, rotating the
-> buffer in seconds and silently erasing the window under measurement. That ssh rule is foreign config, not
-> repo-managed — the defect and its read command are in [network-ops.md](network-ops.md) §Central log
-> shipping (**HD-461**).
-
-**Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng, and the
-moved `dsh`/`pi-dev`) remain reachable by **publishing a host port bound to `oldsrv_home_ip`** + a
-`traefik-tailnet` edge route proxying over WG — the `actual-budget:5006` / `immich-ml:3003` precedent. Still
-**behind Authentik forward-auth** on the edge (private, not public).
+**Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng) are
+reachable because **the edge that routes them can dial them**. `traefik-internal` runs `network_mode: host`
+on oldsrv and the whole routed group publishes its host port on **loopback**, so an app's bind and its
+`*-backend` URL are one variable pair and only ever move together — moving one alone is a silent 502 on that
+app. A backend dialled **from another box** is the exception that needs a bind routable across hosts,
+`oldsrv_home_ip` — the `actual-budget:5006` / `immich-ml:3003` precedent. Nothing on the VPS dials an app port
+here: the public edge carries `media` / `seerr` / `seerrng` only and proxies them to the home edge over the
+WG S2S (`https://oldsrv_home_ip:443`, one `servername` transport per name). **Routed is not published:** of those
+three, `group_vars/all/main.yml` marks only `media.kogler.si` `public: true`; `seerr` and `seerrng` are routed by
+that edge and published nowhere, so their names answer only where a resolver is told. The *arr set and the
+downloaders carry no public record at all, and they are **not** LAN-only: their names in
+`tailnet_ts_only_subdomains` (`group_vars/vps.yml`) inherit `tailnet_oldsrv_ip` and publish a `.ts` twin on
+oldsrv's own `websecure-ts` node listener, so the off-LAN path for that whole set is the tailnet twin, not a
+public door. These apps serve their **own login** behind the `crowdsec-only` middleware with no Forward-Auth, and
+`media.kogler.si` is the one name published publicly, so that login is the internet-facing surface.
 
 ## Reaching LAN nodes when away (hotspot / public Wi-Fi) — the access matrix
 
@@ -596,7 +490,7 @@ nothing below hard-codes one.
 |---|---|---|
 | **vps** | direct — `vps.kogler.si` is public | ✅ the door itself |
 | **oldsrv** | alias `oldsrv` → **Home leg** + jump; the jump is also carried in `group_vars/home_servers.yml`, and `ansible_host` IS the Home address | ✅ `ssh oldsrv` and `ansible … -m ping` green with **no `-e`**; `home_servers.yml --check --limit oldsrv` `unreachable=0` |
-| **nas** | jump in the alias **and** in `group_vars/storage.yml` (HD-397 created that file — the `storage` group had no group_vars at all) | ✅ `ssh` + `ansible` both green |
+| **nas** | jump in the alias **and** in `group_vars/storage.yml` | ✅ `ssh` + `ansible` both green |
 | **pi** | alias + jump; `group_vars/raspberry_pi.yml` carries it for the runner too | ✅ both green |
 | **spark** | `group_vars/spark.yml` + the identical play-level copy in `playbooks/spark.yml` | ✅ both green (the precedent the others copy) |
 | router / switch / APs / any `*99` alias | **none, by design** — Mgmt plane = same-site (decision A below) | ❌ by design: `ssh router` → connect timeout. **Never add a jump to these** |
@@ -605,14 +499,13 @@ nothing below hard-codes one.
 `traefik-tailnet` edge → WG S2S → the home backend, per the boundary decision above — verified to work
 end-to-end from a hotspot with no home reachability at all (`llm.ts.kogler.si`).
 
-### The settled rule — HD-398 = **owner decision A**: the Mgmt plane is a same-site plane
+### The settled rule — **owner decision A**: the Mgmt plane is a same-site plane
 
 **VLAN 99 does not accept traffic from the site-to-site tunnel, and that is policy, not a fault**
 (decision row: [network-rejected.md](network-rejected.md)). **A — the seal stays:** management is a
 physical-presence plane and **off-LAN admin is always the Home leg (VLAN 10)**. Option **B** (add the mgmt
-/32s to `wg_s2s_vps.allowed_ips` **and** extend the router's `available-from`) was declined: it spends two
-deliberate boundaries — **HD-155** least-access AllowedIPs and **HD-310** admin-plane scoping — to fix a
-symptom the Home leg already solves.
+/32s to `wg_s2s_vps.allowed_ips` **and** extend the router's `available-from`) is declined — the decision row
+says why.
 
 Two independent mechanisms (both verifiable from the VPS in 60 s, see below):
 
@@ -639,21 +532,19 @@ Consequences, written out:
 - **Never put `ProxyJump vps` on a mgmt-leg alias.** It cannot work, and it converts a fast failure into a
   ~90 s `Connection timed out during banner exchange`.
 - **A banner-exchange timeout is a dead next-hop, not an sshd fault**, and **a dead address is not a dead
-  host** (oldsrv was `Up`, 34 containers running, `enp0s31f6.99` `UP` with the right address, while its
-  mgmt address answered nothing).
+  host**: a box can be `Up` with its containers running and `enp0s31f6.99` `UP` with the right address, while
+  its mgmt address answers nothing.
 
-### Where the jump lives (HD-397, the durable fix)
+### Where the jump lives
 
 The jump is a property of **the inventory**, not of a runner: `ansible_ssh_common_args: "-o ProxyJump=vps"`
 in `group_vars/home_servers.yml`, `group_vars/storage.yml`, `group_vars/raspberry_pi.yml` and
 `group_vars/spark.yml` (`playbooks/spark.yml` keeps its identical play-level copy — play vars win over
-group vars, same value, no conflict). **A laptop-local `~/.ssh/config` is not a durable artifact** — it is
-the convenience layer, specified in §The laptop alias contract below. **Amended 2026-10-09 (HD-1123): that
-sentence was written when the only alternative was Ansible.** It is now a durable artifact in one specific
-sense: the marker-delimited block that
+group vars, same value, no conflict). **A laptop-local `~/.ssh/config` is the convenience layer**, specified in
+§The laptop alias contract below. It is durable in exactly one sense: the marker-delimited block that
 [`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) renders from
 [`ssh/aliases.tmpl`](../ssh/aliases.tmpl) is a repo-owned, digest-pinned, per-seat-class *seat plane*, and a
-seat's file is reproducible from the repo. What is still not durable — and what the plane exists to retire —
+seat's file is reproducible from the repo. What is not durable — and what the plane exists to retire —
 is the **hand-kept** copy, the part of the file no script can prove or rebuild. Proven off-LAN with a stub config that
 contains **only** the `Host vps` block (`ANSIBLE_SSH_ARGS="-F <stub>" ansible <host> -m ping`): pong for all
 four behind-NAT hosts — the repo alone carries the path.
@@ -667,7 +558,7 @@ bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si 
 # the KNOWN check-mode breaker class: roles/docker_services/tasks/technitium-seed.yml:102 reads
 # `_tech_login.json` from a `uri` task that does not run in check mode — see
 # [deployment-ansible.md](deployment-ansible.md) §Dry-run Mode. Not a reachability fault.
-# The recorded `delegate_to` victim task, now green off-LAN (no -e at all):
+# The `delegate_to` task this path must not break, green off-LAN (no -e at all):
 #   ok: [oldsrv.kogler.si -> pi.kogler.si(<the Pi Home address>)]   # Fetch Pi ha-sync public key
 #   (--limit oldsrv.kogler.si --check --tags home_assistant,ha_failover → failed=0)
 ```
@@ -679,7 +570,7 @@ Two rules decide every block:
 1. **Behind-NAT hosts** (`pi`, `nas`, `oldsrv`, `spark`) are reached through `ProxyJump vps` onto their
    **Home leg**, on every network. The Mgmt leg is never an away path (decision A above).
 2. **OpenSSH matches the name ACTUALLY TYPED**, so each node gets an alias block **and** a `Host <ip>`
-   block for the leg its `ansible_host` names. Ansible no longer *needs* the IP block (the jump travels in
+   block for the leg its `ansible_host` names. Ansible does not *need* the IP block (the jump travels in
    the inventory — proven above); the block is what `scp`/`rsync`/`git` and a human typing an address need.
 
 | Block | Leg (see [network-addresses-generated.md](network-addresses-generated.md)) | `ProxyJump` | Notes |
@@ -689,127 +580,109 @@ Two rules decide every block:
 | `nas`, `….1.10` | Home | `vps` | the group var AND the alias must both carry the jump |
 | `oldsrv`, `….1.30` | Home | `vps` | `ssh oldsrv` = the **Home** address; mgmt access is `oldsrv99` |
 | `spark`, `….1.40` | Home | `vps` | the precedent both the play and the group var copy |
-| `oldsrv-domen` | Home | `vps` | **the coding seat** (HD-492): the same leg and the same jump as `oldsrv`, but `User domen` with `IdentityFile ~/.ssh/domen_ssh` + `IdentitiesOnly yes` (HD-1123 renamed the file; §Canonical identity file names). Key-only — `PasswordAuthentication` stays `no` by policy, so a block that offers a password method (the Windows twin did) can never work. There is no tailnet-direct form: the ACL grants `tag:dev:443`, not 22 |
+| `oldsrv-domen` | Home | `vps` | **the coding seat**: the same leg and the same jump as `oldsrv`, but `User domen` with `IdentityFile ~/.ssh/domen_ssh` + `IdentitiesOnly yes` (§Canonical identity file names). Key-only — `PasswordAuthentication` stays `no` by policy, so a block that offers a password method can never work. There is no tailnet-direct form: the ACL grants `tag:dev:443`, not 22 |
 | `pi99`, `oldsrv99`, `nas99`, `router`, `switch`, `ap-spalnica`, `ap-dnevna`, `ap-spare` | Mgmt (VLAN 99) | **none — never add one** | on-site admin paths only (decision A); `oldsrv99`/`nas99` are the explicit on-site legs |
 
 Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and
-`C:\Users\domen\.ssh\config` (Windows OpenSSH). **Since HD-1123 they are not maintained by hand: both are the
+`C:\Users\domen\.ssh\config` (Windows OpenSSH). **Neither is maintained by hand: both are the
 render of one [`ssh/aliases.tmpl`](../ssh/aliases.tmpl) for a declared seat class, written by
-[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) inside a marker block.** The remaining
-agreement problem was never the aliases, it was the identity FILES those aliases name — §Canonical identity
+[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) inside a marker block.** What has to
+agree beyond the aliases is the identity FILES those aliases name — §Canonical identity
 file names below, and §The Win11 `~/.ssh` retirement list for the order in which the divergent names are retired.
 
-**And a third variable decides them: WHICH `ssh` runs them (measured 2026-10-09, HD-492).** The
-contract's former `.pub`-as-`IdentityFile` form (retired on both laptop classes the same day, HD-492
-option C) is not self-sufficient — it selects a key an AGENT must hold.
-Windows OpenSSH reaches the 1Password agent and authenticates (`Offering public key: … explicit agent`);
-the Git-Bash build — which is what a script's bare `ssh` resolves to when the script runs under Git-Bash —
-cannot load that same file (`Load key "…ansible-admin_ssh.pub": invalid format`), offers no key at all, and
-dies `Permission denied`. Identical config, identical host, opposite verdict; the missing trailing newline on
-those `.pub` files is NOT the cause (probed with a newline-terminated copy through that same binary). So an
-automation that shells out to `ssh` inherits whatever build its PATH holds — the contract's alias blocks are
-correct on both, and a script must know which seat-side build it is invoking (or be run from the seat that
-can reach the leg).
-
-**With the private halves on disk the verdicts invert (re-measured on the win11 seat 2026-10-09, five legs).**
-The Git-Bash build (`/usr/bin/ssh`, OpenSSH 10.5p1 / OpenSSL) now authenticates everything — `vps` `nas` `pi`
+**A third variable decides them: WHICH `ssh` runs them.** A bare `ssh` inside a script resolves to whatever
+build its PATH holds, and the builds disagree.
+On the win11 seat, over five legs, the Git-Bash build (`/usr/bin/ssh`, OpenSSH 10.5p1 / OpenSSL) authenticates
+everything — `vps` `nas` `pi`
 `spark` `oldsrv-domen` → **rc 0 with `SSH_AUTH_SOCK` empty**, alias digest `773069cc32fb` — while
-`C:/WINDOWS/System32/OpenSSH/ssh.exe` (9.5p2 / **LibreSSL**) fails one step *earlier* than it used to, on the key
+`C:/WINDOWS/System32/OpenSSH/ssh.exe` (9.5p2 / **LibreSSL**) fails on the key
 file itself: `Load key "C:\Users\domen/.ssh/ansible-admin_ssh": invalid format` → `Permission denied
 (publickey)`. The key is not broken and it is not a text-mode artifact: `openssl pkey` reads the file as a valid
 Ed25519 **PKCS#8** PEM (the shape `op read` exports), and a CR-stripped copy fails identically. `OpenSSH_for_Windows`
-simply cannot parse PKCS#8 — the same class the git transport already documents for `github_auth`
+cannot parse PKCS#8 — the same class the git transport already documents for `github_auth`
 ([deployment-secrets.md](deployment-secrets.md) §Unattended git on Win11), reproduced here on the fleet keys.
-Re-encoding a copy with `ssh-keygen -p -f <key> -o` makes the System32 build load it (measured rc 0), but it
+Re-encoding a copy with `ssh-keygen -p -f <key> -o` makes the System32 build load it (rc 0), but it
 forks that seat's file from the vault export and from every other seat, so **the fix stays on the transport**:
 namely the OpenSSL build — a bare `ssh` under Git-Bash already is one, and `git-bootstrap-win11.sh` pins it
-explicitly for git (HD-1126). A harness that resolves `ssh` off a Windows-native PATH therefore loses legs it
+explicitly for git. A harness that resolves `ssh` off a Windows-native PATH therefore loses legs it
 proved from Git-Bash, which is why the driver's transport must never be left to PATH.
+A `.pub` hint as `IdentityFile` is never self-sufficient: it selects a key an AGENT must hold, so Windows
+OpenSSH authenticates (`Offering public key: … explicit agent`) while the Git-Bash build cannot load the file
+(`Load key "…ansible-admin_ssh.pub": invalid format`), offers no key at all and dies `Permission denied`.
+Identical config, identical host, opposite verdict — and a missing trailing newline on those `.pub` files is
+NOT the cause (a newline-terminated copy fails the same way through that same binary).
 
 **A third copy exists, and it is deliberately NOT a laptop copy: the oldsrv seat's own `~/.ssh/config`** — the box
-this repo is authored on (HD-445 cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
+this repo is authored on (the cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
 Home address and carry **no `ProxyJump`**: on-site a jump would hairpin through the VPS for no benefit, and
-`ssh nas` / `ssh pi` complete directly in under a second. **Since 2026-10-09 those aliases are no longer
-hand-kept either: this seat is the render of the `cockpit` class**, pushed by
-[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) after its hand-kept blocks — the HD-467
-`seat-home-leg` marker block and two unmarked `Host spark` / `Host vps` stanzas — were moved out with a dated
-backup. Two blocks stay foreign to the plane and were preserved byte for byte: the marker-delimited
-`Host github.com` deploy-key block ([`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh),
-HD-449), and — measured, not assumed — `seed-runner-ssh.sh` now reports its own HD-407 region as
+`ssh nas` / `ssh pi` complete directly in under a second. **This seat is the render of the `cockpit` class**,
+pushed by [`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh); its former hand-kept stanzas
+(the `seat-home-leg` marker block and two unmarked `Host spark` / `Host vps` stanzas) are gone. Two blocks stay
+foreign to the plane and are preserved byte for byte: the marker-delimited
+`Host github.com` deploy-key block ([`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh)),
+and `Host vps`, which `seed-runner-ssh.sh` reports as
 `already present (not authored here): … names Host vps — left alone`, so a later run of that machine-managed
-seeder cannot resurrect a second `Host vps` behind the plane's back. The reason the seat needed this at all
-stands: **a rebuilt seat that runs only the runner seeder gets `vps` and silently has no `nas` / `pi`**
-(measured 2026-10-07: every `ssh nas|pi|oldsrv` from that seat died with `Host key verification failed`, which
-is a missing-alias-and-key symptom, not a dead host — trap 1 above).
+seeder cannot resurrect a second `Host vps` behind the plane's back. The reason the seat needs the plane at all:
+**a rebuilt seat that runs only the runner seeder gets `vps` and silently has no `nas` / `pi`** — every
+`ssh nas|pi|oldsrv` from it dies with `Host key verification failed`, which
+is a missing-alias-and-key symptom, not a dead host (trap 1 below).
 Ansible never reads this file: the jump it needs travels in `ansible_ssh_common_args` (`group_vars/storage.yml`,
 `raspberry_pi.yml`, …), so a seat alias never changes how a converge reaches a host — direct aliases are a human
 and `scp`/`rsync` convenience, the same role the `Host <ip>` blocks serve on the laptop.
 
 #### Canonical identity file names (SSOT — one name per identity, the same name on every seat)
 
-The aliases above are only half the contract; the other half is **which file they point at**, and that is
-where the seats drifted. One identity, one file name, on Windows, WSL and the cockpit seat alike. Names and
+The aliases above are only half the contract; the other half is **which file they point at**.
+One identity, one file name, on Windows, WSL and the cockpit seat alike. Names and
 fingerprints only — this doc never carries key material, and it never will.
 
 | Identity (what it IS) | Canonical file(s) | Vault item | Private half lives | `SHA256` fingerprint |
 |---|---|---|---|---|
-| **The operator** — a human, interactive, every seat | `~/.ssh/domen_ssh` + `.pub` | `domen_ssh` (`SSH_KEY`: `public key` / `fingerprint` / `private key` / `key type`) | **private on every seat**, incl. Windows (HD-492 option C) | `SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA` |
-| **Automation** — `ansible-admin`, the fleet's SSH user | `~/.ssh/ansible-admin_ssh` + `.pub` | `ansible-admin_ssh` (same shape) | **private on every seat**, incl. Windows (HD-492 option C, executed 2026-10-09: the `.pub`-hint form is retired — Git-Bash's `ssh` has no agent to ask, `SSH_AUTH_SOCK` unset, so the hint selected a key that does not exist there; the private PKCS#8 half proved green on BOTH Windows builds) | `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` |
-| GitHub **auth** (the seat deploy key, repo-scoped) | `~/.ssh/github_auth` + `.pub` | `GitHub auth` | per-seat, seeded by [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) | (per key, HD-449) |
-| GitHub **signing** | `~/.ssh/github_signing` + `.pub` | — | **retired**: the owner deleted the signing key (HD-1116); a local pair left on a seat is a leftover, not an identity | — |
-| **Machine-local** host key (`HostName`/`IdentityAgent` legacy, ssh's own default) | `~/.ssh/id_ed25519` + `.pub` | — | per-machine, **never referenced by an alias** — ⚠ the *name*, not the *contents*: measured 2026-10-09, on WSL and on the cockpit seat this path holds the **vault's automation key**, not a machine key (step 6 of the retirement list) | `SHA256:YbldrWp8ndNOOGx7YMKJYulSoIqZmk5w9fnNkezsVOk` (Windows seat); `SHA256:1uKzm…` on WSL + cockpit, = `ansible-admin_ssh` byte for byte |
+| **The operator** — a human, interactive, every seat | `~/.ssh/domen_ssh` + `.pub` | `domen_ssh` (`SSH_KEY`: `public key` / `fingerprint` / `private key` / `key type`) | **private on every seat**, incl. Windows | `SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA` |
+| **Automation** — `ansible-admin`, the fleet's SSH user | `~/.ssh/ansible-admin_ssh` + `.pub` | `ansible-admin_ssh` (same shape) | **private on every seat**, incl. Windows — a `.pub` hint cannot work here: Git-Bash's `ssh` has no agent to ask and `SSH_AUTH_SOCK` is unset, so the hint names a key that does not exist there | `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` |
+| GitHub **auth** (the seat deploy key, repo-scoped) | `~/.ssh/github_auth` + `.pub` | `GitHub auth` | per-seat, seeded by [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) | (per key) |
+| GitHub **signing** | `~/.ssh/github_signing` + `.pub` (may remain on a seat) | — | **retired**: commit signing is off and nothing reads it; a local pair left on a seat is a leftover, not an identity ([deployment-secrets.md](deployment-secrets.md) §Master Secret List) | — |
+| **Machine-local** host key (`HostName`/`IdentityAgent` legacy, ssh's own default) | `~/.ssh/id_ed25519` + `.pub` | — | per-machine, **never referenced by an alias** — ⚠ the *name*, not the *contents*: on WSL and on the cockpit seat this path holds the **vault's automation key**, not a machine key (step 6 of the retirement list) | `SHA256:YbldrWp8ndNOOGx7YMKJYulSoIqZmk5w9fnNkezsVOk` (Windows seat); `SHA256:1uKzm…` on WSL + cockpit, = `ansible-admin_ssh` byte for byte |
 | Out-of-band console | `~/.ssh/id_rsa_ilo` + `.pub` | — | where it is used (iLO/IOMesh); not a fleet identity | — |
-| Host **trust**, not identity | `known_hosts`, `allowed_signers` | — | per-seat; a `Host*` line in `allowed_signers` is the trap HD-1110 named | — |
+| Host **trust**, not identity | `known_hosts`, `allowed_signers` | — | per-seat; a `Host*` line in `allowed_signers` trusts every key | — |
 | Vendor leftovers | `Hetzner-SSH-key.pub` | — | a hint of someone else's key; retire it when no alias names it | — |
 
 **The rule, in one line:** an alias may name a file from this table and nothing else — a key file that is
 neither named here nor named by an alias is an accident, and gets retired. `scripts/seed-seat-ssh-config.sh`
 enforces the alias half and refuses to render an `IdentityFile` outside this list.
 
-Three facts that make the renames cheap rather than scary:
+Facts about these files:
 
-- **The 1Password agent matches on key bytes, not file names.** Renaming `laptop-domen_ssh.pub` →
-  `domen_ssh.pub` is a **rename, not a re-issue**: no dialog, no unlock, no new enrollment, same fingerprint,
-  same admission. This is the HD-490 mechanism stated as a rule instead of a footnote.
-- **There is no vault act in this migration.** The item's title is already `domen_ssh` — the owner renamed it
-  from `laptop-domen_ssh` on 2026-09-25 ([deployment-secrets.md](deployment-secrets.md) §SSH Key Separation
-  and §Rename Map) — so
-  nothing is renamed, unlocked or re-registered here; the Windows private half is exported headless from WSL
-  with `op read` (HD-492's tail). `dome_ssh` was never the item's name and survives only as stale repo prose.
+- **The 1Password agent matches on key bytes, not file names.** A rename of a key file is a **rename, not a
+  re-issue**: no dialog, no unlock, no new enrollment, same fingerprint, same admission.
+- **The vault item is `domen_ssh`** ([deployment-secrets.md](deployment-secrets.md) §SSH Key Separation and
+  §Rename Map); the Windows private half is exported headless from WSL with `op read`. `dome_ssh` is not an
+  item name — prose that uses it is stale.
 - **This table governs seat-side FILE names for human/automation identities.** Service identities
   (`ai_ssh` → `ai-debug`, the OpenVPN peer, the Postgres roles) are registered in
   [deployment-secrets.md](deployment-secrets.md) §Master Secret List / §SSH Key Separation and have no business being named by a laptop
   alias; if one turns up in `ssh/aliases.tmpl`, that is the bug, not the exception.
-- **A file that is a copy of an identity is still a second identity to a reader.** WSL's `domen_ed25519` and
-  the Windows `laptop-domen_ssh.pub` are both the operator key under two names; both move to `domen_ssh`, and
-  the old names are removed in the order below — not the other way round. The same fact holds for the automation
-  key on WSL and on the cockpit seat, where it sits at `~/.ssh/id_ed25519`; those two are named by no alias today
-  and their rename is gated on HD-1125, for the reason in step 6.
+- **A file that is a copy of an identity is still a second identity to a reader.** The operator key exists
+  under one name per seat (`domen_ssh`); the old duplicate names are retired in the order below — not the other
+  way round. The automation key on WSL and on the cockpit seat still sits at `~/.ssh/id_ed25519`, named by no
+  alias, and step 6 explains why it is not renamed yet.
 
 #### The Win11 `~/.ssh` retirement list (ordered — prove the new path BEFORE you rename the old one)
 
-HD-443's ruling applies to files as well as keys: **place, prove, then remove.** Reordering those three
-produces exactly the outage the row records — an alias pointing at a name that no longer resolves, and a
+**Place, prove, then remove** — the same rule governs files as keys. Reordering those three produces an alias
+pointing at a name that no longer resolves, and a
 seat that can no longer authenticate because the copy it used silently became the only one. Every step keeps
-a dated copy: `cp -p` to `<name>.retired-20261009` for files, `config.bak-<UTC>` for the config (which
-`seed-seat-ssh-config.sh` writes for you), and nothing is deleted until a later session proves nothing read it.
+a dated copy: `cp -p` to `<name>.retired-<YYYYMMDD>` for files, `config.bak-<UTC>` for the config (which
+`seed-seat-ssh-config.sh` writes for you), and nothing is deleted until a later pass proves nothing read it.
 
-Measured on this seat 2026-10-09 (`C:\Users\domen\.ssh`), which is the starting state:
-`ansible-admin_ssh.pub` · `laptop-domen_ssh.pub` · `github_auth{,.pub}` · `github_signing{,.pub}` ·
-`id_ed25519{,.pub}` · `id_rsa_ilo{,.pub}` · `Hetzner-SSH-key.pub` · `allowed_signers` · `known_hosts{,.old}` ·
-`1Password/` · `agent/` · `config` (+ two `config.bak-*`). **There is no `domen_ssh` file at all** — the
-operator identity has never had a file on this seat, which is the hole step 1 fills.
-
-**Executed state (both laptop seats, 2026-10-09) — the list below is the ORDER, this is where it stands.**
-Steps **1–4 are DONE**: `domen_ssh` (+`.pub`, `SHA256:XTmK3tR…`) placed from the vault on each seat, the plane
-pushed (`digest 773069cc32fb` on both, the shadow refusal handled as step 3 says), then the duplicates renamed
-with dated copies — win11 `laptop-domen_ssh.pub` → `domen_ssh.pub`, WSL `domen_ed25519` → `domen_ssh` — and the
-legs re-proved **after** each rename (five rc 0 from win11 Git-Bash with `SSH_AUTH_SOCK` empty, six rc 0 from
-WSL). ⚠ Step 2's build caveat is the paragraph above, not a footnote: those legs hold on the OpenSSL build only.
-**Step 5 is still owed on the win11 seat** — `github_signing{,.pub}`, `Hetzner-SSH-key.pub`, `known_hosts.old`
-and four `config.bak-*` are all still in `~/.ssh` (re-listed 2026-10-09), and nothing reads them today but
-nothing refuses them either. Step 6 stands exactly as ruled below, and its Debian `id_ed25519` carve-out stays
-blocked by [todo.md HD-1125](../todo.md).
+**Where the seats stand.** `domen_ssh` (+`.pub`, `SHA256:XTmK3tR…`) is placed from the vault on both laptop
+seats and the plane is pushed (`digest 773069cc32fb` on both, a shadow refusal cleared as step 3 describes);
+the operator-key duplicates are renamed away and the legs re-proved — five rc 0 from win11 Git-Bash with
+`SSH_AUTH_SOCK` empty, six rc 0 from WSL. ⚠ Those legs hold on the OpenSSL build only, which is step 2's build
+caveat, not a footnote.
+**Still owed on the win11 seat:** step 5's leftovers — `github_signing{,.pub}`, `Hetzner-SSH-key.pub`,
+`known_hosts.old` and four `config.bak-*` sit in `~/.ssh`, read by nothing and refused by nothing. Step 6 stays
+as ruled below, and its Debian `id_ed25519` carve-out is still blocked by the FQDN-leg dependence.
 
 1. **Place** `domen_ssh` (+ `.pub`) — `op read "op://Private/domen_ssh/private key"` from WSL into
    `C:\Users\domen\.ssh\domen_ssh`, `chmod 600`, then verify the fingerprint equals the table above. Write
@@ -817,7 +690,7 @@ blocked by [todo.md HD-1125](../todo.md).
 2. **Prove** one leg per identity FROM Windows, with the exact file an alias will name: `ssh.exe -G vps` (what
    OpenSSH resolves), `ssh vps` (the agent-held `ansible-admin_ssh.pub` path), and a temporary
    `-o IdentityFile=~/.ssh/domen_ssh -o IdentitiesOnly=yes ssh oldsrv-domen` (the operator path). Record the
-   build too — Windows OpenSSH and the Git-Bash `ssh` give opposite verdicts on a `.pub` hint (HD-492).
+   build too — Windows OpenSSH and the Git-Bash `ssh` give opposite verdicts on a `.pub` hint.
 3. **Push the plane**: `bash scripts/seed-seat-ssh-config.sh --push`. Expect **REFUSAL(shadow)** first, because
    the hand-kept contract region declares the same aliases outside the markers — move that region out (its
    content is now generated), keep the dated `.bak-`, re-push. Same sequence on WSL.
@@ -826,28 +699,25 @@ blocked by [todo.md HD-1125](../todo.md).
    step-2 legs after each rename; the agent needs nothing, but a typo is indistinguishable from a revocation
    until something proves it.
 5. **Retire the leftovers, only once no alias and no script names them**: `github_signing{,.pub}` (signing is
-   retired, HD-1116), `Hetzner-SSH-key.pub`, `known_hosts.old`, and any `config.bak-*` older than this
-   migration. `id_rsa_ilo` stays if a console leg still uses it. `known_hosts` stays: it is trust, not identity.
+   retired), `Hetzner-SSH-key.pub`, `known_hosts.old`, and any `config.bak-*` past its proof window.
+   `id_rsa_ilo` stays if a console leg still uses it. `known_hosts` stays: it is trust, not identity.
 6. **Leave alone**: `1Password/`, `agent/` (the agent's own state, not a key), `id_ed25519` — machine-local on
    the Windows seat, and the one file that must never appear in an alias, because an alias that authenticates as
-   the *machine* is how an automation ends up reading like a human (HD-154's `MaxAuthTries` failure mode).
+   the *machine* is how an automation ends up reading like a human (the `MaxAuthTries` failure mode).
 
-**Step 6's `id_ed25519` carve-out is wrong on the two Debian seats, and "retire it anyway" is not safe yet
-either — owner ruling 2026-10-09, so it is recorded as a decision and not as a rule that quietly stopped
-applying.** Measured on WSL and on the cockpit seat: `~/.ssh/id_ed25519` is **byte-identical to the vault's
+**Step 6's `id_ed25519` carve-out is wrong on the two Debian seats, and "retire it anyway" is not safe yet.**
+On WSL and on the cockpit seat `~/.ssh/id_ed25519` is **byte-identical to the vault's
 `ansible-admin_ssh` private half** (`cmp` clean, `SHA256:1uKzm…`) — so it is not machine-local, it is a
-superseded NAME, and on the letter of this list it should have been renamed to `.retired-20261009` with the
-rest. It was not, because it is still load-bearing for a reason this migration did not remove: the path is
-also **ssh's default identity**, and the repo scripts connect by **bare FQDN**, which matches no alias —
+superseded NAME. It stays in place, named by no alias, because the path is
+also **ssh's default identity** and the repo scripts connect by **bare FQDN**, which matches no alias —
 contract rule 2 says OpenSSH matches the name ACTUALLY TYPED, and the laptop classes carry the alias and the
 `Host <ip>` spellings but **not the `.kogler.si` spelling**. Those legs work only by accident, because the
-accident-key happens to be the fleet's automation key. **Ruling: leave it in place, named by no alias, and
-retire it only when [todo.md HD-1125](../todo.md) removes the dependence** — a measured dependence, not an
+accident-key happens to be the fleet's automation key. **Rule: leave it in place, named by no alias, and retire
+it only when that dependence is removed** — a measured dependence, not an
 exemption. The four callers: `scripts/ak-shell.sh`, `scripts/provision-vault.sh`, `seed-runner-ssh.sh`'s
 `KEY="$HOME/.ssh/id_ed25519"`, and `restore-runner-key.sh`, which treats that path as the canonical runner key.
 
-The measurement behind it (both seats, reversible — the file was moved aside and put back, never copied or
-edited), worth quoting wherever the retirement order is quoted:
+**The probe, both seats, reversible** (move the file aside, put it back; never copy or edit it):
 
 ```
 ssh -o BatchMode=yes -o ConnectTimeout=15 ansible-admin@vps.kogler.si hostname
@@ -857,8 +727,8 @@ ssh -o BatchMode=yes -o ConnectTimeout=15 -o IdentityFile=~/.ssh/ansible-admin_s
   -> rc 0 on BOTH seats even with id_ed25519 moved aside
 ```
 
-The second command is the future fix proven rather than asserted: FQDN spelling + canonical identity already
-works, so HD-1125 is a wiring job — add the `.kogler.si` spellings to the laptop classes in
+The second command is the fix, proven rather than asserted: FQDN spelling + the canonical identity already
+works, so retiring the path is a wiring job — add the `.kogler.si` spellings to the laptop classes in
 [`ssh/aliases.tmpl`](../ssh/aliases.tmpl) and repoint those four scripts — and only then does step 6 become a
 plain rename.
 
@@ -866,8 +736,7 @@ plain rename.
 `IaC/ansible/group_vars/all/main.yml`, `IaC/ansible/group_vars/router.yml`,
 `IaC/ansible/roles/router/tasks/main.yml` and the `IaC/router/templates/*.j2` that render from them. That is
 the router's **static-host / DNS name for this laptop** — a different namespace, not a key file and not an
-alias. Renaming these files touches none of it; `network-addresses-generated.md` and `network-vlans.md` are
-generated from the address SSOT and stay untouched by this migration.
+alias. `network-addresses-generated.md` and `network-vlans.md` are generated from the address SSOT.
 
 ### The tailnet is not observable from the VPS host
 
@@ -877,7 +746,7 @@ found"). **Empty output from that host is not "no peers"** — it is the wrong i
 network from a tailnet-attached client, or from the Headscale control server itself (it runs as a Docker
 container on the VPS, per §Two Layers above).
 
-### Traps, all hit while measuring this
+### Measurement traps
 1. **A dead address is not a dead host.** A mgmt leg can answer nothing (ICMP loss, port 22 closed) while the
    box is up and fully reachable on its Home leg — including the `enp0s31f6.99` sub-interface reporting `UP`
    with the right address on it. Before concluding "host down", test the **other leg**, then test a hop that
@@ -889,12 +758,11 @@ container on the VPS, per §Two Layers above).
    (`ansible_ssh_common_args`) — proven with a stub ssh config holding only `Host vps`. The `Host <ip>`
    blocks in §The laptop alias contract are for `scp`/`rsync`/`git` and for humans who type addresses —
    useful, not load-bearing.
-3. **`-e ansible_host=<ip>` is a GLOBAL extra-var — it corrupts `delegate_to`.** Using it to reach
-   oldsrv's Home leg produced `ok=367 changed=52 failed=1`, where the one failure was a
-   `delegate_to: pi` task that connected to **oldsrv's** address looking for `/root/.ssh/ha-sync.pub`.
-   The file exists on the Pi; the task never ran there. A scoped override needs
+3. **`-e ansible_host=<ip>` is a GLOBAL extra-var — it corrupts `delegate_to`.** The override applies to every
+   host in the run, so a `delegate_to: pi` task connects to **oldsrv's** address looking for
+   `/root/.ssh/ha-sync.pub`: the file exists on the Pi, the task never runs there. A scoped override needs
    `--limit` + a per-host `host_vars` change or a group-level var — not a global `-e`.
-   **Moot by construction (HD-397):** oldsrv's `ansible_host` IS the Home leg, so no run needs the override
+   **Moot by construction:** oldsrv's `ansible_host` IS the Home leg, so no run needs the override
    at all — the delegated task returns `ok: [oldsrv.kogler.si -> pi.kogler.si(<Pi Home addr>)]` off-LAN with
    no `-e`. Do not reintroduce the pattern.
 4. **A `--check` that fails is not a reachability failure.** The full `home_servers.yml --check` reports
@@ -908,17 +776,28 @@ container on the VPS, per §Two Layers above).
    first, then background the command — and print `pwd` + `git rev-parse --abbrev-ref HEAD` in any
    measurement you intend to quote in a doc.
 
-**Also worth knowing off-LAN:** the Pi is a **toggle-only Slovenian exit node** (egress, not ingress —
-see the section below), and the tailnet does **not** bridge the home LAN, so `10.10.x.x` is unreachable
-over it by design.
+**Also worth knowing off-LAN:** the Pi is the **toggle-only Slovenian exit node** (egress, not ingress —
+see the section below; ⏳ **Not yet advertised in IaC**), and the tailnet does **not** bridge the home LAN,
+so `10.10.x.x` is unreachable over it by design.
 
 ## Slovenian exit node — Pi, toggle-only
 
-**Purpose:** when abroad, reach `rtvslo.si` and other Slovenia-only content without geo-limitations — a **genuine Slovenian residential IP** (home WAN) is the most geo-acceptable egress (datacenter IPs are often blocked).
+**The Pi is the tailnet's exit node** — no other node here offers an exit, and it is the egress a member device
+uses when it needs a Slovenian address. Selecting the Pi as exit node moves that device's **internet-bound default
+route** onto the Pi: the traffic arrives over the **tailnet leg** (WireGuard to the Pi's own `100.64.x` node
+address), the Pi forwards it, and it leaves over the **home leg** — the Pi's `eth0` on VLAN 10, up the home ISP —
+so the peer sees a **genuine Slovenian residential IP** from the home WAN. Nothing else rides it: the traffic of
+the toggling device toward other tailnet nodes keeps its direct path, the home LAN's own traffic never enters
+the exit, and the exit is **egress only** — it opens no inbound path into any home subnet, so the §Tailnet
+boundary invariant (no LAN bridge, no advertised routes) is untouched.
 
-- **Node:** the **Pi** (reliable tier) runs **native `tailscaled` in kernel mode** (`/dev/net/tun`) as a tailscale exit node — `tailscale up --advertise-exit-node`. **Not** the router (RouterOS has no tailscaled; would be a manual WireGuard peer, losing the app toggle) and **not** oldsrv (disposable tier — the exit node must be available exactly when travelling).
+**What the exit is for:** reaching `rtvslo.si` and other Slovenia-only geo-limited content from abroad, where a
+residential Slovenian IP is accepted and datacenter egress usually is not. Home services themselves are reached
+by their node addresses, not through the exit.
+
+- **Node:** the **Pi** (reliable tier) runs **native `tailscaled` in kernel mode** (`/dev/net/tun`). **Not** the router (RouterOS has no tailscaled; would be a manual WireGuard peer, losing the app toggle) and **not** oldsrv (disposable tier — the exit node must be available exactly when travelling).
 - **Selection is client-side and toggled:** the phone/laptop picks the Pi as exit node in the Tailscale app **only when** a Slovenian IP is needed (then switches back). Not always-on — so home power/ISP is never a dependency for everyday phone traffic.
-- **Headscale double opt-in:** the Pi advertises `0.0.0.0/0`, the control server must **approve the route** (manual, headscale CLI), and the policy needs an **`autogroup:internet`** rule (new concept for the user-email-based `policy.hujson`) so tailnet members may use it.
+- ⏳ **Not yet advertised in IaC** — `host_vars/pi.kogler.si.yml` asserts the opposite posture: the `tailscale-node` join carries no `--advertise-exit-node`, so the Pi advertises no `0.0.0.0/0`, and the role states "no exit node" for every host it enrols. `policy.hujson.j2` carries no **`autogroup:internet`** rule either, so an exit that was advertised would still be unusable: that email-based policy admits the ports it names and nothing toward the internet. Closing the item is the **double opt-in** in both halves — the Pi advertises `0.0.0.0/0` (`tailscale up --advertise-exit-node`), then headscale must **approve the route** (CLI) — plus the `autogroup:internet` accept rule (a new concept for this policy file) that lets members use it.
 - **Ceiling while on:** the Pi 4 CPU + the home upload cap mobile throughput (~100–300 Mbit/s, single stream OK). Android tailscale supports **per-app split tunneling** to scope it; iOS is all-or-nothing.
 - **Alternative (future, only if home fails acceptance/speed):** a Slovenian VPS terminated at the VPS, policy-routed for RTV-bound traffic.
 
@@ -929,4 +808,4 @@ over it by design.
 | **At home** | "Kogler" SSID, `kogler.si` dashboard |
 | **Traveling** | Tailscale app → tap Connect (mobile mesh) |
 | **Remote (anywhere)** | Tailscale → access Immich, OpenCloud, HA |
-| **Office MCP bridges (Windows clients)** | Expose the per-client **Office MCP server** over the Headscale interface only (token-auth, no public) so a server-side **Open WebUI** can call Word/Excel/PowerPoint tools. See [`services-office.md`](services-office.md) (HD-106–111). |
+| **Office MCP bridges (Windows clients)** | Expose the per-client **Office MCP server** over the Headscale interface only (token-auth, no public) so a server-side **Open WebUI** can call Word/Excel/PowerPoint tools. See [`services-office.md`](services-office.md). |

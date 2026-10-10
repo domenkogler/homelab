@@ -15,8 +15,8 @@ tags: [services, review, queue]
 
 > **Lifecycle (per CONVENTIONS.md §8.3):**
 > 1. **Before adding** a row, check the decision log [`services-rejected.md`](services-rejected.md) first — a previous rejection is consulted, not auto-blocking (re-review only with an exception note).
-> 2. **Promote** → move the row to `todo.md` as an HD-XXX (pointer back here), then delete it from this file. There is no "accepted" state in review.
-> 3. **Stale** — any row untouched for **30 days** must be promoted to `todo.md` or moved to `services-rejected.md`. Review is a queue, not a backlog.
+> 2. **Promote** → move the row into the implementation backlog (CONVENTIONS.md §8.3), then delete it from this file. There is no "accepted" state in review.
+> 3. **Stale** — any row untouched for **30 days** must be promoted or moved to `services-rejected.md`. Review is a queue, not a backlog.
 
 ---
 

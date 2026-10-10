@@ -5,24 +5,54 @@ domain: storage
 status: active
 tags: [storage, rejected, decision-log]
 ---
-# Storage — Dropped/Aligned
+# Storage — Rejected / Dropped
 
-> **Role:** Append-only decision log — storage (S3/MinIO/off-site box) options the homelab declined. Sorted by name. This log is the per-domain **decision-log SSOT**.
+> **Role:** Decision log — storage/backup options this homelab evaluated and declined; the per-domain
+> **decision-log SSOT**. One row per decision, sorted by subject. The current-state fact a decision
+> settled lives in the owning doc, not here.
 > **Links to:** `storage.md`, `backup.md`
 > **Linked from:** `index.md`, `storage.md`
 
-> ⚠️ **Append-only.** Never edit or reorder an entry after it lands. A changed decision is a new appended entry (do not strike/replace). Each row: `| <tool> | <rejected|dropped|superseded> | <date> | <why + evidence link> |`.
-> ⚠️ **Evidence = the owning doc + this decision log.** Dates are the decision dates in the owning doc / git-attribution dates (advisory).
+> Each row is `| <subject> | <rejected|dropped|superseded> | <why> |` — no dates, no links, no prose.
+> **Append-only:** add rows, never rewrite or delete an existing one; rows are keyed by subject
+> (`CONVENTIONS.md` §8.3). Evidence = the current-state text in the owning doc.
 
 ## Decisions
 
-| Tool | Status | Date | Why |
-|------|--------|------|-----|
-| iDrive e2 (S3) | dropped | 2026-08-18 | Not chosen for the S3 backend — Hetzner Storage Box is cheaper per TB + offers SMB/WebDAV; single-provider risk deliberately accepted. HD-29. · [backup.md](backup.md) |
-| MinIO | dropped | 2026-08-18 | Immich originals are **not** S3/MinIO-backed — they live on the live Hetzner Box (CIFS). MinIO removed from `home_servers.yml`. HD-139. · [storage.md](storage.md) |
-| Samba local accounts (tdbsam `pdbedit`) | rejected | 2026-10-07 | Considered as a stopgap so `\\nas\music` (the Lidarr-root share) could be mounted at all — `pdbedit -L` was empty and no account could authenticate. Owner ruled instead that **Samba accounts live in Authentik**: a local `smbpasswd` would shadow a member's self-service credential and break the D7 pull model. The path is HD-360 (§Samba↔LDAP), not a hand-made account. · [storage.md](storage.md) §Samba (SMB) shares on the NAS |
-| Samba Authentik-as-LDAP passdb (`ldapsam`, D7/HD-132/HD-360) | superseded | 2026-10-07 | Retired the same day the Samba decision was revisited. It had **one** consumer in the whole fleet (Samba on nas) and two independent fatal problems, both measured: a LAN-local mount was made to depend on the VPS + its LDAP outpost + the outpost token + the WG S2S tunnel (``wg_s2s_vps.ip`:3389` refused TCP from `nas` AND `oldsrv`, while `:4443` on the same address was OPEN), and Authentik's LDAP provider serves no Samba attribute at all — no `sambaNTPassword`, so there is no NT hash to answer a Windows NTLM challenge (server package and the `/ldap` outpost binary: zero `samba` matches on 2026.5.6; LDAP mappings are `DN to User Path`/`Name`/`mail`). Nothing else consumes LDAP: Metabase LDAP auth is rejected (HD-243), every other service rides OIDC. Torn down: the `authentik-ldap` container, `storage_samba_ldap`/`storage_samba_passdb` in the storage role, and the `sync-authentik-users` glue (D5/HD-131) that existed to feed it. · [storage.md](storage.md) §Samba (SMB) shares on the NAS |
-| Samba local accounts (tdbsam `pdbedit`) — **re-adopted** | superseded | 2026-10-07 | **Re-decided on the same date as the row two above, which it supersedes.** Local tdbsam accounts are the design: SSOT = `storage_samba_users` in `host_vars/nas.kogler.si.yml`, password written from 1Password `smb-<name>_login` at converge. The earlier row's objection (a local hash shadows portal self-service) is accepted as the price, because the alternative turned out to be unimplementable against Authentik and would have hung a sofa-side drive mount off a WAN tunnel. Cost paid: the SMB password is not the portal password, and rotation needs `-e storage_samba_password_force=<name>` (a vault rotate alone reaches nothing). · [storage.md](storage.md) §Samba (SMB) shares on the NAS |
+| Subject                                                             | Status     | Why                                                         |
+|--------------------------------------------------------------------|-----------|------------------------------------------------------------|
+| Authentik group sync for Samba accounts (`sync-authentik-users.sh`) | superseded | membership is a repo edit now                             |
+| Authentik LDAP outpost as the Samba passdb (ldapsam)                | superseded | serves no sambaNTPassword; LAN mount would need the WAN   |
+| `bulk/media` (media library) backups                                | rejected   | redownloadable via usenet/torrents                        |
+| `docker cp` into a DB container for restores                        | rejected   | the DB rootfs is read-only; pipe over STDIN               |
+| Hetzner Box as the music master (Lidarr copy-import)                | superseded | the NAS Lidarr library is the master                      |
+| `hosts`-file entry for UNC mounts over Wi-Fi                        | rejected   | the zone `nas` record is the fix, not a laptop override   |
+| iDrive e2 (S3)                                                      | dropped    | Hetzner Box is cheaper per TB and does SMB/WebDAV         |
+| Immich face thumbnails treated as regenerable                       | superseded | regenerating means a full facial-recognition re-scan      |
+| Immich `library/` storage-template subpath                          | rejected   | flattens every asset into one directory                   |
+| Immich originals on the NAS                                         | superseded | the live Box (CIFS) is the originals tier                 |
+| immich's bundled PG 14 composite, in the 16 → 18 legs              | rejected   | ships PG 14 only; data_checksums blocks `--link`          |
+| Kopia snapshots of VPS db-backup dumps                              | dropped    | no Kopia client on the VPS; dumps are one copy            |
+| Local tdbsam Samba accounts (`pdbedit`)                             | superseded | its first rejection is void, re-adopted as the design     |
+| Manual music ingest: copy plus a privileged `mv`                    | superseded | the `music` share writes the Lidarr root directly         |
+| MinIO                                                               | dropped    | Immich originals are Box CIFS; the Box is not S3          |
+| NAS-local `immich`/`documents` archive datasets                     | dropped    | the Box + Kopia is the recovery path                      |
+| NAS ZFS snapshots as the family per-file version UI                 | superseded | OpenCloud native versions on the Box                      |
+| Numeric uid/gid in `force user` / `valid users`                     | rejected   | Samba resolves by name; an id resolves to nothing         |
+| oldsrv `push-face-thumbs` unit                                      | dropped    | the thumb tree lives on the VPS                           |
+| oldsrv `push-services` unit (Forgejo/n8n state)                     | dropped    | those containers live on the VPS                          |
+| Pre-seeded OpenCloud accounts via a service account                 | dropped    | OIDC users JIT-provision on first login                   |
+| Prometheus/Loki TSDB excluded from backup                           | superseded | the VictoriaMetrics/VictoriaLogs volumes are Kopia-backed |
+| RAIDZ1 for `tank`, even with RAIDZ expansion                        | rejected   | mirror wins resilver, self-healing and random I/O         |
+| `rsync -a` owner/group preservation onto the NAS export             | rejected   | the export accepts writes from `media` only               |
+| Skipping missing containers so a push exits 0                       | rejected   | a green unit that ships nothing is fake green             |
+| The upstream parent image's `/var/lib/postgresql/18` bind           | superseded | `cap_drop: ALL` cannot mkdir it; the path is stale        |
+| Untagged tasks inside `samba.yml` under a scoped converge           | superseded | include line and every task carry the tag                 |
+| VPS → NAS NFS push for VPS state                                   | rejected   | the NAS exports to the oldsrv /32 only                    |
+| ZFS on the VPS                                                      | rejected   | one ext4 disk; the bulk tier is CIFS                      |
+| Zipline upload payloads in Kopia                                    | rejected   | anonymous drops self-destruct at ≤ 6h TTL                |
 
-> **Not a storage-domain decision:** hypervisor / services / deploy / network / smart-home rejections live in their own `<domain>-rejected.md` files. Keep  [`deployment-rejected.md`](deployment-rejected.md), [`services-rejected.md`](services-rejected.md), [`network-rejected.md`](network-rejected.md), [`smart-home-rejected.md`](smart-home-rejected.md).
-> **SSOT note:** this log is the decision-log SSOT for the storage domain.
+> **Not a storage-domain decision:** hypervisor / services / deploy / network / smart-home rejections
+> live in their own `<domain>-rejected.md` files:
+> [`deployment-rejected.md`](deployment-rejected.md), [`services-rejected.md`](services-rejected.md),
+> [`network-rejected.md`](network-rejected.md), [`smart-home-rejected.md`](smart-home-rejected.md).

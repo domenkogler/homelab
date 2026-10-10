@@ -1,40 +1,31 @@
 ---
-title: Current Home Assistant Instance — Live Inventory & HAOS→Docker Feasibility
+title: Current Home Assistant Instance — Live Inventory
 role: detail
 domain: smart-home
 status: active
 tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 ---
-# Current Home Assistant Instance — Live Inventory & HAOS→Docker Feasibility
+# Current Home Assistant Instance — Live Inventory
 
-> **Role:** Detail — point-in-time snapshot of the live HA instance on the Raspberry Pi 4 (HAOS), all integrations/devices, community plugins (HACS + add-ons), and their impact when evaluating a future **VM with HAOS vs HA in Docker** deployment.
+> **Role:** Detail — live inventory of the HA instance on the Raspberry Pi 4: integrations, devices, community
+> plugins, and the host surface a Debian + HA Container deployment does not provide.
 > **Links to:** `smart-home.md`, `smart-home-failover.md`, `deployment-ansible.md` (`home_assistant` role), `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
-> **What this file is.** An inventory of the **live** HA instance, collected read-only from the running
-> system (REST API, then the `ha` CLI + shell in the Advanced SSH & Web Terminal add-on for what REST cannot
-> expose: the full add-on list, `custom_components/`, USB, host/OS facts). Where a section was verified
-> against the box it says so; items still marked **to-confirm** are the residue the API could not answer.
+> **What this file is.** An inventory of the **live** HA instance, read from the running system (the REST
+> API, plus the `ha` CLI + shell for what REST cannot expose: `custom_components/`, USB, host/OS facts).
+> Where a section was verified against the box it says so; items still marked **to-confirm** are the residue
+> the API cannot answer.
 >
-> **Architecture today:** the primary runs on the Pi as **Debian + HA Container** (not HAOS) with the
-> Technitium secondary co-located — the redo of items 1–3 below, which is why the add-on/Supervisor sections
-> describe the pre-redo HAOS shape. As-built runbook: [deployment-pi-provision.md](deployment-pi-provision.md);
+> **Architecture:** the primary runs on the Pi as **Debian + HA Container** with a Technitium instance
+> co-located. As-built runbook: [deployment-pi-provision.md](deployment-pi-provision.md);
 > design: [smart-home.md](smart-home.md), [smart-home-failover.md](smart-home-failover.md).
 >
-> **Pre-redo raw harvest:** live config pulled off HAOS into `assets/references/old-ha/`
-> (`configuration.yaml`, the split KNX group-address maps, scripts, Lovelace views, entity-registry JSON),
-> secrets-scanned before commit. **The KNX GA maps are legacy** — KNX is integrated from the ETS project
-> export instead (`assets/references/knx/StanovanjeKogler_v1_0.knxproj` + HA `knx` `project_file:`,
-> [smart-home.md](smart-home.md)); the YAML maps remain only as a record of what was live.
+> **KNX group addresses** come from the ETS project export
+> (`assets/references/knx/StanovanjeKogler_v1_0.knxproj` + HA `knx` `project_file:`,
+> [smart-home.md](smart-home.md)).
 >
-> **Planned changes at the time of the audit** (see `smart-home.md`, `smart-home-failover.md`,
-> `network-dns.md`): ① Pi HAOS → Debian + HA Container during the network redo (keeps the failover VIP/VRRP
-> and one Ansible role for both nodes); ② Homematic IP local RF **rejected** — the HmIP-HAP stays in cloud
-> mode ([smart-home-rejected.md](smart-home-rejected.md) HD-18); ③ Technitium secondary DNS moves nas → Pi;
-> ④ dev add-ons + Supervisor-only services replaced by standalone containers/host tools, HAOS auto-backup
-> replaced per [backup.md](backup.md).
->
-> 🔧 **KNX wiring lessons that survived the redo (HD-339)** — both were silent, both are now structural:
+> 🔧 **KNX wiring constraints** — both silent, both structural:
 > ① **`route_back: true` is required on the KNX tunneling connection** or the DALI / ComfoConnect gateways'
 > spontaneous status telegrams (InfoOnOff, InfoDimmingValue, humidity) never reach HA. The symptom is not an
 > error: light *state* silently never syncs (HA believes "off", so re-sending ON looks like nothing happened)
@@ -42,23 +33,24 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 > ② **`brightness_address` must be an absolute-dimming group object.** HA writes 0–255 to whatever is
 > configured there, so pointing it at a `DimmingControl` (DPT 3.7, relative) object makes **0 mean OFF and
 > the OFF command is ignored** — the generator uses `DimmingValue` (DPT 5.1) for that field.
-> ③ A physically wrong reading can be a real device fault: the rekuperator's −10 °C room temperature was a
-> **faulty probe** (bus value 0x8418 vs 23–27 °C on every other sensor; config/DPT exonerated first, owner
-> confirmed at the device). **Rule: prove the bus value before blaming the config, and blame the sensor only
-> after the config is ruled out.**
+> ③ A physically wrong reading can be a real device fault: **prove the bus value before blaming the config,
+> and blame the sensor only after the config is ruled out.**
 
 ---
 
 ## 1. Executive Summary
 
-- The live instance is a **Raspberry Pi 4 B running Home Assistant OS (HAOS)** — confirmed by the `hassio` (Supervisor) component, the HAOS/OS/Supervisor update entities, and Raspberry Pi–specific integrations.
-- **Versions at audit time (pre-redo HAOS):** HA **Core 2026.7.4** · HA **OS 18.2** · Supervisor **2026.07.5** ·
-  RPi4 firmware 2026-01-09. Current container versions are pinned in
-  `IaC/ansible/group_vars/all/versions.yml` — never read them from this file.
+- The instance runs on a **Raspberry Pi 4 B** as **Debian + HA Container**, rendered by the `home_assistant` role.
+- **Versions** are pinned in `IaC/ansible/group_vars/all/versions.yml` — never read them from this file.
 - **198 entities**, spanning KNX (blinds, lights, heat-recovery ventilator, appliance power), Homematic IP (6 room thermostats + weather station + alarm), Shelly (<lights, buttons, overpowering>), media (Nvidia Shield via Android-TV-Remote **and** Cast, Sony BRAVIA via DLNA), Companion mobile apps, and weather.
-- **Community/HACS plugins:** **HACS v2.0.5**, **OneDrive Backup** (cloud backup), **go2rtc** (camera streaming), and **card-mod v3.4.4** (frontend). Likely-custom but **to-confirm:** `motion`, `ai_task`. (**Weather 2000** forecast source = **dropped** per HD-22 → core `meteoblue`.)
-- **HAOS add-ons (Supervisor, all official):** `Advanced SSH & Web Terminal`, `File editor`, `Studio Code Server`. These are the **only** Supervisor add-ons currently detected.
-- **Feasibility verdict (Docker):** **High** — every functional integration (KNX, Homematic IP, Shelly, media, Companion, weather, HACS, OneDrive, go2rtc) runs under **HA Container**, because HACS and its custom components live inside HA Core, not the Supervisor. The only things lost moving to Docker are the **dev-tool add-ons** (SSH/File editor/VS Code) and **Supervisor OS-level services** (OS/firmware updates, watchdog, add-on lifecycle) — all replaceable as standalone containers or host tools. Details in §8.
+- **Community plugins:** **HACS v2.0.5** is the only entry in `custom_components/`, and **card-mod v3.4.4 is
+  present** — a frontend resource loaded from `www/`, so a `custom_components/` listing does not show it (§7.1,
+  [`interfaces.md`](interfaces.md) §HA Dashboard (native)). Genuinely absent from `custom_components/`: `motion`,
+  `ai_task`, OneDrive and go2rtc — go2rtc is not a custom component and no camera entities live (§7.1). The
+  forecast source is core `meteoblue` (§6.4).
+- **HACS and its custom components live inside HA Core**, not the Supervisor, so they behave identically under
+  HA Container. The HAOS-only surface is the **Supervisor services + the dev add-ons** — §8 lists what replaces
+  each of them.
 
 ---
 
@@ -68,14 +60,10 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 |---|---|
 | Instance URL | `https://ha.kogler.si` (via VIP/Traefik) |
 | Hostname reference | `ha.kogler.si` → routes to this IP (VIP concept in `smart-home-failover.md`) |
-| Install method | **HA OS (HAOS)** on Raspberry Pi 4 B — Supervisor present |
-| HA Core | **2026.7.4** (latest available 2026.8.0) |
-| HA OS | **18.2** |
-| Supervisor | **2026.07.5** |
-| RPi4 EEPROM/firmware | 2026-01-09 |
+| Install method | **Debian + HA Container** on Raspberry Pi 4 B |
+| HA Core | pinned in `IaC/ansible/group_vars/all/versions.yml` — never read from this file |
 | Config directory | `/config` |
-| Config source | **storage** (`.storage` database) — expected for default_config HAOS install |
-| Data collection method | REST API + owner login token; entities 198 |
+| Config source | **storage** (`.storage` database) |
 | Auth provider | `homeassistant` local only (see §5) |
 
 ---
@@ -91,9 +79,9 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 | Latitude / Longitude | 46.5596 / 15.6355 |
 | Elevation | 275 m |
 | Unit system | km, mm, m², g, Pa, °C, L, m/s (metric) |
-| External/internal URL | **null** (no Nabu Casa / direct URL set) |
+| External / internal URL | `external_url` = `https://ha.kogler.si` (see §5); no Nabu Casa / direct URL |
 
-> Notes: UI strings are Slovenian (`location_name`, entity friendly names in `sl`). `external_url`/`internal_url` are **null** — remote access is expected to be handled by Traefik reverse-proxy / `ha.kogler.si` (see `smart-home.md`), not by an HA-configured URL.
+> Notes: UI strings are Slovenian (`location_name`, entity friendly names in `sl`). Remote access is handled by the Traefik reverse-proxy / `ha.kogler.si` (see `smart-home.md`), not by Nabu Casa.
 
 ---
 
@@ -101,33 +89,30 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 
 - 198 entities; major domains: **sensor 77**, **binary_sensor 39**, **light 30**, **update 9**, **cover 8**, **climate 6**, plus media_player, script, person, device_tracker, notify, todo, switch, remote, alarm_control_panel, tts, conversation, weather, sun, zone.
 - **No MQTT broker, no Zigbee/Z-Wave, no ESPHome integration** is currently loaded or present as entities (see §6 — several devices in `smart-home.md` are therefore not represented in this live instance yet).
-- **No split-brain concern today:** single active node.
+- **Single active node** — no split-brain concern.
 
 ---
 
 ## 5. Accounts & Authentication (`/auth/providers`)
 
-> ⏳ **Reachability state (HD-330 tail):** `ha.kogler.si` did **not resolve on the LAN/tailnet** because the
-> Pi's Technitium tertiary had an **empty zone** (the seed was blocked on the non-1P admin password) while the
-> VPS primary answered → VIP. Two lessons kept deliberately: **a name that resolves from one resolver and not
-> another is a seed/zone problem, not a TLS or routing problem**, and Pi `traefik-ha` TLS was already correct
-> (`openssl s_client` served a valid `*.kogler.si`) — the `failed to find any PEM data` lines in the container
-> log were pre-cert-sync-timer start errors, i.e. **old log lines are not current state**.
-> Open: seed the Pi tertiary so resolution does not depend on resolver ordering; the mobile-over-Tailscale
-> path is not built.
+> **Reachability.** `ha.kogler.si` must resolve to the **VIP from every resolver**; a name that resolves from
+> one resolver and not another is a **seed/zone** problem, not a TLS or routing problem. The Pi's Technitium
+> zone still needs its seed, so resolution today depends on resolver order — see the failover doc's open item.
+> Pi `traefik-ha` TLS serves the synced `*.kogler.si` wildcard
+> ([smart-home-failover.md](smart-home-failover.md) §Offline-safe cert).
 
-- **Currently only ONE auth provider:** `homeassistant` (local user accounts — `domen` owner + local `admin` on the new Pi). **Home Assistant Cloud** loaded. **`external_url` = `https://ha.kogler.si` SET (owner, 2026-09-07).** Authentik native-OIDC **NOT wanted** (owner decision) — HA stays local-auth, WAN-independent.
+- **One auth provider: `homeassistant`** (local user accounts — `domen` owner + a local `admin`). **Home Assistant Cloud** loaded. `external_url` = `https://ha.kogler.si`.
+- **No Authentik/OIDC — by design, not a gap.** HA is **local-auth + WAN-independent**: the smart home must keep working when the VPS, Authentik and the WAN are all gone ([smart-home-failover.md](smart-home-failover.md)); `ha` is never behind Authentik Forward-Auth (decision log: [smart-home-rejected.md](smart-home-rejected.md)).
 - **`mobile_app:` must be declared explicitly** in the rendered `configuration.yaml` — this instance renders
   its integration list and has **no `default_config:`**, so anything not listed simply does not exist. The tell
-  is `/api/mobile_app/registrations`: **404 = integration absent, 401 = present and asking for a token** (HD-330).
-- **No Authentik/OIDC — and that is the decision, not a gap.** HA is intentionally **local-auth +
-  WAN-independent**: the smart home must keep working when the VPS, Authentik and the WAN are all gone
-  ([smart-home-failover.md](smart-home-failover.md)). HA does **not** go behind Authentik Forward-Auth, and
-  native-OIDC was considered and declined.
-- **Mobile / Companion app — do NOT disable the local `homeassistant` provider.** The native OIDC (`openid_connect`) provider is the piece that makes the *web* login use Authentik while leaving the **Companion app + mobile clients** on local HA credentials. If you configure `auth_providers` with only `openid_connect` (dropping `type: homeassistant`), the app loses its login entirely and HA shows *"Enable mobile clients"* — the local provider must stay for the app to work.
-- One `owner` account (`domen`) used for this audit. A local recovery owner account is retained as designed in `smart-home-failover.md`.
+  is `/api/mobile_app/registrations`: **404 = integration absent, 401 = present and asking for a token**.
+- **Never drop `type: homeassistant` from `auth_providers`.** With only an external/`trusted_networks` provider,
+  HA shows *"Enable mobile clients"* for any client from an untrusted network and the Companion app loses its
+  login entirely.
+- One `owner` account (`domen`) plus a local `admin`, as designed in `smart-home-failover.md`.
 
-> **Migration relevance:** In a Docker/VM-HAOS move, local user accounts and long-lived-tokens are stored in `.storage` and move with the config — no rebuild of auth needed as long as the config directory is preserved.
+> **Host-move relevance:** local user accounts and long-lived tokens live in `.storage`, so they move with the
+> config directory — no auth rebuild is needed.
 
 ---
 
@@ -139,8 +124,8 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 | Integration (domain) | Devices / entities observed | Notes |
 |---|---|---|
 | **KNX** (`knx`) | **8 blinds** (cover, device_class `blind`: Dnevna soba, Hodnik, Kabinet, Kopalnica, Kuhinja, Soba roza, Soba zelena, Spalnica) · many **lights** · **rekuperator/ComfoAir Q** (airflow, supply/extract/room/outdoor temp+humidity, filter) · **appliance current** (pečica mala/velika=oven, pomivalni stroj=dishwasher, pralni stroj=washer, sušilni stroj=dryer — group addr `1.1.7`, mA) · KNX interface status sensors (telegrams, connection, individual address) · external/internal security zones | Home's field bus. GIRA IP router; ComfoAir Q via ComfoConnect KNX-C per `smart-home.md` |
-| **Homematic IP** (`homematicip_cloud`) | **6 thermostats** (Dnevna soba, Kopalnica, Roza soba, Spalnica, WC, Zelena soba) + temp/humidity/abs-humidity · **weather station HmIP-SWO-B** (temp, humidity, illuminance, windspeed, storm, sunshine) · alarm control panel + battery sensors | **Cloud mode** (HmIP-HAP on internet VLAN) — retained until an HmIP-RFUSB is bought (HD-13 parked); local RaspberryMatic only if RFUSB is added later |
-| **Shelly** (`shelly`) | **LED/light strips** (LED kuhinja, Kopalnica LED, orhideje, soba postelje/omare, WC-4 ch1–4, Utility…) · **buttons** (Tipka) · **overpowering** binary sensors · **reboot buttons** (Ponovno zaženi) · light values | Native Shelly integration (direct LAN HTTP/WebSocket, **no MQTT**). RGBW2 controllers/buttons across rooms. *Current-live instance (HAOS):* already integrated. **Redo (HD-320):** the 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20, `auth:false`) need the narrow Home→IoT new-TCP tcp/80 exception (Pi node not in `trusted-admin`, HD-320) **and a human add-by-IP in the HA UI** (config-flow only, no mDNS across VLANs); dashboard strips authored in `lovelace-stanovanje` |
+| **Homematic IP** (`homematicip_cloud`) | **6 thermostats** (Dnevna soba, Kopalnica, Roza soba, Spalnica, WC, Zelena soba) + temp/humidity/abs-humidity · **weather station HmIP-SWO-B** (temp, humidity, illuminance, windspeed, storm, sunshine) · alarm control panel + battery sensors | **Cloud mode** (HmIP-HAP on internet VLAN) — there is no local-RF path (decision log: [smart-home-rejected.md](smart-home-rejected.md)) |
+| **Shelly** (`shelly`) | **LED/light strips** (LED kuhinja, Kopalnica LED, orhideje, soba postelje/omare, WC-4 ch1–4, Utility…) · **buttons** (Tipka) · **overpowering** binary sensors · **reboot buttons** (Ponovno zaženi) · light values | Native Shelly integration (direct LAN HTTP/WebSocket, **no MQTT**). RGBW2 controllers/buttons across rooms. The 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20, `auth:false`) are added **by IP in the HA UI** (config flow only — no mDNS across VLANs) and need the narrow Home→IoT new-TCP tcp/80 exception (the Pi node is not in `trusted-admin`); dashboard strips live in `lovelace-stanovanje` |
 
 ### 6.2 Media
 | Integration | Devices / entities | Notes |
@@ -155,24 +140,21 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 |---|---|---|
 | **Mobile App (Companion)** (`mobile_app`) | `SM-A546B` (Galaxy A54), `SM-A556B` (Galaxy A56): device_tracker, notify, battery level/state, charger type | 2 phones registered via HA Companion |
 
-### 6.4 Weather (1 provider — HD-22 decided)
+### 6.4 Weather (1 provider)
 | Integration | Entity | Notes |
 |---|---|---|
-| **meteoblue** (core) | `weather.meteoblue_kogler_si_maribor` | **Single authoritative source** (Maribor, `{{ home_latitude }}/{{ home_longitude }}`). Replaces third-party HACS "Weather 2000" + core `met` (both dropped). Key = `meteoblue_api` (1Password Homelab-ansible). Hourly + 7-day forecast; Slovenia is modeled well. Configured in `configuration.yaml.j2` (IaC). |
+| **meteoblue** (core) | `weather.meteoblue_kogler_si_maribor` | **Single authoritative source** (Maribor, `{{ home_latitude }}/{{ home_longitude }}`). Key = `meteoblue_api` (1Password Homelab-ansible). Hourly + 7-day forecast; Slovenia is modeled well. Configured in `configuration.yaml.j2` (IaC). |
 
-### 6.5 System / HAOS-level
-| Integration | Observed | Notes |
-|---|---|---|
-| **Supervisor (HAOS)** (`hassio`) | update/sensor/switch/binary_sensor entities | Confirms HAOS; add-on update entities in §7 |
-| **RPi Power** (`rpi_power`) | `binary_sensor.rpi_power_status` (undervoltage detection) | Pi PSU health |
-| **Raspberry Pi** (`raspberry_pi`, `homeassistant_hardware`) | RPi4 firmware update entity | Hardware platform |
-| **Backup** (`backup`) | automatic backup manager + last/next scheduled backup sensors | HAOS automatic backups |
+### 6.5 Host-level surface
+`supervisor` (`hassio`), the HAOS **backup** manager, the Raspberry Pi integrations (`rpi_power`,
+`raspberry_pi`) and `homeassistant_hardware` — the component that carries the RPi **firmware** entity — are
+**not part of HA Container**: Pi health (undervoltage, EEPROM/firmware) and backups are host-level
+concerns (§8, [`backup.md`](backup.md)).
 
-### 6.6 Presence of *missing* integrations (important for Docker/device claims)
+### 6.6 Presence of *missing* integrations (important for device claims)
 > Confirmed **absent** from loaded components: `esphome`, `mqtt`, `zwave_js`, `zha/zigbee`, `oidc`/`openid_connect`. Consequently:
 - The **Guition kitchen ESP32-S3** and any ESPHome node from `smart-home.md` are **not currently an active integration** on this instance.
 - **No MQTT broker** is used by anything live (Shelly are native, KNX is direct): matches the failover doc's "no broker" design.
-- **Authentik SSO not yet wired** into HA live (see §5).
 
 ---
 
@@ -185,76 +167,50 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 |---|---|---|---|---|---|
 | **HACS** | Integration (core) | 2.0.5 | 2.0.5 | Community add-on store / install manager | ✅ Yes |
 | **OneDrive Backup** (`onedrive`) | HACS integration | *(api)* | — | Cloud backup to Microsoft OneDrive (used space/free space/drive state sensors) | ✅ Yes |
-| **go2rtc** (`go2rtc`) | HACS integration | *(api)* | — | Camera/RTSP streaming (camera/ffmpeg/stream/web_rtc loaded; **no live camera entities yet**) | ✅ Yes |
+| **go2rtc** (`go2rtc`) | Not a custom component | — | — | Camera/RTSP streaming plumbing (`camera`/`ffmpeg`/`stream`/`web_rtc` loaded); **no camera entities live** | ✅ Yes |
 | **card-mod** (`card_mod`) | HACS frontend card | v3.4.4 | v4.2.1 (skipped) | Custom Lovelace card CSS/modification (frontend resource — lives under `www/`, not `custom_components/`) | ✅ Yes |
-| ~~**motion**~~ | ~~HACS?(custom)~~ | — | — | ❌ **NOT PRESENT** in `custom_components/` (verified on disk -21) | — |
-| ~~**ai_task**~~ | ~~custom / 2026-builtin?~~ | — | — | ❌ **NOT PRESENT** in `custom_components/` (SSH-verified 2026-08-21); likely a 2026 core component misattributed via REST API | — |
-| ~~**Weather 2000 (SI)**~~ | ~~HACS (custom)~~ | ~~*(api)*~~ | — | ~~Slovenian forecast (`weather.weather_2000_slovenija`)~~ | ❌ **Removed (HD-22)** — superseded by core `meteoblue` (**single source**); third-party HACS / duplicate `met` all dropped |
 
-> **Verified directly on disk:** `/config/custom_components/` contains **exactly one directory: `hacs`** — which
-> corrected an earlier REST-based attribution. The components the API pass attributed to HACS/custom
-> (OneDrive, go2rtc, card-mod,
-> motion, ai_task) are **not in `custom_components/`** — either since-removed or misattributed
-> (frontend resources such as card-mod load from `www/`; `ai_task` is plausibly a 2026 core
-> integration, not a custom component). For the HD-04 redo this means: **nothing to port except
-> HACS itself (+ any `www/` frontend resources)**; re-adding OneDrive/go2rtc etc. is a fresh-deploy
-> decision, not a migration step.
+> **Verified on disk:** `/config/custom_components/` contains **exactly one directory: `hacs`**. What is
+> genuinely **missing** from it is `motion`, `ai_task`, OneDrive and go2rtc — and two of those were never
+> `custom_components/` candidates: `ai_task` is a core integration, and go2rtc is not a custom component (no
+> camera entities live). **card-mod v3.4.4 is present**: it is a HACS *frontend* resource and loads from `www/`,
+> which is why a `custom_components/` listing does not show it (row above; the dashboard style note in
+> [`interfaces.md`](interfaces.md) §HA Dashboard (native)). So there is nothing to port except HACS itself + the
+> `www/` frontend resources; adding OneDrive is a fresh-deploy decision, not a migration step.
 
-### 7.2 HAOS add-ons (Supervisor) — currently installed
-> **Full list confirmed via `ha addons list` (admin CLI)** — these three are ALL of them;
-> **no community add-on repositories** are configured.
+### 7.2 No Supervisor surface
+The dev-tool add-ons an HAOS host would carry — `a0d7b954_ssh` (Advanced SSH & Web Terminal),
+`core_configurator` (File editor), `a0d7b954_vscode` (Studio Code Server) — do not exist under HA Container;
+their equivalents are containers (`lscr.io/linuxserver/code-server`, an SSHD container) or host tools. No
+MQTT (Mosquitto), Zigbee2MQTT or media add-ons are in the design. No camera entities are live; go2rtc is not a
+custom component — the loaded `camera`/`web_rtc` plumbing is core, so a camera would be an integration choice,
+not a HACS install.
 
-| Add-on | Slug | Version | Category | Docker replacement |
-|---|---|---|---|---|
-| **Advanced SSH & Web Terminal** | `a0d7b954_ssh` | 24.0.1 (24.1.0 available) | official (dev/ops) | Standalone SSH server / use host SSH |
-| **File editor** | `core_configurator` | 6.1.0 | official (dev/ops) | VS Code / code-server container, or `config` editor add-on replacement |
-| **Studio Code Server** | `a0d7b954_vscode` | 6.0.1 | official (dev/ops) | `lscr.io/linuxserver/code-server` container |
-| *(HA Core / OS / Supervisor updates)* | — | Core 2026.7.4 · OS 18.2 · Sup 2026.07.5 | platform | n/a in Docker (host-managed) |
-
-> No MQTT (Mosquitto), Zigbee2MQTT, or media add-ons are installed. Hardware side notes from the same
-> pass: `lsusb` = **hub only, zero user USB devices** (no ESP32-S3 serial device, consistent with HD-13
-> parking — no HmIP-RFUSB); boot media = single **128 GB** microSD (HAOS p1–p8 layout); NIC = `end0`
-> (+ `wlan0`).
-
-### 7.3 HAOS/OS-level services (not add-ons)
-- Supervisor watchdog, OS + Supervisor + `raspberry_pi` EEPROM updates, automatic **backup** (HAOS backup manager), RPi power monitoring, hardware detection (`homeassistant_hardware`). These are **HAOS-only** and do not exist in HA Container.
+**Host facts:** `lsusb` = **hub only, zero user USB devices** (no ESP32-S3 serial device, no RF stick — the
+Homematic HAP is a cloud device); NIC = `end0` (+ `wlan0`).
 
 ---
 
-## 8. Impact Assessment: VM+HAOS vs HA in Docker (community-plugin lens)
+## 8. What the Container host does not provide
 
-**Bottom line: HACS + all custom components (OneDrive, go2rtc, card-mod, and likely motion/ai_task/Weather-2000) are fully compatible with HA Container.** HACS installs into `custom_components/` inside the HA Core config, independent of the Supervisor. The genuine HAOS-only surface is limited to **Supervisor services + the 3 dev add-ons**.
+HACS and any custom component install into `custom_components/` inside the HA Core config, independent of the
+Supervisor, so they behave identically here. The HAOS-only surface and what replaces it:
 
-| Capability | VM + HAOS (target) | HA in Docker (Pi or VM) |
-|---|---|---|
-| HACS + OneDrive + go2rtc + card-mod | ✅ native | ✅ native (same `custom_components/`) |
-| Motion / AI-task / Weather-2000 custom comps | ✅ native | ✅ native (same mechanism) |
-| **Add-ons**: SSH, File editor, Studio Code Server | ✅ Supervisor add-ons | ❌ not available → run separate containers (`linuxserver/code-server`, SSHD) or host tools |
-| Add-on store ecosystem (community repos) | ✅ | ❌ (no Supervisor add-on store in Container) |
-| Supervisor auto-backup / add-on lifecycle / watchdog | ✅ built-in | ❌ → use host backup (e.g. `backup.md` / Kopia) + Docker restart policies |
-| OS / firmware (RPi EEPROM) updates | ✅ HAOS-managed | ❌ → host apt/`rpi-eeprom-update` outside HA |
-| RPi undervoltage + hardware integration | ✅ | ⚠️ partially — `rpi_power` and `raspberry_pi` are not part of HA Container; use OS-level detection on the host |
-| VRRP/keepalived for VIP failover | ⚠️ **not feasible on Pi-HAOS**; feasible on VM-HAOS if VM host VLANs allow (still has Supervisor constraints) | ✅ native on host (enabler for the failover design in `smart-home-failover.md`) |
-| Config + auth + entities parity | same `.storage`+`configuration.yaml` | same — one Ansible `home_assistant` role renders both (see `deployment-ansible.md`) |
-
-### 8.1 Practical migration notes
-- **No functional integration is lost** going to Docker; only dev/ops tooling (3 add-ons) and HAOS OS-level services change form. Recreate tooling as containers: `code-server`, an SSH jump container, and a host cron/systemd backup.
-- **OneDrive Backup** (HACS) keeps working in Docker (it's a Core integration calling the Microsoft Graph API) — no Supervisor dependency.
-- **go2rtc / cameras:** no camera entities are live today; once added, they remain a plain custom component in either deployment.
-- **HAOS backup** (Supervisor) is the one backup path that disappears; ensure an equivalent (the repo's `backup.md` / Kopia / host snapshots) covers `/config` in a Docker deployment.
-- **Superset of constraints:** if the chosen direction is **VM + HAOS** (rather than Pi-HAOS), most Supervisor benefits return, but VRRP for the failover VIP is still cleaner on a plain Docker/host deployment (as documented in `smart-home-failover.md`).
+| Capability | Debian + HA Container (this host) |
+|---|---|
+| Add-ons: SSH & Web Terminal, File editor, Studio Code Server | separate containers (`lscr.io/linuxserver/code-server`, an SSHD container) or host tools |
+| Add-on store ecosystem (community repos) | none — there is no Supervisor |
+| Supervisor auto-backup / add-on lifecycle / watchdog | host backup per [`backup.md`](backup.md) + Docker restart policies |
+| OS / firmware (RPi EEPROM) updates | host `apt` / `rpi-eeprom-update`, outside HA |
+| RPi undervoltage + hardware integration | `rpi_power` / `raspberry_pi` / `homeassistant_hardware` are not part of HA Container — detect at the OS level |
+| VRRP / keepalived for the failover VIP | ✅ native on the host — the enabler for `smart-home-failover.md` |
+| Config + auth + entity parity with the standby | one Ansible `home_assistant` role renders both nodes (see `deployment-ansible.md`) |
 
 ---
 
-## 9. Open Questions / Data Gaps (to-confirm before finalising plans)
+## 9. Open Questions / Data Gaps (to-confirm)
 
-- [x] ~~Confirm exact installed versions + full repository list of **HACS** custom components (`motion`, `ai_task`, Weather-2000, OneDrive, go2rtc) via SSH (`Advanced SSH & Web Terminal`) or the config git repo (`custom_components/`, `.storage/hacs.data`).~~ **Confirmed 2026-08-21 (HD-15):** `custom_components/` = **only `hacs`**; the other named components are not present (see §7.1) — nothing to migrate except HACS itself; re-adds are fresh-deploy decisions under HD-04.
-- [x] ~~Confirm the **full Supervisor add-on list** with an **admin** token (`/api/hassio/addons` returned 401 for the owner `domen` token used here) — ensures no community add-on store is in use.~~ **Confirmed 2026-08-21 (HD-20):** `ha addons list` = File editor · Studio Code Server · Advanced SSH & Web Terminal — all official, no community stores (§7.2).
-- [x] ~~Confirm **Modbus UPS** device/register details — device is the **PowerWalker VFI ICT/ICR IoT 3000** on `10.10.99.9:502` (unit 1); *register map* still to-confirm~~ (see [`hardware-ups.md`](hardware-ups.md)). **Superceded/removed** — HA Modbus UPS sensors retired; UPS monitoring is NUT/USB via `nut_exporter`.
-- [ ] Confirm **ESPHome**: `smart-home.md` references a Guition ESP32-S3 kitchen device, but the `esphome` integration is **not loaded** on this instance — is it online/paired elsewhere or not yet added? *(2026-08-21 evidence added: `lsusb` = hub-only, no USB serial device; no esphome add-on among the 3 installed — remaining check is network-side pairing / owner memory.)*
-- [ ] Confirm **ESPHome**: `smart-home.md` references a Guition ESP32-S3 kitchen device, but the `esphome` integration is **not loaded** on this instance — is it online/paired elsewhere or not yet added?
-- [x] ~~Confirm the **"Weather 2000, Slovenija"** source — third-party/HACS vs core, and whether it should be retained or replaced.~~ **Decided (HD-22):** dropped. Single authoritative source = HA core **`meteoblue`** (Maribor, `meteoblue_api` from 1Password), configured in `configuration.yaml.j2`. Core `met` also dropped.
-- [ ] Whether the planned **Authentik/OIDC** SSO is meant to be introduced during the redo (currently not connected).
+- [ ] Confirm **ESPHome**: `smart-home.md` references a Guition ESP32-S3 kitchen device, but the `esphome` integration is **not loaded** on this instance and `lsusb` shows no USB serial device — is it online/paired elsewhere or not yet added?
 
 ---
 

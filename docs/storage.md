@@ -20,11 +20,11 @@ tags: [storage, zfs, datasets, backup, media, nfs]
 1. **Config lives in Git, secrets in 1Password, media is redownloadable.** Only **data** gets backed up.
 2. **"Data" = everything that persists and is not Git / 1Password / re-pullable** — user files, DB dumps,
    service state (Forgejo, n8n), Immich originals and face thumbnails, **the VictoriaMetrics/VictoriaLogs
-   observability stores (HD-341/342 — now Kopia-backed)**, Docker images, packages, model weights/ML
+   observability stores (Kopia-backed)**, Docker images, packages, model weights/ML
    model weights, and the media library are deliberately **not** backup targets.
 3. **Live data is local.** DBs and service runtime state live on the host's NVMe/SSD — never on NFS.
    The NAS holds **backup artifacts** (dumps, state pushes). **OpenCloud user files + Immich originals live
-   on the live Hetzner Box (CIFS/WebDAV — **SB-Data** `FSN1-BX2190`, Falkenstein, DE)**, not the NAS (HD-135) — the NAS keeps only ZFS snapshots/replicas
+   on the live Hetzner Box (CIFS/WebDAV — **SB-Data** `FSN1-BX2190`, Falkenstein, DE)**, not the NAS — the NAS keeps only ZFS snapshots/replicas
    of the box-facing datasets where retained.
 4. **TRaSH hardlinks need one filesystem.** `downloads/` and `media/` live in a **single dataset**
    (`bulk/media`) — ZFS hardlinks cannot cross dataset boundaries.
@@ -48,7 +48,7 @@ bulk   (6 TB RAIDZ2 — WD Red + 3× Toshiba P300, consumer disks)  → MIXED RO
 │   ├── media/
 │   │   ├── movies/
 │   │   ├── tv/
-│   │   └── ~~music/~~ *(music library is primary on the Hetzner Storage Box for Navidrome on the VPS — see Navidrome/store note below)*
+│   │   └── ~~music/~~ *(music: the NAS is the FLAC master, the Box a serving copy for Navidrome on the VPS — see §Service ↔ Storage Placement)*
 │   └── downloads/       transient scratch (hardlink-import → media/, then prune)
 │       ├── incomplete/{usenet,torrent}
 │       └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent)
@@ -61,18 +61,16 @@ oldsrv — two local disks (Kopia → Hetzner Storage Box backup, NAS-independen
 ├── 960 EVO 500 GB (ext4) — OS/system only: `/`, `/var`, `/opt` — regenerable, no churn
 └── 970 EVO 1 TB (ZFS pool "nvme") — ALL local data (immich dataset kept — immich-ml reads thumbs local):
     ├── nvme/docker-layers   /var/lib/docker         images/layers — re-pullable
-    ├── nvme/docker          /srv/docker — per-service datasets (services; DBs/Immich moved to VPS — HD-135)
-    │   └── nvme/docker/immich  /srv/docker/immich   thumbs read by immich-ml (kept, HD-151)
-    ├── nvme/models          /srv/models             re-pullable, no backup  (TSDB moved to VPS — HD-135)
+    ├── nvme/docker          /srv/docker — per-service datasets (the public apps/DBs run on the VPS)
+    │   └── nvme/docker/immich  /srv/docker/immich   thumbs read by immich-ml
+    ├── nvme/models          /srv/models             re-pullable, no backup  (the TSDB is on the VPS NVMe)
     └── nvme/dumps           /srv/dumps              Kopia source → push → tank/data/db-dumps
 nas — MX300 525 GB (ext4) — OS/boot only; `tank`/`bulk` imported via ZFS cachefile
 ```
-> **Superseded plans:** earlier `tank/important`, `tank/media`, `tank/downloads` and `tank/data`-with-media
-> layouts. Media moved to its own dataset on the `bulk` pool; `tank` is now reserved for user data only.
-> **Tank topology locked: MIRROR (owner decision, HD-207)** — raidz1 rejected even with
-> OpenZFS 2.3+ RAIDZ expansion (mirror wins resilver/self-healing/random-I/O at 2× 4 TB). Growth = a new
-> second mirror pair (contributes its full size) or replace-in-place autoexpand; never `zpool attach` a
-> larger disk onto the existing pair (smallest-member cap). Detail: [`hardware-nas.md`](hardware-nas.md).
+> **`tank` is reserved for user data only**; media and downloads are `bulk` datasets. **Tank topology is
+> MIRROR.** Growth = a new second mirror pair (contributes its full size) or replace-in-place autoexpand;
+> never `zpool attach` a larger disk onto the existing pair (smallest-member cap).
+> Detail: [`hardware-nas.md`](hardware-nas.md).
 
 ---
 
@@ -90,11 +88,6 @@ No native encryption by default (homelab threat model; re-evaluate only if it ch
 | `bulk/data/immich-thumbs` | 128K | lz4 | daily(7) | **no** (pushed, not sent) | yes |
 | `nvme/docker/immich` (oldsrv) | 128K | lz4 | none | **no** | no — regenerable thumbs; immich-ml reads directly |
 
-> **TRIM (HD-151):** `tank/data/immich`, `tank/data/documents`, `bulk/data/immich`,
-> `bulk/data/documents`, `nvme/tsdb` and `nvme/docker/postgres` were removed from the `storage` role
-> create-set — originals/user-files live on the live Hetzner Box, so the NAS-local retained archives added
-> no recovery coverage (the Box + Kopia is the recovery path). `bulk/data/immich-thumbs` and
-> `nvme/docker/immich` are **kept** — still written today.
 
 Rationale: `recordsize=1M` matches large sequential photo/video files; `128K` is the sensible default for
 services/dumps. Media and photos are already compressed by their codecs → `lz4` (cheap, tiny gain);
@@ -120,13 +113,12 @@ case a homelab loses <24 h of DB changes, acceptable.
 
 ## File-Version UI (per-file restore)
 
-> **Post-HD-151:** the NAS `tank/data/documents` dataset is **gone** (trimmed HD-151) — OpenCloud user
-> files live entirely on the live Hetzner Box, so per-file versioning is OpenCloud's native mechanism below;
-> there is no NAS ZFS shadow-copy long tail anymore.
+> OpenCloud user files live entirely on the live Hetzner Box, so per-file versioning is OpenCloud's native
+> mechanism below — there is no NAS ZFS shadow-copy path.
 
-- **Family today:** OpenCloud's built-in per-file versions (`REV.*` in `.oc-nodes/`) + Trash — keep its
-  revision retention short; retention is purely box-side now (config in the OpenCloud service, not ZFS).
-- **Admin today:** cockpit-zfs (nas) for the remaining datasets + `.zfs/snapshot/*` + `zfs rollback`/`receive` (whole-tree or per-file copy out of a snapshot) where a dataset is retained.
+- **Family:** OpenCloud's built-in per-file versions (`REV.*` in `.oc-nodes/`) + Trash — keep its
+  revision retention short; retention is purely box-side (config in the OpenCloud service, not ZFS).
+- **Admin:** cockpit-zfs (nas) for the remaining datasets + `.zfs/snapshot/*` + `zfs rollback`/`receive` (whole-tree or per-file copy out of a snapshot) where a dataset is retained.
 - **Future:** OpenCloud FR [opencloud-eu/opencloud#1702](https://github.com/opencloud-eu/opencloud/issues/1702)
   would expose box-side snapshots in OpenCloud's version panel; don't plan around it (open, no ETA).
 
@@ -138,14 +130,14 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 
 | Export | Mount (oldsrv) | Purpose |
 |--------|----------------|---------|
-| `tank/data` | `/mnt/nas/data` | user data: db dumps, service-state copies, archived datasets. **Immich originals + OpenCloud user files do NOT live here** — they are on the live Hetzner Box (CIFS/WebDAV) via storage templates (HD-135); no S3/MinIO |
+| `tank/data` | `/mnt/nas/data` | user data: db dumps, service-state copies, archived datasets. **Immich originals + OpenCloud user files do NOT live here** — they are on the live Hetzner Box (CIFS/WebDAV) via storage templates; no S3/MinIO |
 | `bulk/media` | `/mnt/nas/media` | *arr library + downloads (Jellyfin, Sonarr/Radarr/Lidarr, SABnzbd, qBittorrent, Bazarr) |
 | `bulk/data/immich-thumbs` | `/mnt/nas/thumbs` | face-thumbnail push target (nightly rsync from oldsrv) |
 
-- Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner (HD-51/HD-94/HD-131), NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
+- Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner, NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
 - fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
-- **The `storage` role applies NFS exports on-change only** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason (e.g. an earlier state where it was absent), subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
-- **SMB/Samba is implemented (HD-131 D4)** on the NAS via the `storage` role — its own section below, since
+- **The `storage` role applies NFS exports on-change only** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason, subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
+- **SMB/Samba is implemented** on the NAS via the `storage` role — its own section below, since
   it exposes a DIFFERENT tree than the NFS exports above and answers to different credentials.
 
 ---
@@ -158,16 +150,13 @@ the two shared ones force-owned by the neutral **`media`** account (`force user`
 
 | Share | Path (nas) | Also visible on oldsrv as | `valid users` | Purpose |
 |-------|------------|---------------------------|---------------|---------|
-| `\\nas\media` | `/tank/data/shared` | `/mnt/nas/data/shared` | `@media` (any family account) | family shared tree (HD-131) |
-| `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | `shared` only | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move (HD-362, added 2026-10-07) |
+| `\\nas\media` | `/tank/data/shared` | `/mnt/nas/data/shared` | `@media` (any family account) | family shared tree |
+| `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | `shared` only | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move |
 | `\\nas\<user>` | `/tank/data/users/<user>` | — | `<user>` | per-user private drive, NO force user (own uid = the isolation) |
 
-**How a client addresses these shares (HD-1097, 2026-10-07).** `nas.kogler.si` answers on the LAN plane
+**How a client addresses these shares.** `nas.kogler.si` answers on the LAN plane
 and DHCP delivers the `kogler.si` suffix, so `\\nas\media` mounts over Wi-Fi as well as over cable.
-Before that the zone carried no `nas` record at all and the UNC worked only through the NetBIOS/LLMNR
-broadcast fallback — wired mounted, the same laptop on Wi-Fi did not, while mounting at the NAS's Home
-address (SSOT row `nas` in [network-addresses-generated.md](network-addresses-generated.md)) mounted on
-both. Keep that split as the diagnostic: **IP mounts and the name does not ⇒ resolution, not Samba**
+Keep the split as the diagnostic: **IP mounts and the name does not ⇒ resolution, not Samba**
 — read the DNS answer before touching the share, the accounts or the firewall. Mechanism and the
 decision not to paper over it with a `hosts` file:
 [network-dns.md](network-dns.md) §Local Name Resolution & mDNS.
@@ -175,10 +164,8 @@ decision not to paper over it with a `hosts` file:
 ⚠ **Samba resolves these directives by NAME, not by id.** `force user = 1005` and
 `valid users = @1005` parse fine, load fine, and resolve to NOTHING: authentication succeeds and
 the **tree connect** then fails — `NT_STATUS_ACCESS_DENIED`, or `NT_STATUS_NO_SUCH_USER` when it is
-the force-owner that is unresolvable. Both forms shipped until 2026-10-07, so `media` and `music`
-had **never** been mountable by anyone; nothing noticed because no Samba account existed to
-authenticate with either (measured in the matrix below). `storage_user`/`storage_group` carry the
-names, and samba.yml asserts they still resolve to `storage_uid`/`storage_gid` — because the
+the force-owner that is unresolvable. `storage_user`/`storage_group` carry the names, and samba.yml
+asserts they still resolve to `storage_uid`/`storage_gid` — because the
 failure mode is a client-side "wrong password", not a red converge.
 
 ### Accounts: local, and the repo is the SSOT
@@ -187,37 +174,25 @@ failure mode is a client-side "wrong password", not a red converge.
 `storage_samba_users`** (`host_vars/nas.kogler.si.yml`): the converge creates the unix user, makes
 its private tree owned by that user, and writes the password from 1Password `smb-<name>_login`
 with `smbpasswd -a -s`. The member types that username+password at mount time; nothing federates
-it. Live set (2026-10-07): `domen` (personal drive + `media`) and `shared` (a service account —
+it. Live set: `domen` (personal drive + `media`) and `shared` (a service account —
 `drive: false`, no login shell — which is the credential for `\\nas\music`).
 
-Three properties of this shape are deliberate, and each has a live lesson behind it:
+These properties of the shape are deliberate:
 
 - **No external dependency on the auth path.** Mounting a drive from the sofa touches the LAN and
-  the NAS only. The design that used to sit here — Samba pulling auth from an Authentik LDAP
-  outpost on the VPS (D7/HD-132/HD-360) — is **retired 2026-10-07**, for two independent measured
-  reasons: (1) it made a family drive depend on the VPS, its outpost, its outpost *token* and the
-  WG S2S tunnel (and that tunnel's `:3389` publish refused TCP from both `nas` and `oldsrv` when
-  probed), and (2) it could never have worked — Samba answers a Windows NTLM challenge with
-  `MD4(UTF-16LE(password))`, which an ldapsam backend reads out of the directory's
-  `sambaNTPassword`, while Authentik stores PBKDF2 and its LDAP provider/outpost ship **no Samba
-  attribute at all** (measured on 2026.5.6: zero `samba` matches in the server package and in the
-  `/ldap` outpost binary; the only LDAP property mappings are `DN to User Path`, `Name`, `mail`).
-  A user's portal password is therefore *not* a Samba credential, anywhere in this fleet. See
-  [storage-rejected.md](storage-rejected.md).
-- **Who can mount is a repo edit, not a directory sync.** The retired
-  `sync-authentik-users.sh` glue (D5/HD-131) used to own this by reading the Authentik `family`
-  group every hour. It is deleted, and so is the `include = /etc/samba/share-*.conf` drop-in hook it
-  appended: the per-user share sections now come from the template. Its teardown tasks stop a unit
-  that had never completed a run — `op` is not installed on the NAS, so it exited **127 on all 823
-  runs since 2026-09-03** while the timer looked `active` (HD-1092, closed by the retirement).
+  the NAS only — passdb is local `tdbsam`, never a directory lookup. A user's Authentik portal
+  password is therefore *not* a Samba credential, anywhere in this fleet: Authentik stores PBKDF2 and
+  its LDAP provider/outpost ship **no Samba attribute at all**, so there is no NT hash to answer a
+  Windows NTLM challenge. See [storage-rejected.md](storage-rejected.md).
+- **Who can mount is a repo edit, not a directory sync.** Membership is `storage_samba_users`; the
+  per-user share sections come from the template, with no `include = /etc/samba/share-*.conf` drop-in.
 - **Rotation needs one extra word.** A passdb write is a target-side act, so rotating the vault item
   changes nothing on the NAS by itself (CONVENTIONS §2 rotation propagation). Rotate the item, then
-  converge with `-e storage_samba_password_force=<name>`.
-  ✅ **Rotated by the owner 2026-10-08** (`smb-domen_login` + `smb-shared_login`, both up to policy length),
-  so the vault is now **ahead of** the box: the remaining leg is pure AI — one `nas` converge with the flag
-  above, then read `pdbedit -L` back. Nothing waits on a human (HD-1093). Without that flag the password task only
+  converge with `-e storage_samba_password_force=<name>` — without that flag the password task only
   fires when the account is absent from `pdbedit -L`, which is what keeps a routine converge from
-  resetting a member's password on every run.
+  resetting a member's password on every run. **The vault is currently ahead of the box:** both
+  family items are rotated and the passdb is not, so the next `nas` converge with that flag closes
+  the gap — read `pdbedit -L` back afterwards.
 - ⚠ **`smbpasswd -a -s` exits 0 while writing nothing, and its stdin contract differs by case**
   (Samba 4.22.10 / Debian 13, measured on a throwaway account in all three combinations):
   a **new** entry reads `NEW`, `REENTER` — two identical lines, prints `Added user x.`, mounts.
@@ -229,15 +204,14 @@ Three properties of this shape are deliberate, and each has a live lesson behind
 
 - **Proving it works is a tree connect, not a listing.** `smbclient -L` succeeds anonymously on this
   host, so it proves Samba is *serving* and nothing about auth. The honest probe (run it as a matrix,
-  because a right answer on one share hides a wrong one on another — that is how the numeric-id bug
-  survived):
+  because a right answer on one share hides a wrong one on another):
 
   ```bash
   # on the NAS: creds go in through stdin so no password lands in argv (CONVENTIONS §6 never-print)
   printf '%s' "$PASS" | sudo tee /root/.c >/dev/null   # written as [global]/username/password
   sudo smbclient //localhost/<share> -A /root/.c -c 'ls' && echo OK
   ```
-  The 2026-10-07 result, with `storage_samba_users = [domen, shared]`:
+  The live matrix, with `storage_samba_users = [domen, shared]`:
 
   | account | `media` | `music` | `domen` (private) |
   |---|---|---|---|
@@ -247,22 +221,17 @@ Three properties of this shape are deliberate, and each has a live lesson behind
   On the NAS itself: `sudo pdbedit -L` lists the accounts and `sudo testparm -s | grep -iE 'passdb|valid
   users|force '` shows what is rendered — read `testparm`, never the template, when a share misbehaves
   (and note `testparm` needs root here because it reports on the running config).
-- **Why the `music` share exists**: the `bulk/media` export names the oldsrv Home address as its **only** client
-  (`/etc/exports` is IaC-rendered; addresses live in [network-addresses-generated.md](network-addresses-generated.md)), so before
-  it nothing Windows-facing could reach the library at all — `\\nas\media` points
-  at a different pool. A manual add used to mean "copy to the share, then a privileged `mv` on oldsrv".
-- ✅ **OpenCloud no longer needs anything the retired glue did.** Its step 4 had best-effort pre-seeded an
-  OpenCloud account per family member with the `opencloud-service_api` service account, so that item and
-  `authentik-nas_api` now have **no consumer** and are measured absent from the vault (`op item list`,
-  134 items, 2026-10-07). OpenCloud JIT-provisions OIDC users on first login — **the owner logged into
-  `file.kogler.si` the same day**, which closes the leg HD-149 registered as never observed. What was NOT
-  measured is the account list itself: with no service-account item left there is no API seat to read it
-  from, so an account-visibility audit would need a freshly minted Graph consumer.
-- **Scoped converge:** `--tags samba` (or `storage,samba`) works only because BOTH halves of the HD-468 tag
+- **Why the `music` share exists**: the `bulk/media` export names the oldsrv Home address as its **only**
+  client (`/etc/exports` is IaC-rendered; addresses live in
+  [network-addresses-generated.md](network-addresses-generated.md)), so nothing Windows-facing can reach
+  the library through it — `\\nas\media` points at a different pool.
+- ✅ **OpenCloud needs no pre-seeded accounts.** OpenCloud JIT-provisions OIDC users on first login; the
+  `opencloud-service_api` and `authentik-nas_api` items have **no consumer** and are absent from the vault
+  (`op item list`). With no service-account item left there is no API seat to read the account list from, so
+  an account-visibility audit would need a freshly minted Graph consumer.
+- **Scoped converge:** `--tags samba` (or `storage,samba`) works only because BOTH halves of the tag
   rule are in place — the `include_tasks: samba.yml` line carries the tag *and* every task inside does.
-  Verified 2026-10-07 by measuring the opposite: with neither, the run printed `ok=24 changed=0 failed=0`
-  and executed only `always`-tagged guards. A share change applied that way is a no-op that reports success.
-  (The per-user private-tree task was one of the untagged ones until this change.)
+  A share change applied without both halves is a no-op that reports success.
 
 ---
 
@@ -270,16 +239,13 @@ Three properties of this shape are deliberate, and each has a live lesson behind
 
 | Job | Source (oldsrv) | Target (nas) | Method |
 |-----|-----------------|--------------|--------|
-| DB dumps | `/srv/dumps` — produced here by `push-db-dumps.service` → `storage-push-db-dumps.sh` (`pg_dumpall` per container in `storage_push_db_dumps_pg`), as `svc-backup` | `tank/data/db-dumps` — pushed by `push-db-dumps-push.service` (the timer's chain head), **as root**: the export maps root to `anonuid=1005`, which is the only identity it accepts writes from | rsync `-a --no-owner --no-group`, no `--delete`; preservation is not optional on this export, see [backup.md](backup.md) §What the 2026-09-28 sweep found |
+| DB dumps | `/srv/dumps` — produced here by `push-db-dumps.service` → `storage-push-db-dumps.sh` (`pg_dumpall` per container in `storage_push_db_dumps_pg`), as `svc-backup` | `tank/data/db-dumps` — pushed by `push-db-dumps-push.service` (the timer's chain head), **as root**: the export maps root to `anonuid=1005`, which is the only identity it accepts writes from | rsync `-a --no-owner --no-group`, no `--delete`; preservation is not optional on this export, see [backup.md](backup.md) §The oldsrv dump-push identity split |
 
-**There used to be two more rows here.** `push-services` (Forgejo/n8n state) and `push-face-thumbs` were
-removed 2026-09-28 (**HD-468**): both named payloads that live on the **VPS**, not on oldsrv, so neither
-could ever exit 0 where it was installed. What the VPS should do instead, and why it cannot do it by NFS
-to the NAS, is in [backup.md](backup.md) — the sweep section — and **HD-191**.
+What the VPS does instead, and why it cannot do it by NFS to the NAS, is in [backup.md](backup.md).
 
 Key properties: dumps are written **locally first** (Kopia snapshots the local dir) and then pushed —
-Kopia never reads NAS mounts, so off-site backup survives a dead NAS. All three jobs are systemd timers
-deployed by the Ansible `storage` role.
+Kopia never reads NAS mounts, so off-site backup survives a dead NAS. The job is deployed by the Ansible
+`storage` role and driven by systemd timers.
 
 ---
 
@@ -293,9 +259,8 @@ deployed by the Ansible `storage` role.
 
 **Excluded:** docker named volumes (raw), downloaded model weights (GGUF/HuggingFace, re-pullable), Immich-ML weights,
 `/mnt/nas/*` mounts entirely (NAS independence), `bulk/media` (not backed up by design).
-> **Observability TSDB (VictoriaMetrics/VictoriaLogs) is Kopia-BACKED** (HD-341/342) — the old
-> "Prometheus/Loki TSDB regenerable, not backed up" doctrine was reversed by the owner; VM/VL volumes
-> are host binds under `/srv/docker/victoria-*/data`, snapshotted by the VPS kopia client.
+> **Observability TSDB (VictoriaMetrics/VictoriaLogs) is Kopia-BACKED** — VM/VL volumes
+> are host binds under `/srv/docker/victoria-*/data` on the VPS, snapshotted by the VPS kopia client.
 
 ---
 
@@ -314,16 +279,16 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
 
 ```
 970 EVO 1 TB → ZFS pool "nvme" (single-disk; every dataset is NAS-backed or regenerable, no mirror needed).
-   Device path = SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml, HD-128/KOPS-057);
+   Device path = SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml);
    automation only creates the pool on a fresh build and a fail-loud guard blocks it while the placeholder remains.
    ⚠ The 970 EVO still carries old Windows **NTFS partitions** from its pre-homelab life — if
    `zpool create` refuses on existing signatures at the Phase-3 playbook run, wipe them first
    (`wipefs -a` on that disk only; OS disk untouched).
 ├── nvme/docker-layers       /var/lib/docker        128K lz4   no snapshots (images re-pullable)
 ├── nvme/docker              /srv/docker (container, canmount=off)
-│   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs read by immich-ml (kept, HD-151)
-│   └── nvme/docker/services /srv/docker/services   128K zstd  remaining local service state (post-HD-135 the public apps/DBs run on the VPS — oldsrv keeps the LAN core: DNS, signal-cli, media stack state; dozzle moved to VPS per HD-135b)
-├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)  (TSDB moved to VPS — HD-135)
+│   ├── nvme/docker/immich   /srv/docker/immich     128K lz4   thumbs read by immich-ml
+│   └── nvme/docker/services /srv/docker/services   128K zstd  local service state (the public apps/DBs run on the VPS — oldsrv keeps the LAN core: DNS, signal-cli, media stack state)
+├── nvme/models              /srv/models 128K off   no snapshots, no backup (ollama + immich-ml weights)  (the TSDB is on the VPS NVMe)
 └── nvme/dumps               /srv/dumps  128K zstd  db-backup scratch → Kopia + push → tank/data/db-dumps
 ```
 
@@ -332,7 +297,7 @@ backup value. `tank`/`bulk` import at boot via the ZFS cachefile — root filesy
   for simplicity; the pool mirrors the NAS backup surface, it does not extend coverage).
 - **Bind mounts, not named volumes** for stateful services: each service dir maps 1:1 to a dataset and
 gives backup jobs/Kopia clean host paths (see `deployment-compose.md` → Volume Strategy).
-- **Capacity budget:** keep `nvme` < 80% full (ZFS fragmentation). ~1 TB fits comfortably: thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB. (TSDB ~20–40 GB is on the VPS NVMe, not this pool — HD-135.)
+- **Capacity budget:** keep `nvme` < 80% full (ZFS fragmentation). ~1 TB fits comfortably: thumbs+encoded ~150–300 GB over 5 yr, docker layers ~50–100 GB, models ~60–150 GB. (The TSDB, ~20–40 GB, is on the VPS NVMe, not this pool.)
 - Docker stays on overlay2 over `nvme/docker-layers` (auto-snapshot off on that dataset).
 
 ### Pi (HA node) — `/opt/<svc>`, no ZFS
@@ -372,7 +337,6 @@ Pi microSD (ext4 — 128 GB, no ZFS, no backup surface)
   zones → AXFR from primary; `traefik-ha` certs → re-rsync/re-issue from oldsrv ACME (single issuer).
 - Pi data deliberately stays under `/opt/<svc>` (unlike oldsrv's `/srv/docker/<svc>`) — small footprint,
   and the role already pins `/opt/traefik-ha/certs/` as the cert-sync target.
-- SD-card wear: HA recorder already trimmed (observability TODO); consider tmpfs for `/var/log`/`/var/tmp`.
 
 ---
 
@@ -383,7 +347,7 @@ Pi microSD (ext4 — 128 GB, no ZFS, no backup surface)
 | `tank` (4 TB) | data < 1 TB | ~+0.5 TB/yr (family data) | ~5 yrs before 80% alert |
 | `bulk` (6 TB) | media + replicas ≈ 1.5–2 TB | media grows fastest | **tight side** — ~2.5 TB media headroom yr 1, sliding to full by ~yr 4 |
 
-Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Critical **≥ 80%** (both `tank`,
+Alerts cover the **nas pools** — Warning **≥ 70%**, Critical **≥ 80%** (both `tank`,
 `bulk`; per-pool, see `observability.md`). When `bulk` hits ~80%, offload `bulk/media` → a future 4 TB NVMe
 (`hardware-spark.md`) — the planned media growth path. `tank` data stays put (mirror is the best disks).
 
@@ -391,7 +355,7 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 ## Service ↔ Storage Placement (VPS era) — which service lives on which storage
 
-> **Decision (HD-135):** the public stack lives on the VPS; storage is split across three tiers
+> The public stack lives on the VPS; storage is split across three tiers
 > by performance and access pattern. This is the authoritative placement table for the VPS-era layout.
 > Keep it in sync with `backup.md` and `services-vps.md`.
 
@@ -403,31 +367,29 @@ Mitigations: extend Grafana alerts to **nas pools** — Warning **≥ 70%**, Cri
 
 **Rule of thumb:** *hot/random/synchronous* on local SSD; *bulk/sequential/cold* on the live Box; *media + local backup* on the NAS.
 
-**Music: NAS master + a Box serving copy (Navidrome on the VPS) — ruled 2026-10-07, HD-1088.** The FLAC **master** is
+**Music: NAS master + a Box serving copy (Navidrome on the VPS).** The FLAC **master** is
 the Lidarr library on the NAS: `bulk/media/media/music` (Lidarr root `/media/music` — measured, empty today). The
 Hetzner Storage Box **`music/`** is the **serving copy** Navidrome reads through its VPS-side CIFS mount
-(`/mnt/storagebox/music` → `/music`, `rw`). ⚠ **What the previous version of this paragraph claimed had no mount
-behind it:** it named the Box the *primary* and had Lidarr "copy-import" onto it, but `roles/cifs/tasks/main.yml`
-asserts the Box mount onto the **VPS only** and neither oldsrv nor the NAS has one — so no `music → Box` leg exists
-anywhere (the Box's `music/` has been empty since the mount went up). The leg is owed by **HD-1088**; until it lands,
-only files the owner places on the Box by hand reach Navidrome.
+(`/mnt/storagebox/music` → `/music`, `rw`). ⚠ `roles/cifs/tasks/main.yml` asserts the Box mount onto the
+**VPS only** — neither oldsrv nor the NAS has one, so no `music → Box` leg exists anywhere and the Box's
+`music/` is empty: only files the owner places on the Box by hand reach Navidrome.
 
 Two consequences worth stating where the layout is read: **(a)** a push must carry the mountpoint guard and
 read-back that `vps-state-push.sh` carries, and any `--delete` must be bounded (`--max-delete`) — a silent dead mount
 on a *serving* tree means Navidrome serves an empty library while the timer reports green; **(b)** **neither copy is a
 backup** — Kopia's remote is the *backup* box (`kopia_sftp_host`, a different server from the live Box) and `bulk` is
 in the media "redownloadable, not backed up" tier, so a bad delete can reach both. That is acceptable for
-usenet/torrent media and much less so for Soulseek FLAC, which is not reliably re-fetchable: the retention call is
-HD-1088's, not a footnote here.
+usenet/torrent media and much less so for Soulseek FLAC, which is not reliably re-fetchable: the retention
+call is an open decision, not a footnote here.
 
 ---
 
 ## VPS Storage Layout (netcup RS 2000 G12 — no ZFS)
 
-> **Decision (HD-135):** the VPS uses **no ZFS** — the 512 GB NVMe is a single ext4 root disk
-> (netcup default) and the live Hetzner Box is **CIFS**, not a block device, so ZFS-on-the-VPS is **rejected**.
+> The VPS uses **no ZFS** — the 512 GB NVMe is a single ext4 root disk
+> (netcup default) and the live Hetzner Box is **CIFS**, not a block device.
 > Recovery is app-level (OpenCloud `REV.*` versioning + Kopia → backup Box), not filesystem-snapshot-based.
-> The three-tier placement table above is the authoritative decision; this layout documents the concrete paths.
+> The three-tier placement table above is authoritative; this layout documents the concrete paths.
 
 ```
 netcup RS 2000 G12 (VPS) — 16 GB RAM, 512 GB NVMe (ext4, single root disk)
@@ -462,14 +424,14 @@ and `nvme` (oldsrv), documented above.
 
 ## Immich Hybrid Storage (VPS: app+DB+thumbs local, originals+encoded on the live Box, ML on oldsrv)
 
-> **Decision (HD-135):** Immich runs **on the VPS**. Originals and encoded-video move to the
-> **live Hetzner Box** (cold tier); thumbnails + Postgres DB stay on VPS NVMe (hot); ML offloaded to the
-> oldsrv GPU. The older "originals on NAS/MinIO" plan is superseded — the live Box is CIFS, **not S3/MinIO**.
+> Immich runs **on the VPS**. Originals and encoded-video live on the
+> **live Hetzner Box** (cold tier); thumbnails + the Postgres DB stay on VPS NVMe (hot); ML is offloaded to the
+> oldsrv GPU. The live Box is CIFS, **not S3/MinIO**.
 
 - **VPS NVMe (`/srv/docker/immich/`)**: Postgres DB + Valkey + `upload/thumbs` (small previews, hot random reads on every UI render).
 - **Live Box (CIFS)**: **originals** (`library/`) **and encoded-video** (`encoded-video/`) — sequential reads, big files, safe off NVMe.
   - Enabled via Immich **storage template** (a DB/UI setting at deploy, not compose env): thumbnails stay under `upload/thumbs`; originals + encoded-video are templated out to the CIFS mount.
-  - **The template question, answered (owner onboarding 2026-09-25): YES, default `{{y}}/{{y}}-{{MM}}-{{dd}}/{{filename}}`.** It is the mechanism this layout depends on — with it OFF, uploads simply
+  - **The template question, answered: YES, default `{{y}}/{{y}}-{{MM}}-{{dd}}/{{filename}}`.** It is the mechanism this layout depends on — with it OFF, uploads simply
     **stay in `upload/`** (UUID-ish flat store) and nothing is filed into the date tree, so the Box layout and any "read the library without Immich" hope both fail. The default is upstream's, it is
     browsable, rsync/Kopia-friendly, and **reversible**: change the template and re-run the migration job.
   - ⚠ **Verify it actually saved.** Upstream shipped an onboarding bug where the storage-template choice was silently not persisted (immich #19395, fixed by PR #19405) — after onboarding, re-open
@@ -497,7 +459,7 @@ all user data lives on the NAS and re-attaches via NFS.
    Authentik DB already in dumps).
 6. Copy face thumbnails back from `bulk/data/immich-thumbs` (NFS) → local `thumbs/`.
 7. Point Immich/OpenCloud at the live Box data — **no copy**: originals/user files are already there (the
-   live Hetzner Box is the cold tier, HD-135). Media library is untouched (Jellyfin/*arr resume from the
+   live Hetzner Box is the cold tier). Media library is untouched (Jellyfin/*arr resume from the
    same `/mnt/nas/media`).
 
 Also covers `nas` boot-SSD death: reinstall (preseed), `zpool import tank bulk`, re-run Ansible — no

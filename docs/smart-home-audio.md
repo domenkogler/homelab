@@ -30,11 +30,5 @@ tags: [smart-home, audio]
 
 ---
 
-## Rejected Options
-
-| System | Reason |
-|--------|--------|
-| Sonos | No Chromecast (Android-unfriendly), closed ecosystem |
-| JBL Authentics | Retro/leather look doesn't fit apartment, requires separate floor subwoofer |
-| Bose & Denon (HEOS) | Cloud dependency — Bose killed support for older models, Denon requires cloud login |
-| Smart speaker mics (Alexa/Google) | Closed ecosystem — cannot redirect raw audio to local LLM |
+> Rejected speaker/microphone options are in the decision log:
+> [`smart-home-rejected.md`](smart-home-rejected.md).

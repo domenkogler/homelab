@@ -5,21 +5,19 @@ domain: services
 status: active
 tags: [services, ai, gpu, benchmark, stt, rerank, vram, whisper, vulkan]
 ---
-# AI Inference Benchmarks — oldsrv RX 7600 / HD 630 / CPU (measured 2026-09-18)
+# AI Inference Benchmarks — oldsrv RX 7600 / HD 630 / CPU
 
-> **Role:** dated **measurement** appendix for the pinned-AI tier ([services-ai.md](services-ai.md) §9
-> decisions #24/#25, HD-369 / HD-385). §9c is the *source-reading* record (what upstreams claim); **this doc is
-> the *measured* record** (what this card actually does), because the 2026-09-17 paper arithmetic in decision
-> #25(b) was wrong by ~10–20× and only a probe could say so.
+> **Role:** **measurement** appendix for the pinned-AI tier ([services-ai.md](services-ai.md) §9 decisions
+> #24/#25). §9c is the *source-reading* record (what upstreams claim); **this doc is the *measured* record** —
+> what this card actually does. The paper arithmetic in decision #25(b) is wrong by ~10–20×; only a probe can
+> say so.
 >
-> **Status: this appendix was acted on.** Decision **#27** adopted its result (Vulkan engine family, Q8_0
-> quantization, reranker on the dGPU) and the three legs shipped in IaC as `whisper` / `reranker` / `embed`
-> (HD-391/HD-392). What this file is *for* is the evidence behind those numbers: it is a measurement record,
-> so its dates are provenance, not history for its own sake.
+> Decision **#27** is the result of this measurement: Vulkan engine family, Q8_0 quantization, reranker on the
+> dGPU. The three legs are the IaC services `whisper` / `reranker` / `embed` ([services-ai.md](services-ai.md) §3a).
 >
-> All probes ran in throwaway containers with loopback-only ports and were deleted afterwards; live services
-> were not touched. Read the plan-of-record in [services-ai.md](services-ai.md) §3a — **not** §4's tunnel URL,
-> which is a torn-down test edge.
+> Probes run in throwaway containers with loopback-only ports and are deleted afterwards; live services are not
+> touched. Read the plan-of-record in [services-ai.md](services-ai.md) §3a — **not** §4's tunnel URL, which is a
+> torn-down test edge.
 
 ## 1. Measurement environment
 
@@ -30,9 +28,9 @@ tags: [services, ai, gpu, benchmark, stt, rerank, vram, whisper, vulkan]
 | RAM | 46 GiB (≥ 33 GiB available throughout) |
 | dGPU | AMD Radeon **RX 7600** `gfx1102` → `/dev/dri/renderD129`, `render` gid **992**, sysfs `card1/mem_info_vram_used`, total 8.57 GiB |
 | iGPU | Intel **HD 630 (KBL GT2, Gen 9.5)** → `/dev/dri/renderD128`, i915, **Xorg primary** (family desktop) and already the Jellyfin **QSV** transcode device |
-| Access path | `ssh -J vps` → Home leg of `oldsrv.kogler.si`. ⚠ The Mgmt-VLAN address was **unreachable from the workstation** in this session and the `oldsrv` alias's `ProxyJump vps` does not work (the VPS has no Mgmt route); the same host key was verified on both legs before trusting it → recorded as **HD-392** |
+| Access path | `ssh -J vps` → Home leg of `oldsrv.kogler.si`. ⚠ The Mgmt-VLAN address is **unreachable from the workstation** and the `oldsrv` alias's `ProxyJump vps` does not work (the VPS has no Mgmt route) |
 
-**Images used (kept on the box for the implementation converge — no bare `latest` in IaC, CONVENTIONS §7):**
+**Images used (kept on the box — no bare `latest` in IaC, CONVENTIONS §7):**
 
 | Image | Digest (`@sha256:`) | Unpacked |
 |-------|--------------------|----------|
@@ -40,13 +38,13 @@ tags: [services, ai, gpu, benchmark, stt, rerank, vram, whisper, vulkan]
 | `ghcr.io/ggml-org/llama.cpp` `server-vulkan` | `7158edb447f837734142c899183e255538d89d63a037f60077b26fc1c7f95353` (v0.4.1, build 11028, `972d2313b`) | 1.21 GB |
 | `ghcr.io/huggingface/text-embeddings-inference` `cpu-1.9.4` | `2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d` | 938 MB |
 
-**Models:** `ggml-large-v3-turbo.bin` + `-q5_0` (ggerganov/whisper.cpp GGML URLs — **the sha256 gap here is
-now closed**: `ggml-large-v3-turbo.bin` = 1 624 555 275 B, `sha256 1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69`,
+**Models:** `ggml-large-v3-turbo.bin` + `-q5_0` (ggerganov/whisper.cpp GGML URLs — `ggml-large-v3-turbo.bin`
+= 1 624 555 275 B, `sha256 1fc70f774d38eb169993ac391eea357ef47c88757ef72ee5943879b7e8e2bc69`,
 and `-q5_0` = 574 041 195 B, `sha256 394221709cd5ad1f40c46e6031ca61bce88931e6e088c188294c6d5a55ffa7e2` — both
-**verified against the downloaded bytes on oldsrv 2026-09-19**, not just against the HF tree OID; they now live
+**verified against the downloaded bytes on oldsrv**, not just against the HF tree OID; they live
 as `whisper_cpp_model_sha256` / `whisper_cpp_model_q5_sha256` in `group_vars/all/versions.yml`),
 `gpustack/bge-reranker-v2-m3-GGUF` **Q8_0** (635,676,416 B, `sha256 a43c7c9b11a4c1517e5bf95151960e1621d1b72f7a493364b01e386cf1aaa1d3`, Apache-2.0, 27 990 DL — verified against the HF LFS OID),
-`ggml-org/bge-m3-Q8_0-GGUF` **Q8_0** (634,553,760 B, MIT, official `ggml-org` org; HF LFS OID `sha256 aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173` — **verified on the fetched bytes 2026-09-19**, and note the artifact name is lowercase: `bge-m3-q8_0.gguf`),
+`ggml-org/bge-m3-Q8_0-GGUF` **Q8_0** (634,553,760 B, MIT, official `ggml-org` org; HF LFS OID `sha256 aa473d51f451a22f0fcf39ba3330c14bed38a385712b1113440f69df4047a173` — **verified on the fetched bytes**, and note the artifact name is lowercase: `bge-m3-q8_0.gguf`),
 `gpustack/bge-m3-GGUF` **FP16** (1,157,671,200 B, `sha256 daec91ffb5dd0c27411bd71f29932917c49cf529a641d0168496c3a501e3062c`) and **Q8_0** (634,553,760 B, `sha256 950f4a8e5e19477a6d3c26d2f162233c20002c601f75e4b002e3239997821167`),
 `gpustack/bge-reranker-v2-m3-GGUF` **FP16** (1,159,776,896 B, `sha256 5df93be121c09c43432102ad2b9569d369ccb85c209ca7583e8ccd28f0e41b88`) — the Q8_0 of both reranker mirrors is the same bytes as above,
 `kftof/bge-reranker-v2-m3-onnx-int8-avx2` (ORT INT8) and stock `BAAI/bge-reranker-v2-m3` (candle fp32).
@@ -54,8 +52,7 @@ as `whisper_cpp_model_sha256` / `whisper_cpp_model_q5_sha256` in `group_vars/all
 **Method:** warm-up request, then 3 timed repetitions per shape, `curl` wall-clock (`%{time_total}` or
 `date +%s%N` delta); VRAM from the `amdgpu` sysfs counter (not `rocm-smi`, which the host does not ship);
 container RSS from `docker stats`; corpus = **real Slovenian prose** from `readme-humans.md`, chunked into
-20 × 100-word documents (an earlier synthetic-`besedaN` corpus inflated tokens/word ~2× — those numbers are
-superseded here and are only quoted where they are the only measurement available).
+20 × 100-word documents.
 
 ## 2. STT — `whisper.cpp` on Vulkan (RX 7600)
 
@@ -70,20 +67,19 @@ Measured with an 11 s WAV:
 | `base.en` (image default) | Vulkan/dGPU | 289 MiB | — | 0.12 s | English-only ⇒ unusable for Slovenian |
 | `large-v3-turbo` | **CPU** (`-ng` / no DRI node) | — | **1.59 GiB** | **17.5 s** | load +2.6 — degraded-fallback only |
 
-**Wire contract — the §9c "thin wrapper is required" claim is FALSE.** `--inference-path /v1/audio/transcriptions`
+**Wire contract — no thin wrapper is required.** `--inference-path /v1/audio/transcriptions`
 relocates the inference route: `POST /v1/audio/transcriptions` → `200 {"text": … }`, `POST /inference` → **404**,
 `/health` stays at the request root, and the extra OpenAI-style multipart fields (`model`, `language`,
 `response_format`) are accepted rather than rejected. Home Assistant Assist therefore needs **no wrapper**.
 
-**GPU-first / CPU-fallback is native** (HD-385 wanted exactly this): with no DRI node present the server logs
+**GPU-first / CPU-fallback is native**: with no DRI node present the server logs
 `ggml_vulkan: No devices found` → `no GPU found` → **serves on CPU and stays up**; `-ng` forces the same path.
 Honest limit: this is **init-time** fallback. A mid-run GPU fault is a container crash + restart, not a fallback.
 
-Model fetch (HD-385 item d): `huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin`
+Model fetch: `huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-large-v3-turbo.bin`
 → 1.6 GB in 18 s, `-q5_0` 548 MB in 11 s. The image ships **only** `ggml-base.en.bin`, so an IaC fetch task is mandatory.
-**That task exists now (HD-391, 2026-09-19)** as the generic `svc.model_*` opt-in in
-`roles/docker_services/tasks/deploy-service.yml`, pinned to `sha256 1fc70f77…2bc69` (§1) — the digest the bench
-could not supply, measured on the bytes on this box.
+The task is the generic `svc.model_*` opt-in in `roles/docker_services/tasks/deploy-service.yml`, pinned to
+`sha256 1fc70f77…2bc69` (§1) — the digest measured on the bytes on this box.
 
 ## 3. Rerank — the device sweep (`bge-reranker-v2-m3`, same weights, same build, one variable)
 
@@ -99,13 +95,11 @@ Latency = `POST /v1/rerank`, `top_n: 5`, real Slovenian chunks:
 | TEI `cpu-1.9.4`, candle fp32 | 1.8× slower than INT8 | — | 20×300 synthetic words = 45.9 s | 3.9 GiB RSS | saturates the box |
 
 **Headlines:**
-1. **CPU rerank is ~10–20× slower than the paper arithmetic in #25(b) claimed** — measured slope ≈ **260 ms per
-   100-word chunk**, so a top-20 rerank costs ~5.3 s (ORT INT8) … 8.0 s (llama.cpp) of *all eight cores*, against an
-   assumed "20 pairs ≈ 10–30 ms/pair" (0.2–0.6 s). 8 AVX2 cores + ORT INT8 with no VNNI is the reason: INT8 buys
-   only **1.8×** over fp32 here (measured), not 4×.
-2. **The dGPU answers it for 425 MiB of VRAM and 0 % CPU** — 10× faster than the best CPU option. #25(b)'s
-   premise ("GPU residency buys nothing while costing 1.5 GB VRAM + a ROCm runtime") was half right — *ROCm*
-   buys nothing — and half wrong: the Vulkan path costs 0.42 GB, not 1.5 GB.
+1. **CPU rerank costs ~260 ms per 100-word chunk** — a top-20 rerank is ~5.3 s (ORT INT8) … 8.0 s (llama.cpp) of
+   *all eight cores*, ~10–20× the "20 pairs ≈ 10–30 ms/pair" (0.2–0.6 s) that paper arithmetic predicts.
+   8 AVX2 cores + ORT INT8 with no VNNI is the reason: INT8 buys only **1.8×** over fp32 here (measured), not 4×.
+2. **The dGPU answers it for 425 MiB of VRAM and 0 % CPU** — 10× faster than the best CPU option. *ROCm*
+   residency buys nothing here; the Vulkan path costs 0.42 GB, not the 1.5 GB a ROCm runtime would.
 3. **TEI is the better CPU engine, `llama.cpp` is the better GPU engine** — TEI INT8 beats llama.cpp CPU
    (5.3 s vs 8.0 s) while llama.cpp Vulkan beats everything by 10×.
 
@@ -116,20 +110,20 @@ Latency = `POST /v1/rerank`, `top_n: 5`, real Slovenian chunks:
 | TEI `/rerank` | `{query, texts, top_n, return_text, raw_scores, truncate, truncation_direction}` | `[{index, score}]` sorted desc. A Cohere-style `documents` body → **HTTP 422 `missing field texts`** |
 | `llama-server` `/v1/rerank` (`--embedding --pooling rank --rerank`) | `{model, query, documents, top_n}` | `{results: [{index, relevance_score}], usage}` |
 
-LiteLLM `v1.83.10-stable` `jina_ai/` rerank (`litellm/llms/jina_ai/rerank/transformation.py`, read 2026-09-18):
+LiteLLM `v1.83.10-stable` `jina_ai/` rerank (`litellm/llms/jina_ai/rerank/transformation.py`):
 `get_complete_url` **forces** `<api_base>/v1/rerank`, the request body is `{model, query, documents, top_n,
 return_documents}`, and the response parser reads `results[].index` + `results[].relevance_score` — **byte-for-byte
 the `llama-server` shape**. `api_key` is required by `validate_environment` but only becomes a `Bearer` header
-that `llama-server` ignores. ⚠ DB-stored `litellm_params` do **not** expand `os.environ/` (HD-382) → `api_base`
+that `llama-server` ignores. ⚠ DB-stored `litellm_params` do **not** expand `os.environ/` → `api_base`
 must be a literal, and local providers need a dummy `api_key`. TEI instead needs the `huggingface/` provider
 (`texts` shape).
 
 ## 3b. Embeddings — Vulkan vs the live Ollama `:rocm` leg, **and the vector-space drift check**
 
-Embed was the one leg #25(a) left alone (“already live + E2E-verified, no reason to move”), so the question is
-not *can* Vulkan do it but whether the move is worth the churn. Model: **`ggml-org/bge-m3-Q8_0-GGUF`**
+Embed is the one leg that was already live on Ollama `:rocm`, so the question is not *can* Vulkan do it but
+whether the move is worth the churn. Model: **`ggml-org/bge-m3-Q8_0-GGUF`**
 (634.6 MB, **MIT**, the official `ggml-org` org) in the **same `llama.cpp server-vulkan` image** as the
-reranker; reference = the **live** `ollama:0.32.15-rocm` (the bench ran that build; the pin is `0.35.1-rocm` since 2026-10-08) `bge-m3` container, untouched, reached over
+reranker; reference = the **live** `ollama :rocm` `bge-m3` container, untouched, reached over
 `llm-backend`. Corpus: 1 short query + 50 chunk-shaped Slovenian texts (~110 words each, **7 604 tokens**
 batched), both engines timed by the same wall-clock method.
 
@@ -149,23 +143,21 @@ landmine here, unlike the reranker GGUF which needed `--pooling rank` explicitly
 to **2 = L2**, which is what bge expects, and returned vectors are unit-norm; `ollama` cold-load was
 **4.9–5.4 s** vs **2–3 s** for the GGUF leg.
 
-**Verdict (→ decision #27 leg (c)): move embed to the same Vulkan runtime.** The case is not only the query
-path (500 ms → 15 ms, and *every* RAG/Assist query embeds its query) but the stack: **−507 MiB VRAM,
+**Verdict (decision #27 leg (c)): embed runs on the same Vulkan runtime as the reranker.** The case is not only
+the query path (500 ms → 15 ms, and *every* RAG/Assist query embeds its query) but the stack: **−507 MiB VRAM,
 −2.0 GiB host RSS**, 2.3× ingest, one image family across all three legs, one model-fetch task shape
 (GGUF + sha256), a native CPU fallback the ROCm leg has no cheap equivalent of, and **no `/dev/kfd` /
 ROCm userspace left in the AI tier** (immich-ML carries its own ROCm inside its image).
-⚠ Two implementation-time checks ride with it: (1) **`--ctx-size` must cover the real ingest chunk** — the
-probe used ~150-token chunks, llama.cpp truncates beyond the context window, and bge-m3 supports 8192;
-(2) quantization is **settled by §3c**: Q8_0 (16 ms, ~326 MiB, cos 0.9996), with FP16 measured and rejected
+⚠ Two constraints ride with it:
+(1) **the compute-buffer size, not `--ctx-size`, is what bounds the ingest chunk.** `--ctx-size 2048` alone still
+answers **HTTP 500 on an 842-token input** ("increase the physical batch size (current batch size: 512)"), and the
+number that message reports is the **ubatch** — see [services-ai.md](services-ai.md) §3a-3 finding 1. Both GGUF
+legs run **2048/2048/2048** and the 842-token chunk returns 200 with `n_tokens = 842, truncated = 0`; the VRAM
+price of ubatch 512 → 2048 is **~15–35 MiB**, so compute-buffer size (not ctx) is the number to budget against
+once a real ingest chunk shape is set. llama.cpp truncates beyond the context window; bge-m3 supports 8192, and
+the over-window failure mode on this endpoint is a **loud 500**, not silent truncation.
+(2) Quantization is **settled by §3c**: Q8_0 (16 ms, ~326 MiB, cos 0.9996); FP16 is measured and rejected
 (19 ms, ~595 MiB, cos 0.99996 — one more nine for +269 MiB and +18 % latency).
-✅ **Check (1) was measured at deploy time (2026-09-19) and it was the wrong knob — [services-ai.md](services-ai.md)
-§3a-3 finding 1.** `--ctx-size 2048` alone still answered **HTTP 500 on an 842-token input** ("increase the
-physical batch size (current batch size: 512)"), and the number that message reports is the **ubatch**, so the
-first fix (batch 2048 / ubatch 512) failed identically. Both GGUF legs now run **2048/2048/2048** and the
-842-token chunk returns 200 with `n_tokens = 842, truncated = 0`; the VRAM price of ubatch 512 → 2048 was
-**~15–35 MiB**, so compute-buffer size (not ctx) is the thing to budget against when HD-268b fixes a real chunk
-shape. Also measured here, for the record: **real Slovenian audio** (the probe only ever ran English
-`jfk.wav`) and the endpoint's failure mode for over-window input is a **loud 500**, not silent truncation.
 Residency note for all three legs: `llama-server` has **no Ollama-style keep-alive/LRU unloading**, so each
 leg holds its model until restart; `--sleep-idle-seconds` (PR #18228, single- and multi-model) can release GPU
 memory while idle at the cost of a reload on the next request.
@@ -240,14 +232,14 @@ device is ever needed, the honest candidates are the RX 7600 (5.3 GiB free, §6)
 | Stage | VRAM | Note |
 |-------|------|------|
 | all containers, GPU idle | **66 MiB** | baseline |
-| + `bge-m3` warm in `ollama` (ROCm/KFD) | **848–886 MiB** | model ≈ **0.8 GiB**, not the "~1.2 GB" in #24/#25; cold embed 1.87 s, warm 0.075 s |
+| + `bge-m3` warm in `ollama` (ROCm/KFD) | **848–886 MiB** | model ≈ **0.8 GiB**; cold embed 1.87 s, warm 0.075 s |
 | + reranker Q8_0 (Vulkan) | **1174 MiB** | Δ **326 MiB** |
 | + `whisper large-v3-turbo` fp16 (Vulkan) | **2896 MiB** | Δ 1722 MiB |
 | under mixed load (all three busy) | **2929 MiB** | **5.26 GiB free** for immich-ML (3–5 GB) — co-residency plausible, and q5_0 buys back another ~1.0 GiB |
 | `immich-ml` **idle** | **0 MiB** | RSS 412 MiB; its VRAM cost exists only during an active job |
-| *(if embed moves to the Vulkan runtime, §3b)* | **~2.4 GiB** | replace the 833 MiB ROCm embed leg with ~326 MiB — and `ollama`’s **2.19 GiB host RSS** leaves the picture entirely |
+| with embed on the Vulkan runtime (§3b) | **~2.4 GiB** | the 833 MiB ROCm embed leg is replaced by ~326 MiB — and `ollama`’s **2.19 GiB host RSS** leaves the picture entirely |
 
-**Concurrency (the question #24/#25 could not answer on paper):**
+**Concurrency with all three legs resident:**
 
 | Load | whisper (11 s WAV) | rerank (20 docs) | embed |
 |------|--------------------|------------------|-------|
@@ -257,43 +249,27 @@ device is ever needed, the honest candidates are the RX 7600 (5.3 GiB free, §6)
 
 Contention factor ≈ 1.5–2× at worst, flat under sustained load, host **load ~1.1** (the CPU is not the bottleneck
 on the GPU path), and **0 `amdgpu` hang/reset lines** in `dmesg` across ~25 min of Vulkan compute (the CWSR
-burn-in item in HD-385(f) is partly satisfied for Vulkan; ROCm/KFD legs were not stressed).
-⚠ Pre-existing, **not** caused by these probes: `dmesg` carries **641 × `amdgpu: init_user_pages: Failed to get
-user pages: -1`** spread over 2026-09-15 → 09-18 → **HD-393**. **Corrected 2026-09-28:** the attribution to
-the `/dev/kfd` holders was wrong, and so was the count — the rotated `kern.log.2.gz` holds **2,881** lines in
-three bursts, and each burst follows a `CONSTRAINT_MEMCG` OOM kill of the pinned-tier embed leg (1g cap), which
-is the driver unmapping a killed process's GPU pages. Not a compute fault, so these probes were testing the
-right thing against the wrong hypothesis; full record in [services-ai.md](services-ai.md) §the pinned-tier caps.
+burn-in question is partly answered for Vulkan; the ROCm/KFD legs were not stressed).
+⚠ `dmesg` + the rotated `kern.log.2.gz` carry **2,881 × `amdgpu: init_user_pages: Failed to get
+user pages: -1`** in three bursts, **not** caused by these probes: each burst follows a `CONSTRAINT_MEMCG` OOM
+kill of the pinned-tier embed leg (1g cap), which is the driver unmapping a killed process's GPU pages — not a
+compute fault. Full record in [services-ai.md](services-ai.md) §the pinned-tier caps.
 
-## 7. What this measurement invalidates
+## 7. The resulting placement (plan of record: [services-ai.md](services-ai.md) §3a)
 
-| Claim (source) | Measured 2026-09-18 |
-|----------------|---------------------|
-| "#25(b): 568 M params, 20 pairs ≈ **10–30 ms/pair**, so GPU buys nothing" | **260 ms per 100-word chunk** on 8 threads; top-20 = 5.3 s (ORT INT8) / 8.0 s (llama.cpp CPU). GPU path = **0.50 s** and 425 MiB |
-| "#25(b): GPU rerank would cost **1.5 GB VRAM** + a ROCm runtime" | Vulkan GGUF Q8_0 = **425 MiB**, no ROCm userspace, RSS 157 MiB |
-| "#24: pinned tier ≈ **5–6 GB of 8 GB**" (and #25's 3–4 GB) | measured pinned tier = **2.9 GiB** (embed 0.8 + rerank 0.33 + STT 1.7), 5.26 GiB free |
-| "#25(b): **Ollama is not a rerank host** — no GGUF reranker path exists" | **Still true for Ollama**, but false as a general statement: `llama.cpp` ships GGUF rerankers (`gpustack/bge-reranker-v2-m3-GGUF`, Apache-2.0) and a `/v1/rerank` endpoint |
-| "§9c: `whisper.cpp` server is not OpenAI-compatible → **a thin wrapper is required**" | `--inference-path /v1/audio/transcriptions` makes it OpenAI-shaped; no wrapper |
-| "§9c: an official ROCm image path for whisper.cpp **does exist**" | The **Dockerfile** exists (`.devops/main-rocm.Dockerfile`) but **no published artifact**: the docker CI matrix has **no** ROCm entry; ghcr tags = `main, main-musa, main-intel, main-cuda, main-vulkan, main-arm64, main-vulkan-arm64`; Docker Hub `ggmlorg/whisper.cpp` → 404. A self-build = a new build-task pattern with no Renovate trail — this is *why* the STT engine moved to Vulkan (HD-391) |
-| "reranker on the iGPU is free capacity" | **5.8–22.8 s** per request (slower than CPU), ~800 MiB host RAM, frozen Gen 9.5 driver stack, contends with Xorg + QSV |
-| “#25(a): embed **stays** on Ollama `:rocm` — already live, no reason to move” | There is a measured reason: **33× on the query path (15 ms vs ~500 ms)**, 2.3× ingest, **−507 MiB VRAM**, **−2.0 GiB host RSS**, and **cosine 0.9996 against the live vectors**, so the move costs no correctness-driven re-embed (§3b) |
-
-## 8. Recommendation (**ACCEPTED by owner 2026-09-18** — plan of record: [services-ai.md](services-ai.md) §3a; implementation HD-391)
-
-| Leg | Recommendation | Why |
-|-----|----------------|-----|
+| Leg | Placement | Why |
+|-----|-----------|-----|
 | **STT** | `ghcr.io/ggml-org/whisper.cpp:main-vulkan` **digest-pinned**, `large-v3-turbo` (q5_0 if VRAM pressure), GPU-first with native CPU fallback, `--inference-path /v1/audio/transcriptions`, `/dev/dri/renderD129` only | published + digest-pinnable artifact, RADV native RDNA3 (no ROCm userspace, no ISA override), 0.4 s / 11 s WAV, no wrapper |
 | **Rerank** | `ghcr.io/ggml-org/llama.cpp:server-vulkan` **digest-pinned** + `gpustack/bge-reranker-v2-m3-GGUF` **Q8_0** (§3c: FP16 measured, same speed, +270 MiB, identical top-5) + `--embedding --pooling rank --rerank --device Vulkan0`, routed as LiteLLM **`jina_ai/`** | 0.34–0.50 s for top-20 vs 5.3 s on the CPU, 425 MiB, ~0 % CPU, same backend family as STT, and the wire shape is already the one LiteLLM parses |
-| **Embed** | **⏳ also move to the Vulkan runtime** — same `llama.cpp server-vulkan` image + `ggml-org/bge-m3-Q8_0-GGUF` (MIT; **Q8_0 chosen over FP16 — both measured, §3c**) — with **Ollama `:rocm` `bge-m3` kept as the fallback rung** until the Vulkan leg is live-verified, then retired | measured **15 ms vs ~500 ms** per query chunk, 2.3× ingest, **326 MiB vs 899 MiB** VRAM, 157 MiB vs 2.19 GiB RSS, **cosine 0.9996 vs the live vectors** ⇒ same vector space, no correctness-driven re-embed (§3b) |
+| **Embed** | same `llama.cpp server-vulkan` image + `ggml-org/bge-m3-Q8_0-GGUF` (MIT; **Q8_0 over FP16 — both measured, §3c**) — **Ollama `:rocm` `bge-m3` is the fallback rung** of the same 1024-dim space | measured **15 ms vs ~500 ms** per query chunk, 2.3× ingest, **326 MiB vs 899 MiB** VRAM, 157 MiB vs 2.19 GiB RSS, **cosine 0.9996 vs the live vectors** ⇒ same vector space, no correctness-driven re-embed (§3b) |
 | Fallback ladder | rerank: llama.cpp Vulkan → TEI `cpu-1.9.4` INT8 (`huggingface/` provider, §5 flags) → `gte-multilingual-reranker-base` (278 M, ~2× cheaper CPU, **unmeasured**) · embed: llama.cpp Vulkan → **Ollama `:rocm`** (already live) → llama.cpp CPU · STT: CPU fallback is native | keeps a CPU path that does not need a GPU device node |
 
-**Budget consequence:** the pinned tier becomes **2.9 GiB VRAM of 8 GiB** with **all three legs on the GPU** —
-which *reverses* #25(b)'s "rerank is CPU" placement **on measured grounds**, while keeping #24's placement
-(RX 7600 = pinned tier) intact. immich-ML (3–5 GB) still fits at the low end; keep the Sunshine pause glue.
-If embed moves too (§3b), the tier drops to **~2.4 GiB** (embed 0.33 + rerank 0.33 + STT 1.72) and the last
-`/dev/kfd` consumer of the AI tier disappears.
+**Budget consequence:** the pinned tier is **2.9 GiB VRAM of 8 GiB** with the ROCm embed leg resident
+(embed 0.8 + rerank 0.33 + STT 1.7), and **~2.4 GiB** in the all-Vulkan shape of §3b (embed 0.33 + rerank 0.33 +
+STT 1.72), where the last `/dev/kfd` consumer of the AI tier disappears. immich-ML (3–5 GB) still fits at the low
+end; keep the Sunshine pause glue.
 
-## 9. Repro
+## 8. Repro
 
 ```bash
 # STT (dGPU): serves the OpenAI-ish path with no wrapper
@@ -338,9 +314,5 @@ docker run --rm --network llm-backend curlimages/curl -s -X POST http://ollama:1
 watch -n1 'awk "{printf \"%.0f MiB\n\", \$1/1048576}" /sys/class/drm/card1/device/mem_info_vram_used'
 ```
 
-**Cleanup state (verified):** probe containers 0, `/tmp/probe-*` + model dirs deleted (TEI's HF cache is
-root-owned inside `/tmp` — `sudo` needed), probe ports unbound, VRAM back to baseline, all live services `Up`.
-Kept deliberately: the three images above (≈ 4.5 GB of 897 GB free) so the implementation converge is not a re-pull.
-
 **Related:** [services-ai.md](services-ai.md) §9 #24/#25 + §9c · [hardware-gpu.md](hardware-gpu.md) ·
-[smart-home-voice.md](smart-home-voice.md) · `todo.md` HD-369 / HD-385 / **HD-391 / HD-392 / HD-393**
+[smart-home-voice.md](smart-home-voice.md)

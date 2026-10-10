@@ -14,17 +14,8 @@ tags: [network, vlan, firewall]
 > **Status:** the VLAN segmentation below is **LIVE** — this doc is the plan of record for VLANs, firewall
 > and CAPsMAN. [`network-addresses-generated.md`](network-addresses-generated.md) is the SSOT for
 > subnets / DHCP reservations / SSIDs. Anywhere another doc implies a flat network, that doc is stale.
-> ✅ **HD-312 is CLOSED 2026-09-21** — every phase was live-verified 2026-09-08 and the last tail (the
-> time-gated observation of the bedtime window + the Kids filtered-DNS binding) closed on the owner's
-> sighting: at the observation hour **both kids tablets (`tablet-valentina` + iPad) had no internet**, which
-> is the bedtime WAN block firing as designed. The filtered-DNS NAT was not separately eyeballed — it rides
-> the same `kids-*` rule set and the same two MACs, and the tablets resolving nothing while blocked is
-> consistent with it (re-open only if a kid device is ever seen bypassing the filter).
->
-> ✅ **IPv6 is LIVE on the Home VLAN only (HD-414, 2026-09-22)** — see §IPv6 below. It closes the HD-405
-> blocker ("the ISP delegates no /56"): it does. Every earlier claim in this repo that IPv6 is "not enabled
-> anywhere on purpose" / "WAN-only" described a device state that had never been provisioned, not a decision
-> that survives contact with the delegation — §IPv6 is the plan of record now.
+> ✅ **IPv6 is LIVE on the Home VLAN only (live 2026-09-22)** — see §IPv6 below. The ISP does delegate a
+> /56, and no decision keeps IPv6 off / "WAN-only": §IPv6 is the plan of record.
 
 ---
 
@@ -42,7 +33,7 @@ The /56 has not changed in years, but it is *leased*, not static — so no row i
 | The advertised prefix | **nothing configures it.** `advertise=yes` on that one address makes RouterOS create a *dynamic* `/ipv6 nd prefix` row (`2a00:ee2:2700:8f00::/64`, `on-link=yes autonomous=yes`, lifetime follows the lease) | `/ipv6 nd prefix` in 7.24 has no `from-pool`/`template`; the advertised-address mechanism is the one that tracks the delegation |
 | No RA elsewhere | no other VLAN has an address with `advertise=yes` → nothing to advertise. The v6 forward chain also refuses egress from 20/30/40/50 and any origin from 99 | a `disabled=yes` `/ipv6 nd` row does **not** refuse RA — it falls back to the default `interface=all` row and advertises anyway (measured). Do not express "no RA here" that way |
 | Clients | SLAAC (`managed-address-configuration=no`, `other-configuration=no`, **`advertise-dns=no`**) | DNS stays on the DHCP-provided Technitium chain ([network-dns.md](network-dns.md)); a v6 DNS in the RA would silently replace it |
-| Hosts | no host carries an IaC-assigned GUA, and no internal AAAA exists (HD-36's reason still holds — see below) | |
+| Hosts | no host carries an IaC-assigned GUA, and no internal AAAA exists — the reason stands ([network-rejected.md](network-rejected.md) *Internal AAAA records*) | |
 
 **The filter.** IPv4 inbound safety is an accident of NAT; IPv6 has no NAT, so the filter *is* the
 protection. `/ipv6 firewall filter` is first-match-wins (verified on this device: an exception placed
@@ -61,7 +52,7 @@ above), so both chains are rebuilt in this order and the converge keeps that ord
   `use_tempaddr=2`, so SLAAC gives it a hashed address plus rotating temporaries — there is no address to
   name. Writing the rule anyway would ship a listener opening that matches nothing. Tailscale does not
   need it for the common case: its hole punch makes the phone's packets *replies* to oldsrv's own first
-  packet, and rule 1 admits those. Revisit only with the morning measurement in hand (HD-410) **and** a
+  packet, and rule 1 admits those. Revisit only with the morning measurement in hand **and** a
   pinned host address (`roles/network`: `IPv6Token=` + no privacy extensions), which is a host-side
   decision this router section cannot make.
 
@@ -73,25 +64,25 @@ route), and that stops being true the moment a second prefix is advertised.
 
 **Rollback is two switches, and nothing else has to be undone:**
 `/ipv6 nd set [find where interface=vlan10-home] disabled=yes` then
-`/ipv6 address remove [find where comment~"^HD-414"]` — `ra-lifetime=30m`, so advertised addresses age out
-on their own and the Home VLAN returns to IPv4-only. Runbook + how to verify: [network-ops.md](network-ops.md)
+`/ipv6 address remove [find where comment~"GWA"]` — the selector matches the `GWA` text the converge
+writes into the advertised-address comment, so it removes exactly the rows the converge owns.
+`ra-lifetime=30m`, so advertised addresses age out on their own and the Home VLAN returns to IPv4-only.
+Runbook + how to verify: [network-ops.md](network-ops.md)
 §IPv6 and the runbook steps in [deployment-manual.md](../deployment-manual.md) §1.5.3d.
 
-**Serving inbound over v6 is NOT currently available.** Observed 2026-09-22 while instrumenting the Tailscale
-punch ([network-vpn.md](network-vpn.md)): across several windows with the WAN drops logging, **not one
-unsolicited inbound v6 packet reached the delegated prefix** — no probe, no scanner — while v4 scans hit the WAN
-constantly (one hammering `41641` every 6 s). Read it as: this ISP hands out a prefix for egress and reply
-traffic and filters inbound. Unproven by an outside-in probe (the site has never had a working external v6
-prober), but it is the operating assumption: **do not publish a home service via `AAAA`**, and do not spend
-firewall effort on inbound-v6 exceptions until an external v6 prober says otherwise. It also means
-`nagios-dns-v6`'s ban on AAAA at home is right, not merely conservative.
+**Serving inbound over v6 is NOT currently available.** With the WAN drops logging, **no unsolicited inbound v6
+packet reaches the delegated prefix** — no probe, no scanner — while v4 scans hit the WAN constantly (one
+hammering `41641` every 6 s): this ISP hands out a prefix for egress and reply traffic and filters inbound.
+Unproven by an outside-in probe (no working external v6 prober for this site), but it is the operating
+assumption: **do not publish a home service via `AAAA`**, and do not spend firewall effort on inbound-v6
+exceptions until an external v6 prober says otherwise. It also means `nagios-dns-v6`'s ban on AAAA at home is
+right, not merely conservative.
 
 **An inbound-v6 exception belongs in `chain=forward`, not `chain=input`.** A WAN packet addressed to a host
-(old-srv) is *forwarded*; `input` only sees packets addressed to the router itself. HD-414's plan said `input`,
-and the trap is that the `input` version looks fine: rule present, counters zero, nothing matching it.
+(old-srv) is *forwarded*; `input` only sees packets addressed to the router itself. The trap is that an
+`input` version looks fine: rule present, counters zero, nothing matching it.
 
-**Re-checking the invariants** (all four measured clean on the live device 2026-09-22; the fourth is the one that
-quietly regresses if someone adds a second advertised prefix):
+**Re-checking the invariants** (the fourth is the one that quietly regresses if a second prefix is advertised):
 
 ```bash
 ssh router '/ipv6 address print count-only where advertise=yes'              # 1  — RA on VLAN 10 only
@@ -99,7 +90,7 @@ ssh router '/ipv6 nd print count-only where !disabled and interface!="all"'  # 1
 ssh router '/ipv6 nd prefix print count-only'                                # 1  — the dynamic prefix row
 ssh router '/ipv6 address print count-only where interface!="vlan10-home" and address!~"^fe80" \
                 and interface!=lo and interface!=pppoe-telekom'              # 0  — no GUA on 20/30/40/50/99
-# and from a Home host — no home name may carry AAAA yet (HD-36 stands):
+# and from a Home host — no home name may carry AAAA:
 dig +short <resolver> media.kogler.si AAAA                                   # empty
 ```
 
@@ -132,12 +123,12 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
 | `cfg-kogler-iot` | 20 | Kogler IOT | 2.4 only | **client-isolation yes** — IoT devices can't see each other; cloud-IoT (Bosch/LG/HAP) get WAN via per-device `wan_allow` accepts |
 | `cfg-kogler-guest` | 30 | Kogler guest | 5 only | **client-isolation yes** + firewall drop-to-LAN — internet-only |
 
-> **Per-device control model (HD-312/HD-325):** per-device network control = **firewall `src-mac-address`
+> **Per-device control model:** per-device network control = **firewall `src-mac-address`
 > rules** rendered from `network_static_hosts` (`iot-wan-allow`, `kids-*`), *not* SSID-per-purpose and
 > *not* per-client VLAN tagging.
 > - **No per-MAC VLAN on this fleet.** `wifi-qcom-ac` (802.11ac) cannot do per-client VLAN tagging —
 >   VLAN assignment rides the **CAP bridge access-port pvid model** only
->   ([network-rejected.md](network-rejected.md) HD-312 2b).
+>   ([network-rejected.md](network-rejected.md) *CAPsMAN per-MAC vlan-id access-list*).
 > - **Static IP is a precondition.** The per-MAC model works only if every controlled device's IP is
 >   static: each IoT/kids/cloud-IoT device gets a **static DHCP reservation** (MAC → IP) in
 >   `network_static_hosts`. A row with a `mac:` IS a controlled device — there is no separate
@@ -149,7 +140,7 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
 > - **No temporary WAN-toggle automation.** Cloud-IoT appliances hold **permanent** WAN through the
 >   per-device `wan_allow: true` flag; firmware updates ride that standing egress. The `n8n` RouterOS API
 >   user (`mikrotik-n8n_api`) stays provisioned for admin use, but no temp-toggle flow is authored
->   ([network-rejected.md](network-rejected.md) HD-312(4)).
+>   ([network-rejected.md](network-rejected.md) *n8n firmware workflow: temporary iot-wan-allow toggles*).
 > - **Reservation → live latency:** reservations win over the pool at the next renewal (lease-time
 >   30 min); a device keeps its dynamic address until the lease turns over after the router converge.
 
@@ -159,8 +150,8 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
   ([network-rejected.md](network-rejected.md) CAPsMAN manager datapath vlan-id).
 - All APs wired, no mesh.
 - **Delivery:** steady-state CAPsMAN ships as a **rendered rsc**
-  (`IaC/router/templates/capsman_steady-state.rsc.j2`) uploaded at the cutover — **not** ansible
-  `api_modify`. Fleet-wide modern `wifi-qcom-ac` (HD-232): `ap_initial.rsc.j2` uses
+  (`IaC/router/templates/capsman_steady-state.rsc.j2`) — **not** ansible
+  `api_modify`. Fleet-wide modern `wifi-qcom-ac`: `ap_initial.rsc.j2` uses
   `/interface wifi cap`; WPA2-PSK passphrases come from the active `wifi-kogler*` 1Password items at render.
 - **Per-MAC VLAN / policy:** see the model note above — `iot-wan-allow` + `kids-*` rules rendered from
   `network_static_hosts`.
@@ -176,10 +167,10 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
   access-99 only, the APs' tagged client frames are dropped at switch ingress → clients associate but
   never get DHCP (symptom: devices disconnect every few seconds, Shellys unreachable on VLAN 20, KNX lag).
   Encoded in `wifi_ports` (`group_vars/switch.yml`) + the converge rsc, and guarded by the switch role's
-  parity `api_modify` task (`roles/switch/tasks/main.yml`, HD-339) under the edit-both-or-neither rule —
-  **this has regressed once via a converge rewrite; keep the parity task.**
-  **Human-gated at cutover:** ① dnevna swap (spare hAP ac² → dnevna), ② garage replacement
-  wifi-qcom-ac-capable AP. Validate-live TODOs are marked in the templates (fail-loud).
+  parity `api_modify` task (`roles/switch/tasks/main.yml`) under the edit-both-or-neither rule —
+  **keep the parity task.**
+  **Human-gated:** the garage replacement AP must be wifi-qcom-ac-capable. Validate-live TODOs are
+  marked in the templates (fail-loud).
 
 ---
 
@@ -195,31 +186,22 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
 | IoT (20) | Home (10) | **Drop all** (only replies to Home-initiated) — EXCEPT CoAP **udp/5683 → `trusted-ha`** (Gen1 Shelly push; **HA must be LISTENING on udp/5683** — the CoAP server lives inside the HA container and is published to the host/VIP via `5683:5683/udp` in the compose so the Shellys can reach it) |
 | IoT (20) | WAN | **Drop all** — EXCEPT cloud-IoT devices (2× LG, 3× Bosch, HAP — SSOT `wan_allow: true` rows) get a per-MAC `src-mac-address` accept **above** the drop |
 | Media (50) | Home (10) | Accept (media server, Plex/Jellyfin) |
-| Management (99) | Home (10) | Accept (whole Mgmt VLAN — admin laptop / Pi discovery + provisioning, HD-307) |
+| Management (99) | Home (10) | Accept (whole Mgmt VLAN — admin laptop / Pi discovery + provisioning) |
 | Guest (30) | any LAN | **Drop all** (internet only) |
 | Kids (40) | Home (10) | Drop, DNS forced through filter |
 | Kids (40) | WAN | Drop 22:00–07:00 (bedtime — hard block at firewall) |
 | All (except IoT) | WAN | Allowed (masqueraded) |
 
-> ✅ **KNX from HA primary was broken by the REPLY path, not the outbound one (HD-438, proven 2026-09-23).**
-My first diagnosis here was wrong twice, so the sequence is recorded. (1) `trusted-ha` really was missing the
-HA primary host — a genuine correctness gap, now fixed, and worth a validator (below) — but it was **not** the
-fault, because the template already carried `Home(10) → knx-ip udp/3671` for the whole Home subnet, and my
-before/after evidence was ICMP plus **TCP**/3671 on a **UDP** tunnel: two probes that could not have measured
-the path in question. (2) The actual cause: the forward chain accepts the KNX return leg **only** as
-`established,related` conntrack. A KNXnet/IP UDP tunnel that idles past the conntrack timeout becomes
-permanently half-open — HA keeps sending and devices still switch, every `L_DATA.con` and every state read is
-dropped, xknx cannot detect it, and states freeze at the moment the entry died. HA's own telemetry said
-`tunnel established 2026-09-20T07:29:43` for three days with `outgoing_telegram_errors` climbing and
-`incoming_telegram_errors = 0`. (3) Reload of the KNX integration restored inbound immediately
-(`telegrams` 0→+34/45 s, error growth stopped) — the symptom fix. (4) The structural fix is the reverse accept
-`src=knx-ip protocol=udp src-port=3671 dst-address-list=trusted-ha`, mirroring the CoAP 5683 exception. **Match
-the router's SOURCE port, not dst-port**: replies go to xknx's ephemeral tunnel port, so a `dst-port=3671`
-rule reads correctly and matches nothing. **Verified by experiment, not by inspection** — the single KNX flow's
-conntrack entry was removed and inbound kept flowing (`telegrams` 487→507) while the new rule's counter went
-0→1, i.e. it accepted the first reply without conntrack and the rest rode the entry that created. Rules 56
-deep in the chain still matched, which is the lesson: a firewall rule's position is part of its correctness.
-
+> **KNX from HA primary depends on the REPLY path, not the outbound one.** The forward chain accepts the KNX
+> return leg **only** as `established,related` conntrack, and a KNXnet/IP UDP tunnel that idles past the
+> conntrack timeout becomes permanently half-open: HA keeps sending and devices still switch, every
+> `L_DATA.con` and every state read is dropped, xknx cannot detect it, and states freeze at the moment the
+> entry died. The structural answer is the reverse accept
+> `src=knx-ip protocol=udp src-port=3671 dst-address-list=trusted-ha`, mirroring the CoAP 5683 exception.
+> **Match the router's SOURCE port, not dst-port**: replies go to xknx's ephemeral tunnel port, so a
+> `dst-port=3671` rule reads correctly and matches nothing. Verify such a rule by **its own counter moving**,
+> not by inspection, and by position — a rule far down the chain still matches, so position is part of
+> correctness. Reloading the KNX integration re-establishes the tunnel: that is the symptom fix.
 
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
@@ -234,14 +216,12 @@ Implemented with **address-lists** and **interface lists** in RouterOS.
 > - The role's `Ensure inter-VLAN forward firewall rules` full-reconcile task stays gated off
 >   (`when: false`): a live role run would delete the per-MAC rows that only the converge template carries.
 
-> **Kids controls (HD-179/HD-182)** — bedtime block, forced filtered DNS, Kids→Home drop — are
-> implemented in the router role and live. The bedtime `time=` drop works on RouterOS 7: reading the
-> rule **outside** the 22:00–07:00 window shows `invalid=true`, which is RouterOS's normal
-> out-of-window display, **not a defect**. **✅ Observed live 2026-09-21 (owner):** both kids tablets
-> (`tablet-valentina`, `tablet-ipad`) had no internet at the observation hour — the bedtime WAN block is
-> confirmed firing on the real client set, which was the last open tail of HD-312.
+> **Kids controls** — bedtime block, forced filtered DNS, Kids→Home drop — are implemented in the router
+> role and live. The bedtime `time=` drop works on RouterOS 7: reading the rule **outside** the
+> 22:00–07:00 window shows `invalid=true`, which is RouterOS's normal out-of-window display,
+> **not a defect**.
 
-> **Router INPUT chain (HD-78):** the rules above are the `forward` (inter-VLAN) policy. Separately, the
+> **Router INPUT chain:** the rules above are the `forward` (inter-VLAN) policy. Separately, the
 > router's **own** management service ports (`22,8728,8729,8291,80,443`) are gated by a `chain: input`
 > firewall: reachable **only from the Management VLAN (99) and `trusted-admin` hosts**
 > (nas/oldsrv/ha-vip), dropped from all other sources. See [`network-ops.md`](network-ops.md).
@@ -259,27 +239,20 @@ DHCP is handled entirely by the **RB4011 router** on each VLAN interface. This e
 DHCP option 15 (`{{ domain_local }}`) is set on every DHCP **server** and rendered from
 `domain_local` by `rb4011_converge.rsc.j2`. It is what turns a single-label name into a DNS query
 (`nas` → `nas.kogler.si`) instead of a broadcast guess.
-⚠ **The doc asserted this for a year while the device never carried it** (measured 2026-10-07:
-`/ip dhcp-server option` empty, no `domain=` in any render, `nas.kogler.si` → NXDOMAIN). First
-symptom: a family member could not mount `\\nas\media` from Wi-Fi. Fixed and applied live under
-HD-1097 — see todo for the case, and for the three RouterOS traps paid for on the device while
-wiring it: **there is no `domain` property in v7** (`set … domain=` aborts the import with
-`Script Error: bad parameter domain`; v6 had it) so option 15 rides an `/ip dhcp-server option`
+⚠ **There is no `domain` property in RouterOS 7** (`set … domain=` aborts the import with
+`Script Error: bad parameter domain`; v6 had it), so option 15 rides an `/ip dhcp-server option`
 row with `code=15` referenced by each server's `dhcp-option`; **the value is hex with a `0x`
 prefix** (the string form, the quoted form and `x6b…` all die with `failure: Unknown data type!`,
 `value=1` with `Bad delimiter!`); and **the literal must be inline** — `:local dom "0x…"` +
-`set … value=$dom` reports success and writes an EMPTY value, which is exactly what the first
-import of the HD-1097 delta shipped (`Script file loaded and executed successfully`, option blank).
-Read back with `print detail` and its `raw-value` column; `get … value` can read empty on a
-healthy row. `roles/router` deliberately manages nothing here — api_modify cannot express a
-`[find]` reference, and two writers of one reference is drift — so after a role-only run, read the
-device rather than assume. Delta applied 2026-10-07 and folded into the converge; the delta file
-is deleted per the 3-tier rule.
+`set … value=$dom` reports success and writes an EMPTY value. Read it back with `print detail`
+and its `raw-value` column; `get … value` can read empty on a healthy row. `roles/router`
+deliberately manages nothing here — api_modify cannot express a `[find]` reference, and two
+writers of one reference is drift — so after a role-only run, read the device rather than assume.
 
 Static DHCP reservations (SSOT: `group_vars/all/` → `network_static_hosts`, applied by
 `roles/router` + `rb4011_converge.rsc.j2`; live verification via the RouterOS API):
 
-- **Pi** (`pi`): static on BOTH legs (dual-home, HD-307/HD-311) — Home VLAN on `dhcp-10` + Mgmt VLAN on
+- **Pi** (`pi`): static on BOTH legs (dual-home) — Home VLAN on `dhcp-10` + Mgmt VLAN on
   `dhcp-mgmt`. Its SSOT rows (incl. the MAC + static IPs) live in
   [network-addresses-generated.md](network-addresses-generated.md). Host-side static dual-home uses the
   `network` role's **two NetworkManager keyfiles**: `pi-eth0.nmconnection` = **untagged Home** on the
@@ -324,8 +297,8 @@ dynamic address until the lease turns over.
 > **Host-side dual-home for nas + oldsrv** (desktop/VPS class) is rendered by the `network` role as
 > systemd-networkd units: physical `.network` (untagged Home 10 + default route) + VLAN-99 tagged
 > sub-interface (`.netdev` `eno1.99`) + its `.network` (Mgmt address, connected route only, no default).
-> The Pi keeps the NetworkManager keyfile path (`pi-eth0.nmconnection`, HD-307). See
-> [network-rejected.md](network-rejected.md) and `roles/network/`.
+> The Pi keeps the NetworkManager keyfile path (`pi-eth0.nmconnection`). See
+> [network-rejected.md](network-rejected.md) *systemd-networkd on the Pi* and `roles/network/`.
 
 ---
 
@@ -353,12 +326,12 @@ dynamic address until the lease turns over.
 > `untagged=ether14,ether20`; Home 10 → printer/nas; IoT 20 → KNX/camera/UPS-ether4; Mgmt 99 → APs
 > ether11/12 only) — encoded in `crs328_converge.rsc.j2` + the switch role. Without it, frames are
 > dropped at switch ingress → the router never learns the MAC → empty ARP and no DHCP/WAN.
-> (HD-328; the APs' **tagged** membership is the other half — see §Switch AP ports.)
+> (The APs' **tagged** membership is the other half — see §Switch AP ports.)
 
-> **AP wired-port lockdown (HD-89 / HD-304 Part 2):** a wired device plugged into an AP's *unused*
+> **AP wired-port lockdown:** a wired device plugged into an AP's *unused*
 > ethernet port must NOT land on the Management VLAN. `ether2..ether5` are `disabled=yes` and removed
 > from the AP bridge (uplink `ether1` + radios `wifi1/wifi2` only) in `ap_initial.rsc.j2` (bootstrap) +
 > the renderable `ap_lockdown_delta.rsc.j2` (running APs). The AP also carries its own **INPUT firewall**
 > (established/related → bridge → DHCP → drop) gating mgmt services to Mgmt VLAN + `trusted-admin`, like
-> the router and switch — `available-from=` alone is not a guard (HD-304 Part 2 parity).
+> the router and switch — `available-from=` alone is not a guard.
 > · [ap_initial.rsc.j2](../IaC/router/templates/ap_initial.rsc.j2) · [ap_lockdown_delta.rsc.j2](../IaC/router/templates/ap_lockdown_delta.rsc.j2)

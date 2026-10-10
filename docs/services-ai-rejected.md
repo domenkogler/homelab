@@ -7,51 +7,108 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 ---
 # AI Platform — Rejected / Dropped
 
-> **Role:** Append-only decision log for the **AI platform plane** (gateway / RAG / memory / agent
-> harnesses) — candidates the `services-ai` domain evaluated and declined, with the measured evidence that
-> closed them. This log is that plane's decision-log SSOT (`CONVENTIONS.md` §8.3).
+> **Role:** Decision log for the **AI platform plane** (gateway / RAG / memory / agent harnesses) — the
+> candidates the `services-ai` domain evaluated and declined, with the measured result that closed each one.
+> This log is that plane's decision-log SSOT (`CONVENTIONS.md` §8.3).
 > **Links to:** [`services-ai.md`](services-ai.md), [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md),
 > [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md),
 > [`CONVENTIONS.md`](../CONVENTIONS.md) §8.3
 > **Linked from:** [`index.md`](index.md), [`services-ai.md`](services-ai.md)
 
-> ⚠️ **Append-only.** Do not edit or reorder an entry after it lands. A changed decision is a **new appended
-> entry**, left alongside the old one — never a strike/replace. Each row:
-> `| <service> | <rejected|dropped|superseded> | <date> | <why, 1–2 lines + evidence link> |`.
+> ⚠️ **Append-only.** Do not edit a landed decision; a changed decision is a **new row**, left alongside the old
+> one — never a strike/replace. One row per subject, sorted by subject. Each row:
+> `| <subject> | <rejected|dropped|superseded> | <why, max ~12 words> |`.
 > A re-review is allowed **only with an exception note** ("re-evaluating X because Y changed"), per §8.3.
 
 ## Decisions
 
-| Service | Status | Date | Why |
-|---------|--------|------|-----|
-| **OpenViking** — as the **corpus / knowledge index** | **rejected** | 2026-09-21 | Measured on this box against this repo, all four gates **pre-registered before measuring** (falsifiable), and the index gate failed outright: of 51 files only **12/51 came back byte-identical** and **20/51 had under 95 % of their lines recoverable**; a `.md` is replaced by a directory tree **named from its H1 title slug** (filename gone, so the index is not reversible), and 7 files lost content with **zero** embedding errors, so the loss is in OV's sectioning and not only in the size cap. `skills/mikrotik/SKILL.md` lost 197 of 261 lines and grepping all 265 stored chunks for its own H1 finds nothing — dropped, not reflowed. Corpus indexing stays `rag-mcp` + Qdrant (HD-268b). · [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md) §4 |
-| **OpenViking** — as the **memory plane** (the "memory only" fallback) | **rejected** | 2026-09-21 | **Owner decision (2026-09-21):** *"OV at most memory-only does not make any sense"* — the fallback is retired with the rest, so OV is out of the architecture entirely. The measurement supports it rather than merely permitting it: OV's memory payload **is** the LLM-distilled L0/L1 layer, and that layer lost to a free local extract on this same box (**R5 retrieval-key 1/16 vs 18/20**, 887 vs 154 tokens per doc, one invented number in 16 docs), while its write path is **LLM-bound by construction** (`compressor_v3` builds a VLM ReAct agent per session-commit) on a KV pool that is **1.97×** one session — the shared engine went **0.27 s → 8.7 s (32×)** under load. The dev memory plane is agent-memory.dev (HD-336), which captures, indexes and recalls **keyless, with no LLM in the hot path** and stores JSON on disk — **confirmed by measurement 2026-09-21** (keyless 7/10 hit@5, determinism 10/10, ≈455 tok/query, ≈0 spark tokens; and its own limits are in [`services-ai.md`](services-ai.md) §9b). Running OV for memory would mean a second substrate, an AGPL dependency and a per-commit model tax to do a job the decided plane does without a model. · [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md) §6, [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md) (the follow-on lane that measured that plane) |
-| OV deferral reason recorded as *"Docker-only"* | **rejected — the fact was wrong** | 2026-09-21 | This doc previously deferred OV partly because it was believed **Docker-only**. That was false: `openviking==0.4.21` ships a `cp310-abi3` wheel, installed into a **venv on py3.13 in about 2 minutes** with no Rust toolchain, ran as the unprivileged `domen` seat on loopback `:1933`, no container. Recorded so the next reader does not inherit a false constraint (HD-431's bug class: docs that read as verified). The rejection above stands on the measured fidelity and cost numbers instead. · [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md) §3 |
-| `nv-patch` (HD-489 tier-1b: NVFP4 + patches) | **rejected — cannot boot** | 2026-10-03 | The staged **`ples_nvfp4` PLE table (128 shards, 27 G) contains ZERO `ngram_embedding.weight` keys** the patched lineage's PLE offload worker requires → `PLE offload checkpoint did not load all materialized parameters: [...layers.1.ple.ple_embedding.ngram_embedding.weight]` → hard EngeCore-init failure → **crash-restart loop (RestartCount 39)**. The INT4 u-arms boot because they use `ple_overlay: true` (code overlay into `ple_layer.py`), not the offload-table path that needs ngram weights. Recovering it = re-staging the NVFP4 PLE artifact with ngram embeddings (an artifact decision, not a dial flip) — not worth it in this funnel: NVFP4's PLE path is the blocker, not the patch. · [`../spark/reports/hd489-nv-patch/README.md`](../spark/reports/hd489-nv-patch/README.md) |
-| `ar-mmap` / `ar-dv` (HD-489 tier-2: AR-hybrid + FP8 PLE mmap) | loser — beat by ar-blk | 2026-10-03 | Initially blocked by mmap×CUDA-graph pinning (unpinned CPU tensor in capture); fixed with `enforce_eager: true` (owner-approved). **`ar-mmap`** (spec OFF): eager decode 20.3 / 20.4 tok/s C2L, TTFT ~0.7s, ITL ~49ms — on par with tier-1 but lower TTFT/ITL; **the control, not a candidate. **`ar-dv`** (+65,536-id draft-vocab slice): C2L 35.8 tok/s, MTP 36.8% — the vocab slice **lowers MTP acceptance** (54.7→36.8%) and decode (−10%) vs ar-blk; regression. Evidence: [`../spark/reports/hd489-ar-mmap/README.md`](../spark/reports/hd489-ar-mmap/README.md), [`../spark/reports/hd489-ar-dv/README.md`](../spark/reports/hd489-ar-dv/README.md) |
-| `u1-patch` (HD-489 t1) | loser — baseline, beat by ar-blk | 2026-10-03 | The isolation control (patched lineage + AWQ, no spec): decode 17.9/20.9 C2/C2L, TTFT ~2.9s. Establishes the +13% that u2-blk's block rejection adds — not a candidate. · [`../spark/reports/hd489-u1-patch/README.md`](../spark/reports/hd489-u1-patch/README.md) |
-| `u3-s8` (HD-489 t1) | loser — seqs=8 strands memory, no win | 2026-10-03 | u2-blk + seqs=8 + piecewise graphs: decode 19.6/22.7 ≈ u2-blk, but **strands +40 GB** engine pid (317,638 vs 276,855 MiB) — the §6.2 stranding rule fires; memory-heavy no-win. · [`../spark/reports/hd489-u3-s8/README.md`](../spark/reports/hd489-u3-s8/README.md) |
-| `u4-pin` (HD-489 t1) | loser — pin neutral | 2026-10-03 | u2-blk + never-evict 0.03: decode 20.7/23.7 ≈ u2-blk; `recomp_tok_delta` identical to non-pin arms (bench prompts lack the pinned substring), preempt 0 — **the pin buys nothing measurable** on synthetic benches. · [`../spark/reports/hd489-u4-pin/README.md`](../spark/reports/hd489-u4-pin/README.md) |
-| `v16b` (HD-489 t3) | loser — slower than ar-blk + **memory-infeasible C2L** | 2026-10-03 | Full upstream recipe (T80 drafter + 65,536-id draft-vocab + seqs=8 + 8192): decoder 33.1/16.2 C2/C1, MTP ~27% — **below ar-blk**, and the OOM guard refused C2L (10.8 GiB usable < 16 floor — the recipe holds ~1.6 TB VSZ on a 121.6 GiB pool). · [`../spark/reports/hd489-v16b/README.md`](../spark/reports/hd489-v16b/README.md) |
-| `v16b-s4` (HD-489 t3) | loser — below ar-blk | 2026-10-03 | seqs=4 freed memory (C2L ran: 384s, 33.1 tok/s, MTP 25.7%) but **still −17% vs ar-blk (39.7)**; the T80+draft-vocab drag, not the batch shape. · [`../spark/reports/hd489-v16b-s4/README.md`](../spark/reports/hd489-v16b-s4/README.md) |
-| `v16b-pin` (HD-489 t3) | loser — pin neutral, recipe below ar-blk | 2026-10-03 | v16b-s4 + never-evict 0.03: dec 29.1, MTP 19.3%, recomp +8608 (pin never engages synthetically), preempt 0 — confirms the pin is neutral (as u4-pin) and the recipe is slower than ar-blk. · [`../spark/reports/hd489-v16b-pin/README.md`](../spark/reports/hd489-v16b-pin/README.md) |
-| `u3-s8` at-rest column (HD-489 t1) | **CORRECTION** of the row above (append-only) | 2026-10-03 | The "**strands +40 GB** engine pid (317,638 vs 276,855)" claim **read the wrong column**: `atrest-*.txt` is `nvidia-smi --query-compute-apps=pid,used_memory`, so **col 1 = PID, col 2 = MiB**. `317,638` and `276,855` are the engine PIDs of two different boots (u3-s8 vs u2-blk); the MiB column reads **92,324 vs 92,333** — a PID swap, not a +40 GB stranding. Same misread in `u1-patch`'s "175903/92975" report. The **arm stays rejected on its SPEED** (19.6/22.7 vs 20.2/23.6 — a real −3/−4 %), which the row above records. The seqs=8 batch shape was correctly kept out on cost/benefit, just not on the memory claim it printed. · committed raws: [`../spark/reports/hd489-u3-s8/raw/atrest-*.txt`](../spark/reports/hd489-u3-s8/raw/atrest-20261002-222812-t1-u3-C2.txt) · [`../spark/reports/hd489-u2-blk/raw/atrest-*.txt`](../spark/reports/hd489-u2-blk/raw/atrest-20261002-215129-t1-u2-C2.txt) |
+| Subject | Status | Why |
+|---------|--------|-----|
+| `agent-gemma-26b` / `agent-unified*` laptop arms | superseded | Agent leg retired: cold prefill, minutes per turn |
+| `agentmemory` central instance as briefed | rejected | Loopback REST, one shared bearer, no per-user isolation |
+| `agentmemory` LLM compression (consolidation, graph extraction) | rejected | Drops every identifier: retrieval-key 0/5 |
+| `ar-blk-lean` (ar-blk minus the ple_dispatch env) | rejected | Crashes at first shard; knobs constitutive |
+| `ar-dv` (AR-hybrid + draft-vocab slice) | rejected | Slice lowers MTP acceptance 54.7 to 36.8 %, slows decode |
+| `ar-mmap` (AR-hybrid + FP8 PLE mmap) | rejected | Control arm, on par with tier-1, not a candidate |
+| `awq-mmap` / B10 (AWQ on the winner's machinery) | dropped | Owner certified the AR-hybrid winner instead |
+| A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
+| Bigger window or smaller quant to reopen the agent leg | rejected | The wall is cold prefill, not the carve or context |
+| Coding harnesses behind the LAN LiteLLM hop | rejected | Decision #26 puts harnesses direct on the spark name edge |
+| Coding-seat surfaces in a container | rejected | Would mount the whole watched home tree: theatre |
+| `context-mode` laptop seat entry | dropped | Per-machine install, not a fleet key |
+| Copying a laptop settings.json to a seat | rejected | Settings have no renderer; pi-harness §5 is the source |
+| CrewAI pilot | dropped | Parked until one real multi-agent epic mishandles a lane |
+| Cross-encoder rerank computed from `/api/embed` embeddings | rejected | A cross-encoder cannot be rebuilt from two embeddings |
+| Dedicated exporter or scrape target for the pinned AI legs | dropped | Alloy host metrics plus `amdgpu` sysfs counters cover them |
+| `defaultThinkingLevel: off` on the harness | superseded | Thinking on from the first turn (high) |
+| Docling `do_ocr=false` on scans | rejected | A scanner's own text layer carries no diacritics |
+| Docling `HF_HOME` repoint | rejected | `artifacts_path` is set: the served path never downloads |
+| Docling on the RX 7600 | rejected | Accelerator set has no Vulkan/ROCm; CPU only |
+| Docling tesseract for Slovenian | rejected | The image ships only `eng` + `osd` traineddata |
+| Docling `/tmp:exec` | rejected | Makes a `read_only` container's tmpfs writable plus executable |
+| `dsh_api` scoped consumer | rejected | Harnesses go direct (#26); the record is not restored |
+| `dsh` / `pi-dev` as `docker_services` entries | superseded | Dedicated deployments now; their routes answer 502 by design |
+| EasyOCR as the Docling OCR engine | rejected | 3.2–3.4× slower, with its own diacritic and merge defects |
+| External APIs as a proxy fallback | rejected | A harness-side fallback, never a gateway fallback |
+| `fallback/login` as the LiteLLM login path | rejected | `/ui/login` resolves on the pinned build |
+| `fast` NVFP4 profile (mixed NVFP4/FP8 weights) | superseded | JIT-compiles QSA/GDN kernels; the name now marks the winner |
+| `fast-sglang` (SGLang + RadixArk NVFP4) | rejected | No arm64 digest, pool too small, PLE bind unwired |
+| forward-auth on LiteLLM `/ui/*` route-wide | rejected | Breaks the same-host API bearer consumers |
+| GGUF AI legs capped at `1g` memory | superseded | CPU-fallback path peaks 1.59 GiB; the cap is 4g |
+| `graded` (fp8 main KV cache, same AWQ weights) | rejected | Pinned build has no fp8 KV; needs the engine-pin lane |
+| Hand-typed `hosts` entries for `.ts.kogler.si` names | rejected | Forbidden form; the generated alias artifact is sanctioned |
+| Hermes keeping its own memory store | rejected | Owner ruling: one memory plane, not a second store |
+| `insanely-fast-whisper-rocm` | rejected | gfx1030 override, unconfined seccomp, unused feature set |
+| LM Studio as a local AGENT runtime on the workstation | dropped | Cold prefill, minutes per turn; laptop serves FIM + vision only |
+| MCP on a shared literal port | superseded | Ports are vars, never literals (`cockpit_pi_web_port`) |
+| `never-evict` prompt pin (`--never-evict-kv-cache-*`) | rejected | Zero blocks reserved; prefix caching already serves 95.1 % |
+| nginx sidecar for `/ui/<route>/<id>` deep links | rejected | Defect measures absent; a sidecar invents its own failure surface |
+| `nv-patch` (NVFP4 + patches) | rejected | PLE table lacks ngram_embedding keys; crash-restart loop |
+| Ollama as the primary embed engine | superseded | The llama.cpp Vulkan leg is the row; Ollama stays the fallback |
+| Ollama as the rerank host | rejected | No rerank API at any released version |
+| ONNX Runtime GPU on RDNA3 | rejected | ROCm/MIGraphX is Instinct-only (gfx942, gfx950) |
+| `openai/` provider for the embed row | rejected | Forwards `encoding_format: null`; llama.cpp rejects null |
+| OpenViking as the corpus / knowledge index | rejected | 12/51 byte-identical; H1-slug directories, not reversible |
+| OpenViking as the memory plane | rejected | LLM-bound write path taxes the shared KV pool |
+| OpenViking deferred as 'Docker-only' | rejected | False: venv-native install in about 2 minutes |
+| Open WebUI built-in RAG as the retrieval plane | rejected | The vector store stays independent of any UI shell |
+| `os.environ/` references in DB `litellm_params` | rejected | Not expanded; the literal string reaches the engine |
+| Paseo coding seat on oldsrv | dropped | Parked; acceptance needs a hand on the phone |
+| PGVector as the vector store | superseded | Qdrant stands alone, hybrid dense + sparse |
+| Phase-2 Ryzen 9 9900X / R9700 build | superseded | spark (ThinkStation PGX / GB10) replaces it (#22) |
+| `pi-agent/extensions/host-status.ts` seat-identity footer | superseded | `pi-open-tui` footer `hostname` segment is the single source |
+| `pi.kogler.si` as the oldsrv seat URL | rejected | That FQDN is the RPi4 node; hence the `-oldsrv` suffix |
+| Pinned legs on the flat `services-internal` network | rejected | The network is the boundary; LiteLLM alone reaches them |
+| `pi` shim in `~/.local/bin` for the pi-web PATH | rejected | Node's bin dir must be on PATH, not a login-shell path |
+| `pi-web` behind gateway-auth | rejected | Phone-driven cockpit: no browser for an Authentik flow |
+| `pi-web` on a `tailscale0` address bind | rejected | Plain HTTP, no cert, unreachable from every other node |
+| Raising the LiteLLM proxy log level to see dropped params | rejected | It logs token-bearing request bodies |
+| Reflex key rotation after a partial-value leak | rejected | The documented rotation procedure carries it |
+| `remote-bash.ts` seat extension | dropped | Windows-only sshpass/drive paths, never in repo |
+| Rendering `settings.json` from a spec vendor | rejected | A vendor would delete a seat's packages |
+| Retiring the WSL Debian pi seat | superseded | Seat retained and rarely used |
+| Routing-domain split for `.ts.kogler.si` names | rejected | Ruled out; the generated alias artifact is the remedy |
+| `spark/*` wildcard in a scoped-key allow-list | rejected | The named row is granted; a wildcard over-grants the engine |
+| TEI (text-embeddings-inference) on the RX 7600 | rejected | No RDNA3 path; a 7-step self-build, flash-attn dropped |
+| `u1-patch` (patched lineage + AWQ, no spec decode) | rejected | Isolation control, beat by ar-blk |
+| `u2-blk` (patched AWQ + block rejection) | rejected | Beat by the AR-hybrid ar-blk |
+| `u3-s8` (u2-blk + seqs=8 + piecewise graphs) | rejected | No speed win; the +40 GB stranding claim was a PID misread |
+| `u4-pin` (u2-blk + never-evict 0.03) | rejected | Neutral: identical recompute delta, zero preemptions |
+| `v16b` (full upstream recipe) | rejected | Below ar-blk and memory-infeasible at C2L |
+| `v16b-pin` (`v16b-s4` + never-evict 0.03) | rejected | Pin neutral; recipe below ar-blk (MTP 19.3 %) |
+| `v16b-s4` (`v16b` at seqs=4) | rejected | Ran, but −17 % vs ar-blk: the draft-vocab drag |
+| Vision-LLM leg on the RX 7600 | rejected | Vision is a workstation text cascade (#28) |
+| Vision on spark | rejected | spark runs a text-only engine (#28) |
+| `whisper.cpp` HIP/ROCm image for STT | rejected | No published ROCm artifact; self-build, no digest trail |
+| Workload discipline on sessions served by spark | rejected | The memory budget is the lever, not session policing |
+| ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
 
-| `graded` (HD-469: fp8 KV, same AWQ weights) | **rejected — cannot run today** | 2026-10-03 | BLOCKED-ON-IMAGE: the pinned build's qsa.py:70 declares `supported_kv_cache_dtypes = ["auto","bfloat16"]` and raises at :109/:188 — fp8 main KV needs the engine-pin lane (vllm#55557, HD-473) + a re-cert. NOT a config flip; re-probe confirmed on BOTH the base and the built ultrafast lineage (B6, 2026-10-03). · [`../spark/reports/hd489-tail-b6/README.md`](../spark/reports/hd489-tail-b6/README.md) · [`../spark/reports/hd469-graded/README.md`](../spark/reports/hd469-graded/README.md) |
-| `fast` NVFP4 (HD-469: mixed NVFP4/FP8 weights) | **rejected — cannot run today** | 2026-10-03 | Old NVFP4 lane: fails gate 3 (the plain mixed-NVFP4 build JIT-compiles QSA/GDN kernels at inference, 262k prefill 502s) — fix is HD-475 (drop VLLM_GDN_DECODE_KERNEL=triton). SUPERSEDED: the profile name `fast` now belongs to the certified winner (ex-ar-blk). · [`../spark/reports/hd469-fast/README.md`](../spark/reports/hd469-fast/README.md) |
-| `fast-sglang` (HD-469: SGLang + RadixArk NVFP4) | **rejected — cannot run today** | 2026-10-03 | Three blockers (kept in the catalogue only for the gate-checker's sglang canary): no registry-verified arm64 digest (CONVENTIONS §7); single-Spark pool (~93k-174k) cannot hold the 262,144 window; PLE-offload bind not wired. · [`docs`](../docs/spark-llm-profiles.md) §fast-sglang |
-| `awq-mmap` / B10 (HD-489 tail: AWQ on the winner's machinery) | **dropped — owner declined** | 2026-10-03 | Owner accepted the AR-hybrid winner as `fast` and certified on the gate ladder instead; B10 (AWQ W4A16 + FP8 mmap + dispatch, expected 22-28 tok/s quality fallback) is NOT attempted. Kept in the catalogue as an authored-but-unbooted record. · [`../spark/reports/hd489-tail-b9/README.md`](../spark/reports/hd489-tail-b9/README.md) |
-| never-evict prompt pin (`--never-evict-kv-cache-*`) | **rejected — mechanism, off for every profile** | 2026-10-05 | Measured on live pi sessions (13 h since the 2026-10-04 22:16Z boot), with the engine's own counters: the `[never-evict] holding …` line never printed (**0 blocks reserved**), `num_preemptions_total` **0**, prefix caching already served **95.1 %** of prompt tokens, recomputed share **4.9 %** against the pre-pin 3.70 %/4.57 % baseline — the 25 GB pool (3.08 × window) cured the re-prefill, not the pin; and the needle (pi global `AGENTS.md`) is absent from the prompts the serving client sends. Off also un-breaks `reasoning`/`graded`: the argument exists ONLY in the patched ultrafast lineage, so arming a `base` profile crash-looped the engine (`restarts=105`). · [`../spark/reports/hd489-never-evict-off/README.md`](../spark/reports/hd489-never-evict-off/README.md) · [`spark-llm-profiles.md`](spark-llm-profiles.md) §Never-evict prompt pin |
-| **`pi-agent/extensions/host-status.ts`** (and the deployed-only `remote-bash.ts`) — as the carrier of the seat-identity footer | **retired** | 2026-10-08 | Superseded by the `pi-open-tui` package, whose footer has a `hostname` segment (`footerSegments.hostname`, forced true by `scripts/pi-tui-config.sh` because the package default is `false`). A `ctx.ui.setStatus` line under a package-drawn footer is two sources of truth for one line. Retirement is mechanical, not editorial: `sync-extensions.sh --push` never deletes a deployed-only file, so the names sit on its `RETIRED` list, which is the thing that actually removes them from a seat. Mechanism and evidence: [pi-harness.md](pi-harness.md) §5a · [../scripts/sync-extensions.sh](../scripts/sync-extensions.sh) |
-| **LM Studio as a local AGENT runtime on the workstation** — the `agent-gemma-26b` leg and the three `agent-unified*` arms that never got weights | **dropped** | 2026-10-09 | Owner ruling 2026-10-09: **prefill, not the carve, kills this leg.** One 20 816-token prompt cost **359 / 899 / 277 s** on three fresh loads of the same weights, and identical 10 610-byte prompts cost **259.15 s** once and **69.42 s** another time — minutes before the first token, erratic, so no real agent work is possible on it. Memory was never the blocker (**21.42 GiB of a 32 GiB carve at `num_ctx 150 016`**, 20 650 B/token measured against the PDH counter), which is precisely why neither a bigger window nor a smaller quant reopens it: the wall is cold prefill on 16 CU. The laptop now serves **FIM + vision only**, and generation harnesses reach spark **directly** ([services-ai.md](services-ai.md) decision #26), so no capability is lost with the leg. · [hardware-workstation.md](hardware-workstation.md) §Served leg · [`../reports/hd474-laptop-leg/`](../reports/hd474-laptop-leg/) `raw/80`, `raw/88`, `raw/90` |
+## What would reopen OV
 
-## What would reopen OV (exception-note triggers only)
+A re-review needs an exception note naming what changed (§8.3). The changes that would move this decision:
 
-Do not re-litigate on vibes. Per §8.3 a re-review needs an exception note naming what changed; the changes
-that would actually move this decision are:
-
-1. **Fidelity** — OV ships a mode that stores source documents verbatim and reversibly (filename preserved),
-   and passes the same 8-check rubric in
+1. **Fidelity** — a mode that stores source documents verbatim and reversibly (filename preserved), passing the
+   same 8-check rubric in
    [`../reports/probe-ov-20260921/p1_metrics.py`](../reports/probe-ov-20260921/p1_metrics.py) at **≥ 45/51**
    byte-identical on this repo's 51-file slice.
 2. **Write path** — an **LLM-free capture/commit mode** (or a documented way to run the commit path on a
@@ -62,7 +119,9 @@ that would actually move this decision are:
 4. **A requirement we do not have today** — one plane across harnesses *including* a hosted tier, with
    per-user/agent ACL as a hard need. That is the only axis where OV's scope/ACL model beat the alternatives.
 
-Two side effects of the probe survive regardless, and are **not** rejections: `local-rerank` (HD-425) keeps a
-real consumer class (Jina-format rerank callers), and the **OV-vs-grep retrieval baseline** it produced
-(**8/10 hit@5 at 5,267 tokens per question** vs grep **5/10 at 92,004**) is the number `rag-mcp` (HD-268b) is
-now on the hook to match — retrieval efficiency was OV's genuine strength; fidelity and cost were not.
+Not rejections, and therefore not rows above:
+
+- `local-rerank` keeps a real consumer class (Jina-format rerank callers).
+- The **OV-vs-grep retrieval baseline** — **8/10 hit@5 at 5,267 tokens** per question vs grep **5/10 at
+  92,004** — is the number `rag-mcp` is on the hook to match: retrieval efficiency was OV's genuine strength,
+  fidelity and cost were not.

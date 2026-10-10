@@ -14,14 +14,14 @@ tags: [services, finance, budget, banking, investing]
 > `services-office.md`, `network-dns.md`
 > **Linked from:** `index.md`, `services.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** Actual Budget + Enable Banking are designed but **not live**
-> (tracked HD-57, Stage 3/10); compose template + group_vars registry landed. This doc is the
+> 🟢 **IaC done, not yet live — ⏳ deploy-gated** (Stage 3/10). Actual Budget + Enable Banking are designed
+> but **not live**; compose template + group_vars registry exist. This doc is the
 > authoring spec for the IaC (`docker_services/actual-budget/` + `group_vars/home_servers.yml`) and the
 > network/DNS records.
 >
 > **Placement: oldsrv**, internal-only P+I — same plane as the media stack.
 > If oldsrv is ever disposed, non-GPU state restores from Kopia/NAS backups onto any Docker host
-> (see [backup.md](backup.md)); a dedicated oldsrv→VPS DR runbook is tracked in todo.md.
+> (see [backup.md](backup.md)); no dedicated oldsrv→VPS DR runbook exists.
 
 ---
 
@@ -31,13 +31,13 @@ tags: [services, finance, budget, banking, investing]
   in one place — **Actual Budget**.
 - Track **ETF investments** (IBKR + Trade Republic) as a single tracking account inside Actual — no
   separate portfolio app needed. Only *invested vs current value* is needed; Ghostfolio is explicitly
-  **not** used (see [Decisions — Ghostfolio skipped](#ghostfolio-skipped)).
+  **not** used (see [Decisions](#decisions)).
 - **Automatically categorize** transactions using a local LLM (Ollama, already deployed) — no cloud AI
   provider touches financial data.
 - **Maximize automation:** open-banking sync via Enable Banking (UniCredit), Wise API, IBKR Flex Query.
   Accept manual CSV drops only where no API exists (TR, credit card).
-- **Credit card:** manual monthly CSV import as the anchor. SMS/email notification parsing considered
-  for future real-time tracking but not the initial plan.
+- **Credit card:** manual monthly CSV import is the anchor. SMS/email notification parsing is a
+  post-deploy enhancement, not the initial plan.
 - All services internal-only, behind Authentik Forward-Auth.
 
 ### Non-goals
@@ -77,7 +77,7 @@ by Actual's built-in bank-sync.
 
 | Account | Type | Automation method | Schedule | Automatic? |
 |---------|------|-------------------|----------|------------|
-| **UniCredit SI (current)** | Checking | **Enable Banking API → n8n bridge → Actual API** (decision: stable image — NOT the nightly/native-sync build) | Daily | ✅ Yes |
+| **UniCredit SI (current)** | Checking | **Enable Banking API → n8n bridge → Actual API** (stable image — NOT the nightly/native-sync build) | Daily | ✅ Yes |
 | **Wise** | Multi-currency | **Wise API** → n8n → Actual API | Daily | ✅ Yes (API token needed) |
 | **Trade Republic (cash)** | Cash/broker | **CSV export** (TR in-app "Transactions Export") → drop in watched folder → n8n → Actual API | Monthly manual | ⚠️ Manual CSV drop |
 | **MC World Elite (UniCredit)** | Credit card | **CSV export** (UniCredit online banking) → n8n → Actual API | Monthly manual | ⚠️ Manual CSV drop |
@@ -96,8 +96,7 @@ by Actual's built-in bank-sync.
 
 ### Enable Banking — setup
 
-Enable Banking is the native bank-sync provider for Actual Budget, replacing GoCardless (which
-discontinued free personal sign-ups). It is **free for personal use**.
+Enable Banking is the bank-sync provider for Actual Budget. It is **free for personal use**.
 
 **Prerequisites:**
 - Account at [enablebanking.com](https://enablebanking.com/sign-in/) — already exists.
@@ -119,7 +118,7 @@ discontinued free personal sign-ups). It is **free for personal use**.
    via its HTTP API (`X-ACTUAL-TOKEN`, credentials `actual-budget_login`).
 3. Native Actual↔EB sync (`More → Bank Sync`) stays **unused**: it exists only on the `nightly` line,
    which violates the pin-semver law (§7). Re-evaluate only if upstream ships EB sync in a stable
-   release, with a new dated decision.
+   release.
 4. Redirect URL: set it to a page we control (e.g. `https://budget.kogler.si/eb-callback`); verify the
    Traefik route + wildcard cert cover it before creating the EB application.
 
@@ -194,11 +193,10 @@ TR / MC card ──▶ CSV export (manual) ─▶ watched folder                
 ### AI Categorization via the LiteLLM gateway
 
 Categorization runs inside each import workflow in **n8n**: unmapped payees go to an LLM node pointed at
-the **LiteLLM gateway** on the VPS, which routes to a model row. Nothing targets an engine directly
-(HD-59) — **the only sanctioned client path is `base URL + key + model name`**, so the workflow is
+the **LiteLLM gateway** on the VPS, which routes to a model row. Nothing targets an engine directly —
+**the only sanctioned client path is `base URL + key + model name`**, so the workflow is
 unaffected by where a model physically runs. The category is written back to Actual via its API.
-**Do not add a copilot container:** the n8n-native loop replaced the earlier "community AI copilot tool"
-idea.
+**Do not add a copilot container:** the n8n-native loop is the categorization path.
 
 **Pick the cheap tier:** this is classification work, so it belongs on a fast/no-reasoning row rather
 than the reasoning tier — cost here is per-transaction volume, which is exactly the class of spend the
@@ -207,58 +205,61 @@ per-consumer budgets exist to bound ([services-ai.md](services-ai.md) §Consumer
 
 ## Decisions
 
-### Ghostfolio skipped
+Rejected / dropped options for this stack live in [services-rejected.md](services-rejected.md); the
+wording below is the rule **as it stands**.
 
-Ghostfolio was evaluated for portfolio tracking (IBKR + TR ETFs). The need is limited to *invested
-vs current value* for weekly fixed buy orders — Actual's tracking account handles this with:
+### Portfolio tracking — Actual's tracking account only
+
+The need is limited to *invested vs current value* for weekly fixed buy orders, which Actual's tracking
+account covers:
 
 - Buys → outflow from cash, added to cost basis.
 - Dividends → inflow to cash (income category).
 - Balance = shares × latest price (updated monthly from the same CSV/Flex report).
 
-Ghostfolio's advantages (XIRR, benchmarks, dividend calendar) are not needed. **Decision:** skip.
-Simplifies the stack by one full service + Postgres + maintenance surface.
+XIRR, benchmarks and a dividend calendar are not needed, so the stack carries no separate portfolio
+service, no extra Postgres and no extra maintenance surface.
 
-### Enable Banking over GoCardless
+### Bank sync — Enable Banking
 
-GoCardless (Nordigen) was the historical default for EU bank sync in Actual Budget, but **free personal
-sign-ups are discontinued** for new users. Enable Banking is the alternative that:
-- Is **free for personal use** (transactions + balances).
-- Has **native support in Actual Budget** (experimental, nightly).
-- The user **already has an account**.
-- Covers **UniCredit Bank Slovenia** (AISP confirmed).
+Enable Banking is the bank-sync provider:
 
-**Decision:** Enable Banking. Fallback: if native sync regresses, use Enable Banking API + n8n bridge.
+- **free for personal use** (transactions + balances),
+- **native support in Actual Budget** exists only as experimental on the `nightly` line,
+- an Enable Banking account **already exists**,
+- **UniCredit Bank Slovenia** coverage (AISP confirmed).
 
-### TradeSight not needed
+The live path is the **Enable Banking API + n8n bridge**, never the native sync (§Stable pinned image +
+n8n EB bridge).
 
-TradeSight (kalix127/tradesight) converts TR PDF statements to CSV via Ollama vision models. Since TR
-provides a native structured **CSV/Excel export** ("Transactions Export"), TradeSight is unnecessary.
-**Decision:** skip.
+### Trade Republic — native CSV export
 
-### Stable pinned image + n8n EB bridge (nightly rejected)
+TR's structured **CSV/Excel export** ("Transactions Export") is the ingest format, so no PDF-parsing
+converter is involved.
 
-*Decision (HD-57).* The native Actual↔Enable Banking sync exists only on the `nightly`
-image line, which violates the pin-semver law (§7 — mutable tag, no Renovate semver trail, silent
-class of breakage). **Decision:** `actual_budget_version` stays a registry-verified stable calver pin;
-UniCredit sync runs as an n8n workflow polling the Enable Banking API and pushing into Actual's HTTP
-API. Re-evaluate only when upstream ships EB sync in a stable release.
+### Stable pinned image + n8n EB bridge
+
+The native Actual↔Enable Banking sync exists only on the `nightly` image line, which violates the
+pin-semver law (§7 — mutable tag, no Renovate semver trail, silent class of breakage).
+`actual_budget_version` is a registry-verified stable calver pin; UniCredit sync runs as an n8n workflow
+polling the Enable Banking API and pushing into Actual's HTTP API. Re-evaluate only when upstream ships EB
+sync in a stable release.
 
 ### Placement: oldsrv (not VPS)
 
-*Decision (HD-57).* Actual Budget is internal-only P+I; financial data stays on the LAN
+Actual Budget is internal-only P+I; financial data stays on the LAN
 plane with the media stack, backed up to NAS + Kopia off-site. The VPS hosts only the pipeline brain
 (n8n + LiteLLM), which reaches Actual over the WG S2S tunnel (:5006 bound to `oldsrv_home_ip`,
 immich-ml precedent). If oldsrv is disposed, non-GPU state restores from backups onto any Docker host.
 
 ### Credit card: manual CSV first; SMS/email parsing deferred
 
-*Decision (HD-57).* Phase-1 ingest for the MC World Elite is monthly manual CSV only.
+Phase-1 ingest for the MC World Elite is monthly manual CSV only.
 Email-alert → mailbox automation is investigated post-deploy; SMS-forwarder is last resort.
 
 ### Seed before sync
 
-*Decision (HD-57).* Starting balances and existing IBKR/TR positions are entered manually
+Starting balances and existing IBKR/TR positions are entered manually
 BEFORE any auto-sync is enabled; sources come online one at a time (EB → Wise → Flex) with dedup
 checks after each.
 
@@ -294,7 +295,7 @@ Actual's backup export includes all accounts, transactions, categories, and rule
 
 ## Open Questions (pre-deploy — remaining human steps)
 
-Decided: stable+n8n bridge (not nightly), oldsrv placement, CSV-first card, seed-before-sync.
+Decided: stable+n8n bridge (not nightly), oldsrv placement, CSV-first card, seed-before-sync (§Decisions).
 Remaining before/at first deploy:
 
 - [ ] Verify the wildcard cert + Traefik route cover `budget.kogler.si` (and the EB callback path)

@@ -11,14 +11,13 @@ tags: [smart-home, homeassistant]
 > **Links to:** `smart-home-voice.md`, `smart-home-audio.md`, `smart-home-failover.md`, `home-assistant-current.md`, `interfaces.md`
 > **Linked from:** `index.md`
 
-> **Status.** The **HA primary is live on the Pi** as Debian + HA Container (the HAOS→Container redo is done;
-> the old HAOS box is gone), with **Technitium secondary** co-located and the `ha-vip` VIP held by
-> keepalived. ⏳ **Open:** the **cold standby on oldsrv** is reachable by VIP but **cannot drive KNX**
-> (the GIRA router drops KNXnet/IP from that host) — see
-> [smart-home-failover.md](smart-home-failover.md) before trusting it as a control-plane standby — and the
-> **voice pipeline is not built**: the STT/embed/rerank engines it will use are live on the RX 7600, but
-> no wake-word device, Assist pipeline or TTS output is deployed. The pre-redo inventory of the old
-> instance is kept in [`home-assistant-current.md`](home-assistant-current.md); failover tracks HD-04.
+> **Status.** The **HA primary is live on the Pi** as **Debian + HA Container**, with **Technitium DNS**
+> co-located and the `ha-vip` VIP held by keepalived. ⏳ **Open:** the **cold standby on oldsrv is not
+> deployed** — the only HA container in the fleet is `home-assistant-primary` on the Pi — and no standby has
+> ever been proven on **KNX**; see [smart-home-failover.md](smart-home-failover.md) before trusting one as a
+> control-plane standby. The **voice pipeline is not built**: the STT/embed/rerank engines it will use are
+> live on the RX 7600, but no wake-word device, Assist pipeline or TTS output is deployed. The live instance
+> inventory is [`home-assistant-current.md`](home-assistant-current.md).
 
 ---
 
@@ -57,9 +56,8 @@ tags: [smart-home, homeassistant]
 
 ## Cloud Appliances — LG ThinQ & Bosch Home Connect
 
-> **Placement decision (HD-228, amended by HD-325):** cloud-dependent appliances live on **VLAN 20 (IOT)** with a per-device WAN **`wan_allow`** flag — the deliberate cloud exception to the otherwise local-first smart home (same
-> tier as the HmIP-HAP cloud phase, HD-13). Originally they were on **VLAN 21 (IoT-Internet)**, a dedicated
-> allow-all-WAN VLAN; **HD-325 deleted VLAN 21** because wifi-qcom-ac cannot do per-client VLAN tagging —
+> **Placement:** cloud-dependent appliances live on **VLAN 20 (IOT)** with a per-device WAN **`wan_allow`** flag — the deliberate cloud exception to the otherwise local-first smart home (same
+> tier as the HmIP-HAP cloud phase). There is no allow-all-WAN IoT VLAN: wifi-qcom-ac cannot do per-client VLAN tagging, so
 > the Wi-Fi appliances join the IOT SSID (VLAN 20) and get WAN only via the per-MAC `iot-wan-allow` accepts
 > rendered from `network_static_hosts` `wan_allow: true` rows. Both platforms are strictly **cloud-to-cloud**: the
 > appliance keeps an outbound TLS session to the vendor cloud, and HA talks to that cloud API
@@ -70,7 +68,7 @@ tags: [smart-home, homeassistant]
 ### Network implications (RouterOS IaC)
 
 - **Outbound:** the cloud-IoT devices' WAN egress is the per-MAC `iot-wan-allow` `src-mac-address` forward-accept
-  (SSOT `wan_allow: true`; **not** a whole-VLAN allow — VLAN 21's allow-all is gone with the VLAN, HD-325).
+  (SSOT `wan_allow: true`; a per-MAC accept, never a whole-VLAN allow).
   Deliberately NOT port-tightened, because the stacks need more than HTTPS: Bosch also speaks **TCP/8080** to Home
   Connect servers; both need **UDP/123 NTP** (a drifted clock breaks TLS certificate validation and
   looks like a mysterious outage) plus working DNS. If the `iot-wan-allow` scope is ever narrowed, keep at minimum
@@ -110,19 +108,18 @@ shows up as HA entities going unavailable while the AC itself still works from t
 ## Home Assistant
 
 - **Host (node):** `pi.kogler.si` (Raspberry Pi 4, in daily use) — **primary**; accessed via the VIP `ha.kogler.si`
-- **Fallback:** `home-assistant-standby` Docker container on oldsrv (systemd unit, disabled by default) — **active/standby failover, manual trigger + manual failback**
-  MEASURED 2026-10-08 from the runner: **the standby container does not exist on oldsrv** (`docker ps -a | grep -c home-assistant` = 0 there, and 0 on vps/spark/nas; the only HA container in the fleet is `home-assistant-primary` on the Pi). The template and the VIP path exist; the deploy never happened — so "manual failover" is currently a template, not a capability.
-- **Configs:** In this homelab repo (moved from HA's own GitHub repo)
+- **Fallback:** `home-assistant-standby` Docker container on oldsrv (systemd unit, disabled by default) — **active/standby failover, manual trigger + manual failback**. ⏳ **Not deployed:** the only HA container in the fleet is `home-assistant-primary` on the Pi — the template and the VIP path exist, so "manual failover" is a template, not a capability.
+- **Configs:** in this homelab repo
 
 > **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
 - **Entity list:** Not yet exported — needed for HA Dashboard `lovelace` + Grafana generation (enable HA exporter: see `observability.md`)
-- **Shelly integration (HA on the Pi):** the 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20 — SSOT `network-addresses-generated.md`) — **live, devices added (HD-320/HD-323):** narrow new-TCP tcp/80 exception (Home→IoT REST), **forward Home→IoT udp/5683 CoAP-client rule** (the Gen1 config flow's `BlockDevice.initialize` opens a CoAP client session toward each device — without this forward rule the flow aborted `cannot_connect`, the real blocker behind the stuck “add by IP” step), and the **reverse IoT→`trusted-ha` udp/5683 push** (HD-229). The HA CoAP server binds *inside* the container, so `home-assistant-primary`/`-standby` compose publish `5683:5683/udp`; devices' CoIoT peer = `ha-vip` (SSOT). **LIVE: all 4 added** (Kuhinja/WC 4/Orhideje/Kopalnica), entities `light.kuhinja` / `light.wc_4_channel_1..4` / `light.orhideje` / `light.kopalnica_2`, control verified, both CoAP directions flowing. Dashboard cards in the lovelace views bind once the devices are added.
+- **Shelly integration (HA on the Pi):** the 4× Gen1 RGBW2 (`shelly-rgbw2-*`, IoT VLAN 20 — SSOT `network-addresses-generated.md`) — **live, all 4 added** (Kuhinja/WC 4/Orhideje/Kopalnica), entities `light.kuhinja` / `light.wc_4_channel_1..4` / `light.orhideje` / `light.kopalnica_2`, both CoAP directions flowing. Firewall shape: a narrow new-TCP tcp/80 exception (Home→IoT REST), a **forward Home→IoT udp/5683 CoAP-client rule** (the Gen1 config flow's `BlockDevice.initialize` opens a CoAP client session toward each device, so the flow needs outbound CoAP from HA), and the **reverse IoT→`trusted-ha` udp/5683 push**. The HA CoAP server binds *inside* the container, so `home-assistant-primary`/`-standby` compose publish `5683:5683/udp`; devices' CoIoT peer = `ha-vip` (SSOT).
 
 ### Remote access & SSO (ha.kogler.si)
 
-- **Web UI (browser):** SSO via **Authentik** using HA's native **OpenID Connect (OIDC)** integration — family logs into Authentik (passkey), no separate HA password.
-- **Companion app / Android Auto:** uses HA's **long-lived access token** (one-time pairing, authenticated through Authentik). The **`ha` route must NOT use Authentik Forward-Auth** — that would break the app's WebSocket/API and token flow.
-- **Security:** at the edge keep Traefik + CrowdSec/rate-limit; in HA set `http.use_x_forwarded_for: true` + `trusted_proxies: <Traefik>`. Keep **one local `owner` account** as a recovery fallback if Authentik is unreachable.
+- **Auth:** HA **local auth** (`type: homeassistant` provider) on both the web UI and the app — Authentik is never a gate on `ha` (see [`smart-home-failover.md`](smart-home-failover.md)).
+- **Companion app / Android Auto:** uses HA's **long-lived access token** (one-time pairing against the local provider). The **`ha` route must NOT use Authentik Forward-Auth** — that would break the app's WebSocket/API and token flow.
+- **Security:** at the edge keep Traefik + CrowdSec/rate-limit; in HA set `http.use_x_forwarded_for: true` + `trusted_proxies: <Traefik>`. Keep **one local `owner` account**.
 - Config: `configuration.yaml` templated from this repo (see `deployment-ansible.md` → `home_assistant` role).
 
 ---
@@ -131,8 +128,8 @@ shows up as HA entities going unavailable while the AC itself still works from t
 
 - **Weather sensor HmIP-SWO-B** pairs over Homematic IP radio; HA integration = **`homematicip_cloud`** (current, HAP cloud mode).
 - **Rekuperator ComfoAir Q 350/450** connects via **ComfoConnect KNX-C** module → KNX TP bus → **GIRA IP Router `.118`**; HA integration = **`knx`**.
-- **KNX config direction (decided, implemented): ETS project file is the SSOT, rendered into HA.** The ETS export **`assets/references/knx/StanovanjeKogler_v1_0.knxproj`** is the SSOT for group addresses (192 GAs, main group 0: lights/covers/radiators/doors/appliances). The `home_assistant` role now (a) deploys the `.knxproj` to `/config/knx/` (KNX panel import for Group Monitor names + `knx.telegram` destination_name — the UI import does NOT auto-create control entities), and (b) renders **`knx-entities.yaml`** — HA `knx:` entity maps **generated from the .knxproj** by `scripts/knx-hass-gen.py` (lights/cover/switch/binary_sensor, addresses+names from ETS roles). The door contacts (`V\d+ - vrata` → `binary_sensor device_class: door`) are emitted with `invert: true` — the ETS 1.001 telegrams read inverted (1 = closed / 0 = open; live-verified 2026-09-03 via the close-door test), so HA's open/closed renders correctly. The KNX/IP **connection** (tunneling to the GIRA IP router `knx-ip` (SSOT)) is configured in the KNX config-flow UI (current HA has no YAML connection key). Legacy `assets/references/old-ha/knx-*.yaml` = reference only; the rekuperator ComfoConnect GAs (12/1/*) are NOT in the current export and are ported as hand-curated sensors in `knx-entities.yaml`.  - **Address audit 2026-09-25 (measured, replaces the "invented state addresses" diagnosis):** the generator emits **154** group addresses and **0** of them are absent from the `.knxproj` (which publishes 246), including all **19** hand-typed sensor-appendix addresses; the artifact is byte-identical to a fresh render and the file deployed on the Pi is md5-identical to the artifact. What ships now is the guard: `scripts/knx-hass-gen.py --check` refuses to pass when an emitted address is not published in the project, and `--self-test` covers that logic in `validate-all.sh`. The dependency (`xknxproject`) is not declared anywhere in the repo — recorded rather than quietly worked around.
-- **Physical door map (verified by a close-door test):** the ETS project's 9 door contacts (`V\d+ - vrata`) are NOT all doors — the house has **5 real doors**. Live-identified by watching which sensor flipped `on→off` as each physical door was closed (owner said the name each time):
+- **KNX config direction: the ETS project file is the SSOT, rendered into HA.** The ETS export **`assets/references/knx/StanovanjeKogler_v1_0.knxproj`** is the SSOT for group addresses (192 GAs, main group 0: lights/covers/radiators/doors/appliances). The `home_assistant` role (a) deploys the `.knxproj` to `/config/knx/` (KNX panel import for Group Monitor names + `knx.telegram` destination_name — the UI import does NOT auto-create control entities), and (b) renders **`knx-entities.yaml`** — HA `knx:` entity maps **generated from the .knxproj** by `scripts/knx-hass-gen.py` (lights/cover/switch/binary_sensor, addresses+names from ETS roles). The door contacts (`V\d+ - vrata` → `binary_sensor device_class: door`) are emitted with `invert: true` — the ETS 1.001 telegrams read inverted (1 = closed / 0 = open), so HA's open/closed renders correctly. The KNX/IP **connection** (tunneling to the GIRA IP router `knx-ip` (SSOT)) is configured in the KNX config-flow UI (current HA has no YAML connection key). The rekuperator ComfoConnect GAs (12/1/*) are NOT in the current export and are ported as hand-curated sensors in `knx-entities.yaml`. The generator emits **154** group addresses and none is absent from the `.knxproj` (which publishes 246), including all **19** hand-typed sensor-appendix addresses; the file deployed on the Pi is md5-identical to a fresh render. The guard: `scripts/knx-hass-gen.py --check` refuses to pass when an emitted address is not published in the project, and `--self-test` covers that logic in `validate-all.sh`. The dependency (`xknxproject`) is not declared in the repo.
+- **Physical door map:** the ETS project's 9 door contacts (`V\d+ - vrata`) are NOT all doors — the house has **5 real doors**:
 
   | KNX GA | HA entity (friendly name) | Physical door |
   |--------|---------------------------|---------------|
@@ -142,9 +139,8 @@ shows up as HA entities going unavailable while the AC itself still works from t
   | `0/3/5` (ETS "Hodnik V6") | `binary_sensor.hodnik_v6_vrata` → **Vrata spalnica** | Spalnica |
   | `9/3/0` (ETS "Spalnica V8") | `binary_sensor.spalnica_v8_vrata` → **Vrata kopalnica** | Kopalnica |
 
-  The other 4 contacts (`0/3/0`, `0/3/1`, `0/3/2`, `9/3/1`) are **unused/spare contacts on the bus** — **disabled in the HA entity registry** (`disabled_by: user`) so they don't clutter the dashboard; the ETS labels for then are "Hodnik V1/V2/V3" + "Spalnica V9". The friendly names were set via the entity registry (UI-level), NOT in `knx-entities.yaml` — the generator emits the raw ETS names; do not expect the `invert`/`name` mapping in the generated file.
-- **Local RF plan (REJECTED / HD-18):** the intended HmIP-RFUSB stick + RaspberryMatic on the Pi (Debian/Docker) for full-local-ish Homematic **will not happen — the stick will not be purchased** (decision log: [smart-home-rejected.md](smart-home-rejected.md)). **The HmIP-HAP stays in cloud mode** (`homematicip_cloud`); HA keeps talking to the HAP. Local-RF Homematic (RaspberryMatic over `homematic` XML-RPC 2001/2010) is closed out; the stick-move pairing-transfer test (HD-18) is moot. Failover of Homematic is cloud-bound (below).
-- **Failover of Homematic (cloud-HAP):** because HmIP-HAP is the cloud AP, its failover story is cloud-bound rather than a physical stick move — Homematic follows the cloud HAP, not the HA VIP. The stick-move step (HD-18) is **rejected** (the stick will not be bought — [smart-home-rejected.md](smart-home-rejected.md)). IP devices (KNX, Shelly) fail over purely via the VIP as before. See [`smart-home-failover.md`](smart-home-failover.md).
+  The other 4 contacts (`0/3/0`, `0/3/1`, `0/3/2`, `9/3/1`) are **unused/spare contacts on the bus** — **disabled in the HA entity registry** (`disabled_by: user`) so they don't clutter the dashboard; the ETS labels for them are "Hodnik V1/V2/V3" + "Spalnica V9". The friendly names live in the entity registry (UI-level), NOT in `knx-entities.yaml` — the generator emits the raw ETS names; do not expect the `invert`/`name` mapping in the generated file.
+- **Failover of Homematic (cloud-HAP):** the HmIP-HAP is the cloud AP, so Homematic follows the cloud HAP, not the HA VIP — there is no local RF stick and no RaspberryMatic (decision log: [smart-home-rejected.md](smart-home-rejected.md)). IP devices (KNX, Shelly) fail over purely via the VIP. See [`smart-home-failover.md`](smart-home-failover.md).
 - **HA recorder:** after observability is live, **trim, NOT disable, recorder history** (`purge_keep_days: 1–2`, `commit_interval` up, `exclude` noisy domains) to cut Raspberry Pi microSD writes — Grafana reads VictoriaMetrics for long-term graphs. **Kept enabled** deliberately: it still powers the **Logbook**, **Energy Dashboard (long-term statistics)** (KNX appliance-current sensors → kWh), and `history_stats` / `history()` templates that Grafana doesn't cover. Full Pi SD-wear strategy (recorder + Docker-log driver + tmpfs `/var/log`): [`observability.md`](observability.md) → *Pi SD-card wear strategy*.
 
 ---
@@ -152,7 +148,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
 ## Wake Word
 
 - **Language: English** (wider tool support; single word)
-- **Phrase: "Assistant"** (approved, HD-25) — changeable later: wake words are per-device configurable in ESPHome/HA Assist, so adjusting after the family tries it is trivial (no re-architecture).
+- **Phrase: "Assistant"** — changeable later: wake words are per-device configurable in ESPHome/HA Assist, so adjusting after the family tries it is trivial (no re-architecture).
 - See [`smart-home-voice.md`](smart-home-voice.md) for engine selection
 
 ---
@@ -170,17 +166,10 @@ shows up as HA entities going unavailable while the AC itself still works from t
 
 ---
 
-## Rejected
-
-**Minisforum MS-A2** — considered as dedicated AI/voice processor. Rejected: centralized LLM on oldsrv GPU avoids managing two separate AI devices.
-
----
-
 ## Open Questions
 
 - Home Assistant entity list (needed for HA Dashboard **lovelace** + Grafana generation; enable HA exporter: see `observability.md`)
-- Wall-surface Dashboard: native HA Dashboard on existing devices (iPad A16 + Android RT8, 80% capped) — **TileBoard retired (HD-24)**
-- Wake word final approval ("Assistant" — approved HD-25; changeable later)
+- Wall-surface Dashboard: native HA Dashboard on existing devices (iPad A16 + Android RT8, 80% capped)
 - Confirmed HmIP-SWO-B channels: no rain / wind-direction (not part of this sensor)
 
 ---
@@ -193,7 +182,7 @@ shows up as HA entities going unavailable while the AC itself still works from t
 | Dashboards & interfaces | [`interfaces.md`](interfaces.md) |
 | Audio hardware | [`smart-home-audio.md`](smart-home-audio.md) |
 | HA failover & high availability | [`smart-home-failover.md`](smart-home-failover.md) |
-| Live HA instance (HAOS) + HAOS→Docker feasibility | [`home-assistant-current.md`](home-assistant-current.md) |
+| Live HA instance inventory | [`home-assistant-current.md`](home-assistant-current.md) |
 
 ## Related
 
@@ -201,6 +190,6 @@ shows up as HA entities going unavailable while the AC itself still works from t
 - [Interface Matrix — Dashboards & Management](interfaces.md)
 - [Audio System](smart-home-audio.md)
 - [HA Failover & High Availability](smart-home-failover.md)
-- [Current HA Instance (HAOS) & HAOS→Docker](home-assistant-current.md)
+- [Current HA Instance — Live Inventory](home-assistant-current.md)
 - [Smart Home Review Queue](smart-home-review.md)
 - [Smart Home Rejected / Dropped (decision log)](smart-home-rejected.md)
