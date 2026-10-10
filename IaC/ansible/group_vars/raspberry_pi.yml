@@ -2,21 +2,18 @@
 # Raspberry Pi 4 — Home Assistant (PRIMARY node)
 # Failover design: docs/smart-home-failover.md
 
-# Reachability (HD-397, decided 2026-09-19): the Pi sits behind the home NAT, so a runner
-# that is not LAN-attached reaches it ONLY via the VPS jump. Carried as a GROUP VAR so it
-# applies to every play that touches this host (raspberry_pi.yml, nut-deploy.yml,
-# dns-seed.yml, all.yml, monitoring) — until now the jump lived only in the laptop's ssh
-# ALIAS, so `ssh pi` worked off-LAN while `ansible pi -m ping` did NOT (Ansible types the
-# ansible_host IP, and OpenSSH matches the name ACTUALLY TYPED). Harmless no-op from a
-# LAN-attached runner. Leg = Home (VLAN 10). Matrix + alias contract: docs/network-vpn.md
-# §Reaching LAN nodes when away (the per-IP ssh blocks there are for scp/rsync/humans —
-# this var alone carries a converge, measured 2026-09-19).
+# Reachability: the Pi sits behind the home NAT, so a runner that is not
+# LAN-attached reaches it ONLY via the VPS jump. Carried as a GROUP VAR so every
+# play that touches this host applies it (raspberry_pi.yml, nut-deploy.yml,
+# dns-seed.yml, all.yml, monitoring): an ssh ALIAS does not carry a converge,
+# because Ansible types the ansible_host IP and OpenSSH matches the name ACTUALLY
+# TYPED. A no-op from a LAN-attached runner. Leg = Home (VLAN 10). Matrix + alias
+# contract: docs/network-vpn.md §Reaching LAN nodes when away.
 ansible_ssh_common_args: "-o ProxyJump=vps"
 
-# HA container pin (HD-192): semver replaced the `stable` mutable alias — primary + standby
-# MUST run the same version for clean manual failover (HD-39 rationale). The pin itself lives in
-# `group_vars/all/versions.yml` (§7 one-place rule, 2026-10-08: this file used to carry a second
-# copy of it, which is how a primary/standby pair drifts). Tag scheme is calver.
+# HA container pin: a semver, never the `stable` mutable alias — primary and standby
+# MUST run the same version for a clean manual failover. The pin itself lives in
+# `group_vars/all/versions.yml` (§7 one-place rule); tag scheme is calver.
 home_assistant_install_method: docker   # 'docker' or 'supervised' — use docker for keepalived/VIP
 # The Pi also runs a minimal VIP-bound edge (`traefik-ha`) that keeps ha.kogler.si
 # reachable when oldsrv is down — see docs/smart-home-failover.md.
@@ -31,25 +28,25 @@ ha_primary_peer_priority: 90  # failback peer mode — below standby (100/120), 
 # Pi also runs a small docker_services set (needs the docker + docker_services roles):
 #   - home-assistant-primary: PRIMARY HA + keepalived MASTER (configs rendered by the
 #     home_assistant role BEFORE docker_services runs)
-#   - technitium-secondary: the Pi's Technitium instance (moved from nas). ⚠ The NAME is
-#     historical: the live tier is VPS primary + oldsrv secondary + Pi TERTIARY (HD-332),
-#     so do not read "secondary" here as the role — docs/network-dns.md §the DNS tier owns it.
+#   - technitium-secondary: the Pi's Technitium instance. ⚠ The NAME is historical:
+#     the live tier is VPS primary + oldsrv secondary + Pi TERTIARY, so do not read
+#     "secondary" here as the role — docs/network-dns.md §the DNS tier owns it.
 #   - traefik-ha: HA + DNS-secondary web-UI edge (VIP-bound; oldsrv-down gap)
 #
-#   - raspberrymatic was REMOVED from the Pi loop (2026-08-18, HD-13 parked): keeping the
-#     HmIP-HAP in cloud mode until an HmIP-RFUSB is bought. Re-add when local RF is purchased
-#     and fill the USB by-id into host_vars/pi.kogler.si.yml.
+#   - raspberrymatic is OUT of the Pi loop (parked): the HmIP-HAP stays in cloud
+#     mode until an HmIP-RFUSB is bought. Re-add when local RF is purchased and fill
+#     the USB by-id into host_vars/pi.kogler.si.yml.
 docker_services:
   - { name: home-assistant-primary, template_dir: home-assistant-primary }
-  # HD-476: the Pi is the resolver VLAN 10 asks FIRST, so it is the instance that carries the
-  # public upstream. Forwarding is the Pi-only knob: the VPS primary + oldsrv secondary are
-  # seeded with `forwarders=` empty (unchanged, still root-chase) until they are opted in too.
+  # The Pi is the resolver VLAN 10 asks FIRST, so it is the instance that carries the
+  # public upstream. Forwarding is opt-in per instance: an instance without the flag is
+  # seeded with `forwarders=` empty and chases the roots instead.
   # Value + the full rationale (why two, why never the router/oldsrv): dns_resolver_upstreams
-  # in group_vars/all/main.yml; behaviour + measurements: docs/network-dns.md §Resolver upstream.
+  # in group_vars/all/main.yml; behaviour: docs/network-dns.md §Resolver upstream.
   - { name: technitium-secondary,  template_dir: technitium, instance: secondary-pi,
       technitium_forwarders: "{{ dns_resolver_upstreams }}" }
   - { name: traefik-ha,            template_dir: traefik-ha, enabled: "{{ ha_edge_enabled }}" }   # HA edge, VIP-bound (oldsrv-down gap)
   # Dozzle remote agent — exposes pi's containers to the oldsrv LAN log hub (llogs.kogler.si)
-  # over the Home VLAN (:7007, LAN-only bind — never WAN). HD-343 ride-along 2026-09-15.
+  # over the Home VLAN (:7007, LAN-only bind — never WAN).
   - { name: dozzle-agent,          template_dir: dozzle-agent, enabled: true,
       dozzle_agent_listen: "{{ pi_home_ip }}", dozzle_agent_hostname: "pi" }
