@@ -150,6 +150,7 @@
 # dance — no physical cable swap. The address must carry the SUBNET prefix
 # (comtrend_modem.router_on_modem, a /24): a /32 leaves no connected route and the
 # modem is unreachable via forward. Opt-out per host via comtrend_modem.enabled.
+# → docs/network.md §Comtrend modem management path
 - name: Configure Comtrend modem mgmt IP on ether1
   when: comtrend_modem.enabled | bool
   community.routeros.api_modify:
@@ -622,6 +623,7 @@
       # trusted-admin (a node, not an admin host), so HA's KNX tunnel needs its own
       # narrow new-UDP exception. Same pattern as the CoAP 5683 reverse exception above.
       # dst = knx_router_ip (SSOT, VLAN 20).
+      # → docs/network-vlans.md §Inter-VLAN Firewall Rules
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ knx_router_ip }}"
