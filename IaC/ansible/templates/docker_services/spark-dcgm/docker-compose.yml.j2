@@ -1,33 +1,27 @@
-# spark-dcgm docker-compose.yml — NVIDIA DCGM exporter for the GB10 (HD-379)
+# spark-dcgm docker-compose.yml — NVIDIA DCGM exporter for the GB10
 #   WHY: the GB10 GPU has no telemetry source outside DCGM. Host Overview already covers host
-#   silicon from Alloy's `hwmon` collector (HD-378), but there is NO nvidia hwmon chip on this
+#   silicon from Alloy's `hwmon` collector, but there is NO nvidia hwmon chip on this
 #   box, so GPU die temperature / utilisation / power / SM clock / XID errors exist on no other
 #   exporter — and the LLM board's GPU row was empty. nvidia-smi cannot serve these as a metric
 #   endpoint (and reports memory as "Not Supported" — unified memory, by NVIDIA's own design).
 #
-#   MEASURED, not assumed (ran this exact image on spark 2026-09-16, then removed the probe):
-#   `DCGM successfully initialised` → 13 series with live values: GPU_UTIL 88-90 % under load,
-#   GPU_TEMP 50-58 C, POWER_USAGE 12-39 W, TOTAL_ENERGY_CONSUMPTION (mJ counter), SM_CLOCK
-#   2509 MHz, XID_ERRORS 0, PCIE_REPLAY_COUNTER 0, MEM_COPY_UTIL/ENC/DEC 0, MEMORY_TEMP 0 (bogus),
-#   NVLINK_BANDWIDTH_TOTAL 0, VGPU_LICENSE_STATUS 0.
-#   WHAT CANNOT WORK HERE: the profiling (DCP) module refuses to load —
-#     "Not collecting DCP metrics: This request is serviced by a module of DCGM that is not
-#      currently loaded"; forcing dcp-metrics-included.csv →
-#     "Skipping line 21..25 (GR_ENGINE_ACTIVE / PIPE_TENSOR_ACTIVE / DRAM_ACTIVE /
-#      PCIE_TX_BYTES / PCIE_RX_BYTES): metric not enabled"
-#   and NVIDIA states DCGM profiling will not be supported on Spark (not a datacenter device).
-#   `FB_*` (VRAM) is never emitted either. So Alloy's `prometheus.relabel "dcgm"` keeps ONLY the
-#   six signals that are real on this device and drops the constant-zero/bogus ones — see
-#   docs/observability.md §LLM Dashboard (GPU) for the full emit/refuse table.
+#   DCGM here emits live GPU_UTIL / GPU_TEMP / POWER_USAGE / TOTAL_ENERGY_CONSUMPTION / SM_CLOCK /
+#   XID_ERRORS / PCIE_REPLAY_COUNTER, and zero-or-bogus values for MEM_COPY_UTIL/ENC/DEC,
+#   MEMORY_TEMP, NVLINK_BANDWIDTH_TOTAL, VGPU_LICENSE_STATUS. The DCP profiling module refuses to
+#   load (forcing dcp-metrics-included.csv reports "metric not enabled" for the GR_ENGINE_ACTIVE /
+#   PIPE_TENSOR_ACTIVE / DRAM_ACTIVE / PCIE_* rows) and NVIDIA states DCGM profiling will not be
+#   supported on Spark; `FB_*` (VRAM) is never emitted either. Alloy's `prometheus.relabel "dcgm"`
+#   therefore keeps ONLY the signals that are real on this device.
+#   → docs/observability.md §LLM Dashboard
 #
-#   EXPOSURE: loopback-only :9400, exactly like the vLLM metrics publish (spark_metrics_publish,
-#   HD-368) — spark's Alloy scrapes 127.0.0.1:9400 and remote-writes to the VPS VM. Never a
+#   EXPOSURE: loopback-only :9400, exactly like the vLLM metrics publish
+#   (spark_metrics_publish) — spark's Alloy scrapes 127.0.0.1:9400 and remote-writes to the VPS VM. Never a
 #   Traefik route, never the Home VLAN, never WAN: there is no auth on /metrics.
 #
-#   RESOURCE FOOTPRINT (MEASURED on spark 2026-09-16, not assumed): anonymous RAM ≈ 139–143 MiB
+#   RESOURCE FOOTPRINT (on this box): anonymous RAM ≈ 139–143 MiB
 #   (cgroup memory.stat `anon`; `docker stats` reads 130–155 MiB depending on page cache).
-#   That is ~0.1 % of the 121.6 GiB pool, but this box has a documented OOM history (HD-375) and
-#   the engine lives inside a 105 GiB cage (HD-374), so the exporter gets a HARD cap below.
+#   That is ~0.1 % of the 121.6 GiB pool, but this box has a documented OOM history and
+#   the engine lives inside a 105 GiB cage, so the exporter gets a HARD cap below.
 #   Trimming the counter list is NOT the lever it looks like: an A/B run of a 7-field CSV vs the
 #   image's 18-field default moved anon RAM 143 → 139 MiB (~3 %), and GOMEMLIMIT=64MiB/GOGC=20
 #   changed nothing — the floor is DCGM/NVML's own device context, not the Go heap. See
@@ -59,13 +53,13 @@ services:
       - "127.0.0.1:{{ spark_dcgm_exporter_port }}:9400"
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # Scrape interval: HD-420 moves this to 5 s so the collector, not just the scraper, runs
-      # at the cadence the nine panels ask for. Until 2026-09-22 it was "30000", which made the
-      # Alloy 5 s scrape store six copies of one sample (measured: GPU_UTIL returned `86` on
-      # twelve consecutive 1 Hz reads). Sidecar restart only — NEVER the engine.
+      # Scrape interval: 5 s so the collector, not just the scraper, runs at the cadence the nine
+      # panels ask for. A 30 s collector interval makes the Alloy 5 s scrape store six copies of
+      # one sample (GPU_UTIL answers the same value on twelve consecutive 1 Hz reads). Sidecar
+      # restart only — NEVER the engine.
       # ⚠ GATE NOT YET SATISFIED (row 2 of prompt-420.md): the value must be A/B'd for CPU and
-      # cgroup memory.stat `anon` against `spark_dcgm_exporter_memory_limit` (256M — the cap
-      # exists because this exporter outgrew it during HD-378) ON THE BOX at 5 s before it is
+      # cgroup memory.stat `anon` against `spark_dcgm_exporter_memory_limit` (256M — the cap this
+      # exporter has already outgrown) ON THE BOX at 5 s before it is
       # converged. That measurement cannot be taken from a session whose own model is spark
       # (todo-table.md §C2), so the pre-flight is PARKED, not waived: do not converge spark
       # with this line landed until it has been run from the laptop. If it fails, revert THIS
@@ -77,15 +71,15 @@ services:
       # instead of a second, silently-drifting CSV inside the image.
     deploy:
       resources:
-        # HARD CAP (HD-379): measured footprint ≈ 140 MiB, capped at 256 MiB (~1.8x headroom).
+        # HARD CAP: observed footprint ≈ 140 MiB, capped at 256 MiB (~1.8x headroom).
         # The cap is what protects the engine, not the measurement: an unbounded leak in this
         # sidecar must be able to cost at most 256 MiB of the pool the vLLM engine is caged in
-        # (HD-374) on a host that has already OOM-killed (HD-375). Chosen above the observed
+        # on a host that has already OOM-killed. Chosen above the observed
         # peak so normal operation can never be OOM-killed by its own cap.
         limits:
           # Quoted: docker compose's schema requires limits.memory to be a STRING — a byte
           # integer fails `docker compose config --quiet` ("must be a string"), which is how the
-          # role's pre-deploy compose validation (HD-162) caught my first attempt.
+          # role's pre-deploy compose validation catches it.
           memory: "{{ spark_dcgm_exporter_memory_limit }}"
         reservations:
           devices:
