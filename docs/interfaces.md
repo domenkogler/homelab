@@ -80,7 +80,7 @@ tags: [services, interfaces, dashboards]
 
 ## CrowdSec analytics — what serves it now
 
-**There is no `sec.kogler.si` service** — no Cloudflare record, no `extra_records` entry, no route. A Home resolver still answers the name out of a stale **Technitium DNSDB** row pointing at the tailnet VIP (`100.64.0.1`), where nothing listens. The analytics surface is split between **CrowdSec Web UI**
+**There is no `sec.kogler.si` service** — no Cloudflare record, no `extra_records` entry, no route. A Home resolver still answers the name out of a stale **Technitium DNSDB** row pointing at the tailnet VIP (the address lives in [network-addresses-generated.md](network-addresses-generated.md)), where nothing listens. The analytics surface is split between **CrowdSec Web UI**
 (`csui`, below) for ops and **Grafana** (`stats`) for anything tabular/metric-shaped.
 Revival path if a BI layer is ever wanted: redeploy on **oldsrv**, not the VPS — the template, the
 disabled registry row and the read-only `metabase-forgejo_ro` grant are kept
