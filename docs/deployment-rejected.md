@@ -23,6 +23,7 @@ tags: [deployment, rejected, decision-log]
 | Adopting a discovered hand-made key into the vault                             | rejected   | promotes a one-time key to a managed secret                     |
 | `ansible_run_tags == ['all']` equality                                         | rejected   | it is a tuple; membership is the only form                      |
 | Authentik-as-LDAP Samba (`authentik-ldap_bind`)                                | superseded | NAS passdb is local tdbsam                                      |
+| authentik LDAP 3389 publish on all interfaces                                  | superseded | outpost binds only the WG S2S address                           |
 | Catalog-generating `cockpit-pi-web_api`                                        | rejected   | `--create` mints a new value; clients use the live one          |
 | Cohere embed-v4 (`cohere_api`)                                                 | superseded | embed/rerank local via Ollama `:rocm`                           |
 | Contabo VPS                                                                    | superseded | netcup RS 2000 G12 replaces it as the public edge               |
@@ -67,6 +68,7 @@ tags: [deployment, rejected, decision-log]
 | VictoriaMetrics/VictoriaLogs TSDB as regenerable, not backed up                | superseded | Kopia-backed now; 365d retention bounds growth                  |
 | `vps-op-write_api` item title                                                  | superseded | renamed `op-write_api`, old title deleted                       |
 | watchtower                                                                     | rejected   | bypasses the Ansible/Renovate gate, breaks HA version parity    |
+| wg-s2s AllowedIPs to the whole site /16                                        | superseded | scoped to named home targets, router ACL enforced               |
 | WSL Bridged networking                                                         | superseded | NIC pin fails on WiFi/hotspot; NAT is durable                   |
 | WSL `mirrored` networking                                                      | rejected   | wedges ARP for the gateway, survives `wsl --shutdown`           |
 | `Yacht web UI`                                                                 | rejected   | extra VPS web surface, drifts from the Ansible compose model    |
