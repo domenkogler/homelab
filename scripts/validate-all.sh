@@ -377,9 +377,24 @@ fi
 # printed `SC_DIR: unbound variable` because the function-local it named was long gone.
 # Legs that need scratch space take a subdirectory of `$RUN` (see the syntax-check leg).
 RUN="$(mktemp -d)"; trap 'rm -rf "$RUN"' EXIT
+# Windows seats: MORE SLOTS IS NOT MORE SPEED, measured 2026-10-10 on the Win11 git-bash seat.
+# A fork costs ~176 ms there (`$( : )` of a pure BUILTIN, so it is the fork, not the exec) and a
+# fork+exec ~130-180 ms, against 0.66 ms on WSL Debian — and it does not parallelise: 20 concurrent
+# `bash -c true` took 4.25 s against 4.66 s serial, i.e. the create-process path is serialised (the
+# native EXEs cost the same as the Cygwin ones, so it is the Windows CreateProcess path, not MSYS).
+# At MAXPAR=$(nproc)=24 that makes the pool a contention generator: pi-seat-sync.sh --self-test alone
+# is 114 s and took 339 s inside a 24-way pool. Cap the pool on such a host; override with
+# GATE_WIN_PAR for measurement.
+IS_MSYS=0
+case "${OSTYPE,,}" in msys*|cygwin*|mingw*) IS_MSYS=1 ;;
+  *) case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_MSYS=1 ;; esac ;; esac
 MAXPAR=4
 command -v nproc >/dev/null 2>&1 && MAXPAR="$(nproc)"
 [ "$SERIAL" = 1 ] && MAXPAR=1
+if [ "$IS_MSYS" = 1 ] && [ "$SERIAL" != 1 ]; then
+  WINPAR="${GATE_WIN_PAR:-8}"
+  [ "$MAXPAR" -gt "$WINPAR" ] && MAXPAR="$WINPAR"
+fi
 # The two ansible legs spawn children of their own; give them half the pool each so a
 # nested fan-out cannot multiply the process count past the cores (8 slots → 4 each).
 GATE_NPAR=4
@@ -387,7 +402,17 @@ command -v nproc >/dev/null 2>&1 && GATE_NPAR="$(( $(nproc) / 2 > 2 ? $(nproc) /
 export GATE_NPAR
 echo "gate: $MAXPAR items in flight (GATE_NPAR=$GATE_NPAR for the ansible legs)" >&2
 
-n_items=0; labels=(); pids=(); states=()
+# SLOT CONTROL without a FORK per POLL, measured 2026-10-10: the old gate checked the pool with
+# `[ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]`, and `wc` is an EXEC — so a saturated pool spawned two
+# processes (wc + sleep) every 50 ms purely to ask "is anything free?", which on a Windows seat is
+# ~150 ms each, and on EVERY host it is a process per poll for no information. `wait -n` (bash 5.1+)
+# blocks until a slot actually frees, at zero cost. The counter is exact: +1 per launch, -1 per reap.
+# The old poll stays as the fallback for a bash without `wait -n` rather than being wrong there.
+HAVE_WAITN=0
+true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1     # supported => reaps that `true` with rc 0
+                                                   # unsupported => wait errors (rc 2) and just blocks
+
+n_items=0; labels=(); pids=(); states=(); n_run=0
 
 _queue() {
   local label="$1"; shift
@@ -398,11 +423,18 @@ _queue() {
   ( "$@" >"$RUN/$i.log" 2>&1; echo "$?" >"$RUN/$i.rc" ) &
   local pid=$!
   states+=("run"); pids+=("$pid")
+  n_run=$((n_run+1))
   printf '  -> %2d  %s\n' "$i" "$label" >&2
   if [ "$MAXPAR" -le 1 ]; then
     wait "$pid" >/dev/null 2>&1 || true     # --serial: block here, no polling in the loop
+    n_run=$((n_run-1))
+  elif [ "$HAVE_WAITN" = 1 ]; then
+    while [ "$n_run" -ge "$MAXPAR" ]; do
+      wait -n >/dev/null 2>&1 || true       # reaps one finished leg; its rc already went to $RUN/$i.rc
+      n_run=$((n_run-1))
+    done
   else
-    while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done
+    while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done   # bash < 5.1: no wait -n
   fi
 }
 
