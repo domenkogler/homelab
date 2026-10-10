@@ -1,9 +1,9 @@
 #!/bin/bash
 # =============================================================================
-# litellm-bootstrap-keys.sh — LiteLLM -> 1Password virtual-key egress glue (HD-247)
+# litellm-bootstrap-keys.sh — LiteLLM -> 1Password virtual-key egress glue
 # Managed by Ansible (docker_services role). Runs on any host that deploys a
-# LiteLLM instance with `bootstrap_keys: true` (VPS `litellm` — HD-247; oldsrv
-# `lan-litellm` — HD-356/HD-370) during that service's deploy-service pass, AFTER
+# LiteLLM instance with `bootstrap_keys: true` (VPS `litellm`; oldsrv `lan-litellm`)
+# during that service's deploy-service pass, AFTER
 # the stack is healthy and BEFORE the key consumers render their compose files —
 # registry order guarantees this (same contract as prepass-authentik.yml for OIDC
 # items). The container is rendered from the owning service entry (svc.name).
@@ -20,7 +20,7 @@
 #      by its alias in the Admin UI (or paste a still-valid sk), then re-run.
 #      We deliberately NEVER auto-delete/mint-over an existing secret.
 #
-# Why docker exec instead of a published port: the proxy binds NO host ports (HD-62).
+# Why docker exec instead of a published port: the proxy binds NO host ports.
 # All HTTP goes through `docker exec litellm python3 -c …` against 127.0.0.1:4000
 # INSIDE the container — zero new network exposure (secret-env passthrough precedent:
 # deploy-service.yml db_role_sync/db_ro_sync PGSYNC/ROSYNC envs).
