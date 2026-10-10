@@ -1,12 +1,12 @@
 # traefik docker-compose.yml — the public edge; SINGLE ACME issuer on the VPS only
 #
-# HD-178/HD-181 (2026-08-21): exactly ONE host runs ACME for *.kogler.si — the **VPS**
+# Exactly ONE host runs ACME for *.kogler.si — the **VPS**
 # (`traefik_acme_issuer: true` in group_vars/vps.yml). This template renders BOTH roles:
 #   - issuer (VPS): letsencrypt resolver + ./acme state + certs-dumper sidecar.
 #   - consumer (everywhere else): NO ACME; TLS comes from the synced wildcard pair
 #     mounted read-only at ./certs → /etc/traefik/certs, served via the DEFAULT store
 #     (dynamic/tls.yml.j2). Each consumer pulls /opt/traefik/certs from the VPS with its
-#     own timer (Pi ha-cert-sync; oldsrv traefik-cert-pull) — decided HD-204.
+#     own timer (Pi ha-cert-sync; oldsrv traefik-cert-pull).
 #
 # CONTRACT (must keep):
 #   - Issuer only: ACME state lives in ./acme/acme.json (persisted; renewals survive
@@ -46,9 +46,9 @@ services:
     ports:
       - "80:80"
       - "443:443"
-      # HD-342 (Victoria migration): loopback publish of the internal metrics entryPoint
+      # Loopback publish of the internal metrics entryPoint
       # (:8082) so the VPS host-APT Alloy can scrape traefik metrics. Loopback-only —
-      # never WAN/LAN (keeps the edge's expose surface minimal; authentik HD-143 precedent).
+      # never WAN/LAN (keeps the edge's expose surface minimal; the authentik precedent).
       - "127.0.0.1:8082:8082"
     # Public resolvers (Wave-3 R5): lego's DNS-01 propagation self-check queried the docker
     # forwarder -> netcup resolvers, whose negative cache held _acme-challenge.* NXDOMAIN
@@ -71,9 +71,9 @@ services:
 {% endif %}
     networks:
       traefik-public:
-        # HD-240: pin the edge container IP — header-trust consumers whitelist exact
-        # edge IPs (traefik_edge_ips, HD-190), so a drifted bridge assignment silently
-        # breaks every auth-proxy consumer (grafana 401 -> bare /login, 2026-08-24).
+        # Pin the edge container IP — header-trust consumers whitelist exact
+        # edge IPs (traefik_edge_ips), so a drifted bridge assignment silently
+        # breaks every auth-proxy consumer (grafana answers 401 -> bare /login).
         ipv4_address: "{{ traefik_edge_ip_pin }}"
       db-internal: {}   # HD-315 (2026-09-04): Prometheus scrapes traefik:8082 here — the
                         # metrics entryPoint is reachable ONLY inside db-internal (never
@@ -85,10 +85,10 @@ services:
       traefik.http.routers.traefik-dash.entrypoints: websecure
       {{ 'traefik.http.routers.traefik-dash.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
-      # Wildcard REQUEST (Wave-2 triage 2026-08-22): until now nothing asked LE for
-      # *.kogler.si - only per-router hostnames got issued, so certs-dumper never had the
-      # wildcard pair the consumer-pull contract needs. sans covers the apex route.
-      # HD-135b follow-up (2026-08-28): ALSO request *.ts.kogler.si (the headscale
+      # Wildcard REQUEST: per-router hostnames alone never mint the wildcard pair the
+      # consumer-pull contract needs, so *.kogler.si is requested explicitly here.
+      # The `sans` entry covers the apex route.
+      # ALSO request *.ts.kogler.si (the headscale
       # MagicDNS base_subdomain) so the tailnet traefik twins (stats.ts.kogler.si etc.)
       # are covered by the SAME synced wildcard pair — the .ts twins are NOT covered by
       # the single-level *.kogler.si wildcard. certs-dumper dumps all certs matching
@@ -102,7 +102,7 @@ services:
       traefik.http.routers.traefik-dash.service: api@internal
     command:
       - "--log.level=INFO"
-      # HD-280 (2026-09-04): accesslog for the fail2ban http-auth jail. Traefik's
+      # Accesslog for the fail2ban http-auth jail. Traefik's
       # default accesslog goes to stdout (docker logs); fail2ban needs a HOST file,
       # so bind-mount a LOGS DIRECTORY (./logs -> /var/log/traefik, host path
       # /opt/traefik/logs — Docker auto-creates a directory for a dir bind, then
@@ -123,12 +123,12 @@ services:
       - "--api.insecure=false"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
-      # Metrics endpoint (HD-315, 2026-09-04): dedicated internal entrypoint for the
+      # Metrics endpoint: dedicated internal entrypoint for the
       # Alloy scrape job (traefik:8082 on traefik-public, topology B — alloy.river.j2).
       # Never published on a host port; overlay-reachable only.
       - "--entryPoints.metrics.address=:8082"
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
-      # ACME DNS-01 (wildcard) — single issuer for *.kogler.si (VPS ONLY, HD-178/181).
+      # ACME DNS-01 (wildcard) — single issuer for *.kogler.si (VPS ONLY).
       - "--certificatesresolvers.letsencrypt.acme.email={{ letsencrypt_email }}"
       - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme/acme.json"
       - "--certificatesresolvers.letsencrypt.acme.dnschallenge=true"
@@ -139,12 +139,12 @@ services:
       # CrowdSec bouncer plugin (WAF) — blocks malicious IPs via CrowdSec LAPI.
       - "--experimental.plugins.crowdsec-bouncer.moduleName=github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin"
       - "--experimental.plugins.crowdsec-bouncer.version={{ crowdsec_bouncer_plugin_version }}"
-      # Prometheus metrics (HD-315 gap, 2026-09-04): scrape job targets traefik:8082
+      # Prometheus metrics: scrape job targets traefik:8082
       # (alloy.river.j2) but no metrics endpoint was enabled -> traefik_entrypoint_requests_total
       # was empty and up{job="traefik"} showed 0 (selfmonitoring red row). Exposed on the
       # dedicated internal `metrics` entryPoint (:8082, declared above) — never published
       # on a host port; overlay-reachable only, scraped inside traefik-public.
-      # NOTE: v3 has NO --metrics.prometheus.addr flag (field-not-found crash 2026-09-04) —
+      # NOTE: v3 has NO --metrics.prometheus.addr flag (it crashes field-not-found) —
       # the address comes exclusively from the entryPoint declaration.
       - "--metrics.prometheus=true"
       - "--metrics.prometheus.entryPoint=metrics"
@@ -152,7 +152,7 @@ services:
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
   # certs-dumper sidecar — turns Traefik's acme.json into the flat PEM pair the
   # consumer edges depend on (each pulls /opt/traefik/certs from THIS host). Image:
-  # ldez/traefik-certs-dumper (registry-verified tag on Docker Hub, 2026-08-22; the
+  # ldez/traefik-certs-dumper (pinned tag on Docker Hub; the
   # previous ghcr.io/traware/certs-dumper:v2.8.3 does not exist — unverified pin).
   # Wrapper: wait for acme.json → initial dump → rename to the shared wildcard_cert_*
   # names → watch mode re-dumps + --post-hook re-renames on every renewal.
@@ -173,7 +173,7 @@ services:
     volumes:
       - ./acme:/traefik/acme:ro
       - ./certs:/output
-      # Rename logic lives in a rendered script (Wave-2 triage 2026-08-22): the dumper runs
+      # Rename logic lives in a rendered script: the dumper runs
       # --post-hook WITHOUT a shell (unquoted && broke renewals) and the old inline cps
       # crash-looped while acme.json held no cert yet. The script guards both cases.
       - ./certs-rename.sh:/certs-rename.sh:ro
