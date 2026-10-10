@@ -14,8 +14,8 @@
 #                whole script at the first error and leaves the device half-configured)
 #          OR (b) the recommended path on a device with state already on it: /import
 #                rb4011_initial.rsc  in a WinBox terminal. Idempotent for `set`, errors
-#                on duplicate `add` (manual recovery for NTP / services in
-#                deployment-manual.md § Phase 1.5).
+#                on duplicate `add` — after an aborted import the NTP server and the
+#                service rows are the two places that need manual recovery.
 # NOTE:    NO secrets in the repo — credentials injected from 1Password.
 #
 # Security baseline:
@@ -25,8 +25,8 @@
 #     interface" on a ROS7 device). Defense in depth: even if a later change re-enables
 #     a disabled service, it still won't listen on WAN.
 #   * The minimal INPUT chain below drops everything from WAN except established/related
-#     and ICMP. The full firewall comes from the `router` Ansible role
-#     (deployment-manual.md §1.5.3); this is the bootstrap-window floor.
+#     and ICMP. The full firewall comes from the `router` Ansible role and the converge
+#     template; this chain is only the bootstrap-window floor.
 # =============================================================================
 
 # ---- System ----
