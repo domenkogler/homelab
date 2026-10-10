@@ -37,7 +37,7 @@ services:
     networks:
       - traefik-public
       - services-internal
-      - db-internal    # 2026-09-08: Prometheus scrapes n8n:5678/metrics here (N8N_METRICS)
+      - db-internal    # Prometheus scrapes n8n:5678/metrics here (N8N_METRICS)
                        # — same pattern as traefik joining db-internal for its metrics entryPoint.
     volumes:
       - /srv/docker/n8n/data:/home/node/.n8n
@@ -75,7 +75,7 @@ services:
       # the rejection (onError: continueRegularOutput), so delivery fails silently. An empty
       # env is at least visible in the render / `docker inspect`.
       SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | replace('$','$$') }}'
-    labels: {}   # INTERNAL-ONLY (HD-135b follow-up): no public Traefik route on the main
+    labels: {}   # INTERNAL-ONLY: no public Traefik route on the main
                   # edge — n8n is served over the tailnet by the traefik-tailnet edge
                   # (auto.kogler.si / auto.ts.kogler.si).
 networks:
