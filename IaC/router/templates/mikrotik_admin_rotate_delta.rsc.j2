@@ -3,11 +3,10 @@
 # ---------------------------------------------------------------------
 # Vault `mikrotik-admin_login` is the SSOT: `old-password` = the value that is
 # no longer live, `password` = the live value the converge/initial templates
-# render. This delta applies ONLY the admin password change to one device —
-# lighter than re-applying a full converge, per
-# network-ops.md §Rotating the shared admin password.
+# render. This delta applies ONLY the admin password change to one device — lighter
+# than re-applying a full converge.
 #
-# Apply per device (RB4011 10.10.99.1, CRS328 10.10.99.2, APs .4/.5/.6):
+# Apply per device (router, switch, every AP):
 #   bash scripts/routeros-apply-delta.sh <device> mikrotik_admin_rotate_delta.rsc
 # The drop-in goes through the SSH `ansible` identity (key-only — unaffected by
 # the admin password rotation) + pinned host key, never prints key material.

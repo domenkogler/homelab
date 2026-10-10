@@ -150,6 +150,7 @@
 # dance — no physical cable swap. The address must carry the SUBNET prefix
 # (comtrend_modem.router_on_modem, a /24): a /32 leaves no connected route and the
 # modem is unreachable via forward. Opt-out per host via comtrend_modem.enabled.
+# → docs/network.md §Comtrend modem management path
 - name: Configure Comtrend modem mgmt IP on ether1
   when: comtrend_modem.enabled | bool
   community.routeros.api_modify:
@@ -622,6 +623,7 @@
       # trusted-admin (a node, not an admin host), so HA's KNX tunnel needs its own
       # narrow new-UDP exception. Same pattern as the CoAP 5683 reverse exception above.
       # dst = knx_router_ip (SSOT, VLAN 20).
+      # → docs/network-vlans.md §Inter-VLAN Firewall Rules
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ knx_router_ip }}"
@@ -1045,10 +1047,10 @@
         servers: 1.1.1.1,1.0.0.1
 
 
-# Note: WireGuard S2S (Phase 10) and VRRP keepalived advertise input are left at
-# the RouterOS default (accept) so the deferred tunnel / HA links keep working.
-# If a full default-deny input policy is ever wanted, add accept rules for the
-# control plane first, then a final `chain: input` drop-all rule.
+# Note: WireGuard S2S and VRRP keepalived advertise input are left at the RouterOS
+# default (accept) so the deferred tunnel / HA links keep working. If a full
+# default-deny input policy is ever wanted, add the control-plane accepts first, then a
+# final `chain: input` drop-all rule.
 
 # -------------------------------------------------------------------------
 # CAPsMAN Configuration
@@ -1064,13 +1066,13 @@
       Once available, uncomment and configure CAPsMAN in this role.
 
 # -------------------------------------------------------------------------
-# WireGuard S2S Configuration (wg-s2s — home router ↔ VPS, HD-03 / HD-135)
+# WireGuard S2S Configuration (wg-s2s — home router ↔ VPS)
 # -------------------------------------------------------------------------
-# The VPS side is configured by the `wireguard` role (systemd-networkd). This role
-# configures the home RB4011 side via api_modify (per HD-137: the declarative
-# `community.routeros_interface_wireguard*` modules do not exist, so use api_modify
-# path-based calls). Private key = `wg_password` (router's OWN distinct key — HD-285
-# fix: WireGuard needs distinct keys per side; the VPS uses its own `wg_password_vps`).
+# The VPS side is configured by the `wireguard` role (systemd-networkd); this is the
+# RB4011 side, applied via api_modify because the declarative
+# `community.routeros_interface_wireguard*` modules do not exist. The private key is the
+# router's OWN `wg_password` — WireGuard needs distinct keys per side (the VPS uses
+# `wg_password_vps`).
 
 - name: Assert the VPS WG public key is available (fail-closed, HD-65/HD-91)
   assert:
@@ -1150,7 +1152,7 @@
         disabled: no
   tags: router_wireguard
 # -------------------------------------------------------------------------
-# Management Services — lockdown state (HD-301 parity with rb4011_initial.rsc.j2)
+# Management Services — lockdown state (parity with rb4011_initial.rsc.j2)
 # -------------------------------------------------------------------------
 # The bootstrap template owns the `available-from` CIDR binding on every service
 # (community.routeros api_modify 3.x does NOT support the `available-from` field
@@ -1209,16 +1211,13 @@
 # -------------------------------------------------------------------------
 # Per-VLAN trunk ports to switch
 # -------------------------------------------------------------------------
-# ⚠️ PARITY WARNING (HD-338): this task mirrors rb4011_converge.rsc.j2 §Bridge+trunk.
-# The converge .rsc import is the apply of record; this api_modify must stay
-# BYTE-IDENTICAL to the template's tagged/untagged sets or the next converge
-# regresses the device (2026-09-07: VLAN-99 untagged here drifted to
-# ether7,ether9 before the fix). Edit BOTH or NEITHER.
-# Tag every VLAN on sfp-sfpplus1 (uplink to the CRS328 switch) so each per-VLAN
-# gateway is reachable from the switch — mirror of crs328_converge.rsc.j2 and
-# rb4011_converge.rsc.j2. Missing 20/21/30/40/50 previously dropped those VLANs
-# at the trunk (HD-308: Shield on Media(50) had no WAN — empty ARP, waiting
-# lease). VLANs 10/99 also carry untagged access members (Pi / mgmt ports).
+# ⚠️ PARITY: this task mirrors rb4011_converge.rsc.j2 §Bridge+trunk. The converge .rsc
+# import is the apply of record; this api_modify must stay BYTE-IDENTICAL to the
+# template's tagged/untagged sets or the next converge regresses the device.
+# Edit BOTH or NEITHER.
+# Every VLAN is tagged on sfp-sfpplus1 (the CRS328 uplink) so each per-VLAN gateway is
+# reachable across the switch — the mirror of crs328_converge.rsc.j2. A VLAN missing
+# here dies at the trunk: empty ARP on its gateway, no WAN for its devices.
 - name: Configure VLANs on trunk port to switch
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -1233,15 +1232,11 @@
       - bridge: bridge-lan
         vlan-ids: "{{ item.id }}"
         tagged: "bridge-lan,sfp-sfpplus1"
-        # VLAN 10: untagged ether10 (Pi) + ether8 (spark) access members in addition
-        # to the trunk tag; VLAN 99: untagged mgmt access ports — bootstrap's pvid-99
-        # ports on bridge-lan from rb4011_initial.rsc.j2 (ether2/3/7/9/10 after the
-        # HD-310/HD-338 leg: ether7 iLO is the only remaining mgmt-only access port;
-        # ether9 HAP moved to IoT 20) — without these, vlan-filtering drops the
-        # VLAN between the local access ports and the trunk -> empty ARP, switch
-        # (sfp) unreachable (live 2026-08-31).
-        # VLAN 99 TAGGED additionally carries ether8 (spark's Mgmt leg, same NIC as
-        # Home — router_port_map, wired 2026-09-17).
+        # VLAN 10: untagged ether10 (Pi) + ether8 (spark) access members alongside the
+        # trunk tag. VLAN 99: untagged ether7 (iLO), the only mgmt-only access port, plus
+        # ether8's tagged Mgmt leg (same NIC as Home — router_port_map) and the
+        # bootstrap's pvid-99 ports. Without these, vlan-filtering drops the VLAN between
+        # the local access ports and the trunk -> empty ARP, switch (sfp) unreachable.
         # VLAN 20 (IoT): untagged ether9 (HMIP-HAP access).
         untagged: "{{ (['ether10','ether8'] if item.id == 10 else ['ether7'] if item.id == 99 else ['ether9'] if item.id == 20 else []) | join(',') }}"
         comment: "{{ item.name }} VLAN on trunk"
@@ -1252,13 +1247,13 @@
 
 
 # -------------------------------------------------------------------------
-# Bridge PORT membership (HD-311 a): enforce pvid + tagged VLANS per port from
-# router_port_map (SSOT — group_vars/router.yml). The converge .rsc applies this;
-# the role ALSO enforces it so a re-converge / role fix never drifts from the SSOT.
-# Port model (2026-09-01): untagged = primary/access VLAN (Home 10 for admin/PC/Pi),
-# tagged = secondary/admin backplane (Management 99). A single untagged port carries
-# ONE VLAN (pvid). This mirrors rb4011_converge.rsc.j2 exactly — the role and the
-# .rsc must never disagree (both consume router_port_map).
+# Bridge PORT membership: enforce pvid + tagged VLANs per port from
+# router_port_map (SSOT — group_vars/router.yml). The converge .rsc applies this; the
+# role ALSO enforces it so neither can drift from the SSOT.
+# Port model: untagged = the primary/access VLAN (Home 10 for admin/PC/Pi), tagged = the
+# secondary/admin backplane (Management 99). A single untagged port carries ONE VLAN
+# (pvid). Both consumers read router_port_map — the role and the .rsc must never
+# disagree.
 # -------------------------------------------------------------------------
 - name: Enforce bridge port pvid + tagged memberships (HD-311 a, router_port_map)
   community.routeros.api_modify:
@@ -1298,14 +1293,12 @@
         comment: "Bridge with VLAN filtering enabled"
 
 # -------------------------------------------------------------------------
-# Central syslog / log shipping (HD-313) — RouterOS logs -> VPS CrowdSec+Loki
+# Central syslog / log shipping — RouterOS logs -> the VPS log collector
 # -------------------------------------------------------------------------
-# RouterOS 7 remote logging action (RFC5424, UDP/514). Target = the VPS side
-# of the wg-s2s /30 (10.255.40.2) — the VPS CrowdSec instance listens there as
-# the syslog collector. `src-address` ties the source to wg-s2s (mgmt-plane
-# reach only; never WAN). Fail-loud: any missing SSOT value aborts the render.
-# The 'error' topic is what carries login failures (a1ad/mikrotik-logs parser
-# requires it). No secrets in this block.
+# RouterOS 7 remote logging action (RFC5424, UDP/514). The target is the VPS side of the
+# wg-s2s /30 (wireguard_s2s_vps.remote_ip); `src-address` ties the source to wg-s2s so
+# the traffic stays on the mgmt plane and never leaves over WAN. Fail-loud: a missing
+# SSOT value aborts the render. The 'error' topic is what carries login failures.
 - name: Ensure central syslog logging action exists (HD-313)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -1344,9 +1337,9 @@
       - topics: firewall
         action: centralsyslog
         comment: "HD-313: firewall drops (port-scan scenario)"
-      # RouterOS 7 action-name rule (HD-313): letters+numbers only — the action is
+      # RouterOS 7 action-name rule: letters+numbers only. The action is
       # 'centralsyslog' (created above); 'central-syslog' is rejected by the API
-      # ('action may not contain -') so the rules would fail to create on converge.
+      # ('action may not contain -'), so these rules would fail to create on converge.
       - topics: critical
         action: centralsyslog
         comment: "HD-313: critical system events"
@@ -1356,10 +1349,9 @@
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------
-# Scoped logpipe API user (HD-313) — read-only, Mgmt-plane only.
-# Backwards compatible with the read-only API pattern of the MikroTik skill;
-# the n8n firmware automation (HD-312(4)) uses a dedicated `n8n` scoped read-only
-# user (same pattern, separate credential) defined below.
+# Scoped logpipe API user — read-only, Mgmt-plane only.
+# Follows the read-only API user pattern; the n8n firmware automation uses its own
+# `n8n` scoped read-only user (same pattern, separate credential) defined below.
 # -------------------------------------------------------------------------
 - name: Ensure scoped logpipe API user exists (HD-313)
   community.routeros.api_modify:
@@ -1380,10 +1372,10 @@
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------
-# Scoped n8n API user (HD-312(4)) — read-only, Mgmt-plane only, logpipe precedent.
-# The n8n firmware-workflow automation polls router state via this read-only user;
+# Scoped n8n API user — read-only, Mgmt-plane only, same pattern as logpipe.
+# The n8n firmware-workflow automation polls router state through this user;
 # temporary iot-wan-allow membership toggles stay OWNER-GATED in the n8n flow
-# authoring (never hand-edit). Backwards compatible with the read-only API pattern.
+# authoring — never hand-edit them.
 # -------------------------------------------------------------------------
 - name: Ensure scoped n8n API user exists (HD-312(4))
   community.routeros.api_modify:
@@ -1404,11 +1396,10 @@
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------
-# CAPsMAN steady-state WiFi (guarded scaffold — HD-228/HD-03/HD-229)
+# CAPsMAN steady-state WiFi (guarded)
 # -------------------------------------------------------------------------
 # Included ONLY when routeros_capsman_enabled: true (group_vars/router.yml).
-# Flip AFTER the five wifi-kogler* 1Password items exist AND during the live
-# cutover-prep session (implementation steps in capsman.yml header).
+# Flip it AFTER the five wifi-kogler* 1Password items exist.
 - name: Include CAPsMAN WiFi management (guarded)
   ansible.builtin.include_tasks: capsman.yml
   when: routeros_capsman_enabled | default(false) | bool

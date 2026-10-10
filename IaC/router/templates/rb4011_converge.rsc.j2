@@ -1,6 +1,6 @@
 # =============================================================================
-# RB4011 — Kogler Homelab — CONVERGED STEADY-STATE (RENDERED — do not edit)
-# Source template: IaC/router/templates/rb4011_converge.rsc.j2
+# RB4011 — Kogler Homelab — CONVERGED STEADY-STATE (Jinja SOURCE TEMPLATE — rendered to the gitignored rendered/*.rsc)
+# This template: IaC/router/templates/rb4011_converge.rsc.j2
 # =============================================================================
 # Purpose: Full final router state — import on a device that already ran
 #          rb4011_initial.rsc (or after reset). Idempotent-ish: `/set` safe,
@@ -299,6 +299,7 @@
 {% endfor %}
 
 # ---- Comtrend modem mgmt ----
+# → docs/network.md §Comtrend modem management path
 # The RB4011 holds a /24 on the modem LAN so a connected route to the modem subnet
 # exists; a /32 leaves the modem unreachable via forward (no route) even though the
 # modem itself answers.
@@ -380,9 +381,9 @@ add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.11
 # KNXnet/IP REPLY path — mirrors the CoAP 5683 reverse exception above. Match the KNX
 # ROUTER'S SOURCE PORT, not dst-port: HA's replies arrive from knx-ip:3671 to xknx's
 # EPHEMERAL tunnel port, so a `dst-port=3671` rule reads correctly and matches nothing.
-# Without it the return leg rides `established,related` conntrack alone: a UDP tunnel
-# idle past the timeout stays half-open — HA keeps sending (the bus still works) while
-# every L_DATA.con and state read is dropped and xknx cannot see it.
+# Without it an idle UDP tunnel goes half-open: HA keeps sending (the bus still works)
+# while every L_DATA.con and state read is dropped and xknx cannot see it.
+# → docs/network-vlans.md §Inter-VLAN Firewall Rules
 add chain=forward action=accept src-address=10.10.20.11 protocol=udp src-port=3671 dst-address-list=trusted-ha comment="KNX router -> HA (tunnel replies; match src-port 3671, replies go to xknx ephemeral port) - HD-438"
 # Shelly Gen1 RGBW2 REST (HA on the Pi -> the Shelly fleet on IoT): the Pi is a node, not
 # an admin host, so HA's outbound new-TCP to the Shelly HTTP API needs its own narrow
