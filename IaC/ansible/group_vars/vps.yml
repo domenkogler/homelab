@@ -126,9 +126,9 @@ docker_services:
   # and `enabled: false` means "declared here, ignored by the converge" — which is what a
   # retired-but-not-forgotten service should look like. It now reaches further than the
   # container: the Authentik → 1Password secret-egress glue renders its `metabase:metabase_oidc`
-  # entry only while this line says enabled, so a retired service cannot seed — or, per
-  # HD-441, *mint* — a vault item. An `enabled: false` service that can still mint is the gap
-  # that produces phantom vault items for a service that is off.
+  # entry only while this line says enabled, so a retired service cannot seed — or *mint* — a
+  # vault item. An `enabled: false` service that can still mint produces phantom vault items
+  # for a service that is off.
   # The `metabase_ro` role in forgejo-db is no longer re-synced; the db_ro_* keys are dropped
   # and the vault item `metabase-forgejo_ro` is intentionally left in place (owner: leave as-is).
   # If ever needed again it runs on OLDSRV (docs/services-admin.md).
@@ -157,8 +157,8 @@ docker_services:
   # network reaches it — its reach is the nftables allow of 21115/21116(tcp+udp)/21117 in
   # roles/vps-hardening (21118/21119 stay dropped: web client unused + X-Real-IP spoof risk).
   # `enabled` is gated on the keypair existing: the compose is FAIL-CLOSED on the `rustdesk_login`
-  # vault item, so enabling before that item is seeded aborts EVERY VPS docker_services converge (the
-  # HD-386 class — a missing 1P item takes the whole run with it), so the
+  # vault item, so enabling before that item is seeded aborts EVERY VPS docker_services converge
+  # (a missing 1P item takes the whole run with it), so the
   # `rustdesk_login` item must be seeded before this flips on. The manual-value write rules
   # (including the op-CLI field-shape trap that renders empty keys) are in
   # docs/deployment-secrets.md §Creation & Rotation Workflow item 7.
@@ -326,17 +326,17 @@ tailnet_subdomains:
   - { name: llm }        # -> edge -> llm-backend       https://{{ spark_home_ip }}:443 (over WG; spark's own edge)
   - { name: litellm }    # -> edge -> litellm-backend   http://litellm:4000 (docker DNS; tailnet-only)
 
-# HD-405 (2026-09-20): MagicDNS records for the **`*.ts.kogler.si` namespace ONLY**.
+# MagicDNS records for the **`*.ts.kogler.si` namespace ONLY**.
 # This list exists because the one above renders BOTH namespaces (plain + `.ts`) — adding
 # `ha` there would repoint plain `ha.kogler.si` to a tailnet IP for every tailnet client,
-# which is the documented HD-382/389 resolver-ambiguity trap AND (worse here) would make a
+# which is the documented resolver-ambiguity trap AND (worse here) would make a
 # tailnet-enabled phone at home stop resolving HA to the VIP, putting a new dependency on
-# oldsrv inside the failure domain HD-350's drill was about. `ip` defaults to
+# oldsrv inside the oldsrv failover domain. `ip` defaults to
 # `tailnet_oldsrv_ip` (group_vars/all/main.yml), served by oldsrv's own edge.
 tailnet_ts_only_subdomains:
   - { name: ha }     # -> oldsrv tailnet node -> traefik-internal `ha-ts` router -> VIP:8123
-  # The pi agent web UI on oldsrv (HD-409 seat). Owner asked for it on the tailnet; this class is
-  # the strict reading of that and it is HERE for the HD-451 reason, not taste: the list above
+  # The pi agent web UI on oldsrv (tailnet seat). It lives HERE, not in the list above, for a
+  # reason rather than taste: the list above
   # renders BOTH namespaces, and MagicDNS answers extra_records CLIENT-SIDE, so publishing a plain
   # `pi-oldsrv.kogler.si` would be a second door nobody asked for (and `pi.kogler.si` was never on
   # the table — that FQDN is the RPi4 node itself, inventory.ini + host_vars/pi.kogler.si.yml;
@@ -344,40 +344,40 @@ tailnet_ts_only_subdomains:
   # Served by OLDSRV's own `websecure-ts` listener on its own tailnet node — no VPS edge, no WG S2S
   # hop, so the seat keeps working when the VPS does not. `ip` defaults to `tailnet_oldsrv_ip`.
   - { name: pi-oldsrv }  # -> oldsrv tailnet node -> traefik-internal `pi-oldsrv-ts` -> 127.0.0.1:{{ cockpit_pi_web_port }}
-  # HD-451 (2026-09-23): the spark DGX dashboard, short name, OFF-LAN. Deliberately HERE and not
+  # The spark DGX dashboard, short name, OFF-LAN. Deliberately HERE and not
   # in `tailnet_subdomains`: that list renders BOTH namespaces, and publishing the plain HOST name
   # `spark.kogler.si` into MagicDNS would answer every tailnet client with the edge IP for the
-  # name the inventory, the docs and the humans use for the box itself — the HD-382/389
+  # name the inventory, the docs and the humans use for the box itself — the known
   # resolver-ambiguity trap (`ansible_host` pins SSH, but a browser at home with tailscale on
   # would hairpin through the VPS for a page the LAN already serves directly, i.e. a new VPS
-  # dependency inside the HD-350 failure domain). So off-LAN the dashboard is
+  # dependency inside the oldsrv failure domain). So off-LAN the dashboard is
   # **`spark.ts.kogler.si`** — tailnet-only BY CONSTRUCTION, and NEVER a Cloudflare/public record
-  # (measured 2026-09-23: `dig A spark.kogler.si @1.1.1.1` = no answer; it must stay that way).
+  # (`dig A spark.kogler.si @1.1.1.1` = no answer; it must stay that way).
   # `ip` is a LITERAL here because the group_vars loader does no second Jinja pass (see the NOTE
   # above `tailnet_subdomains`) — keep it equal to `tailnet_sidecar_ip` (100.64.0.1, the vps-obs
   # edge, which Host-routes it over WG S2S to spark's own edge :443). The LAN answer is
   # unchanged: Technitium seeds `spark.kogler.si` = `spark_home_ip` on the HOME instances only.
   - { name: spark, ip: "100.64.0.1" }   # -> vps-obs edge -> db-spark-backend -> https://{{ spark_home_ip }}:443
-  # HD-361 (2026-09-24): the nas management console, away from home. `cockpit-nas.kogler.si` is
+  # The nas management console, away from home. `cockpit-nas.kogler.si` is
   # LAN-ONLY in the seed (its answer is a Home-VLAN address, i.e. a black hole for a peer that is
   # not at home — see LAN_ONLY in scripts/check_dns_seed_drift.py), so before this row an
   # off-LAN admin had NO name for the nas console at all: the tunnel (`ssh -J vps -L 9090:…`) was
-  # the only path. A `.ts` twin needs no resolver to fight (HD-382/389 rule #1) and repoints
+  # the only path. A `.ts` twin needs no resolver to fight (resolver-ambiguity rule #1) and repoints
   # nothing. `ip` defaults to `tailnet_oldsrv_ip`, i.e. oldsrv's own `websecure-ts` listener ->
   # cockpit role's `cockpit-nas-ts` router -> nas:9090 over the Home VLAN.
   # THE COUPLING, named out loud: this tailnet path DIES WITH OLDSRV. Accepted deliberately — the
   # decoupled alternative is the VPS `traefik-tailnet` edge, which needs a NEW nftables/WG allow
-  # for VPS -> nas:9090 (measured blocked 2026-09-24: the route exists, nas:22 is allowed, :9090 is
+  # for VPS -> nas:9090 (blocked: the route exists, nas:22 is allowed, :9090 is
   # not) and the nas itself runs no edge by design. Note the LAN route already had this coupling:
   # `/opt/traefik/dynamic/cockpit.yml` is rendered ONTO OLDSRV by the cockpit role, so when oldsrv
   # left the network at 21:39:55 the healthy nas lost its console route too. If that ever stops
   # being acceptable, the fix is `ip: tailnet_sidecar_ip` + the firewall allow + an edge-side router.
   - { name: cockpit-nas }  # -> oldsrv tailnet node -> cockpit role `cockpit-nas-ts` -> nas:9090
-  # HD-1087 (2026-10-07, from the arr-door lane's patch `18913c63`): the home-hosted media/*arr/
-  # downloader set + the music trio, OFF-LAN. HERE and not in `tailnet_subdomains` on purpose — that
+  # The home-hosted media/*arr/ downloader set + the music trio, OFF-LAN. HERE and not in
+  # `tailnet_subdomains` on purpose — that
   # list renders BOTH namespaces and MagicDNS answers CLIENT-SIDE, so publishing the plain HOST name
   # would hairpin a tailnet-enabled phone standing AT HOME through the VPS instead of oldsrv's LAN
-  # answer (the ha/spark resolver-ambiguity trap, HD-382/389). `ip` defaults to `tailnet_oldsrv_ip`
+  # answer (the ha/spark resolver-ambiguity trap). `ip` defaults to `tailnet_oldsrv_ip`
   # -> oldsrv's own `websecure-ts` listener -> the `<name>-ts` routers in traefik-internal -> the
   # oldsrv publishes. Node-direct: no VPS hop, so it survives a WAN-out at home. Same coupling to
   # oldsrv as cockpit-nas, accepted for the same reason.
@@ -396,21 +396,21 @@ tailnet_ts_only_subdomains:
   - { name: slskd }
   - { name: lidarr-ydl }
 
-# HD-333 (internal all-app edge, Pkg F): WG-S2S reach for the internal edge.
+# WG-S2S reach for the internal all-app edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
 # netns; host :443 belongs to the PUBLIC edge. The WG path therefore publishes the
 # internal edge on a DEDICATED port bound to the wg-s2s VPS address only, via
 # docker's compose `ports:` (host `{{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}` ->
 # container 172.20.0.250:443). Docker's own PREROUTING DNAT translates host->container,
-# so NO manual nftables DNAT is required (same precedent as kopia-server :51515,
-# HD-62). An nftables input allow from the router peer (HD-313 pattern) is added
+# so NO manual nftables DNAT is required (the kopia-server :51515 precedent). An nftables
+# input allow from the router peer is added
 # for defense-in-depth + spec compliance. `wg_internal_edge_port` is SSOT'd in
 # group_vars/all/main.yml (shared with the home `traefik-internal` edge templates on
-# oldsrv — HD-350): the traefik-tailnet compose, vps-hardening nftables and the
+# oldsrv): the traefik-tailnet compose, vps-hardening nftables and the
 # network-vpn.md spec stay in lockstep (derived-values ban: never re-type).
-# The internal-edge container IP on traefik-public (172.20.0.250, pinned HD-240).
+# The internal-edge container IP on traefik-public (172.20.0.250, pinned).
 wg_internal_edge_port: 4443
-# The internal-edge container IP on traefik-public (172.20.0.250, pinned HD-240).
+# The internal-edge container IP on traefik-public (172.20.0.250, pinned).
 # Kept as a named SSOT var so the compose publish + nftables allow share one source
 # of truth; the /32 is stripped for the compose/docker host-facing bind.
 wg_internal_edge_target_ip: "{{ traefik_edge_ips | select('search', '172.20.0.250') | list | first | regex_replace('/32', '') }}"
