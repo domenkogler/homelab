@@ -1,5 +1,5 @@
 ---
-# vps-hardening role — mandatory VPS pre-deploy hardening checklist (HD-154)
+# vps-hardening role — mandatory VPS pre-deploy hardening checklist
 # Enforces security.md §8 as executable, idempotent, fail-loud IaC.
 
 - name: Refuse vps-hardening runs as ai-debug or unknown users
@@ -97,7 +97,7 @@
     state: started
     enabled: true
 
-# HD-299 (Option A): the DNS primary resolver for LAN/tailnet is the VPS public IP.
+# The DNS primary resolver for LAN/tailnet is the VPS public IP (Option A).
 # The nftables input allow for home-WAN DNS uses a `dns-allow-home` set populated
 # from the home DDNS record (s.kogler.si, the router's WAN IP). A small timer
 # re-resolves it every 5 minutes so a DDNS change doesn't strand home DNS queries.
@@ -151,9 +151,9 @@
     state: started
     enabled: true
 
-# HD-230 (2026-08-23, found live): Debian's stock nftables.service ships
-# ExecStop=/usr/sbin/nft flush ruleset — every stop/restart WIPED docker-programmed
-# nat/filter tables even with the scoped ruleset file below (the wipe came from the
+# Debian's stock nftables.service ships
+# ExecStop=/usr/sbin/nft flush ruleset — every stop/restart WIPES docker-programmed
+# nat/filter tables even with the scoped ruleset file below (the wipe comes from the
 # STOP half of restart, not the load). Emptying ExecStop makes restart a pure
 # scoped re-load; docker chains survive.
 - name: Ensure nftables.service drop-in directory exists
@@ -175,13 +175,12 @@
     mode: '0644'
   notify: daemon reload
 
-# HD-223 residual CLOSED (2026-08-23): the ruleset now replaces ONLY its own
+# The ruleset replaces ONLY its own
 # `table inet filter` (declare+delete+recreate idiom in nftables.conf.j2) instead of
 # 'flush ruleset', so docker's iptables-nft chains survive every apply/restart and
-# NO docker restart is needed here anymore. History: loading a 'flush ruleset'
-# ruleset deleted docker's tables — later network creation failed with "No chain/
-# target/match by that name" (found live Phase 1, 2026-08-22) and a nftables restart
-# briefly wiped docker NAT fleet-wide (Incident C recovery, 2026-08-23).
+# NO docker restart is needed here. A `flush ruleset` file deletes docker's tables —
+# later network creation then fails with "No chain/target/match by that name" — and an
+# ExecStop flush on restart wipes docker NAT fleet-wide.
 
 # ── 3. Docker daemon hardening ────────────────────────────────────────────
 - name: Harden Docker daemon (iptables explicit, no host bindings by default)

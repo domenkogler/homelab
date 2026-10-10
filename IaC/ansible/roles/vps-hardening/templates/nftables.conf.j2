@@ -1,17 +1,17 @@
 #!/usr/sbin/nft -f
-# nftables ruleset — VPS default-deny inbound (HD-154 / security.md §8)
+# nftables ruleset — VPS default-deny inbound (security.md §8)
 # Allow: loopback, established/related, :443 (Traefik edge), :51820 (WireGuard S2S),
 # and the stateless IPv6 NDP/MLD/PMTUD traffic without which none of the above is
-# reachable over v6 (HD-448).
+# reachable over v6.
 # Deny everything else inbound. Docker containers on isolated overlay networks
 # (traefik-public/services-internal/db-internal) reach the internet via the host
 # NAT (docker's own iptables/nftables chains), which this ruleset leaves intact —
 # we only gate the HOST-facing input path.
 
-# Scoped table replacement (HD-223 residual, 2026-08-23): this file must NEVER
+# Scoped table replacement: this file must NEVER
 # begin with 'flush ruleset' — that wipes ALL tables including docker's
-# iptables-nft-programmed nat/filter chains until docker re-programs them (caused
-# the fleet-wide NAT outage during Incident C recovery). Instead: declare an empty
+# iptables-nft-programmed nat/filter chains until docker re-programs them, and the container
+# fleet is isolated for that window. Instead: declare an empty
 # table (no-op if absent), delete it, then recreate it below — touching ONLY our
 # own table, so docker-managed tables survive every apply and service restart.
 table inet filter {}
@@ -28,13 +28,13 @@ table inet filter {
         ct state established,related accept
 
         # Public edge
-        tcp dport 22 accept         # SSH (ansible-admin) — management path; HD-154 checklist gap found live 2026-08-22 (lockout)
+        tcp dport 22 accept         # SSH (ansible-admin) — management path; omitting it locks the converge out
         tcp dport 443 accept        # Traefik HTTPS (wildcard *.kogler.si)
         udp dport 51820 accept      # WireGuard S2S (wg-s2s, home router peer)
-        # HD-333 (internal all-app edge, WG-S2S reach, Pkg F): the traefik-tailnet
+        # The traefik-tailnet
         # internal edge publishes :4443 on the wg-s2s VPS address (docker compose
         # ports: wg_s2s_vps.ip -> container). Docker's PREROUTING DNAT preempts this
-        # input chain, but the HD-313 vps-hardening pattern mandates an explicit
+        # input chain, but the vps-hardening pattern mandates an explicit
         # input allow scoped to the tunnel peer (defense-in-depth; kopia :51515's
         # allow rides the same docker-DNAT path). Keep in lockstep with
         # wg_internal_edge_port (group_vars/vps.yml).
@@ -42,16 +42,16 @@ table inet filter {
         # ICMP ping (ops sanity) — limited
         ip protocol icmp icmp type echo-request accept
 
-        # IPv6 stateless control traffic (HD-448). `ip protocol icmp` just above is the
+        # IPv6 stateless control traffic. `ip protocol icmp` just above is the
         # IPv4 upper-proto field, so it matches NOTHING for v6; under `policy drop` the
-        # chain therefore discarded the provider router's neighbour-advertisement and
-        # router-advertisement replies. Result: `ip -6 -s neigh show` pinned at
+        # chain discards the provider router's neighbour-advertisement and
+        # router-advertisement replies. Result: `ip -6 -s neigh show` pins at
         # `fe80::1 … FAILED`, so the v6 default route (statically configured by the netcup
-        # image — `accept_ra=0`/`autoconf=0`, so NOT SLAAC) could never resolve a nexthop
-        # and IPv6 was dead in BOTH directions, including the published AAAA.
-        # The drop is OURS, not netcup's, and that is measured, not inferred: a counter-only
-        # probe rule (`ip6 nexthdr icmpv6 counter`) counted the inbound NA/RA, while
-        # `nstat Icmp6InNeighborAdvertisements` stayed 0 — because the netfilter verdict
+        # image — `accept_ra=0`/`autoconf=0`, so NOT SLAAC) can never resolve a nexthop
+        # and IPv6 is dead in BOTH directions, including the published AAAA.
+        # The drop is OURS, not netcup's, and it is measurable rather than inferred: a
+        # counter-only probe rule (`ip6 nexthdr icmpv6 counter`) counts the inbound NA/RA,
+        # while `nstat Icmp6InNeighborAdvertisements` stays 0 — the netfilter verdict
         # precedes the ICMPv6 handler. Same instrument as the home punch discriminator
         # (network-ops.md §IPv6), opposite verdict.
         # This opens no service surface: it is what lets the box see packets at all.
@@ -62,8 +62,8 @@ table inet filter {
         # not 58, so it cannot share the icmpv6 rule.
         # ⚠ Second-order effect, and it is an OPEN owner question, not a decision: the
         # `tcp dport 22/443`, `udp dport 51820` and RustDesk accepts are family-agnostic in
-        # this `inet` table, so they have been IPv4-only *in practice* only because NDP
-        # never resolved. Fixing NDP makes them reachable over v6 too; scope them with
+        # this `inet` table, so they are IPv4-only *in practice* only because NDP
+        # never resolves. Fixing NDP makes them reachable over v6 too; scope them with
         # `meta nfproto ipv4` if that parity is not wanted. The `ip saddr …` rules (DNS
         # source-allow, wg-s2s scoping) stay IPv4-only by the shape of the match itself.
         meta l4proto icmpv6 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } ip6 saddr fe80::/10 accept
@@ -71,12 +71,12 @@ table inet filter {
         meta l4proto icmpv6 icmpv6 type echo-request accept
         ip6 nexthdr 0 ip6 saddr fe80::/10 accept comment "MLD: nexthdr 0; nft lists this value as 'ip' (IPPROTO_IP) - it is NOT IPv4"
 
-        # Docker containers that publish host ports — RustDesk (HD-412) is the FIRST exception to
+        # Docker containers that publish host ports — RustDesk is the FIRST exception to
         # the old "none expected by policy (compose uses traefik-public only)" note: hbbs/hbbr run
         # `network_mode: host` because UDP rendezvous + TCP hole punching need the real source
         # address (docker's userland proxy SNAT would destroy it), so there is no DNAT path and this
         # chain is the only gate. See the allow below.
-        # RustDesk family-support server (HD-412): hbbs 21115/tcp (NAT-type test) + 21116/tcp+udp
+        # RustDesk family-support server: hbbs 21115/tcp (NAT-type test) + 21116/tcp+udp
         # (rendezvous/heartbeat/hole-punch), hbbr 21117/tcp (relay). Open to the world BY DESIGN:
         # the family machines must reach this introduction point from networks we do not control,
         # so the gate is the shared server keypair (ENCRYPTED_ONLY=1 -> `-k _` on BOTH hbbs and
@@ -87,17 +87,17 @@ table inet filter {
         # exposing them would let anyone forge the client IP in our logs and skip IP-based blocking.
         # Ports are upstream constants (the container is launched without -p); they are mirrored in
         # templates/docker_services/rustdesk-server/ rather than a group_vars var because a
-        # docker_services compose render cannot read vps.yml vars (HD-189 validator mock set).
+        # docker_services compose render cannot read vps.yml vars.
         tcp dport { 21115, 21116, 21117 } accept
         udp dport 21116 accept
-        # RouterOS remote syslog receiver (HD-313): rsyslog binds UDP/514 on the
+        # RouterOS remote syslog receiver: rsyslog binds UDP/514 on the
         # wg-s2s VPS address (wg_s2s_vps.ip) and the RB4011 forwards RFC5424
         # syslog there over the tunnel (src = wg_s2s_vps.router_ip, the router
         # wg-s2s side). Scoped: UDP/514 accepted ONLY from that tunnel peer —
         # everything else still dropped (no public/loose syslog surface).
         iifname "wg-s2s" ip saddr {{ wg_s2s_vps.router_ip }} udp dport 514 accept
 
-        # DNS resolver (Technitium PRIMARY, HD-299 / Option A): the VPS publishes
+        # DNS resolver (Technitium PRIMARY, Option A): the VPS publishes
         # host :53/udp+tcp. Source-allow ONLY tailnet CGNAT (100.64.0.0/10) + home
         # WAN (DDNS s.kogler.si — resolved + refreshed by the ansible-managed
         # systemd timer dns-allow-refresh.service). Everything else stays dropped
@@ -125,12 +125,12 @@ table inet filter {
         type filter hook forward priority filter; policy drop;
 
         # DNS PRIMARY published port (:53 -> container) is SOURCE-RESTRICTED here
-        # (2026-09-08, open-resolver exposure). Docker's published-port DNAT is
+        # (open-resolver exposure). Docker's published-port DNAT is
         # applied in PREROUTING and then FORWARDED to the container bridge, so the
         # host INPUT source-allow rules below can NEVER see those packets — external
         # traffic reaches the resolver via the generic `oifname "br-*" accept` below.
         # Gate it here instead (a drop in this chain is authoritative over Docker's
-        # iptables accept — proven by the 2026-08-23 fleet-wide isolation incident).
+        # iptables accept: docker's accept does not lift a chain drop).
         # Allow ONLY tailnet CGNAT + home WAN (dns-allow-home set); drop the rest
         # (scanners / open-resolver probes / amplification source). Mirror of the
         # input rules; identical allow set.
@@ -141,11 +141,11 @@ table inet filter {
         iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} udp dport 53 counter drop
         iifname != "br-*" oifname "br-*" ip daddr {{ tchnitium_dns_overlay_ip }} tcp dport 53 counter drop
 
-        # Docker bridge forwarding (incident 2026-08-23): with br_netfilter loaded,
+        # Docker bridge forwarding: with br_netfilter loaded,
         # bridge-nf-call-iptables=1 routes CONTAINER↔CONTAINER frames through THIS
         # chain. Docker's custom bridges are named br-<hash> (compose/role-created),
-        # so "docker*" (docker0 only) never matched them -> every peer packet fell
-        # through to drop -> fleet-wide container isolation while the edge looked up.
+        # so "docker*" (docker0 only) never matches them -> every peer packet falls
+        # through to drop -> fleet-wide container isolation while the edge looks up.
         # Accept by interface prefix: docker0 + all br-* bridges. Docker's own
         # ip-filter table keeps inter-network isolation policy.
         iifname "br-*" accept

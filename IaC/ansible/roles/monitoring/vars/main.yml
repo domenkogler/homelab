@@ -1,25 +1,24 @@
 ---
-# Network-clients exporter (HD-343) — host binary on oldsrv, Mgmt-plane collector.
+# Network-clients exporter — host binary on oldsrv, Mgmt-plane collector.
 # Listen is loopback-only (the local Alloy scrapes it; nothing publishes it).
 network_clients_listen: 9097
 network_clients_scrape_interval: 45
 
 # Alert rule definitions — consumed by grafana-rules.yml.j2 (monitoring step 3).
-# !unsafe (Wave-3 triage 2026-08-22): summaries carrying Go-template vars
-# ({{ $labels.* }} / {{ $values.* }}) must NOT be re-templated by Ansible at render.
-# Tiers + thresholds per docs/observability.md. Exprs are PromQL over metrics
-# that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
+# !unsafe: summaries carrying Go-template vars ({{ $labels.* }} / {{ $values.* }}) must NOT be
+# re-templated by Ansible at render. Tiers + thresholds per docs/observability.md. Exprs are PromQL
+# over metrics that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
 # probe_success from blackbox, up from the self-scrape jobs in alloy.river.j2).
-# HD-342: the self-monitoring rules key off up{job="victoria-metrics"}/up{job="victoria-logs"}
-# (VM/VL self-scrape by the VPS Alloy), replacing the old prometheus/loki job names.
+# The self-monitoring rules key off up{job="victoria-metrics"}/up{job="victoria-logs"} — the VM/VL
+# self-scrape job names; a rule keyed to a retired job name is silently dead.
 # noDataState/execErrState: Alerting only on self-monitoring rules (a dead data
 # source must still page).
 grafana_alert_rules:
   critical:
-    # ---- HD-450: the two silent-failure classes this stack could not see (live from 2026-10-07) ----
+    # ---- The two silent-failure classes this stack cannot see ----
     # Series come from /usr/local/sbin/homelab-hygiene.py → the Alloy textfile collector on each
-    # monitoring host (roles/monitoring/tasks/main.yml §HD-450). Before this, a cert-pull timer could
-    # fail every 15 min for DAYS with no series changing anywhere.
+    # monitoring host (roles/monitoring/tasks/main.yml). A failing timer must change a series,
+    # otherwise it can fail every 15 min for days with nothing else moving.
     - uid: cert-pair-missing
       title: Consumer edge holds no cert pair
       for: 5m
@@ -36,31 +35,26 @@ grafana_alert_rules:
       for: 10m
       expr: "homelab_cert_days_left < 7"
       summary: !unsafe "Cert on {{ $labels.consumer }} ({{ $labels.instance }}) expires in under 7 days"
-      # ⚠ 7, and the warning twin is 14 — NOT the 30/14 the row proposed. MEASURED 2026-10-07: the
-      # wildcard pair is a 90-day cert (notBefore 2026-08-22 → notAfter 2026-11-20) and the issuer
-      # renews late in that window, so a HEALTHY consumer's days-left bottoms out around three weeks.
-      # A 30-day warning would have fired for days before every scheduled renewal — which is how an
-      # alert class gets muted. RE-DERIVE both if the pair lifetime or the renewal threshold changes.
+      # ⚠ 7 here, and the warning twin is 14 — NOT 30/14. The wildcard pair is a 90-day cert and the
+      # issuer renews late in that window, so a HEALTHY consumer's days-left bottoms out around three
+      # weeks. A 30-day warning would fire for days before every scheduled renewal — which is how an
+      # alert class gets muted. RE-DERIVE both if the pair lifetime or the renewal window changes.
       noDataState: OK
       execErrState: Error
     - uid: hygiene-collector-stale
       title: Silent-failure collector stopped reporting
-      # for 5 m (was 15 m): the threshold is in A now, so `for` is only the anti-jitter hold — the page
-      # lands ~20 min after the last successful collection (900 s + 5 m), not 30.
+      # for: 5m — the staleness threshold lives in the expression, so `for` is only the anti-jitter
+      # hold; the page lands ~20 min after the last successful collection (900 s + 5 m).
       for: 5m
-      # ⚠ UNFILTERED on purpose. The OLD shape (`time() - homelab_hygiene_scrape_ok > 900`, `for: 15m`)
-      # was MEASURED wrong in both directions and paged the family every 30 min for 19 h on a fleet that
-      # was healthy on all five hosts (2026-10-08 01:13 → 20:00 CEST, `activeAt` never moved,
-      # `Value: [no value]`, no `instance=`). Two independent bugs in one line:
-      #  (a) a FILTERED-EMPTY result is the same NoData state as no-series, so with noData=Alerting the
-      #      rule fired exactly WHEN EVERYTHING WAS FRESH. The comparison therefore lives in the
-      #      threshold expression (B, `eval_type`/`eval_params` below) — the shape
-      #      spark-host-mem-oom-critical further down already uses and which reads Normal.
-      #  (b) a plain selector cannot age: the 5-min staleness horizon drops the last heartbeat TEN
+      # ⚠ UNFILTERED on purpose. A FILTERED-EMPTY result is the same NoData state as no-series, so with
+      # noData=Alerting the rule fires exactly WHEN EVERYTHING IS FRESH. The comparison therefore lives
+      # in the threshold expression (`eval_type`/`eval_params` below) — the shape
+      # spark-host-mem-oom-critical further down already uses, which reads Normal.
+      #  ⚠ A plain selector also cannot age: the 5-min scrape horizon drops the last heartbeat TEN
       #      MINUTES BEFORE a 900 s threshold is reachable, so a dead collector could only ever reach
       #      this rule as NoData — paging without ever naming which host went blind. `max_over_time[6h]`
-      #      keeps a silent host visible for 6 h, so the page now carries `instance=`.
-      # noData=Alerting stays, now honestly: every leg reports healthy → A has a value → Normal; A is
+      #      keeps a silent host visible for 6 h, so the page carries `instance=`.
+      # noData=Alerting stays: every leg reports healthy → the expression has a value → Normal; it is
       # empty only when NO host has collected in 6 h, which IS the blind-coverage case.
       expr: "time() - max_over_time(homelab_hygiene_scrape_ok[6h])"
       summary: !unsafe "homelab-hygiene collector stale on {{ $labels.instance }} (no collection for >15 min) — unit-result and cert-age coverage is blind there"
@@ -94,7 +88,7 @@ grafana_alert_rules:
       # NOT every public service being down — only fire when a series exists and is 0.
       noDataState: OK
       execErrState: Error
-      # HD-347: `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
+      # `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
       eval_type: lt
       eval_params: [1]
     - uid: host-unreachable
@@ -107,7 +101,7 @@ grafana_alert_rules:
       # no-data must not leave the rule stuck in an alerting state.
       noDataState: OK
       execErrState: Error
-      # HD-347: `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
+      # `== 0` returns 0 — evaluator must be `lt 1`, not the `gt 0` default.
       eval_type: lt
       eval_params: [1]
     - uid: host-disk-full
@@ -128,10 +122,10 @@ grafana_alert_rules:
       for: 2m
       expr: 'up{job="victoria-metrics"} == 0'
       summary: "VictoriaMetrics self-scrape failed — alerting data source is dead"
-      # up{job=victoria-metrics} is a REAL series now (VM self-scrape /metrics on 8428,
-      # HD-342), so it goes 0 only when VM is genuinely down — noData=OK prevents a
-      # transient scrape gap from falsely firing an Alerting state. HD-347: `== 0` needs
-      # `lt 1` evaluator (see grafana-rules.yml.j2) — the old `gt 0` made this rule dead.
+      # up{job=victoria-metrics} is a real series (VM self-scrape /metrics on 8428), so it goes 0 only
+      # when VM is genuinely down — noData=OK keeps a transient scrape gap from falsely firing an
+      # Alerting state. `== 0` needs the `lt 1` evaluator (see grafana-rules.yml.j2): a `gt 0`
+      # evaluator makes this rule dead.
       noDataState: OK
       execErrState: Alerting
       eval_type: lt
@@ -158,30 +152,29 @@ grafana_alert_rules:
       for: 2m
       expr: 'probe_success{job="wg_icmp"} == 0'
       summary: "wg-s2s tunnel down — home reachable only if the WG link is up"
-      # probe_success{wg_icmp} is a REAL series now (blackbox relabel fixed); it
-      # goes 0 only when the tunnel probe genuinely fails — noData=OK stops a
-      # transient no-data gap from falsely firing/sticking in Alerting. HD-347: `== 0`
-      # needs `lt 1` evaluator.
+      # probe_success{wg_icmp} is a real series (blackbox relabel); it goes 0 only when the tunnel
+      # probe genuinely fails — noData=OK stops a transient no-data gap from falsely firing or sticking
+      # in Alerting. `== 0` needs `lt 1` evaluator.
       noDataState: OK
       execErrState: Alerting
       eval_type: lt
       eval_params: [1]
-    # ---- spark GB10 unified-memory OOM (HD-375, gauge corrected by HD-381) ----------
+    # ---- spark GB10 unified-memory OOM ----------
     # spark's vLLM engine dies via the kernel GLOBAL OOM killer; the container cage never
     # fires (OOMKilled=false is the normal reading), so a host-memory rule is the ONLY
     # early warning. GAUGE: MemAvailable - CmaFree. Raw MemAvailable overstates headroom
     # by up to ~9 GiB on GB10 because CmaFree counts as available and GROWS as the GPU
-    # carve is squeezed — i.e. the old metric inflates exactly when pressure rises.
-    # THRESHOLDS ARE MEASURED, NOT PICKED (VM, 2-minute steps, from the two kill windows):
+    # carve is squeezed — i.e. that metric inflates exactly when pressure rises.
+    # THRESHOLDS ARE MEASURED, NOT PICKED (VM, 2-minute steps, from observed kill windows):
     #   healthy idle .................. 26-30 GiB
-    #   last 7 minutes before #7 ...... 7.85 9.64 10.89 10.05 5.01 8.95 9.47 6.24
-    #   the kill bundle's own meminfo .. 1.64 GiB (#7) / 1.62 (#8)
-    # The bundle figure is the instant of death; a scrape-based rule CANNOT see it — the
-    # lowest value the 60 s scrape recorded was 5.01. So CRIT is 8, not 1.6: a threshold
-    # below the scrape floor would be a rule that can never fire.
-    # `for: 1m` on purpose: #7 fell 14.1 -> 8.85 GiB in ~2-4 min; a 5m window burns the
-    # entire lead time before the rule arms.
-    # NOTE the evaluator convention (HD-347): the expr carries NO comparison — it yields
+    #   the minutes before a kill ..... 5-11 GiB
+    #   the kill instant (meminfo) .... ~1.6 GiB
+    # The kill instant is not observable by a scrape-based rule — the lowest value a 60 s scrape
+    # recorded was 5.01. So CRIT is 8, not 1.6: a threshold below the scrape floor would be a rule
+    # that can never fire.
+    # `for: 1m` on purpose: a fall from ~14 to ~9 GiB takes 2-4 min; a 5m window burns the entire lead
+    # time before the rule arms.
+    # NOTE the evaluator convention: the expr carries NO comparison — it yields
     # the usable-GiB value and the THRESHOLD lives in eval_params. Putting `< 8` in the
     # expr instead would hand the raw value to a `gt 0` evaluator, which fails at exactly
     # usable = 0 — the worst possible moment. `lt` on the value is unambiguous.
@@ -198,16 +191,16 @@ grafana_alert_rules:
       eval_type: lt
       eval_params: [8]
   warning:
-    # ---- HD-450 (thresholds + source series: see the critical twins above) ----
+    # ---- Warning twins of the silent-failure rules (thresholds + source series above) ----
     - uid: unit-last-result-failed
       title: Systemd unit's last run failed
       for: 5m
       expr: "homelab_unit_last_success == 0"
       summary: !unsafe "{{ $labels.unit }} on {{ $labels.instance }}: last run did not succeed (result={{ $labels.result }})"
-      # The leg that hid the HD-350 incident for four days: `is-active` answers "inactive" for a healthy
-      # oneshot, so only the RESULT distinguishes "ran fine" from "failed and will be retried".
-      # result="missing" means the unit is not installed on that host — listed-but-absent alerts on
-      # purpose, so a wrong list is a visible alert and never a silent pass.
+      # `is-active` answers "inactive" for a healthy oneshot, so only the RESULT distinguishes
+      # "ran fine" from "failed and will be retried" — an `is-active`-based leg reads healthy while the
+      # unit is actually failing. result="missing" means the unit is not installed on that host —
+      # listed-but-absent alerts on purpose, so a wrong list is a visible alert and never a silent pass.
       noDataState: OK
       execErrState: Error
       eval_type: lt
@@ -261,7 +254,7 @@ grafana_alert_rules:
       expr: 'probe_success{job="blackbox_http_probes", instance="https://ha.kogler.si"} == 0'
       summary: "ha.kogler.si HTTP probe failed"
       # noData=OK: absent probe_success series ≠ HA down; only fire when the probe runs
-      # and reports 0 (same class as host-unreachable). HD-347: `== 0` needs `lt 1` evaluator.
+      # and reports 0 (same class as host-unreachable). `== 0` needs `lt 1` evaluator.
       noDataState: OK
       execErrState: Error
       eval_type: lt
@@ -291,9 +284,9 @@ grafana_alert_rules:
       for: 2m
       expr: 'up{job="victoria-logs"} == 0'
       summary: "VictoriaLogs self-scrape failed — log store is dead"
-      # up{job=victoria-logs} is a REAL series now (VL self-scrape /metrics on 9428,
-      # HD-342) — only fire when the series explicitly goes 0. HD-347: `== 0` needs
-      # `lt 1` evaluator; per docs the log store must alert when dead.
+      # up{job=victoria-logs} is a real series (VL self-scrape /metrics on 9428) — only fire when the
+      # series explicitly goes 0. `== 0` needs `lt 1` evaluator; per docs the log store must alert when
+      # dead.
       noDataState: OK
       execErrState: Error
       eval_type: lt
@@ -303,9 +296,8 @@ grafana_alert_rules:
       for: 2m
       expr: 'up{job="n8n"} == 0'
       summary: "n8n self-scrape failed — alert router is dead (SMTP failsafe still active)"
-      # n8n is now on db-internal so up{job=n8n} is real (N8N_METRICS);
-      # noData=OK prevents a permanently-missing series from paging. HD-347: `== 0`
-      # needs `lt 1` evaluator.
+      # n8n is on db-internal so up{job=n8n} is real (N8N_METRICS); noData=OK prevents a
+      # permanently-missing series from paging. `== 0` needs `lt 1` evaluator.
       noDataState: OK
       execErrState: Error
       eval_type: lt

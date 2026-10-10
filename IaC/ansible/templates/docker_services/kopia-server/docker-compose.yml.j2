@@ -1,17 +1,17 @@
 # kopia-server docker-compose.yml — Off-site backup repository server
 #   Web UI + SFTP-backed repository on the Hetzner Storage Box **backup** (u653424, SSH/SFTP port 23,
 #   SSH-key auth — NO password, NOT S3). Auto-creates the repository on first start if no config
-#   exists. On the VPS (Phase 1.5); a second agent also runs on oldsrv. Backend decided HD-31/HD-135:
+# exists. A second agent also runs on oldsrv. Backend decision:
 #   the Hetzner Storage Box supports SSH/SFTP only (no S3/object storage).
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #     kopia_password       (Password: repository master password)
 #     kopia-server-internal_api (API Credential: username=<server-admin-user@host>, credential=<password>)
-#                              — server auth (HD-59/HD-318a): replaces `--without-password`. The htpasswd
+#                              — server auth: replaces `--without-password`. The htpasswd
 #                              gets BOTH the generic admin entry AND the per-client user@host the backup
 #                              agent presents (`kopia_agent_user`, group_vars/all/ — see the boot script).
 #                              The repo user (`kopia server users add`) password MUST equal the repo master
-#                              password (kopia quirk, verified live 2026-09-08); password is written
+#                              password (kopia quirk); the password is written
 #                              plaintext to server.htpasswd at 0600.
 #   Backup-box SFTP connection (NOT a secret item): SSH-key auth via `Hertzner-SB-Backup` (1Password connection
 #   ref); host/user/port/path from `kopia_sftp_*` in group_vars/all/. No kopia-sftp_api item, and the legacy
@@ -19,7 +19,7 @@
 #   Config vars (group_vars/all/):
 #     kopia_sftp_host, kopia_sftp_port, kopia_sftp_user (backup box u653424, port 23)
 #
-#   Reach (HD-191): the oldsrv agent connects over the WG S2S tunnel — :51515 is
+#   Reach: the oldsrv agent connects over the WG S2S tunnel — :51515 is
 #   published ONLY on the VPS tunnel address (wg_s2s_vps.ip), never 0.0.0.0.
 services:
   kopia-server:
@@ -30,18 +30,18 @@ services:
     tmpfs:
       - /tmp
       - /app/logs   # image sets KOPIA_LOG_DIR=/app/logs - EROFS under read_only without it
-    # Wave-2 triage 2026-08-22: image ENTRYPOINT is /bin/kopia; without clearing it the
+    # NOTE: image ENTRYPOINT is /bin/kopia; without clearing it the
     # command below resolved to `kopia sh -c ...` and died instantly. entrypoint: [] makes
     # the sh -c bootstrap script PID 1 argv.
     entrypoint: []
     container_name: kopia-server
     restart: unless-stopped
     ports:
-      # HD-191: WG-only reach for the oldsrv agent. Fail-loud guard mirrors the
-      # authentik LDAP bind (HD-186): unprovisioned router pubkey -> loopback only.
+      # WG-only reach for the oldsrv agent. The fail-loud guard mirrors the
+      # authentik LDAP bind: unprovisioned router pubkey -> loopback only.
       # Non-secret `default('')` (CONVENTIONS §3): structural fallback for the WG peer-key
       # gate; `else '127.0.0.1'` is a loopback IP, NOT a 1Password secret — fail-loud would
-      # be wrong here. See HD-62 + HD-186 precedent (loki/prometheus/authentik LDAP line).
+      # be wrong here. Same shape as the loki/prometheus/authentik LDAP precedent.
       - "{{ wg_s2s_vps.ip if (wg_s2s_vps.peer_public_key | default('') | length > 0) else '127.0.0.1' }}:51515:51515"
     command:
       - sh
@@ -142,18 +142,18 @@ services:
     environment:
       KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"
       # Backup box SFTP connection (Hetzner Storage Box backup, u653424, port 23, SSH-key auth).
-      # kopia_sftp_* values in group_vars/all/; NO kopia-s3_api anymore (iDrive dropped, HD-31).
+      # kopia_sftp_* values in group_vars/all/; NO kopia-s3_api anymore (the iDrive S3 backend is gone).
       KOPIA_SFTP_USER: "{{ kopia_sftp_user | default('u653424') }}"
       KOPIA_SFTP_HOST: "{{ kopia_sftp_host | default('u653424.your-storagebox.de') }}"
       KOPIA_SFTP_PORT: "{{ kopia_sftp_port | default(23) }}"
       KOPIA_SFTP_PATH: "{{ kopia_sftp_path | default('/kopia') }}"
-      # Server auth (HD-59): user@host + password for the htpasswd file. No default('') —
-      # a missing 1Password item must abort render (fail-loud, HD-65).
-      # (HD-318a: the TLS SAN host is supplied via .env.j2 — compose interpolates it into
+      # Server auth: user@host + password for the htpasswd file. No default('') —
+      # a missing 1Password item must abort render (fail-loud).
+      # NOTE: the TLS SAN host is supplied via .env.j2 — compose interpolates it into
       #  the boot command at parse time; a runtime env var is unnecessary and would confuse.)
       KOPIA_SERVER_USER: "{{ vault['kopia-server-internal_api'].username | replace('$','$$') }}"
       KOPIA_SERVER_PASSWORD: "{{ vault['kopia-server-internal_api'].credential | replace('$','$$') }}"
-      # HD-318a: the per-client identity the oldsrv backup agent presents (must exist
+      # The per-client identity the oldsrv backup agent presents (must exist
       # in the htpasswd as user@host). Same credential as the server admin entry.
       KOPIA_AGENT_USER: "{{ kopia_agent_user }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"

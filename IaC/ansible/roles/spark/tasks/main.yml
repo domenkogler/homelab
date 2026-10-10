@@ -1,10 +1,10 @@
 ---
 # roles/spark — DGX Spark (GB10) node prep.
-# Hardened vs the standalone spark-base role (folded 2026-09-14):
+# Disk-safety rules this role enforces:
 #  * explicit spark_partition_enable gate (never auto-partition a fresh DGX OS disk)
 #  * device-sanity guard before any parted/mkfs (never destroy the OS partition)
-#  * HARD REFUSE when the target partition is the LIVE ROOT `/` (HD-363 live hit:
-#    DGX OS put root on nvme0n1p2, which the old role thought was the XFS data partition)
+#  * HARD REFUSE when the target partition is the LIVE ROOT `/`:
+#    DGX OS puts root on nvme0n1p2, which a data-partition assumption would otherwise reformat
 #  * on-disk check uses the full data-partition device (not "p1 exists?"), and requires
 #    the data partition to be the REMAINDER starting after the OS partition.
 
@@ -151,7 +151,7 @@
   become: true
   tags: [spark, disk]
 
-# ---- 1TB layout + headroom contract (HD-359) ----
+# ---- 1TB layout + headroom contract ----
 - name: Assert the data partition has ≥ spark_disk_headroom_gb free (re-download avoidance)
   ansible.builtin.command: "df -B1G --output=avail {{ xfs.mount_point }}"
   register: df_free
@@ -172,10 +172,10 @@
   when: not ansible_check_mode and df_free.rc == 0
   tags: [spark, disk]
 
-# ---- Headless operating contract (HD-364) ----
+# ---- Headless operating contract ----
 # DGX OS ships graphical.target + UNMASKED sleep targets; a headless box that idles
-# WILL suspend and vanish at L2 (live hit 2026-09-14, deployment-manual.md §5.2).
-# Enforcement is now idempotent IO here, toggle-able per host via `spark_headless`.
+# WILL suspend and vanish at L2.
+# Enforcement is idempotent IO here, toggle-able per host via `spark_headless`.
 # (systemd module has no masked state — use systemctl mask/unmask directly.)
 - name: Mask system sleep targets (headless contract — L2 blackout prevention)
   ansible.builtin.command: systemctl mask --now {{ item }}
@@ -193,7 +193,7 @@
   when: spark_headless | bool
   tags: [spark, headless]
 
-# LAN service binding at boot (HD-364 dashboard edge, live fix 2026-09-15): the
+# LAN service binding at boot: the
 # spark-dashboard Traefik sidecar binds {{ spark_home_ip }}:11000/11002; at container
 # start the interface/route may not be up yet, and an address that exists locally but
 # not-yet-assigned fails with EADDRNOTAVAIL (``bind: cannot assign requested address``
@@ -220,10 +220,10 @@
   when: not (spark_headless | bool)
   tags: [spark, headless]
 
-# ---- OOM forensics watchdog (HD-380) ----
+# ---- OOM forensics watchdog ----
 # Continuous sampler + forensic bundle catcher for the global-OOM class. Installed
-# as a systemd unit that is OOM-immune (OOMScoreAdjust=-1000) because the killer
-# took alloy/dcgm-exporter down in incidents #2/#3 — monitoring must not die first.
+# as a systemd unit that is OOM-immune (OOMScoreAdjust=-1000) because the killer takes
+# the monitoring exporters (alloy, dcgm-exporter) down first — monitoring must not die first.
 # Evidence lands on XFS (never the OS disk) under {{ spark_oom_watchdog_dir }}.
 - name: Create the OOM-watchdog evidence directory on XFS
   ansible.builtin.file:
@@ -269,7 +269,7 @@
     daemon_reload: true
   become: true
   # check-mode safe: the unit file does not exist on the target during --check, so
-  # systemd cannot resolve the service and the module fails (live hit 2026-09-16).
+  # systemd cannot resolve the service and the module fails.
   when:
     - spark_oom_watchdog_enable | bool
     - not ansible_check_mode
@@ -285,29 +285,27 @@
   failed_when: false
   tags: [spark, watchdog]
 
-# ---- GPU graphics-clock cap (HD-469, 2026-09-28) ----
-# WHY: GB10 exposes NO power-limit control (`-pl` unsupported, `power.limit` N/A) and NO writable temperature
-# target (`GPU Target Temperature` / Slowdown / Shutdown T.Limit all N/A — probed 2026-09-28), so a graphics-clock
-# CEILING is the only software power/thermal lever this SoC has. Upstream DGX Spark reports tie sustained ~90 W
-# GPU load to LOG-LESS hard power-offs and report the ceiling as what stopped them; on this box a power-off is a
-# hands-on recovery ("never reboot spark"). Owner call 2026-09-28: cap at the DEFAULT APPLICATION CLOCK (2418),
-# not at those reports' 2150-2200 — this unit has never hard-offed, so we buy a known measurement regime at ~3 %
-# instead of paying ~12 % for insurance it has not earned. Lower this var if it ever does.
+# ---- GPU graphics-clock cap ----
+# WHY: GB10 exposes NO power-limit control (`-pl` unsupported, `power.limit` N/A) and NO writable
+# temperature target (`GPU Target Temperature` / Slowdown / Shutdown T.Limit all N/A), so a
+# graphics-clock CEILING is the only software power/thermal lever this SoC has. Upstream DGX Spark
+# reports tie sustained ~90 W GPU load to LOG-LESS hard power-offs and report the ceiling as what
+# stopped them; on this box a power-off is a hands-on recovery ("never reboot spark"). The cap sits
+# at the DEFAULT APPLICATION CLOCK (2418), not at those reports' 2150-2200: this unit has never
+# hard-offed, so it buys a known measurement regime at ~3 % instead of ~12 % for insurance it has
+# not earned. Lower it if that changes.
 # WHY TWO HALVES: the lock is RUNTIME driver state — it does NOT survive a boot, and this box has a
-# documented history of hard power-cycles (SMART row, same doc). So: the unit covers boot, the
-# converge apply covers everything else (driver reload, a hand-run `-rgc`, a skipped unit).
-# WHY THE CONVERGE CANNOT PROVE THE CAP: measured 2026-09-28 (pre-cap) clocks.sm 2496 / clocks.max.sm
-# 3003 / Default Applications Clocks 2418, and `--query-supported-clocks=graphics` → **[N/A]**: GB10
-# does not enumerate clocks any more than it enumerates memory. Re-measured 2026-09-29 AFTER a
-# successful `-lgc 300,2418` (rc=0, prints "GPU clocks set to (300, 2418)"): `clocks.max.sm` is still
-# 3003 — it is a CAPABILITY field, not the enforced limit — and `clocks.applications.graphics` reads
-# 2418 only because 2418 IS the default application clock, so it reads 2418 with the lock and without
-# it. NO nvidia-smi field reflects a -lgc range lock on this driver, so an in-band read-back assert
-# cannot be written: the one that existed until 2026-09-29 asserted a dead field and FAILED a converge
-# that had in fact applied the cap (owner ruling `043ff4a`; docs/hardware-spark.md §GPU clock cap,
-# docs/services-rejected.md).
-# WHAT DOES PROVE IT: sustained clocks.sm UNDER LOAD — this unit boosts to 2496-2515 pre-cap and sat
-# at ~2411 capped. Sample it in a bench window from a session NOT served by spark (rule 0):
+# documented history of hard power-cycles (SMART row, docs/hardware-spark.md). So: the unit covers
+# boot, the converge apply covers everything else (driver reload, a hand-run `-rgc`, a skipped unit).
+# WHY THE CONVERGE CANNOT PROVE THE CAP: `--query-supported-clocks=graphics` → [N/A] — GB10 does not
+# enumerate clocks any more than it enumerates memory. `clocks.max.sm` is a CAPABILITY field (3003
+# with and without the lock), and `clocks.applications.graphics` reads 2418 because 2418 IS the
+# default application clock, with or without the lock. NO nvidia-smi field reflects a -lgc range
+# lock on this driver, so an in-band read-back assert cannot be written: asserting any of those
+# fields fails a converge that did apply the cap.
+# → docs/hardware-spark.md §GPU clock cap — the only power lever on GB10
+# WHAT DOES PROVE IT: sustained clocks.sm UNDER LOAD — pre-cap this unit boosts to 2496-2515, capped
+# it sits at ~2411. Sample it in a bench window from a session NOT served by spark (rule 0):
 #   ssh spark 'nvidia-smi --query-gpu=timestamp,clocks.sm,power.draw,temperature.gpu,clocks_event_reasons.active --format=csv -l 5'
 # A memory / watchdog curve says NOTHING about clocks — never call gate 7 the cap's falsifier.
 - name: Reject a bare clock value (range form only)
@@ -382,10 +380,11 @@
   when:
     - spark_gpu_clock_cap_enable | bool
     - not ansible_check_mode
-  # Idempotence CANNOT be reported here. Gating on a read field is a trap: the dead `clocks.max.sm`
-  # gate that lived here until 2026-09-29 was permanently true, so this task reported `changed` on
-  # EVERY converge (--check claimed drift forever, and "changed=0" stopped meaning anything). With no
-  # read-back available, the honest form is: re-issue unconditionally, and say we cannot observe it.
+  # Idempotence CANNOT be reported here. Gating on a read field is a trap: a gate on the dead
+  # `clocks.max.sm` field is permanently true, so this task would report `changed` on
+  # EVERY converge (--check would claim drift forever, and "changed=0" would stop meaning anything).
+  # With no read-back available, the honest form is: re-issue unconditionally, and say we cannot
+  # observe it.
   changed_when: false
   # Non-zero exit = the driver REFUSED the flag → fail loud rather than claim a cap we do not have.
   # That is the half of the failure mode this task CAN see. The silent-no-op half is falsified only by

@@ -13,7 +13,7 @@
 #     authentik_login    (Login: password=<bootstrap admin password>)
 
 {# The Postgres bind target is deliberately version-INDEPENDENT: PGDATA is pinned in the env
-#   block below, which is what lets one mount shape serve 16 and 18 (HD-1100). #}
+#   block below, which is what lets one mount shape serve both major versions. #}
 services:
   authentik-postgres:
     image: postgres:{{ authentik_db_version }}
@@ -37,21 +37,19 @@ services:
       - /srv/docker/authentik/postgres:/var/lib/postgresql/data
     environment:
       # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
-      #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
-      #   = default/libc on all six). Left to the default, an 18 cluster would restore the same
+      #   initdb-ed with libc/en_US.utf8 (datcollate=en_US.utf8, provider = default/libc on all
+      #   six). Left to the default, an 18 cluster would restore the same
       #   rows with different sort semantics and silently change ORDER BY / index ordering, so
       #   the provider is pinned HERE, in the template, before any pin moves. Harmless on 16
       #   (--locale-provider exists since 15) and ignored on a non-empty datadir, so landing it
-      #   early costs nothing. Measured against postgres:18.6-alpine: datcollate=en_US.utf8.
-      #   HD-1100.
+      #   early costs nothing.
       POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"
       # PG 18 images moved PGDATA to the version-specific /var/lib/postgresql/18/docker and their
 #   entrypoint REFUSES to start when it finds a cluster anywhere else - and the parent-mount layout
 #   it recommends does not work under this fleet's cap_drop: ALL, because the root phase then lacks
-#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory (measured: "mkdir: can't create
+#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory ("mkdir: can't create
 #   directory /var/lib/postgresql/18/: Permission denied"). Pinning PGDATA to the existing mount keeps
-#   ONE mount shape for 16 and 18; probed 2026-10-08 with the service's own caps -> server_version
-#   18.6, datcollate=en_US.utf8, "ready to accept connections". HD-1100.
+#   ONE mount shape across major versions, so a pin move cannot orphan the datadir.
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: "{{ authentik_db_name | default('authentik') }}"
       POSTGRES_USER: "{{ vault['authentik_db'].username | replace('$','$$') }}"
@@ -97,13 +95,12 @@ services:
       - /tmp
       - /var/run/postgresql   # unix socket dir — read_only rootfs needs it as tmpfs
     ports:
-      - "127.0.0.1:9000:9000"   # loopback-only API access for the host-side secret-egress glue (HD-143); never WAN
+      - "127.0.0.1:9000:9000"   # loopback-only API access for the host-side secret-egress glue; never WAN
     container_name: authentik-server
     restart: unless-stopped
-    # Explicit subcommand REQUIRED: the 2026.5.6 image entrypoint is `ak` with NO default
+    # Explicit subcommand REQUIRED: the image entrypoint is `ak` with NO default
     # CMD — without this the container runs bare `ak`, prints the management-command
-    # help listing and exits 0 in a restart loop (found live Phase 1, 2026-08-22:
-    # authentik-server flapping since first deploy; worker works because it passes its
+    # help listing and exits 0 in a restart loop (the worker works because it passes its
     # own command).
     command: server
     networks:
@@ -117,7 +114,7 @@ services:
       # Mounted as a SUBDIR: mounting /blueprints directly shadows the image's
       # /blueprints/{system,default,migrations,...} tree — the server's migrate
       # pre-start then dies on the missing /blueprints/system/bootstrap.yaml every
-      # ~9 s (found live Phase 1, 2026-08-22: server "healthy" but 502 on every
+      # ~9 s (server "healthy" but 502 on every
       # route, core workers never binding). Discovery is recursive (system/ itself
       # is a subdir), so /blueprints/custom is picked up normally.
       - ./blueprints:/blueprints/custom
@@ -132,8 +129,8 @@ services:
       AUTHENTIK_REDIS__HOST: authentik-redis
       AUTHENTIK_BOOTSTRAP_PASSWORD: "{{ vault['authentik_login'].password | replace('$','$$') }}"
       AUTHENTIK_BOOTSTRAP_EMAIL: admin@kogler.si
-      # Header trust pinned to the Traefik edge container IPs only (S15/HD-190, HD-81
-      # precedent) — NEVER the whole traefik-public /16: a spoofed X-Forwarded-For from
+      # Header trust pinned to the Traefik edge container IPs only — NEVER the whole traefik-public /16:
+      # a spoofed X-Forwarded-For from
       # a compromised sibling container would poison client-IP decisions (rate limits,
       # logs, future conditional-access rules).
       AUTHENTIK_TRUSTED_PROXIES: "{{ traefik_edge_ips | join(',') }}"
@@ -143,10 +140,10 @@ services:
       traefik.http.routers.authentik.rule: "Host(`sso.kogler.si`)"
       traefik.http.routers.authentik.entrypoints: websecure
       {{ 'traefik.http.routers.authentik.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      # NO authentik-forward-auth — this IS the auth provider. CrowdSec bouncer only
-      # (S17a/HD-194): the public login page is the most brute-force-attractive route,
-      # so it must not sit behind zero edge protection.
-      # SAFE for outpost/OIDC callbacks (reasoned, HD-204/HD-194): the bouncer filters
+      # NO authentik-forward-auth — this IS the auth provider. CrowdSec bouncer only —
+      # the public login page is the most brute-force-attractive route, so it must not
+      # sit behind zero edge protection.
+      # SAFE for outpost/OIDC callbacks: the bouncer filters
       # by SOURCE IP only (path-agnostic), and every callback path — OIDC
       # `/application/o/<slug>/callback/`, forward-auth `/outpost.goauthentik.io/*` —
       # arrives as an ordinary browser request from a user IP that is not on the
@@ -203,14 +200,13 @@ services:
       authentik-redis:
         condition: service_started
 
-  # RETIRED 2026-10-07 — the `authentik-ldap` outpost that used to be declared here (D7/HD-132).
+  # No `authentik-ldap` outpost belongs here.
   # It had exactly one consumer: Samba on nas pulling auth over the WG S2S tunnel. That passdb
   # is gone (docs/storage-rejected.md — and it could never have authenticated a Windows client,
   # because Authentik serves no `sambaNTPassword`, so there is no NT hash to answer NTLM with).
-  # Measured on the way out: the container sat `Up (unhealthy)` on an expired outpost token, and
-  # its WG publish (10.255.40.2:3389) refused TCP from nas AND oldsrv. Nothing else in the fleet
-  # consumes LDAP — Metabase LDAP auth is rejected (HD-243), every other service rides OIDC.
-  # `authentik-ldap_bind` left the vault set in roles/docker_services/defaults/main.yml with it.
+  # An outpost whose only consumer is gone shows up as `Up (unhealthy)` on an expired token with a
+  # WG publish that refuses TCP. Nothing else in the fleet
+  # consumes LDAP — Metabase LDAP auth is rejected, every other service rides OIDC.
 
 networks:
   traefik-public:
