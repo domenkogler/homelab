@@ -63,11 +63,11 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - ./dynamic:/etc/traefik/dynamic:ro   # cockpit.yml + routes.yml (ha) + tls.yml — file provider
-      - ./logs:/var/log/traefik               # HD-280: fail2ban http-auth jail reads host /opt/traefik/logs/access.log
+      - ./logs:/var/log/traefik               # fail2ban http-auth jail reads host /opt/traefik/logs/access.log
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       - ./acme:/etc/traefik/acme            # acme.json ACME state (persistent; ISSUER only)
 {% else %}
-      - ./certs:/etc/traefik/certs:ro       # synced wildcard pair — consumer default store (HD-181)
+      - ./certs:/etc/traefik/certs:ro       # synced wildcard pair — consumer default store
 {% endif %}
     networks:
       traefik-public:
@@ -75,7 +75,7 @@ services:
         # edge IPs (traefik_edge_ips), so a drifted bridge assignment silently
         # breaks every auth-proxy consumer (grafana answers 401 -> bare /login).
         ipv4_address: "{{ traefik_edge_ip_pin }}"
-      db-internal: {}   # HD-315 (2026-09-04): Prometheus scrapes traefik:8082 here — the
+      db-internal: {}   # Prometheus scrapes traefik:8082 here — the
                         # metrics entryPoint is reachable ONLY inside db-internal (never
                         # published on a host port; keeps the edge's expose surface minimal).
     # Dashboard at traefik.kogler.si (behind Forward-Auth, admin only).
