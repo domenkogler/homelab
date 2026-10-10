@@ -17,6 +17,7 @@ tags: [network, rejected, decision-log]
 
 | Decision | Status     | Why                                                                                                                                    |
 | -------- | ---------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `.pub` hint as `IdentityFile` on seats | superseded | No agent under Git-Bash; private halves on disk |
 | Advertised routes to user nodes, including a tailnet-routable VIP | rejected | User nodes get no routes; home subnets become reachable from any network |
 | Aggressive Home block-list tier (Hagezi multi+ / premium / PRO) | rejected | Answers the operator's own tailnet traffic, so false positives are self-inflicted |
 | Block lists on the IoT tier | rejected | Appliance firmware shares CDN ranges with ad endpoints; Quad9 upstream only |
@@ -78,7 +79,6 @@ tags: [network, rejected, decision-log]
 | Plain `ha.kogler.si` as a MagicDNS extra_record | rejected | A tailnet-enabled phone at home bypasses the VIP |
 | Plain systemd-networkd `[WireGuardPeer]` on the VPS | superseded | networkd 257 silently never applies the peer block |
 | Port-based tailnet sidecar on fixed ports 8080-8085 | superseded | The traefik-tailnet edge serves subdomains on 443 with wildcard certs |
-| `.pub` hint as `IdentityFile` on seats | superseded | No agent under Git-Bash; private halves on disk |
 | Public/VPS third rung in a home host resolver pair | rejected | It answers NXDOMAIN for these names: worse than a timeout |
 | RecursionNetworkACL as the only recursion gate | rejected | The network-level gate is authoritative; the ACL alone does not enforce |
 | Remote desktop over the relayed tailnet path | dropped | Relayed 70–240 ms; a direct session is required first |
