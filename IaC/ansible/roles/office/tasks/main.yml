@@ -9,7 +9,7 @@
 #      (EULA accepted via debconf; package downloads fonts at install time).
 #   3. OpenCloud sync client dependency — the official client
 #      (opencloud-eu/desktop) ships AppImage only (no apt repo/.deb); it is
-#      installed MANUALLY on clients (HD-52). Ansible only preps the runtime
+#      installed MANUALLY on clients. Ansible only preps the runtime
 #      dependency: `libfuse2t64` (FUSE, AppImage mount/run). Clients are
 #      Debian 13 (trixie) only.
 #
@@ -32,19 +32,18 @@
   tags: [office]
 
 - name: Download official ONLYOFFICE signing key (Ascensio, HD-318 fix)
-  # HD-318 (2026-09-07): the published `onlyoffice.key` file is STALE — it only
+  # The published `onlyoffice.key` file is STALE — it only
   # contains the 2014 keys (C9E5…/629E…) and does NOT sign the repo's `squeeze`
   # suite. The key that ACTUALLY signs squeeze/Release is Ascensio rsa4096
-  # E09C A29F 6E17 8040 EF22 B409 8320 CA65 CB2D E8E5 (Good signature verified
-  # 2026-09-07 over download.onlyoffice.com/repo/debian/dists/squeeze/InRelease).
-  # Fetch it from a keyserver instead of the stale key file. Only the fingerprint
-  # owner is trusted — fail closed if a different key arrives. NO `creates:` guard:
-  # a stale key file from an earlier partial Phase-3 attempt must be refreshed, so
-  # the shell re-verifies the fingerprint every converge (cheap, idempotent).
-  # NOTE (live, 2026-09-07): `cmd: |` literal (NOT `>-`) — the folded block collapsed
-  # the if/then/fi newlines and /bin/sh failed with 'if: not found'. GNUPGHOME is set
+  # E09C A29F 6E17 8040 EF22 B409 8320 CA65 CB2D E8E5; fetch it from a keyserver
+  # instead of the stale key file. Only the fingerprint owner is trusted — fail closed if
+  # a different key arrives. NO `creates:` guard: a stale key file from an earlier partial
+  # attempt must be refreshed, so the shell re-verifies the fingerprint every converge
+  # (cheap, idempotent).
+  # NOTE: `cmd: |` literal (NOT `>-`) — the folded block collapses
+  # the if/then/fi newlines and /bin/sh fails with 'if: not found'. GNUPGHOME is set
   # explicitly to a writable temp dir because the task runs as ROOT (become) whose
-  # /root/.gnupg cannot be written by the dirmngr (keyserver fetch failed without it).
+  # /root/.gnupg cannot be written by the dirmngr (keyserver fetch fails without it).
   ansible.builtin.shell:
     cmd: |
       set -e
@@ -104,7 +103,7 @@
     update_cache: true
   tags: [office]
 
-# OpenCloud sync client runtime dependency (HD-52).
+# OpenCloud sync client runtime dependency.
 # The OpenCloud desktop client (opencloud-eu/desktop) ships as an AppImage only
 # (no apt repo/.deb) and is installed MANUALLY on each Debian 13 client.
 # Ansible preps what AppImage needs to run: FUSE. On Debian 13 (trixie) this is
@@ -116,7 +115,7 @@
     update_cache: true
   tags: [office]
 
-# NOTE (HD-52): the OpenCloud AppImage itself is installed manually per client
+# NOTE: the OpenCloud AppImage itself is installed manually per client
 # (download from opencloud-eu/desktop releases, chmod +x, /opt or ~/, .desktop
 # entry). Ansible intentionally does NOT manage the binary (no apt repo; avoids
 # fighting an unmanaged artifact).
