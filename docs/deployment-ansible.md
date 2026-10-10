@@ -55,7 +55,7 @@ tags: [deployment, ansible, iac]
 - **The `field=` parameter is mandatory.** The lookup defaults to `password`, which is
   NOT always the right field (API credentials use `credential`; Database items also carry
   `username`).
-- **Bulk-fetch mode (HD-258):** to avoid re-spawning `op` per lookup (≈160/converge), the
+- **Bulk-fetch mode:** to avoid re-spawning `op` per lookup (≈160/converge), the
   `docker_services` role batches the needed item set into a `vault: {...}` dict once and
   renders from it (see the §docker_services *Bulk 1Password pre-pass*). New templates may
   consume the dict (`vault['<item>'].<field>`) instead of a raw lookup; keep the fail-closed
@@ -77,7 +77,7 @@ tags: [deployment, ansible, iac]
   tags: "{{ item.name }}"
   ```
 
-### Tags & surgical runs (HD-220 wiring)
+### Tags & surgical runs
 
 How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 `playbooks/vps.yml`, `roles/docker_services/tasks/{main,deploy-service}.yml`:
@@ -105,7 +105,7 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 - **Consequences / gotchas:**
   - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line → SILENT
     NO-OP. Always pair role + service: `--tags "docker_services,opencloud"`.
-  - TRUE surgical convergence needs the **`docker_services_scope`** var (HD-255/HD-260, extended HD-269):
+  - TRUE surgical convergence needs the **`docker_services_scope`** var:
     `--tags docker_services -e docker_services_scope=<service>` deploys a single service, or a
     comma-list for several: `-e docker_services_scope="forgejo,traefik"`. Without it, the include
     lines' `tags: docker_services` (union selection) run every direct-role `main.yml` task
@@ -113,18 +113,15 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
     matched — the scope var gates those platform tasks AND collapses the deploy loop to the scoped
     service(s), so a surgical run is genuinely scoped (nothing else even iterates).
   - Handlers are tag-filtered too: a handler must match the filter (or carry `tags: always`)
-    or it is skipped even when notified by a task that ran — since HD-237 EVERY role handler
-    carries `tags: always` (all 22 across 9 roles; monitoring was first, HD-220), so a
+    or it is skipped even when notified by a task that ran. EVERY role handler carries
+    `tags: always`, so a
     notification fired inside a filtered run can never be silently dropped. Keep it that way:
     any new handler must carry `tags: always`.
   - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
     assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
     `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
-  - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
-    assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
-    `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
     `--tags`. Only `vps.yml` (and `all.yml`'s `[hosts]`) supports role-surgical filtering today.
-  - **Base bootstrap tier (HD-269 Step 4):** the rarely-changing roles (`common`, `docker`,
+  - **Base bootstrap tier:** the rarely-changing roles (`common`, `docker`,
     `hardening`, `network`, `cifs`, `wireguard`) each carry an **additive `base` tag** alongside
     their own role tag. Because selection is a UNION, naming `base` groups all six as ONE
     runnable unit (`--tags base`) while a services-only run (`--tags docker_services,monitoring`)
@@ -142,14 +139,14 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
   | Full converge | `ansible-run.sh site.yml` (or the group playbook) |
   | Single VPS role | `ansible-run.sh playbooks/vps.yml --tags monitoring` |
   | Single service (recommended) | `ansible-run.sh playbooks/vps.yml --tags docker_services -e docker_services_scope=<service>` |
-  | Several services (HD-269) | `--tags docker_services -e docker_services_scope="<svc1>,<svc2>"` |
+  | Several services | `--tags docker_services -e docker_services_scope="<svc1>,<svc2>"` |
   | Service + edge/dynamic-file companions | `--tags "docker_services,<service>,traefik"` |
   | Include Authentik pre-pass/glue lanes | append `,authentik,secret-egress` |
   | Resume after a failing step | `--start-at-task="<task name>"` (no `--tags` → everything from there runs) |
-  | Run the rare base bootstrap tier (HD-269 Step 4) | `--tags base` — runs `common`, `docker`, `hardening`, `network`, `cifs`, `wireguard` only (first-boot / a rare infra change); `docker_services` & `monitoring` excluded |
+  | Run the rare base bootstrap tier | `--tags base` — runs `common`, `docker`, `hardening`, `network`, `cifs`, `wireguard` only (first-boot / a rare infra change); `docker_services` & `monitoring` excluded |
   | Discovery | `--list-tags` / `--list-tasks --tags "<filter>"` |
 
-### Long converges run detached — and `rc=0` is not proof (HD-370 / HD-379)
+### Long converges run detached — and `rc=0` is not proof
 
 A full `docker_services` converge takes **10–30+ minutes**. Run it in the background and poll the log:
 
@@ -159,47 +156,31 @@ bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services \
 ```
 
 A foreground run behind an outer timeout gets **killed mid-restart**, which leaves sibling containers `Exited`
-(live case: VPS `tailscale-sidecar Exited (128)`), and the next run then fails its restart guard with
+(the VPS `tailscale-sidecar` reports `Exited (128)`), and the next run then fails its restart guard with
 `cannot join network namespace of a non running container`. Re-running the same playbook is idempotent — the
 guard restarts the stack once its siblings are Up. **Only `--check` is safe in the foreground.**
 
-The second half of the lesson: a green `PLAY RECAP` does not mean the service deployed. A service's own deploy
+A green `PLAY RECAP` does not mean the service deployed. A service's own deploy
 tasks carry `tags: "{{ svc.name }}"` (`roles/docker_services/tasks/deploy-service.yml`), so
 `--tags monitoring,docker_services` renders the loop and **silently skips every inner task** — see the
 silent-no-op rule above. Include the service name (or use `docker_services_scope=`), then verify the **artefact**
 rather than the recap: `docker ps` for the container, and for telemetry a backend query (e.g.
-`VM {job="dcgm"}`). Live case: the first `spark-dcgm` converge reported success with no container on the box;
-the second, run with the name tag, deployed it in ~30 s.
+`VM {job="dcgm"}`).
 
-**The third half of the lesson: one green converge proves nothing about idempotence — run it twice.**
-`failed=0` on a first run is also what a converge that churns looks like. Live case 2026-09-23
-(**HD-440**): oldsrv `--tags docker_services,lan-litellm` went `ok=83 changed=5 failed=0`, and re-running
-the identical command from the identical commit gave `ok=83 changed=5 failed=0` again — with
-`lan-litellm` reading `Up 2 minutes` and then `Up 3 minutes`, i.e. a healthy LLM gateway restarted twice
-for nothing. Cause: `Remove stub dirs at extra-template dest paths (HD-268c)` guards with
-`state: absent`, which deletes the *rendered file* it was meant to protect (the guard exists for docker's
-empty stub **directory**), so the template always reports `changed` and the restart-on-config-change guard
-always fires. Ask two questions of any converge that is supposed to be finished: **is `changed` zero on
-the second run**, and **is the task that repeats a state assertion or an unconditional action**. The same
-pass caught a second suspect (`nut`: clearing the `upssched-cmd` ACL), which is now closed the way this rule
-demands — the task probes the real ACL and decides, and the second consecutive converge reports `changed=0`.
-**The surviving instance of the class was `Sync postgres role password with vault`**, which ran an unconditional
-`ALTER ROLE` per service, so a green VPS converge printed six `changed` lines on hosts whose passwords were
-already correct. ✅ **Closed HD-452 (2026-09-27): it now reads before it writes.** The measured path matters
-more than the fix — the obvious probe, *try to authenticate with the vault password*, **cannot work here**:
-the cluster's loopback TCP auth is `trust` (measured on the VPS), so a WRONG password authenticates fine and
-that probe would have reported "in sync" forever, while connecting from the container's own bridge address is
-refused. What is readable is a marker the sync writes about itself (`COMMENT ON ROLE` =
-`pgsync:<sha256 of the vault password>`), so the task compares that and repairs only on a defect. ⚠ Two traps,
-both hit for real: a `psql` probe without **`-tA`** returns the aligned table whose first line is the column
-header, so the verdict compared a header against a hash and re-ran the `ALTER` on every converge (three runs,
-six `changed` each, AFTER the "fix" landed); and the marker records what the sync last wrote, not what the
-cluster holds, so a hand-run `ALTER ROLE` is now out of band (see the mechanism note below).
-The rule for either: **a task that can only assert is not allowed to report `changed`** — read
+**One green converge proves nothing about idempotence — run it twice.**
+`failed=0` on a first run is also what a converge that churns looks like: re-running the identical command from
+the identical commit must give `changed=0`; if a service reports `Up 2 minutes` and then `Up 3 minutes`, a
+healthy container was restarted for nothing. Ask two questions of any converge that is supposed to be finished:
+**is `changed` zero on the second run**, and **is the task that repeats a state assertion or an unconditional
+action**. The rule for either: **a task that can only assert is not allowed to report `changed`** — read
 the state (`getfacl`/`stat`, or a cluster-stored marker) into a `check_mode: false` probe, turn
-it into a verdict fact, and act only on a defect. ⚠ When you do parse `getfacl` output, a **base** line
-(`group::r-x`) splits with `-F:` into `("group", "", "r-x")`, so the permissions are **$3** — reading `$2` (the
-owner's intuition) reports every compliant file as broken and reproduces the permanent yellow you came to fix.
+it into a verdict fact, and act only on a defect. Two measured traps on the way there:
+
+- a `psql` probe without **`-tA`** returns the aligned table whose first line is the column header, so the
+  verdict compares a header against a hash and re-runs the write on every converge;
+- when parsing `getfacl` output, a **base** line (`group::r-x`) splits with `-F:` into `("group", "", "r-x")`,
+  so the permissions are **$3** — reading `$2` (the owner's intuition) reports every compliant file as broken
+  and reproduces the permanent yellow you came to fix.
 
 ### Compose templates (`templates/docker_services/`)
 - **One directory per service.** Files inside: `docker-compose.yml.j2` (always),
@@ -225,21 +206,21 @@ owner's intuition) reports every compliant file as broken and reproduces the per
   `true`. Use for per-host gating (`technitium` on `oldsrv` only).
 - **`instance`** (optional) — for multi-instance services sharing one template
   (e.g. `raspberrymatic-standby`).
-- **`bind_owner_uid`** + **`bind_dirs`** (optional; Wave-3 R5, HD-218) — Class-A fix for
-  non-root images: Docker auto-creates host bind-mount sources as `root:root`, so services
-  whose image runs a fixed uid (grafana 472, node-user images 1000) or `storage_uid` died with
-  EACCES on first boot. `deploy-service.yml` pre-creates `/srv/docker/<name>/<dir>` owned by
+- **`bind_owner_uid`** + **`bind_dirs`** (optional) — required for non-root images: Docker
+  auto-creates host bind-mount sources as `root:root`, so a service whose image runs a fixed uid
+  (grafana 472, node-user images 1000) or `storage_uid` fails with EACCES on first boot.
+  `deploy-service.yml` pre-creates `/srv/docker/<name>/<dir>` owned by
   `bind_owner_uid` for each entry in `bind_dirs` (`'.'` = the service root). Set both keys
   together on the service entry whenever a template bind-mounts `/srv/docker/<name>/...` into
   a non-root container.
-- **`db_role_sync`** + **`db_item`** + **`db_pg_container`** (optional; HD-220, incident
-  postgres-image rotation-drift guard: the official postgres image applies
+- **`db_role_sync`** + **`db_item`** + **`db_pg_container`** (optional) — postgres-image rotation-drift guard:
+  the official postgres image applies
   `POSTGRES_PASSWORD` ONLY at first cluster init, so rotating the vault `<service>_db` item
   re-renders every compose env while the persisted cluster keeps the OLD role password
-  (forgejo crash-looped overnight on exactly this). Opted-in services get an idempotent
+  (a service whose template bundles its own postgres then crash-loops on the mismatch). Opted-in services get an idempotent
   `ALTER ROLE ... WITH PASSWORD` executed via `docker exec` into the pg container AFTER the
   stack is up — the password source is the SAME vault item (no_log; IaC-only, no hand-run
-  SQL against managed DBs). Since **HD-452** it is compare-first: the `ALTER` runs only when the role's own
+  SQL against managed DBs). The task is compare-first: the `ALTER` runs only when the role's own
   marker (`COMMENT ON ROLE`, written in the same `-1` transaction as the `ALTER`) is absent or different, so a
   converge on a compliant host reports `changed=0`; ⚠ the marker records what the sync last wrote, NOT what the
   cluster holds, so a hand-run `ALTER ROLE` is out of band and will not be auto-repaired — rotate in vault, or
@@ -247,14 +228,14 @@ owner's intuition) reports every compliant file as broken and reproduces the per
   [deployment-secrets.md](deployment-secrets.md) §Rotation propagation contract. Set all three keys
   on any service entry whose template bundles
   its own postgres container. Sibling opt-in **`db_ro_sync` + `db_ro_item` +
-  `db_pg_container`** (HD-242): ensures a dedicated READ-ONLY login role (CREATE-if-absent,
+  `db_pg_container`**: ensures a dedicated READ-ONLY login role (CREATE-if-absent,
   then password + `SELECT`-only grants on schema `public` incl. default privileges,
-  re-applied every converge) in ANOTHER stack's pg container — consumer-side key set, e.g.
-  Metabase → forgejo-db via `metabase-forgejo_ro` (**retired** — Metabase removed from the VPS; the key is left in the vault but the db_ro keys are commented out in `vps.yml`); vault rotation propagates automatically.
-- **Lazy loop_var shadowing (HD-185 pattern, generalized):** `vars: { svc: "{{ item }}" }` on an
+  re-applied every converge) in ANOTHER stack's pg container — a consumer-side key set; no service currently
+  opts in, vault rotation propagates automatically.
+- **Lazy loop_var shadowing:** `vars: { svc: "{{ item }}" }` on an
   `include_tasks` loop is LAZY - any INNER loop in the included file re-resolves `item` in its own
-  context, so `svc` collapses to that inner string ('str' has no attribute 'name', found live on
-  traefik's extra-.j2 templates). Always give include loops a dedicated `loop_var` (`svc_entry`) AND
+  context, so `svc` collapses to that inner string (`'str' has no attribute 'name'`).
+  Always give include loops a dedicated `loop_var` (`svc_entry`) AND
   declare explicit `loop_var:` for every inner loop whose var name is referenced in task args
   (`extra` precedent).
 
@@ -286,28 +267,24 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
 
 ### Three ways a converge lies to you
 
-1. **`-e ansible_host=<ip>` is a GLOBAL extra-var and hijacks `delegate_to`.** Used to reach one host's
-   alternate leg, a `delegate_to: pi` task connected to that override address instead: `ok=367 changed=52
-   failed=1`, the failure being a key-file check run on the WRONG host (the key existed on the Pi). Use
+1. **`-e ansible_host=<ip>` is a GLOBAL extra-var and hijacks `delegate_to`.** Set it to reach one host's
+   alternate leg and a `delegate_to:` task connects to that override address instead — the work then runs on
+   the WRONG host (a key-file check passes or fails against a machine that never held the key). Use
    `--limit` **plus** a per-host `host_vars`/group var, never a global `-e`, to redirect one host.
-2. **`pgrep -f ansible-playbook` matches its own command line.** It reported "a converge is already
-   running" three separate times when nothing was running, because the pattern text was in the invoking
-   shell's argv. Check with `ps -eo args | grep -c '[a]nsible-playbook'` (bracket trick) instead.
+2. **`pgrep -f ansible-playbook` matches its own command line.** It reports "a converge is already
+   running" when nothing is running, because the pattern text is in the invoking shell's argv. Check with
+   `ps -eo args | grep -c '[a]nsible-playbook'` (bracket trick) instead.
 3. **A duplicate YAML mapping key silently retires the first definition.** Ansible keeps the **last**,
    prints `[WARNING]: Found duplicate mapping key … Using last defined value only.` on stderr and carries
    on — `--syntax-check` is green, the converge is green, and the first definition is dead text that keeps
    looking authoritative. Which key duplicates decides the damage: a second `tags:` **strips a tag** (a
    surgical run then skips that task forever), a second `no_log:` **prints a secret**, a second `when:`
-   re-gates the task. Live on `main` until 2026-10-08 (HD-1098), two shapes, neither caught by any gate
-   that existed: `roles/monitoring/tasks/main.yml:600/601` — two `tags:` on one task, so HD-450's "Record
-   what the hygiene exporter publishes" silently kept `[monitoring, grafana]` and lost `hygiene`, i.e.
-   `--tags hygiene` skipped it forever — and a duplicated fragments section in `group_vars/spark.yml`
-   that re-defined `spark_llm_ultrafast_cudagraph_args` / `_diag_args` 36 lines apart.
+   re-gates the task.
    The gate is [`scripts/check_yaml_dup_keys.py`](../scripts/check_yaml_dup_keys.py) (validate-all item 30,
-   plus ansible's own stderr inside the syntax-check loop as a second witness). Fix it with a **proven
-   no-op**, not a hope: both copies were value-identical here, and `spark-llm-render-matrix.py` printed
-   byte-identical output before and after — the same discipline §6's "a test that cannot fail is not
-   evidence" asks of a live claim.
+   plus ansible's own stderr inside the syntax-check loop as a second witness). Fix a duplicate with a
+   **proven no-op**, not a hope: prove the two copies are value-identical, and prove it with the renderer
+   that consumes them printing byte-identical output before and after — the same discipline §6's "a test
+   that cannot fail is not evidence" asks of a live claim.
 
 Corollary for any pre-flight: **a check that cannot distinguish "nothing running" from "I am running"
 is not a gate** — same class of failure as the green scoped converge and the `/health` wait in
@@ -315,14 +292,13 @@ is not a gate** — same class of failure as the green scoped converge and the `
 
 ### Jump-host execution (hosts reachable only through the VPS)
 
-**Rule (HD-397): every behind-NAT host carries the VPS jump IN THE
+> **Rule: every behind-NAT host carries the VPS jump IN THE
 > INVENTORY.** `ansible_ssh_common_args: "-o ProxyJump=vps"` lives in
 > `group_vars/home_servers.yml`, `group_vars/storage.yml`, `group_vars/raspberry_pi.yml` and
 > `group_vars/spark.yml` — so EVERY play that touches those hosts converges them from any network
 > (`home_servers.yml`, `storage.yml`, `raspberry_pi.yml`, `nut-deploy.yml`, `dns-seed.yml`, `all.yml`,
 > the monitoring plays), not only the one playbook that happens to declare it. Measured matrix + the
-> laptop alias contract: [network-vpn.md](network-vpn.md) §Reaching LAN nodes when away
-> (before this change only spark was convergible from anywhere and `nas` had no jump at all).
+> laptop alias contract: [network-vpn.md](network-vpn.md) §Reaching LAN nodes when away.
 
 Every LAN host sits behind the home NAT on the Home VLAN, so a runner that is not LAN-attached reaches it
 only via the VPS. `playbooks/spark.yml` additionally keeps a play-level copy of the identical value
@@ -334,16 +310,15 @@ ansible_ssh_common_args: "-o ProxyJump=vps"
 ```
 
 > **Why `-o ProxyJump` and not `-e ansible_host=<ip>`:** the jump is a *connection* property, while
-> `-e ansible_host=` is a **global** extra-var that also rewrites `delegate_to` targets — the recorded
-> damage is in §Gotchas above (`ok=367 changed=52 failed=1`, one key-file check silently executed on the
-> wrong host). Since HD-397 there is no reason to type either: the inventory carries the jump and
-> `host_vars` names the reachable leg. See §Three ways a converge lies to you above.
+> `-e ansible_host=` is a **global** extra-var that also rewrites `delegate_to` targets — the failure mode is
+> §Three ways a converge lies to you above. There is no reason to type either: the inventory carries the jump
+> and `host_vars` names the reachable leg.
 >
-> **The OpenSSH-matching nuance, corrected by measurement:** Ansible types the
+> **The OpenSSH-matching nuance:** Ansible types the
 > `ansible_host` value (an IP), so a `Host <alias>` block does nothing for it — but that is **not** why
 > the jump works: `-o ProxyJump=vps` comes from the group var and is passed on the command line, so no
-> `Host <ip>` block is required for a converge. Proof: with a stub config containing ONLY `Host vps`
-> (`ANSIBLE_SSH_ARGS="-F <stub>" ansible <host> -m ping`) all four behind-NAT hosts ponged. The
+> `Host <ip>` block is required for a converge (a stub config containing ONLY `Host vps`, passed via
+> `ANSIBLE_SSH_ARGS="-F <stub>"`, pongs every behind-NAT host). The
 > `Host <ip>` blocks in the laptop contract are for `scp`/`rsync`/`git` and humans typing addresses.
 >
 > **Prove the path before debugging Ansible:** `ansible <host> -m ping` (through
@@ -371,22 +346,20 @@ again: `/import` over SSH as the key-only `ansible` user via
 [`scripts/routeros-apply-delta.sh`](../scripts/routeros-apply-delta.sh). Two paths, two auth
 mechanisms — so "can I reach the router?" has to name which one it means.
 
-Four ways a probe answers confidently and wrongly (all four were measured on the oldsrv seat,
-2026-10-08, on devices that were healthy and reachable the whole time):
+Four ways a probe answers confidently and wrongly on these devices:
 
 1. **`ansible … -m ping` → `Permission denied (publickey,password)`** (and for the switch, `Host key
    verification failed`). Ping opens SSH as the seat user; the devices do not take that. The probe is
    not a reachability test here — it tests a door these hosts do not have.
 2. **`https://<mgmt-ip>:8728/rest/…` → `SSL: WRONG_VERSION_NUMBER`.** 8728 is the binary API, not the
-   REST endpoint; REST-on-the-same-port is a different protocol. This probe was invented because both
-   playbook headers said "via RouterOS REST API" — the headers are fixed; the comment was the bug.
+   REST endpoint; REST-on-the-same-port is a different protocol.
 3. **`Failed to import the required Python library (librouteros)`** — a python problem wearing a
    network error. `inventory.ini` pins `[all:vars] ansible_python_interpreter=/usr/bin/python3`, and
    `librouteros` (the PYTHON half of `community.routeros`; `requirements.yml` installs only the
-   Ansible half) lives in the runner venv. `group_vars/network.yml` now pins
+   Ansible half) lives in the runner venv. `group_vars/network.yml` pins
    `ansible_python_interpreter: {{ ansible_playbook_python }}` for the `network` group, which is what
-   `scripts/ansible-network-hop.sh` has forced on the off-LAN path for exactly this reason — and a
-   rebuilt seat needs `pip install librouteros`, now part of `scripts/bootstrap-runner.sh`.
+   `scripts/ansible-network-hop.sh` forces on the off-LAN path for exactly this reason — and a
+   rebuilt seat needs `pip install librouteros`, part of `scripts/bootstrap-runner.sh`.
 4. **`Unable to sign in to 1Password. Missing required parameters: secret_key, subdomain,
    master_password, username`** —
    absent `OP_SERVICE_ACCOUNT_TOKEN`, i.e. an ansible invoked directly instead of through
@@ -418,22 +391,22 @@ The probe that actually answers (read-only, no `no_log` needed because nothing i
         msg: "{{ inventory_hostname }} {{ _f.ansible_facts.ansible_net_model }} {{ _f.ansible_facts.ansible_net_version }}"
 ```
 
-Answered 2026-10-08 from the oldsrv seat: `router.kogler.si` → **RB4011iGS+ 7.24.4**,
+Device identity this probe returns: `router.kogler.si` → **RB4011iGS+ 7.24.4**,
 `switch.kogler.si` → **CRS328-24P-4S+ 7.24.4**. ⚠ Run it over the **Mgmt** address (VLAN 99 is
 same-site only — never a `ProxyJump`); away from home use `scripts/ansible-network-hop.sh`, which
 tunnels 8728 through the Pi and already forces the venv interpreter. The device facts above are
 reachability evidence only — the authoritative device state is the `print`/`foreach` reads in
 [network-ops.md](network-ops.md) §Apply workflow, and a mutate of either device is still a
-render → `/import` (this repo does not hand-apply API deltas, HD-161 identity assert notwithstanding).
+render → `/import` (this repo does not hand-apply API deltas; the role asserts device identity before
+any mutate).
 
 ### Dry-run Mode (`--check --diff`)
 
-`--check` mode is **NOT** compatible with the HD-258 bulk 1Password pre-pass: the pre-pass
+`--check` mode is **NOT** compatible with the bulk 1Password pre-pass: the pre-pass
 calls `op-vault-export.py --derive` which requires a live 1Password session to read items
 (vault in `~/.config/op/homelab-sa-token`), and in check mode the lookup returns empty stdout
 → the `combine(vault, from_json(empty))` filter raises `from_json failed: Expecting value` and
-the play aborts at `fetch-vault-pass.yml:62` (other session's audit AUD-B-2, reproduced live
-2026-08-29). For diff/inspection of a future change without running it, use one of:
+the play aborts at `fetch-vault-pass.yml:62`. For diff/inspection of a future change without running it, use one of:
 - `--check --diff` only after seeding the `vault` dict another way (e.g. mock the bulk pre-pass
   by exporting `op-vault-export.py --services <single> --format=json` to a fixture file and
   reading it via `set_fact: op_vault_out: {stdout: ... }`); the rest of the role is then
@@ -442,52 +415,45 @@ the play aborts at `fetch-vault-pass.yml:62` (other session's audit AUD-B-2, rep
   inline (slow, but check-mode compatible);
 - run the live converge scoped to the service (`-e docker_services_scope=<svc>`) and use
   `--diff` on the rendered compose on the target (`ssh vps 'docker compose -f /opt/<svc>/docker-compose.yml config'`).
-  The live run is fast (HD-269 measured ~18s for a single service) and you get the real diff.
+  The live run is fast (~18s for a single service) and you get the real diff.
 
-**Second `--check` breaker class — `command`-read facts feeding a later `uri` task**
-(HD-368, found while wiring the vLLM dashboards): the monitoring role reads the Grafana
+**A `--check` breaker class — `command`-read facts feeding a later `uri` task:** the monitoring role reads the Grafana
 admin password and the container IP with `ansible.builtin.command` (`docker exec grafana …`) and
 feeds both into the following `uri` tasks. `command` never runs in check mode, so those registrations
 are empty → the uri task dies on `Error while resolving value for 'url': No first item, sequence was
-empty`, which aborted **every** `playbooks/vps.yml --tags monitoring --check --diff` at that task —
-*i.e. before* `Copy Grafana dashboards`, so a dashboard-only change could not be previewed at all.
-Fix = gate the whole live-app block with `not ansible_check_mode` (it is read-or-seed against the
+empty`, aborting `playbooks/vps.yml --tags monitoring --check --diff` at that task —
+*i.e. before* `Copy Grafana dashboards`, so a dashboard-only change cannot be previewed at all.
+The whole live-app block therefore carries `not ansible_check_mode` (it is read-or-seed against the
 running app, so there is nothing meaningful to simulate). **Rule of thumb:** any task that consumes
 a `command`/`shell`-derived fact must carry `not ansible_check_mode`, or the role is not `--check`-safe.
 
-**Same class, second producer — a `uri` task feeding a `set_fact` (✅ FIXED 2026-09-22, HD-399):**
-`roles/docker_services/tasks/technitium-seed.yml` logged in with `ansible.builtin.uri` and registered
-`_tech_login`, then `_tech_token: "{{ _tech_login.json.token }}"` resolved it. `uri` does not execute in
-check mode, so the registration was a *skipped* dict and **every** `--check` run of a
-`docker_services`-bearing play on oldsrv died there:
-`Error while resolving value for '_tech_token': object of type 'dict' has no attribute 'json'`
-(first measured 2026-09-19: `home_servers.yml --limit oldsrv.kogler.si --check` → `ok=284 changed=6
-unreachable=0 failed=1` — **the connection was fine**, the failure was this task).
-**Fixed by gating the whole seed block** with `not ansible_check_mode` on its `when` (the block only
+**Same class, a `uri` task feeding a `set_fact`:**
+`roles/docker_services/tasks/technitium-seed.yml` logs in with `ansible.builtin.uri` and registers
+`_tech_login`, then `_tech_token: "{{ _tech_login.json.token }}"` resolves it. `uri` does not execute in
+check mode, so the registration is a *skipped* dict and an unguarded `--check` of a
+`docker_services`-bearing play dies there:
+`Error while resolving value for '_tech_token': object of type 'dict' has no attribute 'json'`.
+The whole seed block is gated with `not ansible_check_mode` on its `when` (it only
 drives the live DNS API — login, zone create, settings set, record add — so there is nothing to simulate;
-⛔ no `default()` / `failed_when: false`, HD-65). Measured A/B on the same command, differing only by the
-gate (`home_servers.yml --limit oldsrv.kogler.si --check --tags docker_services`, run from the laptop =
-off-box): **before** → `ok=59 changed=0 failed=1`, aborting at `Technitium: extract session token`;
-**after** → `ok=64 changed=0 failed=0` with `Technitium: login` reported `skipping`.
+⛔ no `default()` / `failed_when: false`).
 
-**⚠ Same class, third producer (OPEN, found 2026-09-22 while proving HD-399):** with the seed gated, an
-*unfiltered* `--check` of oldsrv now dies one role earlier — `roles/tailscale-node` reads the assigned
-tailnet address with `ansible.builtin.command: tailscale ip -4` (HD-405 assert), and `command` does not
+**⚠ Same class, still OPEN:** with the seed gated, an
+*unfiltered* `--check` of oldsrv dies one role earlier — `roles/tailscale-node` reads the assigned
+tailnet address with `ansible.builtin.command: tailscale ip -4`, and `command` does not
 run under `--check`, so `_ts_ip.stdout` is empty and the very next task fails closed:
-`tailnet_oldsrv_ip=<the SSOT node address> but this node is .` — the assigned address printed EMPTY → `ok=74 changed=2 failed=1`
-(`home_servers.yml --limit oldsrv.kogler.si --check`, 2026-09-22 22:44). Same fix shape, better variant:
+`tailnet_oldsrv_ip=<the SSOT node address> but this node is .` — the assigned address printed EMPTY.
+Same fix shape, better variant:
 that read is harmless under `--check`, so it wants `check_mode: false` on the `command` task (which
 `check_self_converge_guard.py` permits for a guarded, non-`check_safe` role) rather than gating the assert
-away. `roles/tailscale-node/**` was **lane 414's file this wave** ( the old lane brief (deleted 2026-09-28 — surviving rows live in [todo.md](../todo.md)) ),
-so it is recorded here rather than edited — until it lands, the honest oldsrv pre-flight form is
-`--check --tags docker_services` (proved green above) or `--check --tags common,network`, and the form you
-ran must be named in the report. (After HD-413 both are legal **from the control node itself** — `--check`
+away. Until it lands, the honest oldsrv pre-flight form is
+`--check --tags docker_services` (green) or `--check --tags common,network`, and the form you
+ran must be named in the report. Both are legal **from the control node itself** — `--check`
 of a check-safe role stays open — but an *unfiltered* `--check` is refused when the play carries
-`vps-hardening` and the target is the runner; see §Self-converge guardrail.)
+`vps-hardening` and the target is the runner; see §Self-converge guardrail.
 
 ---
 
-## Self-converge guardrail (HD-413) — which box may drive which
+## Self-converge guardrail — which box may drive which
 
 A control node can converge itself, and five roles decide whether the SSH session driving
 them survives being converged:
@@ -497,7 +463,7 @@ them survives being converged:
 | `network` | systemd-networkd / NetworkManager units: the VLAN-99 tagged sub-interface, the static address, the default route | the leg the runner is sitting on is renumbered mid-task |
 | `storage` | fstab, NFS mounts, ZFS mount operations | the filesystem under the workspace / container data dirs moves |
 | `wireguard` | the WG interface (on the VPS: `wg-s2s`) | the tunnel the home hosts are reached through goes down |
-| `tailscale-node` | `tailscaled` restart + `tailscale up` (HD-405: the home hosts are tailnet nodes now) | an admin session can arrive **over that interface** — node-direct remote dev is the point of the row, so the leg being sawn through is also the remote-rescue leg |
+| `tailscale-node` | `tailscaled` restart + `tailscale up` (the home hosts are tailnet nodes) | an admin session can arrive **over that interface** — node-direct remote dev is the point of the row, so the leg being sawn through is also the remote-rescue leg |
 | `vps-hardening` | nftables default-deny + `sshd_config` (`PasswordAuthentication`, `PermitRootLogin`, `MaxAuthTries`) | the classic lockout of the box you are SSH'd into |
 
 `IaC/ansible/playbooks/tasks/self-converge-guard.yml` refuses them, imported into every play
@@ -513,7 +479,7 @@ placement that can refuse before the damage. It REFUSES when all of:
 Controller identity comes from `lookup('pipe', 'uname -n')`, which executes on the
 controller — no target fact can answer "who is driving", and if the question cannot be
 answered the guard **fires** rather than assuming safety. That fail-loud property is the
-point (the HD-399 rule): the guard carries no `default()` and no `failed_when`.
+point: the guard carries no `default()` and no `failed_when`.
 
 **Verdict for a run whose target is the machine running it** (`uname -n` == target):
 
@@ -523,9 +489,9 @@ point (the HD-399 rule): the guard carries no `default()` and no `failed_when`.
 | `… --tags network` / `netd` / `base` / `hosts` | **refused** |
 | `… --tags storage` / `untagged` / `zfs_exporter` | **refused** |
 | `… --tags hardening` / `--check` of it | **refused** — `roles/vps-hardening` carries a `check_mode: false` task, so `--check` really writes `/etc/ssh/sshd_config` |
-| `… --tags tailscale-node` | **refused** — it restarts `tailscaled`; since HD-405 that is an admin and rescue leg |
-| `… --tags cockpit` | **refused** — HD-361 writes `/etc/pam.d/cockpit`, and that file decides who may authenticate to the web console at all: a converge can take away the console it is being driven from (both bad-PAM failure modes, deny-everyone and an `auth` rule after the `session` rules enforcing nothing, look like a green run) |
-| `… --tags network --check`, `--tags storage --check`, `--tags tailscale-node --check`, `--tags cockpit --check` | allowed — those roles have no `check_mode: false` task, which is what *check-safe* means, and it is what makes HD-407's read-only proof possible |
+| `… --tags tailscale-node` | **refused** — it restarts `tailscaled`, an admin and rescue leg |
+| `… --tags cockpit` | **refused** — the role writes `/etc/pam.d/cockpit`, and that file decides who may authenticate to the web console at all: a converge can take away the console it is being driven from (both bad-PAM failure modes, deny-everyone and an `auth` rule after the `session` rules enforcing nothing, look like a green run) |
+| `… --tags network --check`, `--tags storage --check`, `--tags tailscale-node --check`, `--tags cockpit --check` | allowed — those roles have no `check_mode: false` task, which is what *check-safe* means, and it is what makes the runner's read-only proof possible |
 | `… --tags docker_services,<svc>` | allowed, and no lockout-role task runs — this is the everyday case a self-hosted runner exists for |
 
 Any run whose target is **not** the controller is untouched by the guard (proven, not assumed).
@@ -561,18 +527,15 @@ its selection expression: the silent version of the hole.
   `/etc/sudoers`, `/etc/pam.d`, `/root/.ssh` or `authorized_keys`, and `mount`/`filesystem`
   state. An exempt role declares `homelab_lockout_exempt_reason` in its own
   `defaults/main.yml`, and the reason has to be an argument, not a placeholder (under 40
-  characters fails). Measured today: **6 guarded roles, all justified by behaviour rather
+  characters fails). Today: **6 guarded roles, all justified by behaviour rather
   than by someone remembering to list them, and 6 exempt by written argument** (`ai_diag`,
   `cifs`, `common`, `home_assistant`, `nut`, `spark` — read those rows before changing those
   roles; `spark`'s exemption is explicitly conditional on spark never becoming a control node).
 
-  This closes the failure mode that actually happened rather than a theoretical one:
-  `tailscale-node` arrived from another lane mid-session and was lockout-capable the day it
-  landed, and a hand-maintained set catches that only if a human notices. It has since caught
-  the same shape twice more, both times from a role nobody would have guessed: `spark` (now
-  exempt by argument, conditionally) and `cockpit`, which became lockout-capable the moment
-  HD-361 added its `/etc/pam.d/cockpit` write — a role whose name says "web UI" and whose task
-  list decides who can log into it. The checker carries
+  A hand-maintained set catches a new lockout role only if a human notices, so the set is
+  derived instead: a role becomes lockout-capable the day its tasks do something that can cut
+  a session, whatever its name says — `cockpit` is lockout-capable through its
+  `/etc/pam.d/cockpit` write. The checker carries
   its own `self_test()` — it asserts the detector fires on an `sshd` restart, an `nft`
   command, an `sshd_config` write, a `{{ netd_dir }}`-templated netdev write, a mount, and a
   task nested two blocks deep, while staying silent on a debug task, an unrelated template,
@@ -587,10 +550,9 @@ its selection expression: the silent version of the hole.
   are matched by hint against the raw string, not rendered, which over-matches a benign path
   rather than under-matching a netdev unit.
 
-Both are wired into `validate-all.sh`, and both are load-bearing: the first draft of the
-guard passed the static checker completely while allowing an **unfiltered** self-converge of
-the netdev role, because `ansible_run_tags` is a TUPLE and `ansible_run_tags == ['all']`
-is silently always false. Membership (`'all' in ansible_run_tags`) is the only form that
+Both are wired into `validate-all.sh`, and both are load-bearing. `ansible_run_tags` is a TUPLE, so
+`ansible_run_tags == ['all']` is silently always false and an **unfiltered** self-converge slips past a
+guard written that way. Membership (`'all' in ansible_run_tags`) is the only form that
 works. A predicate can only be disproved by running it.
 
 ### The two sanctioned exits
@@ -604,12 +566,13 @@ cd ~/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml --check  
 ```
 
 **In-band (rescue).** For the case where the runner is the box and the box is unreachable
-by other means. Proven on oldsrv 2026-09-20: local console login as **`domen`** (uid 1000,
+by other means: local console login as **`domen`** (uid 1000,
 `/bin/bash`, member of `sudo`), with **`ansible-admin`** holding passwordless sudo — that is
 a working root path on the physical machine. `cockpit.socket` is enabled and listening on
 9090 with `cockpit-bridge` installed, but **a Cockpit session login has not been proven**
-(HD-361: `nas` has no working Cockpit login at all), so do not describe Cockpit as a rescue
-until one has actually been opened. `sshd` on oldsrv sets `PasswordAuthentication no`, so
+(the `cockpit` role writes `/etc/pam.d/cockpit`; `nas` has no working Cockpit login at all), so do not
+describe Cockpit as a rescue until one has actually been opened. `sshd` on oldsrv sets
+`PasswordAuthentication no`, so
 there is no password-over-SSH fallback; the practical third door is **another controller that
 still holds the `ansible-admin` key** — which is why the laptop runner stays installed until
 an oldsrv-run log exists.
@@ -627,121 +590,102 @@ or the static gate fails.
 
 ---
 
-## Runner placement (HD-407) — seeding a second control node
+## Runner placement — seeding a second control node
 
 > **⚠ A runner whose key lives in `~/.ssh/agent` can be unable to reach any target, and the error
-> lies (measured 2026-10-08 on the VPS bootstrap).** This seat's agent holds `github_signing` +
-> `github_auth` and `IdentitiesOnly` is unset, so ssh offers those FIRST and, against the VPS's
-> low `MaxAuthTries`, the server hangs up before the canonical key is ever offered — the client
-> reports `Too many authentication failures`, which reads like "wrong key" and is actually "never
-> got to the right one". The canonical `ansible-admin_ssh` key was in `~/.ssh/id_ed25519` the whole
-> time. The working form is `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 ansible-admin@…`;
+> lies.** A seat whose agent holds `github_signing` + `github_auth` with `IdentitiesOnly` unset makes ssh
+> offer those FIRST and, against the VPS's low `MaxAuthTries`, the server hangs up before the canonical key
+> is ever offered — the client reports `Too many authentication failures`, which reads like "wrong key" and is
+> actually "never got to the right one". The canonical `ansible-admin_ssh` key can be sitting in
+> `~/.ssh/id_ed25519` the whole time. The working form is `ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 ansible-admin@…`;
 > pinning `IdentitiesOnly yes` per `Host` block is the durable fix, and `ssh -G <host> | grep
 > -E 'identityfile|identitiesonly'` is the five-second diagnostic. Check this BEFORE concluding a
 > grant is missing.
 
 The runner is whatever machine executes `scripts/ansible-run.sh`; both scripts and the IaC
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
-oldsrv is five steps, and only the first needs a human. **Executed end to end 2026-09-22/23** —
-and the expectations below are what the run produced, which in three places is not what this
-section predicted when it was written:
+oldsrv is five steps, and only the first needs a human.
 
-**Two clones on oldsrv, one pull rule (owner decision 2026-09-23).** The box runs **two**
+**Two clones on oldsrv, one pull rule.** The box runs **two**
 repositories with two different jobs, and they must not be confused for each other:
 
 | Clone | Account | Job | Update mechanism |
 |---|---|---|---|
-| `/home/ansible-admin/source/homelab` | `ansible-admin` | **the runner** — the tree every converge executes | `scripts/ansible-run.sh` fast-forwards it before each run |
-| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` (HD-409) actually edits | **push by seat** — the repo-scoped `github-homelab-deploy_ssh` deploy key, installed by `scripts/seed-seat-deploy-key.sh` (owner ruled 2026-09-25; the AI half ran 2026-09-28, the clone itself still waits on GitHub knowing the key — HD-449) |
-| `/home/ansible-admin/source/homelab` (runner) | `ansible-admin` | the converge tree | **pull by runner** — read-only HTTPS `github-homelab-deploy_api`, `--ff-only`; ⛔ the write key never goes here, because this is the tree every converge executes |
+| `/home/ansible-admin/source/homelab` | `ansible-admin` | **the runner** — the tree every converge executes | **pull by runner** — `scripts/ansible-run.sh` fast-forwards it before each run (`--ff-only`) over the read-only HTTPS `github-homelab-deploy_api`; ⛔ the write key never goes here, because this is the tree every converge executes |
+| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` actually edits | **push by seat** — the repo-scoped `github-homelab-deploy_ssh` deploy key, installed by `scripts/seed-seat-deploy-key.sh` |
 
-**"Push by seat, pull by runner" is the decision (HD-449, owner 2026-09-25)**, not an accident of two clones: the runner's least-privilege read-only path and the seat's write path are different credentials on purpose. Acceptance for the seat's write path is a `git push --dry-run`, never the deploy key's existence — GitHub deploy keys are read-only unless write was granted, and the private half has to actually be in the 1Password item (`GitHub-homelab-deploy_ssh`; **the item's real name has a capital `G`**, which is why a search for `github-homelab…` finds the API token and not the key).
+**"Push by seat, pull by runner" is the decision**, not an accident of two clones: the runner's least-privilege read-only path and the seat's write path are different credentials on purpose. Acceptance for the seat's write path is a `git push --dry-run`, never the deploy key's existence — GitHub deploy keys are read-only unless write was granted, and the private half has to actually be in the 1Password item (`GitHub-homelab-deploy_ssh`; **the item's real name has a capital `G`**, which is why a search for `github-homelab…` finds the API token and not the key).
 
-**Why a `--dry-run` is a real test (measured 2026-09-28, the same box, both directions).** `--dry-run` transfers nothing but it **does** request `git-receive-pack`, and GitHub authorizes that request before any negotiation: the runner clone's **read-only** HTTPS deploy token, asked the identical `git push --dry-run origin HEAD:refs/heads/<throwaway>`, dies with `403 remote: Permission to domenkogler/homelab.git denied`. So rc 0 from the seat's dry-run means the write grant is real, and a key that merely *exists* proves nothing.
+**Why a `--dry-run` is a real test.** `--dry-run` transfers nothing but it **does** request `git-receive-pack`, and GitHub authorizes that request before any negotiation: the runner clone's **read-only** HTTPS deploy token, asked the identical `git push --dry-run origin HEAD:refs/heads/<throwaway>`, dies with `403 remote: Permission to domenkogler/homelab.git denied`. So rc 0 from the seat's dry-run means the write grant is real, and a key that merely *exists* proves nothing.
 
-**What the seat-side credential run found (2026-09-28, `scripts/seed-seat-deploy-key.sh`, all of it re-runnable and `--check`-safe):**
+**What the seat's credential path is (`scripts/seed-seat-deploy-key.sh`, all of it re-runnable and `--check`-safe):**
 
 - The vault pair is self-consistent: `op read` derives a public half whose fingerprint equals both the item's `fingerprint` field and its `public_key` field (`SHA256:dGe193grwS3d74i7I…`). **`op item get --fields <SSHKEY field>` is not usable for this** — it returns a pretty-wrapped PEM that `ssh-keygen` refuses with `error in libcrypto`, so a naive install produces a key file that looks right and loads never. `op read op://…/<field>` returns the real value.
 - The item stores the private half as **PKCS#8** (the generic PEM header, not OpenSSH's own key format), and OpenSSH loads it happily (`identity file … type 3`, key offered) — no re-encoding needed, so a rejected key is a **GitHub-side** fact, not a format fact.
 - `github.com`'s host key is **pinned, not TOFU'd**: taken from `api.github.com/meta` and asserted against the fingerprints GitHub publishes, then cross-checked against what the wire actually presents (`ssh-keyscan` — and skip its `# …` probe lines, a `grep -F` on their empty blob matches every pin and makes the check unfailable).
-- **The blocker WAS GitHub-side, and it closed the same day.** Measured at 08:41, unregistered: `ssh -T git@github.com` answered `Permission denied (publickey)` while `ssh -vv` showed the key *offered* — offer-then-denied means the public half is not in the repo's key list, which no key file can fix (the vault item even carries the `settings/keys/new` URL as its own field). The owner registered it **with write access**, and the 10:3x re-run answered `Hi domenkogler/homelab! You've successfully authenticated` — that repo-named greeting is what a **deploy** key looks like, distinct from an identity key — and the acceptance passed: `git push --dry-run` **rc 0** (`* [new branch] HEAD -> hd449-write-probe`, nothing transferred). `git fetch` works and the tree is fast-forwarded to `origin/main`.
-- **The seat tree exists and syncs**: `/home/domen/source/homelab`, owned by `domen`, `origin = git@github.com:domenkogler/homelab.git` for BOTH fetch and push — no `pushurl` split, no second git path — and nothing planted: no `credential.helper`, no `~/.git-credentials` under `domen`. Before the key was registered it failed CLOSED at the key rather than silently falling back to anonymous HTTPS — the property to preserve if this is ever re-plumbed. It was materialised by an anonymous HTTPS read (allowed: the remote is public) and `origin` was immediately pointed at the SSH remote, so no one else's credential is in its config.
-- **⚠ The live remote is PUBLIC** — measured 2026-09-28 through `api.github.com` (`private: false`, `visibility: public`), and the repo's own text never said so. Three consequences a session must carry: (1) the runner's `github-homelab-deploy_api` token is about **scope + a non-interactive identity**, not about keeping code secret — a read needs no credential at all; (2) it is why the seat tree could be materialised before its write key worked; (3) it makes the no-literal-secrets rule (CONVENTIONS §6 + `check_secrets.py`) the only thing between a converge `--diff` / a pasted log and a **public** disclosure — the "never `--diff`" rule is not hygiene, it is disclosure control, and the tree already publishes the whole topology (hosts, IPs, services, vault item names).
+- **Offer-then-denied is a GitHub-side fact.** `ssh -T git@github.com` answering `Permission denied (publickey)`
+  while `ssh -vv` shows the key *offered* means the public half is not in the repo's key list, which no key
+  file can fix (the vault item even carries the `settings/keys/new` URL as its own field). A registered
+  **deploy** key answers the repo-named greeting `Hi domenkogler/homelab! You've successfully authenticated`,
+  distinct from an identity key; `git fetch` then works and the tree fast-forwards to `origin/main`.
+- **The seat tree**: `/home/domen/source/homelab`, owned by `domen`, `origin = git@github.com:domenkogler/homelab.git` for BOTH fetch and push — no `pushurl` split, no second git path — and nothing planted: no `credential.helper`, no `~/.git-credentials` under `domen`. It must fail CLOSED at the key rather than silently falling back to anonymous HTTPS — the property to preserve if this is ever re-plumbed. An anonymous HTTPS read may materialise the tree (the remote is public) as long as `origin` is immediately pointed at the SSH remote, so no one else's credential is in its config.
+- **⚠ The live remote is PUBLIC** — `api.github.com` reports `private: false`, `visibility: public`. Three consequences a session must carry: (1) the runner's `github-homelab-deploy_api` token is about **scope + a non-interactive identity**, not about keeping code secret — a read needs no credential at all; (2) a seat tree can therefore be materialised before its write key works; (3) it makes the no-literal-secrets rule (CONVENTIONS §6 + `check_secrets.py`) the only thing between a converge `--diff` / a pasted log and a **public** disclosure — the "never `--diff`" rule is not hygiene, it is disclosure control, and the tree already publishes the whole topology (hosts, IPs, services, vault item names).
 - **A script fed to `bash -s` over ssh must pass `-n` to every bare `ssh` it runs.** ssh's stdin IS the
   rest of the script, so a bare `ssh -T host` swallows everything after it and the run silently ends at the
-  last executed line carrying THAT status — which reads as the thing under test failing. Measured both ways
-  on this one script: unregistered key → `exit 3`, correct only because that branch exits before any later
-  ssh; registered key → `rc 1` with the acceptance never executed. The fix is `-n` + `</dev/null`, not
-  reordering, and no amount of reading the exit code alone would have told you which of the two you had.
+  last executed line carrying THAT status — which reads as the thing under test failing. The fix is `-n` +
+  `</dev/null`, not reordering, and the exit code alone cannot tell you which of the two you had.
 - **⛔ What this does NOT license:** copying the runner's 0600 read-only credential store into `domen` to "make the step pass", and putting the write key under `ansible-admin`. The first forks the runner's least-privilege path onto the seat, the second hands the tree every converge executes a write path.
 
-`scripts/ansible-run.sh` used to declare "NOTHING HERE PULLS", on the sound principle that a
-runner which updates itself mid-run is a runner whose behaviour you did not choose. Measured
-against that: the runner clone sat on `ff4525a5` (2026-09-23) while `main` had moved to
-`9496499` the same afternoon, and no run anywhere reported the gap — the silence was the
-failure mode, not the update. So the pull is now the default and the escape hatch is
-`--no-pull`, with three things it will never do: **merge** (`--ff-only` or die), **touch a
-dirty tree** (loud refusal, never a stash — see the 2026-08-23 worktree incident in
-[CONVENTIONS.md](../CONVENTIONS.md) §6), or **invent an upstream** (a session worktree with no
-upstream is reported and left alone, because converging from one is a legitimate laptop act).
+`scripts/ansible-run.sh` fast-forwards the runner clone before every converge (`--no-pull` converges the
+working tree as-is), on the principle that a runner which updates itself mid-run is a runner whose behaviour
+nobody chose — so the update happens explicitly, before the run, never inside it. A silent gap between the
+tree a converge executes and the tip of `main` is the failure mode — not the update. Three things the pull
+will never do: **merge** (`--ff-only` or die), **touch a
+dirty tree** (loud refusal, never a stash — see [CONVENTIONS.md](../CONVENTIONS.md) §6), or **invent an
+upstream** (a session worktree with no upstream is reported and left alone, because converging from one is a
+legitimate laptop act).
 Every run prints the commit it is about to converge; that line is the thing to read first when
 a converge does not do what the tip of `main` says it should.
 
-⚠ **And when that pull dies, the converge never started — which is invisible in a detached log
-until 2026-10-09.** Two `nohup` converges launched from the laptop seat both ended on log line 3
-with `fatal: Cannot fast-forward to multiple branches.`, produced **no `PLAY RECAP`**, and left both
-target hosts untouched; the poll said "still running" for 15 minutes because the only thing that
-would have distinguished *never started* from *still going* was a RECAP that never appeared. **The
-git-side cause was never established.** This section first blamed a branch carrying more than one merge
-ref — a shape that does produce this exact fatal in a fixture — but the box itself printed **one** ref
-(`git config --get-all branch.main.merge` → `refs/heads/main`) and the identical command succeeded three
-hours later with no config change, so the theory is refuted and the cause is unidentified. What WAS a
-defect is the launcher: a tool that prints one line and exits cannot be told apart from a job that is
-merely slow. `ansible-run.sh` now catches it — `FAIL: the runner self-update died, so ansible-playbook
-NEVER RAN`, with the branch, its upstream and the merge refs read **at the moment of failure**, plus the
-two exits (`git pull --ff-only origin <branch>`, then re-issue with `--no-pull`). That last clause is the
-point of the whole change: the next occurrence reports its own diagnosis instead of leaving a stranger to
-guess. Proven three ways on throwaway clones: two distinct merge refs → reproduces the exact fatal and the
-launcher refuses with rc=1; an unreachable remote (any other pull failure) → the same loud refusal; healthy
-clone → quiet, rc=0. **Read a converge log for the presence of a RECAP, never for its absence of news.**
+⚠ **When that pull dies, the converge never started — and a detached log hides it.** A run can end on log
+line 3 with `fatal: Cannot fast-forward to multiple branches.`, produce **no `PLAY RECAP`**, and leave every
+target untouched, while the poll keeps answering "still running" — the only thing that distinguishes *never
+started* from *still going* is a RECAP that either appears or does not. A tool that prints one line and exits
+cannot be told apart from a job that is merely slow, so `ansible-run.sh` catches it —
+`FAIL: the runner self-update died, so ansible-playbook NEVER RAN`, with the branch, its upstream and the
+merge refs read **at the moment of failure**, plus the two exits (`git pull --ff-only origin <branch>`, then
+re-issue with `--no-pull`). Proven on throwaway clones: two distinct merge refs → the exact fatal and a
+refusal with rc=1; any other pull failure → the same loud refusal; a healthy clone → quiet, rc=0.
+**Read a converge log for the presence of a RECAP, never for its absence of news.**
 
-**The seat clone did not exist until this decision was written down.** Measured 2026-09-23:
-no `.git` anywhere under `/home/domen`, and `~/.pi/agent/sessions` empty — so the cockpit was
-a live, token-gated listener with no repository and no sessions to drive. Creating it is
-Phase 4c step 8. It exists since 2026-09-28 and both directions work over the seat's own deploy
-key; it was never cloned through the runner's read-only HTTPS store, which is the thing the
-decision forbids.
+The seat clone exists and both git directions work over its own deploy key; it was never cloned through the
+runner's read-only HTTPS store, which is the thing the decision forbids.
 
-**The seat can author since 2026-10-06 (HD-495) — and here is what was actually in the way.**
-Measured 2026-09-28: `domen` had no global git config at all (no `user.name`/`user.email`, no
-`gpg.format=ssh`, no `user.signingkey`), and the blocker named at the time — the signing key sits in
-the `Private` vault, which a read-scope service account cannot read, so it needs a human `op signin`
-that a headless seat cannot answer — was correct then and is **obsolete now**: both keys live in
-`Homelab-ansible`. What the seat runs today (measured on the box, not inferred):
+**The seat can author.** Both git keys live in `Homelab-ansible`, so the read-scope service account a
+headless seat already carries can pull them — no human `op signin` in the loop, and no vault a
+read-scope account cannot reach. What the seat runs:
 
 | Leg | State on the seat (`domen@oldsrv`) |
 |---|---|
-| Vault read | `~/.config/op/homelab-sa-token` (0600), the `op_api` read-scoped value — `sha256[:12] 6a1342f44e65`, `len 850`, matching the vault item and the runner (re-seated 2026-10-09 in the leak-response round). ⚠ The row claimed `adc2aada8f6e` "matching the vault item and the runner" from 2026-10-07 to 2026-10-09 while the file actually held the **`op-write_api`** value — a mis-seed, and the reason scope here is now proven by the `op whoami` **Integration ID** rather than by `op vault list`, which cannot tell the two scopes apart: [1password.md](1password.md) §1 |
+| Vault read | `~/.config/op/homelab-sa-token` (0600), the `op_api` read-scoped value — `sha256[:12] 6a1342f44e65`, `len 850`, matching the vault item and the runner. ⚠ Scope is proven by the `op whoami` **Integration ID**, not by `op vault list`, which cannot tell the read and write scopes apart: [1password.md](1password.md) §1 |
 | Keys | `~/.ssh/github_signing` + `github_auth` pulled with `op read`, fingerprints equal to the items' `fingerprint` fields, **passphrase-free** (proved with `ssh-keygen -y -P '' -f`, which is also what selects the file-path signing form) |
-| Attribution | a **global** `~/.gitconfig` (worktrees share the clone's config; other repos need global) with `gpg.format=ssh`, `commit.gpgsign=**false**` + `[tag] gpgsign=false` — **signing is retired (HD-1116, 2026-10-08)**; `user.signingkey` = the key file and `gpg.ssh.allowedSignersFile` stay in place so the signed history still verifies. This table said `commit.gpgsign=true` until the line was swept with the ruling — left standing, it restores a HANG on a rebuild (`true` with a key GitHub deleted makes git block on an agent, in the shells nobody watches). The seat-level file map is in [deployment-secrets.md](deployment-secrets.md) §6: a Debian seat has NO `~/.gitconfig-github` / `~/.gitconfig-nightly`, only `~/.gitconfig` |
-| Proof | **today (unsigned by policy):** a commit under a `github.com` remote returns in milliseconds with `git log -1 --format='%G?'` → `N`, no prompt and no agent — measured 2026-10-09 on this seat in an ordinary shell AND in a bare `env -i` shell (the cron/converge class that used to hang), 4 ms each. **The historical form still holds for pre-2026-10-08 commits:** `git verify-commit HEAD` → `Good "git" signature for domen@kogler.si with ED25519 key SHA256:I3kz4JY7…`, the decoded pubkey inside the `gpgsig` header being the same key the laptop used, so history stays continuous; `%G?` → `G` there **with `SSH_AUTH_SOCK` unset**, which was the pi/cron case |
+| Attribution | a **global** `~/.gitconfig` (worktrees share the clone's config; other repos need global) with `gpg.format=ssh`, `commit.gpgsign=**false**` + `[tag] gpgsign=false` — **signing is retired**; `user.signingkey` = the key file and `gpg.ssh.allowedSignersFile` stay in place so the signed history still verifies. ⛔ `commit.gpgsign=true` must not come back: with a key GitHub no longer holds, git then blocks on an agent in the shells nobody watches. The seat-level file map is in [deployment-secrets.md](deployment-secrets.md) §6: a Debian seat has NO `~/.gitconfig-github` / `~/.gitconfig-nightly`, only `~/.gitconfig` |
+| Proof | **unsigned by policy:** a commit under a `github.com` remote returns in milliseconds with `git log -1 --format='%G?'` → `N`, no prompt and no agent — in an ordinary shell AND in a bare `env -i` shell (the cron/converge class), 4 ms each. **For pre-2026-10-08 commits the signed form still holds:** `git verify-commit HEAD` → `Good "git" signature for domen@kogler.si with ED25519 key SHA256:I3kz4JY7…`, the decoded pubkey inside the `gpgsig` header being the same key the laptop used, so history stays continuous; `%G?` → `G` there **with `SSH_AUTH_SOCK` unset**, the pi/cron case |
 
 ⚠ **Do not copy the laptop's `key::<pub>` config onto a seat.** That form asks the ssh-agent and dies
-in every shell without `SSH_AUTH_SOCK` — measured: `error: Couldn't get agent socket?` then
-`fatal: failed to write commit object`. The file path needs no agent, and the HD-300 `~/.bashrc`
+in every shell without `SSH_AUTH_SOCK`: `error: Couldn't get agent socket?` then
+`fatal: failed to write commit object`. The file path needs no agent, and the `~/.bashrc`
 autoload block covers the agent case for interactive shells (`/run/user/$UID/openssh_agent`).
-`git-bootstrap.sh --ssh-auth` now makes that choice itself and defaults `OP_VAULT` to
+`git-bootstrap.sh --ssh-auth` makes that choice itself and defaults `OP_VAULT` to
 `Homelab-ansible`, so the laptop path and the seat path are the same command.
 
 **⚠ And none of the seat's git plumbing is role-owned.** `/home/domen/.ssh/{config,known_hosts,github-homelab-deploy_ed25519}`
-and the clone are ad-hoc state on a converged host — the same shape HD-445 complains about for the cockpit
-units — so a rebuild of oldsrv loses the seat's credential silently and only re-running
-`scripts/seed-seat-deploy-key.sh` restores it. Nothing in the converge proves it is there.
-HD-495 widened the same hole rather than closing it: `~/.gitconfig`, `~/.ssh/{github_signing,github_auth,allowed_signers}`
-and the three `~/.bashrc` Phase-0 blocks (token source, `SSH_AUTH_SOCK`, HD-300 autoload) are now also
-hand-planted host state, and a rebuild silently loses seat **signing**, not just push. The fix is
-IaC, not a runbook line: everything there is derivable from `Homelab-ansible`, so a converge can render
-it and assert it.
+and the clone are ad-hoc state on a converged host, so a rebuild of oldsrv loses the seat's credential
+silently and only re-running `scripts/seed-seat-deploy-key.sh` restores it. Nothing in the converge proves it
+is there. The same hole covers `~/.gitconfig`, `~/.ssh/{github_signing,github_auth,allowed_signers}`
+and the three `~/.bashrc` Phase-0 blocks (token source, `SSH_AUTH_SOCK`, agent autoload): a
+rebuild silently loses seat **signing**, not just push. The fix is IaC, not a runbook line: everything there
+is derivable from `Homelab-ansible`, so a converge can render it and assert it.
 
 **The order is not cosmetic.** `--token-stdin` takes the token on stdin, and stdin can only
 carry one thing — so the script must already be ON oldsrv, which means the repo lands first
@@ -773,17 +717,12 @@ op read "op://Homelab-ansible/op_api/credential" | \
 #     effect of setup. --no-sudoers: ansible-admin already holds its grant; the script
 #     verifies sudo instead and fails loud if it is absent.
 
-# 2 — the canonical runner key. **THE ROW'S PREMISE WAS WRONG.** On 2026-09-22 this refused twice
-#     with "no `oldsrv-rsync` key to restore": the script still treats the key HD-416 RETIRED on
-#     2026-09-21 as the thing to restore, and there is nothing left to restore. The refusal is real;
-#     the old reason recorded here ("it refuses to overwrite the rsync key") is not what fired.
-#     `--force-throwaway` is the path for a box whose id_ed25519 is not the vault key, and it keeps
-#     what it displaced as id_ed25519.pre-restore-<stamp> — which is what happened here. That backup
-#     was retired 2026-09-28 (HD-449(b)): the displaced pair was `oldsrv-rsync` (`U+6vLRV…`), already
-#     commented out of nas on 2026-09-21, and a fingerprint sweep of every live authorized_keys on all
-#     five managed hosts found 0 acceptances before both halves were shredded. The one remaining copy
-#     of that blob fleet-wide is a `#`-commented line + the pre-retire archive on nas — inert, and
-#     NOT proof for the next sweep (a commented line is not a grant):
+# 2 — the canonical runner key: the vault `ansible-admin_ssh` pair, expected fingerprint `SHA256:1uKzmwf…`.
+#     An existing key that is not the vault key is a REFUSAL that prints both fingerprints — name the
+#     displaced key before anything moves. `--force-throwaway` is the path for a box whose id_ed25519 is
+#     bootstrap-runner.sh's throwaway, and it keeps what it displaced as id_ed25519.pre-restore-<stamp>.
+#     A `#`-commented line in an authorized_keys is NOT a grant — never count one as evidence in a
+#     fingerprint sweep:
 ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh --force-throwaway'
 #     Then run it again WITHOUT the flag: it must no-op and print the canonical fingerprint, and
 #     `python3 scripts/check_ssh_grants.py` must show the box presenting `1uKzmwf…`.
@@ -794,7 +733,7 @@ ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh --force-th
 ssh oldsrv 'cd ~/source/homelab && bash scripts/seed-runner-ssh.sh'
 #     It pins `AddressFamily inet`, and that line is load-bearing — see the IPv6 trap below.
 
-# 4 — prove it, from oldsrv, inside what HD-413 permits. One --check per inventory group:
+# 4 — prove it, from oldsrv, inside what the self-converge guardrail permits. One --check per inventory group:
 bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check --tags common
 bash scripts/ansible-run.sh playbooks/vps.yml                               --check --tags common
 bash scripts/ansible-run.sh playbooks/storage.yml     --limit nas.kogler.si  --check --tags common
@@ -802,67 +741,66 @@ bash scripts/ansible-run.sh playbooks/raspberry_pi.yml --limit pi.kogler.si  --c
 bash scripts/ansible-run.sh playbooks/spark.yml       --limit spark.kogler.si --check --tags common
 bash scripts/ansible-run.sh playbooks/dns.yml                               --check
 #     `--tags common` because the network/storage legs against the target itself are refused by
-#     design (HD-413) and belong to the off-box path; `common` is unguarded and check-safe.
-#     MEASURED from the seeded runner 2026-09-23 — oldsrv ok=20 · vps ok=18 · nas ok=20 · pi ok=15
-#     · spark ok=10, every one unreachable=0 failed=0, and dns.yml ok=2 failed=0. Full logs kept on
-#     the box under /tmp/hd407-proofs-* and /tmp/dns-oldsrv-*; quote those, not this line.
-#     `--tags docker_services` on the self host is RED from the runner (ok=59 failed=1) and that is
-#     the correct reading, not a broken runner: the clone sits on `main`, which does not yet carry
-#     the HD-399 seed gate, and the same command is green in a tree that does. A pull-only runner
-#     converges exactly what is on main and never more — which is the point of step 0's push test.
+#     design and belong to the off-box path; `common` is unguarded and check-safe. Every one of these
+#     runs must end `unreachable=0 failed=0`.
+#     A pull-only runner converges exactly what is on main and never more — which is the point of step
+#     0's push test, and the reason a scoped run can be RED from the runner while the same command is
+#     green in a tree that carries the fix.
 ```
 
-**The IPv6 trap, measured — it will bite the next dual-stack runner too.** On oldsrv
+**The IPv6 trap — it will bite the next dual-stack runner too.** On oldsrv
 `vps.kogler.si` resolves **AAAA first** and the box has real IPv6 egress, while the laptop has no
 IPv6 at all, so the laptop cannot reproduce this class of failure even when it is the one converging.
-TCP/22 to the VPS over IPv6 times out (`ssh -4 vps` ok, `ssh -6 vps` timeout, both deterministic), so
+TCP/22 to the VPS over IPv6 times out (`ssh -4 vps` ok, `ssh -6 vps` timeout), so
 every `-o ProxyJump=vps` leg dies as `Connection timed out during banner exchange / Connection to
 UNKNOWN port 65535 timed out` — **including the leg to oldsrv's own inventory address**, which reads
-like a dead control node and is not. Direct LAN `ssh ansible-admin@10.10.1.10` from oldsrv works and
-the same `-J vps` from the laptop works, which is what localises it to the jump's address family.
-The `AddressFamily inet` pin in step 3 is the narrow fix; the defect itself is not this file — the
-VPS answers on `[::]:22`, its `inet filter input` accepts `tcp dport 22` for both families and its
-netcup ruleset accepts everything, but `roles/vps-hardening/templates/nftables.conf.j2:41` allows
-only `ip protocol icmp`, which is **IPv4-only**, so under `policy drop` the box discards all ICMPv6:
-NDP to `fe80::1` never resolves and IPv6 is dead in both directions (`ping6 fe80::1%eth0` → 100 %
-loss, `curl -6` → FAIL). The fix is one `meta l4proto ipv6-icmp` accept covering NDP + PMTUD
-(`neighbour-solicitation`, `neighbour-advertisement`, `router-solicitation`, `router-advertisement`,
-`destination-unreachable`, `packet-too-big`, echo) — **and until it lands, any path that depends on
-the VPS having IPv6 is dead**, which includes the closed lane 414's IPv6-scoped direct transport (now HD-448's territory) and the VPS
-`/64` just added to the Cloudflare allowlist.
+like a dead control node and is not. Direct LAN `ssh ansible-admin@10.10.1.10` from oldsrv works while
+the same `-J vps` leg times out, which is what localises the failure to the jump's address family.
+The `AddressFamily inet` pin written by step 3 is the narrow fix. The VPS-side cause is that
+`roles/vps-hardening/templates/nftables.conf.j2` accepts `ip protocol icmp`, which is the **IPv4**
+upper-proto field and matches nothing for v6: under `policy drop` the chain discards the provider
+router's neighbour- and router-advertisement replies, so NDP to `fe80::1` never resolves and IPv6 is
+dead in both directions (`ping6 fe80::1%eth0` → 100 % loss, `curl -6` → FAIL) even though the VPS
+answers on `[::]:22`, its `inet filter input` accepts `tcp dport 22` for both families and the upstream
+ruleset accepts everything. The template's `meta l4proto icmpv6` accepts covering NDP + PMTUD
+(`nd-neighbor-solicit`, `nd-neighbor-advert`, `nd-router-solicit`, `nd-router-advert` scoped to link-local
+sources, plus the unscoped `destination-unreachable` / `packet-too-big` errors and `echo-request`) are what
+keep IPv6 alive: **any path that depends on the VPS having IPv6 depends on those rules**, the VPS `/64` on
+the Cloudflare allowlist included.
 
 **`dns.yml` and the Cloudflare filter: the filter is on the egress ADDRESS, not on "being home."**
 `roles/cloudflare_dns/tasks/main.yml:10` and `dns.yml`'s header both say "Egress IP must be
-193.77.156.222". The laptop and oldsrv NAT through that IPv4, yet the first runner run failed with
-`403 / code 9109 — Cannot use the access token from location: 2a00:ee2:2700:8f00:…` — the box's
-**IPv6** address — followed by 429 `10502 Too many authentication failures` once the auth-failure
-throttle engaged. Proven by forcing the family with the same token: IPv4 → `HTTP 200`, IPv6 →
-`403 / 9109`. Fixed on the allowlist side rather than by pinning the runner: the filter is now
-`193.77.156.222, 159.195.111.66, 2a0a:4cc0:60:fcc::/64, 2a00:ee2:2700:8f00::/64` (owner,
-2026-09-23) and `dns.yml --check` from oldsrv is `ok=2 failed=0`. Two things to remember: the WAN
+193.77.156.222". The laptop and oldsrv NAT through that IPv4, but a box with IPv6 egress can present its
+**IPv6** address and fail with
+`403 / code 9109 — Cannot use the access token from location: 2a00:ee2:2700:8f00:…`,
+followed by 429 `10502 Too many authentication failures` once the auth-failure
+throttle engages. Force the family with the same token to tell the two apart: IPv4 → `HTTP 200`, IPv6 →
+`403 / 9109`. The fix is on the allowlist side rather than pinning the runner: the filter is
+`193.77.156.222, 159.195.111.66, 2a0a:4cc0:60:fcc::/64, 2a00:ee2:2700:8f00::/64` and `dns.yml --check`
+from oldsrv is green. Two things to remember: the WAN
 IPv4 **and** the home `/64` are both ISP-dynamic, so a renumber re-breaks this with the same
-signature (9109 is the fire, the 429 that follows is the smoke); and the VPS `/64` entry is inert
-until the ICMPv6 fix above lands.
+signature (9109 is the fire, the 429 that follows is the smoke); and the VPS `/64` entry works only while
+the VPS actually has working IPv6 (the ICMPv6 rules above).
 
 Until step 4 has produced a log on a given box, `docs/1password.md` keeps naming the laptop as the
 interactive control node and the laptop runner stays installed — the wording moves with the
 proof, and the laptop is also the rescue door (it is dual-stack-blind, which cuts both ways).
 
-**Commit authorship does not move with the runner — as a policy, not a capability.** CONVENTIONS
-§6/HD-265 signs every commit with `github_signing`; since HD-495 that item sits in `Homelab-ansible`,
-so a read-scope service account on ANY Debian host can pull it and a headless seat can sign with no
-agent in the loop. What still keeps authorship off a converge runner is the reason the rule was
-written — a tree that every converge executes must not also be a commit surface (HD-449), not a
+**Commit authorship does not move with the runner — as a policy, not a capability.** Commit signing
+is retired (CONVENTIONS §6), and the `github_signing` item sits in `Homelab-ansible`, so a read-scope
+service account on ANY Debian host can pull it and a headless seat could sign with no agent in the loop.
+What still keeps authorship off a converge runner is the reason the rule was
+written — a tree that every converge executes must not also be a commit surface, not a
 missing credential.
 
 ### Which account, and what keeps the clones on one commit
 
-Measured on oldsrv 2026-09-20, and the split the numbers argue for:
+The split between the two accounts, and what argues for it:
 
 | Account | What it is | Vault token | `ansible-admin_ssh` private key | Converges |
 |---|---|---|---|---|
 | `ansible-admin` (uid 1001, `/bin/bash`, NOPASSWD sudo, in `docker`) | the **runner** — clone, `~/ansible-venv`, `~/.config/op/homelab-sa-token`, `~/.ssh/id_ed25519` all live here | yes | yes | **yes** |
-| `domen` (uid 1000, `sudo` = `(ALL:ALL) ALL`, i.e. passworded) | the human seat: login, pi.dev / the HD-409 cockpit, authoring clone | no | no | no |
+| `domen` (uid 1000, `sudo` = `(ALL:ALL) ALL`, i.e. passworded) | the human seat: login, pi.dev / the cockpit, authoring clone | no | no | no |
 
 `domen` holds neither secret for two reasons, and neither is discipline:
 
@@ -879,22 +817,24 @@ Measured on oldsrv 2026-09-20, and the split the numbers argue for:
 Said plainly, because the opposite is sometimes claimed: **nothing mechanical stops a
 `domen` converge.** `site.yml` and the role guards assert on `ansible_user` — the *remote*
 user, which inventory pins to `ansible-admin` — not on who typed the command. This line is
-hygiene plus review, not a lock; the mechanical locks in this repo are HD-413 (refuse
-self-targeted lockout legs), the `ai-debug` lockout, and the signing gate.
+hygiene plus review, not a lock; the mechanical locks in this repo are the self-converge guardrail
+(refusing self-targeted lockout legs) and the `ai-debug` lockout.
 
-**And nothing syncs anything.** `scripts/ansible-run.sh` runs the commit sitting in the
-working tree and never contacts a remote — deliberately: a runner that updates itself
-mid-run is a runner whose behaviour nobody chose. So on oldsrv:
+**A converge runs exactly the commit in the runner's working tree.** `scripts/ansible-run.sh`
+fast-forwards that clone first (§Runner placement) — a runner that updates itself mid-run is a
+runner whose behaviour nobody chose, which is why the default is an explicit, pre-run `--ff-only` and not a
+silent merge. Syncing by hand, when you step outside the runner:
 
 ```bash
 git -C /home/ansible-admin/source/homelab pull --ff-only     # explicit, before the converge
 ```
 
-The `domen` clone is the authoring station (it is the one that can sign); the `ansible-admin`
-clone is execution. If the HD-409 cockpit is ever allowed to trigger a converge, moving the
+The `domen` clone is the authoring station (it is the one holding the seat's push key); the `ansible-admin`
+clone is execution. If the cockpit is ever allowed to trigger a converge, moving the
 runner clone's `HEAD` must not be a side effect of it — same hazard, new driver.
 
-**What a seeded runner does not yet own:** the cockpit/harness placement is HD-409, and the
+**What a seeded runner does not yet own:** the cockpit/harness seat is converged by `roles/seat`
+(`--tags seat`, gated by `seat_enable` in `playbooks/home_servers.yml`), and the
 Kopia seam over the workspace + `~/.pi` + harness config (which carries a bearer key and is
 never in git) is its own prereq — neither is implied by a working runner.
 
@@ -914,7 +854,7 @@ IaC/ansible/
 │   ├── storage.yml                  # hosts: storage (nas) → common→ai_diag→network→storage→nut(master)→cockpit
 │   ├── vps.yml                      # hosts: vps → common→docker→vps-hardening→network→cifs→[wireguard]→docker_services→monitoring
 │   ├── home_servers.yml             # hosts: home_servers (oldsrv) → common→ai_diag→docker→network→storage→nut(client)→cockpit→[amd_rocm,desktop,office,proxmox]→docker_services→home_assistant(standby)
-│   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→ai_diag→network→nut(client)→docker→home_assistant(render-first, HD-185)→docker_services→monitoring
+│   ├── raspberry_pi.yml             # hosts: raspberry_pi → common→ai_diag→network→nut(client)→docker→home_assistant(render-first)→docker_services→monitoring
 │   ├── dns.yml                      # Cloudflare public-record runs (roles/cloudflare_dns)
 │   ├── render-docs.yml              # renders generated docs from group_vars (Ansible path)
 │   ├── render-routeros.yml          # renders RouterOS bootstrap .rsc (secrets) → gitignored IaC/router/rendered/
@@ -922,10 +862,10 @@ IaC/ansible/
 ├── group_vars/
 │   ├── all/                          # directory fragments — Ansible loads these, a sibling all.yml would be SHADOWED
 │   │   ├── main.yml                  # Timezone, locale, NTP, domain names; infra vars (network/IP/WG/livebox)
-│   │   └── versions.yml              # Docker image version pins (ALL hosts, HD-156) — one-file Renovate review
+│   │   └── versions.yml              # Docker image version pins (ALL hosts) — one-file Renovate review
 │   ├── network.yml                   # router+switch shared connectivity/auth (ansible_host derived from SSOT)
 │   ├── router.yml                   # WG peers, DNS forwarding; VLAN map = derived view of group_vars/all/main.yml network_vlans
-│   ├── switch.yml                   # switch ports/VLANs (switch_vlans derives from network_vlans, HD-200)
+│   ├── switch.yml                   # switch ports/VLANs (switch_vlans derives from network_vlans)
 │   ├── vps.yml                      # docker_services list (VPS edge tier)
 │   ├── home_servers.yml             # homelab_mode, docker_services list (oldsrv core), GPU config
 │   ├── raspberry_pi.yml             # HA install method/version pin, Pi docker_services (technitium-secondary etc.)
@@ -942,15 +882,14 @@ IaC/ansible/
 │   ├── network/tasks/main.yml       # VLAN interfaces, /etc/hosts
 │   ├── storage/                     # ZFS pools/datasets/sanoid/syncoid/NFS/Samba/push timers (nas + oldsrv)
 │   ├── nut/                         # UPS: master (nas) + clients (oldsrv, pi) — host-level, no Docker
-│   ├── cockpit/                     # management UI + file-provider Traefik routes (HD-188)
+│   ├── cockpit/                     # management UI + file-provider Traefik routes
 │   ├── cifs/                        # VPS live-Box CIFS mount
-│   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router) — netdev + `wg-ensure-s2s-peer` oneshot (HD-306: networkd never applies the peer; a peer-only `wg setconf` re-attaches it after networkd init)
+│   ├── wireguard/                   # WG S2S VPS side (router peer lives in roles/router) — netdev + `wg-ensure-s2s-peer` oneshot (networkd never applies the peer; a peer-only `wg setconf` re-attaches it after networkd init)
 │   ├── cloudflare_dns/              # public-record runs (vars/main.yml = IaC side of the record SSOT)
-│   ├── vps-hardening/tasks/main.yml # HD-154: VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
-│   ├── amd_rocm/tasks/main.yml      # AMD ROCm + udev for the RX 7600 (standby-capability role: the host
-│   │                                #   LLM came off oldsrv, HD-335; the card still serves Sunshine
-│   │                                #   encode, immich-ML and the pinned Vulkan tier) ⚠ still writes the
-│   │                                #   stale OLLAMA_KEEP_ALIVE env line — HD-404
+│   ├── vps-hardening/tasks/main.yml # VPS pre-deploy hardening — fail2ban, nftables default-deny, docker daemon (public edge only)
+│   ├── amd_rocm/tasks/main.yml      # AMD ROCm + udev for the RX 7600 (the card serves Sunshine encode,
+│   │                                #   immich-ML and the pinned Vulkan tier; the host LLM does not run
+│   │                                #   here) + removes the obsolete host-level OLLAMA_KEEP_ALIVE
 │   ├── desktop/tasks/main.yml       # XFCE/GNOME, display manager, Xorg dual-GPU config
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
 │   ├── router/                      # RouterOS api_modify: VLANs, DHCP, firewall, CAPsMAN, Kids rules, address lists
@@ -967,18 +906,18 @@ IaC/ansible/
     └── nut/                         # nut.conf.j2, ups.conf.j2, upsd.users.j2, upsmon.conf.j2, upssched.conf.j2
 ```
 
-### ansible-core 2.24 readiness (HD-271)
+### ansible-core 2.24 readiness
 
 `ansible.cfg` sets `inject_facts_as_vars: false` (the default True is deprecated and removed
 at core 2.24): tasks must reference facts via `ansible_facts['service_mgr']` (never bare
 `ansible_service_mgr`). The two WireGuard pubkey lookups in `group_vars` use `lookup('vars',
-'<key>', default='')` — previously they guarded with `'key' in vars`, but the internal `vars`
-dict is itself deprecated at 2.24 (verified live in core 2.21.3: the membership check still
-emits `[DEPRECATION WARNING] The internal "vars" dictionary is deprecated`; the deprecation
-help text prescribes the `vars`/`varnames` **lookups** instead). The `default=''` fallback
+'<key>', default='')` — the internal `vars` dict and its membership check (`'key' in vars`) are
+themselves deprecated at 2.24 (the membership check emits
+`[DEPRECATION WARNING] The internal "vars" dictionary is deprecated`; the deprecation help text
+prescribes the `vars`/`varnames` **lookups** instead). The `default=''` fallback
 preserves the fail-closed load-time empty value. A runtime `assert` in the wireguard/router
 roles still fails-closed on a blank peer at deploy — so `default=''` here does NOT violate
-HD-65's no-`default('')` rule, which applies to **1Password secret lookups**; these pubkeys are
+the no-`default('')` rule, which applies to **1Password secret lookups**; these pubkeys are
 structural vars with a "provision at deploy" lifecycle (the repo's own `vps.yml` gate + role
 asserts already use `| default('')` on them).
 
@@ -1029,11 +968,11 @@ ansible_python_interpreter=/usr/bin/python3
 ```yaml
 homelab_mode: desktop            # "desktop" or "proxmox" or "headless"
 ansible_host: "{{ home_ip }}"   # Home VLAN 10 — THE ADMIN LEG for every runner
-                                 # (HD-397 + HD-398 decision A: the mgmt plane is sealed from the VPS
+                                 # the mgmt plane is sealed from the VPS
                                  # tunnel on purpose, so an mgmt-anchored ansible_host is reachable only
-                                 # from the Mgmt VLAN itself — off-LAN it was a jump into a black hole)
+                                 # from the Mgmt VLAN itself — off-LAN it is a jump into a black hole
 mgmt_ip: 10.10.99.30             # Management VLAN 99 (tagged leg, netd-vlan.network) — NOT a connect target
-home_ip: "{{ oldsrv_home_ip }}"  # Home VLAN 10 — node IP (VRRP anchor); SSOT-derived (HD-200)
+home_ip: "{{ oldsrv_home_ip }}"  # Home VLAN 10 — node IP (VRRP anchor); SSOT-derived
 dns_primary_ip: 10.10.1.30       # Technitium primary binds node IP
 ansible_user: ansible-admin
 nut_mode: client                 # UPS NUT slave → delayed shutdown (see nut role)
@@ -1080,7 +1019,7 @@ dns_secondary_ip: 10.10.1.20     # Technitium secondary binds node IP
 
 > **Canonical list:** `docker_services` (with `enabled`/`instance`/`subdomain`/`template_dir`
 > modifiers and per-host gates) lives only in [`group_vars/home_servers.yml`](../IaC/ansible/group_vars/home_servers.yml)
-> — derived data, never re-typed in docs (CONVENTIONS §2). Post-HD-135, oldsrv keeps the
+> — derived data, never re-typed in docs (CONVENTIONS §2). oldsrv keeps the
 > **GPU / LAN / storage-bound core** (ollama, immich-ml, technitium-secondary,
 > home-assistant-standby, signal-cli-rest-api, sunshine [desktop-gated], jellyfin + seerr
 > + the *arr stack, kopia-agent); the public edge, public apps, AI stack, observability backend and
@@ -1124,7 +1063,7 @@ domain_local: kogler.si
 - **Suite:** `ansible_facts['distribution_release']`
 - **Post:** `systemd: name=docker state=started enabled=true`, user → `docker` group
 
-### `vps-hardening`  *(HD-154 — VPS public edge only, mandatory pre-deploy)*
+### `vps-hardening`  *(VPS public edge only, mandatory pre-deploy)*
 - **Scope:** VPS-only hardening role run **before** `docker_services` in `playbooks/vps.yml` (the VPS is the single public trust boundary — `security.md` §8).
 - **fail2ban:** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages; installed + enabled.
 - **nftables:** `/etc/nftables.conf` (template) — input policy `drop`; allow `:443` + `:51820` (WG S2S) + loopback + established/related; forward allows docker bridges only.
@@ -1134,9 +1073,9 @@ domain_local: kogler.si
 - **Secrets:** None.
 
 ### `network`
-- **Home server (nas/oldsrv, systemd-networkd):** static dual-home — physical `.network` (untagged Home 10 + default route) + VLAN-99 tagged sub-interface (`.netdev` `eno1.99`) + its `.network` (Mgmt address, connected route only). Rendered by the role (HD-311) under `/etc/systemd/network/`; `netd_phys_name` pinned per host in host_vars.
+- **Home server (nas/oldsrv, systemd-networkd):** static dual-home — physical `.network` (untagged Home 10 + default route) + VLAN-99 tagged sub-interface (`.netdev` `eno1.99`) + its `.network` (Mgmt address, connected route only). Rendered by the role under `/etc/systemd/network/`; `netd_phys_name` pinned per host in host_vars.
 - **VPS:** Static IP on services bridge
-- **Pi:** Static IP on Home VLAN (NetworkManager keyfile, HD-307)
+- **Pi:** Static IP on Home VLAN (NetworkManager keyfile)
 - **All:** `/etc/hosts` template with all nodes
 
 ### `cockpit`
@@ -1160,39 +1099,42 @@ domain_local: kogler.si
 - **Packages:** `rocm-hip-sdk`, `rocm-opencl-sdk`
 - **Groups:** `ansible_user` → `video`, `render`
 - **Udev:** `/dev/kfd` mode 0666, `/dev/dri/render*` mode 0666
-- **Env:** `OLLAMA_KEEP_ALIVE=5m` in `/etc/environment`
+- **Env:** the host-level `OLLAMA_KEEP_ALIVE` line is REMOVED from `/etc/environment` — the ollama
+  container env (`templates/docker_services/ollama`) owns it
 - **Condition:** applied from `playbooks/home_servers.yml` when `gpu_vendor | default('') == 'amd'` (group var; the role itself asserts the admin-user guard)
 
-### `desktop`  *(implemented — user accounts/auto-login pending → HD-51)*
+### `desktop`  *(implemented — user accounts/auto-login pending)*
 - **Condition:** `when: homelab_mode == 'desktop'`
 - **DM/Desktop:** LightDM + XFCE (decision: XFCE preferred, lightweight) — installed, greeter enabled
 - **Xorg:** `10-igpu-primary.conf.j2` → `/etc/X11/xorg.conf.d/10-igpu-primary.conf` — Intel iGPU (modesetting, BusID `PCI:0:2:0` from `desktop_igpu_busid`) as `PrimaryGPU`; AMD dGPU headless by design (no monitor — reserved for Docker GPU containers)
-- **PENDING (HD-51):** family user accounts + auto-login — 4 members + guest + a **neutral family account** owning shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy under research. Role currently boots to the greeter with no local users.
+- **PENDING:** family user accounts + auto-login — 4 members + guest + a **neutral family account** owning shared media data (NOT a personal account as uid/gid 1000/1000); UID/group strategy under research. Role currently boots to the greeter with no local users.
 - See [`hardware-gpu.md`](hardware-gpu.md) for dual-GPU topology
 
-### `office`  *(implemented — OpenCloud client = Debian 13 AppImage, manual install → HD-52)*
+### `office`  *(implemented — OpenCloud client = Debian 13 AppImage, manual install)*
 - **Condition:** `when: homelab_mode == 'desktop'`
 - **ONLYOFFICE:** official ONLYOFFICE apt repo (`deb https://download.onlyoffice.com/repo/debian squeeze main`), `onlyoffice-desktopeditors` — installed
 - **Fonts:** `ttf-mscorefonts-installer` (EULA pre-accepted via `debconf`) — installed
-- **OpenCloud client (HD-52, Debian 13 only):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — installed **manually** per client (download → `chmod +x` → `/opt` or `~` + `.desktop` entry). Ansible only preps the **runtime dependency `libfuse2t64`** (FUSE for AppImage) — **Debian 13 (trixie) only**, no bookworm support. Auth via **native OIDC → Authentik** (multi-redirect provider + CSP) — *not* Traefik Forward-Auth (see deployment-compose).
+- **OpenCloud client (Debian 13 only):** the official client (`opencloud-eu/desktop`) ships **AppImage only** — installed **manually** per client (download → `chmod +x` → `/opt` or `~` + `.desktop` entry). Ansible only preps the **runtime dependency `libfuse2t64`** (FUSE for AppImage) — **Debian 13 (trixie) only**, no bookworm support. Auth via **native OIDC → Authentik** (multi-redirect provider + CSP) — *not* Traefik Forward-Auth (see deployment-compose).
 
 ### `router`
-- **Method:** REST API (preferred) or templated `.rsc` push
+- **Method:** the RouterOS **API on tcp/8728** (`community.routeros` api modules, `connection: local` on the
+  controller); a mutate lands as a rendered `.rsc` applied with `/import` over SSH
+  (`scripts/routeros-apply-delta.sh`)
 - **Configs:** VLAN interfaces, DHCP, firewall, WireGuard, CAPsMAN, DNS forwarding
 
 ### `docker_services` (Key Role)
 - **Input:** `docker_services` list from group vars
-- **Authentik OIDC pre-pass (HD-162):** a dedicated pre-pass (`tasks/prepass-authentik.yml`),
+- **Authentik OIDC pre-pass:** a dedicated pre-pass (`tasks/prepass-authentik.yml`),
   run **before** the deploy loop on hosts where `authentik` is in `docker_services` (the VPS
   edge), applies the `ks-oidc.yml` Blueprint + runs the **secret-egress glue** to seed client
   creds into the 1Password OIDC items (`openwebui_api`…`metabase_oidc`, 8 providers). The
   **OpenCloud Graph-API service account** (`opencloud-service_api`) is **NOT** the glue's job
-  — it was provisioned for the `sync-authentik-users` rework (**HD-145**), retired 2026-10-07 with
-  the Authentik-as-LDAP Samba design, so that item currently has no consumer. The pre-pass is
+  — it came from the retired `sync-authentik-users` design, so that item currently has no
+  consumer. The pre-pass is
   gated on `authentik` presence via `when:`, so home hosts (home_servers / raspberry_pi)
   skip it entirely; the assert inside is a safety net that should never fire.
   Ordering: `authentik` → blueprint+glue → OIDC consumers. Fail-closed on a missing
-  `authentik-provision_api` (HD-65/91). See [`deployment-oidc.md`](deployment-oidc.md)
+  `authentik-provision_api`. See [`deployment-oidc.md`](deployment-oidc.md)
   and [`services-authentik.md`](services-authentik.md).
 - **Loop:** each enabled service:
   1. Skip if `enabled: false`
@@ -1200,11 +1142,11 @@ domain_local: kogler.si
   3. Template `docker-compose.yml.j2` → `/opt/{{ item.name }}/docker-compose.yml`
   4. Template extra config files from same template dir
   5. **Validate the rendered compose file** (`docker compose -f <svc>/docker-compose.yml
-     validate`) — catches a bad render before `up` (HD-162)
+     validate`) — catches a bad render before `up`
   6. `docker compose up -d` (systemd unit `docker-compose@{{ item.name }}`)
 - **Post-deploy:** Template Homepage config, inventory docs, reload Homepage, commit to Git
 - **Tags:** Each service task tagged with `{{ item.name }}`
-- **Bulk 1Password pre-pass (HD-258 — deploy speed):** each `community.general.onepassword`
+- **Bulk 1Password pre-pass (deploy speed):** each `community.general.onepassword`
   `lookup()` spawns the `op` CLI on the control node (≈160 spawns per VPS converge across
   compose/extras templates + `deploy-service.yml` guards + `monitoring` + role defaults).
   Batch them: one pre-pass fetches the **needed item set once** (`delegate_to: localhost`,
@@ -1221,7 +1163,7 @@ domain_local: kogler.si
   ```
   then `vault: {...}` via `set_fact`, and templates/guards switch from
   `lookup('community.general.onepassword', ...)` to `{{ vault['headscale_api'].username }}` etc.
-  **Fail-closed contract (HD-91/HD-65) must hold:** no `default('')`, assert the backend is up,
+  **Fail-closed contract must hold:** no `default('')`, assert the backend is up,
   assert every needed name resolves (absent name → loud failure). Do it **incrementally per
   template_dir** — each service's render switches to the dict; the dict is populated only for
   names that exist. Expected: tens of seconds off each full converge, seconds off surgical runs.
@@ -1313,7 +1255,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 4 | `storage` (ZFS import/datasets, sanoid/syncoid, NFS exports/mounts, push timers — `roles/storage`) | `common`, `network` |
 | 5 | `docker_services` (core loop + systemd + templates) | `docker`, `network`, `amd_rocm`, `storage` (NFS mounts ready) |
 | 6 | `desktop` + `office` | `amd_rocm` (dual GPU Xorg) |
-| 7 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`technitium-secondary`, `traefik-ha` edge for `ha` + `dns-pi`) — on the Pi, `home_assistant` runs BEFORE `docker_services` (render-first, HD-204 — supersedes the KOPS-063/HD-117 order) | `docker` |
+| 7 | `home_assistant` (Pi primary + oldsrv standby + keepalived VIP `10.10.1.200`) + Pi `docker_services` (`technitium-secondary`, `traefik-ha` edge for `ha` + `dns-pi`) — on the Pi, `home_assistant` runs BEFORE `docker_services` (render-first) | `docker` |
 | 8 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
 | 9 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (VictoriaMetrics/VictoriaLogs/n8n up) **and** `nut` (needs nut_exporter) |
 | 10 | `router` | `network` (IPs/VLANs defined) |
@@ -1321,7 +1263,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 
 ---
 
-## Deploy Timing Runbook (HD-269, Step f — measured)
+## Deploy Timing Runbook (measured)
 
 > **Role:** where the speed budget lives. These are **measured** numbers from the live full
 > converge (`vps.yml` with `profile_tasks` enabled in `ansible.cfg`). **Re-measure with `ansible-run.sh playbooks/vps.yml` — the same run that
@@ -1331,9 +1273,9 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| Wall accumulate (TASKS RECAP) | **~193s (3:13)** | `profile_tasks` cumulative; ≈ wall. Previous baseline ~204s (2026-08-27) |
+| Wall accumulate (TASKS RECAP) | **~193s (3:13)** | `profile_tasks` cumulative; ≈ wall |
 | Result | `ok=311 changed=45 failed=0 skipped=381` | idempotent converge, no functional change |
-| Slowest glue | **Authentik secret-egress 11.94s** | was ~21-22s; parallel win (HD-269) |
+| Slowest glue | **Authentik secret-egress 11.94s** | parallel (`xargs -P`) |
 | 2nd | **LiteLLM bootstrap-keys 8.07s** | **serial** (parallelising it was reverted); paid only on the `litellm` pass |
 | 3rd | **op-vault-export (derive) 4.62s** | bulk 1P read; scoped runs ≈0.8s |
 
@@ -1364,12 +1306,12 @@ Top tasks by elapsed time:
 
 ### The three deploy-speed mechanisms (when to use each)
 
-1. **`docker_services_scope` (HD-255/260/269)** — TRUE surgical run of one/many services; the
+1. **`docker_services_scope`** — TRUE surgical run of one/many services; the
    op pre-pass drops to ~0.8s + only the named service iterates. Use for a single-service fix.
-2. **`--tags base` (HD-269 Step 4)** — run ONLY the rare bootstrap tier
+2. **`--tags base`** — run ONLY the rare bootstrap tier
    (`common`/`docker`/`hardening`/`network`/`cifs`/`wireguard`) as one unit. Use for a rare infra
    change; excludes all docker_services/monitoring.
-3. **Parallel glue (HD-269)** — authentik egress is `xargs -P` (11.94s vs 21-22s); litellm stays
+3. **Parallel glue** — authentik egress runs under `xargs -P`; litellm stays
    **serial** — the `docker exec -i` heredoc probe can't be fanned out (see §Tags & surgical).
 
 ### Expected timing map
@@ -1386,23 +1328,13 @@ A surgical single-service run (`--tags docker_services -e docker_services_scope=
 **~5-6s**; a base-tier run (`--tags base`) avoids the docker_services/monitoring cost entirely.
 Deploy times drift with image versions/service count — re-measure per the top of this page.
 `profile_tasks` prints the recap to every run; keep it in `ansible.cfg` (it's the arbitrage tool
-for any future speed change, HD-257).
+for any future speed change).
 
-### Speed tooling — rejected options (HD-261 / HD-262)
-
-- **Mitogen (HD-261)** — rejected/closed. The gate ("only if `profile_tasks` shows a large executor floor")
-  never fired: the Bulk 1Password pre-pass (HD-258) removed the op-lookup cost and VPS converges are live
-  (~193s full, ~5-6s surgical). Revisit only if a `profile_tasks` trace actually shows SSH-transport-bound
-  time dominating. Decision log: [deployment-rejected.md](deployment-rejected.md).
-- **Yacht web UI (HD-262)** — rejected/closed. Ops-comfort tool, not a speedup; drift + attack-surface
-  concerns (extra VPS web surface) and it is unaware of the `docker-compose@.service` guards / single
-  Ansible compose model. Cheaper alt: `scripts/docker-restart.sh <service>` or cockpit container views.
-  Decision log: [deployment-rejected.md](deployment-rejected.md).
 ## Windows/WSL runner host facts (the management laptop)
 
 > The imperative bootstrap is [deployment-manual.md](../deployment-manual.md) §Phase 0 / §0.4b
 > (`scripts/git-bootstrap-win11.sh`, `scripts/wsl-nat-resolv.ps1`). These are the facts that make those steps
-> behave the way they do — each one cost a broken session.
+> behave the way they do.
 
 **The two shells are different machines with different identities.** Repo ops and validators run in
 **git-bash** on Windows; Ansible runs only in the **WSL Debian** runner. The Windows side is served by the
@@ -1431,13 +1363,13 @@ this laptop; the real signer is `~/AppData/Local/Microsoft/WindowsApps/op-ssh-si
 
 **WSL networking: NAT + auto-resolv is the durable state, independent of what the laptop is connected to.**
 `mirrored` mode can wedge (eth0 ARP `FAILED` for the gateway, `No route to host` even after `wsl --shutdown`,
-while Windows itself is healthy). The older **Bridged** topology (`networkingMode=Bridged` on
+while Windows itself is healthy). **Bridged** networking (`networkingMode=Bridged` on
 `vmSwitch=VLAN-Switch`) pins `eth0` to the homelab static IP and the vSwitch to a wired NIC — on WiFi or a
-hotspot that NIC has no carrier, so `eth0` comes up with no address and no route while the hardcoded
-`resolv.conf` points at unreachable DNS. `scripts/wsl-nat-resolv.ps1` (admin, idempotent) is the fix: it sets
-`.wslconfig` to `networkingMode=Nat` (**not** `default` — WSL accepts `Nat`), drops `generateResolvConf=false`
-from `/etc/wsl.conf` so WSL regenerates `/etc/resolv.conf` at every boot, and disables the static
-`10-eth0.network` unit.
+hotspot that NIC has no carrier, so `eth0` comes up with no address and no route while a hardcoded
+`resolv.conf` points at unreachable DNS. `scripts/wsl-nat-resolv.ps1` (admin, idempotent) sets the durable
+state: `.wslconfig` to `networkingMode=Nat` (**not** `default` — WSL accepts `Nat`), drops
+`generateResolvConf=false` from `/etc/wsl.conf` so WSL regenerates `/etc/resolv.conf` at every boot, and
+disables the static `10-eth0.network` unit.
 
 **Plain `*.kogler.si` needs MagicDNS in WSL.** `*.ts.kogler.si` is answered by the Windows forwarder, but the
 plain namespace lives in Tailscale MagicDNS (the NRPT only routes `.ts` + CGNAT reverse zones). Put the
@@ -1451,14 +1383,14 @@ search ts.kogler.si kogler.si
 
 **Mgmt-99 reachability from the laptop** is the Windows `Mgmt99` vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`),
 which is what lets playbooks connect **direct** to `.99` device addresses. The Pi-99 ProxyJump hop
-(`scripts/ansible-network-hop.sh`) predates it and is obsolete — kept only as a fallback. Laptop alias SSOT:
+(`scripts/ansible-network-hop.sh`) is kept only as a fallback for that leg. Laptop alias SSOT:
 [network-vpn.md](network-vpn.md) §The laptop alias contract.
 
-**`%G?` is not a signing check without an allowed-signers file.** CONVENTIONS §6 tells a session to verify
-a signed commit with `git log -1 --format='%G?'`, and on a WSL runner that has no `gpg.ssh.allowedSignersFile`
-git prints `error: gpg.ssh.allowedSignersFile needs to be configured and exist for ssh signature
-verification` and answers **`N` for every commit** — measured on the 20 most recent commits, all of which
-carry a real `gpgsig` SSH signature block. The consequence is worse than a useless check: it presents a
+**`%G?` is not a signing check without an allowed-signers file.** The CONVENTIONS §6 check
+`git log -1 --format='%G?'` needs `gpg.ssh.allowedSignersFile`, and on a runner that has none git prints
+`error: gpg.ssh.allowedSignersFile needs to be configured and exist for ssh signature
+verification` and answers **`N` for every commit** — including commits that carry a real `gpgsig` SSH
+signature block. The consequence is worse than a useless check: it presents a
 correctly signed history as unsigned, so a session can conclude that signing is broken (or was never
 configured) and "fix" it by committing unsigned. Two reliable forms that need no extra config:
 `git cat-file commit HEAD | grep -c gpgsig` (1 = a signature block is present) and
