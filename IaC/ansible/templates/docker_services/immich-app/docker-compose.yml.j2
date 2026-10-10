@@ -44,7 +44,7 @@ services:
       DB_USERNAME: "{{ vault['immich_db'].username | replace('$','$$') }}"
       DB_PASSWORD: "{{ vault['immich_db'].password | replace('$','$$') }}"
       DB_DATABASE_NAME: immich
-      DB_HOSTNAME: immich-postgres   # upstream var IS DB_HOSTNAME (DB_HOST is silently ignored - Wave-2 triage 2026-08-22)
+      DB_HOSTNAME: immich-postgres   # upstream var IS DB_HOSTNAME (DB_HOST is silently ignored).
       DB_PORT: "5432"
       REDIS_HOSTNAME: immich-valkey
       # immich-ml runs on oldsrv, so its container name is unresolvable from the VPS: an
