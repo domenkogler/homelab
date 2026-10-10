@@ -107,7 +107,7 @@ mcp-victoriametrics / mcp-victorialogs (on OLDSRV, RAM) ──wg-s2s/tailnet─�
 Each AI client registers the MCP server as a **Streamable HTTP** MCP endpoint pointing at
 the oldsrv MCP listen address (`http://oldsrv:8083` metrics / `:8084` logs). The MCP
 servers carry the backend auth themselves, so the client config carries **no secrets**.
-All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
+All endpoints are **LAN/tailnet-only** (served on the oldsrv hosts above).
 
 - **pi (pi.dev)** — add an MCP server entry in the pi agent config pointing at
   `http://oldsrv:8083` (metrics) / `http://oldsrv:8084` (logs), transport `http` (SSE
@@ -141,13 +141,14 @@ All endpoints are **LAN/tailnet-only** (deploy-gated on the hosts above).
 
 ## Access & login path (stats.kogler.si)
 
-**Tailnet-only:** the observability dashboards (`stats`/`traefik`/`logs`/`llogs`/`csui`/`auto`
+**Tailnet-only:** the observability dashboards (`stats`/`traefik`/`logs`/`csui`/`auto`
 and by extension the underlying victoria-metrics/victoria-logs/blackbox) have **no public DNS record** and are **not
 WAN-reachable**. They are reached over the **headscale tailnet** from admin devices via the
 **`traefik-tailnet` edge** (node `vps-obs`) — a consumer-mode Traefik (+ userspace tailscale sidecar
 sharing its netns) that serves the dashboards with **clean subdomain URLs** and no port numbers
 (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services and the `docker_services/traefik-tailnet`
-compose):
+compose). The one exception is the home log hub **`llogs`**: **LAN-only**, served by the oldsrv
+`traefik-internal` edge for WAN-out survival — no tailnet route, no public record (§Dozzle multi-host).
 
 | App | URL (tailnet) |
 |-----|---------------|
@@ -285,9 +286,9 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
   **and** the lookup must declare `type: DisplayString`; otherwise labels are missing (`interface [no value]`)
   and values render as hex (`0x65746865…`). Give each device its own `instance` label or two devices
   collapse into one flat series.
-- **Do not alert on intentionally-empty state.** A `mikrotik-link-down` rule fired on every unpatched switch
-  port (ten simultaneous instances on ports with no cable). Unprovisioned is not incident-worthy: alert on
-  the loss of a link that carries something.
+- **Do not alert on intentionally-empty state.** Unprovisioned is not incident-worthy: a link rule that
+  matches every switch port pages on the ports that carry nothing (ten simultaneous instances on ports with
+  no cable). Alert on the loss of a link that carries something.
 
 **Alert delivery**
 
@@ -359,8 +360,7 @@ the idle-recycle term is **OFF** — `spark_oom_watchdog_recycle: false` — and
 - **Operating point:** at the certified 16 GiB KV pool, idle `usable` is **18.5 GiB** (6.5 GiB of WARN
   margin) and the certified worst case bottoms at **17.78 GiB**. The thresholds still clear — but there is
   **no room for another KV raise in bf16**, because that would put WARN inside routine-transient range.
-- Both rules load in the ruler (`vps.yml --tags monitoring`), CRIT `noDataState: Alerting`, and the WARN
-  summary/label mismatch is fixed.
+- Both rules load in the ruler (`vps.yml --tags monitoring`) with CRIT `noDataState: Alerting`.
 
 ### Silent-failure hygiene: unit results and consumer cert age as series (live 2026-10-07)
 
@@ -473,7 +473,7 @@ them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back r
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
 | **Critical** | oldsrv disk ≥90%, **nas ZFS pool usage ≥80% (`tank` & `bulk`)**, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
-| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (deleted — an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
+| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).
@@ -598,9 +598,9 @@ oldsrv is on NVMe and mostly unaffected):
    RAM, lost on reboot (acceptable; VictoriaLogs retains the useful logs). Cheap, well-tested Pi-SD saver.
 4. *(Optional)* **Docker *log* directory on tmpfs** to guarantee zero *transient* SD writes — must stay hard-capped
    (`max-size`/`max-file`); **never** tmpfs the Docker data-root (`/var/lib/docker`/overlay2, that holds images &
-   containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/RaspberryMatic/Technitium) allows.
+   containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/Technitium) allows.
 
-> Not addressed via ramdisk: the HA recorder DB and Technitium / RaspberryMatic state stay on the microSD but are
+> Not addressed via ramdisk: the HA recorder DB and Technitium state stay on the microSD but are
 > kept small (trimmed recorder, reduced log verbosity). tmpfs-ing the recorder would throw away state/history on
 > every reboot — see the energy/logbook caveats above.
 
@@ -975,10 +975,10 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 |---|---|---|
 | `node_*` (Alloy host job) | kernel counters, 100 Hz jiffies | sub-second |
 | `vllm:*` on `:8000/metrics` | **≈ 1 Hz under load** | `vllm:generation_tokens_total` advanced on **every one** of 17 consecutive 1 s scrapes taken during a live request (178,079 → 178,249). `VLLM_LOG_STATS_INTERVAL: "10"` is the engine's **log** heartbeat, not a publication cap — log-only lines (`running/waiting/… req/s`, `p: … reqs`) are capped at 10 s, cumulative counters are not ⇒ **no engine restart is needed** for one-second engine data |
-| `DCGM_FI_DEV_*` on `:9400/metrics` | **once per `DCGM_EXPORTER_INTERVAL`** (5 s today) | `DCGM_EXPORTER_INTERVAL: "5000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; at measurement time the var was `"30000"` and `DCGM_FI_DEV_GPU_UTIL` returned `86` on twelve consecutive 1 Hz reads. Scraping faster than the exporter's own interval stores copies of one sample |
+| `DCGM_FI_DEV_*` on `:9400/metrics` | **once per `DCGM_EXPORTER_INTERVAL`** (5 s today) | `DCGM_EXPORTER_INTERVAL: "5000"` in `templates/docker_services/spark-dcgm/docker-compose.yml.j2`; `DCGM_FI_DEV_GPU_UTIL` holds one value across twelve consecutive 1 Hz reads. Scraping faster than the exporter's own interval stores copies of one sample |
 | DGX System Monitor (the 1 s picture) | 1 Hz | authenticated `POST /api/login` (the JSON field is `token`) then `GET /api/v1/gpu_telemetry/stream` yields `percentage_utilization`, `memory_available_in_kib` / `memory_total_in_kib` (25,676,736 / 127,533,336 KiB = 19.7 % of the **host** pool — not a VRAM counter, see §LLM Dashboard → GPU), `temperature_in_c`, `power_draw_in_w`. It polls the **same** `spark-dcgm` exporter: the difference is cadence, plus a host-memory stat Alloy already scrapes directly |
 
-### What resolution costs (measured on the VPS, VictoriaMetrics v1.151.0 — the pin is `victoria_metrics_version: v1.153.0` today, so re-measure before quoting these numbers)
+### What resolution costs (measured on the VPS VictoriaMetrics — re-measure before quoting these numbers; the pin is `victoria_metrics_version: v1.153.0`)
 
 | Quantity | Value |
 |---|---|
@@ -991,9 +991,9 @@ chart next to the DGX System Monitor, which samples **1 Hz**.
 | 50 hot series @ 1 s | +49 rows/s · ≈ +0.5 GB/yr |
 
 **Age-tiering is not available in this stack.** `-downsampling.period` and `-retentionFilter` are both **absent
-from the VictoriaMetrics community binary** (checked against `--help` of the v1.151.0 build deployed at
-measurement time — the pin is `victoria_metrics_version: v1.153.0` in `group_vars/all/versions.yml` now, so
-re-run `--help` before trusting the absence; the docs state
+from the VictoriaMetrics community binary** (absent from `--help` on the deployed build — the pin is
+`victoria_metrics_version: v1.153.0` in `group_vars/all/versions.yml`, so re-run `--help` before trusting
+the absence; the docs state
 community supports a single retention and one storage tier), and OpenObserve's downsampling is an enterprise rule
 set as well. Resolution is therefore bought **at write time** — scrape only what needs it faster — not by
 collapsing old buckets afterwards. Memory, not disk, is the VPS ceiling (4.3 GiB available, no swap) and it tracks
@@ -1036,8 +1036,6 @@ the same curve the table already prices (50 series ≈ +95 MB/yr), and nowhere n
 1,745-series case that plateaus at retention. `_sum`/`_count` of those families stay at 60 s.
 Revert = delete the three names from `hot_vllm` in `roles/monitoring/templates/alloy.river.j2`;
 both jobs emit the one string, so hot/cold stay disjoint and no query or alert changes.
-⚠ **Deploy-gated:** this is Alloy config — until the spark monitoring converge runs, the store
-still holds those three at 60 s and `spark/bench/vm-window.sh` corroboration stays cold.
 
 **Implementation shape:**
 
@@ -1284,7 +1282,6 @@ convention `homelab-*`, datasource uid `prometheus` — same as the other dashbo
 
 | Item | When | Notes |
 |------|------|-------|
-| Pi recorder trim + log strategy | after observability live | recorder trimmed, **not disabled** (keep Logbook/Energy-Dashboard LTS/history_stats); Pi logs → VictoriaLogs + `local` driver buffer + `/var/log` tmpfs — see [Pi SD-card wear strategy](#pi-sd-card-wear-strategy)
 | Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | **parked** — HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
 | Container memory working-set metrics (Docker API → VictoriaMetrics) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |
 | **Homelable** (interactive topology/rack visualizer) | **Authored, deploy-gated** — oldsrv, internal-only dashboard. Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. **Not** a metrics/logs/alert backend — it complements Grafana and the network-clients dashboard (see §Network Clients Dashboard). Owns the "who's on my network + where" visual that Grafana's per-VLAN tables don't. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable. |

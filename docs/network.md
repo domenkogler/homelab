@@ -119,7 +119,7 @@ Internet → ONT → router ether1 (WAN)
 | For | Read |
 |-----|------|
 | VLAN plan, subnets, firewall rules | [`network-vlans.md`](network-vlans.md) |
-| DNS architecture, Technitium/Pi-hole | [`network-dns.md`](network-dns.md) |
+| DNS architecture, Technitium | [`network-dns.md`](network-dns.md) |
 | VPN layers, Headscale mesh | [`network-vpn.md`](network-vpn.md) |
 | Device wiring & interconnections | [`assets/Network-Devices.canvas`](assets/Network-Devices.canvas) (Obsidian Canvas) ⚠️ WIP |
 | Rack layout (18U cabinet, rooms) | [`network-rack.md`](network-rack.md) → `assets/Rack.canvas` |

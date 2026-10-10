@@ -10,6 +10,8 @@ tags: [security, waf, hardening, secrets, bootstrap]
 
 > **Role:** Security hardening posture (cross-cutting) — the durable "how we secure the homelab" reference.
 > Each section states an *ongoing policy* and links the owning doc that implements it.
+> **Evidence annex:** the raw security-audit findings live in
+> [`../reports/Qwen-bugs.md`](../reports/Qwen-bugs.md) (referenced below as *evidence* where useful).
 > **Links to:** `services-traefik.md`, `deployment-compose.md`, `deployment-secrets.md`,
 > `deployment-preseed.md`, `smart-home-failover.md`, `backup.md`, `network-ops.md`, `network-vpn.md`,
 > `observability.md`, `deployment-renovate.md`, `services-authentik.md`
@@ -100,8 +102,8 @@ Owning doc: [deployment-compose.md](deployment-compose.md).
   needs. Owning doc: [smart-home-failover.md](smart-home-failover.md).
 - **Technitium** — runs as root with `NET_ADMIN` on port 53; add `user:` and drop `NET_ADMIN` if not
   required (host-port policy, §3).
-
-*(Doco-CD had its own Forgejo-token split; with Doco-CD gone the single deploy path is Ansible.)*
+- **Single deploy path — Ansible** (host SSH, no Docker-socket agent on any target, so no second
+  root-equivalent deploy surface). Owning doc: [deployment.md](deployment.md).
 
 ## 5. Backup coverage (Flaw E)
 
@@ -212,7 +214,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md).
   daemon `userland-proxy: false` + `live-restore: true`. ✅ **enforced (daemon) + compose-policy.**
 - **VPS firewall default-deny** ✅ — inbound **deny-all except :22 (SSH) + :443 + :51820 (WG)** (+ the host-net RustDesk trio :21115/:21116/:21117 — see §3 and the `services-vps.md` checklist rows 3/8) via the `vps-hardening` role's
   `/etc/nftables.conf` (nftables, input policy drop). Committed as an executable checklist, not prose. ✅ **enforced.**
-- **Published-port bypass (S1):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **No public publishes** — authentik does not publish LDAP `3389` on any interface; the outpost binds only the WG S2S address (prometheus/loki precedent), and Samba (nas, the client) pulls over the tunnel. Verify row in the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. ✅ IaC; ⏳ live-verify at deploy.
+- **Published-port bypass (S1):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **No public publishes** — authentik does not publish LDAP `3389` on any interface; the outpost binds only the WG S2S address, and Samba (nas, the client) pulls over the tunnel. Verify row in the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. ✅ IaC; ⏳ live-verify at deploy.
 - **DNS primary published-port gate:** the Technitium `53:53` publish is the ONE intentionally-public host publish (the LAN/tailnet resolver is the VPS public IP). Because input default-deny cannot see published-port traffic (same S1 bypass as above), the `:53 → {{ tchnitium_dns_overlay_ip }}` forward path is **source-restricted in the nftables FORWARD chain** (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — a FORWARD drop is authoritative over Docker's accept. Template `vps-hardening/templates/nftables.conf.j2`; apply `playbooks/vps.yml --tags hardening`. Same allow-set as the input rules. **SSOT doc: `network-dns.md`; security: this §8.**
 - **IPv6 stateless control traffic — live 2026-09-24** ✅ — an `inet` table under `policy drop` that accepts
   only `ip protocol icmp` (IPv4 upper-proto field) silently discards IPv6 NDP/MLD/PMTUD: the host cannot see its

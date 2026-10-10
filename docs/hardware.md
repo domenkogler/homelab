@@ -34,7 +34,7 @@ tags: [hardware]
 | **oldsrv** (i7-7700K + RX 7600 + 48 GB) | **GPU/LAN host** — jellyfin/*arr, immich-ml, sunshine, DNS secondary, HA standby, LAN (dev) tier + the pinned Vulkan STT/embed/rerank legs; thin Alloy collector → VPS | Family desktop too; **no family-LLM serving tier here** — generation is on spark; the only retained `ollama` container is the embed **fallback rung**, not a chat host) |
 | **nas** (HP MicroServer, Xeon E3, 12 GB ECC) | ZFS pools (tank + bulk), NFS, Cockpit, NUT master, Kopia agent | Permanent storage server |
 | **SilverStone TS43xx** | Attached to nas via miniSAS — 4× 3 TB HDDs | `bulk` pool |
-| **Raspberry Pi 4** | Home Assistant **primary** (Debian + HA Container) + RaspberryMatic/HmIP-RFUSB + Technitium **tertiary** + `traefik-ha` edge + exit node | HA service VIP = `ha.kogler.si` |
+| **Raspberry Pi 4** | Home Assistant **primary** (Debian + HA Container) + Technitium **tertiary** + `traefik-ha` edge + exit node — **no HomeMatic radio present** (no HmIP-RFUSB, no RaspberryMatic; Homematic rides the cloud HmIP-HAP) | HA service VIP = `ha.kogler.si` |
 | **VPS (netcup)** | **Public edge + live-data apps + observability backend + DNS primary + tailnet control** | The only public address = the away-access door |
 | **spark** (ThinkStation PGX, NVIDIA GB10, 128 GB unified) | **AI inference node** — vLLM serving the pinned model set behind LiteLLM (`llm.kogler.si`) | Provisioned + live; text-only mode is the plan of record ([services-ai.md](services-ai.md) §9 #28) |
 | **workstation** (admin laptop, AMD Strix Point, 64 GB / ~90 GB/s) | Client-side AI: **FIM autocomplete + visual judgment** locally; never a generation tier ([`hardware-workstation.md`](hardware-workstation.md)) | — |

@@ -24,23 +24,23 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 |-----------|-------|------|
 | [Media](services-media.md) | Jellyfin, Seerr, SeerrNG, Immich, Navidrome, *arr (Sonarr/Radarr/Lidarr/Prowlarr/Bazarr/Profilarr/Recyclarr) + storage/import | detail |
 | [Downloads](services-downloads.md) | SABnzbd, qBittorrent, gluetun — USENET/torrent ingress + VPN | detail |
-| [DNS](services-dns.md) | Technitium (ad blocking = Technitium Advanced Blocking; Pi-hole is retired) | detail |
+| [DNS](services-dns.md) | Technitium (ad blocking = Technitium Advanced Blocking) | detail |
 | [Utilities](services-utilities.md) | n8n, signal-cli, PairDrop, Stirling PDF | detail |
-| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (oldsrv, deploy-gated)** · **RustDesk server (VPS, deploy-gated — family remote desktop, host-net, no subdomain)** · Metabase is retired (revival = oldsrv) | detail |
+| [Admin](services-admin.md) | Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup · **Homelable (oldsrv, deploy-gated)** · **RustDesk server (VPS, live — family remote desktop, host-net, no subdomain)** | detail |
 | [Office](services-office.md) | ONLYOFFICE, OpenCloud, office bridge (cross-cutting) | detail |
 | [AI Platform](services-ai.md) | LiteLLM (VPS + LAN), Open WebUI, Docling, OpenClaw, Qdrant · **spark = big-model generation (vLLM behind `llm.kogler.si`)** · **pinned-AI tier on the oldsrv RX 7600: `whisper` / `reranker` / `embed` (Vulkan), Ollama = embed fallback rung** · Immich-ML (oldsrv GPU, lowest priority) | detail |
 | [Matrix](services-matrix.md) | Tuwunel, Element Web | detail |
 | [Finance](services-finance.md) | Actual Budget | detail |
 | [Traefik — Reverse Proxy & Edge](services-traefik.md) | Traefik | detail |
 | [Authentik — Identity & SSO](services-authentik.md) | Authentik | detail |
-| [Observability](observability.md) | Alloy, VictoriaMetrics, VictoriaLogs, Grafana, blackbox, Dozzle (VPS viewer `logs` + **LAN hub `llogs`** on oldsrv w/ pi+spark agents) · **mcp-victoriametrics / mcp-victorialogs (oldsrv, deploy-gated)** | — |
+| [Observability](observability.md) | Alloy, VictoriaMetrics, VictoriaLogs, Grafana, blackbox, Dozzle (VPS viewer `logs` + **LAN hub `llogs`** on oldsrv w/ pi+spark agents) · **mcp-victoriametrics / mcp-victorialogs (oldsrv, live)** | — |
 
 **Standalone (owned here, no stack doc):**
 - **Homepage** (family launchpad, `kogler.si` root + `home`) — public behind Forward-Auth, with the HA-failover status widget. Lives on the **VPS**: the route is the compose's Docker-provider labels at the VPS edge; reachability is widget/probe-based (no Docker socket).
 - **Sunshine** — game streaming (manual start, `restart: "no"`), AMD dGPU **gaming-encode first**; immich-ML batch is pause-able GPU consumer (prep-commands). Idle ~5 W when neither gaming nor ML.
 
 **Non-services (link out to owning domain):**
-- **Home Assistant standby** + **RaspberryMatic standby** → [`smart-home-failover.md`](smart-home-failover.md) (failover, not services catalog).
+- **Home Assistant standby** → [`smart-home-failover.md`](smart-home-failover.md) (failover, not services catalog). HomeMatic has no local RF leg here: Homematic rides the cloud HmIP-HAP.
 
 ---
 

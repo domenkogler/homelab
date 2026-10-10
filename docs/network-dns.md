@@ -3,7 +3,7 @@ title: DNS Architecture
 role: detail
 domain: network
 status: active
-tags: [network, dns, technitium, pihole]
+tags: [network, dns, technitium]
 ---
 # DNS Architecture
 

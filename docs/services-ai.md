@@ -34,8 +34,10 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 >   `services:` block, so flipping the flag fails `docker compose config`). The rerank leg therefore
 >   **ships dormant**: the container answers, the consumer does not exist (**§10**).
 > - **No scoped consumer reaches the pinned-AI rows.** The VPS instance's `litellm_scoped_keys` still name
->   `ollama/*` model names that no longer exist, and the `spark` row is named in one allow-list only — the
->   `home-assistant` record (§4); probes so far ran on the admin-grade master key.
+>   `ollama/*` model names that no longer exist; the `spark` row is named in one allow-list only — the LAN
+>   `home-assistant` record (§4), which grants that named row and nothing else
+>   (`group_vars/home_servers.yml`), so no LAN key names a pinned-AI row; probes so far ran on the
+>   admin-grade master key.
 >
 > ⏳ Open work is listed in §10.
 
@@ -338,9 +340,11 @@ pins `2026.9.4`) that takes **any proxy URL + an optional virtual key** and list
 what the `home-assistant` row must satisfy is visibility of `spark/qwen3.8-flash-next` **to that key's
 `/v1/models`**, the same endpoint the glue probes below
 ([smart-home-voice.md](smart-home-voice.md) §the LLM leg).
-⚠ The allow-lists still name `ollama/*` model names that no longer exist after decision #27 — correcting
-them (and adding the real rows for the real consumers) is open work (§10), and the model-catalog doctrine
-below governs how.
+⚠ On the **VPS** instance the allow-lists still name `ollama/*` model names that no longer exist after
+decision #27 — correcting them (and adding the real rows for the real consumers) is open work (§10), and the
+model-catalog doctrine below governs how. The LAN instance's one record grants the named
+`spark/qwen3.8-flash-next` row and nothing else — no wildcard, no `ollama/*`
+(`litellm_scoped_keys` in `group_vars/home_servers.yml`).
 
 **`spark-llm_api` is triple-used until the split completes.** The item is load-bearing in three places at once: the engine's own `--api-key`, the
 `OPENAI_API_KEY` **both** LiteLLM instances send upstream, and the direct-harness credential in the rendered
@@ -407,7 +411,8 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
 - **`lan-litellm` has no `curl`** — drive its API from the host against its `llm-backend` container address
   (`docker inspect` for the IP), or from any container shipping a client. Never write the bridge IP into a
   doc: it moves.
-- **Admin endpoints (measured):** `/model/list` is **not** usable with the master key (it answers
+- **Admin endpoints (measured on the pre-v1.104.0 build, not on the current `litellm_version` pin — re-verify
+  them there before trusting one):** `/model/list` is **not** usable with the master key (it answers
   `{"detail": …}`) — **`/model/info`** is the one that enumerates rows; and **`/model/delete` takes
   `{"id": …}`**, not `{"model_id": …}` (the latter is a 422 that says which field it wanted — do not assume).
   The KEY endpoints have the same shape trap: **`/key/list`**

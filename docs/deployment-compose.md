@@ -38,7 +38,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Office editor (ONLYOFFICE Docs — WOPI helper for OpenCloud) | `traefik-public` (only; no auth surface, no user identity) |
 | AI/LLM (Ollama → `llm-backend`; Immich-ML, LiteLLM, Docling, OpenClaw) | `services-internal`; Ollama on **`llm-backend`** (isolated, reachable only by LiteLLM). The **Vulkan tier joins that same isolation on purpose**: `whisper`, `reranker`, `embed` are `llm-backend`-only with **no `ports:` and no Traefik labels** — their APIs have no auth, so the network is the boundary and only LiteLLM may speak to them |
 | AI coding harness (pi-dev, DSH) | `services-internal` (LiteLLM reach for models + Forgejo for PRs). DSH WebUI = **Pattern-A tailnet serve** (loopback :3080, netns sidecar, NO socat bridge; never on `services-internal`). pi = TUI/CLI (no web port). Each consumes scoped LiteLLM key + PR-only Forgejo token. |
-| DNS (Technitium, Pi-hole) | `traefik-public` + `services-internal` (Technitium web UI behind Traefik; Pi-hole ad-blocking behind Traefik) |
+| DNS (Technitium) | `traefik-public` + `services-internal` (Technitium web UI behind Traefik; ad blocking is **Technitium Advanced Blocking** on the DNS tier, not a container here) |
 | VPN (Headscale) | `traefik-public` |
 | Backup (Kopia, DB Backup) | `services-internal` / `db-internal` |
 | Dashboard (Homepage) | `traefik-public` |
@@ -46,7 +46,7 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Observe (VictoriaMetrics, VictoriaLogs) | `db-internal` |
 | Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |
 | Observe (blackbox-exporter) | `services-internal` |
-| Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) · on the **VPS** |
+| Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) · **two instances**: VPS viewer (`logs`, overlay :8080) + oldsrv LAN hub (`llogs`, published on `oldsrv_home_ip:8081`, pi/spark agents :7007) |
 | Alert (n8n) | `services-internal` |
 | CD (Ansible via Forgejo Actions) | host SSH (no Docker-socket agent) |
 | Update (Renovate) | `services-internal` |
@@ -153,7 +153,10 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   SABnzbd stays on the plain LAN (Eweka usenet is a licensed service).
 - **Auth:** admin UIs behind `authentik-forward-auth@file` with built-in logins disabled;
   Jellyfin + Seerr use their own login (client apps / family portal).
-- **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`. Runs on the **VPS** so log viewing is independent of home hosts.
+- **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`.
+  Two instances: the **VPS** viewer (`logs.kogler.si`) for VPS containers, so that log viewing is independent
+  of the home hosts, and the **oldsrv LAN hub** (`llogs.kogler.si`, :8081, `traefik-internal` edge) for
+  oldsrv + pi + spark containers via `dozzle-agent` remote agents (:7007). Home logs stay LAN-only by design.
 
 ### Immich (v3) — Server + Postgres + Valkey (microservices merged into server)
 

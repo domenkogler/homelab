@@ -111,7 +111,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | Data | Location | Method | Target |
 |------|----------|--------|--------|
-| PostgreSQL DBs — **Authentik, Forgejo, Immich** (`db-backup` `DB01–03`), **LiteLLM runtime** (`DB04` — `STORE_MODEL_IN_DB` ⇒ the DB holds keys/models/spend) and **Zipline** (`DB05`) — all on the **VPS** | VPS NVMe | daily dumps in the `db-backup` volume, **mirrored off-box every night by `vps-state-push` (§VPS state push)**. The `→ tank/data/db-dumps (ZFS)` push and a Kopia snapshot of the dump volume **do not exist** | Hetzner Storage Box `vps-state/vps.kogler.si/dumps` (rsync, **not encrypted at rest**); Kopia still unattached |
+| PostgreSQL DBs — **Authentik, Forgejo, Immich** (`db-backup` `DB01–03`), **LiteLLM runtime** (`DB04` — `STORE_MODEL_IN_DB` ⇒ the DB holds keys/models/spend), **Zipline** (`DB05`) and **ONLYOFFICE** (`DB06`) — all on the **VPS** | VPS NVMe | daily dumps in the `db-backup` volume, **mirrored off-box every night by `vps-state-push` (§VPS state push)**. The `→ tank/data/db-dumps (ZFS)` push and a Kopia snapshot of the dump volume **do not exist** | Hetzner Storage Box `vps-state/vps.kogler.si/dumps` (rsync, **not encrypted at rest**); Kopia still unattached |
 | **`lan-litellm-db` on oldsrv** (the LAN inference gateway's Postgres) | oldsrv | **dump job exists**: `storage-push-db-dumps.sh` runs `pg_dumpall` inside `lan-litellm-db`, gzip-tests the dump, refuses to ship an empty one, and rsyncs with owner/group preservation OFF — the export is `root_squash,anonuid=1005`, so `rsync -a` could only ever die on `chown` (rc 23). Local retention 14, no `--delete` on the NAS side (sanoid owns retention) | oldsrv `/srv/dumps` → `tank/data/db-dumps` (ZFS) |
 | **Matrix server state + signing identity + media store** — tuwunel: RocksDB room/user state, the **server signing key** + key-notary data, the E2EE key-backup, `media/` and `archive/` | VPS NVMe `/srv/docker/matrix` (single bind → `/var/lib/tuwunel`) | **Nothing backs it up today** — the path is not in any snapshot because there is no VPS-side Kopia client (§VPS-side coverage gap). Note there is **no separate key file to archive**: `database_path` is the data dir and probing it finds no `*.pem`/keystore file, so the signing identity lives inside the same RocksDB store as the rooms | *(pending the VPS client; then one row covers all of it)* — see §Matrix: what one path buys and what it does not |
 | **RustDesk server keypair + client registrations** — `/srv/docker/rustdesk-server/data` | VPS NVMe | **Primary restore is 1Password `rustdesk_login`, not a snapshot** (the s6 unit re-seeds `/data/id_ed25519*` from `KEY_PUB`/`KEY_PRIV` when absent, so wiping the dir + re-converging restores the identity and enrolled clients keep working). The snapshot only has to cover `db_v2.sqlite3` (client/peer registrations) — losing it re-prompts devices, it does not lock anyone out | 1P (identity) + Kopia once the VPS client exists (registrations) |
@@ -125,7 +125,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Immich **face thumbnails** | **VPS** NVMe `/srv/docker/immich/upload/thumbs` (measured 1.2 MB; immich-server/-postgres/-valkey all run there) — **not** oldsrv, which runs only the immich-ml leg and holds no user data | ⚠ **unbacked**: the VPS has no Kopia client and no push path (§VPS-side coverage gap) | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
 | **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
 
-> **Victoria observability:** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed** — VM/VL replace Prometheus and Loki. They live on the **VPS NVMe** at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds). ⚠ **The snapshooting client for these — and for every other `/srv/docker` path on the VPS — does not exist yet: §VPS-side coverage gap. Until it does, "Kopia-backed" in this section is the policy, not the state.**
+> **Victoria observability:** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed**. They live on the **VPS NVMe** at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds). ⚠ **The snapshooting client for these — and for every other `/srv/docker` path on the VPS — does not exist yet: §VPS-side coverage gap. Until it does, "Kopia-backed" in this section is the policy, not the state.**
 
 ### VPS-side coverage gap
 
@@ -198,7 +198,7 @@ database type' Entered!` on every fire and dumps **nothing**, while `docker ps` 
 only a manual `backupNN-now` run says so. The rule: blocks are numbered **contiguously from DB01** and a
 number is never reserved for a database that does not exist yet (a reserved number *is* a broken block).
 The set is `DB01` authentik-postgres, `DB02` forgejo-db, `DB03` immich-postgres, `DB04` litellm-db,
-`DB05` zipline-db. **The general rule:
+`DB05` zipline-db, `DB06` onlyoffice-postgres. **The general rule:
 any component whose config is read once at container init, not at run time, needs its container
 recreated after a config change — and a block that never produces output is a fault, so its
 "did it run today" signal has to be the output, not the unit's `active` state.**
@@ -408,8 +408,7 @@ this migration at all. Check with:
 `for c in authentik-postgres forgejo-db litellm-db onlyoffice-postgres zipline-db; do docker inspect -f
 "{{.Config.Image}}" $c; done` on the VPS, and `lan-litellm-db` on oldsrv.
 
-A pre-flight reading, taken while all six in-scope clusters still ran `16.15-alpine`
-(`server_version_num=160015`): app data totalled **362 MB** fleet-wide and nothing exceeded 1 GB, so
+Pre-flight measurement (`server_version_num=160015`): app data totals **362 MB** fleet-wide and nothing exceeds 1 GB, so
 each window is dominated by procedure overhead, not data. `pg_dump -Fc` of the largest cluster
 (authentik, 171 MB app DB) took **1.80 s**, `pg_restore --list` 0.49 s / 1 819 TOC entries.
 Restore-side wall time was **not** measured and is normally 2–5× the dump — still minutes.
@@ -438,12 +437,13 @@ moves when upstream ships a composite, not when we bump a pin.
    `forgejo-db` has a **`metabase_ro`** role created outside compose env. Run
    `pg_dumpall --roles-only -U <svc>` first and re-apply it into the new cluster before the data
    restore, or owners and grants vanish.
-4. **`onlyoffice-postgres` is in no dump target.** `db-backup` covers DB01 `authentik-postgres`,
-   DB02 `forgejo-db`, DB03 `immich-postgres`, DB04 `litellm-db`, DB05 `zipline-db` — and ONLYOFFICE
-   keeps its datadir in a **named volume** (`onlyoffice-docs_onlyoffice-pgdata`), not under
-   `/srv/docker/*`, so both the backup config and any checklist that derives targets from
-   `/srv/docker` miss it. Its compose comment calls that state "REGENERABLE"; that is a
-   reason to move fast, not a reason to migrate blind — dump it by hand first.
+4. **`onlyoffice-postgres` is dumped, but its datadir is invisible to a `/srv/docker` checklist.**
+   `db-backup` covers DB01 `authentik-postgres`, DB02 `forgejo-db`, DB03 `immich-postgres`,
+   DB04 `litellm-db`, DB05 `zipline-db`, DB06 `onlyoffice-postgres` — and ONLYOFFICE keeps its
+   datadir in a **named volume** (`onlyoffice-docs_onlyoffice-pgdata`), not under `/srv/docker/*`,
+   so any checklist that derives targets from `/srv/docker` misses it. Its compose comment calls
+   that state "REGENERABLE"; that is a reason to move fast, not a reason to migrate blind — take a
+   fresh dump before the window.
 
 ### One leg, in order (do one cluster per window)
 

@@ -100,8 +100,10 @@ Containers start at boot via systemd units **before any user logs in**:
 > **Single source of truth:** the canonical service catalog is [`services.md`](services.md).
 > `oldsrv` runs the **GPU/LAN/storage-bound core** — media/*arr, downloads, DNS secondary, HA standby,
 > immich-ML, Sunshine, signal-cli and the pinned-AI legs; the public edge, live-data apps, the
-> observability **backend**, GitOps and the log viewer (Dozzle) live on the VPS — independent of the home
-> hosts. GPU-enabled containers are listed in `hardware-gpu.md`.
+> observability **backend** and GitOps live on the VPS — independent of the home hosts. Dozzle runs in
+> two roles: the VPS edge viewer (`logs.kogler.si`) and **this box's LAN log hub** (`llogs.kogler.si`,
+> :8081, `traefik-internal` edge), which shows oldsrv + pi + spark containers through the `dozzle-agent`
+> remote agents (:7007) — home logs never reach the VPS. GPU-enabled containers are listed in `hardware-gpu.md`.
 > **There is no family-LLM serving tier here:** big-model generation runs on spark, vision on the
 > workstation ([`services-ai.md`](services-ai.md) §9).
 
