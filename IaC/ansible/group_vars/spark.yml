@@ -888,7 +888,7 @@ spark_llm_profiles:
       num_speculative_tokens: 3
       rejection_sample_method: block
       draft_sample_method: probabilistic
-    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
+    never_evict_prompt: *nev            # "" — the ONE value; pin-capable lineage only
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     artifact_sets: [b1-awq, ple-int4]
     fixed_cost_bytes: 86900000000
@@ -1133,7 +1133,7 @@ spark_llm_profiles:
     draft_vocab: true
     max_num_seqs: 8
     max_cudagraph_capture_size: 8
-    max_num_batched_tokens: 8192        # upstream's value; our house value is 4096 (HD-381)
+    max_num_batched_tokens: 8192        # upstream's value; the house value is 4096
     spec_config:                        # — v16b-s4 is that delta, measured
       method: mtp
       num_speculative_tokens: 3
@@ -1206,7 +1206,7 @@ spark_llm_profiles:
       draft_sample_method: probabilistic
     cudagraph_piecewise: true
     prompt_tokens_details: true
-    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
+    never_evict_prompt: *nev            # "" — the ONE value; pin-capable lineage only
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
