@@ -15,7 +15,7 @@
 #     immich_oidc (api) — Authentik OIDC client (username=client_id, credential=client_secret).
 #         Consumed by the SEED task (API PUT), NOT by this compose.
 #     immich-admin_login (login) — the Immich admin seat (username=email, password). SEED task only.
-#     immich-ml-internal_api (api) — shared ML API-key auth immich-app -> immich-ml (HD-160)
+#     immich-ml-internal_api (api) — shared ML API-key auth immich-app -> immich-ml
 services:
   immich-server:
     image: ghcr.io/immich-app/immich-server:{{ immich_version }}
