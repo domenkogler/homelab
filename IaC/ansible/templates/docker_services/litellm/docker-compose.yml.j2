@@ -1,50 +1,50 @@
-# litellm docker-compose.yml — LLM gateway/router spine (docs/services-ai.md, HD-100/HD-247)
+# litellm docker-compose.yml — LLM gateway/router spine (docs/services-ai.md)
 #   Single OpenAI-compatible endpoint for the whole AI stack (Open WebUI, OpenClaw).
 #   THE only component holding upstream keys (openrouter_api). Local models
 #   -> Ollama on `llm-backend`; consumers reach LiteLLM on `services-internal`. Joins
 #   services-internal + llm-backend + db-internal (DB below) + tailnet-apps (the
-#   tailnet edge's dedicated app bridge, HD-372). No public host port binds (HD-62);
+#   tailnet edge's dedicated app bridge). No public host port binds;
 #   management API reached ONLY via `docker exec` from the bootstrap glue.
 #
-#   HD-372 (2026-09-15, litellm.kogler.si 502): the tailnet edge (traefik-tailnet)
-#   joins traefik-public + tailnet-apps — NOT services-internal — so its file-provider
-#   route `litellm-backend -> http://litellm:4000` could NOT resolve the spine via
-#   Docker DNS (502 Bad Gateway on the phone). Fix: litellm joins ONE app→edge
-#   network, `tailnet-apps` (the dedicated overlay the tailnet edge already shares
-#   with dsh/pi-dev, HD-296/HD-268c) — NOT the flat public bridge `traefik-public`
-#   (deployment-compose.md HD-59 keeps the key-holding spine isolated from the
-#   public-route apps). The edge can now resolve `litellm` for the tailnet-only admin
+#   The tailnet edge (traefik-tailnet) joins traefik-public + tailnet-apps — NOT
+#   services-internal — so its file-provider route `litellm-backend ->
+#   http://litellm:4000` cannot resolve the spine via Docker DNS (502 Bad Gateway).
+#   litellm therefore joins ONE app→edge network, `tailnet-apps` (the dedicated overlay the
+#   tailnet edge already shares with dsh/pi-dev) — NOT the flat public bridge
+#   `traefik-public` (deployment-compose.md keeps the key-holding spine isolated from the
+#   public-route apps). The edge can then resolve `litellm` for the tailnet-only admin
+#   UI.
 #
-#   HD-382 (2026-09-17, spark model entry): this instance fronts the spark engine
-#   (spark/qwen3.8-flash-next) as a DB model entry. TWO things the entry needs and the
-#   container did NOT have: (1) NAME RESOLUTION — `llm.kogler.si` is a LAN-only
+#   Fronting the spark engine (spark/qwen3.8-flash-next) as a DB model entry needs TWO
+#   things a plain container does not have:
+#   (1) NAME RESOLUTION — `llm.kogler.si` is a LAN-only
 #   split-horizon name the VPS Technitium primary never answers (by invariant) and the
-#   VPS host resolv.conf is public-only → NXDOMAIN inside the container; fixed with
-#   `extra_hosts` → `spark_home_ip` (reachable over wg-s2s, verified live). Chosen over
-#   seeding the primary (would break the LAN-only-names invariant + check_dns_seed_drift.py)
-#   and over an IP base_url (no SAN → TLS verify fails; the spark edge serves the real
-#   Let's Encrypt `*.kogler.si` pair, so connecting BY NAME validates cleanly).
+#   VPS host resolv.conf is public-only → NXDOMAIN inside the container; fix it with
+#   `extra_hosts` → `spark_home_ip` (reachable over wg-s2s). Do NOT seed the primary
+#   (breaks the LAN-only-names invariant + check_dns_seed_drift.py) and do NOT use an IP
+#   base_url (no SAN → TLS verify fails; the spark edge serves the real Let's Encrypt
+#   `*.kogler.si` pair, so connecting BY NAME validates cleanly).
 #   (2) THE UPSTREAM KEY — the 1P `spark-llm_api` value is delivered as the container env
 #   `OPENAI_API_KEY` (the openai/-provider credential), so the DB model row carries NO key and
 #   the bearer never lands in the Kopia-backed Postgres backup (CONVENTIONS §secrets).
-#   `api_key: os.environ/SPARK_LLM_API` in the DB entry does NOT work (live 2026-09-17:
-#   v1.83.10 sends the literal upstream → engine 401; the provider env fallback returns 200).
+#   `api_key: os.environ/SPARK_LLM_API` in the DB entry does NOT work:
+#   v1.83.10 sends the literal upstream → engine 401; the provider env fallback returns 200.
 #   base_url is https (spark :80 is redirect-only → a 307 on
 #   POST /v1/chat/completions is NOT followed by the OpenAI SDK).
 #
-#   v2 cutover (HD-247): keys/models/spend live in the bundled Postgres
-#   (`STORE_MODEL_IN_DB=true`) — model_list is NO LONGER rendered into config.yaml;
+#   Keys/models/spend live in the bundled Postgres
+#   (`STORE_MODEL_IN_DB=true`) — model_list is NOT rendered into config.yaml;
 #   models are Admin-UI-managed at runtime (git drift accepted by owner decision,
 #   services-ai.md §9 decision 13). Consumers authenticate with SCOPED virtual keys
-#   minted by the bootstrap-keys glue into 1Password; `litellm_api` remains the
-#   admin/bootstrap credential and is consumed by NOTHING else (retired from all
-#   consumer templates — grep-clean per HD-247).
+#   minted by the bootstrap-keys glue into 1Password; `litellm_api` is the
+#   admin/bootstrap credential and must be consumed by NOTHING else (keep it grep-clean in
+#   the consumer templates).
 #
-#   FIRST-DEPLOY RUNBOOK (deploy-gate; mirrors zipline compose-header style):
+#   FIRST-DEPLOY RUNBOOK:
 #     1. Converge renders this stack; litellm-db initializes from the litellm_db item.
-#     2. Recreate the former model entries in the Admin UI (or /model/new) — use the
-#        HD-246-corrected parameters: ollama/bge-m3 (1024-dim) + ollama/bge-reranker-v2-m3
-#        (decision #24, 2026-09-15 — Cohere retired; local on oldsrv RX 7600 via Ollama :rocm);
+#     2. Recreate the former model entries in the Admin UI (or /model/new) —
+#        ollama/bge-m3 (1024-dim) + ollama/bge-reranker-v2-m3
+#        (decision #24 — local on oldsrv RX 7600 via Ollama :rocm);
 #        ollama/* names as pulled on the RX 7600.
 #     3. The bootstrap-keys glue runs automatically in the same converge AFTER this stack
 #        is healthy (deploy-service.yml, svc.bootstrap_keys) and mints every scoped key
@@ -52,15 +52,15 @@
 #     4. Verify: scoped-key auth works (curl -H "Authorization: Bearer <sk>" .../v1/models),
 #        master key rejected for a scoped consumer's normal route set is EXPECTED behavior.
 #
-#   Secrets (all fail-closed, HD-65):
+#   Secrets (all fail-closed):
 #     litellm_api (api -> credential)      — admin/bootstrap only
-#     openrouter_api (credential)    — upstream provider (Cohere retired 2026-09-06, decision #23)
+#     openrouter_api (credential)    — upstream provider (Cohere retired, decision #23)
 #     litellm_db (username/password)              — bundled Postgres (init-once password,
 #                                                   NOT_AUTO_ROTATABLE; db_role_sync guard)
-#   Images: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (registry-verified pin,
-#   versions.yml) + postgres:{{ litellm_db_version }}.
+#   Images: docker.litellm.ai/berriai/litellm:{{ litellm_version }} (pin in versions.yml)
+#   + postgres:{{ litellm_db_version }}.
 {# The Postgres bind target is deliberately version-INDEPENDENT: PGDATA is pinned in the env
-#   block below, which is what lets one mount shape serve 16 and 18 (HD-1100). #}
+#   block below, which is what lets one mount shape serve 16 and 18. #}
 services:
   litellm:
     image: docker.litellm.ai/berriai/litellm:{{ litellm_version }}
@@ -71,15 +71,15 @@ services:
       - /tmp
     container_name: litellm
     restart: unless-stopped
-    # HD-382: container-local glue for the LAN-only spark name (VPS resolv.conf is public-only
+    # Container-local glue for the LAN-only spark name (VPS resolv.conf is public-only
     # and the VPS primary must never answer `llm`). Route to spark_home_ip exists via wg-s2s.
     extra_hosts:
       - "llm.kogler.si:{{ spark_home_ip }}"
     networks:
       - services-internal
-      - llm-backend                 # reach Ollama (local models); see HD-59 design
+      - llm-backend                 # reach Ollama (local models); isolated backend network
       - db-internal                 # reach litellm-db (keys/models/spend runtime DB)
-      - tailnet-apps                # HD-372: app→edge bridge to the tailnet edge (litellm.kogler.si admin) — NOT traefik-public
+      - tailnet-apps                # app→edge bridge to the tailnet edge (litellm.kogler.si admin) — NOT traefik-public
     volumes:
       - ./config.yaml:/app/config.yaml:ro
       - /srv/docker/litellm:/app/.data            # misc app state (no longer the keys/DB of record — that is litellm-db; keep in Kopia scope)
@@ -90,16 +90,16 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       LITELLM_MASTER_KEY: "{{ vault['litellm_api'].credential | replace('$','$$') }}"
       OPENROUTER_API_KEY: "{{ vault['openrouter_api'].credential | replace('$','$$') }}"
-      # HD-382: the spark engine bearer key (1P `spark-llm_api`), delivered as the OPENAI
-      # provider credential so the DB model entry carries NO key. Live-proven 2026-09-17:
-      # LiteLLM v1.83.10 does NOT expand `os.environ/…` inside a DB-stored model's
-      # litellm_params (the literal was sent upstream -> engine 401), while the openai/-provider
+      # The spark engine bearer key (1P `spark-llm_api`), delivered as the OPENAI
+      # provider credential so the DB model entry carries NO key. LiteLLM v1.83.10 does
+      # NOT expand `os.environ/…` inside a DB-stored model's
+      # litellm_params (the literal is sent upstream -> engine 401), while the openai/-provider
       # env fallback works. CAVEAT: any FUTURE bare `openai/…` entry without its own api_key
       # inherits this key — give such an entry an explicit api_key (or use `openrouter/`).
       OPENAI_API_KEY: "{{ vault['spark-llm_api'].credential | replace('$','$$') }}"
-      # Cohere retired 2026-09-06 (decision #23) — embed/rerank local on oldsrv RX 7600 (decision #24).
-      # Models-in-DB (HD-247): Prisma-backed runtime store (litellm proxy_server reads
-      # DATABASE_URL when STORE_MODEL_IN_DB=true). Folded scalars per the HD-233 rule —
+      # Cohere is retired (decision #23) — embed/rerank run local on oldsrv RX 7600 (decision #24).
+      # Models-in-DB: Prisma-backed runtime store (litellm proxy_server reads
+      # DATABASE_URL when STORE_MODEL_IN_DB=true). Folded scalars per the vault-quoting rule —
       # vault-generated values can contain YAML-hostile characters.
       STORE_MODEL_IN_DB: "true"
       DATABASE_URL: >-
@@ -130,24 +130,22 @@ services:
     networks:
       - db-internal           # NOT on services-internal: no direct sibling access
     volumes:
-      - /srv/docker/litellm/postgres:/var/lib/postgresql/data   # CRITICAL state (HD-247): holds keys/models/spend — db-backup DB06 + Kopia scope
+      - /srv/docker/litellm/postgres:/var/lib/postgresql/data   # CRITICAL state: holds keys/models/spend — db-backup DB06 + Kopia scope
     environment:
-      # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
-      #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
-      #   = default/libc on all six). Left to the default, an 18 cluster would restore the same
+      # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here is
+      #   initdb-ed with libc/en_US.utf8 (datcollate=en_US.utf8, provider = default/libc).
+      #   Left to the default, an 18 cluster would restore the same
       #   rows with different sort semantics and silently change ORDER BY / index ordering, so
-      #   the provider is pinned HERE, in the template, before any pin moves. Harmless on 16
+      #   pin the provider HERE, in the template, before any pin moves. Harmless on 16
       #   (--locale-provider exists since 15) and ignored on a non-empty datadir, so landing it
-      #   early costs nothing. Measured against postgres:18.6-alpine: datcollate=en_US.utf8.
-      #   HD-1100.
+      #   early costs nothing.
       POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"
       # PG 18 images moved PGDATA to the version-specific /var/lib/postgresql/18/docker and their
 #   entrypoint REFUSES to start when it finds a cluster anywhere else - and the parent-mount layout
 #   it recommends does not work under this fleet's cap_drop: ALL, because the root phase then lacks
-#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory (measured: "mkdir: can't create
+#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory ("mkdir: can't create
 #   directory /var/lib/postgresql/18/: Permission denied"). Pinning PGDATA to the existing mount keeps
-#   ONE mount shape for 16 and 18; probed 2026-10-08 with the service's own caps -> server_version
-#   18.6, datcollate=en_US.utf8, "ready to accept connections". HD-1100.
+#   ONE mount shape for 16 and 18.
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: litellm
       POSTGRES_USER: "{{ vault['litellm_db'].username | replace('$','$$') }}"
@@ -169,4 +167,4 @@ networks:
   db-internal:
     external: true
   tailnet-apps:
-    external: true   # HD-372: app→edge bridge shared with the tailnet edge (traefik-tailnet)
+    external: true   # app→edge bridge shared with the tailnet edge (traefik-tailnet)
