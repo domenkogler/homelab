@@ -56,10 +56,9 @@ if ! command -v op >/dev/null 2>&1; then
   echo "FATAL: op CLI not found" >&2; exit 1
 fi
 
-# HD-442: `[ -r /etc/op/provision-token ]` above proves the file exists, not that the
-# credential still works — that posture is how a stale token survived eight green
-# converges while every vault write from this host failed. One read-only list call turns
-# the whole class into a loud failure here instead of a silent no-write downstream.
+# `[ -r /etc/op/provision-token ]` proves the file exists, not that the credential works.
+# One read-only list call makes a stale token fail loudly here instead of silently skipping
+# every vault write downstream.
 if ! op item list --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null; then
   echo "FATAL: /etc/op/provision-token is not accepted by the vault (existence != validity, HD-442)." >&2
   echo "       Re-converge the token (roles/docker_services/tasks/op-provision-token.yml); do NOT re-run this glue." >&2
@@ -74,8 +73,8 @@ fi
 # Scoped-key specs are RENDERED statically from the instance's scoped-keys SSOT
 # (`litellm_scoped_keys` — defined per group_vars file, one instance per group).
 # Format: alias|item|models_csv|max_budget|budget_duration|rpm
-# (rpm is OPTIONAL and last; records written before HD-384 carry only five fields and
-# render an empty sixth, which mint_key then omits — LiteLLM treats absent as uncapped.)
+# (rpm is OPTIONAL and last; a five-field record renders an empty sixth, which mint_key
+#  then omits — LiteLLM treats an absent rpm limit as uncapped.)
 KEYS=(
 {% for k in litellm_scoped_keys %}
   "{{ k.alias }}|{{ k.vault_item }}|{{ k.models }}|{{ k.max_budget }}|{{ k.budget_duration }}|{{ k.rpm | default('', true) }}"
@@ -85,7 +84,7 @@ if [ -z "${KEYS[*]:-}" ]; then
   echo "FATAL: no scoped-key specs rendered" >&2; exit 1
 fi
 
-# GLUE-SEEDED items (hd247) — "<service>:<item>" pairs consumed by scripts/check-vault-items.sh
+# GLUE-SEEDED items — "<service>:<item>" pairs consumed by scripts/check-vault-items.sh
 # (glue-seeded exclusion list; do NOT remove or the pre-seed diff starts demanding these):
 {% for k in litellm_scoped_keys %}
 #   "litellm:{{ k.vault_item }}"
@@ -144,10 +143,9 @@ mint_key() {
     }
     [ -n "$mb" ] && body="$body \"max_budget\": $mb,"
     [ -n "$bd" ] && body="$body \"budget_duration\": \"$bd\","
-    # rpm = requests/minute. Under decision of 2026-09-21 (HD-384) the simple-querier tier
-    # carries NO max_budget (owned devices, no metered cost) but DOES carry rpm: it is
-    # contention protection on spark's single shared KV pool, not a bill. Without this line
-    # a record's rpm is silently unminted — which is how a decided cap becomes nothing.
+    # rpm = requests/minute. The simple-querier tier carries NO max_budget (owned devices,
+    # no metered cost) but DOES carry rpm: contention protection on spark's single shared KV
+    # pool, not a bill. Drop this line and a record's rpm is silently unminted.
     [ -n "$rpm" ] && body="$body \"rpm\": $rpm,"
     # Build the JSON request body: strip the trailing comma left by the last accumulated
     # field, then append key_alias with a comma. Empty-body case (e.g. owui-int-owner
@@ -191,14 +189,9 @@ PYEOF
 
 # vault_write <item> <value> : edit existing item, else create api-credential item
 vault_write() {
-    # HD-442: the rc of every op call is load-bearing. Two ways this used to lie:
-    #   * a 403 on `op item get` read as "the item does not exist" and fell through to
-    #     `op item create` — minting a phantom item beside the real one (HD-441 class);
-    #   * an `op item edit`/`create` failure was swallowed, and the caller logged
-    #     "created … minted + stored" from its own stdout anyway (Ansible's
-    #     `changed_when: "'created' in stdout"` then reported success).
-    # The key was ALWAYS minted server-side, so a swallowed write = a live key with no
-    # vault record. Return non-zero and let the caller exit.
+    # The rc of every op call is load-bearing: a 403 on `op item get` is not "absent" —
+    # falling through to create mints a phantom item beside the real one. A swallowed write
+    # leaves a live, minted key with no vault record while the caller reports success.
     local item="$1" val="$2" get_rc=0
     op item get "$item" --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null || get_rc=$?
     if [ "$get_rc" -eq 0 ]; then
