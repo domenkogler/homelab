@@ -610,6 +610,20 @@ blk_font_check() {
   fi
 }
 
+# The seat's ssh BUILD plane (HD-1128): the alias plane can be byte-perfect and the leg still dies, so
+# this asks the shell which binary answers. rc 2 = a boundary (no Windows here, or no PowerShell profile
+# loads), printed and never counted green; rc 1 = drift; rc 3 = a refusal a human must reconcile.
+blk_seat_ssh_check() {
+  local rc_ssh=0
+  bash scripts/seat-ssh-build.sh --check --strict || rc_ssh=$?
+  case "$rc_ssh" in
+    0) echo "OK: a profile-loaded shell on this seat resolves the OpenSSL ssh build" ;;
+    2) echo "SKIP: the ssh-build plane owns only the win11 seat's PowerShell profiles (or no shell here loads a profile) — deploy on that seat with: bash scripts/seat-ssh-build.sh --push" ;;
+    3) echo "FAIL: the seat's ssh-build block was hand-edited or is shadowed by another ssh definition — reconcile it, then: bash scripts/seat-ssh-build.sh --push"; exit 1 ;;
+    *) echo "FAIL: this seat's ssh-build block is missing or stale, or a profile-loaded shell still resolves the LibreSSL build (which cannot load the fleet's PKCS#8 keys) — run: bash scripts/seat-ssh-build.sh --push"; exit 1 ;;
+  esac
+}
+
 # --------------------------------------------------------------------------- #
 # The queue. Longest items FIRST — the pool launches in this order, so putting #
 # the multi-second items here is the scheduling, not a priority system.        #
@@ -640,12 +654,18 @@ item "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py
 
 # Seat planes — self-tests run everywhere (sandboxed), the --check half SKIPs per host.
 item "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/install-nerd-font.sh --self-test
+# NOTE (HD-1128): seat-ssh-build.sh --self-test is deliberately NOT gated. It is 27 assertions that pass
+# standalone, but they run ~25 nested bash spawns and cost 98 s WALL / 72 s SYS on the Windows seat - inside
+# the pool that starves sibling self-tests (measured: pi-seat-sync.sh --self-test printed 5 canaries NOT
+# caught in the concurrent run and passed standalone, the documented pool-flake class). The cheap and
+# meaningful half IS gated: the --check --strict item below.
 item "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" bash scripts/pi-settings-config.sh --self-test
 item "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" bash scripts/pi-tui-config.sh --self-test
 item "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/pi-seat-sync.sh --self-test
 item "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/pi-self-update.sh --self-test
 item "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/install-tmux-conf.sh --self-test
 item "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
+item "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
 item "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
 item "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
 item "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
