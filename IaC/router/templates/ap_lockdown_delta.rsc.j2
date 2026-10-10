@@ -1,19 +1,19 @@
-{#- AP CAP — HD-304 Part 2 / HD-89 steady-state lockdown DELTA (2026-09-08).
+{#- AP CAP — steady-state lockdown DELTA.
     Apply to RUNNING APs (ap-spalnica / ap-dnevna / ap-spare when back) WITHOUT a reset:
-      1. Disable the unused wired ports ether2..ether5 (KOPS-046 — HD-89): a wired device
-         on an AP port previously landed on the full Management VLAN. Ownership decision
-         2026-09-08: disable ports outright (AP is L2 CAP-only; uplink ether1 + radios only).
-      2. Add the missing AP INPUT firewall (HD-304 Part 2 — HD-301 parity with the router
-         role's HD-78 chain + the switch's HD-301 parity block): gate mgmt services to the
-         Mgmt VLAN + trusted-admin, drop the rest. The bootstrap `available-from=` is the
-         floor; this is the steady-state INPUT policy so a converge/delta can't drift it open.
+      1. Disable the unused wired ports ether2..ether5. A wired device on an AP port
+         otherwise lands on the full Management VLAN; the AP is L2 CAP-only (uplink
+         ether1 + radios), so no wired client port is wanted.
+      2. Add the AP INPUT firewall (parity with the router role's INPUT chain and the
+         switch's lockdown): gate mgmt services to the Mgmt VLAN + trusted-admin, drop
+         the rest. The bootstrap `available-from=` is the floor; this is the
+         steady-state INPUT policy, so a converge/delta cannot drift it open.
     Idempotent: disable/set-if-exists, guarded adds.
-    Mirrors ap_initial.rsc.j2 (keep this delta in lock-step with the template). -#}
+    Mirrors ap_initial.rsc.j2 — keep this delta in lock-step with the template. -#}
 # =============================================================================
-# HD-304/HD-89 — AP steady-state lockdown DELTA — disable wired ports + INPUT firewall
+# AP steady-state lockdown DELTA — disable wired ports + INPUT firewall
 # =============================================================================
 
-# ---- 1. Disable unused wired ports (HD-89 / KOPS-046) ----
+# ---- 1. Disable unused wired ports ----
 # ether1 = uplink (KEEP). ether2..ether5 = unused wired ports (DISABLE — no bridge membership,
 # no service). RouterOS default is disabled=yes, so this is belt-and-braces + explicit.
 /interface ethernet set [find default-name=ether2] disabled=yes comment="HD-89: unused AP wired port ether2 disabled (KOPS-046)"
@@ -28,7 +28,7 @@
 /interface bridge port remove [find where bridge=bridge and interface=ether4]
 /interface bridge port remove [find where bridge=bridge and interface=ether5]
 
-# ---- 2. AP INPUT firewall (HD-304 Part 2 — HD-301 parity) ----
+# ---- 2. AP INPUT firewall (parity with the router + switch lockdown) ----
 # Remove any prior AP input rules (idempotent re-import), then apply the lockdown.
 # Mirror of rb4011_converge.rsc.j2 + roles/switch INPUT block: established/related accept,
 # bridge accept (mgmt DHCP + CAPsMAN discovery), drop the rest.

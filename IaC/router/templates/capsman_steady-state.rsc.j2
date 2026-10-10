@@ -1,39 +1,33 @@
 {#- CAPsMAN steady-state WiFi — MODERN wifi-qcom-ac — rendered by render-routeros.yml.
-    Manager = RB4011 (HD-232: wifi-qcom-ac package, radios NOT required). APs join
-    as CAPs via /interface wifi cap (ap_initial.rsc.j2). SSIDs/VLANs/passphrase
-    items from group_vars/router.yml routeros_capsman_ssids (SSOT). Secrets from
-    1Password at render time. NEVER commit rendered/ or secret literals. -#}
+    Manager = RB4011 (wifi-qcom-ac package; radios NOT required). APs join as CAPs via
+    /interface wifi cap (ap_initial.rsc.j2). SSIDs/VLANs/passphrase items come from
+    group_vars/router.yml routeros_capsman_ssids (SSOT); secrets from 1Password at
+    render time. NEVER commit rendered/ or secret literals. -#}
 # =============================================================================
 # CAPsMAN — Kogler Homelab — Steady-State WiFi (MODERN wifi-qcom-ac)
 # Source template: IaC/router/templates/capsman_steady-state.rsc.j2
 # =============================================================================
-# Purpose: Per-SSID WiFi provisioning on the RB4011 CAPsMAN manager. Delivered as
-#          a rendered .rsc and uploaded at the Phase 1.5 cutover (owner decision:
-#          NOT ansible api_modify). HD-232 = modern wifi-qcom-ac; datapath VLAN
-#          tagging lives in the wifi config objects, not the legacy access-list.
+# Purpose: Per-SSID WiFi provisioning on the RB4011 CAPsMAN manager — delivered as a
+#          rendered .rsc, NOT as ansible api_modify.
+#          → docs/network-ops.md §CAPsMAN steady-state contract (`wifi-qcom-ac`)
 #
 # How:     Upload to the RB4011 Files, then run:
 #            /import capsman_steady-state.rsc
-#          AFTER the router bootstrap (rb4011_initial.rsc) + Ansible router role
-#          have established bridge/VLANs/DHCP/firewall. NOT a reset script.
+#          AFTER the router bootstrap (rb4011_initial.rsc) + the router role have
+#          established bridge/VLANs/DHCP/firewall. NOT a reset script.
 #
 # NOTE:    NO secrets in the repo — passphrases injected from 1Password at render.
 #          Fail-loud: a missing wifi-kogler* item aborts the render.
 #
-# VALIDATED-LIVE (2026-09-02, RouterOS 7.24.1 + wifi-qcom-ac):
-#   datapath.bridge= + datapath.vlan-id= are the live-accepted fields; the
-#   datapath.vlan-mode= property does NOT exist on 7.24.1's wifi-qcom-ac
-#   ("bad parameter datapath.vlan-mode" at import — live-probed). Tagging is
-#   driven by vlan-id alone under datapath.bridge.
-# FIX (2026-09-02 live-apply): wifi-qcom-ac CAPs CANNOT honor datapath vlan-id —
-#   the CAP logs 'vlan-id configured, but interface does not support assigning
-#   vlans' and clients loop-disconnect. Per-SSID VLAN tagging must ride the CAP's
-#   BRIDGE (pvid per slave interface + tagged uplink), NOT the manager datapath.
-#   So: configs use a NAMED datapath (DP_AC, bridge-lan, NO vlan-id), and the
-#   manager is enabled here (was missing — the #1 'APs not working' cause).
+# wifi-qcom-ac has no `datapath.vlan-mode=` (import rejects it), and a CAP cannot
+#   honor a datapath vlan-id: the CAP logs 'vlan-id configured, but interface does not
+#   support assigning vlans' and clients loop-disconnect.
+#   So: a NAMED datapath (DP_AC, bridge-lan, NO vlan-id) here, and per-SSID VLAN
+#   tagging on the CAP's own bridge (pvid per slave + tagged uplink —
+#   ap_initial.rsc.j2). The manager is enabled below; with it off nothing provisions.
 # =============================================================================
 
-# ---- Enable the CAPsMAN manager (was missing — APs never provisioned) ----
+# ---- Enable the CAPsMAN manager ----
 # interfaces defaults to 'all' (listens on the bridge the CAPs discover on).
 /interface wifi capsman set enabled=yes
 
@@ -50,7 +44,7 @@
     comment="{{ ssid.ssid }} WPA2-PSK ({{ ssid.item }})"
 {% endfor %}
 
-# ---- Wifi config objects (datapath = DP_AC, NO vlan-id — HD-232 + 2026-09-02 fix) ----
+# ---- Wifi config objects (datapath = DP_AC, NO vlan-id) ----
 
 {% for ssid in routeros_capsman_ssids %}
 /interface wifi configuration add \
@@ -62,12 +56,11 @@
     comment="VLAN {{ ssid.vlan }} ({{ ssid.item }})"
 {% endfor %}
 
-# ---- Per-band Kogler master configs (2026-09-03: non-DFS 5GHz + band split) ----
-# A phone (Samsung) could not associate with the CAPsMAN auto-selected DFS 5GHz
-# channels (5500/5580) — pinned to non-DFS channel 36 (5180). The master config is
-# split per band so the 5GHz channel pin never touches the 2.4GHz provisioning
-# (a shared cfg-kogler with channel.frequency confused the 2.4GHz IOT slaves -
-# live-probed). IOT is 2.4GHz-only (owner decision).
+# ---- Per-band Kogler master configs (non-DFS 5GHz + band split) ----
+# A client can fail to associate on CAPsMAN's auto-selected DFS 5GHz channels
+# (5500/5580), so the 5GHz master pins non-DFS channel 36 (5180).
+# The master config is split per band so the 5GHz pin never reaches the 2.4GHz
+# provisioning — a shared cfg-kogler with channel.frequency confuses 2.4GHz slaves.
 /interface wifi configuration add \
     name=cfg-kogler-24 \
     ssid="Kogler" \
@@ -86,9 +79,9 @@
     comment="Kogler 5GHz master (ch36 non-DFS)"
 
 # ---- Provisioning rules (manager -> APs) ----
-# Band split (owner decision 2026-09-03, HD-312): 2.4GHz master = cfg-kogler-24 + the
-# 2.4GHz slaves; 5GHz master = cfg-kogler-5 + the 5GHz-only slaves (guest). A slave is
-# routed 5GHz by `band: 5` in routeros_capsman_ssids (SSOT), else 2.4GHz.
+# Band split: 2.4GHz master = cfg-kogler-24 + the 2.4GHz slaves; 5GHz master =
+# cfg-kogler-5 + the 5GHz-only slaves. A slave is routed to 5GHz by `band: 5` in
+# routeros_capsman_ssids (SSOT), else it stays 2.4GHz.
 {% set slaves24 = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | rejectattr('band', 'equalto', 5) | map(attribute='cfg') | list %}
 {% set slaves5  = routeros_capsman_ssids | rejectattr('cfg', 'equalto', 'cfg-kogler') | selectattr('band', 'equalto', 5) | map(attribute='cfg') | list %}
 # 2.4GHz: master + enabled slave SSIDs

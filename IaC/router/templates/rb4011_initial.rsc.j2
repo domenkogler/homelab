@@ -11,32 +11,30 @@
 # How:     Upload this + admin.pub + ansible.pub to the router Files, then EITHER:
 #            (a) /system reset-configuration no-defaults=yes run-after-reset=rb4011_initial.rsc
 #                (works on a clean device, but the run-after-reset pipeline aborts the
-#                whole script at the first error and leaves the device half-configured
-#                — see the NTP server= vs address= comment above for the live incident)
+#                whole script at the first error and leaves the device half-configured)
 #          OR (b) the recommended path on a device with state already on it: /import
 #                rb4011_initial.rsc  in a WinBox terminal. Idempotent for `set`, errors
-#                on duplicate `add` (see the manual recovery for NTP / services in
+#                on duplicate `add` (manual recovery for NTP / services in
 #                deployment-manual.md § Phase 1.5).
 # NOTE:    NO secrets in the repo — credentials injected from 1Password.
 #
-# Security baseline (HD-301, Phase 1.5 cutover-prep):
+# Security baseline:
 #   * Telnet/FTP/www/api-ssl/reverse-proxy are DISABLED from the first line of device
 #     uptime, AND scoped to the mgmt subnet via `available-from=` (RouterOS 7 syntax —
 #     `interface=` is the RouterOS 6 form and is rejected with "bad parameter
-#     interface" on a ROS7 device, live-validated 2026-08-31). Defense in depth: even
-#     if a later change re-enables a disabled service, it still won't listen on WAN.
+#     interface" on a ROS7 device). Defense in depth: even if a later change re-enables
+#     a disabled service, it still won't listen on WAN.
 #   * The minimal INPUT chain below drops everything from WAN except established/related
-#     and ICMP. The full role-based firewall comes from the `router` Ansible role in
-#     §1.5.3; this is the bootstrap-window floor.
+#     and ICMP. The full firewall comes from the `router` Ansible role
+#     (deployment-manual.md §1.5.3); this is the bootstrap-window floor.
 # =============================================================================
 
 # ---- System ----
 
 /system identity set name=router.kogler.si
 /system clock set time-zone-name={{ timezone }}
-# RouterOS 7: the parameter is 'address=' (not the RouterOS 6 'server=').
-# Live-validated 2026-08-31 — `server=` was rejected with 'bad parameter server'
-# because the RouterOS 7 NTP client schema only knows `address=`. Do not regress.
+# RouterOS 7: the parameter is 'address=' — the NTP client schema knows no v6 'server=',
+# so `server=` dies with 'bad parameter server'. Do not regress.
 /system ntp client set enabled=yes
 {% for h in ntp_servers %}
 /system ntp client servers add address={{ h }}
@@ -48,13 +46,10 @@
 /user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
 /user ssh-keys import public-key-file=admin.pub user=admin
 
-# RouterOS 7: /user add REQUIRES a `password=` field, even an empty one. Setting
-# `password=""` on the add (rather than via a follow-up /user set) means the
-# script is one line shorter AND the run-after-reset pipeline doesn't see a
-# zero-password ansible user on the wire between the add and the set.
-# Live-validated 2026-08-31: the two-line form (add without password, then set
-# password="") errored with 'missing value(s) of argument(s) password' at the
-# add on RouterOS 7.16.x. Do not regress.
+# RouterOS 7: /user add REQUIRES a `password=` field, even an empty one — the two-line
+# form (add without password, then set) dies with 'missing value(s) of argument(s)
+# password'. Passing `password=""` on the add also keeps a zero-password ansible user
+# off the wire between the add and the set.
 /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
 /user ssh-keys import public-key-file=ansible.pub user=ansible
 
@@ -65,7 +60,7 @@
 /interface bridge port add bridge=bridge-lan interface=ether3  pvid={{ mgmt.id }} comment="Laptop, B8"
 /interface bridge port add bridge=bridge-lan interface=ether7  pvid={{ mgmt.id }} comment="nas iLO4"
 /interface bridge port add bridge=bridge-lan interface=ether9  pvid={{ mgmt.id }} comment="HMIP-HAP"
-# Raspberry Pi (ether10) — DUAL-HOMED (R-2 / HD-304): VLAN-10 access (Home node + HA VIP) +
+# Raspberry Pi (ether10) — DUAL-HOMED: VLAN-10 access (Home node + HA VIP) +
 # mgmt (99) tagged (Ansible mgmt plane). pvid=10 untagged; vlan99 arrives tagged.
 /interface bridge port add bridge=bridge-lan interface=ether10 pvid=10 comment="Raspberry Pi (Dual: VLAN10 + MGMT)"
 /interface bridge port add bridge=bridge-lan interface=sfp-sfpplus1
@@ -86,11 +81,11 @@
     add-default-route=yes use-peer-dns=no disabled=no
 /ip firewall nat add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquerade → WAN"
 
-# ---- Minimal INPUT firewall (HD-301, bootstrap-window floor) ----
+# ---- Minimal INPUT firewall (bootstrap-window floor) ----
 # Bootstrap only — the real inter-VLAN + per-zone rules come from the `router`
-# Ansible role in §1.5.3. This block: drop WAN-side new connections (telnet /
-# SSH / API / winbox brute-force surface from the public PPPoE IP), accept
-# everything from the mgmt subnet, accept ICMP, accept established/related.
+# Ansible role. This block: drop WAN-side new connections (telnet / SSH / API /
+# winbox brute-force surface from the public PPPoE IP), accept everything from the
+# mgmt subnet, accept ICMP, accept established/related.
 # Do NOT lock the laptop out of the router here — the laptop is on 10.10.99.0/24
 # via the bootstrap access ports, and the Ansible role needs to reach the API.
 /ip firewall filter
@@ -103,12 +98,11 @@ add chain=input action=drop in-interface=pppoe-telekom comment="HD-301: drop all
 add chain=input action=accept comment="HD-301: accept all from other (LAN) interfaces — replaced by the `router` Ansible role in §1.5.3"
 
 # ---- Services (Ansible REST/API/SSH door) ----
-# HD-83 / KOPS-003/042: scope every management service to the mgmt subnet
-# (10.10.99.0/24). RouterOS 7 syntax: `available-from=` (NOT `interface=` —
-# the latter is the RouterOS 6 form, rejected with "bad parameter interface"
-# on ROS7, live-validated 2026-08-31). Belt-and-braces: every service is
-# also bound to its well-known port, and the dangerous-on-WAN services
-# (telnet, ftp, www, api-ssl, reverse-proxy) are disabled explicitly.
+# Scope every management service to the mgmt subnet (10.10.99.0/24). RouterOS 7
+# syntax: `available-from=` (`interface=` is the RouterOS 6 form, rejected with
+# "bad parameter interface" on ROS7). Belt-and-braces: every service is also bound
+# to its well-known port, and the dangerous-on-WAN services (telnet, ftp, www,
+# api-ssl, reverse-proxy) are disabled explicitly.
 /ip service set telnet disabled=yes port=23 available-from={{ router_services_available_from }}
 /ip service set ftp disabled=yes port=21 available-from={{ router_services_available_from }}
 /ip service set www disabled=yes port=80 available-from={{ router_services_available_from }}
@@ -119,7 +113,7 @@ add chain=input action=accept comment="HD-301: accept all from other (LAN) inter
 /ip service set ssh disabled=no port=22 available-from={{ router_services_available_from }}
 /ip service set winbox disabled=no port=8291 available-from={{ router_services_available_from }}
 
-# ---- SNMP (HD-53): RO, Mgmt-scoped — survives factory reset via run-after-reset ----
+# ---- SNMP: RO, Mgmt-scoped — survives factory reset via run-after-reset ----
 # The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
 # community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
 # community) and is scoped to the Mgmt subnet only, read-only.
@@ -139,7 +133,7 @@ add chain=input action=accept comment="HD-301: accept all from other (LAN) inter
 #                                               telnet+ftp+www+api-ssl+reverse-proxy
 #                                               X = disabled; the DYNAMIC rows
 #                                               3/4/6/9/10 are normal)
-#   4. INPUT chain is set      → /ip firewall filter print  (HD-301 floor visible)
+#   4. INPUT chain is set      → /ip firewall filter print  (bootstrap floor visible)
 #   5. SNMP enabled + RO community scoped to Mgmt → /snmp print, /snmp community print
 #   6. SSH from the laptop     → ssh -i ~/.ssh/id_ed25519 ansible@10.10.99.1
 #   6. Ansible `router` role then applies the real VLAN/firewall/CAPsMAN config.

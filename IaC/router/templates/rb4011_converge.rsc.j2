@@ -5,7 +5,7 @@
 # Purpose: Full final router state — import on a device that already ran
 #          rb4011_initial.rsc (or after reset). Idempotent-ish: `/set` safe,
 #          `/add` errors on duplicates (re-import = "already have" messages OK).
-#          Encodes the untagged-vlan99 fix + full firewall from the router role.
+#          Encodes the same bridge/VLAN/trunk + firewall state as the router role.
 # How:     Upload + /import router-converge.rsc in a WinBox terminal
 #          (or via SSH: scp to deviceFiles then /import).
 # =============================================================================
@@ -15,8 +15,7 @@
 /system clock set time-zone-name=Europe/Ljubljana
 /system ntp client set enabled=yes
 # Add NTP servers idempotently — `/add` on an existing address is a hard failure
-# that aborts the whole import (live 2026-09-01: duplicate address stopped the
-# converge import at line 17 BEFORE reaching bridge/vlan/lease changes).
+# that aborts the whole import BEFORE the bridge/vlan/lease changes below.
 :if ([/system ntp client servers find where address="0.si.pool.ntp.org"] = "") do={
     /system ntp client servers add address=0.si.pool.ntp.org
 }
@@ -25,10 +24,9 @@
 }
 
 # ---- WAN (internet for laptop + 1Password) — bootstrap has it; needed for standalone reset ----
-# IDEMPOTENT GUARD (live 2026-09-03): a re-import aborts here with 'already have interface
-# with name pppoe-telekom' if the bootstrap already created it — which BLOCKS the rest of
-# the script (DNS/DHCP changes downstream never land). Set the existing interface's creds
-# instead of re-adding.
+# Guard it: a re-import aborts here with 'already have interface with name
+# pppoe-telekom' when the bootstrap already created it, which BLOCKS everything below
+# (DNS/DHCP changes never land). Set the existing interface's creds instead of re-adding.
 :if ([/interface pppoe-client find where name=pppoe-telekom] = "") do={
     /interface pppoe-client add name=pppoe-telekom interface=ether1 \
         user="{{ pppoe_login_user }}" password="{{ pppoe_login_password }}" \
@@ -41,20 +39,18 @@
 
 # ---- Users (auth) ----
 /user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin"
-# IDEMPOTENT GUARD (HD-322): a re-import aborts with 'user with the same name already
-# exists' on the bare /user add — the first hard stop of the old converge. Set the
-# existing user instead of re-adding.
+# Guard it: a bare /user add aborts the re-import with 'user with the same name already
+# exists'. Set the existing user instead of re-adding.
 :if ([/user find where name=ansible] = "") do={
     /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth)"
 } else={
     /user set [find name=ansible] group=full disabled=no comment="Ansible automation (SSH-key auth)"
 }
-# Scoped read-only API user for n8n firmware automation (HD-312(4)) — logpipe
-# precedent (group=read = read-only to all config paths, no write). Password is
-# injected from 1Password at render (mikrotik-n8n_api, see render-routeros.yml).
-# GATED on the vault item EXISTING: mikrotik-n8n_api was never created (owner-side
-# gap — docs claimed done); a bare lookup would abort the render, so when absent we
-# emit a loud DEFERRED comment instead of a blank password (fail-loud, no default).
+# Scoped read-only API user for the n8n firmware automation — `group=read` means
+# read-only on every config path, no write. The password is injected from 1Password at
+# render (mikrotik-n8n_api, see render-routeros.yml).
+# GATED on that vault item EXISTING: a bare lookup would abort the render, so when it is
+# absent emit a loud DEFERRED comment instead of a blank password (fail-loud, no default).
 {% if mikrotik_n8n_present | default(false) %}
 :if ([/user find where name=n8n] = "") do={
     /user add name=n8n group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
@@ -62,13 +58,12 @@
     /user set [find name=n8n] group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
 }
 {% else %}
-# HD-312(4) n8n user DEFERRED — mikrotik-n8n_api 1P item missing (owner creates it, then re-render + re-converge)
+# n8n user DEFERRED — mikrotik-n8n_api 1P item missing (create it, then re-render + re-converge)
 {% endif %}
 # SSH-key imports are bootstrap-only: admin.pub/ansible.pub exist on a fresh flash
-# (uploaded by rb4011_initial.rsc) but are cleaned up in steady state — a re-import
-# here aborts with 'input does not match any value of public-key-file' (HD-322 live
-# lesson). Guard on the file existing; skip silently when it does not (steady-state
-# already has the keys from bootstrap).
+# (uploaded by rb4011_initial.rsc) but are cleaned up in steady state. Guard on the file
+# existing — unguarded, a re-import aborts with 'input does not match any value of
+# public-key-file'. Steady state already has the keys, so skipping is correct.
 :if ([/file find where name=admin.pub] != "") do={
     /user ssh-keys import public-key-file=admin.pub user=admin
 }
@@ -76,15 +71,15 @@
     /user ssh-keys import public-key-file=ansible.pub user=ansible
 }
 
-# ---- Bridge + trunk (port model 2026-09-01: untagged=primary/access, tagged=secondary/Mgmt) ----
+# ---- Bridge + trunk (port model: untagged=primary/access, tagged=secondary/Mgmt) ----
 # ADMIN/PC/PI ports: untagged Home (10) primary + tagged Mgmt (99) — dual-home.
 # A single untagged port carries ONE VLAN (untagged frames map to pvid); the secondary
 # admin plane rides TAGGED 99 on the same port. nas iLO4 + HMIP-HAP stay Mgmt-only.
-# IDEMPOTENT (HD-322): /interface bridge add on an existing bridge errors — guard it.
+# Guard the bridge add: /interface bridge add on an existing bridge errors.
 :if ([/interface bridge find where name=bridge-lan] = "") do={
     /interface bridge add name=bridge-lan vlan-filtering=yes protocol-mode=none
 }
-# Bridge ports — guard each (HD-322): re-import aborts on 'interface already added'.
+# Bridge ports — guard each: a re-import aborts on 'interface already added'.
 :if ([/interface bridge port find where bridge=bridge-lan and interface=ether2] = "") do={
     /interface bridge port add bridge=bridge-lan interface=ether2  pvid=10 comment="PC (oldsrv) — untagged Home + tagged Mgmt"
 }
@@ -94,8 +89,8 @@
 :if ([/interface bridge port find where bridge=bridge-lan and interface=ether7] = "") do={
     /interface bridge port add bridge=bridge-lan interface=ether7  pvid=99 comment="nas iLO4 (Mgmt access)"
 }
-# spark (Lenovo ThinkStation PGX / NVIDIA GB10) — DUAL-HOMED like oldsrv/Pi: untagged Home (10) +
-# tagged Mgmt (99) on its single NIC (enP7s7). Wired on ether8 2026-09-17.
+# spark (Lenovo ThinkStation PGX / NVIDIA GB10) — DUAL-HOMED like oldsrv/Pi on its single
+# NIC (enP7s7): untagged Home (10) + tagged Mgmt (99), on ether8.
 :if ([/interface bridge port find where bridge=bridge-lan and interface=ether8] = "") do={
     /interface bridge port add bridge=bridge-lan interface=ether8 pvid=10 comment="spark (Dual: Home10 + MGMT99)"
 }
@@ -110,26 +105,25 @@
     /interface bridge port add bridge=bridge-lan interface=sfp-sfpplus1 comment="trunk -> switch"
 }
 # Home (10): untagged on the dual-homed ports (ether2/3/10 — the access/primary plane).
-# IDEMPOTENT (HD-322): guard against duplicate bridge-vlan on re-import (dynamic entries
-# are excluded — a static add is the SSOT row).
+# Guard against a duplicate bridge-vlan on re-import and match STATIC rows only — a
+# dynamic entry cannot be `set`.
 :if ([/interface bridge vlan find where bridge=bridge-lan and vlan-ids=10 and dynamic=no] = "") do={
     /interface bridge vlan add bridge=bridge-lan vlan-ids=10 tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether8,ether10 comment="Home VLAN (access primary)"
 } else={
     /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=10 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1 untagged=ether2,ether3,ether8,ether10 comment="Home VLAN (access primary)"
 }
-# Management (99): TAGGED on the dual-homed ports + trunk + self; UNTAGGED on the Mgmt-only access ports (ether7 iLO only; ether9 HAP moved to IoT 20).
+# Management (99): TAGGED on the dual-homed ports + trunk + self; UNTAGGED on the
+# Mgmt-only access ports (ether7 iLO only — ether9 is an IoT-20 access port).
 :if ([/interface bridge vlan find where bridge=bridge-lan and vlan-ids=99 and dynamic=no] = "") do={
     /interface bridge vlan add bridge=bridge-lan vlan-ids=99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether8,ether10 untagged=ether7 comment="Management VLAN on trunk + tagged admin"
 } else={
     /interface bridge vlan set [find where bridge=bridge-lan and vlan-ids=99 and dynamic=no] tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether8,ether10 untagged=ether7 comment="Management VLAN on trunk + tagged admin"
 }
-# All gateways' VLANs must be trunked to the switch (tagged on sfp-sfpplus1) so the
-# switch can reach each per-VLAN gateway — mirror of crs328_converge.rsc.j2 (which
-# trunktags every VLAN). Missing 20/30/40/50 previously dropped those VLANs at the
-# trunk (HD-308: Shield on Media(50) had no WAN — empty ARP, waiting lease). VLAN
-# 21 (IoT-Internet) no longer exists (HD-325) — cleaned below if it survives live.
+# Every gateway VLAN is tagged on the trunk (sfp-sfpplus1) so the switch reaches each
+# per-VLAN gateway — mirror of crs328_converge.rsc.j2, which trunk-tags every VLAN. A
+# VLAN missing at the trunk shows as empty ARP + no WAN on that VLAN's devices.
 # Other VLANs (20/30/40/50): tagged on trunk+self only. VLAN 20 (IoT) also
-# carries UNTAGGED ether9 (HMIP-HAP access, HD-338).
+# carries UNTAGGED ether9 (HMIP-HAP access).
 # NOTE: `untagged` must render via a Jinja conditional, not a bare list append.
 {% for v in network_vlans %}
 {% if v.id != 99 and v.id != 10 %}
@@ -171,17 +165,19 @@
 {% endfor %}
 
 # ---- DHCP: pools + servers + networks (mgmt server = dhcp-mgmt, named in bootstrap) ----
-# RouterOS caps dhcp-server network at 3 dns-servers; router /ip dns upstream is the
-# 4th/final fallback (HD-317). Guarded (HD-322) — re-import never duplicate-aborts.
-# HD-1097: option 15 (the search suffix, {{ domain_local }}) is delivered by the `dhcp-domain`
-# option row below, attached to every server — NOT by a `domain=` property, which RouterOS 7.24
-# does not have (`set … domain=` → `Script Error: bad parameter domain`; v6 had the property, v7
-# has neither `domain` nor any option 15 of its own). It is what makes a single-label name
-# (`nas`, for `\\nas\media`) reach DNS at all instead of the LLMNR/NetBIOS broadcast fallback that
-# a wired port gives you and a Wi-Fi client does not. docs/network-vlans.md §DHCP owns the why.
+# RouterOS caps a dhcp-server network at 3 dns-servers — a 4th is silently dropped, so
+# the router's own /ip dns is the implicit final fallback. Guard every add: a re-import
+# must never duplicate-abort.
+#
+# DHCP option 15 (the search suffix, {{ domain_local }}) rides the `dhcp-domain` option
+# row below, attached to every server — RouterOS 7 has no `domain=` property (`set …
+# domain=` → `Script Error: bad parameter domain`). It is what makes a single-label name
+# (`nas`, for `\\nas\media`) reach DNS instead of LLMNR/NetBIOS broadcast — which a wired
+# port answers and Wi-Fi does not. → docs/network-vlans.md §DHCP
+#
 # Resolver ORDER per VLAN comes from `lan_first_dns` on the `network_vlans` row (SSOT),
-# identical to roles/router/tasks/main.yml — see docs/network-dns.md §DNS Flow for why a
-# home instance first changes which split-horizon ANSWER that VLAN's devices get.
+# identical to roles/router/tasks/main.yml — which instance a VLAN queries first decides
+# which split-horizon ANSWER it gets. → docs/network-dns.md §DNS Flow
 # mgmt pool/server (bootstrap) — keep; add the rest
 :if ([/ip pool find where name=pool-mgmt] = "") do={
     /ip pool add name=pool-mgmt ranges={{ mgmt.pool }}
@@ -218,16 +214,18 @@
 {% endif %}
 {% endfor %}
 
-# ---- HD-1097: DHCP option 15 (Domain Name) attached to EVERY server, dhcp-mgmt included ----
-# ⚠ Mechanism: an `/ip dhcp-server option` row with code 15, referenced by each server's
-# `dhcp-option`. There is NO `domain=` property in RouterOS 7 (`set … domain=` →
-# `Script Error: bad parameter domain`, measured on 7.24.4) — the v6 property is gone.
-# Full paths inside `[find]`: a bare `[find]` resolves against the CURRENT menu, so inside a
-# `do={}` block it searches the wrong table and attaches NOTHING without an error (HD-1095).
-# roles/router deliberately does not manage this reference — one owner, not two.
-# The VALUE is hex with a 0x prefix (measured 7.24.4): `value=kogler.si`, the quoted form and
-# `x6b…` all die with `failure: Unknown data type!`; `value=1` dies with `Bad delimiter!`.
-# Read it back with `print detail` — the `raw-value` column is the payload.
+# ---- DHCP option 15 (Domain Name) attached to EVERY server, dhcp-mgmt included ----
+# Mechanism: an `/ip dhcp-server option` row with code 15, referenced by each server's
+# `dhcp-option`. RouterOS 7 has no `domain=` property (`set … domain=` →
+# `Script Error: bad parameter domain`).
+#
+# Use FULL paths inside `[find]`: a bare `[find]` resolves against the CURRENT menu, so
+# inside a `do={}` block it searches the wrong table and attaches NOTHING, silently.
+# roles/router does not manage this reference — one owner, not two.
+#
+# The value is hex with a 0x prefix: a literal or `x6b…` form dies with
+# `failure: Unknown data type!`. Read it back with `print detail` — `raw-value` is the
+# payload.
 :if ([/ip dhcp-server option find where name=dhcp-domain] = "") do={
     /ip dhcp-server option add name=dhcp-domain code=15 value=0x{{ (domain_local | string).encode().hex() }}
 } else={
@@ -237,12 +235,10 @@
     /ip dhcp-server set $s dhcp-option=[/ip dhcp-server option find where name=dhcp-domain]
 }
 
-# ---- Stale phantom VLAN 21 cleanup (HD-325 / HD-328) ----
-# VLAN 21 (IoT-Internet) was deleted from the SSOT in HD-325, but a live
-# `vlan21-iot-internet` interface + dhcp-21 server/pool/network can survive on
-# devices that ran a pre-HD-325 delta and were never re-converged (live-found
-# 2026-09-04: the interface list still shows vlan21). It is unreachable dead
-# state (no Wi-Fi client can tag per-MAC to it anyway), but it must not persist.
+# ---- Stale phantom VLAN 21 cleanup ----
+# A `vlan21-iot-internet` interface + dhcp-21 server/pool/network can survive on a device
+# that was never re-converged after VLAN 21 left the SSOT. Unreachable dead state, but it
+# must not persist.
 # Cleanup is idempotent — each remove is guarded on existence. Order matters:
 # remove dependent objects (lease/pool/network/server) before the interface.
 :if ([/ip dhcp-server lease find where server=dhcp-21] != "") do={ /ip dhcp-server lease remove [find where server=dhcp-21] }
@@ -269,7 +265,7 @@
 {% endif %}
 {% endfor %}
 
-# ---- WireGuard S2S (HD-91/HD-155) ----
+# ---- WireGuard S2S ----
 :if ([/interface wireguard find where name=wg-s2s] = "") do={
     /interface wireguard add name=wg-s2s listen-port=51820
 } else={
@@ -283,17 +279,17 @@
 } else={
     /interface wireguard peers set [find where interface=wg-s2s] public-key="{{ wireguard_s2s_vps.vps_public_key }}" allowed-address="{{ wireguard_s2s_vps.remote_ip }}" comment="VPS S2S peer"
 }
-# NOTE (live 2026-08-31): quote EVERY non-literal value sent to the script parser — the WG
-# public-key contains +/= (and the admin/pppoe passwords may contain ! or $), which RouterOS
-# mangles unquoted (user hit: wg-s2s peer add failed until public-key was quoted).
+# Quote EVERY non-literal value sent to the script parser: the WG public key contains
+# +/= (and the admin/pppoe passwords may contain ! or $), which RouterOS mangles
+# unquoted — the add then fails with no useful error.
 :if ([/ip route find where dst-address=10.255.40.0/30 and gateway=wg-s2s] = "") do={
     /ip route add dst-address=10.255.40.0/30 gateway=wg-s2s
 }
-# Address-list for the VPS peer (HD-155 least-access)
+# Address-list for the VPS S2S peer (least-access source)
 :if ([/ip firewall address-list find where list=vps_s2s_peer] = "") do={
     /ip firewall address-list add address={{ wireguard_s2s_vps.remote_ip.split('/')[0] }} list=vps_s2s_peer comment="VPS S2S peer"
 }
-# Scoped home targets the VPS may reach (HD-155)
+# Scoped home targets the VPS may reach
 {% for h in network_static_hosts %}
 {% if h.name in ['nas','ha-vip','oldsrv','pi','router','switch','spark'] %}
 :if ([/ip firewall address-list find where list=vps_scoped_home and address={{ h.ip }}] = "") do={
@@ -302,56 +298,53 @@
 {% endif %}
 {% endfor %}
 
-# ---- Comtrend modem mgmt (HD-302) ----
-# The RB4011 holds the modem-LAN address (now /24 so a connected route to the
-# modem subnet exists). Live fix 2026-09-02: was /32 -> modem unreachable via
-# forward (no route) even though the modem itself answered; /24 restores it.
+# ---- Comtrend modem mgmt ----
+# The RB4011 holds a /24 on the modem LAN so a connected route to the modem subnet
+# exists; a /32 leaves the modem unreachable via forward (no route) even though the
+# modem itself answers.
 :if ([/ip address find where interface=ether1] = "") do={
     /ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /24 (HD-302)"
 }
 
-# ---- Firewall: NAT (masquerade + Kids forced DNS) ----
-# Reset both NAT chains first (re-import safety + dedup against the reconciling
-# router role, which also owns these rows). Without the reset, converge's
-# unguarded /add would re-stack duplicates on top of the role's rows (live
-# duplex NAT bug, 2026-09-01: converge + role both added masquerade + Kids DNS).
+# ---- Firewall: NAT (masquerade + forced DNS) ----
+# Reset both NAT chains first: the reconciling router role owns the same rows, and
+# without the reset an unguarded /add stacks a second masquerade + a second forced-DNS
+# pair on top of the role's — two writers, four rows.
 /ip firewall nat remove [find chain=srcnat]
 /ip firewall nat remove [find chain=dstnat]
 /ip firewall nat
 add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquerade -> WAN"
-# HD-302: the Comtrend (consumer ONT) only answers its web UI to its directly-
-# connected peer on the modem link (the RB4011). Forwarded HTTP/HTTPS from lan
-# hosts is silently ignored (conn tracker syn-sent, 0 repl). Masquerade trusted-
-# admin traffic out ether1 as the router's own modem-LAN address so the modem
-# answers. Live-verified 2026-09-02 (laptop -> modem UI returns 401 auth page).
+# The Comtrend (consumer ONT) answers its web UI only to its directly-connected peer on
+# the modem link (the RB4011); forwarded HTTP/HTTPS from LAN hosts is silently ignored
+# (conn-tracker syn-sent, 0 replies). Masquerade trusted-admin traffic out ether1 as the
+# router's own modem-LAN address so the modem answers.
 add chain=srcnat out-interface={{ comtrend_modem.iface }} protocol=tcp dst-address={{ comtrend_modem.modem_mgmt_ip }} dst-port=80,443 action=masquerade comment="HD-302: modem UI via router SNAT (trusted-admin)"
 add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - UDP 53 -> Technitium"
 add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - TCP 53 -> Technitium"
-# HD-326: per-MAC kids filtered DNS on Home VLAN 10 (kids join Kogler SSID / VLAN 10 per
-# HD-312 — the VLAN-40 hijack above does NOT cover them). Redirect each kids-tablet's DNS
-# (53) to the Technitium primary, which enforces the Kids-Group policy (Cloudflare
-# Families). Mirrors roles/router/tasks/main.yml (both own these rows).
+# Per-MAC kids filtered DNS on Home VLAN 10 (the kids join the Kogler SSID, so the
+# VLAN-40 hijack above does NOT cover them): redirect each kids tablet's DNS (53) to the
+# Technitium primary, which enforces the Kids-Group policy (Cloudflare Families).
+# Mirrors roles/router/tasks/main.yml — both own these rows.
 {% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
 add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
 add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
 {% endif %}{% endfor %}
-# HD-342 (2026-09-07): IoT VLAN 20 per-device DNS visibility — hijack plain :53
-# from IoT to the PI tertiary (dns_tertiary_ip => 10.10.1.20, the Pi Technitium
-# read via dns-pi.kogler.si) so each IoT device's queries land per-source-IP in
-# the Pi query log. Mirrored in roles/router/tasks/main.yml (both own these rows).
+# IoT VLAN 20 per-device DNS visibility: hijack plain :53 from IoT to the Pi tertiary
+# (dns_tertiary_ip, read via dns-pi.kogler.si) so each device's queries land per-source-IP
+# in the Pi query log instead of collapsing at the VPS primary / WAN egress.
+# Mirrors roles/router/tasks/main.yml — both own these rows.
 add chain=dstnat src-address=10.10.20.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - UDP 53 -> Pi (HD-342)"
 add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - TCP 53 -> Pi (HD-342)"
 
 # ---- Firewall: address lists ----
-# trusted-ha = the hosts that RUN HA, i.e. pi (primary) + oldsrv (standby) + ha-vip.
-# HD-438 (2026-09-23): the HD-03 narrowing that created this list was meant to drop `nas`,
-# but it left the HA PRIMARY out. HA tunnels KNX from the host's own address (`local_ip` is
-# null in the config entry, so xknx picks eth0 = 10.10.1.20), not from the VIP, so the Pi's
-# traffic to the KNX router on VLAN 20 hit the default drop and HA's KNX has been timing out
-# on the primary ever since — silently, because wall switches drive the bus without HA.
-# Reset first (HD-322): a re-import without the reset STACKS duplicate rows for
-# trusted-admin/trusted-ha/internal_lan on top of the previous import (the role's
-# api_modify handles absents, but the converge must own the same single set).
+# trusted-ha = the hosts that RUN HA: pi (primary) + oldsrv (standby) + ha-vip.
+# The list MUST include the HA PRIMARY, not just the VIP: HA tunnels KNX from the host's
+# own address (`local_ip` is null in the config entry, so xknx picks eth0), never from the
+# VIP — a Pi missing here means HA's KNX to VLAN 20 hits the default drop while wall
+# switches keep driving the bus and nothing looks broken.
+# Reset the lists first: a re-import without the reset STACKS duplicate rows for
+# trusted-admin/trusted-ha/internal_lan. The role's api_modify handles absents, but the
+# converge must own the same single set.
 /ip firewall address-list remove [find list=trusted-admin]
 /ip firewall address-list remove [find list=trusted-ha]
 /ip firewall address-list remove [find list=internal_lan]
@@ -379,37 +372,27 @@ add chain=forward action=accept connection-state=established,related comment="Al
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address-list=trusted-ha protocol=udp dst-port=5683 comment="IoT Shelly CoAP push -> HA"
 add chain=forward action=accept src-address-list=trusted-ha dst-address=10.10.20.0/24 comment="Trusted HA hosts (oldsrv/ha-vip) -> IoT (new) - HD-03 owner decision 2026-09-04: narrowed to trusted-ha (excludes nas)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT (est/rel)"
-# KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT
-# in trusted-admin (node, not admin host -- HD-310 Mgmt-strict posture), so
-# HA's KNX tunnel needs its own narrow new-UDP exception. Same pattern as the
-# CoAP 5683 reverse exception above. dst = knx-ip 10.10.20.11 (SSOT, VLAN 20).
+# KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT in
+# trusted-admin (a node, not an admin host), so HA's KNX tunnel needs its own narrow
+# new-UDP exception. Same pattern as the CoAP 5683 reverse exception above.
+# dst = knx-ip 10.10.20.11 (SSOT, VLAN 20).
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.11 protocol=udp dst-port=3671 comment="Home -> KNX router (KNXnet/IP tunnel, HA) - new UDP"
-# KNXnet/IP REPLY path (HD-438, 2026-09-23). Mirrors the CoAP 5683 reverse exception
-# above. Match on the ROUTER'S SOURCE PORT, not dst-port: HA's replies arrive from
-# knx-ip:3671 to xknx's EPHEMERAL tunnel port, so a `dst-port=3671` rule would read
-# correctly and never match a single packet. Without this line the return leg depends
-# entirely on `established,related` conntrack, and a UDP tunnel that goes idle past
-# the conntrack timeout becomes permanently half-open: HA keeps sending (devices still
-# switch!), every L_DATA.con and every state read is dropped, xknx cannot detect it, and
-# entity states freeze at the moment the entry died (HA reported the tunnel as
-# "established 2026-09-20T07:29:43" for three days). Reload alone fixes the symptom;
-# this line removes the recurrence.
+# KNXnet/IP REPLY path — mirrors the CoAP 5683 reverse exception above. Match the KNX
+# ROUTER'S SOURCE PORT, not dst-port: HA's replies arrive from knx-ip:3671 to xknx's
+# EPHEMERAL tunnel port, so a `dst-port=3671` rule reads correctly and matches nothing.
+# Without it the return leg rides `established,related` conntrack alone: a UDP tunnel
+# idle past the timeout stays half-open — HA keeps sending (the bus still works) while
+# every L_DATA.con and state read is dropped and xknx cannot see it.
 add chain=forward action=accept src-address=10.10.20.11 protocol=udp src-port=3671 dst-address-list=trusted-ha comment="KNX router -> HA (tunnel replies; match src-port 3671, replies go to xknx ephemeral port) - HD-438"
-# Shelly Gen1 RGBW2 REST (HA on the Pi -> Shelly fleet on IoT): same reason
-# as the KNX exception above -- the Pi is a node, NOT in trusted-admin
-# (HD-310 Mgmt-strict posture), so HA's outbound new-TCP to the Shelly HTTP
-# API needs its own narrow exception. dst-port 80 only (Gen1 REST; the CoAP
-# 5683 push path is the reverse direction, already covered by trusted-ha
-# above). Same pattern as the KNX narrow exception (HD-319).
+# Shelly Gen1 RGBW2 REST (HA on the Pi -> the Shelly fleet on IoT): the Pi is a node, not
+# an admin host, so HA's outbound new-TCP to the Shelly HTTP API needs its own narrow
+# exception. dst-port 80 only (Gen1 REST); the CoAP 5683 push path is the reverse
+# direction and is already covered by trusted-ha above.
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp dst-port=80 comment="Home Pi (HA) -> Shelly RGBW2 REST (new TCP)"
-# Shelly Gen1 CoIoT/CoAP client (HA -> Shelly fleet on IoT) (HD-323): the
-# Gen1 Shelly integration's config flow + runtime BlockDevice open a CoAP
-# client session TOWARD each device on udp/5683 (requests/management), in
-# ADDITION to the reverse push the device sends to HA (covered by
-# trusted-ha above). Without this forward new-UDP the config flow's
-# validate_input (BlockDevice.initialize -> CoAP GET to the device) fails
-# with "cannot_connect" and the device can't be added in the UI. Narrow:
-# Home(10) only, dst-port 5683 only.
+# Shelly Gen1 CoIoT/CoAP CLIENT (HA -> each device, udp/5683): the reverse of the push
+# above. Without this new-UDP the integration's config flow (BlockDevice.initialize ->
+# CoAP GET) fails "cannot_connect" and the device cannot be added in the UI.
+# Narrow: Home(10) only, dst-port 5683 only.
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=udp dst-port=5683 comment="Home Pi (HA) -> Shelly CoIoT/CoAP client (new UDP)"
 
 add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.1.30 protocol=udp dst-port=53,853 comment="LAN -> DNS resolver udp"
@@ -418,22 +401,23 @@ add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.
 add chain=forward action=accept src-address-list=internal_lan dst-address=10.10.1.20 protocol=tcp dst-port=53,853 comment="LAN -> DNS secondary Pi tcp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=udp dst-port=53,853 comment="IoT -> DNS resolver udp"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address=10.10.1.30 protocol=tcp dst-port=53,853 comment="IoT -> DNS resolver tcp"
-# HD-312 phase 3 / HD-325: cloud-IoT per-MAC WAN egress (iot-wan-allow). The IOT-WAN
-# SSID was deleted — the LG/Bosch/HAP cloud devices ride VLAN 20 where the IoT->WAN
-# drop below cuts their WAN; these src-mac-address accepts restore internet for
-# exactly the SSOT rows with wan_allow: true. MUST sit ABOVE the IoT->WAN drop.
+# Cloud-IoT per-MAC WAN egress (iot-wan-allow): the LG/Bosch/HAP cloud devices ride
+# VLAN 20, where the IoT->WAN drop below cuts their WAN; these src-mac-address accepts
+# restore internet for exactly the SSOT rows with wan_allow: true.
+# MUST sit ABOVE the IoT->WAN drop.
 {% for h in network_static_hosts %}{% if h.mac is defined and h.vlan == 20 and h.wan_allow is defined and h.wan_allow %}
 add chain=forward action=accept src-address=10.10.20.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"
 {% endif %}{% endfor %}
-# HD-326 (2026-09-04): per-MAC kids controls on Home VLAN 10 (kids join Kogler SSID /
-# VLAN 10 per HD-312). The kids-tablets' bedtime WAN hard-block (22:00-07:00) + DoT(853)
-# bypass drop, rendered per SSOT row with kids: true. MUST sit ABOVE the Home->WAN accept
-# below — a drop placed below the Home accept is shadowed (first-match-wins).
+# Per-MAC kids controls on Home VLAN 10: the kids tablets' bedtime WAN hard-block
+# (22:00-07:00) + DoT(853) bypass drop, rendered per SSOT row with kids: true.
+# MUST sit ABOVE the Home->WAN accept below — a drop placed below it is shadowed
+# (first-match-wins).
 {% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
 add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom protocol=tcp dst-port=853 comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"
 add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"
 {% endif %}{% endfor %}
-# WAN egress per network-vlans.md row 73 ("All (except IoT) -> WAN Allowed (masqueraded)"), HD-309
+# WAN egress for every VLAN except IoT, masqueraded — docs/network-vlans.md
+# §Inter-VLAN Firewall Rules
 add chain=forward action=accept src-address=10.10.1.0/24  out-interface=pppoe-telekom comment="Home -> WAN allowed (HD-309 row 73)"
 add chain=forward action=accept src-address=10.10.50.0/24 out-interface=pppoe-telekom comment="Media -> WAN allowed (HD-309)"
 add chain=forward action=accept src-address=10.10.30.0/24 out-interface=pppoe-telekom comment="Guest -> WAN allowed (HD-309 row 73)"
@@ -447,20 +431,20 @@ add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/
 add chain=forward action=drop src-address=10.10.30.0/24 dst-address-list=internal_lan comment="Guest -> LAN drop"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=tcp dst-port=853 comment="Kids -> DoT bypass drop tcp"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=udp dst-port=853 comment="Kids -> DoT bypass drop udp"
-# HD-342 (2026-09-07): IoT VLAN 20 DoT(853) bypass drop — mirror of the Kids drop,
-# so encrypted DNS cannot bypass the forced-DNS visibility path (plain :53 -> Pi
-# above). Residual DoH/443 accepted (can't filter HTTPS without TLS interception).
+# IoT VLAN 20 DoT(853) bypass drop — mirror of the Kids drop, so encrypted DNS cannot
+# bypass the forced-DNS path (plain :53 -> Pi above). DoH/443 stays accepted: HTTPS
+# cannot be filtered without TLS interception.
 add chain=forward action=drop src-address=10.10.20.0/24 protocol=tcp dst-port=853 comment="IoT -> DoT bypass drop tcp (HD-342)"
 add chain=forward action=drop src-address=10.10.20.0/24 protocol=udp dst-port=853 comment="IoT -> DoT bypass drop udp (HD-342)"
 add chain=forward action=drop src-address=10.10.40.0/24 dst-address=10.10.1.0/24 comment="Kids -> Home drop"
 add chain=forward action=drop src-address=10.10.40.0/24 out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="Kids bedtime WAN block 22:00-07:00"
 add chain=forward action=accept src-address=10.10.40.0/24 out-interface=pppoe-telekom comment="Kids -> WAN allowed out-of-window (HD-309 row 73)"
 add chain=forward action=drop src-address-list=internal_lan dst-address-list=internal_lan comment="Default deny inter-VLAN"
-# HD-302: Comtrend modem mgmt (trusted-admin only)
+# Comtrend modem mgmt (trusted-admin only)
 add chain=forward action=accept src-address-list=trusted-admin dst-address=192.168.1.1 protocol=tcp dst-port=80,443 comment="Trusted admin -> Comtrend modem"
 add chain=forward action=drop dst-address=192.168.1.0/24 comment="Drop all other -> Comtrend modem subnet"
 
-# ---- Firewall: INPUT chain (mgmt services lockdown HD-78/KOPS-003) ----
+# ---- Firewall: INPUT chain (mgmt services lockdown) ----
 /ip firewall filter remove [find chain=input]
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="Allow established/related input"
@@ -476,32 +460,31 @@ add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from no
 add chain=input action=accept src-address-list=internal_lan protocol=tcp dst-port=53 comment="Allow DNS input from LAN tcp"
 add chain=input action=accept src-address-list=internal_lan protocol=udp dst-port=53 comment="Allow DNS input from LAN udp"
 
-# ---- IPv6 (HD-414): scoped dual-stack — the FILTER lands before any prefix does ----
-# Why this section exists: IPv4 inbound safety is an accident of NAT, and IPv6 has no
-# NAT — once Home devices hold a GUA, an unsolicited packet from the internet reaches
-# them unless WE drop it. The invariant this section holds: no address on any VLAN
-# loses its IPv4-only protection without an explicit filter decision, and the filter
-# decision must be in place BEFORE the prefix is live, so the section is ordered
-# delegation → filter → addressing/RA and never reordered by a later edit.
-# Measured on the live ISP 2026-09-22 (was assumed absent in HD-405): DHCPv6-PD
-# delegates `2a00:ee2:2700:8f00::/56` over `pppoe-telekom`. The prefix is therefore
-# NEVER written into a row below: the Home address is `<prefix from the pool>::1/64`
-# and `advertise=yes` puts THAT /64 in the RA, so a re-delegation heals itself.
-# What is deliberately NOT here, and why (HD-414 row tail carries the follow-up):
-#   * No inbound `udp 41641 -> oldsrv` accept. It needs one predictable destination
-#     address and oldsrv has none today — measured on the box: its Home NIC is
-#     `addr_gen_mode=1` (RFC 7217 stable-privacy) with `use_tempaddr=2`, so SLAAC
-#     gives it a hashed address plus rotating temporary ones. Pinning it is a host-side
-#     decision (roles/network) that no v6 row here can make for it. Tailscale's punch
-#     still works, because the phone's packets are replies to oldsrv's own first
-#     packet and rule 1 (`established,related`) admits those.
-#   * No MLD (130-132) accept: nothing here sends IPv6 multicast to the ISP.
-# RouterOS filter is FIRST-MATCH-WINS, so every exception sits ABOVE its drop (same
-# idiom as the WireGuard listen-port rule in the IPv4 input chain above).
-# Syntax below is verified against this device (7.24.4), which differs from the older
-# property names: `protocol=icmpv6` (not ipv6-icmp), `icmp-options=<single int>` (no
-# lists, no ranges), no `name=` on /ipv6 dhcp-client (it is keyed by interface), and no
-# `from-pool` on /ipv6 nd prefix (advertise on the address is the SLAAC mechanism).
+# ---- IPv6: scoped dual-stack — the FILTER lands before any prefix does ----
+# IPv4 inbound safety is an accident of NAT; IPv6 has no NAT, so an unsolicited packet
+# from the internet reaches a Home device unless WE drop it.
+# → docs/network-vlans.md §IPv6 — scoped dual-stack (Home VLAN only)
+#
+# The invariant: no VLAN loses its IPv4-only protection without an explicit filter
+# decision, and that decision must be in place BEFORE the prefix is live — so the
+# section is ordered delegation → filter → addressing/RA, never reordered by a later edit.
+#
+# DHCPv6-PD delegates the prefix over pppoe-telekom, so it is NEVER written into a row
+# below: the Home address is `<prefix from the pool>::1/64` and `advertise=yes` puts THAT
+# /64 in the RA, which is what makes a re-delegation heal itself.
+#
+# Deliberately absent — no inbound `udp 41641 -> oldsrv` accept: it needs one predictable
+# destination address and oldsrv has none (`addr_gen_mode=1`/RFC 7217 + `use_tempaddr=2`
+# give it hashed + rotating temporary addresses). Pinning it is a host-side decision
+# (roles/network); a Tailscale punch still works because those packets are replies, which
+# rule 1 (`established,related`) admits. No MLD (130-132) accept: nothing here sends
+# IPv6 multicast to the ISP.
+# The filter is FIRST-MATCH-WINS, so every exception sits ABOVE its drop — the same idiom
+# as the WireGuard listen-port rule in the IPv4 input chain above.
+# Syntax on this device differs from the older property names: `protocol=icmpv6` (not
+# ipv6-icmp), `icmp-options=<single int>` (no lists, no ranges), no `name=` on
+# /ipv6 dhcp-client (it is keyed by interface), and no `from-pool` on /ipv6 nd prefix
+# (`advertise` on the address is the SLAAC mechanism).
 
 # (1) The delegation itself. No default route and no ISP DNS from here: the v6 default
 #     route already arrives with the ISP's own RA, and DNS stays on the Technitium
@@ -536,15 +519,15 @@ add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-
 add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=4 comment="HD-414 forwarded v6 icmp parameter-problem"
 add chain=forward action=drop in-interface=pppoe-telekom comment="HD-414 no unsolicited v6 into any VLAN (any future exception goes ABOVE this line)"
 # The no-v6 VLANs keep it that way even if someone later advertises a prefix at them:
-# egress from them is refused, which mirrors what IPv4 routing + HD-337/338 already give them.
+# egress from them is refused, which is what IPv4 routing already gives them.
 {% for v in network_vlans if v.id not in network_ipv6.slaac_vlan_ids and v.id != 99 %}
 add chain=forward action=drop in-interface=vlan{{ v.id }}-{{ v.name|lower }} comment="HD-414 no v6 egress from {{ v.name }} ({{ v.id }}) — this VLAN stays IPv4-routed"
 {% endfor %}
 add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 origin from Mgmt — mirrors the v4 drop-mgmt-origin"
 
 # (3) Addressing + RA, LAST. One advertised address device-wide = the invariant "RA on
-#     the Home VLAN only"; a `disabled=yes` /ipv6 nd row would NOT express it (the
-#     `interface=all` default row advertises again — measured on the device).
+#     the Home VLAN only"; a `disabled=yes` /ipv6 nd row would NOT express it — the
+#     `interface=all` default row advertises again.
 /ipv6 address remove [find where comment~"^HD-414"]
 {% for v in network_vlans if v.id in network_ipv6.slaac_vlan_ids %}
 /ipv6 address add address={{ network_ipv6.router_address_suffix }} interface=vlan{{ v.id }}-{{ v.name|lower }} from-pool={{ network_ipv6.pool }} advertise=yes comment="HD-414 {{ v.name }} GWA (fixed suffix, prefix taken from the pool)"
@@ -559,7 +542,7 @@ add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 ori
     :log warning "HD-414: pool {{ network_ipv6.pool }} is not bound yet — the Home v6 address and its RA prefix stay invalid until the DHCPv6-PD delegation lands"
 }
 
-# ---- Services (mgmt-scoped, dangerous disabled — HD-301) ----
+# ---- Services (mgmt-scoped, dangerous disabled) ----
 /ip service set telnet disabled=yes port=23 available-from={{ router_services_available_from }}
 /ip service set ftp disabled=yes port=21 available-from={{ router_services_available_from }}
 /ip service set www disabled=yes port=80 available-from={{ router_services_available_from }}
@@ -570,12 +553,11 @@ add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 ori
 /ip service set ssh disabled=no port=22 available-from={{ router_services_available_from }}
 /ip service set winbox disabled=no port=8291 available-from={{ router_services_available_from }}
 
-# ---- SNMP (HD-53): RO, Mgmt-scoped — config so it survives steady-state converges ----
-# The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
-# community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
-# community) and is scoped to the Mgmt subnet only, read-only. Idempotent: set enabled,
-# then set the named community if present else add it. Firewall already allows udp/161
-# from Mgmt VLAN + drops the rest (above).
+# ---- SNMP: RO, Mgmt-scoped — config so it survives steady-state converges ----
+# The RO community (network-snmp_api) renders as snmp_ro_community; the community `name=`
+# IS the shared secret (it must match the Alloy snmp.yml auth community), scoped to the
+# Mgmt subnet and read-only. Idempotent: set enabled, then set the named community if
+# present else add it. The INPUT chain above allows udp/161 from Mgmt, drops the rest.
 /snmp set enabled=yes
 :if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
     /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
@@ -584,21 +566,20 @@ add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 ori
 }
 
 # ---- Boot resilience (fixboot): re-assert syslog + SNMP after boot ----
-# ONE startup script+scheduler for both concerns (HD-346 consolidation — these were
-# two scripts fixsyslog + fixsnmp; merged). RouterOS settings are config, not runtime
-# state, but a stray change or boot edge can leave the syslog remote target or SNMP
-# off; a startup scheduler re-asserts both ~10s post-boot (after wg-s2s/route bring-up):
-#   * centralsyslog -> the VPS rsyslog target (HD-313; target = wireguard_s2s_vps.remote_ip)
-#   * /snmp enabled + RO community scoped to Mgmt (HD-53/HD-346)
-# Names letters+numbers-only (HD-313 rule) -> `fixboot`. Single-line quoted source keeps
-# the /import parser happy.
+# ONE startup script+scheduler for both concerns. RouterOS settings are config, not
+# runtime state, but a stray change or a boot edge can leave the syslog remote target
+# or SNMP off; a startup scheduler re-asserts both ~10s post-boot (after bring-up):
+#   * centralsyslog -> the VPS rsyslog target (target = wireguard_s2s_vps.remote_ip)
+#   * /snmp enabled + RO community scoped to Mgmt
+# Script/scheduler names are letters+numbers only -> `fixboot`. A single-line quoted
+# source keeps the /import parser happy.
 :if ([/system script find where name=fixboot] = "") do={
     /system script add name=fixboot source=":delay 10s; /system logging action set [find where name=centralsyslog] remote=0.0.0.0; :delay 1s; /system logging action set [find where name=centralsyslog] remote={{ wireguard_s2s_vps.remote_ip.split('/')[0] }}; /snmp set enabled=yes; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
 }
 :if ([/system scheduler find where name=fixboot] = "") do={
     /system scheduler add name=fixboot on-event=fixboot start-time=startup interval=0 policy=read,write,test
 }
-# Cleanup: the old two-script split (fixsyslog + fixsnmp) is superseded — remove if present.
+# Cleanup: the fixsyslog + fixsnmp split (folded into fixboot) — remove if present.
 :if ([/system script find where name=fixsyslog] != "") do={
     /system script remove [find where name=fixsyslog]
 }
@@ -617,7 +598,7 @@ add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 ori
 # the router forwards to them first and only falls back to raw Cloudflare when
 # all are unreachable (RouterOS queries listed servers concurrently + takes the
 # first reply). The router's WAN egress IP is exactly what the VPS nftables
-# dns-allow-home set permits (HD-317). Final fallback stays unfiltered (accepted
+# dns-allow-home set permits. Final fallback stays unfiltered (accepted
 # tradeoff, network-dns.md).
 /ip dns set allow-remote-requests=yes servers={{ dns_primary_ip }},{{ dns_secondary_ip }},{{ dns_tertiary_ip }},1.1.1.1,1.0.0.1
 
