@@ -25,6 +25,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Subject | Status | Why |
 |---------|--------|-----|
 | A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
+| `agent-gemma-26b` / `agent-unified*` laptop arms | superseded | Agent leg retired: cold prefill, minutes per turn |
 | `agentmemory` central instance as briefed | rejected | Loopback REST, one shared bearer, no per-user isolation |
 | `agentmemory` LLM compression (consolidation, graph extraction) | rejected | Drops every identifier: retrieval-key 0/5 |
 | `ar-blk-lean` (ar-blk minus the ple_dispatch env) | rejected | Crashes at first shard; knobs constitutive |
@@ -51,6 +52,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `fast` NVFP4 profile (mixed NVFP4/FP8 weights) | superseded | JIT-compiles QSA/GDN kernels; the name now marks the winner |
 | `fast-sglang` (SGLang + RadixArk NVFP4) | rejected | No arm64 digest, pool too small, PLE bind unwired |
 | forward-auth on LiteLLM `/ui/*` route-wide | rejected | Breaks the same-host API bearer consumers |
+| GGUF AI legs capped at `1g` memory | superseded | CPU-fallback path peaks 1.59 GiB; the cap is 4g |
 | `graded` (fp8 main KV cache, same AWQ weights) | rejected | Pinned build has no fp8 KV; needs the engine-pin lane |
 | Hand-typed `hosts` entries for `.ts.kogler.si` names | rejected | Forbidden form; the generated alias artifact is sanctioned |
 | Hermes keeping its own memory store | rejected | Owner ruling: one memory plane, not a second store |
@@ -81,6 +83,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Raising the LiteLLM proxy log level to see dropped params | rejected | It logs token-bearing request bodies |
 | Reflex key rotation after a partial-value leak | rejected | The documented rotation procedure carries it |
 | Routing-domain split for `.ts.kogler.si` names | rejected | Ruled out; the generated alias artifact is the remedy |
+| `spark/*` wildcard in a scoped-key allow-list | rejected | The named row is granted; a wildcard over-grants the engine |
 | TEI (text-embeddings-inference) on the RX 7600 | rejected | No RDNA3 path; a 7-step self-build, flash-attn dropped |
 | `u1-patch` (patched lineage + AWQ, no spec decode) | rejected | Isolation control, beat by ar-blk |
 | `u2-blk` (patched AWQ + block rejection) | rejected | Beat by the AR-hybrid ar-blk |

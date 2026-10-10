@@ -9,7 +9,7 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 
 > **Role:** Stack doc (detail) — the family-facing web AI platform: LLM routing (LiteLLM), chat + RAG UI
 > (Open WebUI), agent orchestration (OpenClaw), OCR ingestion (Docling) and the **Qdrant** vector store.
-> It is the single merged view of the locked architecture: Qdrant instead of PGVector ·
+> It is the single merged view of the locked architecture: Qdrant as the standalone vector store ·
 > Forgejo-OKF wiki as knowledge SSOT · harness consumption going direct to the engine.
 >
 > Desktop/office AI (ONLYOFFICE, Word, email, presentations) stays in [`services-office.md`](services-office.md);
@@ -33,9 +33,9 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 > - **`rag-mcp` and `forgejo-mcp` are stubs** (`enabled: false`, and `rag-mcp`'s compose file has no
 >   `services:` block, so flipping the flag fails `docker compose config`). The rerank leg therefore
 >   **ships dormant**: the container answers, the consumer does not exist (**§10**).
-> - **No scoped consumer reaches the pinned-AI rows or `spark/*`.** Both instances' `litellm_scoped_keys`
->   still name `ollama/*` model names that no longer exist, and `spark/*` is in no allow-list. Everything
->   measured so far ran on the admin-grade master key.
+> - **No scoped consumer reaches the pinned-AI rows.** The VPS instance's `litellm_scoped_keys` still name
+>   `ollama/*` model names that no longer exist, and the `spark` row is named in one allow-list only — the
+>   `home-assistant` record (§4); probes so far ran on the admin-grade master key.
 >
 > ⏳ Open work is listed in §10.
 
@@ -45,8 +45,9 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 
 One **LiteLLM endpoint** is the spine for everything that must not hold an upstream credential. Every such
 consumer talks to it and **never sees an upstream provider key**. Wired today: Open WebUI, OpenClaw, Qdrant's
-embed/rerank path. **Not wired yet:** Home Assistant (no consumer, no key, no env) and Docling as a scoped
-consumer — both are open work (§10), so the list below is the contract, not the current roster. All external **generation** uses one `openrouter_api` key; **embeddings, rerank
+embed/rerank path, and Home Assistant as the `home-assistant` record on the LAN instance
+([smart-home-voice.md](smart-home-voice.md)). **Not wired yet:** Docling as a scoped consumer — open work
+(§10), so the list below is the contract, not the current roster. All external **generation** uses one `openrouter_api` key; **embeddings, rerank
 and STT are local on the oldsrv RX 7600** (§3a). Model routing, cost, rate limits and credential management
 are centralized there.
 
@@ -132,13 +133,13 @@ Patterns A/B in [network-vpn.md](network-vpn.md)).
 | **LiteLLM (VPS)** | LLM gateway / router | `services-internal` + `llm-backend` + `tailnet-apps` | OpenAI-compatible spine (Postgres-backed). The only component holding upstream keys. Admin UI is **tailnet-only** at `litellm.kogler.si` (edge → `http://litellm:4000` via Docker DNS — the `tailnet-apps` overlay is the bridge that makes that resolve; never join the key-holder to `traefik-public`). `/ui/login` resolves on the pinned build — the "no SPA fallback, use `/fallback/login`" note (upstream #29340) does not reproduce; **§4c**. |
 | **LiteLLM (LAN)** | Dev/pinned-side gateway | oldsrv, `llm-backend` + traefik-internal | `lan-litellm` + `lan-litellm-db`, exposed as **`llitellm.kogler.si`** on the oldsrv `traefik-internal` HOME edge (`http://oldsrv_home_ip:4000` backend, TLS + HSTS). Own Postgres, Kopia-backed. `bootstrap_keys` is **`true`** — one consumer minted (`home-assistant`), so the glue's fail-loud gate on an EMPTY spec list must never be re-triggered by emptying `litellm_scoped_keys`; the rest of the scoped allow-lists are pending (§10). |
 | **Open WebUI** | chat + RAG UI | `traefik-public` | ONE instance today at `ai.kogler.si`, Authentik OIDC. The public/internal split + per-instance corpus is **open work (§10)**. |
-| **Qdrant** | hybrid vector store | `db-internal` | Standalone Rust DB (dense + sparse BM25), **independent of OWUI's built-in RAG**, replaces PGVector. Dimension locks at first ingest — **1024**. Keep the snapshot seam (§5b). |
+| **Qdrant** | hybrid vector store | `db-internal` | Standalone Rust DB (dense + sparse BM25), **independent of OWUI's built-in RAG**. Dimension locks at first ingest — **1024**. Keep the snapshot seam (§5b). |
 | **Forgejo (wiki repos)** | knowledge SSOT | `db-internal` / git | OKF `.md` repos per owner; git = truth; Qdrant = rebuildable cache. |
 | **Docling** | OCR / document understanding | `services-internal` | **CPU on the VPS** (no GPU there). Model stack = layout detector + TableFormer + pluggable OCR; live engine **RapidOCR / onnxruntime (PP-OCRv6 small)** — read from the served log; `easyocr 1.7.2` is installed but never reached, because `OcrAutoModel` prefers rapidocr+onnxruntime (§Docling OCR engine selection). Slovenian is covered: `sl` is a first-class PP-OCRv6 code and the multilingual `rec_small` is baked. ⚠ Its accelerator set is `auto\|cpu\|cuda\|mps\|xpu` — **no Vulkan/ROCm**, so Docling cannot use the RX 7600. ⛔ **On light prose the live engine drops whole sentences (§10).** A 300 dpi image-only Slovenian scan returns `status: success` with real markdown: the layout stage's compiled kernels live on the `/cache` bind, because `/tmp` is a `noexec` tmpfs — §Operational facts. Free lever regardless: `do_ocr=false` per request, but **only for born-digital PDFs** (a scanner's own text layer carries no diacritics). |
 | **OpenClaw** | AI agent / orchestration | `services-internal` | Version pinned. Models via a LiteLLM scoped key. |
 | **kapa-inspired-rag-mcp** *(stub)* | MCP hybrid reader | `services-internal` | Intended flow: hybrid search in Qdrant → top-20 → rerank via LiteLLM `jina_ai/` → top-5 clean markdown. Not implemented — see the status block and §10. |
 | **Forgejo MCP** *(planned)* | MCP read/write `.md` | `services-internal` | Bridge to the OKF wiki repos; agents read/write notes + open PRs. |
-| **Ollama** | **embed fallback rung** | `llm-backend` | `ollama:0.32.15-rocm` serving (live; the pin is `0.35.1-rocm` ⏳ — the container moves at the oldsrv converge) `bge-m3` (1024-dim, E2E-verified, 833–899 MiB VRAM, ~500 ms/chunk). Demoted from primary by measurement (decision #27) but **kept as the documented fallback** of the same 1024-dim space. **Not** a rerank host and **not** an STT host (§9c). |
+| **Ollama** | **embed fallback rung** | `llm-backend` | `ollama:0.32.15-rocm` serving (live; the pin is `0.35.1-rocm` ⏳ — the container moves at the oldsrv converge) `bge-m3` (1024-dim, E2E-verified, 833–899 MiB VRAM, ~500 ms/chunk). The **documented fallback rung** of the same 1024-dim space (#27). **Not** a rerank host and **not** an STT host (§9c). |
 | **whisper / reranker / embed** | pinned-AI tier | `llm-backend` | oldsrv RX 7600 / Vulkan — §3a. |
 | **Mem0** *(planned)* | Long-term memory for OWUI | `services-internal` | Backed by Qdrant; per-user/per-project scoping (§5c D). Onboarding is open work (§10). |
 | **OpenHands** *(planned)* | Agentic coding harness | oldsrv / spark | A third coding cockpit; would be served by the LAN LiteLLM (scoped key) + a PR-only Forgejo token. |
@@ -151,7 +152,7 @@ The one table for **what AI runs on oldsrv, on what device, with which model**. 
 | Leg | Engine | Model (quant) | Device | VRAM (measured) | Latency (measured) | Status |
 |-----|--------|---------------|--------|-----------------|--------------------|--------|
 | **Embeddings** | `llama.cpp server-vulkan` (`--embedding --pooling cls --embd-normalize 2`) | `bge-m3` **Q8_0** (634.6 MB) | RX 7600 / Vulkan | **~326 MiB** | **15 ms**/chunk · 51-doc batch 0.86–1.40 s · **0.45 s deployed** | ✅ live (`embed`, :9002, gateway row `bge-m3-vk`, dim 1024, ‖v‖=1.0) · cos 0.9996 vs the Ollama vectors ⇒ **no re-embed penalty** |
-| ↳ embed fallback rung | `ollama:0.32.15-rocm` (`/api/embed`) | `bge-m3` (fp16) | RX 7600 / ROCm | **833–899 MiB** | ~470–545 ms/chunk | ✅ live — **kept** as the fallback rung of the SAME 1024-dim space; it is a **service + model, not a catalog row** |
+| ↳ embed fallback rung | `ollama:0.32.15-rocm` (`/api/embed`) | `bge-m3` (fp16) | RX 7600 / ROCm | **833–899 MiB** | ~470–545 ms/chunk | ✅ live — the fallback rung of the SAME 1024-dim space; a **service + model, not a catalog row** |
 | **Reranker** | `llama.cpp server-vulkan` (`--embedding --pooling rank --rerank`), routed as LiteLLM **`jina_ai/`** | `bge-reranker-v2-m3` **Q8_0** (635.7 MB) | RX 7600 / Vulkan | **~327 MiB** | **0.34–0.50 s** / 20 docs · **0.95 s** solo deployed · 1.15 s under three-way load | ✅ live (`reranker`, :9001, row `local-rerank`, ranking verified) · **ships DORMANT** (its consumer does not exist yet — §10) |
 | **STT (voice)** | `whisper.cpp:main-vulkan` (`--inference-path /v1/audio/transcriptions`) | `large-v3-turbo` **fp16** (q5_0 = −1.0 GiB option) | RX 7600 / Vulkan | **1788 MiB** (Δ1722) · q5_0 **786** | **0.40 s** per 11 s WAV · **0.53–0.60 s** on real Slovenian radio speech | ✅ live (`whisper`, :9000, row `local-stt`) · CPU fallback native at init: 17.5 s |
 | **Gateway** | `lan-litellm` + own Postgres | — | CPU | — | — | ✅ live; the three pinned rows are in its DB and each answered **through** the gateway (§4a) |
@@ -187,11 +188,9 @@ boundary and only `lan-litellm` may speak to them).
 | `reranker` | `llama_cpp_vulkan_image` (`server-vulkan@sha256:7158edb4…`) | `:9001` | `/srv/models/reranker/bge-reranker-v2-m3-Q8_0.gguf` (635 676 416 B) | `a43c7c9b…a1d3` | `4g` |
 | `embed` | same llama.cpp digest as reranker | `:9002` | `/srv/models/embed/bge-m3-q8_0.gguf` (634 553 760 B) | `aa473d51…a173` | `4g` |
 
-**Why both GGUF caps are `4g`, not `1g`.** The doctrine two paragraphs above says *measured peak, then
-headroom*; a `1g` value came from `host RSS 157 MiB + 606 MiB weights`, which is a reload-time reading. What
-the cap actually has to cover is the binary's **CPU-fallback path — 1.59 GiB RSS**, the number this file
-already carries on the whisper leg (which is why whisper had 4g and the two GGUF legs did not). A leg that
-falls back to CPU under a 1g cap is killed by its own limit, and the kernel reports that kill as GPU trouble:
+**Why the GGUF caps are `4g`.** What the cap has to cover is the binary's **CPU-fallback path — 1.59 GiB
+RSS**, the number this file carries on the whisper leg, plus headroom. A leg that falls back to CPU under a
+cap below that peak is killed by its own limit, and the kernel reports that kill as GPU trouble:
 `amdgpu: init_user_pages: Failed to get user pages: -1`, preceded by `Memory cgroup out of memory: Killed
 process … (text-embeddings) total-vm:13095828k` (`CONSTRAINT_MEMCG`).
 
@@ -283,8 +282,8 @@ driver. Nothing here adds a scrape target or a dashboard.
 
 - **Through the gateway (the rule):** any consumer that must not hold an upstream credential authenticates
   to **LiteLLM only**, via a per-consumer **scoped virtual key** — never `openrouter_api`, never the
-  master key. Open WebUI, OpenClaw and Qdrant's embed/rerank path do this today; Docling and Home Assistant
-  are covered by the rule but **not yet provisioned a key** (§10).
+  master key. Open WebUI, OpenClaw and Qdrant's embed/rerank path do this today, and so does Home Assistant
+  through the LAN `home-assistant` record; Docling is covered by the rule but has **no key yet** (§10).
 - **Direct to the engine:** the coding harnesses (workstation pi.dev, Continue.dev, future dedicated
   harness deploys) → `https://llm.kogler.si/v1`. Rationale in §9 row 26 + §9d; the client-side contract in
   [pi-harness.md](pi-harness.md) §1b.
@@ -298,8 +297,8 @@ driver. Nothing here adds a scrape target or a dashboard.
   is not inherited by containers). **https, not http:** spark's :80 edge is redirect-only and the OpenAI SDK
   does not follow a 307 on POST.
 - **Embeddings / rerank / STT:** the three Vulkan legs on the oldsrv RX 7600 (§3a), reached through the LAN
-  instance. Embeddings stay **1024-dim `bge-m3`** — the tier moved engines without changing the vector
-  space (cos 0.9996), so no corpus migration.
+  instance. Embeddings stay **1024-dim `bge-m3`** on both legs — the same vector space on either engine
+  (cos 0.9996), so no corpus migration is needed.
 - **Local models are listed via LiteLLM** so family sees local + cloud in one dropdown; local is the default
   where privacy/offline matters.
 
@@ -408,7 +407,7 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
 - **`lan-litellm` has no `curl`** — drive its API from the host against its `llm-backend` container address
   (`docker inspect` for the IP), or from any container shipping a client. Never write the bridge IP into a
   doc: it moves.
-- **Admin endpoints (v1.83.10, measured):** `/model/list` is **not** usable with the master key (it answers
+- **Admin endpoints (measured):** `/model/list` is **not** usable with the master key (it answers
   `{"detail": …}`) — **`/model/info`** is the one that enumerates rows; and **`/model/delete` takes
   `{"id": …}`**, not `{"model_id": …}` (the latter is a 422 that says which field it wanted — do not assume).
   The KEY endpoints have the same shape trap: **`/key/list`**
@@ -418,8 +417,8 @@ curl -s -H "Authorization: Bearer $K" -H content-type:application/json \
   container's own psql.
 - **The Ollama fallback is a rung, not a row.** The Vulkan embed leg has its own row; Ollama stays as the
   documented fallback of the SAME 1024-dim space. **Neither LiteLLM DB contains an `ollama/*` row**, so
-  "keeping" it means keeping the service + the model (`bge-m3` re-verified at dim 1024 after the blob
-  cleanup). Re-pointing a consumer to either leg is open work (§10).
+  "keeping" it means keeping the service + the model (`bge-m3` re-verified at dim 1024). Re-pointing a
+  consumer to either leg is open work (§10).
 - **`bootstrap_keys` is `true` on the LAN instance**: the glue runs inside `lan-litellm`'s own deploy pass,
   and `home-assistant_api` mints from the converge (`rpm: 30`, ROW-only grant, no wildcard). Two standing
   constraints: an empty spec list is the ONLY thing the fail-loud gate protects (the record must never be
@@ -755,11 +754,11 @@ citation anchors; the wording below is the rule **as it stands**.
 | # | Rule |
 |---|------|
 | 13 | LiteLLM is the spine: **models live in the DB, config in env**, per-consumer scoped virtual keys. |
-| 22 | spark (ThinkStation PGX / GB10) replaces the old Phase-2 Ryzen/R9700 build; Mem0 + OpenHands are spark candidates. |
+| 22 | **spark (ThinkStation PGX / GB10) is the generation host**; Mem0 + OpenHands are spark candidates. |
 | 24 | **Placement:** oldsrv RX 7600 = the **pinned-services tier** (STT + embed + rerank, small + latency-sensitive); **spark = the big-model generation tier** (one large model, largest context). Piper TTS stays CPU. immich-ML stays on the oldsrv GPU as **lowest priority**. |
-| 26 | **Consumption boundary:** generation harnesses go **DIRECT** to the spark name edge; LiteLLM serves the **simple-querier tier**; external APIs are a **harness-side fallback, never a proxy fallback**. Evidence: §9d. Consequences: `dsh`/`pi-dev` parked as services; the LAN `litellm_scoped_keys` stay empty pending §10; hardening `spark-llm_api` belongs at the **edge** (router allow-list / a distinct client credential), not at a proxy. |
-| 27 | **Pinned tier engine family = ggml/Vulkan** (§3a): STT `whisper.cpp:main-vulkan`, embed + rerank `llama.cpp:server-vulkan`, **Q8_0** quantization on both GGUF legs, Ollama demoted to the embed **fallback rung**. Kept #24's placement. |
-| 28 | **Vision:** the workstation runs vision as a **text cascade**; **spark is text-only**; the RX 7600 gets **no vision-LLM leg**. Detail: [hardware-workstation.md](hardware-workstation.md), [hardware-spark.md](hardware-spark.md) §Text-only engine mode. The workstation serves **FIM + vision on one GPU**, one resident at a time — `vision-qwen3vl-30b` (images; 23.84 t/s decode, ~56–66 t/s image prefill, 4042–4060 tokens and **61–72 s** for one full-resolution photo; **3.0 GiB of KV at 32k** on its own, so nothing else is resident with it) and `fim-coder-3b` (8 192, the only leg small enough to share the carve). **The agent leg is retired, not deferred**, and the reason is prefill, not the carve: one 20 816-token prompt cost **359 / 899 / 277 s** on three fresh loads of the SAME weights, and the same 10 610 bytes cost **259.15 s** once and **69.42 s** another time — minutes per turn, erratic, so no real agent work is possible on that leg. `agent-gemma-26b` and the three declared `agent-unified*` arms are out of [`../scripts/laptop-llm/profiles.yml`](../scripts/laptop-llm/profiles.yml), `client_context_window: 150016` is **deleted** (not reduced), and `providers.laptop-lmstudio` no longer offers an agent model. **The agent slot does NOT fall back to spark through this runtime** — #26 puts a generation harness **direct** on the spark name edge, so retiring this leg removes a surface, not a capability. `allow_uncertified: true` stays on the dial for the **FIM** leg (its trigger latency is still unmeasured), for no other reason. Rejected so it is not re-proposed: [services-ai-rejected.md](services-ai-rejected.md). Cascade rule: **describe once, freeze the text** — eight full-res photos are a third of the vision window and ~9 minutes of prefill, and re-asking the **same** question costs 2.0 s while a **new** question re-pays the ~60 s, so put the image before the question. Gemma takes no images on this engine at all (a long side over ~1120 px kills the runtime), which is one more reason the box has no Gemma leg. **The vision leg transcribes only when the target fills the frame** — the whole 8160×6120 rack photo read the switch as `CRS326-24G-2S+RM` (five greedy passes) where [network-rack.md](network-rack.md) says `CRS328-24P-4S+`, but a quarter-crop of the same photo read `CRS328-24P-4S-RM` and the repo's own label photo came back character-perfect for **528 tokens in 3.9 s**. Image tokens saturate (~4.1 k whether the input is 8160×6120 or a 3264×3672 quarter), so **crop, do not shrink**: a crop costs the same and reads. Still verify an identifier against the inventory, and when a reading disagrees, re-ask of a crop before believing either answer ([reports/hd474-laptop-leg](../reports/hd474-laptop-leg/) `raw/96`). |
+| 26 | **Consumption boundary:** generation harnesses go **DIRECT** to the spark name edge; LiteLLM serves the **simple-querier tier**; external APIs are a **harness-side fallback, never a proxy fallback**. Evidence: §9d. Consequences: `dsh`/`pi-dev` parked as services; the LAN `litellm_scoped_keys` carry the one `home-assistant` record, the rest pending §10; hardening `spark-llm_api` belongs at the **edge** (router allow-list / a distinct client credential), not at a proxy. |
+| 27 | **Pinned tier engine family = ggml/Vulkan** (§3a): STT `whisper.cpp:main-vulkan`, embed + rerank `llama.cpp:server-vulkan`, **Q8_0** quantization on both GGUF legs, Ollama the embed **fallback rung**. #24's placement stands. |
+| 28 | **Vision:** the workstation runs vision as a **text cascade**; **spark is text-only**; the RX 7600 gets **no vision-LLM leg**. Detail: [hardware-workstation.md](hardware-workstation.md), [hardware-spark.md](hardware-spark.md) §Text-only engine mode. The workstation serves **FIM + vision on one GPU**, one resident at a time — `vision-qwen3vl-30b` (images; 23.84 t/s decode, ~56–66 t/s image prefill, 4042–4060 tokens and **61–72 s** for one full-resolution photo; **3.0 GiB of KV at 32k** on its own, so nothing else is resident with it) and `fim-coder-3b` (8 192, the only leg small enough to share the carve). **The agent leg is retired, not deferred**, and the reason is prefill, not the carve: one 20 816-token prompt cost **359 / 899 / 277 s** on three fresh loads of the SAME weights, and the same 10 610 bytes cost **259.15 s** once and **69.42 s** another time — minutes per turn, erratic, so no real agent work is possible on that leg, and `providers.laptop-lmstudio` offers no agent model. **The agent slot does NOT fall back to spark through this runtime** — #26 puts a generation harness **direct** on the spark name edge, so retiring this leg removes a surface, not a capability. `allow_uncertified: true` stays on the dial for the **FIM** leg (its trigger latency is still unmeasured), for no other reason. Rejected so it is not re-proposed: [services-ai-rejected.md](services-ai-rejected.md). Cascade rule: **describe once, freeze the text** — eight full-res photos are a third of the vision window and ~9 minutes of prefill, and re-asking the **same** question costs 2.0 s while a **new** question re-pays the ~60 s, so put the image before the question. Gemma takes no images on this engine at all (a long side over ~1120 px kills the runtime), which is one more reason the box has no Gemma leg. **The vision leg transcribes only when the target fills the frame** — the whole 8160×6120 rack photo read the switch as `CRS326-24G-2S+RM` (five greedy passes) where [network-rack.md](network-rack.md) says `CRS328-24P-4S+`, but a quarter-crop of the same photo read `CRS328-24P-4S-RM` and the repo's own label photo came back character-perfect for **528 tokens in 3.9 s**. Image tokens saturate (~4.1 k whether the input is 8160×6120 or a 3264×3672 quarter), so **crop, do not shrink**: a crop costs the same and reads. Still verify an identifier against the inventory, and when a reading disagrees, re-ask of a crop before believing either answer ([reports/hd474-laptop-leg](../reports/hd474-laptop-leg/) `raw/96`). |
 
 ### 9b. Coding plane — agent memory + runners
 
@@ -868,8 +867,8 @@ credential. So the gate is the **tailnet ACL** (headscale decides which node may
 per-daemon token, and TLS-into-Traefik stays with the tailnet/TLS lane.
 
 **Ports are vars, never literals** (`cockpit_pi_web_port: 31415`, `paseo_port: 6767` in
-`group_vars/all/main.yml`) — MCP was moved off a shared port precisely because a port written twice is
-a port someone will change once. `cockpit_pi_web_port` is read by the
+`group_vars/all/main.yml`) — a port written twice is a port someone will change once.
+`cockpit_pi_web_port` is read by the
 `traefik-tailnet` `pi-oldsrv-backend`, so a port edit is one change instead of three. The unit, both drop-ins
 and the token env render from vars via **roles/seat** (below), so they are converged, not hand-kept.
 `pi.kogler.si` is not available for this seat's URL — that FQDN is the RPi4 node — hence the `-oldsrv`
@@ -980,7 +979,8 @@ settings. What the picker offers is 419 rows (openrouter 386 · opencode-go 30 �
   maint-console leg carries a vault-vs-box credential divergence that must stay a hard failure:
   rotating a console credential is an owner act, never a side effect of converging a seat. A bare-Debian
   rebuild is **scripts/install-pi-debian.sh**, not a memory.
-  Both seats run **pi 1.0.3** on the same pinned Node tarball (**22.23.3** ⏳) and the cockpit is
+  Both seats run the pinned **pi** (`pi_host_npm_version`) on the same pinned Node tarball (**22.23.3** ⏳)
+  and the cockpit is
   **pi-web beta.38**; the seat's `settings.json`
   carries the [pi-harness.md](pi-harness.md) §5 block verbatim (`defaultThinkingLevel: high`, the
   900 s idle timeout, the 16 k/32 k compaction pair, the 8 k thinking budget) and a smoke turn on

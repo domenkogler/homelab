@@ -474,7 +474,7 @@ Client → Technitium (DHCP-pushed chain, see below)
   answer for one of these means the record, not the resolver.
 
 - **Tailnet admin dashboards:** the plain `*.kogler.si` admin names (`stats`, `logs`,
-  `csui`, `traefik`, `auto`, `db-spark`, `llm`, `litellm`) are **A records on every instance → the
+  `csui`, `traefik`, `auto`) are **A records on every instance → the
   `tailnet_sidecar_ip`** (the `vps-obs` tailnet IP, `group_vars/vps.yml` = the traefik-tailnet edge). The
   value is a **tailnet IP**, so ONLY tailnet clients can reach it — LAN-only clients resolve it but fail to
   connect, which is correct. Headscale `dns.extra_records` mirrors them into both namespaces and
@@ -486,7 +486,7 @@ Client → Technitium (DHCP-pushed chain, see below)
   [roles/router/tasks/main.yml](../IaC/ansible/roles/router/tasks/main.yml) (dhcp dns-server chain) ·
   [technitium-seed.yml](../IaC/ansible/roles/docker_services/tasks/technitium-seed.yml)
 - ***arr stack (every instance → oldsrv Traefik edge):** `seerr`, `sonarr`, `radarr`, `lidarr`, `prowlarr`,
-  `bazarr`, `sab`, `torrent`, `media`, `profilarr`, `logs` (all `*.kogler.si`). Recyclarr has no hostname
+  `bazarr`, `sab`, `torrent`, `media`, `profilarr` (all `*.kogler.si`). Recyclarr has no hostname
   (scheduled worker, no UI). All are **internal-only** — no public (Cloudflare) record, WAN-blocked
   (see `services.md`).
 
@@ -505,7 +505,7 @@ zone answers today.
 - **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `dns`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
   **Public-record SSOT method:** publish records **incrementally** — one `*.kogler.si` record added to `cloudflare_dns/vars/main.yml` as each service lands on the VPS edge (gate: applies go LIVE on Cloudflare), and keep `docs/services.md` §Domain & Subdomain Plan as the human-readable mirror re-rendered as the list grows. The live Cloudflare zone + `cloudflare_dns/vars/main.yml` are dual SSOTs — never hand-edit the live zone without the file (and vice-versa).
   **`dns` is the ONE admin-surface exception**: `dns.kogler.si` → `vps.kogler.si` is the public bootstrap path to the VPS DNS admin — needed to reach the UI and to recreate the VPS admin — even though the UI itself sits behind Authentik Forward-Auth.
-- **Internal-only services/hosts** (`stats`, `ad`, `auto`, `logs`, `cockpit-*`, `router`, `switch`, `nas`, `oldsrv`) have **no public record**; the WAN firewall blocks them (defense in depth). The **observability admin dashboards** (`stats`/`traefik`/`logs`/`csui`/`auto`) are **tailnet-only**: their public CNAMEs are absent from the IaC SSOT (`cloudflare_dns/vars/main.yml`) and ⏳ must be **deleted from the live Cloudflare zone** by the owner (deploy-gated — the Ansible role only ensures `state: present`, it never deletes live records). On the tailnet they resolve via **headscale MagicDNS** (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services); Technitium carries no record for them for non-tailnet clients, which cannot route to the VPS tailnet IP anyway.
+- **Internal-only services/hosts** (`stats`, `auto`, `logs`, `cockpit-*`, `router`, `switch`, `nas`, `oldsrv`) have **no public record**; the WAN firewall blocks them (defense in depth). The **observability admin dashboards** (`stats`/`traefik`/`logs`/`csui`/`auto`) are **tailnet-only**: their public CNAMEs are absent from the IaC SSOT (`cloudflare_dns/vars/main.yml`) and ⏳ must be **deleted from the live Cloudflare zone** by the owner (deploy-gated — the Ansible role only ensures `state: present`, it never deletes live records). On the tailnet they resolve via **headscale MagicDNS** (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services); Technitium carries no record for them for non-tailnet clients, which cannot route to the VPS tailnet IP anyway.
 - **TLS:** a single wildcard `*.kogler.si` certificate, issued via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab-ansible`) — covers internal and public hostnames alike.
 
 ### A / AAAA policy
@@ -654,7 +654,7 @@ black hole with extra steps.
 |---|---|---|---|
 | **public** | Cloudflare | published names → the VPS edge | anything at home dying |
 | **tailnet** | **the client's own netmap** (headscale `extra_records`, answered by MagicDNS locally) | pinned names → a **tailnet address** (VPS edge, oldsrv's node, later the Pi's node) | every home box dying, headscale dying, the WAN dying — resolution is cached on the device; only reachability varies |
-| **LAN** | the Pi's Technitium (secondary of the VPS primary) | internal answers: the VIP for `ha`, oldsrv's edge for the media family, the VPS for public names | oldsrv dying; **not** the Pi dying → fixed by the dual-resolver decision below |
+| **LAN** | the Pi's Technitium (the tertiary instance) | internal answers: the VIP for `ha`, oldsrv's edge for the media family, the VPS for public names | oldsrv dying; **not** the Pi dying → fixed by the dual-resolver decision below |
 
 **The rulings, each with the reason that holds it:**
 
@@ -747,7 +747,6 @@ routes→`*_url` half is deliberately **not** bundled with them.
 | `music` (navidrome, `enabled: true`) | resolves **nowhere** — not seeded, not public | service up, name absent |
 | `sec` (metabase, `enabled: false`) | still resolves publicly **and** internally to the tailnet edge | name outlives the service |
 | media family | the seed answers **oldsrv**; `network-addresses-generated.md` says the **NAS** | generated view vs source |
-| `stats` | labelled **Beszel** in the address doc, served by **Grafana** per `vps.yml` | label vs owner |
 | `stats` / `logs` / `csui` | LAN clients are handed a **tailnet address** | decision 3 above |
 | a workstation hosts file | pins `.ts` + short names to tailnet node addresses and cites `scripts/tailnet-hosts.txt` + `scripts/tailscale-dns-fix.ps1` — files that are **not in git**; the mechanism is rejected ([network-rejected.md](network-rejected.md) "hosts-file aliases as the answer mechanism"), and the shipped answer is `scripts/wsl-nat-resolv.ps1` | unversioned state with a citation that looks recorded |
 
@@ -878,11 +877,3 @@ Three mechanisms close it — one command, one schedule, one gate:
 > + gate cover the human-forgets case.
 > **Records-loop note:** `tailnet_sidecar_ip` is a cluster constant — the loop must use
 > `default(tailnet_sidecar_ip, true)` so hosts that do not define it (home instances) still seed the row.
-
----
-
-## Pi-hole (retired)
-
-Pi-hole is *retired* — Main-Group ad-blocking runs on **Technitium Advanced Blocking** (the reliable VPS/Pi
-DNS tier). Its catalog row lives in [`services-dns.md`](services-dns.md) and the retirement decision in
-[`services-rejected.md`](services-rejected.md). This file owns only the per-VLAN/subnet DNS **policy** above.
