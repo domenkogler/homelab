@@ -234,7 +234,7 @@ http:
     # its login (a phone PWA cannot complete an Authentik sub-request).
     # Backends are the same `*_url` vars the LAN routers use — which is why a future flip
     # (loopback-only publishes) has to move these routes in the SAME converge, or this set 502s
-    # exactly the way `38f918c` recorded for the LAN leg.
+    # exactly the way the LAN leg failed.
     media-ts:
       rule: "Host(`media.{{ tailnet_base_domain }}`)"
       entryPoints:
