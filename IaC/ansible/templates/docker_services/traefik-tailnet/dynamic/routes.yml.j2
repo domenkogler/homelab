@@ -13,8 +13,8 @@
 #     traefik-public: grafana:3000 (stats), dozzle:8080 (logs),
 #       crowdsec-web-ui:3000 (csui), n8n:5678 (auto),
 #       traefik dashboard via api@internal (traefik).
-#     tailnet-apps (HD-296, 172.24.0.0/16): dsh:3080 (dsh), pi-dev:8080 (pi).
-#     HD-355 (2026-09-10): dsh + pi-dev MOVED to OLDSRV — the tailnet edge now
+#     tailnet-apps (172.24.0.0/16): dsh:3080 (dsh), pi-dev:8080 (pi).
+#     dsh + pi-dev run on OLDSRV — the tailnet edge now
 #     reaches their UIs over the WG S2S at {{ oldsrv_home_ip }}:3080/:8080 (no
 #     sidecars/docs; see the dsh-backend / pi-backend service entries below).
 #   NOTE: docker DNS on an overlay resolves by SERVICE name, not container_name
@@ -40,7 +40,7 @@
 #   pairs (issuer requests both; certs-rename.sh fixes the ts names).
 
 http:
-  # TLS-in-TLS transports (HD-370, live gap 2026-09-15): the tailnet edge proxies
+  # TLS-in-TLS transports: the tailnet edge proxies
   # db-spark/llm to `https://{{ spark_home_ip }}:443` (spark's own Traefik edge) over
   # the WG S2S. Spark's edge serves the `*.kogler.si` wildcard which has NO IP SANs,
   # so a default verifying transport fails the hop with 500 'x509: cannot validate
@@ -138,7 +138,7 @@ http:
         - redirect-to-https
       service: noop@internal
 
-    # DSH Web UI (dsh) — HD-296. Pattern-A sidecar UI (HD-268c): dsh binds
+    # DSH Web UI (dsh) — Pattern-A sidecar UI: dsh binds
     # 127.0.0.1:3080 INSIDE the dsh container netns; dsh-tailscale (sharing the
     # dsh netns via network_mode: service:dsh) exposes it on the tailnet. To
     # get a clean URL (`https://dsh.ts.kogler.si` with no port number, real
@@ -168,11 +168,11 @@ http:
         - redirect-to-https
       service: noop@internal
 
-    # pi Web UI (pi) — HD-296. Pattern-A sidecar UI (HD-268c): pi-dev binds
+    # pi Web UI (pi) — Pattern-A sidecar UI: pi-dev binds
     # 127.0.0.1:8080 INSIDE the pi-dev netns; pi-dev-tailscale (sharing the
     # pi-dev netns via network_mode: service:pi-dev) exposes it on the tailnet.
     # Same tailnet-apps overlay mechanism as dsh. ACL gate (headscale
-    # `tag:pi-dev` → family user `domen@kogler.si:*`) — see dsh/HD-268c
+    # `tag:pi-dev` → family user `domen@kogler.si:*`) — see the dsh
     # comment for the full model.
     pi-dev-kogler:
       rule: "Host(`pi-dev.kogler.si`)"
@@ -220,7 +220,7 @@ http:
         - redirect-to-https
       service: noop@internal
     # ----------------------------------------------------------------
-    # HD-332 (internal all-app edge growth, Pkg F): PUBLIC apps, identical
+    # Internal all-app edge: PUBLIC apps, identical
     # rules as the main edge but served ONLY on the internal edge (no WAN).
     # These mirror each public app's Docker-label router — same Host, same
     # middleware tier — so family/tailnet/WG clients reach every public app
@@ -325,7 +325,7 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
-    # Open WebUI (ai) — crowdsec-only (native OIDC, HD-101)
+    # Open WebUI (ai) — crowdsec-only (native OIDC)
     open-webui-int-kogler:
       rule: "Host(`ai.kogler.si`)"
       entryPoints:
@@ -357,7 +357,7 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
-    # --- HD-370: spark AI endpoints (tailnet edge) ---
+    # --- spark AI endpoints (tailnet edge) ---
     # db-spark.kogler.si / db-spark.ts.kogler.si — DGX dashboard on spark: the tailnet edge
     # TLS-terminates (wildcard) and proxies to spark's OWN edge :443 over WG S2S (the spark
     # edge also TLS-terminates — TLS-in-TLS to the Loopback dashboard). spark's own login sits
@@ -365,9 +365,9 @@ http:
     # llm.kogler.si / llm.ts.kogler.si — the spark OpenAI-API: same WG path to spark:443;
     # auth is the ENGINE's --api-key (spark-llm_api), not a middleware — only LiteLLM/pi hold it.
     #
-    # HD-451 (2026-09-23): `spark.ts.kogler.si` is the URL of record for this dashboard off-LAN
+    # `spark.ts.kogler.si` is the URL of record for this dashboard off-LAN
     # and rides the SAME WG-S2S path to spark's own edge; the two `db-spark*` names stay routed so
-    # pre-existing links keep working, but they are LEGACY (owner decision 2026-09-23) — do not
+    # pre-existing links keep working, but they are LEGACY — do not
     # add new consumers on them. The plain `spark.kogler.si` is deliberately NOT matched here: it
     # is the LAN answer (Technitium, home instances only) and the box's own host name, and it is
     # published into MagicDNS on purpose (group_vars/vps.yml `tailnet_ts_only_subdomains`).
@@ -384,7 +384,7 @@ http:
       service: llm-backend
       tls: true
     db-spark-tailnet-redirect:
-      # HD-451: same name set as `db-spark-tailnet` — never split the pair, or the short name
+      # Same name set as `db-spark-tailnet` — never split the pair, or the short name
       # silently loses its :80 → :443 hop and a hand-typed http:// URL dead-ends.
       rule: "Host(`spark.ts.kogler.si`) || Host(`db-spark.kogler.si`) || Host(`db-spark.ts.kogler.si`)"
       entryPoints:
@@ -399,7 +399,7 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
-    # --- HD-370: DNS + LiteLLM admin (tailnet edge, tailnet-ONLY) ---
+    # --- DNS + LiteLLM admin (tailnet edge, tailnet-ONLY) ---
     # litellm.kogler.si / litellm.ts.kogler.si — the AI spine admin. Tailnet-only BY DESIGN:
     # LiteLLM holds EVERY upstream key + the master key + the scoped-key minting glue — it must
     # never be world-public (public edge has NO litellm route). Backend = the VPS litellm
@@ -418,7 +418,7 @@ http:
       middlewares:
         - redirect-to-https
       service: noop@internal
-    # Matrix homeserver (/_matrix/*) — no Forward-Auth (native SSO, HD-60)
+    # Matrix homeserver (/_matrix/*) — no Forward-Auth (native SSO)
     matrix-int-kogler:
       rule: "Host(`matrix.kogler.si`)"
       entryPoints:
@@ -523,7 +523,7 @@ http:
       redirectScheme:
         scheme: https
         permanent: true
-    # HD-370: HSTS for every :443 route — assigned ENTRYPOINT-wide in the compose CLI
+    # HSTS for every :443 route — assigned ENTRYPOINT-wide in the compose CLI
     # (--entrypoints.websecure.http.middlewares=hsts@file; see its header for why this
     # lives here and not as CLI flags).
     hsts:
@@ -537,7 +537,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://grafana:3000"
-    # HD-355 (2026-09-10): dsh + pi-dev MOVED to oldsrv (tailscale sidecars removed);
+    # dsh + pi-dev run on oldsrv (no tailscale sidecar there);
     # the VPS edge reaches their UIs over the WG S2S on the oldsrv Home-IP ports
     # (media-bridge pattern — same reach as actual-budget :5006 / immich-ml :3003).
     dsh-backend:
@@ -548,7 +548,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{ oldsrv_home_ip }}:8080"
-    # HD-370: spark AI backends over the WG S2S (spark_home_ip now in wg_s2s_vps.allowed_ips +
+    # Spark AI backends over the WG S2S (spark_home_ip is in wg_s2s_vps.allowed_ips +
     # router vps_scoped_home). db-spark + llm proxy to SPARK's own edge :443 (TLS-in-TLS)
     # using the spark-tls-in-tls serversTransport (insecureSkipVerify — the wildcard cert
     # has no IP SAN for spark_home_ip; the hop is private WG + bearer-gated at the engine).
@@ -576,13 +576,13 @@ http:
       loadBalancer:
         servers:
           - url: "http://crowdsec-web-ui:3000"   # SERVICE name (docker DNS) — NOT the container_name
-    # sec-backend (metabase:3000) REMOVED 2026-09-14 — Metabase retired from the VPS; if ever
+    # No sec-backend (metabase:3000): Metabase does not run on the VPS; if it is ever
     # re-homed it runs on OLDSRV (not this tailnet edge).
     auto-backend:
       loadBalancer:
         servers:
           - url: "http://n8n:5678"
-    # HD-332 (internal all-app edge, Pkg F): backends for the PUBLIC apps.
+    # Internal all-app edge: backends for the PUBLIC apps.
     # All resolve via Docker DNS on traefik-public (the edge shares that
     # overlay). The main public edge keeps its Docker-label routes for these
     # same hosts — the internal edge serves them identically but no WAN.
