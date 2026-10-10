@@ -5,17 +5,14 @@
 # deployment-preseed.md); managed by Ansible as ansible-admin. No Cockpit.
 ansible_host: 10.10.1.20           # VLAN 10 (Home) — node IP (VRRP anchor, SSH)
 mgmt_ip: 10.10.99.20              # VLAN 99 (Management) — static reg on the mgmt plane (Option A dual-homed)
-# DNS tier (HD-299): resolver addresses are a SINGLE SSOT in group_vars/all/main.yml
+# DNS tier: resolver addresses are a SINGLE SSOT in group_vars/all/main.yml
 # (dns_primary_ip = VPS public, dns_secondary_ip = oldsrv, dns_tertiary_ip = Pi).
-# Pi is the TERTIARY now (the old dns_secondary_ip host var was removed — it would
-# shadow the Group Var on this host and reintroduce the stale Pi-secondary value).
-# Host-side resolver (HD-484 mechanism, HD-488 this host): OWN instance first — the Pi is the
-# tertiary — then oldsrv. The VPS primary is deliberately absent: it is authoritative for the
-# public view only, so as a home host's resolver it answers NXDOMAIN for exactly the names this
-# exists to resolve (docs/network-dns.md §Host-side resolver). Before 2026-10-08 this box resolved
-# through bootstrap_dns_servers (1.1.1.1), so NOTHING internal resolved on the box that is the Home
-# VLAN's first resolver — the guarded-converge row and HD-465 both carry workarounds for that.
-# ⛔ HD-477 (float the resolver with the VIP) REPLACES the first entry, it does not add one.
+# Do not set a dns_secondary_ip host var here: it shadows the group var on this host.
+# Host-side resolver: OWN instance first (the Pi is the tertiary), then oldsrv. The VPS primary
+# is absent on purpose — authoritative for the public view only, so as a home resolver it answers
+# NXDOMAIN for exactly the internal names this host exists to resolve.
+# → docs/network-dns.md §Host-side resolver — what a box asks its OWN `/etc/resolv.conf`
+# ⛔ Floating the resolver with the VIP REPLACES the first entry, it does not add one.
 host_resolver_dns: "{{ [dns_tertiary_ip, dns_secondary_ip] | join(',') }}"
 ansible_user: ansible-admin        # created by preseed post_install.sh (like nas/oldsrv)
 # NUT: UPS CLIENT (slave to nas) — power down immediately on critical
@@ -25,12 +22,9 @@ shutdown_delay_seconds: 0
 # HA failover (docs/smart-home-failover.md): Home-VLAN access-port interface —
 # the Pi is an access port on VLAN 10 (plain eth0, unlike oldsrv's trunk).
 ha_keepalived_interface: eth0
-# ==== HD-435: the Pi joins headscale as the SECOND permitted home node (network-vpn.md) ====
-# Why a second node at all: the tailnet's answer for HA was oldsrv's node ALONE, so the
-# house's most critical service went unreachable from away whenever the box that happens to
-# carry the node was down — proven the other way at the 2026-09-22 drill, where the standby
-# answered VIP:8123 but no tailnet listener existed to reach it. The Pi is the right second
-# node because it already runs `traefik-ha`, the HA standby edge.
+# ==== The Pi joins headscale as the SECOND permitted home node (docs/network-vpn.md) ====
+# With oldsrv's node alone, HA is unreachable from away whenever the box carrying the node is
+# down. The Pi is the second node because it already runs `traefik-ha`, the HA standby edge.
 # WHAT THIS DOES NOT DO (enforced in roles/tailscale-node, not by a comment): no advertised
 # routes, no exit node, no Tailscale SSH, no LAN bridge, and NO DNS takeover — the last one
 # is load-bearing here, not inherited caution: this box RUNS the Technitium TERTIARY that the
@@ -51,36 +45,29 @@ tailscale_node_authkey: "{{ lookup('community.general.onepassword', 'tailscale-p
 tailscale_node_expected_ip: "{{ tailnet_pi_ip }}"
 
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
-# Homematic: LOCAL RF (HmIP-RFUSB + RaspberryMatic) is PARKED (2026-08-18, HD-13) — keeping
-# the HmIP-HAP in cloud mode until an HmIP-RFUSB is bought. No `homematic_usb_by_id` here
-# because `raspberrymatic` is not in the Pi deploy loop (group_vars/raspberry_pi.yml).
-# If the RFUSB is added later, set homematic_usb_by_id to the stable /dev/serial/by-id path
-# of the physical stick (NOT /dev/ttyACM0, which can renumber) and re-add the service (KOPS-040/HD-79).
-# ==== SSH access (roles/access, HD-443) ====
-# `admin` is still admitted while it is still USED: 126 accepted logins in the 14
-# days before this change (all from the operator's `Host pi` → `User admin` alias,
-# the same consumer that made the 2026-09-28 retirement attempt revert). The alias
-# moved to `domen` in the same lane; removal trigger = zero `admin` acceptances in
-# `journalctl -u ssh`, then drop this line AND the account (deployment-secrets.md
-# §Who is authorized where, reversible-sequence steps 3-5). Key stays neutralized
-# (dated comment-out marker) until then — IaC never managed `admin`, so a converge
-# will not silently re-add it.
+# Homematic: LOCAL RF (HmIP-RFUSB + RaspberryMatic) is PARKED — the HmIP-HAP stays in cloud mode.
+# No `homematic_usb_by_id` here: `raspberrymatic` is not in the Pi deploy loop
+# (group_vars/raspberry_pi.yml). If the stick is added, use a stable /dev/serial/by-id path — not
+# /dev/ttyACM0, which renumbers — and re-add the service.
+# ==== SSH access (roles/access) ====
+# `admin` stays admitted while it is still used. Removal trigger = zero `admin` acceptances in
+# `journalctl -u ssh`, then drop this line AND the account (docs/deployment-secrets.md §Who is
+# authorized where, reversible-sequence steps 3-5). IaC never managed `admin`, so a converge
+# cannot silently re-add it.
 access_admit_extra: ['admin']
 
 
-# ==== HD-450 — what this host's silent-failure collector watches (roles/monitoring) ====
-# Same reasoning as oldsrv's block: the RESULT of the last run is the only signal that separates a
-# healthy oneshot from a failing one, and NUT's units can read "active" while the client leg is broken.
-# Verified 2026-10-07 with `systemctl show`: ha-cert-sync loaded/inactive/success, nut-monitor and
-# nut-client loaded/active/success. `traefik-cert-pull` is NOT listed — this host pulls with
-# ha-cert-sync instead, and listing a unit that is not installed alerts on purpose.
+# ==== What this host's silent-failure collector watches (roles/monitoring) ====
+# The result of the last run is the only signal that separates a healthy oneshot from a failing
+# one, and NUT's units can read "active" while the client leg is broken. `traefik-cert-pull` is
+# absent because this host pulls with ha-cert-sync: a unit that is not installed alerts on purpose.
 monitoring_hygiene_units:
   - ha-cert-sync.service
   - nut-monitor.service
   - nut-client.service
 
-# Measured 2026-10-07: the deployed ha-cert-sync.sh DST is `/opt/traefik-ha/certs/` (hardcoded in that
-# template, unlike oldsrv's var-derived one) and the pair there carries the same 90-day wildcard.
+# The ha-cert-sync.sh DST here is `/opt/traefik-ha/certs/` (hardcoded in that template, unlike
+# oldsrv's var-derived one) and the pair carries the same 90-day wildcard.
 monitoring_hygiene_certs:
   - consumer: traefik-ha
     path: "/opt/traefik-ha/certs/{{ wildcard_cert_file }}"
