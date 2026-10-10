@@ -103,7 +103,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Effective price | 21,96 €/mo |
 | Valid until | **2027-08-18** |
 | ⏰ Renewal reminder | ~2027-07-18 (1 month before expiry) |
-| Purpose | Public web stack (Authentik, OpenCloud web, Forgejo, Grafana) — replaces deferred Contabo Storage VPS 30 (HD-93/HD-40B); DBs stay on LAN over WireGuard |
+| Purpose | Public web stack (Authentik, OpenCloud web, Forgejo, Grafana); DBs stay on LAN over WireGuard |
 
 ---
 
@@ -111,7 +111,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
 | Item | Value |
 |------|-------|
-| Type | **Weather forecast API** (HA core `meteoblue` integration, HD-22) |
+| Type | **Weather forecast API** (HA core `meteoblue` integration) |
 | Plan | **Free / personal API key** |
 | Cost | **0,00 €** (free tier) |
 | Since | 2026-08-18 |
@@ -136,7 +136,7 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | SMB/CIFS share | `//u653411.your-storagebox.de/backup` |
 | SSH/SFTP | port **23** — SSH key + password in 1Password |
 | Protocols | SMB/CIFS, WebDAV, SSH (external reachability) |
-| Purpose | **live Immich-originals + encoded-video + OpenCloud user files (WebDAV) + family SMB/WebDAV drives** (CIFS, **not S3** — HD-135) |
+| Purpose | **live Immich-originals + encoded-video + OpenCloud user files (WebDAV) + family SMB/WebDAV drives** (CIFS, **not S3**) |
 
 > ⚠ **SMB password:** SSH key alone works for SSH/SFTP (port 23). For **CIFS/SMB + WebDAV** mounts you
 > need the box **password** set via the web UI — store it in 1Password `Hertzner-SB-Data` (so the `password`
@@ -166,14 +166,10 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 | Service | Plan | Est. Cost | Status | Purpose |
 |---------|------|-----------|--------|---------|
 | Infomaniak kSuite | TBD | ~€3–5/mo | 🔮 Planned | Email, calendar (CalDAV), catch-all aliases |
-| ~~iDrive e2~~ | ~~TBD bucket~~ | ~~~€5/mo~~ | ❌ **Dropped** | ~~S3 off-site backup~~ → replaced by Hetzner Storage Boxes (HD-29/31) |
 
 ---
 
 ## Deferred Subscriptions (Phase 2+)
 
-| Service | Plan | Est. Cost | Status | Purpose |
-|---------|------|-----------|--------|---------|
-| ~~Contabo~~ | ~~Storage VPS 30~~ | ~~~€15/mo~~ | ✅ **Replaced** | Public web stack → bought **netcup RS 2000 G12** (263,52 €/12 mo, 2026-08-18) — see Active above |
-| ~~Hetzner~~ | ~~Storage Box (live)~~ | ~~~€4/mo~~ | ✅ **Active/Bought** | see Active — BX11 1 TB, `Hertzner-SB-Data` |
-| ~~Hetzner~~ | ~~Storage Box (backup)~~ | ~~~€4/mo~~ | ✅ **Active/Bought** | see Active — off-site Kopia leg, `Hertzner-SB-Backup` |
+*None — every former deferred item is now either Active above or retired; decisions live in
+`deployment-rejected.md`.*

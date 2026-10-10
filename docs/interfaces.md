@@ -20,36 +20,35 @@ tags: [services, interfaces, dashboards]
 |-----------|----------|--------|----------------|
 | **Forgejo Control Panel** | Domen (admin) | Markdown & YAML | Management: Renovate checkboxes, PR review, Git, the **deploy button** (Actions `workflow_dispatch`) |
 | **Homepage Launcher** | Entire family | `services.yaml`, `widgets.yaml` | Navigation: `kogler.si`, app bookmarks, health dots, reachability status widgets |
-| **HA Dashboard (native)** | Family / Guests | YAML (HA `lovelace`, templated) | Smart home: lights, blinds, RGBW, security · replaces TileBoard (HD-24) |
+| **HA Dashboard (native)** | Family / Guests | YAML (HA `lovelace`, templated) | Smart home: lights, blinds, RGBW, security |
 | **Element Web (Matrix)** | Family | Matrix-native SSO → Authentik | Messaging: family chat (`chat.kogler.si`, native-only; see [`services-matrix.md`](services-matrix.md)) |
 | **Grafana Dashboard** | Domen (admin) | Provisioned JSON | Observability: analytics, logs, resource metrics — **internal all-app edge** (tailnet + WG-S2S), `stats.kogler.si` (no `.ts` needed) |
 | **Traefik Dashboard** | Domen (admin) | API/labels | Routing/debug: middleware chain, cert status — **internal all-app edge** (tailnet + WG-S2S), `traefik.kogler.si` |
-| ~~**Metabase / CrowdSec Dashboard**~~ | ~~Domen (admin)~~ | ~~SQL/JSON~~ | **RETIRED** (was: analytics sandbox, internal edge `sec.kogler.si`); future home = oldsrv |
 | **Obsidian Desktop** | Domen (admin) | Local `.md` folder (repo clone) | Knowledge base: docs, runbooks, Canvas diagrams |
-| **All internal apps (public + internal)** | Domen (admin) / family | docker_services `public:` flag + internal-edge routes | **Internal all-app edge (HD-331):** every app reachable over the Headscale tailnet + WireGuard S2S at the same `*.kogler.si` name it uses on the public edge — no public WAN needed |
+| **All internal apps (public + internal)** | Domen (admin) / family | docker_services `public:` flag + internal-edge routes | **Internal all-app edge:** every app reachable over the Headscale tailnet + WireGuard S2S at the same `*.kogler.si` name it uses on the public edge — no public WAN needed |
 
 ---
 
 ## Homepage — Family Launchpad
 
 - **Access:** `kogler.si` (root), Authentik Forward Auth — **LIVE**: `home.kogler.si` → 302 Authentik SSO; `services.yaml`/`widgets.yaml` rendered + homepage restarted by the VPS converge. Owner verify: family sees live apps green, Domen technical section restricted.
-- **Placement:** the **VPS**, next to the public edge (HD-180/HD-183) — the route is the compose's Docker-provider labels
+- **Placement:** the **VPS**, next to the public edge — the route is the compose's Docker-provider labels
 - **Content:** Grid of service tiles with green/red health dots
 - **Health checks:** widget/probe-based reachability — siteMonitor probes per tile + blackbox `probe_success` on the status widget; no Docker socket (on the VPS it would only see VPS containers)
 - **Auto-generated:** the Ansible post-deploy hook regenerates `services.yaml` + `widgets.yaml`
 - **Local-only links resolve on LAN/VPN only** (split-horizon)
-- **Family dashboard split (HD-316):** `home.kogler.si` is the **family** launchpad — family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) tile only the **live public** apps with siteMonitor health dots; a separate **Domen · technical** group (admin dashboards: Grafana `stats`/Dozzle `logs`/Traefik `traefik`/CrowdSec `csui`/Metabase `sec`/n8n `auto`/VPN `vpn` — **`vpn.kogler.si` is public**, unlike the tailnet-only dashboards/dsh/pi-dev) (gated by `homepage_show_technical`, default **true** — rendered by default in its own Domen-only group, never exposed to family tiles); a **Soon** group shows deploy-gated apps (Phase 3/4) as non-clickable roadmap tiles (gated by `homepage_show_soon`, default true). Grafana is **Domen's technical dashboard** — never a family tile. siteMonitor is used only for public CNAMEs the homepage container can resolve (tailnet-only names are NOT probed — they would render false-red dots; their health lives in Grafana itself).
+- **Family dashboard split:** `home.kogler.si` is the **family** launchpad — family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) tile only the **live public** apps with siteMonitor health dots; a separate **Domen · technical** group (admin dashboards: Grafana `stats`/Dozzle `logs`/Traefik `traefik`/CrowdSec `csui`/n8n `auto`/VPN `vpn` — **`vpn.kogler.si` is public**, unlike the tailnet-only dashboards/dsh/pi-dev) (gated by `homepage_show_technical`, default **true** — rendered by default in its own Domen-only group, never exposed to family tiles); a **Soon** group shows deploy-gated apps (Phase 3/4) as non-clickable roadmap tiles (gated by `homepage_show_soon`, default true). Grafana is **Domen's technical dashboard** — never a family tile. siteMonitor is used only for public CNAMEs the homepage container can resolve (tailnet-only names are NOT probed — they would render false-red dots; their health lives in Grafana itself).
 
 ---
 
 ## HA Dashboard (native) — Smart Home Control
 
 - **Purpose:** Fast control for lights, blinds, Shelly RGBW, media (Nvidia Shield)
-- **Platform: **Home Assistant native Dashboard** — replaces the obsolete **TileBoard** (retired via HD-24). Maintained, PWA-installable, declarative YAML (`lovelace`) that fits the `home_assistant` Ansible role.
+- **Platform:** **Home Assistant native Dashboard** — maintained, PWA-installable, declarative YAML (`lovelace`) that fits the `home_assistant` Ansible role.
 - **Display surface:** Existing devices only (no purchase) — iPad (A16) + Android RT8 (both 80%-battery-capped) as wall/dash panels; family phones via **PWA / Home-screen bookmark**.
 - **Access:** `ha.kogler.si` — **local/VPN only**, `use_x_forwarded_for` + `trusted_proxies` (see `configuration.yaml.j2`). Dashboard works on iOS + Android identically (it's a browser PWA).
 - **Style:** Dark mode, modern, minimal; `card-mod` (v3.4.4) available for CSS polish.
-- **Config:** HA `lovelace` views/cards — declarative, generated via Ansible template from HA entities. Views: Pregled/Luci/Žaluzije/Ogrevanje; Luci + Pregled also carry the **4× Shelly RGBW2 LED strips** (HD-320: `light.kuhinja`, `light.wc_4_channel_1..4`, `light.orhideje`, `light.kopalnica_2`) — authored, they render once the owner adds the devices in the HA UI by IP.
+- **Config:** HA `lovelace` views/cards — declarative, generated via Ansible template from HA entities. Views: Pregled/Luci/Žaluzije/Ogrevanje; Luci + Pregled also carry the **4× Shelly RGBW2 LED strips** (`light.kuhinja`, `light.wc_4_channel_1..4`, `light.orhideje`, `light.kopalnica_2`) — authored, they render once the owner adds the devices in the HA UI by IP.
 - **PWA:** HA installs as a PWA from the browser → full-screen kiosk on the iPad (Guided Access) / RT8 (Companion or always-on) without an extra PWA layer.
 - **Grafana panels** can be embedded as iframe cards in the dashboard.
 
@@ -81,20 +80,18 @@ tags: [services, interfaces, dashboards]
 
 ## CrowdSec analytics — what serves it now
 
-**`sec.kogler.si` is gone.** Metabase was retired as a standing service (one VPS container for a
-learning sandbox that was never opened), so the analytics surface is split between **CrowdSec Web UI**
+**`sec.kogler.si` does not exist.** The analytics surface is split between **CrowdSec Web UI**
 (`csui`, below) for ops and **Grafana** (`stats`) for anything tabular/metric-shaped.
 Revival path if a BI layer is ever wanted: redeploy on **oldsrv**, not the VPS — the template, the
 disabled registry row and the read-only `metabase-forgejo_ro` grant are kept
-([services-admin.md](services-admin.md)). Two facts cost real time on the old instance and still apply
-to any restart: Metabase OSS has **no OIDC/SSO** (Enterprise-only), so a revival is
+([services-admin.md](services-admin.md)). Two constraints apply to any Metabase restart: Metabase OSS has **no OIDC/SSO** (Enterprise-only), so a revival is
 Forward-Auth + local admin, never SSO; and its JWT signing secret must **never** be
 re-provisioned/rotated, or every existing session token fails signature validation and the UI becomes
 an infinite login loop.
 
 ---
 
-## CrowdSec Web UI — Ops Dashboard (`csui.kogler.si`, HD-272)
+## CrowdSec Web UI — Ops Dashboard (`csui.kogler.si`)
 
 - **Purpose:** the CrowdSec ops surface (alerts, decisions, metrics, notifications, multi-LAPI)
 - **Access:** `csui.kogler.si` / `csui.ts.kogler.si`, **tailnet-only** (no public CNAME), Authentik **Forward-Auth** on the plain name at the edge
@@ -148,5 +145,5 @@ Post-deploy hooks (control plane, where the playbook runs):
      commit + push is MANUAL (Ansible never commits; D11)
 ```
 
-> Windows/no-Ansible path for the repo-side generated docs: `scripts/render_all.py` (HD-163) —
+> Windows/no-Ansible path for the repo-side generated docs: `scripts/render_all.py` —
 > pure-Python umbrella, same outputs as the Ansible renders (see `scripts/README.md`).
