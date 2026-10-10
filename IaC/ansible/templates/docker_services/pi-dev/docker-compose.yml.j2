@@ -113,7 +113,7 @@ services:
     networks:
       - services-internal       # LiteLLM (models) + Forgejo (PR proposals)
     ports:
-      - "{{ oldsrv_home_ip }}:8080:8080"        # HD-355 — oldsrv Home-IP publish (never 0.0.0.0/127.0.0.1)
+      - "{{ oldsrv_home_ip }}:8080:8080"        # oldsrv Home-IP publish (never 0.0.0.0/127.0.0.1)
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # pi model backend = LiteLLM (the spine). pi talks OpenAI-compatible to LiteLLM;
