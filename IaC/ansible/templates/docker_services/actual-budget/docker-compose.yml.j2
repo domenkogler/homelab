@@ -1,23 +1,23 @@
 # actual-budget docker-compose.yml — Personal finance / budgeting (budget.kogler.si)
-#   Actual Budget (Node.js + SQLite, one container) — docs/services-finance.md (HD-57).
+#   Actual Budget (Node.js + SQLite, one container) — docs/services-finance.md.
 #
-#   Placement (decision 2026-08-24): OLDSRV — internal-only P+I service; financial data
+#   Placement: OLDSRV — internal-only P+I service; financial data
 #   stays on the LAN (no public DNS record, WAN-blocked; same posture as *arr/Grafana).
 #   Auth: Authentik Forward-Auth at the edge (human UI). No native OIDC needed.
 #
-#   Bank sync (decision 2026-08-24): STABLE pinned image + n8n Enable-Banking bridge —
+#   Bank sync: STABLE pinned image + n8n Enable-Banking bridge —
 #   NOT the nightly/native-sync build (violates the pin-semver law §7). n8n (VPS) polls
 #   the Enable Banking API and pushes transactions into Actual's HTTP API; Wise API +
-#   IBKR Flex Query flows are n8n-native. Credit card + TR stay manual CSV (HD-57).
+#   IBKR Flex Query flows are n8n-native. Credit card + TR stay manual CSV.
 #
-#   Cross-host API leg (immich-ml precedent HD-184): :5006 is published ONLY on oldsrv's
+#   Cross-host API leg: :5006 is published ONLY on oldsrv's
 #   Home-VLAN address (SSOT `oldsrv_home_ip`) so n8n on the VPS can reach the API over
-#   the WG S2S tunnel; reach is scoped by WG AllowedIPs + RouterOS ACL (HD-155).
+#   the WG S2S tunnel; reach is scoped by WG AllowedIPs + RouterOS ACL.
 #   Auth on this leg = Actual's native login → X-ACTUAL-TOKEN (credentials in 1Password
 #   `actual-budget_login`, human-side ref — not Ansible-consumed).
 #
 #   AI categorization: via the LiteLLM spine on the VPS over WG — NEVER direct to
-#   ollama (`llm-backend` is deliberately isolated, LiteLLM-only, HD-59). The
+#   ollama (`llm-backend` is deliberately isolated, LiteLLM-only). The
 #   categorization loop runs as an n8n workflow (LLM node → LiteLLM → Ollama), so no
 #   extra copilot container is onboarded.
 #
@@ -29,8 +29,8 @@ services:
     image: actualbudget/actual-server:{{ actual_budget_version }}
     cap_drop:
       - ALL
-    # read_only intentionally ABSENT (HD-318): actual-server (node) creates
-    # /app/data/server-files on first boot; read_only root blocked the mkdir.
+    # read_only intentionally ABSENT: actual-server (node) creates
+    # /app/data/server-files on first boot; a read_only root blocks the mkdir.
     tmpfs:
       - /tmp
     container_name: actual-budget
@@ -43,12 +43,11 @@ services:
       # inside the overlay consumers use http://actual-budget:5006 (services-internal).
       - "{{ oldsrv_home_ip }}:5006:5006"
     volumes:
-      # HD-318 live: the actual-budget image's real data dir is /data (owned by the
-      # `actual` user, uid 1001) — /app/data does not exist in the image. Mounting to
-      # /app/data left the app writing into the IMAGE's writable layer at /data, and
-      # the EACCES came from /srv/docker/actual-budget/data being root:root while the
-      # migration drops to uid 1001. Fix: target /data + bind_owner_uid: 1001 in the
-      # group_vars entry (dir pre-created 1001-owned).
+      # The image's real data dir is /data (owned by the `actual` user, uid 1001);
+      # /app/data does not exist in the image. Target /data with bind_owner_uid: 1001 in
+      # the group_vars entry (dir pre-created 1001-owned): any other target leaves the app
+      # writing into the image's writable layer, and a root:root host dir gives EACCES when
+      # the migration drops to uid 1001.
       - /srv/docker/actual-budget/data:/data   # SQLite DB + user files + built-in backups
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
