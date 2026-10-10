@@ -441,9 +441,9 @@ outage. Method and the counter technique: [network-ops.md](network-ops.md) §IPv
   `IPv6: yes, [<GUA>]:<port>` line is the **DERP-side STUN observation** and it varies between runs; the socket
   a peer must reach is 41641.
 - **No unsolicited inbound IPv6 reaches the delegated prefix** at all while v4 scans arrive continuously, so an
-  `AAAA` record pointing at a home service would be unreachable from the v6 internet — home publishes none.
-  Not proven from the inside: the clean proof is an external v6 prober
-  ([network-ops.md](network-ops.md) §IPv6).
+  `AAAA` record pointing at a home service would be unreachable from the v6 internet — home publishes none, and
+  the check that keeps it that way is `nagios-dns-v6` ([network-vlans.md](network-vlans.md) §IPv6). Not proven
+  from the inside: the clean proof is an external v6 prober ([network-ops.md](network-ops.md) §IPv6).
 - **The lever that survives carrier NAT is phone-initiated WireGuard:** the router is the responder with a
   public address, so the phone's carrier has no unsolicited inbound to block. The chosen vehicle is **MikroTik
   Back To Home**, deferred.
@@ -458,9 +458,15 @@ outage. Method and the counter technique: [network-ops.md](network-ops.md) §IPv
   success.
 
 **Mobile/media reach — home-hosted services:** home apps (jellyfin, *arr, downloads, seerr, seerrng) are
-reachable by **publishing a host port bound to `oldsrv_home_ip`** + a
-`traefik-tailnet` edge route proxying over WG — the `actual-budget:5006` / `immich-ml:3003` precedent. Still
-**behind Authentik forward-auth** on the edge (private, not public).
+reachable because **the edge that routes them can dial them**. `traefik-internal` runs `network_mode: host`
+on oldsrv and the whole routed group publishes its host port on **loopback**, so an app's bind and its
+`*-backend` URL are one variable pair and only ever move together — moving one alone is a silent 502 on that
+app. A backend dialled **from another box** is the exception that needs a bind routable across hosts,
+`oldsrv_home_ip` — the `actual-budget:5006` / `immich-ml:3003` precedent. Nothing on the VPS dials an app port
+here: the public edge carries `media` / `seerr` / `seerrng` only and proxies them to the home edge over the
+WG S2S (`https://oldsrv_home_ip:443`, one `servername` transport per name), while the *arr set and the
+downloaders stay LAN-only. These apps serve their **own login** behind the `crowdsec-only` middleware with no
+Forward-Auth, and `media.kogler.si` is published publicly, so that login is the internet-facing surface.
 
 ## Reaching LAN nodes when away (hotspot / public Wi-Fi) — the access matrix
 

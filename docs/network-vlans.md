@@ -64,8 +64,10 @@ route), and that stops being true the moment a second prefix is advertised.
 
 **Rollback is two switches, and nothing else has to be undone:**
 `/ipv6 nd set [find where interface=vlan10-home] disabled=yes` then
-`/ipv6 address remove [find where comment~"^HD-414"]` — `ra-lifetime=30m`, so advertised addresses age out
-on their own and the Home VLAN returns to IPv4-only. Runbook + how to verify: [network-ops.md](network-ops.md)
+`/ipv6 address remove [find where comment~"GWA"]` — the selector matches the `GWA` text the converge
+writes into the advertised-address comment, so it removes exactly the rows the converge owns.
+`ra-lifetime=30m`, so advertised addresses age out on their own and the Home VLAN returns to IPv4-only.
+Runbook + how to verify: [network-ops.md](network-ops.md)
 §IPv6 and the runbook steps in [deployment-manual.md](../deployment-manual.md) §1.5.3d.
 
 **Serving inbound over v6 is NOT currently available.** With the WAN drops logging, **no unsolicited inbound v6

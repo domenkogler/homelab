@@ -22,7 +22,7 @@ tags: [network, vlan, migration]
 |---|---|---|---|---|
 | CRS328 switch | 74:4D:28:F0:31:9A | 99 (Mgmt) | — | static today ✓ |
 | AP-dnevna (hAP ac²) | C4:AD:34:42:F0:B9 | 99 (Mgmt) | serves WLAN | Modern `wifi-qcom-ac` fleet — no MIPSBE device left. MAC/address SSOT in `all.yml` + `switch.yml`. |
-| AP-garaza (wAP ac) | ~~6C:3B:6B:7D:B9:C5~~ | — | — | **☠️ DEAD — hardware fault, out of the fleet, replacement pending.** Board boot-loops / goes silent after network init (no DHCP renew, no MNDP, no ARP); config reset + Netinstall/Etherboot do not recover it. CRS328 `ether7` PHY (1G) and PoE are fine. Not in `network_static_hosts` / `switch_port_map` / rack-connections. **Any replacement must be wifi-qcom-ac-capable.** |
+| AP-garaza (wAP ac) | ~~6C:3B:6B:7D:B9:C5~~ | — | — | **☠️ DEAD — hardware fault, out of the fleet, replacement pending.** Board boot-loops / goes silent after network init (no DHCP renew, no MNDP, no ARP); config reset + Netinstall/Etherboot do not recover it. CRS328 `ether7` PHY (1G) and PoE are fine — the switch-side PoE `current_too_low` cutoffs seen during its hangs are a symptom, not the cause. Not in `network_static_hosts` / `switch_port_map` / rack-connections. **Any replacement must be wifi-qcom-ac-capable.** |
 | AP-spalnica (hAP ac²) | C4:AD:34:42:F1:7D | 99 (Mgmt) | serves WLAN | wifi-qcom-ac-capable hardware |
 | oldsrv | 70:85:C2:2D:6F:04 | trunk 10+99 | — | SSOT Home/Mgmt addresses apply |
 | nas (gen8) | 1C:98:EC:0E:0D:38 | 10 (Home) | — | — |

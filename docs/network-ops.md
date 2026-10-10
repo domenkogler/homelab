@@ -177,15 +177,17 @@ reads "everything answered"), and **must be removed in the same sitting** — th
 
 ```bash
 ssh router '/ipv6 nd set [find where interface=vlan10-home] disabled=yes'   # stop advertising
-ssh router '/ipv6 address remove [find where comment~"^HD-414"]'            # remove the Home GWA
+ssh router '/ipv6 address remove [find where comment~"GWA"]'                # remove the Home GWA
 # optional, only to stop the PD client itself:
 ssh router '/ipv6 dhcp-client remove [find where interface=pppoe-telekom]'
 ssh router '/ipv6 pool remove [find where name=pd-wan6]'
 ```
 
-`ra-lifetime=30m`, so SLAAC'd addresses age out on their own and the Home VLAN returns to IPv4-only without
-touching a single host. To reverse it permanently, revert the converge's IPv6 section — **do not** leave the
-device and the plan of record disagreeing.
+The `comment~"GWA"` predicate is the selector, not an identifier: the converge writes one advertised address
+per SLAAC VLAN with `GWA` in its comment and writes no other `/ipv6 address` row, so matching on that word
+selects exactly the rows the converge owns. `ra-lifetime=30m`, so SLAAC'd addresses age out on their own and
+the Home VLAN returns to IPv4-only without touching a single host. To reverse it permanently, revert the
+converge's IPv6 section — **do not** leave the device and the plan of record disagreeing.
 
 
 ### Rsc authoring conventions (the rules that make imports safe)
@@ -245,7 +247,7 @@ ARP-FAILED while the router still answers ICMP on the untagged plane, and becaus
 Mgmt-only the router's own SSH/API become unreachable **from every mgmt client at once**. Rules that follow:
 
 - Prefer **surgical deltas** for mgmt-plane-sensitive changes
-  ([network-rejected.md](network-rejected.md) full-converge-for-mgmt-plane-changes).
+  ([network-rejected.md](network-rejected.md) — *Full router.yml converge for mgmt-plane-sensitive changes*).
 - Keep `rb4011_pi_delta.rsc.j2` as the canonical **idempotent recovery** — always re-render before use
   (it is SSOT-derived). It re-sets `vlan-99 tagged=bridge-lan,sfp-sfpplus1,ether2,ether10` + the correct
   `pvid` on the Pi's port, matching `router_port_map` / `rb4011_converge.rsc.j2`.
@@ -280,7 +282,7 @@ Mgmt-only the router's own SSH/API become unreachable **from every mgmt client a
   source. Established/related and DHCP input remain accepted so the control plane, clients and the
   WireGuard/VRRP links keep working.
 - **Assert-before-mutate:** both the router and switch Ansible roles start with a `community.routeros.api_facts` read of `/system identity` and assert the target matches the per-gear `routeros_expected_identity` from `group_vars/` (fail-loud — a blank identity aborts). This runs **once per role run**, before any `api_modify`, so a wrong-target or swapped-host can never receive config meant for another device.
-- **Router API TLS:** the management API has a TLS path on **`api-ssl` (:8729) with a self-signed device cert** and `validate_certs: false` in Ansible — TLS encryption on a private Mgmt-VLAN link, **no public CA / no Let's Encrypt dependency**. Cert creation + `api-ssl` enable are role-managed; `validate_certs` stays `false` until the router is reset with the initial `.rsc` and `api-ssl` is live (`group_vars/router.yml`). See `rb4011_initial.rsc.j2` / `crs328_initial.rsc.j2`.
+- **Router API TLS:** `api-ssl` (**:8729**) exists on the device but is **disabled** — every bootstrap and converge template plus the router role's `/ip service` row set `disabled=yes` with `certificate=none` — so the TLS path is **not live** and the management API is the plain `api` (:8728) on the Mgmt VLAN. `routeros_tls` therefore stays **unset** (`roles/router/defaults/main.yml`; commented out in `group_vars/router.yml`) until the router is reset with the initial `.rsc` and `api-ssl` is live. Flipping it then keeps `validate_certs: false` — a self-signed device cert on a private Mgmt VLAN, with no public CA and no Let's Encrypt dependency either way. See `rb4011_initial.rsc.j2` / `crs328_initial.rsc.j2`.
 - **Shared RouterOS admin credential:** because all management binds to Mgmt-VLAN 99 (above), the **same `mikrotik-admin_login` password is deliberately shared** across RB4011 + CRS328 + APs as an **accepted** risk — it cannot be reached from WAN or any non-Mgmt VLAN. Revisit per-gear items only if a device gains WAN-exposed management or this ACL changes. See [deployment-secrets.md](deployment-secrets.md).
 - **Rotating the shared admin password:** the rotation follows the repo-native **render → `/import`** flow, NOT a manual device-by-device SSH script. Procedure: (1) update `mikrotik-admin_login` in 1Password — set **`old-password`** = current live value, **`password`** = new value (vault = SSOT; every converge/`initial` template reads `password`). (2) Re-render `render-converge.yml` + `render-routeros.yml` so every `IaC/router/rendered/*.rsc` embeds the NEW password; **delete any stale rendered `ap_initial.rsc`** (legacy universal AP script — per-AP `ap_initial-<name>.rsc` are current) and any converge `.rsc` left on a device after a partial `/import`. (3) Apply the converge (or a `user set admin password` delta) per device via `scripts/routeros-apply-delta.sh` / `apply-converge.yml` (SSH `ansible` identity, pinned host key; the API `/import` step needs `librouteros` in the runner — if missing use the SSH-import path). (4) **Verify from a Mgmt-sourced API path**: old password must FAIL, new must authenticate — testing from a non-Mgmt source (e.g. a Home IP) is INPUT-dropped and reads as a **false lockout**. (5) At the **next bootstrap reset**, re-upload the re-rendered `initial` `.rsc` files (`rb4011_initial.rsc` / `crs328_initial.rsc` / `ap_initial-<name>.rsc`) to each device's `flash/` so a flash-bootstrap sets the NEW password. `ansible` is a key-only automation user (`group=full`, password unused) and is unaffected by the rotation.
 
