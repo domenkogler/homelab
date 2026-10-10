@@ -94,6 +94,11 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `whisper.cpp` HIP/ROCm image for STT | rejected | No published ROCm artifact; self-build, no digest trail |
 | Workload discipline on sessions served by spark | rejected | The memory budget is the lever, not session policing |
 | ZeroClaw on the VPS | rejected | Fleet credentials on an internet-facing host |
+| `context-mode` laptop seat entry | dropped | Per-machine install, not a fleet key |
+| `defaultThinkingLevel: off` on the harness | superseded | Thinking on from the first turn (high) |
+| `remote-bash.ts` seat extension | dropped | Windows-only sshpass/drive paths, never in repo |
+| Rendering `settings.json` from a spec vendor | rejected | A vendor would delete a seat's packages |
+| Retiring the WSL Debian pi seat | superseded | Seat retained and rarely used |
 
 ## What would reopen OV
 

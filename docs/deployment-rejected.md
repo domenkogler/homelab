@@ -72,6 +72,12 @@ tags: [deployment, rejected, decision-log]
 | WSL Bridged networking                                                         | superseded | NIC pin fails on WiFi/hotspot; NAT is durable                   |
 | WSL `mirrored` networking                                                      | rejected   | wedges ARP for the gateway, survives `wsl --shutdown`           |
 | `Yacht web UI`                                                                 | rejected   | extra VPS web surface, drifts from the Ansible compose model    |
+| /health wait to prove a re-render                                              | rejected   | Engine answers 200 before recreation                            |
+| Edge 401 with the old bearer as containment test                               | rejected   | That host authenticates with the engine key                     |
+| Forgejo CI runner as `spark-llm_api` holder                                    | dropped    | No runner exists, origin is GitHub                              |
+| `git filter-repo` scrub of the leaked bearer                                   | dropped    | Rotated value inert, rewrite buys hygiene only                  |
+| One shared bearer for engine + gateway legs                                    | superseded | Gateway leg holds `litellm-engine_api`                          |
+| Scoped/tag-limited converge to land a key                                      | rejected   | Reports green while skipping the service                        |
 
 > **Not a deployment-domain decision:** guest-network / storage / services rejections live in their own
 > `<domain>-rejected.md` files — see [`services-rejected.md`](services-rejected.md),
