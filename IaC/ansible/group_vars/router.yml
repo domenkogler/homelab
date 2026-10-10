@@ -3,35 +3,34 @@
 
 routeros_api_port: 8728
 
-# RouterOS device identity asserted before any api_modify (HD-161).
+# RouterOS device identity asserted before any api_modify.
 # Must match what rb4011_initial.rsc.j2 sets at bootstrap: `/system identity set name=router.kogler.si`.
-# Set by group_vars so the assert is per-gear (HD-165); role defaults keep only a fail-loud '' guard.
+# Set by group_vars so the assert is per-gear; role defaults keep only a fail-loud '' guard.
 routeros_expected_identity: "router.kogler.si"
 
 # TLS for the RouterOS API — self-signed device cert on api-ssl (8729). Kept false until the
 # router is reset with the initial .rsc and api-ssl is live; then flip to true (validate_certs
-# stays false — self-signed, private mgmt VLAN). HD-161 Part B.
+# stays false — self-signed, private mgmt VLAN).
 # routeros_tls: true
 
-# VLAN map — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all/), HD-200:
+# VLAN map — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all/):
 # the only literal VLAN list lives in all.yml; the router adds just the unused
 # VLAN 1 Blackhole stub (every consumer loop filters it via
-# selectattr('unused', 'undefined')). A VLAN edit touches all.yml only — the old
-# triple map (all.yml/router.yml/switch.yml kept equal by "must match" comments)
-# cannot drift (audit H2 / iac-changes §2).
+# selectattr('unused', 'undefined')). A VLAN edit therefore touches all.yml only —
+# a duplicated map is what drifts (audit H2 / iac-changes §2).
 vlans: "{{ [ {'id': 1, 'name': 'Blackhole', 'subnet': '0.0.0.0/0', 'unused': True} ] + network_vlans }}"
 
-# Port model (decided 2026-09-01): untagged = primary/access VLAN (Home 10 for admin/PC/Pi),
-# tagged = secondary/admin backplane (Management 99). A single untagged port can carry only
-# ONE VLAN (untagged frames map to pvid) — so dual-homed hosts ride Home untagged + Mgmt tagged.
-# This is the fixed port model (network-vlans.md Port Type Reference); it supersedes the old
-# "Mgmt-access + single-VLAN" model that left the Pi's Home leg dead (HD-307 / HD-308 class).
+# Port model: untagged = primary/access VLAN (Home 10 for admin/PC/Pi), tagged =
+# secondary/admin backplane (Management 99). A single untagged port carries only ONE
+# VLAN (untagged frames map to pvid) — so a dual-homed host rides Home untagged +
+# Mgmt tagged. This is the fixed port model (docs/network-vlans.md Port Type
+# Reference); the older Mgmt-access model leaves the second leg dead.
 
 # Management-service reach — STRICT: bind router mgmt services to the Management VLAN only.
 # The admin laptop/Pi reach the control plane via the TAGGED Mgmt sub-interface (eth0.99 on the
-# Pi; laptop hops through the Pi or uses its tagged leg) — NOT from untagged Home (HD-310 design:
-# untagged Home = user plane; tagged 99 = admin plane). Home->Mgmt forward is DROPPED (reverted
-# 2026-09-02 — defense-in-depth: Home must never reach core infra by default).
+# Pi; laptop hops through the Pi or uses its tagged leg) — NOT from untagged Home (untagged Home
+# = user plane; tagged 99 = admin plane). Home->Mgmt forward is DROPPED: Home must never reach
+# core infra by default.
 router_services_available_from: >-
   {{ network_vlans | selectattr('id', '==', 99) | map(attribute='subnet') | first }}
 router_port_map:
@@ -59,8 +58,8 @@ router_port_map:
     mac: "1C:98:EC:0E:0D:3A"
   # spark (Lenovo ThinkStation PGX, NVIDIA GB10) — direct on the router, ether8. Dual-home per the
   # port model: untagged Home 10 (pvid) + tagged Mgmt 99 on the SAME single NIC
-  # (enP7s7, HD-367). Wired 2026-09-17 by the owner; link up at 1000 Mb/s (the
-  # RB4011 has no 10G copper port — docs/hardware-spark.md §Reality deltas 1).
+  # (enP7s7). The RB4011 has no 10G copper port, so the link runs at 1000 Mb/s
+  # (docs/hardware-spark.md §Reality deltas 1).
   spark:
     port: ether8
     pvid: 10
@@ -86,9 +85,9 @@ router_port_map:
 # own LAN) so the Comtrend's web UI stays reachable from the homelab for the
 # twice-yearly PPPoE-redial dance — no physical cable swap needed.
 #
-# Access scope (HD-302): ONLY trusted-admin hosts (the laptop) can reach 192.168.1.1.
-# The Comtrend has a default-password web UI (consumer device) — restrict to mgmt
-# admins per the HD-78 binding floor. The FORWARD chain gets an explicit allow rule
+# Access scope: ONLY trusted-admin hosts (the laptop) can reach 192.168.1.1. The
+# Comtrend has a default-password web UI (consumer device) — restrict to mgmt admins
+# per the trusted-admin binding floor. The FORWARD chain gets an explicit allow rule
 # (trusted-admin -> 192.168.1.1) and an explicit drop rule (everything else -> 192.168.1.0/24).
 #
 # The Comtrend (consumer ONT) only answers its web UI to its directly-connected LAN
@@ -96,11 +95,10 @@ router_port_map:
 # deeper LAN subnets (10.10.x) is silently ignored (connection tracker shows syn-sent
 # with 0 repl packets). So a srcnat masquerade out ether1 is REQUIRED: the router
 # presents trusted-admin traffic to the modem as its own 192.168.1.2 address.
-# Live-verified 2026-09-02: laptop -> modem UI returns 401 (auth page) via this SNAT.
 #
-# DNS: modem.kogler.si is a private split-horizon record. Live publication depends on
-# the first Technitium instance (Phase 2/3); tracked separately, NOT in cloudflare_dns
-# (the modem is on a private RFC1918 subnet and must never go to public DNS).
+# DNS: modem.kogler.si is a private split-horizon record, published by the Technitium
+# seed — NOT in cloudflare_dns (the modem is on a private RFC1918 subnet and must
+# never go to public DNS).
 comtrend_modem:
   enabled: true
   iface: ether1
@@ -113,42 +111,39 @@ wireguard_s2s_vps:
   remote_ip: 10.255.40.2/30
   remote_endpoint: "vps.kogler.si"   # SSOT-stable VPS endpoint (public A record in cloudflare_dns/vars/main.yml) — resolves at boot, survives VPS IP changes without a re-render; mirrors the VPS side's `s.kogler.si` DDNS token pattern.
   port: 51820
-  # VPS public key (VPS's OWN distinct key `wg_password_vps`, NOT shared — HD-285 fix),
-  # needed for the router peer. Fail-closed when unset at deploy; router and VPS each
-  # hold their own private key (`wg_password` / `wg_password_vps`) and derive their own
+  # VPS public key (the VPS's OWN keypair `wg_password_vps`, never shared), needed
+  # for the router peer. Fail-closed when unset at deploy; router and VPS each hold
+  # their own private key (`wg_password` / `wg_password_vps`) and derive their own
   # pubkey — pinned in group_vars/all/ (`wg_s2s_router_public_key` / `wg_s2s_vps_public_key`).
-  vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key', default='') }}"  # HD-271: lookup default — no `in vars` membership (internal vars dict deprecated at 2.24)
-  # LEAST-ACCESS (HD-155): the router accepts from the VPS peer only the scoped home
-  # targets (exporter/VIP/probe + oldsrv backends) + wg-vps-services — NOT the whole
-  # `site` /16. DERIVED from the SSOT list `wg_s2s_vps.allowed_ips` (group_vars/all/,
-  # HD-200): one list, two consumers (VPS-side wg interface + RouterOS peer
-  # allowed-address), so the two sides can no longer drift (iac-changes §8).
-  # Edit the list in all.yml only.
+  vps_public_key: "{{ lookup('vars', 'wg_s2s_vps_public_key', default='') }}"  # lookup default — no `in vars` membership (internal vars dict deprecated at 2.24)
+  # LEAST-ACCESS: the router accepts from the VPS peer only the scoped home targets
+  # (exporter/VIP/probe + oldsrv backends) + wg-vps-services — NOT the whole `site`
+  # /16. DERIVED from the SSOT list `wg_s2s_vps.allowed_ips` (group_vars/all/): one
+  # list, two consumers (VPS-side wg interface + RouterOS peer allowed-address), so
+  # the two sides cannot drift (iac-changes §8). Edit the list in all.yml only.
   allowed_ips: "{{ wg_s2s_vps.allowed_ips }}"
 
 # Headscale overlay for user devices (Tailscale-compatible CGNAT range).
 # WireGuard is site-to-site ONLY — user devices use Headscale, not road-warrior.
 headscale_subnet: "100.64.0.0/10"
 # Resolver addresses (PRIMARY VPS / SECONDARY oldsrv / TERTIARY Pi) are defined once
-# in group_vars/all/ (dns_primary_ip / dns_secondary_ip / dns_tertiary_ip, HD-299)
+# in group_vars/all/ (dns_primary_ip / dns_secondary_ip / dns_tertiary_ip)
 # and consumed here by the router role (DHCP chain + forward rules + Kids redirect).
-# ==== CAPsMAN WiFi map (HD-228 / network-vlans.md SSID mapping) ====
+# ==== CAPsMAN WiFi map (network-vlans.md SSID mapping) ====
 # SSOT for cfg names/SSIDs/VLANs/passphrase items. Items must exist in
 # 1Password BEFORE rendering capsman_steady-state.rsc (render lookups fail loud).
-# DELIVERY (owner decision 2026-08-24 / task 8): steady-state WiFi = rendered rsc
-# (IaC/router/templates/capsman_steady-state.rsc.j2), NOT ansible api_modify. MODERN
-# wifi-qcom-ac (HD-232); datapath VLAN tagging in the config objects. This flag stays
-# false — the rsc replaces the api_modify path entirely.
-# IoT configs must stay 2.4 GHz-friendly (QCA4002 + Gen1 Shelly chips, HD-228);
-# passphrases alphanumeric only (HD-228 constraint).
+# DELIVERY: steady-state WiFi = rendered rsc
+# (IaC/router/templates/capsman_steady-state.rsc.j2), NOT ansible api_modify, on
+# MODERN wifi-qcom-ac; datapath VLAN tagging lives in the config objects. This flag
+# stays false — the rsc replaces the api_modify path entirely.
+# IoT configs must stay 2.4 GHz-friendly (QCA4002 + Gen1 Shelly chips); passphrases
+# alphanumeric only.
 routeros_capsman_enabled: false
 routeros_capsman_implemented: false   # flips true when capsman.yml tasks are written against the live manager
 routeros_capsman_ssids:
-  # Enabled set (owner decision 2026-09-03 — HD-312 3-SSID consolidation):
-  # Kogler (Home, VLAN 10) + Kogler IOT (VLAN 20) + Kogler guest (VLAN 30, 5GHz-only).
-  # IOT-WAN and Kids SSIDs were DELETED (configs removed live 2026-09-03 — guest took
-  # over VLAN 30; kids-control migrates to firewall MAC-address-list per HD-312).
-  # `band` routes the SSID to a band master: `24` = 2.4GHz (Kogler/IOT), `5` = 5GHz (guest).
+  # The enabled set: Kogler (Home, VLAN 10) + Kogler IOT (VLAN 20) + Kogler guest
+  # (VLAN 30, 5GHz-only). `band` routes the SSID to a band master: `24` = 2.4GHz
+  # (Kogler/IOT), `5` = 5GHz (guest).
   - { cfg: cfg-kogler,        ssid: Kogler,         vlan: 10, item: wifi-kogler_password,        band: 24 }
   - { cfg: cfg-kogler-iot,    ssid: Kogler IOT,     vlan: 20, item: wifi-kogler-iot_password,    band: 24 }
   - { cfg: cfg-kogler-guest,  ssid: Kogler guest,   vlan: 30, item: wifi-kogler-guest_password,  band: 5 }
