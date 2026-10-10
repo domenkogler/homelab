@@ -28,8 +28,8 @@ tags: [storage, rejected, decision-log]
 | Hetzner Box as the music master (Lidarr copy-import)                | superseded | the NAS Lidarr library is the master                      |
 | `hosts`-file entry for UNC mounts over Wi-Fi                        | rejected   | the zone `nas` record is the fix, not a laptop override   |
 | iDrive e2 (S3)                                                      | dropped    | Hetzner Box is cheaper per TB and does SMB/WebDAV         |
-| Immich `library/` storage-template subpath                          | rejected   | flattens every asset into one directory                   |
 | Immich face thumbnails treated as regenerable                       | superseded | regenerating means a full facial-recognition re-scan      |
+| Immich `library/` storage-template subpath                          | rejected   | flattens every asset into one directory                   |
 | Immich originals on the NAS                                         | superseded | the live Box (CIFS) is the originals tier                 |
 | immich's bundled PG 14 composite, in the 16 → 18 legs              | rejected   | ships PG 14 only; data_checksums blocks `--link`          |
 | Local tdbsam Samba accounts (`pdbedit`)                             | superseded | its first rejection is void, re-adopted as the design     |

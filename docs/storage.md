@@ -190,7 +190,9 @@ These properties of the shape are deliberate:
   changes nothing on the NAS by itself (CONVENTIONS §2 rotation propagation). Rotate the item, then
   converge with `-e storage_samba_password_force=<name>` — without that flag the password task only
   fires when the account is absent from `pdbedit -L`, which is what keeps a routine converge from
-  resetting a member's password on every run.
+  resetting a member's password on every run. **The vault is currently ahead of the box:** both
+  family items are rotated and the passdb is not, so the next `nas` converge with that flag closes
+  the gap — read `pdbedit -L` back afterwards.
 - ⚠ **`smbpasswd -a -s` exits 0 while writing nothing, and its stdin contract differs by case**
   (Samba 4.22.10 / Debian 13, measured on a throwaway account in all three combinations):
   a **new** entry reads `NEW`, `REENTER` — two identical lines, prints `Added user x.`, mounts.

@@ -406,11 +406,11 @@ this migration at all. Check with:
 `for c in authentik-postgres forgejo-db litellm-db onlyoffice-postgres zipline-db; do docker inspect -f
 "{{.Config.Image}}" $c; done` on the VPS, and `lan-litellm-db` on oldsrv.
 
-App data totals **362 MB** fleet-wide (`server_version_num=160015` on the 16 clusters). Nothing exceeds
-1 GB, so
-each window is dominated by procedure overhead, not data: `pg_dump -Fc` of the largest cluster
-(authentik, 171 MB app DB) takes **1.80 s**, `pg_restore --list` 0.49 s / 1 819 TOC entries.
-Restore-side wall time is **not** measured and is normally 2–5× the dump — still minutes.
+A pre-flight reading, taken while all six in-scope clusters still ran `16.15-alpine`
+(`server_version_num=160015`): app data totalled **362 MB** fleet-wide and nothing exceeded 1 GB, so
+each window is dominated by procedure overhead, not data. `pg_dump -Fc` of the largest cluster
+(authentik, 171 MB app DB) took **1.80 s**, `pg_restore --list` 0.49 s / 1 819 TOC entries.
+Restore-side wall time was **not** measured and is normally 2–5× the dump — still minutes.
 
 **Out of scope, and it is not a 16 → 18 hop:** `immich-postgres` is **14.19** on an immich-owned
 composite (`14-vectorchord0.4.3-pgvectors0.2.0`) that ships PG 14 only, with **`vchord/0.4.3` and
