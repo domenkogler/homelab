@@ -67,7 +67,7 @@ d-i partman-auto/choose_recipe select atomic
 - OS on the **960 EVO 500 GB** (ext4 root) — light system writes on the 200 TBW disk
 - **970 EVO 1 TB** is **NOT offered to the installer** — left raw for the ZFS pool `nvme` (see [`storage.md`](storage.md))
 - Use `/dev/disk/by-id/nvme-*` paths
-- The **970 EVO data-pool device** is the SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml, HD-128/KOPS-057) — the storage role reads it for a fresh-build create; the preseed never touches this disk. Fill the real `by-id` when the pool is first created.
+- The **970 EVO data-pool device** is the SSOT var `storage_nvme_data_by_id` (host_vars/oldsrv.kogler.si.yml) — the storage role reads it for a fresh-build create; the preseed never touches this disk. Fill the real `by-id` when the pool is first created.
 
 > **Rule (all hosts):** preseed partitions the **OS disk only**. ZFS disks are never part of
 > partitioning; pools are **imported** post-boot (`zpool import`), never auto-created — automation
@@ -81,7 +81,7 @@ d-i partman-auto/choose_recipe select atomic
 ```
 d-i passwd/root-login boolean false
 ```
-Root login is **disabled** (KOPS-044 / HD-80) — `ansible-admin` has key-only SSH + NOPASSWD sudo, so no emergency root password is deployed (avoids an identical placeholder-hash across hosts and removes the password-root attack surface). Console recovery = boot single-user / reset via `ansible-admin` sudo.
+Root login is **disabled** — `ansible-admin` has key-only SSH + NOPASSWD sudo, so no emergency root password is deployed (avoids an identical placeholder-hash across hosts and removes the password-root attack surface). Console recovery = boot single-user / reset via `ansible-admin` sudo.
 
 **Ansible admin user (passwordless — SSH key only):**
 ```
@@ -117,8 +117,8 @@ d-i preseed/late_command string \
     in-target /bin/bash /tmp/post_install.sh
 ```
 
-> **Media layout:** when assembling the install media, place the shared `post_install.sh` where the late_command expects it (`preseed/post_install.sh` on the media), alongside the per-host `preseed.cfg`. The media copy must carry the REAL keys — generate it with [`scripts/gen-media-post-install.sh`](../scripts/gen-media-post-install.sh) (injects the three 1Password public keys into a git-ignored `post_install_with_secrets.sh`, fail-loud guards per HD-209, optional mountpoint arg copies it to `<media>/preseed/post_install.sh`). Never copy the placeholder-only committed file onto media as-is — the HD-201 runtime assertion would abort the install at late_command.
-> **Executable procedure:** the step-by-step host-install runbook (media → interactive install → catch-up bootstrap) lives in [deployment-manual.md §Phase 1a](../deployment-manual.md) — proven 2026-08-23; full preseed automation is deferred there until re-proven.
+> **Media layout:** when assembling the install media, place the shared `post_install.sh` where the late_command expects it (`preseed/post_install.sh` on the media), alongside the per-host `preseed.cfg`. The media copy must carry the REAL keys — generate it with [`scripts/gen-media-post-install.sh`](../scripts/gen-media-post-install.sh) (injects the three 1Password public keys into a git-ignored `post_install_with_secrets.sh`, fail-loud guards, optional mountpoint arg copies it to `<media>/preseed/post_install.sh`). Never copy the placeholder-only committed file onto media as-is — the placeholder assertion would abort the install at late_command.
+> **Executable procedure:** the step-by-step host-install runbook (media → interactive install → catch-up bootstrap) lives in [deployment-manual.md §Phase 1a](../deployment-manual.md); full preseed automation is deferred there until re-proven.
 
 ---
 
@@ -158,7 +158,7 @@ AllowUsers ansible-admin ai-debug
 EOF
 systemctl restart ssh
 
-# 5. Placeholder assertion (B5/HD-201) — abort loudly if the produced config
+# 5. Placeholder assertion — abort loudly if the produced config
 #    still contains placeholder tokens (implemented in IaC/host/post_install.sh)
 # 6. Cleanup
 rm -f /tmp/post_install.sh
@@ -181,11 +181,11 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 
 > **Note:** AI hardware diagnostics (`sudo ai-diag ...`) are deployed by the `ai_diag` Ansible role on the first playbook run — not by post_install. See [`deployment-ansible.md`](deployment-ansible.md).
 
-> **Placeholder assertion (B5 / HD-201):** before cleanup, `post_install.sh` greps the produced
+> **Placeholder assertion:** before cleanup, `post_install.sh` greps the produced
 > config (both users' `authorized_keys`, `sshd_config`, `fstab`) for the greppable placeholder
 > tokens (`REPLACE_ME_*`, `<SERIAL>`, the nas serial stubs, `_FROM_1PASSWORD>` pubkeys) and exits
-> non-zero on any hit — an install that would boot into a locked-out host (no root password,
-> KOPS-044) fails loudly on the installer console/log instead. The same rule gates the Pi flow:
+> non-zero on any hit — an install that would boot into a locked-out host (no root password)
+> fails loudly on the installer console/log instead. The same rule gates the Pi flow:
 > [`first-boot-config.sh`](../IaC/host/pi/first-boot-config.sh) asserts the written
 > `user-data`/`firstboot.sh` carry no placeholders before the card is declared ready. A repo-side
 > grep gate (`scripts/check_placeholders.py`, checker 9 in `validate-all.sh`) keeps *committed*
@@ -205,9 +205,9 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 | OS disk | nas: SATA SSD / oldsrv: NVMe | `/dev/nvme0n1` — single 512 GB NVMe ([`IaC/host/vps/preseed.cfg`](../../IaC/host/vps/preseed.cfg)) |
 | Data pools | ZFS (untouched by preseed) | **no ZFS** — DBs/thumbs on VPS NVMe; bulk on Hetzner Storage Boxes |
 
-**Bootstrap warning:** netcup installs remotely (SCP custom ISO / PXE, no console recovery like iLO/USB). The preseed disables root login and locks the `ansible-admin` password (policy KOPS-044), relying **entirely** on the injected SSH keys. If the keys are not present at first boot you are **locked out** — verify the placeholders are replaced with the real 1Password public keys **before** the ISO is booted.
+**Bootstrap warning:** netcup installs remotely (SCP custom ISO / PXE, no console recovery like iLO/USB). The preseed disables root login and locks the `ansible-admin` password, relying **entirely** on the injected SSH keys. If the keys are not present at first boot you are **locked out** — verify the placeholders are replaced with the real 1Password public keys **before** the ISO is booted.
 
-> **Wrong-script risk (late_command, HD-201):** the VPS [`preseed.cfg`](../IaC/host/vps/preseed.cfg)
+> **Wrong-script risk (late_command):** the VPS [`preseed.cfg`](../IaC/host/vps/preseed.cfg)
 > late_command copies `/cdrom/preseed/post_install.sh` — the **same media path** the shared
 > nas/oldsrv preseeds use ([Media layout](#8-late-command)). If the install media is assembled
 > with the **shared** `post_install.sh`, the preseed still runs — and installs `ai-debug` + the
@@ -279,8 +279,8 @@ IaC/host/
 
 The Raspberry Pi 4 uses **Raspberry Pi OS Lite (64-bit, headless)** — the official Debian-based image — instead of the Debian Installer + preseed path used by nas/oldsrv. These are pre-installed system images; there is no `d-i` installer to answer questions, so `preseed.cfg` does not apply.
 
-> **Use the official Raspberry Pi OS Lite image, not a Debian-mirror rebuild:** the previously
-documented raspi.debian.net image boots to a **rainbow screen** on the Pi 4 (kernel/firmware mismatch) → switched to Raspberry Pi OS Lite via Raspberry Pi Imager. The raspi.debian.net-specific `first-boot-config.sh` is **not** used for Pi OS Lite (Imager's advanced gear handles headless pre-config).
+> **Use the official Raspberry Pi OS Lite image, not a Debian-mirror rebuild:** raspi.debian.net
+boots to a **rainbow screen** on the Pi 4 (kernel/firmware mismatch), so it is not an option here. The raspi.debian.net-specific `first-boot-config.sh` is **not** used for Pi OS Lite (Imager's advanced gear handles headless pre-config).
 
 ### Workflow
 

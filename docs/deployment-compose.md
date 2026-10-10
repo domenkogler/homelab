@@ -35,19 +35,18 @@ Deployed to: `/opt/<service>/docker-compose.yml`
 | Edge (Traefik, CrowdSec) | `traefik-public` |
 | Identity (Authentik) | `traefik-public` + `services-internal` |
 | Platform (OpenCloud, Immich, Forgejo) | `services-internal` |
-| Office editor (ONLYOFFICE Docs — WOPI helper for OpenCloud, HD-166) | `traefik-public` (only; no auth surface, no user identity) |
-| AI/LLM (Ollama → `llm-backend`; Immich-ML, LiteLLM, Docling, OpenClaw) | `services-internal`; Ollama on **`llm-backend`** (isolated, reachable only by LiteLLM — HD-59). The **HD-391 Vulkan tier joins that same isolation on purpose**: `whisper`, `reranker`, `embed` are `llm-backend`-only with **no `ports:` and no Traefik labels** — their APIs have no auth, so the network is the boundary and only LiteLLM may speak to them |
-| AI coding harness (pi-dev, DSH — HD-268) | `services-internal` (LiteLLM reach for models + Forgejo for PRs). DSH WebUI = **Pattern-A tailnet serve** (loopback :3080, netns sidecar, NO socat bridge; never on `services-internal`). pi = TUI/CLI (no web port). Each consumes scoped LiteLLM key + PR-only Forgejo token. |
+| Office editor (ONLYOFFICE Docs — WOPI helper for OpenCloud) | `traefik-public` (only; no auth surface, no user identity) |
+| AI/LLM (Ollama → `llm-backend`; Immich-ML, LiteLLM, Docling, OpenClaw) | `services-internal`; Ollama on **`llm-backend`** (isolated, reachable only by LiteLLM). The **Vulkan tier joins that same isolation on purpose**: `whisper`, `reranker`, `embed` are `llm-backend`-only with **no `ports:` and no Traefik labels** — their APIs have no auth, so the network is the boundary and only LiteLLM may speak to them |
+| AI coding harness (pi-dev, DSH) | `services-internal` (LiteLLM reach for models + Forgejo for PRs). DSH WebUI = **Pattern-A tailnet serve** (loopback :3080, netns sidecar, NO socat bridge; never on `services-internal`). pi = TUI/CLI (no web port). Each consumes scoped LiteLLM key + PR-only Forgejo token. |
 | DNS (Technitium, Pi-hole) | `traefik-public` + `services-internal` (Technitium web UI behind Traefik; Pi-hole ad-blocking behind Traefik) |
 | VPN (Headscale) | `traefik-public` |
 | Backup (Kopia, DB Backup) | `services-internal` / `db-internal` |
 | Dashboard (Homepage) | `traefik-public` |
-| ~~Dashboard (Metabase)~~ | ~~`traefik-public` + `services-internal`~~ — **RETIRED 2026-09-14** (VPS); future home = oldsrv (see services-admin.md §Metabase) |
 | Observe (Alloy) | host (`docker.sock`) + `services-internal` |
 | Observe (VictoriaMetrics, VictoriaLogs) | `db-internal` |
 | Observe (Grafana) | `traefik-public` **+** `db-internal` (needs to query backends) |
 | Observe (blackbox-exporter) | `services-internal` |
-| Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) · on the **VPS** (HD-135b) |
+| Observe logs viewer (Dozzle) | `traefik-public` (read-only `docker.sock`) · on the **VPS** |
 | Alert (n8n) | `services-internal` |
 | CD (Ansible via Forgejo Actions) | host SSH (no Docker-socket agent) |
 | Update (Renovate) | `services-internal` |
@@ -72,13 +71,13 @@ networks:
 
 ## Authentik OIDC provisioning — Blueprint + secret-egress glue
 
-> Moved to **[`deployment-oidc.md`](deployment-oidc.md)** (HD-199 split): the Blueprint + secret-egress-glue contract, deploy ordering, and the per-service native-OIDC recipes live there. This doc stays pure compose conventions.
+> The Blueprint + secret-egress-glue contract, deploy ordering, and the per-service native-OIDC recipes live in **[`deployment-oidc.md`](deployment-oidc.md)**. This doc stays pure compose conventions.
 
 ---
 
 ## GPU-Enabled Containers
 
-Services that need GPU access on oldsrv: **the pinned AI tier** (embed / rerank / STT on the Vulkan runtime), **Immich-ML** and **Sunshine** — all on the AMD RX 7600 dGPU — plus **Jellyfin**, which transcodes on the Intel HD 630 **iGPU**, not the dGPU. There is no general LLM runtime on this box: generation lives on spark (HD-335). Immich-ML bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`.
+Services that need GPU access on oldsrv: **the pinned AI tier** (embed / rerank / STT on the Vulkan runtime), **Immich-ML** and **Sunshine** — all on the AMD RX 7600 dGPU — plus **Jellyfin**, which transcodes on the Intel HD 630 **iGPU**, not the dGPU. There is no general LLM runtime on this box: generation lives on spark. Immich-ML bundles its own ROCm runtime and needs only `/dev/dri` + `/dev/kfd`.
 
 ```yaml
 services:
@@ -109,16 +108,16 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
 
 - **Images:** `linuxserver/*` for the *arr apps (Sonarr, Radarr, Lidarr, Prowlarr, Bazarr, SABnzbd,
   qBittorrent); Jellyfin official `jellyfin/jellyfin`; `seerr/seerr`; gluetun `qmcgaw/gluetun`
-  (upstream — the former `qm12` fork no longer exists, HD-192);
+  (upstream);
   Profilarr (`ghcr.io/dictionarry-hub/profilarr` + parser sidecar, Dictionarry-Hub, Deno-based v2); Recyclarr `ghcr.io/recyclarr/recyclarr`.
-  All pinned via `*_version` vars in `group_vars/all/versions.yml` (HD-192, registry-verified
-  Renovate-tracked; the only `latest` left is Profilarr (no versioned tags upstream —
-  documented fluid exception) and tuwunel (MUST-pin precedent, HD-121).
+  All pinned via `*_version` vars in `group_vars/all/versions.yml` (registry-verified,
+  Renovate-tracked); the only `latest` left is Profilarr (no versioned tags upstream —
+  documented fluid exception) and tuwunel (MUST-pin).
 - **PUID/PGID:** all filesystem/SMB-backed containers (the *arr stack, qBittorrent) run as the
   **neutral shared owner `storage_uid`/`storage_gid` = `1005` (`media`)** — linuxserver images via
   `PUID={{ storage_uid }}`/`PGID={{ storage_gid }}`, Jellyfin/OpenCloud via `user: "{{ storage_uid }}:{{ storage_gid }}"`.
-  NFS/SMB ownership on nas must match (HD-94/HD-131). **Immich originals are NOT S3-backed — they live on
-  the live Hetzner Box (CIFS) via the Immich storage template (HD-135);**
+  NFS/SMB ownership on nas must match. **Immich originals are NOT S3-backed — they live on
+  the live Hetzner Box (CIFS) via the Immich storage template;**
   so Immich's container user is not the shared-files owner for originals.
 - **Storage:** media lives in a **single dataset** on the nas `bulk` pool — `bulk/media` → NFS export →
   oldsrv `/mnt/nas/media` (one filesystem → TRaSH hardlinks; **not backed up**, redownloadable):
@@ -128,16 +127,16 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   - Bazarr: library dirs (writes subtitles next to media)
   - `Use Hardlinks: ON` in Sonarr/Radarr/Lidarr
   - Full layout + dataset properties: [`storage.md`](storage.md)
-- **Downloader egress:** only qBittorrent routes through gluetun. **HD-318c:** gluetun runs `custom` WireGuard because the native `privado` provider was dropped; the endpoint/address config is non-secret and comes from `group_vars/home_servers.yml` (`privado_vpn_*`), the client private key from 1Password:
+- **Downloader egress:** only qBittorrent routes through gluetun. gluetun runs the `custom` WireGuard provider (upstream gluetun has no `privado` provider); the endpoint/address config is non-secret and comes from `group_vars/home_servers.yml` (`privado_vpn_*`), the client private key from 1Password:
   ```yaml
   services:
     gluetun:
-      image: qmcgaw/gluetun:{{ gluetun_version }}   # upstream (qm12 fork is gone, HD-192)
+      image: qmcgaw/gluetun:{{ gluetun_version }}   # upstream image
       cap_add: [NET_ADMIN]
       devices:
         - /dev/net/tun:/dev/net/tun
       environment:
-        VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` (HD-318c)
+        VPN_SERVICE_PROVIDER: custom        # no `privado` provider upstream
         VPN_TYPE: wireguard
         WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"
         WIREGUARD_ENDPOINT_PORT: "{{ privado_vpn_endpoint_port }}"
@@ -154,7 +153,7 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   SABnzbd stays on the plain LAN (Eweka usenet is a licensed service).
 - **Auth:** admin UIs behind `authentik-forward-auth@file` with built-in logins disabled;
   Jellyfin + Seerr use their own login (client apps / family portal).
-- **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`. Runs on the **VPS** (HD-135b) so log viewing is independent of home hosts.
+- **Dozzle** is an observability viewer (all containers), not part of the *arr stack — see `observability.md`. Runs on the **VPS** so log viewing is independent of home hosts.
 
 ### Immich (v3) — Server + Postgres + Valkey (microservices merged into server)
 
@@ -162,23 +161,20 @@ Immich v3 uses its own Postgres image (`ghcr.io/immich-app/postgres:14-vectorcho
 and Valkey (`docker.io/valkey/valkey:9`) instead of Redis. Microservices are merged into the server
 container — no separate `immich-microservices` service needed.
 
-## Template Jinja pitfalls (compose) — every one was found against a live container
+## Template Jinja pitfalls (compose) — every one bites a live container
 
 1. **Jinja evaluates expressions inside YAML COMMENTS.** A header line like
    `# Secrets via {{ lookup('community.general.onepassword', '...', vault=op_vault) }}` EXECUTES the
-   lookup at render and fails on the literal item name. Keep comments expression-free (39 templates
-   neutralized; traefik was the first live hit). **Re-hit 2026-09-28 in a `#` comment that merely
-   mentioned n8n's `{{ $env.SIGNAL_* }}`** — the render died with `Syntax error in template:
-   unexpected char '$'` and took the VPS `docker_services` converge with it. Prose about a Jinja
-   expression must be written WITHOUT the braces, and `validate-docker-services.py` (run by
-   `validate-all.sh`, renders every compose template in ~0.5 s) catches exactly this: it was green on
-   that commit only because it had not been re-run after the edit — **run it after touching any
-   template, not only before the commit.**
+   lookup at render and fails on the literal item name. Keep comments expression-free — a `#` comment
+   that merely quotes an app's Jinja expression (n8n's `$env.SIGNAL_*` written WITH braces) kills the
+   render with `Syntax error in template: unexpected char '$'` and takes the whole VPS
+   `docker_services` converge with it. Prose about a Jinja expression must be written WITHOUT the
+   braces, and `validate-docker-services.py` (run by `validate-all.sh`, renders every compose template
+   in ~0.5 s) catches exactly this — **run it after touching any template, not only before the commit.**
 2. **Indented block tags + `trim_blocks` glue indentation.** An indented
    `      {% if ... %}` / `{% endif %}` pair collapses to its leading spaces merged onto the next
-   content line (+6 indent per tag), producing invalid YAML (29 blocks converted to inline
-   ternaries, authentik-labels precedent). Rule: block tags at column 0 only; conditional label
-   lines use the single-line form
+   content line (+6 indent per tag), producing invalid YAML. Rule: block tags at column 0 only;
+   conditional label lines use the single-line form
    `{{ 'key: value' if (cond) else '# fallback comment' }}`.
 3. **`${VAR}` interpolation does NOT read `services.environment`.** docker compose resolves it from
    shell env / project `.env` only, so plain `docker compose config` validation aborts on required
@@ -191,7 +187,7 @@ container — no separate `immich-microservices` service needed.
 ## Extra Config Templates — render + restart-on-change
 
 Extras registered in `_extra_templates` (docker_services role defaults) are rendered per service by
-deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences, both live-learned:
+deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences:
 
 1. **`docker compose up -d` does NOT see content changes** of bind-mounted files — it recreates on
    container-spec changes only. deploy-service.yml therefore registers the render task's result and
@@ -203,7 +199,7 @@ deploy-service.yml and are BIND-MOUNTED into the containers. Two consequences, b
    again would be a double bounce. `traefik` / `traefik-ha` dynamic files sit in the file-provider
    watch dir and hot-reload in-process; restarting Traefik would only drop edge traffic. VictoriaMetrics
    (and VictoriaLogs) is restarted deliberately: its config churn costs one short gap, while the HTTP
-   auth (basic auth via victoria-metrics_api/victoria-logs_api, HD-341) is read at startup only.
+   auth (basic auth via victoria-metrics_api/victoria-logs_api) is read at startup only.
 
 If a future extra must NOT trigger this restart, extend the guard's exclusion list in
 deploy-service.yml rather than bypassing the render registration.
@@ -299,20 +295,19 @@ services:
 
 - **Stateful service data = bind mounts** under `/srv/docker/<svc>` on the oldsrv `nvme` ZFS pool —
   each dir is its own dataset (per-service recordsize/snapshots) and backup jobs + Kopia get clean host
-  paths. Ownership `storage_uid`/`storage_gid` (`media`, 1005) where the app expects it (see *arr conventions; HD-94).
+  paths. Ownership `storage_uid`/`storage_gid` (`media`, 1005) where the app expects it (see *arr conventions).
 - Named volumes only for truly ephemeral/utility caches — never for anything that is backed up
 - Bind mounts for host resources (Docker socket, GPU devices)
 - No anonymous volumes
 
-**Documented exceptions (HD-200 / audit D10):**
+**Documented exceptions:**
 
 - `technitium` binds `/opt/technitium/config` instead of `/srv/docker/technitium` — the template renders
   BOTH the oldsrv primary and the Pi secondary, and the Pi has no oldsrv-style `/srv/docker` ZFS dataset
   layout; Kopia covers `/opt/*`, so backup coverage is intact. Revisit only if per-host state paths are
   ever introduced.
 - `victoria-metrics` keeps its TSDB in the host bind `/srv/docker/victoria-metrics/data` — **Kopia-backed**
-  (per the HD-341/342 owner decision reversing the old regenerable-TSDB doctrine; see `backup.md`), growth
-  bounded by 365d retention.
+  (see `backup.md`), growth bounded by 365d retention.
 
 ---
 
@@ -340,7 +335,7 @@ services:
       - /tmp
 ```
 
-> **`read_only` is NOT universal — drop it where the image's startup writes (HD-318).**
+> **`read_only` is NOT universal — drop it where the image's startup writes.**
 > The hardening default above is the target, but the following image families **cannot** run `read_only: true`
 > without crash-looping:
 > - **linuxserver s6-overlay images** (`linuxserver/*`): s6 init writes `/run/s6` + `/config` as root before
@@ -348,11 +343,11 @@ services:
 >   (sonarr/radarr/qbittorrent precedent — the *arr templates carry the inline note).
 >   ⚠ **`/run:exec` is not optional for ANY s6 image**: docker's default tmpfs options are `noexec`, so
 >   stage0 cannot exec `/run/s6/basedir/bin/init` and the container restart-loops on **exit 126**
->   (`/run/s6/basedir/bin/init: Permission denied`) — hit live by `rustdesk-server` (HD-412) with a
->   plain `- /run`. **Do not over-apply this exception**: the exemption is `linuxserver/*`-specific, not
+>   (`/run/s6/basedir/bin/init: Permission denied`) whenever the tmpfs is a plain `- /run`.
+>   **Do not over-apply this exception**: the exemption is `linuxserver/*`-specific, not
 >   "s6"-general — a stock s6-overlay image (verified with `rustdesk/rustdesk-server-s6:1.1.16`) runs
 >   `read_only: true` + `cap_drop: ALL` + `tmpfs: /tmp, /run:exec` with no `cap_add` at all.
->   ⚠ **`cap_drop: ALL` also removes `CAP_CHOWN`, and the linuxserver images need it** (HD-1081). Their init
+>   ⚠ **`cap_drop: ALL` also removes `CAP_CHOWN`, and the linuxserver images need it**. Their init
 >   `chown`s `/run/<app>-temp` to the PUID before dropping privileges; without that capability the chown fails
 >   (`chown: changing ownership of '/run/radarr-temp': Operation not permitted`, followed by the image's own
 >   "**** Permissions could not be set ****" warning) and the directory stays `root:root 0755` while the app
@@ -370,7 +365,7 @@ services:
 >   `/app/data`): mount the correct target + `bind_owner_uid`/`bind_dirs` on the docker_services entry
 >   (deploy-service.yml Class-A pre-create).
 > - **kopia image**: entrypoint is `/bin/kopia` (clear with `entrypoint: []` before a `command: sh -c`);
->   needs writable `/app/logs`. **TLS (HD-318a):** `kopia repository connect server`
+>   needs writable `/app/logs`. **TLS:** `kopia repository connect server`
 >   in 0.23.x hard-requires `https://` (no client-side `--insecure`) — the server serves a PERSISTED
 >   self-signed cert (`--tls-cert-file`/`--tls-key-file`, generated once under
 >   `/srv/docker/kopia-server/config/`) and the agent pins its stable SHA-256 fingerprint
@@ -383,89 +378,46 @@ Even trusted containers on shared Docker networks should have independent auth. 
 compromise in one public image gives the attacker free rein across the entire bridge network if
 sibling services have no auth. Apply minimum auth per service:
 
-- **Services accepting API requests:** require token/key/header where the service supports it (n8n API key). **Ollama has NO native server auth** (`OLLAMA_AUTH_*` applies only to ollama.com cloud, not the local API) — the control instead is **network isolation**: Ollama sits on the dedicated **`llm-backend`** overlay reachable only by LiteLLM (HD-59), not `services-internal`.
-- **Backup servers:** always require server auth. **Kopia uses `--htpasswd-file`** (the server has **no `--password` flag** — `--password`/`--without-password` are repo/at-rest vs network concerns). Kopia's htpasswd parser accepts plaintext `user:password` (0600); secret = `kopia-server-internal_api`. Never `--without-password` (HD-59).
+- **Services accepting API requests:** require token/key/header where the service supports it (n8n API key). **Ollama has NO native server auth** (`OLLAMA_AUTH_*` applies only to ollama.com cloud, not the local API) — the control instead is **network isolation**: Ollama sits on the dedicated **`llm-backend`** overlay reachable only by LiteLLM, not `services-internal`.
+- **Backup servers:** always require server auth. **Kopia uses `--htpasswd-file`** (the server has **no `--password` flag** — `--password`/`--without-password` are repo/at-rest vs network concerns). Kopia's htpasswd parser accepts plaintext `user:password` (0600); secret = `kopia-server-internal_api`. Never `--without-password`.
 - **VictoriaMetrics / VictoriaLogs:** protect the HTTP endpoints — their own `-httpAuth.username`/
-  `-httpAuth.password` (plaintext basic auth, HD-341) via `victoria-metrics_api`/`victoria-logs_api`;
-  endpoints stay loopback + wg-s2s-bound (HD-62).
+  `-httpAuth.password` (plaintext basic auth) via `victoria-metrics_api`/`victoria-logs_api`;
+  endpoints stay loopback + wg-s2s-bound.
 - **Grafana:** disable built-in login form (`GF_AUTH_DISABLE_LOGIN_FORM: "true"`) to force single path through Authentik proxy
 
-#### Sibling-auth coverage map (HD-160)
+#### Sibling-auth coverage map
 
 Every **data-writing `services-internal` sibling** carries per-service token/header auth, or a
 documented network-isolation decision — so a supply-chain compromise in any public image on the
-overlay can't write to a sibling (extends HD-59). Cross-host reaches (`immich-app→immich-ml`,
+overlay can't write to a sibling. Cross-host reaches (`immich-app→immich-ml`,
 `n8n→signal-cli`) traverse the WG tunnel; the token is enforced at the **receiving** service.
 
 | Pair (writer → receiver) | Host(s) | Auth mechanism | 1Password item | Status |
 |---|---|---|---|---|
-| n8n → signal-cli | VPS → oldsrv (WG) | `X-Api-Key` (`SIGNAL_CLI_API_TOKEN`) | `signal-internal_api` | ✅ HD-125 |
-| backup clients → kopia | VPS (WG) | `--htpasswd-file` Basic | `kopia-server-internal_api` | ✅ HD-59 |
-| VictoriaMetrics/VictoriaLogs auth | VPS | `-httpAuth` plaintext basic auth | `victoria-metrics_api` / `victoria-logs_api` | ✅ HD-341/342 |
-| litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ HD-59 |
-| open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_api` | ✅ HD-100 |
-| openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ IaC (HD-160) |
-| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ IaC (HD-160) — **live-verified 2026-09-08 (HD-184)** |
+| n8n → signal-cli | VPS → oldsrv (WG) | `X-Api-Key` (`SIGNAL_CLI_API_TOKEN`) | `signal-internal_api` | ✅ |
+| backup clients → kopia | VPS (WG) | `--htpasswd-file` Basic | `kopia-server-internal_api` | ✅ |
+| VictoriaMetrics/VictoriaLogs auth | VPS | `-httpAuth` plaintext basic auth | `victoria-metrics_api` / `victoria-logs_api` | ✅ |
+| litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ |
+| open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_api` | ✅ |
+| openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ |
+| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ |
 | renovate → forgejo API | VPS | `RENOVATE_TOKEN` | `forgejo_api` | ✅ |
 | recyclarr → sonarr/radarr | oldsrv | API key | `sonarr_api` / `radarr_api` | ✅ |
 | db-backup → postgres (immich/opencloud/forgejo) | VPS | postgres password (`db-internal`) | `*_db` | ✅ |
-| opencloud ↔ onlyoffice-docs (WOPI) | VPS | shared JWT (`COLLABORATION_JWT_SECRET`) | `opencloud-collab_password` | ✅ HD-166 |
+| opencloud ↔ onlyoffice-docs (WOPI) | VPS | shared JWT (`COLLABORATION_JWT_SECRET`) | `opencloud-collab_password` | ✅ |
 
 Deliberate isolation decisions (accepted, not gaps): **Ollama** (no native server auth → stays on
-`llm-backend`, reachable only by LiteLLM, HD-59) and **docling** (no supported API key → see
-`services-ai.md`; treated like Ollama). *Cross-ref: `security.md` HD-160 block.*
+`llm-backend`, reachable only by LiteLLM) and **docling** (no supported API key → see
+`services-ai.md`; treated like Ollama). *Cross-ref: `security.md` internal-service auth.*
 
 ⚠ **Retiring a compose service does not stop its container, and a green converge hides that.**
 `docker_compose_v2` never passes `--remove-orphans`, so deleting a service block re-renders the file,
 brings the stack up, and leaves the old container RUNNING — the only trace is a task-level warning
-(`Found orphan containers (authentik-ldap) for this project`) that reads like trivia. Removal is a
+(`Found orphan containers (<name>) for this project`) that reads like trivia. Removal is a
 second act on the host: `docker compose -f /opt/<service>/docker-compose.yml up -d --remove-orphans`,
 and the flag belongs AFTER `up` (`docker compose --remove-orphans up` fails with `unknown flag`).
-Measured in the authentik teardown below, where `authentik-ldap` stayed up through the converge that
-deleted it. Prove it with `docker ps -a --format '{{.Names}}' | grep -c <name>` → 0, never with the
+Prove removal with `docker ps -a --format '{{.Names}}' | grep -c <name>` → 0, never with the
 playbook recap.
-
-#### Samba ↔ Authentik-as-LDAP (D7 / HD-132) — **RETIRED 2026-10-07**, do not deploy this
-
-> ⛔ **Nothing in this subsection is live or deployable any more.** Samba on the NAS runs local
-> **tdbsam** accounts and the LDAP machinery has been deleted: the `authentik-ldap` outpost is out of
-> `templates/docker_services/authentik/docker-compose.yml.j2`, and `storage_samba_passdb` /
-> `storage_samba_ldap` are out of the storage role. The living design is
-> [storage.md](storage.md) §Samba (SMB) shares on the NAS; the decision and its evidence are in
-> [storage-rejected.md](storage-rejected.md). What follows is kept **only** as the reason not to
-> re-open it, because every one of these facts was paid for with a live probe.
->
-> 1. **It could not authenticate a Windows client, at any gate.** `ldapsam` answers an NTLM challenge
->    with `MD4(UTF-16LE(password))`, which Samba reads from the directory's `sambaNTPassword`.
->    Authentik stores PBKDF2 and exposes `userPassword`; on 2026.5.6 the server package and the
->    `/ldap` outpost binary contain **zero** `samba` matches and the provider's built-in mappings are
->    `DN to User Path`, `Name`, `mail`. So there is no hash to serve — gates 1–5 below could all have
->    gone green and every tree connect would still have failed.
-> 2. **The network leg was never open.** The outpost publishes only on the WG S2S address
->    (`wg_s2s_vps.ip:3389`, HD-186/HD-204). Measured 2026-10-07: TCP refused from **nas** and from
->    **oldsrv**, while `:4443` on the very same address connected fine, and the VPS's own nft DNAT rule
->    for ``wg_s2s_vps.ip`:3389` carried packets — so a `wait_for` on that host:port would have failed the
->    converge at gate 4 even with a healthy outpost.
-> 3. **The objects never existed.** `ak shell` shows `LDAPProvider.objects.all()` empty, no `LDAPSource`,
->    and the only `Outpost` row is the **proxy** one; there is no `svc_samba` user. The blueprint never
->    declared them (`deployment-oidc.md` §Blueprint).
-> 4. **The token was dead, and its log lied.** `authentik-ldap` sat `Up (unhealthy)` with
->    `403 Forbidden (Token invalid/expired)` and FailingStreak >600k. A 2026-09-25 re-probe concluded
->    "the symptom changed" from **zero 403 lines in 24 h** — an artifact: the outpost backs off
->    exponentially, so a quiet window is normal. Health/`FailingStreak`, never log absence, is the probe.
->
-> **The systemic lesson (why this sat for seven weeks):** an infra token with an expiry and **no rotator**
-> decays silently. The rotation runbook excludes outpost tokens by design, so nothing failed loudly — one
-> container crash-looped for weeks, the feature merely looked "not deployed yet", and the family kept
-> hitting `NT_STATUS_ACCESS_DENIED` on a share the docs described as working. Any expiry-bearing infra
-> token must therefore be non-expiring by design or named in a rotation runbook at the moment it is
-> minted (recorded in [deployment-secrets.md](deployment-secrets.md)).
->
-> **Second lesson — a var nobody can satisfy is worse than no var.** `storage_samba_passdb` sat at
-> `tdbsam` with a documented flip that could not succeed, which is how an unwinnable design stayed
-> "almost deployed". The var is deleted, not defaulted.
-
-
 
 Auth tokens for internal services live in 1Password `Homelab-ansible` vault under the
 `<service>-internal_api` naming pattern. Referenced via `lookup('community.general.onepassword', ...)` at template render time.
