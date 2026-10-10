@@ -1,36 +1,35 @@
 # spark-ai docker-compose.yml — Qwen3.8-Flash-Next inference on DGX Spark (GB10)
-#   PROFILE-DRIVEN (HD-469): what renders here is decided by ONE var,
+#   PROFILE-DRIVEN: what renders here is decided by ONE var,
 #   `spark_llm_profile` (host_vars/spark.kogler.si.yml) → `spark_llm_profiles`
 #   (group_vars/spark.yml). reasoning | graded | fast | fast-sglang.
 #   Every engine value below comes from the active profile (directly or through the
 #   flat `spark_vllm_*` pass-throughs) — a hardcoded number here is a defect.
 #
-#   Folded from spark/ansible/roles/spark-ai/templates/docker-compose.yaml.j2
-#   (reference), hardened to repo docker_services conventions (network isolation,
-#   security, vault).
+#   Folded from the reference spark role template and hardened to repo docker_services
+#   conventions (network isolation, security, vault).
 #
-#   Placement (HD-359/HD-337): spark.kogler.si — headless AI node. The engine :8000 is NOT
-#   published on the LAN — LiteLLM (VPS/oldsrv LAN instance) fronts it (HD-367 decision:
-#   llm-d REMOVED — the real llm-d is a Kubernetes inference-pool stack, not a single-node
+#   Placement: spark.kogler.si — headless AI node. The engine :8000 is NOT
+#   published on the LAN — LiteLLM (VPS/oldsrv LAN instance) fronts it (the router decision:
+#   llm-d is a Kubernetes inference-pool stack, not a single-node
 #   queue gateway; LiteLLM is the router in front). `spark_router_publish` flips a Home-VLAN
 #   publish of :8000 for LAN clients once needed. The loopback-only publish
 #   (`spark_metrics_publish`, 127.0.0.1:8000) is for the host Alloy → VPS VM vLLM scrape
-#   (HD-368) — it never exposes the engine on the LAN.
+#   — it never exposes the engine on the LAN.
 #
 #   ENGINE SWAP: the service name, host port, served model id and bearer key are the
-#   CLIENT-FACING CONTRACT and must survive any profile (HD-370). Only the image,
+#   CLIENT-FACING CONTRACT and must survive any profile. Only the image,
 #   entrypoint, flag family and the mounts change. `profile.engine` selects them:
 #     vllm   → --kv-cache-memory-bytes governor, --reasoning-parser, --speculative-config
 #     sglang → --mem-fraction-static / --max-total-tokens pool semantics, NEXTN spec
 #
-#   Secrets: ONE — `spark-llm_api` (bearer on the OpenAI endpoint, HD-370). The header
-#   claim "no secrets required by vLLM" predates HD-370 and is no longer true: this
+#   Secrets: ONE — `spark-llm_api` (bearer on the OpenAI endpoint). vLLM is not
+#   secret-free here: this
 #   template renders exactly one vault value (item+field name only, never a value in git).
 #
 #   Storage: weights + PLE tables + KV + compile caches all on the XFS data partition
 #   (roles/spark mounts /mnt/spark_nvme; spark_models_dir points there — never EXT4).
 #
-#   Digest pin (R4, 2026-09-13): vllm/vllm-openai:qwen38-flash-next @
+#   Digest pin: vllm/vllm-openai:qwen38-flash-next @
 #   sha256:fc120ece0a388cc0aa1caad4a9f1cd92113484ab7ec2fd0efadd62585be05bf8
 #   (multi-arch arm64+amd64; the arm64-cu130 manifest is the DGX Spark candidate).
 #   SGLang has NO verified arm64 digest yet → spark_sglang_image is empty on purpose
@@ -40,7 +39,7 @@
     Ansible render and the offline validator mock) — a Jinja-valued alias such as
     `spark_llm: "{{ spark_llm_profiles[...] }}"` survives Ansible but arrives here as
     a stringified dict under scripts/validate-docker-services.py. #}
-{#  HD-489 path/flag composition. Every host path a profile can point at is resolved HERE,
+{#  Path/flag composition. Every host path a profile can point at is resolved HERE,
     from plain scalar profile keys (image | models_root | ple_host_root | ple_host_base),
     because a Jinja expression written INSIDE spark_llm_profiles is stringified by the
     offline validator (the note above). A profile therefore names a COORDINATE and never a
@@ -70,16 +69,16 @@
    (the operator's pi global instructions), which only survives the `- {{ a }}` emission as a
    properly escaped scalar. scripts/spark-llm-render-matrix.py proves the rendered argument is
    byte-equal to the declared text — the check that would have caught the quote version.
-   STATUS 2026-10-05: the mechanism is REJECTED (docs/services-ai-rejected.md), so every profile
+   STATUS: the mechanism is REJECTED (docs/services-ai-rejected.md), so every profile
    resolves never_evict_prompt to "" and this branch renders NOTHING. It stays because the flag is
    a one-line re-decide, and because a profile that set it on an image WITHOUT the patch would
-   crash-loop the engine (reasoning restarts=105, 2026-10-04) — roles/spark-llm-profile and
+   crash-loop the engine — roles/spark-llm-profile and
    check_spark_llm_gate.py refuse that shape via spark_llm_never_evict_capable_images. #}
 {% if profile.never_evict_prompt %}{%   set command_extra = command_extra + ['--never-evict-kv-cache-prompt-includes', profile.never_evict_prompt | to_json, '--never-evict-kv-cache-max-fraction', profile.never_evict_max_fraction | to_json] %}{% endif %}
 {% set command_extra = command_extra + profile.args_extra | default([]) %}
 services:
   vllm-engine:
-    # image comes from profile.image → the pins in group_vars/all/versions.yml (HD-489).
+    # image comes from profile.image → the pins in group_vars/all/versions.yml.
     # `ultrafast` resolves EMPTY until the patched lineage's image ID is pinned there, and
     # the gate refuses the profile long before this line renders (never a mutable tag).
     image: "{{ engine_image }}"
@@ -99,7 +98,7 @@ services:
       - /var/run
     # NOTE: no numactl --membind wrapper — the hardened container (cap_drop:ALL +
     # no-new-privileges) blocks the membind syscall (get_mempolicy: Operation not
-    # permitted, crash-loop HD-367 2026-09-14). Single-NUMA GB10 makes membind a
+    # permitted -> crash-loop). Single-NUMA GB10 makes membind a
     # no-op anyway; vLLM binds tensor-parallel 1 to the one node implicitly.
     entrypoint: {{ spark_llm_engine_entrypoints[profile.engine] | to_json }}
     environment:
@@ -108,9 +107,8 @@ services:
       - VLLM_LOGGING_LEVEL={{ spark_vllm_log_level }}
 {% if profile.ple_container_dir | length > 0 %}
       # INT4 (reasoning/graded) or NVFP4 (fast) — whichever sidecar the profile names.
-      # Order is load-bearing for render-parity only: the `reasoning` profile renders
-      # byte-identical to the pre-HD-469 template (verified by diffing old vs new
-      # renders), so flipping profiles is the ONLY thing that recreates the container.
+      # Order is load-bearing for render-parity: flipping profiles is the ONLY thing that
+      # recreates the container, so a reordered profile re-creates it for no reason.
       # Do NOT set VLLM_PLE_DISK_OFFLOAD_DIR: that is the slow BF16 path
       # (spark/ansible/group_vars/spark_nodes.yml + the primitive-ai card).
       - VLLM_PLE_QUANT_DIR={{ profile.ple_container_dir }}
@@ -135,8 +133,8 @@ services:
 {%   endfor %}
 {% endif %}
 {% if profile.get('ple_dispatch') %}
-      # HD-489 A4: the kernel-dispatch env set (QWEN38NEXT_* / VLLM_*_GEMM / VLLM_FP8_HYBRID…).
-      # Rendered ONLY when the profile opts in — this is the knob set B9 drops and B10 re-takes.
+      # The kernel-dispatch env set (QWEN38NEXT_* / VLLM_*_GEMM / VLLM_FP8_HYBRID…).
+      # Rendered ONLY when the profile opts in.
 {%   for e in spark_llm_ple_dispatch_env %}
       - {{ e }}
 {%   endfor %}
@@ -155,7 +153,7 @@ services:
       - TORCHINDUCTOR_CACHE_DIR=/root/.cache/torchinductor
       - NCCL_NSOCKS_PERTHREAD=4
       - NCCL_SOCKET_NTHREADS=2
-      # HD-469 cert (2026-09-28): vLLM's usage-stats writer creates
+      # vLLM's usage-stats writer creates
       # ~/.config/usage_stats.json in the WORKER at startup; with the hardened
       # `read_only: true` root FS that write is OSError[Errno 30] and the worker
       # dies (only reached on the fp8 KV path's later init order — the bf16
@@ -170,8 +168,8 @@ services:
 {% endfor %}
     volumes:
       # Model (read-only) — <profile models_root>/<profile model_subdir>. `os` = the root
-      # partition (345 G free measured 2026-10-02), so the ~130 GB upstream checkpoint needs
-      # no room carved out of XFS and NOTHING has to be deleted for it (HD-489).
+      # partition, so the ~130 GB upstream checkpoint needs
+      # no room carved out of XFS and NOTHING has to be deleted for it.
       - {{ model_host_dir }}:/model:ro
 {% if profile.ple_overlay %}
       # PLE overlay patches (read-only) — on the XFS data partition. Mapping =
@@ -193,7 +191,7 @@ services:
       # vLLM writes BOTH /root/.cache/vllm (runtime cache) AND
       # /root/.cache/torchinductor (torchinductor compile cache) — mounting only
       # the `vllm` child left torchinductor pointing at the read-only rootfs →
-      # OSError [Errno 30] Read-only file system crash-loop (HD-367). Mount the
+      # OSError [Errno 30] Read-only file system crash-loop. Mount the
       # WHOLE /root/.cache from XFS; vllm_cache holds vllm/ + torchinductor/
       # subdirs once the engine writes them. (Shared with SGLang profiles: the
       # dirs are per-engine inside the cache root, and a cold compile cache after
@@ -204,9 +202,9 @@ services:
     ports:
       - "{{ spark_home_ip }}:8000:8000"
 {% else %}
-    # Loopback-only metrics publish (HD-368): lets the spark host Alloy scrape
+    # Loopback-only metrics publish: lets the spark host Alloy scrape
     # the engine's Prometheus /metrics (vllm:8000). Same pattern as traefik's
-    # dedicated metrics entryPoint (127.0.0.1:8082, HD-315) — the engine is
+    # dedicated metrics entryPoint (127.0.0.1:8082) — the engine is
     # NOT reachable from the LAN, only the monitoring agent on the box.
     # `spark_router_publish: true` (LAN publish, post-bench) supersedes this.
 {% if spark_metrics_publish | default(true) %}
@@ -234,7 +232,7 @@ services:
         max-size: "{{ spark_logging_max_size }}"
         max-file: "{{ spark_logging_max_file }}"
     healthcheck:
-      # HD-370: engine-port indirection — curl the same port the spark edge's llm route fronts.
+      # Engine-port indirection — curl the same port the spark edge's llm route fronts.
       test: ["CMD-SHELL", "curl -sf http://localhost:{{ spark_engine_port }}/health || exit 1"]
       interval: 30s
       timeout: 10s
@@ -247,17 +245,17 @@ services:
     command:
       - --model
       - /model
-      # HD-370: serve a clean model id (the staged weights' dir name is `/model`) so LiteLLM /
+      # Serve a clean model id (the staged weights' dir name is `/model`) so LiteLLM /
       # pi see `spark/qwen3.8-flash-next` in /v1/models instead of `/model`. Engine-swap-ready:
       # SGLang later serves the same id (spark_engine_port flips); keep the id stable across.
       - --served-model-name
       - {{ spark_vllm_served_name }}
-      # HD-370: bearer auth on the OpenAI endpoint — vLLM --api-key, NOT a secret-free engine
+      # Bearer auth on the OpenAI endpoint — vLLM --api-key, NOT a secret-free engine
       # anymore: llm.kogler.si is edge-exposed (TLS + a key both required).
-      # HD-384 (owner shape (a), 2026-10-09) ends `spark-llm_api`'s TRIPLE USE: the engine accepts
+      # `spark-llm_api` must not be used for three things at once: the engine accepts
       # BOTH the harness/direct key and the gateway's own `litellm-engine_api`, so rotating one no
       # longer invalidates the other. Multiple keys are ONE flag with N values — vLLM's arg is
-      # nargs='+' (measured on the running build: `--help` prints `[--api-key API_KEY [API_KEY ...]]`).
+      # nargs='+' (`--help` prints `[--api-key API_KEY [API_KEY ...]]`).
       # ⚠ ORDER IS LOAD-BEARING: roles/spark/files/spark-oom-watchdog.sh reads the token FOLLOWING
       # the first `--api-key` as its /metrics bearer, so the harness key (`spark-llm_api`) must stay FIRST.
       - --api-key
@@ -265,8 +263,8 @@ services:
       - "{{ vault['litellm-engine_api'].credential | replace('$','$$') }}"
       # compression: NEVER force --quantization. The staged checkpoints declare their
       # own packed format in config.json (AWQ build = compressed-tensors, primitive-ai
-      # mixed NVFP4/FP8 = compressed-tensors too, verified 2026-09-28 against the HF
-      # API) — forcing a flag mismatches → pydantic ValidationError at boot.
+      # mixed NVFP4/FP8 = compressed-tensors too) — forcing a flag mismatches →
+      # pydantic ValidationError at boot.
       - --trust-remote-code
       - --max-num-seqs
       - "{{ spark_vllm_max_num_seqs }}"
@@ -279,7 +277,7 @@ services:
       - --no-enable-flashinfer-autotune
       - --kv-cache-dtype
       - {{ spark_vllm_kv_cache_dtype }}
-      # GPU×host unified-memory governance (HD-374, 2026-09-16): explicit KV pool via
+      # GPU×host unified-memory governance: explicit KV pool via
       # --kv-cache-memory-bytes (= bytes int) — the PRIMARY dial on GB10.
       # In this build, kv_cache_memory_bytes IGNORES gpu_memory_utilization entirely
       # (CacheConfig docstring + gpu_worker.determine_available_memory: "does not
@@ -293,7 +291,7 @@ services:
 {% if profile.enforce_eager %}
       - --enforce-eager
 {% endif %}
-      # CUDA-graph capture-size cap (HD-380): the build defaults to capturing graphs
+      # CUDA-graph capture-size cap: the build defaults to capturing graphs
       # for batch sizes [1,2,4,8,16,24,32]; max_num_seqs caps the decode batch, so any
       # capture above it is unreachable AND strands memory in the single GB10 pool.
       # Measured basis + incident link: group_vars/spark.yml + docs/spark-incidents.md.
@@ -307,15 +305,15 @@ services:
       - {{ profile.tool_call_parser }}
       - --enable-auto-tool-choice
 {% if profile.generation_config_override | default('') | string | trim | length > 0 %}
-      # Per-client temperature is the default now (HD-489 tail): the override is only
-      # rendered when a profile actually declares one. An EMPTY override would crash
-      # argv-parse in this build ("Value '' cannot be converted") — measured on the
-      # 2026-10-03 seqs=8/temp converge — so the flag is omitted entirely when empty.
+      # Per-client temperature is the default: the override is only
+      # rendered when a profile actually declares one. An EMPTY override crashes
+      # argv-parse in this build ("Value '' cannot be converted"), so the flag is omitted
+      # entirely when empty.
       - --override-generation-config
       - '{{ profile.generation_config_override }}'
 {% endif %}
 {% if profile.get('spec_config') %}
-      # Merged speculative config (HD-489: block rejection + probabilistic draft sampling,
+      # Merged speculative config (block rejection + probabilistic draft sampling,
       # as upstream publishes them). to_json keeps dict order deterministic, so the render
       # diff of an arm flip is exactly one line.
       - --speculative-config
@@ -329,14 +327,14 @@ services:
       - {{ a }}
 {% endfor %}
 {% else %}
-    # SGLang flag family (HD-469 fast-sglang). Contract kept identical to vLLM's:
+    # SGLang flag family. Contract kept identical to vLLM's:
     # same --model path, same served id, same --api-key, same port, same parsers.
     # Pool semantics DIFFER: SGLang sizes its KV by --mem-fraction-static /
     # --max-total-tokens (both in args_extra), NOT by --kv-cache-memory-bytes.
-    # ⚠ ONE REAL DIVERGENCE (HD-384, 2026-10-09): SGLang's `api_key` is `Optional[str]`
+    # ⚠ ONE REAL DIVERGENCE: SGLang's `api_key` is `Optional[str]`
     # (python/sglang/srt/server_args.py, "Set API key of the server") — ONE key, unlike vLLM's
     # nargs='+'. So this branch cannot hold both the harness key and the gateway's own credential,
-    # and if a SGLang profile ever goes live the gateway leg of HD-384 must be re-decided (edge
+    # and if a SGLang profile ever goes live the gateway key shape must be re-decided (edge
     # allow-list or a key-translation hop) BEFORE the LiteLLM containers are pointed at it.
     command:
       - --model-path

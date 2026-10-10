@@ -1,51 +1,40 @@
 ---
-# Phase 1 home server: bare-metal Debian desktop
-ansible_host: "{{ home_ip }}"      # VLAN 10 (Home) — the admin leg for EVERY runner (HD-397)
-# Leg decision (HD-398 → owner decision A, 2026-09-19): the MANAGEMENT plane (VLAN 99) is
-# sealed from the VPS site-to-site tunnel ON PURPOSE — wg_s2s_vps.allowed_ips names no
-# mgmt address for this host (HD-155 least-access) and the router scopes its own SSH to
-# the VLAN-99 subnet only (HD-310) — so an mgmt-anchored ansible_host is reachable ONLY
-# from a station physically on the Mgmt VLAN (the Windows Mgmt99 vNIC). Off-LAN admin is
-# the HOME leg, which is what pi/spark already do. Before this change the pair was
-# self-contradictory: mgmt ansible_host + ProxyJump vps = a jump into a black hole
-# (`timed out during banner exchange`, misread as a dead host for two sessions).
-# Evidence + the settled rule: docs/network-vpn.md §Reaching LAN nodes when away.
-# ⚠ Do NOT "fix" reachability by widening AllowedIPs — that is a reopened owner decision.
+# Home server: bare-metal Debian desktop
+ansible_host: "{{ home_ip }}"      # VLAN 10 (Home) — the admin leg for EVERY runner
+# The MANAGEMENT plane (VLAN 99) is sealed from the VPS site-to-site tunnel ON PURPOSE: the
+# wg_s2s_vps.allowed_ips name no mgmt address for this host (least-access) and the router scopes
+# its own SSH to the VLAN-99 subnet only — so a mgmt-anchored ansible_host is reachable only from
+# a station physically on the Mgmt VLAN. Off-LAN admin is the HOME leg, as on pi/spark.
+# Rule: docs/network-vpn.md §Reaching LAN nodes when away.
+# ⚠ Do NOT "fix" reachability by widening AllowedIPs — the seal is the decision.
 # Physical uplink NIC for the network role netd units (systemd-networkd):
 # eno1 = Z270 onboard NIC -> CRS328 ether11 (SSOT switch_port_map oldsrv-eno1).
-# Port model (HD-310): Home (10) untagged + Mgmt (99) tagged on this NIC.
+# Port model: Home (10) untagged + Mgmt (99) tagged on this NIC.
 netd_phys_name: eno1
 mgmt_ip: 10.10.99.30               # VLAN 99 (Management) — tagged leg (netd-vlan.network)
 home_ip: "{{ oldsrv_home_ip }}"     # VLAN 10 (Home) node IP (VRRP anchor) — SSOT-derived
-                                    # from the network_static_hosts lookup in all.yml (HD-200);
+                                    # from the network_static_hosts lookup in all.yml;
                                     # no literal here to drift from the address SSOT
-# DNS tier (HD-299): resolver addresses are a SINGLE SSOT in group_vars/all/main.yml
+# DNS tier: resolver addresses are a SINGLE SSOT in group_vars/all/main.yml
 # (dns_primary_ip = VPS public, dns_secondary_ip = oldsrv, dns_tertiary_ip = Pi).
-# oldsrv is the SECONDARY now (the old dns_primary_ip host var was removed — it would
-# shadow the Group Var on this host and reintroduce the stale oldsrv-primary value).
+# Never re-add a host-level dns_primary_ip: host_vars shadow the group var on this host and
+# reintroduce the stale oldsrv-primary value.
 
-# ==== HD-484: this box's OWN resolver (what lands in /etc/resolv.conf) ====
-# Why a separate var from bootstrap_dns_servers: `1.1.1.1` was right at boot (a box that HOSTS
-# the DNS tier must not need it to boot) and wrong for the running box — with it, oldsrv could not
-# name a single split-horizon service of its own (`getent hosts llm.kogler.si` empty, `curl` rc=6)
-# while the Technitium instance ON this box answered that name authoritatively. Measured 2026-10-01:
-# own instance and the Pi tertiary both answer the LAN-only names AND forward upstream (since HD-476);
-# the VPS primary answers the LAN-only names NOT AT ALL (it is authoritative for the public view only
-# — docs/network-dns.md §Per-Instance Split-Horizon), so it is deliberately absent from this list.
-# Order: own instance first (no hop, it is authoritative for this zone), the Pi tertiary as the rung
-# that keeps this box naming things while its own container is down or still booting.
-# ⛔ HD-477 (the resolver floating with the VIP) replaces the FIRST target, it does not add one —
-# the two rows must agree, not race.
+# ==== This box's OWN resolver (what lands in /etc/resolv.conf) ====
+# Own instance first (no hop, it is authoritative for this zone), the Pi tertiary as the rung that
+# keeps this box naming things while its own container is down or still booting. The VPS primary is
+# absent because it answers the LAN-only names not at all — docs/network-dns.md §Per-Instance Split-Horizon.
+# ⛔ A resolver that floats with the VIP replaces the FIRST target, it does not add one — the two
+# rows must agree, not race.
 # Rendered as ONE comma-joined string on purpose: nmcli wants that form, and a single template that
 # references two scalars cannot leave an unrendered `{{ … }}` in a live profile.
 host_resolver_dns: "{{ [dns_secondary_ip, dns_tertiary_ip] | join(',') }}"
 
-# The NetworkManager profile that ACTUALLY owns this box's uplink (installer-created; IaC modifies it,
-# it does not render it — roles/network HD-314 already did the same for ipv4.dhcp-client-id).
-# ⛔ This is NOT netd_phys_name: systemd-networkd here is disabled + inactive, its rendered 20-eno1.*
-# units are inert, and `eno1` is not even this box's NIC (the live Home parent is enp0s31f6, see
-# ha_keepalived_interface below). That half-open ownership is its own row (HD-487), not a thing to
-# "fix" by pointing this var at the netd unit name.
+# The NetworkManager profile that ACTUALLY owns this box's uplink (installer-created; IaC modifies
+# it, it does not render it).
+# ⛔ This is NOT netd_phys_name: systemd-networkd here is disabled + inactive, its rendered
+# 20-eno1.* units are inert, and `eno1` is not this box's NIC — the live Home parent is enp0s31f6
+# (see ha_keepalived_interface). Pointing this var at the netd unit name fixes nothing.
 nm_oldsrv_profile: "Wired connection 1"
 # ⚠ The keyfile on disk is the BARE profile name — the installer wrote it WITHOUT the `.nmconnection`
 # suffix the Pi/spark keyfiles carry, so this path cannot be built by suffixing the profile name.
@@ -61,30 +50,25 @@ shutdown_delay_seconds: 60          # flush Grafana→n8n→Signal before critic
 # nas/pi (which ride to critical 20%). Policy: docs/hardware-ups.md.
 nut_shutdown_charge_threshold: 75
 # HA failover (docs/smart-home-failover.md): the Home-VLAN (10) interface keepalived
-# VRRP runs on. Live layout (verified 2026-09-09): oldsrv's Home IP 10.10.1.30/24 sits
-# on the PARENT NIC enp0s31f6 (untagged Home); only Mgmt is a VLAN child
-# (enp0s31f6.99). There is no eth0.10 — keepalived must bind the real Home device.
+# VRRP runs on. oldsrv's Home IP 10.10.1.30/24 sits on the PARENT NIC enp0s31f6
+# (untagged Home); only Mgmt is a VLAN child (enp0s31f6.99). There is no eth0.10 —
+# keepalived must bind the real Home device.
 ha_keepalived_interface: enp0s31f6
 # Desktop GPU (roles/desktop): Intel HD 630 iGPU PCI BusID (Z270 board = 00:02.0).
 desktop_igpu_busid: "PCI:0:2:0"
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
-# Homematic: LOCAL RF (HmIP-RFUSB + RaspberryMatic) is PARKED (2026-08-18, HD-13) — keeping
-# the HmIP-HAP in cloud mode until an HmIP-RFUSB is bought. No `homematic_usb_by_id` here because
-# raspberrymatic-standby was removed from the oldsrv failover path (group_vars/home_servers.yml).
-# If the RFUSB is added later, set homematic_usb_by_id to the stable /dev/serial/by-id path
-# (NOT /dev/ttyACM0) and re-add the standby service (KOPS-040/HD-79).
-# oldsrv ZFS pool `nvme` (Samsung 970 EVO 1 TB) — the /dev/disk/by-id device the storage role
-# uses to CREATE the pool on a fresh build (HD-128 / KOPS-057). SSOT for the literal device;
-# everything else (dataset layout) is governed by roles/storage. The preseed leaves this disk
-# raw (deployment-preseed.md) and automation only creates the pool on an explicitly fresh
-# machine. The fail-loud guard blocks pool-create while this is unset or still a placeholder.
-# VERIFIED on Linux 2026-08-22 via scripts/collect-disk-facts.sh from a Debian 13.6 live USB
-# (reports/disk-facts-oldsrv-20260822-191419.txt): eui.0025385b0143f12e -> nvme1n1
-# = Samsung 970 EVO 1 TB, S/N S5H9NS1NB12680T (OS disk nvme0n1 = 960 EVO 500 GB, S/N S3EUNX0HC06971Z).
-# Both NVMes still carried NTFS signatures at capture (wiped by the Phase 1a reinstall/pool create).
-storage_nvme_data_by_id: /dev/disk/by-id/nvme-eui.0025385b0143f12e   # HD-128: verified live 2026-08-22
+# Homematic: LOCAL RF (HmIP-RFUSB + RaspberryMatic) is PARKED; the HmIP-HAP stays in cloud mode
+# until an HmIP-RFUSB is bought. No `homematic_usb_by_id` here: raspberrymatic-standby is not in
+# the oldsrv failover path (group_vars/home_servers.yml). If an RFUSB is added, set it to the
+# stable /dev/serial/by-id path (NOT /dev/ttyACM0) and re-add the standby service.
+# oldsrv ZFS pool `nvme` (Samsung 970 EVO 1 TB) — the by-id device the storage role uses to CREATE
+# the pool on a fresh build; SSOT for the literal. Dataset layout is governed by roles/storage.
+# The preseed leaves this disk raw (deployment-preseed.md) and the pool is created only on an
+# explicitly fresh machine; the fail-loud guard blocks pool-create while this is unset or is still
+# a placeholder.
+storage_nvme_data_by_id: /dev/disk/by-id/nvme-eui.0025385b0143f12e   # Samsung 970 EVO 1 TB data disk
 
-# ==== HD-405: oldsrv joins headscale as a tailnet HOST node (docs/network-vpn.md) ====
+# ==== oldsrv joins headscale as a tailnet HOST node (docs/network-vpn.md) ====
 # One host, P2P-first over the static public home IPv4, so remote dev survives a VPS outage.
 # The join itself is scoped in roles/tailscale-node (no routes / no exit node / no TS SSH /
 # no DNS takeover); WHO may reach it is the ACL's `tag:dev:443` rule, not anything here.
@@ -96,51 +80,39 @@ tailscale_node_hostname: "{{ tailnet_oldsrv_node_name }}"
 #     --reusable --expiration 8760h -o json
 # Lazy lookup: costs an `op` read only when roles/tailscale-node actually runs.
 tailscale_node_authkey: "{{ lookup('community.general.onepassword', 'tailscale-oldsrv_api', field='credential', vault=op_vault) }}"
-# HD-435: the join guard compares the assigned address against this (per-host now, so the
-# Pi's join cannot be compared against oldsrv's address by accident).
+# The join guard compares the assigned address against this; per-host so the Pi's join cannot
+# be compared against oldsrv's address by accident.
 tailscale_node_expected_ip: "{{ tailnet_oldsrv_ip }}"
 
-# HD-361 — which vault item holds THIS host's Cockpit console password (roles/cockpit).
+# Which vault item holds THIS host's Cockpit console password (roles/cockpit).
 # Per-host on purpose: one shared item would give two management consoles the same password.
 # Value lives only in 1Password; the host gets a sha512 crypt hash in /etc/shadow.
 cockpit_maint_vault_item: oldsrv-cockpit_login
 
 
-# ==== pi CODING SEAT (roles/seat, HD-445) ====
-# oldsrv IS the seat (services-ai.md §9b-1: the placement decision). Until this line
-# the cockpit existed only on the box — the pi-web user unit, its two drop-ins, the
-# token env file, linger and tmux were all hand-kept, so a rebuild lost the cockpit
-# silently and `--check` could not see any of it.
+# ==== pi CODING SEAT (roles/seat) ====
+# oldsrv IS the seat (services-ai.md §9b-1: the placement decision). Declare everything the
+# cockpit needs here — pi-web user unit, its two drop-ins, the token env file, linger, tmux —
+# or a rebuild loses it silently and `--check` cannot see it.
 seat_enable: true
 
 
-# ==== HD-450 — what this host's silent-failure collector watches (roles/monitoring) ====
-# Unit RESULTS, because `is-active` on a oneshot answers "inactive" whether it ran fine or failed and
-# is waiting to retry — that ambiguity is what let `traefik-cert-pull.timer` fail every 15 min for four
-# days in 2026-09 with no series changing. The two NUT units are here for the same reason: on 2026-10-06
-# `nut-monitor` answered "active" on both clients while `upsd` had been loopback-only for 23 days.
-# A listed unit that is NOT installed reports result="missing" and alerts, so this list must hold only
-# units this host really runs — verified 2026-10-07: traefik-cert-pull loaded/inactive/success,
-# nut-monitor + nut-client loaded/active/success.
+# ==== What this host's silent-failure collector watches (roles/monitoring) ====
+# Watch unit RESULTS, not is-active: on a oneshot, is-active answers "inactive" whether the unit
+# ran fine or failed and waits to retry, so a failure changes no series. A listed unit that is NOT
+# installed reports result="missing" and alerts, so this list holds only units this host really
+# runs. NUT units belong here for the same reason. → docs/observability.md §Silent-failure hygiene
 monitoring_hygiene_units:
   - traefik-cert-pull.service
   - nut-monitor.service
   - nut-client.service
 
-# The pair THIS host's edge loads. Measured 2026-10-07, not copied: the deployed pull script's DST is
-# `/opt/traefik-internal/certs/` and `find / -name kogler.si.pem` returns exactly that one file,
-# notBefore 2026-08-22 → notAfter 2026-11-20 (a 90-day pair, which sets the alert thresholds).
+# The pair THIS host's edge loads: the path must be the destination directory of the pull script
+# this host actually deploys. A 90-day pair sets the alert thresholds.
 monitoring_hygiene_certs:
   - consumer: traefik-internal
     path: "/opt/traefik-internal/certs/{{ wildcard_cert_file }}"
 
-# HD-450 (found while deploying the hygiene exporter, 2026-10-07) / HD-1094 (2026-10-08):
-# this box had moved to alloy 1.20.1-1 on its own while the fleet pin was `1.19.2-1`, so the
-# monitoring role's install task asked apt for the OLDER version and every converge that touched
-# the role failed here on "Packages were downgraded and -y was used without --allow-downgrades"
-# (reproduced: rc 100 at `Install Alloy package`). Correcting the pin for the host that is
-# actually ahead was the truth-sync; downgrading a working collector to match a file is not.
-# CLOSED 2026-10-08: the fleet pin in `group_vars/all/versions.yml` is now `1.20.1-1` and this
-# host-level override is DELETED (not set to null — host_vars outrank group_vars, so even a null
-# override would win and render `apt: name=alloy=` in roles/monitoring). The drift is now gone in
-# BOTH directions: a future 1.21 raises one pin instead of leaving this box ahead of the file.
+# No host-level alloy pin here. host_vars outrank group_vars, so even a null override would win
+# and render `apt: name=alloy=` in roles/monitoring. The pin lives in group_vars/all/versions.yml;
+# a host may deviate from it only with a real version value, never with an empty one.

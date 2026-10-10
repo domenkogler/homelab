@@ -4,9 +4,9 @@
 #
 #   On first start: opencloud init generates config + admin user; admin logs in
 #   via INITIAL_ADMIN_PASSWORD at https://file.kogler.si.
-#   OIDC via Authentik (HD-52/HD-144): native OIDC for BOTH web UI AND the desktop
-#   client. Provider declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client sets
-#   seeded into `opencloud_oidc` by the secret-egress glue (HD-143). csp.yaml (this dir)
+#   OIDC via Authentik: native OIDC for BOTH the web UI AND the desktop
+#   client. Provider declared in the Authentik Blueprint (ks-oidc.yml); client sets
+#   seeded into `opencloud_oidc` by the secret-egress glue. csp.yaml (this dir)
 #   adds https://sso.kogler.si to connect-src/frame-src. Native OIDC replaces Traefik
 #   Forward-Auth on this route so the desktop client's OAuth/WebDAV isn't blocked.
 #
@@ -34,18 +34,18 @@ services:
     command: ["-c", "opencloud init || true; exec opencloud server"]
     volumes:
       - /srv/docker/opencloud/data:/var/lib/opencloud
-      # :ro REMOVED (Wave-2 triage 2026-08-22): first-boot `opencloud init` must write
+      # `:ro` is not possible here: first-boot `opencloud init` must write
       # opencloud.yaml/jwt_secret here; init is idempotent so rw costs nothing after boot.
       # Dir ownership pre-created as storage_uid by deploy-service.yml (bind_dirs).
       - /srv/docker/opencloud/config:/etc/opencloud
-      # CSP override for the Authentik SSO surface (HD-144) - rendered next to this file
-      # but never mounted until Wave-2 triage spotted it.
+      # CSP override for the Authentik SSO surface - rendered next to this file
+      # and mounted below.
       - ./csp.yaml:/etc/opencloud/csp.yaml:ro
     environment:
       # Domain
       OC_DOMAIN: file.kogler.si
       OC_URL: "https://file.kogler.si"
-      # Edge-terminated TLS (HD-126 / KOPS-006): Traefik terminates TLS at the edge, so
+      # Edge-terminated TLS: Traefik terminates TLS at the edge, so
       # OpenCloud serves plain HTTP on traefik-public port 9200 for the proxy. `OC_INSECURE:
       # true` is CORRECT here — forcing OC_INSECURE:false would make OpenCloud serve its own
       # HTTPS and break the Traefik backend (which expects HTTP on 9200). The plaintext is
@@ -69,24 +69,23 @@ services:
       OC_DEFAULT_LANGUAGE: sl
       OC_PASSWORD_POLICY_DISABLED: "true"
       FRONTEND_CHECK_FOR_UPDATES: "false"
-      # === OIDC via Authentik (HD-52/HD-144) — native OIDC for web + desktop AppImage ===
-      # + mobile. Provider declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client
-      # creds seeded into `opencloud_oidc` by the secret-egress glue (HD-143). Keeping this
+      # === OIDC via Authentik — native OIDC for web + desktop AppImage ===
+      # + mobile. Provider declared in the Authentik Blueprint (ks-oidc.yml); client
+      # creds seeded into `opencloud_oidc` by the secret-egress glue. Keeping this
       # behind Forward-Auth blocks the desktop client's OAuth/WebDAV, so native OIDC is used.
-      # HD-231 pt.7 (2026-08-24, found live): with an EXTERNAL IdP exclude the BUILT-IN
+      # With an EXTERNAL IdP exclude the BUILT-IN
       # 'idp' service (docs external-idp) but KEEP 'idm' — its LDAP (:9236) backs
-      # users/graph; a stale "exclude idm" left LDAP dead -> graph/v1.0/me 500 after
+      # users/graph; excluding 'idm' kills LDAP -> graph/v1.0/me 500 after
       # otherwise-successful OIDC login.
-      # HD-166 (2026-08-24, found live): OpenCloud 7.4 computes the running set as
+      # OpenCloud 7.4 computes the running set as
       # `(defaults) - EXCLUDE + ADD` — a service in EXCLUDE is REMOVED even if it is
-      # also in ADD. 'collaboration' was in BOTH below, so it netted OUT and the WOPI
-      # app-provider NEVER started (no office-MIME registration -> web UI had no editor
-      # -> 'No preview available ... download instead'). Previously this file assumed
-      # ADD wins / EXCLUDE inert — that was empirically WRONG (verified via `opencloud
-      # list` on the live container: no collaboration entry, while nats/app-registry/
-      # gateway/frontend all ran). So 'collaboration' is now excluded by its ABSENCE from
+      # also in ADD. Listing a service in BOTH nets it OUT, so the WOPI
+      # app-provider never starts (no office-MIME registration -> web UI has no editor
+      # -> 'No preview available ... download instead'). `opencloud list` on the live
+      # container is the authority for the running set. So 'collaboration' is excluded by
+      # its ABSENCE from
       # EXCLUDE (it stays in OC_ADD_RUN_SERVICES below) and 'idp' remains here because the
-      # external Authentik OIDC (HD-231) replaces the built-in IdP.
+      # external Authentik OIDC replaces the built-in IdP.
       OC_EXCLUDE_RUN_SERVICES: "idp"
       # Autoprovision=true: first OIDC login creates the user in idm's writable LDAP
       # (docs external-idp; without it graph/me 500s for never-locally-created users).
@@ -106,37 +105,35 @@ services:
       # and Authentik has exactly ONE client_id per provider (issuer is derived from the provider,
       # so a second provider = a SECOND ISSUER that OC_OIDC_ISSUER above would reject — the ADR
       # says it outright: "all OpenCloud clients need to use the same client id to work with
-      # Authentik"). Hence: one Authentik client `web`, advertised to every platform. Live symptom
-      # this fixes (2026-09-25): OpenCloud Android app -> sso.kogler.si "client_id is missing or
-      # invalid", because the app asked with the default `OpenCloudAndroid` (verified: the live
-      # webfinger response carried it) while the provider only knows `web`. Web redirects for the
+      # Authentik"). Hence: one Authentik client `web`, advertised to every platform. The
+      # Android app asks with the default `OpenCloudAndroid`, so a provider that only knows
+      # `web` answers "client_id is missing or invalid". Web redirects for the
       # native custom scheme live in ks-oidc.yml (provider_opencloud), NOT here.
       WEBFINGER_ANDROID_OIDC_CLIENT_ID: "web"
       WEBFINGER_IOS_OIDC_CLIENT_ID: "web"
       WEBFINGER_DESKTOP_OIDC_CLIENT_ID: "web"
-      # === ONLYOFFICE / WOPI collaboration (HD-166) — in-browser doc editor ===
+      # === ONLYOFFICE / WOPI collaboration — in-browser doc editor ===
       # OpenCloud's native `collaboration` service speaks WOPI to ONLYOFFICE Docs at
       # office.kogler.si. ONLYOFFICE is NOT an auth surface: it never sees family logins.
       # OpenCloud <-> ONLYOFFICE trust via a shared JWT secret (COLLABORATION_JWT_SECRET,
-      # aliased from OC_JWT_SECRET) — 1Password lookup, never a literal (HD-65).
-      # Real OpenCloud 4.0 vars (verified against docs.opencloud.eu 4.0 dev collaboration
-      # env-vars page, 2026-08-19): COLLABORATION_APP_NAME/PRODUCT/ADDR/WOPI_SRC/JWT_SECRET.
+      # aliased from OC_JWT_SECRET) — 1Password lookup, never a literal.
+      # Real OpenCloud 4.0 vars (docs.opencloud.eu 4.0 dev collaboration
+      # env-vars page): COLLABORATION_APP_NAME/PRODUCT/ADDR/WOPI_SRC/JWT_SECRET.
       # NO `WOPI_ENABLED` / `COLLABORATION_ENABLED` booleans exist — the service is
       # registered via OC_ADD_RUN_SERVICES=collaboration and must NOT also appear in
-      # OC_EXCLUDE_RUN_SERVICES (HD-166: ADD+EXCLUDE collision nets the service OUT,
-      # see the validated semantics comment above). With 'collaboration' removed from
+      # OC_EXCLUDE_RUN_SERVICES (ADD+EXCLUDE collision nets the service OUT,
+      # see the semantics comment above). With 'collaboration' absent from
       # EXCLUDE this ADD entry is what brings the WOPI app-provider up.
       OC_ADD_RUN_SERVICES: "collaboration"
-      # HD-231 pt.3 (2026-08-24, found live): without THIS env (exact name verified
+      # Without THIS env (exact name verified
       # from the image binary: CSP_CONFIG_FILE alone is unknown to this build) the
-      # proxy serves the STOCK header — our csp.yaml mount is ignored entirely. Symptom: web UI's
+      # proxy serves the STOCK header — the csp.yaml mount is ignored entirely. Symptom: web UI's
       # oidc-client-ts fetch of the sso.kogler.si discovery document blocked by CSP
       # connect-src -> login page stuck at /login doing nothing.
       PROXY_CSP_CONFIG_FILE_LOCATION: "/etc/opencloud/csp.yaml"
       COLLABORATION_APP_NAME: "OnlyOffice"
       COLLABORATION_APP_PRODUCT: "OnlyOffice"
       COLLABORATION_APP_ADDR: "https://office.kogler.si"
-      # RESOLVED (HD-166 follow-up, verified 2026-08-24 against source tag v7.4.0):
       # COLLABORATION_APP_INSECURE IS the mapped env var for collaboration.app.insecure
       # (github.com/opencloud-eu/opencloud v7.4.0 services/collaboration/pkg/config/app.go:
       # Insecure bool, yaml:"insecure", env:"COLLABORATION_APP_INSECURE", "Skip TLS
@@ -144,16 +141,16 @@ services:
       # ParseConfig (pkg/config/parser/parse.go): config FILE -> defaults.EnsureDefaults
       # -> envdecode.Decode (ENV LAST = highest precedence); app default is false and
       # NOTHING propagates OC_INSECURE into App.Insecure (defaults/defaultconfig.go).
-      # An earlier on-disk opencloud.yaml snapshot showing insecure:true was therefore
+      # An on-disk opencloud.yaml snapshot showing insecure:true is therefore
       # NON-AUTHORITATIVE — stale scaffolded file content, a pre-env container start or a
-      # 9P stale read (HD-212 class); the EFFECTIVE runtime value always follows THIS env.
+      # 9P stale read; the EFFECTIVE runtime value always follows THIS env.
       # Distinct knobs: OC_INSECURE:"true" above governs OpenCloud's own internal HTTP/TLS
       # stance and is uncoupled from this flag in 7.4.0. KEEPING "false": office.kogler.si
       # presents a valid public Let's Encrypt cert at the Traefik edge -> verify it; true
       # would only disable cert verification on the WOPI leg for zero benefit.
       COLLABORATION_APP_INSECURE: "false"
       COLLABORATION_APP_PROOF_DISABLE: "false"       # verify OnlyOffice proof keys
-      # HD-166 pt.4 (2026-08-24): system-wide REVA JWT secret. auth-service MINTS reva
+      # System-wide REVA JWT secret. auth-service MINTS reva
       # tokens with TokenManager.JWTSecret (env OC_JWT_SECRET;AUTH_SERVICE_JWT_SECRET);
       # collaboration DISMANTLES that embedded token with the SAME struct
       # (env OC_JWT_SECRET;COLLABORATION_JWT_SECRET). Without this env auth fell back to
@@ -177,7 +174,7 @@ services:
       # JWT token. It MUST be stable. This is set to the SAME shared opencloud-collab_password
       # value as COLLABORATION_JWT_SECRET (single-secret WOPI chain). WITHOUT it OpenCloud
       # cannot validate the embedded REVA token and the /wopi/files callback returns 401
-      # "Invalid access token" (found live 2026-08-24).
+      # "Invalid access token".
       COLLABORATION_WOPI_SECRET: >-
         {{ vault['opencloud-collab_password'].password | replace('$','$$') }}
       COLLABORATION_STORE: "nats-js-kv"
@@ -187,7 +184,7 @@ services:
       traefik.http.routers.opencloud.rule: "Host(`file.kogler.si`)"
       traefik.http.routers.opencloud.entrypoints: websecure
       {{ 'traefik.http.routers.opencloud.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      # HD-52/HD-144: native OIDC enabled (desktop client needs it). NOT behind Forward-Auth —
+      # Native OIDC enabled (desktop client needs it). NOT behind Forward-Auth —
       # replacing `authentik-forward-auth@file` with `crowdsec-only@file` so the desktop/mobile
       # OAuth/WebDAV isn't blocked by a browser-redirect SSO layer, while keeping WAF protection.
       traefik.http.routers.opencloud.middlewares: crowdsec-only@file

@@ -1,10 +1,10 @@
 {{ ansible_managed | comment }}
 # headscale configuration — auto-generated from template.
 # Vault-escape note: this YAML is consumed directly (NOT via `docker compose`
-# interpolation) — vault values pass through unchanged, no `| replace('$','$$')` (HD-270).
-# OIDC provider is declared in the Authentik Blueprint (ks-oidc.yml, HD-142); client
+# interpolation) — vault values pass through unchanged, no `| replace('$','$$')`.
+# OIDC provider is declared in the Authentik Blueprint (ks-oidc.yml); client
 # creds (`username`=client_id, `credential`=client_secret) are seeded into `headscale_api`
-# by the secret-egress glue (HD-143).
+# by the secret-egress glue.
 #   Issuer OIDC: https://sso.kogler.si/application/o/headscale/   Redirect: https://vpn.kogler.si/oidc/callback
 
 server_url: https://vpn.kogler.si
@@ -20,62 +20,60 @@ database:
   sqlite:
     path: /var/lib/headscale/db.sqlite
 
-# OIDC via Authentik (provider declared in ks-oidc.yml Blueprint; creds seeded by glue, HD-142/143)
+# OIDC via Authentik (provider declared in ks-oidc.yml Blueprint; creds seeded by glue)
 oidc:
   issuer: "https://sso.kogler.si/application/o/headscale/"
   client_id: "{{ vault['headscale_api'].username }}"
-  # client_secret may contain : " ' or YAML-special chars (HD-233 lesson: the rotated
-  # headscale_api value broke headscale/headplane on restart) -> block scalar >- is the
+  # client_secret may contain : " ' or YAML-special chars (a rotated headscale_api value
+  # broke headscale/headplane on restart) -> block scalar >- is the
   # YAML-safe default for secrets from 1Password.
   client_secret: >-
     {{ vault['headscale_api'].credential }}
   scope: ["openid", "profile", "email"]
   allowed_domains:
     - kogler.si
-  # Authentik's default 'email' scope mapping hardcodes email_verified: False (verified
-  # 2026-08-26 against authentik 2026.5.6 source), and headscale defaults
-  # email_verified_required: true -> every OIDC login died 'unverified email' (HD-252,
-  # live log 2026-08-26). Access is still gated by allowed_domains: kogler.si below and
+  # Authentik's default 'email' scope mapping hardcodes email_verified: False (authentik
+  # 2026.5.6 source), and headscale defaults
+  # email_verified_required: true -> every OIDC login dies on 'unverified email'. Access is
+  # still gated by allowed_domains: kogler.si below and
   # the users are internal family accounts with real @kogler.si emails; the strict
   # default is relaxed for THIS OIDC client only (headscale+headplane share it). The
-  # 'correct' fix (Authentik emitting verified=true) is tracked separately; see todo HD-255
-  # / this template header for the provider-scoped-scope-mapping option.
+  # 'correct' fix (Authentik emitting verified=true) is a provider-scoped scope mapping.
   email_verified_required: false
 
-# DNS configuration — schema migrated for headscale >= 0.24 (pinned 0.29.3; Wave-2
-# triage 2026-08-22): dns_config: -> dns:, acl_policy_path: -> policy.path.
+# DNS configuration — schema for headscale >= 0.24 (pinned 0.29.3): dns_config: -> dns:,
+# acl_policy_path: -> policy.path.
 dns:
-  # Wave-3 round-4 triage 2026-08-22: headscale >= 0.24 REJECTS server_url inside
+  # headscale >= 0.24 REJECTS server_url inside
   # base_domain (MagicDNS could shadow the DERP/control plane). Node names therefore live
   # under the dedicated ts.kogler.si subtree (<node>.ts.kogler.si); the control plane stays
-  # https://vpn.kogler.si. DECISION REVERSIBLE until first client enrols - nothing existed.
+  # https://vpn.kogler.si. Keep base_domain out of the control-plane name.
   base_domain: ts.kogler.si
   magic_dns: true
   override_local_dns: false
-  # HD-135b follow-up (2026-08-28): make MagicDNS answer the PLAIN `*.kogler.si` names
+  # MagicDNS must answer the PLAIN `*.kogler.si` names
   # too (stats/logs/csui/sec/traefik/auto), not just the *.ts.kogler.si base_domain.
   # headscale appends search_domains to its MagicDNS local domains (hscontrol/types/
   # config.go:918/1010 -> cfg.Domains = append(cfg.Domains, dns.SearchDomains...)), so
   # the extra_records below are answered by MagicDNS for BOTH namespaces without
   # touching Technitium (which has no records for the VPS-hosted dashboards).
   # The client's search list gains `kogler.si`; extra_records for stats.kogler.si etc.
-  # then resolve through MagicDNS, not the system resolver (verified live 2026-08-28:
-  # without this, plain *.kogler.si went to the system resolver -> NXDOMAIN).
+  # then resolve through MagicDNS, not the system resolver (without it, plain
+  # *.kogler.si goes to the system resolver -> NXDOMAIN).
   search_domains:
     - "{{ wildcard_cert_domain }}"   # kogler.si
   nameservers:
-    # HD-371 (2026-09-15): MagicDNS loop must be FIRST — headscale's own DNS
+    # MagicDNS loop must be FIRST — headscale's own DNS
     # server (100.100.100.100) answers `*.ts.kogler.si` + the search-domain
     # (kogler.si) extra_records LOCALLY on the client, so tailnet devices resolve
     # every `*.kogler.si` / `*.ts.kogler.si` name on ANY network (hotspot/travel),
     # not just from home/LAN. WITHOUT it, a Windows client on a remote network
     # falls back to the system resolver (Mobile hotspot 10.x) -> NXDOMAIN for all
-    # internal names while the phone (which answers MagicDNS extra_records
-    # client-side) still resolves them — the live 2026-09-15 laptop-on-hotspot
-    # symptom (llm/stats/litellm ERR_NAME_NOT_RESOLVED). Keep the Technitium
+    # internal names while a device that answers MagicDNS extra_records
+    # client-side still resolves them. Keep the Technitium
     # entries AFTER for the full namespace + per-subnet filtering from the LAN.
     - "100.100.100.100"        # headscale MagicDNS loop (answers extra_records + search-domain locally; tailnet-wide)
-    # HD-415 (2026-09-22): the chain is now LOCATION-INDEPENDENT — one resolver that is
+    # The chain is LOCATION-INDEPENDENT — one resolver that is
     # reachable from wherever the device happens to be, instead of a list sorted by where
     # the device usually is. Second entry = oldsrv's own TAILNET NODE ADDRESS, which is
     # reachable (a) at home direct-over-LAN even with the home WAN pulled — the case the
@@ -83,10 +81,10 @@ dns:
     # removes the VPS too — and (b) away from home whenever the home link is up. Third entry
     # stays the VPS PUBLIC instance as the fallback, so a dead node never costs away-side
     # name resolution (the public half of the zone lives in the same split-horizon set).
-    # The two LAN-address entries (oldsrv + Pi Home-VLAN IPs) are GONE: off-site they were
-    # unreachable, so the Tailscale app said `DNS unavailable` and every lookup burned a
-    # resolver timeout first. Case (d) — away while the HOME WAN is down — is accepted as
-    # unresolvable by the owner; no resolver behind a dead WAN is reachable from anywhere.
+    # Do NOT add LAN-address entries: off-site they are
+    # unreachable, so the Tailscale app says `DNS unavailable` and every lookup burns a
+    # resolver timeout first. Being away while the HOME WAN is down is accepted as
+    # unresolvable; no resolver behind a dead WAN is reachable from anywhere.
     # ⛔ Order is load-bearing, and so is the pair: naming this entry WITHOUT the `udp 53`
     # rule in policy.hujson.j2 is worse than the old chain — the client would send its
     # queries into an ACL drop and the VPS fallback would not save them.
@@ -95,10 +93,10 @@ dns:
     # which headscale would reject at start — a DNS list must never be able to stop the
     # control plane it describes.
 {% if tailnet_oldsrv_ip %}
-    - "{{ tailnet_oldsrv_ip }}"  # Technitium SECONDARY on oldsrv, over its tailnet node address (HD-415)
+    - "{{ tailnet_oldsrv_ip }}"  # Technitium SECONDARY on oldsrv, over its tailnet node address
 {% endif %}
-    - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS public — HD-299; HD-415 keeps it as the fallback)
-  # HD-135b follow-up (tailnet-only dashboards): the tailnet Traefik edge serves
+    - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS public) — the fallback
+  # Tailnet-only dashboards: the tailnet Traefik edge serves
   # stats/logs/csui/sec/traefik/auto (and their *.ts.kogler.si MagicDNS twins) on
   # the sidecar node `vps-obs` (tag:sidecar). These custom A records make the CLEAN
   # subdomain names resolve for tailnet clients via MagicDNS — both namespaces are
@@ -111,9 +109,9 @@ dns:
   # set `tailnet_sidecar_ip`, re-converge + restart headscale. Leave empty → no
   # extra_records (fail-loud render guard below).
   #
-  # HD-268c (2026-08-29): the schema is now {name, ip} dicts. `ip` defaults to
+  # The schema is now {name, ip} dicts. `ip` defaults to
   # `tailnet_sidecar_ip` when omitted (the observability entries stay terse), and
-  # the Pattern-A sidecars (HD-268c) pin their own tailnet IP. Records render
+  # the Pattern-A sidecars pin their own tailnet IP. Records render
   # for BOTH the plain `*.kogler.si` and the `*.ts.kogler.si` namespaces —
   # identical pattern for both observability edge and Pattern-A sidecars.
   extra_records:
@@ -148,22 +146,22 @@ dns:
     []
 {% endif %}
 
-# ACL/traffic policy (HD-84 / KOPS-022): points at the rendered policy.hujson
+# ACL/traffic policy: points at the rendered policy.hujson
 # mounted next to this config. NOTE: OIDC-authenticated clients are AUTO-APPROVED
 # by Headscale (no separate registration gate here), so the ACL is what stops a
 # rogue auto-joined node from reaching the mesh — see policy.hujson.j2.
-# Schema migrated for headscale >= 0.24 (pinned 0.29.3, Wave-2 triage 2026-08-22).
+# Schema for headscale >= 0.24 (pinned 0.29.3).
 policy:
   path: /etc/headscale/policy.hujson
 logtail:
   enabled: false
 
-# Tailscale v2 protocol keys (headscale >= 0.24; Wave-3 round-2 triage 2026-08-22).
+# Tailscale v2 protocol keys (headscale >= 0.24).
 # Generated by headscale on first start inside the rw data bind (/srv/docker/headscale/data).
 noise:
   private_key_path: /var/lib/headscale/noise_private.key
 
-# DERP relay map (required >= 0.24; Wave-3 R5): without it the initial DERP map is empty
+# DERP relay map (required >= 0.24): without it the initial DERP map is empty
 # and headscale refuses to start. Uses the public Tailscale DERP relays - fine for a
 # family mesh; self-hosted DERP is a possible future hardening.
 derp:
@@ -171,7 +169,7 @@ derp:
   urls:
     - https://controlplane.tailscale.com/derpmap/default
 
-# Node IP prefixes (required >= 0.24; Wave-3 round-3 triage 2026-08-22). Values = the
+# Node IP prefixes (required >= 0.24). Values = the
 # Tailscale-standard CGNAT defaults headscale historically implied when unset.
 prefixes:
   v4: 100.64.0.0/10
