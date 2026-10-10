@@ -1,4 +1,4 @@
-# traefik-internal docker-compose.yml — home-LAN internal all-app edge (oldsrv, HD-350)
+# traefik-internal docker-compose.yml — home-LAN internal all-app edge (oldsrv)
 #   Keeps the HOME-HOSTED apps (media/*arr/downloads) + the VPS-hosted set reachable
 #   on the LAN even when WAN/VPS is down, and carries the FULL route table so the 3
 #   edges (VPS traefik-tailnet + this + Pi traefik-ha) can serve the same names.
@@ -10,17 +10,16 @@
 #   - File-provider routes ONLY (no Docker labels, no docker.sock): dynamic/routes.yml.j2
 #     carries the full home + VPS route table. No docker provider → no label conflicts,
 #     same pattern as traefik-ha / traefik-tailnet.
-#   - NO Forward-Auth, NO CrowdSec: both depend on VPS containers (Authentik, CrowdSec
-#     LAPI) and would fail exactly when this edge must survive (WAN-out). Each home app
-#     owns its login (*arr/downloaders = built-in Forms auth — deliberate reversal of
-#     "built-in logins disabled", HD-60; Jellyfin/Seerr/SeerrNG = local login).
-#   - ACME intentionally DISABLED (no certresolver): the wildcard pair is PULLED FROM
-#     THE VPS `traefik` (the single ACME issuer, HD-178/HD-181/HD-204) by the
-#     traefik-cert-pull timer to ./certs (roles/docker_services/tasks/main.yml) so both
-#     routes stay TLS-valid even when WAN is down (offline-safe).
-#   - Backends: home-hosted services are reached on the oldsrv LAN IP (host-net);
-#     VPS-hosted services are reached via the VPS traefik-tailnet edge at
-#     {{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }} (the WG-S2S bridge, HD-333).
+#   - NO Forward-Auth, NO CrowdSec: both depend on VPS containers (Authentik, CrowdSec LAPI)
+#     and would fail exactly when this edge must survive (WAN-out). Each home app owns its
+#     login (*arr/downloaders = built-in Forms auth, a deliberate exception to "built-in logins
+#     disabled"; Jellyfin/Seerr/SeerrNG = local login).
+#   - ACME intentionally DISABLED (no certresolver): the wildcard pair is PULLED FROM THE VPS
+#     `traefik` (the single ACME issuer) by the traefik-cert-pull timer into ./certs
+#     (roles/docker_services/tasks/main.yml), so routes stay TLS-valid when WAN is down.
+#   - Backends: home-hosted services are reached on the oldsrv LAN IP (host-net); VPS-hosted
+#     services via the VPS traefik-tailnet edge at {{ wg_s2s_vps.ip }}:{{ wg_internal_edge_port }}
+#     (the WG-S2S bridge).
 #
 #   Design context: docs/services-traefik.md §Edge model, docs/smart-home-failover.md.
 #   Secrets: none (certs pulled via the existing ssh-key mechanism).
@@ -49,23 +48,20 @@ services:
       - "--entrypoints.websecure.address={{ ha_vip }}:443"
       - "--entrypoints.web-lan.address={{ oldsrv_home_ip }}:80"
       - "--entrypoints.websecure-lan.address={{ oldsrv_home_ip }}:443"
-      # HD-370: HSTS for every route this HOME edge serves (media/*arr/llogs/ha/dns-pi/llitellm…).
-      # All :80 → :443 by design (redirect-to-https catch-all); this makes browsers remember
-      # https-only — also the roaming fix when a phone crosses LAN ↔ tailnet. Applied as the
-      # ENTRYPOINT middleware `hsts@file` (declared in dynamic/routes.yml.j2) on BOTH :443
-      # entrypoints — Traefik CLI cannot DECLARE middlewares ("field not found, node: http"
-      # crash-loop, live 2026-09-15 on spark's edge; per-entrypoint ASSIGNMENT of a
-      # file-declared middleware is the valid CLI form).
+      # HSTS for every route this HOME edge serves: all :80 → :443 by design, so browsers
+      # remember https-only — also the roaming fix when a phone crosses LAN ↔ tailnet. It is
+      # applied as the ENTRYPOINT middleware `hsts@file` on BOTH :443 entrypoints: Traefik CLI
+      # cannot DECLARE middlewares ("field not found, node: http" crash-loop); assigning a
+      # file-declared middleware per entrypoint is the valid CLI form.
       - "--entrypoints.websecure.http.middlewares=hsts@file"
       - "--entrypoints.websecure-lan.http.middlewares=hsts@file"
 {% if tailnet_oldsrv_ip is defined and tailnet_oldsrv_ip %}
-      # HD-405: the tailnet listener. Bound to THIS NODE's tailnet IP — never 0.0.0.0 — so
-      # nothing but a tailnet node the headscale ACL allows (`tag:dev`: tcp/443, plus one
-      # udp/53 rule written on the node address for the resolver role — HD-415) can even
-      # open a socket here; no LAN, home-WAN or public client can reach it. Needs
-      # net.ipv4.ip_nonlocal_bind=1 (the keepalived VIP bind already requires it on this
-      # host), which is what stops a tailscaled restart from crash-looping the whole home
-      # edge. Empty `tailnet_oldsrv_ip` (pre-join / rebuild) -> no listener at all.
+      # The tailnet listener: bound to THIS NODE's tailnet IP — never 0.0.0.0 — so only a
+      # tailnet node the headscale ACL allows (`tag:dev`: tcp/443 plus the udp/53 resolver rule
+      # written on the node address) can open a socket; no LAN, home-WAN or public client can.
+      # Needs net.ipv4.ip_nonlocal_bind=1 (the keepalived VIP bind already requires it here),
+      # which is what stops a tailscaled restart from crash-looping the whole home edge. An
+      # empty tailnet_oldsrv_ip (pre-join / rebuild) renders no listener at all.
       - "--entrypoints.websecure-ts.address={{ tailnet_oldsrv_ip }}:443"
       - "--entrypoints.websecure-ts.http.middlewares=hsts@file"
 {% endif %}
