@@ -2,21 +2,23 @@
 # deploy-service.yml — per-service deployment tasks
 # Called from main.yml in a loop over docker_services.
 # Variables: svc (the current docker_services entry)
+# Tag semantics: the include lines in tasks/main.yml carry `tags: docker_services`, which every task here
+# inherits, so `--tags docker_services,<svc>` selects the UNION of both tags and is NOT surgical. The
+# per-service tag narrows the task list; `docker_services_scope` (role defaults) restricts the run.
 
 - name: "Create directory {{ docker_compose_dir }}/{{ svc.name }}"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   ansible.builtin.file:
     path: "{{ docker_compose_dir }}/{{ svc.name }}"
     state: directory
     mode: '0755'
 
-# Class-A fix (Wave-2 triage 2026-08-22): Docker auto-creates host bind-mount sources as
-# root:root; non-root images (grafana 472, node-user images 1000, storage_uid apps) then die
-# with EACCES on first boot. Services opt in via bind_owner_uid + bind_dirs on their
-# docker_services entry (group_vars/vps.yml). Idempotent; no-op for services without it.
+# Docker auto-creates host bind-mount sources as root:root, so non-root images (grafana 472, node-user
+# images 1000, storage_uid apps) die with EACCES on first boot. Services opt in via bind_owner_uid +
+# bind_dirs on their docker_services entry (group_vars/vps.yml). No-op for services without it.
 - name: "Pre-create bind dirs with image uid for {{ svc.name }} (Class-A fix)"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   ansible.builtin.file:
     path: "/srv/docker/{{ svc.name }}/{{ bind_dir }}"
@@ -41,15 +43,13 @@
   when: svc.model_url is defined
 
 - name: "Fetch + verify model for {{ svc.name }}"
-  # HD-391 model-fetch hook (opt-in): the pinned-AI legs mount their weights :ro, and the
-  # container must find them on FIRST boot. `get_url` + `checksum` is idempotent BY CONTENT:
-  # an existing file with the right digest is an ok-not-changed no-op, a missing/truncated
-  # file is re-fetched, and a DIGEST MISMATCH FAILS THE CONVERGE instead of booting an engine
-  # on a half-written model. Weights are public artifacts, not secrets: they never enter git
-  # and never enter the vault. Dirs are root:root 0755 and files 0644 because the mount is
-  # read-only - the containers read weights, they never write them.
-  # Deliberately NO default() on the digest (HD-65 fail-loud): an entry that sets model_url
-  # without model_sha256 aborts the render rather than fetching unverifiable bytes.
+  # Model-fetch hook (opt-in): the pinned-AI legs mount their weights :ro, so the container must find them
+  # on FIRST boot. `get_url` + `checksum` is idempotent BY CONTENT: a matching digest is an ok-not-changed
+  # no-op, a missing/truncated file is re-fetched, a DIGEST MISMATCH FAILS THE CONVERGE instead of booting
+  # an engine on a half-written model. Weights are public artifacts: never in git, never in the vault. Root
+  # 0755 dirs / 0644 files because the mount is read-only — containers read weights, never write them.
+  # Deliberately NO default() on the digest (fail-loud): an entry that sets model_url without model_sha256
+  # aborts the render rather than fetching unverifiable bytes.
   # Opt-in shape: { model_url, model_dir, model_file, model_sha256 } on the registry entry.
   tags: "{{ svc.name }}"
   ansible.builtin.get_url:
@@ -63,16 +63,16 @@
   when: svc.model_url is defined
 
 - name: "Copy template files for {{ svc.name }}"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   ansible.builtin.copy:
     src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/"
     mode: '0644'
-  # .j2 files are copied as-is (unrendered); overwritten with rendered versions below
+  # .j2 files are copied unrendered; the template tasks below overwrite them
 
 - name: "Template docker-compose.yml for {{ svc.name }}"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/docker-compose.yml.j2"
@@ -80,13 +80,11 @@
     mode: '0644'
 
 - name: "Stat extra-template dest paths for {{ svc.name }} (HD-440)"
-  # HD-440: the removal below must be a TYPE TEST, not a guess. `state: absent` does not care
-  # whether the path is a directory or the regular file the previous converge rendered, so the
-  # untyped version deleted the rendered extra on EVERY converge, the template task then
-  # recreated it (`changed`), and the restart-on-config-change guard at the bottom of this file
-  # bounced a healthy service — forever, with `failed=0` on every run (measured on oldsrv: two
-  # converges of one commit, `changed=5` both times, `lan-litellm` `Up 2 minutes` → `Up 3
-  # minutes`). Stat first; only a DIRECTORY is a stub.
+  # The removal below must be a TYPE TEST, not a guess. `state: absent` does not care whether the path is a
+  # directory or the regular file the previous converge rendered, so an untyped removal deletes the rendered
+  # extra on EVERY converge, the template task recreates it (`changed`), and the restart-on-config-change
+  # guard at the bottom of this file bounces a healthy service forever with `failed=0`. Stat first; only a
+  # DIRECTORY is a stub.
   tags: "{{ svc.name }}"
   ansible.builtin.stat:
     path: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
@@ -98,13 +96,11 @@
   changed_when: false
 
 - name: "Remove stub DIRS at extra-template dest paths for {{ svc.name }} (HD-268c; type-test HD-440)"
-  # HD-268c: when a service bind-mounts a source file from the template dir
-  # (e.g. ./serve.json:/config/serve.json:ro) and the file does NOT yet exist,
-  # docker compose up auto-creates the source as an EMPTY DIRECTORY (its default
-  # behaviour for missing bind-mount sources). On subsequent converges, the template
-  # task refuses to overwrite a directory at dest. Pre-remove any such stub so the
-  # render lands as a regular file — and ONLY a directory stub (HD-440): a regular
-  # file is the previous render, and deleting it is what made every converge non-idempotent.
+  # When a service bind-mounts a source file from the template dir (e.g. ./serve.json:/config/serve.json:ro)
+  # and that file does not exist yet, `docker compose up` auto-creates the source as an EMPTY DIRECTORY, and
+  # the template task then refuses to overwrite a directory at dest. Pre-remove the stub so the render lands
+  # as a regular file — and ONLY a directory stub: a regular file is the previous render, and deleting it is
+  # what makes every converge non-idempotent.
   tags: "{{ svc.name }}"
   ansible.builtin.file:
     path: "{{ item.stat.path }}"
@@ -115,7 +111,7 @@
   when: item.stat.isdir | default(false)
 
 - name: "Template extra .j2 files for {{ svc.name }}"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/{{ extra }}"
@@ -125,20 +121,18 @@
   loop_control:
     label: "{{ extra | replace('.j2', '') }}"
     loop_var: extra
-  # Registered for the post-up restart-on-config-change guard below. Sufficient by
-  # itself: every _extra_templates entry today is a .j2 render that OVERWRITES the raw
-  # copy step's unrendered file, so this task is the only place an extras change can
-  # surface. If a static (non-.j2) extra is ever added, extend the guard to also watch
-  # the copy step's result.
+  # Registered for the post-up restart-on-config-change guard below. Sufficient by itself: every
+  # _extra_templates entry is a .j2 render that OVERWRITES the raw copy step's unrendered file, so this is
+  # the only place an extras change can surface. If a static (non-.j2) extra is ever added, extend the guard
+  # to also watch the copy step's result.
   register: extra_templates_result
 
-# ---- First-boot guard (HD-185): home-assistant-primary bind-mount sources ----
-# Render-first order (HD-204: home_assistant BEFORE docker_services on the Pi) means
-# ./config/configuration.yaml, ./keepalived.conf and ./secrets.yaml must already be
-# regular files when `docker compose up` first runs. If any is missing, Docker
-# auto-creates it as an empty DIRECTORY at bind-mount time and HA starts mis-configured
-# with no error (the exact bug HD-185 fixes) — so fail LOUD here instead, before up,
-# with the remediation path. Belt-and-braces against any future role reorder.
+# ---- First-boot guard: home-assistant-primary bind-mount sources ----
+# Render-first order (home_assistant BEFORE docker_services on the Pi) means ./config/configuration.yaml,
+# keepalived.conf and secrets.yaml must already be regular files when `docker compose up` first runs. If one
+# is missing, Docker auto-creates it as an empty DIRECTORY at bind-mount time and HA starts mis-configured
+# with no error — so fail LOUD here, before up, with the remediation path. Belt-and-braces against any
+# future role reorder.
 - name: "First-boot guard: {{ svc.name }} bind-mount sources are regular files (HD-185)"
   when: svc.name == 'home-assistant-primary'
   block:
@@ -150,8 +144,8 @@
         - keepalived.conf             # rendered by home_assistant (first-deploy copy)
         - secrets.yaml                # 1Password-rendered (home_assistant role)
       loop_control:
-        loop_var: ha_src_file         # NOT `item` — shadows the outer include's lazy
-                                      # `svc: "{{ item }}"` and turns svc into a string
+        loop_var: ha_src_file         # NOT `item` — it would shadow the outer include's lazy
+                                      # `svc: "{{ item }}"` and turn svc into a string
       register: ha_primary_sources
 
     - name: "Assert {{ svc.name }} bind-mount sources pre-exist as regular files"
@@ -169,68 +163,42 @@
   tags: ["{{ svc.name }}", home_assistant, hd185]
 - name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
   ansible.builtin.shell:
-    cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # `compose validate` does not exist (found live Phase 1)
-  # HD-440: `docker compose config --quiet` only PARSES the render — it mutates nothing — but a
-  # bare shell/command task reports `changed` unconditionally, so every service showed a phantom
-  # change on an otherwise clean converge (measured on spark: a third identical run still
-  # `changed=1`, and this task was the whole of it). Same reporting class as the stub-removal bug
-  # above; keep the assertion (rc != 0 still fails the run) and stop the lie.
+    cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # there is no `compose validate` subcommand
+  # `docker compose config --quiet` only PARSES the render and mutates nothing, but a bare shell task reports
+  # `changed` unconditionally, so every service showed a phantom change on an otherwise clean converge. Keep
+  # the assertion (rc != 0 still fails the run) and stop the lie.
   changed_when: false
-  when: ansible_facts['service_mgr'] == 'systemd'   # docker available; catch a bad render before compose up
+  when: ansible_facts['service_mgr'] == 'systemd'   # docker present; catch a bad render before compose up
   tags: "{{ svc.name }}"
 
 - name: "Docker compose up -d for {{ svc.name }}"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   community.docker.docker_compose_v2:
     project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
     state: present
 
 # ---- Restart-on-config-change guard (extras are bind-mounted) ----
-# `docker compose up -d` recreates containers ONLY when their SPEC changes; a changed
-# bind-mounted file's CONTENT is invisible to it. Without this guard a rendered extra
-# (opencloud csp.yaml HD-144, matrix tuwunel.toml, litellm config.yaml, element-web
-# config.json) would sit unapplied on disk after converge until an unrelated restart
-# picked it up.
-# Exclusions:
-#   * .env.j2 extras (kopia-server/agent): compose ${} INTERPOLATION source — a value
-#     change alters container specs, so `up -d` above already recreated; restarting
-#     again would be a pointless double bounce.
-#   * traefik / traefik-ha / traefik-tailnet: dynamic/*.yml land in the file-provider
-#     watch dir and hot-reload in-process; a restart would only add downtime (and drop
-#     edge traffic). traefik-tailnet ALSO carries a `tailscale-sidecar` sibling in the
-#     same compose project whose netns makes `docker compose restart` flaky ('cannot
-#     join network namespace of a non running container' on the sidecar — live
-#     2026-09-15), so it is excluded for the same reason as the other file-provider edges.
-# First-boot safe: `up` just created the containers, so a restart finds them running;
-# idempotent converges never fire it (no render change -> no restart).
+# `docker compose up -d` recreates containers only when their SPEC changes — a changed bind-mounted file's
+# CONTENT is invisible to it, so a rendered extra (opencloud csp.yaml, matrix tuwunel.toml, litellm
+# config.yaml, element-web config.json) would sit unapplied until an unrelated restart picked it up. First
+# boot is safe (`up` just created the containers); an idempotent converge never fires this task.
 - name: "Restart {{ svc.name }} stack to apply changed extra config"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   when:
     - svc.name not in ['traefik', 'traefik-ha', 'traefik-tailnet', 'spark-dashboard', 'traefik-internal']
-      # ^ HD-440 (2026-09-28): `traefik-internal` was MISSING from this list although it is the
-      # same kind of thing as the four above — its compose mounts ./dynamic read-only and runs
-      # `--providers.file.watch=true`, so a re-rendered routes.yml is picked up in-process and a
-      # restart buys only downtime. Measured the moment it was noticed: a scoped
-      # `docker_services,traefik-internal` run that added one router (pi-oldsrv-ts) reported
-      # `changed=3` and one of the three was this task — `traefik-internal` StartedAt moved to
-      # 2026-09-27T22:01:15Z. That edge is the home LAN edge AND the HA tailnet route (`ha-ts`)
-      # AND the pi seat's only door, so every routes.yml edit bounced all home-hosted apps for a
-      # hot-reload. HD-451's spark-dashboard note is the same reasoning, one edge earlier.
-      # HD-451/C2 (2026-09-23): `spark-dashboard` is the FOURTH file-provider edge, not an
-      # ordinary extra-consuming service — its `dynamic/*.yml` land in /etc/traefik/dynamic
-      # with `--providers.file.watch=true`, so Traefik reloads routes in-process and a restart
-      # buys nothing but downtime. And the downtime is not cosmetic: this is also spark's
-      # `llm.kogler.si` name edge, so every needless bounce of it is a 502 window on the
-      # inference path (the reason it joins the three Traefik edges above).
-    # Corrected (HD-255/HD-260): the extra .j2 loop uses `loop_var: extra`, so the
-    # registered loop results carry the key `extra` (the template filename) — NOT
-    # `item`. The old `map(attribute='item')` raised "object of type 'dict' has no
-    # attribute 'item'" on the very first surgical converge (HD-260 live evidence:
-    # ok=117 changed=21 then FAILED), which also made the headscale config re-render
-    # never restart the container. `default([])` guards the honestly-absent case
-    # (task skipped / no extras registered). Match the actual key and exclude .env.
+      # EXCLUDED because a restart there applies nothing and buys only downtime: every file-provider Traefik
+      # edge hot-reloads its dynamic/*.yml in-process (`--providers.file.watch=true`), spark-dashboard is
+      # also spark's `llm.kogler.si` name edge so a bounce is a 502 window on the inference path, and
+      # traefik-tailnet's `tailscale-sidecar` sibling makes `docker compose restart` flaky ('cannot join
+      # network namespace of a non running container'). A file-provider edge added to the registry WITHOUT
+      # adding it here restarts a healthy stack on every converge.
+      # → docs/deployment-compose.md §Extra Config Templates — render + restart-on-change
+    # The extra .j2 loop uses `loop_var: extra`, so the registered loop results carry the key `extra` (the
+    # template filename) — NOT `item`; `map(attribute='item')` raises "object of type 'dict' has no attribute
+    # 'item'" and the restart silently never runs. `default([])` covers a skipped task / no extras. .env.j2 is
+    # excluded because compose interpolates it into the container spec, so `up -d` above already recreated.
     - >-
       (extra_templates_result.results | default([]))
       | selectattr('changed')
@@ -241,7 +209,7 @@
     state: restarted
 
 - name: "Enable systemd service docker-compose@{{ svc.name }} (boot auto-start)"
-  # per-service tag: enables surgical runs (--tags docker_services,<service>; HD-220)
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"
   ansible.builtin.systemd:
     name: "docker-compose@{{ svc.name }}"
@@ -249,34 +217,13 @@
     state: started
   when: ansible_facts['service_mgr'] == 'systemd'
 
-# ---- Postgres role-password drift guard (2026-08-23 incident) ----
-# The official postgres image applies POSTGRES_PASSWORD ONLY at first cluster init;
-# rotating the 1Password db item re-renders compose envs, but the persisted cluster
-# keeps the OLD role password -> app crash-loops with SASL auth failures (forgejo +
-# renovate precedent, 1007/455 restarts overnight). Services opting in via db_role_sync/
-# db_item/db_pg_container (group_vars/vps.yml) get their ROLE password re-synced from the SAME vault item after the stack is up. Runs every converge;
-# ALTER to the identical value is a cheap server-side no-op. IaC-only by design:
-# no hand-run SQL against managed DBs.
-# HD-452 (2026-09-26): the ALTER above was UNCONDITIONAL, so `ALTER ROLE` was in the output
-# of every converge and `changed_when` reported `changed` on six hosts' worth of already
-# correct passwords. Measured, same commit twice on the VPS: run 1 `changed=8`, run 2
-# `changed=6` — and all six were this task, so the one number that means "this converge did
-# something you did not ask for" was permanently yellow. Fixed with the `roles/nut` shape:
-# read → verdict fact → repair only on a defect, and `--check` still judges (the probe is a
-# read, so it carries `check_mode: false`).
-#
-# Why a marker and not "just try to log in": a live probe on the VPS 2026-09-26 found that
-# every one of these clusters answers `127.0.0.1/32` with **trust** (initdb's default line,
-# which the image keeps ahead of its own `host all all all scram-sha-256`), so an
-# authenticate-with-the-vault-password probe inside the container SUCCEEDS WITH ANY PASSWORD
-# — a test that cannot fail. Connecting via the container's own bridge IP is refused
-# (`no pg_hba entry`). So drift is decided against a fingerprint of the vault value stored
-# IN the cluster (`COMMENT ON ROLE`), which travels with the data dir and cannot pass
-# vacuously: absent or different marker = sync.
-# ⚠ Named limitation, in exchange for a readable `changed`: a human running `ALTER ROLE`
-# by hand is out of band and will NOT be repaired any more (it re-applies on every vault
-# rotation and on every fresh cluster, which is the incident class this guard was born
-# from). Also: a hand-written `COMMENT ON ROLE` on one of these six roles is overwritten.
+# ---- Postgres role-password drift guard ----
+# POSTGRES_PASSWORD is applied only at first cluster init, so a vault rotation leaves the persisted cluster on
+# the OLD role password and the app crash-loops on SASL. Decide drift from the role's own `COMMENT ON ROLE`
+# marker: a login probe cannot fail here (these clusters answer 127.0.0.1/32 with `trust`, initdb's default
+# line, and the bridge IP has no pg_hba entry), and an unconditional ALTER reports `changed` on every host.
+# ⚠ A hand-run `ALTER ROLE` is out of band and is NOT repaired — rotate in vault, or clear the marker.
+# IaC-only: no hand-run SQL against managed DBs. → docs/deployment-ansible.md §docker_services entry fields
 - name: "Read the postgres role sync marker ({{ svc.name }})"
   when: svc.db_role_sync | default(false)
   vars:
@@ -291,10 +238,8 @@
       - "{{ svc.db_pg_container }}"
       - sh
       - -c
-      # -tA (tuples-only, unaligned) is NOT cosmetic: psql's default aligned output begins
-      # with the column header ` coalesce `, and that header — not the marker — is what the
-      # first version of this probe compared against, so every converge re-ran the ALTER all
-      # over again (measured on the VPS 2026-09-26: three runs, six `changed` every time).
+      # -tA (tuples-only, unaligned) is NOT cosmetic: psql's aligned output begins with the column header
+      # ` coalesce `, and comparing the header instead of the marker re-runs the ALTER on every converge.
       - >-
         psql -v ON_ERROR_STOP=1 -tA -U "$POSTGRES_USER" -d "$POSTGRES_DB"
         -v syncuser="$PGSYNC_USER" -f -
@@ -325,10 +270,9 @@
     - svc.db_role_sync | default(false)
     - db_role_needs_sync | default(true) | bool
   vars:
-    # Read from the HD-258 bulk `vault` dict (built ONCE per converge by fetch-vault-pass),
-    # NOT per-task community.general.onepassword lookups — each lookup was an `op` spawn,
-    # and every db_role_sync service paid ~2.6s. Same fail-closed contract; the item is in
-    # the derive set (its owning template_dir is in _template_vault_items).
+    # Read the bulk `vault` dict (built ONCE per converge by fetch-vault-pass.yml), NOT a per-task
+    # onepassword lookup: each lookup is an `op` spawn (~2.6s per db_role_sync service). Same fail-closed
+    # contract — the item is in the derive set via its owning template_dir in _template_vault_items.
     _db_user: "{{ vault[svc.db_item].username }}"
     _db_pass: "{{ vault[svc.db_item].password }}"
   ansible.builtin.command:
@@ -341,19 +285,18 @@
       - -e
       - "PGSYNC_PASS={{ _db_pass }}"
       - -e
-      # The fingerprint the probe compares against, written in the SAME transaction as the
-      # ALTER. A hash of the secret, never the secret (CONVENTIONS §6).
+      # The fingerprint the probe compares against, written in the SAME transaction as the ALTER.
+      # A hash of the secret, never the secret (CONVENTIONS §6).
       - "PGSYNC_MARKER={{ db_role_marker_desired }}"
       - "{{ svc.db_pg_container }}"
       - sh
       - -c
-      # NOTE: psql performs NO :var interpolation in -c mode — SQL goes via STDIN (-f -).
-      # Identifier needs :"var", literal needs :'var'. ON_ERROR_STOP is MANDATORY here:
-      # without it psql exits 0 even after SQL errors and the drift would persist silently
-      # (live-proven 2026-08-23).
-      # `-1` (single transaction) is load-bearing: without it psql autocommits the ALTER and
-      # a failing COMMENT leaves the password written but the marker stale — permanently
-      # re-syncing the same correct password, which is the noise this change exists to kill.
+      # psql performs NO :var interpolation in -c mode — SQL goes via STDIN (-f -). Identifier needs
+      # :"var", literal needs :'var'. ON_ERROR_STOP is MANDATORY: without it psql exits 0 after SQL errors
+      # and the drift persists silently.
+      # `-1` (single transaction) is load-bearing: without it psql autocommits the ALTER, so a failing
+      # COMMENT leaves the password written and the marker stale — the same correct password then
+      # re-syncs forever, which is the noise this shape exists to kill.
       - >-
         psql -v ON_ERROR_STOP=1 -1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
         -v syncuser="$PGSYNC_USER" -v syncpass="$PGSYNC_PASS"
@@ -367,17 +310,15 @@
   failed_when: db_role_sync_result.rc != 0
   tags: "{{ svc.name }}"
 
-# ---- Read-only analytics role ensure (HD-242) ----
-# Services consuming ANOTHER stack's Postgres read-only (Metabase -> forgejo-db; zipline-db
-# post-HD-112) opt in on their OWN svc entry via db_ro_sync/db_ro_item/db_pg_container. The
-# target stack deploys earlier in the registry order, so its container is already up here.
-# Idempotent: CREATE-if-absent, then password + SELECT-only grants re-applied EVERY converge —
-# vault rotations propagate automatically (same contract as the drift guard above; IaC-only:
-# no hand-run SQL against managed DBs). Grants are schema-scoped to `public` only.
+# ---- Read-only analytics role ensure ----
+# Consumers of ANOTHER stack's Postgres read-only opt in via db_ro_sync/db_ro_item/db_pg_container on their
+# own svc entry; the target stack deploys earlier in registry order so its container is already up. Grants are
+# re-applied EVERY converge, so vault rotations propagate automatically (same contract as the guard above;
+# IaC-only), and they are schema-scoped to `public` only.
 - name: "Ensure read-only analytics role ({{ svc.name }})"
   when: svc.db_ro_sync | default(false)
   vars:
-    # HD-268 opt: read from the HD-258 `vault` dict (single fetches), not per-task lookups.
+    # Read the bulk `vault` dict (single fetch per converge), not a per-task lookup.
     _ro_user: "{{ vault[svc.db_ro_item].username }}"
     _ro_pass: "{{ vault[svc.db_ro_item].password }}"
   ansible.builtin.command:
@@ -392,14 +333,13 @@
       - "{{ svc.db_pg_container }}"
       - sh
       - -c
-      # NOTE: psql performs NO :var interpolation in -c mode — SQL goes via STDIN (-f -).
-      # Identifier needs :"var", literal needs :'var'. ON_ERROR_STOP is MANDATORY here
-      # (same live-proven reason as the drift guard above).
+      # psql performs NO :var interpolation in -c mode — SQL goes via STDIN (-f -). Identifier needs
+      # :"var", literal needs :'var'. ON_ERROR_STOP is MANDATORY (same reason as the guard above).
       - >-
         psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
         -v rouser="$ROSYNC_USER" -v ropass="$ROSYNC_PASS" -f -
-    # stdin is a MODULE argument and must live INSIDE the action block — placed beside it,
-    # the task parser reads two conflicting action statements (live-found HD-240 ride-along).
+    # stdin is a MODULE argument and must live INSIDE the action block — beside it, the task parser reads
+    # two conflicting action statements.
     stdin: |
       SELECT format('CREATE ROLE %I LOGIN', :'rouser')
       WHERE NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'rouser')\gexec
@@ -413,23 +353,18 @@
   failed_when: db_ro_sync_result.rc != 0
   tags: "{{ svc.name }}"
 
-# ---- Forgejo app.ini DB-password drift guard (HD-220) ----
-# The one-time wizard (deployment-manual §1.7) bakes the DB password into
-# /data/gitea/conf/app.ini, and gitea/forgejo gives ini values precedence over
-# FORGEJO__* envs — so vault rotations never reached the running app (live-proven
-# 2026-08-23: env + cluster role both carried the NEW value while the app kept
-# SASL-failing on the STALE ini password for hours). Re-sync [database] PASSWD from
-# the SAME vault item post-up and restart on change.
+# ---- Forgejo app.ini DB-password drift guard ----
+# The one-time wizard (deployment-manual §1.7) bakes the DB password into /data/gitea/conf/app.ini and
+# gitea/forgejo give ini values precedence over FORGEJO__* envs, so vault rotations never reach the running
+# app. Re-sync [database] PASSWD from the SAME vault item post-up and restart on change.
 - name: "Sync forgejo app.ini DB password with vault"
   when: svc.name == 'forgejo'
   vars:
-    # HD-268 opt: read from the HD-258 `vault` dict, not a per-task lookup.
+    # Read the bulk `vault` dict (single fetch per converge), not a per-task lookup.
     _ini_db_pass: "{{ vault[svc.db_item].password }}"
-  # Section-scoped ini_file is the CORRECT writer here (2026-08-23 lesson: an interim
-  # lineinfile attempt with a bare ^PASSWD regexp failed to match and APPENDED a second
-  # PASSWD at EOF - gitea reads the first occurrence under [database], so the stale original
-  # kept winning. ini_file itself was never wrong; the earlier 'false-negative' was a bad
-  # comparison against a stale container env.)
+  # Section-scoped ini_file is the CORRECT writer: a lineinfile with a bare ^PASSWD regexp fails to match and
+  # APPENDS a second PASSWD at EOF, and gitea reads the FIRST occurrence under [database] — so the stale
+  # original keeps winning while every check looks green.
   community.general.ini_file:
     path: /srv/docker/forgejo/data/gitea/conf/app.ini
     section: database
@@ -450,13 +385,11 @@
   changed_when: true
   tags: "{{ svc.name }}"
 
-# ---- Forgejo native-OIDC source registration (HD-230; design HD-148) ----
-# The Authentik side (provider_forgejo + app_forgejo in ks-oidc.yml, client creds
-# seeded to vault item forgejo_oidc by the glue) has existed since HD-148. This task
-# registers the CONSUMER side — the OAuth2 authentication source inside Forgejo —
-# idempotently via the admin CLI (NOT env-injectable). Authentication Name MUST stay
-# `authentik`: ks-oidc.yml accepts any callback under /user/oauth2/.* but docs and
-# owner runbook reference this name.
+# ---- Forgejo native-OIDC source registration ----
+# Registers the CONSUMER side — the OAuth2 authentication source inside Forgejo — idempotently via the admin
+# CLI (it is not env-injectable). The Authentik side lives in ks-oidc.yml with creds in the `forgejo_oidc`
+# item. Authentication Name MUST stay `authentik`: ks-oidc.yml accepts any callback under /user/oauth2/.* but
+# the docs and the owner runbook reference this name.
 - name: "Register Authentik OIDC source in Forgejo (HD-230)"
   when: svc.name == 'forgejo'
   vars:
@@ -487,28 +420,22 @@
   register: forgejo_oauth_src
   tags: "{{ svc.name }}"
 
-# ---- Authentik secret-egress glue (HD-143) moved to prepass-authentik.yml (HD-162) ----
-# The glue is no longer a per-loop side-iteration on the `authentik` entry. It now runs
-# once in the explicit pre-pass (tasks/prepass-authentik.yml) BEFORE the deploy loop,
-# seeding 1Password ahead of the OIDC-consumer renders — see deployment-compose.md ordering.
-# ---- LiteLLM virtual-key bootstrap glue (HD-247) ----
-# Renders + runs litellm-bootstrap-keys.sh DURING the litellm service pass: the registry
-# order in vps.yml guarantees litellm deploys BEFORE its key consumers (open-webui,
-# openclaw), so their compose renders find seeded vault items — same ordering contract as
-# prepass-authentik.yml for OIDC items (authentik precedes consumers, HD-146).
-# The script is idempotent VAULT-FIRST: empty item -> mint POST /key/generate and store
-# the sk; non-empty -> live-probe the stored sk and ABORT loudly on 401 (stale secret —
-# sks are hashed at rest server-side and can never be re-read). Values never echoed;
-# everything runs no_log. Requires the host-side write-scoped op SA token deployed by
-# prepass-authentik.yml (/etc/op/provision-token) for the 1Password writes.
-# ---- Host-side op prerequisites for the glue (HD-370, 2026-09-15): the glue does
-# its 1Password vault writes ON THE HOST (HD-247 pattern — op CLI + write-scoped
-# token must live there). The VPS gets both via prepass-authentik.yml (authentik
-# pre-pass); home hosts NEVER run that pre-pass, so a bootstrap_keys host (LAN
-# lan-litellm) would render the glue and then fail "op: command not found". Deploy
-# the op CLI (apt repo, bootstrap-runner.sh precedent) + the write-scoped token
-# (item `op-write_api`, HD-143 pattern — never in Git) on the service pass, idempotent.
-# 2026-09-19: renamed from `vps-op-write_api` — it is no longer VPS-specific.
+# ---- Authentik secret-egress glue ----
+# Lives in tasks/prepass-authentik.yml, not here: it runs ONCE in the explicit pre-pass BEFORE the deploy
+# loop, seeding 1Password ahead of the OIDC-consumer renders — see deployment-compose.md ordering.
+# ---- LiteLLM virtual-key bootstrap glue ----
+# Renders + runs litellm-bootstrap-keys.sh DURING the litellm service pass. The registry order in vps.yml
+# guarantees litellm deploys BEFORE its key consumers (open-webui, openclaw), so their compose renders find
+# seeded vault items — the same ordering contract as prepass-authentik.yml (authentik precedes consumers).
+# The script is idempotent VAULT-FIRST: an empty item mints via POST /key/generate and stores the sk; a
+# non-empty item is live-probed and ABORTS loudly on 401 (sks are hashed at rest and can never be re-read).
+# Nothing is echoed and everything runs no_log. It needs the host-side write-scoped op token at
+# /etc/op/provision-token for the 1Password writes.
+# ---- Host-side op prerequisites for the glue ----
+# The glue does its 1Password writes ON THE HOST (op CLI + a write-scoped token must live there). The VPS gets
+# both from the authentik pre-pass; home hosts NEVER run that pre-pass, so a bootstrap_keys host would render
+# the glue and then fail "op: command not found". Deploy the op CLI (apt repo, bootstrap-runner.sh precedent)
+# and the write-scoped token (item `op-write_api`, never in Git) on the service pass, idempotent.
 - name: "Ensure host-side op CLI ({{ svc.name }} bootstrap_keys)"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.shell: |
@@ -548,10 +475,9 @@
   no_log: true
   tags: "{{ svc.name }}"
 
-# HD-442: the twin at op-provision-token.yml probes VALIDITY after writing; this leg
-# wrote the file and moved on, so a revoked token here read as a healthy host-side
-# provisioner. Existence is not validity — one read-only list call makes the difference
-# between a failed task and eight green converges that wrote nothing.
+# The twin at op-provision-token.yml probes VALIDITY after writing; a leg that only writes the file lets a
+# revoked token read as a healthy host-side provisioner. Existence is not validity — one read-only list call
+# is the difference between a failed task and eight green converges that wrote nothing.
 - name: "Probe the bootstrap-keys provision token is accepted ({{ svc.name }}, HD-442)"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.shell:
@@ -589,12 +515,10 @@
   no_log: true
   tags: "{{ svc.name }}"
 
-# HD-258: after litellm's bootstrap glue mints the scoped virtual keys into
-# 1Password, refresh the `vault` dict with those items SO the open-webui/compat
-# consumers that follow litellm in the loop render against the real keys (they
-# are glue-created mid-deploy and were deliberately EXCLUDED from the static and
-# authentik-glue pre-passes, which run before they exist). Fail-closed: any
-# scoped key that did not get minted aborts loudly here.
+# After litellm's bootstrap glue mints the scoped virtual keys into 1Password, refresh the `vault` dict with
+# those items so the open-webui/compat consumers that follow litellm in the loop render against the real keys:
+# they are glue-created mid-deploy and are deliberately EXCLUDED from the static and authentik-glue pre-passes,
+# which run before they exist. Fail-closed — a scoped key that was not minted aborts loudly here.
 - name: "Refresh vault dict with litellm scoped keys ({{ svc.name }})"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.include_tasks:

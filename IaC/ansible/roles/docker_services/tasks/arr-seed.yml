@@ -1,33 +1,25 @@
 ---
-# arr-seed.yml — seed the *arr root folders + assert the quality profile Seerr pins (HD-358)
+# arr-seed.yml — seed the *arr root folders + assert the quality profile Seerr pins.
 # Included ONCE PER *arr SERVICE from docker_services/main.yml, gated on
-# `svc.template_dir in arr_seed_apps` + the deploy scope + `not ansible_check_mode`
-# (every task here drives a live API — the same dry-run rule as immich-seed.yml).
+# `svc.template_dir in arr_seed_apps` + the deploy scope + `not ansible_check_mode` (every task here
+# drives a live API — the same dry-run rule as immich-seed.yml).
 #
-# WHY A SEED TASK AT ALL (measured on oldsrv 2026-10-06, while doing this wiring by hand):
-#   Root folders are APP state — they live in the app's own database, not in compose env, so a
-#   from-zero converge brings the container up with NO root folder. Seerr builds its Radarr/
-#   Sonarr/Lidarr "Root folder" dropdown straight from GET <app>/rootfolder; with `[]` the
-#   dropdown is empty and the **Add server button stays disabled**, with no error anywhere —
-#   the exact wall hit on 2026-10-06 (radarr/sonarr returned `[]`, lidarr already had /media/music).
-#   The same is true of Jellyfin's library folders (see docs/services-media.md).
+# WHY A SEED TASK AT ALL: root folders are APP state — they live in the app's own database, not in
+# compose env — so a from-zero converge brings the container up with NO root folder. Seerr builds its
+# Radarr/Sonarr/Lidarr "Root folder" dropdown straight from GET <app>/rootfolder; with `[]` the
+# dropdown is empty and the Add server button stays DISABLED, with no error anywhere. The same is true
+# of Jellyfin's library folders (see docs/services-media.md).
 #
-# THE API BASE IS NOT SHARED ACROSS THE THREE APPS — measured, not remembered:
-#   radarr 6.3.0  → /api/v3 (200)      sonarr 4.0.19 → /api/v3 (200)
-#   lidarr 3.1.0  → /api/v1 (200); /api/v3 returns **404 with an empty body**, which reads from
-#   the shell as "no root folders" rather than as a wrong URL. Pin it per app in
-#   `arr_seed_apps[].api_base`; never build one URL for "the *arr API".
+# THE API BASE IS NOT SHARED ACROSS THE THREE APPS:
+#   radarr → /api/v3, sonarr → /api/v3, lidarr 3.1 → /api/v1. Lidarr answers /api/v3 with a 404 and
+#   an EMPTY BODY, which reads from the shell as "no root folders" rather than as a wrong URL. Pin it
+#   per app in `arr_seed_apps[].api_base`; never build one URL for "the *arr API".
 #
 # WHY THE KEY COMES FROM THE INSTANCE AND NOT FROM 1Password:
-#   `sonarr_api`/`radarr_api`/`lidarr_api` are the CONSUMER-side copies (recyclarr, lidarr-ydl)
-#   and they demonstrably drift — measured 2026-10-06 by sha256 of the values vs each live
-#   `config.xml` ApiKey: on 2026-10-06 sonarr + radarr matched and lidarr_api did NOT (a placeholder that
-#   was never overwritten); it was then deleted during vault de-duplication and re-minted from the live
-#   key, verified 2026-10-07 (32 chars, `X-Api-Key` → system/status = 200). All three match now, and the
-#   drift episode is exactly why the seed does not read the vault: seeding against a consumer-side copy
-#   would fail on an app that is otherwise perfectly healthy. Reading the instance's own key keeps the
-#   seed about the seed;
-#   the drift is tracked in docs/deployment-secrets.md + the HD-362 tail, not papered over here.
+#   `sonarr_api`/`radarr_api`/`lidarr_api` are CONSUMER-side copies (recyclarr, lidarr-ydl) and they
+#   demonstrably drift — a placeholder once sat in one of them while the app was healthy. Seeding
+#   against a consumer-side copy therefore fails an app that has nothing wrong with it. Read the
+#   instance's own `config.xml` ApiKey; the drift itself is tracked in docs/deployment-secrets.md.
 #
 # What this task does NOT do: it never creates or edits a quality profile. That is Profilarr/
 # Recyclarr's job (docs/services-media.md §Catalog); here a missing pinned profile is a LOUD
@@ -70,9 +62,9 @@
   no_log: true
   tags: [docker_services, arr_seed]
 
-# Same discovery shape as immich-seed.yml: docker emits a literal '\n' inside the Go template,
-# so space-delimit the addresses and take the first non-empty field. Host→container routing is
-# live on oldsrv since the docker-orphan-bridge cleanup (HD-318).
+# Same discovery shape as immich-seed.yml: docker emits a literal '\n' inside the Go template, so
+# space-delimit the addresses and take the first non-empty field. Host→container routing works on
+# oldsrv since the docker orphan-bridge cleanup.
 - name: "arr-seed: discover the {{ svc.name }} container IP"
   ansible.builtin.shell:
     cmd: >-

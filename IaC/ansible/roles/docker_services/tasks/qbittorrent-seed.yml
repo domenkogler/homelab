@@ -3,22 +3,18 @@
 # Included ONCE from docker_services/main.yml, gated on `template_dir == 'qbittorrent'` + the deploy
 # scope + `not ansible_check_mode` (it drives the live container; deployment-ansible.md §Dry-run).
 #
-# WHAT WAS MISSING (measured on oldsrv 2026-10-06, the torrent leg of HD-496): qBittorrent answered
-# `401 Unauthorized` to everything and its conf carried NO credential keys at all — mtime Sep 15, the
-# day the container was first built. That is not "auth is off, add the client and it works": with
-# `WebUI\Password_PBKDF2` empty qbit generates a NEW random 9-character password at every start
-# (src/app/application.cpp) and prints it to the container log, so a download client pointed at it
-# works until the next `docker compose up -d` and then 401s forever — and a converge recreates. Every
-# other setting was still the image's default too: `Session\DefaultSavePath=/downloads/` (flat — no
-# *arr root folder points there) and `categories.json` = `{}` (no category, so no per-category path).
+# WHAT THIS CLOSES: an empty `WebUI\Password_PBKDF2` makes qbit generate a NEW random 9-character
+# password at every start (printed to the container log), so a download client pointed at it works
+# until the next `docker compose up -d` and then 401s forever — and a converge recreates. The image
+# defaults are also wrong for this stack: `Session\DefaultSavePath=/downloads/` (flat — no *arr root
+# folder points there) and `categories.json = {}` (no category, so no per-category path).
 #
 # WHY A FILE SEED AND NOT ENV OR API: the linuxserver image translates exactly two env vars
-# (`WEBUI_PORT`, `TORRENTING_PORT`) — no credential, no paths, no categories. The API path is closed
+# (`WEBUI_PORT`, `TORRENTING_PORT`) — no credential, no paths, no categories. The API door is closed
 # from the outside for the same reason the UI door was: `app/login` needs the credential this file
-# creates, and `app/setPassword` needs the OLD one, which is the random one. So the conf is the door,
-# exactly the sabnzbd-seed.yml shape — and it has to be written while the container is STOPPED,
-# because qBittorrent rewrites `qBittorrent.conf` and `categories.json` on a clean exit and would
-# silently undo an edit made while it runs.
+# creates and `app/setPassword` needs the OLD (random) one. So the conf is the door, and it must be
+# written while the container is STOPPED — qBittorrent rewrites qBittorrent.conf and
+# categories.json on a clean exit and would silently undo an edit made while it runs.
 #
 # Idempotence is a VERIFY, not a presence check: the helper recomputes the stored PBKDF2 hash with
 # its own salt and compares, so a run whose vault value already matches stops nothing, and a rotation
@@ -33,7 +29,7 @@
       - qbit_save_path_completed | regex_replace('/+$', '') | length > 0
       - qbit_categories | length > 0
       - svc.secret_item | default('') | length > 0
-      - svc.secret_item | default('') in (vault | default({}))   # the bulk pre-pass fetched it (HD-258)
+      - svc.secret_item | default('') in (vault | default({}))   # the bulk pre-pass fetched it
     fail_msg: >-
       qBittorrent seed inputs are incomplete, or the vault item `{{ svc.secret_item | default('<unset>') }}`
       was not fetched by the 1P pre-pass. The credential has no default by design: an empty

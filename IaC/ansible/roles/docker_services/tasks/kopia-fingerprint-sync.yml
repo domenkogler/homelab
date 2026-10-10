@@ -1,22 +1,19 @@
 ---
-# kopia-fingerprint-sync.yml — HD-318a: seed/refresh the 1Password kopia-server
-# TLS trust anchor from the LIVE cert on the VPS kopia-server config bind.
+# kopia-fingerprint-sync.yml — seed/refresh the 1Password kopia-server TLS trust anchor from the
+# LIVE cert on the VPS kopia-server config bind.
 #
-# kopia 0.23.x clients (`kopia repository connect server`) hard-require https://
-# and a pinned --server-cert-fingerprint. The server serves a PERSISTED self-signed
-# cert (generated once by its boot script under /srv/docker/kopia-server/config/),
-# whose SHA-256 fingerprint is the trust anchor the oldsrv agent pins. The anchor
-# must be seeded into 1Password (`kopia-server_fingerprint`) because the two compose
-# templates read it via the shared `vault` dict — this task keeps the vault in sync
-# with the live cert (idempotent: no-op when the file matches the item).
+# kopia 0.23.x clients hard-require https:// plus a pinned --server-cert-fingerprint. The server serves
+# a PERSISTED self-signed cert (generated once by its boot script under
+# /srv/docker/kopia-server/config/), whose SHA-256 fingerprint is the trust anchor the oldsrv agent
+# pins. The anchor lives in 1Password (`kopia-server_fingerprint`) because both compose templates read
+# it through the shared `vault` dict; this task keeps the vault in sync with the live cert (no-op
+# when they already match).
 #
-# Runs on the VPS ONLY (kopia-server is VPS-resident) and only after the cert files
-# exist (kopia-server first start). Host-side write uses the SA token deployed by
-# prepass-authentik.yml to /etc/op/provision-token (HD-143 pattern, never in Git).
+# Runs on the VPS ONLY (kopia-server is VPS-resident) and only after the cert files exist. Host-side
+# write uses the SA token deployed to /etc/op/provision-token (never in Git).
 - name: "Wait for kopia-server TLS fingerprint file (container boot writes it, HD-318a)"
-  # slurp ERRORS (does not return a result) when the file is absent, so the retry is
-  # driven by a stat that tolerates absence until the container boot script has written
-  # tls-sha256 (kopia-server first start / restart).
+  # slurp ERRORS (returns no result) when the file is absent, so the retry is driven by a stat that
+  # tolerates absence until the container boot script has written tls-sha256.
   block:
     - name: "Stat kopia-server TLS fingerprint file"
       ansible.builtin.stat:

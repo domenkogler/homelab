@@ -1,28 +1,19 @@
 ---
-# op-provision-token.yml — deploy the write-scoped 1Password service-account token
-# (item `op-write_api`, HD-143 pattern) to a host that does NOT run Authentik.
+# op-provision-token.yml — deploy the write-scoped 1Password service-account token (item
+# `op-write_api`) to a host that does NOT run Authentik.
 #
-# Why this is its own file (HD-442, 2026-09-23). Before this, the ONLY writer of
-# /etc/op/provision-token was prepass-authentik.yml, which is gated on
-# `'authentik' in docker_services` AND hard-asserts that same condition — and
-# `authentik` exists only in group_vars/vps.yml. So a home host had NO code path that
-# could refresh its copy of the token, ever. What that cost, measured live 2026-09-23:
-#
-#   oldsrv  /etc/op/provision-token  (2026-09-15) → op item list → 403 Forbidden
-#           (Service Account Deleted)
-#   vps     /etc/op/provision-token  (2026-09-19) → op item list → returns rows
-#
-# Same vault item, opposite verdict: the ITEM is alive and the VPS simply received the
-# re-issued value; oldsrv kept a stale copy of a service account that was retired on the
-# 19th. The correct remedy is therefore NOT "mint a new service account" (HD-442 said
-# that, and it would have left the owner hunting a credential that already works) — it is
-# to give home hosts a path to the current value. A host that runs vault-writing glue
-# opts in with `docker_services_op_provision_token: true`.
+# Why this is its own file: prepass-authentik.yml was the ONLY writer of /etc/op/provision-token and it
+# is gated on `'authentik' in docker_services` — which only exists in group_vars/vps.yml — so a home
+# host had no code path that could ever refresh its copy. The item itself stays valid; the host simply
+# never receives the re-issued value, and a retired service account then 403s
+# "Service Account Deleted" while every converge stays green. The remedy is NOT a new service
+# account but a path to the current value: a host running vault-writing glue opts in with
+# `docker_services_op_provision_token: true`.
 #
 # Scope law preserved: this still requires `scope_is_all` (see main.yml) — a surgical
-# `--tags docker_services,<svc>` run must not move fleet credentials as a side effect.
-# `cockpit` and friends are in the HD-413 self-converge lockout set, so an oldsrv run of
-# this leg is issued FROM the laptop, never from oldsrv itself.
+# `--tags docker_services,<svc>` run must not move fleet credentials as a side effect. `cockpit` and
+# friends are in the self-converge lockout set, so an oldsrv run of this leg is issued FROM the
+# laptop, never from oldsrv itself.
 
 - name: Assert safe execution context (token deploy runs only as an allowed admin)
   ansible.builtin.assert:
@@ -43,15 +34,13 @@
   no_log: true
   tags: [docker_services]
 
-# Fail loud on validity, not on existence. Every consumer in this role tests
-# `[ -r /etc/op/provision-token ]` and then trusts the read — that posture is how a dead
-# credential survived eight days of green converges (HD-442). A read-only list call costs
-# one request and turns the whole class into a failed task instead of a silent no-write.
+# Fail loud on VALIDITY, not existence: every consumer here tests `[ -r /etc/op/provision-token ]` and
+# then trusts the read, which is exactly how a dead credential survives green converges. One read-only
+# list call turns that class into a failed task instead of a silent no-write.
 - name: "Probe the deployed token is actually accepted (HD-442)"
-  # Reads the file it just wrote rather than re-looking the secret up: keeps the token
-  # out of the task parameters (so this needs no no_log) and leaves the 403 text visible
-  # on failure — the diagnostic IS the point. Same incantation as run-authentik-glue.yml.
-  # `shell` is skipped under --check, so this stays check-mode safe.
+  # Reads the file it just wrote instead of re-looking the secret up: keeps the token out of the task
+  # parameters (so this needs no no_log) and leaves the 403 text visible on failure — the diagnostic
+  # IS the point. Same incantation as run-authentik-glue.yml; `shell` is skipped under --check.
   ansible.builtin.shell:
     cmd: |
       set -eu

@@ -1,5 +1,5 @@
 ---
-# prepass-authentik.yml — Authentik OIDC pre-pass (HD-162)
+# prepass-authentik.yml — Authentik OIDC pre-pass.
 # Runs BEFORE the per-service deploy loop in main.yml, on hosts where `authentik`
 # is in docker_services (the VPS public edge). Guarantees the OIDC secret-egress
 # glue has seeded the 1Password OIDC items BEFORE any consumer compose template
@@ -42,13 +42,11 @@
 
 # Deploy the host-side op SA token FROM THE VAULT (HD-143): this is the 1Password
 # WRITE-SCOPED service-account token the VPS's own op CLI uses (glue vault writes).
-# It is a DIFFERENT secret from `authentik-provision_api` (the Authentik-ISSUED API
-# token the glue sends as Bearer) — the first deploy conflated the two and broke the
-# glue (2026-08-22; see services-authentik.md "Authentication tokens").
-# Rotation = re-issue the SA token, update the op-write_api item + re-run this playbook.
-# 2026-09-19: the item was `vps-op-write_api`; the token model is now TWO service
-# accounts — `op_api` (read) and `op-write_api` (read+write) — both in Homelab-ansible,
-# so this lookup carries the general write-capable one rather than a VPS-only secret.
+# A DIFFERENT secret from `authentik-provision_api` (the Authentik-ISSUED API token the glue sends as
+# Bearer) — conflating the two breaks the glue; see services-authentik.md "Authentication tokens".
+# Rotation = re-issue the SA token, update the op-write_api item, re-run this playbook. The fleet has
+# TWO service accounts — `op_api` (read) and `op-write_api` (read+write) — and this lookup must carry
+# the write-capable one, not a host-specific copy.
 - name: "Deploy provision token for host-side op (HD-143)"
   ansible.builtin.copy:
     content: "{{ lookup('community.general.onepassword', 'op-write_api', field='credential', vault=op_vault) }}\n"
