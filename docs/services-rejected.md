@@ -38,6 +38,7 @@ tags: [services, rejected, decision-log]
 | Ghostfolio                                                         | rejected   | Actual's tracking account covers portfolio tracking                |
 | GoCardless (Nordigen)                                              | superseded | Enable Banking replaces it; free personal sign-ups discontinued    |
 | HD 630 iGPU (ANV/Vulkan) as rerank/embed/STT device                | rejected   | Slower than CPU, eats host RAM, busy as Xorg + QSV                 |
+| Headscale on oldsrv                                                | superseded | public by nature, co-located with the VPS edge                     |
 | `HostRegexp({host:.+})` as the `:80 → :443` redirect catch-all     | rejected   | v2 template matches nothing; plain `.+` works on v3                |
 | `HostRegexp({host:.+})` catch-all on spark service routes          | rejected   | Matches nothing on v3; serving rules must name the host            |
 | `kftof/bge-reranker-v2-m3-onnx-int8-avx2` as primary               | rejected   | 1.8× only without VNNI; CPU placement is rejected anyway           |
@@ -67,6 +68,7 @@ tags: [services, rejected, decision-log]
 | Rotating the Soulseek password from the diagnosis                  | dropped    | Risk accepted; transcript deleted, one account exposed             |
 | RustDesk server on oldsrv                                          | rejected   | A rescue tool must not sit behind what it rescues                  |
 | Signal as the fleet's alert delivery channel                       | superseded | Matrix `#homelab-alerts`; SMTP stays as fail-safe                  |
+| Silencing the systemd-ssh-generator vsock kmsg noise               | dropped    | console-only noise; blacklist and stub declined                    |
 | socat bridge for the DGX dashboard on the LAN                      | superseded | Replaced by the `spark-dashboard` file-provider sidecar            |
 | spark as the single local-inference tier                           | superseded | Pinned services moved to the oldsrv RX 7600                        |
 | spark's OOM CRIT threshold lowered to 5 GiB (`SPARK_OOM_CRIT_GIB`) | rejected   | 5 GiB sits below the last visible sample; kills read 1.6 GiB       |
@@ -84,6 +86,7 @@ tags: [services, rejected, decision-log]
 | Triton Inference Server as the spark engine                        | superseded | spark serves with vLLM                                             |
 | Uncapped CUDA graph capture in the vLLM profile                    | rejected   | Graphs above `max_num_seqs` strand ~7 GiB                          |
 | Vision-LLM leg on the oldsrv RX 7600 (Qwen3-VL 2B/4B)              | dropped    | VRAM ledger 8.4–11.9 GiB > 8 GiB; no arbiter, revisit gated        |
+| VPS deferred to Phase 2+                                           | superseded | public edge runs on the VPS from day one                           |
 | `whisper.cpp` GGML_HIP / ROCm build for STT                        | rejected   | No published ROCm artifact; a self-build with no Renovate trail    |
 | ZeroClaw (system-management agent) on the VPS                      | rejected   | Fleet credentials on the internet-facing host                      |
 | Zipline dashboard behind Authentik Forward-Auth                    | rejected   | Native OIDC; Forward-Auth would double-auth                        |

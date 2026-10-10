@@ -32,6 +32,7 @@ tags: [storage, rejected, decision-log]
 | Immich `library/` storage-template subpath                          | rejected   | flattens every asset into one directory                   |
 | Immich originals on the NAS                                         | superseded | the live Box (CIFS) is the originals tier                 |
 | immich's bundled PG 14 composite, in the 16 → 18 legs              | rejected   | ships PG 14 only; data_checksums blocks `--link`          |
+| Kopia snapshots of VPS db-backup dumps                              | dropped    | no Kopia client on the VPS; dumps are one copy            |
 | Local tdbsam Samba accounts (`pdbedit`)                             | superseded | its first rejection is void, re-adopted as the design     |
 | Manual music ingest: copy plus a privileged `mv`                    | superseded | the `music` share writes the Lidarr root directly         |
 | MinIO                                                               | dropped    | Immich originals are Box CIFS; the Box is not S3          |

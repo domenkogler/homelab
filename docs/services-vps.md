@@ -18,7 +18,7 @@ tags: [services, vps, netcup]
 > **Live** (Phase 1): all enabled services deployed behind real LE TLS
 > (wildcard `*.kogler.si`). Only the WG S2S tunnel stays ⏳ deploy-gated.
 
-### netcup edge firewall (SCP-verified, Wave-3)
+### netcup edge firewall (SCP-verified)
 
 - **Outgoing SMTP blocked** on ports **25 / 465 / 587** (netcup default anti-spam rule; DROP).
   → **VPS-originated mail must use an alternate submission port** — the SMTP2Go relay
@@ -35,7 +35,7 @@ tags: [services, vps, netcup]
   generator pass (boot + each `daemon-reload`, so every Ansible run repeats it) — netcup KVM
   exposes no vsock transport to the guest. TCP sshd (`:22`) and all services are unaffected;
   the lines go to kmsg/console only and are not retained in the journal. Known-noise, do not
-  chase (verified read-only).
+  chase (verified read-only); silencing via a `modprobe` blacklist or a generator stub is declined.
 
 ---
 
@@ -188,7 +188,7 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 entry (navidrome, matrix and zipline included) — `pgvector` was the one exception. `docker volume ls`
 → **11 volumes, all in use, 0 dangling**; 930 MB of local volume storage.
 
-| Item | Live state (probed 2026-09-21) | What would break if removed | Verdict |
+| Item | Live state | What would break if removed | Verdict |
 |------|-------------------------------|-----------------------------|---------|
 | `confident_shamir` — a hand-run `traefik:v3.7.11` with no networks, ports or compose labels | **Gone** — not in `docker ps -a` (which includes exited), and no unlabeled container exists on the host. Its image is still present because it *is* the pinned image of the real `traefik` container — in use, not orphaned | Nothing | **Nothing to remove** |
 | `pgvector` — project `pgvector`, `/opt/pgvector/docker-compose.yml`, image `pgvector/pgvector:0.8.6-pg16-trixie` | ✅ **RETIRED** — the one live project absent from `group_vars/vps.yml`; Qdrant superseded it ([services-rejected.md](services-rejected.md) row *PGVector as the RAG vector store*) | Nothing — probed empty: DB `pgvector` is 7.5 MB (= `template1` size) with **0 user tables**, `pg_extension` lists only `plpgsql` (the `vector` extension was never created), `pg_stat_activity` shows **no external client connections**, and no rendered compose references it — `db-backup`'s own header states "no pgvector/qdrant Postgres target exists to dump" | Render → `/opt/.retired-pgvector`, data → `/srv/docker/.retired-pgvector` (47 MB); delete both once the next green converge agrees (manual.md §1.12 step 6) |
