@@ -57,7 +57,7 @@ config never claimed.
 **Guard.** A profile names its pool in **bytes** (`--kv-cache-memory-bytes` — the only dial; this build
 ignores `gpu_memory_utilization` when the bytes flag is set), and the profile gate refuses a profile whose
 `fixed cost + pool` crosses the host-floor ceiling. The reserve the fix bought was a *projection*, and the
-projection was wrong (§#4/#5) — hence the standing rule in `spark-llm-profiles.md`: **never quote a
+projection was wrong (§Incidents #4/#5/#6) — hence the standing rule in `spark-llm-profiles.md`: **never quote a
 projection where the engine prints the number** (`Initial free memory` + `GPU KV cache size` from the boot
 log).
 
@@ -238,7 +238,7 @@ Two findings, both durable:
 The excursion that invites "just lower CRIT": usable fell to **3.43 GiB** while `MemAvailable` sat at a
 *normal* 8.20 GiB — the dip is `CmaFree` rising 0.15 → 4.77 GiB (the device taking CMA pages under traffic)
 with `psi_full` at 12.3 %. It needed no action because the in-flight wait deferred and traffic moved on, not
-because 3.4 GiB is comfortable: 1.8 GiB below it is the measured kill point (§#7/#8).
+because 3.4 GiB is comfortable: 1.8 GiB below it is the measured kill point (§Incidents #7/#8).
 
 **The live state of the guard.** `/usr/local/bin/spark-oom-watchdog.sh` matches the tree hash, the unit
 environment carries `SPARK_OOM_REARM_GIB=12`, the by-hand arm-off file
