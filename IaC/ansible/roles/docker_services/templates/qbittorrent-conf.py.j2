@@ -14,7 +14,7 @@ the play is root; writing in place preserves uid/gid + mode, and nothing here ch
 The WebUI password is read from **stdin**, never from argv: argv is world-readable in `ps` for the
 life of the process (CONVENTIONS §3 secret-output hygiene), and Ansible pipes it from a `no_log` var.
 
-WHY THESE FOUR VALUES ARE OWNED IN IaC (measured on oldsrv 2026-10-06):
+WHY THESE FOUR VALUES ARE OWNED IN IaC (measured on oldsrv):
 
 1. `WebUI\Password_PBKDF2` ABSENT is not a neutral state. qBittorrent mints a NEW random 9-character
    password on every start when the stored hash is empty
