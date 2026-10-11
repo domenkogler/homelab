@@ -62,7 +62,7 @@
       {{ seat_home }}/{{ seat_pi_web_bin }} does not exist — the cockpit
       package is not installed for {{ seat_user }}. Run
       `bash scripts/install-pi-debian.sh --cockpit` as {{ seat_user }}
-      (HD-446) and re-converge; do NOT create the file by hand.
+      and re-converge; do NOT create the file by hand.
 
 - name: seat | Ensure the seat package set
   # tmux belongs here as a package DECISION (the row's point: not a hand
