@@ -310,10 +310,9 @@ this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 �
 The global is the effective ceiling for 15 of the 16 profiles; `fast` carries its own
 `device_hold_ceiling_bytes: 112.70e9`, a **measured exception, not a re-cert** — a per-arm override is
 priced from that arm's own non-engine reserve plus the watchdog's WARN reserve, which is `fast`'s rule
-(row A below). **The value must exist
-in exactly one place**: a literal copy in a profile file or in a shared YAML anchor makes the global
-inert and silently voids any
-future re-derive (`spark-llm-render-matrix.py` shows what actually renders per profile).
+(row A below). **The value must exist in exactly one place**: a literal copy in a profile file or in a
+shared YAML anchor makes the global inert and silently voids any future re-derive
+(`spark-llm-render-matrix.py` shows what actually renders per profile).
 
 | candidate | B | derivation | consequence for the 15 arms gated by it |
 |---|---|---|---|
