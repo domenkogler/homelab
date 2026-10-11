@@ -47,7 +47,7 @@
       ansible.builtin.fail:
         msg: >-
           {{ spark_nvme_data_partition }} is mounted as the LIVE ROOT — refusing to partition/
-          mkfs. On DGX OS, nvme0n1p2 = ext4 / (HD-363); the XFS data partition must be a
+          mkfs. On DGX OS, nvme0n1p2 = ext4 /; the XFS data partition must be a
           DEDICATED p3 carved by the operator (offline shrink of p2). Set
           spark_nvme_data_partition to the real data partition, never the root FS.
       when: (data_part_mount.stdout | trim) == "/"
