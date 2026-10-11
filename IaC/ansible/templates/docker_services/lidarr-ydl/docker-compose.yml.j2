@@ -1,12 +1,10 @@
-# lidarr-ydl docker-compose.yml — Lidarr-YouTube-Downloader (HD-362, oldsrv)
+# lidarr-ydl docker-compose.yml — Lidarr-YouTube-Downloader (oldsrv)
 #   Acquisition priority #3 in the agreed music ladder (1 usenet / 2 Soulseek /
 #   3 YouTube): a Lidarr download-client that searches YouTube for missing albums
 #   (up to 320 kbps, MP3/M4A/Opus, full ID3 + cover art) and imports results into
 #   Lidarr. Upstream: Angrido/Lidarr-YouTube-Downloader — registers in Lidarr as a
 #   Newznab indexer + SABnzbd-emulating download client (search → grab → import
 #   fully automated). Bundles yt-dlp (via the sidecar).
-#   REPLACES: the earlier orpheusdl + standalone-yt-dlp plan (owner decision
-#   2026-09-14 — orpheusdl is a manual laptop pip tool, no IaC).
 #   docs: docs/services-media.md §Music Pillar · deployment-manual §Phase 3.
 #
 #   PLACEMENT: OLDSRV, INTERNAL-ONLY. Web UI narrow-bound to the oldsrv Home-IP port
@@ -28,9 +26,9 @@ services:
       - ALL
     cap_add:
       - CHOWN
-      - FOWNER   # HD-362 live: s6 chmods /home/appuser (image-internal, root-owned) after dropping to PUID — chmod on a dir the app user doesn't own needs FOWNER → "err: chmod 448 /home/appuser: Operation not permitted" otherwise
+      - FOWNER   # s6 chmods /home/appuser (image-internal, root-owned) after dropping to PUID; without it -> "chmod 448 /home/appuser: Operation not permitted"
       - SETUID
-      - SETGID   # HD-362 live: linuxserver s6 init chowns /config then setprivs to PUID/PGID; cap_drop ALL stripped these → "chown: changing ownership of '/config': Operation not permitted" crash-loop (linuxserver precedent, HD-318)
+      - SETGID   # linuxserver s6 init chowns /config before setprivs to PUID/PGID; without it -> "chown: changing ownership of '/config': Operation not permitted" crash-loop
     tmpfs:
       - /tmp
     networks:
@@ -45,7 +43,7 @@ services:
       PUID: "{{ storage_uid }}"
       PGID: "{{ storage_gid }}"
       UMASK: "002"
-      # Lidarr API: the instance key (1P; HD-362 — not the app UI creds).
+      # Lidarr API: the instance key (1P) — not the app UI creds.
       LIDARR_URL: "http://lidarr:8686"
       LIDARR_API_KEY: "{{ vault['lidarr_api'].credential | replace('$','$$') }}"
       # Container paths (mapped from the nas mounts below).
@@ -56,7 +54,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       - /srv/docker/lidarr-ydl/config:/config                 # app config + DB (kopia-agent scope)
-      - /srv/docker/lidarr-ydl/home:/home/appuser             # HD-362 live: the image has NO /home/appuser (RO layer); s6's per-user init does `> /home/appuser/.profile` as the app user → EACCES crash-loop. Writable bind fixes it; host dir pre-created 1005-owned (bind_owner_uid/bind_dirs below)
+      - /srv/docker/lidarr-ydl/home:/home/appuser             # the image has no writable /home/appuser (RO layer); s6's per-user init writes /home/appuser/.profile as the app user -> EACCES crash-loop. Writable bind fixes it; host dir pre-created 1005-owned (bind_owner_uid/bind_dirs below)
       - /mnt/nas/media/downloads/complete/music:/downloads     # TRaSH-style music save path
       - /mnt/nas/media/media/music:/music                      # Lidarr library (same as Lidarr)
 

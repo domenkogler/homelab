@@ -54,9 +54,9 @@ chmod 0440 /etc/sudoers.d/ansible-admin
 #    Drop-in (/etc/ssh/sshd_config.d) instead of appending to the main
 #    file: sshd uses FIRST-obtained-value-wins, and provider images
 #    (netcup) ship explicit "PasswordAuthentication yes" directives that
-#    would shadow any appended block (found live 2026-08-21 → HD-208;
-#    stock Debian puts Include *.conf at the TOP of sshd_config, so a
-#    drop-in always wins). Idempotent: skip if the drop-in exists.
+#    would shadow any appended block (stock Debian puts Include *.conf at
+#    the TOP of sshd_config, so a drop-in always wins). Idempotent: skip if
+#    the drop-in exists.
 # ---------------------------------------------------------------------
 DROPIN=/etc/ssh/sshd_config.d/00-homelab-hardening.conf
 if [ ! -f "$DROPIN" ]; then

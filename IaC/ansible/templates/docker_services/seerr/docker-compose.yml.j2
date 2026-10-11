@@ -2,7 +2,7 @@
 #   seerr.dev image. OWN LOGIN (no Authentik Forward-Auth — family non-admin users
 #   submit requests directly). Internal-only.
 #   SQLite (`seerr.db`) lives in /app/config → host path /srv/docker/seerr/config.
-#   KOPS-059 / HD-130: this config+DB IS in backup scope (docs/backup.md "Service state"
+#   This config+DB IS in backup scope (docs/backup.md "Service state"
 #   → tank/data/services via nightly push + Kopia). Single-file SQLite — reconfig ~15 min;
 #   isolated per-service under /srv/docker/seerr so its failure domain is the service only.
 #
@@ -14,7 +14,7 @@ services:
     image: seerr/seerr:{{ seerr_version }}
     cap_drop:
       - ALL
-    # read_only intentionally ABSENT (HD-318): the seerr image runs as `node:node`
+    # read_only intentionally ABSENT: the seerr image runs as `node:node`
     # (uid 1000) and needs to create /app/config/logs at startup; read_only root
     # made the bind-mounted /srv/docker/seerr/config un-writable (EACCES mkdir).
     # Dir ownership is enforced via bind_owner_uid: 1000 + bind_dirs on the entry.
@@ -26,7 +26,7 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      # Loopback publish so the host-net home edge can reach the backend.
       # seerrng (sibling, internal :5055 too) publishes on {{ seerrng_host_port }} — distinct
       # host ports so the two routes never serve the wrong app.
       - "{{ seerr_bind }}:{{ seerr_host_port }}:5055"
@@ -38,7 +38,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.seerr.rule: "Host(`seerr.kogler.si`)"
       traefik.http.routers.seerr.entrypoints: websecure
-      traefik.http.routers.seerr.middlewares: crowdsec-only@file   # CrowdSec block-list; own login, no Forward-Auth (KOPS-047 / HD-119)
+      traefik.http.routers.seerr.middlewares: crowdsec-only@file   # CrowdSec block-list; own login, no Forward-Auth
       {{ 'traefik.http.routers.seerr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       # NOTE: no authentik-forward-auth — Seerr has its own login
       traefik.http.services.seerr.loadbalancer.server.port: "5055"
