@@ -67,7 +67,7 @@
 - name: Order nut-server after the network is actually up (master)
   copy:
     content: |
-      # managed by Ansible — nut role (HD-467): upsd binds every LISTEN once at start-up,
+      # managed by Ansible — nut role: upsd binds every LISTEN once at start-up,
       # so it must not start before the Home-VLAN address exists.
       [Unit]
       Wants=network-online.target
@@ -388,7 +388,7 @@
     fail_msg: >-
       upsd is not listening on {{ nut_listen_ip }}:3493 even after one restart — bound
       sockets were [{{ (_nut_bind2.stdout | default(_nut_bind.stdout)).split() | join(' ') }}].
-      Every remote NUT consumer is getting Connection refused (HD-467).
+      Every remote NUT consumer is getting Connection refused.
   when:
     - nut_mode == 'master'
     - not ansible_check_mode
@@ -418,7 +418,7 @@
     fail_msg: >-
       upsd reported {{ _nut_ignored_kw.stdout }} "no longer supported" line(s) this boot: this
       tree writes a keyword the installed NUT parses but ignores — the restriction it looks like
-      is not in force. On 2.8 exposure = LISTEN addresses, privilege = upsd.users (HD-467).
+      is not in force. On 2.8 exposure = LISTEN addresses, privilege = upsd.users.
   when: nut_mode == 'master'
 
 # --- The client-side read that does not lie ---
@@ -444,7 +444,7 @@
     fail_msg: >-
       upsc powerwalker@{{ nut_host }} failed on {{ inventory_hostname }} (rc={{ _nut_leg.rc }},
       stdout='{{ _nut_leg.stdout | trim }}', stderr='{{ _nut_leg.stderr | trim }}') — this host is
-      NOT UPS-protected whatever `systemctl is-active nut-monitor` says (HD-467). For a
+      NOT UPS-protected whatever `systemctl is-active nut-monitor` says. For a
       deliberately-offline converge pass -e nut_require_master_leg=false.
   when:
     - nut_mode == 'client'
