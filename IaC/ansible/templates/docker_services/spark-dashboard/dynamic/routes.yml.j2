@@ -65,7 +65,7 @@ http:
     #   `spark.ts.kogler.si` — tailnet-only (headscale `dns.extra_records`, rendered by
     #                          `tailnet_ts_only_subdomains` in group_vars/vps.yml) → the VPS
     #                          tailnet edge → WG S2S → this edge
-    # Neither is a public record, by construction and by owner decision. TLS: both names are
+    # Neither is a public record, by construction. TLS: both names are
     # covered by the pulled `*.kogler.si` / `*.ts.kogler.si` pair in the default store. The
     # backend does not veto the Host (`:11000` with `Host: spark.kogler.si`
     # → 200), so no Host rewriting is needed here.
