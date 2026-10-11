@@ -2,15 +2,12 @@
 #
 # Vault-escape note: this file is consumed by recyclarr itself (NOT `docker compose`
 # interpolation), so `vault['<item>']` values pass through unchanged. Compose's `$`-substitution
-# only applies to compose files (HD-270/HD-233 lesson). Raw `vault['sonarr_api'].credential` /
+# only applies to compose files. Raw `vault['sonarr_api'].credential` /
 # `vault['radarr_api'].credential` here are safe — no `| replace('$','$$')` needed.
 #
-# SCHEMA (HD-318(b), corrected 2026-09-28): instances MUST be a NAMED mapping, not an array list.
-# Recyclarr v5.0 dropped array-style lists; this file stayed array-style, and every `@daily` run
-# since the image moved to 7.x was rejected at line 12 with
-#   `Found array-style list of instances instead of named-style` … `this config will be skipped`
-# — while `recyclarr sync` exited 0 anyway. Names are also unique ACROSS services, so the two
-# instances below cannot share one name (measured: `The specified instance names are duplicated`).
+# SCHEMA: instances MUST be a NAMED mapping, not an array list — Recyclarr 7.x rejects
+# array-style lists and SKIPS the config while `recyclarr sync` still exits 0. Instance
+# names are unique ACROSS services — the two instances below cannot share one name.
 #
 # WHAT THIS FILE IS NOT YET: a policy. The `quality_definition:` block is deliberately commented out
 # because enabling it REWRITES the live quality profiles inside Radarr and Sonarr, and no owner
