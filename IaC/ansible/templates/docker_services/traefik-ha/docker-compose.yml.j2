@@ -14,8 +14,8 @@
 #   - host networking: bind the VIP directly and reach local HA on the VIP; file
 #     provider only → no docker.sock needed.
 #   - ACME intentionally DISABLED on this edge (no certresolver configured): the
-#     wildcard cert pair is PULLED FROM THE VPS `traefik` (single ACME issuer,
-#     HD-178/HD-181) by the ha-cert-sync timer to ./certs → both routes stay
+#     wildcard cert pair is PULLED FROM THE VPS `traefik` (single ACME issuer)
+#     by the ha-cert-sync timer to ./certs → both routes stay
 #     TLS-valid even when WAN is down.
 #   - Scope: HA-availability + DNS-secondary-UI availability only. Other services'
 #     backends live on oldsrv and do NOT fail over to this edge.
@@ -46,8 +46,8 @@ services:
       - "--entrypoints.web.address={{ ha_vip }}:80"
       - "--entrypoints.websecure.address={{ ha_vip }}:443"
 {% if tailnet_pi_ip is defined and tailnet_pi_ip %}
-      # HD-435 (2026-09-25): HA over the TAILNET, node-direct — the away-from-home path that
-      # survives OLDSRV being down (it was L2-dead the first time this mattered, HD-455).
+      # HA over the TAILNET, node-direct — the away-from-home path that
+      # survives OLDSRV being down.
       # Bound to THIS node's own tailnet address and never 0.0.0.0: the ACL grants tcp/443 to
       # the node address, and a VIP/Home-address listener would open a second door on the LAN
       # that nobody asked for. Binding it before tailscaled is up is safe for the same reason
