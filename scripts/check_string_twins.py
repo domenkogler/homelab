@@ -43,18 +43,36 @@ them). B is never more than one wave old: STALE_AFTER_COMMITS refuses a staler o
 the per-file difflib alignment below degrades on a big feature commit and an old B turns
 refactors into false severs.
 
-Degradation, and why a refactor cannot produce a false sever -- a base occurrence's current
-side is decided in this order:
-    1  the exact base value still occurs somewhere in that file now -> unchanged (alignment
-       plays no part here, so a reordering can never invent a change);
-    2  otherwise the difflib opcode pairs it to a literal in the same SHORT local run (a
-       replace/delete block of <= LOCAL_RUN base literals, and the file as a whole still
-       anchored) -> the value it became, or GONE;
-    3  otherwise -> ALIGN-UNCERTAIN: excluded from the verdict, reported by name. A
-       mis-aligned file may never be the reason a twin is called severed; it is the reason the
-       gate says it could not tell.
-A purge is a short local run, so it is read exactly. A rewrite of 30 literals is not, so it
-gets reported rather than accused.
+Side states -- a base occurrence's current side is decided in this order:
+    1  PRESENT: the exact base value still occurs somewhere in that file now. Alignment plays
+       no part here, so a reordering can never invent a change, and this answer never has to
+       agree with what the alignment went on to say;
+    2  MOVED: the difflib opcode pairs it to a literal in the same SHORT local run (a
+       replace/delete block of <= LOCAL_RUN base literals, in a file that is still anchored) ->
+       the specific value it became. GONE is the same answer when nothing replaced it;
+    3  ABSENT-UNCERTAIN: the base value is gone from that file and the run around it is too
+       long to pair, so what took its place is unknown. Unknown content is still evidence -- it
+       proves the base bytes are NOT in that file any more;
+    4  ALIGN-UNCERTAIN: the file as a whole kept too few of its literal anchors (below
+       GLOBAL_RATIO), so nothing inside it is evidence. Excluded from the verdict and reported
+       by name -- a mis-aligned file may never be the reason a twin is called severed.
+
+The verdict, and why it needs no alignment for the case that matters. "Are these sides
+byte-identical now?" is answered by presence-in-file (state 1) wherever a side still carries
+the base bytes, which is the case a bulk purge in one file produces:
+  * any side PRESENT and any side that is not -> SEVERED, whatever the alignment says about the
+    other side. One file ships the base bytes, another no longer ships them at all, so no
+    pairing can make them equal and no uncertainty can be claimed: both sides are named as
+    file:line. A one-sided rename hidden inside a 10-literal run in an otherwise untouched file
+    is exactly this, and it used to read OK.
+  * no side PRESENT, and every side that can answer agrees on one value which every side's file
+    actually carries -> MOVED on every side in one commit: green, the documented good case.
+  * anything else -- a side whose content is unknown with no agreed value to look for, or a
+    group whose only sides are mis-aligned files -> NOT PROVEN: printed by name, exit 1. A gate
+    that cannot decide may not report OK, because a silent green on an undecidable group is the
+    same hole as a silent green on a sever.
+A purge is a short local run, so it is read exactly. A rewrite of 30 literals is not, so it is
+reported rather than accused -- but it is never silent.
 
 BLIND SPOTS, stated because a gate read as stronger than it is gets trusted wrongly:
   * payload only -- YAML block scalars, shell heredocs, Jinja-rendered values and `#` comment
@@ -71,9 +89,11 @@ BLIND SPOTS, stated because a gate read as stronger than it is gets trusted wron
 
 Run:   python3 scripts/check_string_twins.py [--control REV] [--families] [--show-baseline]
        python3 scripts/check_string_twins.py --self-test
-Exit:  0 clean; 1 severed twin(s), each side named as file:line; 2 the gate could not measure
-       (no full history, a baseline more than one wave old, a baseline file that does not
-       match the population it describes, an unreadable revision).
+Exit:  0 clean; 1 severed twin(s) and/or twin group(s) this run could not prove, each side named
+       as file:line; 2 the gate could not measure (no full history, a baseline more than one
+       wave old, a baseline file that does not match the population it describes, an unreadable
+       revision). Not proven is exit 1, never exit 0: it is a verdict the run reached, not a
+       refusal to run.
 Wired into scripts/validate-all.sh.
 """
 from __future__ import annotations
@@ -111,11 +131,15 @@ QUOTED_SUFFIXES = (".yml", ".yaml", ".py", ".sh", ".j2", ".rsc", ".json", ".cfg"
                    ".service", ".timer", ".conf", ".ps1", ".txt")
 
 GONE = "\x00gone"
-UNCERTAIN = "\x00uncertain"
+UNCERTAIN = "\x00uncertain"      # the FILE did not align: no vote, reported by name
+UNCLARABLE = "\x00unclarable"    # base bytes gone from the file, the run too long to pair it
 SIDE_NOTE = {GONE: "GONE (this side no longer carries the base value at all)",
-             UNCERTAIN: "ALIGN-UNCERTAIN (excluded from this group's verdict)"}
+             UNCERTAIN: "ALIGN-UNCERTAIN (excluded from this group's verdict)",
+             UNCLARABLE: "ABSENT-UNCERTAIN (this file no longer carries the base value and the "
+                         "run around it is too long to say what took its place)"}
 # A replace/delete run this long is not one local edit any more; the pairing inside it stops
-# being evidence and becomes ALIGN-UNCERTAIN.
+# being evidence about WHAT the side became. It stays evidence that the base bytes are no longer
+# in that file, which is the half of the verdict that needs no pairing: ABSENT-UNCERTAIN.
 LOCAL_RUN = 6
 # ...and a file that kept less than this share of its literal anchors is mis-aligned as a
 # whole, so no pairing inside it counts however short each individual run looks.
@@ -268,9 +292,11 @@ def load(repo: Path, rev: str | None, paths: list[str]) -> dict[str, list[tuple[
 def file_sides(base: list[tuple[int, str]], now: list[tuple[int, str]]) -> tuple[list[str], bool]:
     """One current side per base occurrence, in base order; second value = mis-aligned.
 
-    Order of proof is in the module docstring. `GONE` means the side no longer carries the
-    base value and the alignment says nothing replaced it there; `UNCERTAIN` means the file
-    moved too much for this run to answer, and it must never be counted as a change.
+    Order of proof is in the module docstring. `GONE` means the side no longer carries the base
+    value and a short run says nothing replaced it there; `UNCLARABLE` means the side no longer
+    carries the base value and the run is too long to say what did -- both still prove the base
+    bytes are absent from this file. `UNCERTAIN` means the FILE moved too much for any pairing
+    here to count, and it must never be counted as a change.
     """
     a = [v for _ln, v in base]
     b = [v for _ln, v in now]
@@ -284,11 +310,15 @@ def file_sides(base: list[tuple[int, str]], now: list[tuple[int, str]]) -> tuple
             for k in range(i2 - i1):
                 paired[i1 + k] = b[j1 + k]
             continue
-        trustworthy = (i2 - i1) <= LOCAL_RUN and not misaligned
+        if misaligned:
+            for k in range(i2 - i1):        # nothing inside a mis-anchored file is evidence
+                paired[i1 + k] = UNCERTAIN
+            continue
+        trustworthy = (i2 - i1) <= LOCAL_RUN
         span = min(i2 - i1, j2 - j1)
         for k in range(i2 - i1):
             if not trustworthy:
-                paired[i1 + k] = UNCERTAIN
+                paired[i1 + k] = UNCLARABLE   # absent here for sure, unknown as to what now
             elif k < span:
                 paired[i1 + k] = b[j1 + k]
     return [v if v in present else paired[i] for i, v in enumerate(a)], misaligned
@@ -311,12 +341,45 @@ def twins(base_lits: dict[str, list[tuple[int, str]]]) -> dict[str, list[tuple[s
     return {k: v for k, v in groups.items() if len({f for f, _ in v}) >= 2}
 
 
+def group_verdict(key: str, members: list[tuple[str, int, str]],
+                  carries: dict[str, set[str]]) -> str:
+    """'sever' | 'unproven' | 'ok' for one twin group -- presence first, difflib only after.
+
+    A side's content now is KNOWN when it is PRESENT (the base value), MOVED (the value the
+    alignment paired it to) or GONE (nothing); it is unknown only when the side is
+    ABSENT-UNCERTAIN, and even that proves the base bytes are not in that file. ALIGN-UNCERTAIN
+    sides take no part, exactly as GT built them: a file that did not anchor is reported, not
+    accused.
+    """
+    known = [None if s == UNCLARABLE else s for _f, _l, s in members if s != UNCERTAIN]
+    if not known:
+        return "unproven"                      # every side of this twin is in a mis-anchored file
+    here = sum(1 for k in known if k == key)
+    if here and here < len(known):
+        return "sever"                         # one file still ships it, another no longer does
+    decided = {k for k in known if k is not None}
+    if len(decided) > 1:
+        return "sever"                         # the sides that can answer answer differently
+    if all(k is not None for k in known):
+        return "ok"                            # all PRESENT, or all MOVED to one identical value
+    # Something cannot say what it became. Presence still settles it: if the sides that CAN
+    # answer agree on one value and every silent side's file carries that value, the sides are
+    # byte-identical now. If it does not, or no side can name a value at all, say so.
+    named = decided - {GONE}
+    if len(named) == 1:
+        value = next(iter(named))
+        if all(value in carries.get(f, set()) for f, _l, s in members if s == UNCLARABLE):
+            return "ok"
+    return "unproven"
+
+
 def evaluate(base_lits: dict[str, list[tuple[int, str]]],
              now_lits: dict[str, list[tuple[int, str]]]) -> dict:
     """The verdict on one base population read two ways. Pure: no git, no filesystem."""
     groups = twins(base_lits)
     sides: dict[str, list[tuple[str, int, str]]] = {}
     uncertain: list[str] = []
+    carries = {rel: {v for _ln, v in lits} for rel, lits in now_lits.items()}
     for rel, bl in base_lits.items():
         got, misaligned = file_sides(bl, now_lits.get(rel, []))
         if misaligned:
@@ -324,15 +387,15 @@ def evaluate(base_lits: dict[str, list[tuple[int, str]]],
         for (ln, v), side in zip(bl, got):
             sides.setdefault(v, []).append((rel, ln, side))
     severs: dict[str, list[tuple[str, int, str]]] = {}
-    undecidable = 0
+    unproven: dict[str, list[tuple[str, int, str]]] = {}
     for key, members in groups.items():
-        decided = [s for _f, _l, s in sides[key] if s != UNCERTAIN]
-        if not decided:
-            undecidable += 1
-        elif len(set(decided)) > 1:
+        verdict = group_verdict(key, sides[key], carries)
+        if verdict == "sever":
             severs[key] = sides[key]
-    return {"groups": groups, "severs": severs, "uncertain_files": sorted(uncertain),
-            "undecidable_groups": undecidable,
+        elif verdict == "unproven":
+            unproven[key] = sides[key]
+    return {"groups": groups, "severs": severs, "unproven": unproven,
+            "uncertain_files": sorted(uncertain),
             "files": len(base_lits), "literals": sum(len(v) for v in base_lits.values())}
 
 
@@ -433,9 +496,6 @@ def check(repo: Path, control: str | None = None) -> dict:
                      f"against {base_rev}. Their changed literals were checked for presence in "
                      f"the file only and never counted as severs:")
         lines += [f"      {f}" for f in result["uncertain_files"][:20]]
-        if result["undecidable_groups"]:
-            lines.append(f"      ({result['undecidable_groups']} group(s) had no decidable "
-                         f"side at all -- green here means not proven, not checked)")
     if result["severs"]:
         lines.append(f"FAIL: {len(result['severs'])} twin group(s) byte-equal at {base_rev} "
                      f"are not byte-identical now:")
@@ -445,10 +505,23 @@ def check(repo: Path, control: str | None = None) -> dict:
         lines.append("A twin is one fact in two places. Rename every side in this commit (the "
                      "base bytes win), or -- if the twin really is gone now -- re-baseline at "
                      "the wave tip so the population records that out loud.")
-        return {"rc": 1, "lines": lines, "severs": len(result["severs"]), "result": result}
+    if result["unproven"]:
+        lines.append(f"NOT PROVEN: {len(result['unproven'])} twin group(s) byte-equal at "
+                     f"{base_rev} cannot be shown byte-identical now: no side carries the base "
+                     f"bytes and at least one side cannot say what took them.")
+        for key, members in sorted(result["unproven"].items()):
+            lines.append(f"  unproven base value {key[:120]!r}")
+            lines += [f"      {f}:{ln}  {SIDE_NOTE.get(s, repr(s))}" for f, ln, s in members]
+        lines.append("Not proven is not OK. Re-baseline at the wave tip so the spelling the "
+                     "sides now agree on becomes the reviewed population, or put the base bytes "
+                     "back on every side -- a run that cannot decide a twin does not get to "
+                     "print OK about it.")
+    if result["severs"] or result["unproven"]:
+        return {"rc": 1, "lines": lines, "severs": len(result["severs"]),
+                "unproven": len(result["unproven"]), "result": result}
     lines.append(f"OK: {len(groups):,} string twins from {base_rev} are byte-identical on "
                  f"every side ({elapsed:.1f} s)")
-    return {"rc": 0, "lines": lines, "severs": 0, "result": result}
+    return {"rc": 0, "lines": lines, "severs": 0, "unproven": 0, "result": result}
 
 
 def _refuse(head: str, why: str) -> dict:
@@ -473,9 +546,9 @@ def divergent_family(repo: Path, base_rev: str) -> dict:
 
 
 def self_test() -> int:
-    """Seven cases. Three are planted, one is a real family in this repo, one is the positive
-    control, one is this tree, one is the degradation guard -- the properties the gate claims,
-    each built so it cannot pass by accident."""
+    """Ten cases. Six are planted, one is a real family in this repo, one is the positive
+    control, one is this tree -- the properties the gate claims, each built so it cannot pass
+    by accident."""
     fails: list[str] = []
 
     def record(name: str, ok: bool, said: str) -> None:
@@ -535,6 +608,50 @@ def self_test() -> int:
                                        ("IaC/b.yml", GONE)],
            f"rc={res['rc']} sides={sides}")
 
+    # viii-x: the shape a bulk purge produces, and the hole the P1 review proved. ONE literal of
+    # the twin changes inside a run LONGER than LOCAL_RUN in a file that kept all its other
+    # anchors, so the difflib pairing gives up on it and says ABSENT-UNCERTAIN. Presence does not
+    # give up: it knows the base bytes are no longer in that file.
+    anchored = "".join(f"- name: Anchor {i}\n" for i in range(20))
+    steps = "".join(f"- name: Step {i}\n" for i in range(9))
+    twin = "- name: Reboot the box (HD-1)\n"
+    moved_twin = "- name: Reboot the box now (HD-1)\n"
+    long_run = anchored + steps + twin
+    long_run_moved = anchored + "".join(f"- name: QStep {i}\n" for i in range(9)) + moved_twin
+    # a.yml's side is the SAME ABSENT-UNCERTAIN in viii, ix and x: the three differ only in what
+    # the other side did, so no change can make all three pass by being uniformly stricter.
+    a_side = file_sides(literals("IaC/a.yml", long_run),
+                        literals("IaC/a.yml", long_run_moved))[0][-1]
+    res = _fixture({"IaC/a.yml": long_run, "IaC/b.yml": twin}, {"IaC/a.yml": long_run_moved})
+    named = sorted(f"{f}:{ln}" for m in res["result"]["severs"].values() for f, ln, _s in m)
+    record("viii a sever inside a long run in an anchored file is red, every side named",
+           res["rc"] == 1 and a_side == UNCLARABLE and res["result"]["uncertain_files"] == []
+           and named == ["IaC/a.yml:30", "IaC/b.yml:1"],
+           f"rc={res['rc']} a_side={a_side!r} sides={named} "
+           f"uncertain={res['result']['uncertain_files']}: {' | '.join(res['lines'])[:160]}")
+
+    # ix is viii with the other side renamed too: nothing carries the base bytes, both files
+    # carry the one new value, and the run that could not pair either side still prints OK.
+    res = _fixture({"IaC/a.yml": long_run, "IaC/b.yml": twin},
+                   {"IaC/a.yml": long_run_moved, "IaC/b.yml": moved_twin})
+    record("ix   the same long run renamed on every side stays green, proven by presence",
+           res["rc"] == 0 and res["severs"] == 0 and res["result"]["unproven"] == {}
+           and file_sides(literals("IaC/a.yml", long_run),
+                          literals("IaC/a.yml", long_run_moved))[0][-1] == UNCLARABLE,
+           f"rc={res['rc']} severs={res['severs']} unproven={res['result']['unproven']}")
+
+    # x  no side carries the base bytes and no side can name the value that took them: the gate
+    # cannot decide, so it names the group and exits non-zero rather than printing OK.
+    res = _fixture({"IaC/a.yml": long_run, "IaC/b.yml": twin},
+                   {"IaC/a.yml": long_run_moved, "IaC/b.yml": ""})
+    named = sorted(f"{f}:{ln}" for m in res["result"]["unproven"].values() for f, ln, _s in m)
+    record("x    sides that all lost the base bytes with nothing to compare are NOT PROVEN",
+           res["rc"] == 1 and res["severs"] == 0
+           and list(res["result"]["unproven"]) == ["Reboot the box (HD-1)"]
+           and named == ["IaC/a.yml:30", "IaC/b.yml:1"],
+           f"rc={res['rc']} severs={res['severs']} unproven={list(res['result']['unproven'])} "
+           f"sides={named}")
+
     if fails:
         print(f"FAIL: check_string_twins.py self-test, {len(fails)} case(s) wrong:")
         for f in fails:
@@ -543,8 +660,9 @@ def self_test() -> int:
     print("OK: self-test -- a planted sever is named by file:line, a twin that moved on both "
           "sides is fine, a family that never agreed at base is outside the population, the "
           f"control revision still reads {CONTROL_SEVERS} and this tree reads 0, a mis-aligned "
-          "file is reported instead of accused, and the now side is the index rather than the "
-          "directory")
+          "file is reported instead of accused, the now side is the index rather than the "
+          "directory, a sever hidden inside a long change run is named by presence in the file, "
+          "and a group this run cannot decide comes back red instead of OK")
     return 0
 
 
