@@ -99,7 +99,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.onlyoffice.rule: "Host(`office.kogler.si`)"
       traefik.http.routers.onlyoffice.entrypoints: websecure
-      {{ 'traefik.http.routers.onlyoffice.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.onlyoffice.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       # NO Forward-Auth — ONLYOFFICE is a WOPI worker, not a user app. The
       # OpenCloud side (file.kogler.si) authenticates the user; this route needs the
       # WAF (crowdsec-only@file), same as the OpenCloud route, plus onlyoffice-csp@file
