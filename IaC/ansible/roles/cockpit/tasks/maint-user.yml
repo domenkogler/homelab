@@ -316,7 +316,7 @@
       task above — 401 means the credential or the group gate, 500 means the PAM line itself is
       malformed (it is being parsed as module arguments), no response means cockpit is not
       listening on 9090. This is the row's acceptance test; leaving it green without this is how
-      
+      a task sits "done but unusable".
   when:
     - not (ansible_check_mode | bool)
     - cockpit_maint_verify_login | default(true) | bool
