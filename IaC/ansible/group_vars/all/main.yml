@@ -549,14 +549,14 @@ network_static_hosts:
   - { name: ap-spalnica, vlan: 99, ip: "10.10.99.4", mac: "C4:AD:34:42:F1:7D", role: "hAP ac² (spalnica)" }
   - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "C4:AD:34:42:F0:B9", role: "hAP ac² (dnevna)" }
   - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }
-  - { name: ups,      vlan: 20, ip: "10.10.20.9", mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN, HD-338)" }
+  - { name: ups,      vlan: 20, ip: "10.10.20.9", mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN)" }
   - { name: nas,      vlan: 99, ip: "10.10.99.10", mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "HP MicroServer Gen8" }
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", mac: "1C:98:EC:0E:0D:3A", role: "nas iLO4 BMC" }
-  - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary (HD-299)" }
-  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary (HD-299)" }
-  - { name: spark,    vlan: 99, ip: "10.10.99.40", mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home, HD-367); static reservation" }
-  - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra, 2026-09-07" }
-  - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback, 2026-09-07" }
+  - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary" }
+  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary" }
+  - { name: spark,    vlan: 99, ip: "10.10.99.40", mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home); static reservation" }
+  - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra" }
+  - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback" }
   # Home VLAN 10
   - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
   # DHCP client-id = MAC (dhcp_client: mac) for the two DHCP-only Debian hosts (nas/oldsrv):
@@ -567,12 +567,12 @@ network_static_hosts:
   # so the existing RouterOS reservations bind (verified working pattern: knx/bosch/ups/ilo).
   # SSOT for the marker; converge template + network role both derive from it.
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "Cockpit/NFS/NUT master" }
-  - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS tertiary (HD-299; VRRP anchor)" }
-  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS secondary (HD-299; VRRP anchor)" }
+  - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS tertiary (VRRP anchor)" }
+  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS secondary (VRRP anchor)" }
   # spark MAC comes from the live DHCP lease at first boot (vlan10-home).
-  - { name: spark,    vlan: 10, ip: "10.10.1.40",  mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint, 2026-09-14)" }
-  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
-  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
+  - { name: spark,    vlan: 10, ip: "10.10.1.40",  mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint)" }
+  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — parked, dormant until HmIP-RFUSB bought" }
+  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — parked, dormant until HmIP-RFUSB bought" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
    # --- static-IP sweep: family/kids WiFi clients (Kogler SSID, VLAN 10) ---
    # These are the *controlled* family devices — the kids-control MAC-address-list
@@ -615,7 +615,7 @@ network_static_hosts:
   - { name: bosch-cooktop,       vlan: 20, ip: "10.10.20.22", mac: "68:A4:0E:2E:65:AE", wan_allow: true, role: "Bosch CSG656RB7... cooktop (cloud-IoT, WAN via flag)" }
   - { name: lg-ac1,              vlan: 20, ip: "10.10.20.23", mac: "2C:2B:F9:23:41:EC", wan_allow: true, role: "LG AC klima #1 (QCA4002) (cloud-IoT, WAN via flag)" }
   - { name: lg-ac2,              vlan: 20, ip: "10.10.20.24", mac: "2C:2B:F9:22:BA:DD", wan_allow: true, role: "LG AC klima #2 (QCA4002) (cloud-IoT, WAN via flag)" }
-  - { name: homematic-hap,       vlan: 20, ip: "10.10.20.25", mac: "00:1A:22:1E:F7:FD", wan_allow: true, role: "HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20, HD-325)" }
+  - { name: homematic-hap,       vlan: 20, ip: "10.10.20.25", mac: "00:1A:22:1E:F7:FD", wan_allow: true, role: "HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20)" }
   - { name: nvidia-shield,       vlan: 50, ip: "10.10.50.10", mac: "48:B0:2D:09:6F:90", role: "NVIDIA Shield (Media) — D2-confirmed" }
   - { name: nintendo-switch,     vlan: 50, ip: "10.10.50.11", mac: "E0:EF:BF:74:CE:07", role: "Nintendo Switch 2 (Media, D3)" }
 # Infrastructure / non-VLAN ranges (tunnels, overlays, Docker bridges) — rendered to
@@ -631,8 +631,8 @@ network_ranges:
   - { name: traefik-public,    cidr: "172.20.0.0/16",  purpose: "Docker bridge — Traefik edge ↔ exposed services" }
   - { name: services-internal, cidr: "172.21.0.0/16",  purpose: "Docker bridge — app ↔ app communication" }
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
-  - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LiteLLM ↔ its oldsrv LLM backends (the Vulkan pinned tier; Ollama is the embed fallback rung, decision #27), fully isolated (HD-59)" }
-  - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
+  - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LiteLLM ↔ its oldsrv LLM backends (the Vulkan pinned tier; Ollama is the embed fallback rung, decision #27), fully isolated" }
+  - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs; isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
    # Technitium PRIMARY on the VPS: DNS is a first-class public
   # resolvable tier — the VPS (always-on, WAN-reachable) hosts the DNS primary.
   # Dedicated overlay keeps the resolver isolated from edge/UI bridges (only the
@@ -642,7 +642,7 @@ network_ranges:
   - { name: dns-servers,       cidr: "172.25.0.0/24",  purpose: "Docker bridge — Technitium DNS primary (VPS) ↔ its Traefik edge; the container pin is tchnitium_dns_overlay_ip (client resolver = VPS public IP, dns_primary_ip) " }
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
   - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
-  - { name: modem-lan,         cidr: "192.168.1.0/24", purpose: "Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade (HD-302, live-fixed 2026-09-02 from the /32 that had no route) — for the twice-yearly PPPoE-redial dance." }
+  - { name: modem-lan,         cidr: "192.168.1.0/24", purpose: "Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade — for the twice-yearly PPPoE-redial dance." }
 
 # ==== WireGuard S2S: VPS ↔ router (wg-s2s, 10.255.40.0/30) — network-vpn.md ====
 # Single site-to-site tunnel: home RB4011 (peer .1) ↔ VPS (peer .2). The home router
