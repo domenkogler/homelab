@@ -40,7 +40,7 @@
       Supported: {{ (tailscale_host_deb_sha256_by_arch | default({}, true)).keys() | list }}.
       Add it from https://pkgs.tailscale.com/stable/tailscale_{{ tailscale_host_version }}_
       {{ tailscale_host_arch }}.deb.sha256 — do NOT relax this assert to reuse another arch's
-      checksum, that is the exact failure mode HD-435 hit.
+      checksum.
     quiet: true
 
 - name: Download the pinned tailscale host package (checksum-verified)
