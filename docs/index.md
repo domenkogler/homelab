@@ -141,7 +141,7 @@ docs/
 
 ├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, Qdrant — §3a = oldsrv pinned-AI plan of record (decision #27)
 ├── services-ai-rejected.md                AI-plane decision log (append-only; OpenViking rejected outright)
-├── services-ai-bench.md                   ★ Measured AI inference benchmarks on oldsrv (STT + rerank + embed device sweep, FP16/Q8_0 quant sweep, iGPU verdict, VRAM ledger) — evidence behind services-ai.md §9 #24/#25/#27
+├── services-ai-bench.md                   ★ Measured AI inference benchmarks on oldsrv (STT + rerank + embed device sweep, FP16/Q8_0 quant sweep, iGPU verdict, VRAM ledger) — evidence behind services-ai.md §9 #24/#27
 ├── pi-harness.md                          pi.dev workstation harness model config for spark — 262k ctx, thinking control, timeouts, lane rule
 │
 ├── storage.md                         ★ ZFS dataset tree, properties, replication (SSOT — authoring spec for the `storage` role)
