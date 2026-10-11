@@ -97,7 +97,7 @@
       changed_when: true
 
     # Host path, not `docker exec`: exec needs a running container, so a stop-then-exec seed dies at
-    # the edit task and leaves the downloader down (the sabnzbd-seed live lesson). Root writes in
+    # the edit task and leaves the downloader down. Root writes in
     # place; the files stay media:media because nothing here chowns.
     - name: "qbittorrent-seed: write credential + save paths + categories"
       ansible.builtin.command:
