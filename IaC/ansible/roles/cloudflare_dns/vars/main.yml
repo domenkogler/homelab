@@ -71,7 +71,7 @@ cloudflare_dns_records:
 # so there is a single IP source; a name belongs here only once the VPS edge answers it.
 # Reference the internet-facing set in docs/network-dns.md. `ha` stays unpublished: it is
 # internal-only, and a record the edge does not answer is a dead pointer.
-# the Phase-4 HA cutover. Revisit: tighten this list if an app is pulled.
+# Add `ha` at the HA cutover, when the VPS edge answers it. Revisit: tighten this list if an app is pulled.
   - { name: kogler.si, type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }   # apex - CF flattens
   - { name: sso,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
   - { name: git,       type: CNAME, value: vps.kogler.si, ttl: 300, proxied: false }
