@@ -153,5 +153,5 @@
       sshd -T after the change admits
       [{{ access_sshd_live.stdout | regex_findall('(?m)^allowusers (.+)$') | join(' ') }}]
       — none of {{ ansible_admin_users | join(', ') }}. Keep the session open and
-      fix the gate NOW (docs/security.md HD-413 rescue).
+      fix the gate NOW (docs/security.md).
   when: not ansible_check_mode
