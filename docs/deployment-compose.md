@@ -404,7 +404,7 @@ overlay can't write to a sibling. Cross-host reaches (`immich-app→immich-ml`,
 | litellm → ollama | VPS → oldsrv (WG) | **network isolation** (`llm-backend`, no native auth) | — | ✅ |
 | open-webui / openclaw → litellm | VPS | `LITELLM_MASTER_KEY` bearer | `litellm_api` | ✅ |
 | openclaw → opencloud (WebDAV) | VPS | OpenCloud **app-specific password** (scoped service user) | `openclaw-opencloud_api` | ✅ |
-| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ live-verified 2026-09-08 |
+| immich-app → immich-ml | VPS → oldsrv (WG) | native ML **API-key header** | `immich-ml-internal_api` | ✅ live-verified |
 | renovate → forgejo API | VPS | `RENOVATE_TOKEN` | `forgejo_api` | ✅ |
 | recyclarr → sonarr/radarr | oldsrv | API key | `sonarr_api` / `radarr_api` | ✅ |
 | db-backup → postgres (immich/opencloud/forgejo) | VPS | postgres password (`db-internal`) | `*_db` | ✅ |
