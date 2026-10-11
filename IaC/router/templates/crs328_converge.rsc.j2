@@ -94,7 +94,7 @@
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="Allow established/related input (switch)"
 add chain=input action=accept in-interface=vlan99-mgmt comment="Allow mgmt VLAN input (switch)"
-add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN (HD-53)"
+add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN"
 add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from non-mgmt"
 add chain=input action=drop comment="Drop all other input (switch lockdown)"
 
