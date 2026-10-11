@@ -482,9 +482,14 @@ _report() {
     degraded) echo "      ⚠ process creation is DEGRADED on this host (a quiet Win11 git-bash seat is 16-44 ms)."
               echo "        Another validate-all is forking with you, or a real-time AV scan is mid-flight: the"
               echo "        same 62 items cost 31 s quiet and 351 s with a second 24-way pool running (2026-10-10)." ;;
-    slow)     echo "      ℹ this host pays for FORKS, not validators — every leg costs ~1 process + its work."
-              echo "        Where forks are cheap the same gate is ~5x faster: wsl -d Debian bash -c"
-              echo "        'cd <clone> && bash scripts/validate-all.sh'  (7.9 s measured, same 62 items)." ;;
+    slow)     if [ "$IS_MSYS" = 1 ]; then
+                echo "      ℹ this host pays for FORKS, not validators — every leg costs ~1 process + its work."
+                echo "        Where forks are cheap the same gate is ~5x faster: wsl -d Debian bash -c"
+                echo "        'cd <clone> && bash scripts/validate-all.sh'  (7.9 s measured on ext4, same items)."
+              else
+                echo "      ℹ a Linux seat should be under ~1 ms/exec; at this rate something is intercepting"
+                echo "        process creation here (an AV scan, a heavily loaded host, or I/O on a 9P /mnt/ mount)."
+              fi ;;
   esac
   [ "$fails" -eq 0 ] || { printf '\n%d of %d items FAILED:\n' "$fails" "$ran"
     for i in "${!labels[@]}"; do
