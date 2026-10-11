@@ -1,8 +1,8 @@
 # stirling-pdf docker-compose.yml — PDF toolkit (pdf.kogler.si)
 #   Self-hosted PDF merge/split/compress/convert/number/OCR (Tesseract), family-facing.
-#   Replaces online PDF editors. docs/services.md (HD-58).
+#   Replaces online PDF editors. docs/services.md.
 #
-#   Auth (decided 2025-08-15): anonymous mode inside the app (SECURITY_ENABLELOGIN=false)
+#   Auth: anonymous mode inside the app (SECURITY_ENABLELOGIN=false)
 #   + Authentik Forward-Auth at the Traefik edge — same pattern as admin UIs. Native
 #   Stirling OIDC/SAML deliberately NOT used (beta; adds per-user roles we don't need).
 #   Exposure: internal-only — no public DNS/WAN; remote access only via Headscale VPN.
@@ -10,16 +10,15 @@
 #   OCR: TESSERACT_LANGS=eng+slv (English + Slovenian). The `-fat` image variant bundles
 #   all Tesseract language packs (incl. slv) — pinned via stirling_pdf_version.
 #   Stateless: all processing in-memory, nothing persisted to disk -> no volume/backup
-#   implication (HD-58). No host ports (HD-62); Traefik routes on traefik-public.
+#   implication. No host ports; Traefik routes on traefik-public.
 #
 #   Secrets: none required (anonymous app; edge auth = Authentik Forward-Auth).
 services:
   stirling-pdf:
     image: frooodle/s-pdf:{{ stirling_pdf_version }}
-    # HD-202 hardening RELAXED per-service (Wave-2/3 triage 2026-08-22): init.sh must run as
-    # ROOT to chown its tmp dir, create /home/stirlingpdfuser and symlink into /usr/local/bin,
-    # then drops to PUID 1000 - the exact pattern forgejo uses. Round-3 evidence: starting as
-    # uid 1000 cannot create those dirs at all.
+    # Hardening relaxed per-service: init.sh must run as ROOT to chown its tmp dir, create
+    # /home/stirlingpdfuser and symlink into /usr/local/bin, then drops to PUID 1000 — the
+    # same pattern forgejo uses. Starting as uid 1000 cannot create those dirs at all.
     user: "0:0"
     cap_add:
       - CHOWN
@@ -38,7 +37,7 @@ services:
       PUID: "1000"          # linuxserver-style runtime user (stateless; no shared data)
       PGID: "1000"
       SECURITY_ENABLELOGIN: "false"   # anonymous inside the app; Forward-Auth at edge
-      TESSERACT_LANGS: "eng+slv"      # OCR: English + Slovenian (HD-58)
+      TESSERACT_LANGS: "eng+slv"      # OCR: English + Slovenian
       APP_LOCALE: "sl-SI"             # Slovenian UI default
       SYSTEM_MAXFILESIZE: "100"       # MB limit per upload (family safety cap)
       METRICS_ENABLED: "true"         # /api/v1/metrics for optional Prometheus scrape
