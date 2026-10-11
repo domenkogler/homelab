@@ -24,7 +24,7 @@ tags: [services, media, arr, photos, streaming]
 > ⏳ **Prowlarr holds 0 indexers and 0 synced apps, so no request can be searched end-to-end** — the
 > request half of this stack is live (§Request → import wiring) and the acquisition half is not.
 >
-> ✅ **Immich SSO is live 2026-09-25** (`foto.kogler.si` → Authentik). The settings are NOT compose env:
+> ✅ **Immich SSO is live** (`foto.kogler.si` → Authentik). The settings are NOT compose env:
 > Immich v3 has no OAuth env vars, so `roles/docker_services/tasks/immich-seed.yml` PUTs them into the
 > service's own database config (why an env block is inert:
 > [deployment-oidc.md](deployment-oidc.md) §Immich). ⚠ Open: the only assets live on the native `admin`
@@ -136,7 +136,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 
 ## Request → import wiring (Seerr / SeerrNG → *arr → Jellyfin)
 
-> **Status: 🟢 live 2026-10-06** — configured through the UIs; the parts IaC can
+> **Status: 🟢 live** — configured through the UIs; the parts IaC can
 > own are seeded by [`tasks/arr-seed.yml`](../IaC/ansible/roles/docker_services/tasks/arr-seed.yml).
 > ⏳ What is still missing is upstream of all of it: **indexers** (§Catalog Prowlarr).
 
@@ -183,7 +183,7 @@ profile still exists and fails loudly when it does not.
 
 ## Subtitles — Bazarr app-state wiring
 
-> **Status: 🟢 live 2026-10-07** — Radarr + Sonarr + Jellyfin connected, provider and languages
+> **Status: 🟢 live** — Radarr + Sonarr + Jellyfin connected, provider and languages
 > set, `.srt` sidecars landing next to the media. ⏳ **None of it is in IaC.** Bazarr keeps its settings in
 > its own SQLite DB (`/srv/docker/bazarr/config/db/bazarr.db`; `config/config.yaml` is only a partial
 > mirror — `use_radarr` there can disagree with the running instance), so a from-zero
