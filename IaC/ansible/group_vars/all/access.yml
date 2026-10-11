@@ -58,7 +58,7 @@ access_admit_extra: []
 access_key_moves:
   - account: ansible-admin
     vault_item: domen_ssh
-    reason: "domen_ssh lives under domen, ruled 2026-09-25 (deployment-secrets.md)"
+    reason: "domen_ssh lives under domen (deployment-secrets.md)"
 
 # The admission gate. The PATH IS LOAD-BEARING: sshd keeps the FIRST value it
 # reads, so a drop-in that sorts later than an existing one is silently ignored.
