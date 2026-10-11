@@ -15,7 +15,7 @@
       profile. Valid: {{ spark_llm_profiles | dict2items | rejectattr('key', 'match', '^_') | map(attribute='key') | sort | join(' | ') }}
       (definitions: IaC/ansible/group_vars/spark.yml §LLM SERVING PROFILES;
       the dial: IaC/ansible/host_vars/spark.kogler.si.yml). A key beginning with `_` is a
-      MERGE ANCHOR of shared defaults (HD-489), not a servable profile.
+      MERGE ANCHOR of shared defaults, not a servable profile.
       (definitions: IaC/ansible/group_vars/spark.yml §LLM SERVING PROFILES;
       the dial: IaC/ansible/host_vars/spark.kogler.si.yml).
   tags: [spark, spark-llm-profile, llm]
@@ -55,7 +55,7 @@
       image='{{ spark_llm.image | default('<unset>') }}' →
       '{{ spark_llm_image_resolved | default('<unresolved>') }}'.
       An EMPTY image means the engine image has no pin yet — CONVENTIONS §7 forbids a
-      floating tag or a mutable alias on the serving path. For `ultrafast` (HD-489) empty is
+      floating tag or a mutable alias on the serving path. For `ultrafast` empty is
       the DESIGNED state until roles/spark-ultrafast-build has produced the patched lineage
       and the image ID it printed is recorded in group_vars/all/versions.yml (the ID is
       immutable; the build tag is a mutable alias and is never served). For `sglang`: verify
@@ -78,7 +78,7 @@
       — each one is a PIN in group_vars/all/versions.yml, never a path and never a tag),
       models_root={{ spark_llm.models_root }} / ple_host_root={{ spark_llm.ple_host_root }}
       (xfs = {{ spark_xfs_mount }} · os = {{ spark_models_dir_os }}, the root partition:
-      345 G free measured 2026-10-02, which is where the upstream arms live so that nothing
+      345 G free, which is where the upstream arms live so that nothing
       staged on XFS has to be deleted to make room for them),
       ple_host_base={{ spark_llm.ple_host_base }} (mount = under the XFS mount root, as the
       primitive-ai tables are; models = under the models dir. On `os` only `models` means
@@ -303,7 +303,7 @@
       Flags: spark_llm_profiles.{{ spark_llm_profile }}.args_extra in group_vars/spark.yml.
   tags: [spark, spark-llm-profile, llm]
 
-- name: Assert the CUDA-graph capture cap cannot exceed the decode batch (HD-380)
+- name: Assert the CUDA-graph capture cap cannot exceed the decode batch
   when: (spark_llm.max_cudagraph_capture_size | int) > 0
   ansible.builtin.assert:
     that:
@@ -312,7 +312,7 @@
       max_cudagraph_capture_size={{ spark_llm.max_cudagraph_capture_size }} exceeds
       max_num_seqs={{ spark_llm.max_num_seqs }} — graphs captured above the decode
       batch are unreachable AND strand memory in the single GB10 pool
-      (docs/spark-incidents.md, HD-380).
+      (docs/spark-incidents.md).
   tags: [spark, spark-llm-profile, llm]
 
 # ---- Uncertified profiles are a deliberate act ----
@@ -339,7 +339,7 @@
       an ORPHAN of the compose project. Before the flip:
       `docker compose -p spark-ai -f /opt/spark-ai/docker-compose.yml down
       --remove-orphans` on the box. The endpoint, served id and bearer key must stay
-      identical or every client breaks (HD-370 contract).
+      identical or every client breaks.
   tags: [spark, spark-llm-profile, llm]
 
 # ---- Artifacts: never download implicitly, never boot without ----
@@ -456,7 +456,7 @@
       {{ spark_llm_checkpoints.get(spark_llm.model_subdir, 'UNREGISTERED — a checkpoint this repo does not describe: measure its staged config.json and add it, do not bend a profile to match a guess') }}.
       A directory is not its name. `models_root`/`model_subdir` are per-profile, so pointing at
       another quantization's store renders green and then either dies at boot or, worse, silently
-      measures the wrong lane (HD-489 tail B10, 2026-10-06: `awq-mmap` carried `models_root: os`
+      measures the wrong lane (`awq-mmap` carried `models_root: os`
       for weights that `b1-awq` stages on XFS). Fix the profile, or stage what it names — NEVER
       edit spark_llm_checkpoints to agree with a directory nobody measured.
     success_msg: >-
