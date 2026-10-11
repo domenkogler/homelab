@@ -1,7 +1,6 @@
-# Ensure the wg-s2s peer AND private key are attached (systemd-257 networkd
-# workaround, HD-285): networkd applies the .netdev key unreliably and a peer-only
-# `wg setconf` clears the key; this oneshot applies the FULL conf (key + peer)
-# atomically and verifies both. Secret lives in /etc/wireguard/wg-s2s.conf (0640).
+# Ensure the wg-s2s peer AND private key are attached (systemd-257 networkd workaround):
+# networkd applies the .netdev key unreliably and a peer-only `wg setconf` clears it, so this
+# oneshot applies the FULL conf (key + peer, from /etc/wireguard/wg-s2s.conf 0640) atomically.
 #
 # Ordering: After=systemd-networkd.service (not -wait-online, which can stay stuck in
 # `activating` on this host — the script poll-waits for the interface instead).

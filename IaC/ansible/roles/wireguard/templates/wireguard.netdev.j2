@@ -1,10 +1,7 @@
 # WireGuard interface for the site-to-site tunnel (wg-s2s) — VPS side.
-# systemd-networkd .netdev — CREATE-ONLY (HD-285): networkd 257 applies a
-# [WireGuard] key but NEVER applies [WireGuardPeer], and it OWNS the iface:
-# any userspace `wg set peer` is removed within seconds. So networkd only
-# creates wg-s2s here (no key/peer); the wg-ensure-s2s-peer oneshot owns the
-# interface and applies key + peer (from wg-s2s.conf, 0640). The matching
-# .network is Unmanaged so networkd never re-configures the tunnel.
+# .netdev is CREATE-ONLY: networkd 257 applies a [WireGuard] key but NEVER [WireGuardPeer]
+# and OWNS the iface — userspace `wg set peer` is removed within seconds. networkd only here
+# creates wg-s2s; the wg-ensure-s2s-peer oneshot owns key + peer (.network: Unmanaged).
 [NetDev]
 Name={{ wg_interface }}
 Kind=wireguard

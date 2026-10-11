@@ -264,11 +264,9 @@ grafana_alert_rules:
       for: 5m
       expr: '(probe_ssl_earliest_cert_expiry{job="blackbox_http_probes"} - time()) < 86400*14'
       summary: !unsafe "TLS cert on {{ $labels.instance }} expires in under 14 days"
-      # KOPS-061: the Pi traefik-ha edge serves a pulled wildcard cert (ACME disabled) —
-      # alert before expiry so it is renewed on the VPS (the single ACME issuer) while it is up.
-      # noData=OK: probe_ssl_earliest_cert_expiry has ZERO series live (blackbox isn't
-      # emitting SSL expiry for these probes) — no-data must not fire "cert expiring".
-      # (This rule only becomes meaningful once blackbox emits the SSL series.)
+      # Pi traefik-ha serves a pulled wildcard cert (ACME disabled): alert before expiry so the
+      # VPS (single ACME issuer) renews it while up. noData=OK because blackbox emits no
+      # SSL-expiry series for these probes — no-data must not fire "cert expiring".
       noDataState: OK
       execErrState: Error
     - uid: host-load-high

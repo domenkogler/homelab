@@ -68,7 +68,7 @@
   # docker group ≈ root — only whitelisted admin users, never ai-debug
   when: ansible_user in ansible_admin_users
 
-# ---- Pi SD-card wear mitigation (HD-19) ----
+# ---- Pi SD-card wear mitigation ----
 - name: Configure Docker log driver for Pi (local, capped)
   ansible.builtin.copy:
     dest: /etc/docker/daemon.json

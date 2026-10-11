@@ -7,10 +7,9 @@ Requires=push-db-dumps.service
 After=push-db-dumps.service network-online.target
 
 [Service]
-# HALF TWO of the DB-dump leg (HD-468). Runs as ROOT deliberately: nas exports `/tank/data` with
-# root_squash,anonuid=1005, so root is mapped to `media` — the only identity that export accepts for
-# writing. Measured: running this as svc-backup gives `rsync [receiver] mkstemp … Permission
-# denied (13)` against a drwxr-xr-x media:media target.
+# Runs as ROOT deliberately: nas exports `/tank/data` with root_squash,anonuid=1005, so root
+# is mapped to `media` — the only identity that export accepts for writing. As svc-backup the
+# write fails with `rsync [receiver] mkstemp … Permission denied (13)`.
 Type=oneshot
 ExecStart=/usr/local/sbin/storage-push-db-dumps-push.sh
 TimeoutStartSec=1800

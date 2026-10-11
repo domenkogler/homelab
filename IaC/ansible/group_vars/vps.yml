@@ -144,7 +144,7 @@ docker_services:
   # CrowdSec Web UI (csui.kogler.si) — richer ops surface alongside Metabase.
   # INTERNAL-ONLY (NO public CNAME); Forward-Auth; LAPI watcher auth (crowdsec-webui_lapi_api).
   - { name: crowdsec-web-ui, template_dir: crowdsec-web-ui, subdomain: csui, public: false, enabled: true }
-  - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, public: true, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth (HD-230)
+  - { name: pairdrop,       template_dir: pairdrop,  subdomain: drop, public: true, enabled: true }   # PUBLIC P2P share — dual-host pairdrop+drop, crowdsec-only tier, NO forward-auth
   - { name: stirling-pdf,   template_dir: stirling-pdf, subdomain: pdf, public: true, enabled: true }
   - { name: renovate,       template_dir: renovate,  public: false, enabled: true }  # co-located with Forgejo/GitOps; the platform comes from the compose env, not renovate.json; see docs/deployment-renovate.md
   # Navidrome (music.kogler.si) — music server on the VPS; library
@@ -242,13 +242,13 @@ homepage_failover_button: false
 #     group (tailnet-only admin dashboards: stats/logs/csui/traefik/auto/
 #     dsh/pi-dev/vpn). Grafana (stats) is Domen's dashboard — never a family tile.
 #   - homepage_show_soon (default true): render the "Soon" roadmap group
-#     (Phase 3/4 deploy-gated apps as non-clickable description tiles).
+#     (deploy-gated apps as non-clickable description tiles).
 # Family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) are always shown.
 homepage_show_technical: true
 homepage_show_soon: true
 
-# HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the Phase-4 HA
-# cutover. Today nothing can populate the bearer-token file (no vault item, no
+# HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the HA cutover.
+# Today nothing can populate the bearer-token file (no vault item, no
 # monitoring render) and ha_vip serves no HA yet - a live job would just fail. Flip true at
 # the cutover with the HA long-lived-token item seeded, the Alloy compose mount added, and
 # the token path renamed off the retired product name: Alloy has NO mount for the path this

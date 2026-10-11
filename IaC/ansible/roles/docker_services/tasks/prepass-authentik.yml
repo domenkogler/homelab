@@ -40,7 +40,7 @@
     mode: '0755'
   tags: [authentik, secret-egress]
 
-# Deploy the host-side op SA token FROM THE VAULT (HD-143): this is the 1Password
+# Deploy the host-side op SA token FROM THE VAULT: this is the 1Password
 # WRITE-SCOPED service-account token the VPS's own op CLI uses (glue vault writes).
 # A DIFFERENT secret from `authentik-provision_api` (the Authentik-ISSUED API token the glue sends as
 # Bearer) — conflating the two breaks the glue; see services-authentik.md "Authentication tokens".
