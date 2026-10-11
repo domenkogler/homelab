@@ -30,7 +30,7 @@
     mode: '0755'
   tags: [amd_rocm]
 
-- name: Install AMD GPU firmware + Debian-native ROCm host userspace (HD-318)
+- name: Install AMD GPU firmware + Debian-native ROCm host userspace
   # Debian trixie packages only — no external AMD repo. The amd_rocm_repo/amd_rocm_suite
   # vars are unused here (legacy, flagged for removal).
   ansible.builtin.apt:
@@ -61,7 +61,7 @@
 # The ollama CONTAINER owns OLLAMA_KEEP_ALIVE through its own compose template
 # (`docker_services/ollama`, same `ollama_keep_alive` var), so a host-level /etc/environment
 # copy changes nothing. state: absent so an already-installed stale line is taken off the box.
-- name: Remove the obsolete host-level OLLAMA_KEEP_ALIVE (HD-404; the container env owns it)
+- name: Remove the obsolete host-level OLLAMA_KEEP_ALIVE (the container env owns it)
   ansible.builtin.lineinfile:
     path: /etc/environment
     regexp: '^OLLAMA_KEEP_ALIVE='
