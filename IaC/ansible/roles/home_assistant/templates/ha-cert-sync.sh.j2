@@ -1,7 +1,7 @@
 #!/bin/bash
 # Managed by Ansible — home_assistant role (Pi). Pull the wildcard *.kogler.si
-# cert pair from the VPS traefik (the SINGLE ACME issuer, HD-178/HD-181 — decided
-# HD-204: every consumer pulls from the VPS directly, no relay) into traefik-ha's
+# cert pair from the VPS traefik (the SINGLE ACME issuer; every consumer pulls from the
+# VPS directly, no relay) into traefik-ha's
 # certs, keeping the Pi edge TLS-valid offline. The last synced copy stays valid when
 # the WAN/VPS is down (ACME cannot renew, but does not need to). Runs as root via
 # ha-cert-sync.service (key at /root/.ssh/ha-sync).
@@ -12,7 +12,7 @@ SRC="ansible-admin@${SRC_HOST}:/opt/traefik/certs/"
 DST="/opt/traefik-ha/certs/"
 SSH="ssh -i /root/.ssh/ha-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 
-# Self-pull guard (HD-450): refuse to run when SRC is one of this host's own addrs — a
+# Self-pull guard: refuse to run when SRC is one of this host's own addrs — a
 # drifted SRC would "succeed" while the pair on disk rots toward expiry.
 if ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | grep -qx "$SRC_HOST"; then
     echo "FATAL: ha-cert-sync SRC host $SRC_HOST is a LOCAL address on $(hostname) — the" >&2
@@ -23,5 +23,5 @@ fi
 
 mkdir -p "$DST"
 # Exclude dump/ — ACME private keys live there (root-only, must never leave the
-# issuer, HD-178 single-issuer); the Pi edge serves TLS from the public .pem pair only.
+# issuer, single-issuer); the Pi edge serves TLS from the public .pem pair only.
 rsync -az --delete --exclude='dump/' -e "$SSH" "$SRC" "$DST"
