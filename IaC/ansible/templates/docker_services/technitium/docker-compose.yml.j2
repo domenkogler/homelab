@@ -82,7 +82,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.dns.rule: "Host(`dns.kogler.si`)"
       traefik.http.routers.dns.entrypoints: websecure
-      {{ 'traefik.http.routers.dns.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.dns.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.dns.middlewares: authentik-forward-auth@file   # internal-only (public edge rejects it; tailnet via clean names)
       # Pin the web-UI backend port: the container exposes both 53/tcp and 5380/tcp and Traefik
       # auto-picks the LOWEST exposed numeric port (53 = DNS), which proxies HTTP to it and 502s
