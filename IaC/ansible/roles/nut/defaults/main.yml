@@ -96,4 +96,4 @@ nut_signal_helper: ""
 homelab_lockout_exempt_reason: >-
   Installs a validated sudoers grant that lets the NUT driver halt the host on power loss; no
   converge path invokes it, so it cannot sever the session, and its own rescue is the UPS/WoL
-  drill (HD-06) rather than SSH.
+  drill rather than SSH.
