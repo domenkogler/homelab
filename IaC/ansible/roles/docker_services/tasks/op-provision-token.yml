@@ -2,9 +2,9 @@
 # op-provision-token.yml — deploy the write-scoped 1Password service-account token (item
 # `op-write_api`) to a host that does NOT run Authentik.
 #
-# Why this is its own file: prepass-authentik.yml was the ONLY writer of /etc/op/provision-token and it
-# is gated on `'authentik' in docker_services` — which only exists in group_vars/vps.yml — so a home
-# host had no code path that could ever refresh its copy. The item itself stays valid; the host simply
+# Why this is its own file: the other writer of /etc/op/provision-token, prepass-authentik.yml, is
+# gated on `'authentik' in docker_services` — which only exists in group_vars/vps.yml — so a home
+# host has no code path that can ever refresh its copy. The item itself stays valid; the host simply
 # never receives the re-issued value, and a retired service account then 403s
 # "Service Account Deleted" while every converge stays green. The remedy is NOT a new service
 # account but a path to the current value: a host running vault-writing glue opts in with

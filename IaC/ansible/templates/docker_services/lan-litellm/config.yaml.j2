@@ -9,7 +9,7 @@
 #
 #   model_list is NOT rendered here. With STORE_MODEL_IN_DB=true the
 #   model catalog lives in the lan-litellm-db Postgres runtime and is Admin-UI-managed
-#   (git drift accepted by owner decision — services-ai.md §9 decision 13). The SPARK
+#   (git drift accepted — services-ai.md §9 decision 13). The SPARK
 #   generation model (spark/qwen3.8-flash-next) is ALSO a runtime entry in THIS DB —
 #   `base_url: https://llm.kogler.si/v1` (LAN name → spark_home_ip → spark's own :443
 #   name edge → engine :8000) and NO api_key — the bearer arrives from the container's

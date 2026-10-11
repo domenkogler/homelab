@@ -7,7 +7,7 @@
 #   - type:    A | AAAA | TXT | CNAME | SRV | MX
 #   - value:   record value (IP for A/AAAA, target/string for others)
 #   - ttl:     TTL seconds (default 300)
-#   - proxied: only for A/AAAA/CNAME (we use DNS-only, so false vs. Cloudflare proxy)
+#   - proxied: only for A/AAAA/CNAME (DNS-only here, so false vs. Cloudflare proxy)
 #
 # Only the internet-facing subset belongs here: internal-only hosts get NO public record
 # (the WAN firewall blocks them). Reference set: docs/network-dns.md.

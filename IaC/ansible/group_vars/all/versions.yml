@@ -124,14 +124,14 @@ sunshine_version: "v2026.914.233613-ubuntu-24.04"  # lizardbyte/sunshine (distro
 
 # ==== DNS / network ====
 technitium_version: "15.6.0"               # technitium/dns-server (shared by the primary + the Pi instance)
-pihole_version: "2026.09.0"                # pihole/pihole (calver v6 line) — service RETIRED; pin kept for re-enable + the Renovate trail
+pihole_version: "2026.09.0"                # pihole/pihole (calver v6 line) — service not deployed; pin kept for re-enable + the Renovate trail
 
 # ==== Utilities / dashboards ====
 dozzle_version: "v11.2.0"                  # amir20/dozzle (MAJOR 10 → 11)
 homepage_version: "v2.4.0"                 # ghcr.io/gethomepage/homepage (MAJOR 1 → 2)
                                            # ⚠ v2 reads the same `config/services.yaml`; re-render the
                                            #   homepage config and check every widget after the converge.
-metabase_version: "v0.63.19.1"             # metabase/metabase — service retired off the VPS; pin kept current
+metabase_version: "v0.63.19.1"             # metabase/metabase — service not deployed; pin kept current
 signal_cli_rest_api_version: "0.101"   # bbernhard/signal-cli-rest-api — the stable channel is `0.NNN`;
                                        # `0.2NN-dev` is the DEV channel. A `-dev` tag here puts the
                                        # whole fleet on a development build.
@@ -217,7 +217,7 @@ docling_version: "v1.36.0"   # ⚠ a bump that drops a baked
                               # tesseract-`sl` legs after the converge.
 # LiteLLM (LLM gateway spine) image tag — AI-stack. Check tag existence on
 # ghcr.io/berriai/litellm AND through the docker.litellm.ai pull path the compose
-# uses. ⚠ Upstream's scheme is plain `vX.Y.Z`: the `-stable` suffix is retired upstream, so a
+# uses. ⚠ Upstream's scheme is plain `vX.Y.Z`: the `-stable` suffix does not exist upstream, so a
 # tag carrying it resolves to nothing and the pin lags the gateway clients call. Renovate tracks it.
 litellm_version: "v1.104.0"
 # Bundled LiteLLM Postgres sidecar image tag (STORE_MODEL_IN_DB). Renovate-tracked.

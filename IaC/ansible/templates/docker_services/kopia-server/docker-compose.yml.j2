@@ -14,8 +14,8 @@
 #                              password (kopia quirk); the password is written
 #                              plaintext to server.htpasswd at 0600.
 #   Backup-box SFTP connection (NOT a secret item): SSH-key auth via `Hertzner-SB-Backup` (1Password connection
-#   ref); host/user/port/path from `kopia_sftp_*` in group_vars/all/. No kopia-sftp_api item, and the legacy
-#   kopia-s3_api (iDrive e2 S3) is retired.
+#   ref); host/user/port/path from `kopia_sftp_*` in group_vars/all/. There is no kopia-sftp_api item
+#   and no kopia-s3_api item (iDrive e2 S3 is not a backend here).
 #   Config vars (group_vars/all/):
 #     kopia_sftp_host, kopia_sftp_port, kopia_sftp_user (backup box u653424, port 23)
 #

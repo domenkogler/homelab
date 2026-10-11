@@ -6,7 +6,7 @@
 #
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #   privado-vpn_api  (API Credential: WIREGUARD_PRIVATE_KEY — the ONLY secret)
-# VPN provider: custom WireGuard. gluetun DROPPED the native `privado`
+# VPN provider: custom WireGuard. The gluetun image has no native `privado`
 #   provider, so gluetun runs in `custom` mode and the endpoint is supplied
 #   explicitly. NON-secret endpoint/address values come from group_vars
 #   home_servers.yml (privado_vpn_* SSOT) — see docs/services-downloads.md.
@@ -31,7 +31,7 @@ services:
       # route's torrent-backend must target {{ qbittorrent_host_port }}, not :8080.
       - "{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}:8080"
     environment:
-      VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` → explicit endpoint
+      VPN_SERVICE_PROVIDER: custom        # no native `privado` provider → explicit endpoint
       VPN_TYPE: wireguard
       # [Peer] Endpoint — gluetun custom requires an IP literal (no DNS, qdm12/gluetun#2680)
       WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"

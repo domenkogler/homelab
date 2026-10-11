@@ -113,7 +113,7 @@
       CPU-offload env.
   tags: [spark, spark-llm-profile, llm]
 
-# ---- The never-evict prompt pin: rejected; both asserts below stay armed ----
+# ---- The never-evict prompt pin: disabled; both asserts below stay armed ----
 # --never-evict-kv-cache-prompt-includes pins every KV block whose prompt contains the
 # substring, up to --never-evict-kv-cache-max-fraction of the POOL — pool the pin does not
 # earn back. Every profile inherits an EMPTY spark_llm_never_evict_prompt, so the template
@@ -122,8 +122,8 @@
 # boot, and they must keep firing if anyone re-arms it:
 #   · a placeholder matches nothing (invisible no-op) or everything (a pool leak);
 #   · the argument exists ONLY in the patched image lineage — on any other image api_server
-#     exits at parse time and the container crash-loops. Live: reasoning restarts=105,
-#     overnight run 20261004-0804. scripts/check_spark_llm_gate.py canary-proves both.
+#     exits at parse time and the container crash-loops.
+#     scripts/check_spark_llm_gate.py canary-proves both.
 - name: Assert no profile ships a placeholder into the engine argv
   ansible.builtin.assert:
     that:

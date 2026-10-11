@@ -24,10 +24,10 @@
 #   ollama-library names do NOT):
 #     bge-m3                           — embeddings (1024-dim, Qdrant RAG, docs/services-ai.md §5b) [library]
 #                                        KEPT: the fallback rung under the Vulkan embed leg.
-#   RETIRED — still on disk under /srv/models/ollama, but not served and not referenced
+#   On disk under /srv/models/ollama but not served and not referenced
 #   by the LiteLLM catalog:
-#     sendmeaiohyeah/whisper-large-v2  — STT → now whisper.cpp Vulkan (docs/services-ai.md §3a)
-#     qllama/bge-reranker-v2-m3:q8_0   — rerank → now llama.cpp Vulkan (docs/services-ai.md §3a)
+#     sendmeaiohyeah/whisper-large-v2  — STT is served by whisper.cpp Vulkan (docs/services-ai.md §3a)
+#     qllama/bge-reranker-v2-m3:q8_0   — rerank is served by llama.cpp Vulkan (docs/services-ai.md §3a)
 #   (Cleanup: `ollama rm <name>` for both once the Vulkan legs are live — ~4 GB of the
 #   nvme/models dataset that nothing reads any more. A runbook step, never a converge.)
 #
