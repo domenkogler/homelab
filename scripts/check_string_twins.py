@@ -39,7 +39,8 @@ identifier lint: the population is a pure function of (baseline_rev, the extract
 scope), so moving B or narrowing the extractor changes the digest, and the run refuses to
 pretend the population is still the one that was reviewed. Re-baseline at a wave tip -- B :=
 wave tip, deliberately, in a commit that publishes all three values (`--show-baseline` prints
-them). B is never more than one wave old: STALE_AFTER_COMMITS refuses a staler one, because
+them, and one extra `proven-by-presence:` line that is a run statistic, never a fourth field to
+paste back). B is never more than one wave old: STALE_AFTER_COMMITS refuses a staler one, because
 the per-file difflib alignment below degrades on a big feature commit and an old B turns
 refactors into false severs.
 
@@ -66,11 +67,18 @@ the base bytes, which is the case a bulk purge in one file produces:
     file:line. A one-sided rename hidden inside a 10-literal run in an otherwise untouched file
     is exactly this, and it used to read OK.
   * no side PRESENT, and every side that can answer agrees on one value which every side's file
-    actually carries -> MOVED on every side in one commit: green, the documented good case.
+    actually carries -> MOVED on every side in one commit: green, the documented good case. This
+    is the one place the gate decides a group it cannot align: the sides that cannot say what
+    they became are settled by looking for the agreed value in their own file.
   * anything else -- a side whose content is unknown with no agreed value to look for, or a
     group whose only sides are mis-aligned files -> NOT PROVEN: printed by name, exit 1. A gate
     that cannot decide may not report OK, because a silent green on an undecidable group is the
     same hole as a silent green on a sever.
+Both presence tests -- PRESENT and the agreed-value test above -- mean the bytes appear SOMEWHERE
+IN THAT FILE, at any line, in any literal. That is the whole strength and the whole limit of
+them: a side whose copy of the string survived but moved into an unrelated context, or turned up
+as some other literal in the same file, reads green. The run counts the groups it settled this
+way and prints `proven-by-presence: N`; a jump in N is what a widening of this rule looks like.
 A purge is a short local run, so it is read exactly. A rewrite of 30 literals is not, so it is
 reported rather than accused -- but it is never silent.
 
@@ -83,9 +91,14 @@ BLIND SPOTS, stated because a gate read as stronger than it is gets trusted wron
     view of them and cannot fail the run, because a normalized bucket under-reports -- the
     audit's normalized buckets missed a real sever until a paren-dropping variant was added --
     so a verdict built on that number would be decoration.
-  * a twin renamed on every side in one commit leaves the population: the new spelling is not
-    keyed at B, so the gate is blind to it until the next re-baseline. That is the price of
-    having no allowlist.
+  * a twin renamed on every side in one commit is no longer keyed at B -- the new spelling is
+    not a base value, so PRESENT can never fire for it again and the group is judged from here
+    on by what the alignment pairs and by the agreed-value presence test above. A later one-sided
+    rename of the NEW spelling is still caught when any side can name a value or still carries
+    the one the others agree on; when nothing can, the group comes back NOT PROVEN rather than
+    green. What stays genuinely blind is the presence limit stated above: the gate compares bytes
+    a file carries, never the position they sit at, and it has no allowlist to make up the
+    difference.
 
 Run:   python3 scripts/check_string_twins.py [--control REV] [--families] [--show-baseline]
        python3 scripts/check_string_twins.py --self-test
@@ -343,13 +356,15 @@ def twins(base_lits: dict[str, list[tuple[int, str]]]) -> dict[str, list[tuple[s
 
 def group_verdict(key: str, members: list[tuple[str, int, str]],
                   carries: dict[str, set[str]]) -> str:
-    """'sever' | 'unproven' | 'ok' for one twin group -- presence first, difflib only after.
+    """'sever' | 'unproven' | 'ok' | 'presence' for one twin group -- presence first, difflib
+    only after.
 
     A side's content now is KNOWN when it is PRESENT (the base value), MOVED (the value the
     alignment paired it to) or GONE (nothing); it is unknown only when the side is
     ABSENT-UNCERTAIN, and even that proves the base bytes are not in that file. ALIGN-UNCERTAIN
     sides take no part, exactly as GT built them: a file that did not anchor is reported, not
-    accused.
+    accused. 'presence' is an ok decided by the agreed-value test, counted separately because it
+    is the one decision here that does not come from the alignment.
     """
     known = [None if s == UNCLARABLE else s for _f, _l, s in members if s != UNCERTAIN]
     if not known:
@@ -369,7 +384,7 @@ def group_verdict(key: str, members: list[tuple[str, int, str]],
     if len(named) == 1:
         value = next(iter(named))
         if all(value in carries.get(f, set()) for f, _l, s in members if s == UNCLARABLE):
-            return "ok"
+            return "presence"
     return "unproven"
 
 
@@ -388,14 +403,17 @@ def evaluate(base_lits: dict[str, list[tuple[int, str]]],
             sides.setdefault(v, []).append((rel, ln, side))
     severs: dict[str, list[tuple[str, int, str]]] = {}
     unproven: dict[str, list[tuple[str, int, str]]] = {}
+    presence = 0
     for key, members in groups.items():
         verdict = group_verdict(key, sides[key], carries)
         if verdict == "sever":
             severs[key] = sides[key]
         elif verdict == "unproven":
             unproven[key] = sides[key]
+        elif verdict == "presence":
+            presence += 1
     return {"groups": groups, "severs": severs, "unproven": unproven,
-            "uncertain_files": sorted(uncertain),
+            "proven_by_presence": presence, "uncertain_files": sorted(uncertain),
             "files": len(base_lits), "literals": sum(len(v) for v in base_lits.values())}
 
 
@@ -496,6 +514,8 @@ def check(repo: Path, control: str | None = None) -> dict:
                      f"against {base_rev}. Their changed literals were checked for presence in "
                      f"the file only and never counted as severs:")
         lines += [f"      {f}" for f in result["uncertain_files"][:20]]
+    lines.append(f"proven-by-presence: {result['proven_by_presence']} group(s) decided where a "
+                 f"side could not be aligned")
     if result["severs"]:
         lines.append(f"FAIL: {len(result['severs'])} twin group(s) byte-equal at {base_rev} "
                      f"are not byte-identical now:")
@@ -710,9 +730,16 @@ def main(argv: list[str]) -> int:
     try:
         if "--show-baseline" in argv:
             rev = read_baseline(ROOT, strict=False)["baseline_rev"]
-            groups = twins(load(ROOT, rev, files_at_rev(ROOT, rev)))
+            paths = files_at_rev(ROOT, rev)
+            base = load(ROOT, rev, paths)
+            groups = twins(base)
+            settled = evaluate(base, load(ROOT, None, paths))["proven_by_presence"]
             print(f"baseline_rev {rev}\ntwin_groups {len(groups)}\n"
                   f"group_keys_sha256 {group_keys_sha256(groups)}")
+            # A run statistic, not a fourth baseline field: --show-baseline is how a
+            # re-baseline is produced, and pasting this line in would achieve nothing.
+            print(f"proven-by-presence: {settled} group(s) decided where a side could not be "
+                  f"aligned")
             return 0
         control = argv[argv.index("--control") + 1] if "--control" in argv else None
         res = check(ROOT, control)
