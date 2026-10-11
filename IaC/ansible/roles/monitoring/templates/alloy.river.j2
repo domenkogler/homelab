@@ -2,7 +2,7 @@
 // See docs/observability.md for architecture.
 // Source of truth: IaC/ansible/roles/monitoring/templates/alloy.river.j2
 //
-// Victoria* migration (HD-342): this is the SINGLE scrape + collect tier (topology (B)).
+// Victoria* migration: this is the SINGLE scrape + collect tier (topology (B)).
 // All scraping happens HERE (host Alloy agents); VictoriaMetrics on the VPS is PURE
 // storage/query (no -promscrape.config). Each Alloy remote_writes its scrapes to VM
 // at :8428/api/v1/write, and pushes logs to VictoriaLogs at :9428. Grafana queries
@@ -14,10 +14,10 @@
 //               blackbox probes (http/icmp/wg_icmp via blackbox-exporter:9115),
 //               VM self (/metrics 8428), VL self (/metrics 9428), alloy_self.
 //   OLDSRV Alloy (alloy_backend_host=wg_s2s_vps.ip): scrapes home exporters
-//               (nut_exporter, zfs_exporter on nas), network_clients (HD-343), SNMP
+//               (nut_exporter, zfs_exporter on nas), network_clients, SNMP
 //               (router/switch), and remote_writes home telemetry to the VPS backend.
 {% if inventory_hostname == 'spark.kogler.si' %}
-// ---- HD-420 hot-set matchers (spark only) ---------------------------------------------
+// ---- hot-set matchers (spark only) ---------------------------------------------
 // ONE regex per family, emitted TWICE: as `keep` by the hot 5 s job and as the exact
 // complement `drop` by the 60 s cold job on the same target. Two hand-copied lists drift;
 // one Jinja string cannot. Disjointness is load-bearing (docs/observability.md §Scrape
@@ -33,10 +33,10 @@
 // bookkeeping (`up`, scrape_samples_*), so `up{job="alloy"}` and the scrape_* series are
 // emitted by the COLD job alone and never duplicate.
 {% set hot_host = 'node_cpu_seconds_total;idle|node_load(?:1|5);|node_memory_(?:CmaFree|MemAvailable|MemFree|MemTotal|Buffers|Cached|Shmem|SwapCached)_bytes;' %}
-// HD-489 added the three LATENCY histogram families to the hot set. WHY: the funnel measures
+// Three LATENCY histogram families — hot set. WHY: the funnel measures
 // per-arm TTFT / ITL / TPOT, and at 60 s those three are unusable for a short leg — a 20 s
 // decode leg moves each `_bucket{}` line AT MOST once, so a window rate had no second point
-// to differentiate. Measured on 2026-10-02: `rate(vllm:time_to_first_token_seconds_bucket[1m])`
+// to differentiate. Measured: `rate(vllm:time_to_first_token_seconds_bucket[1m])`
 // evaluated over a live window returned EMPTY for TTFT p50/p95 while the 5 s counters resolved.
 // WHAT IT COSTS (DERIVED from the measured table in docs/observability.md §What resolution
 // costs, not guessed): the three `_bucket` families are 63 series on this engine (measured
@@ -56,11 +56,11 @@
 prometheus.exporter.unix "host" {
     // Explicit collector set (NOT the node_exporter default): everything the
     // dashboards query. `diskstats` carries the disk I/O/throughput series
-    // (HD-378) and `hwmon`/`thermal_zone` carry the sensor temperatures — both
+    // and `hwmon`/`thermal_zone` carry the sensor temperatures — both
     // were missing while Host Overview showed capacity only.
     // hwmon on spark emits chip="nvme_nvme0" (Composite/max/crit) + chip=
     // "thermal_thermal_zone0" (7 acpitz zones) + the mt7925 WiFi PHY; verified
-    // against a local node_exporter run on spark, 2026-09-16. It reads
+    // against a local node_exporter run on spark. It reads
     // /sys/class/hwmon, which exists today with no extra software — the GB10
     // GPU die temperature is NOT in there (no nvidia hwmon chip), that rides
     // DCGM. See docs/observability.md §Host sensors.
@@ -100,7 +100,7 @@ discovery.relabel "host_metrics" {
 prometheus.scrape "host_metrics" {
     targets    = discovery.relabel.host_metrics.output
 {% if inventory_hostname == 'spark.kogler.si' %}
-    // HD-420: on spark the cold job passes through a drop of the hot set (next block), so the
+    // On spark the cold job passes through a drop of the hot set (next block), so the
     // 5 s job below is the ONLY source of those series. On nas/oldsrv/pi/vps the target and
     // forward path are byte-identical to before — the drop is spark-GATED on purpose: the same
     // rule applied fleet-wide would delete node_load1, node_memory_CmaFree_bytes and
@@ -111,7 +111,7 @@ prometheus.scrape "host_metrics" {
 {% endif %}
 }
 
-// ---- HD-450: silent-failure hygiene (unit results + the cert pair each consumer holds) ----
+// ---- silent-failure hygiene (unit results + the cert pair each consumer holds) ----
 // Two gaps that let a failing cert-pull timer run for DAYS with no series changing: systemd unit
 // results were scraped by nothing, and consumer-side cert age by nothing (`ssl-cert-expiring` reads
 // probe_ssl_earliest_cert_expiry, which has zero series — blackbox emits no SSL expiry). Exporter:
@@ -138,7 +138,7 @@ prometheus.relabel "host_metrics_cold" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
-// ---- HD-420 hot host job (spark only) — 5 s ------------------------------------------
+// ---- hot host job (spark only) — 5 s ------------------------------------------
 // The same exporter target, scraped again. Its job/instance are shaped by its OWN
 // discovery.relabel to the SAME values the cold job uses (job="alloy",
 // instance=<inventory_hostname>), because that is what every dashboard and the two OOM alert
@@ -199,7 +199,7 @@ loki.process "cleanup" {
     forward_to = [loki.write.local.receiver]
 }
 
-// ---- RouterOS syslog file -> VictoriaLogs (HD-313) ----
+// ---- RouterOS syslog file -> VictoriaLogs ----
 // The VPS host rsyslog receiver writes /var/log/remote-syslog/routeros.log
 // (RFC5424 from the RB4011 over wg-s2s — provisioned by the monitoring role).
 // CrowdSec tails it for WAF/port-scan; VictoriaLogs must ALSO index it for search
@@ -240,7 +240,7 @@ prometheus.remote_write "metrics" {
     endpoint {
         url = "http://{{ alloy_backend_host | default('127.0.0.1') }}:8428/api/v1/write"
 
-        // HD-342: VM basic auth via the new victoria-metrics_api item (plaintext -httpAuth).
+        // VM basic auth via the new victoria-metrics_api item (plaintext -httpAuth).
         basic_auth {
             username = "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='username', vault=op_vault) }}"
             password = "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='password', vault=op_vault) }}"
@@ -260,7 +260,7 @@ loki.write "local" {
     endpoint {
         url = "http://{{ alloy_backend_host | default('127.0.0.1') }}:9428/insert/loki/api/v1/push"
 
-        // HD-342: VL basic auth via the new victoria-logs_api item.
+        // VL basic auth via the new victoria-logs_api item.
         basic_auth {
             username = "{{ lookup('community.general.onepassword', 'victoria-logs_api', field='username', vault=op_vault) }}"
             password = "{{ lookup('community.general.onepassword', 'victoria-logs_api', field='password', vault=op_vault) }}"
@@ -271,10 +271,10 @@ loki.write "local" {
 // ---- MikroTik SNMP (router + switch — Mgmt VLAN 99, IPs from SSOT) ----
 // Scraped only by the OLDSRV Alloy (home LAN/Mgmt reach) to avoid duplicate collectors;
 // it forwards the SNMP series to the VPS backend like all other home telemetry.
-// HD-347: ONE exporter per device — the old single exporter merged router+switch series
+// ONE exporter per device — the old single exporter merged router+switch series
 // under one flat instance, and the target `name` label is NOT copied to the metrics (verified
 // live), so an instance relabel by name is impossible. Splitting per device stays right.
-// HD-345 (2026-09-22) corrects the rest of that claim: splitting does NOT give
+// Splitting does NOT give
 // instance="router" "for free". Measured in VM, last 1 h: 54 router + 54 switch series of
 // ifAdminStatus/ifOperStatus ARE arriving, plus up{job="integrations/snmp/router"}=present —
 // the walk was never broken. What is on them is
@@ -301,7 +301,7 @@ prometheus.scrape "snmp_{{ dev }}" {
     forward_to = [prometheus.relabel.snmp_{{ dev }}.receiver]
 }
 
-// HD-345: re-assert the labels the exporters overwrite. No source_labels + the default
+// Re-assert the labels the exporters overwrite. No source_labels + the default
 // replace action is the standard Prometheus idiom for "set this label" (empty input matches
 // the default `(.*)` regex, so `replacement` wins). It lands on every series the scrape
 // forwards, `up` included, so `up{job="alloy-snmp", instance="{{ dev }}"}` is the liveness
@@ -324,7 +324,7 @@ prometheus.relabel "snmp_{{ dev }}" {
 // unconsumed exporter evaluates nothing and its metrics never reach VM). Tag the
 // series with job="alloy-snmp" + the per-device instance (from the component id).
 
-// ---- Network-clients exporter (HD-343) — RouterOS-API collector on oldsrv ----
+// ---- Network-clients exporter — RouterOS-API collector on oldsrv ----
 // The network-clients-exporter host binary polls the router read-only API and
 // exposes mikrotik_client / mikrotik_static_host on 127.0.0.1:9097. Scrape it
 // inside the same process and remote-write to the VPS backend (same channel as SNMP).
@@ -363,9 +363,9 @@ prometheus.scrape "zfs_exporter" {
 }
 
 // ---- HA exporter (edge HA /api/prometheus). GATED until Phase 4 ----
-// (alloy_ha_exporter, Wave-2 triage 2026-08-22): no HA behind ha_vip + no token
-// file pre-cutover. Flip the var at HD-04 with the HA token + compose mount — the mount is
-// NOT optional: `docker inspect alloy` on 2026-09-26 shows no mount for this path, so a
+// (alloy_ha_exporter): no HA behind ha_vip + no token
+// file pre-cutover. Flip the var with the HA token + compose mount — the mount is
+// NOT optional: `docker inspect alloy` shows no mount for this path, so a
 // flipped gate without it renders a job that cannot read its own bearer token.
 {% if alloy_ha_exporter | default(false) %}
 prometheus.scrape "ha_exporter" {
@@ -383,7 +383,7 @@ prometheus.scrape "ha_exporter" {
 // ---- VPS Alloy: VPS-container loopback metrics + blackbox probes + self-scrapes ----
 // Only the VPS host-APT Alloy reaches these loopback publishes (traefik/crowdsec/n8n/
 // blackbox-exporter on 127.0.0.1) and the VM/VL self-scrape endpoints. See STEP-5
-// loopback publishes (HD-342).
+// loopback publishes.
 {% if inventory_hostname == 'vps.kogler.si' %}
 // blackbox-exporter self-scrape (/metrics)
 prometheus.scrape "blackbox_exporter" {
@@ -432,7 +432,7 @@ prometheus.scrape "blackbox_icmp" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
-// wg-s2s tunnel-liveness (HD-159): single ICMP probe to the home router's WG-side peer IP.
+// wg-s2s tunnel-liveness: single ICMP probe to the home router's WG-side peer IP.
 prometheus.scrape "wg_icmp" {
     targets = [
         {"__address__" = "127.0.0.1:9115", "job" = "wg_icmp", "__param_target" = "{{ wg_s2s_vps.router_ip }}"},
@@ -472,7 +472,7 @@ prometheus.scrape "n8n" {
 }
 
 // Self-monitoring: VictoriaMetrics self-scrape (/metrics on 8428)
-// HD-347: the scrape needs the same basic_auth as remote_write — VM runs with
+// The scrape needs the same basic_auth as remote_write — VM runs with
 // -httpAuth (victoria-metrics_api item), so without auth every scrape is 401 and
 // up{job="victoria-metrics"} was permanently 0 (masking the real signal; the old
 // `gt 0` evaluator hid it too — see grafana-rules.yml.j2).
@@ -481,7 +481,7 @@ prometheus.scrape "vm_self" {
         "__address__" = "127.0.0.1:8428",
         "job" = "victoria-metrics",
     }]
-    // HD-342: same victoria-metrics_api basic auth the Grafana datasource + remote_write use.
+    // Same victoria-metrics_api basic auth the Grafana datasource + remote_write use.
     basic_auth {
         username = "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='username', vault=op_vault) }}"
         password = "{{ lookup('community.general.onepassword', 'victoria-metrics_api', field='password', vault=op_vault) }}"
@@ -490,7 +490,7 @@ prometheus.scrape "vm_self" {
 }
 
 // Self-monitoring: VictoriaLogs self-scrape (/metrics on 9428)
-// HD-347: same basic_auth fix as vm_self — VL requires auth on /metrics.
+// Same basic_auth fix as vm_self — VL requires auth on /metrics.
 prometheus.scrape "vl_self" {
     targets = [{
         "__address__" = "127.0.0.1:9428",
@@ -504,14 +504,14 @@ prometheus.scrape "vl_self" {
 }
 {% endif %}
 
-// ---- vLLM engine metrics (spark GPU node) — HD-368 ----------------
+// ---- vLLM engine metrics (spark GPU node) ----------------
 // vLLM exposes its Prometheus metrics on the OpenAI API server /metrics
 // (same :8000 port as the API — vllm.usage.metrics, PrometheusStatLogger,
 // no separate metrics port). The vLLM dashboards (homelab-vllm-*) query the
 // vllm:* metric family tagged with model_name (vLLM-native) + instance
 // (ours — the scrape target carries it, like the snmp/network-clients jobs).
 // The spark-ai compose publishes :8000 on the spark host loopback only
-// (spark_metrics_publish — same pattern as traefik's 127.0.0.1:8082, HD-315);
+// (spark_metrics_publish — same pattern as traefik's 127.0.0.1:8082);
 // this job is the engine half of the pipeline and sits in the spark Alloy.
 {% if inventory_hostname == 'spark.kogler.si' and spark_metrics_publish | default(false) %}
 prometheus.scrape "vllm" {
@@ -523,9 +523,9 @@ prometheus.scrape "vllm" {
     forward_to = [prometheus.relabel.vllm_cold.receiver]
 }
 
-// HD-420 cold half: the 60 s engine job drops the hot names, so the 5 s job is their only
+// Cold half: the 60 s engine job drops the hot names, so the 5 s job is their only
 // source. Everything the hot set does NOT name stays at 60 s — that exclusion is what made
-// the change ~95 MB/yr instead of ~3.4 GB (docs §What resolution costs). Amended by HD-489:
+// the change ~95 MB/yr instead of ~3.4 GB (docs §What resolution costs).
 // 63 of the request-completion-driven `_bucket{}` lines (TTFT / ITL / TPOT) are now HOT, so
 // the cold set is the remaining ~220 bucket lines plus request_success and every other
 // histogram family; the per-family cost basis is at the `hot_vllm` definition.
@@ -538,8 +538,8 @@ prometheus.relabel "vllm_cold" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
-// HD-420 hot half: the same endpoint at 5 s, keeping the `vllm:` names the panels read (15
-// series with the source=/reason= label values) plus the three HD-489 latency histogram
+// Hot half: the same endpoint at 5 s, keeping the `vllm:` names the panels read (15
+// series with the source=/reason= label values) plus the three latency histogram
 // families. No engine change is involved:
 // measured, `vllm:generation_tokens_total` advanced on every one of 17 consecutive 1 s
 // scrapes, so VLLM_LOG_STATS_INTERVAL is the LOG heartbeat, not a publication cap.
@@ -564,13 +564,13 @@ prometheus.relabel "vllm_hot" {
 }
 {% endif %}
 
-// ---- DCGM GPU exporter (HD-379) — spark loopback ----
+// ---- DCGM GPU exporter — spark loopback ----
 // The GB10's ONLY GPU telemetry source (the host sensors in `hwmon` are SoC/NVMe/WiFi; there is
 // no nvidia hwmon chip). Same loopback-publish pattern as the `vllm` job above: the compose
 // service `spark-dcgm` binds 127.0.0.1:9400 and this job remote-writes the kept series to VM.
 //
 // The relabel is the METRIC POLICY, and it is load-bearing. The exporter emits 13 series on
-// this device, measured 2026-09-16: six are real, the rest are constant-zero or actively wrong
+// this device, measured: six are real, the rest are constant-zero or actively wrong
 // (MEMORY_TEMP reports 0 while the drive next to it reports 46 C). Keeping a whitelist here —
 // instead of a counter CSV inside the image — means the selection is reviewable in one place:
 //   KEEP  GPU_UTIL (88-90 % under load) · GPU_TEMP (50-58 C) · POWER_USAGE (12-39 W) ·
@@ -588,7 +588,7 @@ prometheus.scrape "dcgm" {
         "job" = "dcgm",
         "instance" = "spark.kogler.si",
     }]
-    // HD-420: 5 s. COUPLED PAIR — this cadence is only honest while
+    // 5 s. COUPLED PAIR — this cadence is only honest while
     // DCGM_EXPORTER_INTERVAL in templates/docker_services/spark-dcgm/docker-compose.yml.j2
     // is "5000"; at "30000" a 5 s scrape stores six copies of one sample. Neither file may
     // be reverted without the other. It needs no cold twin because the relabel below keeps
