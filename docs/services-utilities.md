@@ -55,8 +55,24 @@ tags: [services, utilities, tools, automation]
 ## Zipline — public bin & shortener
 
 > ✅ **Deployed** — `zipline` + `zipline-db` Up/healthy on the VPS. The registry row is
-> `enabled: true`, so a converge owns keeping it up; this section is the spec behind it. Deploy-gate steps live
-> in the compose header (`docker_services/zipline/docker-compose.yml.j2`).
+> `enabled: true`, so a converge owns keeping it up; this section is the spec behind it.
+
+**Deploy gate (CONVENTIONS §5 step 9) — the manual half, in order:**
+
+- **Pre-deploy:** run `playbooks/dns.yml` once so the IaC-tracked CNAME makes `bin.kogler.si` resolve —
+  a Traefik route alone is NOT reachable.
+- **Post-up seeding** — all runtime-editable in the admin UI / Server Settings, nothing here is a
+  one-way door:
+  1. First-boot admin: `https://bin.kogler.si/auth/setup` (local admin).
+  2. OIDC verify: log in via Authentik — the **first** OIDC login auto-creates the account
+     (`FEATURES_OAUTH_REGISTRATION=true`), family-only because the Authentik app is bound to the family
+     group. Then flip OAuth **bypass-local-login** ON in Server Settings; it stays OFF until the local
+     break-glass account is proven.
+  3. Create user `guestbin` (admin panel; small storage quota ~100 MB; **no password minted into any
+     vault** — it must never log in), then folder `dropzone` with `allowUploads=true`; paste its folder id
+     into the family drop script.
+  4. Verify: an anonymous upload carrying both headers returns a short URL, the viewer route serves it
+     logged-out, and the file is gone after 6 h (`tasks.deleteInterval` sweep).
 
 **Purpose:** public temporary file bin (phone↔PC transfers via short link), URL shortener + QR codes; private persistent storage secondary (OpenCloud stays the family file cloud).
 
