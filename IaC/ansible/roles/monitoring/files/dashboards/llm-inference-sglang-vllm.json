@@ -2730,5 +2730,5 @@
   "uid": "homelab-llm-inference",
   "version": 1,
   "weekStart": "",
-  "description": "Unified LLM inference dashboard covering both SGLang and vLLM against one Prometheus-compatible datasource (here VictoriaMetrics, uid `prometheus`). Comparable panels per backend: request volume, token throughput, latency quantiles, queue state, cache behaviour and per-engine / TP-rank distribution. The SGLang queries stay empty until an SGLang engine is deployed (HD-367 throughput lane) — the vLLM half is live from the spark engine."
+  "description": "Unified LLM inference dashboard covering both SGLang and vLLM against one Prometheus-compatible datasource (here VictoriaMetrics, uid `prometheus`). Comparable panels per backend: request volume, token throughput, latency quantiles, queue state, cache behaviour and per-engine / TP-rank distribution. The SGLang queries stay empty until an SGLang engine is deployed — the vLLM half is live from the spark engine."
 }
