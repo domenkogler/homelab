@@ -7,7 +7,7 @@
 #   - Config/state synced from Pi every ~15 min (LAN only).
 #   - keepalived STANDBY: VIP 10.10.1.200 moves HERE on takeover.
 #   - raspberrymatic pairing is NOT here: HmIP-HAP stays
-#     cloud until an HmIP-RFUSB is bought; no local RMat/CCU on the standby path).
+#     cloud until an HmIP-RFUSB is bought; no local RMat/CCU on the standby path.
 #   - restart policy: manual (systemd unit disabled by default) → restart: "no"
 #   - Traefik's `ha` route targets the VIP; NOT Authentik Forward-Auth (breaks Companion app).
 #
