@@ -8,9 +8,9 @@ tags: [services, ai, gpu, benchmark, stt, rerank, vram, whisper, vulkan]
 # AI Inference Benchmarks — oldsrv RX 7600 / HD 630 / CPU
 
 > **Role:** **measurement** appendix for the pinned-AI tier ([services-ai.md](services-ai.md) §9 decisions
-> #24/#25). §9c is the *source-reading* record (what upstreams claim); **this doc is the *measured* record** —
-> what this card actually does. The paper arithmetic in decision #25(b) is wrong by ~10–20×; only a probe can
-> say so.
+> #24/#27). §9c is the *source-reading* record (what upstreams claim); **this doc is the *measured* record** —
+> what this card actually does. The paper arithmetic behind the CPU rerank numbers in §3 is wrong by
+> ~10–20×; only a probe can say so.
 >
 > Decision **#27** is the result of this measurement: Vulkan engine family, Q8_0 quantization, reranker on the
 > dGPU. The three legs are the IaC services `whisper` / `reranker` / `embed` ([services-ai.md](services-ai.md) §3a).
@@ -136,7 +136,7 @@ batched), both engines timed by the same wall-clock method.
 across all 51 documents = **mean 0.99960, min 0.99856** (discrimination sanity: `cos(doc0, doc1) = 0.41`, so
 the figure is not trivially inflated). ⇒ switching engines does **not** invalidate the existing Qdrant vectors
 and does not *require* re-embedding for correctness — and re-embedding anyway is free today, because the
-corpus is a rebuildable cache (decision #19) and nothing is RAG’d yet.
+corpus is a rebuildable cache over the git floor ([services-ai.md](services-ai.md) §5a) and nothing is RAG’d yet.
 
 Supporting detail: `--pooling cls` and the GGUF-declared default produce **identical** vectors (no pooling
 landmine here, unlike the reranker GGUF which needed `--pooling rank` explicitly); `--embd-normalize` defaults
@@ -314,5 +314,5 @@ docker run --rm --network llm-backend curlimages/curl -s -X POST http://ollama:1
 watch -n1 'awk "{printf \"%.0f MiB\n\", \$1/1048576}" /sys/class/drm/card1/device/mem_info_vram_used'
 ```
 
-**Related:** [services-ai.md](services-ai.md) §9 #24/#25 + §9c · [hardware-gpu.md](hardware-gpu.md) ·
+**Related:** [services-ai.md](services-ai.md) §9 #24/#27 + §9c · [hardware-gpu.md](hardware-gpu.md) ·
 [smart-home-voice.md](smart-home-voice.md)
