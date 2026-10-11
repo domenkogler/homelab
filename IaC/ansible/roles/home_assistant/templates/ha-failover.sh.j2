@@ -1,15 +1,13 @@
 #!/bin/bash
-# ha-failover.sh — single-trigger HA failover orchestrator (docs/smart-home-failover.md, HD-17)
+# ha-failover.sh — single-trigger HA failover orchestrator (docs/smart-home-failover.md)
 #
 #   forward (default)  : Pi → oldsrv. Promote VIP (keepalived MASTER) → start home-assistant-standby.
 #   reverse            : oldsrv → Pi. Stop standby services, restore keepalived BACKUP —
 #                        the repaired Pi MASTER (priority 110) reclaims the VIP via VRRP.
 #
-#   HD-13 parked (2026-08-18): this is the ACTIVE script for the current state — local Homematic
-#   (RaspberryMatic/HmIP-RFUSB) is DEactivated repo-wide and the HmIP-HAP stays in cloud mode,
-#   so there is NO RaspberryMatic step here. IP devices (KNX/Shelly) fail over purely via the VIP.
-#   The local-Homematic variant (with RMat start/stop + CCU XML-RPC wait) is preserved for the
-#   future RFUSB purchase as `ha-failover.full.sh.j2` — swap this template path back when it's bought.
+#   ACTIVE script: local Homematic (RaspberryMatic/HmIP-RFUSB) is DEactivated repo-wide and the
+#   HmIP-HAP stays in cloud mode, so there is NO RaspberryMatic step — IP devices (KNX/Shelly)
+#   fail over via the VIP. Local-Homematic variant: `ha-failover.full.sh.j2` (swap on purchase).
 #
 # Render-time vars (home_assistant role): docker_compose_dir, ha_vip, ha_vip_cidr,
 # ha_keepalived_interface, failover_notify_webhook.
