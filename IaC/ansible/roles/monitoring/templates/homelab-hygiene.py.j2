@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The two things that can age out silently, turned into series.
 
-Found closing HD-350: oldsrv's `traefik-cert-pull.timer` failed every 15 min for DAYS while the wildcard
+Oldsrv's `traefik-cert-pull.timer` failed every 15 min for DAYS while the wildcard
 pair sat on a 26-day-old copy, and nothing in the stack could see either half — a systemd unit's result is
 not scraped at all, and the cert pair a CONSUMER holds is not exported anywhere (the one cert rule,
 `ssl-cert-expiring`, reads `probe_ssl_earliest_cert_expiry`, which has ZERO series because blackbox emits
@@ -18,7 +18,7 @@ WHY A BINARY EXPORTER AND NOT A TEXTFILE FILE (the obvious cheaper shape): Alloy
 would point it at a directory (`collectors_dir`, `directories`, `paths`, `files`, `syntax_version` —
 probed against v1.20.1 on the box, each `unrecognized attribute name`, while `textfile {}` with no body
 parses), so a textfile leg would have meant shipping the collector blind, to a default directory nobody
-could name. This file therefore follows the shape the SAME role already proves live — the HD-343
+could name. This file therefore follows the shape the SAME role already proves live — the
 network-clients exporter: a stdlib-only host binary on a loopback port, scraped by this host's Alloy.
 
 FAIL-LOUD BY CONSTRUCTION, because a monitor that reports "healthy" about something it cannot see is how
