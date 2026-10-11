@@ -55,7 +55,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.actual-budget.rule: "Host(`budget.kogler.si`)"
       traefik.http.routers.actual-budget.entrypoints: websecure
-      {{ 'traefik.http.routers.actual-budget.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.actual-budget.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.actual-budget.middlewares: authentik-forward-auth@file
       traefik.http.services.actual-budget.loadbalancer.server.port: "5006"
 networks:
