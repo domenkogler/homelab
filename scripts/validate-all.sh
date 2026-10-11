@@ -642,6 +642,7 @@ item "check_zone_kogler_si_parity.py (derived zone answers what the hand-authore
 item "check_zone_kogler_si_parity.py --self-test" $PY scripts/check_zone_kogler_si_parity.py --self-test
 item "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/check_dns_seed_drift.py
 item "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/check_self_converge_guard.py
+item "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/check_string_twins.py
 item "validate-docker-services.py" $PY scripts/validate-docker-services.py
 item "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/spark-llm-render-matrix.py
 item "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/check_doc_path_refs.py
