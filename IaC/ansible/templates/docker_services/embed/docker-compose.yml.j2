@@ -1,16 +1,13 @@
-# embed docker-compose.yml — pinned-AI embedding leg on the RX 7600 (HD-391, decision #27)
+# embed docker-compose.yml — pinned-AI embedding leg on the RX 7600
 #   llama.cpp `llama-server` serving bge-m3 Q8_0 as an embedder over Vulkan, OpenAI-shaped
 #   POST /v1/embeddings. Same image + same backend family as the `reranker` leg — the tier is
-#   deliberately TWO published images, not three engines (decision #27).
-#   WHY MOVE IT OFF OLLAMA (it already worked): measured 15 ms vs ~500 ms per query chunk,
-#   2.3x faster ingest, 326 MiB vs 899 MiB VRAM, 157 MiB vs 2.19 GiB host RSS — and cosine
-#   0.99960 mean / 0.99856 min against the LIVE Ollama vectors with dim 1024 unchanged, so
-#   this is ROUTING, not a corpus migration: HD-268's Qdrant re-index is NOT triggered
-#   (docs/services-ai-bench.md §3b). The Ollama `:rocm` leg stays enabled above as the
-#   FALLBACK RUNG and retires only after this leg is live-verified.
-#   `--embd-normalize 2` (L2) pins what the GGUF metadata implies; the cosine-verification
-#   run measured |v| = 1.0, so this states the measured behaviour instead of inheriting it.
-#   Network doctrine (HD-59): `llm-backend` only, NO `ports:`, NO Traefik labels — no auth
+#   deliberately TWO published images, not three engines.
+#   Why llama.cpp instead of the Ollama leg: materially faster ingest and far less
+#   VRAM/RSS at cosine-equivalent vectors with dim 1024 unchanged (docs/services-ai-bench.md
+#   §3b), so this is ROUTING, not a corpus migration: the Qdrant re-index is NOT
+#   triggered. The Ollama `:rocm` leg stays enabled above as the FALLBACK RUNG.
+#   `--embd-normalize 2` (L2) pins what the GGUF metadata implies (|v| = 1.0).
+#   Network doctrine: `llm-backend` only, NO `ports:`, NO Traefik labels — no auth
 #   on this API, so the network is the boundary; Qdrant/OWUI/Docling go through LiteLLM.
 #   Device: the dGPU render node only (renderD129); the iGPU is Xorg + Jellyfin QSV and is
 #   slower than CPU (bench §4).
@@ -51,7 +48,7 @@ services:
                                                    # server default 512 would cut a real ingest
                                                    # chunk (docs/services-ai.md §5b = 512/64 tokens)
       - "--batch-size"
-      - "{{ ai_tier_gguf_batch_size }}"            # MEASURED 2026-09-19: with the default 512 this
+      - "{{ ai_tier_gguf_batch_size }}"            # with the default 512 this
                                                    # endpoint answers HTTP 500 "input (842 tokens) is
                                                    # too large to process" - a hard failure at almost
                                                    # exactly the documented 512-token chunk + specials
@@ -64,8 +61,8 @@ services:
       - "{{ ai_tier_embed_port }}"
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-    # Same :8080-hardcoded image healthcheck problem as the reranker leg (measured live
-    # 2026-09-19: `unhealthy` while /health answers 200). Re-point at the actual port.
+    # Same :8080-hardcoded image healthcheck problem as the reranker leg (`unhealthy`
+    # while /health answers 200). Re-point at the actual port.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:{{ ai_tier_embed_port }}/health"]
       interval: 30s
