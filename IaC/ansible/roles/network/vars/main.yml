@@ -1,5 +1,5 @@
 # network role hosts — netd (systemd-networkd) vars for nas / oldsrv (desktop/VPS class).
-# Pi uses NetworkManager (network-rejected.md 2026-09-01) — no netd units there.
+# Pi uses NetworkManager (network-rejected.md) — no netd units there.
 # ---- Role-internal knobs (architecture values stay in host_vars/group_vars) ----
 
 # Per-host config-manager: systemd-networkd for nas/oldsrv (desktop/VPS class);
@@ -13,21 +13,20 @@ netd_dir: /etc/systemd/network
 # Defaults sane for desktop-class; host_vars pin the real interface.
 netd_phys_name: eno1
 
-# VLAN sub-interface on the physical NIC (tagged Management 99, HD-310 port model).
+# VLAN sub-interface on the physical NIC (tagged Management 99).
 netd_vlan_ifname: "{{ netd_phys_name }}.99"
 
 # Description strings (rendered into the units).
 netd_phys_description: "{{ inventory_hostname }} physical uplink — untagged Home (10) + tagged Mgmt (99)"
 netd_vlan_description: "{{ inventory_hostname }} tagged Management VLAN (99) sub-interface"
 
-# --- Observability tunnel route (HD-346) ---
+# --- Observability tunnel route ---
 # The home-side Alloy collectors remote_write to the VPS Victoria endpoint
 # (wg_s2s_vps.ip = 10.255.40.2). On nas, a second NIC (eno2) carries a DHCP default
 # route (metric 100) that shadows eno1's Home default (metric 1002), so the kernel
-# egresses the tunnel from eno2 -> the router drops it (live 2026-09-08: nas Alloy
-# shipped 0 bytes, samples_retried 11000, curl 000 from eno2 but 401 from eno1).
-# Pin the VPS tunnel endpoint to the managed Home NIC (eno1) with a host route at
-# metric 50 so it always wins over eno2's stray default. SSOT value never literal.
+# egresses the tunnel from eno2 -> the router drops it. Pin the VPS tunnel endpoint to
+# the managed Home NIC (eno1) with a host route at metric 50 so it always wins over
+# eno2's stray default. SSOT value never literal.
 netd_tunnel_route: "{{ wg_s2s_vps.ip }}/32"  # VPS Victoria/wg-s2s endpoint (SSOT)
 netd_tunnel_route_metric: 50
 
@@ -41,13 +40,12 @@ netd_tunnel_route_metric: 50
 host_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', inventory_hostname_short) | selectattr('vlan', 'equalto', 10) | map(attribute='ip') | list | first) }}"
 home_gateway_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 10) | map(attribute='ip') | list | first) }}"
 
-# DHCP client-id strategy per host (HD-314), derived from the SSOT row: dhcp_client: mac on
+# DHCP client-id strategy per host, derived from the SSOT row: dhcp_client: mac on
 # nas/oldsrv rows tells the host to present its interface MAC as client-id so the RouterOS
 # reservation (mac: field) binds. Undefined -> 'none' on static hosts (Pi/VPS) — no DHCP client.
 # `dhcp_client_optin` gates the MAC client-id block (assert + dhcpcd/NM tasks) to hosts that
-# actually opt in via the SSOT marker — static hosts (Pi/VPS) carry the var (defined fallback
-# 'none') but must NOT trip the assert (326b08f regression: the vars-file now defines it for
-# every host, so `when: dhcp_client is defined` became a tautology and the assert failed on
-# any static-host converge, e.g. vps.yml 2026-09-03).
+# actually opt in via the SSOT marker. This vars file defines `dhcp_client` for every host
+# (fallback 'none'), so `when: dhcp_client is defined` is a tautology and the assert fails on
+# any static-host converge (e.g. vps.yml) — gate on the value, not on definedness.
 dhcp_client: "{{ (network_static_hosts | selectattr('name', 'equalto', inventory_hostname_short) | selectattr('vlan', 'equalto', 10) | selectattr('dhcp_client', 'defined') | map(attribute='dhcp_client') | list | first) | default('none') }}"
 dhcp_client_optin: "{{ dhcp_client == 'mac' }}"
