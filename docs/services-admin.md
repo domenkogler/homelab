@@ -103,7 +103,7 @@ The pin is `homelable_version: 3.5.1` (registry-verified on GHCR for backend/fro
 
 ## RustDesk — family remote desktop
 
-> **Status: 🟢 LIVE on the VPS since 2026-09-21 — ⏳ client enrolment + the two live sessions remain.**
+> **Status: 🟢 LIVE on the VPS — ⏳ client enrolment + the two live sessions remain.**
 > Registry row `enabled: true`; container `Up (healthy)`; hbbs listens on 21115 / 21116 tcp+udp, hbbr on
 > 21117; `/data` holds `id_ed25519` + `.pub` at 0600 inside a 0700 dir; hbbr's **effective** caps are
 > `TOTAL_BANDWIDTH: 48Mb/s`, `SINGLE_BANDWIDTH: 24Mb/s`, `LIMIT_SPEED: 8Mb/s`,
