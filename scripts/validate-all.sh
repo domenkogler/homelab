@@ -643,6 +643,11 @@ item "check_zone_kogler_si_parity.py --self-test" $PY scripts/check_zone_kogler_
 item "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/check_dns_seed_drift.py
 item "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/check_self_converge_guard.py
 item "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/check_string_twins.py
+# The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
+# green tree both print one OK line, and the cases that prove the verdict (a sever inside a long
+# change run, a twin renamed on every side, an agreed value in the wrong kind of literal) never
+# ran in the suite. Every other check here registers its self-test too; this one did not.
+item "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" $PY scripts/check_string_twins.py --self-test
 item "validate-docker-services.py" $PY scripts/validate-docker-services.py
 item "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/spark-llm-render-matrix.py
 item "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/check_doc_path_refs.py
