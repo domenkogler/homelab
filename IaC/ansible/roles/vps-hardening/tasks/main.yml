@@ -34,7 +34,7 @@
       backend = systemd
       maxretry = 3
 
-      # HD-280 (2026-09-04): the old `nginx-http-auth` filter never matched Traefik's
+      # The `nginx-http-auth` filter never matched Traefik's
       # CLF accesslog format (and no accesslog was even enabled — the jail was dead).
       # Traefik now writes /opt/traefik/logs/access.log (compose dir-bind ./logs ->
       # /var/log/traefik in-container); the filter below matches the Traefik CLF line
@@ -49,7 +49,7 @@
       maxretry = 5
   notify: restart fail2ban
 
-- name: Install fail2ban traefik-http-auth filter (HD-280)
+- name: Install fail2ban traefik-http-auth filter
   copy:
     dest: /etc/fail2ban/filter.d/traefik-http-auth.conf
     mode: '0644'
@@ -59,7 +59,7 @@
       ignoreregex =
   notify: restart fail2ban
 
-- name: Pre-create Traefik accesslog dir + file (HD-280 order trap)
+- name: Pre-create Traefik accesslog dir + file (order trap)
   ansible.builtin.file:
     path: /opt/traefik/logs/access.log
     state: touch
@@ -107,7 +107,7 @@
     mode: '0644'
     content: |
       [Unit]
-      Description=Refresh home-WAN source IP in nftables dns-allow-home set (HD-299)
+      Description=Refresh home-WAN source IP in nftables dns-allow-home set
 
       [Service]
       Type=oneshot
@@ -134,12 +134,12 @@
     content: |
       #!/bin/sh
       # Re-resolve the home WAN DDNS record and refresh the nftables dns-allow-home
-      # set (HD-299 Option A). Fails silently if the record is unreachable (keeps
+      # set (Option A). Fails silently if the record is unreachable (keeps
       # the previous address; the timer retries).
       set -eu
       ip=$(getent ahostsv4 s.kogler.si | awk 'NR==1{print $1}')
       [ -n "$ip" ] || exit 0
-      # HD-317 live fix (2026-09-03): use the ABSOLUTE nft path — systemd services
+      # Use the ABSOLUTE nft path — systemd services
       # run with a minimal PATH that lacks /usr/sbin, so the timer was failing
       # with 'nft: not found' and the dns-allow-home set was never populated
       # (home WAN could not query the VPS DNS primary).
@@ -166,7 +166,7 @@
   ansible.builtin.copy:
     dest: /etc/systemd/system/nftables.service.d/override.conf
     content: |
-      # Managed by vps-hardening (HD-230). Stock ExecStop='nft flush ruleset'
+      # Managed by vps-hardening. Stock ExecStop='nft flush ruleset'
       # wipes docker iptables-nft tables on every restart. Start/reload paths are
       # already table-scoped via /etc/nftables.conf; an empty ExecStop makes
       # restart equally safe.
