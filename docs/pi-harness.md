@@ -98,7 +98,7 @@ lives **here**, as a second provider entry whose `contextWindow` is also correct
 harness-side budget/route** — which is only possible because the harness is the one holding the truth.
 
 > **What the gateway IS for (decision #26):** the simple queriers (HomeAssistant, Docling, Open WebUI,
-> OpenClaw) and the pinned-AI legs (decision #25) — consumers that must not hold an upstream credential,
+> OpenClaw) and the pinned-AI legs (decision #24) — consumers that must not hold an upstream credential,
 > that want one dropdown, and that gain from per-key budgets/spend records. A `pi`-class consumer gains
 > none of that and loses determinism.
 
