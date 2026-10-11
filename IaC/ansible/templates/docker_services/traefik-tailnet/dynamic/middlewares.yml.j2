@@ -1,7 +1,7 @@
 # traefik-tailnet dynamic/middlewares.yml — file-provider middlewares (tailnet edge)
 #   Vault-escape note: this file is consumed by Traefik's file-provider (NOT `docker compose`
 #   interpolation), so `vault['<item>']` values pass through unchanged. Compose's `$`-substitution
-#   only applies to compose files (HD-270/HD-233 lesson). Raw vault creds here are safe.
+#   only applies to compose files. Raw vault creds here are safe.
 #   Same middleware definitions as the MAIN traefik edge (dynamic/middlewares.yml
 #   of the public traefik). Each traefik instance owns its own file-provider
 #   definitions — they are NOT shared across instances — so the tailnet edge
@@ -13,8 +13,8 @@
 #   The Authentik outpost endpoint (authentik-server:9000) is reachable over
 #   traefik-public, exactly like the main edge.
 #
-#   NOTE: authResponseHeaders MUST be the LIST of header names (Traefik schema,
-#   HD-240 live lesson) — the map form is silently dropped and header-consuming
+#   NOTE: authResponseHeaders MUST be the LIST of header names (Traefik schema) — the
+#   map form is silently dropped and header-consuming
 #   backends (grafana [auth.proxy]) would see anonymous requests.
 
 http:
