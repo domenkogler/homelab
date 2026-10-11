@@ -1,7 +1,6 @@
 ---
 # vps-hardening handlers. tags: always = handlers are tag-filtered like tasks; without it a
-# notified handler is silently skipped under surgical runs, e.g. --tags hardening
-# (HD-220 finding, HD-237 sweep).
+# notified handler is silently skipped under surgical runs, e.g. --tags hardening.
 
 - name: restart fail2ban
   systemd:
