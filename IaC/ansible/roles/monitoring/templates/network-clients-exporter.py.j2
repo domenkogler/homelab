@@ -263,7 +263,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="RouterOS-API network-clients exporter (HD-343).")
+    parser = argparse.ArgumentParser(description="RouterOS-API network-clients exporter.")
     parser.add_argument("--listen", default="127.0.0.1:{{ network_clients_listen | default(9097) }}",
                         help="listen address:port (default 127.0.0.1:{{ network_clients_listen | default(9097) }})")
     parser.add_argument("--interval", type=int, default=SCRAPE_INTERVAL,
