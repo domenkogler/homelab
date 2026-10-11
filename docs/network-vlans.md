@@ -14,7 +14,7 @@ tags: [network, vlan, firewall]
 > **Status:** the VLAN segmentation below is **LIVE** — this doc is the plan of record for VLANs, firewall
 > and CAPsMAN. [`network-addresses-generated.md`](network-addresses-generated.md) is the SSOT for
 > subnets / DHCP reservations / SSIDs. Anywhere another doc implies a flat network, that doc is stale.
-> ✅ **IPv6 is LIVE on the Home VLAN only (live 2026-09-22)** — see §IPv6 below. The ISP does delegate a
+> ✅ **IPv6 is LIVE on the Home VLAN only** — see §IPv6 below. The ISP does delegate a
 > /56, and no decision keeps IPv6 off / "WAN-only": §IPv6 is the plan of record.
 
 ---
