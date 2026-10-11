@@ -97,7 +97,7 @@
     password: "{{ cockpit_maint_hash.stdout | trim }}"
 
 - name: HD-361 | Enforce the seat's home mode (0750, owned by the seat itself)
-  # Own task because `home_mode` is NOT a `user` parameter — live: this converge died on nas with
+  # Own task because `home_mode` is NOT a `user` parameter — passing it fails the run with
   # "Unsupported parameters for (ansible.builtin.user) module: home_mode", which --syntax-check
   # cannot see (module args are validated at runtime, not at parse time). `create_home` also only
   # applies on first creation, so a home a human chmod'd would otherwise keep that mode forever.
