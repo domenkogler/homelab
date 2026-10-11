@@ -1,6 +1,6 @@
 # managed by Ansible — monitoring role — silent-failure hygiene exporter unit
 [Unit]
-Description=HD-450 hygiene exporter: systemd unit results + consumer cert age (loopback)
+Description=hygiene exporter: systemd unit results + consumer cert age (loopback)
 Documentation=file:/usr/local/sbin/homelab-hygiene.py
 After=network-online.target
 
