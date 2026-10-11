@@ -46,7 +46,7 @@
 /interface bridge add name=bridge protocol-mode=none
 /interface bridge port add bridge=bridge interface=ether1
 {% for n in range(2, 6) %}
-/interface ethernet set [find default-name=ether{{ n }}] disabled=yes comment="HD-89: unused AP wired port ether{{ n }} disabled (KOPS-046)"
+/interface ethernet set [find default-name=ether{{ n }}] disabled=yes comment="unused AP wired port ether{{ n }} disabled"
 {% endfor %}
 /interface bridge port add bridge=bridge interface=wifi1
 /interface bridge port add bridge=bridge interface=wifi2
@@ -118,7 +118,7 @@
 add chain=input action=accept connection-state=established,related comment="AP: allow established/related input"
 add chain=input action=accept in-interface=bridge comment="AP: allow input on bridge (mgmt DHCP + CAPsMAN discovery)"
 add chain=input action=accept protocol=udp dst-port=68 comment="AP: allow DHCP client input"
-add chain=input action=drop comment="AP: drop all other input (HD-304 lockdown)"
+add chain=input action=drop comment="AP: drop all other input (lockdown)"
 
 # ---- End ----
 # After import, verify on the router: /ip dhcp-server lease print
