@@ -1,6 +1,6 @@
 ---
 # role: spark-ultrafast-build — build the upstream patched-vLLM lineage + convert the
-# T80 dense-MTP drafter directory (HD-489, the ultra-fast profile matrix).
+# T80 dense-MTP drafter directory (the ultra-fast profile matrix).
 #
 # WHY A ROLE AND NOT A KIND IN spark-artifacts: spark-artifacts is the GENERAL store
 # (manifest → HF repo → dir). This is not a download — it is a two-part BUILD whose inputs
