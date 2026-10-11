@@ -12,7 +12,7 @@
     fail_msg: >-
       spark-artifacts requires the spark XFS data mount (spark_xfs_mount,
       group_vars/spark.yml / roles/spark defaults). The artifact store lives on
-      /mnt/spark_nvme (HD-359) — never EXT4.
+      /mnt/spark_nvme — never EXT4.
   tags: [spark, spark-artifacts, artifacts]
 
 - name: Ensure the HF CLI + hf_transfer are present (pip3 --break-system-packages)
