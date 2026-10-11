@@ -16,10 +16,10 @@
 # ---- 1. Disable unused wired ports ----
 # ether1 = uplink (KEEP). ether2..ether5 = unused wired ports (DISABLE — no bridge membership,
 # no service). RouterOS default is disabled=yes, so this is belt-and-braces + explicit.
-/interface ethernet set [find default-name=ether2] disabled=yes comment="HD-89: unused AP wired port ether2 disabled (KOPS-046)"
-/interface ethernet set [find default-name=ether3] disabled=yes comment="HD-89: unused AP wired port ether3 disabled (KOPS-046)"
-/interface ethernet set [find default-name=ether4] disabled=yes comment="HD-89: unused AP wired port ether4 disabled (KOPS-046)"
-/interface ethernet set [find default-name=ether5] disabled=yes comment="HD-89: unused AP wired port ether5 disabled (KOPS-046)"
+/interface ethernet set [find default-name=ether2] disabled=yes comment="unused AP wired port ether2 disabled"
+/interface ethernet set [find default-name=ether3] disabled=yes comment="unused AP wired port ether3 disabled"
+/interface ethernet set [find default-name=ether4] disabled=yes comment="unused AP wired port ether4 disabled"
+/interface ethernet set [find default-name=ether5] disabled=yes comment="unused AP wired port ether5 disabled"
 
 # No bridge membership for the disabled ports (only ether1 + wifi1/wifi2 bridged; if a
 # partial state left ether2..5 in the bridge, remove them):
@@ -37,7 +37,7 @@
 add chain=input action=accept connection-state=established,related comment="AP: allow established/related input"
 add chain=input action=accept in-interface=bridge comment="AP: allow input on bridge (mgmt DHCP + CAPsMAN discovery)"
 add chain=input action=accept protocol=udp dst-port=68 comment="AP: allow DHCP client input"
-add chain=input action=drop comment="AP: drop all other input (HD-304 lockdown)"
+add chain=input action=drop comment="AP: drop all other input (lockdown)"
 
 # ---- End ----
 # Verify: /interface ethernet print (ether2-5 disabled), /interface bridge port print
