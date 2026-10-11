@@ -130,7 +130,7 @@ NO_ENFORCE_FILE="$BASE_DIR/no-enforce"                   # touch this to arm-off
 # Idle-recycle: the non-KV engine footprint grows per request shape and NEVER returns
 # (flat at idle, +21 GiB per ~30 min of light agent traffic). Predictable recycling is
 # harmless at idle and removes the cumulative term before it can become a kill.
-# OWNER DECISION: DISABLED (`SPARK_OOM_RECYCLE=0`, set by the role). A ~5-20 min cold start
+# DISABLED (`SPARK_OOM_RECYCLE=0`, set by the role). A ~5-20 min cold start
 # buys nothing: with a correct (max-of-N) baseline the trigger sits ~4 GiB ABOVE the certified
 # peak, so a reachable margin would mean restarting an engine that is merely healthy. OOM
 # protection does NOT depend on this term —
@@ -633,8 +633,8 @@ config_drift_note() {
 # governor functions by invoking this same script as `_tick` — one process per tick, which is
 # also how the persistence-across-a-unit-restart property is proved. `docker` here is a file
 # append: the test can never touch a real engine.
-# It is written to be RED-able, and the mutants are recorded HERE because the delivery note that
-# used to carry them is deleted: C7 dies if the hysteresis_gate call is dropped from
+# It is written to be RED-able; this map is the record of what each case must catch.
+# C7 dies if the hysteresis_gate call is dropped from
 # enforce_crit, if its usable/REARM comparison is inverted, if the latch is never cleared, or
 # if a RECYCLE restart latches it (an enforced restart must not be re-armable while the
 # REST state is below CRIT — the restart-loop failure mode). C7b is the case
