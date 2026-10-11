@@ -194,6 +194,63 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     Ansible-pinned packages (`alloy`, `tailscale`, `docker-ce`, `kopia`) lands in IaC, or a bare `apt upgrade`
     re-creates the HD-1094 drift and stacks kernel reboots onto a DB-migration window; the `roles/updates` design is
     an owner go/no-go.
+14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
+    actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
+    §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
+    - **Register the heading gate, price it, or leave it a tool.** `scripts/check_doc_headings.py` exists and carries
+      `--self-test`, and `bash scripts/validate-all.sh --list` prints no item for it, so a `§Heading` pointer that
+      dangles reddens nothing at commit time while its path half (`check_doc_path_refs.py`) IS registered. The size of
+      the debt is the last line of its own run, and the same tool copied into a worktree checked out at an earlier
+      revision shows which way the trend moves; the three lawful answers are register it with a frozen baseline and
+      refuse growth, run a clearing campaign, or keep it a tool and say so in the index. The owner picks: a lane that
+      registers it has chosen for everyone. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
+    - **Which spelling of the IoT DoT-bypass drop is canonical.** `IaC/router/templates/rb4011_converge.rsc.j2:438,439`
+      write `IoT -> DoT bypass drop tcp/udp (HD-342)`; `IaC/ansible/roles/router/tasks/main.yml:775,781` write
+      `IoT -> DoT bypass drop - forced DNS to Pi tcp/udp`. One rule, two spellings, and the transient delta at
+      `IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2:40` deletes by prefix (`comment~`) so it catches both, while
+      its guards at `:73,:76,:79,:81,:82` compare with `=` and see only the converge spelling, so a device whose last
+      apply was the ROLE gets the pair re-added beside the role's own. `community.routeros` has no `key:` parameter and
+      pairs device rows to data rows by minimum diff weight, so `comment` is one weighted field and not an identifier:
+      the same split can also land as a silent `update .id=<n> comment=<text>` that erases the anchor the delta selects
+      by. Renaming one side is what `python3 scripts/check_string_twins.py` reddens, naming every other copy of the
+      bytes (proved by editing `IaC/router/templates/rb4011_converge.rsc.j2:438` alone in a scratch worktree and
+      discarding it); the ROLE's differing wording is outside that population by construction, because its sides never
+      agreed at the pinned baseline, so the gate enforces whole renames and arbitrates nothing about which spelling
+      wins. (Rule: [CONVENTIONS.md](CONVENTIONS.md) §6)
+    - **`trusted-ha` membership, stated three ways.** `IaC/ansible/roles/router/tasks/main.yml:360` selects
+      `['oldsrv', 'ha-vip']`, `IaC/router/templates/rb4011_converge.rsc.j2:357` selects `['pi','oldsrv','ha-vip']`, and
+      `docs/network-vlans.md:183` enumerates the list as `oldsrv` + `ha-vip` while `docs/network-vlans.md:200` requires
+      the KNX reverse accept to target `dst-address-list=trusted-ha`, which can only hold if the Pi is in the list. One
+      `grep -n 'trusted-ha'` over those three files reads the contradiction, and the change that widened the template
+      while leaving the role and the doc row behind is named by
+      `git log -S "['pi','oldsrv','ha-vip']" -- IaC/router/templates/rb4011_converge.rsc.j2`. Report it rather than
+      silently picking a side: the answer decides whether the Pi may open Home-to-IoT connections at all.
+    - **The NAT reconcile, and what it removes.** `IaC/ansible/roles/router/tasks/main.yml:455-479` reconciles
+      `ip firewall nat` with `handle_absent_entries: remove` and `restrict: [srcnat, dstnat]`, so every srcnat or
+      dstnat row that its own `data:` does not list comes off the device, including the Comtrend modem `srcnat`
+      masquerade that `docs/network.md:54-61` calls REQUIRED, that `IaC/router/templates/rb4011_converge.rsc.j2:322`
+      writes, and that the role never lists. This wording was proposed by a lane and taken up at handoff rather than
+      derived from a finding, so handle it as deliberately as it was adopted; the trail is in the tree, named by
+      `git log -S 'handle_absent_entries: remove' -- IaC/ansible/roles/router/tasks/main.yml`. Two closes: list the
+      modem row in `data:`, or narrow `restrict:` until the reconcile owns only what it actually lists.
+    - **Promote the string-purge gate, or keep calling it advisory.** `corpus_diff.py` and its signed accepts list
+      live OUTSIDE this repository, so `validate-all.sh` cannot register them and deleting an accept entry narrows the
+      check while the suite stays green. Re-derive that for yourself: `bash scripts/validate-all.sh --list` grepped for
+      corpus answers nothing, and `scripts/corpus_diff.py` does not exist in this tree, because the tool and its
+      accepts list run from a lane directory a fresh clone does not have. Promotion takes three things, in this order:
+      the tool in-tree with both its run and its `--self-test` registered; a pinned baseline naming the compared
+      revision and carrying a digest of what was compared, with the staleness refusal `scripts/check_string_twins.py`
+      already has; and the accepts list in-tree under the canary discipline of
+      `scripts/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. Until all
+      three land, a corpus-diff verdict is per-commit and hand-run, and a green one is evidence about that run only -
+      it is not a gate the suite ran. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
+
+    Standing on top of those five, and not a sixth decision: **the twins gate will start refusing inside the next wave
+    unless its baseline is re-published at the tip.** `scripts/twin_baseline.txt` pins the revision the population is
+    read from, and the run compares how far `HEAD` has moved from it against its own staleness constant, so re-derive
+    the distance with `git rev-list --count $(awk '/^baseline_rev/{print $2}' scripts/twin_baseline.txt)..HEAD` and
+    publish the three values with `python3 scripts/check_string_twins.py --show-baseline` in the commit that moves the
+    baseline. A baseline never ages past one wave.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
 list is **derived** in [todo-table.md](todo-table.md) §B0, so only the ones an owner or a
