@@ -160,7 +160,7 @@ PLACEHOLDER_PATTERNS='REPLACE_ME_|<SERIAL>|VNESI_MODEL_IN_SERIJSKO_SSD_STEVILKO|
 placeholder_hits=""
 for cfg_file in "$BOOT/user-data" "$BOOT/firstboot.sh"; do
     if grep -Eq "$PLACEHOLDER_PATTERNS" "$cfg_file"; then
-        echo "FATAL (HD-201): placeholder keys still present in $cfg_file" >&2
+        echo "FATAL: placeholder keys still present in $cfg_file" >&2
         placeholder_hits=1
     fi
 done
