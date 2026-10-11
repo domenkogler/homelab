@@ -24,7 +24,7 @@
       ({{ ansible_admin_users | join(', ') }}).
   tags: [docker_services]
 
-- name: "Deploy provision token for host-side op (HD-143 / HD-442)"
+- name: "Deploy provision token for host-side op"
   ansible.builtin.copy:
     content: "{{ lookup('community.general.onepassword', 'op-write_api', field='credential', vault=op_vault) }}\n"
     dest: /etc/op/provision-token
@@ -37,7 +37,7 @@
 # Fail loud on VALIDITY, not existence: every consumer here tests `[ -r /etc/op/provision-token ]` and
 # then trusts the read, which is exactly how a dead credential survives green converges. One read-only
 # list call turns that class into a failed task instead of a silent no-write.
-- name: "Probe the deployed token is actually accepted (HD-442)"
+- name: "Probe the deployed token is actually accepted"
   # Reads the file it just wrote instead of re-looking the secret up: keeps the token out of the task
   # parameters (so this needs no no_log) and leaves the 403 text visible on failure — the diagnostic
   # IS the point. Same incantation as run-authentik-glue.yml; `shell` is skipped under --check.
