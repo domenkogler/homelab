@@ -372,7 +372,7 @@ it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seq
 | + ~30 min one light agent session (ungoverned) | 109,785 MiB | 9.6 GiB | 1.6 GiB at the kill |
 | boot + `expandable_segments` + prefill cap (8.2 GiB pool) | 85,445 → 86,243 MiB | 26.9 GiB | 30.3 idle / **28.81 worst** |
 | **boot + both + 16 GiB pool (CERTIFIED baseline)** | **92,343 → 93,621 MiB (+1,278)** | 18.5 → 24.9 idle-after | **17.78 worst** under 2×240k ≈ 94.6 % pool |
-| **certified committed baseline (J1)** | **92,309 MiB committed**; boot-floor spread **71,911 → 92,309** — take the max, not the first read | 118.29 GiB moments after a restart (engine ≈106 GiB released), idle-after 24.3 GiB | engine released in ~5 min (000 → 200); the recycle trigger **100,501 MiB** sits **above** the certified peak **96,235 MiB** — peak − floor = 3.8 GiB, so no margin is both reachable and above the peak: the idle-recycle term is **OFF** |
+| **certified committed baseline** | **92,309 MiB committed**; boot-floor spread **71,911 → 92,309** — take the max, not the first read | 118.29 GiB moments after a restart (engine ≈106 GiB released), idle-after 24.3 GiB | engine released in ~5 min (000 → 200); the recycle trigger **100,501 MiB** sits **above** the certified peak **96,235 MiB** — peak − floor = 3.8 GiB, so no margin is both reachable and above the peak: the idle-recycle term is **OFF** |
 
 The last row is the load-certified peak-bound number: **+21,012 MiB in ~30 min of one light session**
 under the ungoverned shape and **+1,278 MiB across ~1.5 h of the pessimal two-full-window shape**
@@ -667,7 +667,7 @@ research + verdicts: [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resour
 
 - **vLLM (live today):** the 98/100 AWQ+PLE accuracy recipe is vLLM-only (PLE n-gram overlay); NVFP4 on
   GB10 has an upstream Marlin fallback gap (#50925).
-- **SGLang (candidate):** the native-GB10 NVFP4 route (262k ctx); long-context concurrency (S5) fits its
+- **SGLang (candidate):** the native-GB10 NVFP4 route (262k ctx); long-context concurrency fits its
   pool semantics.
 - **util ceiling, for the percentage form:** on the 121.62 GiB coherent pool
   `gpu_memory_utilization: 0.82` is the MAX servable setting — 0.84/0.86 leave the host too little
