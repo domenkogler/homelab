@@ -28,12 +28,12 @@
 #   openrouter_api, litellm_db, spark-llm_api — and the db_backup DB06 story applies unchanged.
 #   On spark convergence the POSTGRES_* values fan out from the same vault items.
 #   → docs/deployment-ai-stack-secrets.md
-#   SCOPED KEYS: this instance mints NONE — the registry entry carries `bootstrap_keys: false`
-#   (the glue fail-louds on an empty spec list) and `litellm_scoped_keys` is `[]`, NOT a
-#   commented-out key (YAML would make that None and `| default([])` does not rescue None). The
-#   first records back are the SIMPLE-QUERIER allow-lists (HomeAssistant / Docling / OWUI), and
-#   they must flip `bootstrap_keys: true` in the same change. Coding harnesses are not consumers
-#   of this instance — they reach spark directly.
+#   SCOPED KEYS: this instance mints its OWN — the registry entry carries `bootstrap_keys: true`
+#   and its consumer records are the `litellm_scoped_keys` list in group_vars/home_servers.yml
+#   (one row today: `home-assistant` → `home-assistant_api`; Docling/OWUI grants still pending).
+#   Keep that list a NON-EMPTY real list: the glue fails loud when no specs render, and a
+#   key-with-only-comments parses as None, which `| default([])` does not rescue. Coding
+#   harnesses are not consumers of this instance — they reach spark directly.
 #   → docs/services-ai.md §4. LLM routing & keys
 {# The Postgres bind target is deliberately version-INDEPENDENT: PGDATA is pinned in the env
 #   block below, which is what lets one mount shape serve 16 and 18. #}
