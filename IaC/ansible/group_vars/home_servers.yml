@@ -21,7 +21,7 @@
 # scp/rsync/git and for humans who type an address.
 ansible_ssh_common_args: "-o ProxyJump=vps"
 
-homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
+homelab_mode: desktop          # 'desktop' applies the desktop/office roles, 'proxmox' applies the proxmox role
 # oldsrv runs `op`-calling glue (bootstrap_keys pre-pass,
 # key provisioning) and must therefore hold the CURRENT write-scoped 1Password token.
 # The Authentik pre-pass that deploys it never runs here (no `authentik` entry), so
@@ -339,8 +339,8 @@ docker_services:
 
   # --- Observability AI-debugging MCP servers — oldsrv (≈600–700 MB RAM each) ---
   # Front-ends to the VPS Victoria backends (VM :8428 / VL :9428) over wg-s2s
-  # (victoria_backend_host). Tailnet/LAN-only, never public. ⏳ deploy-gated: oldsrv
-  # is Phase-3 + needs the VPS Victoria backend live. See docs/observability.md.
+  # (victoria_backend_host). Tailnet/LAN-only, never public. ⏳ deploy-gated: needs
+  # the VPS Victoria backend live. See docs/observability.md.
   - { name: mcp-victoriametrics, template_dir: mcp-victoriametrics, public: false, enabled: true }
   - { name: mcp-victorialogs,    template_dir: mcp-victorialogs,    public: false, enabled: true }
 

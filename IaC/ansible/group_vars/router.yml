@@ -17,7 +17,7 @@ routeros_expected_identity: "router.kogler.si"
 # the only literal VLAN list lives in all.yml; the router adds just the unused
 # VLAN 1 Blackhole stub (every consumer loop filters it via
 # selectattr('unused', 'undefined')). A VLAN edit therefore touches all.yml only —
-# a duplicated map is what drifts (audit H2 / iac-changes §2).
+# a duplicated map is what drifts.
 vlans: "{{ [ {'id': 1, 'name': 'Blackhole', 'subnet': '0.0.0.0/0', 'unused': True} ] + network_vlans }}"
 
 # Port model: untagged = primary/access VLAN (Home 10 for admin/PC/Pi), tagged =

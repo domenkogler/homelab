@@ -445,7 +445,7 @@ http:
       loadBalancer:
         servers:
           - url: "http://{{ ha_vip }}:8123"
-    # pi-web under `domen`, loopback-bound (Phase 4c). This edge is `network_mode: host`, so it
+    # pi-web under `domen`, loopback-bound. This edge is `network_mode: host`, so it
     # reaches the host's own loopback — which is what lets the seat stay OFF the LAN entirely.
     # Port from the reservation var (`cockpit_pi_web_port`, group_vars/all/main.yml); before this
     # router existed that var was a reservation no template read.

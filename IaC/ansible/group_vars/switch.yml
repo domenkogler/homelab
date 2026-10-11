@@ -117,5 +117,5 @@ wifi_ports:
 
 # VLAN list — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all/):
 # switch consumers use id + name only, so the full SSOT dicts pass through
-# unchanged; no literal duplicate to drift (audit H2 / iac-changes §2).
+# unchanged; no literal duplicate to drift.
 switch_vlans: "{{ network_vlans }}"

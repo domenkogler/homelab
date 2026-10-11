@@ -18,8 +18,8 @@ domain_local: kogler.si    # the LAN search suffix: rendered as `Domains=` / `dn
                            # space; `domain_public` is the public half of the same string.
 
 # Bootstrap DHCP DNS for freshly-reset MikroTik gear: used by the
-# rb4011_initial template BEFORE Technitium exists (it lands on oldsrv at
-# Phase 3). Upstream public resolver until then.
+# rb4011_initial template BEFORE Technitium exists (it lands on oldsrv).
+# Upstream public resolver until then.
 bootstrap_dns_servers: "1.1.1.1"
 
 # GPU group IDs — read them on the box, not from the Debian defaults table.

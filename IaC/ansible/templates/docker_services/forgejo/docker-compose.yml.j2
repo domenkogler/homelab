@@ -55,7 +55,7 @@ services:
       FORGEJO__database__NAME: forgejo
       FORGEJO__database__USER: "{{ vault['forgejo_db'].username | replace('$','$$') }}"
       FORGEJO__database__PASSWD: "{{ vault['forgejo_db'].password | replace('$','$$') }}"
-      # Server identity (Wave-3 R5): without these the first-boot wizard defaulted
+      # Server identity: without these the first-boot wizard defaulted
       # AppURL to http://localhost:3000, breaking links/mail/OIDC callbacks.
       FORGEJO__server__DOMAIN: git.kogler.si
       FORGEJO__server__ROOT_URL: https://git.kogler.si/
