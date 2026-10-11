@@ -6,13 +6,13 @@
 #
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #   privado-vpn_api  (API Credential: WIREGUARD_PRIVATE_KEY — the ONLY secret)
-# VPN provider: custom WireGuard (HD-318c). gluetun DROPPED the native `privado`
+# VPN provider: custom WireGuard. gluetun DROPPED the native `privado`
 #   provider, so gluetun runs in `custom` mode and the endpoint is supplied
 #   explicitly. NON-secret endpoint/address values come from group_vars
 #   home_servers.yml (privado_vpn_* SSOT) — see docs/services-downloads.md.
 services:
   gluetun:
-    # qm12/gluetun fork is GONE (probe 2026-08-21) → upstream qmcgaw/gluetun
+    # upstream qmcgaw/gluetun — the qm12/gluetun fork is gone
     image: qmcgaw/gluetun:{{ gluetun_version }}
     container_name: gluetun
     restart: unless-stopped
@@ -24,14 +24,14 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern + the torrent/sab host-port split. qBittorrent has NO own network
+      # Torrent/sab host-port split. qBittorrent has NO own network
       # (network_mode: service:gluetun), so its WebUI publish lives on the GLUETUN sidecar
       # (the netns owner) — the WebUI listens :8080 inside the shared netns. Host port
       # {{ qbittorrent_host_port }} (8081 is dozzle/llogs; 8080 goes to SABnzbd) and the
       # route's torrent-backend must target {{ qbittorrent_host_port }}, not :8080.
       - "{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}:8080"
     environment:
-      VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` → explicit endpoint (HD-318c)
+      VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` → explicit endpoint
       VPN_TYPE: wireguard
       # [Peer] Endpoint — gluetun custom requires an IP literal (no DNS, qdm12/gluetun#2680)
       WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"
@@ -59,7 +59,7 @@ services:
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
-    # read_only intentionally ABSENT (HD-318): linuxserver s6-overlay images
+    # read_only intentionally ABSENT: linuxserver s6-overlay images
     # do not support read_only root — it caused /run/s6 exec failures. Keep
     # cap_drop: ALL + /run:exec for the remaining hardening (sonarr precedent).
     tmpfs:

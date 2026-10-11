@@ -1,13 +1,13 @@
 #!/bin/sh
 # certs-rename.sh — rename the certs-dumper output to the shared wildcard pair names
-# (HD-181 naming contract; rendered by Ansible, mounted read-only into the dumper).
+# (naming contract; rendered by Ansible, mounted read-only into the dumper).
 # Called by the certs-dumper entrypoint after the initial dump AND as --post-hook on
 # every renewal. Idempotent; exits 0 quietly while no wildcard cert exists yet so the
-# container idles in watch mode instead of crash-looping (Wave-2 triage 2026-08-22:
-# before first successful DNS-01 issuance there is nothing to dump).
+# container idles in watch mode instead of crash-looping (before first successful
+# DNS-01 issuance there is nothing to dump).
 set -e
-# Layout note (Wave-3 R5): the dumper writes keys under dump/private/, certificates
-# under dump/certs/ - the original wrapper had the two swapped.
+# Layout note: the dumper writes keys under dump/private/, certificates
+# under dump/certs/.
 CRT=$(ls /output/dump/certs/*{{ wildcard_cert_domain }}*.crt 2>/dev/null | head -n 1)
 KEY=$(ls /output/dump/private/*{{ wildcard_cert_domain }}*.key 2>/dev/null | head -n 1)
 if [ -z "$CRT" ] || [ -z "$KEY" ]; then
@@ -17,7 +17,7 @@ fi
 cp "$CRT" "/output/{{ wildcard_cert_file }}"
 cp "$KEY" "/output/{{ wildcard_cert_key_file }}"
 
-# HD-135b follow-up (2026-08-28): the issuer also requests *.ts.{{ wildcard_cert_domain }}
+# The issuer also requests *.ts.{{ wildcard_cert_domain }}
 # (dash router tls.domains[1]) so the tailnet .ts twins are covered. The dumper writes
 # it as _.ts.{{ wildcard_cert_domain }}.crt/key; copy it to a fixed ts.* pair consumed by
 # traefik-tailnet tls.yml. Do NOT glob for the first matching *kogler.si* pair — that
