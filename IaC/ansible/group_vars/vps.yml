@@ -121,17 +121,14 @@ docker_services:
   - { name: chat,           template_dir: element-web, subdomain: chat, public: true, enabled: true }
   # === Edge accessories (VPS residency) ===
   - { name: headscale,      template_dir: headscale, subdomain: vpn, public: true, enabled: true }  # public coordination (rev. network-vpn.md)
-  # Metabase — RETIRED (never used; no data to lose; VPS RAM tight).
-  # The IaC is KEPT, not deleted: this line is the switch,
-  # and `enabled: false` means "declared here, ignored by the converge" — which is what a
-  # retired-but-not-forgotten service should look like. It now reaches further than the
-  # container: the Authentik → 1Password secret-egress glue renders its `metabase:metabase_oidc`
-  # entry only while this line says enabled, so a retired service cannot seed — or *mint* — a
-  # vault item. An `enabled: false` service that can still mint produces phantom vault items
-  # for a service that is off.
-  # The `metabase_ro` role in forgejo-db is no longer re-synced; the db_ro_* keys are dropped
-  # and the vault item `metabase-forgejo_ro` is intentionally left in place (owner: leave as-is).
-  # If ever needed again it runs on OLDSRV (docs/services-admin.md).
+  # Metabase is retired (VPS RAM tight). The IaC line is KEPT, not deleted: this line is the
+  # switch, and `enabled: false` means "declared here, ignored by the converge" — the shape of a
+  # retired-but-not-forgotten service. It reaches further than the container: the Authentik →
+  # 1Password secret-egress glue renders its `metabase:metabase_oidc` entry only while this line
+  # says enabled, so a retired service cannot seed — or *mint* — a vault item; an `enabled: false`
+  # service that can still mint produces phantom vault items for a service that is off.
+  # The `metabase_ro` role in forgejo-db is not re-synced; the vault item `metabase-forgejo_ro`
+  # stays in place deliberately. If needed again it runs on OLDSRV (docs/services-admin.md).
   - { name: metabase,       template_dir: metabase,  subdomain: sec, public: false, enabled: false }
   # ⚠ What this switch does NOT gate (tracked in its own row, not silently): the Authentik provider + app in
   #   templates/docker_services/authentik/blueprints/ks-oidc.yml, and the two `edge-sec` proxy providers, two
@@ -248,14 +245,13 @@ homepage_show_technical: true
 homepage_show_soon: true
 
 # HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the HA cutover.
-# Today nothing can populate the bearer-token file (no vault item, no
-# monitoring render) and ha_vip serves no HA yet - a live job would just fail. Flip true at
-# the cutover with the HA long-lived-token item seeded, the Alloy compose mount added, and
-# the token path renamed off the retired product name: Alloy has NO mount for the path this
-# block reads, so enabling the gate alone yields a scrape that cannot see its own token
-# (see the same-change rule in roles/monitoring/tasks).
-# The gate is named for what it gates (Alloy's ha_exporter job), not for the retired
-# backend. HA's endpoint really is /api/prometheus, so THAT name stays.
+# Nothing populates the bearer-token file yet (no vault item, no monitoring render)
+# and ha_vip serves no HA - a live job would just fail. Flip true at the cutover with the HA
+# long-lived-token item seeded, the Alloy compose mount added, and the token path matching that
+# mount: Alloy has NO mount for the path this block reads, so enabling the gate alone yields a
+# scrape that cannot see its own token (see the same-change rule in roles/monitoring/tasks).
+# The gate is named for what it gates (Alloy's ha_exporter job), not for its backend; HA's
+# endpoint is /api/prometheus.
 alloy_ha_exporter: false
 
 # Tailnet-only dashboards: the tailnet Traefik edge (traefik-tailnet)
@@ -269,9 +265,9 @@ alloy_ha_exporter: false
 # `IP -> node` pair will eventually contradict live state, and the check is `ss` on the
 # host plus `headscale nodes list`. Read the command output; never trust a remembered pair.
 tailnet_sidecar_ip: "100.64.0.1"
-# Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev): the sidecars are REMOVED
-# (dsh/pi-dev moved to oldsrv) —
-# these are retained as historical/no-op values: the clean-URL DNS still
+# Pattern-A tailnet sidecar IPs (vps-dsh / vps-pi-dev): those sidecars are retired,
+# dsh/pi-dev run on OLDSRV.
+# These values are inert: the clean-URL DNS still
 # resolves to the edge (tailnet_sidecar_ip), and the edge reaches the backends
 # over WG to {{ oldsrv_home_ip }}:3080/:8080 (NOT via these sidecar IPs). They
 # stay only so any dangling config that references them resolves; do NOT rely on
@@ -302,7 +298,7 @@ tailnet_subdomains:
   - { name: stats }
   - { name: logs }
   - { name: csui }
-  # sec REMOVED — Metabase retired from the VPS.
+  # No `sec` entry: Metabase is retired from the VPS.
   - { name: traefik }
   - { name: auto }
   # --- DSH / pi-dev: resolve to the edge, hosted on OLDSRV; the tailnet

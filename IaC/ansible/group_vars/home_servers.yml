@@ -76,7 +76,7 @@ grafana_alert_email: domen@kogler.si
 grafana_alert_webhook_url: "http://n8n:5678/webhook/homelab-alerts"
 # PrivadoVPN WireGuard egress for the qbittorrent gluetun sidecar.
 # SSOT for the NON-secret endpoint config of the VPN tunnel; gluetun runs the
-# provider in `custom` WireGuard mode (gluetun dropped the native `privado`
+# provider in `custom` WireGuard mode (the image has no native `privado`
 # provider) so these values are supplied explicitly instead of via
 # a `SERVER_COUNTRIES`/`privado` server pick. The client private key is the
 # ONLY secret — it lives in 1Password `privado-vpn_api` (field `credential`)
@@ -214,7 +214,7 @@ docker_services:
   #   TERTIARY = Pi (raspberry_pi.yml). LAN DHCP chain + router rules + tailnet
   #   headscale nameservers all list VPS-primary first (see docs/network-dns.md).
   # Forwards to the same SSOT upstreams as the primary and the Pi
-  # (one list, not per-instance lists — rejected alternative in docs/network-rejected.md). Egress-only
+  # (one list, not per-instance lists — alternatives: docs/network-rejected.md). Egress-only
   # knob; behaviour + measurements: docs/network-dns.md §Resolver upstream.
   - { name: technitium,      template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}",
       technitium_forwarders: "{{ dns_resolver_upstreams }}" }
@@ -222,7 +222,7 @@ docker_services:
   # Advanced Blocking (the filter belongs on the reliable VPS/Pi DNS tier, not
   # oldsrv). This entry stays `enabled: false` so the deploy loop tears the container down;
   # a retired row that is still `enabled: true` leaves a crash-looping container behind.
-  # Vault item pihole_password is intentionally left in place (owner: leave as-is).
+  # Vault item pihole_password is intentionally left in place.
   - { name: pihole,          template_dir: pihole,     subdomain: ad, public: false, enabled: false }
 
   # --- Home-LAN internal all-app edge: traefik-internal on OLDSRV ---
@@ -314,7 +314,7 @@ docker_services:
   # Ordering contract: a bootstrap_keys
   # service MUST precede its consumers in this list, because the glue runs during ITS
   # deploy pass and refreshes the vault dict the consumers render from.
-  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway (decision #26); own Postgres; Kopia-backed
+  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway; own Postgres; Kopia-backed
       bootstrap_keys: true }   # the first consumer this glue mints for is `home-assistant_api`. ⚠ The glue runs inside THIS service's pass and rc1/rc2/rc4 all fail the converge (`failed_when: rc != 0`), so an empty spec list or a stale vault bearer is a red run by design — remediation is named in the log line (litellm-bootstrap-keys.sh.j2)
   - { name: dsh,            template_dir: dsh,       public: false, enabled: false }   # PARKED — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:3080
   - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: false }   # PARKED — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:8080

@@ -32,7 +32,7 @@
     - push-services.timer
     - push-face-thumbs.service
     - push-face-thumbs.timer
-    - push-db-dumps.timer      # superseded by push-db-dumps-push.timer when the leg split in two
+    - push-db-dumps.timer      # push-db-dumps-push.timer is its replacement
   register: retired_push_units
   tags: storage
 

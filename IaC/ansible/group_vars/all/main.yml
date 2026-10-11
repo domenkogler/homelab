@@ -35,8 +35,8 @@ gpu_video_gid: 44
 
 # The dGPU's DRM render node for the Vulkan legs. Mount ONLY this
 # node: renderD128 is the HD 630 iGPU, which is the family desktop's Xorg device AND the
-# Jellyfin QSV transcoder — and using it for AI is measured SLOWER than CPU (rejected by
-# measurement, docs/services-ai-bench.md §4). renderD129 = AMD RX 7600 gfx1102.
+# Jellyfin QSV transcoder — and using it for AI is slower than CPU
+# (docs/services-ai-bench.md §4). renderD129 = AMD RX 7600 gfx1102.
 gpu_vulkan_render_node: /dev/dri/renderD129
 
 # ==== Shared service knobs ====
@@ -59,7 +59,7 @@ letsencrypt_email: domen@kogler.si
 # ALSO sent to CrowdSec (docker.sock container-log parsing).
 # NOTE: crowdsecurity/matrix AND crowdsecurity/grafana do
 # NOT exist upstream — their failed installs abort container startup every boot. Matrix
-# and Grafana log parsing is dropped until collections exist upstream or are authored.
+# and Grafana logs are not parsed until such collections exist upstream or are authored.
 crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant a1ad/mikrotik"
 # Wildcard *.kogler.si cert pair file names — shared by the issuer and ALL consumer
 # edges so the VPS ACME issuer, the consumer pull timers and the Traefik configs can
@@ -155,8 +155,8 @@ nut_exporter_port: 9199
 #   SMTP server: mail-eu.smtp2go.com; SMTP port 2525 (default); alternative
 #   ports 8025, 587, 80, 25 — TLS available on the same ports (STARTTLS).
 #   SSL only on 465, 8465, 443.
-# We use mail-eu.smtp2go.com:2525 + STARTTLS (the SMTP2Go default; 587 is blocked from the
-# VPS egress — only 2525/8025 are open there — so 2525 is the port used by every consumer).
+# The connection is mail-eu.smtp2go.com:2525 + STARTTLS (the SMTP2Go default; 587 is blocked from
+# the VPS egress — only 2525/8025 are open there — so 2525 is the port every consumer uses).
 smtp2go_host: mail-eu.smtp2go.com
 smtp2go_port: 2525                  # STARTTLS port (default; alternates 8025/587/80/25). 587 is BLOCKED from the VPS egress
                                      # (only 2525/8025 are open there); LAN egress reaches both. Use 2525 everywhere.
@@ -484,8 +484,8 @@ homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # source restriction. Derived from the address SSOT.
 oldsrv_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
-# Signal alert recipients — the "Homelab alerts" Signal group (owner ruling:
-# the WHOLE group, not the personal number). JSON-array body WITHOUT the
+# Signal alert recipients — the "Homelab alerts" Signal group, the WHOLE group,
+# not the personal number. JSON-array body WITHOUT the
 # brackets — the n8n workflow renders `recipients = [{{ $env.SIGNAL_RECIPIENTS }}]`, so
 # each entry carries its own JSON quotes (add more entries as `"a", "b"`).
 # The value is the V2 group id (`group.` + base64) that the linked signal-cli daemon
@@ -710,9 +710,9 @@ alloy_backend_host: "{% if inventory_hostname == 'vps.kogler.si' %}127.0.0.1{% e
 # ==== Victoria* observability backend (replaces Prometheus+Loki on the VPS) ====
 # Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428, pure storage/query —
 # Alloy does ALL scraping, topology (B)) + VictoriaLogs (logs, :9428). Alloy (host/SNMP/
-# exporter remote_write + log push) and Grafana stay; Prometheus + Loki containers/configs
-# are dropped. Retention 365d / 90d — longer than Prometheus 30d / Loki 14d
-# was, because Victoria compresses far better; the volumes are
+# exporter remote_write + log push) and Grafana stay; Prometheus and Loki are not deployed.
+# Retention 365d / 90d — more than Prometheus 30d / Loki 14d, because Victoria compresses
+# far better; the volumes are
 # Kopia-backed (docs/observability.md) rather than a regenerable TSDB.
 # The MCP AI-debugging servers live on oldsrv and reach these VPS endpoints over
 # the tailnet (an s2s-wg → tailnet redo is planned; the MCP leg already uses tailnet).
@@ -739,8 +739,8 @@ victoria_logs_item: victoria-logs_api         # 1Password basic-auth item (usern
 victoria_backend_host: "{{ wg_s2s_vps.ip }}"   # MCP → Victoria backend host (wg-s2s now, tailnet later)
 
 # MCP server listen ports on OLDSRV. The upstream images bind `MCP_LISTEN_ADDR`
-# (default localhost:8080 metrics / :8081 logs); inside Docker we set :8080/:8081 and
-# publish them loopback-only for the local AI clients (pi/OWUI/OpenClaw on the LAN +
+# (default localhost:8080 metrics / :8081 logs); inside Docker the container binds
+# :8080/:8081, published loopback-only for the local AI clients (pi/OWUI/OpenClaw on the LAN +
 # tailnet). Distinct per server; never expose on the WAN/public edge.
 mcp_metrics_port: 8083  # MCP→VM Streamable HTTP (oldsrv) — 8080 belongs to pi-dev, hence 8083
 mcp_logs_port: 8084    # MCP→VL Streamable HTTP (oldsrv) — kept sequential with the metrics pair
@@ -760,7 +760,7 @@ immich_ml_url: "http://{{ immich_ml_bind }}:3003"   # IMMICH_MACHINE_LEARNING_UR
 # on `oldsrv_home_ip`). Same precedent, tighter bind: the edge and the host are the same
 # box, so LOOPBACK is enough and it does not hand Jellyfin's own login (and its bypass of
 # the edge's CrowdSec/HSTS posture) to every Home device.
-# Owner ruling: loopback IS the posture for the whole routed group, so this
+# Loopback IS the posture for the whole routed group, so this
 # binds loopback like the rest. A LAN client that insists on dialling :8096 directly is a NEW
 # decision, not a one-line flip — `JELLYFIN_PublishedServerUrl` (compose) already hands every client
 # the edge name, so direct-:8096 access is a regression of the edge, not a client fix.
@@ -869,8 +869,8 @@ aurral_url: "http://{{ aurral_bind }}:{{ aurral_host_port }}"
 slskd_bind: "{{ oldsrv_home_ip }}"
 slskd_host_port: 5030
 slskd_url: "http://{{ slskd_bind }}:{{ slskd_host_port }}"
-# The name is `lidarr-ydl.` (owner ruling): the tool is Lidarr-only and audio-only,
-# so the neutral `ydl.` was rejected and the older `url-dl.` spelling is retired.
+# The name is `lidarr-ydl.`: the tool is Lidarr-only and audio-only, which is why the name is
+# not the neutral `ydl.` and never the older `url-dl.` — do not rename it.
 lidarr_ydl_bind: "{{ oldsrv_home_ip }}"
 lidarr_ydl_host_port: 5005
 lidarr_ydl_url: "http://{{ lidarr_ydl_bind }}:{{ lidarr_ydl_host_port }}"

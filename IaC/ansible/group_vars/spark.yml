@@ -316,27 +316,20 @@ spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling
 # or a re-cert — never a bigger number in this file. The gate's fail message says which.
 spark_llm_device_hold_ceiling_bytes: 104113000000
 
-# ---- The never-evict KV pin: REJECTED — the ONE value is now EMPTY, so the flag
-# never renders into any profile's argv. Keep reading this block before re-arming it.
-# WHAT IT WAS: `--never-evict-kv-cache-prompt-includes <text>` pins the KV blocks of every
-# prompt CONTAINING that text (up to `--never-evict-kv-cache-max-fraction` of the pool), aimed
-# at the "0 % prefix-hit re-prefill" the long-session note used to carry. ONE value, aliased
-# below as `*nev` / `*nevf`, because a per-arm copy is how a pin silently stops matching what
-# the client sends.
-# WHY IT IS OFF (measured on the live box over 13 h of real pi sessions;
-# docs/spark-llm-profiles.md §Never-evict prompt pin, docs/services-ai-rejected.md):
-#   · the pin held 0 blocks — the engine's own `[never-evict] holding …` line never printed;
-#   · 0 preemptions, 95.1 % of prompt tokens served from prefix cache, recomputed share 4.9 %,
-#     against the 3.70 % (24 h) / 4.57 % (7 d) baseline the pre-pin report already measured —
-#     the 25 GB pool (3.08 × the window) is what cured the re-prefill, not the pin;
-#   · the marker is the operator's pi global-instructions text, and the client actually serving
-#     sessions (WSL pi, PI_PROVIDER=spark) loads no AGENTS.md at all, so no request since boot
-#     carried the needle. A pin aimed at a prompt nobody sends is decoration.
-# THE TRAP THAT ENDED IT: the patch exists ONLY in the built ultrafast lineage. The base digest
-# has no such argument, so arming a `base` profile writes argv api_server cannot parse and the
-# container crash-loops (~20 min per attempt, restarts in the hundreds overnight). That is why the
-# lineage list below exists and why both the role and
-# scripts/check_spark_llm_gate.py now refuse a pin on an unpatched image.
+# ---- The never-evict KV pin: OFF — the ONE value is EMPTY, so the flag never renders into any
+# profile's argv. `--never-evict-kv-cache-prompt-includes <text>` pins the KV blocks of every
+# prompt CONTAINING that text (up to `--never-evict-kv-cache-max-fraction` of the pool). ONE
+# value, aliased below as `*nev` / `*nevf`, because a per-arm copy is how a pin silently stops
+# matching what the client sends. Read this block before re-arming.
+# WHY IT IS OFF (docs/spark-llm-profiles.md §Never-evict prompt pin, docs/services-ai-rejected.md):
+# the 25 GB pool is what serves re-prefill, so a pin reserves nothing; and the marker is the
+# operator's pi global-instructions text while the client that actually serves sessions (WSL pi,
+# PI_PROVIDER=spark) loads no AGENTS.md at all, so no request carries the needle. A pin aimed at a
+# prompt nobody sends is decoration.
+# THE TRAP: the argparse patch exists ONLY in the built ultrafast lineage. A base digest has no
+# such argument, so arming a `base` profile writes argv api_server cannot parse and the container
+# crash-loops. Both the role and scripts/check_spark_llm_gate.py refuse a pin on an image that is
+# absent from the lineage list below.
 # TO RE-ARM (a re-decide needs an exception note, CONVENTIONS §8.3): put the literal back here
 # (inlined because scripts/validate-docker-services.py mocks every lookup(), so a
 # lookup('file', …) would render `<secret:file>` and pass the gate green), prove the needle is a
@@ -462,10 +455,10 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: *nev        # "" — REJECTED. This lane renders image: base,
+    never_evict_prompt: *nev        # "" — pin off. This lane renders image: base,
     never_evict_max_fraction: *nevf   # whose build has no --never-evict-kv-cache-* argument: a
                                       # non-empty pin here aborts api_server at parse and the
-                                      # container crash-loops (restarts in the hundreds).
+                                      # container crash-loops.
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
@@ -541,10 +534,10 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: *nev        # "" — REJECTED. This lane renders image: base,
+    never_evict_prompt: *nev        # "" — pin off. This lane renders image: base,
     never_evict_max_fraction: *nevf   # whose build has no --never-evict-kv-cache-* argument: a
                                       # non-empty pin here aborts api_server at parse and the
-                                      # container crash-loops (restarts in the hundreds).
+                                      # container crash-loops.
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
@@ -789,7 +782,7 @@ spark_llm_profiles:
     ple_staged_marker: ""               #   the template composes paths, profiles declare
     cudagraph_piecewise: false          # coordinates. (The note at the foot of
     prompt_tokens_details: false        #   this file is the reason.)
-    never_evict_prompt: *nev                    # "" — the ONE value for every arm, now EMPTY (rejected;
+    never_evict_prompt: *nev                    # "" — the ONE value for every arm, EMPTY = pin off (see
                                       #   docs/services-ai-rejected.md). The role +
                                       #   check_spark_llm_gate.py refuse to arm it on a
                                       #   spark_llm_never_evict_capable_images-absent image.
@@ -1336,8 +1329,8 @@ spark_vllm_max_num_seqs: "{{ spark_llm_profiles[spark_llm_profile].max_num_seqs 
 # size guarantees a global OOM at load. Native ceiling and the bench matrix:
 # docs/hardware-spark.md §Bench + engine selection
 spark_vllm_max_model_len: "{{ spark_llm_profiles[spark_llm_profile].max_model_len }}"
-# Removed key: this vLLM build dropped swap_space from EngineArgs — `--swap-space` is unrecognized
-# and crashes the engine at argv-parse. Offload is managed inside the engine config.
+# This key does not exist: this vLLM build has no swap_space in EngineArgs — `--swap-space` is
+# unrecognized and crashes the engine at argv-parse. Offload is managed inside the engine config.
 # See docs/hardware-spark.md for the bench note.
 spark_vllm_kv_cache_dtype: "{{ spark_llm_profiles[spark_llm_profile].kv_cache_dtype }}"
 # ===== GPU×host unified-memory governance =====
@@ -1370,9 +1363,9 @@ spark_vllm_max_cudagraph_capture_size: "{{ spark_llm_profiles[spark_llm_profile]
 spark_vllm_enforce_eager: false          # per-profile: template reads spark_llm.enforce_eager
 spark_vllm_spec_method: "{{ spark_llm_profiles[spark_llm_profile].spec_method }}"
 spark_vllm_spec_tokens: "{{ spark_llm_profiles[spark_llm_profile].spec_tokens }}"
-# Do not reintroduce `disable_by_batch_size`: this build dropped it from SpeculativeConfig in
-# favour of num_speculative_tokens_per_batch_size (a list of inclusive (start,end,K) ranges), so
-# the old key fails at parse time. A dynamic spec schedule needs the new key.
+# Do not reintroduce `disable_by_batch_size`: this build has no such SpeculativeConfig field, so
+# the key fails at parse time. num_speculative_tokens_per_batch_size (a list of inclusive
+# (start,end,K) ranges) is the key a dynamic spec schedule needs.
 
 # No local router container: llm-d is a Kubernetes inference-pool stack (endpoint-picker /
 # disagg-sidecar route Envoy+K8s pools), not a single-node :8080 gateway, so LiteLLM fronts the
