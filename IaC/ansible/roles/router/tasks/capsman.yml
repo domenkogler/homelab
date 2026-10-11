@@ -25,4 +25,4 @@
     fail_msg: >-
       routeros_capsman_enabled=true but the CAPsMAN api_modify tasks are not
       implemented yet — see the header of roles/router/tasks/capsman.yml and
-      implement them during the cutover-prep live session (HD-229).
+      implement them during the cutover-prep live session.
