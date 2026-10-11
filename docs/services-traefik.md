@@ -462,7 +462,7 @@ networks:
 
 ## Middleware Chain
 
-1. **CrowdSec bouncer** — blocks malicious IPs. Plugin contract (Wave-3 R5): module
+1. **CrowdSec bouncer** — blocks malicious IPs. Plugin contract: module
    `github.com/maxlerebourg/crowdsec-bouncer-traefik-plugin` (note spelling), pin in
    `versions.yml` (`crowdsec_bouncer_plugin_version`, registry-verified; v1.7.1 REQUIRES
    `crowdsecLapiKey`) — key lives in vault item `crowdsec-bouncer_api`, generated via
