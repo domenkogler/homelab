@@ -52,7 +52,7 @@
 }
 # Add the new IoT-20 reservation (idempotent: only if absent).
 :if ([/ip dhcp-server lease find where mac-address=00:20:85:C0:92:FA and server=dhcp-20] = "") do={
-    /ip dhcp-server lease add server=dhcp-20 address=10.10.20.9 mac-address=00:20:85:C0:92:FA comment="ups static reservation (IoT 20, HD-338)"
+    /ip dhcp-server lease add server=dhcp-20 address=10.10.20.9 mac-address=00:20:85:C0:92:FA comment="ups static reservation (IoT 20)"
 }
 
 :log warning "rb4011_iot_off_mgmt_delta.rsc applied"
