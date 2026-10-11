@@ -17,7 +17,7 @@
 :if ([/interface wifi configuration find where name=cfg-kogler-guest] != "") do={
     /interface wifi configuration set [find where name=cfg-kogler-guest] disabled=no
 } else={
-    :error "HD-312 delta: cfg-kogler-guest missing — steady-state rsc not imported?"
+    :error "delta: cfg-kogler-guest missing — steady-state rsc not imported?"
 }
 
 # ---- 2. DELETE the IOT-WAN + Kids SSID configurations ----
@@ -46,7 +46,7 @@
 :if ($fiveGHz != "") do={
     /interface wifi provisioning set $fiveGHz slave-configurations=cfg-kogler-guest
 } else={
-    :error "HD-312 delta: 5GHz provisioning rule (master=cfg-kogler-5) missing"
+    :error "delta: 5GHz provisioning rule (master=cfg-kogler-5) missing"
 }
 
 # ---- 5. CAP re-provision kick (the 5GHz slave materializes at the CAP) ----
