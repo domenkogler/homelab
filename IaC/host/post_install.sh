@@ -95,7 +95,7 @@ for cfg_file in $PLACEHOLDER_CHECK_FILES; do
     fi
 done
 if [ -n "$placeholder_hits" ]; then
-    echo "FATAL (HD-201): placeholder content still present in:$placeholder_hits" >&2
+    echo "FATAL: placeholder content still present in:$placeholder_hits" >&2
     echo "       patterns: $PLACEHOLDER_PATTERNS" >&2
     echo "       Replace the placeholders with the real 1Password Homelab-ansible" >&2
     echo "       values (domen_ssh / ansible-admin_ssh / ai_ssh) and re-run" >&2
