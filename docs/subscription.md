@@ -171,5 +171,4 @@ See [`network-dns.md`](network-dns.md) for the split-horizon DNS scheme.
 
 ## Deferred Subscriptions (Phase 2+)
 
-*None — every former deferred item is now either Active above or retired; decisions live in
-`deployment-rejected.md`.*
+*None — no subscription is deferred; decisions live in `deployment-rejected.md`.*
