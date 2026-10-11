@@ -1173,8 +1173,8 @@ spark_llm_profiles:
     fixed_cost_bytes: 78300000000
     fixed_cost_basis: "VENDOR-PUBLISHED + T80 allowance, NOT measured here (see v16b)"
     uncertified_reason: >-
-      One delta vs v16b: the batch/shape terms this repo chose for OOM reasons (
-      stranded capture, slab ceiling at 16,384-token prefills). Answers "does the
+      One delta vs v16b: the batch/shape terms this repo chose for OOM reasons
+      (stranded capture, slab ceiling at 16,384-token prefills). Answers "does the
       speed survive the settings that keep this box alive?" — the question that decides
       whether the recipe is adoptable here at all.
     certified_evidence: ""
