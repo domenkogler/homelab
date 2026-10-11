@@ -17,7 +17,7 @@
 #     (each asserted against below, not assumed).
 #   * FAIL-CLOSED: no vault value -> the run dies before the box is touched. An empty
 #     string is specifically trapped because 1Password's duplicate-field shape bug produces
-#     exactly that (docs/deployment-secrets.md §"Verify by length AND shape").
+#     exactly that (docs/deployment-secrets.md §Creation & Rotation Workflow).
 #
 # Idempotency: no `passlib` in the controller venv (no `password_hash`), and `chpasswd` is out —
 # the hosts default to yescrypt (login.defs ENCRYPT_METHOD), unverifiable off-box. Hash ON THE
@@ -42,9 +42,9 @@
 # idempotent and the reason the leg cannot run without the vault: `community.general.onepassword`
 # is the house pattern for host roles (see roles/cloudflare_dns), and it fails closed — an
 # unreadable vault aborts here rather than provisioning an empty password into /etc/shadow.
-# DELETED ONCE by a bad string slice of mine (a non-unique `fail_msg` anchor swallowed it) and the
-# file still parsed, still linted, and failed at the NEXT task with an undefined fact — so if this
-# block ever moves, re-run the converge: nothing else in the toolchain notices its absence.
+# A block removed from here leaves no trace in the toolchain: the file still parses, still lints,
+# and fails at the NEXT task with an undefined fact — so after any move of this block, re-run the
+# converge; nothing else notices its absence.
 - name: HD-361 | Read the maint password from 1Password (control node, fail-closed)
   ansible.builtin.set_fact:
     cockpit_maint_password: >-
