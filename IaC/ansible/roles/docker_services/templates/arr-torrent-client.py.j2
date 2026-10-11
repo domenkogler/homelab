@@ -20,7 +20,7 @@ three-page expression nobody can run offline; in Python it can be tested before 
 
 WHY THE TEST CALL IS THE PROOF: on Sonarr 4.0.19 `POST /api/v3/downloadclient/test` validates and
 TESTS THE BODY IT CARRIES (sending `{}` answers 400 "'Name' must not be empty"; `test/{id}` and
-`test/all` answer 405 — measured 2026-10-07). So posting the body we just stored makes the app itself
+`test/all` answer 405). So posting the body we just stored makes the app itself
 resolve `gluetun`, open the WebUI and authenticate with the credential it now holds. 200 = the leg
 works end to end; 401 = qBittorrent's conf and this client disagree (qbittorrent-seed did not run
 after the last rotation); 000/ refused = the overlay name `gluetun` does not resolve from this arr.
@@ -115,8 +115,8 @@ def same(live_value, wanted_value):
 
     The apps store `port` as an int and echo it back as 8080 while our var renders the string "8080"
     (`arr_torrent_client_port` is a quoted Jinja value), so a raw `!=` compares "8080" to 8080 forever.
-    Measured 2026-10-07 against the live four: field `port` is int 8080 on Sonarr, Radarr, Lidarr AND
-    Prowlarr, so EVERY converge PUT all four clients — the bigger half of HD-1090's perpetual drift, of
+    Measured against the live four: field `port` is int 8080 on Sonarr, Radarr, Lidarr AND
+    Prowlarr, so EVERY converge PUT all four clients — the bigger half of the perpetual drift, of
     which Lidarr's missing apiKey was only the extra field. Bools stay strict: "False" == False would
     mute a real useSsl change.
     """
