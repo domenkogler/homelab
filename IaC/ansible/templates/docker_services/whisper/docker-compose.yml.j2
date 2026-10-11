@@ -1,20 +1,16 @@
-# whisper docker-compose.yml — pinned-AI STT leg on the RX 7600 (HD-391, decision #27)
+# whisper docker-compose.yml — pinned-AI STT leg on the RX 7600
 #   whisper.cpp `whisper-server` on the VULKAN backend (RADV, gfx1102). Serves the voice
 #   pipeline's STT. `--inference-path /v1/audio/transcriptions` makes it OpenAI-shaped
-#   NATIVELY — the "thin wrapper is required" claim from §9c is corrected by measurement
-#   (docs/services-ai-bench.md §2), so Home Assistant Assist talks to it through LiteLLM
-#   with no shim.
+#   NATIVELY (docs/services-ai-bench.md §2), so Home Assistant Assist talks to it
+#   through LiteLLM with no shim.
 #   WHY VULKAN AND NOT ROCm: no `whisper.cpp` ROCm/HIP artifact is published at all (ghcr
 #   tags = main, main-musa, main-intel, main-cuda, main-vulkan, main-arm64,
-#   main-vulkan-arm64; Docker Hub ggmlorg/whisper.cpp = 404), so the HIP recipe in §9c
-#   would be a self-build with no Renovate trail. Vulkan/RADV is native RDNA3 and needs NO
-#   ROCm userspace and NO /dev/kfd — which also drops the per-ROCm-runtime host-RAM tax that
-#   decision #25 made its central argument. Measured: 0.40 s per 11 s WAV, 1788 MiB VRAM
-#   (Δ1722), CPU fallback (init-time, native) 17.5 s at RSS 1.59 GiB.
-#   Network doctrine (HD-59, same as ollama): reached ONLY by LiteLLM on the dedicated
+#   main-vulkan-arm64; Docker Hub ggmlorg/whisper.cpp = 404), so a HIP recipe would be a
+#   self-build with no Renovate trail. Vulkan/RADV is native RDNA3 and needs NO ROCm userspace
+#   and NO /dev/kfd — and drops the per-ROCm-runtime host-RAM tax.
+#   Network doctrine (same as ollama): reached ONLY by LiteLLM on the dedicated
 #   `llm-backend` bridge. This API has NO auth, so the network IS the boundary — hence NO
-#   `ports:` and NO Traefik labels. Consumers reach it through LiteLLM, never directly
-#   (decision #26).
+#   `ports:` and NO Traefik labels. Consumers reach it through LiteLLM, never directly.
 #   Device: ONLY the dGPU render node (`gpu_vulkan_render_node` = renderD129). renderD128 is
 #   the HD 630 iGPU: it is the family desktop's Xorg device AND the Jellyfin QSV transcoder,
 #   and it is measured SLOWER THAN CPU for this work (bench §4). No GGML_VK_VISIBLE_DEVICES:
@@ -61,7 +57,7 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     # Image-level HEALTHCHECK is hardcoded to :8080; this leg listens on its own port, so the
     # inherited check exits 7 (connection refused) and the container reads `unhealthy` while it
-    # answers 200 (live 2026-09-19). Override it against the ACTUAL port — a health signal that
+    # answers 200. Override it against the ACTUAL port — a health signal that
     # cannot fail is worse than none, and `unhealthy` poisons every future "what is actually
     # live" census. start_period covers Vulkan init + weight load.
     healthcheck:
@@ -73,7 +69,7 @@ services:
     deploy:
       resources:
         limits:
-          # Quoted: compose's schema requires limits.memory to be a STRING (HD-162 pre-deploy
+          # Quoted: compose's schema requires limits.memory to be a STRING (pre-deploy
           # validation catches an int — spark-dcgm precedent).
           memory: "{{ ai_tier_whisper_memory_limit }}"
 networks:
