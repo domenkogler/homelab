@@ -590,7 +590,7 @@ an oldsrv-run log exists.
 guard does not have). `--tags hosts` refuses although it only re-renders `/etc/hosts`, and
 `--tags zfs_exporter` refuses the whole storage leg rather than proving one task harmless.
 Over-refusal costs one off-box run; under-refusal costs the box. Roles outside the set —
-`common`, `docker`, `docker_services`, `monitoring`, `cockpit`, `nut`, `ai_diag` — are not
+`common`, `docker`, `docker_services`, `monitoring`, `nut`, `ai_diag` — are not
 guarded, on purpose: refusing them would make a self-hosted runner pointless. Adding a role
 to the set is a decision, not a config value: role dir + guard task + doc row, one change,
 or the static gate fails.
