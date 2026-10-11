@@ -8,7 +8,7 @@
   ansible.builtin.set_fact:
     _host_short: "{{ inventory_hostname_short | lower }}"
 
-# Neutral shared-data owner `media` (HD-51 / HD-131 D4): owns all shared NAS datasets,
+# Neutral shared-data owner `media`: owns all shared NAS datasets,
 # NFS/SMB exports (anonuid/anongid), and the filesystem/SMB-backed service containers
 # (*arr, OpenCloud-local). uid/gid come from storage_uid/storage_gid (default 1005),
 # matching the NFS root_squash anonuid/anongid so exported trees align.

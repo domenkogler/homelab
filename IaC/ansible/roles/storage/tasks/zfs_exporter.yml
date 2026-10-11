@@ -30,8 +30,8 @@
 
 # In --check mode get_url is SKIPPED, so the tarball never exists and unarchive aborts the whole
 #   storage play with "Source /tmp/zfs_exporter.tar.gz does not exist" while the REAL converge
-#   passes (measured on nas 2026-10-08: check FAILED, real run ok=159 failed=0). The dry pass a
-#   careful operator runs before touching ZFS was the thing that broke. HD-1102.
+#   passes. The dry pass a careful operator runs before touching ZFS is exactly what breaks
+#   without the check-mode guard below.
 - name: Unpack zfs_exporter binary
   ansible.builtin.unarchive:
     src: /tmp/zfs_exporter.tar.gz

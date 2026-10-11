@@ -15,19 +15,17 @@ services:
     container_name: blackbox-exporter
     restart: unless-stopped
     ports:
-      # HD-342 (Victoria migration): loopback publish of the scrape endpoint (:9115) so
-      # the VPS host-APT Alloy can reach blackbox-exporter /metrics + /probe. Loopback-only
-      # (authentik HD-143 precedent).
+      # Loopback-only publish of the scrape endpoint (:9115) so the VPS host-APT Alloy can reach
+      # blackbox-exporter /metrics + /probe.
       - "127.0.0.1:9115:9115"
     networks:
       - services-internal
-      - db-internal    # 2026-09-08: Prometheus scrapes blackbox-exporter:9115/metrics + /probe targets here.
+      - db-internal    # Prometheus scrapes blackbox-exporter:9115/metrics + /probe targets here.
                        # Same pattern as traefik joining db-internal for its metrics entryPoint.
-      - traefik-public # external reachability (HD-135): blackbox probes targets on the WAN — the
-                       # internal bridges (services-internal/db-internal) have no internet egress, so
-                       # every probe failed with status 0 / connect error. traefik-public is the
-                       # repo pattern for VPS containers that must reach the internet (authentik,
-                       # crowdsec, n8n, dozzle...).
+      - traefik-public # external reachability: blackbox probes targets on the WAN and the
+                       # internal bridges (services-internal/db-internal) have no internet egress.
+                       # traefik-public is the repo pattern for VPS containers that must reach the
+                       # internet (authentik, crowdsec, n8n, dozzle...).
     volumes:
       - ./blackbox.yml:/etc/blackbox_exporter/blackbox.yml:ro
     command:

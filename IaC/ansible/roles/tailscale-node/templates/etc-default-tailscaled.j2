@@ -1,10 +1,10 @@
-# tailscaled daemon environment — MANAGED BY ANSIBLE (roles/tailscale-node, HD-414).
+# tailscaled daemon environment — MANAGED BY ANSIBLE (roles/tailscale-node).
 # The Debian package ships this file with the same values; owning it here is what turns
 # "it works because the package default happens to be 41641" into a declared pin — an apt
 # reinstall or an operator edit must not be able to move the port back to random.
 #
 # Why the pin matters: the unit's ExecStart ends in `--port=${PORT}`, and tailscaled
-# silently falls back to an ephemeral port when its preferred one is busy. HD-414's
+# silently falls back to an ephemeral port when its preferred one is busy. This box's
 # scoped IPv6 posture is "no inbound listener except the one UDP port the router may
 # accept", and a rule naming 41641 is only worth writing while the daemon is bound to it.
 #

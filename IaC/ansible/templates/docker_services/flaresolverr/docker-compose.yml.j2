@@ -1,4 +1,4 @@
-# flaresolverr docker-compose.yml — Cloudflare challenge solver for Prowlarr indexers (HD-1084)
+# flaresolverr docker-compose.yml — Cloudflare challenge solver for Prowlarr indexers
 #   NO web UI, NO subdomain, NO host publish: Prowlarr reaches it on the overlay at
 #   http://flaresolverr:8194 and nothing else should. Deliberately NOT in the validator's
 #   WEB_SERVICES set — if someone later labels it, that is a wider door, not a fix.
@@ -17,7 +17,7 @@ services:
     cap_add:
       - SETGID
       - SETUID
-    # /run:exec — HD-412: docker's default tmpfs options are noexec, which breaks images that
+    # /run:exec — docker's default tmpfs options are noexec, which breaks images that
     # exec helper binaries out of /run. Keep it, same as the *arr services.
     tmpfs:
       - /tmp
@@ -31,7 +31,7 @@ services:
       - services-internal
     environment:
       # Pin the port. Upstream's default is 8191, NOT the 8194 every integration guide writes
-      # (`/app/flaresolverr.py: int(os.environ.get('PORT', 8191))`, measured in v3.5.2) — so relying on
+      # (`/app/flaresolverr.py: int(os.environ.get('PORT', 8191))`) — so relying on
       # the default would leave Prowlarr pointing at a socket that does not exist, and an upstream
       # default change would move it again. 8194 is what the URL in Prowlarr says.
       PORT: "8194"
