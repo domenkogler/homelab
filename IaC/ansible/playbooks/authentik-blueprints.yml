@@ -26,7 +26,7 @@
 # and mounts them at /blueprints/custom (the deploy-service template step). This playbook
 # picks them up from that deployed path and pushes each into authentik-worker.
 
-- name: Apply custom Authentik blueprints (externalized, HD-230/HD-268)
+- name: Apply custom Authentik blueprints (externalized)
   hosts: vps
   become: true
   gather_facts: false
