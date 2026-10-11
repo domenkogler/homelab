@@ -636,7 +636,7 @@ Constraints that are properties of the mechanism, not preferences:
 - **The pinned path carries no space.** OpenSSH builds the `ProxyCommand` it derives from a `ProxyJump` out of its own
   path **unquoted**, so pinning a path with a space (`C:/Program Files/Git/usr/bin/ssh.exe`) makes every jumped leg die
   `/bin/sh: line 1: /c/Program: No such file or directory`. Hence the 8.3 form `C:/PROGRA~1/...` — the same reason
-  `git-bootstrap-win11.sh` pins it (HD-1126).
+  `git-bootstrap-win11.sh` pins it.
 - **A probe rebuilds PATH from the registry** (Machine + User) before asking a shell which `ssh` it resolves. Inherited
   from Git-Bash, the child's PATH carries Git's `usr/bin` first and the answer is OpenSSL whatever the block does: a check
   that cannot fail.
