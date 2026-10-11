@@ -54,7 +54,7 @@
 # below if the target is not the expected router — a wrong-target or swapped host
 # must never receive this config. Runs once per role run, before the first mutate.
 # -------------------------------------------------------------------------
-- name: Assert device identity before any mutate (HD-161)
+- name: Assert device identity before any mutate
   community.routeros.api_facts:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -165,7 +165,7 @@
     data:
       - address: "{{ comtrend_modem.router_on_modem }}"
         interface: "{{ comtrend_modem.iface }}"
-        comment: "HD-302: Comtrend modem mgmt subnet (single-LAN admin path)"
+        comment: "Comtrend modem mgmt subnet (single-LAN admin path)"
         disabled: no
 
 # -------------------------------------------------------------------------
@@ -392,7 +392,7 @@
     handle_absent_entries: ignore
     data: []
 
-- name: Create firewall address list for the VPS S2S peer (HD-155 least-access)
+- name: Create firewall address list for the VPS S2S peer (least-access)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -405,7 +405,7 @@
     data:
       - address: "{{ wireguard_s2s_vps.remote_ip.split('/')[0] }}"
         list: vps_s2s_peer
-        comment: "VPS S2S peer (HD-155) - least-access source"
+        comment: "VPS S2S peer - least-access source"
 
 # --- Per-MAC WAN egress for cloud-IoT devices (rendered from SSOT) ---
 # iot-wan-allow = the cloud-IoT devices (LG/Bosch/HAP) that may reach WAN from
@@ -417,7 +417,7 @@
 # ('not a valid dns name'). Per-MAC matching is therefore a src-mac-address rule: the
 # forward accepts here and the kids dst-nat/drop below, never an address-list entry.
 
-- name: Create firewall address list for the scoped home targets the VPS may reach (HD-155)
+- name: Create firewall address list for the scoped home targets the VPS may reach
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -430,22 +430,22 @@
     data:
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
         list: vps_scoped_home
-        comment: "HD-155: nas (nut/zfs exporters)"
+        comment: "nas (nut/zfs exporters)"
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}"
         list: vps_scoped_home
-        comment: "HD-155: HA VIP (exporter)"
+        comment: "HA VIP (exporter)"
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
         list: vps_scoped_home
-        comment: "HD-155: oldsrv (backends when wired)"
+        comment: "oldsrv (backends when wired)"
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
         list: vps_scoped_home
-        comment: "HD-155: pi (probe)"
+        comment: "pi (probe)"
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}"
         list: vps_scoped_home
-        comment: "HD-155: router (probe)"
+        comment: "router (probe)"
       - address: "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}"
         list: vps_scoped_home
-        comment: "HD-155: switch (probe)"
+        comment: "switch (probe)"
 
 
 
@@ -489,7 +489,7 @@
         action: dst-nat
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
-        comment: "Kids forced filtered DNS - UDP 53 -> Technitium (HD-182)"
+        comment: "Kids forced filtered DNS - UDP 53 -> Technitium"
       - chain: dstnat
         src-address: "{{ vlan_subnets[40] }}"
         protocol: tcp
@@ -497,7 +497,7 @@
         action: dst-nat
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
-        comment: "Kids forced filtered DNS - TCP 53 -> Technitium (HD-182)"
+        comment: "Kids forced filtered DNS - TCP 53 -> Technitium"
       # --- IoT VLAN 20 per-device DNS visibility ---
       # Hijack plain :53 from VLAN 20 to the Pi tertiary (dns_tertiary_ip = the Pi
       # Technitium, read via dns-pi.kogler.si) so each IoT device's queries are logged
@@ -510,7 +510,7 @@
         action: dst-nat
         to-addresses: "{{ dns_tertiary_ip }}"
         to-ports: 53
-        comment: "IoT forced DNS - UDP 53 -> Pi (HD-342 DNS visibility)"
+        comment: "IoT forced DNS - UDP 53 -> Pi (DNS visibility)"
       - chain: dstnat
         src-address: "{{ vlan_subnets[20] }}"
         protocol: tcp
@@ -518,14 +518,14 @@
         action: dst-nat
         to-addresses: "{{ dns_tertiary_ip }}"
         to-ports: 53
-        comment: "IoT forced DNS - TCP 53 -> Pi (HD-342 DNS visibility)"
+        comment: "IoT forced DNS - TCP 53 -> Pi (DNS visibility)"
 
 # Per-MAC kids filtered DNS on Home VLAN 10 (the kids join the Kogler SSID, so the
 # VLAN-40 hijack above does NOT cover them): redirect each kids tablet's DNS (53) to the
 # Technitium primary, which enforces the Kids-Group policy (Cloudflare Families,
 # network-dns.md). Selection is the `kids: true` marker in SSOT, matched per device by
 # src-mac-address.
-- name: Ensure per-MAC kids filtered DNS dst-nat (HD-326)
+- name: Ensure per-MAC kids filtered DNS dst-nat
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -549,7 +549,7 @@
         action: dst-nat
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
-        comment: "HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ item.name }}"
+        comment: "kids filtered DNS - UDP 53 -> Technitium: {{ item.name }}"
       - chain: dstnat
         src-address: "{{ vlan_subnets[10] }}"
         src-mac-address: "{{ item.mac }}"
@@ -558,10 +558,10 @@
         action: dst-nat
         to-addresses: "{{ dns_primary_ip }}"
         to-ports: 53
-        comment: "HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ item.name }}"
+        comment: "kids filtered DNS - TCP 53 -> Technitium: {{ item.name }}"
   loop: "{{ network_static_hosts | selectattr('kids', 'defined') | selectattr('kids', 'equalto', true) | list }}"
   loop_control:
-    label: "HD-326 kids DNS dst-nat for {{ item.name }}"
+    label: "kids DNS dst-nat for {{ item.name }}"
   tags: [network]
 
 # -------------------------------------------------------------------------
@@ -606,12 +606,12 @@
         protocol: udp
         dst-port: 5683
         action: accept
-        comment: "IoT Shelly Gen1 CoAP push -> HA (HD-229) - narrow reverse exception"
+        comment: "IoT Shelly Gen1 CoAP push -> HA - narrow reverse exception"
       - chain: forward
         src-address-list: trusted-ha
         dst-address: "{{ vlan_subnets[20] }}"
         action: accept
-        comment: "Trusted HA hosts (oldsrv/ha-vip) -> IoT (new, MQTT/HA) - HD-03 owner decision 2026-09-04: narrowed to trusted-ha (excludes nas)"
+        comment: "Trusted HA hosts (oldsrv/ha-vip) -> IoT (new, MQTT/HA) - narrowed to trusted-ha (excludes nas)"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[20] }}"
@@ -671,14 +671,14 @@
         protocol: udp
         dst-port: 53,853
         action: accept
-        comment: "LAN -> DNS secondary Pi (HD-182) udp"
+        comment: "LAN -> DNS secondary Pi udp"
       - chain: forward
         src-address-list: internal_lan
         dst-address: "{{ dns_secondary_ip }}"
         protocol: tcp
         dst-port: 53,853
         action: accept
-        comment: "LAN -> DNS secondary Pi (HD-182) tcp"
+        comment: "LAN -> DNS secondary Pi tcp"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         dst-address: "{{ dns_primary_ip }}"
@@ -705,22 +705,22 @@
         src-address: "{{ vlan_subnets[10] }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "Home -> WAN allowed (HD-309 row 73)"
+        comment: "Home -> WAN allowed"
       - chain: forward
         src-address: "{{ vlan_subnets[50] }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "Media -> WAN allowed (HD-309)"
+        comment: "Media -> WAN allowed"
       - chain: forward
         src-address: "{{ vlan_subnets[30] }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "Guest -> WAN allowed (HD-309 row 73)"
+        comment: "Guest -> WAN allowed"
       - chain: forward
         src-address: "{{ vlan_subnets[99] }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "Mgmt -> WAN allowed (HD-309 row 73)"
+        comment: "Mgmt -> WAN allowed"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         out-interface: pppoe-telekom
@@ -732,12 +732,12 @@
         src-address-list: vps_s2s_peer
         dst-address-list: vps_scoped_home
         action: accept
-        comment: "VPS S2S -> scoped home targets (HD-155)"
+        comment: "VPS S2S -> scoped home targets"
 
       - chain: forward
         src-address-list: vps_s2s_peer
         action: drop
-        comment: "VPS S2S -> anything else DROP (HD-155 least-access)"
+        comment: "VPS S2S -> anything else DROP (least-access)"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         dst-address: "{{ vlan_subnets[50] }}"
@@ -756,7 +756,7 @@
         src-address: "{{ vlan_subnets[99] }}"
         dst-address: "{{ vlan_subnets[10] }}"
         action: accept
-        comment: "Mgmt -> Home (laptop/Pi discovery, HD-307)"
+        comment: "Mgmt -> Home (laptop/Pi discovery)"
       - chain: forward
         src-address: "{{ vlan_subnets[30] }}"
         dst-address-list: internal_lan
@@ -772,13 +772,13 @@
         protocol: tcp
         dst-port: 853
         action: drop
-        comment: "IoT -> DoT bypass drop - forced DNS to Pi (HD-342) tcp"
+        comment: "IoT -> DoT bypass drop - forced DNS to Pi tcp"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         protocol: udp
         dst-port: 853
         action: drop
-        comment: "IoT -> DoT bypass drop - forced DNS to Pi (HD-342) udp"
+        comment: "IoT -> DoT bypass drop - forced DNS to Pi udp"
       # --- Kids VLAN 40 controls ---
       # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium primary
       # (ip firewall nat above), which enforces the Kids-Group policy (Cloudflare
@@ -790,18 +790,18 @@
         protocol: tcp
         dst-port: 853
         action: drop
-        comment: "Kids -> DoT bypass drop - DNS forced through filter (HD-182) tcp"
+        comment: "Kids -> DoT bypass drop - DNS forced through filter tcp"
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         protocol: udp
         dst-port: 853
         action: drop
-        comment: "Kids -> DoT bypass drop - DNS forced through filter (HD-182) udp"
+        comment: "Kids -> DoT bypass drop - DNS forced through filter udp"
       - chain: forward
         src-address: "{{ vlan_subnets[40] }}"
         dst-address: "{{ vlan_subnets[10] }}"
         action: drop
-        comment: "Kids -> Home drop (HD-182)"
+        comment: "Kids -> Home drop"
       # Bedtime hard block (docs/network-vlans.md §Inter-VLAN Firewall Rules), with the
       # RouterOS NATIVE time-based filter parameter — deliberately NOT a /system
       # scheduler enable/disable toggle: under declarative api_modify a toggled rule's
@@ -818,7 +818,7 @@
         out-interface: pppoe-telekom
         time: "22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun"
         action: drop
-        comment: "Kids bedtime WAN block 22:00-07:00 (HD-182)"
+        comment: "Kids bedtime WAN block 22:00-07:00"
       # Kids -> WAN allowed OUT of window. Placed BELOW the bedtime drop so the time=
       # block always wins in-window; this accept only enables egress 07:00-22:00. The
       # DoT/DoH bypass drops sit above and still win.
@@ -826,7 +826,7 @@
         src-address: "{{ vlan_subnets[40] }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "Kids -> WAN allowed out-of-window (HD-309 row 73)"
+        comment: "Kids -> WAN allowed out-of-window"
       # Default deny LAST within this ordered block. A second `chain: forward`
       # api_modify with `handle_absent_entries: remove` would delete every rule above
       # it on each run.
@@ -846,11 +846,11 @@
         protocol: tcp
         dst-port: 80,443
         action: accept
-        comment: "HD-302: trusted-admin -> Comtrend modem web UI (PPPoE redial admin path)"
+        comment: "trusted-admin -> Comtrend modem web UI (PPPoE redial admin path)"
       - chain: forward
         dst-address: "{{ comtrend_modem.modem_subnet }}"
         action: drop
-        comment: "HD-302: default-deny all other homelab hosts -> Comtrend subnet"
+        comment: "default-deny all other homelab hosts -> Comtrend subnet"
 
 # -------------------------------------------------------------------------
 # Cloud-IoT per-MAC WAN egress (iot-wan-allow), rendered from SSOT.
@@ -865,7 +865,7 @@
 # doubt, drop the role task and rely on the import.
 # → docs/network-ops.md §Ordering pitfall — a new FORWARD accept must sit ABOVE the
 #   default-deny
-- name: Ensure per-MAC IoT cloud-device WAN egress accepts (HD-312 phase 3 / HD-325 wan_allow)
+- name: Ensure per-MAC IoT cloud-device WAN egress accepts (wan_allow)
   when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -885,10 +885,10 @@
         src-mac-address: "{{ item.mac }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ item.name }}"
+        comment: "IoT cloud device -> WAN allowed via iot-wan-allow: {{ item.name }}"
   loop: "{{ network_static_hosts | selectattr('mac', 'defined') | selectattr('vlan', 'equalto', 20) | selectattr('wan_allow', 'defined') | selectattr('wan_allow', 'equalto', true) | list }}"
   loop_control:
-    label: "HD-312/325 iot-wan-allow accept for {{ item.name }}"
+    label: "iot-wan-allow accept for {{ item.name }}"
   tags: [network]
 
 # Per-MAC kids controls on Home VLAN 10 — bedtime WAN hard-block (22:00-07:00) +
@@ -898,7 +898,7 @@
 # (rb4011_converge.rsc.j2, which places them ABOVE the Home->WAN accept) — the apply of
 # record. A role api_modify appends at the end, where the accept shadows the drop. This
 # task is GATED OFF: verification + the converge import are the only paths.
-- name: Ensure per-MAC kids bedtime WAN drop + DoT-bypass (HD-326)
+- name: Ensure per-MAC kids bedtime WAN drop + DoT-bypass
   when: false   # OWNED BY rb4011_converge.rsc.j2 (apply-of-record) — do NOT run
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
@@ -920,17 +920,17 @@
         protocol: tcp
         dst-port: 853
         action: drop
-        comment: "HD-326 kids DoT-bypass drop (853): {{ item.name }}"
+        comment: "kids DoT-bypass drop (853): {{ item.name }}"
       - chain: forward
         src-address: "{{ vlan_subnets[10] }}"
         src-mac-address: "{{ item.mac }}"
         out-interface: pppoe-telekom
         action: drop
         time: "22:00-07:00,sun,mon,tue,wed,thu,fri,sat"
-        comment: "HD-326 kids bedtime WAN drop (22:00-07:00): {{ item.name }}"
+        comment: "kids bedtime WAN drop (22:00-07:00): {{ item.name }}"
   loop: "{{ network_static_hosts | selectattr('kids', 'defined') | selectattr('kids', 'equalto', true) | list }}"
   loop_control:
-    label: "HD-326 kids controls for {{ item.name }}"
+    label: "kids controls for {{ item.name }}"
   tags: [network]
 
 # -------------------------------------------------------------------------
@@ -946,7 +946,7 @@
 # else breaks; only the sensitive management ports are gated here.
 # Order matters: top-down, first match wins — established/related first.
 
-- name: Ensure router INPUT-chain firewall rules (idempotent, ordered) (HD-78/KOPS-003)
+- name: Ensure router INPUT-chain firewall rules (idempotent, ordered)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -988,19 +988,19 @@
         protocol: tcp
         dst-port: 22,8728,8729,8291,80,443
         action: drop
-        comment: "Drop mgmt services from non-mgmt sources (HD-78)"
+        comment: "Drop mgmt services from non-mgmt sources"
       # --- SNMP: RO poller from the Mgmt VLAN only ---
       - chain: input
         src-address: "{{ vlan_subnets[99] }}"
         protocol: udp
         dst-port: 161
         action: accept
-        comment: "Allow SNMP from Management VLAN (HD-53)"
+        comment: "Allow SNMP from Management VLAN"
       - chain: input
         protocol: udp
         dst-port: 161
         action: drop
-        comment: "Drop SNMP from non-mgmt sources (HD-53)"
+        comment: "Drop SNMP from non-mgmt sources"
       # --- Router resolver as DNS tertiary (network-dns.md) ---
       # DHCP hands out primary → secondary → router; this input rule lets LAN sources
       # query the router's own /ip dns when both resolvers are down (unfiltered last
@@ -1010,13 +1010,13 @@
         protocol: tcp
         dst-port: 53
         action: accept
-        comment: "Allow DNS input from LAN - router resolver tertiary (HD-182) tcp"
+        comment: "Allow DNS input from LAN - router resolver tertiary tcp"
       - chain: input
         src-address-list: internal_lan
         protocol: udp
         dst-port: 53
         action: accept
-        comment: "Allow DNS input from LAN - router resolver tertiary (HD-182) udp"
+        comment: "Allow DNS input from LAN - router resolver tertiary udp"
       # --- WireGuard S2S: accept the handshake/input on the wg listen port ---
       # MUST stay above any full default-deny input: the converge template's PPPoE
       # brute-force floor drops new-WAN traffic, and without this the VPS-initiated
@@ -1025,7 +1025,7 @@
         protocol: udp
         dst-port: "{{ wg_s2s_vps.listen_port }}"
         action: accept
-        comment: "Allow WireGuard S2S handshake/input (HD-285)"
+        comment: "Allow WireGuard S2S handshake/input"
 
 # The router resolver answers LAN queries only with allow-remote-requests=yes (the
 # RouterOS default is no) — required for the tertiary above, and it needs `/ip dns
@@ -1033,7 +1033,7 @@
 # the Technitium chain. → docs/network-dns.md §Resolver upstream (forwarders)
 # Requires community.routeros >= 2.17 (settings-path support in api_modify); an older
 # collection fails loud at deploy rather than silently skipping.
-- name: Allow the router resolver to answer LAN queries (DNS tertiary, HD-182)
+- name: Allow the router resolver to answer LAN queries (DNS tertiary)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1074,7 +1074,7 @@
 # router's OWN `wg_password` — WireGuard needs distinct keys per side (the VPS uses
 # `wg_password_vps`).
 
-- name: Assert the VPS WG public key is available (fail-closed, HD-65/HD-91)
+- name: Assert the VPS WG public key is available (fail-closed)
   assert:
     that:
       - "(wireguard_s2s_vps.vps_public_key | default('')) | length > 0"
@@ -1163,7 +1163,7 @@
 # disabled; api/www-ssl/ssh/winbox stay enabled on their well-known ports). The
 # mgmt-subnet-only reachability is enforced by the INPUT-chain rules below + the
 # bootstrap binding — belt and braces.
-- name: Configure management services (lockdown — HD-301 parity)
+- name: Configure management services (lockdown)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1255,7 +1255,7 @@
 # (pvid). Both consumers read router_port_map — the role and the .rsc must never
 # disagree.
 # -------------------------------------------------------------------------
-- name: Enforce bridge port pvid + tagged memberships (HD-311 a, router_port_map)
+- name: Enforce bridge port pvid + tagged memberships (router_port_map)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1299,7 +1299,7 @@
 # wg-s2s /30 (wireguard_s2s_vps.remote_ip); `src-address` ties the source to wg-s2s so
 # the traffic stays on the mgmt plane and never leaves over WAN. Fail-loud: a missing
 # SSOT value aborts the render. The 'error' topic is what carries login failures.
-- name: Ensure central syslog logging action exists (HD-313)
+- name: Ensure central syslog logging action exists
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1317,10 +1317,10 @@
         src-address: "{{ wireguard_s2s_vps.local_ip.split('/')[0] }}"
         syslog-severity: auto
         syslog-facility: local0
-        comment: "HD-313: RFC5424 syslog -> VPS CrowdSec/Loki (wg-s2s)"
+        comment: "RFC5424 syslog -> VPS CrowdSec/Loki (wg-s2s)"
   tags: [network, router-logging]
 
-- name: Ensure logging rules forward security topics to centralsyslog (HD-313)
+- name: Ensure logging rules forward security topics to centralsyslog
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1333,19 +1333,19 @@
     data:
       - topics: error
         action: centralsyslog
-        comment: "HD-313: login/API failures (a1ad parser needs 'error')"
+        comment: "login/API failures (a1ad parser needs 'error')"
       - topics: firewall
         action: centralsyslog
-        comment: "HD-313: firewall drops (port-scan scenario)"
+        comment: "firewall drops (port-scan scenario)"
       # RouterOS 7 action-name rule: letters+numbers only. The action is
       # 'centralsyslog' (created above); 'central-syslog' is rejected by the API
       # ('action may not contain -'), so these rules would fail to create on converge.
       - topics: critical
         action: centralsyslog
-        comment: "HD-313: critical system events"
+        comment: "critical system events"
       - topics: warning
         action: centralsyslog
-        comment: "HD-313: warnings"
+        comment: "warnings"
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------
@@ -1353,7 +1353,7 @@
 # Follows the read-only API user pattern; the n8n firmware automation uses its own
 # `n8n` scoped read-only user (same pattern, separate credential) defined below.
 # -------------------------------------------------------------------------
-- name: Ensure scoped logpipe API user exists (HD-313)
+- name: Ensure scoped logpipe API user exists
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1368,7 +1368,7 @@
         group: read
         password: "{{ lookup('community.general.onepassword', 'mikrotik-logpipe_api', field='password', vault=op_vault) }}"
         disabled: "no"
-        comment: "HD-313: read-only log/API access (remote syslog + n8n)"
+        comment: "read-only log/API access (remote syslog + n8n)"
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------
@@ -1377,7 +1377,7 @@
 # temporary iot-wan-allow membership toggles stay OWNER-GATED in the n8n flow
 # authoring — never hand-edit them.
 # -------------------------------------------------------------------------
-- name: Ensure scoped n8n API user exists (HD-312(4))
+- name: Ensure scoped n8n API user exists
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -1392,7 +1392,7 @@
         group: read
         password: "{{ lookup('community.general.onepassword', 'mikrotik-n8n_api', field='password', vault=op_vault) }}"
         disabled: "no"
-        comment: "HD-312(4): read-only API for n8n firmware automation"
+        comment: "read-only API for n8n firmware automation"
   tags: [network, router-logging]
 
 # -------------------------------------------------------------------------
