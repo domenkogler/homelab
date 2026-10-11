@@ -904,7 +904,7 @@ IaC/ansible/
 │   ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
 │   ├── router/                      # RouterOS api_modify: VLANs, DHCP, firewall, CAPsMAN, Kids rules, address lists
 │   ├── switch/                      # CRS328 trunk/access port map via api_modify
-│   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2 stub)
+│   ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (TODO — stub, not implemented)
 │   ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP + failover trigger
 │   ├── docker_services/             # THE key role — generic service deployer (+ prepass-authentik)
 │   └── monitoring/tasks/main.yml    # Alloy → VictoriaMetrics + VictoriaLogs; Grafana + alerting; blackbox; HA exporter
@@ -1273,7 +1273,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the full naming convent
 | 8 | `nut` — nas: master (usbhid-ups + upsd + nut_exporter); oldsrv/ha: client (upsmon slave + upssched + notifycmd) | `common`, `network` |
 | 9 | `monitoring` (incl. Grafana alerting rules + SMTP) | `docker_services` (VictoriaMetrics/VictoriaLogs/n8n up) **and** `nut` (needs nut_exporter) |
 | 10 | `router` | `network` (IPs/VLANs defined) |
-| 11 | `proxmox` (Phase 2) | `network` |
+| 11 | `proxmox` (TODO — not implemented) | `network` |
 
 ---
 
