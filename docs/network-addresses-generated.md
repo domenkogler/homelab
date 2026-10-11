@@ -32,21 +32,21 @@
 | 99 | 10.10.99.4 | ap-spalnica | hAP ac² (spalnica) |
 | 99 | 10.10.99.5 | ap-dnevna | hAP ac² (dnevna) |
 | 99 | 10.10.99.6 | ap-spare | hAP ac² spare |
-| 20 | 10.10.20.9 | ups | PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN, HD-338) |
+| 20 | 10.10.20.9 | ups | PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN) |
 | 99 | 10.10.99.10 | nas | HP MicroServer Gen8 |
 | 99 | 10.10.99.11 | ilo | nas iLO4 BMC |
-| 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary (HD-299) |
-| 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary (HD-299) |
-| 99 | 10.10.99.40 | spark | DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home, HD-367); static reservation |
-| 99 | 10.10.99.80 | laptop-domen | Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra, 2026-09-07 |
-| 10 | 10.10.1.81 | laptop-wsl | Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback, 2026-09-07 |
+| 99 | 10.10.99.20 | pi | RPi4 node + DNS tertiary |
+| 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary |
+| 99 | 10.10.99.40 | spark | DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home); static reservation |
+| 99 | 10.10.99.80 | laptop-domen | Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra |
+| 10 | 10.10.1.81 | laptop-wsl | Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback |
 | 10 | 10.10.1.1 | router | Home gateway |
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
-| 10 | 10.10.1.20 | pi | node + DNS tertiary (HD-299; VRRP anchor) |
-| 10 | 10.10.1.30 | oldsrv | node + DNS secondary (HD-299; VRRP anchor) |
-| 10 | 10.10.1.40 | spark | DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint, 2026-09-14) |
-| 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
-| 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought |
+| 10 | 10.10.1.20 | pi | node + DNS tertiary (VRRP anchor) |
+| 10 | 10.10.1.30 | oldsrv | node + DNS secondary (VRRP anchor) |
+| 10 | 10.10.1.40 | spark | DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint) |
+| 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) — parked, dormant until HmIP-RFUSB bought |
+| 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) — parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
 | 10 | 10.10.1.60 | tablet-valentina | Valentina tablet (family, Kogler SSID) |
 | 10 | 10.10.1.61 | phone-domen | Domen's phone A54 (family, Kogler SSID) |
@@ -69,7 +69,7 @@
 | 20 | 10.10.20.22 | bosch-cooktop | Bosch CSG656RB7... cooktop (cloud-IoT, WAN via flag) |
 | 20 | 10.10.20.23 | lg-ac1 | LG AC klima #1 (QCA4002) (cloud-IoT, WAN via flag) |
 | 20 | 10.10.20.24 | lg-ac2 | LG AC klima #2 (QCA4002) (cloud-IoT, WAN via flag) |
-| 20 | 10.10.20.25 | homematic-hap | HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20, HD-325) |
+| 20 | 10.10.20.25 | homematic-hap | HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20) |
 | 50 | 10.10.50.10 | nvidia-shield | NVIDIA Shield (Media) — D2-confirmed |
 | 50 | 10.10.50.11 | nintendo-switch | Nintendo Switch 2 (Media, D3) |
 
@@ -86,24 +86,24 @@
 | traefik-public | 172.20.0.0/16 | Docker bridge — Traefik edge ↔ exposed services |
 | services-internal | 172.21.0.0/16 | Docker bridge — app ↔ app communication |
 | db-internal | 172.22.0.0/16 | Docker bridge — databases (fully isolated) |
-| llm-backend | 172.23.0.0/16 | Docker bridge — LiteLLM ↔ its oldsrv LLM backends (the Vulkan pinned tier; Ollama is the embed fallback rung, decision #27), fully isolated (HD-59) |
-| tailnet-apps | 172.24.0.0/16 | Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't |
+| llm-backend | 172.23.0.0/16 | Docker bridge — LiteLLM ↔ its oldsrv LLM backends (the Vulkan pinned tier; Ollama is the embed fallback rung, decision #27), fully isolated |
+| tailnet-apps | 172.24.0.0/16 | Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs; isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't |
 | dns-servers | 172.25.0.0/24 | Docker bridge — Technitium DNS primary (VPS) ↔ its Traefik edge; the container pin is tchnitium_dns_overlay_ip (client resolver = VPS public IP, dns_primary_ip)  |
 | site | 10.10.0.0/16 | Whole homelab site — all VLANs (10.10.x.0/24) |
 | nfs-clients | 10.10.1.30/32 | NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP) |
-| modem-lan | 192.168.1.0/24 | Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade (HD-302, live-fixed 2026-09-02 from the /32 that had no route) — for the twice-yearly PPPoE-redial dance. |
+| modem-lan | 192.168.1.0/24 | Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade — for the twice-yearly PPPoE-redial dance. |
 
 ## WAN-side static hosts
 
 Hosts on subnets the RB4011 connects to but does NOT control (the modem's own LAN
 sits behind the ONT). These are not on any homelab VLAN and are not in the
-`network_static_hosts` loop above. The Comtrend row drives the HD-302
+`network_static_hosts` loop above. The Comtrend row drives the
 `trusted-admin` reachability path for the twice-yearly PPPoE-redial dance.
 
 | IP | Host | Role | SSOT |
 |----|------|------|------|
 | 192.168.1.1 | modem.kogler.si | Comtrend GRG-4260us GPON modem web UI (PPPoE bridge) | `group_vars/router.yml` `comtrend_modem.modem_mgmt_ip` |
-| 192.168.1.2/24 | router.kogler.si (on ether1) | RB4011 /24 on the modem's LAN, connected route to the modem subnet + srcnat masquerade for trusted-admin (HD-302) | `group_vars/router.yml` `comtrend_modem.router_on_modem` |
+| 192.168.1.2/24 | router.kogler.si (on ether1) | RB4011 /24 on the modem's LAN, connected route to the modem subnet + srcnat masquerade for trusted-admin | `group_vars/router.yml` `comtrend_modem.router_on_modem` |
 
 ## Service addresses (Home VLAN 10)
 
@@ -121,4 +121,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-10-08T23:27:04Z
+> Last generated: 2026-10-11T09:57:14Z
