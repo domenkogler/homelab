@@ -194,6 +194,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     Ansible-pinned packages (`alloy`, `tailscale`, `docker-ce`, `kopia`) lands in IaC, or a bare `apt upgrade`
     re-creates the HD-1094 drift and stacks kernel reboots onto a DB-migration window; the `roles/updates` design is
     an owner go/no-go.
+14. ⏳ **The gate's own speed on a Windows seat** — **HD-1129** landed the fork diet (gate 134 s → 78 s measured
+    interleaved on the Win11 git-bash seat, `$(<file)` proven to be as blind to CR as plain `grep` was), and owes two
+    small things: `sync-skills.sh` still runs the seven-exec `bad_encoding` because it has no `--self-test` to prove a
+    fork-free one with, and `check_doc_path_refs.py` crashes when a human runs it with `py -3` on that seat while
+    staying green inside the gate. Record: [scripts/README.md](scripts/README.md) `validate-all.sh` row.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
 list is **derived** in [todo-table.md](todo-table.md) §B0, so only the ones an owner or a
