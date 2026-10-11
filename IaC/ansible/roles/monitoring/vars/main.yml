@@ -10,7 +10,7 @@ network_clients_scrape_interval: 45
 # over metrics that exist today (nut_* from DRuggeri/nut_exporter, node_* from Alloy,
 # probe_success from blackbox, up from the self-scrape jobs in alloy.river.j2).
 # The self-monitoring rules key off up{job="victoria-metrics"}/up{job="victoria-logs"} — the VM/VL
-# self-scrape job names; a rule keyed to a retired job name is silently dead.
+# self-scrape job names; a rule keyed to a job name that no longer exists is silently dead.
 # noDataState/execErrState: Alerting only on self-monitoring rules (a dead data
 # source must still page).
 grafana_alert_rules:
