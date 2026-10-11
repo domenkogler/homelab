@@ -1,5 +1,5 @@
 # {{ ansible_managed }}
 # roles/cockpit seat.yml — the cockpit token (never a literal, §6). It must be the same bearer
 # the pi-oldsrv-ts router's middleware chain validates, so the phone and the seat agree: re-mint
-# both sides together or auth fails on a stale token. 0600 + no_log so --diff cannot print it (O3).
+# both sides together or auth fails on a stale token. 0600 + no_log so --diff cannot print it.
 PI_WEB_TOKEN={{ lookup('community.general.onepassword', seat_pi_web_vault_item, field='credential', vault=op_vault) }}
