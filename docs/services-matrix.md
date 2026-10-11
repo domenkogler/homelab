@@ -15,7 +15,7 @@ tags: [services, matrix, chat, messaging]
 > — `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik` IdP, and a human logged in at
 > `chat.`. ✅ **Profile auth:** unauthenticated
 > `GET /_matrix/client/v3/profile/<user>` → **401 `M_MISSING_TOKEN`**.
-> ✅ **The apex delegation is PUBLIC — live since 2026-09-25:**
+> ✅ **The apex delegation is PUBLIC:**
 > `https://kogler.si/.well-known/matrix/client` → 200 `{"m.homeserver":{"base_url":"https://matrix.kogler.si/"}}`
 > and `.../server` → 200 `{"m.server":"matrix.kogler.si:443"}`, both from off-network, while
 > `https://kogler.si/` still 302s into Forward-Auth and `/.well-known/security.txt` still 302s too —
