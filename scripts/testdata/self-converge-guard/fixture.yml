@@ -6,7 +6,7 @@
 - hosts: all
   gather_facts: false
   pre_tasks:
-    - name: HD-413 | Self-converge guardrail
+    - name: Self-converge guardrail
       ansible.builtin.import_tasks: ../../../IaC/ansible/playbooks/tasks/self-converge-guard.yml
   roles:
     - role: network            # tags mirror vps.yml's role-level tagging
