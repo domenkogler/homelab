@@ -66,19 +66,25 @@ the base bytes, which is the case a bulk purge in one file produces:
     pairing can make them equal and no uncertainty can be claimed: both sides are named as
     file:line. A one-sided rename hidden inside a 10-literal run in an otherwise untouched file
     is exactly this, and it used to read OK.
-  * no side PRESENT, and every side that can answer agrees on one value which every side's file
-    actually carries -> MOVED on every side in one commit: green, the documented good case. This
-    is the one place the gate decides a group it cannot align: the sides that cannot say what
-    they became are settled by looking for the agreed value in their own file.
-  * anything else -- a side whose content is unknown with no agreed value to look for, or a
-    group whose only sides are mis-aligned files -> NOT PROVEN: printed by name, exit 1. A gate
-    that cannot decide may not report OK, because a silent green on an undecidable group is the
-    same hole as a silent green on a sever.
-Both presence tests -- PRESENT and the agreed-value test above -- mean the bytes appear SOMEWHERE
-IN THAT FILE, at any line, in any literal. That is the whole strength and the whole limit of
-them: a side whose copy of the string survived but moved into an unrelated context, or turned up
-as some other literal in the same file, reads green. The run counts the groups it settled this
-way and prints `proven-by-presence: N`; a jump in N is what a widening of this rule looks like.
+  * no side PRESENT, and every side that can answer agrees on one value W which every silent
+    side's own file carries -- in a class the twin is itself written in, exactly once -> MOVED on
+    every side in one commit: green, the documented good case. This is the one place the gate
+    decides a group it cannot align, so the proof it falls back on is the same presence test
+    state 1 uses, narrowed twice: W must be bytes an extractor lifted that ALSO lifts the twin
+    (a W that survives only in a `msg:` string does not prove a `name:` twin is still there), and
+    W must occur once. Twice is `AMBIGUOUS (n)`: which occurrence the twin became is not a fact
+    bytes can settle, so the gate says so instead of choosing.
+  * anything else -- a side whose content is unknown with no agreed value to look for, an agreed
+    value missing from a silent side or sitting there in the wrong kind of literal or more than
+    once, or a group whose only sides are mis-aligned files -> NOT PROVEN: printed by name, with
+    the reason, exit 1. A gate that cannot decide may not report OK, because a silent green on an
+    undecidable group is the same hole as a silent green on a sever.
+Both presence tests -- PRESENT, and the agreed-value test that settles a side the alignment could
+not place -- ask where the BYTES are and never where they SIT: one occurrence anywhere in that
+file, at any line, answers. That is their whole strength and their whole limit -- a side whose
+copy of the string survived on some other line of the same kind reads green, and no position is
+ever compared. The run counts the groups it settled by the agreed value and prints
+`proven-by-presence: N`; a jump in N is what a widening of this rule looks like from outside.
 A purge is a short local run, so it is read exactly. A rewrite of 30 literals is not, so it is
 reported rather than accused -- but it is never silent.
 
@@ -97,8 +103,8 @@ BLIND SPOTS, stated because a gate read as stronger than it is gets trusted wron
     rename of the NEW spelling is still caught when any side can name a value or still carries
     the one the others agree on; when nothing can, the group comes back NOT PROVEN rather than
     green. What stays genuinely blind is the presence limit stated above: the gate compares bytes
-    a file carries, never the position they sit at, and it has no allowlist to make up the
-    difference.
+    a file carries, in the twin's own kind of literal and only where there is exactly one such
+    occurrence, never the position they sit at -- and it has no allowlist to make up for either.
 
 Run:   python3 scripts/check_string_twins.py [--control REV] [--families] [--show-baseline]
        python3 scripts/check_string_twins.py --self-test
@@ -142,6 +148,17 @@ SCALAR_PREFIX = ("|", ">", "&", "*")
 # elsewhere the same bytes are prose in a banner or a heading.
 QUOTED_SUFFIXES = (".yml", ".yaml", ".py", ".sh", ".j2", ".rsc", ".json", ".cfg", ".ini",
                    ".service", ".timer", ".conf", ".ps1", ".txt")
+
+# A literal is (line, value, classes): the classes are the extractors that lifted it, so a value
+# found later by presence can be asked whether it is the KIND of literal the twin is written in.
+# KEY_VALUE classes carry their key (`name:`, `msg:`, `comment:`...), ROS_COMMENT's carries its
+# marker, and the two whole-file extractors are `quoted` and `py-string`.
+Lit = tuple[int, str, frozenset[str]]
+# file -> value -> the classes of each occurrence of that value, in the file as it stands now.
+Carries = dict[str, dict[str, list[frozenset[str]]]]
+CLS_ROS_COMMENT = "comment="
+CLS_QUOTED = "quoted"
+CLS_PY = "py-string"
 
 GONE = "\x00gone"
 UNCERTAIN = "\x00uncertain"      # the FILE did not align: no vote, reported by name
@@ -249,9 +266,15 @@ def _dequote(v: str) -> str:
     return v
 
 
-def literals(rel: str, text: str) -> list[tuple[int, str]]:
-    """(line, value) for every literal this file writes or renders, in document order."""
-    found: list[tuple[int, str]] = []
+def literals(rel: str, text: str) -> list[Lit]:
+    """(line, value, classes) for every literal this file writes or renders, in document order.
+
+    `classes` says which extractor lifted the bytes. Two extractors lifting the same bytes off
+    the same line -- RouterOS `comment="X"` is lifted by ROS_COMMENT and by QUOTED -- are ONE
+    occurrence carrying BOTH classes, so the sequence of values and their order, which is what
+    the alignment and the population are built from, is exactly what it was before classes.
+    """
+    found: list[Lit] = []
     for n, raw in enumerate(text.splitlines(), 1):
         code = strip_comment(raw)
         if not code.strip():
@@ -260,28 +283,28 @@ def literals(rel: str, text: str) -> list[tuple[int, str]]:
         if m:
             v = _dequote(m.group("val"))
             if v and not v.startswith(SCALAR_PREFIX):
-                found.append((n, v))
+                found.append((n, v, frozenset({m.group("key") + ":"})))
         for mm in ROS_COMMENT.finditer(code):
             v = _dequote(mm.group("val"))
             if v:
-                found.append((n, v))
+                found.append((n, v, frozenset({CLS_ROS_COMMENT})))
         if rel.endswith(QUOTED_SUFFIXES):
             for mm in QUOTED.finditer(code):
-                found.append((n, mm.group(1)))
+                found.append((n, mm.group(1), frozenset({CLS_QUOTED})))
     if rel.endswith(".py"):
         try:
             for node in ast.walk(ast.parse(text)):
                 if isinstance(node, ast.Constant) and isinstance(node.value, str) \
                         and len(node.value) >= 2:
-                    found.append((getattr(node, "lineno", 0), node.value))
+                    found.append((getattr(node, "lineno", 0), node.value, frozenset({CLS_PY})))
         except SyntaxError:
             pass  # a file that does not parse is the portability sweep's problem, not this one
-    seen, deduped = set(), []
-    for ln, v in found:
-        if (ln, v) not in seen:
-            seen.add((ln, v))
-            deduped.append((ln, v))
-    return deduped
+    merged: dict[tuple[int, str], Lit] = {}
+    for ln, v, cls in found:
+        at = (ln, v)
+        earlier = merged.get(at)
+        merged[at] = (ln, v, cls if earlier is None else earlier[2] | cls)
+    return list(merged.values())
 
 
 def tracked(repo: Path) -> set[str]:
@@ -290,19 +313,19 @@ def tracked(repo: Path) -> set[str]:
     return set(_scoped(p for p in out.decode("utf-8", "replace").split("\0") if p))
 
 
-def load(repo: Path, rev: str | None, paths: list[str]) -> dict[str, list[tuple[int, str]]]:
+def load(repo: Path, rev: str | None, paths: list[str]) -> dict[str, list[Lit]]:
     """Literal lists for `paths`, from one revision or from the index + working tree. On a
     working-tree read a path the index dropped is an absent side -- its bytes may still sit on
     disk after `git rm --cached`, and the commit is deleting it."""
     shipped = set(paths) if rev else tracked(repo)
-    out: dict[str, list[tuple[int, str]]] = {}
+    out: dict[str, list[Lit]] = {}
     for rel in paths:
         text = _read(repo, rev, rel) if rel in shipped else None
         out[rel] = literals(rel, text) if text is not None else []
     return out
 
 
-def file_sides(base: list[tuple[int, str]], now: list[tuple[int, str]]) -> tuple[list[str], bool]:
+def file_sides(base: list[Lit], now: list[Lit]) -> tuple[list[str], bool]:
     """One current side per base occurrence, in base order; second value = mis-aligned.
 
     Order of proof is in the module docstring. `GONE` means the side no longer carries the base
@@ -311,8 +334,8 @@ def file_sides(base: list[tuple[int, str]], now: list[tuple[int, str]]) -> tuple
     bytes are absent from this file. `UNCERTAIN` means the FILE moved too much for any pairing
     here to count, and it must never be counted as a change.
     """
-    a = [v for _ln, v in base]
-    b = [v for _ln, v in now]
+    a = [v for _ln, v, _cls in base]        # classes play no part in aligning a file
+    b = [v for _ln, v, _cls in now]
     present = set(b)
     ops = difflib.SequenceMatcher(None, a, b, autojunk=False).get_opcodes()
     anchors = sum(i2 - i1 for tag, i1, i2, _j1, _j2 in ops if tag == "equal")
@@ -345,75 +368,123 @@ def group_keys_sha256(keys) -> str:
     return h.hexdigest()
 
 
-def twins(base_lits: dict[str, list[tuple[int, str]]]) -> dict[str, list[tuple[str, int]]]:
+def twins(base_lits: dict[str, list[Lit]]) -> dict[str, list[tuple[str, int]]]:
     """base value -> [(file, line)] for values at least TWO files shipped at the baseline."""
     groups: dict[str, list[tuple[str, int]]] = {}
     for rel, lits in base_lits.items():
-        for ln, v in lits:
+        for ln, v, _cls in lits:
             groups.setdefault(v, []).append((rel, ln))
     return {k: v for k, v in groups.items() if len({f for f, _ in v}) >= 2}
 
 
+def _agreed_value_proof(value: str, silent: list[str], carries: Carries,
+                        classes: frozenset[str]) -> list[str]:
+    """Why the agreed value does (an empty list) or does not settle the sides that went silent.
+
+    Presence is the proof, but proof of a specific kind, and the two conditions are separate
+    on purpose so each is testable on its own -- self-test xi reddens if the class test goes,
+    xii reddens if the count test goes:
+      * the occurrence must be in a class the twin is itself written in. `W` surviving in a
+        `msg:` string or in prose does not prove the `name:` twin is still in that file;
+      * it must occur EXACTLY ONCE in those classes. Twice means which occurrence the twin
+        became cannot be told, which is a thing to report, not a thing to guess at.
+    """
+    why: list[str] = []
+    for f in sorted(silent):
+        occ = carries.get(f, {}).get(value, [])
+        hits = [cls for cls in occ if cls & classes]
+        if len(hits) == 1:
+            continue
+        found_in = frozenset().union(*occ) if occ else frozenset()
+        if not hits:
+            where = ("it does not occur in that file at all" if not found_in else
+                     f"it occurs there only as {'/'.join(sorted(found_in))}, never as "
+                     f"{'/'.join(sorted(classes))}")
+            why.append(f"{f}: the agreed value {value[:80]!r} proves nothing there -- {where}")
+        else:
+            why.append(f"{f}: the agreed value {value[:80]!r} occurs {len(hits)} times there "
+                       f"(AMBIGUOUS) -- which of them the twin became cannot be told")
+    return why
+
+
 def group_verdict(key: str, members: list[tuple[str, int, str]],
-                  carries: dict[str, set[str]]) -> str:
-    """'sever' | 'unproven' | 'ok' | 'presence' for one twin group -- presence first, difflib
-    only after.
+                  carries: Carries, classes: frozenset[str]) -> tuple[str, list[str]]:
+    """'sever' | 'unproven' | 'ok' | 'presence', plus the reason lines, for one twin group --
+    presence first, difflib only after.
 
     A side's content now is KNOWN when it is PRESENT (the base value), MOVED (the value the
     alignment paired it to) or GONE (nothing); it is unknown only when the side is
     ABSENT-UNCERTAIN, and even that proves the base bytes are not in that file. ALIGN-UNCERTAIN
     sides take no part, exactly as GT built them: a file that did not anchor is reported, not
     accused. 'presence' is an ok decided by the agreed-value test, counted separately because it
-    is the one decision here that does not come from the alignment.
+    is the one decision here that does not come from the alignment. `classes` is every extractor
+    that lifted the twin at the baseline, which is what the agreed value has to match. The reason
+    lines are what an unproven group prints under its own name.
     """
     known = [None if s == UNCLARABLE else s for _f, _l, s in members if s != UNCERTAIN]
     if not known:
-        return "unproven"                      # every side of this twin is in a mis-anchored file
+        return "unproven", ["no side can be paired: every side of this twin sits in a file "
+                            "that did not align"]
     here = sum(1 for k in known if k == key)
     if here and here < len(known):
-        return "sever"                         # one file still ships it, another no longer does
+        return "sever", []                     # one file still ships it, another no longer does
     decided = {k for k in known if k is not None}
     if len(decided) > 1:
-        return "sever"                         # the sides that can answer answer differently
+        return "sever", []                     # the sides that can answer answer differently
     if all(k is not None for k in known):
-        return "ok"                            # all PRESENT, or all MOVED to one identical value
+        return "ok", []                        # all PRESENT, or all MOVED to one identical value
     # Something cannot say what it became. Presence still settles it: if the sides that CAN
-    # answer agree on one value and every silent side's file carries that value, the sides are
-    # byte-identical now. If it does not, or no side can name a value at all, say so.
+    # answer agree on one value and each silent side's file carries that value in the twin's own
+    # kind of literal, exactly once, the sides are byte-identical now. Anything less is said so.
     named = decided - {GONE}
     if len(named) == 1:
         value = next(iter(named))
-        if all(value in carries.get(f, set()) for f, _l, s in members if s == UNCLARABLE):
-            return "presence"
-    return "unproven"
+        why = _agreed_value_proof(value, [f for f, _l, s in members if s == UNCLARABLE],
+                                  carries, classes)
+        return ("presence", []) if not why else ("unproven", why)
+    return "unproven", ["no side can name a value that could have replaced the base bytes"]
 
 
-def evaluate(base_lits: dict[str, list[tuple[int, str]]],
-             now_lits: dict[str, list[tuple[int, str]]]) -> dict:
+def evaluate(base_lits: dict[str, list[Lit]],
+             now_lits: dict[str, list[Lit]]) -> dict:
     """The verdict on one base population read two ways. Pure: no git, no filesystem."""
     groups = twins(base_lits)
     sides: dict[str, list[tuple[str, int, str]]] = {}
     uncertain: list[str] = []
-    carries = {rel: {v for _ln, v in lits} for rel, lits in now_lits.items()}
+    carries: Carries = {}
+    for rel, lits in now_lits.items():
+        every: dict[str, list[frozenset[str]]] = {}
+        for _ln, v, cls in lits:
+            every.setdefault(v, []).append(cls)
+        carries[rel] = every
+    # The classes a twin was written in, so the agreed value cannot be proved by an unrelated
+    # literal of its own file. A twin lifted as both `comment=` and `quoted` is proved by either.
+    classes: dict[str, frozenset[str]] = {}
+    for lits in base_lits.values():
+        for _ln, v, cls in lits:
+            classes[v] = classes.get(v, frozenset()) | cls
     for rel, bl in base_lits.items():
         got, misaligned = file_sides(bl, now_lits.get(rel, []))
         if misaligned:
             uncertain.append(rel)
-        for (ln, v), side in zip(bl, got):
+        for (ln, v, _cls), side in zip(bl, got):
             sides.setdefault(v, []).append((rel, ln, side))
     severs: dict[str, list[tuple[str, int, str]]] = {}
     unproven: dict[str, list[tuple[str, int, str]]] = {}
+    reasons: dict[str, list[str]] = {}
     presence = 0
     for key, members in groups.items():
-        verdict = group_verdict(key, sides[key], carries)
+        verdict, why = group_verdict(key, sides[key], carries, classes.get(key, frozenset()))
         if verdict == "sever":
             severs[key] = sides[key]
         elif verdict == "unproven":
             unproven[key] = sides[key]
+            reasons[key] = why
         elif verdict == "presence":
             presence += 1
     return {"groups": groups, "severs": severs, "unproven": unproven,
-            "proven_by_presence": presence, "uncertain_files": sorted(uncertain),
+            "unproven_reasons": reasons, "proven_by_presence": presence,
+            "uncertain_files": sorted(uncertain),
             "files": len(base_lits), "literals": sum(len(v) for v in base_lits.values())}
 
 
@@ -424,7 +495,7 @@ def normalize(v: str) -> str:
     return re.sub(r"\s+", " ", stem).strip()
 
 
-def families(base_lits: dict[str, list[tuple[int, str]]]) -> dict[str, list[tuple[str, int, str]]]:
+def families(base_lits: dict[str, list[Lit]]) -> dict[str, list[tuple[str, int, str]]]:
     """Normalized families spanning >=2 files -- a hint about what the exact gate cannot see.
 
     A normalized bucket merges spellings that were never twins and splits a purge that dropped
@@ -432,7 +503,7 @@ def families(base_lits: dict[str, list[tuple[int, str]]]) -> dict[str, list[tupl
     """
     out: dict[str, list[tuple[str, int, str]]] = {}
     for rel, lits in base_lits.items():
-        for ln, v in lits:
+        for ln, v, _cls in lits:
             out.setdefault(normalize(v), []).append((rel, ln, v))
     return {k: v for k, v in out.items() if len({f for f, _l, _v in v}) >= 2}
 
@@ -532,10 +603,13 @@ def check(repo: Path, control: str | None = None) -> dict:
         for key, members in sorted(result["unproven"].items()):
             lines.append(f"  unproven base value {key[:120]!r}")
             lines += [f"      {f}:{ln}  {SIDE_NOTE.get(s, repr(s))}" for f, ln, s in members]
-        lines.append("Not proven is not OK. Re-baseline at the wave tip so the spelling the "
-                     "sides now agree on becomes the reviewed population, or put the base bytes "
-                     "back on every side -- a run that cannot decide a twin does not get to "
-                     "print OK about it.")
+            lines += [f"    reason: {r}" for r in result["unproven_reasons"].get(key, [])]
+        lines.append("Not proven is not OK. An agreed value settles a silent side only when it "
+                     "occurs there once, in a kind of literal the twin is itself written in -- "
+                     "anything less is reported here, never assumed. Re-baseline at the wave tip "
+                     "so the spelling the sides now agree on becomes the reviewed population, or "
+                     "put the base bytes back on every side -- a run that cannot decide a twin "
+                     "does not get to print OK about it.")
     if result["severs"] or result["unproven"]:
         return {"rc": 1, "lines": lines, "severs": len(result["severs"]),
                 "unproven": len(result["unproven"]), "result": result}
@@ -554,7 +628,7 @@ def divergent_family(repo: Path, base_rev: str) -> dict:
     base = load(repo, base_rev, paths)
     exact: dict[str, list[str]] = {}
     for rel, lits in base.items():
-        for _ln, v in lits:
+        for _ln, v, _cls in lits:
             if v.startswith(DIVERGENT_FAMILY):
                 exact.setdefault(v, []).append(rel)
     fam_files = sorted({f for k, v in families(base).items() if k == normalize(DIVERGENT_FAMILY)
@@ -566,7 +640,7 @@ def divergent_family(repo: Path, base_rev: str) -> dict:
 
 
 def self_test() -> int:
-    """Ten cases. Six are planted, one is a real family in this repo, one is the positive
+    """Twelve cases. Nine are planted, one is a real family in this repo, one is the positive
     control, one is this tree -- the properties the gate claims, each built so it cannot pass
     by accident."""
     fails: list[str] = []
@@ -628,16 +702,17 @@ def self_test() -> int:
                                        ("IaC/b.yml", GONE)],
            f"rc={res['rc']} sides={sides}")
 
-    # viii-x: the shape a bulk purge produces, and the hole the P1 review proved. ONE literal of
-    # the twin changes inside a run LONGER than LOCAL_RUN in a file that kept all its other
+    # viii-xii: the shape a bulk purge produces, and the hole the P1 review proved. ONE literal
+    # of the twin changes inside a run LONGER than LOCAL_RUN in a file that kept all its other
     # anchors, so the difflib pairing gives up on it and says ABSENT-UNCERTAIN. Presence does not
     # give up: it knows the base bytes are no longer in that file.
     anchored = "".join(f"- name: Anchor {i}\n" for i in range(20))
     steps = "".join(f"- name: Step {i}\n" for i in range(9))
+    qsteps = "".join(f"- name: QStep {i}\n" for i in range(9))
     twin = "- name: Reboot the box (HD-1)\n"
     moved_twin = "- name: Reboot the box now (HD-1)\n"
     long_run = anchored + steps + twin
-    long_run_moved = anchored + "".join(f"- name: QStep {i}\n" for i in range(9)) + moved_twin
+    long_run_moved = anchored + qsteps + moved_twin
     # a.yml's side is the SAME ABSENT-UNCERTAIN in viii, ix and x: the three differ only in what
     # the other side did, so no change can make all three pass by being uniformly stricter.
     a_side = file_sides(literals("IaC/a.yml", long_run),
@@ -656,9 +731,11 @@ def self_test() -> int:
                    {"IaC/a.yml": long_run_moved, "IaC/b.yml": moved_twin})
     record("ix   the same long run renamed on every side stays green, proven by presence",
            res["rc"] == 0 and res["severs"] == 0 and res["result"]["unproven"] == {}
+           and res["result"]["proven_by_presence"] == 1
            and file_sides(literals("IaC/a.yml", long_run),
                           literals("IaC/a.yml", long_run_moved))[0][-1] == UNCLARABLE,
-           f"rc={res['rc']} severs={res['severs']} unproven={res['result']['unproven']}")
+           f"rc={res['rc']} severs={res['severs']} unproven={res['result']['unproven']} "
+           f"presence={res['result']['proven_by_presence']}")
 
     # x  no side carries the base bytes and no side can name the value that took them: the gate
     # cannot decide, so it names the group and exits non-zero rather than printing OK.
@@ -672,6 +749,39 @@ def self_test() -> int:
            f"rc={res['rc']} severs={res['severs']} unproven={list(res['result']['unproven'])} "
            f"sides={named}")
 
+    # xi and xii narrow that rescue: finding the agreed value in the silent file is proof only of
+    # the right KIND and only of ONE occurrence. Both cases are ix with one fact changed, so
+    # neither can be satisfied by a rescue that simply got stricter about everything.
+    # xi  the value survived in a.yml, but as `msg:` prose while the twin is a `name:`: the bytes
+    # are there, the twin is not proven to be, so the group comes back NOT PROVEN and says where
+    # it did find them.
+    res = _fixture({"IaC/a.yml": long_run, "IaC/b.yml": twin},
+                   {"IaC/a.yml": anchored + qsteps + "- msg: Reboot the box now (HD-1)\n",
+                    "IaC/b.yml": moved_twin})
+    why = " ".join(r for lines_ in res["result"]["unproven_reasons"].values() for r in lines_)
+    record("xi   an agreed value that survives only in another kind of literal is NOT PROVEN",
+           res["rc"] == 1 and res["severs"] == 0
+           and list(res["result"]["unproven"]) == ["Reboot the box (HD-1)"]
+           and res["result"]["proven_by_presence"] == 0
+           and "IaC/a.yml" in why and "msg:" in why and "name:" in why
+           and res["result"]["uncertain_files"] == [],
+           f"rc={res['rc']} severs={res['severs']} unproven={list(res['result']['unproven'])} "
+           f"presence={res['result']['proven_by_presence']} reason={why!r}")
+
+    # xii the value survived twice in the twin's own class, in a file the run cannot align: which
+    # of the two the twin became is not a fact bytes can settle, so AMBIGUOUS with the count.
+    res = _fixture({"IaC/a.yml": long_run, "IaC/b.yml": twin},
+                   {"IaC/a.yml": anchored + qsteps + moved_twin + moved_twin,
+                    "IaC/b.yml": moved_twin})
+    why = " ".join(r for lines_ in res["result"]["unproven_reasons"].values() for r in lines_)
+    record("xii  an agreed value that occurs twice in that class is NOT PROVEN, AMBIGUOUS",
+           res["rc"] == 1 and res["severs"] == 0
+           and list(res["result"]["unproven"]) == ["Reboot the box (HD-1)"]
+           and res["result"]["proven_by_presence"] == 0
+           and "AMBIGUOUS" in why and "2 times" in why and "IaC/a.yml" in why,
+           f"rc={res['rc']} severs={res['severs']} unproven={list(res['result']['unproven'])} "
+           f"presence={res['result']['proven_by_presence']} reason={why!r}")
+
     if fails:
         print(f"FAIL: check_string_twins.py self-test, {len(fails)} case(s) wrong:")
         for f in fails:
@@ -682,7 +792,8 @@ def self_test() -> int:
           f"control revision still reads {CONTROL_SEVERS} and this tree reads 0, a mis-aligned "
           "file is reported instead of accused, the now side is the index rather than the "
           "directory, a sever hidden inside a long change run is named by presence in the file, "
-          "and a group this run cannot decide comes back red instead of OK")
+          "a group this run cannot decide comes back red instead of OK, and the agreed value that "
+          "settles a silent side has to be the twin's own kind of literal and occur exactly once")
     return 0
 
 
