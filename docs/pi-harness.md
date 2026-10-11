@@ -324,7 +324,7 @@ re-decision is recorded here, not buried in an edit. `models-spec.yml` names `se
 machine-local, and the keys it names are machine-local; the harness block is not. "Render
 `settings.json` from the spec" names a command that does not exist and must not be revived:
 a vendor would rewrite the whole file and delete a seat's own packages. Both carriers today: the laptop, and
-oldsrv's seat (the §5 block + `packages`, live 2026-10-01).
+oldsrv's seat (the §5 block + `packages`, live).
 
 **`defaultThinkingLevel: high` — thinking ON from the first turn.** What the setting actually does, read off
 pi's own resolver and compat code rather than inferred from a UI label: the startup level comes from
