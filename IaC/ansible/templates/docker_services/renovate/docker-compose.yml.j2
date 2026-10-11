@@ -4,33 +4,28 @@
 #   See docs/deployment-renovate.md. Secrets via
 #   1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #
-#   HD-264 run-model fix (2026-08-29): the upstream `ghcr.io/renovatebot/renovate`
-#   image is designed to EXIT after a scan (per upstream "Self-Hosting Renovate" —
-#   the open-source build needs external scheduling: "you must make sure that some
-#   form of cron-like capability exists to schedule when Renovate runs. We recommend
-#   that you run Renovate hourly"). Combined with `restart: unless-stopped`, this
-#   produced the live-probed churn: RestartCount=7044 (2026-08-29) — exit 0 →
-#   auto-restart → exit 0 → auto-restart, per-minute. The fix in this template:
-#     • `restart: on-failure:5` — clean exits NO LONGER trigger restart; only crashes
-#       do (Docker compose v2 `on-failure:<max-retries>` form, validator-aware). This
-#       kills the churn IMMEDIATELY without losing the safety net; the `:5` caps
+#   Upstream `ghcr.io/renovatebot/renovate` is designed to EXIT after a scan (per upstream
+#   "Self-Hosting Renovate" — the open-source build needs external scheduling: "you must make
+#   sure that some form of cron-like capability exists to schedule when Renovate runs. We
+#   recommend that you run Renovate hourly"). With `restart: unless-stopped` a clean exit
+#   auto-restarts and the container churns per minute (observed RestartCount in the thousands).
+#   The rules in this template:
+#     • `restart: on-failure:5` — clean exits must NOT trigger a restart; only crashes
+#       do (Docker compose v2 `on-failure:<max-retries>` form, validator-aware). The `:5` caps
 #       consecutive restart attempts so a genuinely broken image stops looping and
 #       surfaces for owner investigation instead of burning the restart budget.
 #     • `RENOVATE_SCHEDULE` — bounds Renovate's action window to low-traffic hours
 #       (22:00–04:00 UTC, every day) per Renovate docs ("If Renovate isn't expected
 #       to run more frequently, we recommend a time window of at least 3–4 hours").
 #       `RENOVATE_SCHEDULE` is the documented env var for the `schedule` config option.
-#     • OPEN (out of scope for this IaC edit, deploy-gated owner follow-up): the
-#       container still needs an EXTERNAL re-launch mechanism — a host systemd timer
-#       (`/etc/systemd/system/renovate.timer` + `renovate.service` running
+#     • NOT WIRED: this container still needs an EXTERNAL re-launch mechanism — a host
+#       systemd timer (`/etc/systemd/system/renovate.timer` + `renovate.service` running
 #       `docker compose up -d --no-deps --force-recreate renovate` hourly) on the VPS,
-#       OR an Ansible cron job in deploy-service.yml. The current state after this
-#       IaC commit: container exits cleanly after each scan, RESTARTS ONLY on crash;
-#       it will NOT auto-run hourly until the timer lands. The owner can verify the
-#       run-model fix end-to-end once the timer is added.
+#       OR an Ansible cron job in deploy-service.yml. Until that lands the container exits
+#       cleanly after each scan and restarts ONLY on crash — it does NOT run hourly.
 #
-#   HD-264d (final, deferred): when `domen/homelab` lands on Forgejo AND the
-#   end-to-end PR flow is verified (HD-264a/b/c), flip RENOVATE_REPOSITORIES back
+#   DEFERRED (final step): when `domen/homelab` lands on Forgejo AND the
+#   end-to-end PR flow is verified, flip RENOVATE_REPOSITORIES back
 #   to `domen/homelab`. Currently `domen/test` (the sandbox).
 services:
   renovate:
@@ -43,26 +38,25 @@ services:
     container_name: renovate
     restart: on-failure:5
     environment:
-      # Wave-2 triage 2026-08-22: the pinned image (35.x) predates the native `forgejo`
+      # The pinned image (35.x) predates the native `forgejo`
       # platform; Renovate validates the platform at startup and FATAL-exits on unknown
       # values. Forgejo is a Gitea soft-fork with API-compatible endpoints -> use gitea.
       # Revisit when renovate_version bumps to >=37 (native forgejo support).
       RENOVATE_PLATFORM: gitea
-      # 2026-08-23: INTERNAL endpoint — git.kogler.si sits behind authentik-forward-auth,
-      # which intercepts m2m API calls (renovate got the SSO redirect, not a token check).
+      # INTERNAL endpoint — git.kogler.si sits behind authentik-forward-auth,
+      # which intercepts m2m API calls (renovate gets the SSO redirect, not a token check).
       # Both containers share services-internal; the container DNS name resolves directly.
-      # Same pattern applies to the Phase-5 Forgejo Actions runner. Revisit ONLY if
+      # The same pattern applies to the Forgejo Actions runner. Revisit ONLY if
       # renovate ever moves off this host.
       RENOVATE_ENDPOINT: http://forgejo:3000
       RENOVATE_TOKEN: "{{ vault['forgejo_api'].credential | replace('$','$$') }}"
-      RENOVATE_REPOSITORIES: "domen/test"   # TEMPORARY (task 5, 2026-08-24): domen/homelab not migrated yet; switch back to domen/homelab when it lands (HD-264d final step, deferred)
-      # PREREQUISITE (2026-08-23 debug one-shot): the repo MUST exist on Forgejo as
-      # `domen/homelab` — the instance has an admin account but NO repos yet (GitHub
-      # migration/create pending owner), so renovate 404'd every API call ->
+      RENOVATE_REPOSITORIES: "domen/test"   # TEMPORARY: domen/homelab is not migrated to Forgejo yet; switch back to domen/homelab when it lands
+      # PREREQUISITE: the repo MUST exist on Forgejo as
+      # `domen/homelab` — with no repo there renovate 404s every API call ->
       # "Repository has unknown error" crash-loop; service DISABLED in group_vars
-      # until the repo lands. Token itself verified 200.
+      # until the repo lands.
       RENOVATE_ONBOARDING: "false"
-      # HD-264 run-model fix: bound action window to low-traffic hours. Per upstream
+      # Bound the action window to low-traffic hours. Per upstream
       # docs ("RENOVATE_SCHEDULE" env var for the `schedule` config option; cron
       # syntax — minutes MUST be `*`). Every day 22:00–04:00 UTC = 6h window,
       # 3h minimum recommended.

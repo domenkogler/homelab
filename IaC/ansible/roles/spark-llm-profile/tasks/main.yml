@@ -1,5 +1,5 @@
 ---
-# role: spark-llm-profile — read-only preflight for `spark_llm_profile` (HD-469).
+# role: spark-llm-profile — read-only preflight for `spark_llm_profile`.
 # Order = cheapest failure first; every fail_msg names the exact command or file to
 # fix, because the alternative is discovering it 20 minutes into an engine boot.
 
@@ -20,7 +20,7 @@
       the dial: IaC/ansible/host_vars/spark.kogler.si.yml).
   tags: [spark, spark-llm-profile, llm]
 
-# ---- Resolve what the profile NAMES into what it POINTS AT (HD-489) ----
+# ---- Resolve what the profile NAMES into what it POINTS AT ----
 # The compose template composes the same three values from the same plain scalar keys
 # (`image`, `models_root`, `ple_host_base`+`ple_host_root`). The gate resolves them FIRST:
 # it must refuse a bad name with a remediation rather than let a rendered path fail 20
@@ -85,7 +85,7 @@
       anything — there is no second mount root there).
   tags: [spark, spark-llm-profile, llm]
 
-# ---- One PLE mechanism, and a complete one (HD-489) ----
+# ---- One PLE mechanism, and a complete one ----
 # The primitive-ai sidecar works by BIND-MOUNTING ple_layer_quant.py over
 # .../qwen3_8_flash_next/nvidia/ple_layer.py; the upstream mmap patch APPENDS its hook to
 # that same file, and VLLM_PLE_MMAP=1 is read by that hook. Claiming both is not belt and
@@ -113,12 +113,11 @@
       CPU-offload env.
   tags: [spark, spark-llm-profile, llm]
 
-# ---- The never-evict prompt pin: REJECTED 2026-10-05, and both asserts below stay armed ----
+# ---- The never-evict prompt pin: rejected; both asserts below stay armed ----
 # --never-evict-kv-cache-prompt-includes pins every KV block whose prompt contains the
-# substring, up to --never-evict-kv-cache-max-fraction of the POOL. The mechanism was measured
-# and dropped (docs/services-ai-rejected.md): it held 0 blocks across 13 h of real sessions
-# while prefix caching alone served 95.1 % of prompt tokens with 0 preemptions. Every profile
-# now inherits an EMPTY spark_llm_never_evict_prompt, so the template renders neither flag.
+# substring, up to --never-evict-kv-cache-max-fraction of the POOL — pool the pin does not
+# earn back. Every profile inherits an EMPTY spark_llm_never_evict_prompt, so the template
+# renders neither flag. Reasoning: docs/services-ai-rejected.md §Decisions.
 # The asserts are NOT the pin's tests — they are the two ways this flag has already cost a
 # boot, and they must keep firing if anyone re-arms it:
 #   · a placeholder matches nothing (invisible no-op) or everything (a pool leak);
@@ -158,7 +157,7 @@
       docs/services-ai-rejected.md) or move the arm onto a capable image.
   tags: [spark, spark-llm-profile, llm]
 
-# ---- Free space on the root the artifacts ACTUALLY live on (HD-489) ----
+# ---- Free space on the root the artifacts ACTUALLY live on ----
 # One `df`, read-only, on the models root only when the profile uses the root partition.
 # `/` is the mount /opt/homelab sits on (docs/hardware-spark.md §Partition layout: p2 = the
 # live root), so df on `/` is the honest measure; df on a not-yet-staged path would fail.
@@ -203,7 +202,7 @@
     that:
       - spark_llm.kv_cache_dtype in spark_llm_kv_bytes_per_token
       - (spark_llm.kv_cache_memory | int) // (spark_llm_kv_bytes_per_token[spark_llm.kv_cache_dtype] | int) >= (spark_llm.max_model_len | int)
-      # Per-profile ceiling (HD-489 tail): a profile may declare its OWN pool_ceiling_bytes
+      # Per-profile ceiling: a profile may declare its OWN pool_ceiling_bytes
       # to test a larger pool (e.g. fast's 20e9) WITHOUT moving the certified global 16 GiB
       # that still gates every other profile. The global remains the default + the cert.
       - (spark_llm.kv_cache_memory | int) <= (spark_llm.pool_ceiling_bytes | default(spark_llm_pool_ceiling_bytes) | int)
@@ -219,7 +218,7 @@
       byte is --kv-cache-dtype fp8's job, not a bigger pool.
   tags: [spark, spark-llm-profile, llm]
 
-# ---- The host floor: fixed cost + pool, not the pool alone (HD-469 run #2) ----
+# ---- The host floor: fixed cost + pool, not the pool alone ----
 # On GB10 the engine's fixed cost and the KV pool are paid out of the SAME 121.62 GiB the OS
 # lives in (docs/hardware-spark.md §Unified-memory budget). A profile that changes the WEIGHTS
 # changes the fixed cost, and the pool ceiling cannot see that: `fast` (NVFP4, core 88.6 GB vs
@@ -236,7 +235,7 @@
       - spark_llm.fixed_cost_bytes is defined
       - (spark_llm.fixed_cost_bytes | int) > 0
       # Per-profile host floor: a profile may declare its OWN device_hold_ceiling_bytes;
-      # the certified global is the default. (HD-489 tail: each profile is independent.)
+      # the certified global is the default; each profile is independent.
       - (spark_llm.fixed_cost_bytes | int) + (spark_llm.kv_cache_memory | int) <= (spark_llm.device_hold_ceiling_bytes | default(spark_llm_device_hold_ceiling_bytes) | int)
     fail_msg: >-
       Profile '{{ spark_llm_profile }}' does not leave the certified host floor:
@@ -263,7 +262,7 @@
       (basis: {{ spark_llm.fixed_cost_basis | default('undeclared — declare it') }}).
   tags: [spark, spark-llm-profile, llm]
 
-# ---- SGLang lane invariants (GB10-specific, HD-469 `fast-sglang`) ----
+# ---- SGLang lane invariants (GB10-specific, `fast-sglang`) ----
 # SGLang sizes its pool from --mem-fraction-static instead of --kv-cache-memory-bytes, so the
 # asserts above do not reach it. These three are the failure modes the vendor's own DGX Spark
 # documentation names (docs.sglang.io §Qwen3.8-Flash-Next / §Qwen3.8-27B DGX Spark notes),
@@ -399,16 +398,13 @@
     - spark_llm.ple_mmap | bool
   tags: [spark, spark-llm-profile, llm]
 
-# ---- Tie the checkpoint to what its name claims, and to the PLE table beside it (B10) ----
-# A profile names a checkpoint DIRECTORY and a PLE table DIRECTORY, and `models_root`/`ple_host_root`
-# are per-profile — so the two can sit on different partitions, and until 2026-10-06 nothing read
-# what was actually INSIDE the checkpoint dir. Live consequence: `awq-mmap` carried
-# `models_root: os` for a checkpoint that `b1-awq` stages on XFS, and the FP8 table it mounts was
-# trained against the AutoRound-hybrid target. A stat of config.json cannot tell AWQ from AR-hybrid
-# from NVFP4; the checkpoint's own `config.json.quantization_config` can, and it is the one fact
-# about the directory that is not a claim the profile makes about itself. Same lesson as the
-# root-partition `df` above: this read is `check_mode: false`, because a guard that is skipped in
-# --check reports a verdict it never took.
+# ---- Tie the checkpoint to what its name claims, and to the PLE table beside it ----
+# `models_root`/`ple_host_root` are per-profile, so a checkpoint dir and its PLE table dir can
+# sit on different partitions, and the dirs themselves do not say what they hold. A stat of
+# config.json cannot tell AWQ from AR-hybrid from NVFP4; the checkpoint's own
+# `config.json.quantization_config` can, and it is the one fact about the directory that is not
+# a claim the profile makes about itself. This read is `check_mode: false`, because a guard that
+# is skipped in --check reports a verdict it never took.
 - name: Read the staged checkpoint's own quantization
   ansible.builtin.slurp:
     src: "{{ spark_llm_model_host_dir }}/config.json"

@@ -16,11 +16,11 @@ nut_master_name: nas
 # supported - switch to LISTEN` and ignores them), so exposure = the LISTEN addresses above
 # and privilege = upsd.users identities, both already declared. A per-address restriction
 # inside the subnet is a firewall decision on nas, not a NUT one — see
-# docs/hardware-ups.md §Monitoring & shutdown — implementation state (HD-467).
+# docs/hardware-ups.md §Monitoring & shutdown — implementation state.
 
 # Fail-loud switch on the client-side remote leg (`upsc powerwalker@<master>`).
-# Default true: a client converge that cannot reach the master is exactly the blindness
-# HD-467 was filed for, so it must break the run rather than log a warning. Escape hatch
+# Default true: a client converge that cannot reach the master is the blindness this
+# switch exists to catch, so it must break the run rather than log a warning. Escape hatch
 # for a deliberately-offline converge: `-e nut_require_master_leg=false` (per run, never
 # committed as a standing false).
 nut_require_master_leg: true
@@ -28,9 +28,9 @@ nut_require_master_leg: true
 # --- Master (usbhid-ups, USB HID to the PowerWalker VFI ICT/ICR IoT 3000) ---
 nut_driver: usbhid-ups
 nut_serial: auto
-# nas Home-VLAN IP — upsd listens here (intra-VLAN). Derived from the address SSOT
-# (HD-467): the old literal `10.10.1.10` was a second copy of the table row, and the row
-# is what the router's DHCP reservation is keyed on.
+# nas Home-VLAN IP — upsd listens here (intra-VLAN). Must be derived from the address SSOT:
+# a literal IP here is a second copy of the table row, and the row is what the router's
+# DHCP reservation is keyed on.
 nut_listen_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', nut_master_name) | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
 # --- Per-host shutdown delay (seconds) — set in host_vars ---
@@ -57,10 +57,8 @@ nut_wake_charge: 90
 nut_wake_macs: {}
 
 # --- nut_exporter (single SSOT exporter, run as a HOST binary on master;
-# nas has no Docker). PINNED to v3.3.0 (HD-315, 2026-09-04): the earlier
-# `@latest` drifted onto a `(devel)` build; v3.3.0 is the latest tagged
-# release (2026-05-15) and the binary is already deployed on nas. Renovate
-# trails this tag (version-review single-sheet, HD-156).
+# nas has no Docker). PINNED to an exact tag: `@latest` drifts onto `(devel)` builds.
+# Renovate trails this tag (version-review single-sheet).
 nut_exporter: true
 nut_exporter_release: "v3.3.0"
 # nut_exporter_arch/listen/vars keep the defaults below (amd64/:9199).
@@ -81,7 +79,7 @@ nut_upsmon_password: "{{ lookup('community.general.onepassword', 'nut_password',
 nut_exporter_user: nut_exporter
 nut_exporter_password: "{{ lookup('community.general.onepassword', 'nut-exporter_password', field='password', vault=op_vault) }}"
 nut_smtp_server: ""   # SMTP relay host — config (group_vars), NOT a 1Password secret
-# Fail-closed (HD-91): nut_notify_email already hard-requires smtp_login above, so there
+# Fail-closed: nut_notify_email already hard-requires smtp_login above, so there
 # is no reason for these to silently default to empty — a missing item must abort the render,
 # not send an unauthenticated SMTP attempt masked by the || true fallback in upssched-cmd.
 nut_smtp_user: "{{ lookup('community.general.onepassword', 'smtp_login', field='username', vault=op_vault) }}"
@@ -89,12 +87,12 @@ nut_smtp_pass: "{{ lookup('community.general.onepassword', 'smtp_login', field='
 # Optional: absolute path to a helper that sends a Signal message as $1
 # (e.g. a wrapper around signal-cli). Leave empty to skip Signal from NUT.
 nut_signal_helper: ""
-# HD-413 classification (read by scripts/check_self_converge_guard.py, not by Ansible).
-# Writes /etc/sudoers.d/nut, validated with `visudo -cf`. What makes this one worth an
-# explicit row: the grant it installs lets the NUT driver HALT THE HOST. A converge never
-# calls it — the driver does, on battery exhaustion — so it cannot cut the driving session,
-# but it IS a shutdown path on the box, and its rescue is not SSH at all: it is the UPS/WoL
-# lane (HD-06, hardware-ups.md). Treat that as the real break-glass here, not a session.
+# Self-converge-guard classification (read by scripts/check_self_converge_guard.py, not by
+# Ansible). Writes /etc/sudoers.d/nut, validated with `visudo -cf`. What makes this one
+# worth an explicit row: the grant it installs lets the NUT driver HALT THE HOST. A converge
+# never calls it — the driver does, on battery exhaustion — so it cannot cut the driving
+# session, but it IS a shutdown path on the box, and its rescue is not SSH at all: it is the
+# UPS/WoL lane (hardware-ups.md). Treat that as the real break-glass here, not a session.
 homelab_lockout_exempt_reason: >-
   Installs a validated sudoers grant that lets the NUT driver halt the host on power loss; no
   converge path invokes it, so it cannot sever the session, and its own rescue is the UPS/WoL
