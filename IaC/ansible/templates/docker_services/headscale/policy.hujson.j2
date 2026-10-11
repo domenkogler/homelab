@@ -1,12 +1,12 @@
 // {{ ansible_managed }}
-// headscale ACL policy — auto-generated from template (HD-84 / KOPS-022).
+// headscale ACL policy — auto-generated from template.
 //
 // This is the *traffic* policy for the kogler.si mobile mesh (Headscale).
 // Behaviour note: OIDC-authenticated clients are AUTO-APPROVED (there is no separate
 // registration gate in config.yaml), so this file is the enforcement boundary:
 // it decides what an auto-joined family node may reach.
 //
-// Default posture (TIGHTENED, HD-252 ④): deny-by-default. A node may talk ONLY to nodes
+// Default posture (TIGHTENED): deny-by-default. A node may talk ONLY to nodes
 // owned by a listed family user, or to a service tag an explicit rule names — see `acls`.
 // Rogue/untagged nodes (e.g. auto-joined via a leaked pre-auth key or an unknown OIDC
 // subject) are denied by headscale's empty-default for anything not explicitly accepted.
@@ -20,7 +20,7 @@
 // NOTE on tags: headscale v2 requires a tag to be DECLARED in tagOwners before a
 // pre-auth key may carry it, and there is no autogroup:admin source here (the admin
 // username only exists post-OIDC). So tagOwners is NOT empty and never was since
-// HD-135b — it lists exactly the service tags this tailnet uses. User-to-user traffic
+// it lists exactly the service tags this tailnet uses. User-to-user traffic
 // remains email-based (see `acls`); a tag is how a NON-user node gets scoped in.
 //
 // Adding a family member: add one accept rule per user mirroring the layout below.
@@ -32,31 +32,31 @@
   // owned by the admin's email and nothing is self-service: a pre-auth key minted on the
   // VPS CLI is the only way a node acquires a tag (no policy check on the CLI path).
   //
-  // HD-135b (2026-08-28): the VPS observability sidecar carries `tag:sidecar` so the
-  // tailnet can reach the admin dashboards. HD-405 (2026-09-20) adds `tag:dev` for the one
+  // The VPS observability sidecar carries `tag:sidecar` so the
+  // tailnet can reach the admin dashboards. `tag:dev` for the one
   // home host. Both are service nodes, not users, so the admin email is the tag owner.
   // NOTE: headscale v0.29.3 tagOwners require the owner as FULL EMAIL (post-OIDC
   // "domen@kogler.si") — the bare username "domen" fails policy parse with
-  // 'invalid owner format' and crash-loops headscale (live 2026-08-28).
+  // 'invalid owner format' and crash-loops headscale.
   "tagOwners": {
     "tag:sidecar": ["domen@kogler.si"],
-    // HD-405 (2026-09-20): the ONE home host that joins the tailnet (oldsrv). Declared here
+    // The ONE home host that joins the tailnet (oldsrv). Declared here
     // BEFORE the preauth key that carries it is minted — the tag is what keeps the node OUT
     // of the user's own-node namespace: a preauth-key node lands in headscale's synthetic
     // `tagged-devices` user, so `dst: ["domen@kogler.si:*"]` cannot reach it and the ONLY
     // way in is the explicit port-scoped rule below. That is the whole point: the box holding
     // the vault token is reachable on 443, not on ":*". If this lane ever needs another port
     // (SSH, RustDesk), add it deliberately — do not widen this to :*
-    // (HD-415 2026-09-22 added one DNS rule; it is NOT under this tag — it names the node's
+    // (one DNS rule added; it is NOT under this tag — it names the node's
     //  own address, so acquiring `tag:dev` does not grant resolver access.)
     "tag:dev": ["domen@kogler.si"],
-    // HD-435 (2026-09-25, owner approved the node AND the grant): the SECOND permitted home
+    // The SECOND permitted home
     // node — the Pi, which carries `traefik-ha` (the HA standby edge). Its own tag, on
     // purpose, rather than borrowing `tag:dev`:
     //   * `tag:dev` is the DEV SEAT tag, and its own comment above invites another port
     //     ("if this lane ever needs another port (SSH, RustDesk), add it deliberately").
     //     A shared tag would hand the Pi every dev-seat port the day someone adds one —
-    //     the same silent-inheritance hazard the HD-415 note below calls out for DNS, and
+    //     the same silent-inheritance hazard the note below calls out for DNS, and
     //     this row's owner condition was literally "the tag decides the reach surface".
     //   * With its own tag, the Pi's entire inbound tailnet surface is this one rule: 443.
     // No `udp 53` rule is added for it and none may be inferred: the Pi is the LAN Technitium
@@ -67,7 +67,7 @@
     "tag:home-edge": ["domen@kogler.si"]
   },
 
-  // REAL ACL — TIGHTENED at first enrolment (HD-84 / HD-252 ④, 2026-08-26).
+  // REAL ACL — TIGHTENED at first enrolment.
   // Family mesh is currently a single user (domen@kogler.si, OIDC-linked). Each member
   // may reach their OWN nodes; everything else is denied by default. Extend the list
   // as family members join (add one {"src":["<user>@kogler.si"],"dst":["<user>@kogler.si:*"]}
@@ -78,7 +78,7 @@
       "src": ["domen@kogler.si"],
       "dst": ["domen@kogler.si:*"]
     },
-    // HD-135b follow-up (2026-08-28): the owner's devices may reach the VPS
+    // The owner's devices may reach the VPS
     // traefik-tailnet edge (tag:sidecar) on port 443 — the tailnet Traefik HTTPS
     // listener for the admin dashboards (stats/logs/csui/sec/traefik/auto, + *.ts
     // twins). The old tailscale-serve ports 8080..8085 are GONE. Keep deny-by-default
@@ -88,12 +88,12 @@
       "src": ["domen@kogler.si"],
       "dst": ["tag:sidecar:443"]
     },
-    // HD-405 (2026-09-20): oldsrv's tailnet node, **tcp/443 only** (owner decision 2026-09-20;
-    // amended 2026-09-22 for ONE DNS rule — see immediately below, and note it is scoped to
+    // oldsrv's tailnet node, **tcp/443 only**.
+    // (ONE DNS rule — see immediately below, and note it is scoped to
     // the node ADDRESS, not to this tag).
     // What this does NOT do, and must not: no LAN bridge, no advertised routes (the node
     // joins with --advertise-routes absent and `headscale routes list` stays empty), no
-    // exit node (HD-408, still the Pi), no Tailscale SSH, and nothing at all toward
+    // exit node (still the Pi), no Tailscale SSH, and nothing at all toward
     // VLAN 20/30 — the Shelly/KNX/IoT/guest invariant is intact because the tailnet still
     // has no path into any home subnet. Everything the owner reaches away from home arrives
     // as `dst-ip = the node's own 100.64.x address`, terminated by oldsrv's own edge.
@@ -102,11 +102,11 @@
       "src": ["domen@kogler.si"],
       "dst": ["tag:dev:443"]
     },
-    // HD-435 (2026-09-25, owner-approved grant): the Pi's tailnet node, **tcp/443 only**.
+    // The Pi's tailnet node, **tcp/443 only**.
     // Why this exists: today the tailnet's ONLY answer for HA is oldsrv's node, so the
     // house's most critical service is unreachable from away whenever the box that happens
     // to be the tailnet node is down — which is not hypothetical while oldsrv sits L2-dead
-    // (HD-455). Same shape as the rule above, same limits: no routes, no LAN bridge, no
+    // Same shape as the rule above, same limits: no routes, no LAN bridge, no
     // exit node, no Tailscale SSH, and nothing toward VLAN 20/30.
     // ⚠ This grants by TAG, so the tag the node lands with IS the reach surface — a
     // preauth key carrying anything else (or nothing) silently produces a node that either
@@ -117,7 +117,7 @@
       "src": ["domen@kogler.si"],
       "dst": ["tag:home-edge:443"]
     }
-    // HD-415 (2026-09-22, owner decision): **DNS only** — udp/53 to oldsrv's tailnet node
+    // **DNS only** — udp/53 to oldsrv's tailnet node
     // address, so the tailnet can use the resolver that is reachable from wherever the device
     // is (docs/network-dns.md §The resolution requirement). Without this rule the netmap
     // drops the phone's DNS queries to that nameserver and the whole `*.kogler.si` zone goes
@@ -131,7 +131,7 @@
     //     tailnet nameserver needs its own rule here, written on purpose.
     //   * src = the owner's user, like every other rule in this file. A tagged/service node
     //     that ever needs to query this resolver gets its own rule, also on purpose.
-    // Everything else in the 2026-09-20 invariant stands: no LAN bridge, no routes, no exit
+    // Everything else in the invariant stands: no LAN bridge, no routes, no exit
     // node, no Tailscale SSH, nothing toward IoT/guest.
     // Rendered only when the node address is known (SSOT tailnet_oldsrv_ip) — the same
     // condition that puts the entry in dns.nameservers, so the two never diverge.
