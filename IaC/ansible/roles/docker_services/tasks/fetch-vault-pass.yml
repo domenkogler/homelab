@@ -24,7 +24,7 @@
 # read the service-account token on the control node.
 #
 # Result: the `vault` dict fact on the control host, visible to every template render.
-- name: "HD-258 bulk 1Password pre-pass — export secrets into `vault`"
+- name: "bulk 1Password pre-pass — export secrets into `vault`"
   delegate_to: localhost
   run_once: true
   no_log: true
