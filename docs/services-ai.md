@@ -583,7 +583,7 @@ the extra pixels cost nothing at this scale), i.e. raster scale is a per-request
 
 ### Operational facts
 
-- **A real scan returns real markdown — live 2026-10-07.** `POST /v1/convert/file` answers
+- **A real scan returns real markdown.** `POST /v1/convert/file` answers
   `status: success` with **`md_content` 2021 chars / 317 words**, `layout_score 0.852`, `ocr_score 0.954`,
   `mean_grade excellent`, `errors: []`, with **zero** `failed to map segment` / `Stage … failed` lines in the
   container log (`restarts=0`, `mem=6442450944`). The shape that produces it: the compose runs
