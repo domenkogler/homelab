@@ -27,7 +27,7 @@
       group_vars/all/ must define `wg_s2s_vps` (10.255.40.0/30: VPS .2, router .1).
   tags: wireguard
 
-- name: Assert the router public key is populated (fail-closed, HD-65/HD-91)
+- name: Assert the router public key is populated (fail-closed)
   ansible.builtin.assert:
     that:
       - "wg_s2s_vps.peer_public_key | default('') | length > 0"
