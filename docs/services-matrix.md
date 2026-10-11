@@ -23,6 +23,12 @@ tags: [services, matrix, chat, messaging]
 > the Tuwunel container with `Host(kogler.si) && PathPrefix(/.well-known/matrix)` at **priority 100**:
 > Traefik does NOT resolve a router tie by rule length, and the launchpad (`homepage`) router matches
 > the same apex Host at default priority 0, so an unprioritised route here is a coin flip.
+> **Why the apex, and why this router alone:** Tuwunel's `server_name` is `kogler.si` — clean
+> `@user:kogler.si` IDs — while the homeserver host is `matrix.kogler.si`, so the pairing is a
+> **delegation**: a remote homeserver resolves the APEX, and the apex host is the launchpad behind
+> Forward-Auth. A 302 to `sso.kogler.si` where the delegation JSON should answer reads as a healthy
+> website and breaks **inbound federation**. There is no `_matrix._tcp` / `_matrix._https` SRV record,
+> so nothing else carries the delegation — this router is the only one.
 > ⚠ **Do not "fix" the bodies.** The server document is `m.server` with the value `host:port` — that
 > is the federation delegation, and it is what a remote homeserver parses.
 > `{"server_name":"kogler.si","port":443}` is not a spec shape; it is the wrong fix these two small
