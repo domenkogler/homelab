@@ -107,8 +107,8 @@
       X-Api-Key: "{{ _arr_key }}"
     body_format: json
     # `path` is the whole body for Sonarr/Radarr; Lidarr's RootFolderResource also wants a
-    # display name + the default metadata profile, carried in post_extra (measured live:
-    # /media/music, name "Music", defaultMetadataProfileId 1 = "Standard").
+    # display name + the default metadata profile, carried in post_extra:
+    # /media/music, name "Music", defaultMetadataProfileId 1 = "Standard".
     body: "{{ {'path': item} | combine(arr_seed_apps[svc.template_dir].post_extra | default({}, true)) }}"
     status_code: [200, 201]
   loop: "{{ arr_seed_apps[svc.template_dir].root_folders }}"
