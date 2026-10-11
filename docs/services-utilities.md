@@ -12,9 +12,9 @@ tags: [services, utilities, tools, automation]
 > **Linked from:** `services.md`
 
 > **Live on the VPS:** n8n (`auto.kogler.si` — also the observability alert router), PairDrop (`drop.`,
-> public and CrowdSec-gated, WebRTC signaling only), Stirling-PDF (`pdf.`, internal, OCR `eng+slv`),
-> Zipline (`bin.`, public), and the LAN-only `dsh`/`pi-dev` rows are **parked** (registry
-> `enabled: false`).
+> public and CrowdSec-gated, WebRTC signaling only), Stirling-PDF (`pdf.`, internal, OCR `eng+slv`) and
+> Zipline (`bin.`, public — the bin / URL shortener; registry `enabled: true`, so it is deployed). Only the
+> LAN-only `dsh`/`pi-dev` rows are **parked** (registry `enabled: false`).
 >
 > ⏳ **Open:** **`signal-cli-rest-api`** runs on oldsrv and is published on its Home-VLAN address so the VPS
 > alert brain can reach it (observability's alert-router leg), but **Signal delivery is still owner-gated —
