@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 # Ensure the wg-s2s interface has BOTH a private key and the peer attached.
 #
-# HD-285 (Phase 1.5, live-proven on systemd 257 networkd):
+# Apply-model boundary on systemd 257 networkd:
 #   - networkd creates wg-s2s + applies the .netdev key, but NEVER applies the
-#     [WireGuardPeer] (Peer= missing in kernel — HD-306/HD-285).
+#     [WireGuardPeer] (Peer= missing in kernel).
 #   - networkd OWNS wg-s2s while it manages it: any `wg set peer` (or setconf
 #     key+peer) gets its peer removed within seconds. Userspace cannot hold a
 #     peer on a networkd-managed iface.
 #   - Net result: networkd is REMOVED from wg-s2s management entirely; this
 #     oneshot OWNS the interface (creates it if missing, applies key via
-#     `wg setconf`, adds peer via `wg set`). Live-verified 2026-09-02: peer
-#     persists when the oneshot owns the iface (no networkd racing it).
+#     `wg setconf`, adds peer via `wg set`) — only then does the peer persist.
 #
 # We deliberately do NOT depend on systemd-networkd-wait-online (unreliable; the
 # iface is owned by this unit now).
@@ -70,11 +69,10 @@ if [ "${pubkey}" = "none" ] || [ -z "${peers}" ]; then
 fi
 
 # 3) Install + reconcile kernel ROUTES for every AllowedIPs /32 on the peer.
-#    HD-370 live gap (2026-09-15): plain `wg set peer` (and `wg setconf`) populates
-#    the peer's AllowedIPs but installs NO host routes — the missing
-#    `10.10.1.40 dev wg-s2s` route made the VPS send spark traffic out the public
-#    eth0 (spark unreachable; the old routes were stale leftovers from the pre-HD-285
-#    [WireGuardPeer] .netdev). A `wg set` (no route auto-install) means every
+#    Plain `wg set peer` (and `wg setconf`) populates the peer's AllowedIPs but
+#    installs NO host routes — a missing `10.10.1.40 dev wg-s2s` route sends the
+#    VPS's spark traffic out the public eth0, leaving spark unreachable. A `wg
+#    set` (no route auto-install) means every AllowedIPs entry needs an explicit
 #    AllowedIPs entry needs an explicit `ip route to <ip> dev wg-s2s` — idempotent,
 #    and self-heals on interface re-creation / reboot (networkd is Unmanaged, so
 #    nothing else restores them). Only /32 or /N entries that are NOT already routed
@@ -86,7 +84,7 @@ if [ -n "${peer_ips}" ]; then
         [ -n "${cidr}" ] || continue
         # `ip route replace` is idempotent: same route = no change; a changed one
         # is updated in place. Replace (not add) so a stale route with a different
-        # device (e.g. eth0 from HD-370) is CLOBBERED back onto wg-s2s.
+        # device (e.g. a stale eth0 route) is CLOBBERED back onto wg-s2s.
         echo "wg-ensure-s2s-peer: ensuring route ${cidr} via ${iface}"
         /usr/bin/ip route replace "${cidr}" dev "${iface}" 2>/dev/null \
             || echo "wg-ensure-s2s-peer: WARN route ${cidr} not replaceable (non-fatal)"

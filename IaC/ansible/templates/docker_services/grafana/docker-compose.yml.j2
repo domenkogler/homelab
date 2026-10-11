@@ -27,10 +27,10 @@ services:
       - /srv/docker/grafana/data:/var/lib/grafana
       - /srv/docker/grafana/provisioning:/etc/grafana/provisioning
     environment:
-      # VictoriaLogs Grafana plugin (HD-342) — full LogsQL datasource; installed at
+      # VictoriaLogs Grafana plugin — full LogsQL datasource; installed at
       # container start. VM is queried via the bundled prometheus datasource (uid `prometheus`).
       GF_INSTALL_PLUGINS: victoriametrics-logs-datasource
-      # HD-390 (2026-09-17): Grafana 13 ships its BUNDLED plugins (incl. `prometheus`, the one
+      # Grafana 13 ships its BUNDLED plugins (incl. `prometheus`, the one
       # that talks to VictoriaMetrics) in the read-only image layer at
       # /usr/share/grafana/data/plugins-bundled and RE-INSTALLS them on every start — which
       # needs to unlink that dir. With `read_only: true` above the unlink fails ("Failed to
@@ -47,14 +47,14 @@ services:
       GF_SECURITY_ADMIN_USER: admin
       GF_SECURITY_ADMIN_PASSWORD: "{{ vault['grafana_login'].password | replace('$','$$') }}"
       GF_SECURITY_DISABLE_GRAVATAR: "true"
-      # Single auth path (KOPS-008 / HD-82): force every login through the Authentik
+      # Single auth path: force every login through the Authentik
       # Forward-Auth proxy — the Grafana login form is disabled so the admin account
       # can't be reached by a direct bypass. Admin stays reachable via API/basic auth
       # for provisioning (break-glass).
       GF_AUTH_DISABLE_LOGIN_FORM: "true"
       # Auth proxy — trusts the Authentik Forward-Auth headers passed by Traefik.
       # Users who pass Forward-Auth are auto-logged in, skipping the Grafana login form.
-      # Header-trust hardening (S16/HD-190, HD-81 precedent):
+      # Header-trust hardening:
       #   • WHITELIST pins the auth-proxy source to the Traefik edge container IPs
       #     (traefik_edge_ips) — a forged X-authentik-* header sent directly from a
       #     compromised sibling container on traefik-public is rejected by source IP.
@@ -92,7 +92,7 @@ services:
       traefik.http.routers.grafana.middlewares: authentik-forward-auth@file
       traefik.http.services.grafana.loadbalancer.server.port: "3000"
 {% else %}
-      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # INTERNAL-ONLY (public: false): no public-edge route; served
       # only by the traefik-tailnet internal edge (stats.kogler.si / stats.ts).
       traefik.enable: "false"
 {% endif %}
