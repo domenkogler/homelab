@@ -95,7 +95,7 @@
 add chain=input action=accept connection-state=established,related comment="Allow established/related input (switch)"
 add chain=input action=accept in-interface=vlan99-mgmt comment="Allow mgmt VLAN input (switch)"
 add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN (HD-53)"
-add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from non-mgmt (HD-53)"
+add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from non-mgmt"
 add chain=input action=drop comment="Drop all other input (switch lockdown)"
 
 # ---- Services (mgmt-scoped, dangerous disabled) ----
@@ -117,7 +117,7 @@ add chain=input action=drop comment="Drop all other input (switch lockdown)"
 # from Mgmt VLAN + drops the rest.
 /snmp set enabled=yes
 :if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
-    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller"
 } else={
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }
