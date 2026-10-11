@@ -1,23 +1,13 @@
 ---
-# sabnzbd-seed.yml — keep SABnzbd's `host_whitelist` big enough to be reached (HD-496)
+# sabnzbd-seed.yml — keep SABnzbd's `host_whitelist` big enough to be reached
 # Included ONCE from docker_services/main.yml, gated on `template_dir == 'sabnzbd'` + the deploy
 # scope + `not ansible_check_mode` (it drives the live container; deployment-ansible.md §Dry-run).
 #
-# WHY THIS EXISTS (measured on oldsrv 2026-10-06, it was blocking the whole indexer lane):
-#   SABnzbd runs its own DNS-rebinding guard: it compares the incoming `Host:` header against
-#   `host_whitelist` and answers **403 "Access denied - Hostname verification failed"** to anything
-#   it does not recognise. The shipped value carries ONE entry — the container's own short id — so
-#   every name this stack actually uses is refused. Probed from the host against the container, all
-#   four without an API key so the failure is unambiguous:
-#
-#     Host: 127.0.0.1:8080   → {"version":"5.1.1"}        (passes — SAB's own loopback default)
-#     Host: <container-ip>   → {"version":"5.1.1"}        (passes)
-#     Host: sab.kogler.si    → hostname-check FAIL        (Traefik preserves the original Host)
-#     Host: sabnzbd          → hostname-check FAIL        (Prowlarr's overlay call → 403 forever)
-#
-#   Consequences that read as somebody else's bug: the UI at `sab.kogler.si` shows the hostname-check
-#   page no matter what Authentik does, and a Prowlarr download client pointed at `sabnzbd:8080`
-#   cannot be saved no matter how many times the API key is re-pasted. Both walls are this one value.
+# WHY THIS EXISTS: SABnzbd's DNS-rebinding guard compares the incoming `Host:` header
+# against `host_whitelist` and answers **403 "Access denied - Hostname verification failed"**
+# to anything unrecognised. The shipped value carries only the container's own short id, so
+# every name this stack uses is refused: `sab.kogler.si` (Traefik preserves the original Host)
+# and `sabnzbd` (Prowlarr's overlay call). Both walls are this one value.
 #
 # WHY A FILE SEED AND NOT COMPOSE ENV: the linuxserver image ships no `SABNZBD__*` translation
 # (no `/etc/cont-init.d`, and `grep -rl 'SABNZBD__' /app /usr/bin /etc/cont-init.d` → nothing), so
@@ -87,7 +77,7 @@
 
 - name: "sabnzbd-seed: assert every named locality range resolved from the SSOT"
   # A range renamed out of network_ranges must not silently shrink the set: local_ranges is REPLACE-all,
-  # so a quietly-missing entry is a network that stops being local (HD-1089's own trap).
+  # so a quietly-missing entry is a network that stops being local.
   ansible.builtin.assert:
     that:
       - sabnzbd_local_ranges | length == sabnzbd_local_ranges_names | length
@@ -145,10 +135,9 @@
 # SAB rewrites sabnzbd.ini when it exits cleanly, so an edit made while it runs is silently undone at
 # the next stop → stop, edit, start. And the edit MUST go through the HOST PATH, not `docker exec`:
 # exec needs a RUNNING container, so a stop-then-exec seed fails at the edit task and leaves the
-# downloader stopped — exactly what the first run of this file did (2026-10-06: SAB sat at
-# Exited (137) for ~2 min and sab.kogler.si served Bad Gateway while the play aborted mid-block).
-# The play runs become:true and lineinfile preserves the file's uid/gid + 0600, so root edits it in
-# place without taking ownership away from the `media` owner the container writes as.
+# downloader stopped. The play runs become:true and lineinfile preserves the file's uid/gid + 0600,
+# so root edits it in place without taking ownership away from the `media` owner the container writes
+# as.
 # `always:` restarts even if the edit blows up, so a failed seed cannot strand the downloader.
 - name: "sabnzbd-seed: apply the ini drift (stop → edit on the host path → start)"
   when: _sab_restart_needed | bool
