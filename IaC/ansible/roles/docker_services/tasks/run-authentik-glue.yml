@@ -6,7 +6,7 @@
 # volume at container first-start; the script exits 3 (retry-safe) until every
 # provider/client_secret is present.
 
-- name: "Run Authentik secret-egress glue (HD-143)"
+- name: "Run Authentik secret-egress glue"
   ansible.builtin.shell:
     cmd: |
       # The host-side op CLI authenticates via the write-scoped SA token deployed

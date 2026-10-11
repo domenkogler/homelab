@@ -79,7 +79,7 @@
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml"
     mode: '0644'
 
-- name: "Stat extra-template dest paths for {{ svc.name }} (HD-440)"
+- name: "Stat extra-template dest paths for {{ svc.name }}"
   # The removal below must be a TYPE TEST, not a guess. `state: absent` does not care whether the path is a
   # directory or the regular file the previous converge rendered, so an untyped removal deletes the rendered
   # extra on EVERY converge, the template task recreates it (`changed`), and the restart-on-config-change
@@ -95,7 +95,7 @@
   register: extra_dest_stat
   changed_when: false
 
-- name: "Remove stub DIRS at extra-template dest paths for {{ svc.name }} (HD-268c; type-test HD-440)"
+- name: "Remove stub DIRS at extra-template dest paths for {{ svc.name }}"
   # When a service bind-mounts a source file from the template dir (e.g. ./serve.json:/config/serve.json:ro)
   # and that file does not exist yet, `docker compose up` auto-creates the source as an EMPTY DIRECTORY, and
   # the template task then refuses to overwrite a directory at dest. Pre-remove the stub so the render lands
@@ -133,7 +133,7 @@
 # is missing, Docker auto-creates it as an empty DIRECTORY at bind-mount time and HA starts mis-configured
 # with no error — so fail LOUD here, before up, with the remediation path. Belt-and-braces against any
 # future role reorder.
-- name: "First-boot guard: {{ svc.name }} bind-mount sources are regular files (HD-185)"
+- name: "First-boot guard: {{ svc.name }} bind-mount sources are regular files"
   when: svc.name == 'home-assistant-primary'
   block:
     - name: "Stat {{ svc.name }} bind-mount sources"
@@ -159,9 +159,9 @@
           for home-assistant-primary BEFORE the home_assistant role rendered its configs —
           Docker auto-created the bind-mount source as a directory. Remediation: stop the stack
           (`docker compose down`), delete the auto-created path(s), then re-run so that
-          home_assistant renders BEFORE docker_services (HD-204 render-first order).
+          home_assistant renders BEFORE docker_services (render-first order).
   tags: ["{{ svc.name }}", home_assistant, hd185]
-- name: "Validate rendered compose file for {{ svc.name }} (HD-162)"
+- name: "Validate rendered compose file for {{ svc.name }}"
   ansible.builtin.shell:
     cmd: "docker compose -f {{ docker_compose_dir }}/{{ svc.name }}/docker-compose.yml config --quiet"   # there is no `compose validate` subcommand
   # `docker compose config --quiet` only PARSES the render and mutates nothing, but a bare shell task reports
@@ -390,14 +390,14 @@
 # CLI (it is not env-injectable). The Authentik side lives in ks-oidc.yml with creds in the `forgejo_oidc`
 # item. Authentication Name MUST stay `authentik`: ks-oidc.yml accepts any callback under /user/oauth2/.* but
 # the docs and the owner runbook reference this name.
-- name: "Register Authentik OIDC source in Forgejo (HD-230)"
+- name: "Register Authentik OIDC source in Forgejo"
   when: svc.name == 'forgejo'
   vars:
     _oidc_id: "{{ lookup('community.general.onepassword', 'forgejo_oidc', field='username', vault=op_vault) }}"
     _oidc_secret: "{{ lookup('community.general.onepassword', 'forgejo_oidc', field='credential', vault=op_vault) }}"
   ansible.builtin.shell:
     cmd: |
-      # Verified live against this Forgejo build (HD-230): provider key is
+      # Provider key is
       # `openidConnect` (NOT `oidc`), no --active/--use-auto-discovery-url flags exist,
       # deletion is `admin auth delete --id N`. Scopes repeated (--scopes is a slice).
       if docker exec -u git forgejo gitea admin auth list 2>/dev/null | grep -qw authentik; then
@@ -464,7 +464,7 @@
     mode: '0700'
   tags: "{{ svc.name }}"
 
-- name: "Deploy provision token for host-side op ({{ svc.name }} bootstrap_keys, HD-143 pattern)"
+- name: "Deploy provision token for host-side op ({{ svc.name }} bootstrap_keys)"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.copy:
     content: "{{ lookup('community.general.onepassword', 'op-write_api', field='credential', vault=op_vault) }}\n"
@@ -478,7 +478,7 @@
 # The twin at op-provision-token.yml probes VALIDITY after writing; a leg that only writes the file lets a
 # revoked token read as a healthy host-side provisioner. Existence is not validity — one read-only list call
 # is the difference between a failed task and eight green converges that wrote nothing.
-- name: "Probe the bootstrap-keys provision token is accepted ({{ svc.name }}, HD-442)"
+- name: "Probe the bootstrap-keys provision token is accepted ({{ svc.name }})"
   when: svc.bootstrap_keys | default(false)
   ansible.builtin.shell:
     cmd: |

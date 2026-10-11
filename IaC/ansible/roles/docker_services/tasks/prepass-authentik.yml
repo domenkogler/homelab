@@ -28,12 +28,12 @@
       The Authentik secret-egress pre-pass was included without an `authentik` entry
       in docker_services on {{ inventory_hostname }}. main.yml gates this include
       with when: 'authentik' in (...) — this assert is a safety net and should
-      never fire. See HD-162.
+      never fire.
   tags: [authentik, secret-egress]
 
 # Render the secret-egress glue script once per host (idempotent; force: no would
 # preserve local edits, but the script is managed by Ansible — overwrite is intended).
-- name: "Render Authentik secret-egress glue (HD-143)"
+- name: "Render Authentik secret-egress glue"
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../roles/docker_services/templates/authentik-secret-egress.sh.j2"
     dest: "/usr/local/sbin/authentik-secret-egress.sh"
@@ -47,7 +47,7 @@
 # Rotation = re-issue the SA token, update the op-write_api item, re-run this playbook. The fleet has
 # TWO service accounts — `op_api` (read) and `op-write_api` (read+write) — and this lookup must carry
 # the write-capable one, not a host-specific copy.
-- name: "Deploy provision token for host-side op (HD-143)"
+- name: "Deploy provision token for host-side op"
   ansible.builtin.copy:
     content: "{{ lookup('community.general.onepassword', 'op-write_api', field='credential', vault=op_vault) }}\n"
     dest: /etc/op/provision-token

@@ -1,5 +1,5 @@
 [Unit]
-Description=Daily VPS state push to the Storage Box (HD-470)
+Description=Daily VPS state push to the Storage Box
 
 [Timer]
 # After db-backup's own fire (fresh dumps on disk), before the nightly media churn;

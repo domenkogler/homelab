@@ -22,7 +22,7 @@ SSH="ssh -i /root/.ssh/traefik-cert-sync -o StrictHostKeyChecking=accept-new -o 
 # Scope-global v4 only, so a link-local/container address cannot mask the check.
 if ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | grep -qx "$SRC_HOST"; then
     echo "FATAL: cert-pull SRC host $SRC_HOST is a LOCAL address on $(hostname) — the issuer" >&2
-    echo "       is the VPS Traefik (HD-178/HD-204), never this consumer. The rendered script" >&2
+    echo "       is the VPS Traefik, never this consumer. The rendered script" >&2
     echo "       has drifted (a hand-edit?); re-converge docker_services instead of editing it." >&2
     exit 90
 fi

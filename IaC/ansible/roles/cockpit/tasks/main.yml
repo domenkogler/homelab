@@ -59,7 +59,7 @@
 # The interactive login. Its own file because it is the only part of this role that
 # touches a credential or the PAM stack, so a skipped or failed credential leg stays
 # visible. Read maint-user.yml §why-for-this-file before disabling any part of it.
-- name: HD-361 | Provision the maint Cockpit login
+- name: Provision the maint Cockpit login
   ansible.builtin.include_tasks: maint-user.yml
   when: cockpit_maint_vault_item is defined
 
