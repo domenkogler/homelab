@@ -33,7 +33,7 @@
 # a wrong-target or swapped-host applying switch config to the wrong gear.
 # Runs once per role run, before the first api_modify below.
 # -------------------------------------------------------------------------
-- name: Assert device identity before any mutate (HD-161)
+- name: Assert device identity before any mutate
   community.routeros.api_facts:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -188,7 +188,7 @@
 # member of — pvid alone is NOT enough. Every pvid access port (Home 10, IoT 20, Media 50)
 # must ALSO be an untagged member of the matching bridge VLAN, or frames die at ingress:
 # empty ARP + no WAN on that port. Hence one bridge-VLAN entry per role VLAN in the map.
-- name: Add access ports as untagged members of their role VLAN (HD-328)
+- name: Add access ports as untagged members of their role VLAN
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -203,7 +203,7 @@
         vlan-ids: "{{ item_key }}"
         tagged: "bridge,{{ switch_trunk_port }}"
         untagged: "{{ item_ports | join(',') }}"
-        comment: "{{ item_name }} access ports untagged (HD-328)"
+        comment: "{{ item_name }} access ports untagged"
   loop: "{{ switch_vlans }}"
   loop_control:
     loop_var: item
@@ -224,7 +224,7 @@
 # but never get DHCP ('phone/Shelly disconnect', empty ARP, KNX lag on VLAN 20).
 # PVID alone (untagged-99) is NOT enough for tagged traffic. Parity with
 # crs328_converge.rsc.j2: edit BOTH or NEITHER — a delta must land in both.
-- name: Add wifi AP ports as tagged members of wifi SSID VLANs (HD-339)
+- name: Add wifi AP ports as tagged members of wifi SSID VLANs
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -238,7 +238,7 @@
       - bridge: bridge
         vlan-ids: "{{ item.id }}"
         tagged: "bridge,{{ switch_trunk_port }},{{ wifi_ports | join(',') }}"
-        comment: "{{ item.name }} wifi VLAN on trunk (+ AP ports tagged) (HD-339)"
+        comment: "{{ item.name }} wifi VLAN on trunk (+ AP ports tagged)"
   loop: "{{ switch_vlans }}"
   when: item.ssid is defined and item.ssid and wifi_ports is defined and (wifi_ports | length) > 0
 
@@ -353,7 +353,7 @@
 # role block re-declares the steady-state DISABLED state + port + certificate so
 # a converge can never silently drift a dangerous service back on; mgmt-subnet
 # reachability is enforced by the INPUT-chain rules below + the bootstrap.
-- name: Configure management services (lockdown — HD-301 parity)
+- name: Configure management services (lockdown parity)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
@@ -401,7 +401,7 @@
 # The CRS328 is L2-only but still exposes management services (api/www-ssl/ssh/winbox on
 # 22/8728/8729/8291/80/443); without an INPUT firewall those listen on every interface. Gate
 # them to the Management VLAN + trusted-admin hosts, mirroring the router role's INPUT chain.
-- name: Ensure switch INPUT-chain mgmt-lockdown rules (HD-301 parity)
+- name: Ensure switch INPUT-chain mgmt-lockdown rules
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
