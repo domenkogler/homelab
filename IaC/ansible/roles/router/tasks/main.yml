@@ -705,7 +705,7 @@
         src-address: "{{ vlan_subnets[10] }}"
         out-interface: pppoe-telekom
         action: accept
-        comment: "Home -> WAN allowed"
+        comment: "Home -> WAN allowed (HD-309 row 73)"
       - chain: forward
         src-address: "{{ vlan_subnets[50] }}"
         out-interface: pppoe-telekom
@@ -756,7 +756,7 @@
         src-address: "{{ vlan_subnets[99] }}"
         dst-address: "{{ vlan_subnets[10] }}"
         action: accept
-        comment: "Mgmt -> Home (laptop/Pi discovery)"
+        comment: "Mgmt -> Home (laptop/Pi discovery, HD-307)"
       - chain: forward
         src-address: "{{ vlan_subnets[30] }}"
         dst-address-list: internal_lan
