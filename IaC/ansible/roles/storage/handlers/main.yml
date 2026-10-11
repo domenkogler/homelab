@@ -1,6 +1,6 @@
 ---
 # storage role handlers. tags: always = handlers are tag-filtered like tasks; without it a
-# notified handler is silently skipped under filtered runs (HD-220 finding, HD-237 sweep).
+# notified handler is silently skipped under filtered runs.
 
 - name: restart zfs_exporter
   ansible.builtin.systemd:
