@@ -93,6 +93,11 @@ with three failure modes, so drift-proofing the three instances is part of any c
 filtered name while `kogler.si` still resolves. And because the Kids mechanism is an *upstream*, prove it by
 answering-authority, not by an `NXDOMAIN` that a caching layer could have produced from a stale entry.
 
+⚠ **The per-MAC Kids-Group binding on Home VLAN 10 has no automated verification.** The dst-nat rows in
+[`main.yml`](../IaC/ansible/roles/router/tasks/main.yml) prove those MACs' `:53` reaches the Kids-Group
+resolver, not that the Kids-Group filter answers them. After any change to the filter or to the kids set
+(the `kids: true` marker in the host SSOT), prove the binding on the device, per the ⛔ rule above.
+
 ---
 
 ## Resolver upstream (forwarders)

@@ -296,9 +296,9 @@ spark_llm_kv_bytes_per_token:
   bf16: 31027
   fp8: 18251         # 31,027 / 1.70 — 17.8 KiB/token, the conservative measured ratio
 # bf16 pool ceiling: "16 GiB is the practical bf16 ceiling — do not raise it
-# further" (docs/hardware-spark.md:301). Expressed in the same decimal bytes the
+# further" (docs/hardware-spark.md §Chosen governor). Expressed in the same decimal bytes the
 # governor takes, so the gate compares like with like.
-spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling. Per-profile overrides (e.g. ar-blk's pool_ceiling_bytes) extend it for a PROFILE ONLY; this global stays 16 GiB (hardware-spark.md:301 do-not-raise).
+spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling. Per-profile overrides (e.g. ar-blk's pool_ceiling_bytes) extend it for a PROFILE ONLY; this global stays 16 GiB (hardware-spark.md §Chosen governor, do-not-raise).
 
 # ---- The host floor, as an arithmetic gate -----------------
 # The pool ceiling alone is NOT the OOM guard: a profile that changes the WEIGHTS changes
@@ -734,7 +734,7 @@ spark_llm_profiles:
   #   tier 1  u*/nv-*      0 new GB (AWQ + INT4 + NVFP4 are already on disk)   ~1 boot each
   #   tier 2  ar-*         ~130 GB onto `/` (spark_models_dir_os), nothing deleted
   #   tier 3  v16b-*       + the T80 drafter directory (+4.8 GiB, built not downloaded)
-  # Keep-few rule (docs/spark-llm-profiles.md §The funnel): arms are SCORED, not kept — a
+  # Keep-few rule (docs/spark-llm-profiles.md §7. The ultra-fast funnel): arms are SCORED, not kept — a
   # loser is deleted from this catalogue and recorded in docs/services-ai-rejected.md. Only
   # an arm that clears gates 0–7 (spark/llm-profiles/README.md) becomes `certified: true`.
   #
@@ -959,7 +959,7 @@ spark_llm_profiles:
     ple_dispatch: true
     # Per-profile allowance (roles/spark-llm-profile compares THIS, not the global, when a
     # profile declares it). The CERTIFIED global `spark_llm_pool_ceiling_bytes` stays 16 GiB —
-    # hardware-spark.md:301 "do not raise it further" — so every other profile is still gated at
+    # hardware-spark.md §Chosen governor "do not raise it further" — so every other profile is still gated at
     # 16 GiB and this arm's bigger pool is visible as a deliberate, named exception.
     # 20 GB is the LARGEST 1-GB-rounded pool that still leaves the watchdog's WARN band
     # (12 GiB) of host reserve at rest: pool_max = device_hold_ceiling_bytes − fixed_cost_bytes.

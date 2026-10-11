@@ -368,7 +368,7 @@ the idle-recycle term is **OFF** — `spark_oom_watchdog_recycle: false` — and
   **no room for another KV raise in bf16**, because that would put WARN inside routine-transient range.
 - Both rules load in the ruler (`vps.yml --tags monitoring`) with CRIT `noDataState: Alerting`.
 
-### Silent-failure hygiene: unit results and consumer cert age as series (live 2026-10-07)
+### Silent-failure hygiene: unit results and consumer cert age as series
 
 Two signal classes a plain metric scrape does not produce: a systemd unit's *result*, and the cert pair a
 **consumer** holds. A timer that fails on every run changes **no series anywhere**, so no rule can see it;

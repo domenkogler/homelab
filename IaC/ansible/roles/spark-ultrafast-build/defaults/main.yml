@@ -27,4 +27,4 @@
 #
 # DEPLOY-GATED like the rest of the lane: every profile that needs this output references
 # `image: ultrafast`, whose pin is empty until the ID above lands, so roles/spark-llm-profile
-# refuses them all until then (docs/spark-llm-profiles.md §The funnel).
+# refuses them all until then (docs/spark-llm-profiles.md §7. The ultra-fast funnel).
