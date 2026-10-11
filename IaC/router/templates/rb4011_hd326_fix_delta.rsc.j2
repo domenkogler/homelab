@@ -41,7 +41,7 @@
 
 # ---- B. cloud-IoT WAN egress (iot-wan-allow) ABOVE the IoT->WAN drop ----
 :local iotDrop [/ip firewall filter find where chain=forward and comment="IoT -> WAN drop (disable for firmware)"]
-:if ($iotDrop = "") do={ :error "HD-326 delta: IoT->WAN drop rule not found — aborting" }
+:if ($iotDrop = "") do={ :error "delta: IoT->WAN drop rule not found — aborting" }
 :local prev $iotDrop
 {% for h in network_static_hosts %}{% if h.mac is defined and h.vlan == 20 and h.wan_allow is defined and h.wan_allow %}
 /ip firewall filter add chain=forward src-address=10.10.20.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom action=accept comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"
@@ -54,7 +54,7 @@
 
 # ---- C. Kids controls ABOVE the Home->WAN accept ----
 :local homeWan [/ip firewall filter find where chain=forward and comment="Home -> WAN allowed (HD-309 row 73)"]
-:if ($homeWan = "") do={ :error "HD-326 delta: Home->WAN accept rule not found — aborting" }
+:if ($homeWan = "") do={ :error "delta: Home->WAN accept rule not found — aborting" }
 :local prev $homeWan
 {% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
 /ip firewall filter add chain=forward src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom protocol=tcp dst-port=853 action=drop comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"
