@@ -54,7 +54,7 @@ storage_group: media
 # (`valid users = <account>`); plus a `media` shared share (any family account).
 # ⚠ No Authentik-as-LDAP passdb: it would make every LAN drive mount depend on the VPS + the WG
 #   S2S tunnel, and Authentik's LDAP provider cannot answer an NTLM challenge at all — it stores
-#   PBKDF2 and serves `userPassword`, never `sambaNTPassword`. Decision: docs/storage-rejected.md.
+#   PBKDF2 and serves `userPassword`, never `sambaNTPassword`. Alternatives: docs/storage-rejected.md.
 # SSOT for the family list = `storage_samba_users` in host_vars (a repo edit, not a
 # directory sync), so a from-scratch rebuild converges the drives with no external pull.
 # Format (name + vault_item are required; uid/shell optional):
