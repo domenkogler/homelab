@@ -94,7 +94,7 @@ services:
         npm install -g --ignore-scripts pi-web-access@{{ pi_web_access_version }}
         # pi-web-ui: Web chat UI for pi (serve :8080). Install pinned; fail-loud on error so
         # monitoring sees a broken UI rather than a silently-idling container.
-        # HD-298: --ignore-scripts REMOVED here ONLY + explicit --allow-scripts — the postinstall
+        # --ignore-scripts REMOVED here ONLY + explicit --allow-scripts — the postinstall
         # compiles the native node-pty binding (required on current node+arch; without it the
         # server crash-loops before ever reaching exec). npm 11.19+ blocks install scripts by
         # default (new allowScripts gate) even without --ignore-scripts, so the three packages
@@ -107,7 +107,7 @@ services:
         fi
         # Serve the pi Web UI in the foreground. PI_WEB_HOST=0.0.0.0 binds inside the container
         # so the HOST publish ({{ oldsrv_home_ip }}:8080, media-bridge) reaches it; the VPS
-        # tailnet edge reaches the publish over WG S2S (HD-355).
+        # tailnet edge reaches the publish over WG S2S.
         # PORT is set via the PI_WEB_PORT env; --no-browser for a headless container.
         exec pi-web-ui --port 8080 --no-browser
     networks:
