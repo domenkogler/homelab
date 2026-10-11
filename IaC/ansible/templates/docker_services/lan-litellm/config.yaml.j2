@@ -1,4 +1,4 @@
-# lan-litellm config.yaml — LAN (dev-side) LiteLLM gateway config (HD-356/HD-370)
+# lan-litellm config.yaml — LAN (dev-side) LiteLLM gateway config
 #   Clone of templates/docker_services/litellm/config.yaml.j2 for the LAN instance
 #   (oldsrv; dev consumers dsh / pi-dev / future OpenHands). Same model story as the
 #   VPS instance — see that file for the full rationale.
@@ -7,21 +7,19 @@
 #   roles/docker_services/defaults/main.yml _extra_templates: lan-litellm); secrets
 #   resolved from 1Password at render time.
 #
-#   HD-247 v2: model_list is NO LONGER rendered here. With STORE_MODEL_IN_DB=true the
+#   model_list is NOT rendered here. With STORE_MODEL_IN_DB=true the
 #   model catalog lives in the lan-litellm-db Postgres runtime and is Admin-UI-managed
 #   (git drift accepted by owner decision — services-ai.md §9 decision 13). The SPARK
 #   generation model (spark/qwen3.8-flash-next) is ALSO a runtime entry in THIS DB —
 #   `base_url: https://llm.kogler.si/v1` (LAN name → spark_home_ip → spark's own :443
 #   name edge → engine :8000) and NO api_key — the bearer arrives from the container's
 #   OPENAI_API_KEY env (1P `spark-llm_api`; name resolution via this service's extra_hosts
-#   glue). https, NOT http
-#   — spark's :80 edge is redirect-only and the OpenAI SDK will not follow a 307 on POST
-#   (HD-382 corrects the pre-2026-09-17 `http://` text here). Admin-UI/API
-#   create step, never rendered here (HD-370 step 4 + HD-382).
+#   glue). https, NOT http — spark's :80 edge is redirect-only and the OpenAI SDK will
+#   not follow a 307 on POST. The model create step is Admin-UI/API-only, never here.
 litellm_settings:
   drop_params: true
 
 general_settings:
-  master_key: os.environ/LITELLM_MASTER_KEY   # admin/bootstrap credential ONLY (HD-247):
+  master_key: os.environ/LITELLM_MASTER_KEY   # admin/bootstrap credential ONLY:
                                               # consumers use scoped virtual keys minted by
                                               # the bootstrap-keys glue into 1Password.
