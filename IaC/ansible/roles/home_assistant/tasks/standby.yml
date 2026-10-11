@@ -13,7 +13,7 @@
 # (docker_services skips it — home-assistant-standby is enabled:false). Pre-create
 # it so the keepalived/compose/secret renders below never fail on a missing dir; the
 # nested /config target (created later) syncs from the Pi. Idempotent (state: directory).
-- name: Create cold-standby home-assistant directory (HD-318c)
+- name: Create cold-standby home-assistant directory
   ansible.builtin.file:
     path: "{{ ha_standby_path }}"
     state: directory
