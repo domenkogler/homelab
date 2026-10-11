@@ -219,7 +219,7 @@ update, or queries keep 401-ing despite correct rendered files.
   Grafana (compose env), Pi + oldsrv HA (`secrets.yaml`), and **NUT `upssched-cmd` on nas**, which embeds it
   **inline** (see [hardware-ups.md](hardware-ups.md)).
   - **Connecting (SMTP2Go, EU datacenter — as provided by the account):** server `mail-eu.smtp2go.com`; SMTP port `2525` (default), alternates `8025`, `587`, `80`, `25` — **TLS available on the same ports** (STARTTLS). SSL: `465`, `8465`, `443`. The repo uses `mail-eu.smtp2go.com:2525` + STARTTLS (**587 is blocked from the VPS egress**, so **2525 is the SSOT port**, not 587).
-- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. Delivery is **✅ live 2026-09-28**. **Recipient: the WHOLE group** — `signal_alert_recipients` takes the **group ID** that signal-cli reports, read off
+- **Signal:** `signal-cli-rest-api` container, **linked** to Domen's personal number (no second SIM), sends to a dedicated **"Homelab Alerts"** group. Persist the Signal identity volume so it doesn't need re-linking. Delivery is **✅ live**. **Recipient: the WHOLE group** — `signal_alert_recipients` takes the **group ID** that signal-cli reports, read off
 `GET http://127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` **inside the container** (that raw upstream
 API has no auth and NO host port — hence `docker exec`, exactly as the `group_vars/all/main.yml` comment
 shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml` (`group.NVZ6Y21…`) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. The ID is only readable from the linked daemon; never reconstruct it from a message-store backup, which would mean reading private messages.
@@ -435,7 +435,7 @@ and clears **~1.5 min after the cause is fixed** (next scrape + the 1 m rule int
 | Did the series reach the backend? | Query **through the datasource proxy**: `…/api/datasources/proxy/uid/prometheus/api/v1/query?query=…`. | A direct `curl` to `victoria-metrics:8428` answers **400** even with correct basic auth (this VM build wants a request shape curl's `-G` does not produce) — a 400 there is NOT "no data", and a 401 is often just the absent `OP_SERVICE_ACCOUNT_TOKEN`, because the vault lookup then yields nothing. |
 | Is the exporter up on a host? | `curl -s 127.0.0.1:9098/metrics \| grep -c '^homelab_'` on that host (oldsrv: 9). | The unit being `active` — the collector can be up and its `systemctl show` loop empty. |
 
-End-to-end delivery is **✅ live 2026-10-09** — Signal + email both confirmed received. Once the Matrix
+End-to-end delivery is **✅ live** — Signal + email both confirmed received. Once the Matrix
 delivery leg lands the read moves from the Signal group to the `#homelab-alerts` room; the trigger does not
 change.
 
