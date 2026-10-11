@@ -697,6 +697,12 @@ item "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $P
 item "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/check_md_tables.py --self-test
 item "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/check_iac_backend_strings.py
 item "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/check_iac_backend_strings.py --self-test
+item "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/check_iac_identifiers.py
+item "check_iac_identifiers.py --self-test (canary)" $PY scripts/check_iac_identifiers.py --self-test
+# homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
+# `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
+# deliberately NOT gated: a suite that mutates the tree is worse than the drift it would catch.
+item "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" $PY scripts/build-llm-dashboard.py --check
 item "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/check_spark_llm_gate.py
 item "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/knx-hass-gen.py --self-test
 item "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/laptop-llm.py gate --self-test
