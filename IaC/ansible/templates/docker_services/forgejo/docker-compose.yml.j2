@@ -70,7 +70,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.forgejo.rule: "Host(`git.kogler.si`)"
       traefik.http.routers.forgejo.entrypoints: websecure
-      {{ 'traefik.http.routers.forgejo.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.forgejo.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       # CrowdSec-only tier — auth lives IN-APP in native OIDC (Authentik);
       # forward-auth wall removed so SSO callbacks and m2m API hits reach forgejo directly.
       traefik.http.routers.forgejo.middlewares: crowdsec-only@file
