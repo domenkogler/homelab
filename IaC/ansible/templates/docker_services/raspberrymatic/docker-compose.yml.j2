@@ -14,7 +14,7 @@
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 {% set rmat_name = 'raspberrymatic' if (instance | default('primary')) == 'primary' else 'raspberrymatic-standby' %}
 {% set rmat_restart = 'unless-stopped' if (instance | default('primary')) == 'primary' else 'no' %}
-{# CCU admin UI host port — avoid :80 conflict with Traefik (KOPS-038 / HD-123); per-instance. #}
+{# CCU admin UI host port — avoid :80 conflict with Traefik; per-instance. #}
 {% set rmat_ui_port = 8085 if (instance | default('primary')) == 'primary' else 8086 %}
 
 services:
@@ -25,7 +25,7 @@ services:
     privileged: false
     cap_add: []
     # USB radio: pass the HmIP-RFUSB stick into the CCU by its stable by-id path (per-host
-    # host_var — filled at deploy, KOPS-040 / HD-79). /dev/ttyACM0 can renumber; by-id cannot.
+    # host_var — filled at deploy). /dev/ttyACM0 can renumber; by-id cannot.
     devices:
       - "{{ homematic_usb_by_id }}:/dev/ttyACM0"
     environment:
@@ -38,7 +38,7 @@ services:
     ports:
       - "2001:2001/tcp"     # XML-RPC (thermostats/weather/alarm)
       - "2010:2010/tcp"     # XML-RPC TLS
-      - "{{ rmat_ui_port }}:80"   # CCU admin UI mapped off :80 to avoid Traefik conflict; internal only (KOPS-038/049 / HD-123)
+      - "{{ rmat_ui_port }}:80"   # CCU admin UI mapped off :80 to avoid Traefik conflict; internal only
     volumes:
       - ./data:/usr/local/share/raspberrymatic      # persistent RMat host config/roles
 

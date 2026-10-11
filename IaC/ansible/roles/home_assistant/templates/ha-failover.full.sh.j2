@@ -1,16 +1,14 @@
 #!/bin/bash
 # ha-failover.full.sh.j2 — FULL HA failover orchestrator INCLUDING local Homematic (RaspberryMatic)
-# docs/smart-home-failover.md, HD-17. PRESERVED variant — see ha-failover.sh.j2 (active).
+# docs/smart-home-failover.md. PRESERVED variant — see ha-failover.sh.j2 (active).
 #
 #   This is the local-Homematic variant: forward takeover starts RaspberryMatic-standby and waits
 #   for the CCU XML-RPC port before promoting the VIP — required only when the HmIP-RFUSB stick
 #   (local Homematic) is deployed on oldsrv.
 #
-#   HD-13 parked (2026-08-18): HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought, so this
-#   full variant is NOT currently active. The ACTIVE script (no RaspberryMatic step) is
-#   `ha-failover.sh.j2`. When the RFUSB is bought, deploy this one instead (swap the template path
-#   used by the home_assistant role) and re-add the raspberrymatic-standby service + the
-#   homematic_usb_by_id var.
+#   Not active while HmIP-HAP stays in cloud mode (no HmIP-RFUSB stick); the active script is
+#   `ha-failover.sh.j2`. To activate: deploy this template instead (swap the path in the
+#   home_assistant role) and re-add the raspberrymatic-standby service + homematic_usb_by_id.
 #
 #   forward (default)  : Pi → oldsrv. Start RaspberryMatic-standby → wait XML-RPC 2001
 #                        → promote VIP (keepalived MASTER) → start home-assistant-standby.
