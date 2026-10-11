@@ -55,8 +55,11 @@ public-VPS host hardening, home↔VPS tunnel least-access, and capability-tierin
   `common-auth`, so **only** `cockpit-session` members can authenticate, `maint`'s membership is an
   exact set rebuilt every converge, and `sudo` for that account is password-required (a converge fails
   if any sudoers fragment gives it NOPASSWD). Enforced on nas; pending on oldsrv until its box is back.
-  Lockout note: this gates Cockpit only — SSH is untouched, and
-  `AllowUsers` still admits just `ansible-admin`/`ai-debug`.
+  Lockout note: this gates Cockpit only — SSH is untouched, and its `AllowUsers` gate is not a
+  hand-kept name list: `roles/access` converges it per seat from
+  [`IaC/ansible/group_vars/all/access.yml`](../IaC/ansible/group_vars/all/access.yml), and the
+  AI-diagnostics seat is admitted only where `roles/ai_diag` runs. §11 for the gate,
+  [deployment-secrets.md](deployment-secrets.md) §Who is authorized where for the names.
 - HA standby via VIP
 
 Owning doc: [services-traefik.md](services-traefik.md).
@@ -216,7 +219,7 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md).
   `/etc/nftables.conf` (nftables, input policy drop). Committed as an executable checklist, not prose. ✅ **enforced.**
 - **Published-port bypass (S1):** docker-published ports traverse the *forward* chain (`oifname "docker*" accept`), so the input default-deny does not cover them. **No public publishes** — authentik does not publish LDAP `3389` on any interface; the outpost binds only the WG S2S address, and Samba (nas, the client) pulls over the tunnel. Verify row in the `services-vps.md` §VPS-Specific Firewall checklist (external `nc`/`ldapsearch` must refuse; WG-side must connect). Documented future-hardening option if a public publish is ever required: a **DOCKER-USER filter chain** restricting forwarded dports (443 from any; specific ports from the WG peer only) — implement only then, as its own gated task. ✅ IaC; ⏳ live-verify at deploy.
 - **DNS primary published-port gate:** the Technitium `53:53` publish is the ONE intentionally-public host publish (the LAN/tailnet resolver is the VPS public IP). Because input default-deny cannot see published-port traffic (same S1 bypass as above), the `:53 → {{ tchnitium_dns_overlay_ip }}` forward path is **source-restricted in the nftables FORWARD chain** (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — a FORWARD drop is authoritative over Docker's accept. Template `vps-hardening/templates/nftables.conf.j2`; apply `playbooks/vps.yml --tags hardening`. Same allow-set as the input rules. **SSOT doc: `network-dns.md`; security: this §8.**
-- **IPv6 stateless control traffic — live 2026-09-24** ✅ — an `inet` table under `policy drop` that accepts
+- **IPv6 stateless control traffic** ✅ — an `inet` table under `policy drop` that accepts
   only `ip protocol icmp` (IPv4 upper-proto field) silently discards IPv6 NDP/MLD/PMTUD: the host cannot see its
   own neighbour replies, so IPv6 fails in *both* directions while every v4 rule reads correct. The accepts are
   stateless and (for ND) link-local-scoped, so they open **no** service surface. ⚠ **The consequence is a
