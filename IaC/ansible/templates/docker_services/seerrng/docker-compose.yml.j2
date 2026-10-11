@@ -1,7 +1,7 @@
 # seerrng docker-compose.yml — Seerr fork with music support (seerrng.kogler.si)
 #   snapetech/seerrng — a maintained Seerr fork adding MUSIC requests (Seerr itself
 #   is effectively unmaintained upstream; SeerrNG carries the music + pending-update
-#   work). Runs ALONGSIDE Seerr for now (2026-09-10, HD-353): both point at the same
+#   work). Runs ALONGSIDE Seerr: both point at the same
 #   Sonarr/Radarr backends; each has its own container + own config dir, so no
 #   conflict (no host port publish — the internal edge routes by container port
 #   5055; the two services are in separate compose projects / separate containers
@@ -11,7 +11,7 @@
 #   Jellyfin API — home-local, works offline, no Authentik; see services-media.md).
 #   Music request identity = same Jellyfin login; books/Readarr dropped (unmaintained).
 #   SQLite (`seerrng.db`) lives in /app/config → host path /srv/docker/seerrng/config.
-#   KOPS-059 / HD-130: this config+DB IS in backup scope (docs/backup.md "Service state"
+#   This config+DB IS in backup scope (docs/backup.md "Service state"
 #   → tank/data/services via nightly push + Kopia). Single-file SQLite; isolated per-
 #   service under /srv/docker/seerrng (same pattern as seerr).
 #
@@ -22,7 +22,7 @@ services:
     image: snapetech/seerrng:{{ seerrng_version }}
     cap_drop:
       - ALL
-    # read_only intentionally ABSENT (HD-318, seerr precedent): the snapetech/seerrng
+    # read_only intentionally ABSENT (seerr precedent): the snapetech/seerrng
     # image runs as `node:node` (uid 1000) and needs to create /app/config/logs at
     # startup; read_only root made the bind-mounted config dir un-writable (EACCES
     # mkdir) on seerr. Dir ownership is enforced via bind_owner_uid: 1000 + bind_dirs
@@ -35,7 +35,7 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern + the seerrng/seerr host-port split: this container also listens
+      # Host-port split (seerrng/seerr): this container also listens
       # :5055 inside, so it needs {{ seerrng_host_port }} on the host (seerr took 5055),
       # and routes.yml.j2 must point seerrng at seerrng-backend (not seerr-backend) —
       # otherwise seerrng.kogler.si silently serves Seerr.
@@ -45,7 +45,7 @@ services:
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
-      # INTERNAL-ONLY (public: false / HD-331/332): the internal edge (traefik-tailnet
+      # INTERNAL-ONLY (public: false): the internal edge (traefik-tailnet
       # routes.yml + the home traefik-internal file-provider set) serves seerrng by
       # container port; no public router/certresolver labels. If seerrng ever gets a
       # public route, flip to the seerr legacy shape (traefik.enable: true + crowdsec-only).
