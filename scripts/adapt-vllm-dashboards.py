@@ -2,14 +2,14 @@
 """Adapt grafana.com vLLM dashboard templates to the homelab file-provisioning format.
 
 Source files (download from grafana.com — every template below is still at revision 1,
-verified 2026-09-16, so `latest` == what these files were cut from):
+verified, so `latest` == what these files were cut from):
 
     mkdir -p /tmp/vllm-dash
     for id in 25502 24756 25043; do
       curl -fsS "https://grafana.com/api/dashboards/$id/revisions/latest/download" \\
            -o /tmp/vllm-dash/$id.json
     done
-    # /tmp/vllm-dash/vllm-dashboard.json is the gnet 25043 export (HD-368 naming)
+    # /tmp/vllm-dash/vllm-dashboard.json is the gnet 25043 export
 
     python3 scripts/adapt-vllm-dashboards.py            # /tmp/vllm-dash/*.json -> repo
     python3 scripts/adapt-vllm-dashboards.py --inplace  # drift layer only, over the repo files
@@ -24,8 +24,8 @@ Adaptations (homelab conventions, docs/observability.md §Dashboards):
     authors' Chinese (25502) and Korean (24756) titles and tooltips; CONVENTIONS language
     rule = English technical, and these are operator-visible strings on stats.kogler.si
   * ★ LIVE-METRIC DRIFT LAYER (see EXPR_REWRITES / PANEL_OVERRIDES / VAR_OVERRIDES):
-    the panel queries are NOT left byte-identical to upstream any more. HD-368 shipped the
-    three exports on 2026-09-14; the 2026-09-16 live verification pass (against the spark
+    the panel queries are NOT left byte-identical to upstream any more. The three exports were shipped; the
+    live verification pass (against the spark
     engine's /metrics and the VictoriaMetrics job="vllm" series set) found queries that can
     never resolve on our deployment — V0-era metric names, the K8s production-stack router
     family, and a stale upstream `current:` model name. Every such query is rewritten here,
@@ -85,12 +85,12 @@ ADAPT = [
 ]
 
 # ---------------------------------------------------------------------------
-# Live-metric drift layer (HD-368 live-verification pass, 2026-09-16).
+# Live-metric drift layer (live-verification pass).
 #
 # Verified against the live engine (spark vllm-qwen-spark, /metrics on the loopback
 # :8000 — 132 series, image vllm/vllm-openai:qwen38-flash-next) and against the
 # VictoriaMetrics job="vllm" series set on the VPS (137 names). Host panels use the
-# Alloy unix host exporter (job="alloy", instance="spark.kogler.si", HD-346).
+# Alloy unix host exporter (job="alloy", instance="spark.kogler.si").
 #
 # Each rule: (old, new, mode) with mode "sub" (substring) or "exact" (the whole
 # trimmed expr — needed when `new` contains `old`, which would re-match on re-run).
@@ -325,7 +325,7 @@ TEXT_TRANSLATE = {
         "Prometheus-compatible datasource (here VictoriaMetrics, uid `prometheus`). Comparable "
         "panels per backend: request volume, token throughput, latency quantiles, queue state, "
         "cache behaviour and per-engine / TP-rank distribution. The SGLang queries stay empty "
-        "until an SGLang engine is deployed (HD-367 throughput lane) — the vLLM half is live "
+        "until an SGLang engine is deployed — the vLLM half is live "
         "from the spark engine."
     ),
     # --- 24756 tooltips (Korean upstream) ---
@@ -448,7 +448,7 @@ TEXT_TRANSLATE = {
     ),
 }
 
-# Queries that must NOT survive the drift layer — the exact dead names the 2026-09-16 live
+# Queries that must NOT survive the drift layer — the exact dead names the live
 # audit found. If one survives (or reappears after an upstream refresh), the script fails.
 # Checked against the panel queries (the expr blob) only — tooltips intentionally avoid
 # repeating these literals, and prose is not a query.
@@ -464,10 +464,10 @@ STALE_METRICS = [
     "router_disk_usage_percent",
 ]
 
-# sglang:* is empty BY DESIGN until the SGLang engine lands (HD-367 lane) — not stale, so
+# sglang:* is empty BY DESIGN until the SGLang engine lands — not stale, so
 # it is excluded from any absence check.
 
-# Series live-verified on 2026-09-16: engine (spark :8000/metrics -> VM job="vllm"), plus
+# Series live-verified: engine (spark :8000/metrics -> VM job="vllm"), plus
 # the Alloy host exporter (job="alloy", instance="spark.kogler.si") used by the repointed
 # host panels. Used only by verify_live_queries() for the informational coverage line.
 LIVE_VERIFIED_SET = [
@@ -583,11 +583,11 @@ def apply_expr_rewrites(dash, name, errors):
 
 
 def verify_live_queries(dash, name):
-    """Report which panel queries resolve against the series set live-verified 2026-09-16.
+    """Report which panel queries resolve against the series set live-verified.
 
     Informational (no secrets, no network): prints the count of populated vs empty-by-design
     queries so a future refresh shows the coverage drift in one line. The empty list must
-    stay exactly {sglang:*} — those panels light up with the SGLang engine (HD-367 lane).
+    stay exactly {sglang:*} — those panels light up with the SGLang engine.
     """
     live = {n for n in LIVE_VERIFIED_SET if n}
     populated = empty = 0
