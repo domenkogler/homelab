@@ -58,12 +58,50 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
 
-pin() {
-  local v
-  v="$(grep -E "^${1}:" "$VERSIONS" 2>/dev/null | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')"
-  [ -n "$v" ] || { err "pin '$1' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here"; exit 1; }
-  printf '%s' "$v"
+# pin(): one pin from the SSOT version file; a missing pin aborts (§7, no inline default).
+# FORK-FREE, and the four processes this used to spawn per call are what the pi-harness legs paid
+# for. The old body was `grep|head|sed|tr` — FOUR EXECs — and pi-settings-config composes PKG_BASE
+# from eight of them AT START-UP: 32 process spawns before it reads a single seat. Measured 2026-10-10
+# on the Win11 git-bash seat — fork+exec 130–180 ms, a bare fork 176 ms, against 0.66 ms per spawn on
+# WSL Debian — so one invocation of that script cost 4.6 s there, and its self-test 73 s. One read of
+# the file plus an associative cache answers every pin at builtin speed, with the SAME parse the sed
+# did: value after the first colon, optional opening quote, stop at the first `"` or `#` (whichever
+# comes first), whitespace removed — verified against the old pipeline over every key in versions.yml.
+# `pin_of` is the zero-fork form: it sets $PIN instead of being command-substituted.
+declare -A PIN_CACHE=()
+PIN_LOADED=0
+# _pin_load parses versions.yml ONCE per process into the cache. Why a loop and not a search:
+# `${BIG#*"$pat"}` (prefix removal with a LEADING WILDCARD) is not a substring search in bash — it
+# retries the match at every prefix length, and each retry is itself a scan, so on this 49 KB file it
+# measured 1.3 s per lookup for a key near the end of the file and 0.2 s near the top (position-
+# proportional = quadratic). A one-pass `IFS=: read` over the same file is a few milliseconds, and it
+# splits at the FIRST colon with no wildcard: column-0 `key:` rows only, comments and indented (nested)
+# rows skipped — exactly what `grep -E "^key:"` saw.
+pin_of() {
+  local k="$1" v
+  [ "$PIN_LOADED" = 1 ] || { _pin_load; PIN_LOADED=1; }
+  v="${PIN_CACHE[$k]-}"
+  [ -n "$v" ] || { err "pin '$k' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here"; exit 1; }
+  PIN="$v"
 }
+_pin_load() {
+  local k rest a b line src
+  # NOTE the two-step read: `<<< "$(<file 2>/dev/null)"` yields NOTHING — the `$(<…)` special form
+  # does not accept an extra redirection, it just becomes an empty command. Read it plainly first.
+  src=""
+  [ -r "$VERSIONS" ] && src="$(<"$VERSIONS")"
+  while IFS=: read -r k rest; do
+    case "$k" in ''|\#*|' '|"$'\t'"*|*[!A-Za-z0-9_]*) continue ;; esac
+    line="${rest#"${rest%%[![:space:]]*}"}"        # ltrim
+    line="${line#\"}"                              # optional opening quote
+    a="$line"; b="$line"
+    case "$a" in *\"*) a="${a%%\"*}" ;; esac
+    case "$b" in *#*)  b="${b%%#*}" ;; esac
+    [ "${#b}" -lt "${#a}" ] && a="$b"              # keep whichever truncation is SHORTER
+    PIN_CACHE[$k]="${a//[[:space:]]/}"             # also strips a CR from a CRLF checkout, as tr did
+  done <<< "$src$'\n'"                            # trailing sentinel: never drop an unterminated last row
+}
+pin() { pin_of "$1"; printf '%s' "$PIN"; }
 err()  { printf 'install-nerd-font: %s\n' "$*" >&2; }
 info() { printf '  %s\n' "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }

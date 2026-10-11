@@ -86,12 +86,49 @@ done
 [ -f "$SSOT" ] || { err "no settings SSOT at $SSOT — run from a homelab clone"; exit 1; }
 
 # pin(): one pin from the SSOT version file; a missing pin aborts (§7, no inline default).
-pin() {
-  local v
-  v="$(grep -E "^${1}:" "$VERSIONS" 2>/dev/null | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')"
-  [ -n "$v" ] || { err "pin '$1' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here"; exit 1; }
-  printf '%s' "$v"
+# FORK-FREE, and the four processes this used to spawn per call are what the pi-harness legs paid
+# for. The old body was `grep|head|sed|tr` — FOUR EXECs — and pi-settings-config composes PKG_BASE
+# from eight of them AT START-UP: 32 process spawns before it reads a single seat. Measured 2026-10-10
+# on the Win11 git-bash seat — fork+exec 130–180 ms, a bare fork 176 ms, against 0.66 ms per spawn on
+# WSL Debian — so one invocation of that script cost 4.6 s there, and its self-test 73 s. One read of
+# the file plus an associative cache answers every pin at builtin speed, with the SAME parse the sed
+# did: value after the first colon, optional opening quote, stop at the first `"` or `#` (whichever
+# comes first), whitespace removed — verified against the old pipeline over every key in versions.yml.
+# `pin_of` is the zero-fork form: it sets $PIN instead of being command-substituted.
+declare -A PIN_CACHE=()
+PIN_LOADED=0
+# _pin_load parses versions.yml ONCE per process into the cache. Why a loop and not a search:
+# `${BIG#*"$pat"}` (prefix removal with a LEADING WILDCARD) is not a substring search in bash — it
+# retries the match at every prefix length, and each retry is itself a scan, so on this 49 KB file it
+# measured 1.3 s per lookup for a key near the end of the file and 0.2 s near the top (position-
+# proportional = quadratic). A one-pass `IFS=: read` over the same file is a few milliseconds, and it
+# splits at the FIRST colon with no wildcard: column-0 `key:` rows only, comments and indented (nested)
+# rows skipped — exactly what `grep -E "^key:"` saw.
+pin_of() {
+  local k="$1" v
+  [ "$PIN_LOADED" = 1 ] || { _pin_load; PIN_LOADED=1; }
+  v="${PIN_CACHE[$k]-}"
+  [ -n "$v" ] || { err "pin '$k' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here"; exit 1; }
+  PIN="$v"
 }
+_pin_load() {
+  local k rest a b line src
+  # NOTE the two-step read: `<<< "$(<file 2>/dev/null)"` yields NOTHING — the `$(<…)` special form
+  # does not accept an extra redirection, it just becomes an empty command. Read it plainly first.
+  src=""
+  [ -r "$VERSIONS" ] && src="$(<"$VERSIONS")"
+  while IFS=: read -r k rest; do
+    case "$k" in ''|\#*|' '|"$'\t'"*|*[!A-Za-z0-9_]*) continue ;; esac
+    line="${rest#"${rest%%[![:space:]]*}"}"        # ltrim
+    line="${line#\"}"                              # optional opening quote
+    a="$line"; b="$line"
+    case "$a" in *\"*) a="${a%%\"*}" ;; esac
+    case "$b" in *#*)  b="${b%%#*}" ;; esac
+    [ "${#b}" -lt "${#a}" ] && a="$b"              # keep whichever truncation is SHORTER
+    PIN_CACHE[$k]="${a//[[:space:]]/}"             # also strips a CR from a CRLF checkout, as tr did
+  done <<< "$src$'\n'"                            # trailing sentinel: never drop an unterminated last row
+}
+pin() { pin_of "$1"; printf '%s' "$PIN"; }
 
 # The packages the harness owns: NAME here, VERSION from the pin (§7). pi-web-access is the
 # web-tool leg every seat should have, pi-open-tui the TUI/footer leg (docs/pi-harness.md §5a),
@@ -99,12 +136,14 @@ pin() {
 # the DeepSeek tuning. Those two were `seat-local, kept` until 2026-10-09: named in exactly one
 # executable line (`install-pi-wsl.sh`, unversioned) they were never converged and never pinned
 # (HD-1118 Stage 2).
-PKG_BASE=(
-  "npm:pi-web-access@$(pin pi_web_access_version)"
-  "npm:$(pin pi_host_tui_npm_package)@$(pin pi_host_tui_npm_version)"
-  "npm:$(pin pi_host_subagents_npm_package)@$(pin pi_host_subagents_npm_version)"
-  "npm:$(pin pi_host_deepseek_npm_package)@$(pin pi_host_deepseek_npm_version)"
-)
+PKG_BASE=()
+# pin_of, not `$(pin …)`: a command substitution FORKS, and this block used to fork eight times (and
+# exec thirty-two) before the script had read anything. See pin_of above.
+pin_of pi_web_access_version;          PKG_BASE+=("npm:pi-web-access@$PIN")
+pin_of pi_host_tui_npm_package;   _t="$PIN"; pin_of pi_host_tui_npm_version;   PKG_BASE+=("npm:$_t@$PIN")
+pin_of pi_host_subagents_npm_package; _s="$PIN"; pin_of pi_host_subagents_npm_version; PKG_BASE+=("npm:$_s@$PIN")
+pin_of pi_host_deepseek_npm_package;  _d="$PIN"; pin_of pi_host_deepseek_npm_version;  PKG_BASE+=("npm:$_d@$PIN")
+unset _t _s _d
 
 # node: pi's own shebang is `#!/usr/bin/env node`, so a seat always HAS node — but a
 # non-interactive non-login shell on the Debian seat reads no profile, so PATH may not
@@ -193,12 +232,15 @@ write_from_scratch() {
 }
 
 # run_node -> STATE / DETAIL / SEATLOCAL
+# Split in the SHELL: three `printf '%s\n' "$out" | sed -n …` pipelines were SIX EXECs per invoke,
+# and do_push invokes twice (the post-write re-check is the proof, not a formality).
 invoke() {
-  local out
+  local out l1 l2
   out="$(run_node "$1")"
-  STATE="$(printf '%s\n' "$out" | sed -n '1s/\t.*//p')"
-  DETAIL="$(printf '%s\n' "$out" | sed -n '1s/^[^\t]*\t//p')"
-  SEATLOCAL="$(printf '%s\n' "$out" | sed -n '2s/^SEATLOCAL\t//p')"
+  l1="${out%%$'\n'*}"; l2="${out#*"$'\n'"}"; l2="${l2%%$'\n'*}"
+  STATE="${l1%%$'\t'*}"
+  DETAIL="${l1#*$'\t'}"; [ "$DETAIL" = "$l1" ] && DETAIL=""
+  SEATLOCAL="${l2#SEATLOCAL$'\t'}"; [ "$SEATLOCAL" = "$l2" ] && SEATLOCAL=""
 }
 
 do_check() {
@@ -245,15 +287,19 @@ do_push() {
 
 # --- self-test ---------------------------------------------------------------
 self_test() {
-  local tmp fails=0 SEAT_EXTRA
+  local tmp fails=0 SEAT_EXTRA self jv
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
+  self="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"     # ONE fork for the leg, not one per canary
   run_at() { local f="$1"; shift
-    PI_SETTINGS="$f" bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@" >/dev/null 2>&1; }
+    PI_SETTINGS="$f" bash "$self" "$@" >/dev/null 2>&1; }
   # json_val FILE KEY  (flat key only — the self-test never needs a nested path)
   json_val() { "$NODE" -e 'const c=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));console.log(JSON.stringify(c[process.argv[2]]))' "$1" "$2"; }
   poke()     { "$NODE" -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));eval(process.argv[3]);fs.writeFileSync(process.argv[1],JSON.stringify(c,null,2)+"\n")' "$1" "" "$2"; }
+  # has <text> <token> — substring test with no PIPELINE: `json_val … | grep -q` paid the node run AND
+  # two forks to answer a question `case` answers for free.
+  has() { case "$1" in *"$2"*) return 0 ;; esac; return 1; }
 
   require_node || { err "self-test needs node — it cannot prove anything without it"; return 1; }
   SEAT_EXTRA="npm:@ygncode/pi-web"
@@ -290,28 +336,35 @@ self_test() {
   if [ "$(json_val "$tmp/rest.json" externalEditor)" = '"notepad.exe -multiInst"' ]; then info "workstation-keys GREEN (externalEditor untouched)"; else err "canary: --push clobbered a workstation key"; fails=$((fails+1)); fi
 
   # 3. the seat carries the same package at an older version -> RED (the pin wins), --push repins.
+  pin_of pi_host_tui_npm_package;          local tp="$PIN"
+  pin_of pi_host_tui_npm_version;          local tv="$PIN"
+  pin_of pi_host_subagents_npm_package;    local sp="$PIN"
+  pin_of pi_host_subagents_npm_version;    local sv="$PIN"
   poke "$tmp/rest.json" 'c.packages=c.packages.map(p=>String(p).startsWith("npm:pi-open-tui")?"npm:pi-open-tui@0.0.1":p)'
   if run_at "$tmp/rest.json" --check --strict; then err "canary passed: a stale package pin stayed green"; fails=$((fails+1)); else info "package-pin      caught"; fi
   run_at "$tmp/rest.json" --push
-  if json_val "$tmp/rest.json" packages | grep -q "pi-open-tui@$(pin pi_host_tui_npm_version)"; then info "package-repin    GREEN"; else err "canary: --push did not repin the package"; fails=$((fails+1)); fi
+  jv="$(json_val "$tmp/rest.json" packages)"
+  if has "$jv" "pi-open-tui@$tv"; then info "package-repin    GREEN"; else err "canary: --push did not repin the package"; fails=$((fails+1)); fi
 
   # 4. a seat-local package (the cockpit pi-web) survives every write.
-  if json_val "$tmp/rest.json" packages | grep -q "@ygncode/pi-web"; then info "seat-local-kept  GREEN (cockpit pi-web survived)"; else err "canary: --push deleted a seat-local package"; fails=$((fails+1)); fi
+  if has "$jv" "@ygncode/pi-web"; then info "seat-local-kept  GREEN (cockpit pi-web survived)"; else err "canary: --push deleted a seat-local package"; fails=$((fails+1)); fi
 
   # 4b. an OWNED package the seat does not carry at all — the class the owned set grew to close
   #     (pi-subagents / pi-deepseek-optimized were seat-local until 2026-10-09, so whichever seat
   #     ran `pi install` last was the only seat that had them, and no version was recorded
   #     anywhere) -> strict RED, and --push brings it back AT THE PIN without touching pi-web.
-  poke "$tmp/rest.json" 'c.packages=c.packages.filter(p=>!String(p).startsWith("npm:'"$(pin pi_host_subagents_npm_package)"'@"))'
+  poke "$tmp/rest.json" 'c.packages=c.packages.filter(p=>!String(p).startsWith("npm:'"$sp"'@"))'
   if run_at "$tmp/rest.json" --check --strict; then err "canary passed: a missing owned package stayed green"; fails=$((fails+1)); else info "pkg-absent       caught"; fi
   run_at "$tmp/rest.json" --push
-  if json_val "$tmp/rest.json" packages | grep -q "$(pin pi_host_subagents_npm_package)@$(pin pi_host_subagents_npm_version)"; then info "pkg-restored     GREEN (owned package back at its pin)"; else err "canary: --push did not restore the missing owned package"; fails=$((fails+1)); fi
-  if json_val "$tmp/rest.json" packages | grep -q "@ygncode/pi-web"; then info "seat-local-again GREEN"; else err "canary: restoring an owned package deleted the seat-local one"; fails=$((fails+1)); fi
+  jv="$(json_val "$tmp/rest.json" packages)"
+  if has "$jv" "$sp@$sv"; then info "pkg-restored     GREEN (owned package back at its pin)"; else err "canary: --push did not restore the missing owned package"; fails=$((fails+1)); fi
+  if has "$jv" "@ygncode/pi-web"; then info "seat-local-again GREEN"; else err "canary: restoring an owned package deleted the seat-local one"; fails=$((fails+1)); fi
 
   # 5. missing file -> strict RED; --push creates it WITH the pinned packages.
   if run_at "$tmp/none.json" --check --strict; then err "canary passed: MISSING settings stayed green"; fails=$((fails+1)); else info "missing-canary   caught"; fi
   if ! run_at "$tmp/none.json" --push; then err "canary: --push created no file"; fails=$((fails+1)); fi
-  if json_val "$tmp/none.json" packages | grep -q "pi-open-tui@$(pin pi_host_tui_npm_version)"; then info "missing-create   GREEN (created with the pinned packages)"; else err "canary: the created file carries no pinned packages"; fails=$((fails+1)); fi
+  jv="$(json_val "$tmp/none.json" packages)"
+  if has "$jv" "pi-open-tui@$tv"; then info "missing-create   GREEN (created with the pinned packages)"; else err "canary: the created file carries no pinned packages"; fails=$((fails+1)); fi
 
   # 6. unparseable -> RED, and a REFUSAL that leaves the bytes alone.
   printf '{ "defaultModel": , }\n' > "$tmp/bad.json"; cp "$tmp/bad.json" "$tmp/bad.before"
@@ -322,7 +375,7 @@ self_test() {
   # 7. no usable node -> rc 2 SKIP, never a pass.
   rc=0
   PI_NODE="$tmp/there-is-no-such-node" PI_SETTINGS="$tmp/rest.json" \
-    bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" --check --strict >/dev/null 2>&1 || rc=$?
+    bash "$self" --check --strict >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 2 ]; then info "skip-arm         GREEN (rc 2 = SKIP, not a pass)"; else err "canary: the no-node path returned $rc — a SKIP must be 2"; fails=$((fails+1)); fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
