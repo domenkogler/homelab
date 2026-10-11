@@ -147,7 +147,7 @@
     path: /etc/dhcpcd.conf
     # neutralize the RFC4361 DUID (the default) so the server sees only our MAC client-id
     regexp: '^((#)?[[:space:]]*)duid([[:space:]]+.*)?$'
-    line: '# duid (disabled: MAC client-id, see clientid below)'
+    line: '# duid (disabled by HD-314: MAC client-id, see clientid below)'
     create: false
   register: dhcpcd_duid
   when:
