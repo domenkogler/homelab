@@ -154,7 +154,7 @@ subscriptions:
     ssh_port: 23                 # non-standard SSH/SFTP port (same convention as live box)
 
 
-  # --- Dropped (kept for history/provenance) ---
+  # --- Dropped (a row stays here so the rendered table lists it under Dropped / Deferred) ---
   - name: iDrive e2
     cost_eur: 5
     since: null
@@ -165,4 +165,4 @@ subscriptions:
     secret: null
     calendar_url: null
     notify: []
-    status: dropped              # replaced by the Hetzner boxes
+    status: dropped              # the Hetzner boxes cover this role
