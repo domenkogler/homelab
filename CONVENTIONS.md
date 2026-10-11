@@ -183,6 +183,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   with ansible's own stderr as the second witness); when you fix one, **prove the fix is a no-op** — the
   render matrix byte-identical before/after, not "the values looked the same".
   Precedent: [docs/deployment-ansible.md](docs/deployment-ansible.md) §Three ways a converge lies to you.
+- **A string two files shipped byte-equal may not be renamed on one side**, so a deliberate rename changes every side in one commit; the enforcer is `scripts/check_string_twins.py`, and its blind spots (payload block scalars, heredocs, rendered Jinja, twin families that never agreed at the pinned baseline) are stated with it in [scripts/README.md](scripts/README.md) §Validation gate.
 - **Collapsible `<details>` sections:** human/family-facing browser-rendered docs only (`readme-humans.md`, `docs/manual/*`) and only for optional asides (troubleshooting, FAQ) — **never** in agent-facing docs (owning specs, runbooks incl. `deployment-manual.md`, ledger, todo, or the frozen `reports/*` archives): the primary readers are AI agents working on raw text, where folds hurt grep-ability and add noise. Blank lines between the HTML tags and the inner Markdown are mandatory, else fences/tables render as raw text. Precedent: `readme-humans.md` §Za družino troubleshooting fold.
 
 ---
