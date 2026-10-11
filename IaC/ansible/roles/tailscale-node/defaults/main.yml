@@ -1,10 +1,10 @@
 ---
-# tailscale-node defaults — HD-405 (docs/network-vpn.md §Tailnet boundary).
+# tailscale-node defaults — docs/network-vpn.md §Tailnet boundary.
 #
 # This role enrolls ONE home host as a headscale HOST node. Everything that would turn
 # that into a plane opening is deliberately OFF and not configurable from here:
-#   --advertise-routes  absent  (the tailnet is not a LAN bridge — HD-398 decision A)
-#   --exit-node         absent  (the exit node lives on the Pi, HD-408)
+#   --advertise-routes  absent  (the tailnet is not a LAN bridge)
+#   --exit-node         absent  (the exit node lives on the Pi)
 #   --ssh               false   (admin stays the documented Home leg + VPS jump)
 #   --accept-dns        false   (oldsrv RUNS a Technitium instance; letting tailscaled
 #                                rewrite /etc/resolv.conf would put a resolver in front of
@@ -15,20 +15,18 @@ tailscale_node_enabled: false          # opt-in per host (host_vars) — default
 tailscale_node_hostname: "{{ inventory_hostname }}"
 tailscale_node_authkey: ""             # per-host 1P ref, NEVER a literal (CONVENTIONS §6)
 
-# HD-414: the UDP port tailscaled binds (`--port=${PORT}` in the deb's unit). It is NOT a
+# The UDP port tailscaled binds (`--port=${PORT}` in the deb's unit). It is NOT a
 # guess at a tunable — the router's scoped-IPv6 posture may one day name exactly this port,
 # and tailscaled silently uses an ephemeral port when 41641 is busy. SSOT value:
-# `tailscale_listen_port` in group_vars/all/main.yml; verified live on oldsrv 2026-09-22 that
-# the daemon binds 41641 on both families after the converge.
+# `tailscale_listen_port` in group_vars/all/main.yml; the daemon binds 41641 on both families.
 tailscale_node_port: "{{ tailscale_listen_port }}"
 
 # The tailnet IPv4 this node is EXPECTED to hold, i.e. the value the repo carries for it in
 # group_vars/all/main.yml (`tailnet_oldsrv_ip`, `tailnet_pi_ip`). Empty = no assertion, which
 # is the pre-join state (headscale assigns the address at join, so the repo cannot know it
 # in advance).
-# ⚠ Why this is a var and not `tailnet_oldsrv_ip` inline: the role was written for one host
-# and asserted that literal, so a SECOND home node (HD-435's Pi) would have failed the guard
-# against oldsrv's address. Per-host expectation, set in host_vars, asserted here.
+# ⚠ Why this is a var and not `tailnet_oldsrv_ip` inline: a literal from one host makes the
+# guard fail on a SECOND home node. Per-host expectation, set in host_vars, asserted here.
 tailscale_node_expected_ip: ""
 
 # Which .deb to fetch. "" means DETECT, and detection asks **dpkg**, not the kernel:

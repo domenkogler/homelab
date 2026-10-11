@@ -6,8 +6,8 @@
 # Both edges must be trusted so HA sees real client IPs.
 http:
   use_x_forwarded_for: true
-  # Trust only the specific Traefik edge container IPs, not the whole traefik-public /16
-  # (KOPS-039 / HD-81) — prevents a compromised sibling container from spoofing client IPs.
+  # Trust only the specific Traefik edge container IPs, not the whole traefik-public /16 —
+  # a compromised sibling container could otherwise spoof client IPs.
   trusted_proxies:
 {% for ip in ha_trusted_proxies %}
     - {{ ip }}
@@ -35,9 +35,8 @@ recorder:
 # Mobile App/Companion integration (Android/iOS). Required for the HA Companion
 # app registration — without it POST /api/mobile_app/registrations 404s and the
 # app aborts at the "name the device" step with "enable the mobile app
-# integration". Added 2026-09-07 (HD-330 close-out): minimal explicit include
-# (NOT default_config: — that pulls in cloud/energy/dlna/etc. we deliberately
-# omit; the config stays hand-picked).
+# integration". Declare it explicitly (NOT `default_config:` — that pulls in
+# cloud/energy/dlna/etc. deliberately omitted here; the config stays hand-picked).
 mobile_app:
 
 # KNX (docs/smart-home.md): ETS project file is the SSOT; entity maps are generated
@@ -82,15 +81,11 @@ script:
       - action: switch.turn_off
         target: { entity_id: switch.wc_radiator }
 
-# ---- Weather (HD-22) TEMPORARILY DISABLED — meteoblue is NOT in this HA build ----
-# Single authoritative weather source decision (HD-22) = HA core `meteoblue` (models
-# Slovenia well). LIVE FINDING 2026-09-03: the pi image (ghcr.io/home-assistant/
-# home-assistant:2026.8.1) has NO `meteoblue` integration built in
-# (`find_spec(homeassistant.components.meteoblue)` = False) → HA logs "Integration
-# 'meteoblue' not found" and the weather platform fails setup, which BLOCKS HA from
-# applying its full config (incl. http proxy trust). Re-enabled when meteoblue is
-# available in the HA build or added via HACS; api_key stays in secrets.yaml
-# (meteoblue_api) ready to re-activate.
+# ---- Weather: DISABLED — the pinned HA image has no `meteoblue` integration ----
+# ghcr.io/home-assistant/home-assistant:2026.8.1 lacks `meteoblue`: HA logs "Integration
+# 'meteoblue' not found", the weather platform fails setup and BLOCKS HA from applying its
+# full config (incl. http proxy trust). Re-enable only when the image ships it (or via HACS).
+# `meteoblue_api` stays in secrets.yaml so re-activation needs no secret change.
 # weather:
 #   - platform: meteoblue
 #     api_key: !secret meteoblue_api

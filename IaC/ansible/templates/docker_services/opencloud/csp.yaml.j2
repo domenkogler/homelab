@@ -1,15 +1,15 @@
-# opencloud csp.yaml — Content-Security-Policy for the OpenCloud web UI (HD-52/HD-144)
+# opencloud csp.yaml — Content-Security-Policy for the OpenCloud web UI
 #
-# Consumed via env PROXY_CSP_CONFIG_FILE_LOCATION (HD-231 pt.3, found live: the plain
-# CSP_CONFIG_FILE name is unknown to this build -> proxy silently served the STOCK CSP,
-# blocking oidc-client-ts discovery fetches to sso.kogler.si in the browser).
+# Consumed via env PROXY_CSP_CONFIG_FILE_LOCATION — the plain CSP_CONFIG_FILE name is
+# unknown to this build, so the proxy silently serves the STOCK CSP and blocks the
+# oidc-client-ts discovery fetches to sso.kogler.si in the browser.
 #
-# SCHEMA (HD-231 pt.5): the parser expects ALL directives nested under a top-level
-# `directives:` key — a flat map parses but is silently ignored (found live).
+# SCHEMA: the parser expects ALL directives nested under a top-level
+# `directives:` key — a flat map parses but is silently ignored.
 #
-# BASELINE = stock OpenCloud directives captured live from the served header 2026-08-24,
+# BASELINE = stock OpenCloud directives, read from the served stock header,
 # EXTENDED with: sso.kogler.si (OIDC discovery/userinfo/token fetches from the browser +
-# hosted login iframe) and office.kogler.si (HD-166 ONLYOFFICE editor iframe + WOPI).
+# hosted login iframe) and office.kogler.si (ONLYOFFICE editor iframe + WOPI).
 # When bumping OpenCloud versions, re-diff against the freshly served stock header.
 #
 # 'self' = https://file.kogler.si
@@ -24,7 +24,7 @@ directives:
     - "https://raw.githubusercontent.com/opencloud-eu/awesome-apps/"
     - "https://update.opencloud.eu/"
     - "https://sso.kogler.si"                # OIDC discovery/userinfo/token from browser JS
-    - "https://office.kogler.si"             # HD-166 WOPI/API calls to ONLYOFFICE
+    - "https://office.kogler.si"             # WOPI/API calls to ONLYOFFICE
     - "wss:"
   font-src:
     - "'self'"
@@ -36,7 +36,7 @@ directives:
     - "blob:"
     - "https://embed.diagrams.net/"
     - "https://sso.kogler.si"                # Authentik hosted login (if shown in an iframe)
-    - "https://office.kogler.si"             # HD-166: ONLYOFFICE editor iframe
+    - "https://office.kogler.si"             # ONLYOFFICE editor iframe
   img-src:
     - "'self'"
     - "data:"

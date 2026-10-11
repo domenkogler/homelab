@@ -1,41 +1,28 @@
 ---
-# maint-user.yml — HD-361: the interactive Cockpit login on nas + oldsrv.
+# maint-user.yml — the interactive Cockpit login on nas + oldsrv.
 #
-# why-for-this-file — THE PART THAT IS NOT OBVIOUS: Debian/Ubuntu ship /etc/pam.d/cockpit
-# with **no group restriction at all** (verified on cockpit-ws 337-1+deb13u2: auth is
-# pam_sepermit + `substack common-auth`, nothing else). So the group name `cockpit-session`
-# is decoration unless something enforces it, and the real posture of :9090 today is "anyone
-# with a local password gets a session" — which on oldsrv means `domen`, who holds both a
-# password and group `sudo`, i.e. a leaked password = a root-capable web session. Therefore
-# provisioning `maint` WITHOUT the pam_succeed_if line below would WIDEN the attack surface
-# (one more password holder) while pretending to narrow it. Both halves land together or not
-# at all: create the account, then make the group actually admit logins.
+# why-for-this-file: Debian/Ubuntu ship /etc/pam.d/cockpit with NO group restriction, so
+# `cockpit-session` is decoration unless the pam_succeed_if line below enforces it. Creating
+# `maint` without that line widens the attack surface — both halves land in the same run.
 #
-# Contract being implemented (todo.md HD-361, docs/deployment-secrets.md):
+# Contract being implemented (docs/deployment-secrets.md):
 #   * The vault item (`oldsrv-cockpit_login` / `nas-cockpit_login`, owner-minted) is the
 #     recovery copy. The host stores only a crypt hash in /etc/shadow, which is root-readable.
 #     Never a plaintext on disk, never in /etc/passwd, never a Jinja literal.
 #   * `maint`'s membership is an EXACT SET, rebuilt every converge: `cockpit-session` (the
-#     console gate) + `sudo` (owner decision 2026-09-21, so the web-tty can reach root behind
-#     the interactive password) + its own primary group. `append: false` is what makes that
-#     auditable — a `docker` or `lxd` membership hand-added on the box is dropped by the next
-#     converge instead of quietly persisting. What is NOT granted: a NOPASSWD sudoers fragment
-#     (asserted against below, not assumed), an SSH key, or an `AllowUsers` entry.
-#   * No SSH keys, and the existing `AllowUsers` (ansible-admin, ai-debug) keeps it off SSH —
-#     verified below rather than assumed.
-#   * FAIL-CLOSED (HD-91): no vault value -> the run dies before the box is touched. An empty
+#     console gate) + `sudo` (so the web-tty can reach root behind the interactive password) +
+#     its own primary group. `append: false` is what makes that auditable — a hand-added
+#     `docker` or `lxd` membership is dropped by the next converge instead of persisting.
+#     What is NOT granted: a NOPASSWD sudoers fragment, an SSH key, or an `AllowUsers` entry
+#     (each asserted against below, not assumed).
+#   * FAIL-CLOSED: no vault value -> the run dies before the box is touched. An empty
 #     string is specifically trapped because 1Password's duplicate-field shape bug produces
 #     exactly that (docs/deployment-secrets.md §"Verify by length AND shape").
 #
-# Idempotency, without a controller dependency: the controller venv has no `passlib`, so
-# `password_hash` is unavailable, and `chpasswd` was rejected — the hosts' own default is
-# yescrypt (login.defs ENCRYPT_METHOD), which nothing off-box can then verify against the
-# vault value. Instead the hash is made ON THE TARGET with `openssl passwd -6` using a salt
-# derived from the *item name*. A salt's job is uniqueness and rainbow-resistance, not
-# secrecy, so deriving it is sound; the payoff is that the same vault value in produces a
-# byte-identical hash, so the `user` module reports ok on every converge after the first, and
-# the verification step below can prove the installed hash IS the vault value.
-# PAM/pam_unix verifies $6$ transparently even where the local default is yescrypt.
+# Idempotency: no `passlib` in the controller venv (no `password_hash`), and `chpasswd` is out —
+# the hosts default to yescrypt (login.defs ENCRYPT_METHOD), unverifiable off-box. Hash ON THE
+# TARGET with `openssl passwd -6`, salt from the *item name*: same value in -> identical hash.
+# pam_unix verifies $6$ transparently even where the local default is yescrypt.
 
 - name: HD-361 | Assert this host names its own maint vault item
   ansible.builtin.assert:
@@ -155,12 +142,9 @@
   when: cockpit_maint_pam_gate | bool
 
 - name: HD-361 | Strip any malformed earlier variant of the gate line
-  # Must run BEFORE the lineinfile: that task's regexp is end-anchored (`\s*$`), so it will not
-  # recognise the line this leg first wrote on nas — `... cockpit-session quiet_use_uid # HD-361:
-  # the group is the gate` — and would have happily inserted a second, correct rule underneath the
-  # broken one. Two rules, the first of which is `requisite` and fails to parse, means the fix
-  # changes nothing. Anything in this family that carries trailing junk is removed here; the
-  # canonical single line is then written by the task below.
+  # Must run BEFORE the lineinfile below: its regexp is end-anchored (`\s*$`) and does not
+  # recognise a gate line carrying trailing junk, so a second rule would land under the broken
+  # one — two rules, the first a non-parsing `requisite`, means the fix changes nothing.
   ansible.builtin.replace:
     path: /etc/pam.d/cockpit
     regexp: '(?m)^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}(?!\s*$).*$\n'
@@ -206,7 +190,7 @@
     cmd: id -nG {{ cockpit_maint_user }}
   register: cockpit_maint_id
   changed_when: false
-  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+  check_mode: false   # A read-back that is SKIPPED in check mode yields an empty
                       # stdout, and the contract assert below then reports a violation
                       # that does not exist on the box. Read-only, so check mode may run it.
 
@@ -215,7 +199,7 @@
     cmd: getent shadow {{ cockpit_maint_user }}
   register: cockpit_maint_shadow
   changed_when: false
-  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+  check_mode: false   # A read-back that is SKIPPED in check mode yields an empty
                       # stdout, and the contract assert below then reports a violation
                       # that does not exist on the box. Read-only, so check mode may run it.
   no_log: true
@@ -225,7 +209,7 @@
     cmd: sudo -l -U {{ cockpit_maint_user }}
   register: cockpit_maint_sudo
   changed_when: false
-  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+  check_mode: false   # A read-back that is SKIPPED in check mode yields an empty
                       # stdout, and the contract assert below then reports a violation
                       # that does not exist on the box. Read-only, so check mode may run it.
   become: true
@@ -241,7 +225,7 @@
     executable: /bin/bash
   register: cockpit_sshd_allowusers
   changed_when: false
-  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+  check_mode: false   # A read-back that is SKIPPED in check mode yields an empty
                       # stdout, and the contract assert below then reports a violation
                       # that does not exist on the box. Read-only, so check mode may run it.
   become: true
@@ -258,24 +242,22 @@
     executable: /bin/bash
   register: cockpit_pam_stack
   changed_when: false
-  check_mode: false   # HD-445: a read-back that is SKIPPED in check mode yields an empty
+  check_mode: false   # A read-back that is SKIPPED in check mode yields an empty
                       # stdout, and the contract assert below then reports a violation
                       # that does not exist on the box. Read-only, so check mode may run it.
 
 # THE ACCEPTANCE TEST, i.e. the only check that answers why this account exists at all:
 # does `maint` + the vault password actually get a Cockpit session? Everything above proves the
-# account is *shaped* right; none of it proves the console opens, and HD-361's whole premise is
-# that nas's console has NEVER opened. So the converge asks cockpit-ws itself, over the local
-# socket, on the endpoint its own shell uses. The shape is measured, not assumed (2026-09-23):
+# account is *shaped* right, not that the console opens — so the converge asks cockpit-ws itself,
+# over the local socket, on the endpoint its own shell uses:
 #   GET /cockpit/login  +  Basic auth   -> 200 on success
 #                                     -> 401 {"problem":"authentication-failed"} on a bad credential
 # (POST is 405 here, and `GET /` answers 200 UNAUTHENTICATED — a status probe on `/` would pass
-# on a host where login is impossible, which is exactly the fake-green this replaces.)
+# on a host where login is impossible.)
 #
-# Only the SUCCESS attempt is scripted. A deliberate wrong-password task would fire a failing
-# PAM conversation on every single converge from a fixed source, which is how pam_faillock /
-# brute-force defences get tripped by the configuration manager — the negative control was taken
-# by hand once (see the 401 `authentication-failed` above) and is not repeated per converge.
+# Script only the SUCCESS attempt: a per-converge wrong-password task fires a failing PAM
+# conversation from a fixed source every run, which is how pam_faillock / brute-force defences
+# get tripped by the configuration manager. The negative control is taken by hand, not per converge.
 - name: HD-361 | Prove the console actually opens for {{ cockpit_maint_user }} (real PAM login)
   ansible.builtin.uri:
     url: http://127.0.0.1:9090/cockpit/login

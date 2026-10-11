@@ -1,9 +1,9 @@
-# mcp-victorialogs docker-compose.yml — VictoriaLogs MCP AI-debugging server (HD-344)
+# mcp-victorialogs docker-compose.yml — VictoriaLogs MCP AI-debugging server
 #   MCP server (ghcr.io/victoriametrics-community/mcp-victorialogs) giving AI tools
 #   (pi, Open WebUI, OpenClaw) read-only query access to the VPS VictoriaLogs backend.
-#   Runs on OLDSRV (≈600–700 MB RAM — the VPS/Pi don't host it, HD-341 decision).
+#   Runs on OLDSRV (≈600–700 MB RAM — the VPS/Pi don't host it).
 #   Connects to the VictoriaLogs backend over wg-s2s (`victoria_backend_host`,
-#   wg-s2s-now/tailnet-later — see group_vars/all/main.yml HD-344 block). Logs + metrics
+#   wg-s2s-now/tailnet-later — see group_vars/all/main.yml). Logs + metrics
 #   STAY on the VPS; oldsrv only fronts queries.
 #
 #   Exposure: NOT public, NOT WAN. Published ONLY on oldsrv's Home-VLAN address
@@ -13,7 +13,7 @@
 #   token this container sends to VictoriaLogs (`VL_INSTANCE_HEADERS`, Basic auth) +
 #   the Home-VLAN-only bind + (future) tailnet ACL. Do NOT add traefik-public labels.
 #
-# Secrets via the HD-258 bulk vault pre-pass (`vault['victoria-logs_api']`, the
+# Secrets via the bulk vault pre-pass (`vault['victoria-logs_api']`, the
 #   1Password basic-auth item for the VictoriaLogs backend — username/password).
 services:
   mcp-victorialogs:
@@ -23,7 +23,7 @@ services:
     cap_drop:
       - ALL
     # read_only absent: same rationale as mcp-victoriametrics (Alpine-root upstream,
-    # no USER; verify read_only boot before enabling — HD-318 live lessons).
+    # no USER; check that read_only boots before enabling it).
     tmpfs:
       - /tmp
     networks:
@@ -36,7 +36,7 @@ services:
       # VictoriaLogs backend URL (root / of the single-node instance).
       VL_INSTANCE_ENTRYPOINT: "http://{{ victoria_backend_host }}:9428"
       # Basic-auth to the VL backend (vault item username:password) — the MCP server
-      # sends it as the Authorization header on every query (HD-344). The upstream
+      # sends it as the Authorization header on every query. The upstream
       # always sets `Authorization: Bearer <token>` first, so this header (applied
       # after) overrides it with the Basic credential the backend actually accepts.
       VL_INSTANCE_HEADERS: "Authorization=Basic {{ (vault['victoria-logs_api'].username ~ ':' ~ vault['victoria-logs_api'].password) | b64encode }}"
