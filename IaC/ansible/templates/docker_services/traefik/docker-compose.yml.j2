@@ -83,7 +83,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.traefik-dash.rule: "Host(`traefik.kogler.si`)"
       traefik.http.routers.traefik-dash.entrypoints: websecure
-      {{ 'traefik.http.routers.traefik-dash.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.traefik-dash.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
 {% if traefik_acme_issuer is defined and traefik_acme_issuer %}
       # Wildcard REQUEST: per-router hostnames alone never mint the wildcard pair the
       # consumer-pull contract needs, so *.kogler.si is requested explicitly here.
