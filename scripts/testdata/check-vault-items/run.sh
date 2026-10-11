@@ -24,26 +24,48 @@ fail=0
 ok()   { echo "PASS: $1"; pass=$((pass + 1)); }
 bad()  { echo "FAIL: $1"; fail=$((fail + 1)); }
 
+# The helpers are FORK-FREE on purpose. This leg costs 61 s solo on the Win11 git-bash seat and ~3 s
+# on WSL Debian for the SAME fixture, because a fork there is 176 ms and does not parallelise (~5.5
+# forks/s for the whole machine) — and answering "is this line present?" with `printf | grep -Fxq` is
+# TWO processes per assertion, ~100 assertions per run (measured 2026-10-10). The assertions and their
+# meanings are unchanged; only the way they are evaluated is.
+has_line() { # haystack needle -> true when a WHOLE line equals needle (exactly what grep -Fxq said)
+    local h="${1%$'\n'}" n="$2" l
+    while IFS= read -r l; do [ "$l" = "$n" ] && return 0; done <<< "$h"
+    return 1
+}
+count_rows() { # string -> how many non-empty lines (`grep -c .` answered this)
+    local h="${1%$'\n'}" l n=0
+    while IFS= read -r l; do [ -n "$l" ] && n=$((n + 1)); done <<< "$h"
+    printf '%s' "$n"
+}
+
 expect_eq() { # desc actual expected
     if [ "$2" = "$3" ]; then ok "$1"; else bad "$1 (got: '$2', want: '$3')"; fi
 }
 expect_contains() { # desc haystack needle
-    if printf '%s\n' "$2" | grep -Fxq -- "$3"; then ok "$1"; else bad "$1 (missing line '$3')"; fi
+    if has_line "$2" "$3"; then ok "$1"; else bad "$1 (missing line '$3')"; fi
 }
 expect_absent() { # desc haystack needle
-    if printf '%s\n' "$2" | grep -Fxq -- "$3"; then bad "$1 (forbidden line '$3' present)"; else ok "$1"; fi
+    if has_line "$2" "$3"; then bad "$1 (forbidden line '$3' present)"; else ok "$1"; fi
 }
 
 header_counts() { # output  -> echoes "enabled needed have"
-    local h
-    h="$(printf '%s\n' "$1" | head -n 1)"
-    printf '%s %s %s\n' \
-        "$(printf '%s\n' "$h" | grep -oE 'enabled services: [0-9]+' | grep -oE '[0-9]+')" \
-        "$(printf '%s\n' "$h" | grep -oE 'needed items: [0-9]+' | grep -oE '[0-9]+')" \
-        "$(printf '%s\n' "$h" | grep -oE 'in vault: [0-9]+' | grep -oE '[0-9]+')"
+    local h1="${1%%$'\n'*}" pat part num out=("" "" "") i=0
+    for pat in 'enabled services: ' 'needed items: ' 'in vault: '; do
+        part="${h1#*"$pat"}"
+        if [ "$part" = "$h1" ]; then num=""; else num="${part%%[!0-9]*}"; fi   # digits to the first non-digit
+        out[i]="$num"; i=$((i + 1))
+    done
+    printf '%s %s %s\n' "${out[0]}" "${out[1]}" "${out[2]}"
 }
 missing_items() { # output -> the listed missing items (lines after the MISSING banner)
-    printf '%s\n' "$1" | tail -n +3 | sed '/^[[:space:]]*$/d'
+    local h="${1%$'\n'}" l n=0 out=""
+    while IFS= read -r l; do
+        n=$((n + 1)); [ "$n" -le 2 ] && continue          # was: tail -n +3
+        [ -n "${l//[[:space:]]/}" ] && out+="$l"$'\n'     # was: sed '/^[[:space:]]*$/d'
+    done <<< "$h"
+    printf '%s' "${out%$'\n'}"
 }
 
 [ -f "$MAIN" ] || { echo "FAIL: scanner not found at $MAIN"; exit 1; }
@@ -54,17 +76,18 @@ rc=$?
 items="$(missing_items "$out")"
 counts="$(header_counts "$out")"
 expect_eq "case1 gap+informational exits 0" "$rc" "0"
-expect_eq "case1 exactly one missing item" "$(printf '%s\n' "$items" | grep -c .)" "1"
+expect_eq "case1 exactly one missing item" "$(count_rows "$items")" "1"
 expect_contains "case1 lists metabase-forgejo_ro (registry-key-only ref)" "$items" "metabase-forgejo_ro"
-expect_eq "case1 enabled services = 2 (disabled entry filtered)" "$(echo "$counts" | awk '{print $1}')" "2"
-expect_eq "case1 needed set = 4 (owner-seedable only; demo_oidc + the 2 HD-247 spec items are GLUE-class)" "$(echo "$counts" | awk '{print $2}')" "4"
+_c1="${counts%% *}"; _cr="${counts#* }"; _c2="${_cr%% *}"; _c3="${_cr#* }"
+expect_eq "case1 enabled services = 2 (disabled entry filtered)" "$_c1" "2"
+expect_eq "case1 needed set = 4 (owner-seedable only; demo_oidc + the 2 HD-247 spec items are GLUE-class)" "$_c2" "4"
 
 # --- Case 2: no-false-positive on a complete vault --------------------------
 out="$(bash "$MAIN" --root "$FIXTURE" --fake-vault "$FIXTURE/vault-complete.txt")"
 rc=$?
 items="$(missing_items "$out")"
 expect_eq "case2 complete-vault exits 0" "$rc" "0"
-expect_eq "case2 zero missing items" "$(printf '%s\n' "$items" | grep -c .)" "0"
+expect_eq "case2 zero missing items" "$(count_rows "$items")" "0"
 expect_absent "case2 glue-seeded demo_oidc excluded" "$(missing_items "$out")" "demo_oidc"
 expect_absent "case2 whole output never mentions demo_oidc" "$out" "demo_oidc"
 expect_absent "case2 whole output never mentions disabled_should_never_appear" "$out" "disabled_should_never_appear"
@@ -100,8 +123,7 @@ out="$(bash "$MAIN" --root "$TMPD" --fake-vault "$FIXTURE/vault-gap.txt")"
 rc=$?
 items="$(missing_items "$out")"
 expect_eq "case6 no-glue exits 0 (informational)" "$rc" "0"
-expect_eq "case6 exactly three missing (ro + 2 scoped)" "$(printf '%s
-' "$items" | grep -c .)" "3"
+expect_eq "case6 exactly three missing (ro + 2 scoped)" "$(count_rows "$items")" "3"
 expect_contains "case6 consumer-path visibility (lk_demo_chat_api listed)" "$items" "lk_demo_chat_api"
 expect_contains "case6 entry-record visibility (lk_demo_rag_api listed)" "$items" "lk_demo_rag_api"
 expect_contains "case6 regression guard intact (metabase-forgejo_ro still missing)" "$items" "metabase-forgejo_ro"
@@ -130,7 +152,7 @@ out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt")"
 expect_eq "case7 scoped block: informational exit 0" "$?" "0"
 expect_absent "case7 scoped block: bdemo_key_api routed to GLUE (never MISSING)" "$(missing_items "$out")" "bdemo_key_api"
 out="$(bash "$MAIN" --root "$GATED" --fake-vault "$FIXTURE/vault-gap.txt" --strict)"
-expect_eq "case7 scoped+strict: exactly 1 missing remains (metabase gap only)" "$(missing_items "$out" | grep -c .)" "1"
+expect_eq "case7 scoped+strict: exactly 1 missing remains (metabase gap only)" "$(count_rows "$(missing_items "$out")")" "1"
 rm -rf "$CTRL" "$GATED"
 
 # --- Case 8: host_vars `*_item:` registry class (HD-1093) ---------------------------
@@ -152,7 +174,7 @@ out="$(bash "$MAIN" --root "$HV_CTRL" --fake-vault "$FIXTURE/vault-gap.txt")"
 expect_contains "case8 host_vars vault_item: is a real dependency (smb-shared_login MISSING)" "$(missing_items "$out")" "smb-shared_login"
 out="$(bash "$MAIN" --root "$HV_NOCLASS" --fake-vault "$FIXTURE/vault-gap.txt")"
 expect_absent "case8 control: a non-class key name makes it invisible (rule is key-class, not text)" "$(missing_items "$out")" "smb-shared_login"
-expect_absent "case8 commented-out `# vault_item:` line never creates a dependency" "$(missing_items "$out")" "comment_only_item"
+expect_absent "case8 commented-out '# vault_item:' line never creates a dependency" "$(missing_items "$out")" "comment_only_item"
 rm -rf "$HV_CTRL" "$HV_NOCLASS"
 
 # --- Summary ------------------------------------------------------------------

@@ -110,40 +110,74 @@ is_artifact() {
 # Binary is judged by a NUL byte (bash args cannot hold NUL, so count bytes
 # before/after tr instead of grepping for it).
 bad_encoding() {
-  local p="$1"
+  local p="$1" line first=1
   [ -f "$p" ] || return 1
   [ -s "$p" ] || return 1
   local total strip
   total="$(wc -c < "$p")"
   strip="$(tr -d '\0' < "$p" | wc -c)"
   [ "$total" != "$strip" ] && return 1   # NUL byte -> binary, no judgement
-  [ "$(head -c3 "$p" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "efbbbf" ] && return 0
-  # -U/--binary is load-bearing on a Windows seat: Git-Bash's MSYS layer opens files in TEXT mode,
-  # so a plain grep never sees the CR of a CRLF pair and this guard was silently blind (measured
-  # 2026-10-07: `printf 'x\r\n' | grep -c $'\r'` → 0, with `od -c` showing the CR, and both CRLF
-  # canaries in --self-test reported "canary passed"). `-U` is a no-op on Debian, where no
-  # conversion exists to disable.
-  LC_ALL=C grep -qU $'\r' "$p" 2>/dev/null && return 0
+  # SEVEN EXECs per file used to sit here (wc, tr|wc, head|od|tr, grep) — over ~30 extension files the
+  # encoding sweep alone was ~200 processes, which on a Windows seat is most of this leg (measured
+  # 2026-10-10: 14 s solo; a spawn there is 16-44 ms against 0.66 ms on WSL Debian).
+  #
+  # ⚠ WHY `read` AND NOT `$(<"$p")`, measured on the Win11 git-bash seat the day it was rewritten: a
+  # COMMAND SUBSTITUTION applies the SAME text-mode translation that made `grep` need `-U` (CONVENTIONS
+  # §6). `printf 'a\r\n' > t`, then `s=$(<t)` tested for a CR reports NO CR; `IFS= read -r line < t`
+  # keeps it (`od` shows the byte either way). The first version of this rewrite used `$(<"$p")` and
+  # BOTH CRLF canaries printed "canary passed" — the guard was blind on Windows again, three years
+  # after that same trap was written down. `read` is the builtin that does not translate here.
+  #
+  # sync-skills.sh, the sibling, STILL has the old `grep -U` body: it has no --self-test at all, so the
+  # rewrite there would have had nothing to prove itself with, and its leg is 3 s, not a hot spot. See
+  # the HD row in todo.md for giving that script a self-test; until then this body is proven here and
+  # only here.
+  while IFS= read -r line || [ -n "$line" ]; do
+    if [ "$first" = 1 ]; then
+      first=0
+      case "$line" in $'\xef\xbb\xbf'*) return 0 ;; esac      # UTF-8 BOM
+    fi
+    case "$line" in *$'\r'*) return 0 ;; esac                  # CRLF — `read` keeps the CR, see above
+  done < "$p"
   return 1
 }
 
 # --- file lists: "REL\tABS", repo side and deploy side ------------------------
+# CACHED. These are called from five places per run (compare twice, the encoding sweep, push, pull)
+# and every cold call was `find | sed | sort` — three EXECs plus the caller's process substitution —
+# for a tree that cannot change mid-run. One walk per side is the honest cost.
+_src_list=""; _src_list_set=0
+_deploy_list=""; _deploy_list_set=0
 list_src_files() {
-  local f
-  [ -d "$SRC" ] || return 0
-  while IFS= read -r f; do
-    is_artifact "$f" && continue
-    printf '%s\t%s\n' "$f" "$SRC/$f"
-  done < <(cd "$SRC" && find . -type f | sed 's#^\./##' | sort)
+  if [ "$_src_list_set" != 1 ]; then
+    local f t=""
+    _src_list_set=1
+    if [ -d "$SRC" ]; then
+      while IFS= read -r f; do
+        is_artifact "$f" && continue
+        t+="$f"$'\t'"$SRC/$f"$'\n'
+      done < <(cd "$SRC" && find . -type f | sed 's#^\./##' | sort)
+    fi
+    _src_list="${t%$'\n'}"
+  fi
+  [ -n "$_src_list" ] && printf '%s\n' "$_src_list"
+  return 0
 }
 
 list_deploy_files() {
-  local f
-  [ -d "$DEPLOY" ] || return 0
-  while IFS= read -r f; do
-    is_artifact "$f" && continue
-    printf '%s\t%s\n' "$f" "$DEPLOY/$f"
-  done < <(cd "$DEPLOY" && find . -type f | sed 's#^\./##' | sort)
+  if [ "$_deploy_list_set" != 1 ]; then
+    local f t=""
+    _deploy_list_set=1
+    if [ -d "$DEPLOY" ]; then
+      while IFS= read -r f; do
+        is_artifact "$f" && continue
+        t+="$f"$'\t'"$DEPLOY/$f"$'\n'
+      done < <(cd "$DEPLOY" && find . -type f | sed 's#^\./##' | sort)
+    fi
+    _deploy_list="${t%$'\n'}"
+  fi
+  [ -n "$_deploy_list" ] && printf '%s\n' "$_deploy_list"
+  return 0
 }
 
 # --- encoding guard over repo-side files --------------------------------------
@@ -293,6 +327,15 @@ self_test() {
   printf 'export default function () {}\r\n' > "$tmp/enc/pi-agent/extensions/seat-status.ts"
   if run_at "$tmp/enc" --push; then err "canary passed: --push deployed a CRLF file"; fails=$((fails+1)); else info "crlf-canary        caught (push blocked)"; fi
   if run_at "$tmp/enc" --check --strict; then err "canary passed: CRLF stayed green"; fails=$((fails+1)); else info "crlf-gate          caught"; fi
+
+  # 4b. repo-side BOM -> blocks --push AND fails --check --strict. Same rule as CRLF, and it had NO
+  #     canary at all until 2026-10-10: the check was rewritten to read the file in-process instead of
+  #     through `head|od`, and "a test that cannot fail is not evidence" (CONVENTIONS §6) means that
+  #     rewrite needed its own proof, not the CRLF canary's.
+  mk_tree "$tmp/bom"
+  printf '\xef\xbb\xbfexport default function () {}\n' > "$tmp/bom/pi-agent/extensions/seat-status.ts"
+  if run_at "$tmp/bom" --push; then err "canary passed: --push deployed a BOM file"; fails=$((fails+1)); else info "bom-canary         caught (push blocked)"; fi
+  if run_at "$tmp/bom" --check --strict; then err "canary passed: a BOM stayed green"; fails=$((fails+1)); else info "bom-gate           caught"; fi
 
   # 5. --push converges a clean repo and is idempotent (push twice == green).
   mk_tree "$tmp/push"; rm -f "$tmp/push/agent/extensions/seat-status.ts"

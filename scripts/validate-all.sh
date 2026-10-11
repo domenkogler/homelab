@@ -377,9 +377,27 @@ fi
 # printed `SC_DIR: unbound variable` because the function-local it named was long gone.
 # Legs that need scratch space take a subdirectory of `$RUN` (see the syntax-check leg).
 RUN="$(mktemp -d)"; trap 'rm -rf "$RUN"' EXIT
+GATE_T0=$SECONDS
+# Windows seats get a POOL CAP, and the honest reason is CONTENTION WITH THE NEXT GATE, not speed.
+# Measured 2026-10-10 on the Win11 git-bash seat, interleaved A/B, same tree, nothing else running:
+#   pool 4 → 47 s   pool 8 → 43 s   pool 16 → 41 s   pool 24 → 43 s      (all within ~10 %)
+# so on a QUIET seat the pool size barely matters — a fork+exec there costs 16–44 ms and 20-way
+# concurrency buys ~1.7× (19 ms each against 32 ms serial). The same fork costs 0.66 ms on WSL
+# Debian of the same laptop, which is why the identical gate finishes there in 7.9 s.
+# What DOES hurt is two gates forking at once: while a second 24-way validate-all was running, this
+# seat measured 130–185 ms per exec and the gate took 5 min 51 s for the same 62 items — an 8×
+# degradation of a shared, non-scaling resource (process creation), not 2× the work. Capping at 16
+# costs ~nothing alone and halves what one gate imposes on the other. Override: GATE_WIN_PAR.
+IS_MSYS=0
+case "${OSTYPE,,}" in msys*|cygwin*|mingw*) IS_MSYS=1 ;;
+  *) case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_MSYS=1 ;; esac ;; esac
 MAXPAR=4
 command -v nproc >/dev/null 2>&1 && MAXPAR="$(nproc)"
 [ "$SERIAL" = 1 ] && MAXPAR=1
+if [ "$IS_MSYS" = 1 ] && [ "$SERIAL" != 1 ]; then
+  WINPAR="${GATE_WIN_PAR:-16}"
+  [ "$MAXPAR" -gt "$WINPAR" ] && MAXPAR="$WINPAR"
+fi
 # The two ansible legs spawn children of their own; give them half the pool each so a
 # nested fan-out cannot multiply the process count past the cores (8 slots → 4 each).
 GATE_NPAR=4
@@ -387,7 +405,17 @@ command -v nproc >/dev/null 2>&1 && GATE_NPAR="$(( $(nproc) / 2 > 2 ? $(nproc) /
 export GATE_NPAR
 echo "gate: $MAXPAR items in flight (GATE_NPAR=$GATE_NPAR for the ansible legs)" >&2
 
-n_items=0; labels=(); pids=(); states=()
+# SLOT CONTROL without a FORK per POLL, measured 2026-10-10: the old gate checked the pool with
+# `[ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]`, and `wc` is an EXEC — so a saturated pool spawned two
+# processes (wc + sleep) every 50 ms purely to ask "is anything free?", which is a process per poll
+# for no information on EVERY host (and 16–180 ms each on a Windows one). `wait -n` (bash 5.1+)
+# blocks until a slot actually frees, at zero cost. The counter is exact: +1 per launch, -1 per reap.
+# The old poll stays as the fallback for a bash without `wait -n` rather than being wrong there.
+HAVE_WAITN=0
+true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1     # supported => reaps that `true` with rc 0
+                                                   # unsupported => wait errors (rc 2) and just blocks
+
+n_items=0; labels=(); pids=(); states=(); n_run=0
 
 _queue() {
   local label="$1"; shift
@@ -398,11 +426,18 @@ _queue() {
   ( "$@" >"$RUN/$i.log" 2>&1; echo "$?" >"$RUN/$i.rc" ) &
   local pid=$!
   states+=("run"); pids+=("$pid")
+  n_run=$((n_run+1))
   printf '  -> %2d  %s\n' "$i" "$label" >&2
   if [ "$MAXPAR" -le 1 ]; then
     wait "$pid" >/dev/null 2>&1 || true     # --serial: block here, no polling in the loop
+    n_run=$((n_run-1))
+  elif [ "$HAVE_WAITN" = 1 ]; then
+    while [ "$n_run" -ge "$MAXPAR" ]; do
+      wait -n >/dev/null 2>&1 || true       # reaps one finished leg; its rc already went to $RUN/$i.rc
+      n_run=$((n_run-1))
+    done
   else
-    while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done
+    while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done   # bash < 5.1: no wait -n
   fi
 }
 
@@ -430,6 +465,27 @@ _report() {
       fails=$((fails+1))
     fi
   done
+  # Say how fast the HOST was, not only how long the gate took. WHY: "why is the gate slow?" was
+  # answered three different ways on this repo in one day — 31 s quiet, 351 s with a second gate
+  # running — and none of those numbers describe the gate. The per-exec number does: it is 0.66 ms on
+  # WSL Debian, 16–44 ms on a quiet Win11 git-bash seat, and 130–185 ms on that same seat while
+  # another 24-way pool is forking with it (or an AV scan is mid-flight). Five execs to measure it.
+  local _ft0 _ft1 _fc=5 _fe=/bin/true _ms
+  command -v true >/dev/null 2>&1 && _fe="$(command -v true)"
+  _ft0=$EPOCHREALTIME
+  for i in $(seq "$_fc"); do "$_fe" >/dev/null 2>&1 || true; done
+  _ft1=$EPOCHREALTIME
+  _ms="$(echo "$_ft1 $_ft0" | awk -v n="$_fc" '{printf "%.1f", ($1-$2)/n*1000}')"
+  printf '\ngate: %ss wall, %d items, %s ms/exec on this host (WSL Debian: 0.7)\n' \
+    "$(( SECONDS - GATE_T0 ))" "$ran" "$_ms"
+  case "$(echo "$_ms" | awk '{print ($1 > 60) ? "degraded" : (($1 > 2) ? "slow" : "fast")}')" in
+    degraded) echo "      ⚠ process creation is DEGRADED on this host (a quiet Win11 git-bash seat is 16-44 ms)."
+              echo "        Another validate-all is forking with you, or a real-time AV scan is mid-flight: the"
+              echo "        same 62 items cost 31 s quiet and 351 s with a second 24-way pool running (2026-10-10)." ;;
+    slow)     echo "      ℹ this host pays for FORKS, not validators — every leg costs ~1 process + its work."
+              echo "        Where forks are cheap the same gate is ~5x faster: wsl -d Debian bash -c"
+              echo "        'cd <clone> && bash scripts/validate-all.sh'  (7.9 s measured, same 62 items)." ;;
+  esac
   [ "$fails" -eq 0 ] || { printf '\n%d of %d items FAILED:\n' "$fails" "$ran"
     for i in "${!labels[@]}"; do
       [ "${states[$i]}" = "run" ] || continue
@@ -508,11 +564,15 @@ blk_ansible_syntax() {
 # py_compile half deliberately uses python3, not $PY — the claim is about python3.
 blk_bash_n_sweep() {
   if command -v bash >/dev/null 2>&1; then
-    local f bash_fail=0
+    local f first bash_fail=0
     for f in scripts/*.sh scripts/testdata/check-vault-items/run.sh \
              scripts/testdata/self-converge-guard/run.sh; do
       [ -f "$f" ] || continue
-      case "$(head -n1 "$f")" in
+      # `$(head -n1 "$f")` was one EXEC PER FILE — an extra ~90 processes to ask what the shebang
+      # says. `read` answers it in-process; with -r the CR of a CRLF checkout survives, exactly as it
+      # did through head, so the *bash|*sh match below is unchanged.
+      first=""; IFS= read -r first < "$f" || true
+      case "$first" in
         *bash|*sh)
           bash -n "$f" >/dev/null 2>&1 || { echo "bash -n FAIL: $f" >&2; bash_fail=$((bash_fail+1)); }
           ;;
@@ -533,13 +593,20 @@ blk_py_compile_sweep() {
   # when python3 is unusable, so the portability claim still runs — under a named interpreter.
   local _pc="$PY" f py_fail=0
   if python3 -c "import sys" >/dev/null 2>&1; then _pc="python3"; fi
-  for f in scripts/*.py; do
-    [ -f "$f" ] || continue
-    # shellcheck disable=SC2086
-    $_pc -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under $_pc" >&2; py_fail=$((py_fail+1)); }
-  done
+  # ONE interpreter start for the whole sweep, not one per file: py_compile takes a LIST of files, and
+  # an interpreter start here costs 0.2-0.35 s, so the per-file loop was ~57 starts for ~1 s of work
+  # (measured: this leg cost 10.8 s solo on the Win11 seat, 0.7 s on the Debian one).
+  # The per-file loop is kept as the FAIL PATH, so a broken file is still NAMED, not just counted.
+  local -a pys=()
+  for f in scripts/*.py; do [ -f "$f" ] && pys+=("$f"); done
+  if [ "${#pys[@]}" -gt 0 ] && ! $_pc -m py_compile "${pys[@]}" >/dev/null 2>&1; then
+    for f in "${pys[@]}"; do
+      # shellcheck disable=SC2086
+      $_pc -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under $_pc" >&2; py_fail=$((py_fail+1)); }
+    done
+  fi
   [ "$py_fail" -eq 0 ] || exit 1
-  echo "OK: all scripts/*.py compile under $_pc"
+  echo "OK: all scripts/*.py compile under $_pc (${#pys[@]} files, one interpreter start)"
 }
 
 # The seat/host-state gates: each SKIPs where the thing it checks is absent, so a

@@ -109,10 +109,22 @@ skills|$S_SKILLS_C|$S_SKILLS_P
 extensions|$S_EXT_C|$S_EXT_P
 tui|$S_TUI_C|$S_TUI_P
 models|$S_MODEL_C|$S_MODEL_P"
+  # Sets PLANES instead of printing it. `x="$(planes_for_seat …)"` and `3< <(planes_for_seat …)` are
+  # both a FORK per call (the process-substitution form measured 143 ms on a loaded Win11 seat) and
+  # this function is called twice per seat per run, so the plane LIST cost more than a plane did.
+  PLANES=""
   case "$1" in
-    win11) printf '%s\nsettings|%s|%s\nfont|%s|%s\n' "$common" "$S_SET_C" "$S_SET_P" "$S_FONT_WIN_C" "$S_FONT_WIN_P" ;;
-    oldsrv) printf '%s\ntmux|%s|%s\nfont|%s|%s\nsettings|%s|%s\n' "$common" "$S_TMUX_C" "$S_TMUX_P" "$S_FONT_C" "$S_FONT_P" "$S_SET_C_EXTRA" "$S_SET_P_EXTRA" ;;
-    *)     printf '%s\ntmux|%s|%s\nfont|%s|%s\nsettings|%s|%s\n' "$common" "$S_TMUX_C" "$S_TMUX_P" "$S_FONT_C" "$S_FONT_P" "$S_SET_C" "$S_SET_P" ;;
+    win11) PLANES="$common
+settings|$S_SET_C|$S_SET_P
+font|$S_FONT_WIN_C|$S_FONT_WIN_P" ;;
+    oldsrv) PLANES="$common
+tmux|$S_TMUX_C|$S_TMUX_P
+font|$S_FONT_C|$S_FONT_P
+settings|$S_SET_C_EXTRA|$S_SET_P_EXTRA" ;;
+    *) PLANES="$common
+tmux|$S_TMUX_C|$S_TMUX_P
+font|$S_FONT_C|$S_FONT_P
+settings|$S_SET_C|$S_SET_P" ;;
   esac
 }
 
@@ -159,18 +171,23 @@ seat_label() { case "$1" in win11) printf 'Win11 workstation seat' ;; wsl) print
 # The self-test replaces the transport with stubs; no other reason for the hook.
 [ -n "${PI_SEAT_STUB:-}" ] && . "$PI_SEAT_STUB"
 
-# classify <rc> <output> -> OK | SKIP | DRIFT | FAILED | UNREACHABLE | NOT-HERE
+# classify <rc> <output> -> sets VERDICT to OK | SKIP | DRIFT | FAILED | UNREACHABLE | NOT-HERE
 # The plane scripts' own rc contract: 0 ok · 1 drift-or-failure · 2 SKIP.
+# VERDICT instead of stdout, and `case` instead of grep, both for one reason (measured 2026-10-10):
+# a COMMAND SUBSTITUTION is a FORK — `$( : )`, a pure builtin inside it, costs 13-37 ms on a quiet
+# Win11 git-bash seat and 130-185 ms while another gate is forking on it, against 0.66 ms on WSL
+# Debian; and `printf '%s' "$out" | grep -qi` is a PIPELINE, TWO forks to answer a substring question
+# bash answers with `case`. This ran per plane per seat per canary — it is most of the leg.
 classify() {
-  local rc="$1" out="$2"
+  local rc="$1" low="${2,,}"
   case "$rc" in
-    0) printf 'OK' ;;
-    2) printf 'SKIP' ;;
-    255) printf 'UNREACHABLE' ;;
-    3) printf 'NOT-HERE' ;;
-    *) if printf '%s' "$out" | grep -qiE 'drift|MISSING|REFUSAL|not in sync'; then printf 'DRIFT'
-       elif printf '%s' "$out" | grep -q 'SKIP'; then printf 'SKIP'
-       else printf 'FAILED'; fi ;;
+    0) VERDICT='OK' ;;
+    2) VERDICT='SKIP' ;;
+    255) VERDICT='UNREACHABLE' ;;
+    3) VERDICT='NOT-HERE' ;;
+    *) if case "$low" in *drift*|*missing*|*refusal*|*"not in sync"*) true ;; *) false ;; esac; then VERDICT='DRIFT'
+       elif case "$low" in *skip*) true ;; *) false ;; esac; then VERDICT='SKIP'
+       else VERDICT='FAILED'; fi ;;
   esac
 }
 
@@ -183,6 +200,10 @@ tally() {
     *) bad=$((bad+1)) ;;
   esac
 }
+
+# indent <text> — print a plane's output indented, WITHOUT a fork: `printf '%s\n' "$out" | sed …` is
+# two processes per non-OK plane, and a here-string redirection is not a fork.
+indent() { local l; while IFS= read -r l; do printf '           %s\n' "$l"; done <<< "${1%$'\n'}"; }
 
 sync_seat() {
   local seat="$1" head seat_head out rc verdict name ccmd pcmd cmd2 spec
@@ -218,24 +239,28 @@ sync_seat() {
   # EIGHT PLANES NEVER RUN. CONVENTIONS §6's stdin rule names the piped-`bash -s` form; a loop list
   # streamed on stdin is the same trap, and this is the form a fleet driver is built out of. FD 3
   # is the invariant (a plane that reads stdin truncates nothing); `-n` is the transport's own half.
-  local ran=0 expected=0 s n
+  local ran=0 expected=0 s n spec_all
+  # Fork-free field splits: `cut` was one EXEC per field per plane (three per row, ~0.4 s per plane
+  # on a loaded Windows seat). The loop's OWN
+  # stdin discipline is untouched and still reads on FD 3 — that pairing is the invariant arm 7
+  # reddens; only the SOURCE of the list moved from a process substitution (a fork) to an already-
+  # materialised string (a redirection).
+  planes_for_seat "$seat"; spec_all="$PLANES"
   while IFS= read -r -u 3 s; do
-    n="$(printf '%s' "$s" | cut -d'|' -f1)"
+    n="${s%%|*}"
     { [ -z "$WANT_PLANE" ] || [ "$WANT_PLANE" = "$n" ]; } && expected=$((expected+1))
-  done 3< <(planes_for_seat "$seat")
+  done 3<<< "$spec_all"
   while IFS= read -r -u 3 spec; do
-    name="$(printf '%s' "$spec" | cut -d'|' -f1)"
-    ccmd="$(printf '%s' "$spec" | cut -d'|' -f2)"
-    pcmd="$(printf '%s' "$spec" | cut -d'|' -f3)"
+    name="${spec%%|*}"; spec="${spec#*|}"; ccmd="${spec%%|*}"; pcmd="${spec#*|}"
     [ -n "$WANT_PLANE" ] && [ "$WANT_PLANE" != "$name" ] && continue
     if [ "$MODE" = push ]; then cmd2="$pcmd"; else cmd2="$ccmd"; fi
     out="$(run_on_seat "$seat" "$cmd2")"; rc=$?
-    verdict="$(classify "$rc" "$out")"
+    classify "$rc" "$out"; verdict="$VERDICT"
     printf '  %-8s %-11s %s\n' "$seat" "$name" "$verdict"
-    [ "$verdict" = OK ] || printf '%s\n' "$out" | sed 's/^/           /'
+    [ "$verdict" = OK ] || indent "$out"
     tally "$verdict" "$seat/$name"
     ran=$((ran+1))
-  done 3< <(planes_for_seat "$seat")
+  done 3<<< "$spec_all"
   # Tripwire: never trust the plane count to equal the plane list. An IN SYNC that skipped planes
   # is the mute gate CONVENTIONS §6 names, and the exit code cannot tell the two states apart.
   if [ "$ran" -ne "$expected" ]; then
@@ -251,8 +276,9 @@ sync_seat() {
 
 # --- self-test: stubbed transports, no network, no seats ------------------------
 self_test() {
-  local tmp fails=0 head
+  local tmp fails=0 head self
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
+  self="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"   # ONE fork for the whole self-test, not one per canary
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
   head="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo '?')"   # same fallback as the
@@ -297,44 +323,59 @@ seat_repo() { printf '/stub/%s' "\$1"; }
 EOS
 
   run_stub() { PI_SEATS="$1" PI_SEAT_STUB="$tmp/stub.sh" \
-               bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "${@:2}"; }
-  # verdict of one seat, as printed by the real reporting path
-  verdict_of() { run_stub "$1" --check 2>&1 | sed -n "s/^ *$1 *pre-flight *//p" | head -1 | cut -d' ' -f1; }
-  plane_line() { run_stub "$1" --check 2>&1 | sed -n "s/^ *$1 *$2 *//p" | head -1 | cut -d' ' -f1; }
+               bash "$self" "${@:2}"; }
+  # has <text> <token> -> substring test with no PIPELINE (`printf '%s' "$x" | grep -q` is two FORKS
+  # per assertion; `case` answers it in the shell).
+  has() { case "$1" in *"$2"*) return 0 ;; esac; return 1; }
+  # row_verdict <captured> <seat> <label> -> sets ROW to that row's verdict token, rc 1 when absent.
+  # The first version RE-RAN the whole seat per word it wanted (sed|head|cut over a fresh full run),
+  # so canary 1 and canary 7 each paid THREE complete script invocations to read one field.
+  row_verdict() {
+    local cap="$1" ws="$2" wl="$3" l a b
+    while IFS= read -r l; do
+      l="${l#"${l%%[![:space:]]*}"}"                        # ltrim: drop the leading blank run
+      a="${l%%[[:space:]]*}"; [ -n "$a" ] || continue       # field 1 = up to the first blank
+      l="${l#"$a"}"; l="${l#"${l%%[![:space:]]*}"}"
+      b="${l%%[[:space:]]*}"; l="${l#"$b"}"; l="${l#"${l%%[![:space:]]*}"}"
+      [ "$a" = "$ws" ] && [ "$b" = "$wl" ] && { ROW="${l%%[[:space:]]*}"; return 0; }
+    done <<< "$cap"
+    ROW=""; return 1
+  }
 
   # 1. a seat that agrees -> pre-flight OK, every plane OK, exit 0.
   out="$(run_stub good --check)"; rc=$?
-  if [ "$rc" -eq 0 ] && [ "$(verdict_of good)" = OK ] && [ "$(plane_line good tui)" = OK ]; then
+  if [ "$rc" -eq 0 ] && row_verdict "$out" good pre-flight && [ "$ROW" = OK ] \
+     && row_verdict "$out" good tui && [ "$ROW" = OK ]; then
     info "good-seat        GREEN"
   else err "canary: a clean seat did not report IN SYNC (rc $rc)"; fails=$((fails+1)); fi
 
   # 2. a plane that drifted -> exit 1 and a DRIFT line (the gate's whole purpose).
   out="$(run_stub drift --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q DRIFT; then info "drift-seat       caught"; else err "canary passed: a drifting plane stayed green"; fails=$((fails+1)); fi
+  if [ "$rc" -ne 0 ] && has "$out" DRIFT; then info "drift-seat       caught"; else err "canary passed: a drifting plane stayed green"; fails=$((fails+1)); fi
 
   # 3. a plane that FAILED (not drift — no recognizable word) must not read as drift or OK.
   out="$(run_stub fail --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q FAILED; then info "fail-seat        caught"; else err "canary passed: a failing plane was classified as something else"; fails=$((fails+1)); fi
+  if [ "$rc" -ne 0 ] && has "$out" FAILED; then info "fail-seat        caught"; else err "canary passed: a failing plane was classified as something else"; fails=$((fails+1)); fi
 
   # 4. an unreachable seat -> UNREACHABLE + exit 1: never a silent success.
   out="$(run_stub down --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q UNREACHABLE; then info "unreachable      caught"; else err "canary passed: an unreachable seat read as synced"; fails=$((fails+1)); fi
+  if [ "$rc" -ne 0 ] && has "$out" UNREACHABLE; then info "unreachable      caught"; else err "canary passed: an unreachable seat read as synced"; fails=$((fails+1)); fi
 
   # 5. a stale clone -> STALE-CLONE and the planes must NOT have run.
   out="$(run_stub stale --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q STALE-CLONE && ! printf '%s' "$out" | grep -q "must never run"; then
+  if [ "$rc" -ne 0 ] && has "$out" STALE-CLONE && ! has "$out" "must never run"; then
     info "stale-clone      caught (the seat's planes were not run)"
   else err "canary passed: a stale clone deployed anyway"; fails=$((fails+1)); fi
 
   # 6. a SKIP is not a pass and is not a failure either — printed, counted, exit 0.
   out="$(run_stub skip --check)"; rc=$?
-  if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q "SKIP  skip/tmux"; then info "skip-honest      GREEN (a SKIP is named, not passed)"; else err "canary: a SKIP was not reported as a SKIP leg"; fails=$((fails+1)); fi
+  if [ "$rc" -eq 0 ] && has "$out" "SKIP  skip/tmux"; then info "skip-honest      GREEN (a SKIP is named, not passed)"; else err "canary: a SKIP was not reported as a SKIP leg"; fails=$((fails+1)); fi
 
-  # 7. a transport that drains stdin must not truncate the plane list. Deleting the `-u 3` / `3< <()`
+  # 7. a transport that drains stdin must not truncate the plane list. Deleting the `-u 3` / `3<<<`
   #    pairing reddens this arm — the first plane eats the loop's list, so `tui` never prints AND the
   #    coverage tripwire fires: both halves held down, not just the happy path.
   out="$(run_stub eat --check)"; rc=$?
-  if [ "$rc" -eq 0 ] && [ "$(plane_line eat tui)" = OK ] && ! printf '%s' "$out" | grep -q 'coverage'; then
+  if [ "$rc" -eq 0 ] && row_verdict "$out" eat tui && [ "$ROW" = OK ] && ! has "$out" coverage; then
     info "stdin-drain      GREEN (every declared plane ran)"
   else err "canary passed: a stdin-eating transport truncated the plane list"; fails=$((fails+1)); fi
 
@@ -351,7 +392,9 @@ if [ "$MODE" = list ]; then
   info "this host: $c"
   info "seats:  $SEATS"
   for s in $SEATS; do info "  $s — $(seat_label "$s")  repo $(seat_repo "$s")"; done
-  info "planes: $(planes_for_seat wsl | cut -d'|' -f1 | tr '\n' ' ')"
+  planes_for_seat wsl; pn=""
+  while IFS= read -r pl; do pn="$pn ${pl%%|*}"; done <<< "$PLANES"
+  info "planes:$pn"
   exit 0
 fi
 
