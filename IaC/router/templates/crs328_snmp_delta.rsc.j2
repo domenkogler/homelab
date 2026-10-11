@@ -15,7 +15,7 @@
 /snmp set enabled=yes
 
 :if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
-    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller"
 } else={
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }
