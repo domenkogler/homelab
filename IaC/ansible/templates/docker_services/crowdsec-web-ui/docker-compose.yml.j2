@@ -6,7 +6,7 @@
 #   INTERNAL-ONLY (observability-internal posture):
 #   NO public Cloudflare record — reached from LAN/VPN only, behind Authentik
 #   Forward-Auth at the Traefik edge (repo-standard for internal ops UIs). Do NOT add
-#   a cloudflare_dns CNAME for this service without an owner decision.
+#   a cloudflare_dns CNAME for this service.
 #
 #   AUTH: Forward-Auth (authentik-forward-auth@file) at the edge — consistent with
 #   metabase/dozzle/grafana. This UI ALSO supports native OIDC, but the repo's
@@ -14,7 +14,7 @@
 #   + MFA passthrough). Keep Forward-Auth; native OIDC stays a hypothetical upgrade.
 #
 #   LAPI WATCHER AUTH: the UI talks to the CrowdSec LAPI as a WATCHER MACHINE
-#   with password auth (NOT the bouncer key). DEPLOY-GATED (owner ruling, do NOT run
+#   with password auth (NOT the bouncer key). DEPLOY-GATED (do NOT run
 #   from IaC): register the watcher on the VPS once, after first converge:
 #       docker exec crowdsec cscli machines add crowdsec-web-ui --password '<pw>' -f /dev/null
 #   (the '-f /dev/null' is REQUIRED — it registers the machine without overwriting the
@@ -33,7 +33,7 @@ services:
   crowdsec-web-ui:
     image: ghcr.io/theduffman85/crowdsec-web-ui:{{ crowdsec_web_ui_version }}
     # Class-B precedent (crowdsec/metabase + onlyoffice/stirling-pdf): the image chowns
-    # /app/data at every boot; read_only dropped AND CHOWN restored (cap_drop ALL strips
+    # /app/data at every boot, so read_only is out and CHOWN must be kept (cap_drop ALL strips
     # CHOWN -> root can't chown -> crash). Keeps cap_drop ALL + tmpfs /tmp + cap_add CHOWN.
     cap_drop:
       - ALL
