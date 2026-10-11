@@ -401,14 +401,14 @@ bl_track_floor() {
 margin_verdict() {
   local base trigger
   # A verdict about a term that cannot run is a lie, not a readout.
-  [ "$RECYCLE" = "1" ] || { echo "recycle DISABLED by config (SPARK_OOM_RECYCLE=0, owner decision 2026-09-23) — margin not evaluated"; return 0; }
+  [ "$RECYCLE" = "1" ] || { echo "recycle DISABLED by config (SPARK_OOM_RECYCLE=0) — margin not evaluated"; return 0; }
   base=$(st_read engine_baseline_mib)
   ge_int "$base" 1 || { echo "no committed baseline ⇒ recycle DISARMED (silence by design)"; return 0; }
   trigger=$(( base + RECYCLE_GROW_GIB * 1024 ))
   if [ "$trigger" -gt "$CERTIFIED_CAGE_MIB" ]; then
     echo "trigger=${trigger} MiB > engine cage ${CERTIFIED_CAGE_MIB} MiB ⇒ recycle unreachable before the cage/OOM"
   elif [ "$trigger" -gt "$CERTIFIED_PEAK_MIB" ]; then
-    echo "trigger=${trigger} MiB > certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle will stay SILENT on ordinary traffic (HD-395 open margin question)"
+    echo "trigger=${trigger} MiB > certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle will stay SILENT on ordinary traffic (open margin question)"
   else
     echo "trigger=${trigger} MiB ≤ certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle reachable (headroom $(( CERTIFIED_PEAK_MIB - trigger )) MiB)"
   fi
@@ -444,7 +444,7 @@ baseline_tick() {
       fi
       st_write baseline_stage settling
       st_write baseline_deadline $(( now + BASELINE_SETTLE_S ))
-      act_log "baseline: /health 200 — settling ${BASELINE_SETTLE_S}s before measuring (HD-395: the first read is a coin-flip)"
+      act_log "baseline: /health 200 — settling ${BASELINE_SETTLE_S}s before measuring (the first read is a coin-flip)"
       return 0 ;;
     settling)
       [ "$now" -lt "$(st_read baseline_deadline)" ] && return 0
@@ -553,7 +553,7 @@ hysteresis_gate() { # $1 = reason
     rm -f "$f"
     return 0
   fi
-  act_log "CRIT suppressed by hysteresis: usable=${use}GiB < re-arm ${REARM_GIB}GiB (latched: ${line}) — engine NOT restarted; the REST state is below CRIT, so repeat restarts cannot fix it (HD-494, docs/hardware-spark.md §Unified-memory budget) — re-derive the budget instead: ${1:-}"
+  act_log "CRIT suppressed by hysteresis: usable=${use}GiB < re-arm ${REARM_GIB}GiB (latched: ${line}) — engine NOT restarted; the REST state is below CRIT, so repeat restarts cannot fix it (docs/hardware-spark.md §Unified-memory budget) — re-derive the budget instead: ${1:-}"
   return 1
 }
 
@@ -736,7 +736,7 @@ STUB
   bad()  { printf '  FAIL %s\n' "$1"; fail=$((fail+1)); }
   expect_eq() { if [ "$2" = "$3" ]; then ok "$1 = $3"; else bad "$1: got '$2' want '$3'"; fi; }
 
-  printf 'self-test (HD-395 baseline + recycle governance), stubs in %s\n' "$tmp"
+  printf 'self-test (baseline + recycle governance), stubs in %s\n' "$tmp"
 
   # C1 — acquisition waits for a REAL engine, and a LOW first read must never become the
   #      baseline. Until it commits, the recycle path must be silent.
@@ -917,11 +917,11 @@ case "${1:-sample-loop}" in
     echo "baseline: stage=$(bl_stage) value=$(st_read engine_baseline_mib || echo NA) MiB"
     echo "          (acquisition: /health 200 → settle ${BASELINE_SETTLE_S}s → max of ${BASELINE_SAMPLES} plausible reads inside ${BASELINE_SPAN_S}s; plausible ≥ ${BASELINE_MIN_MIB} MiB)"
     [ -s "$STATE_DIR/baseline_meta" ] && echo "          $(st_read baseline_meta)"
-    echo "          boot floor: min=$(st_read boot_min_mib || echo NA) max=$(st_read boot_max_mib || echo NA) MiB  ← the HD-395 coin-flip, as one spread"
+    echo "          boot floor: min=$(st_read boot_min_mib || echo NA) max=$(st_read boot_max_mib || echo NA) MiB  ← the coin-flip, as one spread"
     echo "          margin: $(margin_verdict)"
     echo "in flight: $(in_flight)"
     echo "governor: enforce=$ENFORCE (cooldown ${ENFORCE_COOLDOWN}s, max ${ENFORCE_MAX}/${ENFORCE_WINDOW}s, arm-off file $NO_ENFORCE_FILE) recycle=$RECYCLE (+${RECYCLE_GROW_GIB} GiB / ${RECYCLE_IDLE_S}s idle)"
-    echo "hysteresis: $(hysteresis_text) (re-arm at ${REARM_GIB} GiB = WARN ${WARN_GIB}; HD-494)"
+    echo "hysteresis: $(hysteresis_text) (re-arm at ${REARM_GIB} GiB = WARN ${WARN_GIB})"
     config_drift_note
     [ -s "$STATE_DIR/enforce.log" ] && { echo "governor actions:"; tail -5 "$STATE_DIR/enforce.log"; }
     echo "samples: $(wc -l < "$SAMPLES" 2>/dev/null || echo 0) rows in $SAMPLES"
