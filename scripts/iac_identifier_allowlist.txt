@@ -1,0 +1,49 @@
+# Exemption class B for scripts/check_iac_identifiers.py -- identifier-class sites.
+#
+# One line per exempted site, three TAB-separated fields:
+#     <path>TAB<exact trimmed line text>TAB<reason>
+# No line numbers: they rot the first time a line is inserted above. A token is exempt
+# only when BOTH the path and the trimmed line text match, and an entry that stops
+# matching is itself reported as a violation -- an exemption must not outlive the line
+# it was written for and become a free pass for the next id.
+#
+# Seeded 2026-10-11 from `corpus_diff.py --keys . IaC/` (the sites whose token is a
+# HANDLE a selector matches on, not a mention) plus the two watchdog fixture
+# timestamps. State dates (valid_until:, since:) are NOT listed here: exemption class A
+# covers them by the key, so a subscription renewal date needs no signature.
+#
+# Adding an entry: only for a token that IS a match key, and the reason must name the
+# construct that matches on it. A changelog mention is not an exemption, it is a bug.
+IaC/ansible/roles/docker_services/defaults/main.yml	seerr_profile: HD-1080p                   # what Seerr + SeerrNG pin	the whole value is a name a later task looks up
+IaC/ansible/roles/docker_services/defaults/main.yml	seerr_profile: HD-1080p	the whole value is a name a later task looks up
+IaC/ansible/roles/network/tasks/main.yml	line: '# duid (disabled by HD-314: MAC client-id, see clientid below)'	line/regexp pair: this text is the match key
+IaC/router/templates/crs328_converge.rsc.j2	add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN (HD-53)"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_converge.rsc.j2	add chain=forward action=accept src-address=10.10.20.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_converge.rsc.j2	add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom protocol=tcp dst-port=853 comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_converge.rsc.j2	add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_converge.rsc.j2	/ipv6 address remove [find where comment~"^HD-414"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_converge.rsc.j2	/ipv6 address add address={{ network_ipv6.router_address_suffix }} interface=vlan{{ v.id }}-{{ v.name|lower }} from-pool={{ network_ipv6.pool }} advertise=yes comment="HD-414 {{ v.name }} GWA (fixed suffix, prefix taken from the pool)"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_hd307_delta.rsc.j2	:if ([/ip firewall filter find where chain=forward and src-address=10.10.99.0/24 and dst-address=10.10.1.0/24 and comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"] = "") do={	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd307_delta.rsc.j2	/ip firewall filter add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/24 comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_hd307_delta.rsc.j2	:local mgmthome [/ip firewall filter find where chain=forward and src-address=10.10.99.0/24 and dst-address=10.10.1.0/24 and comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter remove [find where comment~"HD-326 kids DoT-bypass drop"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter remove [find where comment~"HD-326 kids bedtime WAN drop"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter add chain=forward src-address=10.10.20.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom action=accept comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter move [find where comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"] destination=$prev	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:set prev [/ip firewall filter find where comment="IoT cloud device -> WAN allowed via iot-wan-allow (HD-312/325): {{ h.name }}"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:local homeWan [/ip firewall filter find where chain=forward and comment="Home -> WAN allowed (HD-309 row 73)"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter add chain=forward src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom protocol=tcp dst-port=853 action=drop comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter move [find where comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"] destination=$prev	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:set prev [/ip firewall filter find where comment="HD-326 kids DoT-bypass drop (853): {{ h.name }}"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter add chain=forward src-address=10.10.1.0/24 src-mac-address={{ h.mac }} out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun action=drop comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter move [find where comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"] destination=$prev	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:set prev [/ip firewall filter find where comment="HD-326 kids bedtime WAN drop (22:00-07:00): {{ h.name }}"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:if ([/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop tcp (HD-342)"] = "") do={	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter add chain=forward src-address=10.10.20.0/24 protocol=tcp dst-port=853 action=drop comment="IoT -> DoT bypass drop tcp (HD-342)"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:if ([/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop udp (HD-342)"] = "") do={	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	/ip firewall filter add chain=forward src-address=10.10.20.0/24 protocol=udp dst-port=853 action=drop comment="IoT -> DoT bypass drop udp (HD-342)"	RouterOS comment= handle that a find-where matches on
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:local t [/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop tcp (HD-342)"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:set prev [/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop tcp (HD-342)"]	RouterOS find-where selector: the id is the object handle
+IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2	:local u [/ip firewall filter find where chain=forward and comment="IoT -> DoT bypass drop udp (HD-342)"]	RouterOS find-where selector: the id is the object handle
+IaC/ansible/roles/spark/files/spark-oom-watchdog.sh	printf '#!/bin/sh\n[ "$1" = -s ] && { echo "2026-09-23 00:00:00"; exit 0; }\nprintf "up 0 mins (stub)\\n"\n' > "$bin/uptime"	test fixture value
+IaC/ansible/roles/spark/files/spark-oom-watchdog.sh	printf 'true' > "$st/running"; printf '2026-09-23T00:00:00Z' > "$st/started"	test fixture value
