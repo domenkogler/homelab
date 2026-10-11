@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""HD-450 — the two things that can age out silently, turned into series.
+"""The two things that can age out silently, turned into series.
 
 Found closing HD-350: oldsrv's `traefik-cert-pull.timer` failed every 15 min for DAYS while the wildcard
 pair sat on a 26-day-old copy, and nothing in the stack could see either half — a systemd unit's result is
@@ -90,7 +90,7 @@ def unit_lines(unit: str) -> list[str]:
         ok, reason = 1, result or "success"
     q = sel('unit="%s"' % unit)
     return [
-        "# HELP homelab_unit_last_success 1 when the unit exists and its last run succeeded (HD-450).",
+        "# HELP homelab_unit_last_success 1 when the unit exists and its last run succeeded.",
         "# TYPE homelab_unit_last_success gauge",
         "homelab_unit_last_success%s %d" % (q, ok),
         'homelab_unit_result%s %s' % (sel('unit="%s", result="%s"' % (unit, reason)), "1"),
@@ -134,9 +134,9 @@ def cert_exdate(path: str) -> datetime.datetime:
 def cert_lines(consumer: str, path: str) -> list[str]:
     q = sel('consumer="%s"' % consumer)
     head = [
-        "# HELP homelab_cert_pair_present 1 when the cert pair this consumer edge loads exists (HD-450).",
+        "# HELP homelab_cert_pair_present 1 when the cert pair this consumer edge loads exists.",
         "# TYPE homelab_cert_pair_present gauge",
-        "# HELP homelab_cert_days_left Days until this consumer's cert pair expires (HD-450).",
+        "# HELP homelab_cert_days_left Days until this consumer's cert pair expires.",
         "# TYPE homelab_cert_days_left gauge",
     ]
     if not os.path.isfile(path):
