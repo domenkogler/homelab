@@ -1,9 +1,9 @@
 # systemd-networkd .network for the observability tunnel route on netd hosts
 # (nas). Rendered by roles/network (IaC/ansible/roles/network). Do not hand-edit.
 #
-# HD-346: pin the VPS Victoria/wg-s2s endpoint route to the managed Home NIC so
-# Alloy's remote_write egresses the correct interface (nas's eno2 DHCP default was
-# shadowing it). Metric 50 beats eno2's DHCP default (metric 100).
+# Pin the VPS Victoria/wg-s2s endpoint route to the managed Home NIC so Alloy's
+# remote_write egresses the correct interface — a DHCP default route on the same NIC would
+# otherwise shadow it. Metric 50 beats that default (metric 100).
 #
 # SSOT-derived: the endpoint is wg_s2s_vps.ip; gateway = the Home router; the
 # interface = the managed physical NIC (netd_phys_name). No literals.
