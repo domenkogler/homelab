@@ -14,7 +14,7 @@
 # Render: playbooks/render-converge.yml; verify per device from a Mgmt-sourced
 # API path (old-password must FAIL, password must authenticate).
 # =====================================================================
-/user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin (rotated HD-321)"
+/user set [find name=admin] password="{{ mikrotik_admin_password }}" comment="human admin (rotated)"
 # =====================================================================
 # Verify (from the management plane, NOT a non-Mgmt source which the input
 # filter drops and could read as a false lockout):
