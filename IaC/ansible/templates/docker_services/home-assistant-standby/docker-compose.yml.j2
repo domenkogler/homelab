@@ -6,7 +6,7 @@
 #   - Same configuration.yaml as the Pi (rendered from the same repo template).
 #   - Config/state synced from Pi every ~15 min (LAN only).
 #   - keepalived STANDBY: VIP 10.10.1.200 moves HERE on takeover.
-#   - (raspberrymatic-standby pairing REMOVED 2026-08-18 / HD-13 parked — HmIP-HAP stays
+#   - raspberrymatic pairing is NOT here: HmIP-HAP stays
 #     cloud until an HmIP-RFUSB is bought; no local RMat/CCU on the standby path).
 #   - restart policy: manual (systemd unit disabled by default) → restart: "no"
 #   - Traefik's `ha` route targets the VIP; NOT Authentik Forward-Auth (breaks Companion app).
@@ -24,8 +24,8 @@ services:
     networks:
       - services-internal     # reaches Traefik via VIP; plus host/VLAN for device control
     ports:
-      - "8123:8123"        # VIP:8123 must keep resolving to HA on takeover (traefik edges + prometheus target VIP:8123) — same as primary (HD-72/KOPS-014 plain publish)
-      - "5683:5683/udp"   # Gen1 Shelly CoIoT/CoAP push (HD-323) — same as primary: when the
+      - "8123:8123"        # VIP:8123 must keep resolving to HA on takeover (traefik edges + prometheus target VIP:8123) — same plain publish as the primary
+      - "5683:5683/udp"   # Gen1 Shelly CoIoT/CoAP push — same as primary: when the
                           # VIP moves here on takeover, the standby must also serve Shelly CoAP
                           # at the VIP. (Cold standby, so this only binds while the container runs.)
     # Device control requires reaching the Home VLAN + IoT VLAN device IPs,
@@ -40,12 +40,12 @@ services:
       traefik.enable: "true"
       traefik.http.routers.ha.rule: "Host(`ha.kogler.si`)"
       traefik.http.routers.ha.entrypoints: websecure
-      traefik.http.routers.ha.middlewares: crowdsec-only@file   # CrowdSec only; no Forward-Auth (Companion flow) — HD-118
+      traefik.http.routers.ha.middlewares: crowdsec-only@file   # CrowdSec only; no Forward-Auth (Companion flow)
       {{ 'traefik.http.routers.ha.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
       # NOTE: no authentik-forward-auth middleware on the ha route (Companion app flow)
 
   keepalived:
-    image: osixia/keepalived:{{ keepalived_version }}   # pinned (HD-124/KOPS-053)
+    image: osixia/keepalived:{{ keepalived_version }}   # pinned
     restart: "no"
     network_mode: host      # VRRP multicast requires host networking
     cap_add:
