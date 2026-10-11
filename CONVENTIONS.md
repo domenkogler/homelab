@@ -166,6 +166,13 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   a load probe counted "no tmux here" as a broken invariant. Each of those reported **green or a misleading red**, so the rule
   for any host-dependent guard: assert the probe detects the canary **on the host it will run on**, and make an environment
   boundary print `SKIP`, never a pass.
+  **The same trap has a second half, found 2026-10-10 while removing forks from an encoding guard:** a **command
+  substitution** applies that text-mode translation too. `printf 'a\r\n' > t`, then `s=$(<t)` and `case "$s" in
+  *$'\r'*)` reports NO CR, while `IFS= read -r line < t` keeps it (`od` shows the byte either way) — so the fork-free
+  rewrite of a guard that had used `grep -U` went blind on Windows again and its own CRLF canary was the only thing that
+  said so. Rule of thumb for a Windows seat: `read`/`case`/`cmp` are byte-truthful, `$( )` is not; and any rewrite of a
+  probe needs the canary to run in the script that depends on it (`sync-skills.sh` still keeps the exec-based body for
+  exactly that reason — it has no self-test to prove a new one with).
 - **A test that cannot fail is not evidence.** Before claiming a fix, write the input that
   differs *only* under the fix and run it; if the check would print the same thing either way,
   it proves nothing. Measured cost of skipping this (2026-09-21): a commit here described a
