@@ -56,6 +56,7 @@
 | Compose versioning | pinned tags (never bare `latest`) + Renovate trail | [docs/deployment-compose.md](docs/deployment-compose.md), [renovate.json](renovate.json) |
 | RouterOS | management services bound to Management VLAN; bootstrap `.rsc` + Ansible role both enforce | [docs/network-ops.md](docs/network-ops.md) |
 | Two-sided deploy gate | a service/component whose IaC is done **but not live** is ⏳ deploy-gated in `todo.md` **and** its owning doc must carry the same visible status block (**🔴 planned / 🟢 IaC done ⏳ / ✅ live**) — a design-spec doc for a not-live service must say "not yet live — ⏳ deploy-gated", never read as deployed | [todo.md](todo.md) (§0/§3c), [docs/security.md](docs/security.md) (Deploy-gated rows), each owning service doc |
+| **Comment hygiene** | **an `IaC/` comment states an invariant and its consequence — never a history.** No changelog narrative ("previously / retired / superseded / as of / we found"), **no ticket ids** (`HD-<n>`, `KOPS-0xx`, review tags), **no dates that are not real state**. Durable knowledge that belongs to a doc goes to the owning `docs/*.md` as state prose (present tense) with a `→ docs/<file>.md §<Heading>` pointer **only when that heading exists**; a comment that only records what changed belongs to no file at all, because **git history is the only changelog** | §6 (Docs are state-only), each owning doc |
 
 ---
 
