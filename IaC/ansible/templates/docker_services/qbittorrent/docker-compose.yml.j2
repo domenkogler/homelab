@@ -6,7 +6,7 @@
 #
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault):
 #   privado-vpn_api  (API Credential: WIREGUARD_PRIVATE_KEY — the ONLY secret)
-# VPN provider: custom WireGuard. gluetun DROPPED the native `privado`
+# VPN provider: custom WireGuard. The gluetun image has no native `privado`
 #   provider, so gluetun runs in `custom` mode and the endpoint is supplied
 #   explicitly. NON-secret endpoint/address values come from group_vars
 #   home_servers.yml (privado_vpn_* SSOT) — see docs/services-downloads.md.
