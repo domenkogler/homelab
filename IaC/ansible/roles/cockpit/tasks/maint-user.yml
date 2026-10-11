@@ -177,8 +177,8 @@
   # nobody owns, and the third person to find it deletes it.
   ansible.builtin.lineinfile:
     path: /etc/pam.d/cockpit
-    regexp: '^# homelab cockpit gate$'
-    line: "# homelab cockpit gate - only {{ cockpit_maint_group }} members may log in; owned by roles/cockpit"
+    regexp: '^# homelab:HD-361 cockpit gate$'
+    line: "# homelab:HD-361 cockpit gate - only {{ cockpit_maint_group }} members may log in; owned by roles/cockpit"
     insertbefore: '^auth\s+requisite\s+pam_succeed_if\.so\s+user\s+ingroup\s+{{ cockpit_maint_group }}\s*$'
     firstmatch: true
     mode: '0644'
