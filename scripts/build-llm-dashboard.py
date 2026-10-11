@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Merge the three HD-368 vLLM dashboards into ONE `homelab-llm-dashboard` (HD-377).
+"""Merge the three vLLM dashboards into ONE `homelab-llm-dashboard`.
 
-WHY A GENERATOR AND NOT A HAND-EDITED FILE (CONVENTIONS §SSOT + the HD-368 precedent):
+WHY A GENERATOR AND NOT A HAND-EDITED FILE (CONVENTIONS §SSOT):
 the three inputs are themselves *derived* — `adapt-vllm-dashboards.py` re-derives them
 byte-for-byte from the grafana.com exports 25502 / 24756 / 25043. The merged dashboard
 consumes their PANELS, so it is derived too. Hand-editing the merge would make the next
@@ -24,7 +24,7 @@ WHAT MERGING ACTUALLY MEANS HERE (it is not concatenation):
     VERBATIM — no rewrite, no re-translation of the Chinese legend format it carries.
 
 GPU NOTE — read before "fixing" the empty GPU panels (docs/observability.md §LLM
-Dashboard): the GB10 in spark has **no independent VRAM counter** (live 2026-09-16:
+Dashboard): the GB10 in spark has **no independent VRAM counter** (live:
 `nvidia-smi -q -d MEMORY` → Total/Used/Free `N/A`; `dmon -s um` → fb/bar1 `-`; no
 `dcgm`/`dcgmi` package on the host). DCGM is the correct source (SM activity, power,
 temp — none of which any other exporter produces) and its panels are authored empty-on-
@@ -72,7 +72,7 @@ HEAD = {
 
 SPARK = 'job="alloy", instance="spark.kogler.si"'
 # The engine half of the readiness pair: VM's `up` for the scrape job that reads the
-# engine's :8000/metrics on the spark loopback publish (HD-368 data path).
+# engine's :8000/metrics on the spark loopback publish (data path).
 VLLM_UP = 'up{job="vllm", instance=~"$instance"}'
 
 # ---------------------------------------------------------------------------
@@ -96,7 +96,7 @@ LAYOUT: list[tuple[str, str, list[tuple[str, int]]]] = [
         ("new:gpu_activity", 12),
         ("new:spark_gpu_note", 24),
     ]),
-    # The owner's verdict on the first render (2026-09-23) named the two donor-board views
+    # The owner's verdict on the first render named the two donor-board views
     # they actually work with — "Engine Internal & Cache" (v2) and the prefill/decode token
     # throughput pair (inf). Both survived the merge, but scattered: the internals panels sat
     # in a Cache row and a Reliability row of three, and the throughput pair was buried in a
@@ -170,7 +170,7 @@ DROPPED = {
 # ---------------------------------------------------------------------------
 # Cross-engine join rewrites. mode "sub" (substring) / "exact" (whole trimmed
 # expr — needed when new contains old, which would re-match on re-run).
-# Every rule names the live series it targets; verified 2026-09-16 against the
+# Every rule names the live series it targets; verified against the
 # spark engine /metrics (137 job="vllm" series in VM).
 # ---------------------------------------------------------------------------
 EXPR_REWRITES = {
@@ -215,7 +215,7 @@ EXPR_REWRITES = {
          'instance=~"$instance"}[$__rate_interval]))', "exact"),
     ],
     "v2:501": [
-        # job=~ so the SGLang engine's process lands in the same panel (HD-368 scoped
+        # job=~ so the SGLang engine's process lands in the same panel (scoped
         # this to job="vllm" precisely because 12 other jobs emit these — never global).
         ('rate(python_gc_collections_total{job="vllm"}[5m])',
          'rate(python_gc_collections_total{job=~"vllm|sglang", instance=~"$instance"}[$__rate_interval])', "exact"),
@@ -235,7 +235,7 @@ EXPR_REWRITES = {
         # vLLM-only on BOTH legs, deliberately. SGLang's per_stage_req_latency_seconds
         # needs `stage="…"` and vLLM's names have no such label, so the two engines cannot
         # share one selector: with `stage="decode"` on the alternation the vLLM leg matched
-        # nothing (measured 0 series on a live engine, 2026-09-23), and without it the
+        # nothing (measured 0 series on a live engine), and without it the
         # SGLang leg sums every stage into a line titled "prefill" — wrong instead of dead.
         # Both are lies, so the SGLang halves wait for their own targets on the day SGLang
         # actually runs. See guard_joined_selectors + DESCRIPTION_NOTES["v2:202"].
@@ -253,7 +253,7 @@ EXPR_REWRITES = {
          'instance=~"$instance"}[$__rate_interval])), 0.001)', "exact"),
     ],
     "inf:13": [
-        # HD-420 row 4: 'Cached Token Stats' plotted `vllm:prompt_tokens_cached_total` RAW —
+        # Row 4: 'Cached Token Stats' plotted `vllm:prompt_tokens_cached_total` RAW —
         # a monotonically increasing counter sharing its axis with a `rate()` target, which is
         # two different units in one panel and a line that can only ever go up. All three
         # counter targets become rates so the panel means tokens/s end to end; a 5 s spike is
@@ -285,7 +285,7 @@ LEGEND = {
 # Panels whose expr already joins both engines in the upstream export → carried
 # byte-identical (no rewrite = no silent drift on an upstream refresh).
 # EXCEPT where EXPR_REWRITES names a panel by key: `inf:13` is carried from gnet 25502 and
-# IS rewritten (HD-420 rate() fix), because a rewrite recorded here re-derives on every
+# IS rewritten (rate() fix), because a rewrite recorded here re-derives on every
 # upstream refresh while a hand-edit of the JSON would be lost by the next one.
 VERBATIM_PREFIXES = ("inf:",)
 
@@ -294,7 +294,7 @@ VERBATIM_PREFIXES = ("inf:",)
 # on spark, then the RX 7600 on oldsrv) becomes selectable — but gnet 25502's exports
 # only carry it on its own panels, and gnet 24756's carry none at all. Meanwhile every
 # panel I author filters on it. Result without this pass: select anything other than
-# the default and most of the board silently empties — the exact failure class HD-368
+# the default and most of the board silently empties — the exact failure class
 # recorded for the stale `current:` model pin. So each bare matcher is extended here,
 # and guard_instance() fails the build if a panel still lacks the filter.
 # ---------------------------------------------------------------------------
@@ -336,7 +336,7 @@ NEW_PANELS = {
         "title": "vLLM engine — ready",
         "description": (
             "up{job=\"vllm\"} = the spark Alloy reaches the engine's /metrics on the "
-            "loopback :8000 publish (HD-368 data path). 1 = engine answering. "
+            "loopback :8000 publish (data path). 1 = engine answering. "
             "This is the scrape-leg signal; pair it with the /health probe below: "
             "metrics can serve while /health is not 200, and /health can be green "
             "while the scrape leg is dead (a config gap, not an outage)."
@@ -349,13 +349,13 @@ NEW_PANELS = {
         "type": "stat",
         "title": "SGLang engine — ready",
         "description": (
-            "up{job=\"sglang\"} — EMPTY until the SGLang lane runs (HD-367 S2/S3). Wiring "
+            "up{job=\"sglang\"} — EMPTY until the SGLang lane runs (S2/S3). Wiring "
             "when it lands = one prometheus.scrape \"sglang\" block in alloy.river.j2 on "
             "the same loopback pattern as the vllm job. "
             "NOTE ON EVERY SGLang QUERY IN THIS DASHBOARD: the `sglang:*` siblings are "
             "written from SGLang's documented metric names (and the gnet 25502 author's "
             "pairing of them), NOT from a live SGLang scrape — we have never run one. "
-            "Expect to correct names here exactly as HD-368 corrected the vLLM half "
+            "Expect to correct names here exactly as we corrected the vLLM half "
             "against the live engine; the fix is in this script, not in the JSON."
         ),
         "unit": "short", "min": 0, "max": 1, "noValue": "not deployed",
@@ -367,8 +367,8 @@ NEW_PANELS = {
         "title": "Engine /health probe",
         "description": (
             "blackbox http_2xx against the engine's own /health — the readiness signal "
-            "INDEPENDENT of the metrics path. ⏳ EMPTY until the probe is wired "
-            "(HD-377): the target is spark loopback, so it must run through a blackbox "
+            "INDEPENDENT of the metrics path. ⏳ EMPTY until the probe is wired"
+            ": the target is spark loopback, so it must run through a blackbox "
             "exporter reachable from spark's Alloy — the VPS blackbox cannot reach "
             "127.0.0.1:8000 on spark. Authored empty rather than faked from up{job=vllm}, "
             "which would make the panel a duplicate of the first one and hide real "
@@ -399,7 +399,7 @@ NEW_PANELS = {
         "title": "Model served",
         "description": (
             "The model_name label live on the engine right now — a sanity check that the "
-            "dashboards $model_name variable and the engine agree. Guards the HD-368 "
+            "dashboards $model_name variable and the engine agree. Guards the "
             "'stale upstream current:' class of bug: a pinned model_name makes every "
             "panel behind the variable silently render No data."
         ),
@@ -449,8 +449,8 @@ NEW_PANELS = {
         "description": (
             "GB10 unified memory: 121.6 GiB serves GPU **and** host — there is no VRAM "
             "number to read, so this percentage IS the GPU-memory number. Thresholds track "
-            "the HD-375 alert reserve: MemAvailable < 24 GiB warns, < 16 GiB is critical "
-            "(≈ used 80 % / 87 % of the pool). Live 2026-09-16: 92 % used, 9.5 GiB "
+            "the alert reserve: MemAvailable < 24 GiB warns, < 16 GiB is critical "
+            "(≈ used 80 % / 87 % of the pool). Live: 92 % used, 9.5 GiB "
             "available with the engine loaded — already inside the warn band."
         ),
         "unit": "percent", "min": 0, "max": 100,
@@ -468,8 +468,8 @@ NEW_PANELS = {
         "description": (
             "Absolute GiB — the series that actually predicts an OOM is **MemAvailable**, "
             "not utilisation %. Every global OOM in spark-incidents.md came from "
-            "replace-by-percentage GPU-reserve arithmetic against this pool (HD-374 now "
-            "sizes the KV pool explicitly with --kv-cache-memory-bytes). Watch the FLOOR: "
+            "replace-by-percentage GPU-reserve arithmetic against this pool (the KV pool, now "
+            "explicitly with --kv-cache-memory-bytes). Watch the FLOOR: "
             "the ~21.9 GiB host reserve is the line the engine must not cross."
         ),
         "unit": "bytes", "min": 0,
@@ -495,7 +495,7 @@ NEW_PANELS = {
         "title": "Engine process RSS — vs 105 GiB cage",
         "description": (
             "Resident set of the inference process itself (job=~vllm|sglang): the weights "
-            "mirror + PLE CPU offload + runtime. This is the quantity the HD-374 memory "
+            "mirror + PLE CPU offload + runtime. This is the quantity the memory "
             "cage (limit 105 GiB) bounds — crossing it kills the CONTAINER instead of the "
             "host, which is the whole point of the cage. On GB10 this memory is also "
             "CUDA-visible, so it is part of what a discrete GPU would call VRAM."
@@ -504,7 +504,7 @@ NEW_PANELS = {
         "targets": [
             {"expr": 'max by (job, instance) (process_resident_memory_bytes{job=~"vllm|sglang", instance=~"$instance"})',
              "legend": "RSS · {{ job }} {{ instance }}"},
-            {"expr": "105 * 1024^3", "legend": "memory cage (105 GiB, HD-374)", "instant": True},
+            {"expr": "105 * 1024^3", "legend": "memory cage (105 GiB)", "instant": True},
         ],
     },
     "spark_disk": {
@@ -512,7 +512,7 @@ NEW_PANELS = {
         "title": "spark disk used — / and /mnt/spark_nvme",
         "description": (
             "Root (EXT4) and the XFS data partition that holds the model weights, the KV "
-            "cache and the torch compile caches (HD-359: weights must never land on EXT4). "
+            "cache and the torch compile caches (weights must never land on EXT4). "
             "A full XFS partition fails the next model load, not this one — which is why "
             "it is on the LLM dashboard and not only on Host Overview."
         ),
@@ -527,7 +527,7 @@ NEW_PANELS = {
     # The owner asked for "DISK io/throughput", and it matters here for one concrete
     # reason: every model load streams tens of GB through the XFS mount on nvme0n1, so
     # a slow-looking load is either the device saturating or the engine not asking for
-    # data — these two panels separate them. Verified live in VM 2026-09-16:
+    # data — these two panels separate them. Verified live in VM:
     # node_disk_* exists for instance="spark.kogler.si", device="nvme0n1" (the Alloy
     # unix exporter already enables `diskstats`) — no exporter or scrape change needed.
     # One device serves both / (EXT4) and /mnt/spark_nvme (XFS), so the split by
@@ -589,11 +589,11 @@ NEW_PANELS = {
         "type": "timeseries",
         "title": "spark GPU — utilisation (DCGM)",
         "description": (
-            "HD-377(b): the first of the SIX real GB10 GPU signals, from the `job=\"dcgm\"` "
-            "whitelist Alloy keeps — all 7 are live in VM, re-measured 2026-09-22 as exactly "
+            "The first of the SIX real GB10 GPU signals, from the `job=\"dcgm\"` "
+            "whitelist Alloy keeps — all 7 are live in VM, re-measured as exactly "
             "7 names under `match[]={job=\"dcgm\"}` for instance=\"spark.kogler.si\"`. "
             "`DCGM_FI_DEV_GPU_UTIL`, measured 88-90 % under load. The DGX System Monitor's "
-            "1 Hz picture is the SAME exporter at a faster cadence — that gap is HD-420. "
+            "1 Hz picture is the SAME exporter at a faster cadence. "
             "This replaces the three `DCGM_FI_PROF_*` panels, which can never fill on GB10 "
             "(the DCP module refuses to load; NVIDIA: no DCGM profiling on Spark)."
         ),
@@ -672,7 +672,7 @@ NEW_PANELS = {
         "description": (
             "`DCGM_FI_DEV_XID_ERRORS` as the readiness half of the GPU row: 0 is the only "
             "acceptable value, and a non-zero here is the engine losing the device (compare "
-            "the 2026-09-15 `amdgpu init_user_pages` episode on oldsrv, HD-393 — that class "
+            "the `amdgpu init_user_pages` episode on oldsrv — that class "
             "shows up as an XID before it shows up as a failed request)."
         ),
         "unit": "short", "min": 0,
@@ -752,7 +752,7 @@ NEW_PANELS = {
         "type": "timeseries",
         "title": "KV cache usage — % of pool (both engines)",
         "description": (
-            "Fraction of the KV pool in use. Sits under the HD-374 explicit budget "
+            "Fraction of the KV pool in use. Sits under the explicit budget "
             "(--kv-cache-memory-bytes = 8.8e9 ≈ 283k tokens @262k ctx). Pinning near 1.0 "
             "is what precedes a preemption storm — read it together with the Preemptions "
             "panel. Collapses gnet 24756 'GPU KV Cache Usage' + gnet 25043 'GPU KV Usage "
@@ -770,8 +770,8 @@ NEW_PANELS = {
         "description": (
             "vllm:num_preemptions_total: requests evicted from KV and recomputed. "
             "Sustained > 0 means the KV budget is too tight for the concurrent window "
-            "(HD-374 governance; the gnet 25502 panel this replaces was HD-368-rewritten "
-            "from a metric this build does not emit). 0 is the target — the 2026-09-15 "
+            "(the gnet 25502 panel this replaces was rewritten "
+            "from a metric this build does not emit). 0 is the target — the "
             "C3 incident is what a non-zero line looks like. "
             "vLLM-only: SGLang signals the same event through its eviction counters "
             "(eviction_duration_seconds / evicted_tokens_total), already plotted by the "
@@ -791,7 +791,7 @@ NEW_PANELS = {
         "description": (
             "Completed requests/s — derived from the engine's own success counter. The "
             "gnet 25043 export asked for vllm:current_qps, which only exists on the K8s "
-            "production-stack router we do not run (HD-368 finding); this is the honest "
+            "production-stack router we do not run (finding); this is the honest "
             "equivalent, now instance-scoped."
         ),
         "unit": "reqps", "min": 0,
@@ -822,9 +822,9 @@ NEW_PANELS = {
         "description": (
             "hits / queries for the automatic prefix cache. The single most valuable "
             "cache number on a chat/agent box: every hit is prefill you did not pay. "
-            "Live ≈ 0.97 on spark (HD-368). Collapses gnet 24756's gauge + gnet 25043's "
+            "Live ≈ 0.97 on spark. Collapses gnet 24756's gauge + gnet 25043's "
             "rate panel into one. "
-            "⚠ This panel rendered No data until 2026-09-23 while the metric was live, "
+            "⚠ This panel rendered No data while the metric was live, "
             "because both engines were joined into ONE selector carrying "
             "`cache_source=\"device\"` — a label only SGLang has, and a matcher applies to "
             "every name in the alternation, so it filtered vLLM out too. Each engine now "
@@ -880,7 +880,7 @@ NEW_PANELS = {
             "it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line "
             "of 'Prefix cache hit rate' (its own target, unverified). Both are named in "
             "scripts/build-llm-dashboard.py, which refuses the joined form. "
-            "**The three HD-368 dashboards stay provisioned** until the owner retires them."
+            "**The three dashboards stay provisioned** until the owner retires them."
         ),
     },
 }
@@ -888,8 +888,8 @@ NEW_PANELS = {
 # Panels that need a title suffix / legend note when carried verbatim.
 DESCRIPTION_NOTES = {
     "inf:14": "Carried from gnet 25502: vLLM per-engine step/token histogram + the SGLang CUDA-graph counter.",
-    "inf:13": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. HD-420: all three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
-    "v2:202": "vLLM-only on both legs since 2026-09-23: SGLang's per-stage latency needs `stage=\"…\"`, which vLLM's names do not have, and a label matcher on a joined `{__name__=~\"vllm:…|sglang:…\"}` selector filters the family that lacks it — the decode leg measured 0 series on a live engine that way. The SGLang halves wait for their own targets on the day it runs.",
+    "inf:13": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. All three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
+    "v2:202": "vLLM-only on both legs: SGLang's per-stage latency needs `stage=\"…\"`, which vLLM's names do not have, and a label matcher on a joined `{__name__=~\"vllm:…|sglang:…\"}` selector filters the family that lacks it — the decode leg measured 0 series on a live engine that way. The SGLang halves wait for their own targets on the day it runs.",
 }
 
 # Operator-visible strings must be English (CONVENTIONS: English technical). The three
@@ -1075,7 +1075,7 @@ def build() -> dict:
     for _row_id, row_title, items in LAYOUT:
         # FLAT row form: a `type: "row"` panel followed by sibling panels that follow it
         # in the list — the form every other dashboard in this folder uses
-        # (homelab-ups.json, the three HD-368 exports). The alternative (panels nested
+        # (homelab-ups.json, the three exports). The alternative (panels nested
         # INSIDE the row object + collapsed:true) hides the whole row until the operator
         # clicks it, and a collapsed row with an empty nested list renders nothing at all.
         panels.append({
@@ -1124,7 +1124,7 @@ def panel_height(panel: dict) -> int:
 # A picker variable behind an EXACT-equality matcher is a silent No-data machine: with
 # "All" selected Grafana substitutes the variable's allValue (`.*`), and PromQL `=` is
 # literal equality, so `model_name=".*"` matches no series on a healthy engine. Measured
-# on the live box 2026-09-23: `vllm:num_requests_running{model_name=".*"}` -> 0 series,
+# on the live box: `vllm:num_requests_running{model_name=".*"}` -> 0 series,
 # `{model_name=~".*"}` -> 1. This is what made "Throughput & Workload" and "Per-engine /
 # TP-rank detail" read as dead on the first owner render while the SAME queries rendered
 # on the donor boards — those boards' pickers have no All, so the variable always resolved
@@ -1188,7 +1188,7 @@ def template_vars() -> list:
             "regex": "", "sort": 0, "multi": True, "includeAll": True, "allValue": ".*",
             "current": {"selectedAllValue": True, "text": ["All"], "value": ["$__all"]},
             "hide": 0, "options": [], "skipUrlSync": False,
-            "description": "Served model. NEVER pin `current:` to a literal — HD-368 found a stale upstream pin that made every panel behind it empty. ⚠ A query must match this variable with `=~`, never `=`: when All is selected the value is `.*`, and exact equality on `.*` matches nothing (measured 2026-09-23 — it killed two whole rows).",
+            "description": "Served model. NEVER pin `current:` to a literal — a stale upstream pin made every panel behind it empty. ⚠ A query must match this variable with `=~`, never `=`: when All is selected the value is `.*`, and exact equality on `.*` matches nothing (measured — it killed two whole rows).",
         },
     ]
 
@@ -1245,7 +1245,7 @@ def guard_joined_selectors(dash: dict) -> list:
     `finished_reason` (vLLM) — the other family is silently filtered out, so the panel
     either dies outright or plots one engine under a title that says "both engines".
 
-    Measured 2026-09-23 with `cache_source="device"`: 'Prefix cache hit rate (both
+    Measured with `cache_source="device"`: 'Prefix cache hit rate (both
     engines)' returned **0 series** while `vllm:prefix_cache_hits_total` was live and the
     model picker resolved. Same shape, same day, in the decode leg of 'Inference Stage
     Breakdown' (`stage="decode"`). Both now query per engine.
@@ -1296,7 +1296,7 @@ def guard_english(dash: dict) -> list:
 
 
 def guard_stale(dash: dict) -> list:
-    """HD-368's dead-metric list must not creep back into a QUERY through a merge.
+    """The dead-metric list must not creep back into a QUERY through a merge.
 
     Scoped to target exprs, NOT the whole file: the panel descriptions deliberately NAME
     several of these ("vllm:current_qps only exists on the K8s router we do not run") so
@@ -1335,7 +1335,7 @@ def guard_instance(dash: dict) -> list:
                    "Engines scraped", "Model served"}
     # A constant reference line carries no metric selector, so it cannot scope to
     # $instance — exempt with a reason rather than by omission.
-    constant_lines = {"memory cage (105 GiB, HD-374)"}
+    constant_lines = {"memory cage (105 GiB)"}
     for p in dash["panels"]:
         if p.get("type") in ("row", "text") or p.get("title") in node_titles:
             continue
@@ -1405,7 +1405,7 @@ def dump(dash: dict) -> str:
 def guard_empty_by_design(dash: dict) -> list:
     """A panel with NO live-vLLM target must explain its empty state in-panel.
 
-    The HD-368 close-out was entirely about dashboards that silently rendered empty, so
+    The close-out was entirely about dashboards that silently rendered empty, so
     the merge refuses to ship a new one. Granularity matters here and is chosen to match
     what the operator actually sees:
       * Grafana renders a whole panel, so a panel that carries at least one target on a
@@ -1414,7 +1414,7 @@ def guard_empty_by_design(dash: dict) -> list:
         panels for exactly that reason).
       * a panel whose targets are all `sglang:` / DCGM / unscraped has to say so.
 
-    'Live' is the set verified against VM on 2026-09-16 — see LIVE_VLLM_METRICS. A vllm:
+    'Live' is the set verified against VM — see LIVE_VLLM_METRICS. A vllm:
     metric outside that set is treated as unproven, so a future upstream metric cannot
     sneak in as a silently-empty panel.
     """
@@ -1439,8 +1439,8 @@ def guard_empty_by_design(dash: dict) -> list:
     return errors
 
 
-# Metric selectors confirmed present in VictoriaMetrics for the spark deployment on
-# 2026-09-16 (VM /api/v1/series + /api/v1/query via the VPS loopback). Anything outside
+# Metric selectors confirmed present in VictoriaMetrics for the spark deployment
+# (VM /api/v1/series + /api/v1/query via the VPS loopback). Anything outside
 # this allowlist is treated as UNPROVEN, so a new metric cannot sneak in as a panel that
 # silently renders No data. Re-derive after an engine/Alloy change — the commands are in
 # docs/observability.md §LLM Dashboard.
@@ -1462,9 +1462,9 @@ LIVE_VLLM_METRICS = (
 # unix exporter (job=alloy, instance=spark.kogler.si) respectively — both verified.
 LIVE_PROCESS_METRICS = ("process_resident_memory_bytes", "python_gc_collections_total")
 # GB10 GPU telemetry: the seven series the Alloy `prometheus.relabel "dcgm"` whitelist keeps.
-# Re-confirmed in VM 2026-09-22 by `match[]={job="dcgm"}` → exactly these 7 names, instance
+# Re-confirmed in VM by `match[]={job="dcgm"}` → exactly these 7 names, instance
 # spark.kogler.si. The `DCGM_FI_PROF_*` family is NOT here and never will be: the DCP module
-# refuses to load on GB10, which is why those panels are deleted in HD-377(b).
+# refuses to load on GB10, which is why those panels are deleted.
 LIVE_DCGM_METRICS = ("DCGM_FI_DEV_GPU_UTIL", "DCGM_FI_DEV_GPU_TEMP", "DCGM_FI_DEV_POWER_USAGE",
                      "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION", "DCGM_FI_DEV_SM_CLOCK",
                      "DCGM_FI_DEV_XID_ERRORS", "DCGM_FI_DEV_PCIE_REPLAY_COUNTER")
@@ -1472,7 +1472,7 @@ LIVE_NODE_METRICS = ("node_cpu_seconds_total", "node_load1", "node_load5",
                      "node_memory_MemTotal_bytes", "node_memory_MemAvailable_bytes",
                      "node_filesystem_avail_bytes", "node_filesystem_size_bytes",
                      # diskstats: each name confirmed present for instance="spark.kogler.si"
-                     # (device=nvme0n1) in VM on 2026-09-16
+                     # (device=nvme0n1) in VM
                      "node_disk_read_bytes_total", "node_disk_written_bytes_total",
                      "node_disk_reads_completed_total", "node_disk_writes_completed_total",
                      "node_disk_io_time_seconds_total")
