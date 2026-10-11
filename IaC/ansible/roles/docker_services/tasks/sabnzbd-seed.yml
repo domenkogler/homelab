@@ -205,7 +205,7 @@
   changed_when: false
   failed_when: _sab_overlay.stdout | trim | length == 0
   tags: [docker_services, sabnzbd_seed]
-- name: "sabnzbd-seed: prove a tailnet client counts as local (HD-1089)"
+- name: "sabnzbd-seed: prove a tailnet client counts as local"
   # This is what Traefik actually sends: the peer is a private bridge address (leg 1 passes) and the
   # client's tailnet address arrives in X-Forwarded-For (leg 2 — the one that 403'd). Three things make
   # this test worth having: it runs INSIDE the container against SAB's own overlay address, so the peer is
