@@ -36,7 +36,7 @@ services:
       traefik.http.routers.matrix.rule: "Host(`matrix.kogler.si`)"
       traefik.http.routers.matrix.entrypoints: websecure
       traefik.http.routers.matrix.middlewares: crowdsec-only@file   # CrowdSec block-list; Matrix-native SSO, no Forward-Auth
-      {{ 'traefik.http.routers.matrix.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.matrix.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       # Intentional: NO authentik-forward-auth middleware here — the homeserver owns its
       # auth via Matrix-native SSO (docs/services-matrix.md). Wrapping /_matrix/* would
       # break federation + native clients.
@@ -57,7 +57,7 @@ services:
       traefik.http.routers.matrix-wellknown.priority: "100"
       traefik.http.routers.matrix-wellknown.service: matrix
       traefik.http.routers.matrix-wellknown.middlewares: crowdsec-only@file   # block-list stays; Forward-Auth deliberately does not
-      {{ 'traefik.http.routers.matrix-wellknown.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.matrix-wellknown.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
 networks:
   traefik-public:
     external: true
