@@ -681,8 +681,8 @@ research + verdicts: [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resour
   QSA/XQA trap starts ≥120k), the tool-call EMPTY fix (no tools registered today), a true 3×87k-token fill
   stress, and the NVFP4/SGLang lane. **Verdict today: production-ready for casual/chat inference; agentic
   and max-context work is gated on those tests.** Bench evidence: [`../spark/reports/`](../spark/reports/),
-  runbook [`../spark/stability-test.md`](../spark/stability-test.md), and
-  [spark-incidents.md](spark-incidents.md) for the incident record.
+  runbook [`../spark/stability-test.md`](../spark/stability-test.md) §2 for the bench guard floor and its
+  measured margins, and [spark-incidents.md](spark-incidents.md) for the incident record.
 
 ## Text-only engine mode (vision disabled) — ⏳ proposed, not applied
 
