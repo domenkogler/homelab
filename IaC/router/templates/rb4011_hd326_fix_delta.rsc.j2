@@ -88,10 +88,10 @@
 :local vip {{ dns_primary_ip }}
 {% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
 :if ([/ip firewall nat find where chain=dstnat and src-address=10.10.1.0/24 and src-mac-address={{ h.mac }} and protocol=udp and dst-port=53] = "") do={
-  /ip firewall nat add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses=$vip to-ports=53 comment="HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
+  /ip firewall nat add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses=$vip to-ports=53 comment="kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
 }
 :if ([/ip firewall nat find where chain=dstnat and src-address=10.10.1.0/24 and src-mac-address={{ h.mac }} and protocol=tcp and dst-port=53] = "") do={
-  /ip firewall nat add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses=$vip to-ports=53 comment="HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
+  /ip firewall nat add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses=$vip to-ports=53 comment="kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
 }
 {% endif %}{% endfor %}
 
