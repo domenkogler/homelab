@@ -142,7 +142,7 @@ not-registered control URI.
 `authentik-forward-auth@file` label is NOT to be restored: a browser-redirect SSO layer in front of the
 service swallows the mobile `app.immich:///oauth-callback` redirect.
 
-**Live 2026-09-25 (foto):** issuer discovery `200` with
+**Live (foto):** issuer discovery `200` with
 `issuer = https://sso.kogler.si/application/o/immich/`; `PUT /api/admin/config` → `200`;
 `GET /api/server/features` → `oauth=true, oauthAutoLaunch=false, passwordLogin=true`;
 `GET /api/server/config` → `oauthButtonText="Prijava z SSO"`. **The remaining acceptance is the human one**
@@ -193,11 +193,11 @@ verified by its redirect; native-OIDC services are verified by the session exist
 |---|---|---|---|
 | `ai` (Open WebUI) | native OIDC | authorize works, **the callback 404s** — the app serves `/oauth/oidc/callback` since 0.11 and our redirect URI still says `/oauth2/callback` on both sides | ❌ broken — fix the redirect URI on both sides |
 | `vpn` (Headscale) | native OIDC | owner login, not re-proven since | ✅ once — **not re-verified** (an old ✅ is not a current one) |
-| `chat` (Element + Tuwunel) | homeserver SSO | `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik` IdP + owner login | ✅ 2026-09-25 |
-| `file` (OpenCloud) | native OIDC (web) | owner login **and** a `.docx` open through the ONLYOFFICE WOPI chain in that session ([services-office.md](services-office.md)) | ✅ 2026-09-25 |
-| `file` (OpenCloud) **native Android app** | native OIDC, client_id from WebFinger | owner login as `domen` **and** the file list on device; acceptance measured server-side = a `RefreshToken` row for the provider whose scope still contains `offline_access` (an app that logs in but gets no refresh token LOOKS alive for an hour) | ✅ 2026-09-25 |
-| `foto` (Immich) | native OIDC | the button, then an owner login as `domen` (see §Immich for how the settings get there); **plus the mobile app** — picture **and** video uploaded from the phone, which is also what makes Immich the family photo SSOT rather than OpenCloud photo backup ([services-office.md](services-office.md)) | ✅ 2026-09-25 |
-| `git` (Forgejo) | native OIDC | `user/login` advertises `Sign in with authentik`; the source is registered by `deploy-service.yml`, `ENABLE_AUTO_REGISTRATION=true`, `/user/register` 404 by design | ✅ 2026-09-25 |
+| `chat` (Element + Tuwunel) | homeserver SSO | `/_matrix/client/v3/login` advertises `m.login.sso` with the `authentik` IdP + owner login | ✅ |
+| `file` (OpenCloud) | native OIDC (web) | owner login **and** a `.docx` open through the ONLYOFFICE WOPI chain in that session ([services-office.md](services-office.md)) | ✅ |
+| `file` (OpenCloud) **native Android app** | native OIDC, client_id from WebFinger | owner login as `domen` **and** the file list on device; acceptance measured server-side = a `RefreshToken` row for the provider whose scope still contains `offline_access` (an app that logs in but gets no refresh token LOOKS alive for an hour) | ✅ |
+| `foto` (Immich) | native OIDC | the button, then an owner login as `domen` (see §Immich for how the settings get there); **plus the mobile app** — picture **and** video uploaded from the phone, which is also what makes Immich the family photo SSOT rather than OpenCloud photo backup ([services-office.md](services-office.md)) | ✅ |
+| `git` (Forgejo) | native OIDC | `user/login` advertises `Sign in with authentik`; the source is registered by `deploy-service.yml`, `ENABLE_AUTO_REGISTRATION=true`, `/user/register` 404 by design | ✅ |
 | `claw` (OpenClaw) | native OIDC | — | ⏳ desktop/mobile OAuth + CSP |
 | `office` (ONLYOFFICE) | no auth surface (WOPI helper) | reached through `file` | ✅ by way of `file` |
 | Forward-auth edge apps | Forward-Auth | 302 to `sso.` | ✅ |
