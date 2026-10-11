@@ -19,11 +19,11 @@
 # Idempotence: read the live config, compare ONLY the keys this task owns, PUT only on drift.
 # A whole-config PUT is what the Admin UI does too, so no other setting gets invented here.
 #
-# Secrets (docs/deployment-secrets.md; no_log throughout; fail-loud HD-65 — no default()):
+# Secrets (docs/deployment-secrets.md; no_log throughout; fail-loud — no default()):
 #   immich-admin_login    (login)            username=email, password
 #   immich_oidc           (api, glue-seeded)  username=client_id, credential=client_secret
-# Lookups resolve on the CONTROL node (HD-258/HD-324: the bulk `vault` dict is NOT visible to
-# target-side tasks — technitium-seed.yml carries that live lesson).
+# Lookups resolve on the CONTROL node: the bulk `vault` dict is NOT visible to
+# target-side tasks.
 
 - name: "Immich: assert seed inputs are defined"
   ansible.builtin.assert:
