@@ -6,8 +6,8 @@
 #   model_list is NOT rendered here. With STORE_MODEL_IN_DB=true the
 #   model catalog lives in the litellm-db Postgres runtime and is Admin-UI-managed
 #   (git drift accepted — services-ai.md §9 decision 13). At first
-#   deploy, recreate the former entries via the Admin UI/API using the corrected
-#   parameters (ollama/bge-m3 @1024 dims; ollama/bge-reranker-v2-m3 — decision #24) —
+#   deploy, recreate the entries via the Admin UI/API with the
+#   parameters (ollama/bge-m3 @1024 dims; ollama/bge-reranker-v2-m3) —
 #   see this service's compose-header runbook.
 #   The SPARK generation model (spark/qwen3.8-flash-next) is ALSO a runtime
 #   entry in this DB — `base_url: https://llm.kogler.si/v1` and NO api_key: the bearer arrives
