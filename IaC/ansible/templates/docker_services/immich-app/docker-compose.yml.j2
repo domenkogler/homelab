@@ -66,7 +66,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.immich.rule: "Host(`foto.kogler.si`)"
       traefik.http.routers.immich.entrypoints: websecure
-      {{ 'traefik.http.routers.immich.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.immich.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       # Native OIDC (mobile OAuth), NOT behind Forward-Auth: the mobile OAuth callback must not
       # cross a browser-redirect SSO layer, so this router uses crowdsec-only@file + WAF.
       traefik.http.routers.immich.middlewares: crowdsec-only@file
