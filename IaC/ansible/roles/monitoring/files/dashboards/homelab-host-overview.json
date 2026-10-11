@@ -356,7 +356,7 @@
     {
       "type": "timeseries",
       "title": "Temperatures (hwmon sensors)",
-      "description": "One line per chip+sensor from /sys/class/hwmon. On spark (verified live 2026-09-16): chip=nvme_nvme0 temp1 = the NVMe COMPOSITE temperature (the one to watch, crit 86.9 C / max 85.9 C), chip=thermal_thermal_zone0 temp0..6 = the acpitz SoC zones, chip=ieee80211_phy0 = the mt7925 WiFi PHY. Sensor NAMES are in node_hwmon_sensor_label and per-sensor limits in node_hwmon_temp_max_celsius / _crit_celsius. ⏳ EMPTY until the Alloy hwmon + thermal_zone collectors are converged — the GB10 GPU die temp is NOT here (no nvidia hwmon chip; DCGM's DCGM_FI_DEV_GPU_TEMP is the source for that). The acpitz zones are CPU/SoC domains, NOT the GPU: their readings differ from nvidia-smi/DCGM by 5-15 C.",
+      "description": "One line per chip+sensor from /sys/class/hwmon. On spark (verified live): chip=nvme_nvme0 temp1 = the NVMe COMPOSITE temperature (the one to watch, crit 86.9 C / max 85.9 C), chip=thermal_thermal_zone0 temp0..6 = the acpitz SoC zones, chip=ieee80211_phy0 = the mt7925 WiFi PHY. Sensor NAMES are in node_hwmon_sensor_label and per-sensor limits in node_hwmon_temp_max_celsius / _crit_celsius. ⏳ EMPTY until the Alloy hwmon + thermal_zone collectors are converged — the GB10 GPU die temp is NOT here (no nvidia hwmon chip; DCGM's DCGM_FI_DEV_GPU_TEMP is the source for that). The acpitz zones are CPU/SoC domains, NOT the GPU: their readings differ from nvidia-smi/DCGM by 5-15 C.",
       "gridPos": { "h": 8, "w": 24, "x": 0, "y": 28 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
