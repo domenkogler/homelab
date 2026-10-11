@@ -318,6 +318,24 @@ class Tree(object):
                 rows.append(int(cells[0]))
         return sorted(rows) or None
 
+    def is_decision_cite(self, origin, back, cited_doc):
+        """Does this `#N` / `row N` cite a decision-log row? True when the words say so right
+        before the number (`decision #26`), or when the nearest `\u00a7<num>` in the window resolves
+        to a heading whose text is a decision log."""
+        if DECISION_WORD_RE.search(back[-45:]):
+            return True
+        pos = back.rfind(SECTION)
+        if pos < 0:
+            return False
+        probe_doc = cited_doc
+        hints = MD_PATH_RE.findall(back[:pos])
+        if hints:
+            found, _ = self.doc_for_hint(hints[-1], origin)
+            if found:
+                probe_doc = found
+        ok, _, hits, _ = resolve_ref(clean_ref(back[pos + 1:]), self.headings.get(probe_doc, []))
+        return bool(ok and "decision" in hits[0].norm)
+
     def table_for(self, path):
         """The table a `decision #N` written in `path` binds to: that document's own numbered
         decision table if it has one, else the repository's canonical one
@@ -542,19 +560,23 @@ def scan_file(path, text, tree, notes):
     for rx in (ROW_HASH_RE, ROW_WORD_RE):
         for m in rx.finditer(masked):
             back = masked[max(0, m.start() - 70):m.start()]
-            if not (DECISION_WORD_RE.search(back) or SECTION_NUM_RE.search(back)):
-                continue
             n = int(m.group(1))
             line_no = masked.count("\n", 0, m.start()) + 1
             if (path, line_no, n) in seen:
                 continue
-            seen.add((path, line_no, n))
             hints = MD_PATH_RE.findall(back)
             origin = path
             if hints:
                 probe, _ = tree.doc_for_hint(hints[-1], path)
                 if probe:
                     origin = probe
+            # "a number after a `\u00a7`" is a row citation ONLY where that section is a decision
+            # log: `\u00a79 #24` is decision 24, while `\u00a76 ladder **#10` is a benchmark rung and
+            # "`services-vps.md` checklist rows 3/8" is a checklist. Without this test the gate
+            # would flag every numbered thing in the repo.
+            if not tree.is_decision_cite(path, back, origin):
+                continue
+            seen.add((path, line_no, n))
             rows, table = tree.table_for(origin)
             if rows is None:
                 continue
