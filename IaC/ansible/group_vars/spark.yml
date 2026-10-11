@@ -864,8 +864,8 @@ spark_llm_profiles:
     fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); ⚠ 8 seqs + capture-8 is exactly the term measured as STRANDED graph memory — this arm must record `nvidia-smi --query-compute-apps` per-pid MiB at REST or the delta is uninterpretable"
     uncertified_reason: >-
       Upstream runs --max-num-seqs 8; our house value is 4 because capture sizes above the
-      decode batch are unreachable and strand memory in the single pool (docs/spark-incidents.md,
-      HD-380). Here capture is raised WITH the batch, so the invariant still holds —
+      decode batch are unreachable and strand memory in the single pool (docs/spark-incidents.md).
+      Here capture is raised WITH the batch, so the invariant still holds —
       but the aggregate-vs-per-stream trade-off on OUR workload (agent-shaped, 2–4 sessions)
       is unmeasured, and the pool is shared with the host.
     certified_evidence: ""
