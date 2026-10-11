@@ -31,7 +31,7 @@
     mode: '0755'
   tags: [office]
 
-- name: Download official ONLYOFFICE signing key (Ascensio, HD-318 fix)
+- name: Download official ONLYOFFICE signing key (Ascensio)
   # The published `onlyoffice.key` file is STALE — it only
   # contains the 2014 keys (C9E5…/629E…) and does NOT sign the repo's `squeeze`
   # suite. The key that ACTUALLY signs squeeze/Release is Ascensio rsa4096
