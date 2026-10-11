@@ -353,7 +353,7 @@
 # role block re-declares the steady-state DISABLED state + port + certificate so
 # a converge can never silently drift a dangerous service back on; mgmt-subnet
 # reachability is enforced by the INPUT-chain rules below + the bootstrap.
-- name: Configure management services (lockdown parity)
+- name: Configure management services (lockdown)
   community.routeros.api_modify:
     hostname: "{{ routeros_api_host }}"
     username: "{{ routeros_api_user }}"
