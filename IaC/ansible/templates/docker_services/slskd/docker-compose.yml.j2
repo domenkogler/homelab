@@ -1,19 +1,19 @@
-# slskd docker-compose.yml — Soulseek P2P daemon (HD-362, oldsrv)
+# slskd docker-compose.yml — Soulseek P2P daemon on oldsrv
 #   Downloads the rarest FLAC (Soulseek P2P) — daemon with a web UI.
 #   Routes through the SAME gluetun WireGuard sidecar pattern as qBittorrent
-#   (HD-362 V4 decision): ALL P2P egress via PrivadoVPN, NOT the plain LAN.
+#   (the same decision recorded for qBittorrent): ALL P2P egress via PrivadoVPN, NOT the plain LAN.
 #   NO inbound port (CGNAT-range + fixed-endpoint WG ⇒ peer is NOT reachable
 #   inbound) → slskd is a **fetch-only** peer (search + download, no upload credit).
 #   https://github.com/slskd/slskd · docs: services-media.md §Music Pillar,
 #   services-downloads.md §VPN & Ingress (rate-limit + open-port notes).
 #
 #   AUTH = Soulseek network login (slskd_login -> SLSKD_SLSK_*) + the slskd web-UI
-#   password (soulseek_api -> SLSKD_PASSWORD). slskd 0.26 has NO token option (HD-362).
-#   Fail-closed lookups, | replace('$','$$') compose-escape (HD-270).
-#   VERSION PIN: {{ slskd_version }} — registry-verified 2026-09-14.
+#   password (soulseek_api -> SLSKD_PASSWORD). slskd 0.26 has NO token option.
+#   Fail-closed lookups, | replace('$','$$') compose-escape.
+#   VERSION PIN: {{ slskd_version }} (exact tag from group_vars).
 services:
   gluetun-slskd:
-    # VPN sidecar (exactly the qbittorrent gluetun shape, HD-318c). slskd runs
+    # VPN sidecar (exactly the qbittorrent gluetun shape). slskd runs
     # `network_mode: service:gluetun-slskd` so ALL its traffic egresses via VPN.
     image: qmcgaw/gluetun:{{ gluetun_version }}
     container_name: gluetun-slskd
@@ -26,7 +26,7 @@ services:
       - traefik-public
       - services-internal
     environment:
-      VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` → explicit endpoint (HD-318c)
+      VPN_SERVICE_PROVIDER: custom        # gluetun has no `privado` provider → explicit endpoint below
       VPN_TYPE: wireguard
       WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"
       WIREGUARD_ENDPOINT_PORT: "{{ privado_vpn_endpoint_port }}"
@@ -56,8 +56,8 @@ services:
       # was therefore inert: the daemon held EMPTY credentials and logged
       # "Not connecting to the Soulseek server; username and/or password invalid" without ever
       # dialling vps.slsknet.org:2271 — that line is the pre-flight skip branch, NOT a server
-      # rejection, which is why it read as a vault problem for three weeks (HD-362, settled
-      # 2026-10-07 by measuring --envars + /api/v0/options: the vault was right all along).
+      # rejection, which is why an inert env pair can look like a vault problem for weeks.
+      # Check `slskd --envars` and /api/v0/options before blaming the vault.
       SLSKD_SLSK_USERNAME: "{{ vault['slskd_login'].username | replace('$','$$') }}"
       SLSKD_SLSK_PASSWORD: "{{ vault['slskd_login'].credential | replace('$','$$') }}"
       # Web-UI login. slskd 0.26 removed the shared token (`SLSKD_TOKEN` is gone from
@@ -75,7 +75,7 @@ services:
       # error code to catch. The incomplete leg is provisioned by roles/storage/tasks/nas.yml.
       SLSKD_DOWNLOADS_DIR: "/downloads/complete/music"
       SLSKD_INCOMPLETE_DIR: "/downloads/incomplete/music"
-      # Rate-limit at the container (mirrors the ruled 10 MB/s P2P cap, HD-362) — KiB/s.
+      # Rate-limit at the container (mirrors the 10 MB/s P2P cap) — KiB/s.
       # The previous SLSKD_{DOWNLOAD,UPLOAD}_BANDWIDTH_LIMIT names are not in --envars
       # either, so this cap had never actually been applied at the container until now.
       SLSKD_DOWNLOAD_SPEED_LIMIT: "10240"
