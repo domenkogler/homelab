@@ -268,3 +268,35 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md).
   = tailnet range on direct-IP machines, interactive confirmation always, **no unattended password on the
   shared family desktop (oldsrv)**, never installed as a system service there. Posture + procedure:
   [services-admin.md](services-admin.md) §RustDesk.
+
+## 11. SSH admission gate — break-glass / rescue path
+
+> **Law:** sshd admission is an **allow list**, not a comment: `AllowUsers` is converged by `roles/access`
+> from the inventory SSOT [`IaC/ansible/group_vars/all/access.yml`](../IaC/ansible/group_vars/all/access.yml).
+> A name missing from it cannot log in even with a valid key; a name listed with no key is inert. The gate is
+> never hand-edited — the next converge rewrites it — and exactly **one** gate file may exist, because sshd
+> keeps the FIRST value it reads and a later-sorting drop-in is silently ignored.
+
+The lockout guard is mechanical, not editorial:
+
+- **Before** the gate is written, `roles/access` asserts that every identity in `ansible_admin_users` is in
+  the admitted set, so a missing admin name fails the run instead of the box. Never bypass that assert;
+  fix the SSOT instead.
+- The rendered drop-in is validated with `sshd -t -f` before install, so a syntactically broken gate never
+  reaches the filesystem, and after the change the role proves with `sshd -T` that the live daemon still
+  admits the converge identity.
+- When that proof fails, the instruction is the procedure: **keep the working session open and fix the gate**
+  from it. An open session is the rescue path, not a convenience — closing it is what turns a bad
+  `group_vars` into an outage.
+- `roles/access` is in the self-converge guard set: a converge that would rewrite the admission gate of the
+  box driving it is refused before any role runs. The assert above protects a *mistake*; the guard is the
+  outer layer that also refuses a deliberate removal
+  ([deployment-ansible.md](deployment-ansible.md) §Self-converge guardrail).
+
+**When the session is already gone**, take the exits in order: **off-box** — another controller that still
+holds the `ansible-admin` key (the VPS runner), or **in-band** — the local console of the box itself, where a
+second sudo-capable identity survives. Both, with their proofs and the "a Cockpit session login is not
+proven" caveat: [deployment-ansible.md](deployment-ansible.md) §The two sanctioned exits. Which key may open
+which account: [deployment-secrets.md](deployment-secrets.md) §Who is authorized where. The `maint` Cockpit
+identity is a separate, web-console-only break-glass seat — the group gate that makes it meaningful is §1 —
+and it is deliberately absent from `AllowUsers`.
