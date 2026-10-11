@@ -1,4 +1,4 @@
-# traefik-tailnet dynamic/tls.yml — consumer default-store TLS (HD-181/HD-204)
+# traefik-tailnet dynamic/tls.yml — consumer default-store TLS
 #   Same pattern as the main traefik consumer edges: NO ACME resolver on this
 #   edge; the wildcard *.kogler.si pair is served from the DEFAULT store below,
 #   sourced from /opt/traefik/certs (the main VPS issuer's certs-dumper output,
@@ -12,7 +12,7 @@ tls:
   certificates:
     - certFile: "/etc/traefik/certs/{{ wildcard_cert_file }}"
       keyFile: "/etc/traefik/certs/{{ wildcard_cert_key_file }}"
-    # HD-135b follow-up: the *.ts.kogler.si wildcard (requested alongside *.kogler.si on
+    # The *.ts.kogler.si wildcard (requested alongside *.kogler.si on
     # the issuer — dash router tls.domains[1]) is copied by certs-rename.sh to the fixed
     # ts.kogler.si.pem / ts.kogler.si-key.pem names (see certs-rename.sh.j2). Serve both
     # pairs here so the .ts twins (stats.ts.kogler.si …) get a valid cert from the DEFAULT
