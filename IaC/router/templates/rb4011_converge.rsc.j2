@@ -53,9 +53,9 @@
 # absent emit a loud DEFERRED comment instead of a blank password (fail-loud, no default).
 {% if mikrotik_n8n_present | default(false) %}
 :if ([/user find where name=n8n] = "") do={
-    /user add name=n8n group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
+    /user add name=n8n group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="read-only API for n8n firmware automation"
 } else={
-    /user set [find name=n8n] group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="HD-312(4): read-only API for n8n firmware automation"
+    /user set [find name=n8n] group=read disabled=no password="{{ mikrotik_n8n_password }}" comment="read-only API for n8n firmware automation"
 }
 {% else %}
 # n8n user DEFERRED — mikrotik-n8n_api 1P item missing (create it, then re-render + re-converge)
@@ -293,7 +293,7 @@
 {% for h in network_static_hosts %}
 {% if h.name in ['nas','ha-vip','oldsrv','pi','router','switch','spark'] %}
 :if ([/ip firewall address-list find where list=vps_scoped_home and address={{ h.ip }}] = "") do={
-    /ip firewall address-list add address={{ h.ip }} list=vps_scoped_home comment="HD-155: {{ h.name }}"
+    /ip firewall address-list add address={{ h.ip }} list=vps_scoped_home comment="{{ h.name }}"
 }
 {% endif %}
 {% endfor %}
@@ -304,7 +304,7 @@
 # exists; a /32 leaves the modem unreachable via forward (no route) even though the
 # modem itself answers.
 :if ([/ip address find where interface=ether1] = "") do={
-    /ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /24 (HD-302)"
+    /ip address add address={{ comtrend_modem.router_on_modem }} interface=ether1 comment="Comtrend modem mgmt /24"
 }
 
 # ---- Firewall: NAT (masquerade + forced DNS) ----
@@ -319,7 +319,7 @@ add chain=srcnat out-interface=pppoe-telekom action=masquerade comment="Masquera
 # the modem link (the RB4011); forwarded HTTP/HTTPS from LAN hosts is silently ignored
 # (conn-tracker syn-sent, 0 replies). Masquerade trusted-admin traffic out ether1 as the
 # router's own modem-LAN address so the modem answers.
-add chain=srcnat out-interface={{ comtrend_modem.iface }} protocol=tcp dst-address={{ comtrend_modem.modem_mgmt_ip }} dst-port=80,443 action=masquerade comment="HD-302: modem UI via router SNAT (trusted-admin)"
+add chain=srcnat out-interface={{ comtrend_modem.iface }} protocol=tcp dst-address={{ comtrend_modem.modem_mgmt_ip }} dst-port=80,443 action=masquerade comment="modem UI via router SNAT (trusted-admin)"
 add chain=dstnat src-address=10.10.40.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - UDP 53 -> Technitium"
 add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="Kids forced filtered DNS - TCP 53 -> Technitium"
 # Per-MAC kids filtered DNS on Home VLAN 10 (the kids join the Kogler SSID, so the
@@ -327,15 +327,15 @@ add chain=dstnat src-address=10.10.40.0/24 protocol=tcp dst-port=53 action=dst-n
 # Technitium primary, which enforces the Kids-Group policy (Cloudflare Families).
 # Mirrors roles/router/tasks/main.yml — both own these rows.
 {% for h in network_static_hosts %}{% if h.mac is defined and h.kids is defined and h.kids %}
-add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
-add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="HD-326 kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
+add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="kids filtered DNS - UDP 53 -> Technitium: {{ h.name }}"
+add chain=dstnat src-address=10.10.1.0/24 src-mac-address={{ h.mac }} protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_primary_ip }} to-ports=53 comment="kids filtered DNS - TCP 53 -> Technitium: {{ h.name }}"
 {% endif %}{% endfor %}
 # IoT VLAN 20 per-device DNS visibility: hijack plain :53 from IoT to the Pi tertiary
 # (dns_tertiary_ip, read via dns-pi.kogler.si) so each device's queries land per-source-IP
 # in the Pi query log instead of collapsing at the VPS primary / WAN egress.
 # Mirrors roles/router/tasks/main.yml — both own these rows.
-add chain=dstnat src-address=10.10.20.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - UDP 53 -> Pi (HD-342)"
-add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - TCP 53 -> Pi (HD-342)"
+add chain=dstnat src-address=10.10.20.0/24 protocol=udp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - UDP 53 -> Pi"
+add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - TCP 53 -> Pi"
 
 # ---- Firewall: address lists ----
 # trusted-ha = the hosts that RUN HA: pi (primary) + oldsrv (standby) + ha-vip.
@@ -371,7 +371,7 @@ add address=10.10.99.0/24 list=internal_lan comment="Mgmt VLAN"
 /ip firewall filter
 add chain=forward action=accept connection-state=established,related comment="Allow established/related return"
 add chain=forward action=accept src-address=10.10.20.0/24 dst-address-list=trusted-ha protocol=udp dst-port=5683 comment="IoT Shelly CoAP push -> HA"
-add chain=forward action=accept src-address-list=trusted-ha dst-address=10.10.20.0/24 comment="Trusted HA hosts (oldsrv/ha-vip) -> IoT (new) - HD-03 owner decision 2026-09-04: narrowed to trusted-ha (excludes nas)"
+add chain=forward action=accept src-address-list=trusted-ha dst-address=10.10.20.0/24 comment="Trusted HA hosts (oldsrv/ha-vip) -> IoT (new)"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.0/24 protocol=tcp connection-state=established,related comment="Home -> IoT (est/rel)"
 # KNXnet/IP tunneling (HA on the Pi -> GIRA IP router on IoT): the Pi is NOT in
 # trusted-admin (a node, not an admin host), so HA's KNX tunnel needs its own narrow
@@ -384,7 +384,7 @@ add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.20.11
 # Without it an idle UDP tunnel goes half-open: HA keeps sending (the bus still works)
 # while every L_DATA.con and state read is dropped and xknx cannot see it.
 # → docs/network-vlans.md §Inter-VLAN Firewall Rules
-add chain=forward action=accept src-address=10.10.20.11 protocol=udp src-port=3671 dst-address-list=trusted-ha comment="KNX router -> HA (tunnel replies; match src-port 3671, replies go to xknx ephemeral port) - HD-438"
+add chain=forward action=accept src-address=10.10.20.11 protocol=udp src-port=3671 dst-address-list=trusted-ha comment="KNX router -> HA (tunnel replies; match src-port 3671, replies go to xknx ephemeral port)"
 # Shelly Gen1 RGBW2 REST (HA on the Pi -> the Shelly fleet on IoT): the Pi is a node, not
 # an admin host, so HA's outbound new-TCP to the Shelly HTTP API needs its own narrow
 # exception. dst-port 80 only (Gen1 REST); the CoAP 5683 push path is the reverse
@@ -419,27 +419,27 @@ add chain=forward action=drop src-address=10.10.1.0/24 src-mac-address={{ h.mac 
 {% endif %}{% endfor %}
 # WAN egress for every VLAN except IoT, masqueraded — docs/network-vlans.md
 # §Inter-VLAN Firewall Rules
-add chain=forward action=accept src-address=10.10.1.0/24  out-interface=pppoe-telekom comment="Home -> WAN allowed (HD-309 row 73)"
-add chain=forward action=accept src-address=10.10.50.0/24 out-interface=pppoe-telekom comment="Media -> WAN allowed (HD-309)"
-add chain=forward action=accept src-address=10.10.30.0/24 out-interface=pppoe-telekom comment="Guest -> WAN allowed (HD-309 row 73)"
-add chain=forward action=accept src-address=10.10.99.0/24 out-interface=pppoe-telekom comment="Mgmt -> WAN allowed (HD-309 row 73)"
+add chain=forward action=accept src-address=10.10.1.0/24  out-interface=pppoe-telekom comment="Home -> WAN allowed"
+add chain=forward action=accept src-address=10.10.50.0/24 out-interface=pppoe-telekom comment="Media -> WAN allowed"
+add chain=forward action=accept src-address=10.10.30.0/24 out-interface=pppoe-telekom comment="Guest -> WAN allowed"
+add chain=forward action=accept src-address=10.10.99.0/24 out-interface=pppoe-telekom comment="Mgmt -> WAN allowed"
 add chain=forward action=drop src-address=10.10.20.0/24 out-interface=pppoe-telekom comment="IoT -> WAN drop (disable for firmware)"
-add chain=forward action=accept src-address-list=vps_s2s_peer dst-address-list=vps_scoped_home comment="VPS S2S -> scoped home (HD-155)"
-add chain=forward action=drop src-address-list=vps_s2s_peer comment="VPS S2S -> anything else DROP (HD-155)"
+add chain=forward action=accept src-address-list=vps_s2s_peer dst-address-list=vps_scoped_home comment="VPS S2S -> scoped home"
+add chain=forward action=drop src-address-list=vps_s2s_peer comment="VPS S2S -> anything else DROP"
 add chain=forward action=accept src-address=10.10.1.0/24 dst-address=10.10.50.0/24 comment="Home -> Media"
 add chain=forward action=accept src-address=10.10.50.0/24 dst-address=10.10.1.0/24 comment="Media -> Home"
-add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/24 comment="Mgmt -> Home (laptop/Pi discovery, HD-307)"
+add chain=forward action=accept src-address=10.10.99.0/24 dst-address=10.10.1.0/24 comment="Mgmt -> Home (laptop/Pi discovery)"
 add chain=forward action=drop src-address=10.10.30.0/24 dst-address-list=internal_lan comment="Guest -> LAN drop"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=tcp dst-port=853 comment="Kids -> DoT bypass drop tcp"
 add chain=forward action=drop src-address=10.10.40.0/24 protocol=udp dst-port=853 comment="Kids -> DoT bypass drop udp"
 # IoT VLAN 20 DoT(853) bypass drop — mirror of the Kids drop, so encrypted DNS cannot
 # bypass the forced-DNS path (plain :53 -> Pi above). DoH/443 stays accepted: HTTPS
 # cannot be filtered without TLS interception.
-add chain=forward action=drop src-address=10.10.20.0/24 protocol=tcp dst-port=853 comment="IoT -> DoT bypass drop tcp (HD-342)"
-add chain=forward action=drop src-address=10.10.20.0/24 protocol=udp dst-port=853 comment="IoT -> DoT bypass drop udp (HD-342)"
+add chain=forward action=drop src-address=10.10.20.0/24 protocol=tcp dst-port=853 comment="IoT -> DoT bypass drop tcp"
+add chain=forward action=drop src-address=10.10.20.0/24 protocol=udp dst-port=853 comment="IoT -> DoT bypass drop udp"
 add chain=forward action=drop src-address=10.10.40.0/24 dst-address=10.10.1.0/24 comment="Kids -> Home drop"
 add chain=forward action=drop src-address=10.10.40.0/24 out-interface=pppoe-telekom time=22:00:00-07:00:00,mon,tue,wed,thu,fri,sat,sun comment="Kids bedtime WAN block 22:00-07:00"
-add chain=forward action=accept src-address=10.10.40.0/24 out-interface=pppoe-telekom comment="Kids -> WAN allowed out-of-window (HD-309 row 73)"
+add chain=forward action=accept src-address=10.10.40.0/24 out-interface=pppoe-telekom comment="Kids -> WAN allowed out-of-window"
 add chain=forward action=drop src-address-list=internal_lan dst-address-list=internal_lan comment="Default deny inter-VLAN"
 # Comtrend modem mgmt (trusted-admin only)
 add chain=forward action=accept src-address-list=trusted-admin dst-address=192.168.1.1 protocol=tcp dst-port=80,443 comment="Trusted admin -> Comtrend modem"
@@ -449,7 +449,7 @@ add chain=forward action=drop dst-address=192.168.1.0/24 comment="Drop all other
 /ip firewall filter remove [find chain=input]
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="Allow established/related input"
-add chain=input action=accept protocol=udp dst-port={{ wg_s2s_vps.listen_port }} comment="Allow WireGuard S2S handshake/input (HD-285)"
+add chain=input action=accept protocol=udp dst-port={{ wg_s2s_vps.listen_port }} comment="Allow WireGuard S2S handshake/input"
 add chain=input action=accept src-address-list=internal_lan protocol=udp dst-port=67,68 comment="Allow DHCP input from LAN"
 add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=67,68 comment="Accept PPPoE DHCP-renewal input (WAN)"
 add chain=input action=drop in-interface=pppoe-telekom comment="Drop all other new-from-WAN (brute-force floor)"
@@ -493,7 +493,7 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 /ipv6 dhcp-client remove [find where interface=pppoe-telekom]
 /ipv6 dhcp-client add interface=pppoe-telekom request=prefix pool-name={{ network_ipv6.pool }} \
     pool-prefix-length=64 prefix-hint={{ network_ipv6.prefix_hint }} \
-    add-default-route=no use-peer-dns=no comment="HD-414 DHCPv6-PD (the delegated prefix lands in the pool)"
+    add-default-route=no use-peer-dns=no comment="DHCPv6-PD (the delegated prefix lands in the pool)"
 # The pool only exists once the client has bound — give the Solicit/Advertise exchange
 # a moment so the address row below resolves on the first import.
 :delay 3s
@@ -502,29 +502,29 @@ add chain=input action=accept src-address-list=internal_lan protocol=udp dst-por
 /ipv6 firewall filter remove [find chain=input]
 /ipv6 firewall filter remove [find chain=forward]
 /ipv6 firewall filter
-add chain=input action=accept connection-state=established,related comment="HD-414 v6 established/related (also what admits a tailscale hole-punch reply)"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=1 comment="HD-414 v6 icmp dest-unreach (RFC 4890 errors)"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=2 comment="HD-414 v6 icmp packet-too-big — PMTUD; black-holing this is the classic silent-v6 breakage"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=3 comment="HD-414 v6 icmp time-exceeded"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=4 comment="HD-414 v6 icmp parameter-problem"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=133 comment="HD-414 v6 router-solicitation (ND on the WAN link)"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=134 comment="HD-414 v6 router-advertisement — the ISP's RA carries the ::/0 route"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=135 comment="HD-414 v6 neighbor-solicitation"
-add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=136 comment="HD-414 v6 neighbor-advertisement"
-add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=546 comment="HD-414 DHCPv6-PD replies the server starts (a Renew/Reconfigure it pushes is new, not related)"
-add chain=input action=drop in-interface=pppoe-telekom comment="HD-414 drop all other new-from-WAN — IPv6 has no NAT, so this rule IS the inbound protection"
-add chain=forward action=accept connection-state=established,related comment="HD-414 v6 established/related"
-add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=1 comment="HD-414 forwarded v6 icmp dest-unreach"
-add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=2 comment="HD-414 forwarded PMTUD — Home hosts must see packet-too-big or their connections stall silently"
-add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=3 comment="HD-414 forwarded v6 icmp time-exceeded"
-add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=4 comment="HD-414 forwarded v6 icmp parameter-problem"
-add chain=forward action=drop in-interface=pppoe-telekom comment="HD-414 no unsolicited v6 into any VLAN (any future exception goes ABOVE this line)"
+add chain=input action=accept connection-state=established,related comment="v6 established/related (also what admits a tailscale hole-punch reply)"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=1 comment="v6 icmp dest-unreach (RFC 4890 errors)"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=2 comment="v6 icmp packet-too-big — PMTUD; black-holing this is the classic silent-v6 breakage"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=3 comment="v6 icmp time-exceeded"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=4 comment="v6 icmp parameter-problem"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=133 comment="v6 router-solicitation (ND on the WAN link)"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=134 comment="v6 router-advertisement — the ISP's RA carries the ::/0 route"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=135 comment="v6 neighbor-solicitation"
+add chain=input action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=136 comment="v6 neighbor-advertisement"
+add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=546 comment="DHCPv6-PD replies the server starts (a Renew/Reconfigure it pushes is new, not related)"
+add chain=input action=drop in-interface=pppoe-telekom comment="drop all other new-from-WAN — IPv6 has no NAT, so this rule IS the inbound protection"
+add chain=forward action=accept connection-state=established,related comment="v6 established/related"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=1 comment="forwarded v6 icmp dest-unreach"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=2 comment="forwarded PMTUD — Home hosts must see packet-too-big or their connections stall silently"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=3 comment="forwarded v6 icmp time-exceeded"
+add chain=forward action=accept in-interface=pppoe-telekom protocol=icmpv6 icmp-options=4 comment="forwarded v6 icmp parameter-problem"
+add chain=forward action=drop in-interface=pppoe-telekom comment="no unsolicited v6 into any VLAN (any future exception goes ABOVE this line)"
 # The no-v6 VLANs keep it that way even if someone later advertises a prefix at them:
 # egress from them is refused, which is what IPv4 routing already gives them.
 {% for v in network_vlans if v.id not in network_ipv6.slaac_vlan_ids and v.id != 99 %}
-add chain=forward action=drop in-interface=vlan{{ v.id }}-{{ v.name|lower }} comment="HD-414 no v6 egress from {{ v.name }} ({{ v.id }}) — this VLAN stays IPv4-routed"
+add chain=forward action=drop in-interface=vlan{{ v.id }}-{{ v.name|lower }} comment="no v6 egress from {{ v.name }} ({{ v.id }}) — this VLAN stays IPv4-routed"
 {% endfor %}
-add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 origin from Mgmt — mirrors the v4 drop-mgmt-origin"
+add chain=forward action=drop in-interface=vlan99-mgmt comment="no v6 origin from Mgmt — mirrors the v4 drop-mgmt-origin"
 
 # (3) Addressing + RA, LAST. One advertised address device-wide = the invariant "RA on
 #     the Home VLAN only"; a `disabled=yes` /ipv6 nd row would NOT express it — the
@@ -537,10 +537,10 @@ add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 ori
 /ipv6 nd remove [find where interface=vlan{{ v.id }}-{{ v.name|lower }}]
 /ipv6 nd add interface=vlan{{ v.id }}-{{ v.name|lower }} disabled=no ra-preference=medium hop-limit=64 \
     advertise-dns=no managed-address-configuration=no other-configuration=no \
-    comment="HD-414 SLAAC on {{ v.name }} ({{ v.id }}) only — DNS stays on the DHCP path"
+    comment="SLAAC on {{ v.name }} ({{ v.id }}) only — DNS stays on the DHCP path"
 {% endfor %}
 :if ([/ipv6 pool find where name={{ network_ipv6.pool }}] = "") do={
-    :log warning "HD-414: pool {{ network_ipv6.pool }} is not bound yet — the Home v6 address and its RA prefix stay invalid until the DHCPv6-PD delegation lands"
+    :log warning "pool {{ network_ipv6.pool }} is not bound yet — the Home v6 address and its RA prefix stay invalid until the DHCPv6-PD delegation lands"
 }
 
 # ---- Services (mgmt-scoped, dangerous disabled) ----
@@ -561,7 +561,7 @@ add chain=forward action=drop in-interface=vlan99-mgmt comment="HD-414 no v6 ori
 # present else add it. The INPUT chain above allows udp/161 from Mgmt, drops the rest.
 /snmp set enabled=yes
 :if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
-    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller"
 } else={
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }
