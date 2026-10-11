@@ -310,7 +310,8 @@ spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling
 #   MemTotal 127,532,360 kB = 130,593,136,640 B   (measured, docs/hardware-spark.md)
 #   − 6.9 GiB already held by OS/driver/dashboard at engine start  (same source)
 #   − 17.78 GiB the CERTIFIED worst usable reading (spark/stability-test.md §2 row
-#     "worst moment under 2×240k", docs/hardware-spark.md:272 — kill point was 1.62 GiB)
+#     "worst moment under 2×240k", docs/hardware-spark.md §The GLOBAL ceiling:
+#     spark_llm_device_hold_ceiling_bytes — kill point was 1.62 GiB)
 #   = 104,113,000,000 B the engine (fixed cost + KV pool) may hold at once.
 # A profile that cannot fit is a profile that needs SMALLER POOL, a measured fixed cost,
 # or a re-cert — never a bigger number in this file. The gate's fail message says which.
