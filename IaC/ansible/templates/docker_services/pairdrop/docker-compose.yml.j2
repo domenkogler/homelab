@@ -23,7 +23,7 @@ services:
     image: lscr.io/linuxserver/pairdrop:{{ pairdrop_version }}
     cap_drop:
       - ALL
-    # s6-overlay-suexec must drop to PUID/PGID 1000 (Wave-3 R2 triage; cf. stirling-pdf).
+    # s6-overlay-suexec must drop to PUID/PGID 1000 (cf. stirling-pdf).
     cap_add:
       - CHOWN
       - FOWNER
