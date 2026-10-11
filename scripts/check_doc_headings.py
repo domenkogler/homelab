@@ -33,6 +33,19 @@ THE GRAMMAR IT ACCEPTS, stated rather than buried in a regex:
     and knows that `## 10. Open work` is pointed at both as `\u00a710` and as `\u00a7Open work`. A
     prefix that matches two headings FAILS and names both: guessing is the failure this tool
     exists to prevent, so an ambiguous match is a defect, not a coin flip.
+  * A heading that writes its own section mark -- `## \u00a72 Terminal B -- run the ladder`, the
+    style `spark/stability-test.md` and the audit reports use -- is compared with that leading
+    mark removed, so `\u00a72`, `\u00a7Terminal B` and `\u00a72 Terminal B` all name it. The strip is
+    on the HEADING side and only at its start; it never touches text in the middle of a line.
+  * BOUNDARIES, stated because both halves have a corpus behind them: a NUMERIC reference must
+    end at a digit boundary, so `\u00a73` never names `30 Other thing` and `\u00a79` never names
+    `90 things` (an absolute rule -- such a match is dropped, not merely de-ranked). A
+    LETTER-internal prefix still resolves -- `\u00a7Alert` names `## Alerts` -- BY DESIGN, so that a
+    short citation into a plural heading stays legal; making that absolute dangles two real
+    pointers in this corpus, so treat it as a corpus decision, not as a bug found in here. One
+    known hole: the window `\u00a7Phase 0` is rejected against `Phase 0.5 -- VPS`, but resolve_ref
+    then retries the shorter window `Phase`, which ends at a space and so never tests a number
+    boundary, and the pointer resolves anyway. Self-test (h) keeps that on record.
   * `decision #N`, `\u00a79 #N`, `\u00a79 decisions #24/#27`, `\u00a79 row 26` -- N must be a row of
     the owning numbered decision table (a table whose header starts `| # |` and whose remaining
     cells say rule/decision). One exists today -- `docs/services-ai.md` \u00a79 -- so a
@@ -45,8 +58,10 @@ output, hand-editing it is banned, so its pointers belong to the template that w
 gitignored files -- `git ls-files` never lists them; anything inside a URL; and `.json` under IaC
 -- a dashboard `description` is text written to a device, not a pointer a reader follows.
 
---self-test breeds six shapes in a temp tree and FAILS if any is missed, including the rename that
-breaks a previously-good pointer.
+--self-test breeds eight shapes in a temp tree and FAILS if any is missed: the rename that breaks a
+previously-good pointer, the heading that carries its own `\u00a7`, the numeric boundary that a
+`\u00a73`-for-`\u00a730` match would cross, and the token-window hole that still lets `\u00a7Phase 0`
+land on `Phase 0.5`.
 
 Exit 0 = every reference resolves; 1 = dangling references found; 2 = could not run.
 """
@@ -81,6 +96,13 @@ MD_PATH_RE = re.compile(r"[\w.\-]+(?:/[\w.\-]+)*\.md")
 FILE_PATH_RE = re.compile(r"[\w.\-]+(?:/[\w.\-]+)*\.(?:yml|yaml|j2|py|sh|service|river|hujson)")
 STEM_BEFORE_RE = re.compile(r"([A-Za-z][\w\-]*)[ \t]*$")
 NUM_RE = re.compile(r"^(\d+[a-z]?(?:[.\-]\d+[a-z]?)*)((?=[.\s:\-)]|$))")
+# A heading may carry its own section mark (`## \u00a72 Terminal B -- run the ladder`). The mark is
+# not part of the name, so it comes off the HEADING side before comparison, and only at its start.
+SECTION_MARK_RE = re.compile(r"^[ \t]*(?:[" + SECTION + r"#+][ \t]*)+")
+# `.5` / `-1`: the start of a match tail that stopped inside a number label, so that spelling of
+# the reference names a section that is not there (`3` against `30 Other thing`, `Phase 0` against
+# `Phase 0.5`). resolve_ref may still retry a shorter window -- see self-test (h).
+SUBNUM_RE = re.compile(r"[.\-]\s*\d")
 ROW_HASH_RE = re.compile(r"#(\d+)")
 ROW_WORD_RE = re.compile(r"\brows?[ \t]+(\d+)\b")
 DECISION_WORD_RE = re.compile(r"\bdecisions?\b")
@@ -141,8 +163,11 @@ class Heading(object):
         self.text = text
         self.level = level
         self.line = line
-        self.norm = norm(text)
-        self.num = sec_no(text)
+        # `## \u00a72 Terminal B` is pointed at as `\u00a72`, as `\u00a7Terminal B` and as
+        # `\u00a72 Terminal B`; the leading `\u00a7`/`#` is furniture, not part of the name.
+        name = SECTION_MARK_RE.sub("", text, count=1)
+        self.norm = norm(name)
+        self.num = sec_no(name)
         # "10. Open work" is pointed at as \u00a710 and as \u00a7Open work; keep both spellings.
         self.tail = norm(self.norm[len(self.num or ""):].lstrip(".):- ")) if self.num else self.norm
 
@@ -395,17 +420,30 @@ def match_candidate(cand, headings):
             return "parent", hits
     hits = [h for h in headings if h.norm.startswith(ck) or h.tail.startswith(ck)]
     if hits:
-        # A reference ends at a word, not in the middle of a number: `\u00a7Phase 0` is
-        # `Phase 0 -- Management runner`, not `Phase 0.5 -- VPS (re-)provisioning`. Only a tie
-        # that survives that tie-break is an ambiguity.
         def rest(h):
             base = h.tail if h.tail.startswith(ck) else h.norm
             return base[len(ck):]
-        # score 2 = the reference stops in the middle of a word or a number label (`\u00a7Phase 4`
-        # cannot mean `Phase 4b -- DGX Spark`); score 1 = it stops at a word boundary, which is a
-        # legitimate short citation.
-        scored = [(0 if not rest(h) else 2 if (rest(h)[0].isalnum() or
-                  re.match(r"^[.\-]\s*\d", rest(h))) else 1, h) for h in hits]
+
+        def inside_a_number(h):
+            """Absolute rule, not a tie-break: a reference that stops inside a number label names
+            a section that does not exist -- `3` is not `30 Other thing`, `9` is not `90 things`,
+            and the window `Phase 0` is not `Phase 0.5 -- VPS`. It says nothing about the shorter
+            windows resolve_ref retries afterwards; that is the hole self-test (h) records."""
+            r = rest(h)
+            return bool(r) and (r[0].isdigit() or SUBNUM_RE.match(r) is not None)
+
+        # A LETTER boundary stays a tie-break, by design: `\u00a7Alert` still resolves
+        # `## Alerts`, and making that absolute would dangle real pointers for no reader's
+        # benefit (measured: 2 of them in this corpus). Only a tie that survives the tie-break
+        # below is an ambiguity. Where both rules are silent is the retried window: `\u00a7Phase 0`
+        # loses `Phase 0` here, then resolves `Phase 0.5 -- VPS` on the unique prefix `Phase`,
+        # which ends at a space rather than inside a number.
+        hits = [h for h in hits if not inside_a_number(h)]
+        if not hits:
+            return None, []
+        # score 2 = the reference stops in the middle of a word (`\u00a7Alert` and `## Alerts`);
+        # score 1 = it stops at a word boundary, which is a legitimate short citation.
+        scored = [(0 if not rest(h) else 2 if rest(h)[0].isalnum() else 1, h) for h in hits]
         best = min(sc[0] for sc in scored)
         hits = [sc[1] for sc in scored if sc[0] == best]
         return "prefix", hits
@@ -734,11 +772,55 @@ def self_test():
             print("  FAIL  (f) rename regression not isolated: before=%s after=%s"
                   % (shown(before), shown(after)))
             ok = False
+
+        # (g) The style `spark/stability-test.md` and the audit reports actually write: the
+        # heading carries its own section sign. `\u00a73` must reach `## \u00a73 Doing the thing`
+        # and must NOT reach `## \u00a730 Other thing`.
+        mark = dict(base, **{"docs/mark.md": "# Mark\n\n## \u00a73 Doing the thing\n",
+                             "docs/marked.md": "# Marked\n\nsee [m](mark.md) \u00a73\n"})
+        findings = check({"docs/marked.md": mark["docs/marked.md"]}, tree_of(mark))[0]
+        if not findings:
+            print("  OK    (g) heading `## \u00a73 Doing the thing` is resolved by `\u00a73`")
+        else:
+            print("  FAIL  (g) a heading that writes its own \u00a7 dangled: %s" % shown(findings))
+            ok = False
+        thirty = dict(mark)
+        thirty["docs/mark.md"] = "# Mark\n\n## \u00a730 Other thing\n"
+        findings = check({"docs/marked.md": mark["docs/marked.md"]}, tree_of(thirty))[0]
+        if len(findings) == 1:
+            print("  OK    (g) `\u00a73` does not match `## \u00a730 Other thing` -- %s"
+                  % findings[0])
+        else:
+            print("  FAIL  (g) the numeric boundary is gone, `\u00a73` reached `\u00a730`: %s"
+                  % shown(findings))
+            ok = False
+
+        # (h) NOT a claim of correctness, a limitation on the record. The numeric boundary above
+        # does reject the window `\u00a7Phase 0` against `Phase 0.5 -- VPS`; resolve_ref then retries
+        # the shorter window `Phase`, which is a unique prefix ending at a space, so the pointer
+        # resolves anyway and the boundary never decides it. Anyone who changes that degradation
+        # order has to re-argue it here, not discover it in a corpus.
+        phase = dict(base, **{"docs/phase.md": "# Doc\n\n## Phase 0.5 -- VPS "
+                                              "(re-)provisioning\n",
+                              "docs/phaseref.md": "# Ref\n\nsee [p](phase.md) \u00a7Phase 0\n"})
+        notes = []
+        findings = check({"docs/phaseref.md": phase["docs/phaseref.md"]}, tree_of(phase),
+                         notes)[0]
+        window = [n for n in notes if "\u00a7Phase ->" in n and "[prefix]" in n]
+        if not findings and window:
+            print("  OK    (h) KNOWN LIMITATION still true, `\u00a7Phase 0` resolves "
+                  "`Phase 0.5 -- VPS` through the retried window `Phase`, not through the "
+                  "boundary rule -- %s" % window[0])
+        else:
+            print("  FAIL  (h) the token-window degradation changed: findings=%s notes=%s"
+                  % (shown(findings), notes))
+            ok = False
     finally:
         shutil.rmtree(root, ignore_errors=True)
     if ok:
         print("OK: self-test -- missing heading, unique prefix, ambiguous prefix, decision row, "
-              "code fence, and the renamed-heading regression all behave")
+              "code fence, the renamed-heading regression, a heading that carries its own "
+              "\u00a7 with its numeric boundary, and the token-window limitation all behave")
         return 0
     print("FAIL: self-test -- the checker missed a bred defect")
     return 1
