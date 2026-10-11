@@ -460,16 +460,17 @@ of a check-safe role stays open — but an *unfiltered* `--check` is refused whe
 
 ## Self-converge guardrail — which box may drive which
 
-A control node can converge itself, and five roles decide whether the SSH session driving
+A control node can converge itself, and six roles decide whether the SSH session driving
 them survives being converged:
 
 | Role | What it rewrites on the target | How a self-converge dies |
 |---|---|---|
-| `network` | systemd-networkd / NetworkManager units: the VLAN-99 tagged sub-interface, the static address, the default route | the leg the runner is sitting on is renumbered mid-task |
+| `network` | systemd-networkd / NetworkManager units: the VLAN-99 tagged sub-interface, the static address, the default route, and the box's own `/etc/resolv.conf` | the leg the runner is sitting on is renumbered mid-task |
 | `storage` | fstab, NFS mounts, ZFS mount operations | the filesystem under the workspace / container data dirs moves |
 | `wireguard` | the WG interface (on the VPS: `wg-s2s`) | the tunnel the home hosts are reached through goes down |
 | `tailscale-node` | `tailscaled` restart + `tailscale up` (the home hosts are tailnet nodes) | an admin session can arrive **over that interface** — node-direct remote dev is the point of the row, so the leg being sawn through is also the remote-rescue leg |
 | `vps-hardening` | nftables default-deny + `sshd_config` (`PasswordAuthentication`, `PermitRootLogin`, `MaxAuthTries`) | the classic lockout of the box you are SSH'd into |
+| `cockpit` | `/etc/pam.d/cockpit` — the `cockpit-session` group gate | the PAM logins of the box being driven, including the console the run is driven from |
 
 `IaC/ansible/playbooks/tasks/self-converge-guard.yml` refuses them, imported into every play
 that carries one (`home_servers.yml`, `storage.yml`, `spark.yml`, `raspberry_pi.yml`,
