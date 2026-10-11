@@ -42,20 +42,28 @@ services:
       - -c
       - |
         set -e
-        # Fail loud: the server auth identity is REQUIRED — never run an agent that would
-        # silently skip auth (the server would reject it anyway).
+        # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never run an
+        # agent that would silently skip auth (the server would reject it anyway).
         : "$${KOPIA_SERVER_USER:? kopia-server-internal_api.username missing — aborting}"
         : "$${KOPIA_SERVER_PASSWORD:? kopia-server-internal_api.credential missing — aborting}"
         if [ ! -f /app/config/repository.config ]; then
           echo "Connecting to kopia-server over the WG S2S tunnel..."
-          # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth rides in
-          # the URL userinfo, the repo master password on -p. Percent-encode the password — it
-          # can carry URL-hostile chars ( (){}@ ) and the parser rejects them. Pure bash only:
-          # the image has no perl URI::Escape and Jinja cannot read an open-brace-hash.
-          # Compose interpolates $${NAME} in the command block: unknown names blank out at parse
-          # time (a warning, harmless — bash re-reads $${NAME} from the environment at exec), and
-          # only the $${var:offset} substring form hard-errors. So: simple var names only.
-          # `fold` is available in the kopia image.
+          # kopia 0.23.1 dropped --server-username/--server-password: HTTP Basic auth
+          # is carried in the URL userinfo, and the repo master password on -p.
+          # The server password may contain URL-hostile chars ((){}@ etc.) — percent-
+          # encode it or the URL parser rejects it ("invalid character } in host
+          # name", live 2026-09-08). Pure-bash encoder (no perl URI::Escape in the
+          # kopia image, and Jinja chokes on the open-brace-hash sequence — verified 2026-09-08).
+          # NOTE: docker compose interpolates $$NAME in the command block — every
+          # bash var stays a simple name (compose warns "variable is not set" and
+          # blanks it, which is harmless at compose-parse time; the bash runtime
+          # re-reads $$NAME from the environment at exec). The ONLY hard error is the
+          # $${var:offset} substring form (invalid interpolation format) — avoided.
+          # fold is present in the kopia image (verified 2026-09-08). All $$NAME
+          # forms are simple names: docker compose interpolates unknown $$NAMEs to a
+          # harmless blank at parse time (the bash runtime re-reads them from env at
+          # exec), and we avoid $${var:...} substring syntax entirely (that is the
+          # only form that hard-errors compose: "invalid interpolation format").
           _urlenc() {
             printf '%s' "$$1" | fold -w1 | while IFS= read -r c; do
               case "$$c" in
@@ -73,8 +81,8 @@ services:
             --override-hostname=oldsrv.kogler.si \
             --override-username=oldsrv-agent
         fi
-        # Scheduled worker (no UI): snapshot loop, first pass at start-up; the interval is
-        # env-tunable. Server-side retention policy lives on kopia-server, not in this file.
+        # Scheduled worker (no UI): snapshot loop, first pass at start-up. Interval
+        # is env-tunable; exact window + server-side policy tuning = deploy-gated.
         while :; do
           echo "[kopia-agent] snapshot create $$(date -u +%FT%TZ)"
           kopia snapshot create /mnt/src/opt /mnt/src/dumps /mnt/src/immich-upload || echo "[kopia-agent] snapshot create FAILED — retrying next interval"
