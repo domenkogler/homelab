@@ -9,7 +9,7 @@
 #   OWN LOGIN (no Authentik Forward-Auth — family non-admin users submit requests
 #   directly). Internal-only. Logs in via Jellyfin (user/password validated by the
 #   Jellyfin API — home-local, works offline, no Authentik; see services-media.md).
-#   Music request identity = same Jellyfin login; books/Readarr dropped (unmaintained).
+#   Music request identity = same Jellyfin login; no book/Readarr leg — Readarr is unmaintained.
 #   SQLite (`seerrng.db`) lives in /app/config → host path /srv/docker/seerrng/config.
 #   This config+DB IS in backup scope (docs/backup.md "Service state"
 #   → tank/data/services via nightly push + Kopia). Single-file SQLite; isolated per-

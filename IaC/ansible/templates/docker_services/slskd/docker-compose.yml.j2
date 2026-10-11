@@ -52,11 +52,11 @@ services:
     environment:
       # Soulseek network credentials (username + password from 1P).
       # ⚠ slskd reads ONLY `SLSKD_`-prefixed env vars — `slskd --envars` (152 of them) is the
-      # authority, not the old upstream README. The previous SOULSEEK_USERNAME/PASSWORD pair
-      # was therefore inert: the daemon held EMPTY credentials and logged
+      # authority, not an upstream README. A non-prefixed name (SOULSEEK_USERNAME/PASSWORD) is
+      # inert: the daemon holds EMPTY credentials and logs
       # "Not connecting to the Soulseek server; username and/or password invalid" without ever
       # dialling vps.slsknet.org:2271 — that line is the pre-flight skip branch, NOT a server
-      # rejection, which is why an inert env pair can look like a vault problem for weeks.
+      # rejection, which is why an inert env pair reads as a vault problem.
       # Check `slskd --envars` and /api/v0/options before blaming the vault.
       SLSKD_SLSK_USERNAME: "{{ vault['slskd_login'].username | replace('$','$$') }}"
       SLSKD_SLSK_PASSWORD: "{{ vault['slskd_login'].credential | replace('$','$$') }}"
@@ -76,8 +76,8 @@ services:
       SLSKD_DOWNLOADS_DIR: "/downloads/complete/music"
       SLSKD_INCOMPLETE_DIR: "/downloads/incomplete/music"
       # Rate-limit at the container (mirrors the 10 MB/s P2P cap) — KiB/s.
-      # The previous SLSKD_{DOWNLOAD,UPLOAD}_BANDWIDTH_LIMIT names are not in --envars
-      # either, so this cap had never actually been applied at the container until now.
+      # The SLSKD_{DOWNLOAD,UPLOAD}_BANDWIDTH_LIMIT names are not in --envars at all, so only the
+      # *_SPEED_LIMIT keys below are applied at the container.
       SLSKD_DOWNLOAD_SPEED_LIMIT: "10240"
       SLSKD_UPLOAD_SPEED_LIMIT: "10240"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
