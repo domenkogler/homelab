@@ -1,5 +1,5 @@
 ---
-# cockpit role defaults — HD-361 (the interactive login on the two managed hosts).
+# cockpit role defaults — the interactive login on the two managed hosts.
 #
 # The vault item is deliberately NOT defaulted here: it is per-host (there is no shared
 # secret between oldsrv and nas) and a wrong-or-missing value must stop the run rather than
@@ -7,7 +7,7 @@
 # asserts it before anything credential-shaped happens.
 
 # The single Cockpit login account. `maint` never becomes a human account and never an SSH
-# account (todo.md HD-361 + HD-449's "domen: never for web" row).
+# account.
 cockpit_maint_user: maint
 
 # Which group admits a Cockpit login. Enforced as an EXACT set (see maint-user.yml): a
@@ -18,7 +18,7 @@ cockpit_maint_user: maint
 cockpit_maint_group: cockpit-session
 cockpit_session_members: ["{{ cockpit_maint_user }}"]
 
-# Owner decision 2026-09-21 (todo.md HD-361 §DECIDED): `maint` gets the `sudo` GROUP with NO
+# `maint` gets the `sudo` GROUP with NO
 # NOPASSWD — so the web-tty can reach root behind the same interactive password, and the
 # break-glass seat can actually break glass. Verified below rather than assumed: the converge
 # fails if any sudoers fragment hands `maint` a passwordless path. Set this to false to tighten
