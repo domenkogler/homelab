@@ -40,7 +40,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.headscale.rule: "Host(`vpn.kogler.si`)"
       traefik.http.routers.headscale.entrypoints: websecure
-      {{ 'traefik.http.routers.headscale.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.headscale.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       # crowdsec-only tier: headscale does native OIDC + must accept
       # unauthenticated client control traffic (/ts2021, DERP) - browser-auth at the edge
       # would break enrolment. UI protected by its own OIDC login.
@@ -75,7 +75,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.headplane.rule: "Host(`vpn.kogler.si`) && PathPrefix(`/admin`)"
       traefik.http.routers.headplane.entrypoints: websecure
-      {{ 'traefik.http.routers.headplane.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.headplane.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.headplane.middlewares: crowdsec-only@file
       traefik.http.services.headplane.loadbalancer.server.port: "3000"
 
