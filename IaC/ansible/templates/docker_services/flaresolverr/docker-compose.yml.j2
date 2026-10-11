@@ -1,4 +1,4 @@
-# flaresolverr docker-compose.yml — Cloudflare challenge solver for Prowlarr indexers (HD-1084)
+# flaresolverr docker-compose.yml — Cloudflare challenge solver for Prowlarr indexers
 #   NO web UI, NO subdomain, NO host publish: Prowlarr reaches it on the overlay at
 #   http://flaresolverr:8194 and nothing else should. Deliberately NOT in the validator's
 #   WEB_SERVICES set — if someone later labels it, that is a wider door, not a fix.
@@ -17,7 +17,7 @@ services:
     cap_add:
       - SETGID
       - SETUID
-    # /run:exec — HD-412: docker's default tmpfs options are noexec, which breaks images that
+    # /run:exec — docker's default tmpfs options are noexec, which breaks images that
     # exec helper binaries out of /run. Keep it, same as the *arr services.
     tmpfs:
       - /tmp
