@@ -60,7 +60,7 @@ fi
 # One read-only list call makes a stale token fail loudly here instead of silently skipping
 # every vault write downstream.
 if ! op item list --vault "$OP_VAULT" >/dev/null 2>&1 </dev/null; then
-  echo "FATAL: /etc/op/provision-token is not accepted by the vault (existence != validity, HD-442)." >&2
+  echo "FATAL: /etc/op/provision-token is not accepted by the vault (existence != validity)." >&2
   echo "       Re-converge the token (roles/docker_services/tasks/op-provision-token.yml); do NOT re-run this glue." >&2
   exit 1
 fi
