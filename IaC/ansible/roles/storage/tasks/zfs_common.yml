@@ -74,7 +74,7 @@
     - item.item.name in storage_own_pools[_host_short] | default([])
     - not (item.item.allow_create | default(false))
 
-- name: Refuse CREATE when a pool vdev still carries a placeholder device (HD-128/KOPS-057)
+- name: Refuse CREATE when a pool vdev still carries a placeholder device
   ansible.builtin.fail:
     msg: >-
       Pool {{ item.item.name }} is set for fresh-build creation but its vdev
