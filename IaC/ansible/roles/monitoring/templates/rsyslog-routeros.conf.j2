@@ -1,4 +1,4 @@
-# rsyslog remote syslog receiver for RouterOS (HD-313)
+# rsyslog remote syslog receiver for RouterOS
 #
 # The RB4011 (and switch/APs) forward RFC5424 syslog over the wg-s2s tunnel
 # to the VPS wg address. This config makes rsyslog the UDP/514 listener on the
@@ -7,7 +7,7 @@
 # (/var/log/remote-syslog/routeros.log). Ansible-managed — do not hand-edit.
 #
 # NOTE: this role installs rsyslog (see tasks) — the netcup minimal boot image
-# does NOT ship it (live 2026-09-03); apt is idempotent.
+# does NOT ship it; apt is idempotent.
 module(load="imudp")
 input(type="imudp" port="514" address="{{ wg_s2s_vps.local_ip.split('/')[0] }}" ruleset="routeros")
 
