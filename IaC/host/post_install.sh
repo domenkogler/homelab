@@ -78,7 +78,7 @@ systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 #    installer reboots when the produced config still carries placeholders
 #    (REPLACE_ME_* tokens, placeholder disk serials, placeholder pubkeys).
 #    A host that boots with unreplaced keys is locked out (no root
-#    password, KOPS-044) — the late_command failure surfaces the misfire
+#    password) — the late_command failure surfaces the misfire
 #    on the installer console/log instead.
 #    Covers the shared preseeds (nas + oldsrv) and, by the same rule,
 #    pi/first-boot-config.sh (same assertion, same pattern list).
