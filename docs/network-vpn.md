@@ -304,6 +304,12 @@ The tailnet is **not a home-LAN bridge**. Two distinct reach shapes exist, and t
   the owner's own remote development does not stop when the VPS does, and it is possible because
   [network.md](network.md) §WAN is a **static public IPv4** — P2P is available.
 
+A home host joins as a **HOST node, not another Pattern-A sidecar**: a host `tailscaled` gives a real
+interface (kernel TUN) instead of a userspace netstack plus `serve` port-forwards, so an interactive path
+rides a **direct** session end to end rather than a forwarded port. The accepted cost is one more
+listener on the vault-token box, bounded by the `tag:dev` preauth-key tag and the port-scoped ACL in
+`headscale/policy.hujson.j2`.
+
 **Two home nodes are permitted on the tailnet, and the NAS is not one of them**
 (the decision is logged in [network-rejected.md](network-rejected.md)). Node **`oldsrv`**: `tag:dev`,
 headscale node id 11, joined by `roles/tailscale-node`. Node **`pi`**:
@@ -467,7 +473,11 @@ app. A backend dialled **from another box** is the exception that needs a bind r
 here: the public edge carries `media` / `seerr` / `seerrng` only and proxies them to the home edge over the
 WG S2S (`https://oldsrv_home_ip:443`, one `servername` transport per name). **Routed is not published:** of those
 three, `group_vars/all/main.yml` marks only `media.kogler.si` `public: true`; `seerr` and `seerrng` are routed by
-that edge and published nowhere, so their names answer only where a resolver is told. The *arr set and the
+that edge and published nowhere, so their names answer only where a resolver is told. **The answer and the
+edge must agree:** the VPS Technitium primary answers these names with `dns_primary_ip`, so every client
+whose first resolver is the VPS — every VLAN except Home, and every away session — needs a router for the
+name on that edge, or it gets the 404 for a service that is healthy one hop away
+([network-dns.md](network-dns.md) §Per-Instance Split-Horizon). The *arr set and the
 downloaders carry no public record at all, and they are **not** LAN-only: their names in
 `tailnet_ts_only_subdomains` (`group_vars/vps.yml`) inherit `tailnet_oldsrv_ip` and publish a `.ts` twin on
 oldsrv's own `websecure-ts` node listener, so the off-LAN path for that whole set is the tailnet twin, not a
