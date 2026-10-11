@@ -89,13 +89,13 @@
 # Do NOT lock the laptop out of the router here — the laptop is on 10.10.99.0/24
 # via the bootstrap access ports, and the Ansible role needs to reach the API.
 /ip firewall filter
-add chain=input action=accept connection-state=established,related comment="HD-301: accept established/related"
-add chain=input action=drop connection-state=invalid comment="HD-301: drop invalid"
-add chain=input action=accept protocol=icmp comment="HD-301: accept ICMP (path MTU + ping)"
-add chain=input action=accept in-interface=vlan{{ mgmt.id }}-mgmt comment="HD-301: accept all from mgmt VLAN"
-add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=67,68 comment="HD-301: accept PPPoE DHCP-renewal input"
-add chain=input action=drop in-interface=pppoe-telekom comment="HD-301: drop all other new-from-WAN (brute-force floor)"
-add chain=input action=accept comment="HD-301: accept all from other (LAN) interfaces — replaced by the `router` Ansible role in §1.5.3"
+add chain=input action=accept connection-state=established,related comment="accept established/related"
+add chain=input action=drop connection-state=invalid comment="drop invalid"
+add chain=input action=accept protocol=icmp comment="accept ICMP (path MTU + ping)"
+add chain=input action=accept in-interface=vlan{{ mgmt.id }}-mgmt comment="accept all from mgmt VLAN"
+add chain=input action=accept in-interface=pppoe-telekom protocol=udp dst-port=67,68 comment="accept PPPoE DHCP-renewal input"
+add chain=input action=drop in-interface=pppoe-telekom comment="drop all other new-from-WAN (brute-force floor)"
+add chain=input action=accept comment="accept all from other (LAN) interfaces — replaced by the `router` Ansible role in §1.5.3"
 
 # ---- Services (Ansible REST/API/SSH door) ----
 # Scope every management service to the mgmt subnet (10.10.99.0/24). RouterOS 7
@@ -119,7 +119,7 @@ add chain=input action=accept comment="HD-301: accept all from other (LAN) inter
 # community) and is scoped to the Mgmt subnet only, read-only.
 /snmp set enabled=yes
 :if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
-    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller"
 } else={
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }
