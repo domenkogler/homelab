@@ -104,7 +104,7 @@ spark_oom_watchdog_rearm_gib: "{{ spark_oom_watchdog_warn_gib }}"
 # Idle-recycling of the cumulative allocator term (flat at idle, +21 GiB / ~30 min of
 # light agent traffic, never returned): recycle when the engine sits baseline + N GiB
 # and has been idle for the configured time.
-# ⛔ OWNER DECISION: OFF. The cold start (~5-20 min of `llm.*` 502s) buys nothing: with a
+# ⛔ OFF: the cold start (~5-20 min of `llm.*` 502s) buys nothing — with a
 # correct max-of-N baseline the trigger sits ~4 GiB ABOVE the certified peak, so making it
 # reachable would mean restarting an engine that is merely healthy. OOM protection does NOT
 # ride on this switch — `enforce` above stays the absolute, baseline-free guard at
