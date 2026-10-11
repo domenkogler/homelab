@@ -22,8 +22,8 @@
       - not (qbit_seed_inactive_goal_enabled | bool)
     fail_msg: >-
       The seeding goal in role defaults is not the ruled shape: action 2 deletes files, a ratio goal
-      needs a value > 0, and a TIME goal would stop seeding before the ratio is reached. The 2026-10-07
-      ruling is ratio {{ qbit_seed_ratio_goal }} then pause — change the ruling in
+      needs a value > 0, and a TIME goal would stop seeding before the ratio is reached.
+      The ruling is ratio {{ qbit_seed_ratio_goal }} then pause — change the ruling in
       docs/services-downloads.md first, not the guard here.
   tags: [docker_services, qbittorrent_seed]
 
