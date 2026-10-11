@@ -460,7 +460,7 @@ of a check-safe role stays open — but an *unfiltered* `--check` is refused whe
 
 ## Self-converge guardrail — which box may drive which
 
-A control node can converge itself, and six roles decide whether the SSH session driving
+A control node can converge itself, and seven roles decide whether the SSH session driving
 them survives being converged:
 
 | Role | What it rewrites on the target | How a self-converge dies |
@@ -471,6 +471,7 @@ them survives being converged:
 | `tailscale-node` | `tailscaled` restart + `tailscale up` (the home hosts are tailnet nodes) | an admin session can arrive **over that interface** — node-direct remote dev is the point of the row, so the leg being sawn through is also the remote-rescue leg |
 | `vps-hardening` | nftables default-deny + `sshd_config` (`PasswordAuthentication`, `PermitRootLogin`, `MaxAuthTries`) | the classic lockout of the box you are SSH'd into |
 | `cockpit` | `/etc/pam.d/cockpit` — the `cockpit-session` group gate | the PAM logins of the box being driven, including the console the run is driven from |
+| `access` | the `AllowUsers` gate in the managed `sshd_config.d` drop-in + every seat's `authorized_keys` line | that line is an allow list, so a name missing from it cannot log in even with a valid key — the run can remove the SSH account it is being driven from; the role asserts the converge identity stays admitted BEFORE the gate is written, which catches a mistake and not a deliberate removal. Off-box (§The two sanctioned exits); gate rules in [security.md](security.md) §SSH admission gate — break-glass / rescue path |
 
 `IaC/ansible/playbooks/tasks/self-converge-guard.yml` refuses them, imported into every play
 that carries one (`home_servers.yml`, `storage.yml`, `spark.yml`, `raspberry_pi.yml`,
@@ -533,7 +534,7 @@ its selection expression: the silent version of the hole.
   `/etc/sudoers`, `/etc/pam.d`, `/root/.ssh` or `authorized_keys`, and `mount`/`filesystem`
   state. An exempt role declares `homelab_lockout_exempt_reason` in its own
   `defaults/main.yml`, and the reason has to be an argument, not a placeholder (under 40
-  characters fails). Today: **6 guarded roles, all justified by behaviour rather
+  characters fails). Today: **7 guarded roles, all justified by behaviour rather
   than by someone remembering to list them, and 6 exempt by written argument** (`ai_diag`,
   `cifs`, `common`, `home_assistant`, `nut`, `spark` — read those rows before changing those
   roles; `spark`'s exemption is explicitly conditional on spark never becoming a control node).
