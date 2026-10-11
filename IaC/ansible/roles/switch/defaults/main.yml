@@ -11,8 +11,8 @@ routeros_api_host: "{{ ansible_host | default(switch_mgmt_ip) }}"
 routeros_api_user: admin
 routeros_tls: false
 
-# FAIL-LOUD guard (HD-161): the real value lives in group_vars/switch.yml. If unset,
-# the assert task fails rather than silently comparing against a blank identity.
+# FAIL-LOUD guard: the real value lives in group_vars/switch.yml. If unset, the assert
+# task fails rather than silently comparing against a blank identity.
 routeros_expected_identity: ""
 
 # Trunk port configuration
@@ -25,14 +25,14 @@ switch_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'switch') |
 # Router (RB4011) management IP — derived from network_static_hosts (name=router, vlan=99)
 router_mgmt_ip: "{{ (network_static_hosts | selectattr('name', '==', 'router') | selectattr('vlan', '==', 99) | map(attribute='ip') | list | first) }}"
 
-# VLANs — derived view of the SSOT network_vlans (group_vars/all/), HD-200.
+# VLANs — derived view of the SSOT network_vlans (group_vars/all/).
 # Role-default fallback only; group_vars/switch.yml carries the same derivation,
-# so a VLAN edit touches all.yml alone (audit H2 / iac-changes §2).
+# so a VLAN edit touches all.yml alone.
 switch_vlans: "{{ network_vlans }}"
 
 # SSOT-derived subnet lookup keyed by VLAN id (from group_vars/all/ network_vlans) —
 # same derivation as the router role defaults; used by the service lockdown
-# (available-from=) + INPUT-chain mgmt rules (HD-304).
+# (available-from=) + INPUT-chain mgmt rules.
 vlan_subnets: "{{ dict(network_vlans | map(attribute='id') | zip(network_vlans | map(attribute='subnet'))) }}"
 
 # Port map - see group_vars/switch.yml for detailed configuration
