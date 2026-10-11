@@ -540,11 +540,15 @@ blk_ansible_syntax() {
 # py_compile half deliberately uses python3, not $PY — the claim is about python3.
 blk_bash_n_sweep() {
   if command -v bash >/dev/null 2>&1; then
-    local f bash_fail=0
+    local f first bash_fail=0
     for f in scripts/*.sh scripts/testdata/check-vault-items/run.sh \
              scripts/testdata/self-converge-guard/run.sh; do
       [ -f "$f" ] || continue
-      case "$(head -n1 "$f")" in
+      # `$(head -n1 "$f")` was one EXEC PER FILE — an extra ~90 processes to ask what the shebang
+      # says. `read` answers it in-process; with -r the CR of a CRLF checkout survives, exactly as it
+      # did through head, so the *bash|*sh match below is unchanged.
+      first=""; IFS= read -r first < "$f" || true
+      case "$first" in
         *bash|*sh)
           bash -n "$f" >/dev/null 2>&1 || { echo "bash -n FAIL: $f" >&2; bash_fail=$((bash_fail+1)); }
           ;;
@@ -565,13 +569,20 @@ blk_py_compile_sweep() {
   # when python3 is unusable, so the portability claim still runs — under a named interpreter.
   local _pc="$PY" f py_fail=0
   if python3 -c "import sys" >/dev/null 2>&1; then _pc="python3"; fi
-  for f in scripts/*.py; do
-    [ -f "$f" ] || continue
-    # shellcheck disable=SC2086
-    $_pc -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under $_pc" >&2; py_fail=$((py_fail+1)); }
-  done
+  # ONE interpreter start for the whole sweep, not one per file: py_compile takes a LIST of files, and
+  # an interpreter start here costs 0.2-0.35 s, so the per-file loop was ~57 starts for ~1 s of work
+  # (measured: this leg cost 10.8 s solo on the Win11 seat, 0.7 s on the Debian one).
+  # The per-file loop is kept as the FAIL PATH, so a broken file is still NAMED, not just counted.
+  local -a pys=()
+  for f in scripts/*.py; do [ -f "$f" ] && pys+=("$f"); done
+  if [ "${#pys[@]}" -gt 0 ] && ! $_pc -m py_compile "${pys[@]}" >/dev/null 2>&1; then
+    for f in "${pys[@]}"; do
+      # shellcheck disable=SC2086
+      $_pc -m py_compile "$f" >/dev/null 2>&1 || { echo "py_compile FAIL ($f) under $_pc" >&2; py_fail=$((py_fail+1)); }
+    done
+  fi
   [ "$py_fail" -eq 0 ] || exit 1
-  echo "OK: all scripts/*.py compile under $_pc"
+  echo "OK: all scripts/*.py compile under $_pc (${#pys[@]} files, one interpreter start)"
 }
 
 # The seat/host-state gates: each SKIPs where the thing it checks is absent, so a
