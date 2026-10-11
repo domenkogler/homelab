@@ -10,7 +10,7 @@
 #     https://git.kogler.si/user/oauth2/<Authentication Name>/callback
 #   - Client ID / Secret / Issuer -> from `forgejo_oidc` (username/credential) + the Blueprint.
 #   - ROOT_URL must be https (app.ini) or Authentik rejects the callback.
-# - The route runs crowdsec-only@file (owner decision): auth lives IN-APP, so the SSO
+# - The route runs crowdsec-only@file: auth lives IN-APP, so the SSO
 #     callback and machine-to-machine API hits reach Forgejo instead of a redirect wall.
 #   - Still open on this service (NOT auth): nothing has ever been pushed here, so "Forgejo primary
 #     + GitHub mirror" is a plan and not a fact; and git transport is HTTPS-only while `22/tcp` is
@@ -59,8 +59,8 @@ services:
       # AppURL to http://localhost:3000, breaking links/mail/OIDC callbacks.
       FORGEJO__server__DOMAIN: git.kogler.si
       FORGEJO__server__ROOT_URL: https://git.kogler.si/
-      # Owner decision: native-OIDC SSO replaces the forward-auth
-      # wall. First SSO login associates by email with the existing local account; the
+      # Auth is native-OIDC SSO, not a forward-auth wall: Forgejo owns its auth state.
+      # First SSO login associates by email with the existing local account; the
       # OAuth source itself is registered idempotently post-up (deploy-service.yml,
       # `gitea admin auth add-oauth`) from vault item forgejo_oidc.
       FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"

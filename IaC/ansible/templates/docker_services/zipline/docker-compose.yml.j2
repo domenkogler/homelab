@@ -99,7 +99,7 @@ services:
       OAUTH_OIDC_USERINFO_URL: https://sso.kogler.si/application/o/zipline/userinfo
       OAUTH_OIDC_REDIRECT_URI: https://bin.kogler.si/api/auth/oauth/oidc
       # NOTE: OAUTH_BYPASS_LOCAL_LOGIN intentionally NOT set here — flip it ON in
-      # Server Settings AFTER the local admin + first OIDC login are verified live.
+      # Server Settings only AFTER the local admin exists and the first OIDC login succeeds.
     labels:
       traefik.enable: "true"
       traefik.http.routers.zipline.rule: "Host(`bin.kogler.si`)"

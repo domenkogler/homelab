@@ -321,7 +321,7 @@ zone_kogler_si:
   - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }
   - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
   # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
-  # media is PUBLISHED (owner decision): the VPS edge routes it to the
+  # media is PUBLISHED: the VPS edge routes it to the
   # home edge over WG S2S, so the public answer is served, not just pointed at. seerr/seerrng are
   # routed there too but stay UNPUBLISHED — reachable by name only where a resolver is told.
   - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true, public: true }
@@ -711,7 +711,7 @@ alloy_backend_host: "{% if inventory_hostname == 'vps.kogler.si' %}127.0.0.1{% e
 # Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428, pure storage/query —
 # Alloy does ALL scraping, topology (B)) + VictoriaLogs (logs, :9428). Alloy (host/SNMP/
 # exporter remote_write + log push) and Grafana stay; Prometheus + Loki containers/configs
-# are dropped. Retention 365d / 90d (owner decision) — longer than Prometheus 30d / Loki 14d
+# are dropped. Retention 365d / 90d — longer than Prometheus 30d / Loki 14d
 # was, because Victoria compresses far better; the volumes are
 # Kopia-backed (docs/observability.md) rather than a regenerable TSDB.
 # The MCP AI-debugging servers live on oldsrv and reach these VPS endpoints over

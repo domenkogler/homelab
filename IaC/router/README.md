@@ -50,7 +50,7 @@ all via `playbooks/render-routeros.yml` / `render-converge.yml` into the gitigno
 5. Bootstrap device up → **Ansible `router` role** connects (user=`ansible`,
    SSH-key auth) and applies the real config.
 
-> Device reset order within Phase 1: **router → switch → APs**, then Ansible.
+> Device reset order: **router → switch → APs**, then Ansible.
 
 ## AP addressing (no per-AP static IP)
 
