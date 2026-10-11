@@ -31,7 +31,7 @@ services:
       # route's torrent-backend must target {{ qbittorrent_host_port }}, not :8080.
       - "{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}:8080"
     environment:
-      VPN_SERVICE_PROVIDER: custom        # gluetun dropped `privado` → explicit endpoint
+      VPN_SERVICE_PROVIDER: custom        # no native `privado` provider → explicit endpoint
       VPN_TYPE: wireguard
       # [Peer] Endpoint — gluetun custom requires an IP literal (no DNS, qdm12/gluetun#2680)
       WIREGUARD_ENDPOINT_IP: "{{ privado_vpn_endpoint_ip }}"
