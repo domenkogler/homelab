@@ -158,7 +158,7 @@
     - svc_entry.enabled | default(true)
   tags: docker_services
 
-- name: Apply custom Authentik blueprints one-shot (HD-230) — now EXTERNALIZED
+- name: Apply custom Authentik blueprints one-shot — now EXTERNALIZED
   # Blueprints change rarely (integration wiring only) and a one-shot `docker exec ak apply_blueprint`
   # costs ~45s on every converge, so they are applied by the dedicated playbook
   # `playbooks/authentik-blueprints.yml` — run it when a blueprint file changes. The secret-egress glue
@@ -166,7 +166,7 @@
   ansible.builtin.debug:
     msg: >-
       Blueprints are applied via the dedicated playbook
-      `playbooks/authentik-blueprints.yml` (externalized from the deploy lane, HD-268)
+      `playbooks/authentik-blueprints.yml` (externalized from the deploy lane)
       — not run during routine docker_services converges.
 
 - name: Run the secret-egress glue (after authentik is up)
@@ -213,7 +213,7 @@
 # kopia-server TLS trust-anchor sync (VPS only): after kopia-server's first start wrote tls.crt/tls.key +
 # tls-sha256 into its config bind, the 1Password `kopia-server_fingerprint` item must stay in sync — the
 # oldsrv agent and the server compose read it through the shared `vault` dict. No-op when already in sync.
-- name: Sync kopia-server TLS fingerprint to 1Password (HD-318a)
+- name: Sync kopia-server TLS fingerprint to 1Password
   ansible.builtin.include_tasks:
     file: kopia-fingerprint-sync.yml
   tags: [docker_services, kopia_server, kopia_fingerprint]
@@ -221,7 +221,7 @@
 # Technitium seed: once the container is up, bootstrap the admin (first login on the
 # now-persistent /etc/dns) and ensure the kogler.si zone + split-horizon A records. Runs for
 # every technitium instance that was in the deploy loop (VPS primary, oldsrv secondary, Pi tertiary).
-- name: Seed Technitium instances (HD-317 admin bootstrap + split-horizon records)
+- name: Seed Technitium instances (admin bootstrap + split-horizon records)
   ansible.builtin.include_tasks:
     file: technitium-seed.yml
   vars:
@@ -241,7 +241,7 @@
 # PUT /api/admin/config once the stack is up. Why a seed task exists at all:
 # templates/docker_services/immich-app/docker-compose.yml.j2 + tasks/immich-seed.yml.
 # Gated `not ansible_check_mode`: every task drives the live API (deployment-ansible.md §Dry-run).
-- name: "Seed Immich OAuth system config (HD-147/HD-148)"
+- name: "Seed Immich OAuth system config"
   ansible.builtin.include_tasks:
     file: immich-seed.yml
   vars:
@@ -261,7 +261,7 @@
 # leaves them empty and Seerr's form fails with an EMPTY root-folder dropdown and a disabled Add button.
 # Reconcile them and assert the profile Seerr pins still exists; the profile itself stays
 # Profilarr/Recyclarr-owned. Autopsy + the Lidarr /api/v1 trap: tasks/arr-seed.yml.
-- name: "Seed *arr root folders + assert the Seerr-pinned quality profile (HD-358)"
+- name: "Seed *arr root folders + assert the Seerr-pinned quality profile"
   ansible.builtin.include_tasks:
     file: arr-seed.yml
   vars:
@@ -281,7 +281,7 @@
 # container id), so the UI shows "Hostname verification failed" and a client pointed at sabnzbd:8080 can
 # never be saved. No env translation in the image and no config API make the ini the only automatable
 # door. Restart only on drift; autopsy in tasks/sabnzbd-seed.yml.
-- name: "Seed the SABnzbd host whitelist (HD-496)"
+- name: "Seed the SABnzbd host whitelist"
   ansible.builtin.include_tasks:
     file: sabnzbd-seed.yml
   vars:
@@ -320,7 +320,7 @@
 
 # The seeding goal: ratio 2.0, then pause. Set over the API against the RUNNING client (no stop for a
 # preference), which is only possible because the seed above wrote the credential this logs in with.
-- name: "Reconcile the qBittorrent seeding goal (HD-1086)"
+- name: "Reconcile the qBittorrent seeding goal"
   ansible.builtin.include_tasks:
     file: qbittorrent-seeding.yml
   vars:
@@ -444,7 +444,7 @@
 # Tube Archivist's Elasticsearch REQUIRES vm.max_map_count=262144 — ES startup fails with
 # `max virtual memory areas vm.max_map_count [65530] is too low` otherwise. Set on the host where
 # tube-archivist runs (same sysctl.d file as above).
-- name: Enable vm.max_map_count (ES for Tube Archivist, HD-362)
+- name: Enable vm.max_map_count (ES for Tube Archivist)
   ansible.builtin.sysctl:
     name: vm.max_map_count
     value: '262144'
@@ -471,7 +471,7 @@
     # or the spark-dashboard name edge. Defaults to the legacy shared dir.
     traefik_consumer_dir: "{{ 'traefik-internal' if 'traefik-internal' in (docker_services | map(attribute='name') | list) else ('spark-dashboard' if 'spark-dashboard' in (docker_services | map(attribute='name') | list) else 'traefik') }}"
   block:
-    - name: Assert the cert issuer is a remote host (HD-450 self-pull guard)
+    - name: Assert the cert issuer is a remote host (self-pull guard)
       # A consumer that pulls from itself is always a fault, never a configuration: the pull rsyncs
       # the box from itself, reports success, and lets the wildcard pair age past expiry.
       ansible.builtin.assert:
@@ -481,7 +481,7 @@
           - cert_issuer_addr not in [home_ip | default(''), mgmt_ip | default('')]
         fail_msg: >-
           Cert issuer resolves to {{ cert_issuer_addr }}, which is THIS host ({{ inventory_hostname }}).
-          The single ACME issuer is the VPS Traefik (HD-178/HD-204) — a consumer must never pull from itself.
+          The single ACME issuer is the VPS Traefik — a consumer must never pull from itself.
         quiet: true
 
     - name: Generate traefik-cert-sync SSH keypair (consumer → VPS issuer pull)
@@ -511,7 +511,7 @@
         enabled: true
         state: started
 
-- name: VPS state push to the Storage Box (HD-470 — the VPS's own state has one copy on one disk)
+- name: VPS state push to the Storage Box (the VPS's own state has one copy on one disk)
   # Present only where db-backup runs (the VPS). The script's own guard exits 90 when the box mount is
   # down, so a dead mount is a LOUD failed unit rather than a silent copy onto the same disk.
   tags: docker_services
