@@ -16,6 +16,11 @@ not byte-equal, the wave severed the twin -- it renamed one side and not the oth
 how a `find where comment=` selector loses its target and how `--start-at-task=` starts
 needing one task name per role.
 
+"Now" means what the commit SHIPS, decided by `git ls-files`, not what a directory listing
+happens to find: the bytes a `git rm --cached` left in the working tree belong to a side this
+commit is deleting, so reading them as present would certify a twin against a file the commit
+drops.
+
 Why this is green on day one BY CONSTRUCTION: the population is *defined* by byte-equality at
 B. A family whose sides already differed at B cannot form an exact group, so the families this
 repo has never agreed on are not members -- no allowlist, no exemptions, nothing to sign.
@@ -242,11 +247,20 @@ def literals(rel: str, text: str) -> list[tuple[int, str]]:
     return deduped
 
 
+def tracked(repo: Path) -> set[str]:
+    """The paths a working-tree read may vouch for: the index, i.e. what would be committed."""
+    out = _git(repo, "ls-files", "-z", "--", *PREFIXES)
+    return set(_scoped(p for p in out.decode("utf-8", "replace").split("\0") if p))
+
+
 def load(repo: Path, rev: str | None, paths: list[str]) -> dict[str, list[tuple[int, str]]]:
-    """Literal lists for `paths`, from one revision or from the working tree."""
+    """Literal lists for `paths`, from one revision or from the index + working tree. On a
+    working-tree read a path the index dropped is an absent side -- its bytes may still sit on
+    disk after `git rm --cached`, and the commit is deleting it."""
+    shipped = set(paths) if rev else tracked(repo)
     out: dict[str, list[tuple[int, str]]] = {}
     for rel in paths:
-        text = _read(repo, rev, rel)
+        text = _read(repo, rev, rel) if rel in shipped else None
         out[rel] = literals(rel, text) if text is not None else []
     return out
 
@@ -459,9 +473,9 @@ def divergent_family(repo: Path, base_rev: str) -> dict:
 
 
 def self_test() -> int:
-    """Six cases. Two are planted, one is a real family in this repo, one is the positive
-    control, one is this tree, one is the degradation guard -- the five properties the gate
-    claims, each built so it cannot pass by accident."""
+    """Seven cases. Three are planted, one is a real family in this repo, one is the positive
+    control, one is this tree, one is the degradation guard -- the properties the gate claims,
+    each built so it cannot pass by accident."""
     fails: list[str] = []
 
     def record(name: str, ok: bool, said: str) -> None:
@@ -512,6 +526,15 @@ def self_test() -> int:
         record(name, res["rc"] == (0 if want == 0 else 1) and res["severs"] == want,
                f"rc={res['rc']} severs={res['severs']}: {' | '.join(res['lines'])[:200]}")
 
+    # The now side is the index, not the directory: a side staged for deletion whose bytes are
+    # still on disk is GONE. Before the filter this case read the disk and went green.
+    res = _fixture(pair, {}, ("IaC/b.yml",))
+    sides = sorted((f, s) for m in res["result"]["severs"].values() for f, _l, s in m)
+    record("vii  a side git rm --cached, bytes still on disk, is GONE and severs the twin",
+           res["rc"] == 1 and sides == [("IaC/a.yml", "Reboot the box (HD-1)"),
+                                       ("IaC/b.yml", GONE)],
+           f"rc={res['rc']} sides={sides}")
+
     if fails:
         print(f"FAIL: check_string_twins.py self-test, {len(fails)} case(s) wrong:")
         for f in fails:
@@ -519,14 +542,17 @@ def self_test() -> int:
         return 1
     print("OK: self-test -- a planted sever is named by file:line, a twin that moved on both "
           "sides is fine, a family that never agreed at base is outside the population, the "
-          f"control revision still reads {CONTROL_SEVERS} and this tree reads 0, and a "
-          "mis-aligned file is reported instead of accused")
+          f"control revision still reads {CONTROL_SEVERS} and this tree reads 0, a mis-aligned "
+          "file is reported instead of accused, and the now side is the index rather than the "
+          "directory")
     return 0
 
 
-def _fixture(base_files: dict[str, str], now_files: dict[str, str]) -> dict:
+def _fixture(base_files: dict[str, str], now_files: dict[str, str],
+             untracked: tuple[str, ...] = ()) -> dict:
     """A throwaway repo: commit 1 is the baseline, commit 2 records it, the working tree is
-    `now`. Nothing outside a temp dir is touched, and nothing is pushed anywhere."""
+    `now`, and `untracked` paths are then dropped from the index by `git rm --cached` with
+    their bytes left in place. Nothing outside a temp dir is touched, nothing is pushed."""
     d = Path(tempfile.mkdtemp(prefix="string-twins-"))
     env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="t",
                GIT_AUTHOR_EMAIL="t@t.invalid", GIT_COMMITTER_NAME="t",
@@ -553,6 +579,8 @@ def _fixture(base_files: dict[str, str], now_files: dict[str, str]) -> dict:
         run("git", "commit", "-q", "-m", "record the baseline")
         for rel, text in now_files.items():
             (d / rel).write_text(text, encoding="utf-8")
+        for rel in untracked:
+            run("git", "rm", "-q", "--cached", "--", rel)  # stages the delete, keeps the bytes
         return check(d)
     finally:
         subprocess.run(["rm", "-rf", str(d)], check=False)
