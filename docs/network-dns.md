@@ -102,7 +102,7 @@ resolver, not that the Kids-Group filter answers them. After any change to the f
 
 ## Resolver upstream (forwarders)
 
-✅ **live on all THREE instances 2026-09-30** — `forwarders = 1.1.1.1 + 9.9.9.9`, `forwarderProtocol = Udp`,
+✅ **live on all THREE instances** — `forwarders = 1.1.1.1 + 9.9.9.9`, `forwarderProtocol = Udp`,
 `concurrentForwarding = true` on the VPS primary, the oldsrv secondary and the Pi tertiary. One shared list
 for all three instances; per-instance lists are declined
 ([`network-rejected.md`](network-rejected.md)). The flag is what carries it, and an instance that ever loses
@@ -188,7 +188,7 @@ silently closes or reopens that claim.
 
 ## Host-side resolver — what a box asks its OWN `/etc/resolv.conf`
 
-✅ **live on oldsrv 2026-10-01** (`home_servers.yml --tags nm-resolver`) and ✅ **on the Pi 2026-10-08**
+✅ **live on oldsrv** (`home_servers.yml --tags nm-resolver`) and ✅ **on the Pi**
 (`raspberry_pi.yml --tags nm-pi` → keyfile + `reload NetworkManager`; `getent llm.kogler.si` answers spark's
 Home address **on the Pi itself**). Everything above this section is about what an *instance* asks outward.
 This is the other axis: which resolver **the host itself** asks. Every home host inherits
