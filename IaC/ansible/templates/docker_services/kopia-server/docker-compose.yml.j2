@@ -48,16 +48,16 @@ services:
       - -c
       - |
         set -e
-        # Fail loud: server auth identity is REQUIRED (HD-59 / HD-65) — never start an
+        # Fail loud: server auth identity is REQUIRED — never start an
         # unauthenticated Kopia server on services-internal.
         : "$${KOPIA_SERVER_USER:? kopia-server_internal_api.username missing — aborting}"
         : "$${KOPIA_SERVER_PASSWORD:? kopia-server_internal_api.credential missing — aborting}"
         # Write the htpasswd file (plaintext form accepted by tg123/go-htpasswd), 0600.
-        # HD-59: the generic `kopia-server-internal_api.username` entry (server admin /
+        # The generic `kopia-server-internal_api.username` entry (server admin /
         # UI identity) AND the per-client `oldsrv-agent@oldsrv.kogler.si` identity the
         # backup agent presents via `--override-username/--override-hostname` (kopia's
         # htpasswd-file = allowed `user@hostname` entries; a client whose presented
-        # user@host is absent gets `access denied` — HD-318a live). Both share the same
+        # user@host is absent gets `access denied`). Both share the same
         # credential (kopia-server-internal_api.credential); it must match the agent
         # URL userinfo exactly.
         printf '%s:%s\n' "$${KOPIA_SERVER_USER}" "$${KOPIA_SERVER_PASSWORD}" > /app/config/server.htpasswd
@@ -66,14 +66,14 @@ services:
         if [ ! -f /app/config/repository.config ]; then
           echo "Creating SFTP repository on backup box..."
           # Hetzner Storage Box backup (u653424) = SSH/SFTP only port 23, SSH-key auth (no password).
-          # Strict pinning (KOPS-050): --keyfile/--known-hosts point at two files SEEDED into the
+          # Strict pinning: --keyfile/--known-hosts point at two files SEEDED into the
           # config bind before first start (Wave-3 R2 triage; --no-check-known-hosts does not exist
           # in kopia 0.23.1): /srv/docker/kopia-server/config/sftp_key = private key of the
           # backup-box SSH identity (1Password, 0600); .../config/known_hosts = ssh-keyscan -p 23
           # <backup-box-host> output. Repo path under the box home; sole consumer (Hetzner model).
           # NOTE: the gate file is `repository.config` (kopia's repo-connection file written by
           # `kopia repository create`), NOT config.json (an unrelated technitium zone file) —
-          # HD-271-followup: the old config.json gate re-created an existing repo every boot and
+          # The old config.json gate re-created an existing repo every boot and
           # crash-looped with "found existing data in storage location" once the repo existed.
           kopia repository create sftp \
             --username="$${KOPIA_SFTP_USER:?}" \
@@ -84,10 +84,10 @@ services:
             --keyfile=/app/config/sftp_key \
             --password="$${KOPIA_PASSWORD:?}"
         fi
-        # --- TLS transport (HD-318a): plain-HTTP is HARD-REJECTED by `kopia repository
+        # --- TLS transport: plain-HTTP is HARD-REJECTED by `kopia repository
         # connect server` in 0.23.x ("invalid server address, must be 'https://host:port'") —
         # no client-side --insecure exists, and a version pin to an http-accepting kopia
-        # is not viable (verified in source + live 2026-09-08). kopia's OWN
+        # is not viable (verified in source). kopia's OWN
         # `--tls-generate-cert` (in-memory) regenerates a FRESH cert every restart, so the
         # pinned fingerprint would change and the oldsrv agent would break after the first
         # server bounce. The durable fix = a PERSISTED self-signed cert+key pair (generated
@@ -114,13 +114,13 @@ services:
         if [ ! -f /app/config/tls-sha256 ]; then
           openssl x509 -in /app/config/tls.crt -noout -fingerprint -sha256 | sed 's/.*=//; s/://g' | tr 'A-Z' 'a-z' > /app/config/tls-sha256
         fi
-        # HD-318a: provision the backup-client repository user (kopia's server-auth model:
+        # Provision the backup-client repository user (kopia's server-auth model:
         # "Server will allow connections from users whose accounts are stored in the
         # repository" — the htpasswd alone is NOT sufficient for session auth; the repo
         # user (user@host) must exist in the users store). The user password is the REPO
         # MASTER password (KOPIA_PASSWORD) — the same the client uses for `connect server
         # --password=` (kopia quirk: the per-user password must equal the repo password;
-        # verified live 2026-09-08 — a non-repo-password user was 'access denied' at the
+        # a non-repo-password user was 'access denied' at the
         # session stage even with a matching htpasswd entry). Idempotent: users add fails
         # if the user exists, so try set-after-add.
         if ! kopia server users list | grep -q "^$${KOPIA_AGENT_USER}$"; then
@@ -133,7 +133,7 @@ services:
         exec kopia server start --address=0.0.0.0:51515 \
           --tls-cert-file=/app/config/tls.crt \
           --tls-key-file=/app/config/tls.key \
-          --htpasswd-file=/app/config/server.htpasswd  # no without-password (HD-59)
+          --htpasswd-file=/app/config/server.htpasswd  # no without-password
     networks:
       - services-internal
     volumes:
