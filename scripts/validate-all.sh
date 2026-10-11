@@ -377,14 +377,17 @@ fi
 # printed `SC_DIR: unbound variable` because the function-local it named was long gone.
 # Legs that need scratch space take a subdirectory of `$RUN` (see the syntax-check leg).
 RUN="$(mktemp -d)"; trap 'rm -rf "$RUN"' EXIT
-# Windows seats: MORE SLOTS IS NOT MORE SPEED, measured 2026-10-10 on the Win11 git-bash seat.
-# A fork costs ~176 ms there (`$( : )` of a pure BUILTIN, so it is the fork, not the exec) and a
-# fork+exec ~130-180 ms, against 0.66 ms on WSL Debian — and it does not parallelise: 20 concurrent
-# `bash -c true` took 4.25 s against 4.66 s serial, i.e. the create-process path is serialised (the
-# native EXEs cost the same as the Cygwin ones, so it is the Windows CreateProcess path, not MSYS).
-# At MAXPAR=$(nproc)=24 that makes the pool a contention generator: pi-seat-sync.sh --self-test alone
-# is 114 s and took 339 s inside a 24-way pool. Cap the pool on such a host; override with
-# GATE_WIN_PAR for measurement.
+GATE_T0=$SECONDS
+# Windows seats get a POOL CAP, and the honest reason is CONTENTION WITH THE NEXT GATE, not speed.
+# Measured 2026-10-10 on the Win11 git-bash seat, interleaved A/B, same tree, nothing else running:
+#   pool 4 → 47 s   pool 8 → 43 s   pool 16 → 41 s   pool 24 → 43 s      (all within ~10 %)
+# so on a QUIET seat the pool size barely matters — a fork+exec there costs 16–44 ms and 20-way
+# concurrency buys ~1.7× (19 ms each against 32 ms serial). The same fork costs 0.66 ms on WSL
+# Debian of the same laptop, which is why the identical gate finishes there in 7.9 s.
+# What DOES hurt is two gates forking at once: while a second 24-way validate-all was running, this
+# seat measured 130–185 ms per exec and the gate took 5 min 51 s for the same 62 items — an 8×
+# degradation of a shared, non-scaling resource (process creation), not 2× the work. Capping at 16
+# costs ~nothing alone and halves what one gate imposes on the other. Override: GATE_WIN_PAR.
 IS_MSYS=0
 case "${OSTYPE,,}" in msys*|cygwin*|mingw*) IS_MSYS=1 ;;
   *) case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_MSYS=1 ;; esac ;; esac
@@ -392,7 +395,7 @@ MAXPAR=4
 command -v nproc >/dev/null 2>&1 && MAXPAR="$(nproc)"
 [ "$SERIAL" = 1 ] && MAXPAR=1
 if [ "$IS_MSYS" = 1 ] && [ "$SERIAL" != 1 ]; then
-  WINPAR="${GATE_WIN_PAR:-8}"
+  WINPAR="${GATE_WIN_PAR:-16}"
   [ "$MAXPAR" -gt "$WINPAR" ] && MAXPAR="$WINPAR"
 fi
 # The two ansible legs spawn children of their own; give them half the pool each so a
@@ -404,8 +407,8 @@ echo "gate: $MAXPAR items in flight (GATE_NPAR=$GATE_NPAR for the ansible legs)"
 
 # SLOT CONTROL without a FORK per POLL, measured 2026-10-10: the old gate checked the pool with
 # `[ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]`, and `wc` is an EXEC — so a saturated pool spawned two
-# processes (wc + sleep) every 50 ms purely to ask "is anything free?", which on a Windows seat is
-# ~150 ms each, and on EVERY host it is a process per poll for no information. `wait -n` (bash 5.1+)
+# processes (wc + sleep) every 50 ms purely to ask "is anything free?", which is a process per poll
+# for no information on EVERY host (and 16–180 ms each on a Windows one). `wait -n` (bash 5.1+)
 # blocks until a slot actually frees, at zero cost. The counter is exact: +1 per launch, -1 per reap.
 # The old poll stays as the fallback for a bash without `wait -n` rather than being wrong there.
 HAVE_WAITN=0
@@ -462,6 +465,27 @@ _report() {
       fails=$((fails+1))
     fi
   done
+  # Say how fast the HOST was, not only how long the gate took. WHY: "why is the gate slow?" was
+  # answered three different ways on this repo in one day — 31 s quiet, 351 s with a second gate
+  # running — and none of those numbers describe the gate. The per-exec number does: it is 0.66 ms on
+  # WSL Debian, 16–44 ms on a quiet Win11 git-bash seat, and 130–185 ms on that same seat while
+  # another 24-way pool is forking with it (or an AV scan is mid-flight). Five execs to measure it.
+  local _ft0 _ft1 _fc=5 _fe=/bin/true _ms
+  command -v true >/dev/null 2>&1 && _fe="$(command -v true)"
+  _ft0=$EPOCHREALTIME
+  for i in $(seq "$_fc"); do "$_fe" >/dev/null 2>&1 || true; done
+  _ft1=$EPOCHREALTIME
+  _ms="$(echo "$_ft1 $_ft0" | awk -v n="$_fc" '{printf "%.1f", ($1-$2)/n*1000}')"
+  printf '\ngate: %ss wall, %d items, %s ms/exec on this host (WSL Debian: 0.7)\n' \
+    "$(( SECONDS - GATE_T0 ))" "$ran" "$_ms"
+  case "$(echo "$_ms" | awk '{print ($1 > 60) ? "degraded" : (($1 > 2) ? "slow" : "fast")}')" in
+    degraded) echo "      ⚠ process creation is DEGRADED on this host (a quiet Win11 git-bash seat is 16-44 ms)."
+              echo "        Another validate-all is forking with you, or a real-time AV scan is mid-flight: the"
+              echo "        same 62 items cost 31 s quiet and 351 s with a second 24-way pool running (2026-10-10)." ;;
+    slow)     echo "      ℹ this host pays for FORKS, not validators — every leg costs ~1 process + its work."
+              echo "        Where forks are cheap the same gate is ~5x faster: wsl -d Debian bash -c"
+              echo "        'cd <clone> && bash scripts/validate-all.sh'  (7.9 s measured, same 62 items)." ;;
+  esac
   [ "$fails" -eq 0 ] || { printf '\n%d of %d items FAILED:\n' "$fails" "$ran"
     for i in "${!labels[@]}"; do
       [ "${states[$i]}" = "run" ] || continue

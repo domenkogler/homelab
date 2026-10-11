@@ -110,7 +110,7 @@ extensions|$S_EXT_C|$S_EXT_P
 tui|$S_TUI_C|$S_TUI_P
 models|$S_MODEL_C|$S_MODEL_P"
   # Sets PLANES instead of printing it. `x="$(planes_for_seat …)"` and `3< <(planes_for_seat …)` are
-  # both a FORK per call — 143 ms measured for the process-substitution form on the Win11 seat — and
+  # both a FORK per call (the process-substitution form measured 143 ms on a loaded Win11 seat) and
   # this function is called twice per seat per run, so the plane LIST cost more than a plane did.
   PLANES=""
   case "$1" in
@@ -173,11 +173,11 @@ seat_label() { case "$1" in win11) printf 'Win11 workstation seat' ;; wsl) print
 
 # classify <rc> <output> -> sets VERDICT to OK | SKIP | DRIFT | FAILED | UNREACHABLE | NOT-HERE
 # The plane scripts' own rc contract: 0 ok · 1 drift-or-failure · 2 SKIP.
-# VERDICT instead of stdout, and `case` instead of grep, both for one reason (measured 2026-10-10 on
-# the Win11 seat): a COMMAND SUBSTITUTION costs 176 ms there — `$( : )`, a pure builtin inside it,
-# so it is the FORK and not the exec — and `printf '%s' "$out" | grep -qi` is a PIPELINE, i.e. two
-# forks to answer a substring question bash answers with `case`. This ran once per plane per seat
-# per canary, which is most of why this file's self-test cost 114 s on that seat and 4.9 s on Linux.
+# VERDICT instead of stdout, and `case` instead of grep, both for one reason (measured 2026-10-10):
+# a COMMAND SUBSTITUTION is a FORK — `$( : )`, a pure builtin inside it, costs 13-37 ms on a quiet
+# Win11 git-bash seat and 130-185 ms while another gate is forking on it, against 0.66 ms on WSL
+# Debian; and `printf '%s' "$out" | grep -qi` is a PIPELINE, TWO forks to answer a substring question
+# bash answers with `case`. This ran per plane per seat per canary — it is most of the leg.
 classify() {
   local rc="$1" low="${2,,}"
   case "$rc" in
@@ -240,7 +240,8 @@ sync_seat() {
   # streamed on stdin is the same trap, and this is the form a fleet driver is built out of. FD 3
   # is the invariant (a plane that reads stdin truncates nothing); `-n` is the transport's own half.
   local ran=0 expected=0 s n spec_all
-  # Fork-free field splits: `cut` was one EXEC per field per plane (three per row). The loop's OWN
+  # Fork-free field splits: `cut` was one EXEC per field per plane (three per row, ~0.4 s per plane
+  # on a loaded Windows seat). The loop's OWN
   # stdin discipline is untouched and still reads on FD 3 — that pairing is the invariant arm 7
   # reddens; only the SOURCE of the list moved from a process substitution (a fork) to an already-
   # materialised string (a redirection).

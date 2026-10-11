@@ -89,12 +89,14 @@ info() { printf '  %s\n' "$*"; }
 # pin(): one pin from the SSOT version file; a missing pin aborts (§7, no inline default).
 # FORK-FREE, and the four processes this used to spawn per call are what the pi-harness legs paid
 # for. The old body was `grep|head|sed|tr` — FOUR EXECs — and pi-settings-config composes PKG_BASE
-# from eight of them AT START-UP: 32 process spawns before it reads a single seat. Measured 2026-10-10
-# on the Win11 git-bash seat — fork+exec 130–180 ms, a bare fork 176 ms, against 0.66 ms per spawn on
-# WSL Debian — so one invocation of that script cost 4.6 s there, and its self-test 73 s. One read of
-# the file plus an associative cache answers every pin at builtin speed, with the SAME parse the sed
-# did: value after the first colon, optional opening quote, stop at the first `"` or `#` (whichever
-# comes first), whitespace removed — verified against the old pipeline over every key in versions.yml.
+# from eight of them AT START-UP: 32 process spawns before it reads a single seat, ~1.3 s of pure
+# process creation per invocation on the Win11 git-bash seat (one such pipeline measured 180 ms there,
+# 0.66 ms per spawn on WSL Debian of the same laptop). Interleaved A/B, same tree, quiet host: that
+# script's `--check` 1.51 s -> 0.40 s and its self-test 24.1 s -> 6.9 s. One read of the file plus an
+# associative cache answers every pin at builtin speed, with the SAME parse the sed did: value after
+# the first colon, optional opening quote, stop at the first `"` or `#` (whichever comes first),
+# whitespace removed — verified against the old pipeline over all 118 keys in versions.yml, and the
+# fail-loud path (missing key, mapping-valued key) proven to still abort.
 # `pin_of` is the zero-fork form: it sets $PIN instead of being command-substituted.
 declare -A PIN_CACHE=()
 PIN_LOADED=0
