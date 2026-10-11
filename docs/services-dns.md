@@ -17,7 +17,7 @@ tags: [services, dns, technitium, pihole]
 > verified; the **Pi tertiary** (`dns-pi.kogler.si`) is live; the **oldsrv secondary** is seeded by the same
 > `technitium-seed` role.
 > **Pi-hole is retired** — the design puts ad blocking in Technitium ([§Blocking](#blocking--retired-pi-hole));
-> ⚠ **no block lists are configured on any instance** (live state 2026-09-29), so nothing is being blocked.
+> ⚠ **no block lists are configured on any instance** (live state), so nothing is being blocked.
 > Deploy progress: [`deployment-tasks.md`](../deployment-tasks.md).
 
 ---
@@ -39,7 +39,7 @@ tags: [services, dns, technitium, pihole]
 - **Tertiary — Raspberry Pi** (`pi.kogler.si`): web UI at `dns-pi.kogler.si` through the Pi `traefik-ha` edge
   (the container publishes :5380 on the host) so it stays reachable when oldsrv is down. Port/record detail:
   [network-dns.md](network-dns.md).
-- **Resolver upstream (live 2026-09-29):** the **Pi** instance is the only one given public forwarders
+- **Resolver upstream (live):** the **Pi** instance is the only one given public forwarders
   (`1.1.1.1` + `9.9.9.9`): the Home VLAN asks it first, and public forwarders cut cold-name fan-out on ARM from
   p50 143 ms to 60 ms. Value + rationale: [network-dns.md](network-dns.md) §Resolver upstream.
 
@@ -53,7 +53,7 @@ Ad blocking is **Technitium Advanced Blocking** (per-client groups, multiple blo
 the reliable VPS/Pi DNS tier — not an oldsrv container. Rationale + the decision:
 [services-rejected.md](services-rejected.md).
 
-⚠ **Live state 2026-09-29: nothing is blocked.** The API read of the Pi tertiary and the VPS primary
+⚠ **Live state: nothing is blocked.** The API read of the Pi tertiary and the VPS primary
 shows `enableBlocking = true` / `blockingType = NxDomain` but `blockListUrls = null` and **no client custom
 options**, i.e. no lists and no per-subnet groups anywhere. The per-subnet policy in
 [network-dns.md](network-dns.md) §Per-Subnet DNS Policy is therefore design-only until lists/groups land.
