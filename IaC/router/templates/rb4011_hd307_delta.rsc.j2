@@ -20,7 +20,7 @@
 
 # --- 1. Laptop static DHCP reservation (10.10.99.80 on dhcp-mgmt) ---
 :if ([/ip dhcp-server lease find where mac-address=48:2A:E3:9D:31:85 and server=dhcp-mgmt and dynamic=no] = "") do={
-    /ip dhcp-server lease add server=dhcp-mgmt address=10.10.99.80 mac-address=48:2A:E3:9D:31:85 comment="laptop-domen static reservation (HD-307)"
+    /ip dhcp-server lease add server=dhcp-mgmt address=10.10.99.80 mac-address=48:2A:E3:9D:31:85 comment="laptop-domen static reservation"
 }
 
 # --- 2a. Pi mgmt-99 static reservation (10.10.99.20) — ensure present ---
