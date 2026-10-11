@@ -215,6 +215,11 @@ usable_gib = MemAvailable − CmaFree       # THE budget metric
 What runs is **WARN 12 / CRIT 8**, in `roles/spark/defaults/main.yml` and the watchdog alert rules,
 kept identical on purpose.
 
+A profile whose **rest state** sits inside the CRIT band makes CRIT standing: the enforcer is
+permanently queued, so a restart fires on a box that is merely at its normal resting point. Re-arm
+therefore sits at the WARN threshold — a profile is *fixed* when its rest state clears WARN, which is
+the same invariant `spark_llm_device_hold_ceiling_bytes` is derived from.
+
 > ⚠ **CRIT 8 is not a tuning knob, and "we dipped below it and survived" is not evidence**
 > ([`services-rejected.md`](services-rejected.md)). 8 comes from three measured numbers, not
 > taste: healthy idle 26-30 GiB, **the instant of death 1.6 GiB**, and the lowest value a 60 s
@@ -303,9 +308,11 @@ this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 �
 ### The GLOBAL ceiling: `spark_llm_device_hold_ceiling_bytes`
 
 The global is the effective ceiling for 15 of the 16 profiles; `fast` carries its own
-`device_hold_ceiling_bytes: 112.70e9`, a **measured exception, not a re-cert**. **The value must exist
-in exactly one place**: literal copies in profile files make the global inert and silently void any
-future re-derive (`spark-llm-render-matrix.py` shows what actually renders per profile).
+`device_hold_ceiling_bytes: 112.70e9`, a **measured exception, not a re-cert** — a per-arm override is
+priced from that arm's own non-engine reserve plus the watchdog's WARN reserve, which is `fast`'s rule
+(row A below). **The value must exist in exactly one place**: a literal copy in a profile file or in a
+shared YAML anchor makes the global inert and silently voids any future re-derive
+(`spark-llm-render-matrix.py` shows what actually renders per profile).
 
 | candidate | B | derivation | consequence for the 15 arms gated by it |
 |---|---|---|---|
@@ -662,6 +669,11 @@ research + verdicts: [`../spark/resources/RESEARCH-VERDICTS.md`](../spark/resour
   GB10 has an upstream Marlin fallback gap (#50925).
 - **SGLang (candidate):** the native-GB10 NVFP4 route (262k ctx); long-context concurrency (S5) fits its
   pool semantics.
+- **util ceiling, for the percentage form:** on the 121.62 GiB coherent pool
+  `gpu_memory_utilization: 0.82` is the MAX servable setting — 0.84/0.86 leave the host too little
+  reserve and take the engine out through a global OOM that wedges the box. With the explicit KV
+  governor in place util is dead config (§Unified-memory budget); this is the ceiling the percentage
+  shape would have.
 - **Certified on this box:** max ctx **262,144** = the model's native `max_position_embeddings` (300k is
   rejected at startup validation — it would need `VLLM_ALLOW_LONG_MAX_MODEL_LEN` + YaRN, needle-gated);
   250k @ 95 % fill with **0 preemptions**; the accuracy gate holds serially and at concurrency 3.

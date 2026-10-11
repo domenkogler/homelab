@@ -48,7 +48,9 @@ The **oldsrv agent runs containerized**: it connects to `kopia-server` on the VP
 **HTTPS on the WG S2S tunnel** — **kopia 0.23.x rejects `http://`**, so the server serves a
 persisted self-signed cert and the agent pins its stable SHA-256 fingerprint from the
 `kopia-server_fingerprint` item. A cert that is regenerated per start makes every agent pin wrong at the
-next restart — persist it, pin the fingerprint. Server port 51515 is bound **only to the VPS tunnel address**
+next restart — persist it, pin the fingerprint. The item is `NOT_AUTO_ROTATABLE`: replacing the
+certificate means re-seeding it and re-rendering every agent, or every connect fails on trust. Server
+port 51515 is bound **only to the VPS tunnel address**
 (`wg_s2s_vps.ip`, never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays
 scoped by the S2S ACL. Agent sources are oldsrv-local, read-only: `/opt/*` configs,
 `/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume.
@@ -153,12 +155,17 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 scope rows above stay written as *policy* — adding a Matrix or RustDesk row to an include list that has
 no client to attach to would only make the doc more fiction.
 
-### VPS state push — what runs now (live 2026-10-07)
+Off-site coverage moves incrementally: a source joins an agent's include list as its host lands on the
+plan. Until every source is declared, the live repository and the IaC include lists are two sources of
+truth and are reconciled by hand — a row in this file is neither.
 
-`vps-state-push.service` + `.timer` (installed by the `docker_services` role on the VPS; daily
-23:15 after db-backup's 20:01 fire, `Persistent=true`, `Nice=10`/`IOSchedulingClass=idle` because
-this box serves production from 16 GB). Payload, in one rsync pass to the box the `cifs` role
-already mounts:
+### VPS state push — what runs now
+
+**The VPS's own state has ONE copy on ONE disk.** `vps-state-push.service` + `.timer` (installed by
+the `docker_services` role on the VPS; daily 23:15 after db-backup's 20:01 fire, `Persistent=true`,
+`Nice=10`/`IOSchedulingClass=idle` because this box serves production from 16 GB) moves it off the box
+over the CIFS mount the `cifs` role maintains — the same transport the Immich originals tier uses, so
+no second mechanism exists. Payload, in one rsync pass:
 
 | what | source (measured, not assumed) | on the box |
 |---|---|---|

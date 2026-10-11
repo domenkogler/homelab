@@ -859,6 +859,20 @@ ai-debug ALL=(root) NOPASSWD: /usr/local/sbin/ai-diag *
 
 - **Forgejo** — OIDC via Authentik, or deploy key with push access
 
+### Cockpit maint seat — the one interactive password on a host
+
+`maint` on nas + oldsrv is a break-glass console identity (`cockpit-<host>.kogler.si`), not a user, and it
+is the only password a host holds. The vault item (`<host>-cockpit_login`, one per host) is the
+**recovery copy**; the host keeps only the crypt hash in `/etc/shadow` — see the `…-cockpit_login` rows
+in §Master Secret List.
+
+- **Membership is an exact set, rebuilt every converge** (`cockpit-session` + `sudo`, `append: false`):
+  a hand-added `docker` or `lxd` is dropped by the next run instead of persisting. What is *not* granted is
+  asserted the same way — no SSH key, no `AllowUsers` entry, no `NOPASSWD` sudoers fragment.
+- **The group is the control, so the gate lands in the same run as the account:** `/etc/pam.d/cockpit`
+  ships with no group restriction, so `maint` without the `pam_succeed_if` line widens the surface
+  instead of narrowing it ([security.md](security.md) §1).
+
 ---
 
 ## Family Safe — Physical Backup
