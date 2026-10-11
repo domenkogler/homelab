@@ -55,7 +55,7 @@ services:
       traefik.http.routers.dozzle.middlewares: authentik-forward-auth@file
       traefik.http.services.dozzle.loadbalancer.server.port: "8080"
 {% else %}
-      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # INTERNAL-ONLY (public: false): no public-edge route; served
       # only by the internal edge (traefik-tailnet on VPS; traefik-internal on oldsrv).
       traefik.enable: "false"
 {% endif %}

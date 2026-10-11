@@ -8,9 +8,8 @@
 # SSOT: network_static_hosts (group_vars/all/main.yml) — per-host IP by short
 # name + preferred VLAN (Home 10 for LAN hosts, Mgmt 99 for network gear), so
 # this renders correctly regardless of which hosts Ansible gathered in a
-# --limit run (hostvars ansible_host leaks a per-run override to every entry —
-# live bug 2026-09-03 oldsrv provision: nas resolved to oldsrv's own IP and
-# NFS failed 'Connection refused').
+# --limit run (hostvars ansible_host leaks a per-run override to every entry, so a host
+# can resolve to another host's IP and its clients fail with 'Connection refused').
 {% for host in groups['all'] %}
 {% if host != 'localhost' %}
 {% set short = host.split('.')[0] %}

@@ -7,7 +7,7 @@
 # high-alerts webhook workflow ("homelab-alerts") must exist in n8n; payload = Grafana alert webhook.
 # Webhook URL is a group_var (grafana_alert_webhook_url, group_vars/home_servers.yml).
 # The webhook authenticates to n8n with the separate, rotatable `n8n-webhook_api` token
-# (KOPS-031 / HD-77) — N8N_BASIC_AUTH_ACTIVE on the n8n service; not the encryption key.
+# N8N_BASIC_AUTH_ACTIVE on the n8n service; not the encryption key.
 apiVersion: 1
 
 contactPoints:

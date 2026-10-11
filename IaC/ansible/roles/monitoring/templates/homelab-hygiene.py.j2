@@ -82,7 +82,7 @@ def unit_lines(unit: str) -> list[str]:
         ok, reason = 0, "unknown"
     elif load in ("not-found", "masked"):
         # Not "fine": nothing runs here, so nothing can fail. `masked` is included for the same reason
-        # — HD-450's own incident class is a unit that answers "inactive" while doing no work.
+        # — the incident class here is a unit that answers "inactive" while doing no work.
         ok, reason = 0, "missing"
     elif active == "failed" or (result and result != "success"):
         ok, reason = 0, "failed"
@@ -101,7 +101,7 @@ def _as_utc(value: str):
     """Both forms openssl prints, and neither may silently become a naive local-time datetime: a naive
     parse shifts the age by the host's UTC offset, which on a two-week threshold is a day of slop."""
     v = value.strip()
-    for suffix in ("Z", " GMT", " UTC"):            # `-dateopt iso_8601` → "2026-11-20 20:45:49Z"
+    for suffix in ("Z", " GMT", " UTC"):            # `-dateopt iso_8601` → "YYYY-MM-DD HH:MM:SSZ"
         if v.endswith(suffix):
             try:
                 dt = datetime.datetime.fromisoformat(v[: -len(suffix)].strip().replace(" ", "T"))

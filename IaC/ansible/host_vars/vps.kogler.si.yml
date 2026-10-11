@@ -1,6 +1,6 @@
 ---
 # netcup RS 2000 G12 — VPS connection facts
-# Bought 2026-08-18 (263,52 € / 12 mo). Provisioned 2026-08-18.
+# 12-month prepaid term (263,52 €); the purchase/renewal record is in the netcup account.
 ansible_host: 159.195.111.66        # IPv4 (public). IPv6: 2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5
 ansible_user: ansible-admin        # comment + SSH agent identity, like nas/oldsrv/pi
 # become via sudo (ansible-admin has NOPASSWD:ALL). Note: hosts must have the `acl`

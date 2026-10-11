@@ -69,8 +69,8 @@ CATS = sys.argv[2]
 CHECK = "--check" in sys.argv[3:]
 # --verify <base_url> : after the reconcile, prove the credential WORKS over the same origin the arrs
 # will use. A 401 to an unauthenticated call only proves auth is ON; it cannot tell a correct
-# credential from a broken one (measured 2026-10-07: an unreachable-by-design origin answers 401 to
-# correct AND wrong credentials alike, which read as "the seed succeeded" while every consumer 401s).
+# credential from a broken one — an unreachable-by-design origin also answers 401, which reads as
+# "the seed succeeded" while every consumer 401s.
 VERIFY = sys.argv[sys.argv.index("--verify") + 1] if "--verify" in sys.argv else None
 
 WANTED_CONF = {
@@ -82,9 +82,8 @@ WANTED_CONF = {
         #                      || useCategoryPathsInManualMode()          (sessionimpl.cpp, 5.2.3)
         # — a client that does not send an explicit `autoTMM` (the *arrs never do; the WebUI sometimes
         # does) therefore gets `savePath()` = the session default and the per-category paths written
-        # below do nothing: every grab lands flat in complete/ instead of complete/<category>. Measured
-        # 2026-10-07 adding a torrent with category=movies: save_path came back /downloads/complete,
-        # and setSavePath was reverted for the same reason. With this flag on, manual-mode torrents
+        # below do nothing: every grab lands flat in complete/ instead of complete/<category>, and an
+        # explicit setSavePath is reverted the same way. With this flag on, manual-mode torrents
         # follow their category, which is the layout the arrs' root folders and the hardlink import
         # depend on.
         r"Session\TempPath": {{ qbit_save_path_incomplete | to_json }},

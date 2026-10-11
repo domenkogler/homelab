@@ -7,13 +7,13 @@
 #
 # Why: the split-horizon records live in technitium-seed.yml (SSOT), applied by the
 # docker_services seed tail — which only runs when a converge's loop includes a technitium
-# instance. A deploy-SCOPED converge (docker_services_scope=<svc>) skips the seed silently
-# (live 2026-09-15 llogs gap: Pi zone lacked the record, ERR_NAME_NOT_RESOLVED).
+# instance. A deploy-SCOPED converge (docker_services_scope=<svc>) skips the seed silently,
+# leaving a stale zone (symptom: ERR_NAME_NOT_RESOLVED for a published service).
 # This timer is the "trigger, not a memory": an edited SSOT + a scoped converge that
 # skipped the seed self-heals within the interval. playbooks/dns-seed.yml is the on-demand
 # / after-edit entry point (full record re-assert via the seed tail).
 #
-# The :53 publish stays source-restricted on the VPS (nftables FORWARD gate, HD-299):
+# The :53 publish stays source-restricted on the VPS (nftables FORWARD gate):
 # compose up -d on an unchanged spec does not recreate or alter the mapping.
 # Templates: templates/dns-seed.service.j2 + templates/dns-seed.timer.j2.
 # See docs/network-dns.md §Convergence & drift.

@@ -2,7 +2,7 @@
 # (nas, oldsrv — the desktop/VPS class; NOT the Pi which ships NetworkManager).
 # Rendered by roles/network (IaC/ansible/roles/network). Do not hand-edit.
 #
-# Port model (HD-310, final 2026-09-02): untagged = primary/access VLAN, tagged =
+# Port model: untagged = primary/access VLAN, tagged =
 # secondary/admin (Mgmt 99). nas + oldsrv ride Home (10) untagged + Mgmt (99) tagged
 # on the SAME physical NIC; every SSOT address/gateway below is derived from
 # network_static_hosts / network_vlans / host_vars — never literals.
