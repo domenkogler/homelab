@@ -49,34 +49,29 @@ if MODE not in ("check", "apply", "verify"):
 # Non-secret fields this file owns, from group_vars/role defaults, plus this app's category field.
 # ⚠ `| to_json | to_json` is not a typo: a single to_json emits JSON, and JSON `false`/`true`/`null` are
 # NameErrors in Python source. Rendering the JSON a second time yields a Python string literal, which
-# json.loads turns into real True/False. A single to_json of a dict containing a bool passed `ast.parse`
-# locally (JSON's `false` is a legal *name* there) and died at import on the target — measured
-# 2026-10-07: `NameError: name 'false' is not defined`.
+# json.loads turns into real True/False.
 FIELDS = json.loads({{ (arr_torrent_client_fields | combine({arr_torrent_client[svc.template_dir].category_field: arr_torrent_client[svc.template_dir].category})) | to_json | to_json }})
 USERNAME = {{ arr_torrent_client_user | to_json }}
 CATEGORY_FIELD = {{ arr_torrent_client[svc.template_dir].category_field | to_json }}
 CATEGORY = {{ arr_torrent_client[svc.template_dir].category | to_json }}
 NAME = {{ arr_torrent_client_name | to_json }}
 # The settings class the app instantiates. REQUIRED on POST — Sonarr answers 400 "'Config Contract'
-# must not be empty" without it (measured 2026-10-07), and it is the one field a read-back cannot teach
+# must not be empty" without it, and it is the one field a read-back cannot teach
 # you about a client that does not exist yet. It is also what `implementation` names, so both come from
 # one variable rather than two places that can disagree.
 CONTRACT = {{ arr_torrent_client_contract | to_json }}          # the SETTINGS class: QBittorrentSettings
 IMPLEMENTATION = {{ arr_torrent_client_implementation | to_json }}   # the PROVIDER class: QBittorrent
 # ⚠ These are two DIFFERENT names and POST instantiates the first one. Using the provider name for both
-# (which is what an earlier revision did) yields 500 "Cannot dynamically create an instance of type
+# yields 500 "Cannot dynamically create an instance of type
 # …QBittorrent. Reason: No parameterless constructor defined".
-# Field `type` as the app itself reports it (measured out of a live /downloadclient response: the
-# literal strings textbox / checkbox / password / select). Only used for fields the app did not already declare.
+# Field `type` is what the app itself reports: the literal strings textbox / checkbox / password / select.
+# Only used for fields the app did not already declare.
 # Keys arrive suffixed (`host_type`) so the secrets linter cannot read a type NAME as a credential.
 TYPES = {k[:-5] if k.endswith("_type") else k: v
          for k, v in {{ arr_torrent_client_field_types | to_json }}.items()}
-# Fields our defaults own that a build's settings class may legitimately not expose. Measured 2026-10-07
-# against the live four (read-only GET /downloadclient + /downloadclient/schema): Sonarr 4.0.19, Radarr
-# and Prowlarr 2.5.2 all report `apiKey`; **Lidarr 3.1 reports it in neither**. Treating "the app has no
-# such property" as drift compared None to "" forever, so Lidarr's client was PUT on every converge —
-# which is what made the failed second run of 2026-10-07 read like a flake. Everything else we own and
-# the app does not report is a hard failure below, never a silent skip.
+# Fields our defaults own that a build's settings class may legitimately not expose: Sonarr, Radarr and
+# Prowlarr report `apiKey`, Lidarr does not. Treating "the app has no such property" as drift compares
+# None to "" forever and PUTs on every converge. Everything else we own is a hard failure, never a skip.
 OPTIONAL = {{ arr_torrent_client_optional_fields | to_json }}
 SKIPPED = []      # owned-but-not-exposed fields actually seen this run, for the report line
 
@@ -177,12 +172,9 @@ if existing:
                    for k, v in merged.items()],
     }
     # Keys that are NOT part of every app's download-client resource. Send each one only when the app
-    # itself reported it: the Sonarr/Radarr/Lidarr resource carries all three, Prowlarr 2.5.2's carries
-    # NONE of them (measured 2026-10-07 — GET /api/v1/downloadclient returns exactly
-    # categories/configContract/enable/fields/id/implementation/implementationName/infoLink/name/
-    # priority/protocol/supportsCategories/tags). ASP.NET ignores an unknown member, so this is not a
-    # correctness fix — it is the difference between PUTting what the app owns and inventing three keys
-    # it does not have, which is what `appProfileId: 1` was for an app with no such field.
+    # itself reported it (Prowlarr's resource carries none). ASP.NET ignores an unknown member, so this is
+    # the difference between PUTting what the app owns and inventing keys it does not have, such as
+    # `appProfileId: 1` for an app with no such field.
     for _opt in ("removeCompletedDownloads", "removeFailedDownloads", "appProfileId"):
         if _opt in existing:
             body[_opt] = existing[_opt]

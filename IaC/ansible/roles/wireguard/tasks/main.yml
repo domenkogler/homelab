@@ -70,9 +70,9 @@
   notify: restart systemd-networkd
   tags: wireguard
 
-# ---- HD-285: networkd 257 applies the .netdev KEY but NEVER the [WireGuardPeer] ----
-# (and OWNS the iface: it removes any userspace `wg set peer` within seconds —
-# live-verified 2026-09-02). So networkd only CREATES wg-s2s (create-only netdev +
+# ---- networkd 257 applies the .netdev KEY but NEVER the [WireGuardPeer] ----
+# (and OWNS the iface: it removes any userspace `wg set peer` within seconds).
+# So networkd only CREATES wg-s2s (create-only netdev +
 # Unmanaged .network); the wg-ensure-s2s-peer oneshot OWNS the interface and applies
 # key (`wg setconf` key-only) + peer (`wg set … peer`) — both persist because networkd
 # is not racing. The conf carries the key (0640) and is the oneshot's source.
@@ -110,14 +110,12 @@
     dest: "{{ wg_conf_dir }}/{{ wg_interface }}.conf"
     owner: root
     group: root
-    mode: '0640'   # HD-285: this file now CARRIES the private key (atomic setconf key+peer) — 0640 root:root, never 0644. The .netdev no longer holds the applied key alone; the oneshot re-applies this full conf.
-  # HD-313 (2026-09-08): EVERY change to `wg_s2s_vps.allowed_ips` re-renders this conf,
-  # and the peer must re-apply it LIVE — notify the oneshot restart here (the conf is the
-  # peer's source of truth: AllowedIPs/Endpoint/PublicKey). Without this, an allowed_ips
-  # edit updates the file but the running peer keeps the OLD AllowedIPs until someone
-  # manually re-runs `systemctl restart wg-ensure-s2s-peer` (the HD-313 root-cause gap:
-  # the VPS peer dropped the router's own wg-src syslog packets because its live
-  # AllowedIPs lagged the SSOT; a manual restart was required to apply).
+    mode: '0640'   # this file CARRIES the private key (atomic setconf key+peer) — 0640 root:root, never 0644. It is the key's source of truth and the oneshot re-applies this full conf.
+  # EVERY change to `wg_s2s_vps.allowed_ips` re-renders this conf, and the peer must
+  # re-apply it LIVE — notify the oneshot restart here (the conf is the peer's source of
+  # truth: AllowedIPs/Endpoint/PublicKey). Without this, an allowed_ips edit updates the file
+  # but the running peer keeps the OLD AllowedIPs until someone manually re-runs
+  # `systemctl restart wg-ensure-s2s-peer`.
   notify: ensure wg-s2s peer
   tags: wireguard
 
