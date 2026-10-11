@@ -4,14 +4,14 @@
     name: alloy
     state: restarted
     daemon_reload: true
-  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart (HD-220)
+  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart
 
 - name: restart network-clients exporter
   ansible.builtin.systemd:
     name: network-clients-exporter
     state: restarted
     daemon_reload: true
-  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart (HD-220)
+  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart
 
 - name: restart rsyslog
   systemd:
@@ -21,20 +21,20 @@
   tags: always
 
 - name: restart hygiene exporter
-  # HD-450: the script renders the unit list and the cert list INTO the file, so changing host_vars
-  # changes the binary's config and only a restart applies it. Without this handler an edited list
-  # would look applied (the script task reports changed) while the running process kept the old one.
+  # the script renders the unit list and the cert list INTO the file, so a host_vars change only
+  # applies on restart; without this handler an edited list looks applied (the script task reports
+  # changed) while the running process keeps the old one.
   ansible.builtin.systemd:
     name: homelab-hygiene
     state: restarted
     daemon_reload: true
-  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart (HD-220)
+  tags: always   # handlers are tag-filtered too — without this, --tagged runs skip the restart
 
 - name: restart grafana
-  # NO home_servers guard here (live bug found 2026-08-23): `inventory_hostname in
-  # groups['home_servers']` is False on the VPS — exactly where grafana lives — so the
-  # restart silently never ran and provisioned datasources never loaded. Provisioning
-  # tasks only notify where they changed; keep this unconditional.
+  # NO home_servers guard here: `inventory_hostname in groups['home_servers']` is False on
+  # the VPS — exactly where grafana lives — so such a guard makes the restart silently never
+  # run and provisioned datasources never load. Provisioning tasks only notify where they
+  # changed; keep this unconditional.
   ansible.builtin.command:
     cmd: docker restart grafana
   changed_when: true
