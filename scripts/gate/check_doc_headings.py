@@ -58,12 +58,31 @@ output, hand-editing it is banned, so its pointers belong to the template that w
 gitignored files -- `git ls-files` never lists them; anything inside a URL; and `.json` under IaC
 -- a dashboard `description` is text written to a device, not a pointer a reader follows.
 
---self-test breeds eight shapes in a temp tree and FAILS if any is missed: the rename that breaks a
-previously-good pointer, the heading that carries its own `\u00a7`, the numeric boundary that a
-`\u00a73`-for-`\u00a730` match would cross, and the token-window hole that still lets `\u00a7Phase 0`
-land on `Phase 0.5`.
+THE FROZEN LEDGER, and why a verdict is about the DIFF and not about the tree. The corpus carries
+pre-existing dangling anchors, so a bare "fail on any finding" gate is red at rest and gets muted.
+Registered instead as a ratchet over a committed ledger --
+`scripts/gate/doc_headings_baseline.txt`, one `<count>TAB<path>TAB<target>TAB<cite>` line per
+pointer the repo has AGREED to carry. A pointer matches a line by KEY, never by line number
+(`gate/iac_identifier_allowlist.txt` says why): position moves when a doc grows, so a ledger keyed
+on it would report an unrelated edit above the pointer as new debt. Two directions fail:
+GROWTH -- a pointer the ledger does not carry, or carries fewer times than it appears -- and
+STALE -- a ledger line whose pointer now resolves. The second half is what keeps the ledger honest:
+an entry that outlives its pointer stops being agreed debt and becomes a free pass for the next
+dangling pointer written at that key. Clearing debt is therefore welcome, but it is a two-line
+change: fix the pointer and delete its ledger line in the same commit, or lower its count.
+`--show-baseline` re-derives the body, so the number is never remembered (CONVENTIONS \u00a72).
 
-Exit 0 = every reference resolves; 1 = dangling references found; 2 = could not run.
+--self-test breeds nine shapes in a temp tree and FAILS if any is missed: the rename that breaks a
+previously-good pointer, the heading that carries its own `\u00a7`, the numeric boundary that a
+`\u00a73`-for-`\u00a730` match would cross, the token-window hole that still lets `\u00a7Phase 0`
+land on `Phase 0.5`, and the ledger ratchet -- frozen debt stays green, one new pointer reddens,
+a pointer that went reddens its own ledger line, and the rendered ledger parses back to the
+population it was rendered from.
+
+Run:   python3 scripts/gate/check_doc_headings.py [--verbose] [--show-baseline] [--self-test]
+Exit 0 = every reference resolves or is frozen in the ledger; 1 = new dangling references, or a
+ledger line whose pointer is gone; 2 = could not run (including a missing or malformed ledger,
+which would silently exempt everything).
 """
 import os
 import re
@@ -87,6 +106,9 @@ IAC_DIR = "IaC"
 GENERATED = "-generated.md"
 CONVENTIONS = "CONVENTIONS.md"
 CANONICAL_TABLE_DOC = DOC_DIR + "/services-ai.md"
+# The committed debt ledger this gate is ratcheted to. It lives next to its checker, because a
+# rule file at `scripts/` top level is a data file with no owner (`check_script_layout.py` rule 5).
+BASELINE = "scripts/gate/doc_headings_baseline.txt"
 # A rendered dashboard `description` is text written to a device (RULES R-2), not a pointer a
 # reader follows, so .json is not a reference source. Everything else under IaC that can hold a
 # comment is.
@@ -680,6 +702,75 @@ def load(paths):
     return texts
 
 
+# ---------------------------------------------------------------- the frozen ledger
+
+def key_of(finding):
+    """The identity of a dangling pointer: the file that writes it, the document it aims at, and
+    the spelling it aims with. NOT the line number -- it moves whenever a doc grows, and a ledger
+    keyed on position would report an unrelated edit above the pointer as new debt."""
+    return (finding.path, finding.target, finding.cite)
+
+
+def render_ledger(findings):
+    """The ledger body for a population, sorted: `<count>TAB<path>TAB<target>TAB<cite>`. The count
+    is how many copies of that ONE pointer dangle, so two identical pointers written in one file
+    cannot be cleared by deleting one line."""
+    counts = {}
+    for f in findings:
+        k = key_of(f)
+        counts[k] = counts.get(k, 0) + 1
+    return "".join("%d\t%s\t%s\t%s\n" % (n, k[0], k[1], k[2]) for k, n in sorted(counts.items()))
+
+
+def parse_ledger(text):
+    """`{key: count}` plus one complaint per malformed line. A line with no count or no path can
+    never match a pointer, so it would be silent debt that reads as coverage: refuse instead."""
+    counts, bad = {}, []
+    for n, line in enumerate(text.split("\n"), 1):
+        if not line.strip() or line.lstrip().startswith("#"):
+            continue
+        parts = line.split("\t")
+        if len(parts) != 4 or not parts[0].isdigit() or not parts[1].strip():
+            bad.append("%s:%d -- want <count>TAB<path>TAB<target>TAB<cite>" % (BASELINE, n))
+            continue
+        key = (parts[1], parts[2], parts[3])
+        counts[key] = counts.get(key, 0) + int(parts[0])
+    return counts, bad
+
+
+def read_ledger():
+    path = ROOT / BASELINE
+    if not path.is_file():
+        print("ERROR: %s is missing, so the debt this gate was registered against is unknown and "
+              "every pre-existing finding would read as growth. Re-derive it with --show-baseline."
+              % BASELINE, file=sys.stderr)
+        sys.exit(2)
+    counts, bad = parse_ledger(path.read_text(encoding="utf-8"))
+    if bad:
+        for b in bad:
+            print("ERROR: %s" % b, file=sys.stderr)
+        sys.exit(2)
+    return counts
+
+
+def verdict(findings, ledger):
+    """(growth, frozen, cleared) for a population read against the ledger. Frozen debt is green;
+    a pointer the ledger does not carry reddens, and so does a ledger line whose pointer went --
+    an entry that outlives the pointer it was written for exempts the next one (the discipline
+    `gate/iac_identifier_allowlist.txt` states)."""
+    budget = dict(ledger)
+    growth, frozen = [], []
+    for f in sorted(findings, key=lambda f: (f.path, f.line)):
+        k = key_of(f)
+        if budget.get(k, 0) > 0:
+            budget[k] -= 1
+            frozen.append(f)
+        else:
+            growth.append(f)
+    cleared = [(k, n) for k, n in sorted(budget.items()) if n > 0]
+    return growth, frozen, cleared
+
+
 def self_test():
     """Breed the defect in a temp tree. A checker that only proves today's tree is clean proves
     nothing about the next rename."""
@@ -821,10 +912,68 @@ def self_test():
             ok = False
     finally:
         shutil.rmtree(root, ignore_errors=True)
+
+    # (i) The ledger ratchet, in memory: frozen debt stays green, ONE new pointer reddens, a
+    # pointer that went reddens its own ledger line, a copy of a repeated pointer reddens the
+    # count, and the rendered ledger parses back to the population it was rendered from -- a file
+    # format that drifts from the verdict is not a ledger at all.
+    debt = [Finding("docs/a.md", 7, "docs/b.md", "\u00a7Gone", "x"),
+            Finding("docs/a.md", 9, "docs/b.md", "\u00a7Gone", "x"),
+            Finding("docs/c.md", 3, CONVENTIONS, "\u00a799", "y")]
+    body = render_ledger(debt)
+    ledger, bad = parse_ledger(body)
+    rebuilt = [Finding(k[0], 1, k[1], k[2], "") for k, n in sorted(ledger.items())
+               for _ in range(n)]
+    if bad:
+        print("  FAIL  (i) the rendered ledger does not parse: %s" % "; ".join(bad))
+        ok = False
+    elif render_ledger(rebuilt) != body:
+        print("  FAIL  (i) the ledger loses a key or a count in the round-trip:\n%s\n--vs--\n%s"
+              % (body, render_ledger(rebuilt)))
+        ok = False
+    else:
+        print("  OK    (i) the ledger round-trips -- %d line(s), %d pointer(s)"
+              % (body.count("\n"), len(debt)))
+
+    growth, frozen, cleared = verdict(debt, ledger)
+    if growth or cleared or len(frozen) != len(debt):
+        print("  FAIL  (i) frozen debt did not stay green: growth=%s cleared=%s frozen=%d"
+              % (growth, cleared, len(frozen)))
+        ok = False
+    else:
+        print("  OK    (i) frozen debt is reported, not failed -- %d pointer(s)" % len(frozen))
+
+    growth, frozen, cleared = verdict(debt + [Finding("docs/c.md", 4, CONVENTIONS,
+                                                      "\u00a798", "new")], ledger)
+    if len(growth) != 1 or cleared:
+        print("  FAIL  (i) a new dangling pointer did not read as growth: growth=%s cleared=%s"
+              % (growth, cleared))
+        ok = False
+    else:
+        print("  OK    (i) one pointer the ledger does not carry is growth -- %s" % growth[0])
+
+    growth, frozen, cleared = verdict(debt[:2], ledger)
+    if growth or len(cleared) != 1 or cleared[0] != (key_of(debt[2]), 1):
+        print("  FAIL  (i) a pointer that went did not redden its ledger line: growth=%s "
+              "cleared=%s" % (growth, cleared))
+        ok = False
+    else:
+        print("  OK    (i) a ledger line whose pointer is gone reddens -- %s" % (cleared[0],))
+
+    growth, frozen, cleared = verdict([debt[0], debt[2]], ledger)
+    if growth or len(cleared) != 1 or cleared[0] != (key_of(debt[1]), 1):
+        print("  FAIL  (i) one copy of a repeated pointer did not redden the count: cleared=%s"
+              % cleared)
+        ok = False
+    else:
+        print("  OK    (i) a repeated pointer reddens the COUNT, not just the key -- %s"
+              % (cleared[0],))
+
     if ok:
         print("OK: self-test -- missing heading, unique prefix, ambiguous prefix, decision row, "
               "code fence, the renamed-heading regression, a heading that carries its own "
-              "\u00a7 with its numeric boundary, and the token-window limitation all behave")
+              "\u00a7 with its numeric boundary, the token-window limitation and the ledger ratchet "
+              "all behave")
         return 0
     print("FAIL: self-test -- the checker missed a bred defect")
     return 1
@@ -846,6 +995,15 @@ def main():
     notes = []
     findings, refs = check(corpus, tree, notes)
     n_docs = len([f for f in corpus if not f.startswith(IAC_DIR + "/")])
+    if "--show-baseline" in sys.argv:
+        # stdout is the file body, so re-deriving is one redirect; the summary goes to stderr.
+        body = render_ledger(findings)
+        sys.stdout.write(body)
+        print("--show-baseline: %d ledger line(s) for %d dangling pointer(s) across %d files "
+              "(%d docs, %d IaC) -- replace the body of %s with this, keep its header"
+              % (body.count("\n"), len(findings), len(corpus), n_docs, len(corpus) - n_docs,
+                 BASELINE), file=sys.stderr)
+        return 0
     print("scanned %d files (%d docs, %d IaC) for %s references; %d target documents"
           % (len(corpus), n_docs, len(corpus) - n_docs, SECTION, len(targets)))
     print("exempt as sources: *-generated.md (rendered), .json under IaC (device text), "
@@ -854,14 +1012,25 @@ def main():
         print("resolved references, first %d:" % min(len(notes), 25))
         for note in notes[:25]:
             print("  .  %s" % note)
-    if findings:
+    growth, frozen, cleared = verdict(findings, read_ledger())
+    if verbose and frozen:
         print("")
-        for f in sorted(findings, key=lambda f: (f.path, f.line)):
-            print("  FAIL  %s" % f)
+        for f in frozen:
+            print("  frozen  %s" % f)
+    if growth or cleared:
         print("")
-        print("FAIL: %d dangling" % len(findings))
+        for f in growth:
+            print("  NEW     %s" % f)
+        for (key, n) in cleared:
+            print("  CLEARED %s -> %s %s  x%d -- the pointer resolves now; delete this ledger "
+                  "line (or lower its count) in the same change, or it exempts the next pointer "
+                  "written here" % (key[0], key[1], key[2], n))
+        print("")
+        print("FAIL: %d new dangling, %d frozen in %s, %d ledger line(s) to clear"
+              % (len(growth), len(frozen), BASELINE, len(cleared)))
         return 1
-    print("OK: %d refs across %d files resolve" % (refs, len(corpus)))
+    print("OK: %d refs across %d files resolve; %d dangling pointer(s) frozen in %s"
+          % (refs, len(corpus), len(frozen), BASELINE))
     return 0
 
 

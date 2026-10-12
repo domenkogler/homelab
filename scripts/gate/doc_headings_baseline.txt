@@ -1,0 +1,129 @@
+# Frozen debt ledger for scripts/gate/check_doc_headings.py -- the dangling section pointers this
+# repo has AGREED to carry, so the anchor half of a citation is a ratchet instead of a permanently
+# red suite. Read that docstring before editing this file.
+#
+# One line per dangling pointer, four TAB-separated fields:
+#     <count>TAB<path citing>TAB<target document>TAB<the pointer as written>
+# Matched by KEY, never by line number: a pointer's position moves whenever a doc grows, and a
+# ledger keyed on position would report an unrelated edit above it as new debt
+# (gate/iac_identifier_allowlist.txt states the same rule for exemptions). `count` is how many
+# copies of that one pointer dangle, so a repeated pointer cannot be cleared by deleting one line.
+#
+# Two directions fail, and both are the point:
+#   GROWTH  a pointer this file does not carry, or carries fewer times than it appears.
+#   STALE   a line here whose pointer now resolves. Clearing debt is a two-line change: fix the
+#           pointer AND delete its line (or lower its count) in the same commit. A line that
+#           outlives its pointer stops being agreed debt and becomes a free pass for the next
+#           dangling pointer written at that key.
+#
+# Re-derive the body, never hand-edit it and never quote its counts (CONVENTIONS section 2):
+#     python3 scripts/gate/check_doc_headings.py --show-baseline > /tmp/headings-baseline.txt
+# then replace the lines below this header with that file -- stdout is the body only, so the
+# header is never what the redirect overwrites, and the command's own summary goes to stderr.
+# Nothing here is a decision log: an entry's existence says the debt is carried, and the reason a
+# given pointer is not worth fixing yet belongs in the doc that owns the section.
+1	IaC/ansible/group_vars/all/main.yml	docs/services-traefik.md	§Service
+1	IaC/ansible/group_vars/all/versions.yml	docs/deployment-renovate.md	§7
+1	IaC/ansible/group_vars/all/versions.yml	docs/hardware-spark.md	§7
+1	IaC/ansible/group_vars/all/versions.yml	docs/spark-llm-profiles.md	§Draft-vocab
+1	IaC/ansible/group_vars/home_servers.yml	(unresolved target)	§7
+1	IaC/ansible/group_vars/home_servers.yml	docs/smart-home-voice.md	§the
+1	IaC/ansible/group_vars/raspberry_pi.yml	(unresolved target)	§7 one-place rule
+1	IaC/ansible/group_vars/raspberry_pi.yml	docs/network-dns.md	§the
+1	IaC/ansible/group_vars/spark.yml	deployment-manual.md	§5.2
+1	IaC/ansible/group_vars/spark.yml	docs/hardware-spark.md	§Partition
+1	IaC/ansible/host_vars/nas.kogler.si.yml	docs/storage.md	§2
+1	IaC/ansible/host_vars/spark.kogler.si.yml	docs/hardware-spark.md	§LLM
+1	IaC/ansible/roles/docker_services/tasks/main.yml	docs/deployment-ansible.md	§docker_services
+1	IaC/ansible/roles/router/tasks/main.yml	IaC/router/templates/rb4011_converge.rsc.j2	§Bridge+trunk
+1	IaC/ansible/roles/spark-artifacts/tasks/main.yml	(unresolved target)	§7
+1	IaC/ansible/roles/spark-llm-profile/tasks/main.yml	(no owning document)	§Qwen3.8
+1	IaC/ansible/roles/spark-llm-profile/tasks/main.yml	(no owning document)	§Qwen3.8-Flash-Next / §Qwen3.8
+1	IaC/ansible/roles/spark-llm-profile/tasks/main.yml	docs/hardware-spark.md	§Partition
+1	IaC/ansible/roles/storage/tasks/samba.yml	docs/storage-rejected.md	§2
+1	IaC/ansible/templates/docker_services/authentik/blueprints/ks-oidc.yml	docs/services-authentik.md	§Item
+1	docs/1password.md	deployment-tasks.md	§Vault
+1	docs/1password.md	docs/1password.md	§Output
+1	docs/1password.md	docs/deployment-secrets.md	§op-write_api
+2	docs/backup.md	(unresolved target)	§VPS state push
+1	docs/deployment-ai-stack-secrets.md	docs/deployment-ai-stack-secrets.md	§Rotation
+1	docs/deployment-ansible.md	docs/deployment-ansible.md	§6
+1	docs/deployment-ansible.md	docs/deployment-ansible.md	§docker_services
+1	docs/deployment-ansible.md	docs/deployment-secrets.md	§6
+1	docs/deployment-ansible.md	docs/deployment-secrets.md	§Rotation
+1	docs/deployment-oidc.md	docs/deployment-ansible.md	§docker_services`
+1	docs/deployment-secrets.md	(unresolved target)	§2 rotation propagation
+1	docs/deployment-secrets.md	(unresolved target)	§Item titles are load-bearing below
+1	docs/deployment-secrets.md	IaC/ansible/roles/home_assistant/templates/ha-config-sync.sh.j2	§Runtime
+1	docs/deployment-secrets.md	deployment-manual.md	§DNS
+1	docs/deployment-secrets.md	deployment-manual.md	§spark
+1	docs/deployment-secrets.md	docs/deployment-oidc.md	§3
+1	docs/deployment-secrets.md	docs/deployment-secrets.md	§6
+1	docs/deployment-secrets.md	docs/network-ops.md	§Rotating
+1	docs/deployment-secrets.md	scripts/gate/check_vault_docs.py	§Creation
+1	docs/hardware-nas.md	docs/hardware-nas.md	§8
+2	docs/hardware-oldsrv.md	docs/observability.md	§Placement
+1	docs/hardware-spark.md	docs/hardware-spark.md	§4
+1	docs/hardware-spark.md	docs/hardware-spark.md	§Name
+1	docs/hardware-spark.md	docs/hardware-spark.md	§Status
+1	docs/hardware-spark.md	docs/hardware-spark.md	§above
+1	docs/hardware-spark.md	docs/hardware-workstation.md	§Text-only
+2	docs/hardware-spark.md	docs/observability.md	§DCGM
+1	docs/home-assistant-current.md	docs/smart-home-failover.md	§Offline-safe
+1	docs/index.md	deployment-manual.md	§oldsrv
+1	docs/index.md	scripts/README.md	§Adjacent
+1	docs/network-dns.md	docs/services-media.md	§How
+1	docs/network-vlans.md	docs/network-vlans.md	§Switch
+1	docs/network-vpn.md	docs/deployment-secrets.md	§Unattended
+1	docs/network-vpn.md	docs/network-dns.md	§Split-Horizon
+1	docs/network-vpn.md	docs/network-vpn.md	§Rename
+1	docs/network-vpn.md	docs/network-vpn.md	§Tailnet
+1	docs/observability.md	(unresolved target)	§1 fail-loud, and `validate-docker-services.py`'s mock `default` would silently render an empty port
+1	docs/observability.md	(unresolved target)	§LLM Dashboard
+1	docs/observability.md	(unresolved target)	§LLM Dashboard**, not the metric-name inventory. The three `DCGM_FI_PROF_*` panels are **deleted** — they can never load on GB10 — and the six real GB10 signals are wired in their place: utilisation, die temperature, power draw **with the energy-counter rate beside it**, SM clock, PCIe replays, and `DCGM_FI_DEV_XID_ERRORS` as a readiness stat. The 7 whitelisted `job=
+1	docs/observability.md	docs/network-dns.md	§Cert
+1	docs/observability.md	docs/observability.md	§6
+1	docs/observability.md	docs/observability.md	§Unified-memory
+1	docs/observability.md	docs/observability.md	§above
+1	docs/observability.md	scripts/ansible/build-llm-dashboard.py	§LLM
+1	docs/orchestration.md	CONVENTIONS.md	§0
+1	docs/orchestration.md	CONVENTIONS.md	§close-out**
+3	docs/orchestration.md	CONVENTIONS.md	§worktree
+1	docs/orchestration.md	deployment-manual.md	§4.8
+1	docs/orchestration.md	docs/orchestration.md	§1
+1	docs/orchestration.md	todo-table.md	§C4
+1	docs/pi-harness.md	(unresolved target)	§5 is
+1	docs/pi-harness.md	(unresolved target)	§5 remains the place that says WHY each key is what it is
+1	docs/pi-harness.md	(unresolved target)	§5b**. Not yet called by the seat installer
+1	docs/pi-harness.md	(unresolved target)	§7
+1	docs/pi-harness.md	(unresolved target)	§Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else
+1	docs/pi-harness.md	docs/pi-harness.md	§9d
+1	docs/pi-harness.md	docs/services-ai.md	§pi.dev
+1	docs/security.md	docs/network-dns.md	§8
+1	docs/security.md	docs/security.md	§VPS-Specific
+1	docs/services-admin.md	CONVENTIONS.md	§4(b
+1	docs/services-admin.md	docs/services-admin.md	§7
+1	docs/services-ai-bench.md	docs/services-ai-bench.md	§9c
+1	docs/services-ai-bench.md	docs/services-ai.md	§the
+2	docs/services-ai-rejected.md	docs/services-ai-rejected.md	§8.3
+1	docs/services-ai.md	docs/services-ai.md	§3c
+1	docs/services-ai.md	docs/smart-home-voice.md	§the
+1	docs/services-downloads.md	docs/services-downloads.md	§Category
+1	docs/services-downloads.md	docs/services-downloads.md	§above
+1	docs/services-finance.md	docs/services-ai.md	§Consumers
+2	docs/services-finance.md	docs/services-finance.md	§7
+1	docs/services-media.md	IaC/ansible/roles/docker_services/tasks/arr-seed.yml	§Request
+1	docs/services-media.md	docs/deployment-secrets.md	§the
+1	docs/services-media.md	docs/services-media.md	§The
+1	docs/services-media.md	docs/services-traefik.md	§The
+1	docs/services-media.md	docs/storage.md	§Store
+1	docs/services-office.md	docs/services-office.md	§LLM
+1	docs/services-traefik.md	(unresolved target)	§Certification row is the owning contract for what those paths mean. Declared today on `oldsrv
+1	docs/services-utilities.md	docs/services-utilities.md	§5
+1	docs/services-vps.md	(unresolved target)	§1.12 step 3
+1	docs/services-vps.md	(unresolved target)	§1.12 step 6
+1	docs/smart-home-voice.md	docs/smart-home-voice.md	§9c
+1	docs/spark-incidents.md	docs/hardware-spark.md	§Cold
+1	docs/spark-llm-profiles.md	docs/spark-llm-profiles.md	§8.3
+1	docs/spark-llm-profiles.md	docs/spark-llm-profiles.md	§Adjacent
+1	docs/spark-llm-profiles.md	docs/spark-llm-profiles.md	§Unified-memory

@@ -257,6 +257,22 @@
 #                                     real brief that dangles (the fixture green must not be the
 #                                     only proof the pass can be green). Milliseconds: a glob over
 #                                     the briefs, no subprocess, so the pool does not notice it.
+#  32. check_doc_headings.py       — the ANCHOR half of a citation: a `§Section` pointer, in a doc
+#                                     or in an IaC comment, must name a heading that EXISTS in the
+#                                     document it points at, and a `decision #N` must cite a row of
+#                                     that doc's decision table. Item 26 proves the path resolves;
+#                                     nothing proved the anchor, so a heading reworded in the target
+#                                     dangled every pointer to it while the suite stayed green. The
+#                                     corpus carries pre-existing dangling anchors, so this runs as
+#                                     a RATCHET against the committed ledger
+#                                     `gate/doc_headings_baseline.txt`: frozen debt is reported and
+#                                     stays green, a NEW dangling pointer fails, and so does a ledger
+#                                     line whose pointer now resolves (an entry that outlives its
+#                                     pointer would exempt the next one — the
+#                                     `gate/iac_identifier_allowlist.txt` discipline). Keyed on
+#                                     path + target + the pointer as written, never on line numbers.
+#                                     `--show-baseline` re-derives the ledger; `--self-test` breeds
+#                                     each anchor defect AND both halves of the ratchet.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1036,6 +1052,8 @@ item_q "validate-docker-services.py" $PY scripts/gate/validate-docker-services.p
 item_x "renders 16 arms of the spark compose template: a profile-matrix check, not a tree check — buy it when a profile changes" "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/bench/spark-llm-render-matrix.py
 item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/gate/check_doc_path_refs.py
 item_q "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/check_doc_path_refs.py --self-test
+item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" $PY scripts/gate/check_doc_headings.py
+item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" $PY scripts/gate/check_doc_headings.py --self-test
 item_q "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
 item_q "check_vault_name.py" $PY scripts/gate/check_vault_name.py
 item_q "check_placeholders.py" $PY scripts/gate/check_placeholders.py
