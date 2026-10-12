@@ -1,0 +1,156 @@
+# scripts/lib/seat-planes.yml — the seat × plane set, declared ONCE (HD-1118 Stage 2)
+#
+# WHY ONE FILE: the plane set used to exist three times — `planes_for_seat()` in
+# pi-seat-sync.sh, the config stage of install-pi-debian.sh, and the config stage of
+# install-pi-wsl.sh — and the three had silently diverged. Two of the divergences were
+# live defects, both found by reading them against each other (prompt-scripts.md Stage 2):
+#
+#   1. install-pi-debian.sh's `check()` ran three planes as `--check 2>&1 | tail -2` —
+#      NO `--strict`, and the pipe's exit status thrown away, so `bad` was never set.
+#      A from-zero seat could therefore be reported GREEN with three planes never checked,
+#      while the same installer's `--push` DID run them.
+#   2. Its `check()` never ran `install-tmux-conf.sh --check` at all, although `--push`
+#      does — the HD-1085 gap in the *check* half, after the push half was closed.
+#
+# A seat can now be reported green only by the same registry that converges it, because
+# both halves read this file. The axis that makes that true is `install_check:` — the
+# strict form the installer's `--check` uses (a plane with no `install_check:` is checked
+# with `check:`).
+#
+# FORMAT: `---`-separated records, one flat `key: value` per line, no nesting. It is valid
+# YAML for any tool AND parsed by lib/pi-seat.sh without a YAML library — deliberate: the
+# readers are bash on a bare Debian seat, where PyYAML exists only inside ~/ansible-venv
+# and a seat must not need the control-node venv to learn its own plane list. lib/pi-seat.sh
+# --self-test refuses a record that is malformed, unknown-keyed, or names an owner that
+# does not exist, so the subset cannot drift into something a real YAML parser would read
+# differently.
+#
+# FIELDS
+#   plane          the name the driver prints in its verdict column
+#   harness        which harness the plane belongs to: `pi` (the pi.dev harness) or `all`.
+#                  Declared NOW because the models spec already renders a second harness
+#                  (`vendors: continue:` in pi/models-spec.yml): the next harness should be
+#                  a row here, not a restructure of three files.
+#   owner          the script that OWNS the plane, by file name (resolved under scripts/**,
+#                  so Stage 3's folder moves need no edit here — this file must not become a
+#                  second copy of the tree)
+#   runner         how to invoke it: bash | python3 | powershell
+#   check/push     arguments for the fan-out driver
+#   install_check  arguments the seat installer's `--check` uses (defaults to `check`)
+#   seats          which seats the plane applies to (win11 | wsl | oldsrv)
+#   installer      which from-zero installers converge it (debian | wsl)
+#
+# `seats` and `installer` are separate axes on purpose: the cockpit carries a seat-local
+# package that the fleet settings SSOT must not start owning, and a from-zero Debian box is
+# not the `oldsrv` seat until it is one.
+#
+# Readers: scripts/harness/pi-seat-sync.sh (the fan-out), scripts/harness/install-pi-debian.sh and
+# scripts/harness/install-pi-wsl.sh (the config stage), scripts/lib/pi-seat.sh (the reader itself).
+# Owning doc: docs/pi-harness.md §1 (the plane set) / §5 (what the harness is).
+
+---
+plane: pi-self
+harness: pi
+owner: pi-self-update.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: win11 wsl oldsrv
+installer: debian cockpit wsl
+
+---
+plane: skills
+harness: pi
+owner: sync-skills.sh
+runner: bash
+check: --check
+install_check: --check --strict
+push: --push
+seats: win11 wsl oldsrv
+installer: debian cockpit wsl
+
+---
+plane: extensions
+harness: pi
+owner: sync-extensions.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: win11 wsl oldsrv
+installer: debian cockpit wsl
+
+---
+plane: settings
+harness: pi
+owner: pi-settings-config.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: win11 wsl
+installer: debian wsl
+
+---
+# The cockpit placement, not a fleet settings key (docs/services-ai.md §9b-1): pi-web is
+# installed there by roles/seat, so the driver declares it HERE rather than teaching the
+# settings SSOT about one seat.
+plane: settings
+harness: pi
+owner: pi-settings-config.sh
+runner: bash
+check: --check --strict --with-package npm:@ygncode/pi-web
+push: --push --with-package npm:@ygncode/pi-web
+seats: oldsrv
+installer: cockpit
+
+---
+plane: models
+harness: all
+owner: render-pi-config.py
+runner: python3
+check: --vendor all --check
+push: --vendor all
+seats: win11 wsl oldsrv
+installer: debian cockpit wsl
+
+---
+plane: tui
+harness: pi
+owner: pi-tui-config.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: win11 wsl oldsrv
+installer: debian cockpit wsl
+
+---
+plane: tmux
+harness: all
+owner: install-tmux-conf.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: wsl oldsrv
+installer: debian cockpit wsl
+
+---
+plane: font
+harness: all
+owner: install-nerd-font.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: wsl oldsrv
+installer: debian cockpit wsl
+
+---
+# The Windows leg of the SAME plane: a font changes what a TERMINAL rasterises, and on
+# Windows `~/.local/share/fonts` rasterises nothing, so the placement is the per-user font
+# API (docs/pi-harness.md §5a). One plane, two placements.
+plane: font
+harness: all
+owner: install-nerd-font.ps1
+runner: powershell
+check: -Check
+push: -Push
+seats: win11
+installer: none
