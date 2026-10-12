@@ -93,13 +93,6 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_guest_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_guest_delta.rsc"
-    # IoT devices off Mgmt + laptop tagged-99. The FULL converge template
-    # (rb4011_converge.rsc.j2) carries the same changes; this delta is the TRANSIENT
-    # apply (network-ops.md 3-tier) — delete it once folded into the converge.
-    - name: "Render rb4011_iot_off_mgmt_delta.rsc (HAP/UPS off Mgmt + laptop tagged-99)"
-      template:
-        src: "{{ playbook_dir }}/../../router/templates/rb4011_iot_off_mgmt_delta.rsc.j2"
-        dest: "{{ playbook_dir }}/../../router/rendered/rb4011_iot_off_mgmt_delta.rsc"
     - name: "Render rb4011_ha_iot_delta.rsc (HA node -> KNX udp/3671 + Shelly tcp/80)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_ha_iot_delta.rsc.j2"
