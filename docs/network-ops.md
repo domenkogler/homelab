@@ -37,6 +37,11 @@ tags: [network, routeros, ops]
 > template (`rb4011_converge.rsc.j2`) must carry the same narrowed scopes as the role SSOT — e.g. the
 > Home→IoT new-connection rule is `trusted-ha`, never `trusted-admin`, or a converge silently
 > re-broadens it to include `nas`.
+>
+> **⚠️ srcnat/dstnat ownership:** the role's `Configure NAT masquerade for outbound traffic` task
+> reconciles the `srcnat`/`dstnat` table with `handle_absent_entries: remove`, so the table converges
+> to exactly the rows both writers list — a NAT row the device carries must be listed on **both**
+> sides (the role's `data:` and the converge template) or whichever writer runs last deletes it.
 
 ### The three tiers (roles + when each is used)
 

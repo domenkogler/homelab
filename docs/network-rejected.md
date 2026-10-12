@@ -42,6 +42,7 @@ tags: [network, rejected, decision-log]
 | GitHub commit-signing SSH key | dropped | Signing off on every seat; nothing reads the key |
 | Hand-kept seat `~/.ssh/config` blocks | superseded | The `ssh/aliases.tmpl` seat plane renders them |
 | hAP ac at dnevna | superseded | hAP ac² replaced it; MIPSBE cannot run wifi-qcom-ac |
+| Hand-enumerated trusted-ha lists in role and converge | superseded | The list is derived from the inventory groups that run HA (raspberry_pi + home_servers) plus the VIP; a hand-list silently dropped the live Pi primary |
 | Headplane docker-socket integration | dropped | UI DNS editing needs a socket proxy first |
 | Home block lists (Hagezi multi + privacy) | superseded | Home and Guest load no list; this tier answers the operator's tailnet |
 | Home hosts joined to the tailnet for off-LAN admin | rejected | Widens the tailnet boundary; the Home leg through the VPS jump works |
@@ -62,6 +63,7 @@ tags: [network, rejected, decision-log]
 | Mgmt-access plus single-VLAN port model | superseded | Dual-home instead: untagged access VLAN, tagged Mgmt 99, same port |
 | Mgmt VLAN 99 reachable over the VPS site-to-site tunnel | rejected | A compromised VPS would gain admin-plane reach toward router, switch, oldsrv |
 | n8n firmware workflow: temporary iot-wan-allow toggles | superseded | The per-device wan_allow flag already gives cloud-IoT permanent WAN |
+| Narrowing the NAT reconcile's restrict: scope | rejected | Unlisted srcnat/dstnat rows must still come off — the fix for the unlisted live row is listing it on both sides, not narrowing the reconcile |
 | NAS as a third tailnet node | rejected | Scope stays the two home nodes; owner decision |
 | Netplan | rejected | Ubuntu default plus an extra python3/libnetplan layer; NM for Debian hosts |
 | Nftables INPUT source-allow as the whole Technitium :53 gate | rejected | Published ports are FORWARDed, never INPUT; the FORWARD chain is the gate |
