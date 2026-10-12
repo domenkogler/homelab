@@ -357,7 +357,14 @@
       - address: "{{ item.ip }}"
         list: trusted-ha
         comment: "Trusted HA host: {{ item.name }}"
-  loop: "{{ network_static_hosts | selectattr('name', 'in', ['oldsrv', 'ha-vip']) | list }}"
+  # trusted-ha is DERIVED, not hand-enumerated: the inventory hosts that run HA — the
+  # raspberry_pi group (HA primary) + the home_servers group (HA standby), trimmed to
+  # short names, plus the VIP. A hand-list silently drops a new HA node, and the KNX
+  # Home→IoT gate reads this list (mirror: rb4011_converge.rsc.j2, same expression).
+  loop: "{{ network_static_hosts \
+           | selectattr('name', 'in', (groups['raspberry_pi'] + groups['home_servers']) \
+               | map('regex_replace', '\\..*$', '') | list + ['ha-vip']) \
+           | list }}"
   loop_control:
     label: "{{ item.name }}"
 
@@ -475,7 +482,18 @@
       - chain: srcnat
         out-interface: pppoe-telekom
         action: masquerade
-        comment: "NAT masquerade -> WAN"
+        comment: "Masquerade -> WAN"
+      # The ONT answers its web UI only to its directly-connected peer, so trusted-admin traffic out
+      # ether1 is masqueraded as the router's own modem-LAN address. This reconcile DELETES any srcnat
+      # row it does not list, so the row belongs in this data: list as much as in the converge
+      # (byte-twin: rb4011_converge.rsc.j2; → docs/network.md §Comtrend modem management path).
+      - chain: srcnat
+        action: masquerade
+        out-interface: "{{ comtrend_modem.iface }}"
+        protocol: tcp
+        dst-address: "{{ comtrend_modem.modem_mgmt_ip }}"
+        dst-port: "80,443"
+        comment: "modem UI via router SNAT (trusted-admin)"
       # --- Kids VLAN 40 forced filtered DNS ---
       # Hijack every DNS query (53 udp/tcp) leaving the Kids VLAN — hardcoded-resolver
       # devices included — to the Technitium primary, which enforces the Kids-Group
@@ -772,13 +790,13 @@
         protocol: tcp
         dst-port: 853
         action: drop
-        comment: "IoT -> DoT bypass drop - forced DNS to Pi tcp"
+        comment: "IoT -> DoT bypass drop tcp (HD-342)"
       - chain: forward
         src-address: "{{ vlan_subnets[20] }}"
         protocol: udp
         dst-port: 853
         action: drop
-        comment: "IoT -> DoT bypass drop - forced DNS to Pi udp"
+        comment: "IoT -> DoT bypass drop udp (HD-342)"
       # --- Kids VLAN 40 controls ---
       # Forced filtered DNS: plain :53 from Kids is dst-nat'ed to the Technitium primary
       # (ip firewall nat above), which enforces the Kids-Group policy (Cloudflare

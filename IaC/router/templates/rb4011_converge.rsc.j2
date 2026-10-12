@@ -338,7 +338,9 @@ add chain=dstnat src-address=10.10.20.0/24 protocol=udp dst-port=53 action=dst-n
 add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-nat to-addresses={{ dns_tertiary_ip }} to-ports=53 comment="IoT forced DNS - TCP 53 -> Pi"
 
 # ---- Firewall: address lists ----
-# trusted-ha = the hosts that RUN HA: pi (primary) + oldsrv (standby) + ha-vip.
+# trusted-ha = DERIVED from inventory, not hand-enumerated: the hosts that RUN HA —
+# the raspberry_pi group (HA primary) + the home_servers group (HA standby), trimmed to
+# short names, plus the VIP. A hand-list silently drops a new HA node.
 # The list MUST include the HA PRIMARY, not just the VIP: HA tunnels KNX from the host's
 # own address (`local_ip` is null in the config entry, so xknx picks eth0), never from the
 # VIP — a Pi missing here means HA's KNX to VLAN 20 hits the default drop while wall
@@ -350,11 +352,12 @@ add chain=dstnat src-address=10.10.20.0/24 protocol=tcp dst-port=53 action=dst-n
 /ip firewall address-list remove [find list=trusted-ha]
 /ip firewall address-list remove [find list=internal_lan]
 /ip firewall address-list
+{% set ha_names = (groups['raspberry_pi'] + groups['home_servers']) | map('regex_replace', '\\..*$', '') | list + ['ha-vip'] %}
 {% for h in network_static_hosts %}
 {% if h.name in ['oldsrv','nas','ha-vip','laptop-domen'] %}
 add address={{ h.ip }} list=trusted-admin comment="Trusted admin host: {{ h.name }}"
 {% endif %}
-{% if h.name in ['pi','oldsrv','ha-vip'] %}
+{% if h.name in ha_names %}
 add address={{ h.ip }} list=trusted-ha comment="Trusted HA host: {{ h.name }}"
 {% endif %}
 {% endfor %}
