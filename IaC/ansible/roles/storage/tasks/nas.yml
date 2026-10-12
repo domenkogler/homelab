@@ -36,6 +36,14 @@
     mode: "0644"
   notify: Restart sanoid timers
 
+# The Debian `sanoid` package ships NO unit file, so the unit below is the only thing that ever
+# runs sanoid here. Its ExecStart must name `/usr/sbin/sanoid` — where the package installs the
+# binary — because a wrong path fails the fire with `status=203/EXEC` BEFORE sanoid runs, which no
+# idempotent converge can see: the recap stays `failed=0` while ZFS policy snapshots silently stop
+# existing. A unit that runs is proved by its last-fire result plus a fresh policy snapshot, never
+# by the recap (the same trap as `syncoid`'s rc 0). The package's `/etc/cron.d/sanoid` does not
+# cover for the timer either: its command is guarded by `[ ! -d /run/systemd/system ]`, so it
+# self-skips on any systemd boot — the timer, not cron, is the scheduler.
 - name: Sanoid oneshot service (no .service shipped by distro package)
   ansible.builtin.copy:
     content: |
@@ -44,16 +52,28 @@
 
       [Service]
       Type=oneshot
-            # Was /usr/local/bin/sanoid, which does not exist: the Debian package installs /usr/sbin/sanoid
-      #   (sanoid 2.2.0-2 -> /usr/sbin/sanoid), so the unit WE GENERATE failed every
-      #   timer fire with status=203/EXEC and ZFS POLICY SNAPSHOTS NEVER RAN: zero hourly.*/daily.* in the
-      #   pool although sanoid.conf asks for hourly=24 daily=7, the only snapshots present being manual/
-      #   migration ones plus syncoid transient pre-sync snaps. The package also ships /etc/cron.d/sanoid,
-      #   which did not compensate.
       ExecStart=/usr/sbin/sanoid --cron
     dest: /etc/systemd/system/sanoid.service
     mode: "0644"
   notify: Restart sanoid timers
+
+# ---------------------------------------------------------------------------
+# The distro zfs-share unit owns NOTHING here, and it is disabled:
+#   * NFS: no dataset sets `sharenfs` (all `off`), so `zfs share -a` exports nothing — the export
+#     table is /etc/exports, rendered from `storage_exports` and applied by `exportfs -ra` (the
+#     Reload NFS exports handler below + nfs-server's own `exportfs -r` at boot).
+#   * SMB: the shares come from the rendered smb.conf (samba.yml), not from ZFS `sharesmb`.
+# The unit still exits 1 every boot because the migration-remnant datasets under `bulk/migrate`
+# carry `sharesmb=on` and their share creation fails — a red `--failed` row that hides nothing but
+# is not this layout's business. Disabling it is the ruled state; re-enabling it would re-arm a
+# unit whose working half is a no-op and whose failing half names datasets this role does not own.
+# ---------------------------------------------------------------------------
+- name: Disable the distro zfs-share unit (exports belong to /etc/exports, shares to smb.conf)
+  ansible.builtin.systemd:
+    name: zfs-share.service
+    enabled: false
+    state: stopped
+    daemon_reload: true
 
 # ---------------------------------------------------------------------------
 # syncoid — incremental replication tank/data/* → bulk/data/*
