@@ -390,7 +390,7 @@ GATE_T0=$SECONDS
 # concurrency buys ~1.7× (19 ms each against 32 ms serial). The same fork costs 0.66 ms on WSL
 # Debian of the same laptop, which is why the identical gate finishes there in 7.9 s.
 # What DOES hurt is two gates forking at once: while a second 24-way validate-all was running, this
-# seat measured 130–185 ms per exec and the gate took 5 min 51 s for the same 62 items — an 8×
+# seat measured 130–185 ms per exec and the same item set took 5 min 51 s — an 8×
 # degradation of a shared, non-scaling resource (process creation), not 2× the work. Capping at 16
 # costs ~nothing alone and halves what one gate imposes on the other. Override: GATE_WIN_PAR.
 IS_MSYS=0
@@ -486,11 +486,11 @@ _report() {
   case "$(echo "$_ms" | awk '{print ($1 > 60) ? "degraded" : (($1 > 2) ? "slow" : "fast")}')" in
     degraded) echo "      ⚠ process creation is DEGRADED on this host (a quiet Win11 git-bash seat is 16-44 ms)."
               echo "        Another validate-all is forking with you, or a real-time AV scan is mid-flight: the"
-              echo "        same 62 items cost 31 s quiet and 351 s with a second 24-way pool running (2026-10-10)." ;;
+              echo "        the whole set cost 31 s quiet and 351 s with a second 24-way pool running (2026-10-10)." ;;
     slow)     if [ "$IS_MSYS" = 1 ]; then
                 echo "      ℹ this host pays for FORKS, not validators — every leg costs ~1 process + its work."
                 echo "        Where forks are cheap the same gate is ~5x faster: wsl -d Debian bash -c"
-                echo "        'cd <clone> && bash scripts/validate-all.sh'  (7.9 s measured on ext4, same items)."
+                echo "        'cd <clone> && bash scripts/validate-all.sh'  (7.9 s measured on ext4, the same set)."
               else
                 echo "      ℹ a Linux seat should be under ~1 ms/exec; at this rate something is intercepting"
                 echo "        process creation here (an AV scan, a heavily loaded host, or I/O on a 9P /mnt/ mount)."
