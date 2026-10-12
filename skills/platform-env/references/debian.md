@@ -70,3 +70,4 @@ gap not covered above (procedure: `references/self-learn.md`). One line each,
 `symptom → fix (when …)`. Prune duplicates as the file grows.
 
 - *(active space — add entries as you learn them)*
+- `$(( ))` aborts a script with `value too large for base/table`, error token a 6-digit fraction → bash formats `$EPOCHREALTIME` with the **locale's** decimal separator, and `LC_NUMERIC=sl_SI/de_DE` prints a comma, so `${x/./}` strips nothing → reduce the stamp to digits (`${x//[!0-9]/}`) or set `LC_NUMERIC=C` before the arithmetic (when writing fork-free timing math in bash on a host with a comma-decimal locale; a seat whose gate dies mid-run at the first duration is this bug)

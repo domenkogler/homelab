@@ -68,6 +68,7 @@ checks=0
 # those files. expect() only launches; check_leg() asserts.
 NPAR=4
 command -v nproc >/dev/null 2>&1 && NPAR="$(nproc)"
+NPAR="${GATE_NPAR:-$NPAR}"
 leg_ids=(); leg_want=(); leg_label=(); leg_dummy=(); leg_section=()
 SECTION="<ungrouped>"
 # section "<heading>" — legs launched after this call are reported under that heading, so the
