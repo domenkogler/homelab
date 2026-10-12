@@ -19,12 +19,62 @@
 # USE:  hl_source_lib "${BASH_SOURCE[0]}" pi-seat.sh    # after repo-root.sh
 #       pin PI_VERSION pi_host_npm_version
 #
+# FAST (HD-1135): versions.yml is parsed ONCE per process into a cache, so a pin() costs zero
+#   execs, and a plane owner is resolved by ONE directory walk per process, not one `find` per
+#   plane. The verdicts are unchanged — the cache is a different WAY to evaluate the same
+#   assertion, never a weaker one (see the cache sections below and the self-test arms).
+#
 # SELF-TEST: bash scripts/lib/pi-seat.sh --self-test
 #   Both halves, per CONVENTIONS §6 ("a test that cannot fail is not evidence"):
 #   a missing pin must STOP the caller, and a present pin must return the value.
 # =====================================================================
 
+# ---- the pin cache (HD-1135): one pass per process, zero execs per pin -------------------
+# WHY: `grep -E | head -1 | sed -E | tr` is FOUR EXECs per call — 398 ms on the Win11 git-bash
+# seat, where process creation is serialised, so only FEWER forks buy time. `pin` sits on the
+# start-up path of every harness leg, and a leg launches the CLI per case.
+# SHAPE: one `IFS=: read` pass over the file into an associative array. Why a loop and not a
+# string search: `${BIG#*"$pat"}` (prefix removal with a LEADING WILDCARD) is not a substring
+# search — it retries the match at every prefix length, so on this 45 KB file it measured ~1.3 s
+# per lookup for a key near the end (position-proportional = quadratic). A one-pass read is ~30 ms.
+# The pass reads FROM THE FILE (`done < "$VERSIONS"`), never through `$(<"$VERSIONS")`: a command
+# substitution applies the MSYS text-mode translation (CONVENTIONS §6, the second half of the trap)
+# and would lose the CR of a CRLF checkout. `IFS= read -r` keeps the byte, and the whitespace
+# strip at the end of the body drops it — the same result `tr -d '[:space:]'` gave.
+# `-g` IS LOAD-BEARING: every caller sources this file from INSIDE a function (`hl_source_lib`), and a
+# bare `declare -A` there is FUNCTION-LOCAL — it dies with that function and the next assignment
+# silently creates an INDEXED array, whose subscripts are ARITHMETIC-evaluated. Measured with the
+# lib sourced that way: three different keys all answered `v3.7.13` (every `key` evaluated to index 0,
+# so the last row written answered every lookup), and a file name containing a dot aborted the walk
+# with `README.md: arithmetic syntax error`. A cache that answers the wrong key is worse than a fork.
+declare -gA _HL_PIN_CACHE=()
+_HL_PIN_CACHE_FILE=""
+
+# _hl_pin_load — parse the whole SSOT into _HL_PIN_CACHE. Column-0 `key:` rows only, which is
+# exactly what the old `grep -E "^key:"` could see: comments, indented (nested) rows and the
+# `---` document marker carry a non-word first field and are skipped.
+_hl_pin_load() {
+  local _k="" _rest="" _line _a _b
+  declare -gA _HL_PIN_CACHE=()          # -g: see the note above; also the reset, so a re-read cannot keep a stale row
+  while IFS=: read -r _k _rest || [ -n "${_k}${_rest}" ]; do   # trailing `||`: an unterminated last row still counts
+    case "$_k" in ''|*[!A-Za-z0-9_]*) continue ;; esac
+    if [ -n "${_HL_PIN_CACHE[$_k]+set}" ]; then continue; fi   # `head -1`: the FIRST row for a key wins
+    _line="$_rest"
+    _line="${_line#"${_line%%[![:space:]]*}"}"                 # ltrim: sed's `:[[:space:]]*`
+    _line="${_line#\"}"                                        # an optional opening quote: sed's `"?`
+    _a="$_line"; _b="$_line"
+    case "$_a" in *\"*) _a="${_a%%\"*}" ;; esac                # stop at the first " …
+    case "$_b" in *#*)  _b="${_b%%#*}" ;; esac                 # … or at the first #,
+    if [ "${#_b}" -lt "${#_a}" ]; then _a="$_b"; fi            # whichever comes FIRST (sed's [^"#]*)
+    _HL_PIN_CACHE[$_k]="${_a//[[:space:]]/}"                   # `tr -d '[:space:]'`, CR included
+  done < "$VERSIONS"
+  _HL_PIN_CACHE_FILE="$VERSIONS"
+}
+
 # pin <var> <key> — set <var> from the versions SSOT; a missing pin STOPS the caller.
+# The cache may not soften that: an absent key AND a key that exists with an empty value both
+# read as empty here, and empty is a STOP (HD-1115 — the `exit 1` is the CALLER's own exit, which
+# is why the value travels through an out-parameter and never through `$(pin …)`).
 pin() {
   local __out="${1:?pin: needs an output variable}" __key="${2:?pin: needs a pin key}" __v=""
   if [ -z "${VERSIONS:-}" ]; then
@@ -34,7 +84,8 @@ pin() {
     printf 'FATAL: pin: no versions file at %s (§7)\n' "$VERSIONS" >&2
     exit 1
   fi
-  __v="$(grep -E "^${__key}:" "$VERSIONS" 2>/dev/null | head -1 | sed -E 's/^[^:]+:[[:space:]]*"?([^"#]*)"?.*/\1/' | tr -d '[:space:]')"
+  if [ "$_HL_PIN_CACHE_FILE" != "$VERSIONS" ]; then _hl_pin_load; fi   # re-pointed VERSIONS = new cache, never a stale one
+  __v="${_HL_PIN_CACHE[$__key]-}"
   if [ -z "$__v" ]; then
     printf 'FATAL: pin %s missing from %s — add it there, do not hardcode it here (§7)\n' \
       "$__key" "$VERSIONS" >&2
@@ -46,15 +97,47 @@ pin() {
 # hl_seat_registry_path — locate lib/seat-planes.yml from this helper's own location.
 hl_seat_registry_path() { printf '%s' "$(dirname "$_HL_PIN_SELF")/seat-planes.yml"; }
 
-# hl_owner_path <file-name> — resolve a plane owner by NAME under scripts/, printed
-# repo-relative. By name, so this registry never becomes a second copy of the tree: when
-# HD-1118 Stage 3 moved these owners into folders (pi-self-update.sh is harness/ now); resolving by
+# hl_owner_path <var> <file-name> — set <var> to the owner's repo-relative path, rc 1 if that name
+# is not under scripts/. By name, so this registry never becomes a second copy of the tree: when
+# HD-1118 Stage 3 moved these owners into folders (pi-self-update.sh is harness/ now), resolving by
 # name means the registry never had to learn about the move.
+# OUT-PARAMETER, like pin() (HD-1115's rule, for a second reason): `p="$(hl_owner_path x)"` runs in
+# a SUBSHELL, and a subshell throws the memoised map away — the walk would then run again for every
+# plane, which is exactly the fork this section exists to remove.
+# FAST (HD-1135): the tree is walked ONCE per process. The old body paid one `find` (~129 ms) per
+# plane per seat, so a registry read cost an exec per row. The walk is still a WALK, never a map of
+# folder names hardcoded here — a hardcoded map is the thing that breaks `install-pi-debian.sh
+# --check` the next time a file moves, which is the whole point of name lookup. The walk is a glob,
+# so it costs no exec at all; `find -type f` semantics are kept: regular files only, symlinks not
+# followed, `*/testdata/*` excluded, first hit wins (what `head -1` took).
+declare -gA _HL_OWNER_PATH=()   # -g, load-bearing for the same reason as _HL_PIN_CACHE (see above)
+_HL_OWNER_ROOT=""              # the root the map was built from; empty = never walked
+
+hl_owner_paths_load() {
+  local _root="${REPO:-.}/scripts" _p _name _gs=0 _ng=0
+  declare -gA _HL_OWNER_PATH=()        # -g: see the note on _HL_PIN_CACHE
+  if shopt -q globstar; then _gs=1; fi           # the caller's own shell options are restored below:
+  if shopt -q nullglob; then _ng=1; fi           # a lib must not silently change how a glob behaves there
+  shopt -s globstar; shopt -s nullglob
+  for _p in "$_root"/**; do
+    if [ -L "$_p" ]; then continue; fi                       # `find -type f` does not follow a link either
+    case "$_p" in */testdata/*) continue ;; esac             # fixtures are not plane owners
+    if [ ! -f "$_p" ]; then continue; fi
+    _name="${_p##*/}"
+    if [ -n "${_HL_OWNER_PATH[$_name]+set}" ]; then continue; fi
+    _HL_OWNER_PATH[$_name]="${_p#"${REPO:-.}/"}"
+  done
+  if [ "$_gs" != 1 ]; then shopt -u globstar; fi
+  if [ "$_ng" != 1 ]; then shopt -u nullglob; fi
+  _HL_OWNER_ROOT="$_root"
+}
+
 hl_owner_path() {
-  local _want="${1:?hl_owner_path: needs a file name}" _hit
-  _hit="$(find "${REPO:-.}/scripts" -type f -name "$_want" -not -path '*/testdata/*' 2>/dev/null | head -1)"
+  local __out="${1:?hl_owner_path: needs an output variable}" _want="${2:?hl_owner_path: needs a file name}" _hit
+  if [ "$_HL_OWNER_ROOT" != "${REPO:-.}/scripts" ]; then hl_owner_paths_load; fi
+  _hit="${_HL_OWNER_PATH[$_want]-}"
   [ -n "$_hit" ] || return 1
-  printf '%s' "${_hit#"${REPO:-.}/"}"
+  printf -v "$__out" '%s' "$_hit"
 }
 
 # seat_planes <selector> <mode> — emit `plane<TAB>argv` lines, one per applicable record.
@@ -108,7 +191,7 @@ seat_planes_emit() {
     *) printf 'FATAL: seat_planes: unknown mode %s\n' "$mode" >&2; return 1 ;;
   esac
   [ -n "$args" ] || { printf 'FATAL: seat-planes.yml: plane %s has no %s arguments\n' "$plane" "$mode" >&2; return 1; }
-  path="$(hl_owner_path "$owner")" || { printf 'FATAL: seat-planes.yml: plane %s names owner %s, which is not under scripts/ (a plane whose owner moved is a plane that silently stops running)\n' "$plane" "$owner" >&2; return 1; }
+  hl_owner_path path "$owner" || { printf 'FATAL: seat-planes.yml: plane %s names owner %s, which is not under scripts/ (a plane whose owner moved is a plane that silently stops running)\n' "$plane" "$owner" >&2; return 1; }
   # The driver runs these ON a seat with the seat's repo as cwd (relative is correct there);
   # an installer runs them from wherever the operator typed the command, and sets
   # HL_REPO_PREFIX="$REPO/" so the same registry line still names a real file.
@@ -284,7 +367,9 @@ hl_pin_selftest() {
   trap "rm -rf '$_t'" RETURN
   mkdir -p "$_t/lib"
   cp "$_HL_PIN_SELF" "$_t/lib/pi-seat.sh"
-  printf 'the_pin: "9.9.9"  # fixture\n' >"$_t/versions.yml"
+  # Three rows, not one: `the_second` proves a warm cache answers a key nobody asked for yet,
+  # `the_empty` is the mapping-key shape `tailscale_host_deb_sha256_by_arch` has in the real SSOT.
+  printf 'the_pin: "9.9.9"  # fixture\nthe_second: 8.8.8\nthe_empty:\n' >"$_t/versions.yml"
 
   # Half 1 (the defect): a missing pin must stop the caller — and the caller below
   # deliberately has NO `set -e`, because that is the shape that used to continue.
@@ -315,6 +400,68 @@ hl_pin_selftest() {
     fails=$((fails + 1))
   else
     printf 'ok: no $(pin ...) call site remains\n'
+  fi
+
+  # Half 4 (the cache's own shape, HD-1135): the SSOT is parsed ONCE and EVERY row lands in the
+  # cache, so a SECOND pin in the same process is not a miss. A parser that caches only the row it
+  # was asked for — or stops at the first row — reddens here, not in the leg it starves.
+  printf '#!/usr/bin/env bash\nVERSIONS="%s/versions.yml"\n. "%s/lib/pi-seat.sh"\npin A the_pin\npin B the_second\nprintf "%%s %%s %%s\\n" "$A" "$B" "${#_HL_PIN_CACHE[@]}"\n' "$_t" "$_t" >"$_t/warm.sh"
+  _out="$(bash "$_t/warm.sh" 2>&1)"
+  if [ "$_out" = "9.9.9 8.8.8 3" ]; then
+    printf 'ok: a warm cache answers a second key (all fixture rows parsed)\n'
+  else
+    printf 'NOT CAUGHT: warm cache gave %s (want "9.9.9 8.8.8 3")\n' "$_out"
+    fails=$((fails + 1))
+  fi
+
+  # Half 5: a key that EXISTS with an EMPTY value is a missing pin. The cache stores the empty
+  # string, so the STOP must test the VALUE — an empty version is exactly the blank string HD-1115
+  # was about, and a mapping key (`tailscale_host_deb_sha256_by_arch`) is this shape in the SSOT.
+  printf '#!/usr/bin/env bash\nVERSIONS="%s/versions.yml"\n. "%s/lib/pi-seat.sh"\npin OUT the_empty\nprintf "REACHED-AFTER-EMPTY-PIN\\n"\n' "$_t" "$_t" >"$_t/empty.sh"
+  _out="$(bash "$_t/empty.sh" 2>&1)"; _rc=$?
+  if [ "$_rc" -ne 0 ] && ! printf '%s' "$_out" | grep -q "REACHED-AFTER-EMPTY-PIN"; then
+    printf 'ok: a pin that exists with an empty value stops the caller (rc %s)\n' "$_rc"
+  else
+    printf 'NOT CAUGHT: an empty-valued pin was accepted (rc %s): %s\n' "$_rc" "$_out"
+    fails=$((fails + 1))
+  fi
+
+  # Half 6: the cache is keyed on the file it read. A re-pointed VERSIONS in the SAME shell must
+  # answer from the NEW file — a cache that ignores the re-point serves a stale pin forever.
+  printf 'the_pin: "7.7.7"\n' >"$_t/versions2.yml"
+  printf '#!/usr/bin/env bash\nVERSIONS="%s/versions.yml"\n. "%s/lib/pi-seat.sh"\npin A the_pin\nVERSIONS="%s/versions2.yml"\npin B the_pin\nprintf "%%s %%s\\n" "$A" "$B"\n' "$_t" "$_t" "$_t" >"$_t/repoint.sh"
+  _out="$(bash "$_t/repoint.sh" 2>&1)"
+  if [ "$_out" = "9.9.9 7.7.7" ]; then
+    printf 'ok: a re-pointed VERSIONS re-reads (no stale pin served from the cache)\n'
+  else
+    printf 'NOT CAUGHT: re-pointed VERSIONS gave %s (want "9.9.9 7.7.7")\n' "$_out"
+    fails=$((fails + 1))
+  fi
+
+  # Half 7: how the lib is ACTUALLY loaded. Every caller sources it through hl_source_lib, which is a
+  # FUNCTION, and a `declare -A` at source time is function-LOCAL: the map then silently comes back
+  # INDEXED, its subscripts are arithmetic-evaluated, and every key collapses onto one element —
+  # three different pins answering ONE pin's value, with no error. Source it the way they do.
+  printf '#!/usr/bin/env bash\nVERSIONS="%s/versions.yml"\nload(){ . "%s/lib/pi-seat.sh"; }\nload\npin A the_pin\npin B the_second\nprintf "%%s %%s\\n" "$A" "$B"\n' "$_t" "$_t" >"$_t/funcsrc.sh"
+  _out="$(bash "$_t/funcsrc.sh" 2>&1)"
+  if [ "$_out" = "9.9.9 8.8.8" ]; then
+    printf 'ok: a function-sourced lib answers every key (the cache really is global)\n'
+  else
+    printf 'NOT CAUGHT: function-sourced lib gave %s (want "9.9.9 8.8.8")\n' "$_out"
+    fails=$((fails + 1))
+  fi
+
+  # Half 8: the same trap on the owner map — an INDEXED map answers every lookup with one path, and a
+  # name containing a dot aborts the walk in arithmetic. Fixture tree, one real owner, one unknown.
+  mkdir -p "$_t/scripts/harness"
+  : >"$_t/scripts/harness/warm-owner.sh"
+  printf '#!/usr/bin/env bash\nREPO="%s"\nload(){ . "%s/lib/pi-seat.sh"; }\nload\nhl_owner_path P warm-owner.sh && printf "P=%%s;" "$P"\nhl_owner_path Q nope.sh; _rc=$?\nprintf "unknown=%%s\\n" "$_rc"\n' "$_t" "$_t" >"$_t/funcown.sh"
+  _out="$(bash "$_t/funcown.sh" 2>&1)"
+  if [ "$_out" = "P=scripts/harness/warm-owner.sh;unknown=1" ]; then
+    printf 'ok: a function-sourced owner map resolves by name (unknown still rc 1)\n'
+  else
+    printf 'NOT CAUGHT: function-sourced owner map gave %s (want "P=scripts/harness/warm-owner.sh;unknown=1")\n' "$_out"
+    fails=$((fails + 1))
   fi
 
   [ "$fails" -eq 0 ] || printf 'pi-seat self-test: %s arm(s) NOT caught\n' "$fails" >&2
