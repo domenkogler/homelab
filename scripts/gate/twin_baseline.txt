@@ -22,6 +22,12 @@
 #
 # Seeded 2026-10-11 at the wave-2 base 34e77f82: the population the wave-2 audit measured, so
 # the gate opens green on the repaired tree and its first red is somebody's next sever.
-baseline_rev 34e77f82c57e73a859b3eb9210fd6c83c46cd0e2
-twin_groups 2002
-group_keys_sha256 76126d4809240c676aae623858e724adfe3e5addc1fe8e9916ecc3393951004f
+#
+# Re-published 2026-10-12 at the HD-1118 scripts/ folder move — the trigger was path identity,
+# not the commit count: files_at_rev() reads the current side at the BASELINE's paths, so the
+# moment the population moved into folders every old path yielded an empty side and the gate
+# reported mass severs that never happened. The 289-group growth against 34e77f82 is the repo
+# growing, not the extractor narrowing.
+baseline_rev 2062f681e61ab0afd20387a2de1edb4e99ec52b9
+twin_groups 2289
+group_keys_sha256 cb7786f61610ad65b72100a44a9e4c7b58f4caf6b6ae111b0b181b5e6d83fd7b
