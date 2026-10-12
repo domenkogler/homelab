@@ -28,6 +28,11 @@
 # moment the population moved into folders every old path yielded an empty side and the gate
 # reported mass severs that never happened. The 289-group growth against 34e77f82 is the repo
 # growing, not the extractor narrowing.
-baseline_rev 2062f681e61ab0afd20387a2de1edb4e99ec52b9
+#
+# Moved once more at the commit that republished this gate's own self-test: removing dead code
+# from check_string_twins.py dropped one side of the cross-file `exact` group, which is this
+# gate's rule applying to itself. twin_groups and the digest are UNCHANGED -- a group's sides
+# went, its keys did not -- so this line is the whole of that decision.
+baseline_rev 58bac7bfbcb8357604d1e19f8b7d7709f7912c98
 twin_groups 2289
 group_keys_sha256 cb7786f61610ad65b72100a44a9e4c7b58f4caf6b6ae111b0b181b5e6d83fd7b
