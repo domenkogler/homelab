@@ -181,10 +181,12 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    testdata/` with `validate-all.sh` + `render_all.py` at root, root resolution is structural, and
    `gate/check_script_layout.py` holds the tree from inside `validate-all.sh`. The lane's 13 commits were not
    replayable (0/13 applied across 676 commits of drift) and are pinned as `rescue/hd1118-20261011`. Three live
-   legs stay in the row: the seat `pi-seat-sync.sh --check` after each seat fast-forwards, a from-zero `install-
-   pi-debian.sh --check`, and `install-tmux-conf.sh --push` on the two laptop seats. **HD-1119** — the missing
-   `harness` docs domain — is the only authored work the brief still carries, and it no longer gates the tree:
-   folders are named for the toolchain each script drives, and the `gate/`/`lib/` exception is written into
+   legs stay in the row; **the two seat legs are run FROM the seats — `bash scripts/harness/pi-seat-sync.sh
+   --check` and `install-tmux-conf.sh --push` on the win11 and `wsl -d Debian` seats, in their own sessions
+   (2026-10-12)** — because a seat plane converges from its own clone and the station cannot speak for a seat's
+   PATH; `install-pi-debian.sh --check` on a clean Debian seat is the third. **HD-1119** — the missing `harness`
+   docs domain — is the only authored work the brief still carries, and it no longer gates the tree: folders are
+   named for the toolchain each script drives, and the `gate/`/`lib/` exception is written into
    [scripts/README.md](scripts/README.md). → [prompt-scripts.md](prompt-scripts.md)
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
     drill · **418** the HA restart window · **HD-06** the UPS drill · **411** the cockpit resume word ·
