@@ -255,8 +255,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
 15. ⏳ **The gate's own speed on a Windows seat** — **HD-1135** landed the fork diet (gate 134 s → 78 s measured
     interleaved on the Win11 git-bash seat, `$(<file)` proven to be as blind to CR as plain `grep` was) and gave
     `sync-skills.sh` the `--self-test` its encoding guard had been waiting on (teeth proven by mutation, both
-    siblings now share one guard). **One tail left:** `check_doc_path_refs.py` crashes when a human runs it with
-    `py -3` on that seat while staying green inside the gate. Record: [scripts/README.md](scripts/README.md)
+    siblings now share one guard). **Two tails:** the string-twins leg is RED on this work and main is un-pushed
+    because of it — the diet removed pipeline literals that another lane's `check_string_twins.py` tracks as
+    byte-equal twins, and the fix is a wave-boundary re-baseline by that lane (moving `baseline_rev` to the tip
+    breaks that gate's own controls, tried and backed out); and `check_doc_path_refs.py` crashes when a human runs
+    it with `py -3` on that seat while staying green inside the gate. Record: [scripts/README.md](scripts/README.md)
     `validate-all.sh` + `sync-skills.sh` rows.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
