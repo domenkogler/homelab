@@ -142,9 +142,11 @@
     mode: '0755'
   tags: [ha_failover, hd17]
 
-# ---- Cold standby composes (rendered here — docker_services skips enabled:false) ----
+# ---- Cold standby composes (rendered here because docker_services never deploys them) ----
 # ha-failover.sh drives these via `docker compose -f /opt/<svc>/docker-compose.yml`;
-# the files must exist even though the services stay cold until takeover.
+# the files must exist even though the services stay cold until takeover. An `enabled: false`
+# registry entry is excluded from the deploy loop and hit by that role's disabled-teardown pass,
+# so the cold target is owned end-to-end by this role (create at the end of this file).
 
 - name: Render cold standby compose (home-assistant-standby)
   ansible.builtin.template:
@@ -255,4 +257,20 @@
     key_options: >-
       command="/usr/local/sbin/ha-sync-rsync",no-agent-forwarding,no-port-forwarding,no-X11-forwarding,no-pty,from="{{ pi_home_ip }}"
     comment: ha-sync@pi.kogler.si
+  tags: [ha_failover, hd17]
+# ---- Cold deploy: the container exists, nothing starts it ----
+# `enabled: false` keeps the standby out of the docker_services deploy loop, so rendering
+# alone would leave takeover with nothing to start (and a registry pull to wait for mid-outage).
+# `create --no-recreate` materialises the container and its pinned images so a forward takeover
+# only has to START it. `--no-recreate` is the load-bearing flag: this task must never recreate
+# — and thereby restart — a standby that a takeover has already promoted to the live HA node.
+# `restart: "no"` in the compose is what keeps the created container down.
+# Ordering: playbooks/home_servers.yml runs docker_services BEFORE this role, so the external
+# `services-internal` network exists here, and that role's teardown pass for disabled entries
+# has already run — this task is what leaves the cold container in place at the end of a converge.
+- name: Create the cold standby containers (never started)
+  ansible.builtin.command:
+    cmd: docker compose -f "{{ ha_standby_path }}/docker-compose.yml" create --no-recreate
+  register: ha_standby_create
+  changed_when: "'Created' in ha_standby_create.stderr"
   tags: [ha_failover, hd17]

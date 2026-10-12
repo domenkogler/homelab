@@ -8,7 +8,9 @@
 #   - keepalived STANDBY: VIP 10.10.1.200 moves HERE on takeover.
 #   - raspberrymatic pairing is NOT here: HmIP-HAP stays
 #     cloud until an HmIP-RFUSB is bought; no local RMat/CCU on the standby path.
-#   - restart policy: manual (systemd unit disabled by default) → restart: "no"
+#   - restart policy: "no" — the cold standby is CREATED by the home_assistant role
+#     (`docker compose create --no-recreate`) and started only by the takeover trigger; no unit
+#     and no deploy loop ever raises it.
 #   - Traefik's `ha` route targets the VIP; NOT Authentik Forward-Auth (breaks Companion app).
 #
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)

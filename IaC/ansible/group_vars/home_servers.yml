@@ -233,9 +233,10 @@ docker_services:
   - { name: traefik-internal, template_dir: traefik-internal }
 
   # --- Smart home failover: standby HA + keepalived VIP on oldsrv ---
-  # COLD by design — docker_services must NOT start them (exactly one active HA). The
-  # home_assistant role renders their compose files + configs; ha-failover.sh starts
-  # home-assistant-standby on manual forward takeover.
+  # COLD by ruling — enabled:false is the standby's resting state, not a parked deploy: the
+  # home_assistant role renders AND creates the container (never starts it), and only the
+  # takeover trigger raises it, so exactly one HA is ever active. While it is cold its
+  # keepalived is down too, so the VIP has one advertiser — docs/smart-home-failover.md.
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
 
   # --- Observability: LAN log hub (Dozzle) ---

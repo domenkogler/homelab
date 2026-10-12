@@ -12,17 +12,26 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > `deployment-ansible.md`, `services.md`, `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
-> 🟢 **IaC done, not yet live — ⏳ deploy-gated.** The failover design + runbooks are authored but **not
-> live**: no standby is deployed anywhere — the only HA container in the fleet is `home-assistant-primary`
-> **on the Pi** — so the VIP has no second host to float to and **pulling the Pi costs the house its
-> automation with nothing to take over**. Homematic has no local RF path; the HmIP-HAP stays cloud-mode
-> ([smart-home-rejected.md](smart-home-rejected.md)). Runbooks below are the spec to be executed at takeover
-> time, not a live system. The Homepage failover buttons are **gated**: they render only when group_var
-> `homepage_failover_button: true` (false until the standby is live), so the dashboard carries no dead
-> buttons meanwhile. **Standby keepalived render:** the `home_assistant` role pre-creates
-> `/opt/home-assistant-standby` and bootstraps the active `keepalived.conf` (from the BACKUP config,
-> `force: false`, Pi-pattern) so the standby compose's `./keepalived.conf` bind-mount is a real file from
-> render time — ⏳ deploy-gated on the next oldsrv converge.
+> 🟢 **The standby is deployed COLD — ⏳ deploy-gated, never drilled as cold.** A standby **exists on
+> oldsrv** and is **held cold by ruling**: `home-assistant-standby` carries `enabled: false` in the oldsrv
+> registry, so the `docker_services` deploy loop never touches it, and the `home_assistant` role owns the
+> whole cold target — it renders the compose + `configuration.yaml` + `secrets.yaml` + both keepalived
+> variants into `/opt/home-assistant-standby`, bootstraps the active `keepalived.conf` (from the BACKUP
+> config, `force: false`, Pi-pattern) so the compose bind-mount is a real file from render time, and
+> creates the container with `--no-recreate` so a takeover does not depend on a registry being reachable.
+> Nothing starts it: `restart: "no"` and no unit mean **the cold node is only ever raised by the takeover
+> path**. The Pi → oldsrv config sync is live (`ha-config-sync.timer`), so the cold node carries a current
+> `/config` rather than a snapshot of whenever the role last ran.
+>
+> **What that does and does not buy.** The standby compose hosts oldsrv's keepalived, so while the standby
+> is cold the `ha-vip` has exactly **one advertiser — the Pi**: the VIP never floats on its own and "HA
+> failed over" is always a human act, never a VRRP event. ⏳ **Deploy-gated:** the cold *create* is
+> authored but not yet run, so today `docker ps -a` on oldsrv still lists no HA container — the files and
+> the synced config are there, the created container is not. The **Homepage failover buttons are gated
+> off** (`homepage_failover_button: false`), so the trigger that exists today is root on oldsrv running
+> `/usr/local/sbin/ha-failover.sh forward`. Homematic has no local RF path; the HmIP-HAP stays cloud-mode
+> ([smart-home-rejected.md](smart-home-rejected.md)). Runbooks below are the spec to be executed at
+> takeover time.
 
 ---
 
@@ -101,7 +110,7 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 | Node | Role | Deployment | VIP |
 |------|------|-----------|-----|
 | Pi 4 (`pi.kogler.si`) | **Primary** (active) | Debian + **HA Container** (home_assistant role) + **Technitium DNS** | owns the VIP (`ha-vip`) in normal mode |
-| oldsrv | **Fallback** (standby, cold) | `home-assistant-standby` Docker compose (`disabled` by default), same home_assistant role template | takes over the VIP on takeover |
+| oldsrv | **Fallback** (standby, cold) | `home-assistant-standby` Docker compose, `enabled: false` in the oldsrv registry — rendered and created by the `home_assistant` role, never started by a deploy; same home_assistant role template | takes over the VIP on takeover |
 
 - **Published ports are part of the VIP contract:** the standby compose publishes `8123:8123` (`VIP:8123` = HA for the Traefik edges + the Prometheus target) and `5683:5683/udp` (Gen1 Shelly CoIoT/CoAP). A standby that is reachable by VIP but has no published app port is not a standby.
 - **Technitium runs on the Pi** (`pi.kogler.si`, a Debian host; `ha.kogler.si` = VIP); instance roles and forwarders are the DNS SSOT's business — see `network-dns.md`.
@@ -232,12 +241,19 @@ Forward-Auth. Direct fallback `pi:5380` on the LAN.
 
 ## Forward Takeover (Pi → oldsrv) — MANUAL
 
-**Prerequisites:** the standby is rendered on oldsrv — `/opt/home-assistant-standby` with its compose and a real `keepalived.conf` file (both created by the `home_assistant` role).
+**Prerequisites:** the standby is rendered on oldsrv — `/opt/home-assistant-standby` with its compose and a real `keepalived.conf` file (both created by the `home_assistant` role), and the standby's config kept current by the Pi-side `ha-config-sync.timer`.
 
-**Two manual actions total:** (1) confirm Pi down, and (2) press **one** failover button on Homepage (`kogler.si`). Everything after the button is a single orchestrated script — no VIP / standby steps.
+**Two manual actions total:** (1) confirm Pi down, and (2) fire **one** takeover trigger. Everything after the trigger is a single orchestrated script — no VIP / standby steps.
+
+**Who fires it:** `ha-failover.sh` is the only mechanism, and the standing way to reach it is **root on
+oldsrv**: `sudo /usr/local/sbin/ha-failover.sh forward`. The Homepage button is the *same* trigger with a
+web wrapper — `ha-failover-api` is live on oldsrv on `failover_api_port` — but the card itself renders only
+when group_var `homepage_failover_button: true`, which it is not, so **the button is not a path anyone can
+take today** (no dead button on the dashboard either).
 
 1. **Confirm Pi is down** (human verifies — power, SD, OS, network).
-2. **Press the single failover button** on Homepage. It calls the local `ha-failover-api` on oldsrv, which runs `ha-failover.sh`:
+2. **Fire the trigger** — `/usr/local/sbin/ha-failover.sh forward` on oldsrv, directly or (once the button
+   is rendered) through `ha-failover-api`, which runs the same script:
    a. promotes keepalived (Pi MASTER demoted / oldsrv BACKUP promoted → the VIP moves to oldsrv),
    b. starts `home-assistant-standby` (re-polls KNX/Shelly).
    The API reads its token from `/etc/ha-failover/api.env`, parsed like a systemd `EnvironmentFile` —
