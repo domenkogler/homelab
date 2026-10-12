@@ -46,6 +46,6 @@ bias output, and it raises acceptance). This is the strongest tier-1 signal so f
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*` (this dir)
-- CSV rows: `spark/bench/results-v2.csv` (`t1-u2,20261002-215129/215512/220509`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t1-u2,20261002-215129/215512/220509`)
 - VM cross-check: same caveat as u1 (VM endpoint unreachable from runner; harness-side
   deltas authoritative until monitoring converges).

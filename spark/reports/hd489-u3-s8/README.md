@@ -40,5 +40,5 @@ pin-premise report's "run them after tier 1 has booted an arm with max_num_seqs=
 ## Evidence
 
 - `raw/atrest-*` (incl. the +40 GB seqs delta), `raw/result-*`
-- CSV rows: `spark/bench/results-v2.csv` (`t1-u3,20261002-222812/223236/224248`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t1-u3,20261002-222812/223236/224248`)
 - VM cross-check: same caveat (monitoring not converged; harness deltas authoritative).

@@ -30,7 +30,7 @@ one vault):
 | Item | Scope | Who uses it |
 |---|---|---|
 | `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) and every Debian **seat**. No CI holder — **there is no Forgejo runner holding it** ([../deployment-tasks.md](../deployment-tasks.md) §Vault inventory), and the only workflow in the tree (`spark/.github/workflows/ansible-ci.yml`) carries no OP secret. The item is the **single mint point** for all three Debian installs: the oldsrv control node, the oldsrv seat and the laptop |
-| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token`; it reaches those hosts only through an `op-provision-token` converge ([deployment-secrets.md](deployment-secrets.md) §`op-write_api`) |
+| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/secrets/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token`; it reaches those hosts only through an `op-provision-token` converge ([deployment-secrets.md](deployment-secrets.md) §`op-write_api`) |
 
 The two scopes cannot be told apart by `op vault list` — both service accounts list the one vault;
 see §Proving which service account an install holds.
@@ -45,7 +45,7 @@ see §Proving which service account an install holds.
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
-| **Win11 desktop** | **none, by design** | git auth uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`). The one task that would make it a consumer: `scripts/render-pi-config.py` falls back to this same file, so mint `pi_auth` from a Debian seat, or strip the CR if you ever pipe `op.exe` output into it |
+| **Win11 desktop** | **none, by design** | git auth uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`). The one task that would make it a consumer: `scripts/harness/render-pi-config.py` falls back to this same file, so mint `pi_auth` from a Debian seat, or strip the CR if you ever pipe `op.exe` output into it |
 
 ### Proving which service account an install holds
 
@@ -75,7 +75,7 @@ for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token; do \
 ```
 
 ### Rotating the control-node token
-`scripts/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
+`scripts/ansible/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
 rotation it prints *"token already stored"* and changes nothing. Prefer the **pipe form**, which needs
 no paste box and leaves no literal in history or in a transcript (needs any still-working token on the
 box, since it reads the item itself — do it inside the grace window, not after):
@@ -164,7 +164,7 @@ consequences worth naming:
 - **A read-scope service account can pull it.** `git-bootstrap.sh --ssh-auth` runs end to end
   on a headless Debian seat with only `~/.config/op/homelab-sa-token` in the environment — no
   interactive `op signin`, no desktop app, no 2FA. The `OP_VAULT` override covers any machine whose
-  items still live in the other vault (`OP_VAULT=Private bash scripts/git-bootstrap.sh --ssh-auth`).
+  items still live in the other vault (`OP_VAULT=Private bash scripts/git/git-bootstrap.sh --ssh-auth`).
 - **Signing does not need the agent at all when the key is passphrase-free** (measured, git 2.47.3):
   `user.signingkey=/home/domen/.ssh/github_signing` signs with
   `SSH_AUTH_SOCK` **removed from the environment** (`%G?` → `G`), while `key::<pub>` fails with

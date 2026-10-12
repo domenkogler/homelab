@@ -13,7 +13,7 @@ dns_seed_interval: 5m
 # Bulk 1Password pre-pass exporter path — define it once here so every caller of
 # fetch-vault-pass.yml (static, authentik-glue, litellm-bootstrap) resolves it. Re-passing it per
 # caller leaves the glue branch failing 'op_export_script is undefined' once mode is explicit.
-op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"
+op_export_script: "{{ role_path }}/../../../../scripts/secrets/op-vault-export.py"
 # Concurrency for the bulk `op item get` pre-pass. Keep it low: 15+ bursts many op calls at once and
 # trips hosted-1P rate limits during repeated/debug converges (a block lasts 15min+). Overridable via
 # `-e op_vault_workers=N` or a group_var.
@@ -333,7 +333,7 @@ arr_torrent_client_field_types:
 
 # ---- Bulk 1Password pre-pass item sets (per-template map) ----
 # The compose/config templates reference `vault: {name: {field}}` items, which fetch-vault-pass.yml +
-# scripts/op-vault-export.py fetch ONCE per item (one op spawn) instead of ~160 per-template lookups. The
+# scripts/secrets/op-vault-export.py fetch ONCE per item (one op spawn) instead of ~160 per-template lookups. The
 # per-host set is DERIVED from the host's ENABLED docker_services plus the shared glue set, so a host that
 # doesn't run a service never fetches (nor fails on) its items. When a template gains/loses a secret, update
 # its line here (mirrors docs/deployment-secrets.md).

@@ -90,7 +90,7 @@ The pin is `homelable_version: 3.5.1` (registry-verified on GHCR for backend/fro
 | 10 | Docs close | ⏳ after live verify — confirm this section's ✅/⏳ |
 
 ### Owner deploy checklist (what unblocks this)
-1. **Seed the three 1P items**: `OP_SERVICE_ACCOUNT_TOKEN=… python3 scripts/provision-secrets.py --create --yes` (creates `homelable_login` w/ bcrypt, `homelable_secret`, `homelable_mcp`) — or `scripts/provision-vault.sh` on the WSL runner.
+1. **Seed the three 1P items**: `OP_SERVICE_ACCOUNT_TOKEN=… python3 scripts/secrets/provision-secrets.py --create --yes` (creates `homelable_login` w/ bcrypt, `homelable_secret`, `homelable_mcp`) — or `scripts/secrets/provision-vault.sh` on the WSL runner.
 2. **Deploy**: `ansible-run.sh playbooks/home_servers.yml --tags docker_services -e docker_services_scope=homelable` (surgical) — first apply is human-gated per CONVENTIONS §5.9.
 3. **First-run**: open `http://<oldsrv-home-ip>:3000`, log in with the `homelable_login` creds, trigger the first scan, approve discovered devices into the canvas; sketch the rack + draw links.
 4. **(Optional, later)** flip `homelable_mcp_enabled: true` + converge for AI-tool access once the canvas is curated; add a tailnet Pattern-A route for remote use.

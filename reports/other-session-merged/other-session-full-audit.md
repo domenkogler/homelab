@@ -85,7 +85,7 @@
 **False Positives (C):** None.
 
 **Deduplication Keys (C):**
-- `AUD-C-5`: `scripts/collect-smart.ps1:registry-gap`
+- `AUD-C-5`: `scripts/hardware/collect-smart.ps1:registry-gap`
 
 ---
 

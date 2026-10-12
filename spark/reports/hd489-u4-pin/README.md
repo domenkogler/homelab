@@ -45,5 +45,5 @@ on any bench we can run.
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*`
-- CSV rows: `spark/bench/results-v2.csv` (`t1-u4,20261002-230906/231248/232300`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t1-u4,20261002-230906/231248/232300`)
 - VM cross-check: same monitoring-not-converged caveat.

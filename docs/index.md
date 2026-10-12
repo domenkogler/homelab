@@ -42,7 +42,7 @@ tags: [index, dispatcher, ai]
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
 | **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md` |
 | **Switch / certify a spark LLM config (reasoning · graded · fast · fast-sglang)** | [`spark-llm-profiles.md`](spark-llm-profiles.md) | `hardware-spark.md` (pool budget), `pi-harness.md` (measured reasoning surface), `../spark/llm-profiles/README.md` (certify gate) |
-| **Measure spark LLM speed (throughput · TTFT · power) or run a profile leg** | [`../spark/bench/run-scenario.sh`](../spark/bench/run-scenario.sh) — **the** timed instrument; it lives outside `scripts/`, so a brief that searches only `scripts/` will miss it | `../spark/llm-profiles/README.md` (the gate ladder it feeds), `../spark/bench/vm-window.sh` + `observability.md` §Scrape cadence (what VictoriaMetrics keeps, at what resolution, and what it cannot attribute), `hardware-spark.md` §Unified-memory budget, `deployment-ai-stack-secrets.md` (the bearer-scrub rule this harness carries) |
+| **Measure spark LLM speed (throughput · TTFT · power) or run a profile leg** | [`../scripts/bench/spark/run-scenario.sh`](../scripts/bench/spark/run-scenario.sh) — **the** timed instrument; it lives outside `scripts/`, so a brief that searches only `scripts/` will miss it | `../spark/llm-profiles/README.md` (the gate ladder it feeds), `../scripts/bench/spark/vm-window.sh` + `observability.md` §Scrape cadence (what VictoriaMetrics keeps, at what resolution, and what it cannot attribute), `hardware-spark.md` §Unified-memory budget, `deployment-ai-stack-secrets.md` (the bearer-scrub rule this harness carries) |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook), `hardware-gpu.md` |
 | **Triage an AI-plane candidate / check past rejections (RAG, memory, gateways, harnesses)** | [`services-ai-rejected.md`](services-ai-rejected.md) — append-only decision log | `services-ai.md`, `services-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Check a past observability / alerting rejection (where a signal is taken from, what will not be instrumented)** | [`observability-rejected.md`](observability-rejected.md) — append-only decision log | `observability.md`, `services-ai-rejected.md`, `CONVENTIONS.md` §8.3 |
@@ -171,7 +171,7 @@ docs/
 ```
 
 > **First-class tracked components outside `docs/`:**
-> - [`spark/bench/`](../spark/bench/) — the spark LLM **timed-instrument** harness: `run-scenario.sh`
+> - [`scripts/bench/spark/`](../scripts/bench/spark/) — the spark LLM **timed-instrument** harness: `run-scenario.sh`
 >   (per-leg TTFT/ITL/decode-tok-s/power), `vm-window.sh` (the VictoriaMetrics cross-check over a
 >   leg's window), `snapshot-metrics.sh`, `stress-oom.sh` + the stability sweeps, and
 >   `accuracy-gate.sh`. On-box tooling driven over `ssh spark`, not an Ansible-managed service, so it

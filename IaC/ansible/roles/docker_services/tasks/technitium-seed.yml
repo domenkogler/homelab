@@ -195,7 +195,7 @@
       # primary: each answers a Home-VLAN or modem-subnet address, a black hole for a peer that is
       # not at home (and an exposure the docs refuse — see docs/network-rejected.md). The exclusion
       # list is DERIVED from the same entries' `lan_only:` flag, so a new LAN-only name cannot be
-      # added to the zone and forgotten here; scripts/check_dns_seed_drift.py asserts the gate is
+      # added to the zone and forgotten here; scripts/gate/check_dns_seed_drift.py asserts the gate is
       # wired to that var.
       # This `when` is evaluated PER-LOOP-ITEM (Ansible runs the task-level `when` for each
       # item when the task has a `loop`), so `item` is defined here.

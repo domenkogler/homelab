@@ -91,8 +91,8 @@
 # that same file, and VLLM_PLE_MMAP=1 is read by that hook. Claiming both is not belt and
 # braces — the behaviour is then decided by mount order. And an mmap arm that omits its
 # table subdir renders VLLM_PLE_MMAP_DIR=/ple-table with NOTHING mounted there: the exact
-# bug scripts/spark-llm-render-matrix.py was written to catch at render time, refused here
-# at converge time, and bred as a canary in scripts/check_spark_llm_gate.py.
+# bug scripts/bench/spark-llm-render-matrix.py was written to catch at render time, refused here
+# at converge time, and bred as a canary in scripts/gate/check_spark_llm_gate.py.
 - name: Assert the profile uses one PLE mechanism and a complete one
   when: spark_llm.engine == 'vllm'
   ansible.builtin.assert:
@@ -123,7 +123,7 @@
 #   · a placeholder matches nothing (invisible no-op) or everything (a pool leak);
 #   · the argument exists ONLY in the patched image lineage — on any other image api_server
 #     exits at parse time and the container crash-loops.
-#     scripts/check_spark_llm_gate.py canary-proves both.
+#     scripts/gate/check_spark_llm_gate.py canary-proves both.
 - name: Assert no profile ships a placeholder into the engine argv
   ansible.builtin.assert:
     that:
@@ -133,7 +133,7 @@
       Profile '{{ spark_llm_profile }}' still carries a CHANGEME placeholder
       (never_evict_prompt='{{ spark_llm.never_evict_prompt | default('') }}'). Replace it
       with a LITERAL substring of the system prompt the harness actually sends
-      (scripts/pi-config/ → the pi system prompt), and record why that substring is the
+      (scripts/harness/pi/ → the pi system prompt), and record why that substring is the
       one worth pinning. This is a human-decision gate, not a bug to delete.
   tags: [spark, spark-llm-profile, llm]
 
@@ -533,6 +533,6 @@
       - "device hold     : fixed {{ spark_llm.fixed_cost_bytes | default('(undeclared — sglang sizes by mem-fraction)') }} + pool {{ spark_llm.kv_cache_memory }} ≤ ceiling {{ spark_llm_device_hold_ceiling_bytes }}"
       - "fp8 note        : the pool gain from --kv-cache-dtype fp8 is 1.70–1.89×, NOT 2× (main K/V only); read the engine's own 'GPU KV cache size' line, never a projection"
       - "certified        : {{ spark_llm.certified | bool }}{{ '' if spark_llm.certified | bool else '  ← UNCERTIFIED (override: spark_llm_allow_uncertified)' }}"
-      - "client ctx owed  : scripts/pi-config/models-spec.yml contextWindow = {{ spark_llm.client_context_window }}"
+      - "client ctx owed  : scripts/harness/pi/models-spec.yml contextWindow = {{ spark_llm.client_context_window }}"
       - "reasoning surface: {{ spark_llm.reasoning_surface }}"
   tags: [spark, spark-llm-profile, llm]

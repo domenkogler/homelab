@@ -20,4 +20,4 @@ IaC/host/post_install_with_secrets.sh
 # mikrotik one was ignored until 2026-10-07, which is how it came to exist on one host only.
 
 # stability-chain run artifacts (laptop-side evidence; never commit telemetry)
-spark/bench/overnight/
+scripts/bench/spark/overnight/

@@ -156,7 +156,7 @@ spark_gpu_clock_cap_mhz: "300,2418"
 # clocks for us (`--query-supported-clocks` → N/A), so the read-back IS the verification — exit
 # code 0 is not (a documented GB10 unit accepts `-lgc` and does nothing with it).
 spark_gpu_clock_cap_ceiling_mhz: "{{ (spark_gpu_clock_cap_mhz.split(',')[1] | trim) | int }}"
-# Self-converge-guard classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# Self-converge-guard classification (read by scripts/gate/check_self_converge_guard.py, not by Ansible).
 # `filesystem`/mount work on the spark data disk is storage-class to the detector.
 # It is exempt because (a) mkfs runs only when the partition exists and
 # carries no filesystem (`when:` guard, no `force:`), so it cannot reformat a live disk, and

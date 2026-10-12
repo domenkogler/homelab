@@ -169,7 +169,7 @@ the per-instance opt-in is `technitium_forwarders` on **each** instance's `docke
 `Technitium: set resolver upstream (forwarders) from SSOT` in
 [`technitium-seed.yml`](../IaC/ansible/roles/docker_services/tasks/technitium-seed.yml). It is **declarative**:
 an instance without the flag gets `forwarders=` cleared every seed (empty → readback stays `null`, proven a
-no-op rather than an API error). Push with `bash scripts/ansible-run.sh playbooks/dns-seed.yml [--limit …]`.
+no-op rather than an API error). Push with `bash scripts/ansible/ansible-run.sh playbooks/dns-seed.yml [--limit …]`.
 The key is read **only** by that API task, never by
 [`templates/docker_services/technitium/docker-compose.yml.j2`](../IaC/ansible/templates/docker_services/technitium/docker-compose.yml.j2),
 so the render cannot change and no container is ever touched by a forwarder converge. Internal answers are
@@ -265,7 +265,7 @@ survives it, and the link reads `UP` with the same address afterwards.
 
 ```bash
 ssh oldsrv 'grep -v "^#" /etc/resolv.conf; getent hosts llm.kogler.si'
-bash scripts/ansible-run.sh playbooks/home_servers.yml \
+bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml \
      --limit oldsrv.kogler.si --tags nm-resolver --check --no-pull   # prints on-disk | applied | wanted
 ```
 
@@ -613,7 +613,7 @@ to re-derive:
   silently (canary-proven). `headscale policy check` DOES parse `proto` (a garbage protocol fails naming
   `/acls/<n>/proto`), so it is the real gate for the policy half; the DNS list is gated by the post-converge
   dig, not by configtest.
-* **The safety net must be asserted, not assumed.** `scripts/guarded-converge.sh` asserts arm-live before it is
+* **The safety net must be asserted, not assumed.** `scripts/ansible/guarded-converge.sh` asserts arm-live before it is
   allowed to stop anything: an arm step run in a different command from the stop does not actually arm, and a
   stop without a live watchdog leaves the control plane down until someone runs `compose up`. The watchdog is
   proven by stopping the control plane, reading the self-recovery (~19s) and honouring a disarm mid-window.
@@ -753,7 +753,7 @@ routes→`*_url` half is deliberately **not** bundled with them.
 | `sec` (metabase, `enabled: false`) | still resolves publicly **and** internally to the tailnet edge | name outlives the service |
 | media family | the seed answers **oldsrv**; `network-addresses-generated.md` says the **NAS** | generated view vs source |
 | `stats` / `logs` / `csui` | LAN clients are handed a **tailnet address** | decision 3 above |
-| a workstation hosts file | pins `.ts` + short names to tailnet node addresses and cites `scripts/tailnet-hosts.txt` + `scripts/tailscale-dns-fix.ps1` — files that are **not in git**; the mechanism is rejected ([network-rejected.md](network-rejected.md) "hosts-file aliases as the answer mechanism"), and the shipped answer is `scripts/wsl-nat-resolv.ps1` | unversioned state with a citation that looks recorded |
+| a workstation hosts file | pins `.ts` + short names to tailnet node addresses and cites `scripts/tailnet-hosts.txt` + `scripts/tailscale-dns-fix.ps1` — files that are **not in git**; the mechanism is rejected ([network-rejected.md](network-rejected.md) "hosts-file aliases as the answer mechanism"), and the shipped answer is `scripts/hardware/wsl-nat-resolv.ps1` | unversioned state with a citation that looks recorded |
 
 The last row also costs an instrument: a hosts override sits **above** DNS on the one machine you would
 otherwise debug on, so a wrong zone answer becomes invisible exactly where it would have been noticed.
@@ -772,7 +772,7 @@ no converge is owed.
 | MagicDNS + the tailnet router lists | still hand-authored | `group_vars/vps.yml` → `tailnet_subdomains` / `tailnet_ts_only_subdomains` |
 | public Cloudflare set | still hand-authored | `roles/cloudflare_dns/vars/main.yml` → `cloudflare_dns_records` |
 
-Two planes are therefore **doubled**, and while they are, `scripts/check_zone_kogler_si_parity.py`
+Two planes are therefore **doubled**, and while they are, `scripts/gate/check_zone_kogler_si_parity.py`
 (runs in `validate-all.sh`) is what keeps the halves answering the same thing: it diffs the derived
 views against `scripts/testdata/zone_kogler_si_golden.json` — a snapshot of what the hand-authored
 sources answered BEFORE the derivation — and refuses a dropped name, a re-pointed address, a
@@ -847,7 +847,7 @@ Three mechanisms close it — one command, one schedule, one gate:
 
 1. **One-command re-seed of all three instances** — [`playbooks/dns-seed.yml`](../IaC/ansible/playbooks/dns-seed.yml):
    ```bash
-   bash scripts/ansible-run.sh playbooks/dns-seed.yml
+   bash scripts/ansible/ansible-run.sh playbooks/dns-seed.yml
    ```
    Runs ONLY the `docker_services` role, scoped to each host's technitium instance (fast, surgical — no
    common/docker/network re-run; `compose up -d` is a no-op on unchanged specs), and re-asserts zone + all
@@ -864,7 +864,7 @@ Three mechanisms close it — one command, one schedule, one gate:
    within the interval. The VPS `:53` publish stays source-restricted (nftables FORWARD gate) — a
    compose up on an unchanged spec does not recreate/re-publish it.
 
-3. **Static drift gate** — [`scripts/check_dns_seed_drift.py`](../scripts/check_dns_seed_drift.py)
+3. **Static drift gate** — [`scripts/gate/check_dns_seed_drift.py`](../scripts/gate/check_dns_seed_drift.py)
    (wired into `validate-all.sh`): renders the seed record table against the SSOT for all three instances
    and enforces the per-instance split + the LAN-only `when`-gate. A record/gate drift FAILS the repo gate
    before a converge ships — the mechanical form of the parity guard below.

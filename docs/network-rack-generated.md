@@ -1,7 +1,7 @@
 # Ansible managed
 # Rack Connections
 
-> **Generated** from [`rack-connections.json`](rack-connections.json) by `scripts/render_rack_connections.py` — do not hand-edit.
+> **Generated** from [`rack-connections.json`](rack-connections.json) by `scripts/ansible/render_rack_connections.py` — do not hand-edit.
 > Source of truth: [`assets/Rack.canvas`](assets/Rack.canvas) (Obsidian Canvas).
 
 Each row = one physical link. Patch-panel targets show the wall-side room/device + MAC (see the panel tables).

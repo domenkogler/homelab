@@ -81,14 +81,14 @@ nohup ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark --tags
 
 # flip to fast (detached)
 python3 - <<EOF  # host_vars: spark_llm_profile: fast, allow_uncertified: true
-nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/hd469-fast.log 2>&1 &
+nohup bash scripts/ansible/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/hd469-fast.log 2>&1 &
 
 # probes from a session NOT served by spark (entrim)
-python3 scripts/spark-llm-probe.py --base-url https://llm.kogler.si/v1 all --profile fast
+python3 scripts/bench/spark-llm-probe.py --base-url https://llm.kogler.si/v1 all --profile fast
 
 # rollback (detached)
 # host_vars: spark_llm_profile: reasoning, allow_uncertified: false
-nohup bash scripts/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/hd469-rollback.log 2>&1 &
+nohup bash scripts/ansible/ansible-run.sh playbooks/spark.yml --limit spark --no-pull >/tmp/hd469-rollback.log 2>&1 &
 ```
 
 Clock regime: the converge **applied** the cap (`/tmp/hd469-fast.log` header `Converging 8f6698b`,

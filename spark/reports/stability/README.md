@@ -1,7 +1,7 @@
 # Stability-run archive
 
-Finished `spark/bench/overnight/` evidence, archived here deliberately (the live telemetry
-dir `spark/bench/overnight/` itself stays git-ignored; these reports are the durable record).
+Finished `scripts/bench/spark/overnight/` evidence, archived here deliberately (the live telemetry
+dir `scripts/bench/spark/overnight/` itself stays git-ignored; these reports are the durable record).
 
 Each `evidence-<ts>/` is one supervised stability-chain pull:
 

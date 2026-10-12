@@ -7,7 +7,7 @@
 # than re-applying a full converge.
 #
 # Apply per device (router, switch, every AP):
-#   bash scripts/routeros-apply-delta.sh <device> mikrotik_admin_rotate_delta.rsc
+#   bash scripts/ansible/routeros-apply-delta.sh <device> mikrotik_admin_rotate_delta.rsc
 # The drop-in goes through the SSH `ansible` identity (key-only — unaffected by
 # the admin password rotation) + pinned host key, never prints key material.
 # Re-render before every rotation so the .rsc embeds the CURRENT vault value.

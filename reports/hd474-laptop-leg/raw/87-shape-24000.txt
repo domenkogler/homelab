@@ -26,7 +26,7 @@ one vault), both re-issued:
 | Item | Scope | Who uses it |
 |---|---|---|
 | `op_api` | **read** `Homelab-ansible` | the control node (`op` CLI + Ansible's `community.general.onepassword` lookup) any CI runner that resolves the vault (HD-315's `vault-gate`; Phase 0/5 of [../deployment-tasks.md](../deployment-tasks.md) store `op_api` as a runner secret — renew it there after every rotation, or CI's vault access starts 403-ing) |
-| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted) |
+| `op-write_api` | **read + write** | anything that must CREATE/ROTATE items: `scripts/secrets/provision-secrets.py`, and the host-side glue deployed to `/etc/op/provision-token` (renamed from `vps-op-write_api`, now deleted) |
 
 > **Superseded design (kept for the record, do not re-implement):** this section used to say the
 > runner token was item **`Service Account Auth Token: ansible`** in a separate **Private vault**,
@@ -43,7 +43,7 @@ one vault), both re-issued:
 | **vps** — the Authentik secret-egress glue + `kopia-fingerprint-sync.yml` | `op-write_api` | `/etc/op/provision-token`, 0600 root, deployed by the docker_services pre-pass |
 | home hosts | `op-write_api` | same path, but ONLY where a `bootstrap_keys` service converges (`deploy-service.yml`) |
 | **spark** | none | it has no token at all — that is exactly why every spark playbook runs through the `pi` jump host ([deployment-ansible.md](deployment-ansible.md)) |
-| **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
+| **Win11 desktop** | **none, by design** | git auth/signing uses the **1Password desktop app** over `\\.\pipe\openssh-ssh-agent`; there is no `op` CLI and no SA token there (`scripts/git/git-bootstrap-win11.sh` reads neither `OP_SIGN` nor `OP_AUTH`) |
 
 | Where | length | hash prefix |
 |---|---|---|
@@ -653,7 +653,7 @@ git -C ~/source/homelab-wt-* status --short    # other sessions' worktrees must 
 #    everything else (item `op-write_api`, renamed 2026-09-19 from the now-DELETED
 #    `vps-op-write_api`), so the runner can fetch it directly — no root SSH to the VPS:
 OP_SERVICE_ACCOUNT_TOKEN="$(op read 'op://Homelab-ansible/op-write_api/credential' </dev/null)" \
-  python3 scripts/provision-secrets.py --rotate spark-llm_api --yes   # add --skip-rotate if the owner already rotated
+  python3 scripts/secrets/provision-secrets.py --rotate spark-llm_api --yes   # add --skip-rotate if the owner already rotated
 #    Verify by hash, never by printing. The OLD value stays LIVE until step 2 — that is the window.
 # 2. RE-RENDER all three consumers, DETACHED (see §Jump-host execution + scripts/README):
 #    spark / vps  → FULL converge: `bash scripts/ansible-run.sh playbooks/<host>.yml`

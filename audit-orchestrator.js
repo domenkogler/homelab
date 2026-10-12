@@ -114,7 +114,7 @@ CHECKS (audit.md §2.2):
        group_vars/{vps,home_servers}.yml has a template_dir that exists under
        IaC/templates/docker_services/; every template dir has a docker-compose.yml.j2; every
        _template_vault_items / vault[...] reference resolves to a 1P item or a glue-seeded
-       item (re-run bash scripts/check-vault-items.sh --strict for the MISSING list; exclude
+       item (re-run bash scripts/gate/check-vault-items.sh --strict for the MISSING list; exclude
        documented glue items). Cross-check service list vs docs/services.md catalog +
        docs/network-addresses-generated.md.
   B.4 Compose template rules (docs/deployment-compose.md): external networks, Traefik label
@@ -190,7 +190,7 @@ SOURCE SEAM: todo.md (open HD rows) + owning docs/
              <domain>-rejected.md (decision-log SSOT) + CONVENTIONS.md (§5 onboarding).
 OWNING DOCS: CONVENTIONS.md, todo.md, deployment-tasks.md.
 CHECKS (audit.md §2.4):
-  D.1 Secret hygiene: \`bash scripts/check-vault-name.py\` + \`validate-secrets.py\` green on
+  D.1 Secret hygiene: \`bash scripts/gate/check_vault_name.py\` + \`validate-secrets.py\` green on
        the worktree; a human grep for the B5 placeholder tokens + any raw \`password:\` /
        \`token:\` literal in group_vars/templates. Note: secrets live in IaC/, not in repo root.
   D.2 Lifecycle conformance: open HD rows map to owning docs; ⏳ tails exist only where
@@ -242,7 +242,7 @@ CHECKS (audit.md §3, sampled):
        (suggest: kogler.si root, sso.kogler.si, git.kogler.si, logs.kogler.si) — expect
        200/302 per the route tier docs. Note any 404/5xx as Live_Liveness_Mismatch.
   E.5 \`op service-account ratelimit\` — sanity (we are read-only, just confirm budget headroom).
-  E.6 Ansible drift detection (read-only): \`bash scripts/ansible-run.sh site.yml --check --diff --limit vps\`
+  E.6 Ansible drift detection (read-only): \`bash scripts/ansible/ansible-run.sh site.yml --check --diff --limit vps\`
        (or directly \`ansible-playbook -i IaC/inventory.ini IaC/playbooks/site.yml --check --diff --limit vps\`
        with the right env) — report any "changed" tasks. DO NOT APPLY.
   E.7 Certificate expiry: for the 2-4 services from E.4, check

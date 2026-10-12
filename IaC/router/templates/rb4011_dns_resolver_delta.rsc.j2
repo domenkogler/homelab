@@ -17,7 +17,7 @@
 # Final state is ALSO folded into rb4011_converge.rsc.j2 (whose idempotency is
 # partial by design — an /add duplicate aborts before the DNS section) and into
 # roles/router/tasks/main.yml — all three read the same `lan_first_dns` SSOT.
-# Render: playbooks/render-converge.yml; apply: scripts/routeros-apply-delta.sh.
+# Render: playbooks/render-converge.yml; apply: scripts/ansible/routeros-apply-delta.sh.
 # =====================================================================
 # DHCP — per-VLAN resolver chain (3 max), rendered from the `network_vlans` SSOT
 {% for v in network_vlans %}

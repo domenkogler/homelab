@@ -70,7 +70,7 @@ tags: [deployment, renovate, updates]
 
 A `sha256` in a variable name is a **do-not-edit marker** for exactly this reason. When a version bump
 does require the digest to move, the digest must come from the vendor in the same breath as the bump —
-`python3 scripts/image-pin-probe.py --debs` fetches `pkgs.tailscale.com/stable/tailscale_<ver>_<arch>.deb.sha256`
+`python3 scripts/ansible/image-pin-probe.py --debs` fetches `pkgs.tailscale.com/stable/tailscale_<ver>_<arch>.deb.sha256`
 and compares every arch line, and it is the only honest way to write those lines. A transcribed digest can
 share 8 hex chars with upstream and diverge after: every offline gate passes, the render is clean, and the
 converge dies mid-role on a `get_url` checksum mismatch — the play aborts and everything downstream stays
@@ -82,7 +82,7 @@ Until `RENOVATE_REPOSITORIES` names this repo, the Dependency Dashboard produces
 version refresh is a session task. Do it with the probe, not from memory:
 
 ```bash
-python3 scripts/image-pin-probe.py --verify     # every *_version in versions.yml, per registry
+python3 scripts/ansible/image-pin-probe.py --verify     # every *_version in versions.yml, per registry
 ```
 
 It prints, per pin: the current value, the newest **stable** release at least `stabilityDays`

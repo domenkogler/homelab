@@ -37,7 +37,7 @@ run `python scripts/render_all.py`, then `bash scripts/validate-all.sh`, then
 from __future__ import annotations
 
 import argparse
-import importlib
+import importlib.util
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -46,7 +46,11 @@ from pathlib import Path
 import yaml
 from jinja2 import Environment, StrictUndefined
 
-ROOT = Path(__file__).resolve().parent.parent
+# HD-1118 Stage 1: FOUND, not assumed from a depth — scripts/lib/repo_root.py.
+sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
+                            if p.name == "scripts") / "lib"))
+from repo_root import root as _hl_root, script_path as _hl_script_path  # noqa: E402
+ROOT = _hl_root(__file__)
 ANSIBLE = ROOT / "IaC" / "ansible"
 DOCS = ROOT / "docs"
 GROUP_VARS = ANSIBLE / "group_vars"
@@ -99,8 +103,29 @@ def _iso_now() -> str:
 # --------------------------------------------------------------------------- #
 # Renderers — each returns the list of files it produced.
 # --------------------------------------------------------------------------- #
+def _load_renderer(name: str):
+    """Import a renderer by NAME from wherever it lives (HD-1118 Stage 1).
+
+    `importlib.import_module("render_network_addresses")` only ever worked because
+    the renderer sat in THIS file's directory (sys.path[0] is the script dir). That
+    is a same-directory assumption wearing an import: Stage 3 moves the renderers
+    into `ansible/` and this umbrella stays at the root, so the module name would
+    stop resolving — and the shape of the failure is the bad part, not a red gate.
+    Looking the name up under `scripts/**` keeps the tree written down in one place
+    (no literal name→path map to fall out of step with the move).
+    """
+    path = _hl_script_path(f"{name}.py", __file__)
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(f"render_all: cannot load renderer {path}")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[name] = mod
+    spec.loader.exec_module(mod)
+    return mod
+
+
 def render_network_addresses() -> list[Path]:
-    mod = importlib.import_module("render_network_addresses")
+    mod = _load_renderer("render_network_addresses")
     rc = mod.main()
     if rc != 0:
         raise SystemExit(f"render_network_addresses.py exited {rc}")
@@ -141,7 +166,7 @@ def render_subscriptions() -> list[Path]:
 
 
 def render_rack() -> list[Path]:
-    mod = importlib.import_module("render_rack_connections")
+    mod = _load_renderer("render_rack_connections")
     rc = mod.main()
     if rc != 0:
         raise SystemExit(f"render_rack_connections.py exited {rc}")

@@ -1,14 +1,14 @@
 # =====================================================================
 # gitconfig-nightly — the UNATTENDED git identity for a Win11 pi.dev seat.
 #
-# THIS IS THE SEAT DEFAULT, not an opt-in: scripts/git-bootstrap-win11.sh --git-identity
+# THIS IS THE SEAT DEFAULT, not an opt-in: scripts/git/git-bootstrap-win11.sh --git-identity
 # installs this file to ~/.gitconfig-nightly and includes it LAST from ~/.gitconfig, scoped to
 # github remotes by hasconfig:, so no git command in a github clone — interactive, subagent, or
 # scheduled — can raise a 1Password window.
 # The name is historical (it was minted 2026-10-03 for the overnight benches, when it WAS
 # opt-in via GIT_CONFIG_GLOBAL). On 2026-10-07 the owner ruled the modal-free route the
 # default; the 1Password route is now the opt-back:
-#   bash scripts/git-bootstrap-win11.sh --1password
+#   bash scripts/git/git-bootstrap-win11.sh --1password
 #
 # WHY IT EXISTS: 1Password authorises an SSH key PER APPLICATION/PROCESS. A harness that
 # starts a fresh shell per command (pi on Win11) is a new process every time, so git blocks

@@ -1,7 +1,7 @@
 # Ansible managed
 <!-- Network address plan — auto-generated from IaC/ansible/group_vars/all/. -->
 <!-- Do NOT hand-edit. Change group_vars/all/ and re-render. -->
-<!-- Re-render (Windows / no Ansible):  python scripts/render_network_addresses.py -->
+<!-- Re-render (Windows / no Ansible):  python scripts/ansible/render_network_addresses.py -->
 <!-- Re-render (Ansible / Linux / CI):   ansible-playbook IaC/ansible/playbooks/render-docs.yml -i IaC/ansible/inventory.ini -->
 <!-- Source of truth: IaC/ansible (group_vars/all/, host_vars) -->
 
@@ -39,7 +39,7 @@
 | 99 | 10.10.99.30 | oldsrv | i7-7700K node + DNS secondary |
 | 99 | 10.10.99.40 | spark | DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home); static reservation |
 | 99 | 10.10.99.80 | laptop-domen | Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra |
-| 10 | 10.10.1.81 | laptop-wsl | Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback |
+| 10 | 10.10.1.81 | laptop-wsl | Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/hardware/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback |
 | 10 | 10.10.1.1 | router | Home gateway |
 | 10 | 10.10.1.10 | nas | Cockpit/NFS/NUT master |
 | 10 | 10.10.1.20 | pi | node + DNS tertiary (VRRP anchor) |
@@ -121,4 +121,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-10-11T09:57:14Z
+> Last generated: 2026-10-12T06:56:40Z

@@ -61,7 +61,7 @@ storage_group: media
 #   [{ name: <account>, vault_item: smb-<name>_login, uid: <unixuid>, shell: <login shell> }]
 #   * vault_item — 1Password item holding `username` + `password`; the converge writes the
 #     password into the local passdb. Declared as a `*_item:` registry key on purpose so
-#     scripts/check-vault-items.sh sees it (CONVENTIONS §2 item-reference coverage).
+#     scripts/gate/check-vault-items.sh sees it (CONVENTIONS §2 item-reference coverage).
 #   * uid        — pin only when the uid must be exact; omit = let the host allocate.
 #   * shell      — omit to leave an EXISTING account's shell untouched (an interactive
 #     account keeps its login shell); set /usr/sbin/nologin for a service account.

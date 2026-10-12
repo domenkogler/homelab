@@ -10,7 +10,7 @@
 #
 # Fail-loud by construction: no default(), no | ternary fallback, no failed_when. If the
 # controller cannot be identified the guard FIRES — it cannot tell "safe" from "about to
-# cut its own cable". scripts/check_self_converge_guard.py keeps that property true.
+# cut its own cable". scripts/gate/check_self_converge_guard.py keeps that property true.
 #
 # The rule, exactly: REFUSE when (a) the target's short hostname == the controller's short
 # hostname, AND (b) this play carries one of those roles, AND (c) the run's tag filter would

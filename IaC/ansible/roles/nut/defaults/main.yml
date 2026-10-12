@@ -87,7 +87,7 @@ nut_smtp_pass: "{{ lookup('community.general.onepassword', 'smtp_login', field='
 # Optional: absolute path to a helper that sends a Signal message as $1
 # (e.g. a wrapper around signal-cli). Leave empty to skip Signal from NUT.
 nut_signal_helper: ""
-# Self-converge-guard classification (read by scripts/check_self_converge_guard.py, not by
+# Self-converge-guard classification (read by scripts/gate/check_self_converge_guard.py, not by
 # Ansible). Writes /etc/sudoers.d/nut, validated with `visudo -cf`. What makes this one
 # worth an explicit row: the grant it installs lets the NUT driver HALT THE HOST. A converge
 # never calls it — the driver does, on battery exhaustion — so it cannot cut the driving

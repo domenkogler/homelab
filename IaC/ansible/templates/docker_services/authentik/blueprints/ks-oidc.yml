@@ -33,7 +33,7 @@
 # (default-provider-invalidation-flow) and `redirect_uris` must be a LIST of OBJECTS
 # {url, matching_mode: strict|regex} — both the legacy newline string AND plain-string list
 # forms fail validation (authoritative shape: /blueprints/schema.json inside the image).
-# Local validation: scripts/validate_blueprints.py (custom-tag YAML loader + these checks), wired
+# Local validation: scripts/gate/validate_blueprints.py (custom-tag YAML loader + these checks), wired
 # into scripts/validate-all.sh. Authoring notes: docs/services-authentik.md "Blueprint authoring notes".
 # Deploy-verify: apply on the pinned authentik_version, confirm import + the
 # secret-egress glue seeds client creds + each redirect_uri matches its consumer.

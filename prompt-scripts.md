@@ -29,7 +29,7 @@ scripts/
 ├── secrets/     (8)               1Password provisioning + the key-injecting generators
 ├── git/         (2 + data)        git-bootstrap{,-win11}.sh + data/gitconfig-nightly
 ├── harness/     (12 + data)       seat planes, driver, installers, the models plane, win/ twin
-├── bench/       (5 + spark data)  serving-leg instruments, incl. spark/bench moved in
+├── bench/       (5 + spark data)  serving-leg instruments, incl. scripts/bench/spark moved in
 ├── hardware/    (4)               run-it-on-the-box / live-ISO collectors + the WSL net fix
 └── testdata/                      unchanged; the future registry checker EXCLUDES testdata/**
 ```
@@ -45,7 +45,7 @@ except the one deleted file):
 | `secrets/` | `provision-secrets.py`, `provision-vault.sh`, `op-vault-export.py`, `gen-htpasswd.py`, `get-bootstrap-keys.sh`, `rotate-spark-llm-key.sh`, `gen-custom-script.sh`, `gen-media-post-install.sh` |
 | `git/` | `git-bootstrap.sh`, `git-bootstrap-win11.sh`, `data/gitconfig-nightly` (today's `scripts/git/` holds only that data file, with its two installers elsewhere — the folder becomes what a reader assumes it is) |
 | `harness/` | `pi-seat-sync.sh`, `pi-self-update.sh`, `pi-settings-config.sh`, `pi-tui-config.sh`, `sync-skills.sh`, `sync-extensions.sh`, `install-nerd-font.sh`, `install-tmux-conf.sh`, `install-pi-debian.sh`, `install-pi-wsl.sh`, `render-pi-config.py`, `win/install-nerd-font.ps1`, `pi/models-spec.yml` (was `pi-config/`) |
-| `bench/` | `spark-llm-probe.py`, `spark-fp8-image-probe.py`, `spark-llm-render-matrix.py`, `laptop-llm.py`, `laptop/profiles.yml` (was `laptop-llm/`), `laptop/win/lmstudio-llm.ps1`, **`spark/bench/*.sh` moved in** → `bench/spark/` (owner ruling 2026-10-09: one instrument, one home; `spark/reports/` keeps the artifacts) |
+| `bench/` | `spark-llm-probe.py`, `spark-fp8-image-probe.py`, `spark-llm-render-matrix.py`, `laptop-llm.py`, `laptop/profiles.yml` (was `laptop-llm/`), `laptop/win/lmstudio-llm.ps1`, **`scripts/bench/spark/*.sh` moved in** → `bench/spark/` (owner ruling 2026-10-09: one instrument, one home; `spark/reports/` keeps the artifacts) |
 | `hardware/` | `collect-disk-facts.sh`, `collect-smart-live.sh`, `collect-smart.ps1`, `wsl-nat-resolv.ps1` |
 
 Folder-name rule the owner set: **name the folder after the toolchain the scripts actually drive** (`ansible`, not the doc
@@ -103,14 +103,14 @@ Commit: one commit, `validate-all` green. **Do not start Stage 3 in the same ses
    (`pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*`) and belong to the settings plane's owned set, and
    `install-pi-wsl.sh` versions those two from the pins instead of naming them bare. ⏳ Left: the inventory's
    `scope: fleet | seat` shape (still plain scalar pins) and the remaining two names, unversioned and owned by nobody.
-3. Converge the seats with `bash scripts/pi-seat-sync.sh --push` — **after** the paths move, not before (Stage 3 relocates
+3. Converge the seats with `bash scripts/harness/pi-seat-sync.sh --push` — **after** the paths move, not before (Stage 3 relocates
    the driver into its own folder; the command is otherwise unchanged) — because the driver's command strings are literal and
    the pre-flight compares each seat's
    `git rev-parse HEAD` with this checkout, so a seat on an old commit is `STALE-CLONE` by design, not a bug.
 
 ## Stage 3 — the moves (one commit per folder, ordered by risk, `git mv` only)
 
-Order: `harness/` (self-contained, 12) → `git/` (3) → `hardware/` (4) → `secrets/` (8) → `bench/` (5 + `spark/bench/*`) →
+Order: `harness/` (self-contained, 12) → `git/` (3) → `hardware/` (4) → `secrets/` (8) → `bench/` (5 + `scripts/bench/spark/*`) →
 `ansible/` (19, biggest sweep) → `gate/` (27, mechanical, safe only because Stage 1 fixed the roots) → `lib/` already there.
 
 Per folder, in this order: `git mv`; fix intra-repo path references (`validate-all.sh`, the driver's plane argv, the
@@ -122,12 +122,12 @@ git grep -n 'scripts/<moved-file>' -- . ':!reports'   # must print nothing
 ```
 
 ⛔ Never bundle two folders in one commit — a bad rebase here is exactly how the merge-marker class happened, the
-one `scripts/check_merge_markers.py` now refuses.
+one `scripts/gate/check_merge_markers.py` now refuses.
 
 **Named traps for this stage (each one is silent or expensive, all are measured):**
 
 - `IaC/ansible/roles/docker_services/defaults/main.yml:17` —
-  `op_export_script: "{{ role_path }}/../../../../scripts/op-vault-export.py"`. It resolves by **relative depth**: either keep
+  `op_export_script: "{{ role_path }}/../../../../scripts/secrets/op-vault-export.py"`. It resolves by **relative depth**: either keep
   the depth or change the IaC value **in the same commit** and re-converge `docker_services` once. A wrong depth here is a
   broken bulk 1P pre-pass at the next converge, not a broken doc link.
 - `render_all.py:103,144` imports its renderers **by module name** (`importlib.import_module("render_network_addresses")`),
@@ -139,12 +139,12 @@ one `scripts/check_merge_markers.py` now refuses.
   `check_doc_path_refs.py` catches dangling ones — treat a green there as necessary, not sufficient, for comments that are
   only prose-quoted.
 - The seat driver (`pi-seat-sync.sh`) and both installers carry **literal command strings**; after the move, run
-  `bash scripts/pi-seat-sync.sh --self-test` (stubbed seats) **and** `--list` — at whichever path Stage 3 leaves it at —
+  `bash scripts/harness/pi-seat-sync.sh --self-test` (stubbed seats) **and** `--list` — at whichever path Stage 3 leaves it at —
   and confirm every plane still reports a
   verdict rather than `FAILED` with `No such file`.
 - `install-pi-wsl.sh` / `install-pi-debian.sh` are invoked by the runbook with paths in `deployment-manual.md` Phase 0/4c —
   sweep that file too (`check_runbook_purity.py` keeps it honest but does not check path existence beyond the ref checker).
-- `spark/bench/*.sh` reference `results-v2.csv`, `raw/`, `accuracy/` **relative to their own location**; moving them into
+- `scripts/bench/spark/*.sh` reference `results-v2.csv`, `raw/`, `accuracy/` **relative to their own location**; moving them into
   `bench/spark/` while the artifacts stay in `spark/reports/` means auditing every one of their path derivations first —
   that is why they move last inside Stage 3's bench commit, with a read of `run-scenario.sh` before it.
 
@@ -159,7 +159,7 @@ one `scripts/check_merge_markers.py` now refuses.
 3. **the depth ratchet**: no `parent.parent` / `SCRIPT_DIR/..` root derivation survives outside `lib/` — this is what keeps
    the Stage-1 fix from regrowing one file at a time;
 4. no second `pin()` / second tree-sync engine outside `lib/` (a ratchet with floor 1 — the width-rule lesson
-   `scripts/check_md_tables.py` carries: one finding at rest, not 41);
+   `scripts/gate/check_md_tables.py` carries: one finding at rest, not 41);
 5. no `.ps1` and no data file at `scripts/` top level; `testdata/**` excluded from the registry requirement.
 
 Then restructure `scripts/README.md` into one section per folder (the file's own §"Validation gate" / "Renderers" /

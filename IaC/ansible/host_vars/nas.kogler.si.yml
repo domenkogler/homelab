@@ -36,7 +36,7 @@ cockpit_maint_vault_item: nas-cockpit_login
 # Samba family shares (roles/storage/tasks/samba.yml) — LOCAL tdbsam accounts.
 # SSOT for "who can mount the NAS" is THIS list: a repo edit + one `--tags samba` converge,
 # no directory sync and no VPS in the auth path — docs/storage-rejected.md, storage.md §Samba.
-#   * vault_item is a `*_item:` registry key on purpose, so scripts/check-vault-items.sh
+#   * vault_item is a `*_item:` registry key on purpose, so scripts/gate/check-vault-items.sh
 #     sees the dependency (CONVENTIONS §2 item-reference coverage).
 #   * `shell` is pinned only for the service account; `domen` keeps whatever login shell
 #     the box already gives it, because that account also SSHes here (an interactive leg

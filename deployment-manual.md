@@ -50,7 +50,7 @@
   1Password item+field name only (never values); every executed action gets an owning-doc
   status note + a commit.
 - Shells: repo ops + validators from **git-bash** (Windows laptop); Ansible runs ONLY on the
-  **WSL Debian runner** through [scripts/ansible-run.sh](scripts/README.md) — never pass inline
+  **WSL Debian runner** through [scripts/ansible/ansible-run.sh](scripts/README.md) — never pass inline
   commands to wsl.exe.
 - **Ansible-run semantics** (sync gate, `--tags` surgical runs, venv interpreter): see
   [scripts/README.md](scripts/README.md) + [docs/deployment-ansible.md](docs/deployment-ansible.md) §Tags & surgical runs.
@@ -59,7 +59,7 @@
   incantations and the reasoning: [deployment-ansible.md](docs/deployment-ansible.md) §Long converges run
   detached (HD-370 / HD-379).
   ```bash
-  bash scripts/ansible-run.sh playbooks/<playbook>.yml --tags docker_services,<service-name> \
+  bash scripts/ansible/ansible-run.sh playbooks/<playbook>.yml --tags docker_services,<service-name> \
       </dev/null > /tmp/converge-"$(date +%s)".log 2>&1 &
   tail -f /tmp/converge-*.log        # poll until PLAY RECAP
   ```
@@ -85,7 +85,7 @@ Create the local user `domen`, then set its password (`passwd`) and store it as 
 `laptop-domen-wsl-debian_login` (field `password`) in the **Homelab** 1Password vault.
 The repo is **reused** from the WSL ext4 primary checkout at
 `/home/domen/source/homelab` (single working copy — the Debian ext4 primary, per HD-259;
-`scripts/git-bootstrap.sh` sets this up and its session worktrees live as
+`scripts/git/git-bootstrap.sh` sets this up and its session worktrees live as
 siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is retired. *(HD-263: the former `ansible-enhancements.md` §8.4 rationale for the ext4-primary/git-bootstrap move lives here in §0.1 + CONVENTIONS §6.)*
 
 ✔ `wsl -l -v` lists Debian; inside WSL `whoami` → `domen`.
@@ -93,7 +93,7 @@ siblings `../homelab-wt-*`. No second clone; the old `/mnt/d` drvfs path is reti
 ### 0.2 Bootstrap tooling, service-account token, sudo
 
 ```bash
-cd /home/domen/source/homelab && bash scripts/bootstrap-runner.sh
+cd /home/domen/source/homelab && bash scripts/ansible/bootstrap-runner.sh
 source ~/.bashrc
 ```
 
@@ -107,8 +107,8 @@ ansible + collections from `requirements.yml`, stores the token at `~/.config/op
 ### 0.3 Canonical runner identity + 1Password/Ansible connectivity check
 
 ```bash
-cd /home/domen/source/homelab && bash scripts/restore-runner-key.sh
-bash scripts/ansible-run.sh IaC/ansible/test-1password.yml
+cd /home/domen/source/homelab && bash scripts/ansible/restore-runner-key.sh
+bash scripts/ansible/ansible-run.sh IaC/ansible/test-1password.yml
 ```
 
 `restore-runner-key.sh` pulls `ansible-admin_ssh.private_key` / `public_key` from the vault into
@@ -121,8 +121,8 @@ one it prints · `test-1password.yml` ends `PLAY RECAP: ok=2 failed=0` (reads `k
 ### 0.3.5 Skill sync: repo `skills/` → pi agent `~/.pi/agent/skills` (repo = SSOT)
 
 ```bash
-bash scripts/sync-skills.sh --push            # deploy repo skills/ -> ~/.pi/agent/skills (canonical)
-bash scripts/sync-skills.sh --check --strict  # confirm no drift / no encoding violations
+bash scripts/harness/sync-skills.sh --push            # deploy repo skills/ -> ~/.pi/agent/skills (canonical)
+bash scripts/harness/sync-skills.sh --check --strict  # confirm no drift / no encoding violations
 ```
 
 `sync-skills.sh` (HD-254) deploys from the repo (single source of truth) to `~/.pi/agent/skills` and prunes
@@ -132,7 +132,7 @@ a bare CI / non-pi laptop never breaks validation). A UTF-8-BOM/CRLF encoding vi
 To capture a post-session self-learn back into the repo (copy-only, never auto-commits), use `--pull` then
 commit per CONVENTIONS §6.
 
-Prerequisite: pi must already be installed — on this host `scripts/install-pi-wsl.sh` installs pi + the
+Prerequisite: pi must already be installed — on this host `scripts/harness/install-pi-wsl.sh` installs pi + the
 other SSOT content (`pi-agent/`, packages); once pi is present, `sync-skills.sh` keeps only the skills tree
 in drift-free sync. On a TRUE-ZERO runner without pi, `sync-skills.sh --check` SKIPs and `--push` populates
 `~/.pi/agent/skills` for the first time.
@@ -187,7 +187,7 @@ export XDG_RUNTIME_DIR=/run/user/$(id -u)               # [MANUAL] if your shell
 set -a; . ~/.config/op/homelab-sa-token; set +a         # read-scope SA token (Phase 0); sourced, not
                                                         # printed — an already-running shell keeps the
                                                         # OLD value and the environment beats the file
-bash scripts/git-bootstrap.sh --ssh-auth                # idempotent; pulls the AUTH key (the `GitHub sign`
+bash scripts/git/git-bootstrap.sh --ssh-auth                # idempotent; pulls the AUTH key (the `GitHub sign`
                                                         # item is deleted — it is read only if present, since
                                                         # requiring it aborted this step before the transport
                                                         # key was pulled), ssh-adds it,
@@ -217,7 +217,7 @@ configure the allowed-signers file first.
 ### 0.4b Windows-side GitHub SSH auth + commit signing `[MANUAL]` *(one-time)*
 
 ```powershell
-bash scripts/git-bootstrap-win11.sh --ssh-auth      # idempotent
+bash scripts/git/git-bootstrap-win11.sh --ssh-auth      # idempotent
 ```
 
 ✔-evidence: `git ls-remote git@github.com:<owner>/homelab.git HEAD` succeeds over SSH, and a test
@@ -233,7 +233,7 @@ umask 077; op read "op://Homelab-ansible/GitHub auth/private key" > ~/.ssh/githu
 ```
 
 ```powershell
-bash scripts/git-bootstrap-win11.sh --git-identity   # idempotent; backs up every file it edits
+bash scripts/git/git-bootstrap-win11.sh --git-identity   # idempotent; backs up every file it edits
 ```
 
 ✔-evidence: `git config --get gpg.ssh.program` prints nothing, `git config --get user.signingkey` prints a
@@ -272,14 +272,14 @@ ssh ansible-admin@oldsrv 'git clone https://github.com/domenkogler/homelab ~/sou
 #    prove it is read-only: `git push` from oldsrv must 403. It did.)
 op read "op://Homelab-ansible/op_api/credential" | \
   ssh ansible-admin@oldsrv 'cd ~/source/homelab && \
-        bash scripts/bootstrap-runner.sh --no-upgrade --no-sudoers --token-stdin'
-ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh --force-throwaway'
-ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/seed-runner-ssh.sh'
-ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/ansible-run.sh playbooks/dns.yml --check'
+        bash scripts/ansible/bootstrap-runner.sh --no-upgrade --no-sudoers --token-stdin'
+ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/ansible/restore-runner-key.sh --force-throwaway'
+ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/ansible/seed-runner-ssh.sh'
+ssh ansible-admin@oldsrv 'cd ~/source/homelab && bash scripts/ansible/ansible-run.sh playbooks/dns.yml --check'
 #   Then one check per group, from the box:
 ssh ansible-admin@oldsrv 'cd ~/source/homelab && for p in "home_servers.yml --limit oldsrv.kogler.si" \
         "vps.yml" "storage.yml --limit nas.kogler.si" "raspberry_pi.yml --limit pi.kogler.si" \
-        "spark.yml --limit spark.kogler.si"; do bash scripts/ansible-run.sh playbooks/$p --check --tags common; done'
+        "spark.yml --limit spark.kogler.si"; do bash scripts/ansible/ansible-run.sh playbooks/$p --check --tags common; done'
 ```
 
 ✔ `seed-runner-ssh.sh` prints `JUMP_OK`; every group ends `unreachable=0 failed=0` — the measured
@@ -290,7 +290,7 @@ egress address — **v4 *or* v6** — and the `429 / 10502` that follows it is a
 not the cause. Ask the owner to add the address, do not "fix" it by pointing the run at IPv4.
 ✖ `--tags docker_services` on the self host is expected RED while the runner sits on a `main` that
 lacks the fix in question: a pull-only runner converges what is on main, never more.
-✔ After any grant change: `python3 scripts/check_ssh_grants.py` (read-only gate over
+✔ After any grant change: `python3 scripts/gate/check_ssh_grants.py` (read-only gate over
 [deployment-secrets.md](docs/deployment-secrets.md) §Who is authorized where; it revokes nothing).
 
 ---
@@ -307,7 +307,7 @@ lacks the fix in question: a pull-only runner converges what is on main, never m
 On the WSL runner (working `op` session):
 
 ```bash
-bash scripts/gen-custom-script.sh
+bash scripts/secrets/gen-custom-script.sh
 ```
 
 Builds the git-ignored `post_install_with_secrets.sh` (0600): injects both real public keys into a
@@ -373,8 +373,8 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 - Phase 0 runner ready (`op` token readable; canonical key); Phase 0.5 VPS reachable as
   `ansible-admin@vps.kogler.si`.
 - **Sync gate before EVERY run** (HD-212): whole-tree md5 compare Windows↔WSL must match.
-- Vault coverage: `bash scripts/check-vault-items.sh` → seed gaps via
-  `scripts/provision-vault.sh --create --yes` or manually. Placeholder-then-swap items a from-zero deploy
+- Vault coverage: `bash scripts/gate/check-vault-items.sh` → seed gaps via
+  `scripts/secrets/provision-vault.sh --create --yes` or manually. Placeholder-then-swap items a from-zero deploy
   still needs a human for: `forgejo_api` (minted in the UI, step 1.7) and the app keys listed as
   placeholder-then-swap in [deployment-secrets.md](docs/deployment-secrets.md) §Master Secret List. The catalog
   is the authority — do not hand-maintain a list here.
@@ -382,7 +382,7 @@ alone) · `00-homelab-hardening.conf` present · `NOPASSWD:ALL` sudoers · exact
 ### 1.2 First deploy
 
 ```bash
-cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/vps.yml"
+cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible/ansible-run.sh playbooks/vps.yml"
 ```
 
 Anchor until green (`failed=0`).
@@ -390,7 +390,7 @@ Anchor until green (`failed=0`).
 ### 1.3 Publish public DNS
 
 ```bash
-cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible-run.sh playbooks/dns.yml"
+cmd //c "wsl -d Debian -- bash /home/domen/source/homelab/scripts/ansible/ansible-run.sh playbooks/dns.yml"
 ```
 
 Runs from home egress (token IP filter). Records: `vps` A/AAAA + apex/app CNAMEs
@@ -509,7 +509,7 @@ unreachable or reachable on more than it was granted (an ACL grants by TAG).
 1. **Prove the auto-re-enable before the first stop** (the condition on the authorization; it costs one
    short control-plane blip — existing device sessions survive, netmap updates pause):
    ```bash
-   bash scripts/guarded-converge.sh --action prove --target vps --container headscale
+   bash scripts/ansible/guarded-converge.sh --action prove --target vps --container headscale
    # poll the printed /tmp/guarded-prove-headscale-*.log
    ```
    `prove` self-tests the watchdog, copies it to the target, arms it `setsid`+`nohup` **detached**, refuses
@@ -536,7 +536,7 @@ unreachable or reachable on more than it was granted (an ACL grants by TAG).
 3. **Converge behind the net** — one scoped run, both tag classes (the inner per-service tasks are tagged
    with the service name; `docker_services` alone is a silent no-op), scope to skip the unrelated lanes:
    ```bash
-   bash scripts/guarded-converge.sh --action converge --target vps --container headscale \
+   bash scripts/ansible/guarded-converge.sh --action converge --target vps --container headscale \
         --project /opt/headscale --playbook playbooks/vps.yml --limit vps \
         --tags docker_services,headscale --extra "-e docker_services_scope=headscale"
    # poll the printed log → `RESULT: GREEN — headscale is running ... and the watchdog is disarmed`
@@ -606,7 +606,7 @@ curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" \
 Then run the seed converge:
 
 ```bash
-bash scripts/ansible-run.sh playbooks/vps.yml -l vps -t docker_services -e docker_services_scope=technitium
+bash scripts/ansible/ansible-run.sh playbooks/vps.yml -l vps -t docker_services -e docker_services_scope=technitium
 ```
 
 The seed creates the `kogler.si` zone + the split-horizon A records (`ha`/`dns-pi` → VIP,
@@ -628,7 +628,7 @@ curl -sS -X POST "http://$CTR_IP:5380/api/user/changePassword" -H "Authorization
 Then the Pi seed converge (idempotent):
 
 ```bash
-bash scripts/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=technitium-secondary
+bash scripts/ansible/ansible-run.sh playbooks/raspberry_pi.yml -e docker_services_scope=technitium-secondary
 ```
 
 Verify: `dig @<Pi Home IP per SSOT> ha.kogler.si` → VIP and `dns-pi.kogler.si` → VIP, and
@@ -660,7 +660,7 @@ docker exec technitium-oldsrv bash /tech_login.sh POST "/api/user/changePassword
 Then the oldsrv seed converge (idempotent):
 
 ```bash
-bash scripts/ansible-run.sh playbooks/home_servers.yml -e docker_services_scope=technitium
+bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml -e docker_services_scope=technitium
 ```
 
 Verify: `dig @127.0.0.1 {ha,dns-pi,stats,logs,csui,sec,traefik,auto,vps,home,vpn,dns,sso,file,foto,git,bin,ai,office,pdf,chat,matrix,drop}.kogler.si` on oldsrv all answer (ha/dns-pi → VIP, dashboards → `tailnet_sidecar_ip`, public → VPS public IP). The default `admin`/`admin` is retired after this. **Container-IP reach caveat:** if the seed's `_tech_api` connect fails with "No route to host", check for **orphaned duplicate-subnet docker bridges** (stale `br-*` from a docker recreate that steal the kernel route — `docker network ls` IDs won't match `ip link` bridge IDs); `sudo ip link del br-<orphan>` restores host→container routing.
@@ -911,7 +911,7 @@ First-boot notes:
    ssh vps 'sudo install -d -o root -g root -m 0700 /srv/docker/rustdesk-server/data'
    ```
 5. **Flip the registry row** `rustdesk-server` → `enabled: true` in `IaC/ansible/group_vars/vps.yml`
-   (same commit as the seed), then `bash scripts/check-vault-items.sh` — note that script cannot see
+   (same commit as the seed), then `bash scripts/gate/check-vault-items.sh` — note that script cannot see
    this item (it greps literal `onepassword', 'NAME'`; the template uses the HD-258 `vault['…']` dict),
    so a clean report here does **not** prove the item exists. Step 3 does.
 6. **Apply — first apply is human-gated** (CONVENTIONS §5 step 9). Dry-run first, **never with
@@ -919,9 +919,9 @@ First-boot notes:
    Notes), then the real run **detached** (HD-370), with BOTH tag classes (`docker_services` alone
    tag-filters every inner task of the service):
    ```bash
-   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps \
+   bash scripts/ansible/ansible-run.sh playbooks/vps.yml --limit vps \
         --tags hardening,docker_services,rustdesk-server --check
-   nohup bash scripts/ansible-run.sh playbooks/vps.yml --limit vps \
+   nohup bash scripts/ansible/ansible-run.sh playbooks/vps.yml --limit vps \
         --tags hardening,docker_services,rustdesk-server \
         > /tmp/converge-vps-rustdesk-$(date +%Y%m%d-%H%M).log 2>&1 &
    # poll: tail -f /tmp/converge-vps-rustdesk-*.log → PLAY RECAP failed=0
@@ -1000,8 +1000,8 @@ First-boot notes:
 5. **Prove nothing else depended on it** — converge the host and require the same roster as before
    minus the retired stack, with no container restarting:
    ```bash
-   bash scripts/ansible-run.sh playbooks/vps.yml --limit vps --tags docker_services --check   # never --diff
-   nohup bash scripts/ansible-run.sh playbooks/vps.yml --limit vps --tags docker_services \
+   bash scripts/ansible/ansible-run.sh playbooks/vps.yml --limit vps --tags docker_services --check   # never --diff
+   nohup bash scripts/ansible/ansible-run.sh playbooks/vps.yml --limit vps --tags docker_services \
         > /tmp/converge-vps-$(date +%Y%m%d-%H%M).log 2>&1 &
    ssh vps 'docker ps --format "{{.Names}}\t{{.Status}}" | sort'   # compare with the step-1 census
    ```
@@ -1113,7 +1113,7 @@ ls /dev/disk/by-id/ | grep usb
 
 The interactive path skips the preseed's `post_install.sh`, so reproduce its effect:
 
-1. Laptop: build the keyed script — `bash scripts/gen-media-post-install.sh` (writes git-ignored `post_install_with_secrets.sh`, three pubkeys from 1Password).
+1. Laptop: build the keyed script — `bash scripts/secrets/gen-media-post-install.sh` (writes git-ignored `post_install_with_secrets.sh`, three pubkeys from 1Password).
 2. Serve it: `py -3 -m http.server 8000 --directory <dir>` from the folder containing the script (first inbound connection triggers a Windows firewall prompt → Allow; or pre-open with elevated
    `netsh advfirewall firewall add rule name="preseed-http-8000" dir=in action=allow protocol=TCP localport=8000`).
 3. Target (as the local user):
@@ -1160,9 +1160,9 @@ The interactive path skips the preseed's `post_install.sh`, so reproduce its eff
 
 ```bash
 # 1) render the 4 secrets-injected .rsc files into the gitignored rendered/ dir
-bash scripts/ansible-run.sh playbooks/render-routeros.yml -i inventory.ini
+bash scripts/ansible/ansible-run.sh playbooks/render-routeros.yml -i inventory.ini
 # 2) materialize the two SSH public keys the .rsc files import on each device
-bash scripts/get-bootstrap-keys.sh
+bash scripts/secrets/get-bootstrap-keys.sh
 ls -la IaC/router/rendered/   # expect 6 files: 4 .rsc (4–5KB) + 2 .pub (~80B)
 # 3) when uploading to the switch/APs, put the 2 .pub files in the device's
 #    flash/ folder (root files are wiped on reboot); RB4011 root is fine.
@@ -1214,7 +1214,7 @@ From the **management laptop** (or the WSL runner — the role is the same). **R
 `community.routeros` 3.x requires `librouteros` in the
 interpreter Ansible uses for modules. `inventory.ini` pins
 `ansible_python_interpreter=/usr/bin/python3` (system), which does NOT have `librouteros` —
-the venv (`~/ansible-venv`) does. The `scripts/ansible-run.sh` wrapper hardcodes `REPO` to the
+the venv (`~/ansible-venv`) does. The `scripts/ansible/ansible-run.sh` wrapper hardcodes `REPO` to the
 PRIMARY checkout, so run from a **fresh session worktree** and force the venv interpreter.
 
 **Run DIRECT against the device Mgmt IPs.** The laptop reaches the Mgmt-99 plane through the Windows
@@ -1223,15 +1223,17 @@ mgmt address that `network.yml` derives — no firewall surface, no hop:
 
 ```bash
 # from the session worktree (NOT the primary checkout):
-bash scripts/ansible-run.sh playbooks/router.yml --check --diff     # dry-run first
-bash scripts/ansible-run.sh playbooks/switch.yml --check --diff
-bash scripts/ansible-run.sh playbooks/router.yml                    # real
-bash scripts/ansible-run.sh playbooks/switch.yml
+bash scripts/ansible/ansible-run.sh playbooks/router.yml --check --diff     # dry-run first
+bash scripts/ansible/ansible-run.sh playbooks/switch.yml --check --diff
+bash scripts/ansible/ansible-run.sh playbooks/router.yml                    # real
+bash scripts/ansible/ansible-run.sh playbooks/switch.yml
 ```
 
-> `scripts/ansible-network-hop.sh` (Pi-99 ProxyJump wrapper) is **obsolete** — it belongs to the era when the
-> runner sat on VLAN 10 and the Pi was the only Mgmt client. It still exists as a fallback if the Mgmt99 vNIC
-> path is unavailable; do not use it by default.
+> The **Pi-99 ProxyJump wrapper is retired** — the file is deleted, `git log` on `scripts/` is the record.
+> It belongs to the era when the runner sat on VLAN 10 and the Pi
+> was the only Mgmt client; the Mgmt99 vNIC made the hop dead weight, and the Mgmt plane is same-site only
+> (HD-398 decision A, [docs/network-vpn.md](docs/network-vpn.md) §The settled rule), so there is no
+> away-from-home form of this run.
 
 **Manual mgmt from the laptop — `~/.ssh/config` aliases (direct `.99`):** the laptop reaches the
 Mgmt plane **directly** via the Windows Mgmt99 vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`) — **no ProxyJump `pi`
@@ -1303,13 +1305,13 @@ wifi/security/provisioning objects.
 /import capsman_steady-state.rsc
 ```
 
-> **1.5.3c Delta-rsc apply path (HD-308 Shield L2 trunk fix / HD-309) — ssh-import; full procedure in [network-ops.md](docs/network-ops.md) §Apply workflow.** Render the transient delta, SCP to the device root, `/import` over SSH (ansible identity, pinned hostkey). **Automated:** `bash scripts/routeros-apply-delta.sh <router-ip> <delta-file>` (op read → key load-verify → host-key pin → SCP → `/import`). Manual equivalent:
+> **1.5.3c Delta-rsc apply path (HD-308 Shield L2 trunk fix / HD-309) — ssh-import; full procedure in [network-ops.md](docs/network-ops.md) §Apply workflow.** Render the transient delta, SCP to the device root, `/import` over SSH (ansible identity, pinned hostkey). **Automated:** `bash scripts/ansible/routeros-apply-delta.sh <router-ip> <delta-file>` (op read → key load-verify → host-key pin → SCP → `/import`). Manual equivalent:
 > ```bash
 > ssh-keyscan -T5 -t ed25519,rsa <router> > /tmp/router_hostkeys.txt
 > scp -i <ansible-key> IaC/router/rendered/rb4011_<name>_delta.rsc ansible@<router>:/rb4011_<name>_delta.rsc
 > ssh ansible@<router> '/import rb4011_<name>_delta.rsc'   # 'loaded and executed successfully'
 > ```
-> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — `scripts/bootstrap-runner.sh` installs it, so the only way it
+> The `apply-converge.yml` playbook (Ansible path) SCP-uploads + verifies the key (`ssh-keygen -y` load-verify, HD-309) but its final API `/import` step needs `librouteros` in the runner interpreter — `scripts/ansible/bootstrap-runner.sh` installs it, so the only way it
 > is missing is a runner that skipped the bootstrap (HD-495 also pins the interpreter for
 > the `network` group: `ansible_python_interpreter: {{ ansible_playbook_python }}` in `group_vars/network.yml`, otherwise the module
 > imports from a python that has no such package). If it is genuinely absent, use the SSH-import path above (`routeros-apply-delta.sh`). ⛔ Note on that playbook's upload step: it uses `ansible.builtin.copy`, which fails on RouterOS's pseudo-filesystem (see [network-ops.md](docs/network-ops.md) §Apply workflow — "Destination / not writable"); `routeros-apply-delta.sh` takes **any** `.rsc` filename, including `rb4011_converge.rsc` itself, and is the transport that works for a full converge too.
@@ -1328,8 +1330,8 @@ wifi/security/provisioning objects.
 >
 > # 1) Render, then apply. Keep the section's internal order = dhcp-client -> filter -> address:
 > #    `from-pool=` resolves only once the pool has bound, and the RA must never precede the filter.
-> bash scripts/ansible-run.sh playbooks/render-converge.yml
-> bash scripts/routeros-apply-delta.sh <router> rb4011_converge.rsc
+> bash scripts/ansible/ansible-run.sh playbooks/render-converge.yml
+> bash scripts/ansible/routeros-apply-delta.sh <router> rb4011_converge.rsc
 >
 > # 2) Device state
 > ssh <router> '/ipv6 address print'                  # exactly ONE ADV=yes row: <prefix>::1/64 on vlan10-home
@@ -1390,11 +1392,12 @@ failure mode: [network-vpn.md](docs/network-vpn.md) §HD-285.
 
 ```bash
 # VPS side — wireguard role (distinct key + peer + the oneshot owns the iface):
-bash scripts/ansible-run.sh playbooks/vps.yml --tags wireguard
+bash scripts/ansible/ansible-run.sh playbooks/vps.yml --tags wireguard
 #   the wg-ensure-s2s-peer oneshot: create-if-missing iface → address → key (wg setconf key-only) → peer (wg set) → verify.
 
 # Router side — router role (own key from wg_password, peer = VPS key, endpoint = vps.kogler.si):
-bash scripts/ansible-network-hop.sh router playbooks/router.yml
+# DIRECT against the Mgmt-99 address (Mgmt99 vNIC on the laptop; no ProxyJump — HD-398 decision A)
+bash scripts/ansible/ansible-run.sh playbooks/router.yml --tags wireguard
 ```
 
 **Post-converge manual fixes the role does NOT hold** (verify these on the device after every converge):
@@ -1459,8 +1462,8 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
 
 2. **Ansible provision:**
    ```bash
-   bash scripts/ansible-run.sh playbooks/storage.yml --check   # dry-run first
-   bash scripts/ansible-run.sh playbooks/storage.yml
+   bash scripts/ansible/ansible-run.sh playbooks/storage.yml --check   # dry-run first
+   bash scripts/ansible/ansible-run.sh playbooks/storage.yml
    ```
    Roles: `common` → `ai_diag` → `network` (netd units: untagged Home + tagged-99) → `storage`
    (import tank/bulk, datasets+props, NFS exports, sanoid/syncoid, Samba, exporters) → `nut`
@@ -1512,12 +1515,12 @@ ping -c3 <router-mgmt-ip>            ; router mgmt over the tunnel (0% loss; IP 
    ```bash
    # 1. The two items must exist BEFORE the converge — the render fails loud otherwise. They are
    #    catalog-generated (username is fixed to the account name; it MUST match host_vars):
-   bash scripts/check-vault-items.sh            # expect: no smb-*-login in MISSING
-   bash scripts/provision-vault.sh              # (or the owner creates smb-domen_login / smb-shared_login in 1Password by hand)
+   bash scripts/gate/check-vault-items.sh            # expect: no smb-*-login in MISSING
+   bash scripts/secrets/provision-vault.sh              # (or the owner creates smb-domen_login / smb-shared_login in 1Password by hand)
    # 2. Converge the storage role on the NAS. `--tags samba` is only honest because every task in
    #    roles/storage/tasks/samba.yml carries the tag (HD-468) — without it the run reports success
    #    and changes nothing.
-   bash scripts/ansible-run.sh playbooks/storage.yml --limit nas --tags samba
+   bash scripts/ansible/ansible-run.sh playbooks/storage.yml --limit nas --tags samba
    # 3. Prove the passdb, not the service (smbclient -L answers anonymously and proves nothing;
    #    run the probe ON the NAS — oldsrv has no smbclient installed):
    ssh nas 'sudo pdbedit -L; sudo testparm -s 2>/dev/null | grep -iE "passdb|valid users|force "'
@@ -1563,7 +1566,7 @@ All of this runs on **oldsrv** only; streaming stays on the VPS (Navidrome, HD-3
 | `lidarr-url-dl_login` | Login | **Lidarr-YouTube-Downloader** web-UI login (`username`+`credential`) — entered in its Settings page at first run |
 | `lidarr_api` | API Credential | **Lidarr instance key** — read from the live Lidarr `config.xml` after first boot, or generate + set via `scripts/` (see [scripts/README.md](scripts/README.md) — the same manual-value class as `sonarr_api`/`radarr_api`; NOT auto-rotatable). Used by Aurral AND lidarr-ydl |
 
-Run `bash scripts/check-vault-items.sh --strict` before converging — it lists exactly what's missing.
+Run `bash scripts/gate/check-vault-items.sh --strict` before converging — it lists exactly what's missing.
 
 Pre-create the Tube Archivist archive dir on the NAS (the compose bind-mounts it and the export root is
 root-squashed, so the container cannot mkdir it):
@@ -1574,7 +1577,7 @@ ssh nas "sudo mkdir -p /bulk/media/tube && sudo chown 1005:1005 /bulk/media/tube
 ### P3.2 Converge oldsrv (registry rows already in `group_vars/home_servers.yml`)
 
 ```bash
-bash scripts/ansible-run.sh playbooks/home_servers.yml --tags docker_services
+bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --tags docker_services
 ```
 
 This deploys `aurral`, `slskd` (+ its `gluetun-slskd` sidecar), `lidarr-ydl` (+ its `bgutil-provider`
@@ -1691,7 +1694,7 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
 1. **Seed the \*arr root folders + assert the pinned profiles** (idempotent — run it even when the folders
    look right; a fresh \*arr has none and Seerr's Add-server button is then disabled with **no error**):
    ```bash
-   bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si \
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si \
         --tags arr_seed -e docker_services_scope="sonarr,radarr,lidarr"
    ```
    Evidence: `changed=0 failed=0` on the run, and `GET /api/vN/rootfolder` lists `/media/movies` ·
@@ -1699,7 +1702,7 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
 2. **Seed SABnzbd's own settings** (host whitelist + completed/temporary folders; the UI cannot set the
    folders because they resolve against `--config-file /config`):
    ```bash
-   bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --tags sabnzbd_seed
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --tags sabnzbd_seed
    ```
    Evidence: `docker exec -u 1005 sabnzbd grep -E '^(host_whitelist|complete_dir|download_dir)' /config/sabnzbd.ini`
    → `sabnzbd` and `sab.kogler.si` whitelisted, `complete_dir = /downloads/complete`,
@@ -1734,8 +1737,8 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
    a. Create the WebUI credential first — one value, used both as qBittorrent's login and by the three arrs:
       ```console
       $ export OP_SERVICE_ACCOUNT_TOKEN=$(ssh ansible-admin@vps.kogler.si 'sudo cat /etc/op/provision-token')
-      $ python3 scripts/provision-secrets.py --list                  # catalog, to see what is missing
-      $ python3 scripts/provision-secrets.py --create --yes          # creates EVERY missing catalog item
+      $ python3 scripts/secrets/provision-secrets.py --list                  # catalog, to see what is missing
+      $ python3 scripts/secrets/provision-secrets.py --create --yes          # creates EVERY missing catalog item
       $ unset OP_SERVICE_ACCOUNT_TOKEN
       ```
       ⚠ **There is no per-item create** (`--rotate <item>` refuses an absent item), so `--create` is the only
@@ -1745,13 +1748,13 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
    b. Seed qBittorrent (WebUI credential as PBKDF2, save paths, categories, `UseCategoryPathsInManualMode`)
       — this restarts the container once when the conf drifts:
       ```console
-      $ bash scripts/ansible-run.sh playbooks/home_servers.yml \
+      $ bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml \
           --tags docker_services,qbittorrent,qbittorrent_seed -e docker_services_scope="qbittorrent"
       ```
    c. Register the client in the three arrs **and in Prowlarr** (Prowlarr's own client serves only a grab
       started in Prowlarr's search UI; it is never synced to the apps):
       ```console
-      $ bash scripts/ansible-run.sh playbooks/home_servers.yml \
+      $ bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml \
           --tags docker_services,sonarr,radarr,lidarr,prowlarr,arr_client_seed \
           -e docker_services_scope="sonarr,radarr,lidarr,prowlarr"
       ```
@@ -1822,7 +1825,7 @@ sudo bash /boot/firstboot.sh
 
 ```bash
 # from the WSL Debian runner (venv), with the 9P sync gate satisfied:
-bash scripts/ansible-run.sh playbooks/raspberry_pi.yml
+bash scripts/ansible/ansible-run.sh playbooks/raspberry_pi.yml
 # first apply human-gated: dry-run (--check --diff) then single host
 ```
 
@@ -1847,7 +1850,7 @@ Pi `docker_services` = `home-assistant-primary`, `technitium-secondary`, `traefi
   oldsrv secondary / Pi tertiary**; DHCP hands all three and is **Pi-first on VLAN 10**. Option A (single
   VPS-public resolver + VPS nftables source-allow + DDNS refresh) is the design:
   [network-dns.md](docs/network-dns.md). The split-horizon records are **seeded by the `technitium-seed` task**
-  (contract checked by `scripts/check_dns_seed_drift.py`) and need the `technitium_login` item — see §1.4c.
+  (contract checked by `scripts/gate/check_dns_seed_drift.py`) and need the `technitium_login` item — see §1.4c.
 - HA web login is **local** (owner account, `ha` route). Authentik OIDC for HA was **declined by the owner** —
   do not wire it. The SSO dashboard links HA, HA does not authenticate to Authentik.
 - Manual failover Pi→oldsrv and back passes ([smart-home-failover.md](docs/smart-home-failover.md) runbook; the
@@ -1987,7 +1990,7 @@ active. The AI stack deploys separately (`playbooks/spark.yml --tags spark-ai`).
 
 ### 4b.5b B1 benchmark — imperative run procedure `[MANUAL]`
 
-> The harness lives in-repo at `spark/bench/` and is **copied to the box** (the box has no checkout). Run the
+> The harness lives in-repo at `scripts/bench/spark/` and is **copied to the box** (the box has no checkout). Run the
 > sanity sequence (C1×2 + C2×2 + C3×2 + warm) plus the accuracy gate. **C3 must stay at 6×8k@c2**: the upstream
 > 12×8k@c3 default exhausts the NVRM memdesc (`NV_ERR_NO_MEMORY`) and triggers a host-wide OOM on GB10 unified
 > memory that kills `sshd`/`NetworkManager`/`polkitd` — the container survives its memory cage, the host does
@@ -1995,7 +1998,7 @@ active. The AI stack deploys separately (`playbooks/spark.yml --tags spark-ai`).
 
 ```bash
 # 1) copy harness + scripts to the box (has docker/jq/nvidia-smi)
-scp -r spark/bench spark:/home/ansible-admin/bench
+scp -r scripts/bench/spark spark:/home/ansible-admin/bench
 
 # 2) sanity sequence (accuracy gate + C1/C2/C3 ×2 fresh seeds + warm) — run detached, ~30 min
 ssh spark 'cd /home/ansible-admin/bench && setsid bash -c "bash run-sanity.sh > sanity-full.log 2>&1" < /dev/null &'
@@ -2080,8 +2083,8 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
 4. **Render the model contract + provider auth from git — never copy a laptop file.** From a workstation
    with `op` signed in (HD-388):
    ```bash
-   python3 scripts/render-pi-config.py --out /tmp/oldsrv-models.json
-   python3 scripts/render-pi-config.py --vendor pi_auth --out /tmp/oldsrv-auth.json
+   python3 scripts/harness/render-pi-config.py --out /tmp/oldsrv-models.json
+   python3 scripts/harness/render-pi-config.py --vendor pi_auth --out /tmp/oldsrv-auth.json
    scp /tmp/oldsrv-models.json /tmp/oldsrv-auth.json ansible-admin@oldsrv:/tmp/
    # on oldsrv — 0600 + owned by domen, then wipe the copies:
    sudo install -m600 -o domen -g domen /tmp/oldsrv-models.json /home/domen/.pi/agent/models.json
@@ -2090,7 +2093,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    sudo -u domen env PATH=$PATH pi --list-models | head    # proves the render is what pi reads
    ```
    **The seat's `~/.pi/agent/settings.json` is NOT rendered** — `render-pi-config.py` has no settings
-   vendor and `scripts/pi-config/models-spec.yml` states that boundary on purpose (the spec renders the
+   vendor and `scripts/harness/pi/models-spec.yml` states that boundary on purpose (the spec renders the
    model contract, never someone's editor settings). Write it from the reference block in
    [`docs/pi-harness.md`](docs/pi-harness.md) §5 (`defaultProvider`/`defaultModel` = spark,
    `defaultThinkingLevel` — **take its value from §5, this line is a pointer not a second source**, the
@@ -2193,8 +2196,8 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    #   → https://github.com/domenkogler/homelab/settings/keys/new  — tick "Allow write access"
 
    # then, from a workstation (the script runs on the box as root; --check writes nothing):
-   ssh oldsrv 'sudo bash -s' -- --check < scripts/seed-seat-deploy-key.sh
-   ssh oldsrv 'sudo bash -s'            < scripts/seed-seat-deploy-key.sh
+   ssh oldsrv 'sudo bash -s' -- --check < scripts/ansible/seed-seat-deploy-key.sh
+   ssh oldsrv 'sudo bash -s'            < scripts/ansible/seed-seat-deploy-key.sh
    ```
    The script installs the key under `domen` only, writes the marker-delimited `Host github.com` block with
    `IdentitiesOnly yes`, pins `github.com`'s host key from `api.github.com/meta` against the fingerprints
@@ -2225,20 +2228,20 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    stale clone as `STALE-CLONE`, and that refusal is the point). Each script prints its own per-plane evidence:
    ```bash
    cd /home/domen/source/homelab && git pull --ff-only
-   bash scripts/pi-seat-sync.sh --check          # read-only seat x plane matrix
-   bash scripts/pi-seat-sync.sh --push           # or the planes one at a time:
-   #   scripts/pi-self-update.sh --push     the pi build itself -> pi_host_npm_version (HD-1115): Volta on the
+   bash scripts/harness/pi-seat-sync.sh --check          # read-only seat x plane matrix
+   bash scripts/harness/pi-seat-sync.sh --push           # or the planes one at a time:
+   #   scripts/harness/pi-self-update.sh --push     the pi build itself -> pi_host_npm_version (HD-1115): Volta on the
    #                                      Windows seat, npm at $PI_NODE_PREFIX on the Debian seats, then the
    #                                      binary is RE-PROBED. BEHIND and AHEAD are both drift.
-   #   scripts/sync-skills.sh --push          skills/                       -> ~/.pi/agent/skills/
-   #   scripts/sync-extensions.sh --push      repo extensions               -> ~/.pi/agent/extensions/
+   #   scripts/harness/sync-skills.sh --push          skills/                       -> ~/.pi/agent/skills/
+   #   scripts/harness/sync-extensions.sh --push      repo extensions               -> ~/.pi/agent/extensions/
    #                                          (removes names on its RETIRED list, keeps LOCAL ones)
-   #   scripts/pi-settings-config.sh --push   pi-agent/settings-ssot.json   -> ~/.pi/agent/settings.json
+   #   scripts/harness/pi-settings-config.sh --push   pi-agent/settings-ssot.json   -> ~/.pi/agent/settings.json
    #                                          (a MERGE: workstation keys and seat-local packages survive;
    #                                           `packages` is composed from the versions.yml pins)
-   #   scripts/pi-tui-config.sh --push        footerSegments.hostname=true in ~/.pi/agent/open-tui.json
-   #   scripts/install-nerd-font.sh --push    pinned nerd-fonts release     -> per-user font dir
-   #   scripts/install-tmux-conf.sh --push --reload  pi-agent/tmux/tmux.conf -> ~/.tmux.conf
+   #   scripts/harness/pi-tui-config.sh --push        footerSegments.hostname=true in ~/.pi/agent/open-tui.json
+   #   scripts/harness/install-nerd-font.sh --push    pinned nerd-fonts release     -> per-user font dir
+   #   scripts/harness/install-tmux-conf.sh --push --reload  pi-agent/tmux/tmux.conf -> ~/.tmux.conf
    #     --reload also sources the RUNNING server: pi reads extended-keys / extended-keys-format back
    #     with `tmux show -gv` at start-up, and a server that was already up keeps its old values.
    ```

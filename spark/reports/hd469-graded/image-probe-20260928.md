@@ -1,6 +1,6 @@
 # fp8 KV reachability — read-only image probe, 2026-09-28 (HD-469 step 2 / HD-473 input)
 
-Produced by `scripts/spark-fp8-image-probe.py --tag-filter 'qwen|flash'` at
+Produced by `scripts/bench/spark-fp8-image-probe.py --tag-filter 'qwen|flash'` at
 2026-09-28 ≈18:55 CEST from the workstation, against the box over ssh for Leg B only.
 No converge, no engine restart, no GPU, no pull (`docker run --rm -m 4g --entrypoint sh`
 against the LOCAL image; `pgrep` refused-guard was armed). Re-run it verbatim to reproduce.

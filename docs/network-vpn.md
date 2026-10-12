@@ -91,6 +91,16 @@ All concrete CIDRs: [`network-addresses-generated.md`](network-addresses-generat
 - Runs on the **VPS** as a Docker container (public coordination server, VPS residency)
 - Overlay subnet: `headscale` (CIDR per SSOT)
 - Clients: Android/iOS Tailscale app, laptops
+- **A manual client must be pointed at OUR control plane before it authenticates.** Every automated
+    leg carries the URL in IaC (`roles/tailscale-node/tasks/main.yml` passes
+    `--login-server={{ tailnet_control_url }}`; the sidecars carry it as `TS_EXTRA_ARGS`), but a
+    hand-logged device does not: `tailscale up` without `--login-server` defaults to
+    `controlplane.tailscale.com` and our headscale key is simply refused — which reads as a bad key,
+    not as the missing flag (the same live lesson the `traefik-tailnet` compose records). On a
+    Windows/CLI client on the laptop:
+    `tailscale up --login-server=https://vpn.kogler.si --reset`
+    (`--reset` clears a stale public-controlplane preference; the URL is `tailnet_control_url`, SSOT
+    in `group_vars/`, and the GUI client has the same field under "Use custom login server").
 - **Home RB4011:** static route + firewall rules so the Headscale overlay reaches the Home VLAN
 - **MagicDNS:** `dns.extra_records` maps the tailnet dashboard
   subdomains (and their `*.ts.kogler.si` twins) to the
@@ -284,7 +294,7 @@ The overlay's live user is `litellm`.
 > 1. **WSL:** `/etc/wsl.conf` → `[network] generateResolvConf=false`, then a **static** `/etc/resolv.conf`
 >    with `nameserver 100.100.100.100` (the MagicDNS loop) **first** and the previous forwarder after it.
 >    Without `generateResolvConf=false` WSL rewrites the file on every start and the fix silently vanishes.
->    (This is what `scripts/wsl-nat-resolv.ps1` automates — see [network-vlans.md](network-vlans.md) §Port model.)
+>    (This is what `scripts/hardware/wsl-nat-resolv.ps1` automates — see [network-vlans.md](network-vlans.md) §Port model.)
 > 2. **Windows:** `netsh interface ipv4 add dnsservers name="Tailscale" address=<tailnet_magicdns_loop 100.100.100.100> index=1 validate=no`
 >    from an **elevated** shell — it lands on the adapter and survives reconnects/reboots.
 >
@@ -379,7 +389,7 @@ exist in this headscale build (no `routes` subcommand) — read the netmap view.
 > answers its default 404 while the entrypoint, the ACL, the extra_record and the backend are all healthy — and
 > a rendered space in a `certFile:` path makes Traefik serve its generated `CN=TRAEFIK DEFAULT CERT` **without
 > failing to start**. Both are silent at runtime and survive `--check`, so
-> `scripts/check_traefik_host_rules.py` validates matchers and quoted certificate paths (mutation-tested).
+> `scripts/gate/check_traefik_host_rules.py` validates matchers and quoted certificate paths (mutation-tested).
 > Verify without `-k`: the flag switches off the only check that detects the certificate half.
 
 **Reach of these names from a phone, by radio state.**
@@ -552,7 +562,7 @@ in `group_vars/home_servers.yml`, `group_vars/storage.yml`, `group_vars/raspberr
 `group_vars/spark.yml` (`playbooks/spark.yml` keeps its identical play-level copy — play vars win over
 group vars, same value, no conflict). **A laptop-local `~/.ssh/config` is the convenience layer**, specified in
 §The laptop alias contract below. It is durable in exactly one sense: the marker-delimited block that
-[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) renders from
+[`scripts/harness/seed-seat-ssh-config.sh`](../scripts/harness/seed-seat-ssh-config.sh) renders from
 [`ssh/aliases.tmpl`](../ssh/aliases.tmpl) is a repo-owned, digest-pinned, per-seat-class *seat plane*, and a
 seat's file is reproducible from the repo. What is not durable — and what the plane exists to retire —
 is the **hand-kept** copy, the part of the file no script can prove or rebuild. Proven off-LAN with a stub config that
@@ -562,7 +572,7 @@ four behind-NAT hosts — the repo alone carries the path.
 Green forms (no `-e` anywhere, from a hotspot):
 
 ```bash
-bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check --tags common,network
+bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check --tags common,network
 #   oldsrv.kogler.si : ok=18 changed=0 unreachable=0 failed=0
 # The FULL `--check` (same command, no --tags) also connects (unreachable=0) but reports failed=1 in
 # the KNOWN check-mode breaker class: roles/docker_services/tasks/technitium-seed.yml:102 reads
@@ -596,7 +606,7 @@ Two rules decide every block:
 Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and
 `C:\Users\domen\.ssh\config` (Windows OpenSSH). **Neither is maintained by hand: both are the
 render of one [`ssh/aliases.tmpl`](../ssh/aliases.tmpl) for a declared seat class, written by
-[`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh) inside a marker block.** What has to
+[`scripts/harness/seed-seat-ssh-config.sh`](../scripts/harness/seed-seat-ssh-config.sh) inside a marker block.** What has to
 agree beyond the aliases is the identity FILES those aliases name — §Canonical identity
 file names below, and §The Win11 `~/.ssh` retirement list for the order in which the divergent names are retired.
 
@@ -622,7 +632,7 @@ OpenSSH authenticates (`Offering public key: … explicit agent`) while the Git-
 Identical config, identical host, opposite verdict — and a missing trailing newline on those `.pub` files is
 NOT the cause (a newline-terminated copy fails the same way through that same binary).
 
-**The transport is a plane: [`../scripts/seat-ssh-build.sh`](../scripts/seat-ssh-build.sh) +
+**The transport is a plane: [`../scripts/harness/seat-ssh-build.sh`](../scripts/harness/seat-ssh-build.sh) +
 [`../ssh/transport-block.ps1`](../ssh/transport-block.ps1).** It renders one marker-delimited block
 (`# >>> seat-ssh-build: HD-1128 >>>`) into the **current-user, all-hosts profile of every PowerShell installed**, and
 that block defines `function global:ssh` calling the pinned OpenSSL binary plus `$env:PI_SSH_BIN`. It is the partner of
@@ -656,10 +666,10 @@ regrow.
 this repo is authored on (the cockpit seat). It sits **ON the Home VLAN**, so its `nas` / `pi` blocks name the
 Home address and carry **no `ProxyJump`**: on-site a jump would hairpin through the VPS for no benefit, and
 `ssh nas` / `ssh pi` complete directly in under a second. **This seat is the render of the `cockpit` class**,
-pushed by [`scripts/seed-seat-ssh-config.sh`](../scripts/seed-seat-ssh-config.sh); its former hand-kept stanzas
+pushed by [`scripts/harness/seed-seat-ssh-config.sh`](../scripts/harness/seed-seat-ssh-config.sh); its former hand-kept stanzas
 (the `seat-home-leg` marker block and two unmarked `Host spark` / `Host vps` stanzas) are gone. Two blocks stay
 foreign to the plane and are preserved byte for byte: the marker-delimited
-`Host github.com` deploy-key block ([`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh)),
+`Host github.com` deploy-key block ([`scripts/ansible/seed-seat-deploy-key.sh`](../scripts/ansible/seed-seat-deploy-key.sh)),
 and `Host vps`, which `seed-runner-ssh.sh` reports as
 `already present (not authored here): … names Host vps — left alone`, so a later run of that machine-managed
 seeder cannot resurrect a second `Host vps` behind the plane's back. The reason the seat needs the plane at all:
@@ -680,7 +690,7 @@ fingerprints only — this doc never carries key material, and it never will.
 |---|---|---|---|---|
 | **The operator** — a human, interactive, every seat | `~/.ssh/domen_ssh` + `.pub` | `domen_ssh` (`SSH_KEY`: `public key` / `fingerprint` / `private key` / `key type`) | **private on every seat**, incl. Windows | `SHA256:XTmK3tR59IMnok1HbEW7n3ZK0v4bd7miPS+0r7lSPTA` |
 | **Automation** — `ansible-admin`, the fleet's SSH user | `~/.ssh/ansible-admin_ssh` + `.pub` | `ansible-admin_ssh` (same shape) | **private on every seat**, incl. Windows — a `.pub` hint cannot work here: Git-Bash's `ssh` has no agent to ask and `SSH_AUTH_SOCK` is unset, so the hint names a key that does not exist there | `SHA256:1uKzmwfO8ljfYMX+nOuFPqFlxzGMF4LZa/0kZCdz7rU` |
-| GitHub **auth** (the seat deploy key, repo-scoped) | `~/.ssh/github_auth` + `.pub` | `GitHub auth` | per-seat, seeded by [`scripts/seed-seat-deploy-key.sh`](../scripts/seed-seat-deploy-key.sh) | (per key) |
+| GitHub **auth** (the seat deploy key, repo-scoped) | `~/.ssh/github_auth` + `.pub` | `GitHub auth` | per-seat, seeded by [`scripts/ansible/seed-seat-deploy-key.sh`](../scripts/ansible/seed-seat-deploy-key.sh) | (per key) |
 | GitHub **signing** | `~/.ssh/github_signing` + `.pub` (may remain on a seat) | — | **retired**: commit signing is off and nothing reads it; a local pair left on a seat is a leftover, not an identity ([deployment-secrets.md](deployment-secrets.md) §Master Secret List) | — |
 | **Machine-local** host key (`HostName`/`IdentityAgent` legacy, ssh's own default) | `~/.ssh/id_ed25519` + `.pub` | — | per-machine, **never referenced by an alias** — ⚠ the *name*, not the *contents*: on WSL and on the cockpit seat this path holds the **vault's automation key**, not a machine key (step 6 of the retirement list) | `SHA256:YbldrWp8ndNOOGx7YMKJYulSoIqZmk5w9fnNkezsVOk` (Windows seat); `SHA256:1uKzm…` on WSL + cockpit, = `ansible-admin_ssh` byte for byte |
 | Out-of-band console | `~/.ssh/id_rsa_ilo` + `.pub` | — | where it is used (iLO/IOMesh); not a fleet identity | — |
@@ -688,7 +698,7 @@ fingerprints only — this doc never carries key material, and it never will.
 | Vendor leftovers | `Hetzner-SSH-key.pub` | — | a hint of someone else's key; retire it when no alias names it | — |
 
 **The rule, in one line:** an alias may name a file from this table and nothing else — a key file that is
-neither named here nor named by an alias is an accident, and gets retired. `scripts/seed-seat-ssh-config.sh`
+neither named here nor named by an alias is an accident, and gets retired. `scripts/harness/seed-seat-ssh-config.sh`
 enforces the alias half and refuses to render an `IdentityFile` outside this list.
 
 Facts about these files:
@@ -731,7 +741,7 @@ as ruled below, and its Debian `id_ed25519` carve-out is still blocked by the FQ
    OpenSSH resolves), `ssh vps` (the agent-held `ansible-admin_ssh.pub` path), and a temporary
    `-o IdentityFile=~/.ssh/domen_ssh -o IdentitiesOnly=yes ssh oldsrv-domen` (the operator path). Record the
    build too — Windows OpenSSH and the Git-Bash `ssh` give opposite verdicts on a `.pub` hint.
-3. **Push the plane**: `bash scripts/seed-seat-ssh-config.sh --push`. Expect **REFUSAL(shadow)** first, because
+3. **Push the plane**: `bash scripts/harness/seed-seat-ssh-config.sh --push`. Expect **REFUSAL(shadow)** first, because
    the hand-kept contract region declares the same aliases outside the markers — move that region out (its
    content is now generated), keep the dated `.bak-`, re-push. Same sequence on WSL.
 4. **Rename the duplicates into the canonical name**, one at a time, with a dated copy kept in place:
@@ -754,7 +764,7 @@ contract rule 2 says OpenSSH matches the name ACTUALLY TYPED, and the laptop cla
 `Host <ip>` spellings but **not the `.kogler.si` spelling**. Those legs work only by accident, because the
 accident-key happens to be the fleet's automation key. **Rule: leave it in place, named by no alias, and retire
 it only when that dependence is removed** — a measured dependence, not an
-exemption. The four callers: `scripts/ak-shell.sh`, `scripts/provision-vault.sh`, `seed-runner-ssh.sh`'s
+exemption. The four callers: `scripts/ansible/ak-shell.sh`, `scripts/secrets/provision-vault.sh`, `seed-runner-ssh.sh`'s
 `KEY="$HOME/.ssh/id_ed25519"`, and `restore-runner-key.sh`, which treats that path as the canonical runner key.
 
 **The probe, both seats, reversible** (move the file aside, put it back; never copy or edit it):

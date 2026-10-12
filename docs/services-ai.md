@@ -880,12 +880,12 @@ and the token env render from vars via **roles/seat** (below), so they are conve
 host suffix.
 
 **Where the seat's repository lives:** oldsrv carries **two** clones with two
-jobs — `/home/ansible-admin/source/homelab` **converges** (and `scripts/ansible-run.sh` fast-forwards it
+jobs — `/home/ansible-admin/source/homelab` **converges** (and `scripts/ansible/ansible-run.sh` fast-forwards it
 before every run, `--no-pull` to opt out) and `/home/domen/source/homelab` **is where dev work happens**, the
 tree the seat actually edits.
 
 **What is proven, and what is not:** pi + pi-web run under `domen`; the model
-contract and provider auth on that box are **rendered from the spec** (`scripts/render-pi-config.py`),
+contract and provider auth on that box are **rendered from the spec** (`scripts/harness/render-pi-config.py`),
 so `pi --list-models` there is produced from git rather than copied by hand; the listener answers 401/302 as
 above and the tailnet path is proven from a real peer (below). The tailnet leg stays **unprovable in the
 negative direction** from inside this fleet, because every node reachable from a session is itself
@@ -914,7 +914,7 @@ root-chasing: otherwise pointing a host at an instance trades a ~20 ms direct pa
 
 ⚠ On oldsrv `systemd-networkd` is **disabled and inactive** — NetworkManager holds the address, so the
 role's netd renders there are inert and name an interface the box does not have. The per-host config-manager
-decision is open work (§10); ask the host with `scripts/probe-net-manager.sh` before editing a manager file.
+decision is open work (§10); ask the host with `scripts/ansible/probe-net-manager.sh` before editing a manager file.
 
 **The unit needs `pi` on PATH, and `pi-web` has no flag to be told where it is.** `pi-web` is a Go binary
 that **shells out to `pi`** for the model list, for every chat turn, and for its own self-update — and
@@ -969,7 +969,7 @@ settings. What the picker offers is 419 rows (openrouter 386 · opencode-go 30 �
   form — that doc's drift table names that violation.
 - **Seat-vs-laptop divergence, measured:** the seat's `packages:` is `[@ygncode/pi-web@beta]` against the
   laptop's `pi-web-access` · `pi-subagents` · `pi-deepseek-optimized` · `context-mode@1.0.169`; `skills/` is
-  deployed on **neither** seat (`scripts/sync-skills.sh --check` → "deploy target missing"); a seat clone can
+  deployed on **neither** seat (`scripts/harness/sync-skills.sh --check` → "deploy target missing"); a seat clone can
   sit behind with leftover `homelab-wt-*` worktrees. The seat's model leg is right — `pi --list-models` there
   prints `spark | spark/qwen3.8-flash-next | 262.1K`.
 - **The seat's SSH door rides the VPS jump.** `sshd -T` on oldsrv admits only `ansible-admin` + `ai-debug`,
@@ -983,7 +983,7 @@ settings. What the picker offers is 419 rows (openrouter 386 · opencode-go 30 �
   render from vars via **roles/seat** — its own role, not `roles/cockpit` tasks, because the
   maint-console leg carries a vault-vs-box credential divergence that must stay a hard failure:
   rotating a console credential is an owner act, never a side effect of converging a seat. A bare-Debian
-  rebuild is **scripts/install-pi-debian.sh**, not a memory.
+  rebuild is **scripts/harness/install-pi-debian.sh**, not a memory.
   Both seats run the pinned **pi** (`pi_host_npm_version`) on the same pinned Node tarball (**22.23.3** ⏳)
   and the cockpit is
   **pi-web beta.38**; the seat's `settings.json`

@@ -1,7 +1,7 @@
 ---
 # common role defaults
 
-# Self-converge guard classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# Self-converge guard classification (read by scripts/gate/check_self_converge_guard.py, not by Ansible).
 # `common` writes /etc/sudoers.d/<ansible_user> — the grant that lets the runner escalate at
 # all, on the box it may itself be running on. It is NOT in the lockout set because it can
 # only ever restate that grant, never revoke a session: no unit is restarted, no firewall or

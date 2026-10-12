@@ -12,7 +12,7 @@
 
 # 1Password item holding the live-box SMB credentials (see subscriptions.yml `secret:`).
 livebox_op_item: Hertzner-SB-Data
-# Lockout exemption, checked by scripts/check_self_converge_guard.py against the
+# Lockout exemption, checked by scripts/gate/check_self_converge_guard.py against the
 # `homelab_lockout_exempt_reason` below, not by Ansible: the mount target is a dedicated
 # directory this role creates. If it ever sits under a path the runner lives on, that
 # exemption is wrong and the role belongs in the lockout set.

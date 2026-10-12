@@ -39,7 +39,7 @@ Domača stran na **`kogler.si`** je glavna vstopna točka za vse storitve.
 
 The repo's **`skills/` folder is the single source of truth** for the pi coding
 agent's skills on the management laptop. Edit there, commit, then run
-**`bash scripts/pi-seat-sync.sh --push`** to deploy them into the global pi skills folder
+**`bash scripts/harness/pi-seat-sync.sh --push`** to deploy them into the global pi skills folder
 (`%USERPROFILE%\.pi\agent\skills\`). Do **not** edit the global copy directly —
 it is refreshed from this repo.
 
@@ -69,8 +69,8 @@ extension stayed loaded on the seat forever.
 > seat-local packages survive), a hand-written `~/.tmux.conf` is a REFUSAL, and a seat
 > whose clone trails this commit is reported `STALE-CLONE` with its planes NOT run.
 >
-> **Updating pi itself** is the `pi-self` plane: `bash scripts/pi-self-update.sh --push` installs `pi_host_npm_package@pi_host_npm_version` with whatever the host actually uses (Volta on the Windows seat, npm at the pinned prefix on the Debian seats) and then re-probes the binary. A seat running a pi the repo has not reviewed reads as `AHEAD`, which is drift, not a warning (HD-1115).
-> `bash scripts/pi-self-update.sh --check` prints what this host runs against the pin. The pin is the value, never
+> **Updating pi itself** is the `pi-self` plane: `bash scripts/harness/pi-self-update.sh --push` installs `pi_host_npm_package@pi_host_npm_version` with whatever the host actually uses (Volta on the Windows seat, npm at the pinned prefix on the Debian seats) and then re-probes the binary. A seat running a pi the repo has not reviewed reads as `AHEAD`, which is drift, not a warning (HD-1115).
+> `bash scripts/harness/pi-self-update.sh --check` prints what this host runs against the pin. The pin is the value, never
 > `latest` — HD-1111 is the start-up panel an unpinned upgrade produced.
 
 ---
@@ -103,14 +103,14 @@ extension stayed loaded on the seat forever.
 |------|---------|
 | [`IaC/README.md`](IaC/README.md) | Ansible implementation specification — roles, templates, build order, **conventions** |
 | [`IaC/ansible/`](IaC/ansible/) | Ansible playbooks, roles, inventory, group vars |
-| [`scripts/bootstrap-runner.sh`](scripts/bootstrap-runner.sh) | Management laptop setup script |
+| [`scripts/ansible/bootstrap-runner.sh`](scripts/ansible/bootstrap-runner.sh) | Management laptop setup script |
 | [`IaC/router/`](IaC/router/) | RouterOS `.rsc` (rb4011, ap) |
 
 ### Bootstrap (Management Laptop)
 
 ```bash
 git clone <this-repo>
-bash scripts/bootstrap-runner.sh
+bash scripts/ansible/bootstrap-runner.sh
 source ~/.bashrc
 ansible-playbook -i ../ansible/inventory.ini ../ansible/site.yml
 ```

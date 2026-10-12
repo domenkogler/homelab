@@ -200,7 +200,7 @@
     "docs/rack-layout.mmd",
     "docs/rack-connections.md",
     "docs/network-rack.md",
-    "scripts/render_rack_connections.py",
+    "scripts/ansible/render_rack_connections.py",
     "docs/rack-connections.json",
     "prompt.md",
     "IaC/router/templates/ap_initial.rsc.j2",

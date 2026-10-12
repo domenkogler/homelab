@@ -1,6 +1,6 @@
 # HD-489 tail — B6: fp8 KV on the built image
 
-Measured 2026-10-03 via `scripts/spark-fp8-image-probe.py` leg B against the **built
+Measured 2026-10-03 via `scripts/bench/spark-fp8-image-probe.py` leg B against the **built
 ultrafast image** (`sha256:4900c13e…`, the one `versions.yml:311` pins), on spark.
 
 ## Verdict
@@ -28,7 +28,7 @@ pin), and every ctx answer below stays at 1.97×.
 ## Evidence
 
 - Probe output (Verdict + DECLARED dtypes + HIT/BF16 lines) is the record.
-- Command: `python3 scripts/spark-fp8-image-probe.py --skip-registry --image
+- Command: `python3 scripts/bench/spark-fp8-image-probe.py --skip-registry --image
   sha256:4900c13… --ssh-host spark`
 
 ## Consequence

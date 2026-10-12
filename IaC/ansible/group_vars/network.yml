@@ -12,6 +12,6 @@ ansible_host: "{{ (network_static_hosts
 
 # The module runs on the CONTROLLER (both network playbooks are
 # `connection: local`), so this interpreter is the one that must import
-# `librouteros`: the playbook python — the venv scripts/bootstrap-runner.sh
+# `librouteros`: the playbook python — the venv scripts/ansible/bootstrap-runner.sh
 # installs into — not the `/usr/bin/python3` the inventory's `[all:vars]` pins.
 ansible_python_interpreter: "{{ ansible_playbook_python }}"

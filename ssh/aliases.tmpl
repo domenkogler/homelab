@@ -1,4 +1,4 @@
-# ssh/aliases.tmpl — the alias-contract PLANE. Rendered by scripts/seed-seat-ssh-config.sh into
+# ssh/aliases.tmpl — the alias-contract PLANE. Rendered by scripts/harness/seed-seat-ssh-config.sh into
 # ONE marker-delimited block inside a seat's ~/.ssh/config. It is not an ssh config and is never
 # installed as one.
 #
@@ -12,7 +12,7 @@
 # TEMPLATE GRAMMAR — the whole language, three rules (the renderer enforces it and fails loud on
 # an unknown placeholder or an unterminated region):
 #   NAME at-signs  a placeholder (the name wrapped in at-signs) replaced from the seat-class
-#                  table in scripts/seed-seat-ssh-config.sh — an unresolved one fails the render
+#                  table in scripts/harness/seed-seat-ssh-config.sh — an unresolved one fails the render
 #   #% seat: a b   emit the following lines only for classes a/b; a following `#% seat:` line
 #                  starts the next region; `#% end` returns to "every class"
 #   anything else  emitted verbatim for every class

@@ -92,7 +92,7 @@ After items exist, confirm each compose renders (the fail-loud guard passes) and
 > | oldsrv `lan-litellm` `OPENAI_API_KEY` | same, LAN leg | host was down |
 > | laptop `models.json → providers.spark.apiKey` | **a second copy of the engine key, not a LiteLLM key.** `baseUrl` is `https://llm.ts.kogler.si/v1`, and `traefik-tailnet/dynamic/routes.yml.j2:365` routes that host straight to spark's own edge: *"auth is the ENGINE's `--api-key` … not a middleware"* | 200 at `llm.ts`, and a real completion came back |
 >
-> `op_api`'s live holder is the **control node** `op` CLI (`scripts/bootstrap-runner.sh`); it is re-seeded on
+> `op_api`'s live holder is the **control node** `op` CLI (`scripts/ansible/bootstrap-runner.sh`); it is re-seeded on
 > a rotation day.
 >
 > **The corollary, and it is the part that would mislead a rotation:** the LiteLLM edge does **not**
@@ -129,11 +129,11 @@ LAN `:443`, VPS edge and tailnet over WG/S2S. Catalog row: `provision-secrets.py
 **The bearer in git history.** `vllm bench serve` prints its own parsed argv, which includes
 `header=['Authorization=Bearer <key>']`, so stability/bench step logs carried the live bearer into
 `spark/reports/stability/` — 11 tracked files at the tip, pushed to `origin/main` in `08c0895` and `34e4b97` —
-plus ~120 copies in the on-box log directory. Prevention lives with the writers: `spark/bench/run-scenario.sh`
+plus ~120 copies in the on-box log directory. Prevention lives with the writers: `scripts/bench/spark/run-scenario.sh`
 + `stress-oom.sh` `scrub` every line **at the point of write**, so the bearer never touches disk (a
 commit-time scan is a detection net, not a boundary); `stability-overnight.sh`'s `bundle()` refuses to publish
 an archive whose **payload** contains a secret shape (unit-tested against a bearer shape and an `ops_…`
-token); and `scripts/check_secrets.py` (wired into `validate-all.sh` as #15) scans every tracked **blob** and
+token); and `scripts/gate/check_secrets.py` (wired into `validate-all.sh` as #15) scans every tracked **blob** and
 the members of tracked `.tar`/`.tar.gz`/`.zip`, prints masked hits only, and fails on unreadable archives —
 an archive you cannot read is an archive you cannot trust. Redacting the tip does not un-leak the pushed
 commits; only the rotation does.
@@ -158,11 +158,11 @@ git -C ~/source/homelab-wt-* status --short    # other sessions' worktrees must 
 #    lives in the SAME vault as everything else (item `op-write_api`, what both Ansible lookups read),
 #    so the runner can fetch it directly — no root SSH to the VPS:
 OP_SERVICE_ACCOUNT_TOKEN="$(op read 'op://Homelab-ansible/op-write_api/credential' </dev/null)" \
-  python3 scripts/provision-secrets.py --rotate spark-llm_api --yes   # add --skip-rotate if the owner already rotated
+  python3 scripts/secrets/provision-secrets.py --rotate spark-llm_api --yes   # add --skip-rotate if the owner already rotated
 #    Verify by hash, never by printing. The OLD value stays LIVE until step 2 — that is the window.
 # 2. RE-RENDER all three consumers, DETACHED (see §Jump-host execution + scripts/README):
-#    spark / vps  → FULL converge: `bash scripts/ansible-run.sh playbooks/<host>.yml`
-#    oldsrv       → `bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si`
+#    spark / vps  → FULL converge: `bash scripts/ansible/ansible-run.sh playbooks/<host>.yml`
+#    oldsrv       → `bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si`
 #    ⚠ Do NOT try to be surgical here. `--tags docker_services
 #    -e docker_services_scope=spark-ai` can report `ok=… changed=0 skipped=…` and exit 0 while
 #    the deploy loop SKIPS the named service: the new key never reaches compose/argv, so a green

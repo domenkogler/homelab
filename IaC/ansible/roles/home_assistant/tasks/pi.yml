@@ -48,7 +48,7 @@
 
 
 # ---- KNX (docs/smart-home.md): ETS project file SSOT ----
-# knx-entities.yaml is generated from the .knxproj (scripts/knx-hass-gen.py) — the
+# knx-entities.yaml is generated from the .knxproj (scripts/ansible/knx-hass-gen.py) — the
 # configuration.yaml.j2 `knx: !include knx-entities.yaml` needs the file at
 # /config/knx-entities.yaml. The .knxproj itself is deployed to /config/knx/ so the
 # KNX panel can import it (Group Monitor names + knx.telegram destination_name).

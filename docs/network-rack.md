@@ -87,5 +87,5 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 - **[Rack Layout Mermaid](rack-layout.mmd)** — wiring diagram
 - **Homelable — implementation authored, ⏳ deploy-gated** — web-based interactive rack + topology visualizer; the live-rack successor to `Rack.canvas`. Spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable.
 
-> Rack wiring docs are regenerated from `rack-connections.json` via `scripts/render_rack_connections.py` after editing either the SSOT or [`assets/Rack.canvas`](assets/Rack.canvas).
+> Rack wiring docs are regenerated from `rack-connections.json` via `scripts/ansible/render_rack_connections.py` after editing either the SSOT or [`assets/Rack.canvas`](assets/Rack.canvas).
 - **[PowerWalker Manual](assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf)**

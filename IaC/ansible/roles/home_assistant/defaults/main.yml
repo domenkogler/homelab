@@ -1,7 +1,7 @@
 ---
 # home_assistant role defaults
 
-# Lockout-exempt classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# Lockout-exempt classification (read by scripts/gate/check_self_converge_guard.py, not by Ansible).
 # It touches /root/.ssh — which is why the detector flags it, and why this row exists rather
 # than silence: the role CREATES the directory (mode 0700) and GENERATES a ha-sync keypair
 # under `creates:` guard. It never rewrites an `authorized_keys` on the target, which is the

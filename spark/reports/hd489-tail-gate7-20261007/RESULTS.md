@@ -4,7 +4,7 @@ Read-only. Command (run from the repo root on oldsrv, where this session runs):
 
 ```
 ssh spark 'cat /mnt/spark_nvme/oom-watchdog/state/samples.csv' \
-  | python3 -I spark/bench/gate7-read.py --since 2026-10-06T11:19:00Z --baseline-mib 93091
+  | python3 -I scripts/bench/spark/gate7-read.py --since 2026-10-06T11:19:00Z --baseline-mib 93091
 ```
 
 Two reads of the same accruing window, both scored by the same tool. **The day read** was taken

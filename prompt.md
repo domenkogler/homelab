@@ -37,7 +37,7 @@ the **Win11 Git-Bash** seat.
 gates were silently blind or misleadingly red until 2026-10-07 — MSYS text mode makes `grep` miss the CR of a CRLF pair
 (`grep -U` is mandatory in encoding guards), `git` lives in `/mingw64/bin` not `/usr/bin`, and a case ending in a tmux/ansible
 probe must print SKIP, not a verdict (CONVENTIONS §6; the sweep rule is [docs/orchestration.md](docs/orchestration.md) §4 step 5).
-**A Win11 seat signs and pushes without a 1Password window**: `bash scripts/git-bootstrap-win11.sh --git-identity` makes the
+**A Win11 seat signs and pushes without a 1Password window**: `bash scripts/git/git-bootstrap-win11.sh --git-identity` makes the
 file-path identity the seat default (`--check` shows the route, `--1password` opts back) — see
 [docs/deployment-secrets.md](docs/deployment-secrets.md) §What actually raises a 1Password prompt.
 Secrets → 1Password `Homelab-ansible` `item.field` only, `>-` for YAML renders. Multi-line bash heredocs with
@@ -87,7 +87,7 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    blocker that was mechanical is gone — the seat drives the RouterOS API now (**HD-495**, 2026-10-08) — so what
    remains is the owner-present window, not the tooling. Alongside it: **HD-477** (make the resolver actually float
    with the VIP; premise measured green, the row carries the three gates), **HD-487** (config-manager truth per host
-   — `scripts/probe-net-manager.sh` reads the verdict off the interface the default route rides: oldsrv/pi =
+   — `scripts/ansible/probe-net-manager.sh` reads the verdict off the interface the default route rides: oldsrv/pi =
    NetworkManager with dead networkd renders on disk, vps = networkd, **spark = both managers on one box**,
    **nas = neither**), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed and was verified
    2026-10-08**; spark still waits on a spark-slot converge, nas on HD-487), and the DNS-policy rows **HD-480–483**.
@@ -130,14 +130,14 @@ The git-side cause is therefore unidentified; what was durable is the launcher f
 upstream and the merge refs **at the moment of failure**, so the next occurrence arrives with its own diagnosis. Read [docs/1password.md](docs/1password.md) §1
 first: the leak response killed the "two-token finding" as a **mis-seed** — both seats were running the *write*-scoped
 item, and `op vault list` cannot tell the scopes apart, so prove scope with the `op whoami` **Integration ID**.
-   ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/pi-seat-sync.sh` is
+   ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/harness/pi-seat-sync.sh` is
    the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID — the driver ran only
    its first plane on an ssh leg until `bcf776ab` (HD-1110), and the cockpit re-verified genuinely green 8/8 on
    2026-10-09, so what remains is `install-pi-wsl.sh` **owning PATH persistence** (the WSL seat's own pi is
    fixed — `4677cd05` found a dead PATH shim hiding a healthy pinned-prefix pi 1.1.0, so the old "Volta shim"
    premise is history, not a task) and the Win11 `pi_auth` drift — the seat holds
    an **OAuth** openrouter entry where the spec renders `api_key`; mint it through the `pi_auth` vendor lane of
-   [`scripts/render-pi-config.py`](scripts/render-pi-config.py) (§4 of [docs/pi-harness.md](docs/pi-harness.md)) and
+   [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/pi-harness.md](docs/pi-harness.md)) and
    never overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
 6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: our own generated
    `sanoid.service` pointed at `/usr/local/bin/sanoid` while the package installs `/usr/sbin/sanoid`, so every
@@ -197,7 +197,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
-    - **Register the heading gate, price it, or leave it a tool.** `scripts/check_doc_headings.py` exists and carries
+    - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
       `--self-test`, and `bash scripts/validate-all.sh --list` prints no item for it, so a `§Heading` pointer that
       dangles reddens nothing at commit time while its path half (`check_doc_path_refs.py`) IS registered. The size of
       the debt is the last line of its own run, and the same tool copied into a worktree checked out at an earlier
@@ -212,7 +212,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       apply was the ROLE gets the pair re-added beside the role's own. `community.routeros` has no `key:` parameter and
       pairs device rows to data rows by minimum diff weight, so `comment` is one weighted field and not an identifier:
       the same split can also land as a silent `update .id=<n> comment=<text>` that erases the anchor the delta selects
-      by. Renaming one side is what `python3 scripts/check_string_twins.py` reddens, naming every other copy of the
+      by. Renaming one side is what `python3 scripts/gate/check_string_twins.py` reddens, naming every other copy of the
       bytes (proved by editing `IaC/router/templates/rb4011_converge.rsc.j2:438` alone in a scratch worktree and
       discarding it); the ROLE's differing wording is outside that population by construction, because its sides never
       agreed at the pinned baseline, so the gate enforces whole renames and arbitrates nothing about which spelling
@@ -239,17 +239,17 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       corpus answers nothing, and `scripts/corpus_diff.py` does not exist in this tree, because the tool and its
       accepts list run from a lane directory a fresh clone does not have. Promotion takes three things, in this order:
       the tool in-tree with both its run and its `--self-test` registered; a pinned baseline naming the compared
-      revision and carrying a digest of what was compared, with the staleness refusal `scripts/check_string_twins.py`
+      revision and carrying a digest of what was compared, with the staleness refusal `scripts/gate/check_string_twins.py`
       already has; and the accepts list in-tree under the canary discipline of
-      `scripts/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. Until all
+      `scripts/gate/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. Until all
       three land, a corpus-diff verdict is per-commit and hand-run, and a green one is evidence about that run only -
       it is not a gate the suite ran. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
 
     Standing on top of those five, and not a sixth decision: **the twins gate will start refusing inside the next wave
-    unless its baseline is re-published at the tip.** `scripts/twin_baseline.txt` pins the revision the population is
+    unless its baseline is re-published at the tip.** `scripts/gate/twin_baseline.txt` pins the revision the population is
     read from, and the run compares how far `HEAD` has moved from it against its own staleness constant, so re-derive
-    the distance with `git rev-list --count $(awk '/^baseline_rev/{print $2}' scripts/twin_baseline.txt)..HEAD` and
-    publish the three values with `python3 scripts/check_string_twins.py --show-baseline` in the commit that moves the
+    the distance with `git rev-list --count $(awk '/^baseline_rev/{print $2}' scripts/gate/twin_baseline.txt)..HEAD` and
+    publish the three values with `python3 scripts/gate/check_string_twins.py --show-baseline` in the commit that moves the
     baseline. A baseline never ages past one wave.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full

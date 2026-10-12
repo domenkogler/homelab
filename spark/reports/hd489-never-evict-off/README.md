@@ -72,8 +72,8 @@ evidence ([`spark/reports/hd489-overnight-20261004-0804/README.md`](../hd489-ove
 box restored to `fast` by the run's converge-back. The gate was green throughout — it checked that
 the pin rendered, never which image would receive it. Hence
 `spark_llm_never_evict_capable_images: [ultrafast]` plus a new assert in
-`roles/spark-llm-profile`, a `pin-lineage` invariant + canary in `scripts/check_spark_llm_gate.py`,
-and a render-time refusal in `scripts/spark-llm-render-matrix.py`.
+`roles/spark-llm-profile`, a `pin-lineage` invariant + canary in `scripts/gate/check_spark_llm_gate.py`,
+and a render-time refusal in `scripts/bench/spark-llm-render-matrix.py`.
 
 ## Pool arithmetic, so nobody quotes "25 % of the pool" as 6.25 GB of room
 

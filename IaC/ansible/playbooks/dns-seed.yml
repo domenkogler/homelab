@@ -6,7 +6,7 @@
 #
 # This playbook is the single entry point to push the current seed SSOT to ALL THREE
 # Technitium instances (VPS primary + oldsrv secondary + Pi tertiary) with ONE command:
-#   bash scripts/ansible-run.sh playbooks/dns-seed.yml
+#   bash scripts/ansible/ansible-run.sh playbooks/dns-seed.yml
 # It runs ONLY the docker_services role with docker_services_scope=<technitium instance>
 # per host, so it is fast and surgical (no common/docker/network re-run), and it prefers
 # NOT to recreate the containers (compose up -d is no-op on spec-unchanged services).

@@ -97,7 +97,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 
 ### Blueprint authoring notes (verified against Authentik source)
 
-> Local validation: **`scripts/validate_blueprints.py`** parses Blueprint YAML (custom `!Find`/`!KeyOf`
+> Local validation: **`scripts/gate/validate_blueprints.py`** parses Blueprint YAML (custom `!Find`/`!KeyOf`
 > tags) and fails on the mistakes below — run it (or `scripts/validate-all.sh`) before committing a
 > blueprint change.
 >
@@ -138,7 +138,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
    `blueprints_discovery` runs complete 'done' but skip them), so the file-hash re-apply machinery
    does NOT fire for our blueprints. The layer-2 cause of the non-registration is unknown —
    investigation open. The one-shot applies are EXTERNALIZED: run
-`bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml` whenever a
+`bash scripts/ansible/ansible-run.sh playbooks/authentik-blueprints.yml` whenever a
    blueprint file changes — the routine docker_services lane does not apply them every converge.
    Remember: apply = UPSERT; removing a blueprint entry does NOT delete the server-side object —
    intentional deletions need ak-shell ORM one-shots in the same change.
@@ -254,7 +254,7 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
 - **CLI:** `ak shell -c "<python>"` executes code; the REPL ignores piped stdin, and `-c` takes NO
   extra argv (pass parameters via `docker exec -e VAR=...`, options before the container name).
   When driving over ssh, base64-wrap non-trivial python to survive quoting layers
-  (`scripts/ak-shell.sh` wraps all of this). Token minting:
+  (`scripts/ansible/ak-shell.sh` wraps all of this). Token minting:
   `Token.objects.create(user=…, identifier=…, intent="api", expiring=False)` for a PERSISTED
   token — see *API-token auto-rotation* below: an ORM create defaults to `expiring=True`, so the
   background sweep ROTATES it on its first ≈5-min pass even with `expires` left NULL.
@@ -274,10 +274,10 @@ volume live in [`deployment-oidc.md`](deployment-oidc.md); the glue step is refe
   `LDAPSource.objects.all()`, `Outpost.objects.all()` — the Samba ↔ Authentik-as-LDAP design is retired
   ([storage-rejected.md](storage-rejected.md) row *Authentik LDAP outpost as the Samba passdb (ldapsam)*),
   so an empty LDAP sweep is the expected state.
-- **`scripts/ak-shell.sh` reports EVERY failure as "runner key / VPS unreachable"**: it runs the remote
+- **`scripts/ansible/ak-shell.sh` reports EVERY failure as "runner key / VPS unreachable"**: it runs the remote
   command with `2>/dev/null`, so a Python exception inside `ak shell` (wrong import or field — the common
   case just above) is indistinguishable from an ssh/auth failure. The wrapper's own ssh+base64 command works
-  from the runner; the failures are exceptions inside the invoked code. Until `scripts/ak-shell.sh` is fixed,
+  from the runner; the failures are exceptions inside the invoked code. Until `scripts/ansible/ak-shell.sh` is fixed,
   reproduce the one-liner with
   stderr visible, or run `ssh vps 'sudo docker exec authentik-worker ak shell -c …'` directly, before
   believing the message.
@@ -345,7 +345,7 @@ secret never reaches the runner session / argv / git. **Hashes & lengths only** 
 ```bash
 # 0) Pre-flight state: confirm the split (DB already has the NEW value, vault holds OLD).
 #    Read the provider secret on-box, hash-only:
-bash scripts/ak-shell.sh 'from authentik.providers.oauth2.models import OAuth2Provider
+bash scripts/ansible/ak-shell.sh 'from authentik.providers.oauth2.models import OAuth2Provider
 import hashlib
 p = OAuth2Provider.objects.get(pk=13)
 print(hashlib.sha256(p.client_secret.encode()).hexdigest())'
@@ -353,7 +353,7 @@ op read "op://Homelab-ansible/headscale_api/credential" | sha256sum   # compare 
 
 # 1) Drop the NEW DB secret into the worker container /tmp (ak-shell is the sanctioned write path;
 #    the worker container cannot reach /media — root-owned, uid 1000 gets EACCES):
-bash scripts/ak-shell.sh 'from authentik.providers.oauth2.models import OAuth2Provider
+bash scripts/ansible/ak-shell.sh 'from authentik.providers.oauth2.models import OAuth2Provider
 p = OAuth2Provider.objects.get(pk=13)
 open("/tmp/hs_new_secret.txt","w").write(p.client_secret)'
 
@@ -379,7 +379,7 @@ op item edit headscale_api --vault Homelab-ansible --template /tmp/hs_item_new.j
 # verify stored hash == DB (hash-only), then rm the temp files + worker /tmp file'
 
 # 4) Re-render + restart the consumers (both share the SAME item; converges both):
-bash scripts/ansible-run.sh playbooks/vps.yml \
+bash scripts/ansible/ansible-run.sh playbooks/vps.yml \
   --tags docker_services -e docker_services_scope=headscale --limit vps
 #    -> /opt/headscale/config.yaml + headplane-config.yaml re-rendered to the new secret;
 #       restart-on-config-change guard fires (changed extra -> restart).

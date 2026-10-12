@@ -59,7 +59,7 @@ class of read from any session.
 ## One trap found while doing this
 
 `model_name` is **not** a stable join key on this box: the archived bench captures under
-`spark/bench/raw/` (2026-09-14) carry `model_name="/model"`, while the live series carry
+`scripts/bench/spark/raw/` (2026-09-14) carry `model_name="/model"`, while the live series carry
 `model_name="spark/qwen3.8-flash-next"`. A dashboard or query keyed on `model_name` either spans
 two identities or silently returns nothing. **Query on `job="vllm", instance="spark.kogler.si"`** —
 which is also the honest key for the funnel, since all 16 arms will serve the same served-model-name
@@ -68,7 +68,7 @@ by design.
 ## Reproduce it (the exact query set)
 
 Evaluate over any window; `{job="vllm",instance="spark.kogler.si"}` is implied below and omitted for
-width. Same result path as `spark/bench/vm-window.sh`, which does the per-leg version.
+width. Same result path as `scripts/bench/spark/vm-window.sh`, which does the per-leg version.
 
 ```promql
 # hit ratios
@@ -90,5 +90,5 @@ histogram_quantile(0.50, sum(rate(vllm:request_time_per_output_token_seconds_buc
 ```
 
 Query them through the VM API the same way the harness does: `GET /api/v1/query` with basic auth
-from the 1Password item `victoria-metrics_api` (see `spark/bench/vm-window.sh` for the
+from the 1Password item `victoria-metrics_api` (see `scripts/bench/spark/vm-window.sh` for the
 0600-curl-config pattern that keeps the secret out of argv).

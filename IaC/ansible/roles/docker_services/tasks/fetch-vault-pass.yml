@@ -3,7 +3,7 @@
 #-----------------------------------------------------------------------------
 # Builds the `vault: {<item>: {username,password,credential,bcrypt_hash}}` dict that every
 # docker_services compose/config template reads instead of calling
-# `community.general.onepassword` per template field. scripts/op-vault-export.py runs ONE
+# `community.general.onepassword` per template field. scripts/secrets/op-vault-export.py runs ONE
 # `op item get --reveal` per item, concurrently; --derive mode derives the needed set from the
 # host's ENABLED services' template_dir -> items map.
 #

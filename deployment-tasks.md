@@ -47,7 +47,7 @@
 > The 1Password item catalog SSOT is [`docs/deployment-secrets.md`](docs/deployment-secrets.md) — the canonical list
 > of ALL items (generated + human + derived). This section lists **only the human-gated items**: external values,
 > manual/deploy-provisioned tokens or keys, break-glass vaults, and connection refs. Auto-generatable items are
-> seeded by [`scripts/provision-secrets.py`](scripts/provision-secrets.py) and are **not repeated here**.
+> seeded by [`scripts/secrets/provision-secrets.py`](scripts/secrets/provision-secrets.py) and are **not repeated here**.
 > `✓` = item already present. Ansible-consumed vs account/ref-only are split into two tables below.
 > **HD-205 reconciliation:** `network-snmp_api`'s *value* is catalog-`--create`d (auto-generated), so it is not a
 > human-gated *value* — but its device-side `/snmp community` apply is a manual HD-03 step, so it sits in the
@@ -63,7 +63,7 @@
 > **Placeholder-then-swap class:** the catalog seeds a random value so the render can run; the REAL value is
 > minted by the app on first boot and a human overwrites the item (`forgejo_api`, `sonarr_api`,
 > `radarr_api`, `lidarr_api`, `slskd_login`, `soulseek_api`).
-> `scripts/check-vault-items.sh --strict` is the authority on the full required set — run it, not this table.
+> `scripts/gate/check-vault-items.sh --strict` is the authority on the full required set — run it, not this table.
 
 | Item | type → `field=` | First needed in | In OP? |
 |------|-----------------|-----------------|--------|
@@ -71,7 +71,7 @@
 | `ai_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
 | `ansible-admin_ssh` | ssh → `private_key`/`public_key` | Phase 0 | ✓ |
 | `domen_ssh` | ssh → `private_key`/`public_key` | Phase 0 (bootstrap key on laptop) | ✓ |
-| `op_api` | api → `credential` (1Password SA token, **read**-scoped) | Phase 0 — `scripts/bootstrap-runner.sh` stores it as the runner token | ✓ |
+| `op_api` | api → `credential` (1Password SA token, **read**-scoped) | Phase 0 — `scripts/ansible/bootstrap-runner.sh` stores it as the runner token | ✓ |
 | `op-write_api` | api → `credential` (**read+write** SA token; renamed 2026-09-19 from `vps-op-write_api`) | Phase 1 — the docker_services pre-pass deploys it to `/etc/op/provision-token` for the secret-egress glue | ✓ |
 | **Phase 1 — VPS edge** | | | |
 | `Hertzner-SB-Data` | — (connection ref; CIFS/SMB/WebDAV live box, `cifs` role) | Phase 1 | ✓ |
@@ -101,7 +101,7 @@
 | **Phase 4 — pi** | | | |
 | `ha_api` | api → `credential` (HA long-lived token) | ⏳ **absent by design** — consumed only by the HA-exporter bearer, gated behind `alloy_ha_exporter: false`; seed it together with HD-14 | ✗ |
 | **spark** | | | |
-| `spark-llm_api` | api → `credential` (vLLM `--api-key` = the engine bearer) | spark phase (`spark-ai`) — the SAME string is sent upstream by BOTH LiteLLM instances as `OPENAI_API_KEY`, so rotation is a coupled window: `scripts/rotate-spark-llm-key.sh` + [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a | ✓ |
+| `spark-llm_api` | api → `credential` (vLLM `--api-key` = the engine bearer) | spark phase (`spark-ai`) — the SAME string is sent upstream by BOTH LiteLLM instances as `OPENAI_API_KEY`, so rotation is a coupled window: `scripts/secrets/rotate-spark-llm-key.sh` + [deployment-ai-stack-secrets.md](docs/deployment-ai-stack-secrets.md) §4a | ✓ |
 
 **Deploy-provisioned, not hand-seeded** (do not hunt for these before a converge):
 `kopia-server_fingerprint` (written by the `kopia-fingerprint-sync` task from the live cert),
@@ -114,7 +114,7 @@ defined anywhere in IaC (`act_runner` / `forgejo-runner` appear in zero files), 
 runner env override in the live `forgejo` instance's `app.ini`, zero runner containers on vps / spark / nas /
 pi, no `act_runner` binary on the control node — and `origin` is GitHub, so this repo's history never reached a
 Forgejo runner either. `op_api`'s only live holder is the **control node** (the `op` CLI, via
-`scripts/bootstrap-runner.sh`), whose token file predates none of this: it was re-seeded on the rotation day and
+`scripts/ansible/bootstrap-runner.sh`), whose token file predates none of this: it was re-seeded on the rotation day and
 a 1Password-resolved converge since then proves it works. Phase 5 still has to CREATE a runner before it can
 have a runner secret; do not wire a secret for a holder that is not there.
 
@@ -132,7 +132,7 @@ have a runner secret; do not wire a secret for a holder that is not there.
 | `netcup-vps_login` | netcup root/OS credential | Homelab (human) vault *(owner decision 2026-08-22 — consolidated with the other netcup-* logins; former break-glass-vault plan dropped)* | ✓ |
 | `Hertzner-SB-Backup` | Hetzner backup Box SSH/SFTP connection ref (kopia, no password) | Homelab (human) vault | ✓ |
 | `spark_login` | DGX Spark (GB10) first-boot `admin` account — the DGX OS setup-wizard password; console/KVM break-glass on a headless box. Not consumed by Ansible (the automation identity is `ansible-admin`). | Homelab (human) vault | ✓ |
-| `GitHub auth` / `GitHub sign` | GitHub SSH + commit-signing keys. Served on the Win11 desktop by the 1Password **desktop** app over the Windows named pipe, and pulled with `op read` on Debian seats/runners by `scripts/git-bootstrap.sh --ssh-auth` (HD-265/HD-495) | `Homelab-ansible` — moved out of the human vault so the read-scope service account can reach them and a headless seat can sign with no interactive sign-in | ✓ |
+| `GitHub auth` / `GitHub sign` | GitHub SSH + commit-signing keys. Served on the Win11 desktop by the 1Password **desktop** app over the Windows named pipe, and pulled with `op read` on Debian seats/runners by `scripts/git/git-bootstrap.sh --ssh-auth` (HD-265/HD-495) | `Homelab-ansible` — moved out of the human vault so the read-scope service account can reach them and a headless seat can sign with no interactive sign-in | ✓ |
 
 > **Provisioning note:** the generated items — the DB items `authentik_db`/`opencloud_db`/`immich_db`/`forgejo_db`/
 > `qdrant_db`/`onlyoffice_db`/`zipline_db`/`litellm_db`, the secrets `authentik_password`/`nut_password`/
@@ -156,7 +156,7 @@ have a runner secret; do not wire a secret for a holder that is not there.
 
 1. Clone the repo; run the runner bootstrap (relocated to `scripts/`, HD-256):
    ```bash
-   bash scripts/bootstrap-runner.sh
+   bash scripts/ansible/bootstrap-runner.sh
    source ~/.bashrc
    ```
 2. Verify tooling: `ansible --version`, `op --version`.
@@ -230,7 +230,7 @@ have a runner secret; do not wire a secret for a holder that is not there.
 here (its record is the owning doc + the commit). Run `todo.md` for the full status story.
 
 - [ ] **HD-101** — Open Web UI: verify the SSO → Authentik round-trip, then a LiteLLM completion + RAG at the pin. · [services-ai.md](docs/services-ai.md)
-- [x] **HD-471** — done 2026-10-07 (AI-converged with `scripts/guarded-converge.sh`, not a manual act) — Docling converts again: `TORCHINDUCTOR_CACHE_DIR`/`TORCH_EXTENSIONS_DIR` moved onto a 1001-owned `/cache` bind (host dir on an exec-capable fs), `/tmp` keeps its `noexec` tmpfs, plus a 6 GiB `deploy.resources.limits.memory`. Acceptance read as required: `status: success` + `md_content` 2021 chars on a 300 dpi image-only Slovenian scan, cold 94.1 s / warm 11.2 s. [services-ai.md](docs/services-ai.md) §Operational facts measured on the way
+- [x] **HD-471** — done 2026-10-07 (AI-converged with `scripts/ansible/guarded-converge.sh`, not a manual act) — Docling converts again: `TORCHINDUCTOR_CACHE_DIR`/`TORCH_EXTENSIONS_DIR` moved onto a 1001-owned `/cache` bind (host dir on an exec-capable fs), `/tmp` keeps its `noexec` tmpfs, plus a 6 GiB `deploy.resources.limits.memory`. Acceptance read as required: `status: success` + `md_content` 2021 chars on a 300 dpi image-only Slovenian scan, cold 94.1 s / warm 11.2 s. [services-ai.md](docs/services-ai.md) §Operational facts measured on the way
 - [ ] **HD-472** — Docling/RAG: prose-page recall gate. The live engine (RapidOCR PP-OCRv6) lost **5 whole sentences** on a light-print clinical page; raster scale cut the loss to 2 lines for free. Decide the raster lever + a refuse-to-index rule for failed/garbled conversions. · [todo.md](todo.md) · [services-ai.md](docs/services-ai.md) §The Slovenian bench
 - [ ] **HD-421** — ⏳ Docling: a writable, **pre-seeded** artifacts location. Corrected 2026-09-28: chowning `/models` cannot work — the served pipeline's artifacts dir is read-only (`read_only: true`) and jobkit disables runtime downloads whenever `artifacts_path` is a valid directory (log-proved 3×). Land a bind carrying the weights + repoint `DOCLING_SERVE_ARTIFACTS_PATH`, then prove a not-baked model is reachable. [todo.md](todo.md) · [services-ai.md](docs/services-ai.md) §Where the model weights actually live
 - [x] **HD-103** — done 2026-10-07 — verified through the **production route** (the container's `services-internal` address, no published port): `status: success`, `layout_score 0.852`, `ocr_score 0.954`, `mean_grade excellent`. Test asset was a **derived** scan (a repo manual re-rasterized at 300 dpi, 0 extractable characters); a family scan has not been re-run since the fix. [services-ai.md](docs/services-ai.md) §Operational facts measured on the way
@@ -574,7 +574,7 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 > `docs/hardware-spark.md` + `docs/services-ai.md` §2 are the SSOTs;
 > `todo.md` HD-335/336/337/369/373/386/391/393 is the status record.
 > **1Password prerequisites:** `spark-llm_api` (engine bearer — the SAME string both LiteLLM instances send
-> upstream, so rotation is a coupled window: `scripts/rotate-spark-llm-key.sh`) and the human-vault `spark_login`
+> upstream, so rotation is a coupled window: `scripts/secrets/rotate-spark-llm-key.sh`) and the human-vault `spark_login`
 > (DGX OS first-boot admin, console break-glass). Full note in §0 table A.
 
 - [x] **[MANUAL]** **Physical + OS first-boot** — ✅ 2026-09-14: the **rack-fit problem is the real work item**
@@ -837,8 +837,8 @@ Phase 10 (deferred: Phase-2 Proxmox hardware, HD-41/42)
 ```
 
 **Phase prerequisites (1Password) recap — what must exist before you start:**
-Full authority = `docs/deployment-secrets.md` + `scripts/check-vault-items.sh --strict`; this recap is the
-**human-gated** subset only (catalog-generated items are seeded by `scripts/provision-vault.sh --create`).
+Full authority = `docs/deployment-secrets.md` + `scripts/gate/check-vault-items.sh --strict`; this recap is the
+**human-gated** subset only (catalog-generated items are seeded by `scripts/secrets/provision-vault.sh --create`).
 - **Phase 0:** `domen_ssh`, `ansible-admin_ssh`, `ai_ssh`, `op_api` (read-scoped runner token),
   `kopia_password` (seed), `laptop-domen-wsl-debian_login` (the WSL user password — **Homelab (human)** vault)
 - **Phase 1 (VPS):** + `netcup-ccp_login`, `netcup-scp_login`, `netcup-vps_login` (Homelab (human) vault),

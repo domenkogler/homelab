@@ -83,7 +83,7 @@ secret values, generated docs correctly marked.
 | docs/services.md | 2 home_servers enabled | group_vars/home_servers.yml | ✅ (technitium + sunshine) |
 | docs/services-traefik.md | wildcard issuer = VPS traefik | role default + group_vars/vps.yml `traefik_acme_issuer` flag | ✅ |
 | docs/network-addresses-generated.md | 6 host ansible_host values | host_vars/*.yml ansible_host | ✅ (vps/oldsrv/nas/pi all present; router+switch are network devices, not Docker hosts) |
-| docs/deployment-ansible.md | Bulk 1P pre-pass (HD-258) | scripts/op-vault-export.py + deploy-service.yml | ✅ |
+| docs/deployment-ansible.md | Bulk 1P pre-pass (HD-258) | scripts/secrets/op-vault-export.py + deploy-service.yml | ✅ |
 | docs/deployment-compose.md | HD-270 escape `\| replace('$','$$')` | docker-compose.yml.j2 templates | ✅ (0 unescaped vault refs in compose templates, see Track B) |
 | docs/services-ai.md | qdrant storage path fix (HD-271) | qdrant env QDRANT__STORAGE__SNAPSHOTS_PATH | ✅ |
 | docs/backup.md | kopia gate (HD-271) | kopia-server template | ✅ |

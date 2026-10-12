@@ -305,7 +305,7 @@ tailnet_pi_ip: "100.64.0.6"
 #              Also declared, not wired.
 #
 # ⛔ A change here changes live Technitium DNS on the next seed converge, and nothing
-# else. The parity gate (`scripts/check_zone_kogler_si_parity.py`, in validate-all)
+# else. The parity gate (`scripts/gate/check_zone_kogler_si_parity.py`, in validate-all)
 # compares the derived views against `scripts/testdata/zone_kogler_si_golden.json`, a
 # snapshot of what the hand-authored sources answered BEFORE the derivation. So an edit
 # that silently drops a name, re-points an address, or moves a `.ts`-only name into the
@@ -556,7 +556,7 @@ network_static_hosts:
   - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary" }
   - { name: spark,    vlan: 99, ip: "10.10.99.40", mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home); static reservation" }
   - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra" }
-  - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback" }
+  - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/hardware/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback" }
   # Home VLAN 10
   - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
   # DHCP client-id = MAC (dhcp_client: mac) for the two DHCP-only Debian hosts (nas/oldsrv):

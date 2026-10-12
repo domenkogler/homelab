@@ -7,7 +7,7 @@
 # writes it to /var/log/remote-syslog/routeros.log — detection there proves
 # remote-syslog egress end-to-end.
 #
-# Apply: bash scripts/routeros-apply-delta.sh 10.10.99.1 rb4011_egress_probe_delta.rsc
+# Apply: bash scripts/ansible/routeros-apply-delta.sh 10.10.99.1 rb4011_egress_probe_delta.rsc
 # Verify on the VPS: sudo tail -n 20 /var/log/remote-syslog/routeros.log
 # Re-render before re-use if the marker timestamp must be fresh.
 # =====================================================================

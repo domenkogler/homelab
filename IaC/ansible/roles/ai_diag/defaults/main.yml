@@ -1,7 +1,7 @@
 ---
 # ai_diag role defaults
 
-# Lockout-exempt classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# Lockout-exempt classification (read by scripts/gate/check_self_converge_guard.py, not by Ansible).
 # This role writes /etc/sudoers.d/ai-diag — a session-critical path — but it cannot sever
 # the driving session: it ADDS one narrow Cmnd grant for the ai-debug dispatcher account,
 # touches no unit, firewall, netdev or sshd setting, and the drop-in is validated with
