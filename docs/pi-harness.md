@@ -495,6 +495,12 @@ by [`../scripts/harness/install-tmux-conf.sh`](../scripts/harness/install-tmux-c
 | `prefix m` | toggle mouse off/on without editing the file — the escape hatch when capture gets in the way |
 | SHIFT held while dragging | the outer terminal's own selection, bypassing tmux |
 
+The `managed-by:` line names the **SSOT file**, never the installer's path: a marker that embeds a
+script path is a second copy of that path, and HD-1118 moved the script, which is the failure the
+marker exists to avoid. The installer therefore also recognizes the path-markers it wrote before
+that move (`MARKER_LEGACY` in the script) as its own — what it never accepts is a file it did not
+write, which stays a REFUSAL and not an overwrite.
+
 ### Why the installer loads the file instead of comparing it
 
 `cmp` proves the right bytes are on disk. It cannot prove tmux obeyed them, and the failure mode is
