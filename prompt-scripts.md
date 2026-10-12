@@ -6,6 +6,9 @@
 > file is the only place the agreed tree + the stage order are written down. Design context: [docs/pi-harness.md](docs/pi-harness.md)
 > §1/§5 (the seat planes), [CONVENTIONS.md](CONVENTIONS.md) §6 (worktree/gate discipline), [`scripts/README.md`](scripts/README.md) (the registry).
 > **Linked from:** [todo.md](todo.md) HD-1118
+> **Status 2026-10-12:** HD-1118 **landed**, re-derived at the tip — Stages 1–4 below are the tree's provenance,
+> not work; the unreplayable 2026-10-09 lane tree is pinned as `rescue/hd1118-20261011`. This brief now carries
+> **HD-1119** (the `harness` docs domain) and the row's three live legs.
 
 **Contract:** README §4 (this is a normal lane, not an §4-orchestrator lane): one session, one worktree, one branch, edits to
 `todo.md` limited to **this row**. No live converges except the one named in Stage 3. `bash scripts/validate-all.sh` green

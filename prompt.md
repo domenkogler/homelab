@@ -176,12 +176,16 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     laptop's local **agent** leg is retired (owner ruling 2026-10-09), so this brief is FIM + vision only and claims
     no converge host — which is why it can run beside anything except a live pi-seat lane. →
     [prompt-laptop-legs.md](prompt-laptop-legs.md)
-11. ⏳ **The `scripts/` restructure** — the tree is agreed, the code is not yet moved. **Stage 1 is the gate on
-    everything else**: one repo-root resolver replacing the fixed-depth assumptions (22 bash + 29 python sites,
-    measured 2026-10-09), because a moved validator that resolves its root wrongly walks nothing and prints green.
-    Its own trap: `validate-all.sh` judges the INDEX, so a new file is invisible until `git add`. **HD-1119** is the
-    same naming decision one level up — `docs/` has no `harness` domain, so harness decisions sit where the §0
-    prior-art sweep cannot reach them; decide it before Stage 4. → [prompt-scripts.md](prompt-scripts.md)
+11. ⏳ **The `scripts/` restructure** — **landed 2026-10-12**, by re-deriving the 2026-10-09 lane at the tip
+   rather than replaying it: `scripts/` is now `lib/ gate/ ansible/ secrets/ git/ harness/ bench/ hardware/
+   testdata/` with `validate-all.sh` + `render_all.py` at root, root resolution is structural, and
+   `gate/check_script_layout.py` holds the tree from inside `validate-all.sh`. The lane's 13 commits were not
+   replayable (0/13 applied across 676 commits of drift) and are pinned as `rescue/hd1118-20261011`. Three live
+   legs stay in the row: the seat `pi-seat-sync.sh --check` after each seat fast-forwards, a from-zero `install-
+   pi-debian.sh --check`, and `install-tmux-conf.sh --push` on the two laptop seats. **HD-1119** — the missing
+   `harness` docs domain — is the only authored work the brief still carries, and it no longer gates the tree:
+   folders are named for the toolchain each script drives, and the `gate/`/`lib/` exception is written into
+   [scripts/README.md](scripts/README.md). → [prompt-scripts.md](prompt-scripts.md)
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
     drill · **418** the HA restart window · **HD-06** the UPS drill · **411** the cockpit resume word ·
     **HD-230/207** the decisions taken at the drill. ⏸ **Deferred by owner 2026-10-08: HD-454** (buy an out-of-band
