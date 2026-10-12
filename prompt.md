@@ -250,8 +250,20 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       `scripts/gate/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. Until all
       three land, a corpus-diff verdict is per-commit and hand-run, and a green one is evidence about that run only -
       it is not a gate the suite ran. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
+    - **Retire the RB4011 deltas — the only act that frees the `comment=` strings still carrying ticket ids.**
+      `IaC/router/templates/rb4011_converge.rsc.j2:314,315,370,449` remove both nat chains and both filter chains and
+      rewrite them in template order, and at this tip every firewall rule the surviving `rb4011_*_delta.rsc.j2` /
+      `rb4011_ha_iot_repair.rsc.j2` files add is already written by the converge (measured by comparing rule attributes
+      with the comment text ignored; the hd326 pair that reads `to-addresses=$vip` is `:local vip {{ dns_primary_ip }}`
+      at `rb4011_hd326_fix_delta.rsc.j2:88` — the same literal the converge writes). So the deltas are redundant for
+      firewall state, and their `find where comment="…"` guards are exactly why the ids cannot come out: editing one
+      side makes a guard ADD a second rule (`Mgmt -> Home`) or a `remove` stop matching (the `comment~` prefix deletes).
+      Proof order and the rule: [network-ops.md](docs/network-ops.md) §Rsc authoring conventions rule 11; owed legs:
+      [todo.md](todo.md) HD-1135. ⚠ A full converge is also the one operation §Mgmt-plane caution refuses for
+      mgmt-sensitive changes — run it from an on-site station with WinBox reachable on the Home leg, and read the live
+      state back through the API rather than trusting the import's exit code.
 
-    Standing on top of those five, and not a sixth decision: **the twins gate will start refusing inside the next wave
+    Standing on top of those, and not another decision: **the twins gate will start refusing inside the next wave
     unless its baseline is re-published at the tip.** `scripts/gate/twin_baseline.txt` pins the revision the population is
     read from, and the run compares how far `HEAD` has moved from it against its own staleness constant, so re-derive
     the distance with `git rev-list --count $(awk '/^baseline_rev/{print $2}' scripts/gate/twin_baseline.txt)..HEAD` and
