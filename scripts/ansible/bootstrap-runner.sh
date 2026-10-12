@@ -163,7 +163,7 @@ done
 # Kept here (host environment, not git-bootstrap) so every shell can use the loaded keys.
 if ! grep -q 'SSH_AUTH_SOCK=.*openssh_agent' ~/.bashrc; then
   cat >> ~/.bashrc <<'BASHRC_SSH'
-# 1Password-op-managed SSH agent (systemd socket) for git commit signing + SSH auth (HD-265).
+# 1Password-op-managed SSH agent (systemd socket) for git commit signing + SSH auth.
 if [ -S /run/user/$(id -u)/openssh_agent ]; then
     export SSH_AUTH_SOCK=/run/user/$(id -u)/openssh_agent
 fi
