@@ -94,9 +94,11 @@ Away from home, router/switch work is **deferred, not improvised** — see [netw
 
 ### IPv6 on the RB4011 — measured facts, the outside-in probe, the rollback
 
-> ⏸ **Deferred by the owner** — the VPS-side v6 publish and the family-agnostic accept
-> parity verdict are both parked, **including** the `meta nfproto ipv4` scoping half: nothing is
-> authorized here, so no session narrows the rule set "as a safety improvement" while the question is parked.
+> **The VPS-side v6 publish is authorized work** (owner ruling). The family-agnostic accept parity verdict
+> is **still outstanding**, and with it the `meta nfproto ipv4` scoping half: until that verdict is given,
+> no session narrows the rule set "as a safety improvement" - while NDP was broken the accepts were
+> IPv4-only *in practice*, and a dual-stack box makes them reachable over v6 too, which is exactly what the
+> verdict is asked to decide.
 
 Plan of record (what is advertised, which VLANs, the filter's rule order, the invariants):
 **[network-vlans.md](network-vlans.md) §IPv6.** This section is the *operating* half: how to measure it, how to
