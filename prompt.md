@@ -251,21 +251,27 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       three land, a corpus-diff verdict is per-commit and hand-run, and a green one is evidence about that run only -
       it is not a gate the suite ran. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
 
-    Standing on top of those five, and not a sixth decision: **the twins gate will start refusing inside the next wave
-    unless its baseline is re-published at the tip.** `scripts/gate/twin_baseline.txt` pins the revision the population is
-    read from, and the run compares how far `HEAD` has moved from it against its own staleness constant, so re-derive
-    the distance with `git rev-list --count $(awk '/^baseline_rev/{print $2}' scripts/gate/twin_baseline.txt)..HEAD` and
-    publish the three values with `python3 scripts/gate/check_string_twins.py --show-baseline` in the commit that moves the
-    baseline. A baseline never ages past one wave.
+    Standing on top of those five, and not a sixth decision: **no wave owes the twins re-baseline right now — it landed
+    at the HD-1118 × HD-1135 merge tip**, and a baseline still never ages past one wave.
+    `scripts/gate/twin_baseline.txt` pins the revision the population is read from, and the run compares how far `HEAD`
+    has moved from it against its own staleness constant, so re-derive the distance with
+    `git rev-list --count $(awk '/^baseline_rev/{print $2}' scripts/gate/twin_baseline.txt)..HEAD` and publish the three
+    values with `python3 scripts/gate/check_string_twins.py --show-baseline` in the commit that moves the baseline. That
+    act is now safe to perform anywhere in a wave, because HD-1118 pinned the gate's own positive control to a
+    population of its own (`CONTROL_BASE_REV`) and made the divergent-family witness a fixture — before that, moving
+    `baseline_rev` past `8b28edd3` made case (v) measure backwards, which is why an earlier attempt was backed out.
 
 15. ⏳ **The gate's own speed on a Windows seat** — **HD-1135** landed the fork diet (gate 134 s → 78 s measured
     interleaved on the Win11 git-bash seat, `$(<file)` proven to be as blind to CR as plain `grep` was) and gave
     `sync-skills.sh` the `--self-test` its encoding guard had been waiting on (teeth proven by mutation, both
-    siblings now share one guard). **Two tails:** the string-twins leg is RED on this work and main is un-pushed
-    because of it — the diet removed pipeline literals that another lane's `check_string_twins.py` tracks as
-    byte-equal twins, and the fix is a wave-boundary re-baseline by that lane (moving `baseline_rev` to the tip
-    breaks that gate's own controls, tried and backed out); and `check_doc_path_refs.py` crashes when a human runs
-    it with `py -3` on that seat while staying green inside the gate. Record: [scripts/README.md](scripts/README.md)
+    siblings now share one guard). **Tails:** the string-twins leg reads green at the merged tree —
+    `scripts/gate/twin_baseline.txt` was re-published at the HD-1118 × HD-1135 merge, the wave boundary both lanes
+    waited on (2289 → 2300 groups, 12 added / 1 dropped), an act that became safe anywhere in a wave when that lane
+    gave the gate's own positive control a `CONTROL_BASE_REV` of its own — and the diet itself stayed. What that merge
+    *adds* is the opposite bill: `scripts/lib/pi-seat.sh`'s single `pin()` is the fork-based body and
+    `hl_owner_path()` runs a `find` per plane, so part of the diet is re-bought (`pi-seat-sync --self-test` 46 s,
+    `pi-settings-config --self-test` 97 s, whole gate 398 s on that seat) — and `check_doc_path_refs.py` still crashes
+    when a human runs it with `py -3` on that seat while staying green inside the gate. Record: [scripts/README.md](scripts/README.md)
     `validate-all.sh` + `sync-skills.sh` rows.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full

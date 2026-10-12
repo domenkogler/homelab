@@ -33,6 +33,17 @@
 # from check_string_twins.py dropped one side of the cross-file `exact` group, which is this
 # gate's rule applying to itself. twin_groups and the digest are UNCHANGED -- a group's sides
 # went, its keys did not -- so this line is the whole of that decision.
-baseline_rev 58bac7bfbcb8357604d1e19f8b7d7709f7912c98
-twin_groups 2289
-group_keys_sha256 cb7786f61610ad65b72100a44a9e4c7b58f4caf6b6ae111b0b181b5e6d83fd7b
+#
+# Re-published 2026-10-12 at the merge of origin/main (HD-1118's foldered scripts/) into the
+# HD-1129/HD-1135 fork-diet work — the wave boundary both lanes were waiting on. Three groups
+# had been severed by that diet and the population at 58bac7bf could not read them as anything
+# but gone: ` = ` and `$(head -c3 ` (the exec-based BOM probe both sync-* siblings stopped
+# paying) and `$out` (pi-settings-config.sh's invoke() splits two lines the shell can split,
+# instead of three `printf | sed` pairs). All three are PIPELINE FRAGMENTS the extractor lifts
+# off shell lines, not facts in two places, so the honest close is the population recording
+# that they went -- not restoring forks to satisfy a byte test. Shape of the move: 2289 -> 2300,
+# 12 groups added (fragments in the code both sides added) and 1 dropped (`$(head -c3 `), so
+# the population GREW; this is the growth the canary is here to distinguish from narrowing.
+baseline_rev c2cd6b4f21aff31ea0f1627bc46e1856ea677d8f
+twin_groups 2300
+group_keys_sha256 d6e1732e6543584e87d87d64f6006592a33a6f0c6df6adb74b75c21b14a5f90a
