@@ -275,7 +275,7 @@ docker_services:
   - { name: prowlarr,     template_dir: prowlarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; pre-create the config dir 1005-owned or it crash-loops
   - { name: bazarr,       template_dir: bazarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; pre-create the config dir 1005-owned or it crash-loops
   - { name: sabnzbd,      template_dir: sabnzbd,      subdomain: sab, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; /srv/docker/sabnzbd/config must be pre-created 1005-owned (an empty root-owned dir gives "Cannot create INI file /config/sabnzbd.ini" after a converge recreates the container)
-  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent, bind_owner_uid: 1005, bind_dirs: ['config'], secret_item: qbittorrent_api }   # image runs PUID=1005; pre-create the config dir 1005-owned; + gluetun sidecar in the template (edge routes: torrent). `secret_item` = the WebUI credential tasks/qbittorrent-seed.yml writes into qBittorrent.conf — a `*_item` registry key on purpose, so scripts/check-vault-items.sh sees it (CONVENTIONS §2 item-reference coverage; the compose itself references no such item, so a literal-lookup grep never would)
+  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent, bind_owner_uid: 1005, bind_dirs: ['config'], secret_item: qbittorrent_api }   # image runs PUID=1005; pre-create the config dir 1005-owned; + gluetun sidecar in the template (edge routes: torrent). `secret_item` = the WebUI credential tasks/qbittorrent-seed.yml writes into qBittorrent.conf — a `*_item` registry key on purpose, so scripts/gate/check-vault-items.sh sees it (CONVENTIONS §2 item-reference coverage; the compose itself references no such item, so a literal-lookup grep never would)
   - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # image su-execs to uid 1000 (docker top: /app/profilarr runs as domen=1000); the config dir must be pre-created 1000-owned — the media uid 1005 is wrong here
   - { name: recyclarr,    template_dir: recyclarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # the image's own USER is 1000:1000 (`docker inspect` Config.User), so binding the dir to 1005 (`media`) still leaves /config unwritable — the @daily run dies on `Access to the path '/config/cache' is denied`. Scheduled worker, no UI
   # Cloudflare solver for Prowlarr. No UI, no subdomain, no host publish — overlay-only,
@@ -384,7 +384,7 @@ litellm_scoped_keys:
   # here). Evidence: smart-home-voice.md §the LLM leg.
   - { alias: home-assistant, vault_item: home-assistant_api, models: "spark/qwen3.8-flash-next", max_budget: "", budget_duration: "", rpm: "30" }   # simple-querier consumer · surface = the HA stock `litellm` integration, already in the pin · change rpm HERE, never in the LiteLLM DB
   # LAN LiteLLM scoped keys — per-instance SSOT consumed by the
-  # bootstrap-keys glue + scripts/check-vault-items.sh (same record shape as the
+  # bootstrap-keys glue + scripts/gate/check-vault-items.sh (same record shape as the
   # VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS, but the
   # keys minted here live in the LAN lan-litellm-db).
   #

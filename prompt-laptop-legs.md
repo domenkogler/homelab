@@ -12,19 +12,19 @@ CONVENTIONS §6 at the items it numbers and this brief deliberately restates non
 **Host + slots (O3):** the **Win11 seat**, provider-scoped `domenp14s` (`native_only: true` keeps it out of the WSL render —
 both seats report the same hostname, which is why it is a flag and not a second host name). **This lane claims no converge
 slot and runs no ansible**: the legs are a local runtime + two render files. ⛔ **Do not share a wave with a live pi-seat
-lane** — `scripts/pi-config/models-spec.yml` is the file both would edit, so `git worktree list` + `git log --oneline -3 --
-scripts/pi-config` before any render hunk. The owner hands are single-seat by definition: one hand on the laptop at a time.
+lane** — `scripts/harness/pi/models-spec.yml` is the file both would edit, so `git worktree list` + `git log --oneline -3 --
+scripts/harness/pi` before any render hunk. The owner hands are single-seat by definition: one hand on the laptop at a time.
 
 **What this lane is not:** there is **no agent leg on this runtime** — the four `agent-*` profiles are out of the catalogue,
 `client_context_window: 150016` is deleted, the context windows are pinned FIM **8 192** / vision **32 768**
-(`scripts/laptop-llm/profiles.yml:294`, `:303` and `:256`; mirrored in `scripts/pi-config/models-spec.yml:196`, `:208` for the
-`laptop-lmstudio` provider at `scripts/pi-config/models-spec.yml:152`), and the slot does **not** fall back to spark. The
+(`scripts/bench/laptop/profiles.yml:294`, `:303` and `:256`; mirrored in `scripts/harness/pi/models-spec.yml:196`, `:208` for the
+`laptop-lmstudio` provider at `scripts/harness/pi/models-spec.yml:152`), and the slot does **not** fall back to spark. The
 ruling and its measurements are in [docs/hardware-workstation.md](docs/hardware-workstation.md) §Served leg and the retired leg
 is logged in [docs/services-ai-rejected.md](docs/services-ai-rejected.md) — do not restate or re-decide it here.
 
 **Read first:** [docs/hardware-workstation.md](docs/hardware-workstation.md) §Served leg ·
 [docs/services-ai.md](docs/services-ai.md) #28 · [docs/services-ai-rejected.md](docs/services-ai-rejected.md) →
-`scripts/laptop-llm/profiles.yml` (the dial) → [reports/hd474-laptop-leg/](reports/hd474-laptop-leg/README.md) for the raw
+`scripts/bench/laptop/profiles.yml` (the dial) → [reports/hd474-laptop-leg/](reports/hd474-laptop-leg/README.md) for the raw
 measurements behind the numbers you will re-take.
 
 ## Order of work
@@ -50,16 +50,16 @@ measurements behind the numbers you will re-take.
 * ⛔ `networkingMode=mirrored` is **owner-rejected** — WSL2 stays `Nat` on purpose, so `127.0.0.1` inside the guest is the guest
   and the seat for local models is pi.dev on Win11. Never "fix" the loopback by changing the WSL network mode.
 * The runtime is pinned in the **dial, not in `versions.yml`** (LM Studio has no Renovate datasource there): `version:
-  "0.4.25+1"` at `scripts/laptop-llm/profiles.yml:75` and `lms_cli_commit: "69d945a"` at `:76`. Quote `runtime.version` from the
+  "0.4.25+1"` at `scripts/bench/laptop/profiles.yml:75` and `lms_cli_commit: "69d945a"` at `:76`. Quote `runtime.version` from the
   dial; never describe behaviour from an unpinned install, and never let an auto-update make the dial describe something other
   than what the seat runs.
-* `scripts/laptop-llm.py gate --self-test` is the offline canary and is the only part of the tool that can run away from the seat
+* `scripts/bench/laptop-llm.py gate --self-test` is the offline canary and is the only part of the tool that can run away from the seat
   — say which of `gate` / `probe-*` you actually ran.
 
 ## Owns / never touches
 
-**Owns:** `scripts/laptop-llm.py`, `scripts/laptop-llm/**`, `scripts/win/lmstudio-llm.ps1`, the `laptop-lmstudio` provider and
-its `hosts:` / `native_only:` scoping in `scripts/render-pi-config.py` and `scripts/pi-config/models-spec.yml`,
+**Owns:** `scripts/bench/laptop-llm.py`, `scripts/bench/laptop/**`, `scripts/bench/laptop/win/lmstudio-llm.ps1`, the `laptop-lmstudio` provider and
+its `hosts:` / `native_only:` scoping in `scripts/harness/render-pi-config.py` and `scripts/harness/pi/models-spec.yml`,
 `docs/hardware-workstation.md`, the laptop-leg sections of `docs/services-ai.md` and `docs/services-ai-rejected.md`,
 `reports/hd474-laptop-leg/**` (new evidence files only — never rewrite a dated record's prose), and your own `todo.md` rows.
 **Never:** `prompt.md` / `todo-table.md` (O2) or another brief's rows; the spark engine, its profiles and bench (the spark lane —

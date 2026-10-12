@@ -84,7 +84,7 @@ if [ -z "${KEYS[*]:-}" ]; then
   echo "FATAL: no scoped-key specs rendered" >&2; exit 1
 fi
 
-# GLUE-SEEDED items — "<service>:<item>" pairs consumed by scripts/check-vault-items.sh
+# GLUE-SEEDED items — "<service>:<item>" pairs consumed by scripts/gate/check-vault-items.sh
 # (glue-seeded exclusion list; do NOT remove or the pre-seed diff starts demanding these):
 {% for k in litellm_scoped_keys %}
 #   "litellm:{{ k.vault_item }}"

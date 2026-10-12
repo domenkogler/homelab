@@ -329,7 +329,7 @@ audits were wrong — this is the correction.)
 **Evidence:** the Windows-only sibling of `collect-smart-live.sh`
 exists in `scripts/` but is not documented in `scripts/README.md`.
 **Action:** add a "Windows-only sibling" note in scripts/README.md.
-**Dedup key:** `scripts/collect-smart.ps1:registry-gap`
+**Dedup key:** `scripts/hardware/collect-smart.ps1:registry-gap`
 
 ### MERGE-18 (LOW) — Stale `traefik:v3.5.2` Docker image on VPS
 

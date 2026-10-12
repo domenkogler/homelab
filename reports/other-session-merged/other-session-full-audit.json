@@ -138,7 +138,7 @@
       "track": "C",
       "severity": "Low",
       "status": "OPEN",
-      "deduplication_key": "scripts/collect-smart.ps1:registry-gap",
+      "deduplication_key": "scripts/hardware/collect-smart.ps1:registry-gap",
       "evidence": {
         "type": "diff",
         "file": "scripts/README.md",

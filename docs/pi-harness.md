@@ -24,12 +24,12 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 
 | Item | Where it lives | Managed by |
 |------|----------------|-----------|
-| `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/render-pi-config.py`](../scripts/render-pi-config.py) from the SSOT [`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Rendered on **two** machines: the laptop, and oldsrv's cockpit account `domen` — the harness is therefore not "admin workstation only", and a second machine is contracted through `--out` + scp, not a copied file |
+| `~/.pi/agent/models.json` | **rendered**, per machine, by [`../scripts/harness/render-pi-config.py`](../scripts/harness/render-pi-config.py) from the SSOT [`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml) | git (the spec) — **not the JSON**; the render carries the bearer key, so it is 0600 and never committed. Rendered on **two** machines: the laptop, and oldsrv's cockpit account `domen` — the harness is therefore not "admin workstation only", and a second machine is contracted through `--out` + scp, not a copied file |
 | `~/.pi/agent/auth.json` | **rendered** (vendor `pi-auth`) from the same spec | git — the built-in-provider auth (`openrouter`, `opencode-go`); the client's file is byte-identical to the render |
-| `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`) | **§5's harness block is a repo file** — [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), merged into each seat's file by [`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh): the merge owns the harness keys and the `packages` list (composed from the `versions.yml` pins, §7); `externalEditor` / `lastChangelogVersion` / `tuiMode` stay machine-local and §5 remains the place that says WHY each key is what it is |
-| pi packages (`pi install npm:…`), **the pi build itself** + the seat TUI font | every pi.dev seat | git — the pin pairs `pi_host_tui_npm_*` / `pi_host_web_npm_*` / `pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*` / `nerd_fonts_*` in `IaC/ansible/group_vars/all/versions.yml`, installed by the two `install-pi-*.sh` scripts and re-converged by [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh) (the fan-out driver: seat × plane matrix, unreachable seat = failed run, and a seat whose declared planes did not all run fails as `coverage` — a bare `ssh` inside the plane loop eats the loop's stdin) |
-| `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/sync-skills.sh`](../scripts/sync-skills.sh), `extensions/` via [`../scripts/sync-extensions.sh`](../scripts/sync-extensions.sh) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
-| `~/.tmux.conf` (the seat's terminal harness) | repo [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → installed by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh) | git (the SSOT) — **not** the file in `$HOME`; it carries a `managed-by:` line so an installed copy is nameable, and a foreign `~/.tmux.conf` is a REFUSAL rather than a silent overwrite. Mouse + OSC 52 clipboard: **§5b**. Not yet called by the seat installer |
+| `~/.pi/agent/settings.json` | the admin workstation **and** oldsrv's cockpit seat (`domen`) | **§5's harness block is a repo file** — [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), merged into each seat's file by [`../scripts/harness/pi-settings-config.sh`](../scripts/harness/pi-settings-config.sh): the merge owns the harness keys and the `packages` list (composed from the `versions.yml` pins, §7); `externalEditor` / `lastChangelogVersion` / `tuiMode` stay machine-local and §5 remains the place that says WHY each key is what it is |
+| pi packages (`pi install npm:…`), **the pi build itself** + the seat TUI font | every pi.dev seat | git — the pin pairs `pi_host_tui_npm_*` / `pi_host_web_npm_*` / `pi_host_subagents_npm_*` / `pi_host_deepseek_npm_*` / `nerd_fonts_*` in `IaC/ansible/group_vars/all/versions.yml`, installed by the two `install-pi-*.sh` scripts and re-converged by [`../scripts/harness/pi-seat-sync.sh`](../scripts/harness/pi-seat-sync.sh) (the fan-out driver: seat × plane matrix, unreachable seat = failed run, and a seat whose declared planes did not all run fails as `coverage` — a bare `ssh` inside the plane loop eats the loop's stdin) |
+| `AGENTS.md`, `prompts/`, `extensions/`, `skills/` | repo `pi-agent/` + `skills/` → deployed by both installers: skills via [`../scripts/harness/sync-skills.sh`](../scripts/harness/sync-skills.sh), `extensions/` via [`../scripts/harness/sync-extensions.sh`](../scripts/harness/sync-extensions.sh) | git (repo → `~/.pi/agent`), drift-gated by `validate-all.sh` items 13 + 27 |
+| `~/.tmux.conf` (the seat's terminal harness) | repo [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → installed by [`../scripts/harness/install-tmux-conf.sh`](../scripts/harness/install-tmux-conf.sh) | git (the SSOT) — **not** the file in `$HOME`; it carries a `managed-by:` line so an installed copy is nameable, and a foreign `~/.tmux.conf` is a REFUSAL rather than a silent overwrite. Mouse + OSC 52 clipboard: **§5b**. Not yet called by the seat installer |
 | spark engine (`--max-model-len`, KV pool) | repo IaC `IaC/ansible/group_vars/spark.yml` | Ansible (SSOT) |
 
 - The harness talks **directly to the spark edge** (`llm.kogler.si`), not through LiteLLM. That
@@ -43,7 +43,7 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
   picks it up at start. `settings.json` is read at start → restart pi.
 - **Where the pi BINARY lives — two layouts, one PATH.** `npm -g`
   installs it as a symlink at `<pi-node prefix>/bin/pi` next to the pinned node (what
-  [`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) does); pi's own installer writes a
+  [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) does); pi's own installer writes a
   launcher at `~/.pi/agent/bin/pi` over `~/.pi/agent/install/releases/<ver>/` (`layout: releases-v1`).
   **`pi update` run inside a session migrates the first layout into the second and deletes the
   node-dir symlink** (1.1.0's own CHANGELOG recommends the migration), so a seat can lose `pi` from
@@ -145,12 +145,12 @@ the transcript past the engine's gate and hard-fail the request minutes into a s
 ## 4. The rendered `~/.pi/agent/models.json` (generated — edit the spec)
 
 **This block is an OUTPUT, not the thing to edit.** The editable form is
-[`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml); the field-by-field
+[`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml); the field-by-field
 rationale below still explains every value, because the spec carries the same reasoning in its comments.
 
 ```bash
-python3 scripts/render-pi-config.py --check     # drift gate: exit 1 when a machine diverged
-python3 scripts/render-pi-config.py             # render (0600, timestamped backup of the previous file)
+python3 scripts/harness/render-pi-config.py --check     # drift gate: exit 1 when a machine diverged
+python3 scripts/harness/render-pi-config.py             # render (0600, timestamped backup of the previous file)
 ```
 
 Two properties worth knowing before you reach for the file:
@@ -237,7 +237,7 @@ than copying numbers. `--vendor continue` renders the same models into a
 Continue-shaped `models:` block at `~/.continue/homelab-models.generated.yaml`:
 
 ```bash
-python3 scripts/render-pi-config.py --vendor continue          # writes the generated block only
+python3 scripts/harness/render-pi-config.py --vendor continue          # writes the generated block only
 ```
 
 Three decisions in that shape, each because the alternative loses something:
@@ -257,6 +257,15 @@ installed on a machine in this fleet yet. Whoever installs the first one owns th
 row stays open until it happens.
 
 ## 5. Reference `~/.pi/agent/settings.json` (harness tuning)
+
+> **Where these scripts live (2026-10-09, HD-1118):** the seat family moved to
+> [`../scripts/README.md`](../scripts/README.md) §`scripts/harness/` — the driver, the plane owners, both
+> from-zero installers and `render-pi-config.py`; the shared helpers (`pin()`, the repo-root
+> resolver, the plane registry) are in `../scripts/lib/`, and the fleet package set is now rows in
+> [`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml).
+> Nothing in this section's *content* changed: same pins, same planes, same merge rules. What moved
+> is the address, and [`gate/check_script_layout.py`](../scripts/gate/check_script_layout.py) is what
+> keeps this paragraph from becoming a lie.
 
 ```json
 {
@@ -280,7 +289,7 @@ Other keys in the real file (`lastChangelogVersion`, `externalEditor`, `tuiMode`
 state, not spec — the block above plus `theme` and `packages` is the part that must match, and that
 "must" is enforced rather than asserted: the keys live in
 [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) and
-[`../scripts/pi-settings-config.sh`](../scripts/pi-settings-config.sh) merges them into each seat's
+[`../scripts/harness/pi-settings-config.sh`](../scripts/harness/pi-settings-config.sh) merges them into each seat's
 file (owned keys replaced, everything else preserved, timestamped backup, an unparseable file is a
 REFUSAL; `packages` is composed from the `versions.yml` pins and a seat-local package the repo does
 not name — the cockpit's pi-web — is KEPT and printed, never deleted).
@@ -293,12 +302,12 @@ hand-ran `pi install` there. So every package a seat is meant to run is pinned a
 (`--check --strict`) when a seat is missing one and `--push` restores it at the pin — an arm of `--self-test`
 proves that half, and another proves the cockpit's pi-web still survives the same write.
 `@season179/pi-worktree` and `@ogulcancelik/pi-ssh-tools` are NOT in the set: they are unversioned lines in
-[`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) owned by no plane — residue, not a ruling that
+[`../scripts/harness/install-pi-wsl.sh`](../scripts/harness/install-pi-wsl.sh) owned by no plane — residue, not a ruling that
 they are seat-only. What stays seat-local is exactly the placement a fleet key must not own: the cockpit's
 `@ygncode/pi-web` (`--with-package`). A seat-local entry is retired on the seat with `pi remove` — the sync
 never deletes one.
 
-**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — both are `1.1.0`, and the reasoning lives in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/pi-self-update.sh`](../scripts/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
+**Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — both are `1.1.0`, and the reasoning lives in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/harness/pi-self-update.sh`](../scripts/harness/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
 
 **One rule about that `packages` list:** an
 extension package must NOT list a host-provided module in `dependencies`. pi's loader compares each
@@ -318,7 +327,7 @@ next install.
 **There is no settings VENDOR in `render-pi-config.py`, and that boundary holds — but §5 is
 not the only source.** `render-pi-config.py --vendor` speaks `pi` / `pi_auth` / `continue` /
 `all`; the spec renders the **model contract**, never someone's editor settings
-([`../scripts/pi-config/models-spec.yml`](../scripts/pi-config/models-spec.yml) says so in its own
+([`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml) says so in its own
 comment). The harness keys are a repo file plus a merge script, not a hand-copied doc block — the
 re-decision is recorded here, not buried in an edit. `models-spec.yml` names `settings.json` as
 machine-local, and the keys it names are machine-local; the harness block is not. "Render
@@ -380,7 +389,7 @@ the render.
 command that must not be revived), so §5 is the source and the seat's block is written **from this section**,
 not copied off the laptop; a seat's own extra `modelThinkingLevels` / `lastChangelogVersion`-class keys are
 workstation state and are preserved by the merge. The host-side bootstrap for a bare Debian seat is
-[`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) — it installs the pinned
+[`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) — it installs the pinned
 Node tarball + the pinned pi and reads its pins from
 `IaC/ansible/group_vars/all/versions.yml`, the same `pi_host_*` pins that keep a seat from trailing the
 laptop (§1).
@@ -409,13 +418,13 @@ answerable from an extension, and this section is the only place that fact is wr
   `footerSegments.hostname: false`. A seat that only ran `pi install npm:pi-open-tui` therefore has
   an **anonymous footer** — precisely the regression retiring the extension would have caused, and
   it lands where nobody looks (the SSH legs, where the prompt is gone). So
-  [`../scripts/pi-tui-config.sh`](../scripts/pi-tui-config.sh) asserts that ONE key: it creates the
+  [`../scripts/harness/pi-tui-config.sh`](../scripts/harness/pi-tui-config.sh) asserts that ONE key: it creates the
   minimal override file when absent, preserves every other key the operator tuned through
   `/open-tui`, and REFUSES to rewrite an unparseable file. Both installers call it; `validate-all.sh`
   gates it (self-test + `--check --strict`).
-- **Deploy direction:** repo `pi-agent/` + `skills/` is SSOT → `bash scripts/pi-seat-sync.sh --push`
+- **Deploy direction:** repo `pi-agent/` + `skills/` is SSOT → `bash scripts/harness/pi-seat-sync.sh --push`
   runs every plane on every seat,
-  and per plane `sync-skills.sh` / [`sync-extensions.sh`](../scripts/sync-extensions.sh) (item 27).
+  and per plane `sync-skills.sh` / [`sync-extensions.sh`](../scripts/harness/sync-extensions.sh) (item 27).
   A **deployed-only** extension is still deliberately NOT drift — it is reported `LOCAL`, never
   deleted, never imported; only a name on the `RETIRED` list is removed. The self-test asserts both
   halves, so the retirement rule cannot quietly swallow the `LOCAL` rule.
@@ -423,8 +432,8 @@ answerable from an extension, and this section is the only place that fact is wr
 - **The font is part of this, not a nicety:** pi-open-tui's icons are Nerd Font private-use glyphs,
   and its `icons.mode: auto` chooses them from the TERMINAL ENVIRONMENT, never from the installed
   font file. The release is pinned (`nerd_fonts_version`) and installed by
-  [`../scripts/install-nerd-font.sh`](../scripts/install-nerd-font.sh) on the Debian seats and by
-  [`../scripts/win/install-nerd-font.ps1`](../scripts/win/install-nerd-font.ps1) per-user on the
+  [`../scripts/harness/install-nerd-font.sh`](../scripts/harness/install-nerd-font.sh) on the Debian seats and by
+  [`../scripts/harness/win/install-nerd-font.ps1`](../scripts/harness/win/install-nerd-font.ps1) per-user on the
   Windows one — and **the Windows leg is the one that draws** (on this workstation that leg is already satisfied **machine-wide**: JetBrainsMono is installed globally and `install-nerd-font.ps1 -Check` reports `OK (machine-wide)` rather than nagging for a duplicate per-user install — an operator who already did the thing is DONE, not drift), because on WSL and on every SSH leg
   the terminal runs on the machine you type from. Having the font installed is not the same as the
   terminal selecting it: that stays a `fontFace` choice in the terminal profile, and `unicode` mode
@@ -444,7 +453,7 @@ answerable from an extension, and this section is the only place that fact is wr
   every seat — the Win11 copy is removed by that seat's own `--push` — so the retirement mechanism has
   reached every seat and `validate-all.sh`'s RETIRED arm has nothing left to fail on.
 - **Running the driver ON the oldsrv box (seat == host):** all three of
-  [`../scripts/pi-seat-sync.sh`](../scripts/pi-seat-sync.sh)'s legs are laptop-side — `win11` is "this
+  [`../scripts/harness/pi-seat-sync.sh`](../scripts/harness/pi-seat-sync.sh)'s legs are laptop-side — `win11` is "this
   shell" only on the Windows workstation, `wsl` needs `wsl.exe`, and `oldsrv` sshes to `oldsrv-domen`,
   an alias that exists in the *workstation's* ssh config. Run the driver on oldsrv itself and every
   leg reads `UNREACHABLE` (rc 1) with three different true reasons, which is the fail-closed contract
@@ -455,11 +464,11 @@ answerable from an extension, and this section is the only place that fact is wr
   transient 1Password/network fault — retry it, and never reach for `--keep-legacy-credentials`, which
   would paper over a provider the spec expects to be managed.
 - **The laptop seat is the only leg nothing on the oldsrv box can reach:** one
-  `bash scripts/sync-extensions.sh --push` there, then `/reload`, and the footer reads **`@ DomenP14s`**.
+  `bash scripts/harness/sync-extensions.sh --push` there, then `/reload`, and the footer reads **`@ DomenP14s`**.
   The same kind of run takes `bash scripts/validate-all.sh` **non-interactively** to `OK: all validators
   passed` with the `launcher: ~/ansible-venv activated` line.
 - **Bonus invariant, not decoration:** the token the footer prints is the one `host_norm()`
-  (`../scripts/render-pi-config.py`) uses for a provider's `hosts:` scope — `DomenP14s` normalises to the
+  (`../scripts/harness/render-pi-config.py`) uses for a provider's `hosts:` scope — `DomenP14s` normalises to the
   spec row `domenp14s`. A case/SEPARATOR mismatch there silently
   drops a provider from the picker in both directions; the footer makes that invariant visible, so the
   wrong machine shows up before it becomes a missing provider.
@@ -474,7 +483,7 @@ answerable from an extension, and this section is the only place that fact is wr
 pi runs inside tmux on the Debian seats — **one in active use**, oldsrv — and two things a
 session touches every minute are **terminal-level, not pi-level**: the mouse and the clipboard. Repo
 SSOT [`../pi-agent/tmux/tmux.conf`](../pi-agent/tmux/tmux.conf) → `~/.tmux.conf`, installed and *proved*
-by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh), drift-gated by
+by [`../scripts/harness/install-tmux-conf.sh`](../scripts/harness/install-tmux-conf.sh), drift-gated by
 [`../scripts/README.md`](../scripts/README.md) → validate-all item 29.
 
 | Action | Result on the seat |
@@ -485,6 +494,12 @@ by [`../scripts/install-tmux-conf.sh`](../scripts/install-tmux-conf.sh), drift-g
 | wheel over a TUI that grabs the mouse (pi, vim, htop) | passed through raw — tmux never intercepts it |
 | `prefix m` | toggle mouse off/on without editing the file — the escape hatch when capture gets in the way |
 | SHIFT held while dragging | the outer terminal's own selection, bypassing tmux |
+
+The `managed-by:` line names the **SSOT file**, never the installer's path: a marker that embeds a
+script path is a second copy of that path, and HD-1118 moved the script, which is the failure the
+marker exists to avoid. The installer therefore also recognizes the path-markers it wrote before
+that move (`MARKER_LEGACY` in the script) as its own — what it never accepts is a file it did not
+write, which stays a REFUSAL and not an overwrite.
 
 ### Why the installer loads the file instead of comparing it
 
@@ -547,10 +562,10 @@ Three facts that are easy to get wrong, each measured here rather than assumed:
 ### Apply and verify
 
 ```bash
-bash scripts/install-tmux-conf.sh --check          # SSOT vs ~/.tmux.conf + load probe (report-only)
-bash scripts/install-tmux-conf.sh --push           # install; a foreign ~/.tmux.conf is a REFUSAL (+ --force, backup kept)
-bash scripts/install-tmux-conf.sh --reload         # install + source into the RUNNING server + read it back
-bash scripts/install-tmux-conf.sh --verify         # load probe + OSC 52 emission on the wire + live server
+bash scripts/harness/install-tmux-conf.sh --check          # SSOT vs ~/.tmux.conf + load probe (report-only)
+bash scripts/harness/install-tmux-conf.sh --push           # install; a foreign ~/.tmux.conf is a REFUSAL (+ --force, backup kept)
+bash scripts/harness/install-tmux-conf.sh --reload         # install + source into the RUNNING server + read it back
+bash scripts/harness/install-tmux-conf.sh --verify         # load probe + OSC 52 emission on the wire + live server
 ```
 
 `--check` exits 0 on drift unless `--strict` (the `sync-skills.sh`/`sync-extensions.sh` contract: the
@@ -565,8 +580,8 @@ terminal is refusing OSC 52** — `xterm` needs the `allowWindowOps: true` resou
 wezterm, foot and alacritty accept by default. Nothing inside tmux can fix that leg, which is why it is
 an ⏳ owner-gated tail and not a bug in the script.
 
-**Not wired yet:** neither [`../scripts/install-pi-debian.sh`](../scripts/install-pi-debian.sh) nor
-[`../scripts/install-pi-wsl.sh`](../scripts/install-pi-wsl.sh) calls this installer, so a freshly
+**Not wired yet:** neither [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) nor
+[`../scripts/harness/install-pi-wsl.sh`](../scripts/harness/install-pi-wsl.sh) calls this installer, so a freshly
 bootstrapped seat still gets no `~/.tmux.conf`. Run it once
 per seat until that step lands.
 

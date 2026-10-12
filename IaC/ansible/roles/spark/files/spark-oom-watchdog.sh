@@ -205,7 +205,7 @@ usable_gib() {
 }
 
 # In-flight work. The engine runs with --api-key, so /metrics needs the bearer token;
-# read it from the container's OWN argv (never logged) — same trick as spark/bench.
+# read it from the container's OWN argv (never logged) — same trick as scripts/bench/spark.
 # CRITICAL: it must distinguish "0 requests" from "I could not read anything". This shape
 # bites: `vllm bench serve` 401s EVERY request against the keyed
 # engine and still exits 0 — an unreadable read that looks like "idle" would let the

@@ -3,7 +3,7 @@
     re-import aborts before the SNMP blocks land). Idempotent: set enabled,
     add-or-set the community, add the INPUT firewall parity the converge lacks, and
     the fixsnmp re-assert scheduler. Render: render-converge.yml; apply:
-    scripts/routeros-apply-delta.sh 10.10.99.2 crs328_snmp_delta.rsc. -#}
+    scripts/ansible/routeros-apply-delta.sh 10.10.99.2 crs328_snmp_delta.rsc. -#}
 # =============================================================================
 # CRS328 — Kogler Homelab — SNMP RO enablement delta
 # This template: IaC/router/templates/crs328_snmp_delta.rsc.j2

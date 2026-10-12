@@ -265,7 +265,7 @@ spark_headless: true
 # Flipping a profile is NOT free and the render does not pretend otherwise:
 #   * ~20 min engine boot (first PLE-table load) — converge DETACHED (README §4.6)
 #   * the CLIENT contract does not follow the flip automatically: pi reads its
-#     window from ~/.pi/agent/models.json (scripts/pi-config/models-spec.yml),
+#     window from ~/.pi/agent/models.json (scripts/harness/pi/models-spec.yml),
 #     so `client_context_window` below is the value that file must carry.
 #   * artifacts of a non-default profile are NOT auto-downloaded (84 GB + 1 G
 #     link). `spark_artifacts_fetch` is the explicit opt-in (see the artifact
@@ -328,10 +328,10 @@ spark_llm_device_hold_ceiling_bytes: 104113000000
 # prompt nobody sends is decoration.
 # THE TRAP: the argparse patch exists ONLY in the built ultrafast lineage. A base digest has no
 # such argument, so arming a `base` profile writes argv api_server cannot parse and the container
-# crash-loops. Both the role and scripts/check_spark_llm_gate.py refuse a pin on an image that is
+# crash-loops. Both the role and scripts/gate/check_spark_llm_gate.py refuse a pin on an image that is
 # absent from the lineage list below.
 # TO RE-ARM (a re-decide needs an exception note, CONVENTIONS §8.3): put the literal back here
-# (inlined because scripts/validate-docker-services.py mocks every lookup(), so a
+# (inlined because scripts/gate/validate-docker-services.py mocks every lookup(), so a
 # lookup('file', …) would render `<secret:file>` and pass the gate green), prove the needle is a
 # byte-substring of a prompt a REAL session sends — not a synthetic bench leg — and move the arm
 # onto a lineage in spark_llm_never_evict_capable_images.
@@ -362,7 +362,7 @@ spark_llm_never_evict_capable_images: [ultrafast]
 #     certified) | UNVERIFIED (plausible, never booted — an uncertified arm's honest state) |
 #     REFUSED | MEASURED-BAD (an arm that must NOT boot, and the reason). An unlisted pair, an
 #     unknown checkpoint or an unrecognised keyword is a REFUSAL in both the role and
-#     scripts/check_spark_llm_gate.py (invariant `ple-pairing`, with its canaries).
+#     scripts/gate/check_spark_llm_gate.py (invariant `ple-pairing`, with its canaries).
 # Same keyword discipline as `cost-labelled` above: the claim carries its own grade.
 spark_llm_checkpoints:
   Qwen3.8-Flash-Next-AWQ:
@@ -744,7 +744,7 @@ spark_llm_profiles:
   # bootable, and that is the design (the fast-sglang precedent).
   #
   # `_x` is a YAML MERGE ANCHOR, not a profile (the `_` prefix is the skip convention in
-  # scripts/spark-llm-probe.py + scripts/check_spark_llm_gate.py; the gate's valid-name list
+  # scripts/bench/spark-llm-probe.py + scripts/gate/check_spark_llm_gate.py; the gate's valid-name list
   # filters it too). It carries the values every arm shares, so an arm below reads as its
   # rendering byte-identically (the parity guard), and an anchor rewrite of it would put
   # that guard at risk for no information.
@@ -893,7 +893,7 @@ spark_llm_profiles:
       0 % hit, 17,008 tok/s re-prefill). ⚠ AUTHORED WITH A PLACEHOLDER ON PURPOSE: the gate
       refuses any args_extra containing CHANGEME, because a pinned substring that matches
       nothing is an invisible no-op and one that matches everything is a pool leak. Fill it
-      with a literal substring of the harness system prompt (scripts/pi-config), not a guess.
+      with a literal substring of the harness system prompt (scripts/harness/pi), not a guess.
     certified_evidence: ""
 
   nv-patch:
@@ -928,7 +928,7 @@ spark_llm_profiles:
     ple_host_root: os                   # the table mounts beside its checkpoint on `/`.
     ple_host_subdir: ple-table-fp8      # ⚠ LOAD-BEARING: `ple_container_dir` alone would
     ple_container_dir: /ple-table       #   render VLLM_PLE_MMAP_DIR=/ple-table with NOTHING
-    ple_staged_marker: ".hf-staged"     #   mounted there — scripts/spark-llm-render-matrix.py
+    ple_staged_marker: ".hf-staged"     #   mounted there — scripts/bench/spark-llm-render-matrix.py
     ple_mmap: true                      #   refuses that render (it caught exactly this).
     enforce_eager: true               # mmap x CUDA-graph pinning (ar-mmap report) — eager skips graph capture
     spec_tokens: 0                      # no drafter directory exists for this checkpoint
@@ -1231,7 +1231,7 @@ spark_llm_ple_mmap_env:
 
 # ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
 # Plain LISTS at top level, on purpose: a Jinja expression inside `spark_llm_profiles` is
-# stringified by scripts/validate-docker-services.py (see the note at the foot of this file),
+# stringified by scripts/gate/validate-docker-services.py (see the note at the foot of this file),
 # so profiles reference these by a FLAG and the template composes them. One definition each:
 # a re-typed 12-element splitting-op list is exactly the copy that silently drifts from the
 # kernel names in a future image (CONVENTIONS §2 pointers/lists).
@@ -1261,7 +1261,7 @@ spark_llm_ple_dispatch_env:
 # Resolve the active profile. Unknown profile name = undefined key = the render
 # aborts (fail-loud); roles/spark-llm-profile names the valid list up front.
 # Engine entrypoints per engine family. A DICT, not a Jinja-templated alias, on purpose:
-# scripts/validate-docker-services.py loads group_vars natively but stringifies any value
+# scripts/gate/validate-docker-services.py loads group_vars natively but stringifies any value
 # containing `{{ }}`, so an alias is unusable in the offline render. Templates therefore index
 # `spark_llm_profiles[spark_llm_profile]` DIRECTLY; only the scalar pass-throughs below are flat.
 spark_llm_engine_entrypoints:

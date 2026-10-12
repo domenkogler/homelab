@@ -25,7 +25,7 @@ random-edit; it audits **by checklists drawn from the canonical docs** and repor
 drift, never cosmetic noise.
 
 **Non-negotiables (binding, from `CONVENTIONS.md`):**
-- **Session discipline:** fresh worktree `../homelab-wt-<date>-<HHMM>` (branch `session/…`) BEFORE any edit; `scripts/guard-session.sh` refuses primary+main edits; `validate-all.sh` must end green before commit; merge back only green, signed (`ssh-add ~/.ssh/github_signing ~/.ssh/github_auth` if fresh shell).
+- **Session discipline:** fresh worktree `../homelab-wt-<date>-<HHMM>` (branch `session/…`) BEFORE any edit; `scripts/gate/guard-session.sh` refuses primary+main edits; `validate-all.sh` must end green before commit; merge back only green, signed (`ssh-add ~/.ssh/github_signing ~/.ssh/github_auth` if fresh shell).
 - **SSOT direction:** values live in IaC (`group_vars/*.yml`, `host_vars/*.yml`, `rack-connections.json`); generated `*-generated.md` are render views — never hand-edit; scripts never parse generated MD.
 - **Secrets:** 1Password `Homelab-ansible` item.field refs only, never literal; fail-loud (no `default('')`); never write a secret VALUE to stdout/chat/git/transcripts (lengths/tails/hashes only).
 - **Append-only discipline:** decisions/evidence live in the owning docs + `*-rejected.md` logs; the frozen `reports/changelog.md` + `reports/deployment-journal.md` are never rewritten.
@@ -68,7 +68,7 @@ drift, never cosmetic noise.
 ## 2. Audit tracks (work each, report per track)
 
 ### Track A — Docs consistency & liveness (docs/)
-1. **Map completeness** (`scripts/check_doc_map.py` is in the gate; the audit adds a HUMAN pass):
+1. **Map completeness** (`scripts/gate/check_doc_map.py` is in the gate; the audit adds a HUMAN pass):
    - Every `docs/*.md` reachable from `docs/index.md` and vice-versa; no orphan doc, no doc the map doesn't dispatch.
    - Every status banner (`🟢 IaC done, not yet live — ⏳ deploy-gated` / `✅ Live since …`) cross-checked against owning-doc ✅ + `deployment-tasks.md` ticks per README §2 (banners are hints, not proof). List every banner that says "not live" for something the owning docs/ticks show live (and the reverse).
 2. **Link integrity** beyond the gate: relative `.md` links that resolve; anchors that exist; no link to a deleted/moved file (`git log --diff-filter=D` for recently removed docs).
@@ -80,7 +80,7 @@ drift, never cosmetic noise.
 ### Track B — IaC (Ansible) consistency & health
 1. **Inventory ↔ group_vars ↔ host_vars ↔ playbooks**: every host in `inventory.ini` has a host_vars file with an `ansible_host`; every playbook's host pattern matches the inventory groups; no dead/duplicate vars; `group_vars/all/` vs per-group precedence sane.
 2. **Role health**: each of the 20 roles — exists under `roles/`, referenced by a playbook, `defaults/`+`tasks/`+`handlers/`(+`templates/`) shaped, no orphan role, no role that a playbook references but is missing. `requirements.yml` collections resolve (they're installed in `~/ansible-venv`).
-3. **docker_services registry ↔ templates ↔ vault**: every `enabled: true` entry in `group_vars/{vps,home_servers}.yml` has a `template_dir` that exists under `templates/docker_services/`; every template dir has a `docker-compose.yml.j2`; every `_template_vault_items` / `vault[...]` reference resolves to a 1P item or a glue-seeded item (re-run `bash scripts/check-vault-items.sh --strict` on the live tree for the MISSING list; exclude the documented glue items). Cross-check service list vs `docs/services.md` catalog + `docs/network-addresses-generated.md`.
+3. **docker_services registry ↔ templates ↔ vault**: every `enabled: true` entry in `group_vars/{vps,home_servers}.yml` has a `template_dir` that exists under `templates/docker_services/`; every template dir has a `docker-compose.yml.j2`; every `_template_vault_items` / `vault[...]` reference resolves to a 1P item or a glue-seeded item (re-run `bash scripts/gate/check-vault-items.sh --strict` on the live tree for the MISSING list; exclude the documented glue items). Cross-check service list vs `docs/services.md` catalog + `docs/network-addresses-generated.md`.
 4. **Compose template rules** (`docs/deployment-compose.md`): external networks, Traefik label conventions, no host-net/privileged port binds unless documented, pins (`_version` vars, no bare `latest`), the `| replace('$','$$')` compose-escaping rule (HD-270) applied on every vault-value expr, no `default('')` **anywhere in templates/group_vars** (fail-loud rule HD-65/HD-91).
    **HD-270 Escape Verification**: grep for `vault\[` in all `templates/docker_services/**/*.j2` — every occurrence must have `| replace('$','$$')` or be in a context where escaping is not needed (document why).
 5. **Playbook tag/surgical hygiene** (`docs/deployment-ansible.md` §Tags & surgical): every playbook's role tags are declared; `docker_services_scope` semantics not violated; the rare `base` tier additive (not a skip-default); nothing renders/updates off-path.
@@ -104,7 +104,7 @@ drift, never cosmetic noise.
 5. **Dead/orphan scripts**: any script not referenced by the gate/README/owning docs (e.g. leftover `collect-*.ps1` siblings, superseded helpers) → propose retire/move (A3 style: only with a decision, never silent).
 
 ### Track D — Cross-cutting conformance (sample-based)
-1. **Secret hygiene**: `bash scripts/check_vault_name.py` + `validate-secrets.py` green on the worktree; a human grep for the B5 placeholder tokens + any raw `password:`/`token:` literal in group_vars/templates (gate checks; the audit adds a second human layer).
+1. **Secret hygiene**: `bash scripts/gate/check_vault_name.py` + `validate-secrets.py` green on the worktree; a human grep for the B5 placeholder tokens + any raw `password:`/`token:` literal in group_vars/templates (gate checks; the audit adds a second human layer).
 2. **Lifecycle conformance**: open HD rows map to owning docs; `⏳` tails exist only where `deployment-tasks.md` has a matching deploy-gated checklist; no fully-done row still living in todo (should be owning-doc + git-history record); no row whose ⏳ is stale vs the owning-doc ✅ lines.
 3. **Service-onboarding (CONVENTIONS §5)**: for a sample of 3 enabled services (e.g. a recent on-board like crowdsec-web-ui, a core like traefik/authentik, and one still-⏳ like renovate) — walk the 10-step checklist and report which steps are done/gapped.
    **Onboarding Rubric** (per service):
@@ -294,7 +294,7 @@ Produce in the session worktree (do NOT commit findings inside a service config 
 ## 5. Session workflow reminder (from `README.md` / `CONVENTIONS.md`)
 
 1. `read README.md` (intent-routed) → read mandatory context §1 in order (CONVENTIONS → index → IaC README → todo → owning docs).
-2. State environment (`platform-env`): debian (WSL ext4) · bash · `/home/domen/source/homelab` primary; `scripts/ansible-run.sh` for playbooks; `ssh ansible-admin@vps.kogler.si` for live.
+2. State environment (`platform-env`): debian (WSL ext4) · bash · `/home/domen/source/homelab` primary; `scripts/ansible/ansible-run.sh` for playbooks; `ssh ansible-admin@vps.kogler.si` for live.
 3. **Step-0 ritual:** conventions-map grep over `CONVENTIONS.md` headings (README §0 step 1) FIRST, then `git status` + fresh worktree `../homelab-wt-<date>-<HHMM>` BEFORE any edit (guard-session enforces).
 4. Prior-art sweep (`todo.md`/`changelog.md`/`reports/audit-analysis.md` + `brainstorming/audit-prompt.md` — the old Qwen audit) and REPORT prior art before proposing any new HD row.
 5. Update `todo.md` (register the audit as HD-<next> via `scripts/next-hd.sh`), implement, validate green, journal, commit signed, merge back.

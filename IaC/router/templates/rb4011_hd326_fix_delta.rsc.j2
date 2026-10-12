@@ -19,7 +19,7 @@
       E) NAT: ensure per-MAC kids filtered DNS (udp+tcp) for EVERY row with
          `kids: true`.
 
-    Apply: /import rb4011_hd326_fix_delta.rsc  (via scripts/routeros-apply-delta.sh)
+    Apply: /import rb4011_hd326_fix_delta.rsc  (via scripts/ansible/routeros-apply-delta.sh)
     Fold-back: the SSOT converge template rb4011_converge.rsc.j2 carries the full set
     + order; this delta is TRANSIENT and is deleted once the converge import is the
     live state (network-ops.md 3-tier).

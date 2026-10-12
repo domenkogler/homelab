@@ -10,7 +10,7 @@
 # nothing here can converge anything.
 #
 # Why a runtime fixture instead of a static lint: the static checker
-# (scripts/check_self_converge_guard.py) proves the wiring is complete, but the
+# (scripts/gate/check_self_converge_guard.py) proves the wiring is complete, but the
 # first draft of the guard passed every static reading AND still allowed the
 # unfiltered `ansible-run.sh playbooks/home_servers.yml` from the box itself, because
 # `ansible_run_tags` is a TUPLE and `ansible_run_tags == ['all']` is silently always

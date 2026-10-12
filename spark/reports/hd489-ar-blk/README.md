@@ -52,5 +52,5 @@ tok/s C2L-corroborated.
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*` (this dir)
-- CSV rows: `spark/bench/results-v2.csv` (`t2-arblk,20261003-094000/094306/094721`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t2-arblk,20261003-094000/094306/094721`)
 - VM cross-check: same monitoring-not-converged caveat.

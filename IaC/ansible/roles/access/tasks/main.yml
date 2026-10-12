@@ -21,7 +21,7 @@
 # THIRD-PARTY KEYS ARE NOT TOUCHED: the module runs non-exclusive, so grants
 # owned by other roles (ha-sync on nas/oldsrv/vps, traefik-cert-sync on the VPS)
 # survive; they remain named in docs/deployment-secrets.md §Who is authorized
-# where and in scripts/check_ssh_grants.py's named set.
+# where and in scripts/gate/check_ssh_grants.py's named set.
 # =====================================================================
 
 - name: access | Refuse a run that is not an admin identity

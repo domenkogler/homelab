@@ -9,7 +9,7 @@ capacity, or long-context accuracy (the 262k needle test is still open, HD-376).
 
 Knowledge: [`docs/hardware-spark.md`](../docs/hardware-spark.md) §Unified-memory budget ·
 forensics: [`docs/spark-incidents.md`](../docs/spark-incidents.md) #7/#8 · harness:
-[`bench/stress-oom.sh`](bench/stress-oom.sh).
+[`bench/stress-oom.sh`](../scripts/bench/spark/stress-oom.sh).
 
 ---
 
@@ -113,7 +113,7 @@ Copy the harness to the box once, then run detached (`nohup`) so a dropped SSH d
 Each run writes `/tmp/stress/<name>.log` and drops a `<name>.done` marker carrying its exit code.
 
 ```bash
-ssh spark 'cat > /tmp/stress-oom.sh' < spark/bench/stress-oom.sh
+ssh spark 'cat > /tmp/stress-oom.sh' < scripts/bench/spark/stress-oom.sh
 ssh spark 'mkdir -p /tmp/stress'
 ```
 
@@ -277,8 +277,8 @@ Two scripts, split deliberately:
 
 | script | runs on | job |
 |---|---|---|
-| [`bench/stability-overnight.sh`](bench/stability-overnight.sh) | **spark** | the chain (ladder → compaction shape → full-window shape), keeps state on **XFS** so it survives a wedge *and* a power-cycle, and **resumes at the first unfinished run** |
-| [`bench/stability-supervise.sh`](bench/stability-supervise.sh) | **this laptop (WSL)** | syncs both scripts, launches the chain detached, then **relaunches it after a crash** and pulls the evidence off the box |
+| [`bench/stability-overnight.sh`](../scripts/bench/spark/stability-overnight.sh) | **spark** | the chain (ladder → compaction shape → full-window shape), keeps state on **XFS** so it survives a wedge *and* a power-cycle, and **resumes at the first unfinished run** |
+| [`bench/stability-supervise.sh`](../scripts/bench/spark/stability-supervise.sh) | **this laptop (WSL)** | syncs both scripts, launches the chain detached, then **relaunches it after a crash** and pulls the evidence off the box |
 
 Why the split: the failure we are hunting is a *global* kernel OOM, and its historical kill list
 includes `sshd` (#2/#3). A chain living on spark therefore dies together with the evidence it exists
@@ -295,17 +295,17 @@ cascade, and cascades are what ended in wedges).
 
 ```bash
 # 1. before bed — this laptop, from the repo root. Ctrl-C stops supervising, NOT the chain.
-bash spark/bench/stability-supervise.sh
+bash scripts/bench/spark/stability-supervise.sh
 
 # 2. any time afterwards, from any terminal — read-only, safe, no side effects:
-bash spark/bench/stability-supervise.sh --status
+bash scripts/bench/spark/stability-supervise.sh --status
 #   (or straight at the box:  ssh spark 'bash /mnt/spark_nvme/stability/stability-overnight.sh --status')
 ```
 
 Progress while it runs: the supervisor prints one line per poll —
 `RUNNING | usable=24.7G top=88100M done=[rung123] | RUN compact START …`. The verdict lands in
 `spark:/mnt/spark_nvme/stability/OVERNIGHT.done`, is printed by the supervisor, and is copied to
-`spark/bench/overnight/` on the laptop (git-ignored).
+`scripts/bench/spark/overnight/` on the laptop (git-ignored).
 
 Keep the laptop awake or nobody relaunches the chain:
 ```powershell
@@ -319,7 +319,7 @@ engine `/health` 200 · **zero in-flight requests** · `usable ≥ 16 GiB` (corr
 
 Useful knobs (env on the supervisor): `STABILITY_RESERVE_GIB` (12) · `STABILITY_MAX_KILLS` (2) ·
 `STABILITY_COOLDOWN` (300 s) · `STABILITY_POLL` (60 s). To verify the plumbing without touching the
-box: `STABILITY_DRYRUN=1 STABILITY_FAKE_KILL=1 STABILITY_POLL=8 bash spark/bench/stability-supervise.sh`
+box: `STABILITY_DRYRUN=1 STABILITY_FAKE_KILL=1 STABILITY_POLL=8 bash scripts/bench/spark/stability-supervise.sh`
 — it drives the crash/relaunch/resume path with zero load. To start over:
 `ssh spark 'rm -f /mnt/spark_nvme/stability/{OVERNIGHT.done,state.env}'`.
 

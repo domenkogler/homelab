@@ -282,7 +282,7 @@ dynamic address until the lease turns over.
 >   trunking is impossible; mirrored mode is view-only, ARP FAIL), so WSL reaches the Mgmt plane via the
 >   Windows host as gateway (`laptop-domen` Home IP as next-hop, Windows IP forwarding ON; Debian `eth0`
 >   static `laptop-wsl` Home IP). Durable WSL runner state = **NAT + auto-resolv**
->   (`scripts/wsl-nat-resolv.ps1` + `.wslconfig` → `networkingMode=Nat`), which keeps Debian working on
+>   (`scripts/hardware/wsl-nat-resolv.ps1` + `.wslconfig` → `networkingMode=Nat`), which keeps Debian working on
 >   any network; the bridged `wsl-vlan-trunk.ps1` / static-`10-eth0.network` route-through is an
 >   **opt-in `-EnableMgmt99` extra for home only**
 >   ([network-rejected.md](network-rejected.md) WSL bridged Mgmt99 route-through as default).

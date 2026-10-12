@@ -351,7 +351,7 @@ it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seq
 > The waiver covers the **rest-window** half only; the memory-curve half (gate 7: `gpu_top_mib` growth
 > **> 2 GiB/h**) accrues from the current regime's start at **2026-10-06 11:19Z** and is read when that
 > window fills; the global re-derive above stays open.
-> The read is a tool: `spark/bench/gate7-read.py` buckets the window by hour **on one `gpu_top_pid`**
+> The read is a tool: `scripts/bench/spark/gate7-read.py` buckets the window by hour **on one `gpu_top_pid`**
 > and separates the two shapes the raw CSV confuses — a `gpu_top_pid` that is sometimes another process
 > fabricates a spurious 2,663 MiB/h "growth". It carries a self-test (8 cases: flat, +3 GiB/h leak,
 > two-pid artifact, empty, too-short, bounded fill, fill-then-still-climbing, recovered spike) and exits
@@ -426,7 +426,7 @@ Certified state and its costs, stated plainly:
   #2) the GPU allocation is not cgroup-charged, so it can only ever catch a host-RSS runaway. It is retained
   as a backstop, **not** as the protection it reads as. The real protection is the explicit KV governor +
   the host-memory alert ([observability.md](observability.md) §Alerting → spark host memory).
-- **Guards use ONE gauge:** every bench guard (`spark/bench/stress-oom.sh`, `run-scenario.sh`) and the chain
+- **Guards use ONE gauge:** every bench guard (`scripts/bench/spark/stress-oom.sh`, `run-scenario.sh`) and the chain
   preflight gate on **`usable = MemAvailable − CmaFree`** at a **16 GiB** floor — the same gauge as the
   watchdog and the alert rules. Guards that read raw `MemAvailable` would fire on a healthy box at usable
   18.5 and read healthy at 10.4 GiB, which is where the real kills happened.
@@ -720,7 +720,7 @@ per modality).
   receives pasted images. Vision lives on the workstation instead —
   [`hardware-workstation.md`](hardware-workstation.md) (decision #28).
 - **Gate to keep:** boot per-pid MiB Δ + host `usable` Δ + C2 tok/s unchanged + accuracy gate 10/10
-  unchanged (`spark/bench/accuracy-gate.sh`). Host-safety preflight (`MEM_FLOOR_GB`, the 105 G cage)
+  unchanged (`scripts/bench/spark/accuracy-gate.sh`). Host-safety preflight (`MEM_FLOOR_GB`, the 105 G cage)
   unchanged.
 
 ## Current role in the AI tier
@@ -845,6 +845,22 @@ must implement when it lands:
 - Power: 240 W USB-C PD; the OS cannot see the PSU at all (no `/sys/class/power_supply` entry), so UPS
   coverage is rack-side only ([`hardware-ups.md`](hardware-ups.md)).
 
+### Waiting for the engine to answer, from a session (the operator form)
+
+`llm.kogler.si/health` answers 200 only once the engine finished its first PLE-table load (~20 min on a
+cold boot, `start_period: 1200s` — §Status above), so a session that just re-deployed must WAIT on the
+engine rather than poll-and-give-up, and must not mistake the 502 window of a restart for an outage:
+
+```bash
+until ssh spark 'curl -sf -m 3 localhost:8000/health >/dev/null'; do sleep 10; echo -n .; done; echo "VLLM HEALTHY $(date -u +%T)Z"
+```
+
+Probe **on the box** (`localhost:8000`), not through the edge: the edge returns 502 for reasons that are
+not the engine's (the `spark-dashboard` file-provider edge is in the restart-guard exclusion list exactly
+because a route converge must not cost an inference window — HD-451). This is also the readiness leg for
+`spark-oom-watchdog.sh rebaseline`: the watchdog's own `await-health` stage is the same condition, so
+re-baselining before this loop finishes baselines against a disarmed engine.
+
 ---
 
 ## Hardware
@@ -923,7 +939,7 @@ ssh spark 'sudo nvme list; sudo smartctl -H -A /dev/nvme0; ls -l /dev/disk/by-id
 ssh spark 'lspci -nn; sudo ethtool enP7s7 | grep -E "Speed|link modes"; ip -br link'
 ```
 
-(The other hosts use [`../scripts/collect-disk-facts.sh`](../scripts/collect-disk-facts.sh) from a
+(The other hosts use [`../scripts/hardware/collect-disk-facts.sh`](../scripts/hardware/collect-disk-facts.sh) from a
 console/live USB; spark is SSH-reachable, so the inline sweep above is enough.)
 
 ### Vendor spec (Lenovo PSREF / Lenovo Press LP2321, MTM 30KL)

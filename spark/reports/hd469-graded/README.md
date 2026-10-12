@@ -8,7 +8,7 @@ Run book (commands, in order):
 1. Gate (read-only, pre-boot): `ansible-playbook -i inventory.ini playbooks/spark.yml
    --limit spark --tags spark-llm-profile --check --diff` → `certified: false` + the
    override accepted, KV math closed.
-2. Converge detached (engine swap): `nohup bash scripts/ansible-run.sh playbooks/spark.yml
+2. Converge detached (engine swap): `nohup bash scripts/ansible/ansible-run.sh playbooks/spark.yml
    --limit spark --no-pull >/tmp/hd469-graded.log 2>&1 &` → then the boot below.
 3. Gates 1–7 per [`../../llm-profiles/README.md`](../../llm-profiles/README.md) — never
    reached; the engine did not come up.
@@ -74,7 +74,7 @@ agrees: main KV ≈ 24,576 B of ≈ 29,294 B/token ⇒ 1/(1 − 0.84/2) ≈ 1.72
 
 At the conservative 1.70× the same pool is **876,664 slots = 3.34 × window**, not 3.93 ×.
 `spark_llm_kv_bytes_per_token.fp8` in `group_vars/spark.yml` now carries 18,251 B/token and
-the gate + [`scripts/check_spark_llm_gate.py`](../../../scripts/check_spark_llm_gate.py)
+the gate + [`scripts/gate/check_spark_llm_gate.py`](../../../scripts/gate/check_spark_llm_gate.py)
 enforce it. Rule for the next run: **never quote a projection where the engine prints the
 number** — take `Available KV cache memory` + `GPU KV cache size` from the container log.
 
@@ -102,7 +102,7 @@ number** — take `Available KV cache memory` + `GPU KV cache size` from the con
 
 ## Re-derivation 2026-09-29 (run #3, session `hd469-run3-0019`)
 
-`scripts/spark-fp8-image-probe.py --tag-filter 'qwen|flash'` re-run, read-only (~40 s,
+`scripts/bench/spark-fp8-image-probe.py --tag-filter 'qwen|flash'` re-run, read-only (~40 s,
 no GPU, local image by ID). **Verdict: `BLOCKED-ON-IMAGE` (exit 0)** — nothing changed
 under us:
 

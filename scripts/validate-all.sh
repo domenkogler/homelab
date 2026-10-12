@@ -287,7 +287,20 @@
 #   a previous commit, never typed here, because the count moves the moment an item is added — is
 #   now the audit that catches this class; do not trust the numbered comments.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# HD-1118 Stage 1/4: find the repo root instead of assuming `$(dirname "$0")/..`. Found, not
+# assumed — the gate that proves the tree is correct must not itself be the one file whose idea of
+# "the repo" is a depth nobody checked.
+_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
+# shellcheck source=/dev/null
+. "$_hl_d/lib/repo-root.sh"   # sets REPO
+cd "$REPO"
+# …then UNSET it. lib/repo-root.sh honours an inherited $REPO on purpose (the testdata fixtures and
+# the seat driver depend on that), so a gate that leaves REPO in the environment silently overrides
+# every self-test that builds a synthetic repo in /tmp and asserts the resolver found IT. The lib's
+# own --self-test items were the first to notice: they passed for three stages and went red the
+# moment the entry point started exporting the root.
+unset REPO
 
 # Python launcher: chosen by PROBE, not by name. WHY it is a probe (measured 2026-10-09 on the Win11
 # seat): the Microsoft Store's `python3` alias STUB sits on PATH, `command -v python3` finds it, and it is
@@ -323,7 +336,7 @@ if [ -z "$PY" ]; then
   echo "      ⚠ A Microsoft Store alias STUB counts as present on PATH but is not an interpreter; if" >&2
   echo "        'python3' resolves to one here, install a real Python or run the gate where ~/ansible-venv exists." >&2
   echo "      On a Debian/WSL runner both arrive as pip deps of ansible inside ~/ansible-venv:" >&2
-  echo "        bash scripts/bootstrap-runner.sh          # or: source ~/ansible-venv/bin/activate" >&2
+  echo "        bash scripts/ansible/bootstrap-runner.sh          # or: source ~/ansible-venv/bin/activate" >&2
   echo "      On a bare CI host:  python3 -m pip install jinja2 PyYAML" >&2
   echo "      Refusing to continue: a gate that cannot import is not a gate." >&2
   exit 1
@@ -352,7 +365,7 @@ done
 # run stays exempt, session worktrees and detached-HEAD/CI pass through.
 if [ "$LIST" != 1 ]; then
   echo "== guard-session.sh --validate-mode (session-discipline hard gate, HD-253) =="
-  bash scripts/guard-session.sh --validate-mode
+  bash scripts/gate/guard-session.sh --validate-mode
 fi
 
 # --------------------------------------------------------------------------- #
@@ -623,7 +636,7 @@ blk_py_compile_sweep() {
 # stateless runner is never broken by them (and a SKIP is printed, never counted green).
 blk_skills_drift() {
   if [ -d "$HOME/.pi/agent/skills" ]; then
-    bash scripts/sync-skills.sh --check --strict
+    bash scripts/harness/sync-skills.sh --check --strict
   else
     echo "SKIP: no ~/.pi/agent/skills on this host (bare CI / non-pi laptop) — skill gate runs where pi is configured"
   fi
@@ -631,7 +644,7 @@ blk_skills_drift() {
 
 blk_extensions_check() {
   if [ -d "$HOME/.pi/agent/extensions" ]; then
-    bash scripts/sync-extensions.sh --check --strict
+    bash scripts/harness/sync-extensions.sh --check --strict
   else
     echo "SKIP: no ~/.pi/agent/extensions on this host — extension gate runs where pi is configured (deploy: sync-extensions.sh --push)"
   fi
@@ -639,7 +652,7 @@ blk_extensions_check() {
 
 blk_tmux_check() {
   if [ -f "$HOME/.tmux.conf" ]; then
-    bash scripts/install-tmux-conf.sh --check --strict
+    bash scripts/harness/install-tmux-conf.sh --check --strict
   else
     echo "SKIP: no ~/.tmux.conf on this host — the seat harness gate runs where tmux is installed (deploy: install-tmux-conf.sh --push)"
   fi
@@ -650,17 +663,17 @@ blk_tmux_check() {
 # every file plane misses.
 blk_pi_self_check() {
   local rc_piself=0
-  bash scripts/pi-self-update.sh --check --strict || rc_piself=$?
+  bash scripts/harness/pi-self-update.sh --check --strict || rc_piself=$?
   case "$rc_piself" in
     0) echo "OK: the pi build on this host equals pi_host_npm_version" ;;
     2) echo "SKIP: no pi binary on this host — the pi-self plane runs where pi is installed (pi-seat-sync.sh --push)" ;;
-    *) echo "FAIL: the pi build drifts from pi_host_npm_version — run: bash scripts/pi-self-update.sh --push"; exit 1 ;;
+    *) echo "FAIL: the pi build drifts from pi_host_npm_version — run: bash scripts/harness/pi-self-update.sh --push"; exit 1 ;;
   esac
 }
 
 blk_pi_settings_check() {
   if [ -f "$HOME/.pi/agent/settings.json" ]; then
-    bash scripts/pi-settings-config.sh --check --strict
+    bash scripts/harness/pi-settings-config.sh --check --strict
   else
     echo "SKIP: no ~/.pi/agent/settings.json on this host — the settings plane runs where pi is configured (deploy: pi-seat-sync.sh --push)"
   fi
@@ -668,20 +681,20 @@ blk_pi_settings_check() {
 
 blk_pi_tui_check() {
   if [ -f "$HOME/.pi/agent/open-tui.json" ]; then
-    bash scripts/pi-tui-config.sh --check --strict
+    bash scripts/harness/pi-tui-config.sh --check --strict
   else
     echo "SKIP: no ~/.pi/agent/open-tui.json on this host — the TUI footer gate runs where pi-open-tui is installed"
   fi
 }
 
 # The font plane is the one item that is allowed to be red without failing the gate, and
-# that is deliberate (the Windows leg is scripts/win/install-nerd-font.ps1). It is printed
+# that is deliberate (the Windows leg is scripts/harness/win/install-nerd-font.ps1). It is printed
 # as a NOTE so a green run still says which plane it did not prove.
 blk_font_check() {
   if [ -d "${NERD_FONT_DIR:-$HOME/.local/share/fonts}" ] || command -v fc-list >/dev/null 2>&1; then
     NERD_FONT_DIR="${NERD_FONT_DIR:-$HOME/.local/share/fonts}"/JetBrainsMono-Nerd-Font \
-      bash scripts/install-nerd-font.sh --check --strict \
-      || echo "NOTE: the font plane is not green on this host — on the Windows seat the leg that matters is scripts/win/install-nerd-font.ps1"
+      bash scripts/harness/install-nerd-font.sh --check --strict \
+      || echo "NOTE: the font plane is not green on this host — on the Windows seat the leg that matters is scripts/harness/win/install-nerd-font.ps1"
   else
     echo "SKIP: no user font dir / no fontconfig here — the font plane runs where the TUI's glyphs are drawn"
   fi
@@ -692,12 +705,12 @@ blk_font_check() {
 # loads), printed and never counted green; rc 1 = drift; rc 3 = a refusal a human must reconcile.
 blk_seat_ssh_check() {
   local rc_ssh=0
-  bash scripts/seat-ssh-build.sh --check --strict || rc_ssh=$?
+  bash scripts/harness/seat-ssh-build.sh --check --strict || rc_ssh=$?
   case "$rc_ssh" in
     0) echo "OK: a profile-loaded shell on this seat resolves the OpenSSL ssh build" ;;
-    2) echo "SKIP: the ssh-build plane owns only the win11 seat's PowerShell profiles (or no shell here loads a profile) — deploy on that seat with: bash scripts/seat-ssh-build.sh --push" ;;
-    3) echo "FAIL: the seat's ssh-build block was hand-edited or is shadowed by another ssh definition — reconcile it, then: bash scripts/seat-ssh-build.sh --push"; exit 1 ;;
-    *) echo "FAIL: this seat's ssh-build block is missing or stale, or a profile-loaded shell still resolves the LibreSSL build (which cannot load the fleet's PKCS#8 keys) — run: bash scripts/seat-ssh-build.sh --push"; exit 1 ;;
+    2) echo "SKIP: the ssh-build plane owns only the win11 seat's PowerShell profiles (or no shell here loads a profile) — deploy on that seat with: bash scripts/harness/seat-ssh-build.sh --push" ;;
+    3) echo "FAIL: the seat's ssh-build block was hand-edited or is shadowed by another ssh definition — reconcile it, then: bash scripts/harness/seat-ssh-build.sh --push"; exit 1 ;;
+    *) echo "FAIL: this seat's ssh-build block is missing or stale, or a profile-loaded shell still resolves the LibreSSL build (which cannot load the fleet's PKCS#8 keys) — run: bash scripts/harness/seat-ssh-build.sh --push"; exit 1 ;;
   esac
 }
 
@@ -711,90 +724,101 @@ item_blk "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" 
 item_blk "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
 
 # The corpus walkers.
-item "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/check_secrets.py
-item "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/check_secrets.py --self-test
-item "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/check_yaml_dup_keys.py
-item "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" $PY scripts/check_yaml_dup_keys.py --self-test
-item "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" $PY scripts/check_zone_kogler_si_parity.py
-item "check_zone_kogler_si_parity.py --self-test" $PY scripts/check_zone_kogler_si_parity.py --self-test
-item "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/check_dns_seed_drift.py
-item "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/check_self_converge_guard.py
-item "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/check_string_twins.py
+item "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/gate/check_secrets.py
+item "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/gate/check_secrets.py --self-test
+item "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/gate/check_yaml_dup_keys.py
+item "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" $PY scripts/gate/check_yaml_dup_keys.py --self-test
+item "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" $PY scripts/gate/check_zone_kogler_si_parity.py
+item "check_zone_kogler_si_parity.py --self-test" $PY scripts/gate/check_zone_kogler_si_parity.py --self-test
+item "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/gate/check_dns_seed_drift.py
+item "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/gate/check_self_converge_guard.py
+item "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/gate/check_string_twins.py
 # The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
 # green tree both print one OK line, and the cases that prove the verdict (a sever inside a long
 # change run, a twin renamed on every side, an agreed value in the wrong kind of literal) never
 # ran in the suite. Every other check here registers its self-test too; this one did not.
-item "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" $PY scripts/check_string_twins.py --self-test
-item "validate-docker-services.py" $PY scripts/validate-docker-services.py
-item "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/spark-llm-render-matrix.py
-item "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/check_doc_path_refs.py
-item "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/check_doc_path_refs.py --self-test
-item "validate_doc_templates.py" $PY scripts/validate_doc_templates.py
-item "check_vault_name.py" $PY scripts/check_vault_name.py
-item "check_placeholders.py" $PY scripts/check_placeholders.py
+item "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" $PY scripts/gate/check_string_twins.py --self-test
+item "validate-docker-services.py" $PY scripts/gate/validate-docker-services.py
+item "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/bench/spark-llm-render-matrix.py
+item "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/gate/check_doc_path_refs.py
+item "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/check_doc_path_refs.py --self-test
+item "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
+item "check_vault_name.py" $PY scripts/gate/check_vault_name.py
+item "check_placeholders.py" $PY scripts/gate/check_placeholders.py
 item "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
 item "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
 
 # Seat planes — self-tests run everywhere (sandboxed), the --check half SKIPs per host.
-item "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/install-nerd-font.sh --self-test
+item "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/harness/install-nerd-font.sh --self-test
 # NOTE (HD-1128): seat-ssh-build.sh --self-test is deliberately NOT gated. It is 27 assertions that pass
 # standalone, but they run ~25 nested bash spawns and cost 98 s WALL / 72 s SYS on the Windows seat - inside
 # the pool that starves sibling self-tests (measured: pi-seat-sync.sh --self-test printed 5 canaries NOT
 # caught in the concurrent run and passed standalone, the documented pool-flake class). The cheap and
 # meaningful half IS gated: the --check --strict item below.
-item "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" bash scripts/pi-settings-config.sh --self-test
-item "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" bash scripts/pi-tui-config.sh --self-test
-item "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/pi-seat-sync.sh --self-test
-item "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/pi-self-update.sh --self-test
-item "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/install-tmux-conf.sh --self-test
+item "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" bash scripts/harness/pi-settings-config.sh --self-test
+item "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" bash scripts/harness/pi-tui-config.sh --self-test
+item "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
+item "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/harness/pi-self-update.sh --self-test
+item "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
 item "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
 item "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
 item "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
 item "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
 item "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
 item "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
-item "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" bash scripts/sync-skills.sh --self-test
+item "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" bash scripts/harness/sync-skills.sh --self-test
 item "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
-item "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" bash scripts/sync-extensions.sh --self-test
+item "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" bash scripts/harness/sync-extensions.sh --self-test
 item "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
 
+# lib/ helpers — the root resolvers are the ONE thing every other item silently depends on, so
+# they carry their own proof (HD-1118 Stage 1). The depth arms cannot be exercised by the real
+# tree, which has exactly one depth, so each self-test builds a two-depth fixture: a resolver that
+# still counts `..` passes the shallow arm and fails the deep one — that is the canary, and it is
+# what makes Stage 3's folder moves a mechanical sweep instead of a gamble.
+item "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
+item "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" $PY scripts/lib/repo_root.py --self-test
+item "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
+
 # Everything else — cheap, but they add up, so they are in the pool too.
-item "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" bash scripts/guard-session.sh --self-test
-item "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/guarded-converge.sh --self-test
-item "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" bash scripts/git-bootstrap.sh --self-test
+item "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" bash scripts/gate/guard-session.sh --self-test
+item "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
+item "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" bash scripts/git/git-bootstrap.sh --self-test
 item "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" bash scripts/testdata/check-vault-items/run.sh
-item "validate_blueprints.py" $PY scripts/validate_blueprints.py
-item "check_doc_ips.py" $PY scripts/check_doc_ips.py
-item "check_traefik_host_rules.py" $PY scripts/check_traefik_host_rules.py
-item "validate-secrets.py" $PY scripts/validate-secrets.py
-item "check_doc_map.py" $PY scripts/check_doc_map.py
-item "check_generated_suffix.py" $PY scripts/check_generated_suffix.py
-item "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/check_ledger_state.py
-item "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/check_runbook_purity.py
-item "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/check_vault_docs.py
-item "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/check_todo_done.py
-item "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/check_todo_done.py --refs
-item "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/check_todo_done.py --self-test
-item "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/check_merge_markers.py
-item "check_merge_markers.py --self-test (HD-453 canary)" $PY scripts/check_merge_markers.py --self-test
-item "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $PY scripts/check_md_tables.py
-item "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/check_md_tables.py --self-test
-item "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/check_iac_backend_strings.py
-item "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/check_iac_backend_strings.py --self-test
-item "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/check_iac_identifiers.py
-item "check_iac_identifiers.py --self-test (canary)" $PY scripts/check_iac_identifiers.py --self-test
+item "validate_blueprints.py" $PY scripts/gate/validate_blueprints.py
+item "check_doc_ips.py" $PY scripts/gate/check_doc_ips.py
+item "check_traefik_host_rules.py" $PY scripts/gate/check_traefik_host_rules.py
+item "validate-secrets.py" $PY scripts/gate/validate-secrets.py
+item "check_doc_map.py" $PY scripts/gate/check_doc_map.py
+item "check_generated_suffix.py" $PY scripts/gate/check_generated_suffix.py
+item "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/gate/check_ledger_state.py
+item "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/gate/check_runbook_purity.py
+item "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/gate/check_vault_docs.py
+item "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
+item "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs
+item "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/gate/check_todo_done.py --self-test
+item "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/gate/check_merge_markers.py
+item "check_merge_markers.py --self-test (HD-453 canary)" $PY scripts/gate/check_merge_markers.py --self-test
+item "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $PY scripts/gate/check_md_tables.py
+item "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/gate/check_md_tables.py --self-test
+item "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/gate/check_iac_backend_strings.py
+item "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/gate/check_iac_backend_strings.py --self-test
+item "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" $PY scripts/gate/check_script_layout.py
+item "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" $PY scripts/gate/check_script_layout.py --self-test
+item "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/gate/check_iac_identifiers.py
+item "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_iac_identifiers.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
 # deliberately NOT gated: a suite that mutates the tree is worse than the drift it would catch.
-item "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" $PY scripts/build-llm-dashboard.py --check
-item "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/check_spark_llm_gate.py
-item "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/knx-hass-gen.py --self-test
-item "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/laptop-llm.py gate --self-test
-item "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/laptop-llm.py probe-client
-item "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY spark/bench/gate7-read.py --self-test
+item "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" $PY scripts/ansible/build-llm-dashboard.py --check
+item "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/gate/check_spark_llm_gate.py
+item "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/ansible/knx-hass-gen.py --self-test
+item "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/bench/laptop-llm.py gate --self-test
+item "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/bench/laptop-llm.py probe-client
+item "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY scripts/bench/spark/gate7-read.py --self-test
 # Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
-item "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible_query.py --self-test
+item "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible/ansible_query.py --self-test
 
 # --------------------------------------------------------------------------- #
 # Drain and report.                                                           #

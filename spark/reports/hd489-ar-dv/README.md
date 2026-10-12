@@ -48,5 +48,5 @@ math.
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*` (this dir)
-- CSV rows: `spark/bench/results-v2.csv` (`t2-ardv,20261003-102919/103149/103639`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t2-ardv,20261003-102919/103149/103639`)
 - VM cross-check: same monitoring-not-converged caveat.

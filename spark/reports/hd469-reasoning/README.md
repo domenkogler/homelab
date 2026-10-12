@@ -135,7 +135,7 @@ in one window, with the sampler running alongside:
 ```bash
 ssh spark 'nvidia-smi --query-gpu=timestamp,clocks.sm,power.draw,temperature.gpu,clocks_event_reasons.active --format=csv -l 5' >/tmp/hd469-baseline-clocks-<HHMM>.log 2>&1 &
 awk '/MemAvailable|CmaFree/' /proc/meminfo          # at BOTH ends
-python3 scripts/spark-llm-probe.py --base-url https://llm.ts.kogler.si/v1 all --profile reasoning  # RAW stdout, verbatim
+python3 scripts/bench/spark-llm-probe.py --base-url https://llm.ts.kogler.si/v1 all --profile reasoning  # RAW stdout, verbatim
 ssh spark 'docker logs vllm-qwen-spark 2>&1 | grep -E "Available KV cache memory|GPU KV cache size|Maximum concurrency"'
 ssh spark 'curl -s localhost:8000/metrics | grep -E "num_preemptions_total|prefix_cache|spec_decode"'
 ```

@@ -22,7 +22,7 @@
 # What stays OUT of this file, deliberately:
 #   * the pi harness itself (pinned Node tarball, the pi npm package, the pi-web
 #     package, ~/.pi/agent/skills, the rendered model contract) — that is
-#     scripts/install-pi-debian.sh, and the assert below refuses to
+#     scripts/harness/install-pi-debian.sh, and the assert below refuses to
 #     enable a unit whose binary is missing instead of inventing one;
 #   * settings.json — pi-harness.md §5 is its source and there is no renderer by
 #     design (§1), so no template here may write it;
@@ -61,7 +61,7 @@
     fail_msg: >-
       {{ seat_home }}/{{ seat_pi_web_bin }} does not exist — the cockpit
       package is not installed for {{ seat_user }}. Run
-      `bash scripts/install-pi-debian.sh --cockpit` as {{ seat_user }}
+      `bash scripts/harness/install-pi-debian.sh --cockpit` as {{ seat_user }}
       and re-converge; do NOT create the file by hand.
 
 - name: seat | Ensure the seat package set

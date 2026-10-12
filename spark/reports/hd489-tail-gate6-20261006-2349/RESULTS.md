@@ -3,7 +3,7 @@
 **Run:** 2026-10-06 23:49Z, 108 s window. **Engine under test:** spark, live profile `fast`
 (`--kv-cache-memory-bytes 20000000000`, `--max-num-seqs 8`, `--max-model-len 262144`,
 `--reasoning-parser qwen3`, MTP speculative decoding ON, container started 2026-10-06T11:49:52Z,
-`RestartCount=0`). **Driver:** headless `run-gate6.sh` on spark (`spark/bench/accuracy-gate.sh`,
+`RestartCount=0`). **Driver:** headless `run-gate6.sh` on spark (`scripts/bench/spark/accuracy-gate.sh`,
 10 fixed prompts, `temperature 0`, `max_tokens 1024`).
 
 ## Seat (rule 0, stated before any number)

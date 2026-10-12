@@ -10,7 +10,7 @@
 # A fleet refresh sets every pin to the newest STABLE release published at least
 # 3 days ago (the `renovate.json` `stabilityDays: 3` rule), which Renovate cannot
 # do while it is pointed at `domen/test`. Derive + re-verify with
-# `scripts/image-pin-probe.py --verify`. Pins whose value carries a `sha256`
+# `scripts/ansible/image-pin-probe.py --verify`. Pins whose value carries a `sha256`
 # digest are NOT touched by a refresh — the digest is the load-bearing pin and a
 # tag bump there needs its own re-certification.
 
@@ -277,12 +277,12 @@ dsh_version: "0.1.1-rc.2"
 # ==== Platform / records / tasks ====
 # Pinned semvers for core services that would otherwise fall back to
 # `latest` via an undefined *_version var. Renovate docker datasource keeps each current.
-# Re-derive against the upstream registries with `scripts/image-pin-probe.py --verify`.
+# Re-derive against the upstream registries with `scripts/ansible/image-pin-probe.py --verify`.
 # ⚠ A PHANTOM PIN is a pin whose tag does not exist: `tiredofit/db-backup` carries exactly
 # ONE tag on Docker Hub (`latest`) even though the upstream repo releases 5.0.x, and
 # ghcr.io/tiredofit/… answers no token at all — so a `X.Y.Z` tag here can never pull. Where
 # the only published channel is a fluid tag, the DIGEST is the load-bearing pin (§7);
-# re-derive with `scripts/image-pin-probe.py` + the registry's own Docker-Content-Digest.
+# re-derive with `scripts/ansible/image-pin-probe.py` + the registry's own Docker-Content-Digest.
 db_backup_version: "latest@sha256:f70a79aa8dc1ea6cf08762ce478923a814578741f1f374fa9168902eda1312ee"   # tiredofit/db-backup
 forgejo_version: "16.0.5"  # codeberg.org/forgejo/forgejo (the docker tag strips `v`) — probe that the
                           # manifest resolves before pinning: a released version can ship a broken publish
@@ -377,7 +377,7 @@ tailscale_host_version: "1.102.5"
 # first hex chars with upstream and diverges after looks right in review and fails `get_url`'s
 # checksum gate on the first converge (which also skips every role after it in the play). If
 # the digests cannot be fetched, the version does not get bumped. These values are an
-# integrity record, not a field to edit alongside a version. `scripts/image-pin-probe.py
+# integrity record, not a field to edit alongside a version. `scripts/ansible/image-pin-probe.py
 # --debs` checks every deb digest against the vendor's own .sha256 file, because the offline
 # validators cannot see this class at all. Verify before you assert.
 tailscale_host_deb_sha256_by_arch:
@@ -482,7 +482,7 @@ spark_dcgm_exporter_image: "nvidia/dcgm-exporter:3.3.5-3.4.1-ubuntu22.04@sha256:
 # instead of all interfaces — see services-admin.md §Exposure.
 rustdesk_server_version: "1.1.16"
 
-# ==== pi HOST seats (bare-Debian installs: scripts/install-pi-debian.sh) ====
+# ==== pi HOST seats (bare-Debian installs: scripts/harness/install-pi-debian.sh) ====
 # The CONTAINER pins above (pi_dev_*) are not these: a host seat installs the pinned
 # official Node TARBALL under ~/.local/share/pi-node/, because Debian 13's apt candidate
 # is Node 20.19.2 while pi declares engines node>=22.19.0 — an apt-based seat is a
@@ -496,7 +496,7 @@ pi_host_npm_version: "1.1.0"                 # npm dist-tag `latest`. A seat can
                                              # an unpinned `volta install @latest` — the pin then records what the seat
                                              # actually runs, it does not move the seat.
                                              # MUST equal `pi_dev_npm_version`. The DEBIAN seats do NOT move by reading
-                                             # this line: `scripts/pi-self-update.sh --push` is what moves a seat, and it
+                                             # this line: `scripts/harness/pi-self-update.sh --push` is what moves a seat, and it
                                              # re-probes the binary to prove it.
 pi_host_web_npm_package: "@ygncode/pi-web"
 pi_host_web_npm_version: "0.0.1-beta.38"       # the observed version behind the mutable `beta` tag (§7 MUST-pin
@@ -526,9 +526,57 @@ pi_host_deepseek_npm_version: "1.0.4"              # npm dist-tag `latest` — r
 # auto` picks Nerd glyphs by the TERMINAL ENVIRONMENT, not by the installed font file. So the font
 # is a harness dependency of the TUI pin above, not a cosmetic extra — and where it belongs is the
 # machine whose terminal DRAWS pi: for the Win11 seat and for every SSH leg that is the Windows
-# workstation, which is why scripts/win/install-nerd-font.ps1 sits next to scripts/install-nerd-font.sh.
+# workstation, which is why scripts/harness/win/install-nerd-font.ps1 sits next to scripts/harness/install-nerd-font.sh.
 # The release TAG is the integrity boundary — nerd-fonts ships no per-asset checksum file, so
 # the installers stamp the sha256 of what landed and a
 # later --check re-hashes it: a swapped font directory reads as drift, not as success.
 nerd_fonts_version: "v3.5.1"                   # github.com/ryanoasis/nerd-fonts release (releases/latest)
 nerd_fonts_family: "JetBrainsMono"             # the release asset name AND the family the owner selected
+
+# ==== pi.dev PACKAGE inventory ====
+# NAME + VERSION + SCOPE for every pi package a seat carries, in the ONE version SSOT. Read by
+# scripts/harness/pi-settings-config.sh, which composes settings.json's `packages` array from the
+# scope:fleet rows — DISCOVERY, not a copy: adding a fleet package is one row here and every seat
+# gets it on the next settings-plane run.
+#
+# The four `fleet` rows are fleet infrastructure, not seat-local extras: a version written HERE
+# is what lets the from-zero path and every seat converge the same package, instead of a name in
+# one installer's `pi install` list — which is how a package reached a seat only when a session
+# happened to hand-install it. pi-subagents is the clearest case: it is the thing that runs sessions.
+#
+# version_pin names an EXISTING pin instead of duplicating a version string; version is the literal
+# for rows that own their version. mutable: true means "place the name with no version" — the
+# documented §7 exception for a package that self-updates inside a dist-tag from the phone.
+pi_pkg_web_access_name: "pi-web-access"
+pi_pkg_web_access_version_pin: pi_web_access_version
+pi_pkg_web_access_scope: "fleet"
+
+pi_pkg_tui_name: "pi-open-tui"
+pi_pkg_tui_version_pin: pi_host_tui_npm_version
+pi_pkg_tui_scope: "fleet"
+
+pi_pkg_subagents_name: "pi-subagents"
+# `fleet` = every seat carries it; a version_pin names an existing pin instead of a second copy.
+pi_pkg_subagents_version_pin: pi_host_subagents_npm_version
+pi_pkg_subagents_scope: "fleet"
+
+pi_pkg_worktree_name: "@season179/pi-worktree"
+pi_pkg_worktree_version: "26.7.1"              # npm dist-tag `latest` (registry-verified, `npm view @season179/pi-worktree version`) — the extension behind the /worktree-* commands
+pi_pkg_worktree_scope: "fleet"
+
+pi_pkg_ssh_tools_name: "@ogulcancelik/pi-ssh-tools"
+pi_pkg_ssh_tools_version: "0.1.6"              # npm dist-tag `latest` (registry-verified, `npm view @ogulcancelik/pi-ssh-tools version`)
+pi_pkg_ssh_tools_scope: "fleet"
+
+pi_pkg_deepseek_name: "pi-deepseek-optimized"
+pi_pkg_deepseek_version_pin: pi_host_deepseek_npm_version
+pi_pkg_deepseek_scope: "fleet"
+
+# The cockpit's own package: scope:seat, because it is roles/seat's placement on the cockpit
+# seat, not a fleet key (docs/services-ai.md §9b-1). mutable: the cockpit self-updates inside
+# `@beta` from the phone, so pinning the string here would break a path that must stay live.
+# pi_host_web_npm_version still records the observed version for the docs and for roles/seat.
+pi_pkg_web_name: "@ygncode/pi-web"
+pi_pkg_web_version_pin: pi_host_web_npm_version
+pi_pkg_web_scope: "seat"
+pi_pkg_web_mutable: "true"

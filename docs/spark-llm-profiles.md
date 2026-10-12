@@ -79,10 +79,10 @@ The registry, not a comment, holds the basis: `ple-table-fp8 ↔ Qwen3.8-Flash-N
 staged on XFS; only the FP8 *table* legitimately lives on `/`).
 
 **The gate is proven without the box.**
-[`scripts/check_spark_llm_gate.py`](../scripts/check_spark_llm_gate.py) (validate-all item 22)
+[`scripts/gate/check_spark_llm_gate.py`](../scripts/gate/check_spark_llm_gate.py) (validate-all item 22)
 reads the role's own regexes + these constants, runs every profile, and breeds a canary per
 invariant, refusing a canary that passes. Offline view of the whole matrix, one command,
-no token: `python3 scripts/spark-llm-probe.py matrix`.
+no token: `python3 scripts/bench/spark-llm-probe.py matrix`.
 
 Parity guard for the certified lane: a render of `reasoning` is diffed against the render that served
 before the profile dial existed and must stay **structurally equal**, so a converge that does not change
@@ -91,13 +91,13 @@ before the profile dial existed and must stay **structurally equal**, so a conve
 ### Client contract: the flip does NOT follow itself
 
 The server var does not reach the harness. `contextWindow`/`max_tokens` live in
-`scripts/pi-config/models-spec.yml` → `~/.pi/agent/models.json` (workstation), and each profile
+`scripts/harness/pi/models-spec.yml` → `~/.pi/agent/models.json` (workstation), and each profile
 carries the `client_context_window` that file must carry. A profile that serves a *smaller* window
 while pi still sends a full-window conversation returns engine `400`s mid-session. Reasoning surface
 is the same kind of split: the engine's own surface is measured in
 [pi-harness.md](pi-harness.md) §2 (binary `enable_thinking` + `thinking_token_budget` honored;
 top-level `reasoning_effort` accepted-and-**ignored**), so "graded reasoning" is client-side
-per-level budgets until a profile proves otherwise — `scripts/spark-llm-probe.py effort high` is the
+per-level budgets until a profile proves otherwise — `scripts/bench/spark-llm-probe.py effort high` is the
 one command that re-measures it.
 
 ### Not a profile: Qwen3.8-27B is a SECOND served model, never a value of `spark_llm_profile`
@@ -148,7 +148,7 @@ the NVIDIA NVFP4 export 94.16–95.07 %).
 
 ### Test loop (run it detached, boot is ~20 min)
 
-`scripts/spark-llm-probe.py` reads the bearer from 1Password at runtime (never in argv/git) and reads
+`scripts/bench/spark-llm-probe.py` reads the bearer from 1Password at runtime (never in argv/git) and reads
 its expectations from the catalogue, so a probe cannot pass against a stale number. The two **local**
 legs (`matrix`, `profile <name>`) touch the repo only — no HTTP, no vault, no token:
 `matrix` → `profile <name>` (local, no HTTP) → `health` → `reasoning` → `budget <n>` →
@@ -255,14 +255,14 @@ a re-decide is one line in one place. Two facts came out of wiring it:
 * the compose template must pass the value through `| to_json`. Passing it as `"'" ~ prompt ~ "'"` puts
   the quote characters inside the argv string: the engine matches `'<text>'`, finds nothing, and the pin is
   an invisible no-op while the flag still renders. `| to_json` is also the only form that survives a
-  multi-line value in the `- {{ a }}` emission, and `scripts/spark-llm-render-matrix.py` asserts the
+  multi-line value in the `- {{ a }}` emission, and `scripts/bench/spark-llm-render-matrix.py` asserts the
   rendered argument is BYTE-EQUAL to the declared text.
 * proof of a pin is prefix-cache hits from `/metrics` across a real session — a synthetic bench never
   engages it.
 
 An arm with an intentionally unfilled input (`spark_vllm_ultrafast_image`, a `never_evict` needle) makes
-`roles/spark-llm-profile` REFUSE the profile; `scripts/spark-llm-render-matrix.py` and
-`scripts/check_spark_llm_gate.py` print it as `GATED` rather than letting an authored-but-unrunnable arm
+`roles/spark-llm-profile` REFUSE the profile; `scripts/bench/spark-llm-render-matrix.py` and
+`scripts/gate/check_spark_llm_gate.py` print it as `GATED` rather than letting an authored-but-unrunnable arm
 read as either green or broken. `spark_vllm_ultrafast_image` is pinned in `versions.yml` to the built image
 `sha256:4900c13e…` (built from iter6c `sha256:54759ef1…` on the pinned base `sha256:fc120ece…`).
 
@@ -272,7 +272,7 @@ not headroom for a bigger pool. Do not quote it as such.
 
 ### The timed instrument
 
-The timed legs of this funnel run through [`spark/bench/run-scenario.sh`](../spark/bench/run-scenario.sh),
+The timed legs of this funnel run through [`scripts/bench/spark/run-scenario.sh`](../scripts/bench/spark/run-scenario.sh),
 which drives `vllm bench serve` inside the engine container and writes one CSV row per leg (TTFT and ITL
 p50/p99, per-stream decode tok/s, MTP acceptance, preemption/generation-token deltas, Wh per 1k output
 tokens, arm identity via `--profile`, the Rule-0 client stamp via `--client`). Around it:
@@ -281,7 +281,7 @@ only way to attribute a series to a leg), `stress-oom.sh`, `stability-overnight.
 
 There is no `scripts/llm_serving_bench.py` and no `spark/llm-profiles/acceptance/`. **A tool no index
 reaches does not exist for the next reader**, which is why `docs/index.md`, `scripts/README.md`
-§Adjacent tooling and this section all name `spark/bench/`; a search that stops at `scripts/` is not an
+§Adjacent tooling and this section all name `scripts/bench/spark/`; a search that stops at `scripts/` is not an
 absence proof.
 
 ### Never-evict prompt pin — REJECTED
@@ -315,8 +315,8 @@ non-empty pin writes argv `api_server` cannot parse, which exits at parse and pu
 Docker restart-loop while every gate stays green. So:
 
 * `spark_llm_never_evict_capable_images: [ultrafast]` is the SSOT for which lineage may carry the
-  flag, and both `roles/spark-llm-profile` and `scripts/check_spark_llm_gate.py` refuse a non-empty
-  pin anywhere else (canary-proven); `scripts/spark-llm-render-matrix.py` fails a render that puts
+  flag, and both `roles/spark-llm-profile` and `scripts/gate/check_spark_llm_gate.py` refuse a non-empty
+  pin anywhere else (canary-proven); `scripts/bench/spark-llm-render-matrix.py` fails a render that puts
   the flag on an uncapable image.
 * A needle is matched as a **token subsequence** (`tokenizer.encode(marker)` minus the first and
   last token, then `_contains_subseq` over the prompt) — all-or-nothing, no partial matching: one

@@ -30,7 +30,15 @@
 set -u
 
 # --- resolve scan set --------------------------------------------------------
-SRC_REPO="$(cd "$(dirname "$0")/.." && pwd)"
+# HD-1118 Stage 1 (the ratchet caught this one at Stage 4): the repo root is FOUND by
+# scripts/lib/repo-root.sh, not assumed from `$(dirname "$0")/..`. This file stayed at scripts/
+# root through the restructure, so the assumption still happened to work — which is exactly how a
+# fixed depth survives: it is not wrong today, it is wrong the day someone moves the file.
+_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
+# shellcheck source=/dev/null
+. "$_hl_d/lib/repo-root.sh"   # sets REPO
+SRC_REPO="$REPO"
 DEFAULT_FILES="todo.md"
 GIT_SCAN=1  # also scan `git log -S 'HD-'` for closed rows (widest superset)
 # RESERVED ids — HD tokens that are TOOL FIXTURE TEXT or a documented mis-mint, not backlog ids.
@@ -41,7 +49,7 @@ GIT_SCAN=1  # also scan `git log -S 'HD-'` for closed rows (widest superset)
 # **HD-901** while the real top of the registry was HD-494 — a 400-number jump, into an id no row
 # ever held. The renamed-to-HD-495 work is that session; 901 is reserved too so no later run
 # re-mints the same phantom out of the two commit messages that still name it.
-# Keep this list in sync with the canary comment in scripts/check_todo_done.py; env-overridable
+# Keep this list in sync with the canary comment in scripts/gate/check_todo_done.py; env-overridable
 # so a test can prove the filter is load-bearing (`RESERVED_IDS='' bash scripts/next-hd.sh --max`
 # → the 900 comes back). Note the `${VAR-default}`, NOT `${VAR:-default}`: an explicitly empty
 # value must mean "no filtering", which `:-` cannot express — it silently re-applies the default

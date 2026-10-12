@@ -4,7 +4,7 @@ Read-only. Command (run from the repo root on oldsrv):
 
 ```
 ssh spark 'cat /mnt/spark_nvme/oom-watchdog/state/samples.csv' \
-  | python3 spark/bench/gate7-read.py --since 2026-10-06T11:19:00Z --baseline-mib 93091
+  | python3 scripts/bench/spark/gate7-read.py --since 2026-10-06T11:19:00Z --baseline-mib 93091
 ```
 
 Window start = the current engine boot (2026-10-06T11:49:52Z container start; the CSV row at 11:19Z

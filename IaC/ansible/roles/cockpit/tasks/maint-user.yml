@@ -62,7 +62,7 @@
       - cockpit_maint_password | default('') | length >= 16
     fail_msg: >-
       '{{ cockpit_maint_vault_item }}' resolved to nothing usable in vault '{{ op_vault }}'.
-      Mint it with `bash scripts/provision-vault.sh` (it is in the CATALOG), and if it exists
+      Mint it with `bash scripts/secrets/provision-vault.sh` (it is in the CATALOG), and if it exists
       but reads empty, suspect the duplicate-field shape bug — `op read
       op://{{ op_vault }}/{{ cockpit_maint_vault_item }}/password | wc -c` must be non-zero.
   no_log: true

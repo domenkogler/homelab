@@ -38,7 +38,7 @@
 {#  The template indexes spark_llm_profiles DIRECTLY (native dict in both the real
     Ansible render and the offline validator mock) — a Jinja-valued alias such as
     `spark_llm: "{{ spark_llm_profiles[...] }}"` survives Ansible but arrives here as
-    a stringified dict under scripts/validate-docker-services.py. #}
+    a stringified dict under scripts/gate/validate-docker-services.py. #}
 {#  Path/flag composition. Every host path a profile can point at is resolved HERE,
     from plain scalar profile keys (image | models_root | ple_host_root | ple_host_base),
     because a Jinja expression written INSIDE spark_llm_profiles is stringified by the
@@ -67,7 +67,7 @@
    measured: a hand-quoted value reaches argv WITH the quote characters inside it, so the engine
    matches `'<text>'` and the pin is an invisible no-op; and the real value is a multi-line block
    (the operator's pi global instructions), which only survives the `- {{ a }}` emission as a
-   properly escaped scalar. scripts/spark-llm-render-matrix.py proves the rendered argument is
+   properly escaped scalar. scripts/bench/spark-llm-render-matrix.py proves the rendered argument is
    byte-equal to the declared text — the check that would have caught the quote version.
    STATUS: the mechanism is REJECTED (docs/services-ai-rejected.md), so every profile
    resolves never_evict_prompt to "" and this branch renders NOTHING. It stays because the flag is

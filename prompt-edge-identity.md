@@ -55,7 +55,7 @@ SSO login ledger → §Open WebUI native-OIDC note → §Immich · [docs/service
 * **The VPS IdP database is on the fleet's PG-18 line** — `authentik_db_version: "18.6-alpine"`
   (`IaC/ansible/group_vars/all/versions.yml:39`). Never describe an Authentik data leg against a `postgres:16` assumption; the
   16→18 data-format work is HD-1100's, not this lane's.
-* Converge the VPS **detached and guarded** (`scripts/guarded-converge.sh` is the repo-native wrapper), never with `--diff`
+* Converge the VPS **detached and guarded** (`scripts/ansible/guarded-converge.sh` is the repo-native wrapper), never with `--diff`
   (O3: the secret-dump class). Diff-only is what an unattended run is authorised for.
 
 ## Owns / never touches

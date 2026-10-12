@@ -44,4 +44,4 @@ this box. **ar-blk remains the winner.**
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*` (this dir)
-- CSV rows: `spark/bench/results-v2.csv` (`t3-v16bs4,20261003-114027/114250/114723`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t3-v16bs4,20261003-114027/114250/114723`)

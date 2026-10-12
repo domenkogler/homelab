@@ -17,7 +17,7 @@
 # The toggle targets `centralsyslog`, NOT the bundled `remote` action: `remote` sits
 # at 0.0.0.0 with no rules bound, so `[find name=remote]` is a silent no-op.
 # The VPS target is SSOT-derived: `{{ wireguard_s2s_vps.remote_ip }}`.
-# Render: playbooks/render-converge.yml; apply: scripts/routeros-apply-delta.sh.
+# Render: playbooks/render-converge.yml; apply: scripts/ansible/routeros-apply-delta.sh.
 # =====================================================================
 # Script: refresh the centralsyslog action's remote target (0.0.0.0 -> real)
 # Note: a single-line quoted `source=` keeps the /import parser happy.

@@ -30,6 +30,21 @@ tags: [hardware, ai, workstation, strix-point, fim, vision, gpu]
 | GPU access from WSL | **None usable.** `/dev/dxg` is present but there is **no `/dev/dri` and no `/dev/kfd`**, and no Vulkan ICD is installed in the guest — so no native Vulkan and no native ROCm. Docker-in-WSL inherits exactly this, and a different distro changes nothing: the nodes come from the WSL kernel and the Windows driver, not from the distro. → the legs run **on Windows**, or the box runs native Linux (gate 1) |
 | Hostname / IP | client-class device (no server role, no `kogler.si` service record) |
 
+### Never let it sleep while a leg is running
+
+AC standby kills both long-running legs mid-flight — an in-progress FIM/vision run and, worse, a WSL
+session holding a converge or a seat sync. The AC policy is set to never on the owner's box; re-apply
+after a Windows feature update resets it (the settings UI path is the same switch):
+
+```powershell
+Start-Process powercfg -ArgumentList "/change","standby-timeout-ac","0" -WindowStyle Hidden
+```
+
+`-WindowStyle Hidden` + `Start-Process` is how it runs without a UAC console flashing over whatever is
+on screen; it is a machine policy, so it belongs here and not in a session's shell history. Verify:
+`powercfg /query SCHEME_CURRENT SUB_SLEEP STANDBYIDLE` → the AC index must read `0x00000000`. Battery
+policy is deliberately untouched (a laptop on a hot desk must still sleep off AC).
+
 ## Role in the AI tier (decision #28 in [`services-ai.md`](services-ai.md) §9)
 
 | Tier | Host | Runs | Why there |
@@ -167,8 +182,8 @@ instruction at all (the documented set is FROM/PARAMETER/TEMPLATE/SYSTEM/ADAPTER
 already reads the 152 GB library on `D:` — one library, zero duplicate bytes.
 
 **The legs, from one runtime (the catalogue is
-`scripts/laptop-llm/profiles.yml`; the budget, the gate and the probes are `scripts/laptop-llm.py`;
-the applier is `scripts/win/lmstudio-llm.ps1`).**
+`scripts/bench/laptop/profiles.yml`; the budget, the gate and the probes are `scripts/bench/laptop-llm.py`;
+the applier is `scripts/bench/laptop/win/lmstudio-llm.ps1`).**
 
 **This runtime serves FIM and vision only — there is no agent leg, and it is retired, not deferred.**
 Prefill, not the carve, is why: a 20 816-token prompt costs
@@ -192,7 +207,7 @@ ruling; `laptop-llm.py matrix` does not offer any of them.
 16.50 GiB of weights and 1.01 GiB of projector; the measured load sits at 23.92 GiB of the ~24 GiB
 adapter. `lms unload --all` before every load, and the applier enforces it.
 
-**What the client sees (and the trap in it).** `scripts/pi-config/models-spec.yml` carries the
+**What the client sees (and the trap in it).** `scripts/harness/pi/models-spec.yml` carries the
 laptop's remaining rows — `vision-qwen3vl-30b` (`input: [text, image]`, the only local chat row) and
 `qwen/qwen2.5-coder-3b-instruct` (`capabilities: [insert]`, Continue's tab model and never a harness
 brain) — while JIT loading is OFF, so only the resident leg answers and a row naming a leg that is not
@@ -262,8 +277,8 @@ signed out — `render-pi-config.py --check` needs `op`, which is a human step.
 
 **Client contract — and the seat it is addressed to:** local models are
 served to **pi.dev running ON Win11**. `providers.laptop-lmstudio` in
-`scripts/pi-config/models-spec.yml` therefore declares `native_only: true` next to `hosts:
-[domenp14s]`, and `scripts/render-pi-config.py` omits it when rendering inside WSL2 — with
+`scripts/harness/pi/models-spec.yml` therefore declares `native_only: true` next to `hosts:
+[domenp14s]`, and `scripts/harness/render-pi-config.py` omits it when rendering inside WSL2 — with
 `networkingMode=Nat`, which stays exactly as configured because it is there for reasons that
 outlive this leg, `127.0.0.1` inside the guest is the guest. Hostname alone cannot separate the two
 seats, which is why the spec carries a flag rather than a second name — and the measured hostname
@@ -341,7 +356,7 @@ documented order: **unload → confirm release → load**, never optimistically 
 ## Pre-flight gates before this becomes config
 
 1. **Where the stack runs at all** — **closed: Win11 native**, LM Studio `0.4.25+1`
-   pinned in `scripts/laptop-llm/profiles.yml §runtime` (three independent reads agreeing), `llmster
+   pinned in `scripts/bench/laptop/profiles.yml §runtime` (three independent reads agreeing), `llmster
    v0.0.25+1` as the service. Native Linux on the box stays the revisit trigger, not the plan.
 2. **LLVM target:** `gfx1150` vs `gfx1151` is **still unconfirmed for this APU** (§Platform). It does
    not block this lane — the Vulkan engine is chosen by LM Studio's own build and no artifact here

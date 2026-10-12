@@ -319,7 +319,7 @@ LiteLLM) and the n8n sqlite have no off-box path but `vps-state-push` (§VPS sta
    change these together in one commit (a stale one silently serves the dead box): `dns_primary_ip` in
    `IaC/ansible/group_vars/all/main.yml`, the Cloudflare A records for `*.kogler.si`, the Headscale
    API/`base-domain` config, and the Technitium primary records ([network-dns.md](network-dns.md)).
-3. Converge in role order — `bash scripts/ansible-run.sh playbooks/vps.yml --limit vps` (hardening
+3. Converge in role order — `bash scripts/ansible/ansible-run.sh playbooks/vps.yml --limit vps` (hardening
    before `docker_services`; scoped runs need both tag classes per
    [scripts/README.md](../scripts/README.md); never `--diff`). Do not hand-build a service to "get it
    back quickly": the next converge will disagree with it.

@@ -54,7 +54,7 @@ off for this non-pin arm).
 - `raw/atrest-*` — memory at rest per leg (engine/all pid MiB, usable GiB)
 - `raw/result-*` — vLLM bench JSON per leg (quantiles, throughput, MTP acceptance)
 - `raw/benchlog-*` — raw harness logs per leg (paths/scrubbed of credentials)
-- CSV rows: `spark/bench/results-v2.csv` (rows `t1-u1,20261002-205159/205614/210720`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (rows `t1-u1,20261002-205159/205614/210720`)
 
 **VM cross-check note**: `vm-window.sh` could not complete its VictoriaMetrics query from this runner
 (VM endpoint not reachable: `?query=up` timed out). Per the HD-489 status-change brief, monitoring is

@@ -63,5 +63,5 @@ no T80, no draft-vocab slice)** is faster AND memory-feasible.
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*` (this dir)
-- CSV rows: `spark/bench/results-v2.csv` (`t3-v16b,20261003-111352/111616`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t3-v16b,20261003-111352/111616`)
 - OOM-guard refusal (above) — the C2L non-run is itself the finding.

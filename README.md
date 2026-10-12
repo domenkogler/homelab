@@ -26,7 +26,7 @@ The agent then routes the intent — there is NO keyword routing table:
       trim analysis verbosity, never the safety ritual).
    2. `git status` sanity check + fresh session worktree (`../homelab-wt-<date>-<HHMM>`,
       CONVENTIONS §6) BEFORE any edit — enforced mechanically by
-      [`scripts/guard-session.sh`](scripts/guard-session.sh) + a hard gate inside
+      [`scripts/gate/guard-session.sh`](scripts/gate/guard-session.sh) + a hard gate inside
       [`scripts/validate-all.sh`](scripts/validate-all.sh).
 2. **Semantic prior-art sweep:** search todo.md / docs/ — including the `<domain>-rejected.md`
    decision logs, `<domain>-review.md` and `brainstorming/` — plus `git log -S 'HD-XX'` / `git log`
@@ -202,7 +202,7 @@ a verdict — the parent had already verified the final state itself. Rules:
 `CONVENTIONS.md` (root) · `docs/index.md` · `IaC/README.md` · [`scripts/README.md`](scripts/README.md) (validators, renderers, vault-seeding utilities) · `todo.md` · archive: `reports/changelog.md`, `reports/deployment-journal.md` (frozen)
 
 **Ansible questions — answer them without bulk-reading the tree (HD-456).** §0 says *do not bulk-read the
-repo*; [`scripts/ansible_query.py`](scripts/ansible_query.py) is how that is done for Ansible. Read-only,
+repo*; [`scripts/ansible/ansible_query.py`](scripts/ansible/ansible_query.py) is how that is done for Ansible. Read-only,
 bounded digest over `IaC/ansible` (`--root spark` for the other tree), needs `~/ansible-venv`:
 
 | Question | Command |

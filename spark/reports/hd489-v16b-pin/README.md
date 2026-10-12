@@ -44,5 +44,5 @@ upstream recipes eliminated by measurement.
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*` (this dir; seed-45 clean leg)
-- CSV rows: `spark/bench/results-v2.csv` (`t3-v16bpin,20261003-123150` valid; `-122925`
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t3-v16bpin,20261003-123150` valid; `-122925`
   contaminated, excluded — counters reset)

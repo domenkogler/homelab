@@ -18,8 +18,8 @@
 # docs/services-authentik.md).
 #
 # Usage (WSL Debian runner):
-#   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml        # all blueprints
-#   bash scripts/ansible-run.sh playbooks/authentik-blueprints.yml -e blueprint=ks-oidc.yml
+#   bash scripts/ansible/ansible-run.sh playbooks/authentik-blueprints.yml        # all blueprints
+#   bash scripts/ansible/ansible-run.sh playbooks/authentik-blueprints.yml -e blueprint=ks-oidc.yml
 #
 # The compose deploy dir on the host (docker_services role) renders the blueprint files
 # from templates/docker_services/authentik/blueprints/* into /opt/authentik/blueprints/

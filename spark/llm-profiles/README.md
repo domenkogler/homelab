@@ -26,7 +26,7 @@ whether it will survive an agent session.
 > hand-edit a container's site-packages. Evidence:
 > [`reports/hd469-graded/README.md`](../../spark/reports/hd469-graded/README.md) +
 > [`image-probe-20260928.md`](../../spark/reports/hd469-graded/image-probe-20260928.md);
-> re-derive both with `scripts/spark-fp8-image-probe.py` (read-only, ~40 s, no GPU).
+> re-derive both with `scripts/bench/spark-fp8-image-probe.py` (read-only, ~40 s, no GPU).
 
 > **Rule 0 — whose session may run this gate.** If the session executing the gate is itself
 > served by `spark/…`, every tok/s, TTFT and TPOT it measures is contaminated by its own
@@ -35,13 +35,13 @@ whether it will survive an agent session.
 > numbers are not**. Hand the timed legs to a session on a different model, or take them
 > from a headless run. Record which session ran which leg, in the report.
 
-> **Where timed numbers come from.** Not from `scripts/spark-llm-probe.py`: its `ctx` and
+> **Where timed numbers come from.** Not from `scripts/bench/spark-llm-probe.py`: its `ctx` and
 > `concurrent` legs report wall time and latency with no token normalisation, so they can prove a
 > profile *holds* a depth and cannot answer a throughput claim. Timed legs are
-> [`../bench/run-scenario.sh`](../bench/run-scenario.sh) — TTFT and ITL p50/p99, per-stream decode
+> [`../bench/run-scenario.sh`](../../scripts/bench/spark/run-scenario.sh) — TTFT and ITL p50/p99, per-stream decode
 > tok/s, MTP acceptance, Wh per 1k output tokens, one CSV row per leg — stamped with `--profile
 > <arm>` and `--client <who>`, and cross-checked by
-> [`../bench/vm-window.sh`](../bench/vm-window.sh) over the leg's window. The store cannot separate
+> [`../bench/vm-window.sh`](../../scripts/bench/spark/vm-window.sh) over the leg's window. The store cannot separate
 > the arms by label (`model_name` is a client anchor that must not move), so the leg's UTC window IS
 > the attribution and `req_ok_delta == N` is the proof the window was the leg's alone. Rule 0 binds
 > whoever *produces* the window; reading the store is legal from any session.
@@ -51,7 +51,7 @@ whether it will survive an agent session.
 
 | # | Gate | Command / measure | Pass = |
 |---|------|-------------------|--------|
-| 0 | Render parity | `python3 scripts/validate-docker-services.py --only spark-ai` + `spark-llm-probe.py matrix` + `profile <name>` + `check_spark_llm_gate.py` | renders; the slot/host-floor math the probe prints matches the profile's intent; the gate's own canaries still bite |
+| 0 | Render parity | `python3 scripts/gate/validate-docker-services.py --only spark-ai` + `spark-llm-probe.py matrix` + `profile <name>` + `check_spark_llm_gate.py` | renders; the slot/host-floor math the probe prints matches the profile's intent; the gate's own canaries still bite |
 | 1 | Boot | converge **detached**, then `/health` | `healthy`, `RestartCount=0` after 30 min, **and** the engine's own `Available KV cache memory` + `GPU KV cache size` lines in the report (they outrank any projection) |
 | 2 | Non-interference | `spark-llm-probe.py … health` + `reasoning` while the box is otherwise idle | both PASS, host `usable = MemAvailable − CmaFree` ≥ **17.78 GiB** (the certified worst moment, [`../stability-test.md`](../stability-test.md) §2 / [`reports/stability/README.md`](../reports/stability/README.md)) — that number, not a rounded one, is what `spark_llm_device_hold_ceiling_bytes` is built from |
 | 3 | Real depth | `spark-llm-probe.py … ctx <max_model_len>` | HTTP 200, `prompt_tokens` ≥ 80 % of the ask, no preemption in `/metrics` |
@@ -178,7 +178,7 @@ restart loop, stop the loop before it eats the pool:
 - `/health` 200 says the API server is up, not that the model loaded (it answers for a while before
   the weights+PLE load; `start_period: 1200s` exists because of that).
 - A green **scoped** converge (`-e docker_services_scope=…`) is not evidence the render landed —
-  measured 2026-09-19 ([scripts/rotate-spark-llm-key.sh](../../scripts/rotate-spark-llm-key.sh)
+  measured 2026-09-19 ([scripts/secrets/rotate-spark-llm-key.sh](../../scripts/secrets/rotate-spark-llm-key.sh)
   header). Read the rendered compose or the container argv.
 - `vllm bench serve` against the `--api-key` engine 401s every request **and exits 0** (HD-380).
   Assert on the counters, not the exit code.

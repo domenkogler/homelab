@@ -58,5 +58,5 @@ eager-mode (no graphs) — the delta to tier-3 `v16b*` (which brings spec + grap
 ## Evidence
 
 - `raw/atrest-*`, `raw/result-*` (this dir)
-- CSV rows: `spark/bench/results-v2.csv` (`t2-arm,20261003-080221/080606/081159`)
+- CSV rows: `scripts/bench/spark/results-v2.csv` (`t2-arm,20261003-080221/080606/081159`)
 - VM cross-check: same monitoring-not-converged caveat.

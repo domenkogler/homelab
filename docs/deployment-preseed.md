@@ -117,7 +117,7 @@ d-i preseed/late_command string \
     in-target /bin/bash /tmp/post_install.sh
 ```
 
-> **Media layout:** when assembling the install media, place the shared `post_install.sh` where the late_command expects it (`preseed/post_install.sh` on the media), alongside the per-host `preseed.cfg`. The media copy must carry the REAL keys — generate it with [`scripts/gen-media-post-install.sh`](../scripts/gen-media-post-install.sh) (injects the three 1Password public keys into a git-ignored `post_install_with_secrets.sh`, fail-loud guards, optional mountpoint arg copies it to `<media>/preseed/post_install.sh`). Never copy the placeholder-only committed file onto media as-is — the placeholder assertion would abort the install at late_command.
+> **Media layout:** when assembling the install media, place the shared `post_install.sh` where the late_command expects it (`preseed/post_install.sh` on the media), alongside the per-host `preseed.cfg`. The media copy must carry the REAL keys — generate it with [`scripts/secrets/gen-media-post-install.sh`](../scripts/secrets/gen-media-post-install.sh) (injects the three 1Password public keys into a git-ignored `post_install_with_secrets.sh`, fail-loud guards, optional mountpoint arg copies it to `<media>/preseed/post_install.sh`). Never copy the placeholder-only committed file onto media as-is — the placeholder assertion would abort the install at late_command.
 > **Executable procedure:** the step-by-step host-install runbook (media → interactive install → catch-up bootstrap) lives in [deployment-manual.md §Phase 1a](../deployment-manual.md); full preseed automation is deferred there until re-proven.
 
 ---
@@ -188,7 +188,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 > fails loudly on the installer console/log instead. The same rule gates the Pi flow:
 > [`first-boot-config.sh`](../IaC/host/pi/first-boot-config.sh) asserts the written
 > `user-data`/`firstboot.sh` carry no placeholders before the card is declared ready. A repo-side
-> grep gate (`scripts/check_placeholders.py`, checker 9 in `validate-all.sh`) keeps *committed*
+> grep gate (`scripts/gate/check_placeholders.py`, checker 9 in `validate-all.sh`) keeps *committed*
 > placeholders inside the designated bootstrap artifacts only.
 
 ---
@@ -218,7 +218,7 @@ See [`deployment-secrets.md`](deployment-secrets.md) for the laptop `~/.ssh/conf
 > is immune (the pasted script is explicit); the custom-ISO/preseed path carries the risk.
 
 #### netcup Custom-Script flow — executed via the deployment runbook
-netcup SCP's "**Custom Script**" (executed at end of image installation, ≤10 000 chars, must have shebang) is the operative install hook — the `d-i` preseed lines do **not** run on netcup's pre-built image. The **executable procedure** is owned by the redeploy runbook, [deployment-manual.md §Phase 0.5](../deployment-manual.md): generating/pasting `post_install_with_secrets.sh` via [`gen-custom-script.sh`](../scripts/gen-custom-script.sh), the SCP field-by-field install settings, first-boot verification, and break-glass access. This spec keeps only the authoring rules.
+netcup SCP's "**Custom Script**" (executed at end of image installation, ≤10 000 chars, must have shebang) is the operative install hook — the `d-i` preseed lines do **not** run on netcup's pre-built image. The **executable procedure** is owned by the redeploy runbook, [deployment-manual.md §Phase 0.5](../deployment-manual.md): generating/pasting `post_install_with_secrets.sh` via [`gen-custom-script.sh`](../scripts/secrets/gen-custom-script.sh), the SCP field-by-field install settings, first-boot verification, and break-glass access. This spec keeps only the authoring rules.
 Authoring rules unchanged: committed `post_install.sh` stays **placeholder-only** (repo rule: keys never in Git); the generated `post_install_with_secrets.sh` is git-ignored in `.gitignore` and deleted immediately after pasting; the wrong-script risk above applies to the custom-ISO/preseed path only — the pasted-Custom-Script flow is immune because the pasted script is explicit.
 
 ---

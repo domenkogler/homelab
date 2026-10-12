@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =====================================================================
-# Self-test for scripts/check-vault-items.sh (HD-244 + HD-245).
+# Self-test for scripts/gate/check-vault-items.sh (HD-244 + HD-245).
 # Runs the scanner against the committed synthetic mini-tree in fixture/
 # via --root + --fake-vault: NO op CLI, NO SA token, no real vault access.
 #
@@ -16,7 +16,17 @@
 # =====================================================================
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-MAIN="$HERE/../../check-vault-items.sh"
+# FOUND by name, not by `../../`. This fixture used to sit two levels below scripts/ and said so
+# with a literal relative climb; HD-1118 Stage 3 moved the scanner into scripts/gate/ and the climb
+# then pointed at scripts/scripts/ — and a fixture whose scanner is missing FAILS, which is the only
+# good outcome available. Same rule as everywhere else in scripts/: the tree is not this file's
+# neighbourhood.
+MAIN=""
+for _d in "$HERE" "$(dirname "$HERE")" "$(dirname "$(dirname "$HERE")")"; do
+  _c="$(find "$_d" -maxdepth 3 -name 'check-vault-items.sh' -not -path '*/testdata/*' 2>/dev/null | head -1)"
+  [ -n "$_c" ] && { MAIN="$_c"; break; }
+done
+[ -n "$MAIN" ] || { echo "FAIL: cannot find check-vault-items.sh near $HERE (HD-1118: by name, never by ../../)"; exit 1; }
 FIXTURE="$HERE/fixture"
 
 pass=0

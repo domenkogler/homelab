@@ -57,7 +57,7 @@ HD-1103 in the same Pi window** — the reboot is owed once, not twice — and i
 
 ## Owns / never touches
 
-**Owns:** `IaC/ansible/roles/home_assistant/**` (incl. `files/knx-entities.yaml` + `scripts/knx-hass-gen.py`), the `ha_*`
+**Owns:** `IaC/ansible/roles/home_assistant/**` (incl. `files/knx-entities.yaml` + `scripts/ansible/knx-hass-gen.py`), the `ha_*`
 regions of `group_vars/all/main.yml` (`ha_trusted_proxies`, `ha_vip`) and of `host_vars/pi.kogler.si.yml` /
 `host_vars/oldsrv.kogler.si.yml`, the keepalived + resolver legs on the Pi, the `trusted-ha` line in
 `IaC/router/templates/rb4011_converge.rsc.j2` (router slot global), `docs/smart-home*.md`, `docs/home-assistant-current.md`,

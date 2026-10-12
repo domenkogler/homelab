@@ -190,7 +190,7 @@ traefik_acme_issuer: true
 
 # Scoped virtual keys — SSOT consumed by BOTH the bootstrap-keys glue
 # (roles/docker_services/templates/litellm-bootstrap-keys.sh.j2 mints each key into its
-# vault item at converge) AND scripts/check-vault-items.sh (the entry-record `*_item:`
+# vault item at converge) AND scripts/gate/check-vault-items.sh (the entry-record `*_item:`
 # rule parses `vault_item:` from these records; items are glue-seeded => excluded from
 # MISSING). One PHYSICAL line per record (closing brace ends the record).
 # models: comma-separated LiteLLM model names (wildcards allowed); empty = all models.
@@ -356,7 +356,7 @@ tailnet_ts_only_subdomains:
   - { name: spark, ip: "100.64.0.1" }   # -> vps-obs edge -> db-spark-backend -> https://{{ spark_home_ip }}:443
   # The nas management console, away from home. `cockpit-nas.kogler.si` is
   # LAN-ONLY in the seed (its answer is a Home-VLAN address, i.e. a black hole for a peer that is
-  # not at home — see LAN_ONLY in scripts/check_dns_seed_drift.py), so before this row an
+  # not at home — see LAN_ONLY in scripts/gate/check_dns_seed_drift.py), so before this row an
   # off-LAN admin had NO name for the nas console at all: the tunnel (`ssh -J vps -L 9090:…`) was
   # the only path. A `.ts` twin needs no resolver to fight (resolver-ambiguity rule #1) and repoints
   # nothing. `ip` defaults to `tailnet_oldsrv_ip`, i.e. oldsrv's own `websecure-ts` listener ->

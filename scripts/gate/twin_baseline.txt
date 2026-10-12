@@ -1,0 +1,38 @@
+# Baseline population for scripts/gate/check_string_twins.py -- the canary that lets a gate with
+# no allowlist be honest. Read that docstring before editing this file.
+#
+#     baseline_rev <sha>       the revision the twin population is read from
+#     twin_groups <n>          how many >=2-file exact groups that revision yields
+#     group_keys_sha256 <hex>  sha256 over the sorted group keys, one nested sha256 per key so
+#                              a key carrying a newline cannot shift its neighbours' digest
+#
+# The population is a pure function of (baseline_rev, the extractor, the scope IaC/ scripts/).
+# So these three lines are a fingerprint of the extractor's whole model of "what this repo
+# writes": narrow the extractor, add a literal class, or move baseline_rev, and the digest
+# moves with it and the run reddens until the new numbers are published in the same commit.
+# That is the point -- a re-baseline may not silently shrink the population, exactly the way
+# scripts/gate/iac_identifier_allowlist.txt makes an identifier exemption be signed rather than
+# assumed.
+#
+# Re-baseline at a wave tip: set baseline_rev to the wave's last commit, run
+#   python3 scripts/gate/check_string_twins.py --show-baseline
+# and paste all three lines back. A baseline older than one wave (300 commits; wave 2 measured
+# 176) is refused outright, because the per-file difflib alignment degrades against a stale
+# baseline and the gate stops measuring the thing it claims to measure.
+#
+# Seeded 2026-10-11 at the wave-2 base 34e77f82: the population the wave-2 audit measured, so
+# the gate opens green on the repaired tree and its first red is somebody's next sever.
+#
+# Re-published 2026-10-12 at the HD-1118 scripts/ folder move — the trigger was path identity,
+# not the commit count: files_at_rev() reads the current side at the BASELINE's paths, so the
+# moment the population moved into folders every old path yielded an empty side and the gate
+# reported mass severs that never happened. The 289-group growth against 34e77f82 is the repo
+# growing, not the extractor narrowing.
+#
+# Moved once more at the commit that republished this gate's own self-test: removing dead code
+# from check_string_twins.py dropped one side of the cross-file `exact` group, which is this
+# gate's rule applying to itself. twin_groups and the digest are UNCHANGED -- a group's sides
+# went, its keys did not -- so this line is the whole of that decision.
+baseline_rev 58bac7bfbcb8357604d1e19f8b7d7709f7912c98
+twin_groups 2289
+group_keys_sha256 cb7786f61610ad65b72100a44a9e4c7b58f4caf6b6ae111b0b181b5e6d83fd7b

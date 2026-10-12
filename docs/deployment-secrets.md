@@ -76,7 +76,7 @@ boundary — a leaked automation token never exposes break-glass credentials.
 > **The single source of truth for 1Password items.** Every secret lives in the `Homelab-ansible` vault.
 > Two repo files *reference* items and hold no values: `skills/mikrotik/.env.op` (`mikrotik-admin_login`)
 > and `skills/shelly/.env.op` — both TRACKED, never gitignored, so no seat can hold a copy the repo lacks.
-> `scripts/sync-skills.sh` never deploys them on purpose, so point the scripts at the repo copy: `--op-env-file skills/mikrotik/.env.op`.
+> `scripts/harness/sync-skills.sh` never deploys them on purpose, so point the scripts at the repo copy: `--op-env-file skills/mikrotik/.env.op`.
 
 **Item name pattern: `<service>_<type>`**
 
@@ -247,7 +247,7 @@ lookup('community.general.onepassword', '<service>_<type>', field='<field>', vau
 | Rotate the shared RouterOS `admin` password (`mikrotik-admin_login`) | [`network-ops.md`](network-ops.md) §Rotating the shared admin password | vault `old-password`/`password` update → re-render `render-converge.yml` + `render-routeros.yml` → apply per device via `routeros-apply-delta.sh`/`apply-converge.yml` → verify from a Mgmt-sourced API path |
 | AI-stack items + LiteLLM scoped-key glue | [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) | AI 1P item creation, OIDC wiring, LiteLLM bootstrap-keys rotation/rollback |
 | Rotate the spark engine bearer (`spark-llm_api`, `litellm-engine_api`) | [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) §4a | the coupled bearers (engine accepted-key **list** + both LiteLLM envs + laptop `models.json`), the single-window rule and the write-scoped-token location |
-| Retire an SSH grant, or audit who may SSH into a host | [`deployment-secrets.md`](deployment-secrets.md) §Who is authorized where | the per-host grant inventory + the reversible retire sequence above; `scripts/check_ssh_grants.py` is the gate |
+| Retire an SSH grant, or audit who may SSH into a host | [`deployment-secrets.md`](deployment-secrets.md) §Who is authorized where | the per-host grant inventory + the reversible retire sequence above; `scripts/gate/check_ssh_grants.py` is the gate |
 | The two glue scripts' parallel implementation + concurrency budget | [`scripts/README.md`](../scripts/README.md) §Parallel 1Password operations | layer × direction × concurrency table, the 1P budget, extensibility rule |
 
 > Findability rule: if you search for "which glue / who provisions / how to rotate" a secret, start here; the row routes you to the owning doc. Do NOT re-author glue mechanics in multiple docs — each row is a single source.
@@ -287,7 +287,7 @@ automation path that was designed to be read-only.
 | Item name | `field=` | Used By |
 |-----------|----------|---------|
 | `github-homelab-deploy_api` | `credential` (API-credential item; username = the deploy token's username) | **The runner clone's read-only GitHub pull** (`/home/ansible-admin/source/homelab` on oldsrv). Fine-grained, repo-scoped, **read-only by design**: proven by a `403` on `git push` and on `git push --dry-run`. ⚠ What it buys and does not buy: `domenkogler/homelab` is a **PUBLIC** repo (`api.github.com`), so this token is scope + a non-interactive identity, **not** code confidentiality. Placed as a 0600 `~/.git-credentials` store under `ansible-admin`, never embedded in the remote URL and never copied into another account (the seat has its own key below). Rotating = re-place the store file, then prove with `git fetch`. · [deployment-ansible.md](deployment-ansible.md) §Runner placement |
-| `GitHub-homelab-deploy_ssh` | SSH_KEY item: `private_key` / `public_key` / `fingerprint` / `key_type` | **The seat clone's write path** (`/home/domen/source/homelab` on oldsrv; the item's name carries a capital `G`, which is why searching `github-homelab…` finds only the API token). Category SSH_KEY, ed25519, `fingerprint` `SHA256:dGe193grwS3d74i7I…`. ⛔ Read it with **`op read op://…/<field>`** — `op item get --fields <SSHKEY field>` returns a pretty-wrapped PEM that `ssh-keygen` cannot load. Consumer: `scripts/seed-seat-deploy-key.sh`, which installs it under `domen` only and proves the grant with `git push --dry-run`. **Registered on `domenkogler/homelab` as a deploy key WITH write access**, proven from the seat (`git push --dry-run` rc 0; GitHub greets it as `Hi domenkogler/homelab!`, the repo-scoped shape a deploy key takes). A deploy key whose public half is not registered on GitHub is installed, offered on the wire and refused. Rotating = re-register the new public half on GitHub first, then re-run the script; a repo whose only write path is a deploy key is one browser tab away from unpushable. · [deployment-ansible.md](deployment-ansible.md) §Runner placement · [deployment-manual.md](../deployment-manual.md) Phase 4c step 8 |
+| `GitHub-homelab-deploy_ssh` | SSH_KEY item: `private_key` / `public_key` / `fingerprint` / `key_type` | **The seat clone's write path** (`/home/domen/source/homelab` on oldsrv; the item's name carries a capital `G`, which is why searching `github-homelab…` finds only the API token). Category SSH_KEY, ed25519, `fingerprint` `SHA256:dGe193grwS3d74i7I…`. ⛔ Read it with **`op read op://…/<field>`** — `op item get --fields <SSHKEY field>` returns a pretty-wrapped PEM that `ssh-keygen` cannot load. Consumer: `scripts/ansible/seed-seat-deploy-key.sh`, which installs it under `domen` only and proves the grant with `git push --dry-run`. **Registered on `domenkogler/homelab` as a deploy key WITH write access**, proven from the seat (`git push --dry-run` rc 0; GitHub greets it as `Hi domenkogler/homelab!`, the repo-scoped shape a deploy key takes). A deploy key whose public half is not registered on GitHub is installed, offered on the wire and refused. Rotating = re-register the new public half on GitHub first, then re-run the script; a repo whose only write path is a deploy key is one browser tab away from unpushable. · [deployment-ansible.md](deployment-ansible.md) §Runner placement · [deployment-manual.md](../deployment-manual.md) Phase 4c step 8 |
 | `GitHub auth` | SSH_KEY item: `private key` / `public key` / `fingerprint` / `key_type` | **GitHub SSH transport on Debian machines** — installed as `~/.ssh/github_auth` and pinned in `~/.ssh/config` (`Host github.com` + `IdentitiesOnly yes`) by `git-bootstrap.sh --ssh-auth`. ed25519, `fingerprint` `SHA256:ru2YMF+u…`. ⚠ On the **oldsrv seat** transport is NOT this key: the repo-scoped `GitHub-homelab-deploy_ssh` deploy key is used there, and `seed-seat-deploy-key.sh` writes the `Host github.com` block first — `git-bootstrap.sh` sees an existing block and leaves it alone. A push attributed to the wrong credential is an `IdentitiesOnly`/block-order question, not a vault question. · [deployment-ansible.md](deployment-ansible.md) §Runner placement |
 | `domen_ssh` | `private_key` / `public_key` | post_install.sh — Domen's personal key → `ansible-admin` |
 | `ansible-admin_ssh` | `private_key` / `public_key` | post_install.sh — dedicated Ansible key → `ansible-admin` |
@@ -345,7 +345,7 @@ automation path that was designed to be read-only.
 | `tailscale-pi_api` | `credential` | tailscale-node — **headscale preauth key** for the SECOND permitted home node, the Pi, scoped to its OWN tag: `docker exec headscale headscale preauthkeys create --user <id> --tags tag:home-edge --reusable --expiration 8760h -o json`. ⚠ **The tag IS the reach surface**: the ACL grants `tcp/443` by tag, so a key minted with `tag:dev` (or with no tag) gives the Pi either the dev seat's ports or nothing at all — read the assignment back with `headscale nodes list` after the join. Consumed by `host_vars/pi.kogler.si.yml` → `roles/tailscale-node` (key written to `/run` mode 0600, shredded in `always`). API-Credential type (`credential` field); **manual-value path**, so it is NOT in the provisioner CATALOG and `check-vault-items.sh` does not scan host roles — this row IS the coverage record. The Pi node carries `tag:home-edge`. The Pi converge fails loud (no `default('')` fallback) if this item is ever removed. |
 | ~~`tailscale_dsh_api`~~ / ~~`tailscale_pi_dev_api`~~ | ~~`credential`~~ | **Parked with the harnesses** — headscale preauth keys for the `dsh` / `pi-dev` tailscale sidecars. Both harnesses are removed and their `docker_services` rows are `enabled: false`, so nothing renders them; the values stay in the provisioner catalog + the `NOT_AUTO_ROTATABLE` guard. Do **not** seed them as a prerequisite — a re-onboarding mints fresh keys. |
 | `home-assistant_api` | `api` → `credential` = LiteLLM virtual key `sk-…` | Home Assistant's own scoped LiteLLM key for the Assist LLM leg: allow-list is the single row `spark/qwen3.8-flash-next` (never a `spark/*` wildcard), `rpm: 30`, no `max_budget` — read back as length 25 and `GET /v1/models` → EXACTLY `['spark/qwen3.8-flash-next']`. Glue-minted by `lan-litellm` (`bootstrap_keys` enabled there) on oldsrv with the write-scoped op token. ⚠ **The mint glue is CREATE-ONLY** (existing vault value → probe → keep), so a live key keeps its allow-list until `/key/update` exists or it is deliberately re-minted — a grant cannot be changed by editing this record. ⚠ **Consumption path:** no template renders it; HA's stock `litellm` integration stores the value in a **config entry** — plaintext `/config/.storage/core.config_entries` on the Pi — and `roles/home_assistant/templates/ha-config-sync.sh.j2` rsyncs that directory (`--delete`, excluding only `secrets.yaml`) to the oldsrv standby, so the minted key replicates off the primary. Read §Runtime plaintext that leaves the vault before treating the value as vault-scoped. |
-| ~~`dsh_api`~~ | ~~`credential`~~ | **Retired LiteLLM consumer** — DSH is not a LiteLLM consumer, so this item is neither restored nor re-minted and its credential field is empty (a parked consumer is not a deleted secret). The name stays documented: `roles/docker_services/defaults/main.yml` still maps the parked `dsh` service to it, and `scripts/check_vault_docs.py` fails an IaC-referenced item this table does not document. |
+| ~~`dsh_api`~~ | ~~`credential`~~ | **Retired LiteLLM consumer** — DSH is not a LiteLLM consumer, so this item is neither restored nor re-minted and its credential field is empty (a parked consumer is not a deleted secret). The name stays documented: `roles/docker_services/defaults/main.yml` still maps the parked `dsh` service to it, and `scripts/gate/check_vault_docs.py` fails an IaC-referenced item this table does not document. |
 | `nut_password` | `password` | NUT UPS monitor (upsmon client → master auth) |
 | `nut-exporter_password` | `password` | nut_exporter → upsd read-only auth (dedicated `upsmon slave` user on the NUT master) |
 | `network-snmp_api` | `credential` | router + switch — MikroTik SNMP **read-only community** for Alloy polling; `credential` = the RO community string |
@@ -374,7 +374,7 @@ automation path that was designed to be read-only.
 | `signal_api` | `credential` (`username` = phone number) | signal-cli-rest-api (linked-device pair / captcha) |
 | `signal-internal_api` | `credential` | signal-cli-rest-api — API token auth (`SIGNAL_CLI_API_TOKEN`; requests require `X-Api-Key` header) so no container on services-internal can send Signal as Domen's number without it. n8n sends this in its webhook call |
 | `kopia-server-internal_api` | `username` + `credential` | kopia-server auth — `username` = the server-admin `user@host` identity (htpasswd + UI), `credential` = password; the per-client `oldsrv-agent@oldsrv.kogler.si` entry (`kopia_agent_user`, group_vars) shares the same credential. Written to the in-container `server.htpasswd` (plaintext, 0600); the repo-user password is the **repo master password** (`kopia_password`), not this credential (kopia quirk). Replaces the old `--without-password` |
-| `victoria-metrics_api` | `username` + `password` | **VictoriaMetrics basic auth** — `username` + `password` only (Victoria's `-httpAuth.username` / `-httpAuth.password` are plaintext basic-auth, NOT bcrypt). Consumed by Grafana (VM datasource, uid `prometheus`) + Alloy remote_write + the oldsrv `mcp-victoriametrics` MCP server over the tailnet. Catalog-generated (`scripts/provision-secrets.py`), rotatable; seed BEFORE the Victoria converge (`provision-vault.sh`). |
+| `victoria-metrics_api` | `username` + `password` | **VictoriaMetrics basic auth** — `username` + `password` only (Victoria's `-httpAuth.username` / `-httpAuth.password` are plaintext basic-auth, NOT bcrypt). Consumed by Grafana (VM datasource, uid `prometheus`) + Alloy remote_write + the oldsrv `mcp-victoriametrics` MCP server over the tailnet. Catalog-generated (`scripts/secrets/provision-secrets.py`), rotatable; seed BEFORE the Victoria converge (`provision-vault.sh`). |
 | `victoria-logs_api` | `username` + `password` | **VictoriaLogs basic auth** — `username` + `password` only (VictoriaLogs `-httpAuth.username` / `-httpAuth.password` plaintext). Consumed by Grafana (VictoriaLogs datasource, uid `loki`) + Alloy log push + the oldsrv `mcp-victorialogs` MCP server over the tailnet. Catalog-generated, rotatable; seed BEFORE the Victoria converge. |
 | `technitium_login` | `password` (`username` = the admin user) | **Technitium DNS admin credential — consumed by the `technitium-seed` role on ALL THREE instances** (VPS primary / oldsrv secondary / Pi tertiary). **Human-gated by construction:** the app seeds `admin`/`admin` on a fresh volume (deleting `auth.config`/`cache.bin` does NOT reset it), so the operator must set the admin to THIS value through the documented `POST /api/user/changePassword` API **before** the first seed run, or the seed's login fails and no split-horizon record is ever created. NOT catalog-generatable and NOT auto-rotatable: one value must match three instances, and rotation = re-apply on each. The seed task reads it at `roles/docker_services/tasks/technitium-seed.yml`. Runbook: [deployment-manual.md](../deployment-manual.md) §DNS admin bootstrap · spec: [network-dns.md](network-dns.md) |
 | `technitium_api` | `credential` | Technitium — **declared prerequisite only.** It is listed in `_service_vault_items.technitium` (so `check-vault-items.sh` demands it), but **no task looks it up**: the seed role authenticates with `technitium_login` (username+password) and nothing reads an API key. Either wire it (if Technitium ever gets a token-auth path) or drop the entry from `_service_vault_items` — until then it is a required-but-unused item, same class as the `op_api` runner question in [deployment-ai-stack-secrets.md](deployment-ai-stack-secrets.md) §4a. |
@@ -383,7 +383,7 @@ automation path that was designed to be read-only.
 | `openclaw-opencloud_api` | `username` + `credential` | **OpenClaw → OpenCloud WebDAV** — `username` = OpenCloud service user, `credential` = app-specific password; consumed by `openclaw onboard` / `openclaw.json` WebDAV block. Scoped, rotatable, fail-loud. |
 | `sonarr_api` | `credential` | Sonarr API key — recyclarr authenticates to this instance with it: a catalog-created placeholder at Phase-3 seed, OVERWRITE with the instance's real `config.xml` ApiKey after first boot (manual-value class), then re-run recyclarr. ⚠ The rendered config must actually be MOUNTED and read at the instance's uid — an unmounted or unreadable config syncs nothing while every lookup stays green. **NOT auto-rotatable** (externally-coupled to the running instance). |
 | `radarr_api` | `credential` | Radarr API key — recyclarr authenticates to this instance with it (`config.xml` `ApiKey`, manual-value class, NOT auto-rotatable). ⚠ **The quality-profile POLICY is still commented out of the template and syncing nothing**, because enabling it rewrites live profiles and the accepted values are an owner pick — `recyclarr list qualities radarr` → `movie` \| `sqp-uhd` \| `sqp-streaming` \| `anime`; `sonarr` → `series` \| `anime` (read from the image, not from memory). |
-| `lidarr_api` | `credential` | Lidarr API key — consumer-side copy of the instance's own `config.xml` `ApiKey`, used by `templates/docker_services/lidarr-ydl/docker-compose.yml.j2` (`LIDARR_API_KEY`) and by the Aurral→Lidarr leg. Manual-value class: a catalog-created placeholder must be OVERWRITTEN with the instance's real key after first boot, then recyclarr re-run — verify with `X-Api-Key` → `/api/v1/system/status` = 200. ⚠ Two traps: read the instance key as Lidarr's **PUID** (root-in-container cannot read `config.xml`, so a failed read looks like a missing key), and `scripts/check-vault-items.sh` is **not** a completeness proof for `vault['X']` refs in compose templates. NOT auto-rotatable (externally-coupled) |
+| `lidarr_api` | `credential` | Lidarr API key — consumer-side copy of the instance's own `config.xml` `ApiKey`, used by `templates/docker_services/lidarr-ydl/docker-compose.yml.j2` (`LIDARR_API_KEY`) and by the Aurral→Lidarr leg. Manual-value class: a catalog-created placeholder must be OVERWRITTEN with the instance's real key after first boot, then recyclarr re-run — verify with `X-Api-Key` → `/api/v1/system/status` = 200. ⚠ Two traps: read the instance key as Lidarr's **PUID** (root-in-container cannot read `config.xml`, so a failed read looks like a missing key), and `scripts/gate/check-vault-items.sh` is **not** a completeness proof for `vault['X']` refs in compose templates. NOT auto-rotatable (externally-coupled) |
 | `qbittorrent_api` | `credential` | **qBittorrent's own WebUI login** — this password plus the username `admin` (`qbit_webui_username`, role defaults; not a secret). The REVERSE of the three rows above: those are consumer-side copies of a key an app issued, this one is the SOURCE. `tasks/qbittorrent-seed.yml` writes it INTO `qBittorrent.conf` as `WebUI\Password_PBKDF2` (PBKDF2-HMAC-SHA512, 100000 iterations, `@ByteArray(base64(salt):base64(dk))` — the format qBittorrent 5.2.x itself writes), because the LSIO image translates no credential env at all and regenerates a random 9-char password at every start while the stored hash is empty: without this item the arrs hold a credential that dies on the next `docker compose up`. Consumers: the three arr torrent download clients (`tasks/arr-client-torrent.yml`, pointed at `gluetun:8080`) and the browser edge. Catalog-generated and **auto-rotatable** — a `docker_services` converge rewrites the conf AND all three client configs (`qbittorrent_seed` + `arr_client_seed`), so propagation exists; between the vault write and that converge the arrs 401 against qBittorrent (nothing downloads, nothing else breaks). Absent item = the seed fails closed rather than seeding an empty credential. |
 | `jellyfin-seer_api` | `credential` | **Jellyfin API key minted FOR Seerr** — pasted into Seerr's media-server setup; it lives in Seerr's own `settings.json`. **DOCS-ONLY: no IaC consumer**, same class as `lidarr-url-dl_login`. NOT auto-rotatable (externally-coupled: rotate = re-enter in the Seerr UI, and Seerr's Jellyfin logins break silently until it is saved again). · [services-media.md](services-media.md) |
 | `jellyfin-seerng_api` | `credential` | The same role for **SeerrNG**; SeerrNG authenticates its users *through* Jellyfin, so this key being wrong takes the whole request portal down, not just metadata. DOCS-ONLY, NOT auto-rotatable (as above) · [services-media.md](services-media.md) |
@@ -398,7 +398,7 @@ automation path that was designed to be read-only.
 | `n8n_password` | `password` | n8n — `N8N_ENCRYPTION_KEY` (workflow encryption; long-lived, immutable — rotating means re-encrypting stored credentials). NOT used for webhook auth (see `n8n-webhook_api`) |
 | `n8n-webhook_api` | `credential` | n8n — webhook/API auth token (`N8N_BASIC_AUTH_PASSWORD`; Grafana webhook contact point `basicAuthPassword`) — independently rotatable short-lived token so the encryption key is never exposed in webhook auth. HTTP basic auth user = `grafana` |
 | `n8n_api` | `credential` | **n8n — public REST API key** (Settings → n8n API; JWT `X-N8N-API-KEY`). Used to provision/activate the `homelab-alerts` alert-router workflow (`POST /api/v1/workflows` + `/activate`) instead of a manual UI import — the workflow JSON is versioned in `roles/monitoring/files/n8n/`. **Rotatable** — regenerate in the n8n UI + update this item. |
-| `openrouter_api` | `credential` | **AI stack** — LiteLLM: all external LLM generation (OpenRouter). Single key reused across every LLM consumer (Open WebUI, OpenClaw); only LiteLLM sees it. **Second consumer:** the pi harness's own `~/.pi/agent/auth.json`, rendered by `scripts/render-pi-config.py` — rotating it now also needs a re-render on every client, not just a LiteLLM restart. ⚠ Duplicate-title hazard: two items with this title in one vault make every title-based lookup pick one of them — see §Item titles are load-bearing below. |
+| `openrouter_api` | `credential` | **AI stack** — LiteLLM: all external LLM generation (OpenRouter). Single key reused across every LLM consumer (Open WebUI, OpenClaw); only LiteLLM sees it. **Second consumer:** the pi harness's own `~/.pi/agent/auth.json`, rendered by `scripts/harness/render-pi-config.py` — rotating it now also needs a re-render on every client, not just a LiteLLM restart. ⚠ Duplicate-title hazard: two items with this title in one vault make every title-based lookup pick one of them — see §Item titles are load-bearing below. |
 | `entrim_api` | `credential` | **AI stack — client-side** — Entrim (hosted, cost-bearing) bearer for the pi harness's `providers.entrim.apiKey` — the one client-side key that never existed outside the vault. **Recyclable** — replace in Entrim's console, update this item, re-render each client. |
 | `opencode-go` | `credential` | **AI stack — client-side** — opencode-go provider key for the pi harness's `~/.pi/agent/auth.json` (vendor `pi-auth`). **Recyclable** at the provider, then re-render. |
 | `spark-llm_api` | `credential` | **AI stack** — spark's engine bearer key: vLLM/SGLang `--api-key` on the `llm.kogler.si` OpenAI-API. The spark name edge + both LiteLLMs' spark model entry authenticate with it. **The spark node's only vault item** (it was vault-free by design); catalog-created (`provision-secrets.py`). **Guard-listed** — the accepted-key list lives in the engine's argv, so a vault-only rotation silently diverges until spark re-converges. |
@@ -414,7 +414,7 @@ automation path that was designed to be read-only.
 | `openwebui_api` *(see runbook)* | — | AI-stack OIDC wiring + full item-creation checklist: [`deployment-ai-stack-secrets.md`](deployment-ai-stack-secrets.md) |
 
 > Entity naming: each item is a single `<service>_<type>` name with one `_` delimiter. The countable
-> catalog (auto-generated + human-gated items) lives in [`../../scripts/provision-secrets.py`](../scripts/provision-secrets.py)
+> catalog (auto-generated + human-gated items) lives in [`../../scripts/secrets/provision-secrets.py`](../scripts/secrets/provision-secrets.py)
 > (`--list`) — counts are derived, never hand-entered (CONVENTIONS §2).
 > Future / not-yet-created: `n8n-smtp_login` (SMTP relay — provider not chosen yet, see deployment.md), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
 
@@ -428,7 +428,7 @@ automation path that was designed to be read-only.
   rotates once and then lies about it. **De-duplicate by id, not by title** (`op item delete <id>`), and confirm
   the survivor against the consuming instance's own `config.xml` afterwards.
   * **With `op` 2.39 a duplicate title fails LOUD, not silently**: `op item get <title> --vault <vault>` — the
-    exact command `scripts/op-vault-export.py` runs per item — answers `More than one item matches`, so the whole
+    exact command `scripts/secrets/op-vault-export.py` runs per item — answers `More than one item matches`, so the whole
     bulk vault pre-pass of a converge dies at that task. The failure presents as a vault outage, not as a duplicate.
   * **Hash before you act:** hash both sides and print lengths only, before acting on any claim about a secret —
     including a claim written by this repo's own docs.
@@ -436,7 +436,7 @@ automation path that was designed to be read-only.
   beside the real one** and reports success. The create is invisible to "write-only-if-changed" logic, so the sync
   rots quietly. Any script that builds item names from a list must validate every `slug:item` against
   `^[a-z0-9][a-z0-9_-]*$` before the first `op` call and fail loud (`authentik-secret-egress.sh`,
-  `scripts/provision-secrets.py`).
+  `scripts/secrets/provision-secrets.py`).
 
 **Read-only sweep** (prints counts, never values):
 
@@ -559,7 +559,7 @@ reads the file as a valid Ed25519 PKCS#8 PEM, so the key is sound — only the p
 export and from every other seat, so the answer stays **name the OpenSSL build**.
 Seat-leg measurement: [network-vpn.md](network-vpn.md) §The laptop alias contract.
 
-**Not "the same keys everywhere" — check per host with `scripts/check_ssh_grants.py`.** The accounts, their
+**Not "the same keys everywhere" — check per host with `scripts/gate/check_ssh_grants.py`.** The accounts, their
 `authorized_keys` and the `AllowUsers` gate come from `IaC/ansible/group_vars/all/access.yml` and a converge
 owns them, so a line that no role writes is drift, not a placement. No vault key is authorized on the HA guests.
 The guests (`haos-vm-1`, `haos-mininta`) are **not swept** — their short names do not resolve from any host the
@@ -640,7 +640,7 @@ no `Everyone`, no `Authenticated Users`, no `Users`; the same reading applies to
 
 **Unattended git on Win11 — this is the seat DEFAULT, not an opt-in.**
 [`../scripts/git/gitconfig-nightly`](../scripts/git/gitconfig-nightly) is the payload and
-[`../scripts/git-bootstrap-win11.sh`](../scripts/git-bootstrap-win11.sh)` --git-identity` installs it
+[`../scripts/git/git-bootstrap-win11.sh`](../scripts/git/git-bootstrap-win11.sh)` --git-identity` installs it
 to `~/.gitconfig-nightly` and includes it — appended last and scoped to github remotes with
 `includeIf "hasconfig:remote.*.url:*github.com*/**"` — so no git call in a github clone on this seat,
 interactive, subagent, or scheduled, can raise a dialog (`--1password` is the opt-back, `--check`
@@ -672,7 +672,7 @@ rather than wait. The traps:
   instead of assumed (`--check` is always honest about the directory it is run from).
 * **Commits are not signed.** `commit.gpgsign=false` on every seat — `gpgsign=false` in `[commit]` and
   `[tag]` of `~/.gitconfig-github` and `~/.gitconfig-nightly` on the Windows seat, and in the two places that
-  would otherwise restore it on a rebuild: `scripts/git-bootstrap.sh --ssh-auth` and the repo template
+  would otherwise restore it on a rebuild: `scripts/git/git-bootstrap.sh --ssh-auth` and the repo template
   `scripts/git/gitconfig-nightly`. A `commit.gpgsign=true` whose SSH signing key is not registered on GitHub is
   not a policy but a HANG: git blocks waiting for an agent to sign with a key nothing can validate, in the
   shells nobody watches (cron, a converge, pi's bash). Key-file entries stay in place so already-signed commits
@@ -694,7 +694,7 @@ The manual form is [../deployment-manual.md](../deployment-manual.md) §0.4b.
 #### What a Win11 seat needs for git to work, per route
 
 Both routes were exercised on `Domen_P14s` and both authenticate; the row that matters for
-an unattended seat is the last one. `scripts/git-bootstrap-win11.sh --check` prints which route the seat
+an unattended seat is the last one. `scripts/git/git-bootstrap-win11.sh --check` prints which route the seat
 is on without changing anything.
 
 | requirement | modal-free seat default (`--git-identity`) | 1Password route (`--1password`) |
@@ -737,7 +737,7 @@ overnight leg actually hits.
 
 ---
 
-### Who is authorized where — the grant inventory (`scripts/check_ssh_grants.py`)
+### Who is authorized where — the grant inventory (`scripts/gate/check_ssh_grants.py`)
 
 The three vault keys above are **not** the whole `authorized_keys` picture: hand-made grants exist on
 the boxes, nothing in IaC declares them, and the only way to know is sweeping every host. Fingerprints
@@ -752,7 +752,7 @@ only, never key material (CONVENTIONS §6):
 | `VX0TbLr…` | `traefik-cert-sync@oldsrv.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer, **no vault item** |
 | `7ZuAhqI…` | `traefik-cert-sync@spark.kogler.si` | vps → `ansible-admin` | hand-made, live on a timer, **no vault item** |
 
-**This table is a machine-checked gate, not prose.** `python3 scripts/check_ssh_grants.py`
+**This table is a machine-checked gate, not prose.** `python3 scripts/gate/check_ssh_grants.py`
 sweeps every `authorized_keys` + `/root/.ssh/authorized_keys` on the managed hosts (`ssh` +
 `ssh-keygen -lf`, read-only), derives the named set from THIS table plus the vault public halves
 (`domen_ssh` / `ansible-admin_ssh` / `ai_ssh`), and exits 1 unless named ≡ live. It reds on
@@ -805,7 +805,7 @@ the table above does not exist as far as this repo is concerned — and that is 
 grant has to be named here or removed. The hand-made-but-live keys (`ha-sync`, the two
 `traefik-cert-sync`, and any future one) are a standing decision, not an oversight: either give
 them items and stop hand-making them, or accept that revocation depends on remembering where they
-live. `scripts/check_ssh_grants.py` is the gate for that.
+live. `scripts/gate/check_ssh_grants.py` is the gate for that.
 
 **The inventory is converged state, not a hand-kept list.** The accounts, their `authorized_keys` and the
 `AllowUsers` gate come from `IaC/ansible/group_vars/all/access.yml` and a converge owns them. Live state,
@@ -821,7 +821,7 @@ measured per host with `ssh-keygen -lf`:
 
 **Third-party grants survive by construction**: the role writes non-exclusively, so
 `ha-sync@pi.kogler.si` (oldsrv/nas/vps) and the two `traefik-cert-sync@*` keys on the VPS
-are untouched and stay named by their owning roles. `scripts/check_ssh_grants.py` NAMES the
+are untouched and stay named by their owning roles. `scripts/gate/check_ssh_grants.py` NAMES the
 `domen_ssh` → `domen` grant.
 
 ## AI Diagnostics Access (`ai-diag`)
@@ -943,7 +943,7 @@ secret-reference path into a config entry.
 
 **Compensating controls that are actually load-bearing.** The key is minted by IaC, so its *spec* (allow-list, rpm)
 stays in git even though the value does not · it never appears in git, a rendered compose or a template — only in
-the app's own store, which is out of reach of `scripts/check_secrets.py` and is therefore **not** covered by that
+the app's own store, which is out of reach of `scripts/gate/check_secrets.py` and is therefore **not** covered by that
 gate (said out loud so nobody reads a green run as coverage) · the standby directory holds no vault-rendered file
 that the sync itself wrote · rotation path: delete the alias in the LAN instance's Admin UI **and** clear the vault
 item, then let the next `lan-litellm` deploy pass re-mint, then re-enter the value in HA's UI (config-flow only).

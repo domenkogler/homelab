@@ -18,11 +18,11 @@ tags: [deployment, ansible, iac]
 >
 > **Regenerate `docs/network-addresses-generated.md` after a master `.yml` change** — easiest is
 > the unified entry `python scripts/render_all.py` (pure-Python, refreshes ALL generated docs;
-> see `scripts/README.md`). Equivalent per-doc: `python scripts/render_network_addresses.py`
+> see `scripts/README.md`). Equivalent per-doc: `python scripts/ansible/render_network_addresses.py`
 > (works on the Windows host directly, no
 > Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini` (Linux/CI,
 > or on this machine via **WSL Debian**). Native Windows ansible crashes at startup
-> `python scripts/render_network_addresses.py` (works on the Windows host directly, no
+> `python scripts/ansible/render_network_addresses.py` (works on the Windows host directly, no
 > Ansible needed) or `ansible-playbook playbooks/render-docs.yml -i inventory.ini` (Linux/CI,
 > or on this machine via **WSL Debian**). Native Windows ansible crashes at startup
 > (`os.get_blocking` → `OSError [WinError 87]`); on this machine run Ansible inside
@@ -156,7 +156,7 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 A full `docker_services` converge takes **10–30+ minutes**. Run it in the background and poll the log:
 
 ```bash
-bash scripts/ansible-run.sh playbooks/vps.yml --tags docker_services \
+bash scripts/ansible/ansible-run.sh playbooks/vps.yml --tags docker_services \
     </dev/null > /tmp/converge-"$(date +%s)".log 2>&1 &
 ```
 
@@ -285,7 +285,7 @@ ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich
    looking authoritative. Which key duplicates decides the damage: a second `tags:` **strips a tag** (a
    surgical run then skips that task forever), a second `no_log:` **prints a secret**, a second `when:`
    re-gates the task.
-   The gate is [`scripts/check_yaml_dup_keys.py`](../scripts/check_yaml_dup_keys.py) (validate-all item 30,
+   The gate is [`scripts/gate/check_yaml_dup_keys.py`](../scripts/gate/check_yaml_dup_keys.py) (validate-all item 30,
    plus ansible's own stderr inside the syntax-check loop as a second witness). Fix a duplicate with a
    **proven no-op**, not a hope: prove the two copies are value-identical, and prove it with the renderer
    that consumes them printing byte-identical output before and after — the same discipline §6's "a test
@@ -327,7 +327,7 @@ ansible_ssh_common_args: "-o ProxyJump=vps"
 > `Host <ip>` blocks in the laptop contract are for `scp`/`rsync`/`git` and humans typing addresses.
 >
 > **Prove the path before debugging Ansible:** `ansible <host> -m ping` (through
-> `scripts/ansible-run.sh`'s env) — an unreachable host here reads as a playbook/role failure and sends
+> `scripts/ansible/ansible-run.sh`'s env) — an unreachable host here reads as a playbook/role failure and sends
 > you into the wrong file. Read the RECAP's **`unreachable`** counter for the path question; `failed`
 > says something else (§Dry-run Mode).
 
@@ -348,7 +348,7 @@ nohup ansible-playbook -i IaC/ansible/inventory.ini playbooks/spark.yml --tags <
 `connection: local` and drive the **RouterOS API on tcp/8728** as `admin`, the password read from
 `mikrotik-admin_login` — the module runs on the CONTROLLER. A delta's *apply* is a different path
 again: `/import` over SSH as the key-only `ansible` user via
-[`scripts/routeros-apply-delta.sh`](../scripts/routeros-apply-delta.sh). Two paths, two auth
+[`scripts/ansible/routeros-apply-delta.sh`](../scripts/ansible/routeros-apply-delta.sh). Two paths, two auth
 mechanisms — so "can I reach the router?" has to name which one it means.
 
 Four ways a probe answers confidently and wrongly on these devices:
@@ -363,12 +363,12 @@ Four ways a probe answers confidently and wrongly on these devices:
    `librouteros` (the PYTHON half of `community.routeros`; `requirements.yml` installs only the
    Ansible half) lives in the runner venv. `group_vars/network.yml` pins
    `ansible_python_interpreter: {{ ansible_playbook_python }}` for the `network` group, which is what
-   `scripts/ansible-network-hop.sh` forces on the off-LAN path for exactly this reason — and a
-   rebuilt seat needs `pip install librouteros`, part of `scripts/bootstrap-runner.sh`.
+   the off-LAN RouterOS path needed for exactly this reason — and a
+   rebuilt seat needs `pip install librouteros`, part of `scripts/ansible/bootstrap-runner.sh`.
 4. **`Unable to sign in to 1Password. Missing required parameters: secret_key, subdomain,
    master_password, username`** —
    absent `OP_SERVICE_ACCOUNT_TOKEN`, i.e. an ansible invoked directly instead of through
-   `scripts/ansible-run.sh`, which sources `~/.config/op/homelab-sa-token`. Reads like a vault
+   `scripts/ansible/ansible-run.sh`, which sources `~/.config/op/homelab-sa-token`. Reads like a vault
    permission problem; is an environment problem.
 
 The probe that actually answers (read-only, no `no_log` needed because nothing is printed but shape):
@@ -398,8 +398,9 @@ The probe that actually answers (read-only, no `no_log` needed because nothing i
 
 Device identity this probe returns: `router.kogler.si` → **RB4011iGS+ 7.24.4**,
 `switch.kogler.si` → **CRS328-24P-4S+ 7.24.4**. ⚠ Run it over the **Mgmt** address (VLAN 99 is
-same-site only — never a `ProxyJump`); away from home use `scripts/ansible-network-hop.sh`, which
-tunnels 8728 through the Pi and already forces the venv interpreter. The device facts above are
+same-site only — never a `ProxyJump`); away from home there is **no** path to a device API at all
+(HD-398 decision A: the Mgmt plane gets no tunnel route and no jump), so a firmware read is an on-site
+act. The device facts above are
 reachability evidence only — the authoritative device state is the `print`/`foreach` reads in
 [network-ops.md](network-ops.md) §Apply workflow, and a mutate of either device is still a
 render → `/import` (this repo does not hand-apply API deltas; the role asserts device identity before
@@ -513,7 +514,7 @@ the role has untagged tasks (`storage`: 43 of 56, `vps-hardening`: 16 of 17). Di
 one tag and a `--tags` filter selects the lockout role while selecting neither the guard nor
 its selection expression: the silent version of the hole.
 
-* `scripts/check_self_converge_guard.py` — static: coverage (every playbook carrying a
+* `scripts/gate/check_self_converge_guard.py` — static: coverage (every playbook carrying a
   lockout role imports it, in `pre_tasks`), tag symmetry, vocabulary recomputed **from the
   role dirs** (so adding a tag inside a role tightens the guard instead of opening it) —
   descending into `block:` / `rescue:` / `always:`, because a tag on a nested task is
@@ -569,7 +570,7 @@ holds a runner plus WG reach to the home infra hosts, so from it:
 
 ```bash
 ssh vps
-cd ~/homelab && bash scripts/ansible-run.sh playbooks/home_servers.yml --check   # then without --check
+cd ~/homelab && bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --check   # then without --check
 ```
 
 **In-band (rescue).** For the case where the runner is the box and the box is unreachable
@@ -609,7 +610,7 @@ or the static gate fails.
 > -E 'identityfile|identitiesonly'` is the five-second diagnostic. Check this BEFORE concluding a
 > grant is missing.
 
-The runner is whatever machine executes `scripts/ansible-run.sh`; both scripts and the IaC
+The runner is whatever machine executes `scripts/ansible/ansible-run.sh`; both scripts and the IaC
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
 oldsrv is five steps, and only the first needs a human.
 
@@ -618,14 +619,14 @@ repositories with two different jobs, and they must not be confused for each oth
 
 | Clone | Account | Job | Update mechanism |
 |---|---|---|---|
-| `/home/ansible-admin/source/homelab` | `ansible-admin` | **the runner** — the tree every converge executes | **pull by runner** — `scripts/ansible-run.sh` fast-forwards it before each run (`--ff-only`) over the read-only HTTPS `github-homelab-deploy_api`; ⛔ the write key never goes here, because this is the tree every converge executes |
-| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` actually edits | **push by seat** — the repo-scoped `github-homelab-deploy_ssh` deploy key, installed by `scripts/seed-seat-deploy-key.sh` |
+| `/home/ansible-admin/source/homelab` | `ansible-admin` | **the runner** — the tree every converge executes | **pull by runner** — `scripts/ansible/ansible-run.sh` fast-forwards it before each run (`--ff-only`) over the read-only HTTPS `github-homelab-deploy_api`; ⛔ the write key never goes here, because this is the tree every converge executes |
+| `/home/domen/source/homelab` | `domen` | **the seat** — where dev work happens and what `pi-web` actually edits | **push by seat** — the repo-scoped `github-homelab-deploy_ssh` deploy key, installed by `scripts/ansible/seed-seat-deploy-key.sh` |
 
 **"Push by seat, pull by runner" is the decision**, not an accident of two clones: the runner's least-privilege read-only path and the seat's write path are different credentials on purpose. Acceptance for the seat's write path is a `git push --dry-run`, never the deploy key's existence — GitHub deploy keys are read-only unless write was granted, and the private half has to actually be in the 1Password item (`GitHub-homelab-deploy_ssh`; **the item's real name has a capital `G`**, which is why a search for `github-homelab…` finds the API token and not the key).
 
 **Why a `--dry-run` is a real test.** `--dry-run` transfers nothing but it **does** request `git-receive-pack`, and GitHub authorizes that request before any negotiation: the runner clone's **read-only** HTTPS deploy token, asked the identical `git push --dry-run origin HEAD:refs/heads/<throwaway>`, dies with `403 remote: Permission to domenkogler/homelab.git denied`. So rc 0 from the seat's dry-run means the write grant is real, and a key that merely *exists* proves nothing.
 
-**What the seat's credential path is (`scripts/seed-seat-deploy-key.sh`, all of it re-runnable and `--check`-safe):**
+**What the seat's credential path is (`scripts/ansible/seed-seat-deploy-key.sh`, all of it re-runnable and `--check`-safe):**
 
 - The vault pair is self-consistent: `op read` derives a public half whose fingerprint equals both the item's `fingerprint` field and its `public_key` field (`SHA256:dGe193grwS3d74i7I…`). **`op item get --fields <SSHKEY field>` is not usable for this** — it returns a pretty-wrapped PEM that `ssh-keygen` refuses with `error in libcrypto`, so a naive install produces a key file that looks right and loads never. `op read op://…/<field>` returns the real value.
 - The item stores the private half as **PKCS#8** (the generic PEM header, not OpenSSH's own key format), and OpenSSH loads it happily (`identity file … type 3`, key offered) — no re-encoding needed, so a rejected key is a **GitHub-side** fact, not a format fact.
@@ -643,7 +644,7 @@ repositories with two different jobs, and they must not be confused for each oth
   `</dev/null`, not reordering, and the exit code alone cannot tell you which of the two you had.
 - **⛔ What this does NOT license:** copying the runner's 0600 read-only credential store into `domen` to "make the step pass", and putting the write key under `ansible-admin`. The first forks the runner's least-privilege path onto the seat, the second hands the tree every converge executes a write path.
 
-`scripts/ansible-run.sh` fast-forwards the runner clone before every converge (`--no-pull` converges the
+`scripts/ansible/ansible-run.sh` fast-forwards the runner clone before every converge (`--no-pull` converges the
 working tree as-is), on the principle that a runner which updates itself mid-run is a runner whose behaviour
 nobody chose — so the update happens explicitly, before the run, never inside it. A silent gap between the
 tree a converge executes and the tip of `main` is the failure mode — not the update. Three things the pull
@@ -688,7 +689,7 @@ autoload block covers the agent case for interactive shells (`/run/user/$UID/ope
 
 **⚠ And none of the seat's git plumbing is role-owned.** `/home/domen/.ssh/{config,known_hosts,github-homelab-deploy_ed25519}`
 and the clone are ad-hoc state on a converged host, so a rebuild of oldsrv loses the seat's credential
-silently and only re-running `scripts/seed-seat-deploy-key.sh` restores it. Nothing in the converge proves it
+silently and only re-running `scripts/ansible/seed-seat-deploy-key.sh` restores it. Nothing in the converge proves it
 is there. The same hole covers `~/.gitconfig`, `~/.ssh/{github_signing,github_auth,allowed_signers}`
 and the three `~/.bashrc` Phase-0 blocks (token source, `SSH_AUTH_SOCK`, agent autoload): a
 rebuild silently loses seat **signing**, not just push. The fix is IaC, not a runbook line: everything there
@@ -719,7 +720,7 @@ git clone https://github.com/domenkogler/homelab ~/source/homelab
 #     — the script prints the length and the path only).
 op read "op://Homelab-ansible/op_api/credential" | \
   ssh oldsrv 'cd ~/source/homelab && \
-              bash scripts/bootstrap-runner.sh --no-upgrade --no-sudoers --token-stdin'
+              bash scripts/ansible/bootstrap-runner.sh --no-upgrade --no-sudoers --token-stdin'
 #     --no-upgrade: a prod Docker host does not take an unattended distro upgrade as a side
 #     effect of setup. --no-sudoers: ansible-admin already holds its grant; the script
 #     verifies sudo instead and fails loud if it is absent.
@@ -730,23 +731,23 @@ op read "op://Homelab-ansible/op_api/credential" | \
 #     bootstrap-runner.sh's throwaway, and it keeps what it displaced as id_ed25519.pre-restore-<stamp>.
 #     A `#`-commented line in an authorized_keys is NOT a grant — never count one as evidence in a
 #     fingerprint sweep:
-ssh oldsrv 'cd ~/source/homelab && bash scripts/restore-runner-key.sh --force-throwaway'
+ssh oldsrv 'cd ~/source/homelab && bash scripts/ansible/restore-runner-key.sh --force-throwaway'
 #     Then run it again WITHOUT the flag: it must no-op and print the canonical fingerprint, and
-#     `python3 scripts/check_ssh_grants.py` must show the box presenting `1uKzmwf…`.
+#     `python3 scripts/gate/check_ssh_grants.py` must show the box presenting `1uKzmwf…`.
 
 # 3 — the jump. Every behind-NAT host is reached with `-o ProxyJump=vps` (group_vars), and a fresh
 #     runner has no `Host vps` alias to jump through. This writes the block, TOFU-captures the
 #     host key, and PROVES the jump authenticates — rc=0 or it did not happen:
-ssh oldsrv 'cd ~/source/homelab && bash scripts/seed-runner-ssh.sh'
+ssh oldsrv 'cd ~/source/homelab && bash scripts/ansible/seed-runner-ssh.sh'
 #     It pins `AddressFamily inet`, and that line is load-bearing — see the IPv6 trap below.
 
 # 4 — prove it, from oldsrv, inside what the self-converge guardrail permits. One --check per inventory group:
-bash scripts/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check --tags common
-bash scripts/ansible-run.sh playbooks/vps.yml                               --check --tags common
-bash scripts/ansible-run.sh playbooks/storage.yml     --limit nas.kogler.si  --check --tags common
-bash scripts/ansible-run.sh playbooks/raspberry_pi.yml --limit pi.kogler.si  --check --tags common
-bash scripts/ansible-run.sh playbooks/spark.yml       --limit spark.kogler.si --check --tags common
-bash scripts/ansible-run.sh playbooks/dns.yml                               --check
+bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --check --tags common
+bash scripts/ansible/ansible-run.sh playbooks/vps.yml                               --check --tags common
+bash scripts/ansible/ansible-run.sh playbooks/storage.yml     --limit nas.kogler.si  --check --tags common
+bash scripts/ansible/ansible-run.sh playbooks/raspberry_pi.yml --limit pi.kogler.si  --check --tags common
+bash scripts/ansible/ansible-run.sh playbooks/spark.yml       --limit spark.kogler.si --check --tags common
+bash scripts/ansible/ansible-run.sh playbooks/dns.yml                               --check
 #     `--tags common` because the network/storage legs against the target itself are refused by
 #     design and belong to the off-box path; `common` is unguarded and check-safe. Every one of these
 #     runs must end `unreachable=0 failed=0`.
@@ -831,7 +832,7 @@ user, which inventory pins to `ansible-admin` — not on who typed the command. 
 hygiene plus review, not a lock; the mechanical locks in this repo are the self-converge guardrail
 (refusing self-targeted lockout legs) and the `ai-debug` lockout.
 
-**A converge runs exactly the commit in the runner's working tree.** `scripts/ansible-run.sh`
+**A converge runs exactly the commit in the runner's working tree.** `scripts/ansible/ansible-run.sh`
 fast-forwards that clone first (§Runner placement) — a runner that updates itself mid-run is a
 runner whose behaviour nobody chose, which is why the default is an explicit, pre-run `--ff-only` and not a
 silent merge. Syncing by hand, when you step outside the runner:
@@ -921,7 +922,7 @@ IaC/ansible/
 
 The control node runs **ansible-core 2.21.5** — the version is read, not remembered:
 `~/ansible-venv/bin/ansible --version` prints `ansible [core 2.21.5]` as its first line, and
-`scripts/ansible-run.sh` activates that same venv for every converge.
+`scripts/ansible/ansible-run.sh` activates that same venv for every converge.
 
 `ansible.cfg` sets `inject_facts_as_vars: false` (the default True is deprecated and removed
 at core 2.24): tasks must reference facts via `ansible_facts['service_mgr']` (never bare
@@ -1134,7 +1135,7 @@ domain_local: kogler.si
 ### `router`
 - **Method:** the RouterOS **API on tcp/8728** (`community.routeros` api modules, `connection: local` on the
   controller); a mutate lands as a rendered `.rsc` applied with `/import` over SSH
-  (`scripts/routeros-apply-delta.sh`)
+  (`scripts/ansible/routeros-apply-delta.sh`)
 - **Configs:** VLAN interfaces, DHCP, firewall, WireGuard, CAPsMAN, DNS forwarding
 
 ### `docker_services` (Key Role)
@@ -1348,7 +1349,7 @@ for any future speed change).
 ## Windows/WSL runner host facts (the management laptop)
 
 > The imperative bootstrap is [deployment-manual.md](../deployment-manual.md) §Phase 0 / §0.4b
-> (`scripts/git-bootstrap-win11.sh`, `scripts/wsl-nat-resolv.ps1`). These are the facts that make those steps
+> (`scripts/git/git-bootstrap-win11.sh`, `scripts/hardware/wsl-nat-resolv.ps1`). These are the facts that make those steps
 > behave the way they do.
 
 **The two shells are different machines with different identities.** Repo ops and validators run in
@@ -1381,7 +1382,7 @@ this laptop; the real signer is `~/AppData/Local/Microsoft/WindowsApps/op-ssh-si
 while Windows itself is healthy). **Bridged** networking (`networkingMode=Bridged` on
 `vmSwitch=VLAN-Switch`) pins `eth0` to the homelab static IP and the vSwitch to a wired NIC — on WiFi or a
 hotspot that NIC has no carrier, so `eth0` comes up with no address and no route while a hardcoded
-`resolv.conf` points at unreachable DNS. `scripts/wsl-nat-resolv.ps1` (admin, idempotent) sets the durable
+`resolv.conf` points at unreachable DNS. `scripts/hardware/wsl-nat-resolv.ps1` (admin, idempotent) sets the durable
 state: `.wslconfig` to `networkingMode=Nat` (**not** `default` — WSL accepts `Nat`), drops
 `generateResolvConf=false` from `/etc/wsl.conf` so WSL regenerates `/etc/resolv.conf` at every boot, and
 disables the static `10-eth0.network` unit.
@@ -1398,7 +1399,8 @@ search ts.kogler.si kogler.si
 
 **Mgmt-99 reachability from the laptop** is the Windows `Mgmt99` vNIC (`wsl-nat-resolv.ps1 -EnableMgmt99`),
 which is what lets playbooks connect **direct** to `.99` device addresses. The Pi-99 ProxyJump hop
-(`scripts/ansible-network-hop.sh`) is kept only as a fallback for that leg. Laptop alias SSOT:
+predates it and is retired — the wrapper was deleted in HD-1118, `git log` on `scripts/` is the record.
+Laptop alias SSOT:
 [network-vpn.md](network-vpn.md) §The laptop alias contract.
 
 **`%G?` is not a signing check without an allowed-signers file.** The CONVENTIONS §6 check

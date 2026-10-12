@@ -67,7 +67,7 @@ unchanged** if the Pi is already at SSOT), `docker`/`docker_services` created.
 ```bash
 # single host, full playbook (roles: common → ai_diag → network → nut → docker →
 # home_assistant → docker_services → monitoring)
-bash scripts/ansible-run.sh playbooks/raspberry_pi.yml
+bash scripts/ansible/ansible-run.sh playbooks/raspberry_pi.yml
 ```
 
 This (re)renders on the Pi:
@@ -150,7 +150,7 @@ ssh ansible-admin@10.10.1.20 'docker logs home-assistant-primary-keepalived-1 2>
   `secrets.yaml.j2`.
 - **KNX addresses are the .knxproj SSOT:** `knx-entities.yaml` is generated from
   the ETS project; the hand-maps (`docs/assets/references/old-ha/knx-*.yaml`) are not the SSOT and
-  carry stale addresses (e.g. `10/0/0` vs the project's `0/0/1`). Regenerate with `scripts/knx-hass-gen.py`.
+  carry stale addresses (e.g. `10/0/0` vs the project's `0/0/1`). Regenerate with `scripts/ansible/knx-hass-gen.py`.
 - **Re-provision is idempotent** — re-running the playbook re-renders configs + restarts compose
   on config change (restart-on-config-change guard), but does NOT churn containers when nothing
   changed.

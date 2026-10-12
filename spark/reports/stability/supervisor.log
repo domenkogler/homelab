@@ -43,7 +43,7 @@
 00:40:35 RUNNING | usable=30.39G top=86725M done=["rung123 compact"] | 
 00:41:35 RUNNING | usable=29.40G top=86725M done=["rung123 compact"] | 
 00:42:35 chain finished
-00:42:35 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/spark/bench/overnight/evidence-20260918-0042 (492K)
+00:42:35 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/scripts/bench/spark/overnight/evidence-20260918-0042 (492K)
 ==============================================================
 RESULT: FAILED ❌ — fullwindow applied no real load (zero-load step) — a pass would be fake
 ==============================================================
@@ -82,7 +82,7 @@ Not covered here — check before touching spark_vllm_kv_cache_memory:
 ==============================================================
 evidence: /mnt/spark_nvme/stability/evidence + /mnt/spark_nvme/stability/logs | on-box watchdog bundles: /mnt/spark_nvme/oom-watchdog/snapshots/
 11:13:13 synced to spark:/mnt/spark_nvme/stability (runner + bench harness)
-11:13:16 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/spark/bench/overnight/evidence-20260918-1113 (492K)
+11:13:16 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/scripts/bench/spark/overnight/evidence-20260918-1113 (492K)
 11:21:21 synced to spark:/mnt/spark_nvme/stability (runner + bench harness)
 11:21:24 chain running on spark
 11:21:24 supervising (poll 60s, relaunch cap 6). Ctrl-C stops supervising, NOT the chain.
@@ -177,7 +177,7 @@ evidence: /mnt/spark_nvme/stability/evidence + /mnt/spark_nvme/stability/logs | 
 12:52:46 RUNNING | usable=24.88G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
 12:53:48 RUNNING | usable=24.87G top=93621M done=["rung123 compact"] |   * the parallel-lane rule stands: one shared pool, max_num_seqs=4.
 12:54:48 chain finished
-12:54:51 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/spark/bench/overnight/evidence-20260918-1254 (900K)
+12:54:51 evidence pulled to /home/domen/source/homelab-wt-20260918-0000/scripts/bench/spark/overnight/evidence-20260918-1254 (900K)
 ==============================================================
 RESULT: PASSED ✅ — spark stayed up and the peak stayed bounded.
 ==============================================================

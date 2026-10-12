@@ -256,7 +256,7 @@
 - name: Read the NM profile that owns the uplink (on-disk desired state)
   # Read with slurp, not `nmcli -g`: slurp is a check-mode-safe read-only module, so `--check` shows
   # the state that is REALLY on the box without the role needing a `check_mode: false` escape — and
-  # scripts/check_self_converge_guard.py refuses a lockout role that writes under --check while
+  # scripts/gate/check_self_converge_guard.py refuses a lockout role that writes under --check while
   # claiming check_safe (it said exactly that about the first draft of this block).
   ansible.builtin.slurp:
     path: "{{ nm_oldsrv_profile_path }}"
