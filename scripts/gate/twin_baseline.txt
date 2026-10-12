@@ -1,7 +1,15 @@
 # Baseline population for scripts/gate/check_string_twins.py -- the canary that lets a gate with
 # no allowlist be honest. Read that docstring before editing this file.
 #
-#     baseline_rev <sha>       the revision the twin population is read from
+#     #
+# Re-published 2026-10-12 at the HD-1135 fork-diet wave tip bb94a5d3 (the ONE pin() made
+# fork-free + hl_owner_path resolved by one walk). Two groups lost a side there, and both
+# sides were PIPELINE FRAGMENTS the diet deleted, not facts in two places: `$(find ` (the
+# per-plane find hl_owner_path no longer pays) and `?([^` (the sed regex the cached parser
+# replaced). Same call as the merge above, same reason: the population records that they
+# went, rather than the repo re-buying forks to satisfy a byte test. Shape of the move
+# 2300 -> 2304: the lib's new cache lines added four groups while those two shed a side.
+baseline_rev <sha>       the revision the twin population is read from
 #     twin_groups <n>          how many >=2-file exact groups that revision yields
 #     group_keys_sha256 <hex>  sha256 over the sorted group keys, one nested sha256 per key so
 #                              a key carrying a newline cannot shift its neighbours' digest
@@ -14,7 +22,15 @@
 # scripts/gate/iac_identifier_allowlist.txt makes an identifier exemption be signed rather than
 # assumed.
 #
-# Re-baseline at a wave tip: set baseline_rev to the wave's last commit, run
+# Re-baseline at a wave tip: set #
+# Re-published 2026-10-12 at the HD-1135 fork-diet wave tip bb94a5d3 (the ONE pin() made
+# fork-free + hl_owner_path resolved by one walk). Two groups lost a side there, and both
+# sides were PIPELINE FRAGMENTS the diet deleted, not facts in two places: `$(find ` (the
+# per-plane find hl_owner_path no longer pays) and `?([^` (the sed regex the cached parser
+# replaced). Same call as the merge above, same reason: the population records that they
+# went, rather than the repo re-buying forks to satisfy a byte test. Shape of the move
+# 2300 -> 2304: the lib's new cache lines added four groups while those two shed a side.
+baseline_rev to the wave's last commit, run
 #   python3 scripts/gate/check_string_twins.py --show-baseline
 # and paste all three lines back. A baseline older than one wave (300 commits; wave 2 measured
 # 176) is refused outright, because the per-file difflib alignment degrades against a stale
@@ -44,6 +60,14 @@
 # that they went -- not restoring forks to satisfy a byte test. Shape of the move: 2289 -> 2300,
 # 12 groups added (fragments in the code both sides added) and 1 dropped (`$(head -c3 `), so
 # the population GREW; this is the growth the canary is here to distinguish from narrowing.
-baseline_rev c2cd6b4f21aff31ea0f1627bc46e1856ea677d8f
-twin_groups 2300
-group_keys_sha256 d6e1732e6543584e87d87d64f6006592a33a6f0c6df6adb74b75c21b14a5f90a
+#
+# Re-published 2026-10-12 at the HD-1135 fork-diet wave tip bb94a5d3 (the ONE pin() made
+# fork-free + hl_owner_path resolved by one walk). Two groups lost a side there, and both
+# sides were PIPELINE FRAGMENTS the diet deleted, not facts in two places: `$(find ` (the
+# per-plane find hl_owner_path no longer pays) and `?([^` (the sed regex the cached parser
+# replaced). Same call as the merge above, same reason: the population records that they
+# went, rather than the repo re-buying forks to satisfy a byte test. Shape of the move
+# 2300 -> 2304: the lib's new cache lines added four groups while those two shed a side.
+baseline_rev bb94a5d32120f58d350582dbb780be68bbaa30de
+twin_groups 2304
+group_keys_sha256 9fd53e9ba321bbf7ac089865ece009cc7eff4f03d9dc2d72494c19d4fe6d5e14
