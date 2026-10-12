@@ -541,7 +541,7 @@ _launch_all() {
     _now; starts[$i]="$NOW"
     # rc FIRST, then the stamp: a function call clobbers `$?`, and a launch that always wrote rc 0
     # would mute the whole gate while printing a perfect report.
-    ( "${cmds[@]:${cstart[$i]}:${clen[$i]}}" >"$RUN/$i.log" 2>&1; _lr=$?; _now
+    ( set +e; "${cmds[@]:${cstart[$i]}:${clen[$i]}}" >"$RUN/$i.log" 2>&1; _lr=$?; _now
       printf '%s %s\n' "$_lr" "$NOW" >"$RUN/$i.rc" ) &
     pid=$!
     pids[$i]=$pid
