@@ -28,6 +28,7 @@ tags: [deployment, rejected, decision-log]
 | Cohere embed-v4 (`cohere_api`)                                                 | superseded | embed/rerank local via Ollama `:rocm`                           |
 | Contabo VPS                                                                    | superseded | netcup RS 2000 G12 replaces it as the public edge               |
 | Control node = the admin laptop                                                | superseded | oldsrv is the primary control node, laptop is rescue-only       |
+| `corpus_diff.py` as a registered gate                                          | rejected   | runs outside the tree; three preconditions gate promotion       |
 | Doco-CD                                                                        | dropped    | second Docker-socket deploy path; Ansible is the single path    |
 | `doco-cd_password` webhook HMAC                                                | superseded | single Ansible-only deploy path                                 |
 | DSH as LiteLLM consumer (`dsh_api`)                                            | rejected   | harness removed; parked, not re-minted                          |
