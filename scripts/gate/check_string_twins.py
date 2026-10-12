@@ -183,20 +183,16 @@ GLOBAL_MIN = 10
 # longer "the current wave", which is the only window this gate is honest about.
 STALE_AFTER_COMMITS = 300
 
-# The positive control: the tip before the wave-2 twin repairs, where exactly this many twin
-# groups had been severed. The self-test re-reads it, so a gate that lost its teeth reddens.
+# The positive control is a PAIR of revisions, not a revision. 8b28edd3 is the tip before the
+# wave-2 twin repairs, where exactly this many twin groups had been severed, and 34e77f82 is the
+# revision that claim was measured against. Both ends are pinned because baseline_rev moves: a
+# re-baseline (a wave tip, a folder move) silently turns "base -> 8b28edd3" into a run that
+# measures backwards, and the witness becomes an artifact of wherever the baseline happens to
+# sit. Pinning the base keeps the historical claim -- 6 severs, a real one-side rename -- and the
+# self-test proves it reads 6 while the RECORDED baseline is some later commit.
+CONTROL_BASE_REV = "34e77f82"
 CONTROL_REV = "8b28edd3"
 CONTROL_SEVERS = 6
-
-# A family the exact gate CANNOT be a member of, kept as a live self-test case rather than a
-# claim in a report: at the baseline only the roles/router side carried the id, so no exact
-# group spans all three sites, and the gate is green here by construction. If a change ever
-# makes these spellings byte-equal, the exact group starts existing and the gate starts
-# guarding them -- which is the whole point.
-DIVERGENT_FAMILY = "Drop mgmt services from non-mgmt sources"
-DIVERGENT_FILES = ("IaC/ansible/roles/router/tasks/main.yml",
-                   "IaC/ansible/roles/switch/tasks/main.yml",
-                   "IaC/router/templates/rb4011_converge.rsc.j2")
 
 
 class ToolError(Exception):
@@ -533,11 +529,17 @@ def read_baseline(repo: Path, strict: bool = True) -> dict[str, str]:
     return fields
 
 
-def check(repo: Path, control: str | None = None) -> dict:
-    """One run against a repo. Returns rc, the lines to print, and the numbers behind them."""
+def check(repo: Path, control: str | None = None, base: str | None = None) -> dict:
+    """One run against a repo. Returns rc, the lines to print, and the numbers behind them.
+
+    `base` pins the BASE revision instead of the recorded baseline_rev, and only the self-test's
+    positive control passes it -- no command-line form reaches it (`--control` moves the NOW
+    side, never the base). It exists so the control keeps measuring the pair it was measured on
+    after a re-baseline moves baseline_rev; see CONTROL_BASE_REV.
+    """
     started = time.monotonic()
     fields = read_baseline(repo)
-    base_rev = fields["baseline_rev"]
+    base_rev = base or fields["baseline_rev"]
     _git(repo, "rev-parse", "--git-dir")
     if _git(repo, "rev-parse", "--is-shallow-repository").decode().strip() == "true":
         return _refuse("ERROR: needs full history",
@@ -572,7 +574,10 @@ def check(repo: Path, control: str | None = None) -> dict:
     except ValueError:
         raise ToolError(f"{BASELINE} records twin_groups {fields['twin_groups']!r}, which is "
                         f"not a count") from None
-    if len(groups) != recorded or group_keys_sha256(groups) != fields["group_keys_sha256"]:
+    # The recorded fingerprint describes the RECORDED baseline's population, so a replay with a
+    # pinned base is not that population and is not measured against it.
+    if (base is None and (len(groups) != recorded
+                          or group_keys_sha256(groups) != fields["group_keys_sha256"])):
         return _refuse(
             "ERROR: the population does not match the baseline file",
             f"recomputed {len(groups)} twin groups at {base_rev}; {BASELINE} records "
@@ -626,27 +631,16 @@ def _refuse(head: str, why: str) -> dict:
     return {"rc": 2, "lines": [head, f"      {why}"], "severs": 0, "result": {}}
 
 
-def divergent_family(repo: Path, base_rev: str) -> dict:
-    """What the exact gate sees of one known-divergent family in this repo (self-test iii)."""
-    paths = [p for p in files_at_rev(repo, base_rev) if p in DIVERGENT_FILES]
-    base = load(repo, base_rev, paths)
-    exact: dict[str, list[str]] = {}
-    for rel, lits in base.items():
-        for _ln, v, _cls in lits:
-            if v.startswith(DIVERGENT_FAMILY):
-                exact.setdefault(v, []).append(rel)
-    fam_files = sorted({f for k, v in families(base).items() if k == normalize(DIVERGENT_FAMILY)
-                        for f, _l, _s in v})
-    verdict = evaluate(base, load(repo, None, paths))
-    return {"exact": {k: sorted(set(fs)) for k, fs in exact.items()},
-            "family_files": fam_files,
-            "severs": sorted(verdict["severs"])}
-
-
 def self_test() -> int:
-    """Twelve cases. Nine are planted, one is a real family in this repo, one is the positive
-    control, one is this tree -- the properties the gate claims, each built so it cannot pass
-    by accident."""
+    """Twelve cases. Ten are planted, one is the positive control, one is this tree -- the
+    properties the gate claims, each built so it cannot pass by accident.
+
+    Case iv used to read a live family in this repo. It cannot: the witness was "this family's
+    sides differ AT the baseline", and main's 8b5b348c/8695baee converged those spellings, so
+    the fact stopped existing the moment the baseline moved past them. A witness about what a
+    baseline shows must not depend on which family history happened to leave divergent, so it
+    is a fixture now -- same verdict, and it cannot be quietly deleted by a future commit that
+    agrees two spellings for real."""
     fails: list[str] = []
 
     def record(name: str, ok: bool, said: str) -> None:
@@ -672,30 +666,39 @@ def self_test() -> int:
            res["rc"] == 0 and res["result"]["uncertain_files"] == ["IaC/a.yml"],
            f"rc={res['rc']} uncertain={res['result']['uncertain_files']}")
 
-    try:
-        rev = read_baseline(ROOT)["baseline_rev"]
-        fam = divergent_family(ROOT, rev)
-        spans = sorted({f for fs in fam["exact"].values() for f in fs})
-        lone = [k for k, fs in fam["exact"].items() if len(fs) == 1]
-        record("iv   a family divergent at base is not a member (Drop mgmt services ...)",
-               fam["severs"] == [] and len(fam["exact"]) > 1 and lone
-               and set(spans) <= set(fam["family_files"]) and len(spans) >= 3,
-               f"exact={fam['exact']} family_files={fam['family_files']} severs={fam['severs']}")
-    except ToolError as exc:
-        record("iv   a family divergent at base is not a member (Drop mgmt services ...)",
-               False, f"cannot read this repo: {exc}")
+    # Spelled as its own literal on purpose, not interpolated: this exact string is a twin of the
+    # task names in roles/{router,switch}/tasks/main.yml and rb4011_converge.rsc.j2, so the file
+    # that tests the twin rule has to keep the base bytes like every other side does.
+    base_spell = "Drop mgmt services from non-mgmt sources"
+    divergent = {
+        "IaC/a.yml": f"- name: {base_spell}\n- name: Reboot the box (HD-1)\n",
+        "IaC/b.yml": f"- name: {base_spell}, mgmt sources only\n- name: Reboot the box (HD-1)\n",
+    }
+    res = _fixture(divergent, divergent)
+    grouped = sorted(res["result"]["groups"])
+    record("iv   a family divergent at base is not a member, an agreed twin in the same pair is",
+           res["rc"] == 0 and grouped == ["Reboot the box (HD-1)"],
+           f"rc={res['rc']} groups={grouped} severs={sorted(res['result']['severs'])}")
 
-    for rev, want, name in ((CONTROL_REV, CONTROL_SEVERS,
-                             f"v    the positive control {CONTROL_REV} reads "
-                             f"{CONTROL_SEVERS} severed twins"),
-                            (None, 0, "vi   this tree reads no severed twin")):
-        try:
-            res = check(ROOT, rev)
-        except ToolError as exc:
-            record(name, False, f"cannot run: {exc}")
-            continue
-        record(name, res["rc"] == (0 if want == 0 else 1) and res["severs"] == want,
+    try:
+        res = check(ROOT, CONTROL_REV, base=CONTROL_BASE_REV)
+        moved = check(ROOT, CONTROL_REV)
+        record(f"v    the positive control {CONTROL_BASE_REV} -> {CONTROL_REV} reads "
+               f"{CONTROL_SEVERS} severed twins at a baseline of its own",
+               res["rc"] == 1 and res["severs"] == CONTROL_SEVERS
+               and CONTROL_BASE_REV != read_baseline(ROOT)["baseline_rev"]
+               and moved["severs"] != CONTROL_SEVERS,
+               f"pinned rc={res['rc']} severs={res['severs']} | "
+               f"unpinned severs={moved['severs']} | {' | '.join(res['lines'])[:160]}")
+    except ToolError as exc:
+        record(f"v    the positive control {CONTROL_BASE_REV} -> {CONTROL_REV} reads "
+               f"{CONTROL_SEVERS} severed twins", False, f"cannot run: {exc}")
+    try:
+        res = check(ROOT)
+        record("vi   this tree reads no severed twin", res["rc"] == 0 and res["severs"] == 0,
                f"rc={res['rc']} severs={res['severs']}: {' | '.join(res['lines'])[:200]}")
+    except ToolError as exc:
+        record("vi   this tree reads no severed twin", False, f"cannot run: {exc}")
 
     # The now side is the index, not the directory: a side staged for deletion whose bytes are
     # still on disk is GONE. Before the filter this case read the disk and went green.
