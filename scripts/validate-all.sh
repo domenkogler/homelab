@@ -286,6 +286,32 @@
 #   muted with it. The parallel rewrite restored it; `--list | wc -l` — counted at run time against
 #   a previous commit, never typed here, because the count moves the moment an item is added — is
 #   now the audit that catches this class; do not trust the numbered comments.
+#
+# HD-1137 ADDS TWO FLAGS AND CHANGES NOTHING ELSE (both are read-only over the registry):
+#   --time     every item's wall (launch -> rc), then `Σ item duration` against `wall`, then the 8
+#              slowest. This is the accounting HD-1135 had to do BY HAND to prove the gate was
+#              spawn-bound — "Σ item duration 2365 s against wall 349 s" — from now on it is a flag.
+#              It changes no verdict, no rc, and no existing line of the report.
+#   --profile  `quick` = a SUBSET of the same item list for a pre-commit sanity loop. There is
+#              deliberately NO second gate script and NO second item list: duplicating the entry
+#              point duplicates the registry, and this repo has been burned by exactly that class
+#              (`aa0bc737`: a "remove the duplicate" edit deleted a validator and every gate stayed
+#              green for two commits; `50a4f609`: one table cell describing both "in order, set -e"
+#              and "in a pool"). The default run is the FULL run, `--list` stays the single audit
+#              (it prints the full set in every profile, the number never typed into prose —
+#              CONVENTIONS §2), and a quick run ENDS with a `NOT PROVEN on this profile:` block
+#              naming every item it skipped: CONVENTIONS §6 says an environment boundary prints SKIP
+#              and never a verdict, and a profile is the same kind of boundary — a quick run that
+#              reads like a full green is the mute-the-gate failure mode wearing a green coat.
+#              `guard-session.sh --validate-mode` stays SERIAL and FAIL-FAST in every profile: a
+#              profile is a way to read less, never a way to edit on primary+main.
+# Every registration now carries its profile decision with it (`item_q` / `item_x "<reason>"`, same
+# for `item_blk_*`); a bare `item` / `item_blk` is UNDECIDED and `--profile quick` REFUSES the run
+# rather than defaulting the item in or out, because a new item silently missing from a profile is
+# how coverage dies. The two sets are derived from that registry at run time and audited BEFORE
+# anything launches — quick ⊆ full, full == quick ⊎ excluded, no duplicate label, no empty reason.
+# `--profile` composes with `--only` (intersection); `--serial` and the exit-code contract are
+# unchanged: exit 0 only when everything that the profile declared it would run came back 0.
 set -euo pipefail
 # HD-1118 Stage 1/4: find the repo root instead of assuming `$(dirname "$0")/..`. Found, not
 # assumed — the gate that proves the tree is correct must not itself be the one file whose idea of
@@ -346,19 +372,44 @@ echo "launcher: $PY ($($PY -c 'import sys; print(sys.version.split()[0])' 2>/dev
 
 
 # --- CLI: --list (print the items and stop), --only SUBSTR (run a subset),          #
-#     --serial (one at a time, the pre-parallel behaviour, for bisecting an issue).  #
-ONLY=""; LIST=0; SERIAL=0
+#     --serial (one at a time, the pre-parallel behaviour, for bisecting an issue),   #
+#     --time (per-item accounting, HD-1137), --profile full|quick (a subset, HD-1137).#
+ONLY=""; LIST=0; SERIAL=0; PROFILE=full; TIME=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --list)   LIST=1 ;;
     --serial) SERIAL=1 ;;
+    --time)   TIME=1 ;;
     --only)   shift; [ $# -gt 0 ] || { echo "error: --only needs a substring" >&2; exit 2; }; ONLY="$1" ;;
     --only=*) ONLY="${1#--only=}" ;;
-    -h|--help) echo "usage: bash scripts/validate-all.sh [--list] [--only SUBSTRING] [--serial]"; exit 0 ;;
+    --profile) shift; [ $# -gt 0 ] || { echo "error: --profile needs a name (full | quick)" >&2; exit 2; }; PROFILE="$1" ;;
+    --profile=*) PROFILE="${1#--profile=}" ;;
+    -h|--help) echo "usage: bash scripts/validate-all.sh [--list] [--only SUBSTRING] [--serial] [--time] [--profile full|quick]"; exit 0 ;;
     *) echo "note: ignoring unknown argument '$1'" >&2 ;;
   esac
   shift
 done
+# An unknown profile must stop here, not quietly run the full set: a flag that is misspelled and
+# obeyed-as-another-flag is the mute-the-gate class, and this one has an opposite to confuse it with.
+case "$PROFILE" in
+  full|quick) ;;
+  *) echo "FAIL: unknown --profile '$PROFILE' — known profiles: full, quick. Refusing to guess which items you meant to run." >&2; exit 2 ;;
+esac
+
+# HD-1137: a FORK-FREE clock. A `date +%s%N` per item would be one EXEC per item on the very host whose
+# whole cost is execs (~96 ms measured, HD-1135), so the stamps read bash's own EPOCHREALTIME and all
+# the arithmetic is parameter expansion. One expansion per stamp, deliberately: composing a timestamp
+# out of `%(...)T` PLUS EPOCHREALTIME can straddle a second boundary and print a duration wrong by 1 s.
+# bash < 5 has no EPOCHREALTIME: the stamp is then empty, the read-out prints `?`, and no verdict ever
+# depends on it — a degraded accounting line, never a wrong verdict.
+_now() { NOW="${EPOCHREALTIME:-}"; }
+# _ms_between <start> <end> -> MS as integer milliseconds ("" when either stamp is absent).
+_ms_between() {
+  MS=""
+  [ -n "${1:-}" ] && [ -n "${2:-}" ] || return 0
+  MS=$(( ( ${2/./} - ${1/./} ) / 1000 ))
+  return 0
+}
 
 # SERIAL, FIRST, FAIL-FAST — nothing else should run if this fails: HD-253 session
 # discipline. --validate-mode hard-fails on primary+main+DIRTY; a clean-main merge-station
@@ -396,6 +447,7 @@ fi
 # Legs that need scratch space take a subdirectory of `$RUN` (see the syntax-check leg).
 RUN="$(mktemp -d)"; trap 'rm -rf "$RUN"' EXIT
 GATE_T0=$SECONDS
+_now; GATE_T0_US="$NOW"   # HD-1137: the wall clock for --time starts here, not at the report (fork-free)
 # Windows seats get a POOL CAP, and the honest reason is CONTENTION WITH THE NEXT GATE, not speed.
 # Measured 2026-10-10 on the Win11 git-bash seat, interleaved A/B, same tree, nothing else running:
 #   pool 4 → 47 s   pool 8 → 43 s   pool 16 → 41 s   pool 24 → 43 s      (all within ~10 %)
@@ -433,49 +485,236 @@ HAVE_WAITN=0
 true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1     # supported => reaps that `true` with rc 0
                                                    # unsupported => wait errors (rc 2) and just blocks
 
-n_items=0; labels=(); pids=(); states=(); n_run=0
+# --------------------------------------------------------------------------- #
+# HD-1137: REGISTRATION IS NOT LAUNCHING.                                       #
+# The old `_queue` launched each item while the script was still READING the      #
+# item list, so no audit could see the whole set before the work started — and a  #
+# profile audit that runs after the pool ran is a receipt, not a guard. Now every #
+# registration is recorded first (`_reg`), the profile is audited, and only then  #
+# does `_launch_all` walk the SAME list in the SAME order: launch order, labels,  #
+# printed output and the exit-code contract are unchanged by the split.           #
+# --------------------------------------------------------------------------- #
+n_items=0; labels=(); cmds=(); cstart=(); clen=(); starts=(); walls=()
+pids=(); states=(); mems=(); whys=(); n_run=0; rc_missing=0; n_excl_launch=0
 
-_queue() {
+# The profile decision for the NEXT registration. A bare `item` / `item_blk` leaves P_MEM empty,
+# which is UNDECIDED — and `_profile_audit` refuses a quick run rather than defaulting the item in or
+# out, because an item silently missing from a profile is how coverage dies. The decision is ONE SLOT
+# per registration, so `quick ⊆ full` and "nothing in both buckets" hold by construction; what the
+# audit can still catch is the three things that do break.
+P_MEM=""; P_WHY=""
+_set_quick()    { P_MEM=q; P_WHY=""; }
+_set_excluded() { P_MEM=x; P_WHY="$1"; }
+
+_reg() {
   local label="$1"; shift
   local i=$n_items; n_items=$((n_items+1))
-  labels+=("$label")
-  if [ "$LIST" = 1 ]; then states+=("listed"); pids+=("0"); return 0; fi
-  if [ -n "$ONLY" ] && [[ "$label" != *"$ONLY"* ]]; then states+=("filtered"); pids+=("0"); return 0; fi
-  ( "$@" >"$RUN/$i.log" 2>&1; echo "$?" >"$RUN/$i.rc" ) &
-  local pid=$!
-  states+=("run"); pids+=("$pid")
-  n_run=$((n_run+1))
-  printf '  -> %2d  %s\n' "$i" "$label" >&2
-  if [ "$MAXPAR" -le 1 ]; then
-    wait "$pid" >/dev/null 2>&1 || true     # --serial: block here, no polling in the loop
-    n_run=$((n_run-1))
-  elif [ "$HAVE_WAITN" = 1 ]; then
-    while [ "$n_run" -ge "$MAXPAR" ]; do
-      wait -n >/dev/null 2>&1 || true       # reaps one finished leg; its rc already went to $RUN/$i.rc
-      n_run=$((n_run-1))
-    done
-  else
-    while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done   # bash < 5.1: no wait -n
-  fi
+  labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY")
+  starts+=(""); walls+=(""); pids+=("0"); states+=("pending")
+  cstart+=("${#cmds[@]}"); clen+=("$#")
+  local _w
+  for _w in "$@"; do cmds+=("$_w"); done
+  P_MEM=""; P_WHY=""
+  if [ "$LIST" = 1 ]; then states[$i]=listed; return 0; fi
+  # A profile is an INTERSECTION, not a re-ordering: `--profile quick --only X` runs what is BOTH
+  # quick and matched. Profile-excluded is decided before --only, so the NOT PROVEN block stays the
+  # honest list of what a quick run did not look at, whatever else filtered.
+  if [ "$PROFILE" = quick ] && [ "${mems[$i]}" != q ]; then states[$i]=excluded; return 0; fi
+  if [ -n "$ONLY" ] && [[ "$label" != *"$ONLY"* ]]; then states[$i]=filtered; return 0; fi
 }
 
-# item "<label>" <command...>   — one command, run in the background
-item() { local label="$1"; shift; _queue "$label" "$@"; }
-
+# item "<label>" <command...>   — one command. The *_q / *_x forms carry its profile decision.
+item() { local label="$1"; shift; _reg "$label" "$@"; }
 # item_blk "<label>" <function> — a multi-command block; the function is defined above
-item_blk() { _queue "$1" "$2"; }
+item_blk() { _reg "$1" "$2"; }
+item_q()     { _set_quick; _reg "$@"; }
+item_blk_q() { _set_quick; _reg "$1" "$2"; }
+item_x()     { local _why="$1"; shift; _set_excluded "$_why"; _reg "$@"; }
+item_blk_x() { local _why="$1"; shift; _set_excluded "$_why"; _reg "$1" "$2"; }
 
+# Launch everything still pending, in registration order, with the slot control unchanged.
+_launch_all() {
+  local i pid
+  for i in "${!labels[@]}"; do
+    [ "${states[$i]}" = pending ] || continue
+    states[$i]=run
+    _now; starts[$i]="$NOW"
+    # rc FIRST, then the stamp: a function call clobbers `$?`, and a launch that always wrote rc 0
+    # would mute the whole gate while printing a perfect report.
+    ( "${cmds[@]:${cstart[$i]}:${clen[$i]}}" >"$RUN/$i.log" 2>&1; _lr=$?; _now
+      printf '%s %s\n' "$_lr" "$NOW" >"$RUN/$i.rc" ) &
+    pid=$!
+    pids[$i]=$pid
+    n_run=$((n_run+1))
+    printf '  -> %2d  %s\n' "$i" "${labels[$i]}" >&2
+    if [ "$MAXPAR" -le 1 ]; then
+      wait "$pid" >/dev/null 2>&1 || true     # --serial: block here, no polling in the loop
+      n_run=$((n_run-1))
+    elif [ "$HAVE_WAITN" = 1 ]; then
+      while [ "$n_run" -ge "$MAXPAR" ]; do
+        wait -n >/dev/null 2>&1 || true       # reaps one finished leg; its rc already went to $RUN/$i.rc
+        n_run=$((n_run-1))
+      done
+    else
+      while [ "$(jobs -rp | wc -l)" -ge "$MAXPAR" ]; do sleep 0.05; done   # bash < 5.1: no wait -n
+    fi
+  done
+}
+
+# rc + finish stamp in ONE fork-free read. The old `rc="$(cat "$RUN/$i.rc" || echo 1)"` was an EXEC per
+# item, TWICE per item (report loop + failure list) — on the host whose whole cost is execs that is a
+# measurable tail. `read` is byte-truthful here (CONVENTIONS §6's second half is about `$( )`, which
+# LOSES bytes, not about `read`, which keeps them) and the file is one short line the gate wrote. A
+# MISSING rc file is recorded, not quietly read as a 1: it means the item was never accounted for,
+# which is the exact thing the run-count audit exists to catch.
+_read_rc() {
+  RC=1; END=""; RC_MISSING=1
+  local line
+  [ -f "$RUN/$1.rc" ] || return 0
+  RC_MISSING=0
+  line=""; IFS= read -r line < "$RUN/$1.rc" || true
+  [ -n "$line" ] || return 0
+  RC="${line%% *}"
+  END="${line#* }"
+  # `if`, NOT `[ … ] && END=""`: an AND-list that ends a function RETURNS 1 when its test is false,
+  # and `set -e` in the CALLER turns a perfectly accounted-for item into a dead gate. Same trap the
+  # HD-1115 out-parameter note in lib/pi-seat.sh is about, on the other side of the call.
+  if [ "$END" = "$line" ]; then END=""; fi   # a stamp-less rc file: the rc still counts, the wall prints ?
+  return 0
+}
+
+# rc of item i as a string, 1 when it was never accounted for — one source for "did it come back?".
+_rc_of() { _read_rc "$1"; printf '%s' "$RC"; }
+
+# HD-1137: the profile audit, IN PROCESS, before a single launch, derived from the registry the queue
+# just built — never from a hand-typed list. What it can catch: a registration with no decision, a
+# reasonless exclusion, a label registered twice (the 223b571b "the edit matched both copies" class,
+# which `--only` cannot address either), and a quick profile that selects nothing — a green that
+# proves nothing (CONVENTIONS §6: a test that cannot fail is not evidence).
+_profile_audit() {
+  local i n_quick=0 n_excl=0 n_und=0 n_empty=0 bad="" dup
+  local -A _seen=()
+  for i in "${!labels[@]}"; do
+    case "${mems[$i]}" in
+      q) n_quick=$((n_quick+1)) ;;
+      x) n_excl=$((n_excl+1))
+         if [ -z "${whys[$i]}" ]; then
+           n_empty=$((n_empty+1))
+           bad+="  exclusion with NO REASON: ${labels[$i]}"$'\n'
+         fi ;;
+      *) n_und=$((n_und+1))
+         bad+="  NO PROFILE DECISION: ${labels[$i]}"$'\n'
+         bad+="        declare it:  item_q / item_blk_q to INCLUDE it, or"$'\n'
+         bad+="        item_x \"<the actual reason>\" / item_blk_x to exclude it"$'\n' ;;
+    esac
+    dup="${_seen["${labels[$i]}"]:-}"
+    if [ -n "$dup" ]; then
+      bad+="  DUPLICATE registration (also item $dup): ${labels[$i]}"$'\n'
+      bad+="        two items with one label cannot be audited by --only, and one of them may be the copy nobody meant to leave"$'\n'
+    else
+      _seen["${labels[$i]}"]=$i
+    fi
+  done
+  if [ "$n_quick" -eq 0 ]; then
+    bad+="  the quick profile selects NOTHING — a profile with no items is a green that proves nothing"$'\n'
+  fi
+  # full == quick ⊎ excluded, COUNTED. The two cases above already name what is wrong; this is the
+  # arithmetic belt under them, so a bucket that loses an item cannot report a sound registry.
+  if [ "$((n_quick + n_excl))" -ne "$n_items" ]; then
+    bad+="  the two buckets do not cover the registry: $n_quick quick + $n_excl excluded ≠ $n_items registered"$'\n'
+  fi
+  if [ -n "$bad" ]; then
+    {
+      echo "FAIL: the --profile quick registry is not sound (HD-1137) — NOTHING ran."
+      echo "      A profile that can quietly drop an item is worse than no profile: it prints a green the"
+      echo "      work never earned. Registry: $n_items item(s), $n_quick in quick, $n_excl excluded."
+      printf '%s' "$bad"
+      echo "      The full set is: bash scripts/validate-all.sh --list"
+    } >&2
+    exit 1
+  fi
+  N_QUICK=$n_quick
+}
+
+# The honest tail of a quick run (CONVENTIONS §6: a boundary PRINTS, it never implies). Walked in queue
+# order, so this block cannot disagree with what --list printed, and counted before it is printed, so
+# the number in the header is the number of lines below it.
+_not_proven() {
+  local i n=0 body=""
+  for i in "${!labels[@]}"; do
+    [ "${states[$i]}" = excluded ] || continue
+    n=$((n+1))
+    body+="  - ${labels[$i]}"$'\n'"      because: ${whys[$i]}"$'\n'
+  done
+  echo
+  echo "NOT PROVEN on this profile: $n item(s) did not run (profile: $PROFILE)."
+  echo "This is NOT a full green. Full set: bash scripts/validate-all.sh --list  —  run it whole: drop --profile."
+  printf '%s' "$body"
+  if [ "$n" -ne "$n_excl_launch" ]; then
+    echo "  ⚠ audit mismatch: $n excluded item(s) listed here vs $n_excl_launch counted before the launch"
+  fi
+  return 0
+}
+
+# HD-1137 --time: per-item wall, then Σ item duration against wall, then the 8 slowest. Pure bash — the
+# table is the whole point of the flag and a `date` per row, or a `sort` in a pipe, would make the
+# instrument slower than the thing it measures. This function PRINTS; it never decides anything.
+_time_report() {
+  local i v best bs j sum=0 n=0 wall_ms=""
+  local -A taken=()
+  _now; _ms_between "$GATE_T0_US" "$NOW"; wall_ms="$MS"
+  printf '\n--time per item (launch -> rc, launch order):\n'
+  for i in "${!labels[@]}"; do
+    [ "${states[$i]}" = run ] || continue
+    n=$((n+1))
+    v="${walls[$i]}"
+    if [ -n "$v" ]; then
+      sum=$((sum+v))
+      printf '  %7d ms  %3d  %s\n' "$v" "$i" "${labels[$i]}"
+    else
+      printf '        ?  %3d  %s   (no launch->rc wall: no EPOCHREALTIME, or no result file)\n' "$i" "${labels[$i]}"
+    fi
+  done
+  printf -- '--time: Σ item duration %d.%03d s over %d item(s)' "$((sum/1000))" "$((sum%1000))" "$n"
+  if [ -n "$wall_ms" ]; then
+    printf ' | wall %d.%03d s | Σ/wall ' "$((wall_ms/1000))" "$((wall_ms%1000))"
+    # integer hundredths, printed as %d.%02d — a bare substring of "23" printed ".23x" for 0.23.
+    printf '%d.%02dx\n' "$(( (sum * 100 / (wall_ms > 0 ? wall_ms : 1)) / 100 ))" \
+                       "$(( (sum * 100 / (wall_ms > 0 ? wall_ms : 1)) % 100 ))"
+  else
+    printf ' | wall unknown (bash without EPOCHREALTIME)\n'
+  fi
+  printf -- '--time slowest 8 (Σ against wall is the spawn-bound proof: HD-1135 found 6.8x this way)\n'
+  for j in 1 2 3 4 5 6 7 8; do
+    best=-1; bs=""
+    for i in "${!walls[@]}"; do
+      v="${walls[$i]}"; [ -n "$v" ] || continue
+      [ -z "${taken[$i]:-}" ] || continue
+      if [ "$best" = -1 ] || [ "$v" -gt "$best" ]; then best="$v"; bs="$i"; fi
+    done
+    if [ "$best" = -1 ]; then break; fi
+    taken[$bs]=1
+    printf '  %7d ms  %3d  %s\n' "$best" "$bs" "${labels[$bs]}"
+  done
+  return 0
+}
 _report() {
-  local i rc fails=0 ran=0 filt=0
+  local i rc fails=0 ran=0 filt=0 excl=0 never=""
   for i in "${!labels[@]}"; do
     local label="${labels[$i]}"
     case "${states[$i]}" in
       listed)   continue ;;
       filtered) filt=$((filt+1)); continue ;;
+      excluded) excl=$((excl+1)); continue ;;
+      # HD-1137: registered but NEVER LAUNCHED. Counting it as ran would let the run-count audit agree
+      # with a runner that dropped work, so it is NOT counted and the audit says so by name.
+      pending) never+="${labels[$i]}"$'\n'; continue ;;
     esac
     printf '\n== %s ==\n' "$label"
     wait "${pids[$i]}" >/dev/null 2>&1 || true
-    rc="$(cat "$RUN/$i.rc" 2>/dev/null || echo 1)"
+    _read_rc "$i"; rc="$RC"
+    [ "$RC_MISSING" = 1 ] && rc_missing=$((rc_missing+1))
+    _ms_between "${starts[$i]}" "$END"; walls[$i]="$MS"
     [ -f "$RUN/$i.log" ] && cat "$RUN/$i.log"
     ran=$((ran+1))
     if [ "$rc" != "0" ]; then
@@ -509,13 +748,52 @@ _report() {
                 echo "        process creation here (an AV scan, a heavily loaded host, or I/O on a 9P /mnt/ mount)."
               fi ;;
   esac
+  # ---- HD-1137 --time: the accounting. Additive: no existing line moves, no verdict changes. ----
+  [ "$TIME" = 1 ] && _time_report
+  # ---- HD-1137 run-count audit ---------------------------------------------- #
+  # The registry is the only claim about what a run owes, and this is the half of the `--list | wc -l`
+  # audit that lives INSIDE the gate: every registered item must land in exactly one bucket — ran,
+  # filtered by --only, excluded by the profile — and every one that ran must have LEFT A RESULT FILE.
+  # With no --only and no profile the first line reads exactly `completed N, registered N`: a default
+  # run executing the same count `--list` prints is what proves the new code path dropped no work. A
+  # missing rc file is the shape a dropped accounting line takes — the run looks clean because nothing
+  # was ever asked about that item. Silent at rest, like every good assertion.
+  local _l
+  local _want=$(( n_items - filt - excl ))
+  if [ "$ran" -ne "$_want" ] || [ "$rc_missing" -gt 0 ]; then
+    {
+      echo "FAIL: the gate did not ACCOUNT for its own work (HD-1137) — a defect in the RUNNER, not in the tree."
+      printf '      completed %d item(s); registered %d minus %d filtered by --only minus %d excluded by profile = %d\n' \
+        "$ran" "$n_items" "$filt" "$excl" "$_want"
+      printf '      profile %s%s%s — an item that never launched, or launched and was never reaped, is a check that ran never.\n' \
+        "$PROFILE" "${ONLY:+, --only }" "${ONLY:-}"
+      if [ -n "$never" ]; then
+        printf '      registered and NEVER LAUNCHED:\n'
+        _l=""
+        while IFS= read -r _l; do
+          if [ -n "$_l" ]; then printf '        - %s\n' "$_l"; fi
+        done <<< "$never"
+      fi
+      if [ "$rc_missing" -gt 0 ]; then
+        printf '      %d item(s) left NO result file: they launched and never reported — a leg that cannot be seen cannot fail.\n' "$rc_missing"
+      fi
+      echo "      This is the 223b571b class (an item ran never while every gate said green). Do not shrug it."
+    } >&2
+    exit 1
+  fi
   [ "$fails" -eq 0 ] || { printf '\n%d of %d items FAILED:\n' "$fails" "$ran"
     for i in "${!labels[@]}"; do
       [ "${states[$i]}" = "run" ] || continue
-      [ "$(cat "$RUN/$i.rc" 2>/dev/null || echo 1)" != "0" ] && printf '  - %s\n' "${labels[$i]}"
+      [ "$(_rc_of "$i")" != "0" ] && printf '  - %s\n' "${labels[$i]}"
     done; exit 1; }
   [ "$filt" -gt 0 ] && echo "($filt items filtered by --only)"
   echo "OK: all validators passed"
+  # The quick profile's last words must be what it did NOT prove (CONVENTIONS §6 applied to a profile:
+  # a boundary prints, it never implies). After the verdict, so it is the last thing anyone reads.
+  # An `if`, not `[ … ] &&`: as the function's LAST statement an AND-list would return 1 on a full run
+  # and the whole gate would exit 1 while printing "OK: all validators passed".
+  if [ "$PROFILE" = quick ]; then _not_proven; fi
+  return 0
 }
 
 # --------------------------------------------------------------------------- #
@@ -719,113 +997,156 @@ blk_seat_ssh_check() {
 # the multi-second items here is the scheduling, not a priority system.        #
 # --------------------------------------------------------------------------- #
 
+# --------------------------------------------------------------------------- #
+# The queue. Longest items FIRST — the pool launches in this order, so putting #
+# the multi-second items here is the scheduling, not a priority system.        #
+#                                                                            #
+# HD-1137: every registration here also declares its PROFILE decision:        #
+#   item_q / item_blk_q                  runs in `--profile quick` too         #
+#   item_x "<reason>" / item_blk_x       excluded from quick — the reason is   #
+#                                        MANDATORY, and it must be an argument #
+#                                        (CONVENTIONS §6: under ~40 chars is    #
+#                                        "not an argument")                     #
+#   item / item_blk (bare)               UNDECIDED → `--profile quick` refuses #
+# The quick set is a subset of THIS list, read from THIS list at run time: there #
+# is no second registry to keep in step, which is the whole reason there is no  #
+# second gate script (see the header, and `aa0bc737`).                          #
+# --------------------------------------------------------------------------- #
+
 # The two ansible legs (each fans out internally).
-item_blk "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" blk_guard_fixture
-item_blk "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
+item_blk_x "runs the real ansible-playbook against a throwaway inventory: needs ~/ansible-venv, and it is the longest leg in the gate — a pre-commit loop buys this at a converge, not at a commit" "testdata/self-converge-guard/run.sh (HD-413 verdict matrix, runtime)" blk_guard_fixture
+item_blk_x "ansible is absent or dies WinError 87 on the Windows seat, so this SKIPs here anyway; on a WSL/CI runner it is the syntax half that a quick loop does not need per keystroke" "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
 
 # The corpus walkers.
-item "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/gate/check_secrets.py
-item "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/gate/check_secrets.py --self-test
-item "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/gate/check_yaml_dup_keys.py
-item "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" $PY scripts/gate/check_yaml_dup_keys.py --self-test
-item "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" $PY scripts/gate/check_zone_kogler_si_parity.py
-item "check_zone_kogler_si_parity.py --self-test" $PY scripts/gate/check_zone_kogler_si_parity.py --self-test
-item "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/gate/check_dns_seed_drift.py
-item "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/gate/check_self_converge_guard.py
-item "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/gate/check_string_twins.py
+item_x "walks the whole tracked tip, 99 MB with archive members included — the leg HD-1117 measured at 5 s, which is the whole budget of a pre-commit loop" "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/gate/check_secrets.py
+item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/gate/check_secrets.py --self-test
+item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/gate/check_yaml_dup_keys.py
+item_q "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" $PY scripts/gate/check_yaml_dup_keys.py --self-test
+item_q "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" $PY scripts/gate/check_zone_kogler_si_parity.py
+item_q "check_zone_kogler_si_parity.py --self-test" $PY scripts/gate/check_zone_kogler_si_parity.py --self-test
+item_q "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/gate/check_dns_seed_drift.py
+item_q "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/gate/check_self_converge_guard.py
+item_x "walks every byte under IaC/ for twin groups and its self-test re-derives a 2,300-group baseline — minutes on this host, and a pre-commit edit does not rename a twin" "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/gate/check_string_twins.py
 # The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
 # green tree both print one OK line, and the cases that prove the verdict (a sever inside a long
 # change run, a twin renamed on every side, an agreed value in the wrong kind of literal) never
 # ran in the suite. Every other check here registers its self-test too; this one did not.
-item "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" $PY scripts/gate/check_string_twins.py --self-test
-item "validate-docker-services.py" $PY scripts/gate/validate-docker-services.py
-item "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/bench/spark-llm-render-matrix.py
-item "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/gate/check_doc_path_refs.py
-item "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/check_doc_path_refs.py --self-test
-item "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
-item "check_vault_name.py" $PY scripts/gate/check_vault_name.py
-item "check_placeholders.py" $PY scripts/gate/check_placeholders.py
-item "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
-item "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
+item_x "its positive control re-populates a real git tree to prove the verdict: the most expensive leg in the gate, and the wave-boundary act owns when it is owed" "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" $PY scripts/gate/check_string_twins.py --self-test
+item_q "validate-docker-services.py" $PY scripts/gate/validate-docker-services.py
+item_x "renders 16 arms of the spark compose template: a profile-matrix check, not a tree check — buy it when a profile changes" "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/bench/spark-llm-render-matrix.py
+item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/gate/check_doc_path_refs.py
+item_q "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/check_doc_path_refs.py --self-test
+item_q "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
+item_q "check_vault_name.py" $PY scripts/gate/check_vault_name.py
+item_q "check_placeholders.py" $PY scripts/gate/check_placeholders.py
+item_q "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
+item_q "python3 -m py_compile sweep (HD-256 portability, all scripts/*.py)" blk_py_compile_sweep
 
 # Seat planes — self-tests run everywhere (sandboxed), the --check half SKIPs per host.
-item "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/harness/install-nerd-font.sh --self-test
+# HD-1137: a seat DEPLOY half (--check --strict on a real ~/.pi) is deliberately NOT in quick: it
+# reads and can converge THIS host's seat state, which is not what a pre-commit sanity read claims.
+# The sandboxed --self-test halves stay in quick; the expensive ones carry their cost as the reason.
+item_x "installs into a fixture HOME through stub installers across a dozen CLI launches — a harness self-test, not a tree check: rerun it when the installer changes" "install-nerd-font.sh --self-test (HD-1110: the pinned nerd-font release + sha256 manifest)" bash scripts/harness/install-nerd-font.sh --self-test
 # NOTE (HD-1128): seat-ssh-build.sh --self-test is deliberately NOT gated. It is 27 assertions that pass
 # standalone, but they run ~25 nested bash spawns and cost 98 s WALL / 72 s SYS on the Windows seat - inside
 # the pool that starves sibling self-tests (measured: pi-seat-sync.sh --self-test printed 5 canaries NOT
 # caught in the concurrent run and passed standalone, the documented pool-flake class). The cheap and
 # meaningful half IS gated: the --check --strict item below.
-item "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" bash scripts/harness/pi-settings-config.sh --self-test
-item "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" bash scripts/harness/pi-tui-config.sh --self-test
-item "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
-item "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/harness/pi-self-update.sh --self-test
-item "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
-item "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
-item "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
-item "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
-item "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
-item "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
-item "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
-item "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" bash scripts/harness/sync-skills.sh --self-test
-item "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
-item "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" bash scripts/harness/sync-extensions.sh --self-test
-item "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
+item_x "~25 CLI launches against a fixture settings.json: HD-1135 measured 97 s on this seat even after the fork diet — a self-test for the settings harness, not a tree check" "pi-settings-config.sh --self-test (HD-1110: the harness keys of ~/.pi/agent/settings.json)" bash scripts/harness/pi-settings-config.sh --self-test
+item_q "pi-tui-config.sh --self-test (HD-1110: the pi-open-tui footer hostname key)" bash scripts/harness/pi-tui-config.sh --self-test
+item_x "drives every seat plane through stubbed seats in a temp HOME: HD-1135 measured 46 s on this seat — the fan-out driver's own harness, not a tree check" "pi-seat-sync.sh --self-test (HD-1110: the fan-out driver verdicts, on stubbed seats)" bash scripts/harness/pi-seat-sync.sh --self-test
+item_x "arms sandboxed installers and a canary package name across every probe layout — an installer harness, and it must never touch a real registry" "pi-self-update.sh --self-test (HD-1115: BEHIND and AHEAD are both drift)" bash scripts/harness/pi-self-update.sh --self-test
+item_x "spawns a real tmux per canary to prove the config TAKES EFFECT: where tmux is absent it can print no verdict at all (CONVENTIONS §6), so a pre-commit loop buys only waiting here" "install-tmux-conf.sh --self-test (HD-1085: config == repo AND actually takes effect)" bash scripts/harness/install-tmux-conf.sh --self-test
+item_x "seat deploy state, not a tree check: it converges this host's ~/.tmux.conf, and where tmux is absent it prints SKIP either way" "install-tmux-conf.sh --check --strict (seat tmux drift)" blk_tmux_check
+item_x "seat deploy state, not a tree check: it asks a profile-loaded PowerShell on THIS seat which ssh binary answers (win11 only)" "seat-ssh-build.sh --check --strict (HD-1128: which ssh build a seat shell resolves)" blk_seat_ssh_check
+item_x "seat deploy state, not a tree check: the pi build against pi_host_npm_version, converged by pi-seat-sync.sh --push where pi is installed" "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" blk_pi_self_check
+item_x "seat deploy state, not a tree check: it reads and can rewrite ~/.pi/agent/settings.json on this host" "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
+item_x "seat deploy state, not a tree check: the pi-open-tui footer key in this host's ~/.pi/agent/open-tui.json" "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
+item_x "seat deploy state, not a tree check: the font plane is host state, and on the Windows seat the leg that matters is the .ps1 this item cannot run" "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
+item_x "sixteen end-to-end CLI launches in a temp HOME (the HD-1135 record says so): it re-runs the per-assertion legs for its exit-code contract — a harness self-test, not a tree check" "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" bash scripts/harness/sync-skills.sh --self-test
+item_x "seat deploy state, not a tree check: repo skills/ against this host's ~/.pi/agent/skills, deployed by sync-skills.sh --push" "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
+item_x "a sandboxed fixture over the same 16 arms as its sibling: an extension-harness self-test, not a tree check" "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" bash scripts/harness/sync-extensions.sh --self-test
+item_x "seat deploy state, not a tree check: repo pi-agent/extensions against this host's deployed extensions" "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
 
 # lib/ helpers — the root resolvers are the ONE thing every other item silently depends on, so
 # they carry their own proof (HD-1118 Stage 1). The depth arms cannot be exercised by the real
 # tree, which has exactly one depth, so each self-test builds a two-depth fixture: a resolver that
 # still counts `..` passes the shallow arm and fails the deep one — that is the canary, and it is
 # what makes Stage 3's folder moves a mechanical sweep instead of a gamble.
-item "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
-item "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" $PY scripts/lib/repo_root.py --self-test
-item "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
+item_q "lib/repo-root.sh --self-test (HD-1118: the bash root resolves at TWO depths, loud when absent)" bash scripts/lib/repo-root.sh --self-test
+item_q "lib/repo_root.py --self-test (HD-1118: the python twin + require_corpus + script_path)" $PY scripts/lib/repo_root.py --self-test
+item_x "its pin() half resolves every real plane with grep|head|sed|tr PER pin — the fork tail HD-1135 still bills as open, so the fork diet owns this leg, not a pre-commit loop" "lib/pi-seat.sh --self-test (HD-1118: a missing pin STOPS the caller; no subshell pin call site may return)" bash scripts/lib/pi-seat.sh --self-test
 
 # Everything else — cheap, but they add up, so they are in the pool too.
-item "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" bash scripts/gate/guard-session.sh --self-test
-item "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
-item "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" bash scripts/git/git-bootstrap.sh --self-test
-item "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" bash scripts/testdata/check-vault-items/run.sh
-item "validate_blueprints.py" $PY scripts/gate/validate_blueprints.py
-item "check_doc_ips.py" $PY scripts/gate/check_doc_ips.py
-item "check_traefik_host_rules.py" $PY scripts/gate/check_traefik_host_rules.py
-item "validate-secrets.py" $PY scripts/gate/validate-secrets.py
-item "check_doc_map.py" $PY scripts/gate/check_doc_map.py
-item "check_generated_suffix.py" $PY scripts/gate/check_generated_suffix.py
-item "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/gate/check_ledger_state.py
-item "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/gate/check_runbook_purity.py
-item "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/gate/check_vault_docs.py
-item "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
-item "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs
-item "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/gate/check_todo_done.py --self-test
-item "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/gate/check_merge_markers.py
-item "check_merge_markers.py --self-test (HD-453 canary)" $PY scripts/gate/check_merge_markers.py --self-test
-item "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $PY scripts/gate/check_md_tables.py
-item "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/gate/check_md_tables.py --self-test
-item "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/gate/check_iac_backend_strings.py
-item "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/gate/check_iac_backend_strings.py --self-test
-item "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" $PY scripts/gate/check_script_layout.py
-item "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" $PY scripts/gate/check_script_layout.py --self-test
-item "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/gate/check_iac_identifiers.py
-item "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_iac_identifiers.py --self-test
+item_q "guard-session.sh --self-test (sandboxed guard fixture, HD-253)" bash scripts/gate/guard-session.sh --self-test
+item_q "guarded-converge.sh --self-test (post-converge liveness verdict, HD-436)" bash scripts/ansible/guarded-converge.sh --self-test
+item_x "drives every 1Password refusal state through a fake op binary in a sandbox: a CLI-contract self-test, not a tree check — rerun it when the bootstrap script changes" "git-bootstrap.sh --self-test (each 1Password refusal state says the right thing)" bash scripts/git/git-bootstrap.sh --self-test
+item_x "runs the real check-vault-items.sh over a synthetic tree per case: the *_item registry-key parse is only honest if the CLI runs, which is exactly the waiting a fast loop is not buying" "testdata/check-vault-items/run.sh (scanner self-test, HD-244/245)" bash scripts/testdata/check-vault-items/run.sh
+item_q "validate_blueprints.py" $PY scripts/gate/validate_blueprints.py
+item_q "check_doc_ips.py" $PY scripts/gate/check_doc_ips.py
+item_q "check_traefik_host_rules.py" $PY scripts/gate/check_traefik_host_rules.py
+item_q "validate-secrets.py" $PY scripts/gate/validate-secrets.py
+item_q "check_doc_map.py" $PY scripts/gate/check_doc_map.py
+item_q "check_generated_suffix.py" $PY scripts/gate/check_generated_suffix.py
+item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/gate/check_ledger_state.py
+item_q "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/gate/check_runbook_purity.py
+item_q "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/gate/check_vault_docs.py
+item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
+item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs
+item_x "breeds both directions of the marker grammar and the reference rule in a synthetic tree: a checker self-test, not a tree check — and HD-1117 names this leg as a pool flake" "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/gate/check_todo_done.py --self-test
+item_q "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/gate/check_merge_markers.py
+item_q "check_merge_markers.py --self-test (HD-453 canary)" $PY scripts/gate/check_merge_markers.py --self-test
+item_q "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $PY scripts/gate/check_md_tables.py
+item_q "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/gate/check_md_tables.py --self-test
+item_q "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/gate/check_iac_backend_strings.py
+item_q "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/gate/check_iac_backend_strings.py --self-test
+item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratchet, one-of-each, clean root)" $PY scripts/gate/check_script_layout.py
+item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" $PY scripts/gate/check_script_layout.py --self-test
+item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/gate/check_iac_identifiers.py
+item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_iac_identifiers.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
 # deliberately NOT gated: a suite that mutates the tree is worse than the drift it would catch.
-item "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" $PY scripts/ansible/build-llm-dashboard.py --check
-item "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/gate/check_spark_llm_gate.py
-item "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/ansible/knx-hass-gen.py --self-test
-item "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/bench/laptop-llm.py gate --self-test
-item "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/bench/laptop-llm.py probe-client
-item "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY scripts/bench/spark/gate7-read.py --self-test
+item_q "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" $PY scripts/ansible/build-llm-dashboard.py --check
+item_q "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/gate/check_spark_llm_gate.py
+item_q "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/ansible/knx-hass-gen.py --self-test
+item_q "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/bench/laptop-llm.py gate --self-test
+item_q "laptop-llm.py probe-client (HD-474: client contract may not drift ahead of the engine)" $PY scripts/bench/laptop-llm.py probe-client
+item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY scripts/bench/spark/gate7-read.py --self-test
 # Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
-item "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible/ansible_query.py --self-test
+item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible/ansible_query.py --self-test
 
 # --------------------------------------------------------------------------- #
 # Drain and report.                                                           #
 # --------------------------------------------------------------------------- #
 if [ "$LIST" = 1 ]; then
-  for i in "${!labels[@]}"; do printf '%2d  %s\n' "$i" "${labels[$i]}"; done
+  # The audit is `--list` counted with wc -l, and it prints the FULL set in EVERY profile — that is
+  # the point: selecting a profile must never make the registry look smaller than it is. A non-default
+  # profile only ADDS a mark column (`*` in quick, `-` excluded with its reason in the NOT PROVEN
+  # block, `?` = a decision nobody made), so `--profile quick --list` is the same list, diffed against
+  # an earlier commit exactly as CONVENTIONS §2 wants. Plain `--list` keeps its exact historical bytes.
+  if [ "$PROFILE" = full ]; then
+    for i in "${!labels[@]}"; do printf '%2d  %s\n' "$i" "${labels[$i]}"; done
+  else
+    echo "profile '$PROFILE' marks (* in quick, - excluded, ? no decision made) — the FULL set, same order as always" >&2
+    for i in "${!labels[@]}"; do
+      case "${mems[$i]}" in q) _m='*' ;; x) _m='-' ;; *) _m='?' ;; esac
+      printf '%2d %s %s\n' "$i" "$_m" "${labels[$i]}"
+    done
+  fi
   exit 0
 fi
+
+# HD-1137: a profile is AUDITED before a single item launches, and the two sets are DERIVED from the
+# registry this file just built — never from a list someone typed elsewhere. A full run needs no such
+# audit because it runs whatever is registered; its risk is the opposite one (work silently dropped),
+# and `_report` counts that against the same registry.
+if [ "$PROFILE" = quick ]; then
+  _profile_audit
+  n_excl_launch=$(( n_items - N_QUICK ))   # derived from the audited counts, not typed
+  echo "profile: quick — $N_QUICK of $n_items registered item(s) run; $n_excl_launch excluded, each named with its reason in the NOT PROVEN block. Full set: --list" >&2
+fi
+_launch_all
 wait
 _report
