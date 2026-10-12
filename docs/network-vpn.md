@@ -585,22 +585,37 @@ bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.ko
 
 ### The laptop alias contract (SSOT — rebuild a new laptop from this; do not copy an old `~/.ssh/config`)
 
-Two rules decide every block:
+Three rules decide every block:
 
-1. **Behind-NAT hosts** (`pi`, `nas`, `oldsrv`, `spark`) are reached through `ProxyJump vps` onto their
-   **Home leg**, on every network. The Mgmt leg is never an away path (decision A above).
+1. **A NAME decides the hop; an ADDRESS is always direct.** The plain node name (`pi`, `nas`, `spark`,
+   `oldsrv`, `oldsrv-domen`) reaches its **Home leg** with **no jump** — on site the seat and every node sit
+   in the Home /24 (the laptop's Home leg is a static `dhcp-10` reservation, same subnet as every node, so
+   nothing crosses a router or a filter; addresses: [network-addresses-generated.md](network-addresses-generated.md))
+   — and the **`<node>-vps`** twin is the same block with
+   `ProxyJump vps` added, for when the Home leg is not reachable. The Mgmt leg is never an away path
+   (decision A above), and a `10.10.1.x` address **away** is a dead ADDRESS, not a dead host: off-site you
+   use the name, never the address.
 2. **OpenSSH matches the name ACTUALLY TYPED**, so each node gets an alias block **and** a `Host <ip>`
    block for the leg its `ansible_host` names. Ansible does not *need* the IP block (the jump travels in
    the inventory — proven above); the block is what `scp`/`rsync`/`git` and a human typing an address need.
+3. **Flipping these seat names changes no converge.** The jump Ansible uses is the inventory's
+   (§Where the jump lives), so `home_servers.yml --check` behaves identically before and after a seat-config
+   change; the scripts that shell out to `ssh <name>` are the only consumers, and away from the house they
+   need the `-vps` spelling (`PI_OLDSRV_TARGET=oldsrv-vps`, `OLDSRV_SSH=oldsrv-vps`).
 
 | Block | Leg (see [network-addresses-generated.md](network-addresses-generated.md)) | `ProxyJump` | Notes |
 |---|---|---|---|
 | `vps` | public | — | the jump itself; `User ansible-admin` |
-| `pi`, `….1.20` | Home | `vps` | alias uses the human user, the IP block the `ansible-admin` one |
-| `nas`, `….1.10` | Home | `vps` | the group var AND the alias must both carry the jump |
-| `oldsrv`, `….1.30` | Home | `vps` | `ssh oldsrv` = the **Home** address; mgmt access is `oldsrv99` |
-| `spark`, `….1.40` | Home | `vps` | the precedent both the play and the group var copy |
-| `oldsrv-domen` | Home | `vps` | **the coding seat**: the same leg and the same jump as `oldsrv`, but `User domen` with `IdentityFile ~/.ssh/domen_ssh` + `IdentitiesOnly yes` (§Canonical identity file names). Key-only — `PasswordAuthentication` stays `no` by policy, so a block that offers a password method can never work. There is no tailnet-direct form: the ACL grants `tag:dev:443`, not 22 |
+| `pi`, `….1.20` | Home | **none** — opt in with `pi-vps` | alias uses the human user, the IP block the `ansible-admin` one |
+| `pi-vps` | Home | `vps` | the away spelling of the same leg; laptop classes only |
+| `nas`, `….1.10` | Home | **none** — opt in with `nas-vps` | the group var still carries the jump for Ansible, which is why a converge is unchanged |
+| `nas-vps` | Home | `vps` | laptop classes only |
+| `oldsrv`, `….1.30` | Home | **none** — opt in with `oldsrv-vps` | `ssh oldsrv` = the **Home** address direct; mgmt access is `oldsrv99` |
+| `oldsrv-vps` | Home | `vps` | laptop classes only |
+| `spark`, `….1.40` | Home | **none** — opt in with `spark-vps` | the precedent both the play and the group var copy |
+| `spark-vps` | Home | `vps` | laptop classes only |
+| `oldsrv-domen` | Home | **none** — opt in with `oldsrv-domen-vps` | **the coding seat**: the same leg as `oldsrv`, but `User domen` with `IdentityFile ~/.ssh/domen_ssh` + `IdentitiesOnly yes` (§Canonical identity file names). Key-only — `PasswordAuthentication` stays `no` by policy, so a block that offers a password method can never work. There is no tailnet-direct form: the ACL grants `tag:dev:443`, not 22. Direct is also what makes the VS Code leg short: one hop, and only the operator key is offered |
+| `oldsrv-domen-vps` | Home | `vps` | the away coding seat; laptop classes only |
 | `pi99`, `oldsrv99`, `nas99`, `router`, `switch`, `ap-spalnica`, `ap-dnevna`, `ap-spare` | Mgmt (VLAN 99) | **none — never add one** | on-site admin paths only (decision A); `oldsrv99`/`nas99` are the explicit on-site legs |
 
 Both copies of the contract live on the one laptop and must agree: WSL `~/.ssh/config` and
@@ -626,6 +641,27 @@ forks that seat's file from the vault export and from every other seat, so **the
 namely the OpenSSL build — a bare `ssh` under Git-Bash already is one, and `git-bootstrap-win11.sh` pins it
 explicitly for git. A harness that resolves `ssh` off a Windows-native PATH therefore loses legs it
 proved from Git-Bash, which is why the driver's transport must never be left to PATH.
+
+**A fourth variable decides them: WHICH PROCESS resolves `ssh`.** A profile function reaches *shells* and
+nothing else. A GUI client launches its transport by probing PATH inside its own process, so it inherits no
+profile, no `PI_SSH_BIN` and no PATH order anyone controls. The measured shape of that failure on the Win11
+seat: VS Code Remote-SSH probes `C:\Program Files\Volta\ssh.exe` (absent — the same Volta-shim class that
+made that seat's `pi` unresolvable), lands on `C:\WINDOWS\System32\OpenSSH\ssh.exe` (the LibreSSL build),
+loads no PKCS#8 half, and dies on the **first** hop:
+`Load key "…\ansible-admin_ssh": invalid format` → `ansible-admin@vps: Permission denied (publickey)` —
+which reads as a VPS auth fault and is a seat transport fault. Three facts about such a process, none of
+them discoverable from the shell:
+
+- it has exactly one lever, its own setting (`remote.SSH.path`), and a **window reload** is what applies it —
+  the resolver reads the value at activation, so a reconnect attempt can silently keep using the old one;
+- the value must name the **8.3 form** (`C:\PROGRA~1\Git\usr\bin\ssh.exe`), because OpenSSH builds a
+  `ProxyJump`'s `ProxyCommand` from its **own executable path, unquoted** — a path containing a space dies
+  `/bin/sh: line 1: /c/Program: No such file or directory` on every jumped leg, so the long form replaces one
+  failure with another;
+- a shell typed at that OS prompt is not the seat's shell: `bash` from PowerShell 7 starts a **WSL** bash
+  whose `$HOME` is another distro's home (no alias-contract block, no seat keys), which makes any probe run
+  there a measurement of the wrong box. The win11 seat's harness commands belong to Git-Bash
+  (`C:\Program Files\Git\bin\bash.exe`), not to whatever `bash` PATH resolves.
 A `.pub` hint as `IdentityFile` is never self-sufficient: it selects a key an AGENT must hold, so Windows
 OpenSSH authenticates (`Offering public key: … explicit agent`) while the Git-Bash build cannot load the file
 (`Load key "…ansible-admin_ssh.pub": invalid format`), offers no key at all and dies `Permission denied`.

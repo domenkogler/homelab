@@ -235,8 +235,27 @@ assert_body() {
   if [ "$class" = cockpit ] && [ "$njump" != 0 ]; then
     err "FAIL: the cockpit class carries $njump ProxyJump line(s) — it sits ON the Home VLAN, so a jump hairpins through the VPS to reach a box the shell is already on"; bad=1
   fi
-  if [ "$class" != cockpit ] && [ "$njump" -lt 6 ]; then
-    err "FAIL: the $class class carries only $njump ProxyJump lines (expect >= 6: pi/nas/oldsrv/spark + oldsrv-domen + the four typed-address blocks)"; bad=1
+  if [ "$class" != cockpit ]; then
+    # RULE 1, enforced (owner ruling 2026-10-12: the LAN form is the default, the hop is opt-in).
+    # A hop belongs to a `-vps` NAME and to nothing else: plain names and typed addresses go direct,
+    # because on site the seat and the nodes share 10.10.1.0/24. A jump surviving on a plain name is
+    # the old contract standing — a hairpin through the internet to reach a box on your own subnet,
+    # plus a second identity loaded on the way, which is where the LibreSSL-cannot-parse-PKCS#8 class
+    # hides: it dies on hop 1 and reads like a VPS auth fault. Provable in BOTH directions, so arm 7g
+    # poisons a jump onto a plain name and arm 7h strips a twin's jump.
+    local pjb
+    pjb="$(awk '
+      /^Host /{ if (n && pj && !allvps) print names
+                names=$0; sub(/^Host /,"",names); n=1; pj=0; allvps=1
+                c=split(names,parts," "); for(i=1;i<=c;i++) if (parts[i] !~ /-vps$/) allvps=0
+                next }
+      /^[[:space:]]*ProxyJump /{ pj=1 }
+      END{ if (n && pj && !allvps) print names }' "$f" | tr '\n' ' ')"
+    [ -z "$pjb" ] || { err "FAIL: a ProxyJump sits on a block whose name does not end in -vps: $pjb — names decide the hop, plain names and addresses go direct"; bad=1; }
+    for v in pi-vps nas-vps spark-vps oldsrv-vps oldsrv-domen-vps; do
+      grep -q "^Host $v\$" "$f" || { err "FAIL: the $class class has no -vps hop twin for '$v' — the away case would have no name at all"; bad=1; }
+    done
+    [ "$njump" -ge 5 ] || { err "FAIL: the $class class carries only $njump ProxyJump lines (expect >= 5: one per -vps twin, and nothing else carries one)"; bad=1; }
   fi
   if [ "$class" = cockpit ]; then
     grep -qE '^Host oldsrv' "$f" || { err "FAIL: the cockpit class has no self-alias — the missing block that made "ssh oldsrv" die on its own box"; bad=1; }
@@ -524,7 +543,15 @@ FIX
   lacks "6d wsl never points at a .pub its ssh cannot load (HD-492)" "$root/class-laptop-wsl/.ssh/config" 'IdentityFile ~/\.ssh/[a-z0-9-]+\.pub$'
   lacks "6d2 NO class points at a .pub IdentityFile — one identity, one file, on every seat" "$root/class-laptop-win11/.ssh/config" 'IdentityFile ~/\.ssh/[a-z0-9-]+\.pub$'
   lacks "6d3 the cockpit class names no .pub either" "$root/class-cockpit/.ssh/config" 'IdentityFile ~/\.ssh/[a-z0-9-]+\.pub$'
-  has   "6e the laptop classes jump the Home legs" "$root/class-laptop-wsl/.ssh/config" '^  ProxyJump vps$'
+  has   "6e the laptop classes carry the -vps hop twins (the hop is opt-in, not the default)" "$root/class-laptop-wsl/.ssh/config" '^Host (pi|nas|spark|oldsrv|oldsrv-domen)-vps$'
+  # 6e2 is a COUNT, not a grep for absence: the plain names are declared, of course — what must not
+  # exist is a jump living anywhere but in a hop twin. Equal counts + five twins = every hop is named.
+  local npj6 nvps6
+  npj6="$(grep -c '^  ProxyJump ' "$root/class-laptop-wsl/.ssh/config" || true)"
+  nvps6="$(grep -c '^Host [a-z0-9-]*-vps$' "$root/class-laptop-wsl/.ssh/config" || true)"
+  if [ "$nvps6" = 5 ] && [ "$npj6" = "$nvps6" ]; then
+    pass=$((pass+1)); echo "ok   6e2 every hop on a laptop lives in a -vps twin ($npj6 jumps / $nvps6 twins — plain names and addresses are direct)"
+  else fails=$((fails+1)); echo "FAIL 6e2 laptop hops are not twin-scoped: $npj6 ProxyJump lines vs $nvps6 -vps blocks (want 5 and equal)"; fi
   lacks "6f the cockpit class jumps nothing (the directive, not the word in a comment)" "$root/class-cockpit/.ssh/config" '^[[:space:]]*ProxyJump'
   has   "6g the cockpit class owns a self-alias as dome" "$root/class-cockpit/.ssh/config" '^Host oldsrv oldsrv\.kogler\.si 10\.10\.1\.30$'
   lacks "6h the cockpit class declares no Mgmt alias" "$root/class-cockpit/.ssh/config" '^Host (pi99|oldsrv99|nas99|router|switch|ap-)'
@@ -544,8 +571,12 @@ FIX
     || { fails=$((fails+1)); echo "FAIL 7a the no-ProxyJump-on-.99 assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
   sed 's/^Host spark @SPARK_PAT@$/Host spark @SPARK_PAT@\n  ProxyJump nas/' "$TMPL" > "$pt"
   h="$(mkhome poison-control)"
-  [ "$(probe 0 "$h" "$pt")" = 0 ] && ! grep -q 'ProxyJump on a Mgmt-plane' "$root/out" \
-    && { pass=$((pass+1)); echo "ok   7b control: a jump on a HOME-leg alias does NOT trip the .99 rule (it keys on the address)"; } \
+  # The control for the .99 rule. It no longer renders CLEANLY — a jump on a Home-leg name trips rule 1
+  # now — so what proves the .99 rule keys on the ADDRESS is WHICH message fires: rule 1's, never the
+  # Mgmt one. An arm that only checked rc would go red here for the wrong reason and look like a defect.
+  [ "$(probe 2 "$h" "$pt")" = 2 ] && ! grep -q 'ProxyJump on a Mgmt-plane' "$root/out" \
+    && grep -q 'does not end in -vps' "$root/out" \
+    && { pass=$((pass+1)); echo "ok   7b control: a jump on a HOME-leg alias trips rule 1, NOT the .99 rule (it keys on the address)"; } \
     || { fails=$((fails+1)); echo "FAIL 7b the control fired — the .99 rule is really a 'no ProxyJump anywhere' rule:"; sed 's/^/     | /' "$root/out" | head -5; }
   sed 's#^  IdentityFile @IDENT@$#  IdentityFile ~/.ssh/id_ed25519#' "$TMPL" > "$pt"
   h="$(mkhome poison-name)"
@@ -567,6 +598,20 @@ FIX
   [ "$(probe 2 "$h" "$pt")" = 2 ] && grep -q 'declared TWICE' "$root/out" \
     && { pass=$((pass+1)); echo "ok   7f a duplicated Host alias in the template is CAUGHT (the ap-dnevna class)"; } \
     || { fails=$((fails+1)); echo "FAIL 7f the duplicate-alias assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
+  # 7g/7h: the two halves of rule 1's assertion. The CONTROL is every unpoisoned render above: the
+  # clean template must pass these same asserts, so a poison that fires proves the teeth, not the
+  # wording. 7g = the old contract standing (jump on a plain name); 7h = a twin that lost its hop,
+  # which leaves the away case with a name that cannot reach anything.
+  sed 's/^Host nas @NAS_PAT@$/Host nas @NAS_PAT@\n  ProxyJump vps/' "$TMPL" > "$pt"
+  h="$(mkhome poison-plainjump)"
+  [ "$(probe 2 "$h" "$pt")" = 2 ] && grep -q 'does not end in -vps' "$root/out" \
+    && { pass=$((pass+1)); echo "ok   7g a ProxyJump on a PLAIN node name is CAUGHT (rule 1: the LAN leg is the default)"; } \
+    || { fails=$((fails+1)); echo "FAIL 7g the plain-name jump assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
+  sed '/^Host pi-vps$/,/^#% end$/{/^  ProxyJump vps$/d}' "$TMPL" > "$pt"
+  h="$(mkhome poison-notwin)"
+  [ "$(probe 2 "$h" "$pt")" = 2 ] && grep -q 'ProxyJump lines' "$root/out" \
+    && { pass=$((pass+1)); echo "ok   7h a -vps twin stripped of its hop is CAUGHT (the count, not the name)"; } \
+    || { fails=$((fails+1)); echo "FAIL 7h the hop-twin count assertion did not fire:"; sed 's/^/     | /' "$root/out" | head -5; }
 
   # 8. the three renders differ ONLY where the seat class says they may.
   for cls in laptop-win11 laptop-wsl cockpit; do

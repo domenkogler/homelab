@@ -168,6 +168,36 @@ failure**. Prove the source in the same reading (`curl -6 https://api6.ipify.org
 writing anything down about the destination.
 DNS is already out of the question: `vps.kogler.si` publishes a DNS-only `AAAA`
 (`IaC/ansible/roles/cloudflare_dns/vars/main.yml`) and `matrix.kogler.si` CNAMEs to it.
+
+**Egress direction: a host-side download that fails is a v6 path finding, not a service finding.** Measured on
+oldsrv, same host, same URL, same minute:
+
+| probe | result |
+|---|---|
+| `curl -6 https://www.google.com` | `200` — the box HAS global v6 egress |
+| `curl -6` `github.com` · `update.code.visualstudio.com` · `vscode.download.prss.microsoft.com` | connect timeout, no verdict |
+| the same three targets over `-4` | `200`/`302` with full bodies |
+| `getent hosts update.code.visualstudio.com` | answers **AAAA first** |
+
+The home v6 egress is therefore **selectively** dead: it reaches some prefixes and not others, and anything
+honouring the resolver's order (`wget`, `curl`, a Node fetch) fails on those hosts while `curl -4` succeeds on
+the same box. That is why the failure keeps getting misattributed to "this host has no internet" or "the
+mirror is down" — a 0-byte artifact left in a download directory is the tell, and the discriminator costs
+three commands: `curl -6` a host known to answer v6 (the control, per habit (b) above) and `curl -4` the
+failing one. MTU/PMTU is **not** a candidate here: it dies at connect, not mid-transfer, which points at
+prefix reachability.
+
+**Seat-local remedy, and the size of it.** `prefer-family = IPv4` in `~/.wgetrc` plus `ipv4` in `~/.curlrc`
+(both `0600`, user-scoped) makes a downloader run as that user pick A first — proven both directions on the
+real artifact URL: rc-file in effect → `302 Found`, control with the family left default → no verdict. It
+reaches `wget`/`curl` for that user and nothing else: a tool that fetches through its own HTTP stack (a Node
+binary, an IDE's downloader) ignores both files, so it needs its own client-side download switch instead.
+
+⛔ **The durable fix belongs at the router's v6 leg, and the parked banner above covers it** — no rule change
+is authorized here while that question is parked, so this is recorded as a measurement plus the probe, never
+as an edit. What would close it is a prefix-level reachability read from the router itself (`/ipv6 route
+print`, then a test per prefix), with the counter-only discriminator above deciding whether the drop is ours
+or upstream's **before** anything is touched.
 ⚠ **Scratch rule hygiene** (this is what `routeros-apply-delta.sh` comments are for): a temporary accept **must
 sit above the drop** (below it, it does nothing and the test result is a lie), **must be `dst-port`-scoped**
 (otherwise the first packet of a *scan* matches, the conntrack entry then admits the real target, and the matrix

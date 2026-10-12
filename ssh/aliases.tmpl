@@ -25,14 +25,23 @@
 # [../docs/network-vpn.md](../docs/network-vpn.md) §Canonical identity file names, and the
 # renderer refuses a render that names any other file or any path that is not `~/.ssh/…`.
 
-# Three rules decide every block (measurements live in the doc section above):
-#   1. a behind-NAT node is reached on its HOME (VLAN 10) leg through `ProxyJump vps`, on every
-#      network — the Mgmt leg is never an away path (HD-398 decision A);
+# Four rules decide every block (measurements live in the doc section above):
+#   1. A NAME decides the hop; an ADDRESS is always direct. The plain node name reaches its HOME
+#      (VLAN 10) leg with NO jump — on site the seat and every node share the Home /24, the laptop's
+#      Home leg being a static `dhcp-10` reservation. Address VALUES belong to the rendered address map,
+#      and a live reservation no ledger row names is a repo defect, not a value to copy into a template
+#      — and the `<node>-vps` twin adds `ProxyJump vps` for the away case. The Mgmt leg is never an
+#      away path (HD-398 decision A), and a `10.10.1.x` address away is a dead ADDRESS, not a dead
+#      host: off-site you use the name (or the `-vps` name), never the address.
 #   2. OpenSSH matches the name ACTUALLY TYPED, so a node gets an alias block AND a block for the
 #      address a human, `scp` or `rsync` would type (Ansible needs neither: its jump travels in
-#      `ansible_ssh_common_args` — HD-397);
+#      `ansible_ssh_common_args`, which is exactly why flipping these seat names changes no
+#      converge — HD-397);
 #   3. the Mgmt plane (VLAN 99) is a same-site plane: its aliases are jump-less, and a `ProxyJump`
-#      on a `10.10.99.x` alias converts a fast failure into a ~90 s banner timeout. Never add one.
+#      on a `10.10.99.x` alias converts a fast failure into a ~90 s banner timeout. Never add one;
+#   4. the `-vps` twins are emitted on the LAPTOP classes only. A host seat lives in the house, and
+#      a jumped path from oldsrv to a node on its own subnet is a hairpin through the internet that
+#      nothing has ever measured.
 
 # --- the jump -----------------------------------------------------------------
 # The only public address in the contract. `AddressFamily inet` is not decoration (HD-407):
@@ -56,10 +65,17 @@ Host pi @PI_PAT@
   User @PI_USER@
   IdentityFile @PI_ID@
   IdentitiesOnly yes
-#% seat: laptop-win11 laptop-wsl
-  ProxyJump vps
 #% seat: cockpit
   AddressFamily inet
+#% end
+#% seat: laptop-win11 laptop-wsl
+Host pi-vps
+  HostName @PI_HN@
+  User @PI_USER@
+  IdentityFile @PI_ID@
+  IdentitiesOnly yes
+  AddressFamily inet
+  ProxyJump vps
 #% end
 
 # --- nas / spark: admin legs ----------------------------------------------------
@@ -68,10 +84,17 @@ Host nas @NAS_PAT@
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-#% seat: laptop-win11 laptop-wsl
-  ProxyJump vps
 #% seat: cockpit
   AddressFamily inet
+#% end
+#% seat: laptop-win11 laptop-wsl
+Host nas-vps
+  HostName @NAS_HN@
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  AddressFamily inet
+  ProxyJump vps
 #% end
 
 Host spark @SPARK_PAT@
@@ -79,19 +102,32 @@ Host spark @SPARK_PAT@
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-#% seat: laptop-win11 laptop-wsl
-  ProxyJump vps
 #% seat: cockpit
   AddressFamily inet
 #% end
+#% seat: laptop-win11 laptop-wsl
+Host spark-vps
+  HostName @SPARK_HN@
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  AddressFamily inet
+  ProxyJump vps
+#% end
 
-# --- oldsrv: the Home leg away, the seat itself at home -------------------------
+# --- oldsrv: direct at home, the seat itself at home, `-vps` when away ----------
 #% seat: laptop-win11 laptop-wsl
 Host oldsrv
   HostName @OLDSRV_HN@
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
+Host oldsrv-vps
+  HostName @OLDSRV_HN@
+  User ansible-admin
+  IdentityFile @ADMIN@
+  IdentitiesOnly yes
+  AddressFamily inet
   ProxyJump vps
 #% end
 #% seat: cockpit
@@ -108,13 +144,23 @@ Host @OLDSRV_PAT@
   AddressFamily inet
 #% end
 
-# --- oldsrv-domen: the coding seat, away (HD-492) --------------------------------
+# --- oldsrv-domen: the coding seat (HD-492) --------------------------------------
+# This is the name the VS Code Remote-SSH session uses, and it is now DIRECT: on the LAN the jump
+# buys nothing but a hairpin and one more key to load, and a jumped leg is exactly where the
+# LibreSSL-cannot-parse-PKCS#8 failure lands — it dies on the FIRST hop and then reads like a VPS
+# auth problem when it is a seat transport problem.
 #% seat: laptop-win11 laptop-wsl
 Host oldsrv-domen
   HostName @OLDSRV_HN@
   User domen
   IdentityFile @IDENT@
   IdentitiesOnly yes
+Host oldsrv-domen-vps
+  HostName @OLDSRV_HN@
+  User domen
+  IdentityFile @IDENT@
+  IdentitiesOnly yes
+  AddressFamily inet
   ProxyJump vps
 #% end
 
@@ -122,31 +168,32 @@ Host oldsrv-domen
 # The pair of `ansible_ssh_common_args`: OpenSSH only matches what is typed, so `scp`/`rsync`/`git`
 # and a human typing an address need these. Load-bearing for scp, NOT for Ansible (HD-397). On the
 # cockpit seat they are unnecessary: the alias lines above already carry the address spellings.
+#
+# They carry NO jump, and that is rule 1 rather than an omission: an address is a same-site spelling,
+# so `scp file 10.10.1.10:` means "this subnet, now". Away from the house the NAME form carries the
+# hop (`scp file nas-vps:` — scp/rsync/git all take a host NAME, so refusing to jump an unreachable
+# address costs nothing).
 #% seat: laptop-win11 laptop-wsl
 Host 10.10.1.10
   HostName 10.10.1.10
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-  ProxyJump vps
 Host 10.10.1.20
   HostName 10.10.1.20
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-  ProxyJump vps
 Host 10.10.1.30
   HostName 10.10.1.30
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-  ProxyJump vps
 Host 10.10.1.40
   HostName 10.10.1.40
   User ansible-admin
   IdentityFile @ADMIN@
   IdentitiesOnly yes
-  ProxyJump vps
 #% end
 
 # --- the Mgmt plane (VLAN 99): ON-SITE ADMIN PATHS ONLY --------------------------
