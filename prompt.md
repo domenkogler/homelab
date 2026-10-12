@@ -187,7 +187,13 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    PATH; `install-pi-debian.sh --check` on a clean Debian seat is the third. **HD-1119** — the missing `harness`
    docs domain — is the only authored work the brief still carries, and it no longer gates the tree: folders are
    named for the toolchain each script drives, and the `gate/`/`lib/` exception is written into
-   [scripts/README.md](scripts/README.md). → [prompt-scripts.md](prompt-scripts.md)
+   [scripts/README.md](scripts/README.md). **The registry's own prose is now a rule with a checker** —
+   [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) is built and self-tested but left unwired while the
+   rows still carry the ids and dates it refuses (`--show` prints the live count, never a number typed into a handoff), so the
+   work is one sweep: clear the rows — ids, dates, diary tenses, the six rows that dropped their **Owning spec** cell, the
+   `check_merge_markers.py` row's mangled divider span that leaves an unescaped pipe in the cell, the 42 Portability rows still
+   naming pre-move paths, the stale `Layout` note and the `Last updated` footer — then add the `item_q` lines at floor 0 **in the
+   same commit** that clears them. → [prompt-scripts.md](prompt-scripts.md)
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
     drill · **418** the HA restart window · **HD-06** the UPS drill · **411** the cockpit resume word ·
     **HD-230/207** the decisions taken at the drill. ⏸ **Deferred by owner 2026-10-08: HD-454** (buy an out-of-band
