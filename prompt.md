@@ -252,7 +252,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     publish the three values with `python3 scripts/check_string_twins.py --show-baseline` in the commit that moves the
     baseline. A baseline never ages past one wave.
 
-15. ⏳ **The gate's own speed on a Windows seat** — **HD-1129** landed the fork diet (gate 134 s → 78 s measured
+15. ⏳ **The gate's own speed on a Windows seat** — **HD-1135** landed the fork diet (gate 134 s → 78 s measured
     interleaved on the Win11 git-bash seat, `$(<file)` proven to be as blind to CR as plain `grep` was) and gave
     `sync-skills.sh` the `--self-test` its encoding guard had been waiting on (teeth proven by mutation, both
     siblings now share one guard). **One tail left:** `check_doc_path_refs.py` crashes when a human runs it with

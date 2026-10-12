@@ -83,7 +83,7 @@ pin_of() {
   local k="$1" v
   [ "$PIN_LOADED" = 1 ] || { _pin_load; PIN_LOADED=1; }
   v="${PIN_CACHE[$k]-}"
-  [ -n "$v" ] || { err "pin '$k' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here"; exit 1; }
+  [ -n "$v" ] || { err "pin '$1' missing from IaC/ansible/group_vars/all/versions.yml — add it there, do not hardcode it here"; exit 1; }
   PIN="$v"
 }
 _pin_load() {

@@ -38,10 +38,7 @@
 # Owning rule: CONVENTIONS §6 (worktree + findability) · registered as HD-254.
 set -uo pipefail
 
-# SELF is how --self-test re-invokes this script; taking the path as-invoked costs no process, where
-# `$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)` cost two per launch and the harness launches 16 times.
-SELF="${BASH_SOURCE[0]}"
-SCRIPT_DIR="${SELF%/*}"; case "$SELF" in "$SCRIPT_DIR") SCRIPT_DIR="." ;; esac
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="${REPO:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 DEPLOY="$HOME/.pi/agent/skills"
 
@@ -95,7 +92,7 @@ is_artifact() {
     __pycache__|__pycache__/*|*/__pycache__/*) return 0 ;;
   esac
   # zero-byte skill-name marker: empty file whose basename == skill name.
-  if [ "${rel##*/}" = "$name" ] && [ -e "$abs" ] && [ ! -s "$abs" ]; then
+  if [ "$(basename "$rel")" = "$name" ] && [ -e "$abs" ] && [ ! -s "$abs" ]; then
     return 0
   fi
   # basename == skill name AND empty is the marker regardless of path depth.
@@ -148,7 +145,7 @@ list_repo_files() {
     _repo_list_set=1
     for sk in "$REPO"/skills/*/; do
       [ -d "$sk" ] || continue                       # the unmatched glob stays a literal: skip it
-      name="${sk%/}"; name="${name##*/}"
+      name="$(basename "$sk")"
       [ -f "$sk/SKILL.md" ] || continue
       while IFS= read -r f; do
         rel="${f#"$sk"}"
@@ -171,7 +168,7 @@ list_deploy_files() {
     if [ -d "$DEPLOY" ]; then
       for sk in "$DEPLOY"/*/; do
         [ -d "$sk" ] || continue
-        name="${sk%/}"; name="${name##*/}"
+        name="$(basename "$sk")"
         while IFS= read -r f; do
           rel="${f#"$sk"}"
           t+="$name"$'\t'"$rel"$'\t'"$DEPLOY/$name/$rel"$'\n'
@@ -239,7 +236,7 @@ do_push() {
   local deployed=0
   for sk in "$REPO"/skills/*/; do
     [ -d "$sk" ] || continue
-    name="${sk%/}"; name="${name##*/}"
+    name="$(basename "$sk")"
     [ -f "$sk/SKILL.md" ] || continue
     rm -rf "$DEPLOY/$name"
     mkdir -p "$DEPLOY/$name"
@@ -261,12 +258,12 @@ do_pull() {
   local name dname drel dabs pulled=0
   for name in "$DEPLOY"/*; do
     [ -d "$name" ] || continue
-    local n; n="${name##*/}"
+    local n; n="$(basename "$name")"
     [ -e "$name" ] || continue
     mkdir -p "$REPO/skills/$n"
     while IFS=$'\t' read -r dname drel dabs; do
       is_artifact "$n" "$drel" "$dabs" && continue
-      [ "${drel##*/}" = "$n" ] && [ ! -s "$dabs" ] && continue  # never restore a zero-byte marker
+      [ "$(basename "$drel")" = "$n" ] && [ ! -s "$dabs" ] && continue  # never restore a zero-byte marker
       mkdir -p "$REPO/skills/$n/$(dirname "$drel")"
       cp -f "$dabs" "$REPO/skills/$n/$drel" || { err "pull failed: $n/$drel"; return 1; }
       pulled=$((pulled+1))
@@ -293,7 +290,7 @@ list_deploy_files_under() {
 self_test() {
   local tmp fails=0
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
-  local self="$SELF"
+  local self="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
 

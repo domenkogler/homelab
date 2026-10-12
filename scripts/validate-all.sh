@@ -48,7 +48,7 @@
 #                                     $HOME/.pi/agent/skills is absent (bare CI / non-pi laptop)
 #                                     the gate SKIPs so a pi-less host never breaks validation;
 #                                     on a pi-configured runner deploy is via sync-skills.sh --push.
-#                                     Its --self-test (HD-1129, 2026-10-12) is a separate item: the
+#                                     Its --self-test (HD-1135, 2026-10-12) is a separate item: the
 #                                     script had NO test of its own, which is why its encoding guard
 #                                     could not be made fork-free when its sibling's was — breeds drift
 #                                     / untracked / artifact / CRLF / BOM / binary in a temp HOME and
