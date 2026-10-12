@@ -50,10 +50,14 @@
 # Owning rule: docs/pi-harness.md §1 + §5/§5a · CONVENTIONS §6.
 set -uo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # HD-1118 Stage 1: the repo root is FOUND by scripts/lib/repo-root.sh, never assumed
 # from a depth — "one level above me" is what turns a folder move into green-while-nothing.
-_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The directory of THIS file is taken once (HD-1135: the old form asked `dirname` twice for the
+# same answer, and one exec is ~100 ms on the Win11 seat; every self-test arm pays the start-up).
+_hl_self="${BASH_SOURCE[0]}"
+case "$_hl_self" in */*) _hl_d="${_hl_self%/*}" ;; *) _hl_d="." ;; esac
+_hl_d="$(cd "$_hl_d" && pwd)"          # absolute, the same read as `cd $(dirname X) && pwd`
+SCRIPT_DIR="$_hl_d"
 while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
 # shellcheck source=/dev/null
 . "$_hl_d/lib/repo-root.sh"   # sets REPO (an inherited $REPO still wins)
@@ -65,7 +69,12 @@ WANT_SEAT=""; WANT_PLANE=""
 # `uname` alone: Git-Bash says MINGW*, WSL says Linux, a real Debian host has no wsl.exe.
 IS_WINDOWS=0; IS_WSL=0
 case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=1 ;; esac
-[ -f /proc/version ] && grep -qi microsoft /proc/version && IS_WSL=1
+# One fork-free /proc/version read (HD-1135): `grep -qi` is one exec per process and every
+# self-test arm pays it. `read`/`case` are the byte-truthful halves of CONVENTIONS §6's trap;
+# an unreadable /proc/version leaves IS_WSL at 0, exactly what a failed grep did.
+_procver=""
+if [ -r /proc/version ]; then IFS= read -r _procver </proc/version || true
+  case "${_procver,,}" in *microsoft*) IS_WSL=1 ;; esac; fi
 command -v wsl.exe >/dev/null 2>&1 && [ "$IS_WSL" -eq 0 ] && IS_WINDOWS=1
 
 if [ -z "${PI_SEATS:-}" ]; then
@@ -137,19 +146,45 @@ seat_label() { case "$1" in win11) printf 'Win11 workstation seat' ;; wsl) print
 # The self-test replaces the transport with stubs; no other reason for the hook.
 [ -n "${PI_SEAT_STUB:-}" ] && . "$PI_SEAT_STUB"
 
-# classify <rc> <output> -> OK | SKIP | DRIFT | FAILED | UNREACHABLE | NOT-HERE
+# classify <rc> <output> -> sets VERDICT to OK | SKIP | DRIFT | FAILED | UNREACHABLE | NOT-HERE
 # The plane scripts' own rc contract: 0 ok · 1 drift-or-failure · 2 SKIP.
+# OUT-PARAMETER, the HD-1115 rule: `V="$(classify …)"` runs in a subshell — and this one also paid
+# a `grep` exec for EVERY plane of EVERY seat, which is where this leg's wall went (HD-1135).
+# `${out,,}` is the in-process form of grep -i; the second probe stays case-SENSITIVE, because
+# `SKIP` is the harness's own word and lowercase prose must not buy a seat a SKIP verdict.
 classify() {
-  local rc="$1" out="$2"
+  local rc="$1" out="$2" _l
   case "$rc" in
-    0) printf 'OK' ;;
-    2) printf 'SKIP' ;;
-    255) printf 'UNREACHABLE' ;;
-    3) printf 'NOT-HERE' ;;
-    *) if printf '%s' "$out" | grep -qiE 'drift|MISSING|REFUSAL|not in sync'; then printf 'DRIFT'
-       elif printf '%s' "$out" | grep -q 'SKIP'; then printf 'SKIP'
-       else printf 'FAILED'; fi ;;
+    0) VERDICT='OK' ;;
+    2) VERDICT='SKIP' ;;
+    255) VERDICT='UNREACHABLE' ;;
+    3) VERDICT='NOT-HERE' ;;
+    *) _l="${out,,}"
+       case "$_l" in
+         *drift*|*missing*|*refusal*|*"not in sync"*) VERDICT='DRIFT' ;;
+         *) case "$out" in
+              *SKIP*) VERDICT='SKIP' ;;
+              *)      VERDICT='FAILED' ;;
+            esac ;;
+       esac ;;
   esac
+}
+
+# indent <text> — print every line of $1 under the leg-output prefix, without `sed` (HD-1135).
+# `read` keeps the bytes it is given; the `printf | sed` pair it replaces cost two execs.
+indent() { local _l
+  while IFS= read -r _l; do printf '           %s\n' "$_l"; done <<< "$1"; }
+
+# self_head <var> — this checkout's short HEAD, read from git ONCE per process (HD-1135: the
+# header line and the pre-flight each asked, and a `git rev-parse` is one exec). The missing-git
+# fallback (`?`) is unchanged: a tarball checkout must still self-test — the first Debian run of
+# this file ran from one and read every seat as STALE-CLONE (2026-10-08). Out-parameter for the
+# same HD-1115 reason as classify: a substitution would answer from a subshell and lose the cache.
+_SELF_HEAD=""
+self_head() {
+  local __out="$1"
+  [ -n "$_SELF_HEAD" ] || _SELF_HEAD="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo '?')"
+  printf -v "$__out" '%s' "$_SELF_HEAD"
 }
 
 ok=0; bad=0; skipped=0; NOTES=""
@@ -163,8 +198,8 @@ tally() {
 }
 
 sync_seat() {
-  local seat="$1" head seat_head out rc verdict name cmd2 _mode=check
-  head="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo '?')"
+  local seat="$1" head seat_head out rc verdict name cmd2 diag _mode=check
+  self_head head
   info ""
   info "── seat $seat · $(seat_label "$seat") · repo $(seat_repo "$seat")"
   out="$(run_on_seat "$seat" 'git rev-parse --short HEAD')"; rc=$?
@@ -172,13 +207,17 @@ sync_seat() {
     printf '  %-8s %-11s %s\n' "$seat" "pre-flight" "UNREACHABLE"
     # the rev-parse call swallows a transport's own stderr into $out, which is empty when the
     # leg dies before the remote shell starts — so ask the leg once more for its reason.
-    run_on_seat "$seat" 'true' 2>&1 | sed 's/^/           /'
+    diag="$(run_on_seat "$seat" 'true' 2>&1)"; indent "$diag"
     tally UNREACHABLE "$seat pre-flight"
     info "   the leg is down (or absent on this host). Fix the leg, or run this command FROM"
     info "   a host that can reach the seat: bash scripts/harness/pi-seat-sync.sh --seat $seat"
     return 1
   fi
-  seat_head="$(printf '%s' "$out" | tr -d '\000' | tr -d '[:space:]')"
+  # Fork-free (HD-1135): the same read as `printf '%s' "$out" | tr -d '\000' | tr -d '[:space:]'`
+  # without its three execs. A NUL byte cannot exist inside a bash string — the wsl transport
+  # strips the UTF-16 NULs with its own `tr` before the substitution — and any noise the tr form
+  # left behind still mismatches $head, so a stale clone stays a refusal, never a pass.
+  seat_head="${out//[[:space:]]/}"
   if [ "$seat_head" != "$head" ]; then
     printf '  %-8s %-11s %s\n' "$seat" "pre-flight" "STALE-CLONE"
     tally STALE-CLONE "$seat clone at $seat_head, not $head"
@@ -212,9 +251,9 @@ sync_seat() {
   while IFS=$'\t' read -r -u 3 name cmd2; do
     [ -n "$WANT_PLANE" ] && [ "$WANT_PLANE" != "$name" ] && continue
     out="$(run_on_seat "$seat" "$cmd2")"; rc=$?
-    verdict="$(classify "$rc" "$out")"
+    classify "$rc" "$out"; verdict="$VERDICT"
     printf '  %-8s %-11s %s\n' "$seat" "$name" "$verdict"
-    [ "$verdict" = OK ] || printf '%s\n' "$out" | sed 's/^/           /'
+    [ "$verdict" = OK ] || indent "$out"
     tally "$verdict" "$seat/$name"
     ran=$((ran+1))
   done 3<<< "$_rows"
@@ -233,13 +272,13 @@ sync_seat() {
 
 # --- self-test: stubbed transports, no network, no seats ------------------------
 self_test() {
-  local tmp fails=0 head
+  local tmp fails=0 head _pf
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
-  head="$(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo '?')"   # same fallback as the
-  # main path: a checkout without git (a tarball, a CI artifact) must still self-test — the
-  # first Debian run of this file ran from one and read every seat as STALE-CLONE (2026-10-08).
+  self_head head   # same fallback as the main path, ONE git read per process:
+  # a checkout without git (a tarball, a CI artifact) must still self-test — the first Debian run
+  # of this file ran from one and read every seat as STALE-CLONE (2026-10-08).
   mk_stub() {  # $1 = file, $2 = rev-parse answer (EMPTY = the transport itself is dead),
               # $3 = plane rc, $4 = plane output
     if [ -z "$2" ]; then
@@ -283,49 +322,87 @@ EOS
   run_stub() { local _case="$1"; shift
     PI_SEATS="wsl" STUB_DIR="$tmp" PI_STUB_CASE="$_case" PI_SEAT_STUB="$tmp/stub.sh" \
       bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@"; }
-  # verdict of one case, as printed by the real reporting path
-  verdict_of() { run_stub "$1" --check 2>&1 | sed -n "s/^ *wsl *pre-flight *//p" | head -1 | cut -d' ' -f1; }
-  plane_line() { run_stub "$1" --check 2>&1 | sed -n "s/^ *wsl *$2 *//p" | head -1 | cut -d' ' -f1; }
-  # An arm that EXPECTS green re-probes up to 3 times. The pre-flight asks git twice (here and in
-  # the child it spawns), and under a 60-item parallel gate a transient read failure surfaces as a
-  # verdict mismatch — a false RED. A genuine drift fails EVERY probe, so retrying removes the
-  # load flake without silencing the canary; the retry is capped, and the last verdict is what
-  # gets asserted. Failure-expecting arms keep their single probe.
-  probe_of() { local _n _v="?" ; for _n in 1 2 3; do _v="$(verdict_of "$1")"; [ "$_v" = "$2" ] && break; sleep 0.2; done; printf '%s' "$_v"; }
+  # ONE child run per arm, and the printed columns are READ out of that run's own output.
+  # `verdict_of`/`plane_line` used to relaunch the WHOLE CLI per column (each `sed|head|cut` trio
+  # is 3 execs, and a launch of this file is 4-6 s on this seat), so an arm paid for the same
+  # run three times. What is asserted here is the classification and the row the arm prints, and
+  # every arm still runs the real CLI against the fixture and still asserts its real exit code.
+  LAST_OUT=""; LAST_RC=0; PV=""
+  run_case() { LAST_OUT="$(run_stub "$1" --check 2>&1)"; LAST_RC=$?; }
+  # plane_verdict <plane> — the verdict token this run printed in that column, into PV ("" = no
+  # row). `read` splits the row in-process; the seat column is part of the test, so a plane's own
+  # output can never be mistaken for its verdict row.
+  plane_verdict() { local _want="$1" _s _n _v
+    PV=""
+    while read -r _s _n _v; do
+      { [ "$_s" = wsl ] && [ "$_n" = "$_want" ]; } || continue
+      PV="${_v%%[[:space:]]*}"; break
+    done <<< "$LAST_OUT"
+  }
+  # out_has <text> — is it in this run's output? `case` for what `printf '%s' | grep -q` did.
+  out_has() { case "$LAST_OUT" in *"$1"*) return 0 ;; *) return 1 ;; esac; }
+  # The GREEN arms re-run the CASE (never a column) up to 3 times and stop at the first match.
+  # The pre-flight asks git twice per run (the header line and the pre-flight), and under a
+  # 60-item parallel gate a transient read failure surfaces as a verdict mismatch — a false RED.
+  # A genuine mismatch fails EVERY probe, so the retry is the load flake's mitigation and not a
+  # tolerance: a green arm costs ONE child run, a red one costs three, and the last state read is
+  # what the arm asserts.
+  run_until() { local _case="$1" _plane="$2" _want="$3" _i
+    for _i in 1 2 3; do
+      run_case "$_case"; plane_verdict "$_plane"
+      [ "$PV" = "$_want" ] && return 0
+      sleep 0.2
+    done
+    return 0
+  }
 
   # 1. a seat that agrees -> pre-flight OK, every plane OK, exit 0.
-  out="$(run_stub good --check)"; rc=$?
-  if [ "$rc" -eq 0 ] && [ "$(probe_of good OK)" = OK ] && [ "$(plane_line good tui)" = OK ]; then
+  run_until good pre-flight OK
+  _pf="$PV"; plane_verdict tui
+  if [ "$LAST_RC" -eq 0 ] && [ "$_pf" = OK ] && [ "$PV" = OK ]; then
     info "good-seat        GREEN"
-  else err "canary: a clean seat did not report IN SYNC (rc $rc)"; fails=$((fails+1)); fi
+  else err "canary: a clean seat did not report IN SYNC (rc $LAST_RC)"; fails=$((fails+1)); fi
 
-  # 2. a plane that drifted -> exit 1 and a DRIFT line (the gate's whole purpose).
-  out="$(run_stub drift --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q DRIFT; then info "drift-seat       caught"; else err "canary passed: a drifting plane stayed green"; fails=$((fails+1)); fi
+  # 2. a plane that drifted -> exit 1 and a DRIFT verdict (the gate's whole purpose).
+  # The assertion is on the ROW the driver prints for the plane, not on the word anywhere in the
+  # output: a non-OK plane's own text is echoed under its row, so `printf '%s' "$out" | grep -q
+  # DRIFT` was true even when classify() stopped classifying at all — measured on the base tree,
+  # where deleting the drift judgement left this arm GREEN (2026-10-12). rc + row is the contract.
+  run_case drift
+  plane_verdict tui
+  if [ "$LAST_RC" -ne 0 ] && [ "$PV" = DRIFT ]; then info "drift-seat       caught"; else err "canary passed: a drifting plane stayed green"; fails=$((fails+1)); fi
 
   # 3. a plane that FAILED (not drift — no recognizable word) must not read as drift or OK.
-  out="$(run_stub fail --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q FAILED; then info "fail-seat        caught"; else err "canary passed: a failing plane was classified as something else"; fails=$((fails+1)); fi
+  run_case fail
+  plane_verdict tui
+  if [ "$LAST_RC" -ne 0 ] && [ "$PV" = FAILED ]; then info "fail-seat        caught"; else err "canary passed: a failing plane was classified as something else"; fails=$((fails+1)); fi
 
-  # 4. an unreachable seat -> UNREACHABLE + exit 1: never a silent success.
-  out="$(run_stub down --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q UNREACHABLE; then info "unreachable      caught"; else err "canary passed: an unreachable seat read as synced"; fails=$((fails+1)); fi
+  # 4. an unreachable seat -> UNREACHABLE + exit 1: never a silent success. The dead leg answers
+  #    nothing, so the verdict lives on the pre-flight row and the plane loop is never reached.
+  run_case down
+  plane_verdict pre-flight
+  if [ "$LAST_RC" -ne 0 ] && [ "$PV" = UNREACHABLE ]; then info "unreachable      caught"; else err "canary passed: an unreachable seat read as synced"; fails=$((fails+1)); fi
 
-  # 5. a stale clone -> STALE-CLONE and the planes must NOT have run.
-  out="$(run_stub stale --check)"; rc=$?
-  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q STALE-CLONE && ! printf '%s' "$out" | grep -q "must never run"; then
+  # 5. a stale clone -> STALE-CLONE on the pre-flight row and the planes must NOT have run: the
+  #    plane rows must be absent, not merely their output missing, so a stale seat cannot reach the
+  #    plane loop at all.
+  run_case stale
+  plane_verdict pre-flight; _pf="$PV"
+  plane_verdict tui
+  if [ "$LAST_RC" -ne 0 ] && [ "$_pf" = STALE-CLONE ] && [ -z "$PV" ] && ! out_has "must never run"; then
     info "stale-clone      caught (the seat's planes were not run)"
   else err "canary passed: a stale clone deployed anyway"; fails=$((fails+1)); fi
 
   # 6. a SKIP is not a pass and is not a failure either — printed, counted, exit 0.
-  for _n in 1 2 3; do out="$(run_stub skip --check)"; rc=$?; printf '%s' "$out" | grep -q "SKIP  wsl/tmux" && break; sleep 0.2; done
-  if [ "$rc" -eq 0 ] && printf '%s' "$out" | grep -q "SKIP  wsl/tmux"; then info "skip-honest      GREEN (a SKIP is named, not passed)"; else err "canary: a SKIP was not reported as a SKIP leg"; fails=$((fails+1)); fi
+  for _n in 1 2 3; do run_case skip; out_has "SKIP  wsl/tmux" && break; sleep 0.2; done
+  if [ "$LAST_RC" -eq 0 ] && out_has "SKIP  wsl/tmux"; then info "skip-honest      GREEN (a SKIP is named, not passed)"; else err "canary: a SKIP was not reported as a SKIP leg"; fails=$((fails+1)); fi
 
   # 7. a transport that drains stdin must not truncate the plane list. Deleting the `-u 3` / `3< <()`
   #    pairing reddens this arm — the first plane eats the loop's list, so `tui` never prints AND the
   #    coverage tripwire fires: both halves held down, not just the happy path.
-  out="$(run_stub eat --check)"; rc=$?
-  if [ "$rc" -eq 0 ] && [ "$(plane_line eat tui)" = OK ] && ! printf '%s' "$out" | grep -q 'coverage'; then
+  run_case eat
+  plane_verdict tui
+  if [ "$LAST_RC" -eq 0 ] && [ "$PV" = OK ] && ! out_has coverage; then
     info "stdin-drain      GREEN (every declared plane ran)"
   else err "canary passed: a stdin-eating transport truncated the plane list"; fails=$((fails+1)); fi
 
@@ -346,7 +423,8 @@ if [ "$MODE" = list ]; then
   exit 0
 fi
 
-info "pi-seat-sync · $MODE · seats: $SEATS · this checkout $(git -C "$REPO" rev-parse --short HEAD 2>/dev/null || echo '?')"
+self_head _this_head     # one `git rev-parse` for the whole process, shared with the pre-flight
+info "pi-seat-sync · $MODE · seats: $SEATS · this checkout $_this_head"
 for s in $SEATS; do
   [ -n "$WANT_SEAT" ] && [ "$WANT_SEAT" != "$s" ] && continue
   sync_seat "$s" || true

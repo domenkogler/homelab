@@ -97,7 +97,9 @@ is_artifact() {
     __pycache__|__pycache__/*|*/__pycache__/*) return 0 ;;
   esac
   # zero-byte skill-name marker: empty file whose basename == skill name.
-  if [ "$(basename "$rel")" = "$name" ] && [ -e "$abs" ] && [ ! -s "$abs" ]; then
+  # `${rel##*/}` IS `basename "$rel"` for these path-only, never-empty arguments — this predicate ran once
+  # per compared file, so it was the cheapest fork in the whole sweep.
+  if [ "${rel##*/}" = "$name" ] && [ -e "$abs" ] && [ ! -s "$abs" ]; then
     return 0
   fi
   # basename == skill name AND empty is the marker regardless of path depth.
@@ -105,18 +107,20 @@ is_artifact() {
 }
 
 # $1 = path -> 0 if it has UTF-8 BOM and/or CRLF (text, non-empty); else 1.
-# Binary is judged by a NUL byte (portable: bash args can't hold NUL, so use
-# tr byte-count subtraction instead of grep).
+# Binary is judged by a NUL byte, found WITHOUT a fork: `IFS= read -r -d ''` returns SUCCESS at the first
+# NUL and FAILURE at EOF when there is none, which is the whole question the probe has to answer. It used
+# to be answered with `wc -c < f` and `tr -d '\0' < f | wc -c` — three EXECs per file, because a bash
+# variable cannot hold a NUL — and on a Windows seat 3 × ~80 ms per file is most of the encoding sweep.
+# The probe is byte-truthful on this host (measured 2026-10-12, the same day as the `$( )` trap below),
+# and --self-test's binary canary now carries a CRLF pair next to its NUL: if the NUL probe ever goes
+# blind the file is judged as TEXT, the CRLF answers, and that arm goes RED instead of shrugging.
 bad_encoding() {
-  local p="$1"
+  local p="$1" chunk
   [ -f "$p" ] || return 1
   [ -s "$p" ] || return 1
-  local total strip
-  total="$(wc -c < "$p")"
-  strip="$(tr -d '\0' < "$p" | wc -c)"
-  if [ "$total" != "$strip" ]; then
-    return 1   # contains a NUL byte -> binary, skip encoding judgement
-  fi
+  while IFS= read -r -d '' chunk; do
+    return 1        # contains a NUL byte -> binary, skip encoding judgement
+  done < "$p"
   # -U/--binary is load-bearing on a Windows seat: Git-Bash's MSYS layer opens files in TEXT mode, so
   # a plain grep never sees the CR of a CRLF pair and this guard was silently blind there (measured
   # 2026-10-07; `-U` is a no-op on Debian, where no conversion exists to disable).
@@ -140,63 +144,70 @@ bad_encoding() {
 }
 
 # --- repo file list: "NAME \t REL \t ABS" (non-artifact, real files) ----------
-# CACHED: compare() and encoding_violations() each call this, and a cold call is a `find | sed | sort`
-# PER SKILL. The tree cannot change mid-run, so one walk per side is the honest cost (the sibling
-# sync-extensions.sh got the same treatment for the same reason).
+# ONE WALK PER SIDE, CACHED IN THE CALLER'S SHELL. compare() and encoding_violations() both need this
+# list, and the shape that used to hand it over was `< <(list_repo_files)`. A process substitution runs in
+# a SUBSHELL, so the memo it wrote (`_repo_list_set=1`) died with it and every caller re-walked the tree —
+# 4 execs per CALLER, not per side. The builder fills a global in the parent and the loops read it from a
+# here-string, so the memo is real. `sed 's#^\./##'` left with the `cd`: find walks the absolute path now
+# and the prefix comes off by parameter expansion. The ORDER is unchanged — every entry of one skill
+# shares the same absolute prefix, so sorting absolute paths compares exactly the same bytes as sorting
+# the relative ones did.
 _repo_list=""; _repo_list_set=0
-list_repo_files() {
-  if [ "$_repo_list_set" != 1 ]; then
-    local sk name f rel t=""
-    _repo_list_set=1
-    for sk in "$REPO"/skills/*/; do
-      [ -d "$sk" ] || continue                       # the unmatched glob stays a literal: skip it
-      name="$(basename "$sk")"
-      [ -f "$sk/SKILL.md" ] || continue
-      while IFS= read -r f; do
-        rel="${f#"$sk"}"
-        is_artifact "$name" "$rel" "$REPO/skills/$name/$rel" && continue
-        t+="$name"$'\t'"$rel"$'\t'"$REPO/skills/$name/$rel"$'\n'
-      done < <(cd "$sk" && find . -type f | sed 's#^\./##' | sort)
-    done
-    _repo_list="${t%$'\n'}"
-  fi
-  [ -n "$_repo_list" ] && printf '%s\n' "$_repo_list"
+build_repo_list() {
+  [ "$_repo_list_set" = 1 ] && return 0
+  _repo_list_set=1
+  local sk skd name f rel t=""
+  for sk in "$REPO"/skills/*/; do
+    [ -d "$sk" ] || continue                       # the unmatched glob stays a literal: skip it
+    skd="${sk%/}"; name="${skd##*/}"               # == basename, without the fork
+    [ -f "$sk/SKILL.md" ] || continue
+    while IFS= read -r f; do
+      rel="${f#"$skd/"}"
+      is_artifact "$name" "$rel" "$skd/$rel" && continue
+      t+="$name"$'\t'"$rel"$'\t'"$skd/$rel"$'\n'
+    done < <(find "$skd" -type f | sort)
+  done
+  _repo_list="${t%$'\n'}"
   return 0
 }
 
 # --- deploy file list: same TAB format (includes artifacts for prune) --------
 _deploy_list=""; _deploy_list_set=0
-list_deploy_files() {
-  if [ "$_deploy_list_set" != 1 ]; then
-    local sk name f rel t=""
-    _deploy_list_set=1
-    if [ -d "$DEPLOY" ]; then
-      for sk in "$DEPLOY"/*/; do
-        [ -d "$sk" ] || continue
-        name="$(basename "$sk")"
-        while IFS= read -r f; do
-          rel="${f#"$sk"}"
-          t+="$name"$'\t'"$rel"$'\t'"$DEPLOY/$name/$rel"$'\n'
-        done < <(cd "$sk" && find . -type f | sed 's#^\./##' | sort)
-      done
-    fi
-    _deploy_list="${t%$'\n'}"
+build_deploy_list() {
+  [ "$_deploy_list_set" = 1 ] && return 0
+  _deploy_list_set=1
+  local sk skd name f rel t=""
+  if [ -d "$DEPLOY" ]; then
+    for sk in "$DEPLOY"/*/; do
+      [ -d "$sk" ] || continue
+      skd="${sk%/}"; name="${skd##*/}"
+      while IFS= read -r f; do
+        rel="${f#"$skd/"}"
+        t+="$name"$'\t'"$rel"$'\t'"$skd/$rel"$'\n'
+      done < <(find "$skd" -type f | sort)
+    done
   fi
-  [ -n "$_deploy_list" ] && printf '%s\n' "$_deploy_list"
+  _deploy_list="${t%$'\n'}"
   return 0
 }
 
 # --- encoding guard over repo-side skill files ---------------------------------
-# info() line per offender; echoes the count.
+# err() line per offender; the count lands in ENCODING_N, an out-parameter (HD-1115's shape): a command
+# substitution at the call site would be a fork AND, being a substitution, would translate bytes here.
+ENCODING_N=0
 encoding_violations() {
-  local name rel abs count=0
-  while IFS=$'\t' read -r name rel abs; do
-    if bad_encoding "$abs"; then
-      err "ENCODING violation: $name/$rel  (UTF-8 BOM or CRLF — must be LF, no BOM)"
-      count=$((count+1))
-    fi
-  done < <(list_repo_files)
-  printf '%s' "$count"
+  local name rel abs
+  ENCODING_N=0
+  build_repo_list
+  if [ -n "$_repo_list" ]; then
+    while IFS=$'\t' read -r name rel abs; do
+      if bad_encoding "$abs"; then
+        err "ENCODING violation: $name/$rel  (UTF-8 BOM or CRLF — must be LF, no BOM)"
+        ENCODING_N=$((ENCODING_N + 1))
+      fi
+    done <<<"$_repo_list"
+  fi
+  return 0
 }
 
 # --- drift compare --------------------------------------------------------------
@@ -206,24 +217,30 @@ compare() {
   local name rel abs dname drel dabs
   local drift=0
 
-  while IFS=$'\t' read -r name rel abs; do
-    local dep_path="$DEPLOY/$name/$rel"
-    if [ ! -f "$dep_path" ]; then
-      info "MISSING on deploy:  $name/$rel"
-      drift=1
-    elif ! cmp -s "$abs" "$dep_path" 2>/dev/null; then
-      info "DIFFERS:            $name/$rel   (repo != deployed)"
-      drift=1
-    fi
-  done < <(list_repo_files)
+  build_repo_list
+  if [ -n "$_repo_list" ]; then
+    while IFS=$'\t' read -r name rel abs; do
+      local dep_path="$DEPLOY/$name/$rel"
+      if [ ! -f "$dep_path" ]; then
+        info "MISSING on deploy:  $name/$rel"
+        drift=1
+      elif ! cmp -s "$abs" "$dep_path" 2>/dev/null; then   # cmp = the byte-truthful compare, keep the exec
+        info "DIFFERS:            $name/$rel   (repo != deployed)"
+        drift=1
+      fi
+    done <<<"$_repo_list"
+  fi
 
-  while IFS=$'\t' read -r dname drel dabs; do
-    is_artifact "$dname" "$drel" "$dabs" && continue
-    if [ ! -e "$REPO/skills/$dname/$drel" ]; then
-      info "UNTRACKED (deploy-only): $dname/$drel"
-      drift=1
-    fi
-  done < <(list_deploy_files)
+  build_deploy_list
+  if [ -n "$_deploy_list" ]; then
+    while IFS=$'\t' read -r dname drel dabs; do
+      is_artifact "$dname" "$drel" "$dabs" && continue
+      if [ ! -e "$REPO/skills/$dname/$drel" ]; then
+        info "UNTRACKED (deploy-only): $dname/$drel"
+        drift=1
+      fi
+    done <<<"$_deploy_list"
+  fi
 
   return $drift
 }
@@ -232,7 +249,7 @@ compare() {
 do_push() {
   [ -d "$REPO/skills" ] || { err "repo skills/ not found ($REPO/skills)"; return 1; }
   local v
-  v="$(encoding_violations)"
+  encoding_violations; v=$ENCODING_N
   if [ "$v" -gt 0 ]; then
     err "encoding violation(s) ($v) block --push — fix to LF/no-BOM, then retry"
     return 1
@@ -241,7 +258,7 @@ do_push() {
   local deployed=0
   for sk in "$REPO"/skills/*/; do
     [ -d "$sk" ] || continue
-    name="$(basename "$sk")"
+    name="${sk%/}"; name="${name##*/}"              # == basename, without the fork
     [ -f "$sk/SKILL.md" ] || continue
     rm -rf "$DEPLOY/$name"
     mkdir -p "$DEPLOY/$name"
@@ -260,31 +277,22 @@ do_push() {
 # --- pull: deploy -> repo working tree (copy-only; no commit, no delete) ---------
 do_pull() {
   [ -d "$DEPLOY" ] || { err "no deployed skills at $DEPLOY — nothing to pull"; return 1; }
-  local name dname drel dabs pulled=0
-  for name in "$DEPLOY"/*; do
-    [ -d "$name" ] || continue
-    local n; n="$(basename "$name")"
-    [ -e "$name" ] || continue
-    mkdir -p "$REPO/skills/$n"
+  local n dname drel dabs dsub pulled=0
+  build_deploy_list
+  if [ -n "$_deploy_list" ]; then
     while IFS=$'\t' read -r dname drel dabs; do
+      n="$dname"
       is_artifact "$n" "$drel" "$dabs" && continue
-      [ "$(basename "$drel")" = "$n" ] && [ ! -s "$dabs" ] && continue  # never restore a zero-byte marker
-      mkdir -p "$REPO/skills/$n/$(dirname "$drel")"
+      [ "${drel##*/}" = "$n" ] && [ ! -s "$dabs" ] && continue   # never restore a zero-byte marker
+      dsub="${drel%/*}"; [ "$dsub" = "$drel" ] && dsub="."       # == dirname, without the fork
+      mkdir -p "$REPO/skills/$n/$dsub"
       cp -f "$dabs" "$REPO/skills/$n/$drel" || { err "pull failed: $n/$drel"; return 1; }
       pulled=$((pulled+1))
-    done < <(list_deploy_files_under "$n")
-  done
+    done <<<"$_deploy_list"
+  fi
   info "pulled $pulled file(s) from $DEPLOY -> repo skills/ (working tree only)"
   info "commit the change per CONVENTIONS §6 (worktree + validate + branch)"
   return 0
-}
-
-list_deploy_files_under() {
-  local want="$1" dname drel dabs
-  while IFS=$'\t' read -r dname drel dabs; do
-    [ "$dname" = "$want" ] || continue
-    printf '%s\t%s\t%s\n' "$dname" "$drel" "$dabs"
-  done < <(list_deploy_files)
 }
 
 # --- self-test ------------------------------------------------------------------
@@ -295,7 +303,7 @@ list_deploy_files_under() {
 self_test() {
   local tmp fails=0
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
-  local self="$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")"
+  local self="$SCRIPT_DIR/${BASH_SOURCE[0]##*/}"   # == basename, without the fork
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
 
@@ -315,26 +323,53 @@ self_test() {
     REPO="$root/repo" HOME="$root" bash "$self" "$@" >/dev/null 2>&1
   }
 
+  # The SAME sandbox driven in-process, for the arms whose value is a RULE verdict rather than the
+  # process-level exit code: point the two globals a launched CLI would have derived from REPO/$HOME at
+  # the sandbox, drop the memoised file lists (a stale list is how an in-process harness prints yesterday's
+  # verdict — the lists are built in the caller's shell now, so this reset is load-bearing), then call the
+  # functions the dispatch calls. Nothing can reach the real seat: DEPLOY/REPO are set to paths under
+  # $tmp before the first arm runs, and every arm goes through here.
+  at_sandbox() {  # $1 = sandbox root, $2 = check | check-strict | push | pull -> rc
+    local root="$1" mode="$2"
+    REPO="$root/repo"; DEPLOY="$root/.pi/agent/skills"
+    _repo_list=""; _repo_list_set=0; _deploy_list=""; _deploy_list_set=0
+    STRICT=0
+    case "$mode" in
+      check)        run_check   >/dev/null 2>&1 ;;
+      check-strict) STRICT=1; run_check >/dev/null 2>&1 ;;
+      push)         do_push     >/dev/null 2>&1 ;;
+      pull)         do_pull     >/dev/null 2>&1 ;;
+      *)            err "at_sandbox: unknown mode '$mode'"; return 2 ;;
+    esac
+  }
+
+  # Fail-safe for the in-process arms: until an arm points them at a sandbox, both globals name a path
+  # inside $tmp, never the seat this script was started from ($HOME/.pi/agent/skills).
+  REPO="$tmp/no-repo" DEPLOY="$tmp/no-deploy"
+
   # 1. At rest: repo == deployed => GREEN. Without this half every "caught" below could be the script
-  #    simply failing to run, which is not the same invariant.
+  #    simply failing to run, which is not the same invariant. LAUNCHED: this is --check --strict's rc-0
+  #    contract, and a launch is the only thing that proves the CLI's own exit code.
   mk_tree "$tmp/rest"
   if run_at "$tmp/rest" --check --strict; then pass "rest-green" "OK (as designed)"; else fail "rest-green" "BROKEN: a clean tree reads as drift"; fi
 
-  # 2. Deployed side loses a repo file => MUST fail.
+  # 2. Deployed side loses a repo file => MUST fail. LAUNCHED: --check --strict's rc-1-on-drift contract.
   rm -f "$tmp/rest/.pi/agent/skills/demo/references/notes.md"
   if run_at "$tmp/rest" --check --strict; then fail "missing" "canary passed: a MISSING deploy file stayed green"; else pass "missing" "caught"; fi
 
   # 3. Deployed side differs => MUST fail. (Re-built first; case 2 left the tree edited.)
+  #    In-process from here on: the rc-1-on-drift contract was launched one arm above, and everything an
+  #    in-process arm asserts is the same run_check()/do_push()/do_pull() the dispatch calls.
   mk_tree "$tmp/diff"
   printf 'seat-side edit\n' > "$tmp/diff/.pi/agent/skills/demo/references/notes.md"
-  if run_at "$tmp/diff" --check --strict; then fail "differs" "canary passed: a DIFFERING deploy file stayed green"; else pass "differs" "caught"; fi
+  if at_sandbox "$tmp/diff" check-strict; then fail "differs" "canary passed: a DIFFERING deploy file stayed green"; else pass "differs" "caught"; fi
 
   # 4. A deployed-only file IS drift here (the deliberate difference from sync-extensions.sh, where an
   #    extra is machine-local by design): if this ever reads as clean, untracked seat content silently
   #    stops being a contract.
   mk_tree "$tmp/extra"
   printf 'stray\n' > "$tmp/extra/.pi/agent/skills/demo/stray.md"
-  if run_at "$tmp/extra" --check --strict; then fail "untracked" "canary passed: a deploy-only file stayed green"; else pass "untracked" "caught"; fi
+  if at_sandbox "$tmp/extra" check-strict; then fail "untracked" "canary passed: a deploy-only file stayed green"; else pass "untracked" "caught"; fi
 
   # 5. The ARTIFACT RULE, both directions: runtime state the repo carries but never deploys must NOT
   #    read as drift — and it must not become a hole wide enough to hide case 2/3/4 either.
@@ -342,10 +377,14 @@ self_test() {
   printf '{"hosts":[]}\n' > "$tmp/art/repo/skills/demo/net.json"
   printf '' > "$tmp/art/repo/skills/demo/.env.op"
   : > "$tmp/art/repo/skills/demo/demo"                       # zero-byte skill-name marker
+  mkdir -p "$tmp/art/repo/skills/demo/sub" && : > "$tmp/art/repo/skills/demo/sub/demo"
+  # ^ the SAME marker one directory deeper: the rule says "basename == skill name AND empty, regardless of
+  # path depth", and the basename now comes from `${rel##*/}`. A depth-1-only canary cannot tell that
+  # expansion from a plain `$rel`, so without this line the claim above would be unproven (CONVENTIONS §6).
   mkdir -p "$tmp/art/repo/skills/demo/__pycache__" && printf 'x' > "$tmp/art/repo/skills/demo/__pycache__/c.pyc"
-  if run_at "$tmp/art" --check --strict; then pass "artifacts" "OK (ignored, not drift)"; else fail "artifacts" "BROKEN: runtime state reads as drift"; fi
+  if at_sandbox "$tmp/art" check-strict; then pass "artifacts" "OK (ignored, not drift)"; else fail "artifacts" "BROKEN: runtime state reads as drift"; fi
   rm -f "$tmp/art/.pi/agent/skills/demo/SKILL.md"
-  if run_at "$tmp/art" --check --strict; then fail "artifacts" "canary passed: the ignore-list swallowed a REAL missing file"; else pass "artifacts" "still catches real drift"; fi
+  if at_sandbox "$tmp/art" check-strict; then fail "artifacts" "canary passed: the ignore-list swallowed a REAL missing file"; else pass "artifacts" "still catches real drift"; fi
 
   # 6. Repo-side CRLF => blocks --push AND fails --check --strict, and must not deploy anything.
   #    The bad bytes go on BOTH sides on purpose: if only the repo side is CRLF, the tree is also
@@ -353,6 +392,8 @@ self_test() {
   #    not a hypothetical — the first version of these two cases put them on one side, and a deliberately
   #    BLIND encoding guard (byte checks through `$( )`, see bad_encoding above) still printed "caught"
   #    for all four encoding lines. Isolated, they now fail when the guard goes blind.
+  #    LAUNCHED: these two are the encoding rc contracts — `--push` refuses (and writes nothing), and
+  #    `--check --strict` exits 1 on an encoding violation with no drift to blame.
   mk_tree "$tmp/crlf"
   printf '# demo skill\r\n' > "$tmp/crlf/repo/skills/demo/SKILL.md"
   printf '# demo skill\r\n' > "$tmp/crlf/.pi/agent/skills/demo/SKILL.md"
@@ -363,42 +404,85 @@ self_test() {
 
   # 7. Repo-side UTF-8 BOM => the same two rules, also with no drift in play. No canary for this half
   #    existed anywhere until 2026-10-12 (CONVENTIONS §6: a test that cannot fail is not evidence).
+  #    In-process: the BOM arms assert the BOM JUDGEMENT, and the rc shape behind them is the pair of
+  #    launches one arm above — one real launch per distinct contract, not per case.
   mk_tree "$tmp/bom"
   printf '\xef\xbb\xbf# demo skill\n' > "$tmp/bom/repo/skills/demo/SKILL.md"
   printf '\xef\xbb\xbf# demo skill\n' > "$tmp/bom/.pi/agent/skills/demo/SKILL.md"
-  if run_at "$tmp/bom" --push; then fail "bom-push" "canary passed: --push accepted a BOM file"
+  if at_sandbox "$tmp/bom" push; then fail "bom-push" "canary passed: --push accepted a BOM file"
   elif cmp -s "$tmp/bom/repo/skills/demo/SKILL.md" "$tmp/bom/.pi/agent/skills/demo/SKILL.md"; then pass "bom-push" "blocked, deployed untouched"
   else fail "bom-push" "blocked but WROTE the bad file"; fi
-  if run_at "$tmp/bom" --check --strict; then fail "bom-gate" "canary passed: a BOM green with no drift to blame"; else pass "bom-gate" "caught (encoding, not drift)"; fi
+  if at_sandbox "$tmp/bom" check-strict; then fail "bom-gate" "canary passed: a BOM green with no drift to blame"; else pass "bom-gate" "caught (encoding, not drift)"; fi
 
   # 8. A NUL byte means BINARY => the guard abstains, so a binary asset must stay GREEN (a guard that
-  #    flags binaries gets muted inside a week, and then it guards nothing).
+  #    flags binaries gets muted inside a week, and then it guards nothing). The CRLF pair next to the NUL
+  #    is what gives this arm its teeth: an abstention is invisible to a case whose file would pass the
+  #    text rules anyway, so a blind NUL probe used to leave this line GREEN either way (CONVENTIONS §6,
+  #    the same lesson the crlf/bom arms learned in 2026-10-12 — bad bytes must sit where the tested rule
+  #    is the one that answers). Now: delete the NUL test and this arm reddens, because the CR gets seen.
   mk_tree "$tmp/bin"
-  printf 'PNG-ish\x00\x01\x02data\n' > "$tmp/bin/repo/skills/demo/references/asset.bin"
+  printf 'PNG-ish\x00\x01\x02\r\ndata\r\n' > "$tmp/bin/repo/skills/demo/references/asset.bin"
   cp "$tmp/bin/repo/skills/demo/references/asset.bin" "$tmp/bin/.pi/agent/skills/demo/references/asset.bin"
-  if run_at "$tmp/bin" --check --strict; then pass "binary" "OK (abstains, no false alarm)"; else fail "binary" "BROKEN: a binary file flagged as an encoding violation"; fi
+  if at_sandbox "$tmp/bin" check-strict; then pass "binary" "OK (abstains, no false alarm)"; else fail "binary" "BROKEN: a binary file flagged as an encoding violation"; fi
 
-  # 9. --push converges, is idempotent, and never deploys the artifact set.
+  # 9. --push converges, is idempotent, and never deploys the artifact set. LAUNCHED: the --push rc-0
+  #    contract and the only place a push writes real bytes through the real process.
   mk_tree "$tmp/push"; rm -f "$tmp/push/.pi/agent/skills/demo/references/notes.md"
   printf '{"hosts":[]}\n' > "$tmp/push/repo/skills/demo/net.json"
   if ! run_at "$tmp/push" --push; then fail "push" "--push failed on a clean tree"
-  elif ! run_at "$tmp/push" --check --strict; then fail "push" "still drifting after --push"
+  elif ! at_sandbox "$tmp/push" check-strict; then fail "push" "still drifting after --push"
   elif [ -e "$tmp/push/.pi/agent/skills/demo/net.json" ]; then fail "push" "deployed an artifact (net.json)"
   else pass "push" "converged + idempotent, artifacts not deployed"; fi
 
   # 10. --pull captures a seat-side edit into the repo WORKING TREE (and does not commit, and does not
   #     restore a zero-byte marker). Byte-compare via cmp, NOT `[ "$(cat f)" = ... ]` — on a Git-Bash
   #     seat the command substitution eats CR, so the naive form can report a byte-differing file as a
-  #     match (that lie is documented in bad_encoding above and in CONVENTIONS §6).
+  #     match (that lie is documented in bad_encoding above and in CONVENTIONS §6). LAUNCHED: the --pull
+  #     contract, including that the copy really lands in the repo working tree of a real process.
   mk_tree "$tmp/pull"
   printf 'captured on the seat\n' > "$tmp/pull/.pi/agent/skills/demo/references/notes.md"
+  # A seat-side file the repo does not have YET, one directory deeper than anything else here: --pull must
+  # create `references/sub/` for it. That is the proof for the fork-free `dirname` in do_pull — a wrong
+  # parent path puts the bytes somewhere the next cmp cannot see.
+  mkdir -p "$tmp/pull/.pi/agent/skills/demo/references/sub"
+  printf 'captured deeper\n' > "$tmp/pull/.pi/agent/skills/demo/references/sub/new.md"
   if ! run_at "$tmp/pull" --pull; then fail "pull" "--pull failed"
   elif ! cmp -s "$tmp/pull/repo/skills/demo/references/notes.md" "$tmp/pull/.pi/agent/skills/demo/references/notes.md"; then fail "pull" "ran but captured the wrong bytes"
-  elif ! run_at "$tmp/pull" --check --strict; then fail "pull" "green contract broke after capturing"
+  elif ! cmp -s "$tmp/pull/repo/skills/demo/references/sub/new.md" "$tmp/pull/.pi/agent/skills/demo/references/sub/new.md"; then fail "pull" "ran but lost the nested file"
+  elif ! at_sandbox "$tmp/pull" check-strict; then fail "pull" "green contract broke after capturing"
   else pass "pull" "captured into the working tree"; fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
+}
+
+# --- the ONE decision body for --check ------------------------------------------
+# The CLI dispatch and --self-test call the SAME functions. That is what lets the harness drive most of
+# its arms in-process (this host charges ~80 ms for every process creation, and 15 launches were ~94 % of
+# this leg) without handing it a second, cheaper implementation of the rules to assert against — the shape
+# that would let a fixture go green on logic the shipped CLI never runs.
+run_check() {
+  local rc=0 v
+  [ -d "$REPO/skills" ] || { err "no skills/ at $REPO — run from a homelab clone"; return 1; }
+  if [ ! -d "$DEPLOY" ]; then
+    info "deploy target missing: $DEPLOY (nothing deployed yet)"
+    info "hint: run 'sync-skills.sh --push' to populate, or re-run install-pi-wsl.sh"
+    rc=1
+  else
+    info "comparing repo skills/  <->  deployed ($DEPLOY)"
+    compare
+    rc=$?
+  fi
+  encoding_violations; v=$ENCODING_N
+  if [ "$v" -gt 0 ]; then
+    err "$v encoding violation(s) in repo skills/"
+    [ "$STRICT" -eq 1 ] && rc=1
+  fi
+  if [ "$STRICT" -eq 1 ] && [ "$rc" -eq 0 ]; then
+    info "OK: repo skills == deployed (no drift, no encoding violations)"
+  fi
+  [ "$rc" -ne 0 ] && info "drift detected — run --push to deploy or --pull to capture"
+  return "$rc"
 }
 
 # ================================ dispatch ======================================
@@ -408,28 +492,7 @@ fi
 
 rc=0
 case "$MODE" in
-  check)
-    [ -d "$REPO/skills" ] || { err "no skills/ at $REPO — run from a homelab clone"; exit 1; }
-    if [ ! -d "$DEPLOY" ]; then
-      info "deploy target missing: $DEPLOY (nothing deployed yet)"
-      info "hint: run 'sync-skills.sh --push' to populate, or re-run install-pi-wsl.sh"
-      rc=1
-    else
-      info "comparing repo skills/  <->  deployed ($DEPLOY)"
-      compare
-      rc=$?
-    fi
-    v="$(encoding_violations)"
-    if [ "$v" -gt 0 ]; then
-      err "$v encoding violation(s) in repo skills/"
-      [ "$STRICT" -eq 1 ] && rc=1
-    fi
-    if [ "$STRICT" -eq 1 ] && [ "$rc" -eq 0 ]; then
-      info "OK: repo skills == deployed (no drift, no encoding violations)"
-    fi
-    [ "$rc" -ne 0 ] && info "drift detected — run --push to deploy or --pull to capture"
-    exit "$rc"
-    ;;
+  check) run_check ; rc=$? ;;
   push) do_push ; rc=$? ;;
   pull) do_pull ; rc=$? ;;
 esac

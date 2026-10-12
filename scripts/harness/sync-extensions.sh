@@ -112,16 +112,16 @@ is_artifact() {
 }
 
 # $1 = path -> 0 if UTF-8 BOM and/or CRLF present in a non-empty text file.
-# Binary is judged by a NUL byte (bash args cannot hold NUL, so count bytes
-# before/after tr instead of grepping for it).
+# Binary is judged by a NUL byte found WITHOUT a fork: `IFS= read -r -d ''` returns SUCCESS at the first NUL
+# and FAILURE at EOF when there is none — that is the whole question, and it used to be answered by
+# comparing `wc -c < f` with `tr -d '\0' < f | wc -c` because a bash variable cannot hold a NUL.
 bad_encoding() {
-  local p="$1" line first=1
+  local p="$1" line first=1 chunk
   [ -f "$p" ] || return 1
   [ -s "$p" ] || return 1
-  local total strip
-  total="$(wc -c < "$p")"
-  strip="$(tr -d '\0' < "$p" | wc -c)"
-  [ "$total" != "$strip" ] && return 1   # NUL byte -> binary, no judgement
+  while IFS= read -r -d '' chunk; do
+    return 1   # NUL byte -> binary, no judgement
+  done < "$p"
   # SEVEN EXECs per file used to sit here (wc, tr|wc, head|od|tr, grep) — over ~30 extension files the
   # encoding sweep alone was ~200 processes, which on a Windows seat is most of this leg (measured
   # 2026-10-10: 14 s solo; a spawn there is 16-44 ms against 0.66 ms on WSL Debian).
@@ -133,10 +133,11 @@ bad_encoding() {
   # BOTH CRLF canaries printed "canary passed" — the guard was blind on Windows again, three years
   # after that same trap was written down. `read` is the builtin that does not translate here.
   #
-  # sync-skills.sh, the sibling, STILL has the old `grep -U` body: it has no --self-test at all, so the
-  # rewrite there would have had nothing to prove itself with, and its leg is 3 s, not a hot spot. See
-  # the HD row in todo.md for giving that script a self-test; until then this body is proven here and
-  # only here.
+  # sync-skills.sh, the sibling, runs the SAME body and is proven by its own canaries too (it got a
+  # --self-test on 2026-10-12, which is the thing that made this body portable to it at all). The NUL probe
+  # above is the one part of the guard that is NOT proven by a CRLF/BOM canary, so this fixture carries a
+  # binary arm with a NUL AND a CRLF pair in the same file: abstention that nobody can break is a rule
+  # nobody has (CONVENTIONS §6).
   while IFS= read -r line || [ -n "$line" ]; do
     if [ "$first" = 1 ]; then
       first=0
@@ -148,53 +149,62 @@ bad_encoding() {
 }
 
 # --- file lists: "REL\tABS", repo side and deploy side ------------------------
-# CACHED. These are called from five places per run (compare twice, the encoding sweep, push, pull)
-# and every cold call was `find | sed | sort` — three EXECs plus the caller's process substitution —
-# for a tree that cannot change mid-run. One walk per side is the honest cost.
+# ONE WALK PER SIDE, CACHED IN THE CALLER'S SHELL. These were called from five places per run (compare
+# twice, the encoding sweep, push, pull) through `< <(list_*_files)` — and a process substitution runs in a
+# SUBSHELL, so the memo it set was discarded with it and every caller paid `cd+find+sed+sort` all over
+# again. The builders fill the global in the caller's shell and the loops read it from a here-string;
+# `sed 's#^\./##'` is gone with the `cd` and the prefix comes off by parameter expansion. Sorting absolute
+# paths instead of relative ones cannot reorder anything: every entry of one side shares the same
+# absolute prefix, so the compared bytes are the same bytes `sort` saw before.
 _src_list=""; _src_list_set=0
 _deploy_list=""; _deploy_list_set=0
-list_src_files() {
-  if [ "$_src_list_set" != 1 ]; then
-    local f t=""
-    _src_list_set=1
-    if [ -d "$SRC" ]; then
-      while IFS= read -r f; do
-        is_artifact "$f" && continue
-        t+="$f"$'\t'"$SRC/$f"$'\n'
-      done < <(cd "$SRC" && find . -type f | sed 's#^\./##' | sort)
-    fi
-    _src_list="${t%$'\n'}"
+build_src_list() {
+  [ "$_src_list_set" = 1 ] && return 0
+  _src_list_set=1
+  local f t=""
+  if [ -d "$SRC" ]; then
+    while IFS= read -r f; do
+      f="${f#"$SRC/"}"
+      is_artifact "$f" && continue
+      t+="$f"$'\t'"$SRC/$f"$'\n'
+    done < <(find "$SRC" -type f | sort)
   fi
-  [ -n "$_src_list" ] && printf '%s\n' "$_src_list"
+  _src_list="${t%$'\n'}"
   return 0
 }
 
-list_deploy_files() {
-  if [ "$_deploy_list_set" != 1 ]; then
-    local f t=""
-    _deploy_list_set=1
-    if [ -d "$DEPLOY" ]; then
-      while IFS= read -r f; do
-        is_artifact "$f" && continue
-        t+="$f"$'\t'"$DEPLOY/$f"$'\n'
-      done < <(cd "$DEPLOY" && find . -type f | sed 's#^\./##' | sort)
-    fi
-    _deploy_list="${t%$'\n'}"
+build_deploy_list() {
+  [ "$_deploy_list_set" = 1 ] && return 0
+  _deploy_list_set=1
+  local f t=""
+  if [ -d "$DEPLOY" ]; then
+    while IFS= read -r f; do
+      f="${f#"$DEPLOY/"}"
+      is_artifact "$f" && continue
+      t+="$f"$'\t'"$DEPLOY/$f"$'\n'
+    done < <(find "$DEPLOY" -type f | sort)
   fi
-  [ -n "$_deploy_list" ] && printf '%s\n' "$_deploy_list"
+  _deploy_list="${t%$'\n'}"
   return 0
 }
 
 # --- encoding guard over repo-side files --------------------------------------
+# The count lands in ENCODING_N, an out-parameter (HD-1115's shape): `v="$(encoding_violations)"` at the
+# call sites was a fork per call, on a host that charges ~80 ms for one and does not parallelise them.
+ENCODING_N=0
 encoding_violations() {
-  local rel abs count=0
-  while IFS=$'\t' read -r rel abs; do
-    if bad_encoding "$abs"; then
-      err "ENCODING violation: $rel  (UTF-8 BOM or CRLF — must be LF, no BOM)"
-      count=$((count+1))
-    fi
-  done < <(list_src_files)
-  printf '%s' "$count"
+  local rel abs
+  ENCODING_N=0
+  build_src_list
+  if [ -n "$_src_list" ]; then
+    while IFS=$'\t' read -r rel abs; do
+      if bad_encoding "$abs"; then
+        err "ENCODING violation: $rel  (UTF-8 BOM or CRLF — must be LF, no BOM)"
+        ENCODING_N=$((ENCODING_N + 1))
+      fi
+    done <<<"$_src_list"
+  fi
+  return 0
 }
 
 # --- retired names -------------------------------------------------------------
@@ -221,24 +231,30 @@ retired() {
 # A RETIRED name still deployed = DRIFT (exit 1) — that is the retirement channel.
 compare() {
   local rel abs drift=0 extras=0
-  while IFS=$'\t' read -r rel abs; do
-    if [ ! -f "$DEPLOY/$rel" ]; then
-      info "MISSING on deploy:  $rel"
-      drift=1
-    elif ! cmp -s "$abs" "$DEPLOY/$rel" 2>/dev/null; then
-      info "DIFFERS:            $rel   (repo != deployed)"
-      drift=1
-    fi
-  done < <(list_src_files)
+  build_src_list
+  if [ -n "$_src_list" ]; then
+    while IFS=$'\t' read -r rel abs; do
+      if [ ! -f "$DEPLOY/$rel" ]; then
+        info "MISSING on deploy:  $rel"
+        drift=1
+      elif ! cmp -s "$abs" "$DEPLOY/$rel" 2>/dev/null; then   # cmp = the byte-truthful compare, keep the exec
+        info "DIFFERS:            $rel   (repo != deployed)"
+        drift=1
+      fi
+    done <<<"$_src_list"
+  fi
 
-  while IFS=$'\t' read -r rel abs; do
-    if [ ! -e "$SRC/$rel" ]; then
-      # a retired name is NOT a machine-local extra — it is drift, reported once below
-      case " ${RETIRED[*]} " in *" $rel "*) continue ;; esac
-      info "LOCAL (deploy-only, not drift): $rel"
-      extras=$((extras+1))
-    fi
-  done < <(list_deploy_files)
+  build_deploy_list
+  if [ -n "$_deploy_list" ]; then
+    while IFS=$'\t' read -r rel abs; do
+      if [ ! -e "$SRC/$rel" ]; then
+        # a retired name is NOT a machine-local extra — it is drift, reported once below
+        case " ${RETIRED[*]} " in *" $rel "*) continue ;; esac
+        info "LOCAL (deploy-only, not drift): $rel"
+        extras=$((extras+1))
+      fi
+    done <<<"$_deploy_list"
+  fi
 
   [ "$extras" -gt 0 ] && info "$extras deployed-only file(s) left alone (machine-local by design; a name the repo retired is NOT in that class)"
   retired check; [ "$RETIRED_N" -gt 0 ] && drift=1
@@ -249,21 +265,30 @@ compare() {
 do_push() {
   [ -d "$SRC" ] || { err "repo extensions dir not found ($SRC)"; return 1; }
   local v
-  v="$(encoding_violations)"
+  encoding_violations; v=$ENCODING_N
   if [ "$v" -gt 0 ]; then
     err "encoding violation(s) ($v) block --push — fix to LF/no-BOM, then retry"
     return 1
   fi
   mkdir -p "$DEPLOY"
-  local rel abs n=0
-  while IFS=$'\t' read -r rel abs; do
-    mkdir -p "$DEPLOY/$(dirname "$rel")"
-    cp -a "$abs" "$DEPLOY/$rel" || { err "push failed: $rel"; return 1; }
-    n=$((n+1))
-  done < <(list_src_files)
+  local rel abs n=0 dsub
+  build_src_list
+  if [ -n "$_src_list" ]; then
+    while IFS=$'\t' read -r rel abs; do
+      dsub="${rel%/*}"; [ "$dsub" = "$rel" ] && dsub="."          # == dirname, without the fork
+      mkdir -p "$DEPLOY/$dsub"
+      cp -a "$abs" "$DEPLOY/$rel" || { err "push failed: $rel"; return 1; }
+      n=$((n+1))
+    done <<<"$_src_list"
+  fi
   retired push || return 1
   info "pushed $n file(s) -> $DEPLOY (deployed-only files preserved, retired names removed)"
-  info "deployed now holds: $(cd "$DEPLOY" && find . -type f | sed 's#^\./##' | sort | tr '\n' ' ')"
+  # What the seat holds NOW, after the push — so this walks the tree again instead of reusing the memo, and
+  # it walks it with 2 execs (`find | sort`) instead of 4 (`cd | find | sed | sort | tr`): the `sed` and the
+  # `tr` are parameter expansion and a string append now. Artifacts stay in this listing, as they were.
+  local _held="" _f
+  while IFS= read -r _f; do _held+="${_f#"$DEPLOY/"} "; done < <(find "$DEPLOY" -type f 2>/dev/null | sort)
+  info "deployed now holds: $_held"
   return 0
 }
 
@@ -274,15 +299,18 @@ do_push() {
 do_pull() {
   [ -d "$DEPLOY" ] || { err "no deployed extensions at $DEPLOY — nothing to pull"; return 1; }
   local rel abs n=0 skipped=0
-  while IFS=$'\t' read -r rel abs; do
-    if [ ! -e "$SRC/$rel" ]; then
-      skipped=$((skipped+1))
-      continue
-    fi
-    cmp -s "$abs" "$SRC/$rel" && continue
-    cp -f "$abs" "$SRC/$rel" || { err "pull failed: $rel"; return 1; }
-    n=$((n+1))
-  done < <(list_deploy_files)
+  build_deploy_list
+  if [ -n "$_deploy_list" ]; then
+    while IFS=$'\t' read -r rel abs; do
+      if [ ! -e "$SRC/$rel" ]; then
+        skipped=$((skipped+1))
+        continue
+      fi
+      cmp -s "$abs" "$SRC/$rel" && continue                        # cmp = byte truth, keep the exec
+      cp -f "$abs" "$SRC/$rel" || { err "pull failed: $rel"; return 1; }
+      n=$((n+1))
+    done <<<"$_deploy_list"
+  fi
   info "pulled $n changed file(s) $DEPLOY -> $SRC (working tree only)"
   [ "$skipped" -gt 0 ] && info "$skipped deployed-only file(s) NOT imported (not in the repo by design)"
   info "commit per CONVENTIONS §6 (worktree + validate + branch); never commit straight off main"
@@ -309,66 +337,146 @@ self_test() {
   run_at() {  # $1 = sandbox root, rest = args -> run THIS script against that sandbox
     local root="$1"; shift
     REPO="$root" PI_EXT_DIR="$root/agent/extensions" \
-      bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" "$@" >/dev/null 2>&1
+      bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" "$@" >/dev/null 2>&1
   }
+
+  # The SAME sandbox driven in-process, for the arms whose value is a RULE verdict rather than the
+  # process-level exit code. It points every global a launched CLI would have derived from REPO /
+  # PI_EXT_DIR at the sandbox and drops the memoised file lists — the lists are built in the CALLER's
+  # shell now, so a missing reset would have an arm quote the previous tree's verdict (proved, not
+  # assumed: deleting that reset line reddens `differs` and `bom-push`, see the mutation record).
+  # Nothing here can reach a real seat: REPO/SRC/DEPLOY are set to paths under $tmp before the first arm.
+  at_sandbox() {  # $1 = sandbox root, $2 = check | check-strict | push | pull -> rc
+    local root="$1" mode="$2"
+    REPO="$root"; SRC="$root/pi-agent/extensions"; DEPLOY="$root/agent/extensions"
+    _src_list=""; _src_list_set=0; _deploy_list=""; _deploy_list_set=0
+    STRICT=0
+    case "$mode" in
+      check)        run_check   >/dev/null 2>&1 ;;
+      check-strict) STRICT=1; run_check >/dev/null 2>&1 ;;
+      push)         do_push     >/dev/null 2>&1 ;;
+      pull)         do_pull     >/dev/null 2>&1 ;;
+      *)            err "at_sandbox: unknown mode '$mode'"; return 2 ;;
+    esac
+  }
+  # Fail-safe while no sandbox is selected: name paths inside $tmp, never the seat this ran from.
+  REPO="$tmp/no-repo"; SRC="$tmp/no-repo/pi-agent/extensions"; DEPLOY="$tmp/no-deploy"
 
   # 1. rest state: repo file identical + one deployed-only extra -> GREEN.
   #    This is the extras rule; if it ever reads as drift the gate fails on the
-  #    laptop seat forever and someone mutes it.
+  #    laptop seat forever and someone mutes it. LAUNCHED: --check --strict's rc-0 contract.
   a="$tmp/rest"; mk_tree "$a"
   if run_at "$a" --check --strict; then info "extras-at-rest     GREEN (as designed)"; else err "canary: deployed-only extra was treated as drift"; fails=$((fails+1)); fi
 
-  # 2. deployed side loses the repo file -> MUST fail.
+  # 2. deployed side loses the repo file -> MUST fail. LAUNCHED: the rc-1-on-drift contract.
   rm -f "$a/agent/extensions/seat-status.ts"
   if run_at "$a" --check --strict; then err "canary passed: MISSING file stayed green"; fails=$((fails+1)); else info "missing-canary     caught"; fi
 
-  # 3. deployed side differs -> MUST fail.
+  # 3. deployed side differs -> MUST fail. In-process from here on: every in-process arm calls the same
+  #    run_check()/do_push()/do_pull() the dispatch calls, so it asserts the shipped rules, not a copy.
   mk_tree "$tmp/diff"
   printf 'export default function () { /* drifted */ }\n' > "$tmp/diff/agent/extensions/seat-status.ts"
-  if run_at "$tmp/diff" --check --strict; then err "canary passed: DIFFERING file stayed green"; fails=$((fails+1)); else info "drift-canary       caught"; fi
+  if at_sandbox "$tmp/diff" check-strict; then err "canary passed: DIFFERING file stayed green"; fails=$((fails+1)); else info "drift-canary       caught"; fi
 
-  # 4. repo-side CRLF -> blocks --push AND fails --check --strict.
+  # 4. repo-side CRLF -> blocks --push AND fails --check --strict. LAUNCHED: these two ARE the encoding rc
+  #    contracts (push refuses; --check --strict exits 1), so they stay real process creations.
+  #    The bad bytes go on BOTH sides, exactly as in sync-skills.sh's arm 6, for the reason that harness
+  #    recorded on 2026-10-12: with the CRLF only on the repo side the tree is ALSO drifting, so the gate
+  #    line passes on the DRIFT rule and the encoding rule is never what made it red. Measured here, not
+  #    assumed: with the bad bytes on one side, neutering `[ "$STRICT" -eq 1 ] && rc=1` left this whole
+  #    fixture GREEN; with them on both, that mutation reddens `crlf-gate` and `bom-gate`.
   mk_tree "$tmp/enc"
   printf 'export default function () {}\r\n' > "$tmp/enc/pi-agent/extensions/seat-status.ts"
+  printf 'export default function () {}\r\n' > "$tmp/enc/agent/extensions/seat-status.ts"
   if run_at "$tmp/enc" --push; then err "canary passed: --push deployed a CRLF file"; fails=$((fails+1)); else info "crlf-canary        caught (push blocked)"; fi
   if run_at "$tmp/enc" --check --strict; then err "canary passed: CRLF stayed green"; fails=$((fails+1)); else info "crlf-gate          caught"; fi
 
   # 4b. repo-side BOM -> blocks --push AND fails --check --strict. Same rule as CRLF, and it had NO
   #     canary at all until 2026-10-10: the check was rewritten to read the file in-process instead of
   #     through `head|od`, and "a test that cannot fail is not evidence" (CONVENTIONS §6) means that
-  #     rewrite needed its own proof, not the CRLF canary's.
+  #     rewrite needed its own proof, not the CRLF canary's. In-process: the rc shape behind it is the
+  #     pair of launches above.
   mk_tree "$tmp/bom"
   printf '\xef\xbb\xbfexport default function () {}\n' > "$tmp/bom/pi-agent/extensions/seat-status.ts"
-  if run_at "$tmp/bom" --push; then err "canary passed: --push deployed a BOM file"; fails=$((fails+1)); else info "bom-canary         caught (push blocked)"; fi
-  if run_at "$tmp/bom" --check --strict; then err "canary passed: a BOM stayed green"; fails=$((fails+1)); else info "bom-gate           caught"; fi
+  printf '\xef\xbb\xbfexport default function () {}\n' > "$tmp/bom/agent/extensions/seat-status.ts"   # both sides, see arm 4
+  if at_sandbox "$tmp/bom" push; then err "canary passed: --push deployed a BOM file"; fails=$((fails+1)); else info "bom-canary         caught (push blocked)"; fi
+  if at_sandbox "$tmp/bom" check-strict; then err "canary passed: a BOM stayed green"; fails=$((fails+1)); else info "bom-gate           caught"; fi
 
-  # 5. --push converges a clean repo and is idempotent (push twice == green).
+  # 4c. A NUL byte means BINARY -> the guard abstains. The bad bytes sit on BOTH sides so the tree is not
+  #     also DRIFTING, and the CRLF pair next to the NUL is the teeth: a binary file that would pass the
+  #     text rules anyway cannot tell an abstention from a blind probe, and the abstention is what keeps a
+  #     font/logo asset from failing the gate on a seat where someone would then mute the whole guard.
+  #     Before 2026-10-12 this fixture had no binary arm at all, so the fork-free NUL probe could not have
+  #     been landed here honestly.
+  mk_tree "$tmp/bin"
+  printf 'PNG-ish\x00\x01\x02\r\ndata\r\n' > "$tmp/bin/pi-agent/extensions/asset.bin"
+  cp "$tmp/bin/pi-agent/extensions/asset.bin" "$tmp/bin/agent/extensions/asset.bin"
+  if at_sandbox "$tmp/bin" check-strict; then info "binary             GREEN (abstains, no false alarm)"; else err "canary: a binary file was flagged as an encoding violation"; fails=$((fails+1)); fi
+
+  # 5. --push converges a clean repo and is idempotent (push twice == green). The first --push is LAUNCHED
+  #    (it is --push's rc-0 contract and the one place a real process writes real bytes); the follow-ups
+  #    are the same verdict, read in-process.
   mk_tree "$tmp/push"; rm -f "$tmp/push/agent/extensions/seat-status.ts"
   run_at "$tmp/push" --push || { err "--push failed on a clean tree"; fails=$((fails+1)); }
-  run_at "$tmp/push" --check --strict || { err "canary: still drifting after --push"; fails=$((fails+1)); }
-  run_at "$tmp/push" --push >/dev/null 2>&1 && run_at "$tmp/push" --check --strict \
-    && info "push-idempotent    GREEN" || { err "canary: --push not idempotent"; fails=$((fails+1)); }
+  at_sandbox "$tmp/push" check-strict || { err "canary: still drifting after --push"; fails=$((fails+1)); }
+  if at_sandbox "$tmp/push" push && at_sandbox "$tmp/push" check-strict; then
+    info "push-idempotent    GREEN"
+  else
+    err "canary: --push not idempotent"; fails=$((fails+1))
+  fi
   # push must not delete the deployed extra
   [ -f "$tmp/push/agent/extensions/windows-only.ts" ] \
     && info "extra-preserved    GREEN" || { err "canary: --push deleted a deployed-only file"; fails=$((fails+1)); }
 
-  # 6. absent deploy dir -> MUST be reported (validate-all guards the SKIP).
+  # 6. absent deploy dir -> MUST be reported (validate-all guards the SKIP). LAUNCHED: this is the
+  #    environment-boundary contract — a missing target is rc!=0 for the caller to guard, never a silent
+  #    green (CONVENTIONS §6: a boundary prints SKIP, not a verdict).
   mk_tree "$tmp/nodir"; rm -rf "$tmp/nodir/agent/extensions"
   if run_at "$tmp/nodir" --check --strict; then err "canary passed: absent deploy target read as clean"; fails=$((fails+1)); else info "no-target-canary   caught"; fi
 
   # 7. THE RETIREMENT RULE, both halves. A name the repo deleted would otherwise stay loaded on
   #    every seat forever, because --push never deletes a deployed-only file — and the rule must
   #    NOT swallow the LOCAL rule above, so the same tree keeps its non-retired extra.
+  #    The check half is LAUNCHED (the rc-1 contract a retired name still loaded must set); the removal is
+  #    asserted against the same do_push() the CLI calls.
   mk_tree "$tmp/retired"
   printf 'export default function () {}\n' > "$tmp/retired/agent/extensions/${RETIRED[0]}"
   if run_at "$tmp/retired" --check --strict; then err "canary passed: a RETIRED deployed file stayed green"; fails=$((fails+1)); else info "retired-canary     caught"; fi
-  run_at "$tmp/retired" --push || true
+  at_sandbox "$tmp/retired" push || true
   if [ ! -e "$tmp/retired/agent/extensions/${RETIRED[0]}" ]; then info "retired-removed    GREEN (--push took it out)"; else err "canary: --push left a retired extension deployed"; fails=$((fails+1)); fi
   if [ -f "$tmp/retired/agent/extensions/windows-only.ts" ]; then info "retired-vs-local   GREEN (a non-retired extra survived)"; else err "canary: --push deleted a machine-local extra while retiring"; fails=$((fails+1)); fi
-  run_at "$tmp/retired" --check --strict && info "post-retire        GREEN" || { err "canary: still drifting after the retirement push"; fails=$((fails+1)); }
+  at_sandbox "$tmp/retired" check-strict && info "post-retire        GREEN" || { err "canary: still drifting after the retirement push"; fails=$((fails+1)); }
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
+}
+
+# --- the ONE decision body for --check ------------------------------------------
+# Shared by the CLI dispatch and --self-test, so an in-process arm can never assert against logic the
+# shipped CLI does not run. That is what buys the launches down (this host charges ~80 ms per process
+# creation and does not parallelise them) without buying a cheaper second implementation of the rules.
+run_check() {
+  local rc v
+  [ -d "$SRC" ] || { err "no pi-agent/extensions/ at $SRC — run from a homelab clone"; return 1; }
+  if [ ! -d "$DEPLOY" ]; then
+    info "deploy target missing: $DEPLOY (nothing deployed yet)"
+    info "hint: 'sync-extensions.sh --push', or re-run install-pi-debian.sh / install-pi-wsl.sh"
+    return 1
+  fi
+  info "comparing repo pi-agent/extensions/  <->  deployed ($DEPLOY)"
+  compare
+  rc=$?
+  encoding_violations; v=$ENCODING_N
+  if [ "$v" -gt 0 ]; then
+    err "$v encoding violation(s) in pi-agent/extensions/"
+    [ "$STRICT" -eq 1 ] && rc=1
+  fi
+  if [ "$STRICT" -eq 1 ] && [ "$rc" -eq 0 ]; then
+    info "OK: repo extensions == deployed (no drift; deployed-only extras are not drift)"
+  elif [ "$rc" -ne 0 ]; then
+    info "drift detected — --push to deploy, or --pull to capture a seat-side edit"
+  fi
+  return "$rc"
 }
 
 # ================================ dispatch ======================================
@@ -377,28 +485,7 @@ if [ "$MODE" = "selftest" ]; then
 fi
 
 case "$MODE" in
-  check)
-    [ -d "$SRC" ] || { err "no pi-agent/extensions/ at $SRC — run from a homelab clone"; exit 1; }
-    if [ ! -d "$DEPLOY" ]; then
-      info "deploy target missing: $DEPLOY (nothing deployed yet)"
-      info "hint: 'sync-extensions.sh --push', or re-run install-pi-debian.sh / install-pi-wsl.sh"
-      exit 1
-    fi
-    info "comparing repo pi-agent/extensions/  <->  deployed ($DEPLOY)"
-    compare
-    rc=$?
-    v="$(encoding_violations)"
-    if [ "$v" -gt 0 ]; then
-      err "$v encoding violation(s) in pi-agent/extensions/"
-      [ "$STRICT" -eq 1 ] && rc=1
-    fi
-    if [ "$STRICT" -eq 1 ] && [ "$rc" -eq 0 ]; then
-      info "OK: repo extensions == deployed (no drift; deployed-only extras are not drift)"
-    elif [ "$rc" -ne 0 ]; then
-      info "drift detected — --push to deploy, or --pull to capture a seat-side edit"
-    fi
-    exit "$rc"
-    ;;
-  push) do_push ; exit $? ;;
-  pull) do_pull ; exit $? ;;
+  check) run_check ; exit $? ;;
+  push)  do_push ; exit $? ;;
+  pull)  do_pull ; exit $? ;;
 esac
