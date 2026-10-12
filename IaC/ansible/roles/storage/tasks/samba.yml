@@ -251,3 +251,42 @@
     - /etc/systemd/system/sync-authentik-users.timer
   notify: Reload systemd
   tags: [samba, storage, auth-glue]
+
+# Removing the files does not empty `systemctl list-units --failed`: systemd keeps the failure
+# result of a unit whose fragment is gone until something resets it, so the deleted stub still
+# reports `not-found failed failed` on every read and dilutes the red that DOES mean something.
+# Read first — `reset-failed` on a unit systemd has never loaded exits 1.
+- name: Read whether the removed Authentik sync stub still holds a failed marker
+  ansible.builtin.command: systemctl is-failed sync-authentik-users.service
+  register: _glue_failed
+  changed_when: false
+  failed_when: false
+  tags: [samba, storage, auth-glue]
+
+- name: Clear the failed marker the removed Authentik sync stub leaves in --failed
+  ansible.builtin.command: systemctl reset-failed sync-authentik-users.service
+  when: _glue_failed.stdout | trim == 'failed'
+  changed_when: true
+  tags: [samba, storage, auth-glue]
+
+# winbind is not part of the authentication path — the passdb above is local tdbsam and the server
+# role is standalone, so no domain is served and no share is decided through it (`wbinfo -t`
+# answering "could not check secret" is correct here, not a fault). It is still required:
+# /etc/nsswitch.conf lists `winbind` in `passwd:`/`group:`, so the name-service stack calls into the
+# daemon on every lookup. The unit was enabled-but-failing because the smb.conf it read at that boot
+# still carried the retired ldapsam passdb; with tdbsam rendered it starts and stays up. Assert it
+# running — never disable it to silence the red, which would leave NSS naming a dead socket.
+- name: Check whether winbind is installed on this host
+  ansible.builtin.stat:
+    path: /lib/systemd/system/winbind.service
+  register: _winbind_unit
+  tags: [samba, storage]
+
+- name: Ensure winbind is enabled and running (nsswitch names it; nothing authenticates through it)
+  ansible.builtin.systemd:
+    name: winbind
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: _winbind_unit.stat.exists
+  tags: [samba, storage]

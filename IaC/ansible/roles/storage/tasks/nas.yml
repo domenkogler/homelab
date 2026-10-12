@@ -80,6 +80,23 @@
     daemon_reload: true
   tags: [storage, nas]
 
+# Disabling does not empty `systemctl list-units --failed`: systemd keeps the failure result of a
+# unit it is no longer running until something resets it, so a ruled-off unit stays red in the list
+# forever and the one honest red signal on this host stops meaning anything. Read first, reset only
+# when the marker is actually there — `reset-failed` on a unit systemd has never loaded exits 1.
+- name: Read whether the disabled zfs-share unit still holds a failed marker
+  ansible.builtin.command: systemctl is-failed zfs-share.service
+  register: _zfs_share_failed
+  changed_when: false
+  failed_when: false
+  tags: [storage, nas]
+
+- name: Clear the failed marker the disabled zfs-share unit leaves in --failed
+  ansible.builtin.command: systemctl reset-failed zfs-share.service
+  when: _zfs_share_failed.stdout | trim == 'failed'
+  changed_when: true
+  tags: [storage, nas]
+
 # ---------------------------------------------------------------------------
 # syncoid — incremental replication tank/data/* → bulk/data/*
 # ---------------------------------------------------------------------------
