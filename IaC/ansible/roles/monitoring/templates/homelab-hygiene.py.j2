@@ -22,7 +22,7 @@ could name. This file therefore follows the shape the SAME role already proves l
 network-clients exporter: a stdlib-only host binary on a loopback port, scraped by this host's Alloy.
 
 FAIL-LOUD BY CONSTRUCTION, because a monitor that reports "healthy" about something it cannot see is how
-the 2026-09 incident lasted four days:
+a failure can go unseen for days:
   * a listed unit that does not EXIST reports last_success=0 with result="missing" — a unit that never
     runs is the purest form of the class, so being wrong about the list costs a visible alert, never
     silence;
