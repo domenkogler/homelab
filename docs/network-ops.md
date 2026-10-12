@@ -180,10 +180,14 @@ oldsrv, same host, same URL, same minute:
 | `curl -6` `github.com` · `update.code.visualstudio.com` · `vscode.download.prss.microsoft.com` | connect timeout, no verdict |
 | the same three targets over `-4` | `200`/`302` with full bodies |
 | `getent hosts update.code.visualstudio.com` | answers **AAAA first** |
+| the same URL on the **default** family, same host, same minute | `wget` FAILED · `curl` `200` in 0.42 s, over **v4** (0.09 s when pinned) |
 
-The home v6 egress is therefore **selectively** dead: it reaches some prefixes and not others, and anything
-honouring the resolver's order (`wget`, `curl`, a Node fetch) fails on those hosts while `curl -4` succeeds on
-the same box. That is why the failure keeps getting misattributed to "this host has no internet" or "the
+The home v6 egress is **selectively** dead: it reaches some prefixes and not others — and what that costs
+depends on whether the downloader races. `wget` has no Happy Eyeballs, so given the AAAA-first answer it dies
+on the v6 attempt (FAILED unpinned, `302` pinned, same host same minute). `curl` 8.14 survives the *same* URL
+because it tries both families and v4 answers in ~90 ms — 0.42 s unpinned against 0.09 s pinned. So **"curl
+works by default" is a race result, not a healthy v6 path**: a downloader without Happy Eyeballs, a longer
+race timeout, or a busy link reads this same box as offline. That is why the failure keeps getting misattributed to "this host has no internet" or "the
 mirror is down" — a 0-byte artifact left in a download directory is the tell, and the discriminator costs
 three commands: `curl -6` a host known to answer v6 (the control, per habit (b) above) and `curl -4` the
 failing one. MTU/PMTU is **not** a candidate here: it dies at connect, not mid-transfer, which points at
