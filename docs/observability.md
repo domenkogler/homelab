@@ -985,6 +985,39 @@ per-client where the path allows it, per-plane (Home vs tailnet) where it does n
    engine-count readiness panel reads **1** today (`:253`): scraping the oldsrv serving tier must move that
    panel to 2, which is its own acceptance check.
 
+### The per-day token report
+
+[`scripts/bench/spark/vm-tokens.sh`](../scripts/bench/spark/vm-tokens.sh) answers "how many tokens did
+spark produce, per day", and with `--price input,output,cached` what that same traffic would cost at
+external per-token prices. It reads the engine counters named above, so everything this section says
+about attribution applies to its output: **totals, never a per-client number** — and a $ column is
+arithmetic on a measurement, not a series.
+
+**The identities that make the price lines legal** (read off the live series, not assumed):
+
+```text
+vllm:prompt_tokens_total        == vllm:prefix_cache_queries_total == sum(vllm:prompt_tokens_by_source_total)
+vllm:prompt_tokens_cached_total == vllm:prefix_cache_hits_total            ⊂ prompt_tokens_total
+```
+
+so `uncached input = prompt − cached` and the input / cached / output price lines never double-count.
+The request-level histograms (`vllm:request_{prompt,generation}_tokens_sum`) are the cross-check: they
+agree with the counters to under 1 %, the residue being requests still in flight at a window edge.
+
+**A row is a calendar day, not a rolling 24 h** — `increase(…[1d])` evaluated at local midnight. Ask
+series presence as `count(max_over_time(<metric>[1d]))`: a boundary-instant `count()` answers nothing
+when the engine happened to be down at the evaluation instant, and the day that served traffic then
+drops out of the period total while the table still looks complete and green. A day with no series is
+excluded and said so, never zero-filled — zero-filling understates the whole window and moves the
+average.
+
+**Reaching the endpoint.** The store is IaC `victoria_backend_host` + `victoria_metrics_port`, resolved
+from `group_vars/all/main.yml` when the script runs rather than typed into it, and it answers only over
+wg-s2s — so from a laptop the query executes on a hop host over ssh, with the credential piped through
+stdin into a `0600` curl config that is unlinked on the far side (lengths printed, never the value).
+`--dry-run` prints the PromQL and touches nothing; `--self-test` proves the day bucketing, the uncached
+split and the price arithmetic offline against a hand-valued fixture.
+
 ---
 
 ## Scrape cadence and metric resolution
