@@ -1,8 +1,7 @@
 ---
 # seat role handlers. `tags: always` because handlers are tag-filtered like tasks
 # (roles/network precedent) — without it a scoped `--tags cockpit` run would write the
-# seat unit files and skip the restart: the exact half-converged state behind the
-# 2026-10-01 "no model available" report.
+# seat unit files and skip the restart, leaving a half-converged unit.
 - name: seat | reload and restart pi-web
   listen: seat | reload and restart pi-web
   become: true

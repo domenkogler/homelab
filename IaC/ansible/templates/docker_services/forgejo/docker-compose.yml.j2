@@ -1,17 +1,16 @@
 # forgejo docker-compose.yml — Git hosting (git.kogler.si)
 #   Postgres-backed, OIDC via Authentik (native, NOT forward-auth — Forgejo must own its auth
-#   state for API/SSH). HD-148: Authentik provider + `forgejo_oidc` client declared in the
-#   Blueprint + client creds seeded by the glue. DEPLOY-VERIFY (HD-149) — ✅ VERIFIED LIVE
-#   2026-09-25 (owner SSO login at git.kogler.si; the login page advertises `Sign in with authentik`
-#   at /user/oauth2/authentik, and /user/register is 404 = public password registration stays off,
-#   accounts arrive through OIDC):
+# state for API/SSH). The Authentik provider + `forgejo_oidc` client are declared in the
+# Blueprint and their creds are seeded by the glue. VERIFY AFTER DEPLOY:
+# an owner SSO login at git.kogler.si must succeed and /user/register must stay 404, i.e.
+# public password registration stays off and accounts arrive through OIDC:
 #   - The OAuth source is registered IDEMPOTENTLY POST-UP by deploy-service.yml
 #     (`gitea admin auth add-oauth`) from vault item `forgejo_oidc` — NOT by a human in the admin UI.
 #     Authentication Name must match the callback path exactly:
 #     https://git.kogler.si/user/oauth2/<Authentication Name>/callback
 #   - Client ID / Secret / Issuer -> from `forgejo_oidc` (username/credential) + the Blueprint.
 #   - ROOT_URL must be https (app.ini) or Authentik rejects the callback.
-#   - The route runs crowdsec-only@file (HD-230 owner decision): auth lives IN-APP, so the SSO
+# - The route runs crowdsec-only@file: auth lives IN-APP, so the SSO
 #     callback and machine-to-machine API hits reach Forgejo instead of a redirect wall.
 #   - Still open on this service (NOT auth): nothing has ever been pushed here, so "Forgejo primary
 #     + GitHub mirror" is a plan and not a fact; and git transport is HTTPS-only while `22/tcp` is
@@ -22,7 +21,7 @@
 #     forgejo_db       (Database: username=<db user>, password=<db password>)
 #     forgejo_oidc     (api: username=client_id, credential=client_secret — Authentik OIDC client)
 {# The Postgres bind target is deliberately version-INDEPENDENT: PGDATA is pinned in the env
-#   block below, which is what lets one mount shape serve 16 and 18 (HD-1100). #}
+# block below, which is what lets one mount shape serve both major versions. #}
 services:
   forgejo:
     image: codeberg.org/forgejo/forgejo:{{ forgejo_version }}
@@ -34,7 +33,7 @@ services:
       - FOWNER
       - SETUID
       - SETGID
-    # read_only REMOVED (Wave-2 triage 2026-08-22): Forgejo boots via s6-svscan /etc/s6 and
+    # read_only is not possible here: Forgejo boots via s6-svscan /etc/s6 and
     # must create its supervision lock INSIDE that dir on the rootfs; a tmpfs over /etc/s6
     # would mask the bundled init scripts. Follow-up candidate: -rootless image variant.
     tmpfs:
@@ -56,14 +55,14 @@ services:
       FORGEJO__database__NAME: forgejo
       FORGEJO__database__USER: "{{ vault['forgejo_db'].username | replace('$','$$') }}"
       FORGEJO__database__PASSWD: "{{ vault['forgejo_db'].password | replace('$','$$') }}"
-      # Server identity (Wave-3 R5): without these the first-boot wizard defaulted
+      # Server identity: without these the first-boot wizard defaulted
       # AppURL to http://localhost:3000, breaking links/mail/OIDC callbacks.
       FORGEJO__server__DOMAIN: git.kogler.si
       FORGEJO__server__ROOT_URL: https://git.kogler.si/
-      # HD-230 (2026-08-23, owner decision): native-OIDC SSO replaces the forward-auth
-      # wall. First SSO login associates by email with the existing local account; the
+      # Auth is native-OIDC SSO, not a forward-auth wall: Forgejo owns its auth state.
+      # First SSO login associates by email with the existing local account; the
       # OAuth source itself is registered idempotently post-up (deploy-service.yml,
-      # `gitea admin auth add-oauth`) from vault item forgejo_oidc — HD-148 design.
+      # `gitea admin auth add-oauth`) from vault item forgejo_oidc.
       FORGEJO__oauth2_client__ENABLE_AUTO_REGISTRATION: "true"
       FORGEJO__oauth2_client__OPENID_CONNECT_SCOPES: "openid profile email"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
@@ -71,8 +70,8 @@ services:
       traefik.enable: "true"
       traefik.http.routers.forgejo.rule: "Host(`git.kogler.si`)"
       traefik.http.routers.forgejo.entrypoints: websecure
-      {{ 'traefik.http.routers.forgejo.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      # HD-230: crowdsec-only tier — auth moved IN-APP to native OIDC (Authentik);
+      {{ 'traefik.http.routers.forgejo.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
+      # CrowdSec-only tier — auth lives IN-APP in native OIDC (Authentik);
       # forward-auth wall removed so SSO callbacks and m2m API hits reach forgejo directly.
       traefik.http.routers.forgejo.middlewares: crowdsec-only@file
       traefik.http.services.forgejo.loadbalancer.server.port: "3000"
@@ -101,21 +100,19 @@ services:
       - /srv/docker/forgejo/postgres:/var/lib/postgresql/data
     environment:
       # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
-      #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
+      # initdb-ed with libc/en_US.utf8 (datcollate=en_US.utf8, provider
       #   = default/libc on all six). Left to the default, an 18 cluster would restore the same
       #   rows with different sort semantics and silently change ORDER BY / index ordering, so
       #   the provider is pinned HERE, in the template, before any pin moves. Harmless on 16
       #   (--locale-provider exists since 15) and ignored on a non-empty datadir, so landing it
-      #   early costs nothing. Measured against postgres:18.6-alpine: datcollate=en_US.utf8.
-      #   HD-1100.
+      #   early costs nothing.
       POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"
       # PG 18 images moved PGDATA to the version-specific /var/lib/postgresql/18/docker and their
 #   entrypoint REFUSES to start when it finds a cluster anywhere else - and the parent-mount layout
 #   it recommends does not work under this fleet's cap_drop: ALL, because the root phase then lacks
-#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory (measured: "mkdir: can't create
+#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory ("mkdir: can't create
 #   directory /var/lib/postgresql/18/: Permission denied"). Pinning PGDATA to the existing mount keeps
-#   ONE mount shape for 16 and 18; probed 2026-10-08 with the service's own caps -> server_version
-#   18.6, datcollate=en_US.utf8, "ready to accept connections". HD-1100.
+# ONE mount shape across major versions, so a pin move cannot orphan the datadir.
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: forgejo
       POSTGRES_USER: "{{ vault['forgejo_db'].username | replace('$','$$') }}"

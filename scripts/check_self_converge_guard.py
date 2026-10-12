@@ -42,6 +42,15 @@ Checks:
                       (`lookup('pipe', ...)`), never by a target fact: `ansible_hostname` is
                       the box being converged, which would make the guard compare a host
                       with itself and always fire.
+  8. coverage-fixture -- `scripts/testdata/self-converge-guard/fixture.yml` claims in its own
+                      header to mirror how the playbooks wire the guard. It is not in this
+                      checker's corpus (playbooks() reads IaC/ansible/playbooks/*.yml +
+                      site.yml) and `run.sh` asserts only on rc and stdout, so until this check
+                      existed nothing static read the fixture at all, and the claim rotted: the
+                      fixture was the last holder of the purged `HD-413 | Self-converge
+                      guardrail` while all five playbooks had moved on. So: the fixture's
+                      `pre_tasks` must import the guard file the playbooks import -- the same
+                      target, resolved, not merely a string that looks like it.
 
 Run:   python3 scripts/check_self_converge_guard.py
 Exit:  0 = clean, 1 = violations found.  Wired into `validate-all.sh`.
@@ -62,6 +71,7 @@ ROOT = Path(__file__).resolve().parent.parent
 ANSIBLE = ROOT / "IaC" / "ansible"
 GUARD = ANSIBLE / "playbooks" / "tasks" / "self-converge-guard.yml"
 GUARD_REF = "self-converge-guard.yml"
+FIXTURE = ROOT / "scripts" / "testdata" / "self-converge-guard" / "fixture.yml"
 # Ansible's reserved selection words — legal to write, warned about, and their behaviour is
 # "not recommended", so the guard may not lean on them.
 RESERVED_TAGNAMES = {"untagged", "all", "never", "always"}
@@ -271,6 +281,64 @@ def lockout_exemption(role: str) -> str:
     return ""
 
 
+def pre_task_imports(play: dict) -> list[str]:
+    """Every import target a play runs before its roles. Empty when the play has none."""
+    out: list[str] = []
+    for task in play.get("pre_tasks") or []:
+        if isinstance(task, dict):
+            for key, val in task.items():
+                if "import_tasks" in str(key) and isinstance(val, str):
+                    out.append(val)
+    return out
+
+
+def imports_the_guard(target: str, base_dir: Path) -> bool:
+    """Does this import path resolve to THE guard file, from the play's own directory?
+
+    A playbook writes `tasks/self-converge-guard.yml` and the fixture writes
+    `../../../IaC/ansible/playbooks/tasks/self-converge-guard.yml`; both are the same file, so
+    the comparison is on the resolved path. An import of some other file that merely carries
+    the name is not the guard.
+    """
+    if GUARD_REF not in target:
+        return False
+    try:
+        return (base_dir / target).resolve() == GUARD.resolve()
+    except OSError:  # a path this OS cannot resolve cannot import the guard either
+        return False
+
+
+def fixture_problems() -> list[str]:
+    """8: the fixture's claimed mirror of the playbook wiring, enforced.
+
+    `run.sh` runs the fixture against a throwaway inventory and asserts on rc and output, so a
+    fixture wired differently still PASSES the behaviour matrix while testing a wiring no
+    playbook ships. This is the static half of that claim.
+    """
+    if not FIXTURE.is_file():
+        return [f"coverage-fixture: {FIXTURE.relative_to(ROOT)} is gone, so the HD-413 "
+                f"behaviour matrix (validate-all item 17) has no play to run"]
+    try:
+        docs = [d for d in yaml.safe_load_all(FIXTURE.read_text(encoding="utf-8"))
+                if isinstance(d, list)]
+    except yaml.YAMLError as exc:
+        return [f"parse: {FIXTURE.relative_to(ROOT)}: {exc}"]
+    plays = [p for doc in docs for p in doc if isinstance(p, dict)]
+    if not plays:
+        return [f"parse: {FIXTURE.relative_to(ROOT)}: no play to read"]
+    problems: list[str] = []
+    for play in plays:
+        targets = pre_task_imports(play)
+        if not any(imports_the_guard(t, FIXTURE.parent) for t in targets):
+            problems.append(
+                f"coverage-fixture: {FIXTURE.relative_to(ROOT)} imports "
+                f"{targets or ['nothing']} in pre_tasks, which is not the guard the playbooks "
+                f"import ({GUARD_REF}) -- its header claims it mirrors how the playbooks wire the "
+                f"guard, and run.sh asserts on rc and stdout only, so a fixture wired any other "
+                f"way measures a wiring no playbook ships")
+    return problems
+
+
 def self_test() -> list[str]:
     """Prove the two scanners can see the things they claim to see.
 
@@ -310,6 +378,25 @@ def self_test() -> list[str]:
     collected, _ = tags_in(walk_tasks([{"block": [{"name": "inner", "tags": ["only-in-block"]}]}], []))
     if "only-in-block" not in collected:
         problems.append(f"vocabulary self-test: a block-only tag was not collected (got {sorted(collected)})")
+    # The fixture witness (check 8), green case and red case together. The red case is the
+    # wave-2 shape: a play whose pre_tasks no longer imports the guard. If the detector cannot
+    # see that, the assertion can only ever pass and the fixture claim is unguarded again.
+    plays_here = ANSIBLE / "playbooks"
+    wired = {"pre_tasks": [{"name": "Self-converge guardrail",
+                            "ansible.builtin.import_tasks": "tasks/self-converge-guard.yml"}]}
+    if not any(imports_the_guard(t, plays_here) for t in pre_task_imports(wired)):
+        problems.append("fixture self-test: a pre_tasks guard import was NOT recognised -- the "
+                        "fixture assertion could never pass, and a green run would prove nothing")
+    unwired = {"pre_tasks": [{"name": "Self-converge guardrail",
+                              "ansible.builtin.debug": {"msg": "the import line is gone"}}]}
+    if any(imports_the_guard(t, plays_here) for t in pre_task_imports(unwired)):
+        problems.append("fixture self-test: a play with no guard import was accepted -- the new "
+                        "fixture assertion cannot go red")
+    elsewhere = {"pre_tasks": [{"ansible.builtin.import_tasks": "roles/self-converge-guard.yml"}]}
+    if any(imports_the_guard(t, plays_here) for t in pre_task_imports(elsewhere)):
+        problems.append("fixture self-test: an import of a same-named file in another directory "
+                        "satisfied the claim -- the check compares a name, not the target it "
+                        "resolves to, so a stub copy of the guard would pass")
     return problems
 
 
@@ -507,6 +594,9 @@ def main() -> int:
                             f"tag-vocabulary: {pb.relative_to(ROOT)} tags lockout role "
                             f"'{role}' with {sorted(missing)}, which the guard for it does "
                             f"not carry — that filter would run the role WITHOUT the guard")
+
+    # 8: the fixture that stands in for the playbooks must wire the guard the way they do.
+    problems += fixture_problems()
 
     if problems:
         print(f"FAIL: {len(problems)} self-converge-guard problem(s):")

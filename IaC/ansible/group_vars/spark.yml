@@ -1,47 +1,47 @@
 ---
-# Spark (DGX GB10) group vars — Qwen3.8-Flash-Next inference (HD-359/HD-337)
+# Spark (DGX GB10) group vars — Qwen3.8-Flash-Next inference
 # Loaded for the `spark` inventory group (playbooks/spark.yml). The docker_services
 # registry here is the spark NODE's own stack (NOT oldsrv's home_servers.yml — a homelab
 # converge on oldsrv must never deploy spark-ai). Stays deploy-gated until the box is up
 # + bench certifies the winner engine.
 
-# Reachability (HD-397, 2026-09-19): same behind-NAT jump as the other LAN hosts, carried
+# Reachability: same behind-NAT jump as the other LAN hosts, carried
 # as a GROUP VAR so plays WITHOUT the spark.yml `vars:` block (all.yml, monitoring,
 # dns-seed.yml) also converge spark off-LAN. playbooks/spark.yml keeps its identical
 # play-level copy (play vars win, same value — no conflict) for the historical reason
 # stated there: "keep it here so ANY runner converges spark". Matrix + alias contract:
 # docs/network-vpn.md §Reaching LAN nodes when away (the per-IP ssh block is for
-# scp/rsync/humans; the var itself is what carries a converge — measured 2026-09-19).
+# scp/rsync/humans; the var itself is what carries a converge).
 ansible_ssh_common_args: "-o ProxyJump=vps"
 
 docker_services:
   # The "most proven" Qwen3.8-Flash-Next config — AWQ W4A16 + PLE INT4 + MTP3 + llm-d router
   # (B1 baseline, spark/BENCHMARK-PLAN.md). Deploy-gated: flip `enabled: true` once the
   # node is provisioned + partition done + weights downloaded.
-  - { name: spark-ai, template_dir: spark-ai, public: false, enabled: true }  # B1 engine (vLLM AWQ+PLE+MTP3) — ENABLED 2026-09-14 by session/spark-s1-converge (Track 1: boot + health :8000 + sanity bench); flip back to false if the bench regresses
-  # DCGM exporter — GPU util/temp/power/energy/SM-clock/XID for the LLM dashboard (HD-379).
+  - { name: spark-ai, template_dir: spark-ai, public: false, enabled: true }  # B1 engine (vLLM AWQ+PLE+MTP3) — enabled; the teardown/enable contract is in the entry above
+  # DCGM exporter — GPU util/temp/power/energy/SM-clock/XID for the LLM dashboard.
   # Loopback-only :9400 (no Traefik route, no LAN, no auth) scraped by spark's Alloy
   # `prometheus.scrape "dcgm"`. The GB10 has NO other GPU telemetry source (no nvidia hwmon
   # chip; nvidia-smi has no metric endpoint and reports memory as "Not Supported" = unified
   # memory). Image digest-pinned in group_vars/all/versions.yml.
   - { name: spark-dcgm, template_dir: spark-dcgm, public: false, enabled: true }
-  # TOMBSTONE (HD-379) — the ORIGINAL HD-364 alpine/socat LAN bridge. Retired 2026-09-14 by the
-  # `spark-dashboard` Traefik edge, but its rendered project dir + ENABLED boot unit survived on
-  # the box, so `docker-compose@dgx-dashboard` kept resurrecting a container that could not bind
-  # :11000 (Traefik owns it) → permanent crash-loop. This entry exists ONLY so the role's
-  # "Tear down DISABLED services" + "Disable boot auto-start" tasks (main.yml, tube-archivist
-  # precedent) keep it gone on every converge AND after a reboot; nothing renders from it
-  # (template_dir is never read while disabled, and the vault pre-pass skips disabled services).
-  # It can be deleted once the teardown has run green on spark at least twice.
+  # TOMBSTONE — the ORIGINAL alpine/socat LAN bridge. The
+  # `spark-dashboard` Traefik edge replaced it, but its rendered project dir + ENABLED boot unit
+  # survived on the box, so `docker-compose@dgx-dashboard` kept resurrecting a container that
+  # could not bind :11000 (Traefik owns it) → permanent crash-loop. This entry exists ONLY so the
+  # role's "Tear down DISABLED services" + "Disable boot auto-start" tasks (main.yml,
+  # tube-archivist precedent) keep it gone on every converge AND after a reboot; nothing renders
+  # from it (template_dir is never read while disabled, and the vault pre-pass skips disabled
+  # services). It can be deleted once the teardown has run green on spark at least twice.
   - { name: dgx-dashboard, template_dir: spark-dashboard, public: false, enabled: false }
-  # NVIDIA DGX Dashboard LAN bridge — Traefik file-provider edge on spark (HD-364
-  # rework, socat→Traefik): host-net, entrypoints spark_home_ip:11000/11002 →
+  # NVIDIA DGX Dashboard LAN bridge — Traefik file-provider edge on spark:
+  # host-net, entrypoints spark_home_ip:11000/11002 →
   # 127.0.0.1:11000/11002 (dashboard + admin JupyterLab). No secrets; public =
   # internal-only (never a public edge record); enabled = bridge up.
   - { name: spark-dashboard, template_dir: spark-dashboard, public: false, enabled: true }
   # Dozzle remote agent — exposes spark's containers (vLLM engine + edge) to the oldsrv
-  # LAN log hub (llogs.kogler.si) over the Home VLAN (:7007, LAN-only bind). HD-343
-  # ride-along 2026-09-15.
+  # LAN log hub (llogs.kogler.si) over the Home VLAN (:7007, LAN-only bind),
+  # part of the LAN log-hub work.
   - { name: dozzle-agent, template_dir: dozzle-agent, enabled: true,
       dozzle_agent_listen: "{{ spark_home_ip }}", dozzle_agent_hostname: "spark" }
 
@@ -50,22 +50,22 @@ docker_services:
 # group_vars + host_vars, NOT role defaults. The spark role (roles/spark) mirrors the
 # partition/XFS config but the template reads THESE.
 spark_xfs_mount: /mnt/spark_nvme
-spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1TB layout, HD-359)
+spark_models_dir: "{{ spark_xfs_mount }}/models"     # weights on XFS, never EXT4 (1 TB layout)
 spark_overlays_dir: "{{ spark_xfs_mount }}/overlays" # PLE overlay patches
-# ---- Second artifact root (HD-489) ----
+# ---- Second artifact root ----
 # The upstream (v16b) stack wants ~130 GB of NEW checkpoint+table bytes and the XFS store
-# carries 184.7 G free (measured 2026-10-02: `df` 504 G total / 319 G used). The alternative
+# carries 184.7 G free (`df`: 504 G total / 319 G used). The alternative
 # was deleting the 135 GB RadixArk NVFP4 set that only the gate-blocked `fast-sglang` profile
 # uses — i.e. paying a permanent re-download for temporary headroom. Measured instead:
 # spark's root partition (`/`, ext4, nvme0n1p2) has 345 G free, so tier-2 artifacts land
 # there and NOTHING is deleted. The XFS-only note on `spark_models_dir` above is a CAPACITY
-# statement from the 1 TB carve (HD-359/HD-363), not a filesystem ruling — docs/hardware-spark.md
+# statement from the 1 TB carve, not a filesystem ruling — docs/hardware-spark.md
 # §Partition layout records p2 as the live root. A profile names which root it lives on via
 # `models_root`, and the gate free-space floor is checked on THAT root, not on XFS.
 spark_models_dir_os: /opt/homelab/models
 # Floor the profile gate asserts on that partition before an `os`-rooted arm boots: the
 # upstream checkpoint (~130 GB) plus its table plus room for the drafter conversion to
-# write. Measured free space 2026-10-02: 345 GB. A breach means the store filled up — the
+# write. Free space on that partition: 345 GB. A breach means the store filled up — the
 # remedy is to free space, never to lower the floor (roles/spark-llm-profile).
 spark_llm_os_min_free_bytes: 150000000000
 # The upstream build inputs/outputs (roles/spark-ultrafast-build). The drafter directory is
@@ -89,7 +89,7 @@ spark_ultrafast_src_dir: /opt/homelab/ultrafast-src
 spark_draft_vocab_dir: "{{ spark_xfs_mount }}/draft_vocab"
 spark_draft_vocab_host_file: "{{ spark_draft_vocab_dir }}/draft-vocab-ids-K65536.txt"
 spark_draft_vocab_container: /draft-vocab/ids.txt
-# PLE overlay bind-mounts (HD-469: ONE list, read by BOTH the spark-ai template and
+# PLE overlay bind-mounts (ONE list, read by BOTH the spark-ai template and
 # the roles/spark-llm-profile staged-artifacts gate — three mounts duplicated in two
 # places is how a gate starts approving a render that cannot boot). Source file
 # names = the `files:` manifest entry in spark_artifact_sets.ple-int4.
@@ -102,21 +102,21 @@ spark_llm_overlays:
     container: /usr/local/lib/python3.12/dist-packages/vllm/v1/ple_offload/connector.py
 spark_router_publish: false        # flip to publish :8000 on the Home-VLAN IP post-bench (LAN clients)
 spark_metrics_publish: true         # loopback-only :8000 publish (127.0.0.1) so the spark Alloy can scrape
-                                  # vLLM /metrics → VPS VM (HD-368). LAN exposure stays gated on
+                                  # vLLM /metrics → VPS VM. LAN exposure stays gated on
                                   # spark_router_publish; this only opens the host loopback.
-# DCGM exporter publish port (HD-379) — same loopback-only discipline as spark_metrics_publish:
+# DCGM exporter publish port — same loopback-only discipline as spark_metrics_publish:
 # `spark-dcgm` binds 127.0.0.1:<port> and spark's Alloy `prometheus.scrape "dcgm"` reads it.
 # Declared here (NOT `| default()` in the template): CONVENTIONS §1 fail-loud — a missing var
 # must abort the render, and validate-docker-services.py's mock `default` filter would otherwise
 # silently render an empty port.
 spark_dcgm_exporter_port: 9400
-# Hard memory cap for the DCGM sidecar (HD-379) — measured anon ≈ 139–143 MiB, capped at 256 MiB
+# Hard memory cap for the DCGM sidecar — measured anon ≈ 139–143 MiB, capped at 256 MiB
 # (~1.8x). The cap exists to bound blast radius, not to save RAM: a leaked sidecar must not be
-# able to eat into the 105 GiB engine cage (HD-374) on a host with an OOM history (HD-375).
+# able to eat into the 105 GiB engine cage on a host with an OOM history.
 # Set above the observed peak so the cap can never OOM the exporter in normal operation.
 spark_dcgm_exporter_memory_limit: "256M"   # compose `limits.memory` — MUST be a string (docker compose schema)
 
-# ==== Artifact SETS + the explicit download opt-in (HD-469) =================
+# ==== Artifact SETS + the explicit download opt-in =================
 # The manifest stays generic (roles/spark-artifacts maps repo → XFS dir), but it
 # is now assembled from named SETS, and only what `spark_artifacts_fetch` lists
 # is downloaded. Default = the two sets already staged live on the box (B1 AWQ
@@ -125,7 +125,7 @@ spark_dcgm_exporter_memory_limit: "256M"   # compose `limits.memory` — MUST be
 #   ansible-playbook -i inventory.ini playbooks/spark.yml --limit spark \
 #     --tags spark-artifacts \
 #     -e spark_artifacts_fetch='["b1-awq","ple-int4","nvfp4-mixed","ple-nvfp4"]'
-# Disk: 296 GB free after the B1 staging (HD-359 live run); nvfp4-mixed core
+# Disk: 296 GB free after the B1 staging; nvfp4-mixed core
 # ≈88.6 GB + ples_nvfp4 28.8 GB ≈ 117 GB → fits, ~180 GB left.
 spark_artifacts_fetch: [b1-awq, ple-int4]
 
@@ -146,7 +146,7 @@ spark_artifact_sets:
     - repo_id: "primitive-ai/Qwen3.8-Flash-Next-PLE-quant"
       kind: tables
       subdir: "ples_int4"
-      # Values kept BYTE-FOR-BYTE as the live-staged original (HD-359 2026-09-14):
+      # Values kept BYTE-FOR-BYTE as the live-staged original:
       # local_dir = the writable CHILD ples_int4/ (not the root-owned mount root),
       # `hf download --include ples_int4/*` nests the repo-relative path and the
       # role's flatten task moves the contents up. Do not "tidy" this to the
@@ -180,7 +180,7 @@ spark_artifact_sets:
       # Same nesting shape as ple-int4 above (child dir + role-side flatten).
       local_dir: "{{ spark_xfs_mount }}/ples_nvfp4"
 
-  # ---- HD-489 tier-2 artifacts (upstream v16b stack) — the / partition, NOT XFS ----
+  # ---- tier-2 artifacts (upstream v16b stack) — the / partition, NOT XFS ----
   ar-hybrid:
     # Saren/Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid: the int4/int8/fp8 HYBRID target the
     # upstream recipe measures. NOT a fourth quantization of "our" weights — it is the
@@ -226,7 +226,7 @@ spark_artifact_sets:
 # The manifest the role iterates (flat list, same item shape as before).
 spark_artifacts: "{{ spark_artifact_sets | dict2items | selectattr('key', 'in', spark_artifacts_fetch) | map(attribute='value') | flatten }}"
 
-# ==== Spark GPU-inference artifact store (HD-359) ====
+# ==== Spark GPU-inference artifact store ====
 # GENERIC, config-agnostic manifest: repo_id → XFS local_dir. The B1 AWQ+PLE
 # weights, PLE overlay .py files and INT4 tables all live here and are MOUNTED
 # read-only by every engine profile (vLLM B1 today; NVFP4/SGLang later = their
@@ -236,13 +236,13 @@ spark_artifacts: "{{ spark_artifact_sets | dict2items | selectattr('key', 'in', 
 # (The manifest itself moved ABOVE: spark_artifact_sets + spark_artifacts_fetch
 #  → spark_artifacts. Item keys and the role's `kind` values are unchanged.)
 # Kept here as the record of the live-staged default set: b1-awq + ple-int4,
-# i.e. weights 169 G + overlays 3×.py + INT4 tables 30 G/129 files, STAGED LIVE
-# 2026-09-14 (HD-359) — the two dirs the `reasoning` profile mounts.
+# i.e. weights 169 G + overlays 3×.py + INT4 tables 30 G/129 files STAGED LIVE —
+# the two dirs the `reasoning` profile mounts.
 
-# Spark headless mode (HD-364) — TRUE = enforce the headless operating contract:
+# Spark headless mode — TRUE = enforce the headless operating contract:
 #   * mask sleep/suspend/hibernate/hybrid-sleep (DGX Spark idles into suspend, which
-#     kills the NIC — live L2 blackout 2026-09-14, deployment-manual.md §5.2; the old
-#     runbook step is now IO via the spark role)
+#     kills the NIC — a live L2 blackout, deployment-manual.md §5.2; the runbook step is
+#     now IO via the spark role)
 #   * set default.target = multi-user (no graphical login — GDM/desktop are pulled in
 #     only when this is false); the `spark-dashboard` Traefik edge keeps the loopback
 #     dashboard reachable on the LAN without a desktop
@@ -250,7 +250,7 @@ spark_artifacts: "{{ spark_artifact_sets | dict2items | selectattr('key', 'in', 
 spark_headless: true
 
 # ============================================================================
-# LLM SERVING PROFILES (HD-469) — the one-var config switch
+# LLM SERVING PROFILES — the one-var config switch
 # ----------------------------------------------------------------------------
 # `spark_llm_profile` (host_vars/spark.kogler.si.yml) + one converge = a
 # different engine config on the SAME endpoint (llm.kogler.si), the SAME served
@@ -273,7 +273,7 @@ spark_headless: true
 # Gate: profiles marked `certified: false` refuse to converge unless
 # `spark_llm_allow_uncertified: true` is set explicitly. Gate role:
 # roles/spark-llm-profile (runs before spark-artifacts + docker_services).
-# HOW AN UNCERTIFIED BOOT IS AUTHORISED (HD-489, 2026-10-06): as a PER-RUN extra var, never as a
+# HOW AN UNCERTIFIED BOOT IS AUTHORISED: as a PER-RUN extra var, never as a
 # committed value — the committed state must never carry a standing override, or the next ordinary
 # converge of anything else on this host silently inherits permission to boot an uncertified arm:
 #   -e spark_llm_profile=awq-mmap -e spark_llm_allow_uncertified=true
@@ -286,9 +286,7 @@ spark_llm_allow_uncertified: false    # committed OFF; a bench run grants it per
 
 # Measured on THIS box — the KV-pool boot-gate arithmetic (docs/hardware-spark.md
 # §Unified-memory budget: "KV pool = 19.04 GiB → 658,902 tokens (30.3 KiB/token)").
-# ⚠ THE OLD `fp8 = 15514` (a flat 2×) WAS WRONG and is corrected here (HD-469 run #2,
-# 2026-09-28): fp8 halves the MAIN K/V only. The QSA indexer side-caches (raw-key ring,
-# compressed keys) and the GDN state stay bf16, so the pool gain is ~1.7–1.9×, NOT 2×.
+# ⚠ A flat 2× for `fp8` is WRONG: fp8 halves the MAIN K/V only. The QSA indexer side-caches (raw-key ring,
 # Upstream measurements on this model: 1.77× (SM120, spec off) · 1.89× · 1.70× (2× Spark
 # GB10) · 1.85× (1× Spark GB10). Shape check: main KV ≈ 24,576 B of ≈ 29,294 B/token =
 # 84 % → 1/(1 − 0.84/2) ≈ 1.72×. We plan with the WORST of the measured ratios (1.70) so
@@ -298,11 +296,11 @@ spark_llm_kv_bytes_per_token:
   bf16: 31027
   fp8: 18251         # 31,027 / 1.70 — 17.8 KiB/token, the conservative measured ratio
 # bf16 pool ceiling: "16 GiB is the practical bf16 ceiling — do not raise it
-# further" (docs/hardware-spark.md:301). Expressed in the same decimal bytes the
+# further" (docs/hardware-spark.md §Chosen governor). Expressed in the same decimal bytes the
 # governor takes, so the gate compares like with like.
-spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling. Per-profile overrides (e.g. ar-blk's pool_ceiling_bytes) extend it for a PROFILE ONLY; this global stays 16 GiB (hardware-spark.md:301 do-not-raise).
+spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling. Per-profile overrides (e.g. ar-blk's pool_ceiling_bytes) extend it for a PROFILE ONLY; this global stays 16 GiB (hardware-spark.md §Chosen governor, do-not-raise).
 
-# ---- The host floor, as an arithmetic gate (HD-469 run #2) -----------------
+# ---- The host floor, as an arithmetic gate -----------------
 # The pool ceiling alone is NOT the OOM guard: a profile that changes the WEIGHTS changes
 # the fixed cost, and on GB10 the fixed cost and the KV pool are paid out of the SAME
 # 121.62 GiB the OS lives in (docs/hardware-spark.md §Unified-memory budget — three
@@ -312,33 +310,26 @@ spark_llm_pool_ceiling_bytes: 17179869184     # 16 GiB — the CERTIFIED ceiling
 #   MemTotal 127,532,360 kB = 130,593,136,640 B   (measured, docs/hardware-spark.md)
 #   − 6.9 GiB already held by OS/driver/dashboard at engine start  (same source)
 #   − 17.78 GiB the CERTIFIED worst usable reading (spark/stability-test.md §2 row
-#     "worst moment under 2×240k", docs/hardware-spark.md:272 — kill point was 1.62 GiB)
+#     "worst moment under 2×240k", docs/hardware-spark.md §The GLOBAL ceiling — kill point 1.62 GiB)
 #   = 104,113,000,000 B the engine (fixed cost + KV pool) may hold at once.
 # A profile that cannot fit is a profile that needs SMALLER POOL, a measured fixed cost,
 # or a re-cert — never a bigger number in this file. The gate's fail message says which.
 spark_llm_device_hold_ceiling_bytes: 104113000000
 
-# ---- The never-evict KV pin: REJECTED 2026-10-05 — the ONE value is now EMPTY, so the flag
-# never renders into any profile's argv. Keep reading this block before re-arming it.
-# WHAT IT WAS: `--never-evict-kv-cache-prompt-includes <text>` pins the KV blocks of every
-# prompt CONTAINING that text (up to `--never-evict-kv-cache-max-fraction` of the pool), aimed
-# at the "0 % prefix-hit re-prefill" the long-session note used to carry. ONE value, aliased
-# below as `*nev` / `*nevf`, because a per-arm copy is how a pin silently stops matching what
-# the client sends.
-# WHY IT IS OFF (measured on the live box, 13 h of real pi sessions after the 2026-10-04 boot;
-# docs/spark-llm-profiles.md §Never-evict prompt pin, docs/services-ai-rejected.md):
-#   · the pin held 0 blocks — the engine's own `[never-evict] holding …` line never printed;
-#   · 0 preemptions, 95.1 % of prompt tokens served from prefix cache, recomputed share 4.9 %,
-#     against the 3.70 % (24 h) / 4.57 % (7 d) baseline the pre-pin report already measured —
-#     the 25 GB pool (3.08 × the window) is what cured the re-prefill, not the pin;
-#   · the marker is the operator's pi global-instructions text, and the client actually serving
-#     sessions (WSL pi, PI_PROVIDER=spark) loads no AGENTS.md at all, so no request since boot
-#     carried the needle. A pin aimed at a prompt nobody sends is decoration.
-# THE TRAP THAT ENDED IT: the patch exists ONLY in the built ultrafast lineage. The base digest
-# has no such argument, so arming a `base` profile writes argv api_server cannot parse and the
-# container crash-loops (~20 min per attempt) — live: reasoning restarts=105, overnight run
-# 20261004-0804. That is why the lineage list below exists and why both the role and
-# scripts/check_spark_llm_gate.py now refuse a pin on an unpatched image.
+# ---- The never-evict KV pin: OFF — the ONE value is EMPTY, so the flag never renders into any
+# profile's argv. `--never-evict-kv-cache-prompt-includes <text>` pins the KV blocks of every
+# prompt CONTAINING that text (up to `--never-evict-kv-cache-max-fraction` of the pool). ONE
+# value, aliased below as `*nev` / `*nevf`, because a per-arm copy is how a pin silently stops
+# matching what the client sends. Read this block before re-arming.
+# WHY IT IS OFF (docs/spark-llm-profiles.md §Never-evict prompt pin, docs/services-ai-rejected.md):
+# the 25 GB pool is what serves re-prefill, so a pin reserves nothing; and the marker is the
+# operator's pi global-instructions text while the client that actually serves sessions (WSL pi,
+# PI_PROVIDER=spark) loads no AGENTS.md at all, so no request carries the needle. A pin aimed at a
+# prompt nobody sends is decoration.
+# THE TRAP: the argparse patch exists ONLY in the built ultrafast lineage. A base digest has no
+# such argument, so arming a `base` profile writes argv api_server cannot parse and the container
+# crash-loops. Both the role and scripts/check_spark_llm_gate.py refuse a pin on an image that is
+# absent from the lineage list below.
 # TO RE-ARM (a re-decide needs an exception note, CONVENTIONS §8.3): put the literal back here
 # (inlined because scripts/validate-docker-services.py mocks every lookup(), so a
 # lookup('file', …) would render `<secret:file>` and pass the gate green), prove the needle is a
@@ -347,13 +338,12 @@ spark_llm_device_hold_ceiling_bytes: 104113000000
 spark_llm_never_evict_prompt: &nev ""
 spark_llm_never_evict_max_fraction: &nevf "0.25"   # unused while the pin is empty; kept so a re-decide is one line
 # Image lineages whose build actually carries the --never-evict-kv-cache-* argparse patch.
-# MEASURED 2026-10-05 in the images themselves: ultrafast (sha256:4900c13e…) declares the pair
-# in vllm/engine/arg_utils.py + config/cache.py + v1/core/block_pool.py; base (sha256:fc120ece…,
+# Measured in the images themselves: ultrafast (sha256:4900c13e…) declares the pair
 # vLLM 0.1.dev20073+g8e685d198) has no such argument. A profile with a non-empty pin whose
 # image is not listed here is refused by roles/spark-llm-profile AND check_spark_llm_gate.py.
 spark_llm_never_evict_capable_images: [ultrafast]
 
-# ---- Checkpoint identity + the PLE pairing table (HD-489 tail B10, 2026-10-06) ----------
+# ---- Checkpoint identity + the PLE pairing table ----------
 # WHY these two maps exist. A profile names TWO artifacts — a checkpoint (`model_subdir`) and a
 # PLE sidecar/table (`ple_host_subdir`) — and until now NOTHING tied them: the gate proved each
 # path resolves and each revision matches its pin, but never that the table beside the weights is
@@ -378,35 +368,35 @@ spark_llm_checkpoints:
   Qwen3.8-Flash-Next-AWQ:
     quant_method: compressed-tensors
     weight_format: pack-quantized
-    basis: "MEASURED 2026-10-06 from the staged config.json on spark (wtdcode AWQ W4A16)"
+    basis: "MEASURED from the staged config.json on spark (wtdcode AWQ W4A16)"
   Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid:
     quant_method: gptq
-    basis: "MEASURED 2026-10-06 from the staged config.json on spark (Saren AutoRound-hybrid)"
+    basis: "MEASURED from the staged config.json on spark (Saren AutoRound-hybrid)"
   Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32:
     quant_method: gptq
-    basis: "MEASURED 2026-10-06: the built g32 drafter variant of the same AR target"
+    basis: "MEASURED: the built g32 drafter variant of the same AR target"
   Qwen3.8-Flash-Next-mixed-NVFP4-FP8:
     quant_method: compressed-tensors
     weight_format: float-quantized
-    basis: "MEASURED 2026-10-06 from the staged config.json (primitive-ai mixed NVFP4; also\n      carries an nvfp4-pack-quantized group)"
+    basis: "MEASURED from the staged config.json (primitive-ai mixed NVFP4; also\n      carries an nvfp4-pack-quantized group)"
 
 spark_llm_ple_pairing:
   ple-table-fp8:
     Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid: "CERTIFIED — the live `fast` winner (ex ar-blk) and every ar-* arm booted this pair; spark/reports/hd489-ar-blk/"
     Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32: "MEASURED — booted as the v16b arms (same AR target, built drafter); spark/reports/hd489-v16b/"
-    Qwen3.8-Flash-Next-AWQ: "UNVERIFIED — the HD-489 B10 question itself: the FP8 table DOES carry the trained n-gram tensor (33 shards, pre-flight in the brief) and its loader pairs with VLLM_FP8_HYBRID, but no boot has ever paired it with AWQ. Owner-gated pair + allow_uncertified."
+    Qwen3.8-Flash-Next-AWQ: "UNVERIFIED — the B10 question itself: the FP8 table DOES carry the trained n-gram tensor (33 shards, pre-flight in the brief) and its loader pairs with VLLM_FP8_HYBRID, but no boot has ever paired it with AWQ. Owner-gated pair + allow_uncertified."
     Qwen3.8-Flash-Next-mixed-NVFP4-FP8: "REFUSED — the FP8 mmap path dispatches through VLLM_FP8_HYBRID against the AR expert layout; nothing measures it on NVFP4 weights, and the NVFP4 lane's own table is ples_nvfp4."
   ples_int4:
-    Qwen3.8-Flash-Next-AWQ: "CERTIFIED — the live `reasoning` lane since HD-359 (primitive-ai PLE-quant built over the AWQ lane); spark/reports/stability/"
+    Qwen3.8-Flash-Next-AWQ: "CERTIFIED — the live `reasoning` lane (primitive-ai PLE-quant built over the AWQ lane); spark/reports/stability/"
     Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid: "REFUSED — an INT4 overlay over an AR-hybrid checkpoint is a different expert layout with no measured boot; the AR lane's table is ple-table-fp8."
   ples_nvfp4:
-    Qwen3.8-Flash-Next-mixed-NVFP4-FP8: "MEASURED-BAD — HD-489 pre-flight: ples_nvfp4 carries NO trained n-gram tensor, which is why the nv-patch arm died. Kept listed so the refusal carries its reason instead of being an absent row."
+    Qwen3.8-Flash-Next-mixed-NVFP4-FP8: "MEASURED-BAD — ples_nvfp4 carries NO trained n-gram tensor, which is why the nv-patch arm died. Kept listed so the refusal carries its reason instead of being an absent row."
 
 spark_llm_profiles:
   # ── 1. REASONING = today's live config, verbatim ───────────────────────────
   # S1 `serving_reasoning` (BENCHMARK-PLAN §2): AWQ W4A16 + PLE INT4 + MTP3 on the
   # digest-pinned vLLM fork. Owner's daily driver (planning/reasoning sessions).
-  # CERTIFIED: 2026-09-18 3-rung load chain to 2×240k ≈ 94.6 % of pool, 0 kernel
+  # CERTIFIED: a 3-rung load chain to 2×240k at ≈ 94.6 % of pool, 0 kernel
   # OOM / 0 restarts / usable worst 17.78 GiB (spark/reports/stability/README.md).
   # KV: 16,000,000,000 B / 30,3 KiB = 515,786 slots = 1.97 × full 262k window.
   reasoning:
@@ -434,7 +424,7 @@ spark_llm_profiles:
     args_extra: []
     # What the CLIENT may vary on this engine: BINARY. `reasoning_effort` is
     # accepted-but-ignored by this build; the graded surface is
-    # `thinking_token_budget` per pi level (docs/pi-harness.md §2, HD-376).
+    # `thinking_token_budget` per pi level (docs/pi-harness.md §2).
     reasoning_surface: binary
     client_context_window: 262144
     client_max_tokens: 16384
@@ -448,13 +438,13 @@ spark_llm_profiles:
 
     pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
     # device_hold_ceiling_bytes intentionally NOT declared: a per-profile copy of the
-    # global is how a re-derive silently stops being one (HD-1098 class). The role falls
+    # global is how a re-derive silently stops being one. The role falls
     # back to spark_llm_device_hold_ceiling_bytes, which is the value this line had.
     fixed_cost_basis: "MEASURED from the engine boot log (docs/hardware-spark.md §Unified-memory budget)"
-    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
+    # the keys the profile-composed template REQUIRES (fail-loud, no
     # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
     # template hardcoded before the funnel arms needed them per-profile, so the render
-    # is unchanged and the HD-469 parity guard still holds for this lane.
+    # is unchanged and the parity guard still holds for this lane.
     image: base
     models_root: xfs
     tool_call_parser: qwen3_coder
@@ -465,10 +455,10 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: *nev        # "" — REJECTED 2026-10-05. This lane renders image: base,
+    never_evict_prompt: *nev        # "" — pin off. This lane renders image: base,
     never_evict_max_fraction: *nevf   # whose build has no --never-evict-kv-cache-* argument: a
                                       # non-empty pin here aborts api_server at parse and the
-                                      # container crash-loops (restarts=105, 2026-10-04).
+                                      # container crash-loops.
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
@@ -481,18 +471,18 @@ spark_llm_profiles:
   # shape: fp8 shrinks bytes/token by ~1.7-1.9x (NOT 2x — see the constant above), so
   # the SAME 16 GB pool would hold ~877k-913k slots ≈ 3.3-3.5 full windows, and thinking
   # chains stop evicting each other at 4 sessions.
-  # ⛔ IT CANNOT BOOT ON THE PINNED IMAGE (measured 2026-09-28, run #1) — but the reason
+  # ⛔ IT CANNOT BOOT ON THE PINNED IMAGE — but the reason
   # is the IMAGE, not the model. Read this before writing it off:
-  #   * fp8 main KV on the QSA path merged upstream 2026-09-16 as vllm#55557, and was
+  #   * fp8 main KV on the QSA path merged upstream as vllm#55557, and was
   #     reproduced on GB10/sm_121 (TP2 across two Sparks, MTP active) by a third party;
   #   * the build we pin (`fc120ece`, self-reporting `vllm-0.1.dev20073+g8e685d198`) is a
   #     day-0 build that PREDATES that merge — its qsa.py is a dtype guard, not a law;
   #   * vLLM v0.30.0 does NOT carry it either (v0.30 = indexer-side fp8 #54890).
-  # So `graded` = an engine-pin change + a full re-cert = todo.md HD-473, not a config
+  # So `graded` = an engine-pin change + a full re-cert, not a config
   # flip. Do not vendor the AGPL overlay patch and do not hand-edit a container's
-  # site-packages to make this boot (`prompt-spark-llm.md`, HD-473).
+  # site-packages to make this boot (`prompt-spark-llm.md`).
   graded:
-    label: "Graded thinking — AWQ W4A16 + PLE INT4, fp8 KV (~1.7x slots) — BLOCKED ON IMAGE PIN (HD-473)"
+    label: "Graded thinking — AWQ W4A16 + PLE INT4, fp8 KV (~1.7x slots) — BLOCKED ON IMAGE PIN"
     engine: vllm
     container: vllm-qwen-spark
     model_subdir: Qwen3.8-Flash-Next-AWQ
@@ -525,15 +515,15 @@ spark_llm_profiles:
 
     pool_ceiling_bytes: 17179869184   # CERTIFIED 16 GiB (spark_llm_pool_ceiling_bytes default)
     # device_hold_ceiling_bytes intentionally NOT declared: a per-profile copy of the
-    # global is how a re-derive silently stops being one (HD-1098 class). The role falls
+    # global is how a re-derive silently stops being one. The role falls
     # back to spark_llm_device_hold_ceiling_bytes, which is the value this line had.
     fixed_cost_basis: "DERIVED: inherited from reasoning \u2014 the weights are unchanged, so
       the measured 87.8 GB stands; the fp8 saving is upstream-published and deliberately NOT
       claimed here (docs/hardware-spark.md \u00a7fp8 KV cache: still unmeasured on this box)"
-    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
+    # the keys the profile-composed template REQUIRES (fail-loud, no
     # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
     # template hardcoded before the funnel arms needed them per-profile, so the render
-    # is unchanged and the HD-469 parity guard still holds for this lane.
+    # is unchanged and the parity guard still holds for this lane.
     image: base
     models_root: xfs
     tool_call_parser: qwen3_coder
@@ -544,21 +534,21 @@ spark_llm_profiles:
     ple_staged_marker: META.json
     cudagraph_piecewise: false
     prompt_tokens_details: false
-    never_evict_prompt: *nev        # "" — REJECTED 2026-10-05. This lane renders image: base,
+    never_evict_prompt: *nev        # "" — pin off. This lane renders image: base,
     never_evict_max_fraction: *nevf   # whose build has no --never-evict-kv-cache-* argument: a
                                       # non-empty pin here aborts api_server at parse and the
-                                      # container crash-loops (restarts=105, 2026-10-04).
+                                      # container crash-loops.
     ple_mmap: false
     draft_vocab: false
     artifact_sets: [b1-awq, ple-int4]
     certified: false
     uncertified_reason: >-
       BLOCKED ON THE PINNED IMAGE, not on the model. fp8 main KV on the QSA path merged
-      upstream 2026-09-16 as vllm#55557; it is absent from the day-0 build this box pins
+      upstream as vllm#55557; it is absent from the day-0 build this box pins
       (fc120ece, self-reporting vllm-0.1.dev20073+g8e685d198), where it dies at
-      EngineCore init with NotImplementedError at qsa.py:187 (measured 2026-09-28,
+      EngineCore init with NotImplementedError at qsa.py:187 (measured,
       spark/reports/hd469-graded/README.md). vLLM v0.30.0 does not carry it either.
-      Reaching it = an engine-pin change + full re-cert (todo.md HD-473), NOT a config
+      Reaching it = an engine-pin change + full re-cert (todo.md), NOT a config
       flip; do not re-attempt it against this pin, and do not patch the container.
       When it does land, size it at 1.70-1.89x the slots, not 2x, and read the count from
       the engine's own 'GPU KV cache size' log line — see spark/llm-profiles/README.md
@@ -566,24 +556,24 @@ spark_llm_profiles:
 
   # ── 3. FAST = NVFP4 weights, bf16 KV: the decode-speed + accuracy lane ─────
   # The "implementator" lane: S2/S3 (NVFP4 decode 40–46 tok/s expected on GB10,
-  # RESEARCH-VERDICTS §2). Sizes verified against the HF API 2026-09-28:
+# RESEARCH-VERDICTS §2). Sizes verified against the HF API:
   # primitive-ai mixed-NVFP4/FP8 = 191.0 GB repo, 102.4 GB of it is its own
   # BF16 PLE table (skippable) → core ≈ 88.6 GB; ples_nvfp4 sidecar = 28.8 GB
   # (accuracy cost ≈ nothing: 92.2 knowledge / 78.7 tool-call vs 92.2/79.2 BF16,
   # primitive-ai card, spark/resources/R1-ple-quant-card-evidence.md).
-  # WHY bf16 KV HERE (changed 2026-09-28, run #2 prep): the fp8 half of this profile is
-  # HD-473's problem (image pin), so `fast` measures ONE variable — the weights. Carrying
-  # fp8 here would have it fail for a reason that is not NVFP4's.
-  # ⚠ THE OLD COMMENT HERE ("fp8 16.5 GB = 1.063M slots = 4.06 × window ≥ the 4 × 262,144
-  # no-preemption bound") WAS WRONG TWICE: it used the ×2 constant (real ratio 1.70–1.89,
-  # so ≈ 905k = 3.45 ×, failing its own bound) AND it ignored that these weights are
-  # HEAVIER than AWQ's. NVFP4 core 88.6 GB vs the AWQ lane's whole measured fixed cost
-  # 81 GiB (77.69 GiB weights+non-torch, +2.99 activation, +~7 stranded graphs) ⇒ fixed
-  # cost +≈ 5.2 GB. On a 121.62 GiB unified pool that is paid for OUT OF THE KV POOL,
-  # which is why this profile's pool went DOWN to 11 GB, not up to 16.5 GB (gate:
-  # spark_llm_device_hold_ceiling_bytes). KV: 11,000,000,000 / 31,027 = ~354,000 slots
-  # = 1.35 × one full window — enough to boot, measure speed and run the accuracy battery;
-  # 4 concurrent full windows need fp8 KV, i.e. HD-473, on top.
+# WHY bf16 KV HERE: the fp8 half of this profile is
+# an image-pin problem, so `fast` measures ONE variable — the weights. Carrying
+# fp8 here would make it fail for a reason that is not NVFP4's.
+# ⚠ An fp8 slot count built on the ×2 constant is WRONG TWICE: the real ratio is
+# 1.70–1.89, so a claim like "16.5 GB = 1.063M slots = 4.06 × window" fails its own
+# 4 × 262,144 no-preemption bound (≈ 905k = 3.45 ×), AND it ignores that these weights are
+# HEAVIER than AWQ's. NVFP4 core 88.6 GB vs the AWQ lane's whole measured fixed cost
+# 81 GiB (77.69 GiB weights+non-torch, +2.99 activation, +~7 stranded graphs) ⇒ fixed
+# cost +≈ 5.2 GB. On a 121.62 GiB unified pool that is paid for OUT OF THE KV POOL,
+# which is why this profile's pool went DOWN to 11 GB, not up to 16.5 GB (gate:
+# spark_llm_device_hold_ceiling_bytes). KV: 11,000,000,000 / 31,027 = ~354,000 slots
+# = 1.35 × one full window — enough to boot, measure speed and run the accuracy battery;
+# 4 concurrent full windows need fp8 KV on top.
   # UNCERTIFIED: never benched on this box; NVFP4-vs-AWQ accuracy is unresolved
   # (91/100 vs 98/100 in one capture, 99/100 in another — engine+template+effort
   # confound it: spark/resources/R2-nvfp4.md §B).
@@ -664,7 +654,7 @@ spark_llm_profiles:
       - "24"
       - --mamba-radix-cache-strategy
       - extra_buffer
-      # --mamba-track-interval 64 REMOVED (2026-09-28): the vendor's DGX Spark cells run
+      # --mamba-track-interval is NOT set here: the vendor's DGX Spark cells run
       # WITHOUT it. The default (256 tokens) still satisfies the constraints (a multiple of
       # the 64-token page, ≥ the 4 draft tokens) and leaves a ~40 % LARGER KV pool — on a
       # lane whose whole problem is that the pool does not hold 262,144, that is not a
@@ -698,10 +688,10 @@ spark_llm_profiles:
     reasoning_surface: always-on-effort-unmeasured
     client_context_window: 262144
     client_max_tokens: 16384
-    # HD-489: the keys the profile-composed template now REQUIRES (fail-loud, no
+    # the keys the profile-composed template REQUIRES (fail-loud, no
     # default() fallbacks — CONVENTIONS §7 discipline). Values are exactly what the
     # template hardcoded before the funnel arms needed them per-profile, so the render
-    # is unchanged and the HD-469 parity guard still holds for this lane.
+    # is unchanged and the parity guard still holds for this lane.
     image: sglang
     models_root: xfs
     tool_call_parser: qwen3_coder
@@ -732,7 +722,7 @@ spark_llm_profiles:
       authored below.
 
   # ══════════════════════════════════════════════════════════════════════════════
-  # HD-489 · THE ULTRA-FAST MATRIX (screening funnel, upstream v16b lineage)
+  # THE ULTRA-FAST MATRIX (screening funnel, upstream v16b lineage)
   # ══════════════════════════════════════════════════════════════════════════════
   # WHY SO MANY: the upstream recipe (github.com/dime-online/qwen3.8-Flash-DGX-UltraFast,
   # Apache-2.0) publishes 74.1 tok/s single-stream and 2,213–4,016 tok/s cold prefill on one
@@ -744,7 +734,7 @@ spark_llm_profiles:
   #   tier 1  u*/nv-*      0 new GB (AWQ + INT4 + NVFP4 are already on disk)   ~1 boot each
   #   tier 2  ar-*         ~130 GB onto `/` (spark_models_dir_os), nothing deleted
   #   tier 3  v16b-*       + the T80 drafter directory (+4.8 GiB, built not downloaded)
-  # Keep-few rule (docs/spark-llm-profiles.md §The funnel): arms are SCORED, not kept — a
+  # Keep-few rule (docs/spark-llm-profiles.md §7. The ultra-fast funnel): arms are SCORED, not kept — a
   # loser is deleted from this catalogue and recorded in docs/services-ai-rejected.md. Only
   # an arm that clears gates 0–7 (spark/llm-profiles/README.md) becomes `certified: true`.
   #
@@ -756,21 +746,20 @@ spark_llm_profiles:
   # `_x` is a YAML MERGE ANCHOR, not a profile (the `_` prefix is the skip convention in
   # scripts/spark-llm-probe.py + scripts/check_spark_llm_gate.py; the gate's valid-name list
   # filters it too). It carries the values every arm shares, so an arm below reads as its
-  # DELTA. The four arms above it are deliberately untouched — `reasoning` must keep
-  # rendering byte-identically (HD-469 parity guard), and an anchor rewrite of it would put
+  # rendering byte-identically (the parity guard), and an anchor rewrite of it would put
   # that guard at risk for no information.
   _x: &u_x
     engine: vllm
     container: vllm-qwen-spark        # SAME container name as the certified lane on purpose:
     image: ultrafast                  # a flip RECREATES the service, it never orphans one.
-    served_name: spark/qwen3.8-flash-next   # HD-370 anchors are non-negotiable: served id,
+    served_name: spark/qwen3.8-flash-next   # anchors are non-negotiable: served id,
     models_root: xfs                  # port, bearer, service name. Upstream serves `qwen`
     max_model_len: 262144             # on :8000 with NO --api-key and `-p 8000:8000` on all
     max_num_batched_tokens: 4096      # interfaces; we keep the contract and take only the
     max_num_seqs: 4                   # engine work. (docs/spark-llm-profiles.md §Client
     max_cudagraph_capture_size: 4     # contract.)
     kv_cache_dtype: auto              # arms never try fp8 KV: the parent build's qsa.py declares
-                                      # [auto, bfloat16] (HD-473), and the upstream recipe itself passes
+                                      # [auto, bfloat16] on this build, and the upstream recipe itself passes
                                       # --kv-cache-dtype auto — the only value with a certified path
                                       # through BOTH build and recipe.
     kv_cache_memory: "16000000000"
@@ -791,9 +780,9 @@ spark_llm_profiles:
     ple_host_subdir: ""                 #   purpose: a Jinja value INSIDE this dict is
     ple_container_dir: ""               #   stringified by validate-docker-services.py, so
     ple_staged_marker: ""               #   the template composes paths, profiles declare
-    cudagraph_piecewise: false          #   coordinates. (The HD-469 note at the foot of
+    cudagraph_piecewise: false          # coordinates. (The note at the foot of
     prompt_tokens_details: false        #   this file is the reason.)
-    never_evict_prompt: *nev                    # "" — the ONE value for every arm, now EMPTY (rejected;
+    never_evict_prompt: *nev                    # "" — the ONE value for every arm, EMPTY = pin off (see
                                       #   docs/services-ai-rejected.md). The role +
                                       #   check_spark_llm_gate.py refuse to arm it on a
                                       #   spark_llm_never_evict_capable_images-absent image.
@@ -812,7 +801,7 @@ spark_llm_profiles:
   # ── tier 1 · the patch lineage, on weights we already own (0 new GB) ──────────
   u1-patch:
     <<: *u_x
-    label: "HD-489 t1 — patched vLLM lineage + certified AWQ/INT4 stack (isolates the patch stack)"
+    label: "t1 — patched vLLM lineage + certified AWQ/INT4 stack (isolates the patch stack)"
     model_subdir: Qwen3.8-Flash-Next-AWQ
     ple_overlay: true
     ple_host_subdir: ples_int4
@@ -834,7 +823,7 @@ spark_llm_profiles:
 
   u2-blk:
     <<: *u_x
-    label: "HD-489 t1 — u1-patch + block rejection sampling (spec method, one delta)"
+    label: "t1 — u1-patch + block rejection sampling (spec method, one delta)"
     model_subdir: Qwen3.8-Flash-Next-AWQ
     ple_overlay: true
     ple_host_subdir: ples_int4
@@ -855,7 +844,7 @@ spark_llm_profiles:
 
   u3-s8:
     <<: *u_x
-    label: "HD-489 t1 — u2-blk + 8 concurrent seqs + piecewise CUDA graphs (batch/shape, one delta)"
+    label: "t1 — u2-blk + 8 concurrent seqs + piecewise CUDA graphs (batch/shape, one delta)"
     model_subdir: Qwen3.8-Flash-Next-AWQ
     ple_overlay: true
     ple_host_subdir: ples_int4
@@ -871,18 +860,18 @@ spark_llm_profiles:
     prompt_tokens_details: true
     artifact_sets: [b1-awq, ple-int4]
     fixed_cost_bytes: 86900000000
-    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); ⚠ 8 seqs + capture-8 is exactly the term HD-380 measured as STRANDED graph memory — this arm must record `nvidia-smi --query-compute-apps` per-pid MiB at REST or the delta is uninterpretable"
+    fixed_cost_basis: "MEASURED, inherited from `reasoning` (identical weights); ⚠ 8 seqs + capture-8 is exactly the term measured as STRANDED graph memory — this arm must record `nvidia-smi --query-compute-apps` per-pid MiB at REST or the delta is uninterpretable"
     uncertified_reason: >-
       Upstream runs --max-num-seqs 8; our house value is 4 because capture sizes above the
-      decode batch are unreachable and strand memory in the single pool (docs/spark-incidents.md,
-      HD-380). Here capture is raised WITH the batch, so the HD-380 invariant still holds —
+      decode batch are unreachable and strand memory in the single pool (docs/spark-incidents.md).
+      Here capture is raised WITH the batch, so the invariant still holds —
       but the aggregate-vs-per-stream trade-off on OUR workload (agent-shaped, 2–4 sessions)
       is unmeasured, and the pool is shared with the host.
     certified_evidence: ""
 
   u4-pin:
     <<: *u_x
-    label: "HD-489 t1 — u2-blk + prompt-KV pinning (our 0 %-prefix-hit lever, on the AWQ lane)"
+    label: "t1 — u2-blk + prompt-KV pinning (our 0 %-prefix-hit lever, on the AWQ lane)"
     model_subdir: Qwen3.8-Flash-Next-AWQ
     ple_overlay: true
     ple_host_subdir: ples_int4
@@ -892,7 +881,7 @@ spark_llm_profiles:
       num_speculative_tokens: 3
       rejection_sample_method: block
       draft_sample_method: probabilistic
-    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
+    never_evict_prompt: *nev            # "" — the ONE value; pin-capable lineage only
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     artifact_sets: [b1-awq, ple-int4]
     fixed_cost_bytes: 86900000000
@@ -909,19 +898,19 @@ spark_llm_profiles:
 
   nv-patch:
     <<: *u_x
-    label: "HD-489 t1 — patched lineage on the NVFP4 weights (HD-475's JIT question, 0 new GB)"
+    label: "t1 — patched lineage on the NVFP4 weights (JIT question, 0 new GB)"
     model_subdir: Qwen3.8-Flash-Next-mixed-NVFP4-FP8
     ple_host_subdir: ples_nvfp4
     ple_container_dir: /ples_nvfp4
     kv_cache_memory: "11000000000"      # = the `fast` lane's pool: NVFP4 weights pay out of
     artifact_sets: [nvfp4-mixed, ple-nvfp4]   # the SAME pool (R2-nvfp4.md §B)
     # ⚠ NOT a copy of `fast`: `fast` carries VLLM_GDN_DECODE_KERNEL=triton, which is what
-    # made it 502 at 262k (HD-475). This arm boots the patched build WITHOUT that env — if
-    # the fla shmem/warps patches are what HD-475 needed, THIS is where it shows.
+    # made it 502 at 262k. This arm boots the patched build WITHOUT that env — if
+    # the fla shmem/warps patches are what that fix needed, THIS is where it shows.
     fixed_cost_bytes: 92100000000
-    fixed_cost_basis: "DERIVED 2026-09-28 (`fast`'s basis: reasoning's 86.9 GB + the 5.2 GB NVFP4 core-weight delta) — verified within boot-log resolution by run #3 (pool printed 354,248 tokens ≈ 11 GB)"
+    fixed_cost_basis: "DERIVED (`fast`'s basis: reasoning's 86.9 GB + the 5.2 GB NVFP4 core-weight delta) — verified within boot-log resolution by run #3 (pool printed 354,248 tokens ≈ 11 GB)"
     uncertified_reason: >-
-      HD-475's fix is authored as a code change on `fast`; this arm is the independent read
+      The fix is authored as a code change on `fast`; this arm is the independent read
       of the same question (do the upstream GDN/FLA patches remove the at-inference kernel
       JIT that cost run #3 its gate 3?) on weights + tables already staged. Two arms, one
       question — whichever lands first is the answer, the other becomes the control.
@@ -930,7 +919,7 @@ spark_llm_profiles:
   # ── tier 2 · the upstream target + FP8 PLE mmap (~130 GB onto `/`) ────────────
   ar-mmap:
     <<: *u_x
-    label: "HD-489 t2 — AutoRound-hybrid target + FP8 PLE table from disk, spec OFF"
+    label: "t2 — AutoRound-hybrid target + FP8 PLE table from disk, spec OFF"
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
     ple_offload: false                  # the primitive-ai CPU-offload env is the INT4 path;
@@ -941,7 +930,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table       #   render VLLM_PLE_MMAP_DIR=/ple-table with NOTHING
     ple_staged_marker: ".hf-staged"     #   mounted there — scripts/spark-llm-render-matrix.py
     ple_mmap: true                      #   refuses that render (it caught exactly this).
-    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report) — eager skips graph capture
+    enforce_eager: true               # mmap x CUDA-graph pinning (ar-mmap report) — eager skips graph capture
     spec_tokens: 0                      # no drafter directory exists for this checkpoint
     health_start_period: 2400s          # PREWARM reads the whole table at boot
     max_model_len: 262144
@@ -970,40 +959,26 @@ spark_llm_profiles:
     ple_dispatch: true
     # Per-profile allowance (roles/spark-llm-profile compares THIS, not the global, when a
     # profile declares it). The CERTIFIED global `spark_llm_pool_ceiling_bytes` stays 16 GiB —
-    # hardware-spark.md:301 "do not raise it further" — so every other profile is still gated at
+    # hardware-spark.md §Chosen governor "do not raise it further" — so every other profile is still gated at
     # 16 GiB and this arm's bigger pool is visible as a deliberate, named exception.
-    # HD-494 (2026-10-05): 25 GB → 20 GB. The 25 GB step left the box with NO host floor — usable
-    # (MemAvailable − CmaFree) RESTED at 7.76-7.99 GiB, inside the watchdog's CRIT band, so the
-    # enforcer restarted the engine at 09:22:41Z for a steady state instead of an excursion.
-    # 20 GB is not a taste choice: with the measured fixed cost below it is the LARGEST
-    # 1-GB-rounded pool that still leaves the WARN band (12 GiB) of host reserve at rest
-    # (pool_max = 112.70e9 − 92.13e9 = 20.64 GB). · docs/hardware-spark.md §Unified-memory budget
+    # 20 GB is the LARGEST 1-GB-rounded pool that still leaves the watchdog's WARN band
+    # (12 GiB) of host reserve at rest: pool_max = device_hold_ceiling_bytes − fixed_cost_bytes.
+    # A larger pool rests usable inside CRIT, and the enforcer then restarts the engine for a
+    # steady state rather than an excursion. · docs/hardware-spark.md §Unified-memory budget
     pool_ceiling_bytes: 20000000000
-    max_num_seqs: 8                   # 8 concurrent streams (owner step 2026-10-03, after 20 GB + 8 booted clean)
+    max_num_seqs: 8                   # 8 concurrent streams — the pool must supply tokens/stream for all of them
     kv_cache_memory: "20000000000"    # = 644,600 slots = 2.46 × the 262,144 window (20e9 / 31,027 B/token);
-                                      # 80,575 tokens/stream at the seqs-8 ceiling (25 GB had 100,719)
-    # The host floor for THIS profile, MEASURED (HD-494). The global
-    # `spark_llm_device_hold_ceiling_bytes` (104.113e9) is MemTotal − 6.9 GiB − 17.78 GiB and
-    # BOTH its terms are wrong for this checkpoint: the non-engine term measures 4.93e9 B here
-    # (MemTotal − MemAvailable 15 s after the 09:22:45Z restart, cached then only 5.43 GiB), and
-    # the 17.78 GiB "worst usable" belongs to the AWQ/16 GiB lane, not to the AR-hybrid. Restated
-    # on measured terms + the watchdog's own WARN reserve as the target: 130.594e9 − 4.934e9 −
-    # 12.885e9 = 112.775e9, taken DOWN to 112.70e9 rather than up. Then fixed + pool = 112.13e9,
-    # margin 0.57e9 B, usable-at-rest 12.60 GiB — and the same model run at pool = 25e9 predicts
-    # 7.94 GiB, which is what the box actually read all morning: the ledger is validated against
-    # the box, not merely balanced. ⚠ This is a measured EXCEPTION, not a re-cert of the global:
-    # every other profile stays gated at 104.113e9 — and since 2026-10-08 it is gated by the GLOBAL
-    # for real: the per-profile/anchor copies of 104113000000 were deleted, because a copy that
-    # restates the global makes a re-derive silently do nothing (HD-1098 class). The re-derive itself
-    # is docs/hardware-spark.md §Re-deriving the GLOBAL ceiling: on the measured OS term alone it lands
-    # at 112.774e9 (which would make THIS override redundant), but the 2026-10-06 transient priced
-    # against a floor lands at 101.951e9 and makes 7 certified arms illegal, so the global stays 104.113e9
-    # until a 1 s prefill-window sampler decides which floor the reserve is priced against.
+                                      # 80,575 tokens/stream at the seqs-8 ceiling
+    # Host-floor EXCEPTION for this arm: the global 104.113e9 ceiling is priced from terms that do
+    # not hold for this checkpoint, so this override is priced from the arm's own non-engine reserve
+    # plus the watchdog's WARN reserve. Never restate the global per profile — a copy wins silently
+    # and makes a re-derive do nothing.
+    # → docs/hardware-spark.md §The GLOBAL ceiling: spark_llm_device_hold_ceiling_bytes
     device_hold_ceiling_bytes: 112700000000
-    # ple_dispatch above is LOAD-BEARING on this checkpoint: without the A4 dispatch env the AR
-    # arm fails to boot (root cause 2026-10-03) — B9 is the arm that measures what it costs.
+    # ple_dispatch above is LOAD-BEARING on this checkpoint: without the kernel-dispatch env the
+    # AR arm does not boot at all.
 
-    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
+    enforce_eager: true               # mmap × CUDA-graph pinning: eager is required on this path
     spec_config:
       method: mtp
       num_speculative_tokens: 3
@@ -1012,37 +987,26 @@ spark_llm_profiles:
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8]
     certified: true
-    # One evidence line, and it must survive a YAML re-read: this key appeared TWICE here until
-    # 2026-10-03 (the second, empty one silently won — `certified: true` with no evidence is the
-    # exact shape the gate is supposed to refuse). If an arm is certified, say what with paths.
-    certified_evidence: "spark/reports/hd489-ar-blk/README.md · spark/reports/hd489-tail-b2/README.md · spark/reports/hd489-tail-b3/README.md · spark/reports/hd489-legs-20261006-1228/RESULTS.md · spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md · spark/reports/hd489-tail-gate7-20261007/RESULTS.md · spark/llm-profiles/README.md — shape history: 16 GB / seqs 4 (KV 515,786 = 1.97×, gates 3/4 PASS), then 25 GB + seqs 8 (gate 4 at conc 8 PASS, spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log), then POOL 25 → 20 GB on 2026-10-05 (HD-494: 25 GB left the host no reserve) and that is the live shape. Re-taken ON 20 GB on 2026-10-06: gate 4 at conc 8 and gate 5 (needle at depth, 3/3) — both PASS in hd489-legs-20261006-1228, which also closed HD-494's two legs. Gate 6 (accuracy) 2026-10-06 PASS with one named exception in hd489-tail-gate6-20261006-2349: code-fib returned empty on finish_reason=length because 1024 completion tokens all went to reasoning, i.e. the battery's budget, not the engine's ability. Gate 7 2026-10-07: 19.79 h bounded fill — one +5,626 MiB step at hour +2 then 17 h flat at 99,649 MiB, tail slope 0.0 MiB/h, 0 restarts. Gate 7 was read twice on 2026-10-07 and PASSED both times — 19.79 h and then, once the working day filled, 21.49 h: 22 hourly maxima with 19 of them at exactly 99,649 MiB, least-squares +127.1 MiB/h against the 2048 MiB/h gate, 0 restarts; the fill it hands HD-494 is +5,626 MiB of fixed cost with the peak +6,558 MiB over the watchdog baseline. OWED on this shape, one item, and it is not an engine question: the gate-6 battery at max_tokens 16384 (16 × 2^10, owner ruling 2026-10-07) RE-RUN TOGETHER WITH the B1 baseline in the same change — raising one side only moves the comparison basis, and this key is evidence, so it must not be re-graded against a battery that changed underneath it"
+    # Keep exactly ONE `certified_evidence` key here: a duplicated YAML key resolves to the LAST
+    # definition with only a warning, so a second empty one silently wins — and `certified: true`
+    # with no evidence is the exact shape the gate is supposed to refuse.
+    certified_evidence: "spark/reports/hd489-ar-blk/README.md · spark/reports/hd489-tail-b2/README.md · spark/reports/hd489-tail-b3/README.md · spark/reports/hd489-legs-20261006-1228/RESULTS.md · spark/reports/hd489-tail-gate6-20261006-2349/RESULTS.md · spark/reports/hd489-tail-gate7-20261007/RESULTS.md · spark/llm-profiles/README.md — shape history: 16 GB / seqs 4 (KV 515,786 = 1.97×, gates 3/4 PASS), then 25 GB + seqs 8 (gate 4 at conc 8 PASS, spark/reports/hd489-overnight-20261004-0804/raw/g4-c8.log), then POOL 25 → 20 GB (25 GB left the host no reserve) and that is the live shape. Re-taken ON 20 GB: gate 4 at conc 8 and gate 5 (needle at depth, 3/3) — both PASS in hd489-legs-20261006-1228, which also closed the two legs. Gate 6 (accuracy) PASS with one named exception in hd489-tail-gate6-20261006-2349: code-fib returned empty on finish_reason=length because 1024 completion tokens all went to reasoning, i.e. the battery's budget, not the engine's ability. Gate 7: 19.79 h bounded fill — one +5,626 MiB step at hour +2 then 17 h flat at 99,649 MiB, tail slope 0.0 MiB/h, 0 restarts. Gate 7 was read twice and PASSED both times — 19.79 h and then, once the working day filled, 21.49 h: 22 hourly maxima with 19 of them at exactly 99,649 MiB, least-squares +127.1 MiB/h against the 2048 MiB/h gate, 0 restarts; the fill it hands is +5,626 MiB of fixed cost with the peak +6,558 MiB over the watchdog baseline. OWED on this shape, one item, and it is not an engine question: the gate-6 battery at max_tokens 16384 (16 × 2^10) RE-RUN TOGETHER WITH the B1 baseline in the same change — raising one side only moves the comparison basis, and this key is evidence, so it must not be re-graded against a battery that changed underneath it"
     fixed_cost_bytes: 92130000000
-    fixed_cost_basis: "MEASURED 2026-10-05 (HD-494) by the MemAvailable-jump method that docs/spark-incidents.md §Incident #6 (the measurement trick) names the TRUE footprint: MemAvailable 7.94 → 117.03 GiB across the 09:22:45Z restart ⇒ engine held 117.13e9 B; minus the live 25e9 KV pool ⇒ 92.13e9 B non-KV. Supersedes the two BOOT-LOG derivations below, which under-count this checkpoint by 15.83e9 B (14.75 GiB) — the gap is the whole reason a 25 GB pool passed the host-floor gate and then ate the host reserve."
-    # HD-489 tail A3 history, KEPT because it is where the 76.3e9 came from and it is still the
-    # cheapest derivation to reproduce from a committed artifact:
-    #   boot log 2026-10-03: "Model loading took 68.35 GiB memory"  ≈  73.4e9 B
-    #   (so fixed + 16 GB pool = 89.4e9 B, still inside the 104.113e9 B host-floor ceiling)
-    # Disagreement he kept in writing: the engine-pid-at-rest derivation
-    #   (nvidia-smi pid MiB − engine-printed 14.9 GiB KV = 88,921 − 15,290 ≈ 73.6 GiB ≈ 79.0e9 B)
-    # reads ~+6 GB higher because nvidia-smi under-counts the engine's multi-process pool by
-    # ~10 GiB (docs/hardware-spark.md §Unified-memory budget & OOM governance, and the incident-#6
-    # measurement trick in docs/spark-incidents.md); both were recorded, the BOOT LOG was chosen.
-    # HD-494 settles the disagreement by MEASURING it: of the three numbers (73.4e9 / 79.0e9 /
-    # 92.13e9) only the last is a reading of what the box actually cannot use, and it is the only
-    # one that predicts the observed usable. Weight-load logs count what the loader touched, not
-    # what the process ends up pinning (CUDA graphs, activations, the FP8 PLE mmap's resident
-    # pages, the engine's own host anon, its share of swap).
+    fixed_cost_basis: "MEASURED by the MemAvailable-jump method that docs/spark-incidents.md §Incidents #4/#5/#6 names the TRUE footprint: MemAvailable 7.94 → 117.03 GiB across the 09:22:45Z restart ⇒ engine held 117.13e9 B; minus the live 25e9 KV pool ⇒ 92.13e9 B non-KV. Supersedes the two BOOT-LOG derivations below, which under-count this checkpoint by 15.83e9 B (14.75 GiB) — the gap is the whole reason a 25 GB pool passed the host-floor gate and then ate the host reserve."
+    # fixed_cost must be what the engine HOLDS, not what a loader touched: a boot-log
+    # "Model loading took N GiB" and an nvidia-smi per-pid reading both under-count the pinned
+    # footprint (CUDA graphs, activations, mmap resident pages, host anon, swap share). Only a
+    # MemAvailable-jump reading predicts the usable the box actually shows.
+    # → docs/spark-incidents.md §Incidents #4/#5/#6 — the projected reserve never existed
     generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
 
-  # ── B9 (HD-489 tail): ar-blk WITHOUT the A4 kernel-dispatch env ──────────────
+  # ── B9: ar-blk WITHOUT the kernel-dispatch env ──────────────
   # Same checkpoint + FP8 mmap table + spec as ar-blk, but ple_dispatch: false ⇒ the
-  # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered. Answers the B9
-  # question: if 39.7 survives without the dispatch knobs, the win is the checkpoint
-  # (and the quality risk is real); if it falls to ~25, the win is env (B10 becomes the
-  # cheap certified path). Owner-gated: must boot with allow_uncertified, one variable.
+  # QWEN38NEXT_*/VLLM_*_GEMM/VLLM_FP8_HYBRID knobs are NOT rendered, so this varies exactly one
+  # thing against ar-blk. Uncertified: it boots only with spark_llm_allow_uncertified.
   ar-blk-lean:
     <<: *u_x
-    label: "HD-489 tail B9 — ar-blk with the dispatch env REMOVED (A4 isolation)"
+    label: "tail B9 — ar-blk with the dispatch env REMOVED (A4 isolation)"
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
     ple_offload: false
@@ -1063,45 +1027,33 @@ spark_llm_profiles:
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8]
     fixed_cost_bytes: 76300000000
-    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log (same as ar-blk): 'Model loading took 68.35 GiB' ≈ 73.4e9 B"
+    fixed_cost_basis: "MEASURED from the engine boot log (same as ar-blk): 'Model loading took 68.35 GiB' ≈ 73.4e9 B"
     uncertified_reason: "B9 A4 isolation: identical to ar-blk EXCEPT the 7 kernel-dispatch env are removed. Owner-gated boot: set spark_llm_allow_uncertified: true, converge detached, C2+C2L, compare to ar-blk's 39.7 tok/s C2L."
     certified_evidence: ""
 
-  # ── B10 (HD-489 tail): AWQ on the winner's machinery (awq-mmap) ─────────────
-  # The owner's question: AWQ W4A16 (the certified lane's weights) served from the
-  # patched lineage + the FP8 PLE mmap table + the dispatch bundle — does eager AWQ
-  # + the bundle beat or approach ar-blk (39.7 C2L)? Pre-flight done (brief §B10):
-  # ple-table-fp8 DOES carry …ple.ple_embedding.ngram_embedding.shard_0…130.weight
-  # (33 shards, +1024 fp8 expert weight_scale_inv) — unlike ples_nvfp4, so nv-patch
-  # died; ples_int4 is a different layout (weight_i4 + weight_scale) the mmap loader
-  # cannot read. The FP8 table is the trained n-gram tensor, not AR-specific — its
-  # loader pairs with VLLM_FP8_HYBRID: plausible-and-unverified, not nonsense.
-  # THE PAIRING IS NOW ASSERTED, not remembered (2026-10-06, this change). The checkpoint and the
-  # table are tied in TWO places: the static registry `spark_llm_ple_pairing` (this arm's pair
-  # reads UNVERIFIED, the honest word for the question being asked) and the staged checkpoint's
-  # own `config.json` quantization, re-read at converge. The second is what caught this arm's
-  # authoring bug: `models_root: os` named /opt/homelab/models/Qwen3.8-Flash-Next-AWQ, a path that
-  # has never existed — the AWQ checkpoint is staged on XFS (`b1-awq` → spark_models_dir) while
-  # the FP8 TABLE legitimately lives on `/`. `models_root` is the CHECKPOINT's coordinate and
-  # `ple_host_root` the TABLE's; they may differ, and only reading what is actually in the
-  # directory separates "wrong store" from "right store" (gate invariant `ple-pairing` + the
-  # role's staged-identity assert).
+  # ── B10: AWQ on the winner's machinery (awq-mmap) ─────────────
+  # AWQ W4A16 weights on the patched lineage + the FP8 PLE mmap table + the dispatch bundle.
+  # The FP8 table is the trained n-gram tensor and is not AR-specific; ples_nvfp4 and ples_int4
+  # carry layouts the mmap loader cannot read, so only ple-table-fp8 pairs with VLLM_FP8_HYBRID
+  # (plausible, unverified on the base image).
+  # The pairing is ASSERTED, not remembered, in two places: the static registry
+  # `spark_llm_ple_pairing` (this arm's pair reads UNVERIFIED) and the staged checkpoint's own
+  # `config.json` quantization, re-read at converge. `models_root` is the CHECKPOINT's store and
+  # `ple_host_root` the TABLE's — they may legitimately differ; the asserts are what separate a
+  # wrong store from a right one.
   awq-mmap:
     <<: *u_x
-    label: "HD-489 tail B10 — AWQ W4A16 + FP8 PLE mmap + dispatch bundle (owner's question)"
-    models_root: xfs               # the CHECKPOINT's store: `b1-awq` stages AWQ on XFS. This was
-                                   # `os` when the arm was authored (2026-10-03) — a path that has
-                                   # never existed, so the converge's staged-artifact stat refused
-                                   # the arm and it could not boot at all. The TABLE stays on `/`.
+    label: "tail B10 — AWQ W4A16 + FP8 PLE mmap + dispatch bundle (owner's question)"
+    models_root: xfs               # the CHECKPOINT's store: `b1-awq` stages AWQ on XFS, while the FP8
+                                   # TABLE legitimately lives on `/` (`ple_host_root`). A
+                                   # `models_root` naming a store the checkpoint was never staged
+                                   # in fails the staged-artifact stat and cannot boot.
     model_subdir: Qwen3.8-Flash-Next-AWQ
-    kv_cache_memory: "14000000000"  # 14 GB, not the anchor's 16. This arm inherits the AWQ lane's
-                                   # fixed cost (86.9e9), and that ledger carries NO term for the
-                                   # FP8 mmap table's resident set (HD-489 B5: ~4 GB pinned out of
-                                   # the 47.7 GiB table). 86.9 + 16 = 102.9 GB leaves 1.2 GB under
-                                   # the 104.113 GB floor — the same shape HD-494 measured as a
-                                   # 12 GiB overage. The pool is not this arm's variable (single-
-                                   # stream decode; 14 GB = 451k slots = 1.72 × the window), so the
-                                   # margin is bought where it costs nothing.
+    kv_cache_memory: "14000000000"  # 14 GB, not the anchor's 16: the AWQ lane's fixed cost (86.9e9)
+                                   # carries NO term for the FP8 mmap table's resident set (~4 GB
+                                   # pinned of the 47.7 GiB table), so a 16 GB pool crosses the
+                                   # 104.113 GB floor. Single-stream decode — the pool is not this
+                                   # arm's variable, so the margin is bought where it is free.
     ple_offload: false
     ple_overlay: false
     ple_host_base: models
@@ -1120,13 +1072,13 @@ spark_llm_profiles:
     health_start_period: 2400s
     artifact_sets: [b1-awq, ple-fp8]
     fixed_cost_bytes: 86900000000
-    fixed_cost_basis: "MEASURED 2026-10-03 from the engine boot log (AWQ weights, same as reasoning): 'Model loading took 68.35 GiB' ≈ 73.4e9 B — re-read from its own boot anyway"
+    fixed_cost_basis: "MEASURED from the engine boot log (AWQ weights, same as reasoning): 'Model loading took 68.35 GiB' ≈ 73.4e9 B — re-read from its own boot anyway"
     uncertified_reason: "B10: AWQ W4A16 + patched lineage + FP8 PLE mmap + dispatch knobs (ple_dispatch: true). The checkpoint↔table pairing is now ASSERTED (spark_llm_ple_pairing says UNVERIFIED for exactly this pair; the role re-reads the staged config.json) — the owner gate that remains is the boot itself + -e spark_llm_allow_uncertified=true per run. If it boots and its eager AWQ + bundle lands 22-28 tok/s, the quality-fallback costs ~30 % speed, not ~40 %."
     certified_evidence: ""
 
   ar-dv:
     <<: *u_x
-    label: "HD-489 t2 — ar-blk + the 65,536-id draft-vocabulary slice"
+    label: "t2 — ar-blk + the 65,536-id draft-vocabulary slice"
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid
     ple_offload: false
@@ -1137,7 +1089,7 @@ spark_llm_profiles:
     ple_container_dir: /ple-table
     ple_staged_marker: ".hf-staged"
     ple_mmap: true
-    enforce_eager: true               # HD-489 t2 fix: mmap x CUDA-graph pinning (ar-mmap report)
+    enforce_eager: true               # mmap × CUDA-graph pinning: eager is required on this path
     draft_vocab: true
     spec_config:
       method: mtp
@@ -1160,7 +1112,7 @@ spark_llm_profiles:
   # ── tier 3 · the promoted upstream config, and its two isolations ─────────────
   v16b:
     <<: *u_x
-    label: "HD-489 t3 — FIDELITY arm: upstream v16b as published (drafter + slice + 8 seqs + 8192)"
+    label: "t3 — FIDELITY arm: upstream v16b as published (drafter + slice + 8 seqs + 8192)"
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32   # BUILT, not
     ple_offload: false                  # downloaded: roles/spark-ultrafast-build converts
@@ -1174,7 +1126,7 @@ spark_llm_profiles:
     draft_vocab: true
     max_num_seqs: 8
     max_cudagraph_capture_size: 8
-    max_num_batched_tokens: 8192        # upstream's value; our house value is 4096 (HD-381)
+    max_num_batched_tokens: 8192        # upstream's value; the house value is 4096
     spec_config:                        # — v16b-s4 is that delta, measured
       method: mtp
       num_speculative_tokens: 3
@@ -1196,7 +1148,7 @@ spark_llm_profiles:
 
   v16b-s4:
     <<: *u_x
-    label: "HD-489 t3 — v16b with OUR batch shape (4 seqs / capture 4 / 4096-token chunks)"
+    label: "t3 — v16b with OUR batch shape (4 seqs / capture 4 / 4096-token chunks)"
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32
     ple_offload: false
@@ -1220,15 +1172,15 @@ spark_llm_profiles:
     fixed_cost_bytes: 78300000000
     fixed_cost_basis: "VENDOR-PUBLISHED + T80 allowance, NOT measured here (see v16b)"
     uncertified_reason: >-
-      One delta vs v16b: the batch/shape terms this repo chose for OOM reasons (HD-380
-      stranded capture, HD-381 slab ceiling at 16,384-token prefills). Answers "does the
+      One delta vs v16b: the batch/shape terms this repo chose for OOM reasons
+      (stranded capture, slab ceiling at 16,384-token prefills). Answers "does the
       speed survive the settings that keep this box alive?" — the question that decides
       whether the recipe is adoptable here at all.
     certified_evidence: ""
 
   v16b-pin:
     <<: *u_x
-    label: "HD-489 t3 — v16b-s4 + prompt-KV pinning (the long-session re-prefill lever, full stack)"
+    label: "t3 — v16b-s4 + prompt-KV pinning (the long-session re-prefill lever, full stack)"
     models_root: os
     model_subdir: Qwen3.8-Flash-Next-W4A16-AutoRound-hybrid-mtpdense-g32
     ple_offload: false
@@ -1247,7 +1199,7 @@ spark_llm_profiles:
       draft_sample_method: probabilistic
     cudagraph_piecewise: true
     prompt_tokens_details: true
-    never_evict_prompt: *nev            # "" — the ONE value (rejected 2026-10-05; pin-capable lineage only)
+    never_evict_prompt: *nev            # "" — the ONE value; pin-capable lineage only
     never_evict_max_fraction: "0.03"  # this arm keeps its own recorded 0.03 cap
     health_start_period: 2400s
     artifact_sets: [ar-hybrid, ple-fp8, draft-vocab, mtpdense-t80]
@@ -1256,12 +1208,9 @@ spark_llm_profiles:
     uncertified_reason: "Same CHANGEME gate as u4-pin (a placeholder substring is an invisible no-op). On this arm the pin also competes with the drafter's KV, so record prefix-hit rate from /metrics across a real session, not a synthetic one."
     certified_evidence: ""
 
-# The shared argv/env fragments live in the "Shared argv/env fragments" section below, which
-# also defines `spark_llm_ultrafast_cudagraph_args` / `spark_llm_ultrafast_diag_args`. They
-# were ALSO defined here until 2026-10-08 (HD-1098): a duplicated copy of that section landed
-# above this one, ansible kept the LAST definition and printed only a warning, so this copy
-# was dead text sitting next to a live one — editing it would have changed nothing.
-# `spark_llm_ple_mmap_env` below is NOT a duplicate: it is the only definition.
+# The shared argv/env fragments live in the "Shared argv/env fragments" section below — that
+# section is the only definition. A duplicated copy of it here is DEAD TEXT: Ansible keeps the
+# LAST mapping key and only warns, so editing the earlier copy changes nothing.
 # The upstream mmap knobs (recipe/config/v16b/env + serve.sh pins), one SSOT list. Each is a
 # plain non-secret string ⇒ quoted, not `>-` (CONVENTIONS §3 applies that rule to 1P values).
 spark_llm_ple_mmap_env:
@@ -1276,12 +1225,9 @@ spark_llm_ple_mmap_env:
   - "VLLM_PLE_MMAP_FAST_PATH=1"
   - "VLLM_PLE_MMAP_FAST_MAX_ROWS=262144"
   - "VLLM_DRAFTER_EXPERTS_FP8=1"
-# HD-489 A4: the KERNEL-DISPATCH knobs are split OUT of the table set (they live in
-# spark_llm_ple_dispatch_env below and render only when a profile opts in via
-# `ple_dispatch: true`). The funnel compared tier 2/3 arms (which rendered this whole
-# bundle) against tier-1 arms (which rendered none of it) — the +68 % was
-# "weights + table + ~7 dispatch knobs" vs "weights + table", a confound. VLLM_FP8_HYBRID is
-# only meaningful on the patched build; it is inert on the base image.
+# KERNEL-DISPATCH knobs are split OUT of the table set: they live in
+# spark_llm_ple_dispatch_env and render only when a profile sets `ple_dispatch: true`, so a
+# comparison varies one thing at a time. VLLM_FP8_HYBRID is inert on the base image.
 
 # ---- Shared argv/env fragments the arms reference (never re-typed per arm) ----
 # Plain LISTS at top level, on purpose: a Jinja expression inside `spark_llm_profiles` is
@@ -1314,12 +1260,10 @@ spark_llm_ple_dispatch_env:
 
 # Resolve the active profile. Unknown profile name = undefined key = the render
 # aborts (fail-loud); roles/spark-llm-profile names the valid list up front.
-# Engine entrypoints per engine family (HD-469). A DICT, not a Jinja-templated
-# alias, on purpose: scripts/validate-docker-services.py loads group_vars natively
-# but stringifies any value containing `{{ }}`, so a `spark_llm: "{{ profiles[...] }}"`
-# alias is unusable in the offline render. Templates therefore index
-# `spark_llm_profiles[spark_llm_profile]` DIRECTLY (native dict in both worlds) and
-# only the SCALAR flat pass-throughs below use the alias-free one-level form.
+# Engine entrypoints per engine family. A DICT, not a Jinja-templated alias, on purpose:
+# scripts/validate-docker-services.py loads group_vars natively but stringifies any value
+# containing `{{ }}`, so an alias is unusable in the offline render. Templates therefore index
+# `spark_llm_profiles[spark_llm_profile]` DIRECTLY; only the scalar pass-throughs below are flat.
 spark_llm_engine_entrypoints:
   vllm: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
   sglang: ["python3", "-m", "sglang.launch_server"]
@@ -1332,11 +1276,9 @@ spark_llm_image_pins:
   vllm: "{{ spark_vllm_image }}"
   sglang: "{{ spark_sglang_image }}"
 
-# Profile-referenced image pins (HD-489). A profile names a LOGICAL image, never a pin:
-# CONVENTIONS §7 keeps every pin in group_vars/all/versions.yml, and this map is the only
-# place a name becomes a reference. `ultrafast` is EMPTY until the patched lineage is built
-# and its image ID recorded — and an empty pin IS the gate (the spark_sglang_image
-# precedent): roles/spark-llm-profile refuses the profile before anything renders.
+# Profile-referenced image pins. A profile names a LOGICAL image, never a pin: every pin lives in
+# group_vars/all/versions.yml (CONVENTIONS §7) and this map is the only place a name becomes a
+# reference. An EMPTY pin IS the gate — roles/spark-llm-profile refuses the profile before render.
 spark_llm_profile_images:
   base: "{{ spark_vllm_image }}"
   ultrafast: "{{ spark_vllm_ultrafast_image }}"
@@ -1348,140 +1290,86 @@ spark_llm: "{{ spark_llm_profiles[spark_llm_profile] }}"
 
 # vLLM (B1 proven — spark/BENCHMARK-PLAN.md §1)
 spark_vllm_container: "{{ spark_llm_profiles[spark_llm_profile].container }}"
-# HD-370: engine-port indirection for the llm.kogler.si route. Today vLLM :8000; when the
-# SGLang lane (S2/S3) wins the bench its port replaces this — the spark edge route and the
-# LiteLLM base_urls never change. Must match the engine's own listen port (healthcheck too).
+# Engine-port indirection for the llm.kogler.si route: an engine swap changes this value only —
+# the spark edge route and the LiteLLM base_urls never change. It MUST match the engine's own
+# listen port, healthcheck included.
 spark_engine_port: 8000
-# HD-370: OpenAI served-model id (llm.kogler.si /v1/models). Engine-swap-ready: vLLM serves
-# it via --served-model-name; SGLang via served-model-name. Both LiteLLMs + pi see this id.
+# OpenAI served-model id (llm.kogler.si /v1/models): vLLM serves it via --served-model-name,
+# SGLang via served-model-name. Both LiteLLMs and pi see this id.
 spark_vllm_served_name: "{{ spark_llm_profiles[spark_llm_profile].served_name }}"
 spark_vllm_log_level: INFO
 spark_vllm_cpu_offload: 1
 spark_vllm_ple_offload_ready_timeout: 3600
 spark_vllm_omp_num_threads: "1"
-# Peak-bound term 1 (HD-381, 2026-09-17): the allocator form matters on a UNIFIED pool.
-# `max_split_size_mb:512` forbids splitting any block ≥512 MB, so every new request shape
-# forces a FRESH slab that is never returned — the exact curve measured in incidents #7/#8
-# (engine top-pid 88,773 MiB at boot → 109,785 MiB after ~30 min of light agent traffic,
-# FLAT at idle all night = cumulative, not an idle leak). `expandable_segments:True` lets
-# segments grow/shrink in place instead of stranding per-shape slabs. BENCHMARK-PLAN §6
-# step 3 already classed this change as T1 safe ("less fragmentation → fewer OOM/preemptions").
-# Evidence: docs/spark-incidents.md #7/#8 · docs/hardware-spark.md §Unified-memory budget
+# Peak-bound term 1: the allocator form matters on a UNIFIED pool. `max_split_size_mb:512` forbids
+# splitting any block ≥ 512 MB, so each new request shape forces a fresh slab that is never
+# returned — cumulative growth, not an idle leak. `expandable_segments:True` lets segments grow in
+# place instead of stranding per-shape slabs. Evidence: docs/spark-incidents.md #7/#8.
 spark_vllm_pytorch_cuda_alloc_conf: "max_split_size_mb:512,expandable_segments:True"
-# Peak-bound term 2 (HD-381, 2026-09-17): the chunked-prefill slab ceiling. #8 died with
-# `VLLM::EngineCor` oom_score_adj=-500 (the scheduler itself) at 51% KV / 664 running tok
-# = a LOAD-TIME allocation failure, with 9.58 GiB of the "free" 9.63 GiB stranded in
-# free_cma. 16384-token prefill chunks are the largest transient the engine produces, so
-# 4096 shrinks both the per-chunk slab and the number of distinct shapes the allocator sees
-# (HD-380 open item 1 named this as the next lever). Cost = prefill TTFT on long prompts;
-# this box sacrifices throughput for uptime — global OOM here kills alloy/traefik/dcgm and
-# wedges the box (invariants #2/#3), it does not merely restart a container.
+# Peak-bound term 2: the chunked-prefill slab ceiling. A prefill chunk is the largest transient
+# allocation the engine produces, so a smaller chunk shrinks both the slab and the number of
+# distinct shapes the allocator sees. Cost = prefill TTFT on long prompts: this box trades
+# throughput for uptime, because a global OOM wedges the whole box, not just the container.
 spark_vllm_max_num_batched_tokens: "{{ spark_llm_profiles[spark_llm_profile].max_num_batched_tokens }}"
 spark_vllm_shm_size: 32g
 spark_vllm_memlock: -1
 spark_vllm_stack: 67108864
-# Memory cage (HD-367 B1-on-GB10 memfit 2026-09-15): the container must NEVER be able to
-# claim the whole unified pool. 126G (old) sat ABOVE the 121.62 GiB coherent pool, so the
-# kernel global OOM fired on load and took nvidia-persistenced with it (the engine and the
-# GPU stack died together). 105G = weights/PLE/KV budget + a margin; a relapse now kills
-# ONLY this container, never the driver.
-# ⚠ Read OUTSIDE the template by roles/spark/files/spark-oom-watchdog.sh — it now
-# follows the active profile, so the watchdog's cage travels with the flip.
+# Memory cage: the container must NEVER be able to claim the whole unified pool. A limit above the
+# coherent-pool size lets the kernel's global OOM fire under load and take the GPU stack with the
+# engine; the cage must sit below the pool so a relapse kills ONLY this container.
+# ⚠ Read OUTSIDE the template by roles/spark/files/spark-oom-watchdog.sh — it follows the active
+# profile, so the watchdog's cage travels with the flip.
 spark_vllm_memory_limit: "{{ spark_llm_profiles[spark_llm_profile].memory_limit }}"
-# spark_vllm_quantization removed 2026-09-14: the staged B1 weights pack compressed-tensors
-# (config.json quant_method), so forcing --quantization awq mismatched and the engine died at
-# ModelConfig validation. vLLM reads the packed format from the model config when omitted.
+# Removed key: the staged weights pack compressed-tensors (config.json quant_method), so forcing
+# --quantization awq mismatches and the engine dies at ModelConfig validation. vLLM reads the
+# packed format from the model config when the flag is omitted.
 spark_vllm_max_num_seqs: "{{ spark_llm_profiles[spark_llm_profile].max_num_seqs }}"
-# A-cal (2026-09-15, measured on box): pool = 121.62 GiB (MemTotal 127,532,360 kB).
-# B1-as-authored demanded ~113 GiB GPU reserve (0.93 util) + ~57 GiB CPU PLE mirror +
-# pinned buffers ≈ 170 GiB > pool → guaranteed global OOM at load. max_model_len 173400
-# forces a 1.06M-token KV pool on top of the 75.17 GiB weights — unaffordable. 65536 (64k)
-# is a realistic S1/S2 context that fits the shrunken KV; the plan's 262k+/512k profiles
-# become SGLang-on-NVFP4 targets (bench matrix D), not B1-on-GB10-with-PLE-CPU-offload.
-#
-# S1 STABILITY SWEEP (2026-09-15, measured): util ceiling measured on box — 0.82 is MAX
-# servable (0.70–0.82 boot+serve+host alive; 0.84/0.86 CRASH engine during single-session
-# serve — global OOM, host wedges, power-cycle needed; 0.88 boots but no serving headroom,
-# MEM_FLOOR blocks). ctx: 262,144 = model's native max_position_embeddings (config.json) —
-# 300k rejects at startup validation (VLLM_ALLOW_LONG_MAX_MODEL_LEN would be needed +
-# YaRN; needle-test gate). 250k/262k serve at 95% fill, 0 preemptions, host alive.
+# Sizing: `usable = MemAvailable − CmaFree`. max_model_len must fit the shrunken KV pool inside the
+# coherent pool together with weights + PLE mirror + pinned buffers — an over-subscribed context
+# size guarantees a global OOM at load. Native ceiling and the bench matrix:
+# docs/hardware-spark.md §Bench + engine selection
 spark_vllm_max_model_len: "{{ spark_llm_profiles[spark_llm_profile].max_model_len }}"
-# spark_vllm_swap_space removed 2026-09-14: this vLLM build (0.1.dev20073+g8e685d198)
-# DROPPED swap_space from EngineArgs — `--swap-space` is unrecognized and crashes the
-# engine at argv-parse. B1's swap-space=4 no longer has a CLI knob; the engine config
-# now manages offload internally. See docs/hardware-spark.md for the bench note.
-#   swap_space: 4
+# This key does not exist: this vLLM build has no swap_space in EngineArgs — `--swap-space` is
+# unrecognized and crashes the engine at argv-parse. Offload is managed inside the engine config.
+# See docs/hardware-spark.md for the bench note.
 spark_vllm_kv_cache_dtype: "{{ spark_llm_profiles[spark_llm_profile].kv_cache_dtype }}"
-# ===== GPU×host unified-memory governance (HD-374, 2026-09-16) =====
-# GB10 has ONE 121.62 GiB pool for GPU and host. vLLM's percentage budget is
-# replace-by-percentage arithmetic: KV_pool = util×total − fixed(80.90 GiB), and
-# every GiB of pool is a GiB the OS/docker/Alloy/dashboard do not get. Three global
-# OOMs in 24 h (2026-09-15 ×2, 2026-09-16 ×1 — incl. the engine serving itself, 502s)
-# all came from the 0.82 budget leaving only ~21.9 GiB for the host, then the kernel
-# global OOM killer (NOT the cgroup cage — GPU pages are not cgroup-charged) killed
-# the user session, then the container. Full model + sizing table + incident log:
-# docs/hardware-spark.md §Unified-memory budget & OOM governance + docs/spark-incidents.md.
+# ===== GPU×host unified-memory governance =====
+# GB10 has ONE 121.62 GiB pool for GPU and host: every GiB of KV pool is a GiB the
+# OS/docker/Alloy/dashboard do not get, and the stopping force is the kernel's global OOM killer,
+# NOT the cgroup cage (GPU pages are not cgroup-charged).
+# Model + sizing table: docs/hardware-spark.md §Unified-memory budget & OOM governance
 #
-# Governor (2026-09-16): explicit KV pool via --kv-cache-memory-bytes as the ONLY dial
-# (this build ignores gpu_memory_utilization when kv_cache_memory_bytes is set — verified
-# in the container's own CacheConfig/gpu_worker source). 8.2 GiB ≈ 275k tokens ≥ the
-# 262,144 boot-gate with margin; total device footprint ≈ weights 77.69 + act 2.99 + graphs
-# 0.22 + KV 8.2 ≈ 89.1 GiB → host reserve ≈ 32.5 GiB (was ~21.9).
+# Governor: the explicit KV pool (--kv-cache-memory-bytes) is the ONLY dial — this build ignores
+# gpu_memory_utilization once kv_cache_memory_bytes is set (its CacheConfig/gpu_worker source).
+# Certified sizing: docs/hardware-spark.md §Chosen governor
 #
-# 16 GiB (2026-09-18, ✅ CONVERGED + STRESS-CERTIFIED — this is the stable config):
-#   target = 2× full 262,144-token windows (the owner's daily workload: two concurrent
-#   full-context sessions). Nominal 16 GiB → vLLM reserves 14.9 GiB = 515,786 tokens =
-#   1.97× concurrency (vs 8.2 GiB's 283,398 / 1.08×).
-#   CERTIFIED by the 3-rung load chain 2026-09-18 09:21–10:54Z (rung123 → compact 2×200k
-#   → fullwindow 2×240k = 480,105 tok ≈ 94.6 % of pool): 0 kernel OOM, 0 engine restarts,
-#   0 guard-fires, usable worst 17.78 GiB, engine top-pid +1,278 MiB over ~1.5 h.
-#   Evidence: spark/reports/stability/README.md · runbook spark/stability-test.md.
-#   CONSEQUENCES now true on the box (do not re-derive):
-#     · idle usable 30.5 → 18.5 GiB — WARN 12 / CRIT 8 still clear, margin is 6.5 GiB.
-#     · CEILING: measured headroom after the raise is runtime +5.5 / boot-side +5.4 GiB,
-#       and BOOT is the binding side (Initial free memory 114.07 GiB, engine holds ~96.7).
-#       DO NOT raise further in bf16 — the next KV byte is --kv-cache-dtype fp8's job.
-#     · bench-guard floors are on usable (not raw MemAvailable) at 16 GiB; the certified
-#       run's worst moment sat 0.72 GiB above that floor, so do not "give it more margin"
-#       by lowering it, and do not raise it without re-measuring (spark/stability-test.md §2).
+# DO NOT raise the KV pool further in bf16 — BOOT-side headroom is the binding side, and the next
+# KV byte is --kv-cache-dtype fp8's job. Bench-guard floors are on `usable` (MemAvailable −
+# CmaFree), not raw MemAvailable: do not move them without re-measuring (spark/stability-test.md §2).
 spark_vllm_kv_cache_memory: "{{ spark_llm_profiles[spark_llm_profile].kv_cache_memory }}"
-# spark_vllm_gpu_memory_utilization REMOVED 2026-09-16 (HD-374): with kv_cache_memory_bytes
-# set, this build's determine_available_memory() skips memory profiling and ignores the
-# parameter entirely — keeping it would be dead config and a false sense of a "ceiling".
-# The explicit KV pool IS the whole budget decision on GB10; the only other guard is the
-# 105G container memory cage (host-RSS backstop only — GPU pages aren't cgroup-charged).
+# Do not reintroduce a gpu_memory_utilization key: with kv_cache_memory_bytes set this build's
+# determine_available_memory() skips memory profiling and ignores the parameter entirely, so it
+# would be dead config and a false ceiling. The explicit KV pool IS the budget decision on GB10;
+# the container memory cage above is a host-RSS backstop only (GPU pages aren't cgroup-charged).
 spark_vllm_distributed_executor_backend: "{{ spark_llm_profiles[spark_llm_profile].distributed_executor_backend }}"
-# ---- cudagraph capture-size cap (HD-380, 2026-09-16) ----
-# This build captures CUDA graphs for batch sizes [1,2,4,8,16,24,32] while
-# max_num_seqs=4 caps the decode batch at 4 — sizes 8/16/24/32 are captured and can
-# NEVER be used by this config, i.e. stranded memory in the ONE 121.62 GiB pool that
-# the host and the engine share. Why this is on the critical path: with the HD-374
-# KV governor live, the engine still held 103,449 MiB per-pid at REST
-# (nvidia-smi --query-compute-apps — GB10 reports memory.total/used as N/A, so this
-# is the only device-side gauge) while its own log accounts for only weights 75.17 +
-# KV 8.2 = 83.4 GiB; host MemAvailable measured 16.7 GiB, not the ~32.5 GiB HD-374
-# predicted. Two further global OOMs followed the fix (2026-09-16 16:31Z with NO
-# client attached, 20:21Z with two sessions at 8.8%/9.1% ctx) — so capping KV alone
-# is not sufficient; the unprofiled non-KV allocation is the live defect, and
-# --kv-cache-memory-bytes makes vLLM SKIP memory profiling by design.
-# Delta in per-pid MiB after this restart is the measurement of how much graph
-# memory was stranded (HD-374 assumed graphs=0.22 GiB — never verified on a live
-# boot). Surgical on purpose: --enforce-eager would also drop CUDA graphs but costs
-# decode throughput; incident log: docs/spark-incidents.md.
+# ---- cudagraph capture-size cap ----
+# Cap CUDA-graph capture at the decode batch (max_num_seqs): this build captures
+# [1,2,4,8,16,24,32] and every size above the batch is captured but can NEVER be used — stranded
+# memory in the ONE pool the host and the engine share. Cap it here rather than with
+# --enforce-eager, which also drops graphs and costs decode throughput.
+# Gauge: nvidia-smi --query-compute-apps (GB10 reports memory.total/used as N/A) ·
+# docs/spark-incidents.md
 spark_vllm_max_cudagraph_capture_size: "{{ spark_llm_profiles[spark_llm_profile].max_cudagraph_capture_size }}"
 spark_vllm_enforce_eager: false          # per-profile: template reads spark_llm.enforce_eager
 spark_vllm_spec_method: "{{ spark_llm_profiles[spark_llm_profile].spec_method }}"
 spark_vllm_spec_tokens: "{{ spark_llm_profiles[spark_llm_profile].spec_tokens }}"
-# spark_vllm_spec_disable_by_batch_size removed 2026-09-14: `disable_by_batch_size`
-# was dropped from SpeculativeConfig in this build — replaced by
-# num_speculative_tokens_per_batch_size (list of (start,end,K) inclusive ranges).
-# B1 = plain MTP-3 (method=mtp, num_speculative_tokens=3); the dynamic schedule is a
-# future ladder row (BENCHMARK-PLAN §6 step 6).
+# Do not reintroduce `disable_by_batch_size`: this build has no such SpeculativeConfig field, so
+# the key fails at parse time. num_speculative_tokens_per_batch_size (a list of inclusive
+# (start,end,K) ranges) is the key a dynamic spec schedule needs.
 
-# llm-d router REMOVED (HD-367 2026-09-14): the real llm-d project is a Kubernetes
-# inference-pool stack (endpoint-picker/disagg-sidecar route Envoy+K8s pools, not a
-# single-node :8080 gateway). LiteLLM (family) fronts the vLLM :8000 endpoint instead —
-# no local router container. group_vars/all/versions.yml pin was removed with it.
+# No local router container: llm-d is a Kubernetes inference-pool stack (endpoint-picker /
+# disagg-sidecar route Envoy+K8s pools), not a single-node :8080 gateway, so LiteLLM fronts the
+# engine endpoint directly.
 
 # logging
 spark_logging_driver: json-file

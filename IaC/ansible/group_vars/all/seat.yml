@@ -1,20 +1,19 @@
 # =====================================================================
-# The pi CODING SEAT (roles/seat, HD-445) — placement + shape.
+# The pi CODING SEAT (roles/seat) — placement + shape.
 # The seat plane's design SSOT is docs/services-ai.md §9b-1; this file only says
 # WHERE the seat is and WHAT it is made of. Off by default: the seat is a
 # placement, enabled per host (oldsrv today, host_vars/oldsrv.kogler.si.yml).
 # =====================================================================
 seat_enable: false
-seat_user: domen                      # the account itself is roles/access's (HD-443/492)
+seat_user: domen                      # the account itself is roles/access's
 seat_bind: 127.0.0.1                  # loopback only: peers reach the cockpit through the
                                       # pi-oldsrv-ts router, never a LAN interface
 seat_pi_web_port: "{{ cockpit_pi_web_port }}"   # one port value, two consumers (IaC §2)
 seat_pi_node_bin: "/home/{{ seat_user }}/.local/share/pi-node/current/bin"
 # pi's OWN launcher dir — the managed install (`releases-v1`: ~/.pi/agent/bin/pi over
-# ~/.pi/agent/install/releases/<ver>/). pi 1.1.0's `pi update` MIGRATES an npm -g seat here and
-# removes the node-dir symlink, so the unit PATH must carry BOTH dirs: with only the node dir,
-# every chat send dies `exec: "pi": executable file not found in $PATH` (live on oldsrv
-# 2026-10-09, one `pi update` after the HD-445 drop-in went green).
+# ~/.pi/agent/install/releases/<ver>/). `pi update` MIGRATES an npm -g seat here and
+# removes the node-dir symlink, so the unit PATH must carry BOTH dirs: with only the
+# node dir, every chat send dies `exec: "pi": executable file not found in $PATH`.
 seat_pi_bin: "/home/{{ seat_user }}/.pi/agent/bin"
 seat_unit_dir: "/home/{{ seat_user }}/.config/systemd/user"
 seat_pi_web_bin: ".pi/agent/bin/pi-web"   # written by `pi install npm:@ygncode/pi-web`

@@ -12,7 +12,7 @@
       - spark_vllm_ultrafast_tag | length > 0
       - spark_ultrafast_src_dir | length > 0
     fail_msg: >-
-      The HD-489 provenance pins are not usable:
+      The provenance pins are not usable:
       commit='{{ spark_ultrafast_upstream_commit }}' (must be a full 40-char sha — a branch
       or a short sha would rebuild "whatever upstream means now", which is the mutable-alias
       failure CONVENTIONS §7 exists to prevent),

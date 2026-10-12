@@ -1,21 +1,21 @@
 # navidrome docker-compose.yml — Music server (music.kogler.si) on the VPS
 #   Navidrome (deluan/navidrome) — web/Subsonic music server. Family music tier:
-#   VPS-hosted, library on the Hetzner Storage Box (CIFS) — HD-354 (2026-09-10):
+#   VPS-hosted, library on the Hetzner Storage Box (CIFS):
 #   app + data live together offsite/independent of home (reliability tier).
-#   Library: /mnt/storagebox/music (live Box, mounted by the cifs role, HD-135);
+#   Library: /mnt/storagebox/music (live Box, mounted by the cifs role);
 #   app data + DB on VPS NVMe (/srv/docker/navidrome/data — Kopia-backed).
-#   Lidarr import: NOT WIRED (measured 2026-10-07). The master library is the Lidarr root on the NAS
-#   (`bulk/media/media/music`); moving finished music into this Box dir is a push leg the owner ruled on
-#   2026-10-07 and is owed by HD-1088 — the old "Lidarr copy-imports onto the Box" line described a path with no
-#   mount behind it (roles/cifs asserts the Box mount onto the VPS only). See storage.md §Store tiering.
+#   Lidarr import: NOT WIRED. The master library is the Lidarr root on the NAS
+#   (`bulk/media/media/music`); moving finished music into this Box dir needs a push leg
+#   that does not exist yet, and roles/cifs asserts the Box mount onto the VPS only — so a
+#   "Lidarr copy-imports onto the Box" path has no mount behind it. See storage.md §Store tiering.
 #   Auth: local logins retained (break-glass + Subsonic clients); SSO web UI
 #   OPTIONAL via Authentik (deploy-gated; see services-media.md). /rest/* kept
 #   local for Subsonic clients (not behind forward-auth).
-#   Exposure: INTERNAL-ONLY in INTENT — ⚠ **not actually reachable by name today** (measured 2026-10-07:
-#   `dig music.kogler.si` answers nothing and no edge file carries a `music` router, though this file claimed the
-#   uniform 3-edge set covers it — traefik-tailnet routes foto/file/git but not Navidrome, and `traefik.enable` is
-#   false here with no host publish). The route + the split-horizon row are owed by HD-1087; the 3-edge rule
-#   (HD-350) is the shape to apply, not a fact about this service.
+#   Exposure: INTERNAL-ONLY in INTENT — ⚠ **not reachable by name today**: `dig
+#   music.kogler.si` answers nothing and no edge file carries a `music` router —
+#   traefik-tailnet routes foto/file/git but not Navidrome, and `traefik.enable` is
+#   false here with no host publish. The route and the split-horizon row do not exist yet;
+#   the 3-edge rule is the shape to apply, not a fact about this service.
 #
 # Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
 #   — none needed (Navidrome local admin is created at first-run UI; DB is local
@@ -51,7 +51,7 @@ services:
       ND_PORT: "4533"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     labels:
-      # INTERNAL-ONLY (public: false / HD-331/332): served by the VPS internal edge
+      # INTERNAL-ONLY (public: false): served by the VPS internal edge
       # (traefik-tailnet routes.yml → music_backend → navidrome:4533) + the home
       # traefik-internal file-provider set; no public router/certresolver labels.
       # SSO web UI optional is a RUNTIME/deploy-gated setting (services-media.md),

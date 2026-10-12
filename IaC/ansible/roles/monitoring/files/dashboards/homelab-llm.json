@@ -38,7 +38,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "up{job=\"vllm\"} = the spark Alloy reaches the engine's /metrics on the loopback :8000 publish (HD-368 data path). 1 = engine answering. This is the scrape-leg signal; pair it with the /health probe below: metrics can serve while /health is not 200, and /health can be green while the scrape leg is dead (a config gap, not an outage).",
+      "description": "up{job=\"vllm\"} = the spark Alloy reaches the engine's /metrics on the loopback :8000 publish (data path). 1 = engine answering. This is the scrape-leg signal; pair it with the /health probe below: metrics can serve while /health is not 200, and /health can be green while the scrape leg is dead (a config gap, not an outage).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -108,7 +108,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "up{job=\"sglang\"} — EMPTY until the SGLang lane runs (HD-367 S2/S3). Wiring when it lands = one prometheus.scrape \"sglang\" block in alloy.river.j2 on the same loopback pattern as the vllm job. NOTE ON EVERY SGLang QUERY IN THIS DASHBOARD: the `sglang:*` siblings are written from SGLang's documented metric names (and the gnet 25502 author's pairing of them), NOT from a live SGLang scrape — we have never run one. Expect to correct names here exactly as HD-368 corrected the vLLM half against the live engine; the fix is in this script, not in the JSON.",
+      "description": "up{job=\"sglang\"} — EMPTY until the SGLang lane runs (S2/S3). Wiring when it lands = one prometheus.scrape \"sglang\" block in alloy.river.j2 on the same loopback pattern as the vllm job. NOTE ON EVERY SGLang QUERY IN THIS DASHBOARD: the `sglang:*` siblings are written from SGLang's documented metric names (and the gnet 25502 author's pairing of them), NOT from a live SGLang scrape — we have never run one. Expect to correct names here exactly as we corrected the vLLM half against the live engine; the fix is in this script, not in the JSON.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -179,7 +179,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "blackbox http_2xx against the engine's own /health — the readiness signal INDEPENDENT of the metrics path. ⏳ EMPTY until the probe is wired (HD-377): the target is spark loopback, so it must run through a blackbox exporter reachable from spark's Alloy — the VPS blackbox cannot reach 127.0.0.1:8000 on spark. Authored empty rather than faked from up{job=vllm}, which would make the panel a duplicate of the first one and hide real readiness failures. Spec: docs/observability.md §LLM Dashboard.",
+      "description": "blackbox http_2xx against the engine's own /health — the readiness signal INDEPENDENT of the metrics path. ⏳ EMPTY until the probe is wired: the target is spark loopback, so it must run through a blackbox exporter reachable from spark's Alloy — the VPS blackbox cannot reach 127.0.0.1:8000 on spark. Authored empty rather than faked from up{job=vllm}, which would make the panel a duplicate of the first one and hide real readiness failures. Spec: docs/observability.md §LLM Dashboard.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -318,7 +318,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "The model_name label live on the engine right now — a sanity check that the dashboards $model_name variable and the engine agree. Guards the HD-368 'stale upstream current:' class of bug: a pinned model_name makes every panel behind the variable silently render No data.",
+      "description": "The model_name label live on the engine right now — a sanity check that the dashboards $model_name variable and the engine agree. Guards the 'stale upstream current:' class of bug: a pinned model_name makes every panel behind the variable silently render No data.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -504,7 +504,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "GB10 unified memory: 121.6 GiB serves GPU **and** host — there is no VRAM number to read, so this percentage IS the GPU-memory number. Thresholds track the HD-375 alert reserve: MemAvailable < 24 GiB warns, < 16 GiB is critical (≈ used 80 % / 87 % of the pool). Live 2026-09-16: 92 % used, 9.5 GiB available with the engine loaded — already inside the warn band.",
+      "description": "GB10 unified memory: 121.6 GiB serves GPU **and** host — there is no VRAM number to read, so this percentage IS the GPU-memory number. Thresholds track the alert reserve: MemAvailable < 24 GiB warns, < 16 GiB is critical (≈ used 80 % / 87 % of the pool). Live: 92 % used, 9.5 GiB available with the engine loaded — already inside the warn band.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -582,7 +582,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Absolute GiB — the series that actually predicts an OOM is **MemAvailable**, not utilisation %. Every global OOM in spark-incidents.md came from replace-by-percentage GPU-reserve arithmetic against this pool (HD-374 now sizes the KV pool explicitly with --kv-cache-memory-bytes). Watch the FLOOR: the ~21.9 GiB host reserve is the line the engine must not cross.",
+      "description": "Absolute GiB — the series that actually predicts an OOM is **MemAvailable**, not utilisation %. Every global OOM in spark-incidents.md came from replace-by-percentage GPU-reserve arithmetic against this pool (the KV pool, now explicitly with --kv-cache-memory-bytes). Watch the FLOOR: the ~21.9 GiB host reserve is the line the engine must not cross.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -789,7 +789,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Resident set of the inference process itself (job=~vllm|sglang): the weights mirror + PLE CPU offload + runtime. This is the quantity the HD-374 memory cage (limit 105 GiB) bounds — crossing it kills the CONTAINER instead of the host, which is the whole point of the cage. On GB10 this memory is also CUDA-visible, so it is part of what a discrete GPU would call VRAM.",
+      "description": "Resident set of the inference process itself (job=~vllm|sglang): the weights mirror + PLE CPU offload + runtime. This is the quantity the memory cage (limit 105 GiB) bounds — crossing it kills the CONTAINER instead of the host, which is the whole point of the cage. On GB10 this memory is also CUDA-visible, so it is part of what a discrete GPU would call VRAM.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -877,7 +877,7 @@
           },
           "expr": "105 * 1024^3",
           "instant": true,
-          "legendFormat": "memory cage (105 GiB, HD-374)",
+          "legendFormat": "memory cage (105 GiB)",
           "range": false,
           "refId": "B"
         }
@@ -890,7 +890,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Root (EXT4) and the XFS data partition that holds the model weights, the KV cache and the torch compile caches (HD-359: weights must never land on EXT4). A full XFS partition fails the next model load, not this one — which is why it is on the LLM dashboard and not only on Host Overview.",
+      "description": "Root (EXT4) and the XFS data partition that holds the model weights, the KV cache and the torch compile caches (weights must never land on EXT4). A full XFS partition fails the next model load, not this one — which is why it is on the LLM dashboard and not only on Host Overview.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1270,7 +1270,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "HD-377(b): the first of the SIX real GB10 GPU signals, from the `job=\"dcgm\"` whitelist Alloy keeps — all 7 are live in VM, re-measured 2026-09-22 as exactly 7 names under `match[]={job=\"dcgm\"}` for instance=\"spark.kogler.si\"`. `DCGM_FI_DEV_GPU_UTIL`, measured 88-90 % under load. The DGX System Monitor's 1 Hz picture is the SAME exporter at a faster cadence — that gap is HD-420. This replaces the three `DCGM_FI_PROF_*` panels, which can never fill on GB10 (the DCP module refuses to load; NVIDIA: no DCGM profiling on Spark).",
+      "description": "The first of the SIX real GB10 GPU signals, from the `job=\"dcgm\"` whitelist Alloy keeps — all 7 are live in VM, re-measured as exactly 7 names under `match[]={job=\"dcgm\"}` for instance=\"spark.kogler.si\"`. `DCGM_FI_DEV_GPU_UTIL`, measured 88-90 % under load. The DGX System Monitor's 1 Hz picture is the SAME exporter at a faster cadence. This replaces the three `DCGM_FI_PROF_*` panels, which can never fill on GB10 (the DCP module refuses to load; NVIDIA: no DCGM profiling on Spark).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1730,7 +1730,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "`DCGM_FI_DEV_XID_ERRORS` as the readiness half of the GPU row: 0 is the only acceptable value, and a non-zero here is the engine losing the device (compare the 2026-09-15 `amdgpu init_user_pages` episode on oldsrv, HD-393 — that class shows up as an XID before it shows up as a failed request).",
+      "description": "`DCGM_FI_DEV_XID_ERRORS` as the readiness half of the GPU row: 0 is the only acceptable value, and a non-zero here is the engine losing the device (compare the `amdgpu init_user_pages` episode on oldsrv — that class shows up as an XID before it shows up as a failed request).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2115,7 +2115,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "vllm:num_preemptions_total: requests evicted from KV and recomputed. Sustained > 0 means the KV budget is too tight for the concurrent window (HD-374 governance; the gnet 25502 panel this replaces was HD-368-rewritten from a metric this build does not emit). 0 is the target — the 2026-09-15 C3 incident is what a non-zero line looks like. vLLM-only: SGLang signals the same event through its eviction counters (eviction_duration_seconds / evicted_tokens_total), already plotted by the carried gnet 25502 KV-pressure panel — not summed into this one.",
+      "description": "vllm:num_preemptions_total: requests evicted from KV and recomputed. Sustained > 0 means the KV budget is too tight for the concurrent window (the gnet 25502 panel this replaces was rewritten from a metric this build does not emit). 0 is the target — the C3 incident is what a non-zero line looks like. vLLM-only: SGLang signals the same event through its eviction counters (eviction_duration_seconds / evicted_tokens_total), already plotted by the carried gnet 25502 KV-pressure panel — not summed into this one.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2487,7 +2487,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Fraction of the KV pool in use. Sits under the HD-374 explicit budget (--kv-cache-memory-bytes = 8.8e9 ≈ 283k tokens @262k ctx). Pinning near 1.0 is what precedes a preemption storm — read it together with the Preemptions panel. Collapses gnet 24756 'GPU KV Cache Usage' + gnet 25043 'GPU KV Usage Percentage' + gnet 25043 'GPU Cache Usage' (three panels, one quantity). SGLang's same-quantity name is token_usage (its KV+pool utilisation gauge).",
+      "description": "Fraction of the KV pool in use. Sits under the explicit budget (--kv-cache-memory-bytes = 8.8e9 ≈ 283k tokens @262k ctx). Pinning near 1.0 is what precedes a preemption storm — read it together with the Preemptions panel. Collapses gnet 24756 'GPU KV Cache Usage' + gnet 25043 'GPU KV Usage Percentage' + gnet 25043 'GPU Cache Usage' (three panels, one quantity). SGLang's same-quantity name is token_usage (its KV+pool utilisation gauge).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -2578,7 +2578,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "hits / queries for the automatic prefix cache. The single most valuable cache number on a chat/agent box: every hit is prefill you did not pay. Live ≈ 0.97 on spark (HD-368). Collapses gnet 24756's gauge + gnet 25043's rate panel into one. ⚠ This panel rendered No data until 2026-09-23 while the metric was live, because both engines were joined into ONE selector carrying `cache_source=\"device\"` — a label only SGLang has, and a matcher applies to every name in the alternation, so it filtered vLLM out too. Each engine now queries on its own line (guard_joined_selectors refuses the joined form). The SGLang leg is the weaker half: SGLang exposes cached_tokens_total but no prefix-cache QUERIES counter, so it divides by prompt tokens — an upper bound, and unverified (we have never run SGLang).",
+      "description": "hits / queries for the automatic prefix cache. The single most valuable cache number on a chat/agent box: every hit is prefill you did not pay. Live ≈ 0.97 on spark. Collapses gnet 24756's gauge + gnet 25043's rate panel into one. ⚠ This panel rendered No data while the metric was live, because both engines were joined into ONE selector carrying `cache_source=\"device\"` — a label only SGLang has, and a matcher applies to every name in the alternation, so it filtered vLLM out too. Each engine now queries on its own line (guard_joined_selectors refuses the joined form). The SGLang leg is the weaker half: SGLang exposes cached_tokens_total but no prefix-cache QUERIES counter, so it divides by prompt tokens — an upper bound, and unverified (we have never run SGLang).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -3222,7 +3222,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. HD-420: all three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
+      "description": "Cached-token stats — vLLM cached prompt tokens vs the prefix-cache miss delta, plus the SGLang radix-cache pair. All three counter targets now carry rate(), so the panel is tokens/s throughout (it mixed a raw monotonic counter with a rate on one axis before).",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4419,7 +4419,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Completed requests/s — derived from the engine's own success counter. The gnet 25043 export asked for vllm:current_qps, which only exists on the K8s production-stack router we do not run (HD-368 finding); this is the honest equivalent, now instance-scoped.",
+      "description": "Completed requests/s — derived from the engine's own success counter. The gnet 25043 export asked for vllm:current_qps, which only exists on the K8s production-stack router we do not run (finding); this is the honest equivalent, now instance-scoped.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -4725,7 +4725,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Prefill (input) vs decode (output) time split. Prefill-heavy = long prompts; decode-heavy = long generations. — vLLM-only on both legs since 2026-09-23: SGLang's per-stage latency needs `stage=\"…\"`, which vLLM's names do not have, and a label matcher on a joined `{__name__=~\"vllm:…|sglang:…\"}` selector filters the family that lacks it — the decode leg measured 0 series on a live engine that way. The SGLang halves wait for their own targets on the day it runs.",
+      "description": "Prefill (input) vs decode (output) time split. Prefill-heavy = long prompts; decode-heavy = long generations. — vLLM-only on both legs: SGLang's per-stage latency needs `stage=\"…\"`, which vLLM's names do not have, and a label matcher on a joined `{__name__=~\"vllm:…|sglang:…\"}` selector filters the family that lacks it — the decode leg measured 0 series on a live engine that way. The SGLang halves wait for their own targets on the day it runs.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -5111,7 +5111,7 @@
       "id": 62,
       "mode": "markdown",
       "options": {
-        "content": "**The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. **RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land in the node row here — that card DOES expose VRAM, unlike the GB10. **SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its `sglang:*` sibling is already written into every joined query, so the SGLang half fills from the same file. TWO places are deliberately vLLM-only until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a joined selector cannot filter one family with it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, unverified). Both are named in scripts/build-llm-dashboard.py, which refuses the joined form. **The three HD-368 dashboards stay provisioned** until the owner retires them.",
+        "content": "**The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. **RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land in the node row here — that card DOES expose VRAM, unlike the GB10. **SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its `sglang:*` sibling is already written into every joined query, so the SGLang half fills from the same file. TWO places are deliberately vLLM-only until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a joined selector cannot filter one family with it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, unverified). Both are named in scripts/build-llm-dashboard.py, which refuses the joined form. **The three dashboards stay provisioned** until the owner retires them.",
         "mode": "markdown"
       },
       "targets": [],
@@ -5177,7 +5177,7 @@
           "uid": "prometheus"
         },
         "definition": "label_values({__name__=~\"vllm:num_requests_running|sglang:num_running_reqs\"}, model_name)",
-        "description": "Served model. NEVER pin `current:` to a literal — HD-368 found a stale upstream pin that made every panel behind it empty. ⚠ A query must match this variable with `=~`, never `=`: when All is selected the value is `.*`, and exact equality on `.*` matches nothing (measured 2026-09-23 — it killed two whole rows).",
+        "description": "Served model. NEVER pin `current:` to a literal — a stale upstream pin made every panel behind it empty. ⚠ A query must match this variable with `=~`, never `=`: when All is selected the value is `.*`, and exact equality on `.*` matches nothing (measured — it killed two whole rows).",
         "hide": 0,
         "includeAll": true,
         "label": "Model",

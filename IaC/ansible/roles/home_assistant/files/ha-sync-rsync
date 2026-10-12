@@ -4,7 +4,7 @@
 # command is executed (via sudo) verbatim; anything else is rejected. Used via the
 # command= option in authorized_keys (see standby.yml).
 #
-# SUDO (2026-09-09, failover prep): the standby /config is root-owned so the
+# SUDO: the standby /config is root-owned so the
 # root-running HA standby container can write .ha_run.lock/.storage (same as the
 # Pi primary). The Pi sync user is ansible-admin — passwordless sudo lets the
 # wrapper re-run the exact rsync --server command as root so it can write the

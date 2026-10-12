@@ -1,20 +1,20 @@
-# crowdsec-web-ui docker-compose.yml — CrowdSec Web UI (csui.kogler.si, HD-272)
+# crowdsec-web-ui docker-compose.yml — CrowdSec Web UI (csui.kogler.si)
 #   TheDuffman85/crowdsec-web-ui — self-hosted CrowdSec dashboard (alerts, decisions,
 #   metrics, notifications, multi-LAPI, OIDC SSO, read-only mode). RICHER ops surface
-#   the dedicated CrowdSec SPA; the Metabase CrowdSec view it replaced was retired 2026-09-14.
+#   than the dedicated CrowdSec SPA.
 #
-#   INTERNAL-ONLY (HD-272, matches the observability-internal decision this session):
+#   INTERNAL-ONLY (observability-internal posture):
 #   NO public Cloudflare record — reached from LAN/VPN only, behind Authentik
 #   Forward-Auth at the Traefik edge (repo-standard for internal ops UIs). Do NOT add
-#   a cloudflare_dns CNAME for this service without an owner decision.
+#   a cloudflare_dns CNAME for this service.
 #
 #   AUTH: Forward-Auth (authentik-forward-auth@file) at the edge — consistent with
 #   metabase/dozzle/grafana. This UI ALSO supports native OIDC, but the repo's
 #   standard for internal admin UIs is Forward-Auth (no second login form, full SSO
 #   + MFA passthrough). Keep Forward-Auth; native OIDC stays a hypothetical upgrade.
 #
-#   LAPI WATCHER AUTH (HD-272): the UI talks to the CrowdSec LAPI as a WATCHER MACHINE
-#   with password auth (NOT the bouncer key). DEPLOY-GATED (owner, live, do NOT run
+#   LAPI WATCHER AUTH: the UI talks to the CrowdSec LAPI as a WATCHER MACHINE
+#   with password auth (NOT the bouncer key). DEPLOY-GATED (do NOT run
 #   from IaC): register the watcher on the VPS once, after first converge:
 #       docker exec crowdsec cscli machines add crowdsec-web-ui --password '<pw>' -f /dev/null
 #   (the '-f /dev/null' is REQUIRED — it registers the machine without overwriting the
@@ -24,16 +24,16 @@
 #
 #   DATA: the app persists admin accounts/settings in a Docker named volume
 #   (crowdsec-webui-data). No host bind needed (no bind_owner_uid). State is small +
-#   regenerable (admin/settings); NOT in Kopia/db-backup scope yet — see todo HD-272
-#   deploy-gated tail (add to backup scope when it carries real user state).
+#   regenerable (admin/settings); NOT in Kopia/db-backup scope yet — add it once the
+#   volume carries real user state.
 #
 #   SECRET: crowdsec-webui_lapi_api (credential) via the bulk vault pre-pass (vault
-#   dict). Fail-loud: missing/down item aborts the render (no default(''), HD-91/HD-65).
+#   dict). Fail-loud: missing/down item aborts the render (no default('')).
 services:
   crowdsec-web-ui:
     image: ghcr.io/theduffman85/crowdsec-web-ui:{{ crowdsec_web_ui_version }}
     # Class-B precedent (crowdsec/metabase + onlyoffice/stirling-pdf): the image chowns
-    # /app/data at every boot; read_only dropped AND CHOWN restored (cap_drop ALL strips
+    # /app/data at every boot, so read_only is out and CHOWN must be kept (cap_drop ALL strips
     # CHOWN -> root can't chown -> crash). Keeps cap_drop ALL + tmpfs /tmp + cap_add CHOWN.
     cap_drop:
       - ALL
@@ -61,11 +61,11 @@ services:
       traefik.enable: "true"
       traefik.http.routers.crowdsec-web-ui.rule: "Host(`csui.kogler.si`)"
       traefik.http.routers.crowdsec-web-ui.entrypoints: websecure
-      {{ 'traefik.http.routers.crowdsec-web-ui.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.crowdsec-web-ui.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.crowdsec-web-ui.middlewares: authentik-forward-auth@file
       traefik.http.services.crowdsec-web-ui.loadbalancer.server.port: "3000"
 {% else %}
-      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # INTERNAL-ONLY (public: false): no public-edge route; served
       # only by the traefik-tailnet internal edge (csui.kogler.si / csui.ts).
       traefik.enable: "false"
 {% endif %}

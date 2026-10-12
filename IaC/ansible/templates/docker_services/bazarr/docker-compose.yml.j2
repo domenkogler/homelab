@@ -14,8 +14,8 @@ services:
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
-    # read_only intentionally ABSENT (HD-318): linuxserver s6-overlay images
-    # do not support read_only root — it caused /run/s6 exec + /config/Sentry init
+    # read_only intentionally ABSENT: linuxserver s6-overlay images
+    # do not support read_only root — it causes /run/s6 exec + /config/Sentry init
     # failures. Keep cap_drop: ALL + /run:exec for the remaining hardening.
     tmpfs:
       - /tmp
@@ -26,7 +26,7 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      # Loopback publish so the host-net home edge can reach the backend.
       # (paseo's 6767 binds the TAILNET address — no conflict with this loopback bind.)
       - "{{ bazarr_bind }}:{{ bazarr_host_port }}:6767"
     volumes:
@@ -40,7 +40,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.bazarr.rule: "Host(`bazarr.kogler.si`)"
       traefik.http.routers.bazarr.entrypoints: websecure
-      {{ 'traefik.http.routers.bazarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.bazarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.bazarr.middlewares: authentik-forward-auth@file
       traefik.http.services.bazarr.loadbalancer.server.port: "6767"
 networks:

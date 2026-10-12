@@ -1,8 +1,8 @@
 {#- CRS328 bootstrap template — rendered by render-routeros.yml (never commit rendered/).
     IPs/VLANs from group_vars/all/; secrets from 1Password at render time. -#}
 # =============================================================================
-# CRS328-24P-4S+ — Kogler Homelab — Bootstrap (RENDERED — do not edit, regenerate)
-# Source template: IaC/router/templates/crs328_initial.rsc.j2
+# CRS328-24P-4S+ — Kogler Homelab — Bootstrap (Jinja SOURCE TEMPLATE — rendered to the gitignored rendered/*.rsc)
+# This template: IaC/router/templates/crs328_initial.rsc.j2
 # =============================================================================
 # Purpose: Minimal bootstrap that establishes the Management (VLAN {{ mgmt.id }})
 #          plane: sfp+1 trunk to the router + all access ports on management, so
@@ -58,13 +58,11 @@
 /ip dns set servers={{ router99.ip }}
 
 # ---- Services (Ansible REST/API/SSH door) ----
-# HD-193 + HD-301: scope every management service to the mgmt subnet from FIRST BOOT
-# (B4 binding floor, mirrors rb4011_initial). RouterOS 7 syntax: `available-from=`
-# (NOT `interface=` — the latter is the RouterOS 6 form, rejected with
-# "bad parameter interface" on ROS7, live-validated 2026-08-31). The dangerous-
-# on-WAN services are disabled explicitly. Defense in depth: even if a later
-# change re-enables a disabled service, it still won't listen on the
-# access ports or WAN.
+# Scope every management service to the mgmt subnet from FIRST BOOT. RouterOS 7
+# syntax: `available-from=` (`interface=` is the RouterOS 6 form, rejected with
+# "bad parameter interface" on ROS7). The dangerous-on-WAN services are disabled
+# explicitly: even if a later change re-enables one, it still will not listen on
+# the access ports or WAN.
 
 /ip service set telnet disabled=yes port=23 available-from={{ mgmt.subnet }}
 /ip service set ftp disabled=yes port=21 available-from={{ mgmt.subnet }}
@@ -76,13 +74,13 @@
 /ip service set ssh disabled=no port=22 available-from={{ mgmt.subnet }}
 /ip service set winbox disabled=no port=8291 available-from={{ mgmt.subnet }}
 
-# ---- SNMP (HD-53): RO, Mgmt-scoped — survives factory reset via run-after-reset ----
+# ---- SNMP: RO, Mgmt-scoped — survives factory reset via run-after-reset ----
 # The RO community (network-snmp_api) is injected at render as snmp_ro_community; the
 # community `name=` IS the shared secret string (must match the Alloy snmp.yml auth
 # community) and is scoped to the Mgmt subnet only, read-only.
 /snmp set enabled=yes
 :if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
-    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller"
 } else={
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }

@@ -7,31 +7,80 @@ tags: [deployment, rejected, decision-log]
 ---
 # Deployment — Rejected / Dropped
 
-> **Role:** Append-only decision log — deploy-toolchain / VPS-host / hypervisor options the homelab evaluated and declined. Sorted by service name. This log is the per-domain **decision-log SSOT**.
-> **Links to:** `deployment.md`
+> **Role:** Decision log — deploy-toolchain / VPS-host / hypervisor options the homelab evaluated and
+> declined. Sorted by subject, one row per subject. This log is the per-domain **decision-log SSOT**.
+> **Links to:** `deployment.md`, `CONVENTIONS.md` (§8.3)
 > **Linked from:** `index.md`, `deployment.md`
 
-> ⚠️ **Append-only.** Never edit or reorder an entry after it lands. A changed decision is a **new appended entry** (do not strike/replace). Each row: `| <tool> | <rejected|dropped|superseded> | <date> | <why, 1–2 lines + evidence link> |`.
-> ⚠️ **Evidence = the owning doc + this decision log.** Dates are the decision dates in the owning doc / git-attribution dates (advisory).
+> Each row is `| <subject> | <rejected|dropped|superseded> | <why> |` — no dates, no links, no prose.
+> **Append-only:** add rows, never rewrite or delete an existing one; rows are keyed by subject (`CONVENTIONS.md` §8.3).
+> Evidence = the current-state text in the owning doc.
 
 ## Decisions
 
-| Tool | Status | Date | Why |
-|------|--------|------|-----|
-| Contabo VPS | superseded | 2026-08-18 | Purchase superseded by the netcup RS 2000 G12 (cheaper/better suited as the public edge + live-data tier). · [subscription.md](subscription.md), [services-vps.md](services-vps.md) |
-| Doco-CD | dropped | 2026-08-19 | Removed entirely — a 2nd (Docker-socket-agent) deploy path that could not safely cover public VPS services (`docker.sock:rw` = root-equivalent). Single path = Ansible. HD-150. · [deployment.md](deployment.md) |
-| Proxmox (local hypervisor, Phase 1) | rejected | 2026-08-16 | oldsrv stays bare-metal Debian + Docker on the single Phase-1 box — VM/GPU-passthrough is mutually exclusive with the shared dGPU used by desktop + AI. Deferred to Phase 2 (HD-41/42). HD-92. · [hardware-oldsrv.md](hardware-oldsrv.md) |
-| Proxmox role + VM lab (HD-41) | superseded | 2026-09-09 | **Owner decision (2026-09-09):** the HD-41 "Proxmox role + VM lab" for a general second-node VM sandbox is **superseded/closed** — the old Phase-2 Ryzen/R9700/Proxmox hardware plan was already superseded by the **Lenovo ThinkStation PGX (NVIDIA GB10) spark node** (HD-335, 2026-09-06), which is a **bare-metal inference node with no hypervisor**. Resurrect only if a standalone VM-sandbox node is ever wanted for its own sake. · [hardware-spark.md](hardware-spark.md), [todo.md](../todo.md)
-| Phase-2 build — AMD Ryzen 9 9900X + Radeon AI PRO R9700 + Proxmox VE (~€4,449) | superseded | 2026-09-06 | **Superseded by the Lenovo ThinkStation PGX (NVIDIA GB10 Grace Blackwell) purchase** — hardware-spark node. More local-inference compute per €, no hypervisor layer, no AMD ROCm toolchain. Old `hardware-phase2.md` archived here + git. HD-335. · [hardware-spark.md](hardware-spark.md) |
-| watchtower | rejected | 2026-08-18 | Deliberate no — would bypass the Ansible/Renovate gate + break primary/standby HA version parity; HA updates stay Renovate + `stable`. Revisit only if HA runs single-node. HD-39. · [deployment-renovate.md](deployment-renovate.md) |
-| prometheus-internal_api (HD-59 internal service auth) | superseded | 2026-09-08 | Prometheus backend **retired by the VictoriaMetrics/Logs migration (HD-341/342)** — the `prometheus-internal_api` 1P item (username+bcrypt_hash) is superseded by `victoria-metrics_api`/`victoria-logs_api` (plaintext basic-auth). HD-59's kopia-server-internal_api leg stays live. Catalog row + `provision-secrets.py` entry removed (`94f6231`); vault item owner-archived. · [deployment-secrets.md](deployment-secrets.md), [deployment-compose.md](deployment-compose.md) |
+| Subject                                                                        | Status     | Why                                                             |
+|--------------------------------------------------------------------------------|------------|-----------------------------------------------------------------|
+| Adopting a discovered hand-made key into the vault                             | rejected   | promotes a one-time key to a managed secret                     |
+| `ansible_run_tags == ['all']` equality                                         | rejected   | it is a tuple; membership is the only form                      |
+| Authentik-as-LDAP Samba (`authentik-ldap_bind`)                                | superseded | NAS passdb is local tdbsam                                      |
+| authentik LDAP 3389 publish on all interfaces                                  | superseded | outpost binds only the WG S2S address                           |
+| Catalog-generating `cockpit-pi-web_api`                                        | rejected   | `--create` mints a new value; clients use the live one          |
+| Cohere embed-v4 (`cohere_api`)                                                 | superseded | embed/rerank local via Ollama `:rocm`                           |
+| Contabo VPS                                                                    | superseded | netcup RS 2000 G12 replaces it as the public edge               |
+| Control node = the admin laptop                                                | superseded | oldsrv is the primary control node, laptop is rescue-only       |
+| Doco-CD                                                                        | dropped    | second Docker-socket deploy path; Ansible is the single path    |
+| `doco-cd_password` webhook HMAC                                                | superseded | single Ansible-only deploy path                                 |
+| DSH as LiteLLM consumer (`dsh_api`)                                            | rejected   | harness removed; parked, not re-minted                          |
+| `dsh`/`pi-dev` tailscale preauth keys                                          | dropped    | harnesses removed, rows `enabled: false`                        |
+| Edge 401 with the old bearer as containment test                               | rejected   | That host authenticates with the engine key                     |
+| Emergency root password on homelab hosts                                       | rejected   | key-only SSH; identical placeholder-hash risk                   |
+| Excluding `core.config_entries` from HA standby rsync                          | rejected   | standby loses the voice pipeline on failover                    |
+| Forgejo CI runner as `spark-llm_api` holder                                    | dropped    | No runner exists, origin is GitHub                              |
+| `gen_wg_key()` provisioner helper                                              | dropped    | unused; `wg genkey` is authoritative                            |
+| `git bundle` runner seeding                                                    | rejected   | plants a commit GitHub has never seen                           |
+| `git filter-repo` scrub of the leaked bearer                                   | dropped    | Rotated value inert, rewrite buys hygiene only                  |
+| gluetun `qm12` fork image                                                      | superseded | upstream `qmcgaw/gluetun` is current                            |
+| /health wait to prove a re-render                                              | rejected   | Engine answers 200 before recreation                            |
+| iDrive e2 S3 (`kopia-s3_api`)                                                  | superseded | Kopia targets the backup Box over SSH/SFTP                      |
+| Kogler IOT WAN SSID / VLAN 21                                                  | superseded | collapsed into Kogler IOT plus `wan_allow`                      |
+| Kogler Kids SSID                                                               | superseded | firewall MAC list on VLAN 10; the VLAN 40 definition remains    |
+| `metabase-forgejo_ro` (`db_ro_sync`)                                           | superseded | Metabase removed from the VPS; keys commented out               |
+| Metabase OIDC (`metabase_oidc`)                                                | dropped    | Metabase OSS has no OIDC, paid tier only                        |
+| MinIO S3 (`minio_login`)                                                       | superseded | Immich originals use the live Hetzner Box CIFS                  |
+| `Mitogen`                                                                      | rejected   | speedup gate never fired; bulk op pre-pass removed the cost     |
+| "oldsrv has NO write path at all" as a standing state                          | superseded | push by seat, pull by runner: a scoped write key exists         |
+| `oldsrv-rsync` runner key                                                      | superseded | shredded; no live grant accepts it                              |
+| One shared bearer for engine + gateway legs                                    | superseded | Gateway leg holds `litellm-engine_api`                          |
+| Parallel LiteLLM `bootstrap-keys`                                              | superseded | reverted; the `docker exec -i` probe cannot fan out             |
+| Persisted Authentik api-intent token (`authentik-provision_api`)               | superseded | ephemeral per-run token via `ak shell`                          |
+| Phase-2 build — AMD Ryzen 9 9900X + Radeon AI PRO R9700 + Proxmox VE (~€4,449) | superseded | spark GB10 gives more local inference per euro                  |
+| Pi-99 `ProxyJump` hop                                                          | superseded | the Mgmt99 vNIC reaches `.99` direct                            |
+| `prometheus-internal_api` (internal service auth)                              | superseded | VictoriaMetrics/Logs plaintext basic auth replaces it           |
+| Proxmox (local hypervisor, Phase 1)                                            | rejected   | oldsrv stays bare-metal; passthrough conflicts with the dGPU    |
+| Proxmox role + VM lab                                                          | superseded | spark GB10 is a bare-metal node, no hypervisor                  |
+| raspi.debian.net Pi image                                                      | rejected   | rainbow screen on Pi 4; kernel/firmware mismatch                |
+| RouterOS REST API transport                                                    | rejected   | management speaks the binary API on tcp/8728                    |
+| Scoped/tag-limited converge to land a key                                      | rejected   | Reports green while skipping the service                        |
+| Second `Private` vault for the runner (`op_api` note)                          | superseded | one vault, one lookup credential                                |
+| `SLSKD_TOKEN` token option                                                     | superseded | slskd 0.26 removed it; use `SLSKD_PASSWORD`                     |
+| `soulseek_login` duplicate item                                                | superseded | merged into `slskd_login`; env names were the bug               |
+| SSH commit signing (`GitHub sign`)                                             | dropped    | key left GitHub; seats run `commit.gpgsign=false`               |
+| sync-authentik-users rework (`opencloud-service_api`)                          | superseded | item has no consumer; glue does not seed it                     |
+| The cockpit/harness seat must be a non-human account                           | rejected   | not applied: the owner seat holds neither token nor fleet key   |
+| The owner's GitHub identity keys resident on the control/dev node              | rejected   | read-only deploy token plus the signing key instead             |
+| The **`Private` vault** as the home of the `GitHub sign` / `GitHub auth` keys  | superseded | both keys moved into `Homelab-ansible` for headless pulls       |
+| TOFU for GitHub host keys                                                      | rejected   | pinned from `api.github.com/meta`, cross-checked on the wire    |
+| `user.signingkey=key::<pub>` as the seat's signing-key form                    | rejected   | the `key::` form dies without `SSH_AUTH_SOCK`; a key file signs |
+| VictoriaMetrics/VictoriaLogs TSDB as regenerable, not backed up                | superseded | Kopia-backed now; 365d retention bounds growth                  |
+| `vps-op-write_api` item title                                                  | superseded | renamed `op-write_api`, old title deleted                       |
+| watchtower                                                                     | rejected   | bypasses the Ansible/Renovate gate, breaks HA version parity    |
+| wg-s2s AllowedIPs to the whole site /16                                        | superseded | scoped to named home targets, router ACL enforced               |
+| WSL Bridged networking                                                         | superseded | NIC pin fails on WiFi/hotspot; NAT is durable                   |
+| WSL `mirrored` networking                                                      | rejected   | wedges ARP for the gateway, survives `wsl --shutdown`           |
+| `Yacht web UI`                                                                 | rejected   | extra VPS web surface, drifts from the Ansible compose model    |
 
-| Control node = the admin laptop ("the only place `ansible-playbook` is run interactively") | superseded | 2026-09-20 | **HD-407.** The WSL-Debian laptop stops being the runner: the repo, venv, the read-scope `op` SA token and the per-host keys move to **oldsrv as the primary control node**; the laptop is demoted to rescue + authoring; and **oldsrv's own `network` / `ssh` / firewall / `storage` roles converge OFF-box** (the VPS is the second control node — it already has WG reach to the home infra hosts and the Actions runner's private-vault token). Two facts favour the move rather than merely permitting it: `playbooks/dns.yml` is Cloudflare-token **IP-filtered to the home WAN** and its own text demands a *home* control plane (true for oldsrv, false for a laptop on a hotspot), and `scripts/ansible-run.sh`'s explicit `ANSIBLE_ROLES_PATH` was a workaround for the world-writable `/mnt` drive, not a design choice. ⛔ Not a licence to converge oldsrv's own risky roles from itself — that guardrail is **HD-413**. · [1password.md](1password.md) · [deployment-ansible.md](deployment-ansible.md) |
-| The owner's **GitHub identity keys** (push-capable auth, and the laptop's keys generally) resident on the control/dev node | **rejected in favour of scoped credentials** | 2026-09-21 | **HD-407/HD-409, owner decision.** oldsrv pulls with the **read-only** fine-grained `github-homelab-deploy_api` (read code + metadata, scoped to this repo) over HTTPS through a 0600 credential store — never embedded in the remote URL — and signs with the **signing** key already in `Homelab-ansible` (signing proves authorship, it cannot push). `github_auth` stays on the laptop. Recorded consequences: **GitHub is the live remote** (Forgejo on the VPS holds no copy of this repo, so an "internal Forgejo origin" is not available yet), and **oldsrv is PULL-ONLY until HD-409** adds a repo-scoped write-capable deploy key for the cockpit. · [deployment-ansible.md](deployment-ansible.md) §Runner placement |
-| "oldsrv has NO write path at all" (the pull-only consequence as a standing state) | **superseded** | 2026-09-28 | **HD-449, owner ruling 2026-09-25: push by seat, pull by runner.** The rejection above stands — the owner's identity keys stay off the box — but the scoped write credential now exists: the repo-scoped `GitHub-homelab-deploy_ssh` deploy key on the **seat** clone (`/home/domen/source/homelab`), while the **runner** clone keeps the read-only `github-homelab-deploy_api` forever. Two git paths on one box is the decision, not an inconsistency to tidy. ⚠ Measured 2026-09-28: the keypair is installed and verified but GitHub has never been given its public half, so the seat cannot push yet (HD-449's owner act). · [deployment-ansible.md](deployment-ansible.md) §Runner placement |
-| The cockpit/harness seat must be a **non-human** account (the HD-51 precedent) | **scoped, not applied** to the cockpit seat | 2026-09-21 | **HD-409, owner decision.** The pi harness + browser cockpit run under the owner's own `domen` seat on oldsrv; `ansible-admin` stays runner-only (token + fleet key + venv + clone) and holds nothing an agent drives on its behalf. Cheap on the measured facts: `domen` on oldsrv holds **neither** the `op` read-scope token **nor** the fleet key, so the blast radius of an agent-driven session is that account's own files. The separation this was meant to buy moves to a different seam — the **break-glass identity is now `<host>-cockpit_login`** (HD-361, decided the same day: a password-bearing `maint` PAM user per cockpit host, `sudo` without NOPASSWD, no SSH keys, excluded from `AllowUsers`), so `domen` is no longer the only human door. HD-413's self-converge lockout is role-based and stands regardless. · [pi-harness.md](pi-harness.md) §1 · [deployment-secrets.md](deployment-secrets.md) |
-| The **`Private` vault** as the home of the `GitHub sign` / `GitHub auth` keys | **superseded** | 2026-10-06 | **HD-495 (owner act).** Both keys moved into `Homelab-ansible`, so the read-scope service account a Phase-0 machine already carries can pull them and `git-bootstrap.sh --ssh-auth` runs headless. Every "seat commits are owner-gated / a human `op signin` is required" restriction in CONVENTIONS §6, deployment-ansible.md and services-ai.md rested on the old location and is retired with it; `OP_VAULT=Private` stays as an override for a pre-move machine. · [1password.md](1password.md) §2 · [deployment-secrets.md](deployment-secrets.md) Master Secret List |
-| `user.signingkey=key::<pub>` as the seat's signing-key form | **rejected in favour of the key FILE path** | 2026-10-06 | **HD-495.** Measured both halves on git 2.47.3: the `key::` form asks the ssh-agent and dies `error: Couldn't get agent socket?` → `fatal: failed to write commit object` in any shell without `SSH_AUTH_SOCK` — which is pi, cron and every converge — while a passphrase-free key file signs with no agent (`%G?` → `G`). `git-bootstrap.sh` now chooses by `ssh-keygen -y -P '' -f`, so a passphrase-protected key still gets `key::`. · [1password.md](1password.md) §2 · CONVENTIONS §6 |
-
-> **Not a deployment-domain decision:** guest-network / storage / services rejections live in their own `<domain>-rejected.md` files — see [`services-rejected.md`](services-rejected.md), [`storage-rejected.md`](storage-rejected.md), [`network-rejected.md`](network-rejected.md), [`smart-home-rejected.md`](smart-home-rejected.md).
+> **Not a deployment-domain decision:** guest-network / storage / services rejections live in their own
+> `<domain>-rejected.md` files — see [`services-rejected.md`](services-rejected.md),
+> [`storage-rejected.md`](storage-rejected.md), [`network-rejected.md`](network-rejected.md),
+> [`smart-home-rejected.md`](smart-home-rejected.md).
 > **SSOT note:** this log is the decision-log SSOT for the deploy/hypervisor domain.

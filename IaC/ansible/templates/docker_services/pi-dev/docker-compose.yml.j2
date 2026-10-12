@@ -1,7 +1,7 @@
 # pi-dev docker-compose.yml — pi coding-agent container (the "pi.dev" half of the
-#   dual AI harness — HD-268c). DevOps/IaC coding cascade in a container; the other
+#   dual AI harness). DevOps/IaC coding cascade in a container; the other
 #   half is DSH (DeepSeek Harness). docs/services-ai.md §2/§3, docs/services.md.
-#   Decided 2026-08-27 (HD-268c): pi.dev runs as a CONTAINER built from the official
+#   pi.dev runs as a CONTAINER built from the official
 #   `@earendil-works/pi-coding-agent` npm package (pi.dev/docs/latest/containerization
 #   "Plain Docker"), plus the `pi-web-access` extension (agent web/search tools) and
 #   the `pi-web-ui` Web chat UI (server on :8080).
@@ -10,17 +10,17 @@
 #   agent, runs in-process via the pi SDK, streams over WebSocket; server default :8787,
 #   here set to :8080). DSH binds 127.0.0.1 only (DeepSeek.app rejects `--host 0.0.0.0`)
 #   — for pi the `PI_WEB_HOST=0.0.0.0` inside-container bind is REQUIRED so the Web UI
-#   reaches the HOST publish. HD-355 (2026-09-10): pi-dev MOVED to oldsrv (dev-AI
-#   tier); the tailscale sidecar is REMOVED (tailnet = mobile-only via the VPS edge).
+#   reaches the HOST publish. pi-dev lives in the oldsrv dev-AI
+#   tier; there is no tailscale sidecar here (tailnet = mobile-only via the VPS edge).
 #   The UI is published on the HOST's Home-VLAN IP (`{{ oldsrv_home_ip }}:8080`,
-#   media-bridge pattern — precedent: immich-ml `{{ oldsrv_home_ip }}:3003`, verified
-#   2026-09-08); the VPS `traefik-tailnet` edge reaches it over the WG S2S
+#   media-bridge pattern — precedent: immich-ml `{{ oldsrv_home_ip }}:3003`); the VPS
+#   `traefik-tailnet` edge reaches it over the WG S2S
 #   (wg_s2s_vps allowed_ips carries oldsrv /32) and serves the clean URLs
 #   `pi-dev.kogler.si`/`pi-dev.ts.kogler.si` (Authentik Forward-Auth on the edge,
 #   not public).
 #
 #   pi-dev also reaches LiteLLM (models) + Forgejo (PR proposals) on `services-internal`.
-#   HD-355: the tailnet-apps overlay / PI pattern-A exposure is REMOVED (clean-URL
+#   The tailnet-apps overlay / PI pattern-A exposure is not wired (clean-URL
 #   `https://pi-dev.ts.kogler.si` is now served by the VPS traefik-tailnet edge →
 #   WG → `{{ oldsrv_home_ip }}:8080`, not by a pi-dev-local tailscale serve).
 #
@@ -28,24 +28,22 @@
 #   registry (`npm install -g --ignore-scripts @earendil-works/pi-coding-agent@{{ pi_dev_npm_version }}`)
 #   on a pinned Node runtime base. This keeps the OCI pull stable while the agent ship
 #   is pinned by npm version ({{ pi_dev_npm_version }}, engine node>=22.19.0). The image
-#   base is `node:{{ pi_dev_node_version }}` (glibc — NOT -alpine: HD-298. node-pty ships
+#   base is `node:{{ pi_dev_node_version }}` (glibc — NOT -alpine: node-pty ships
 #   linux-x64 prebuilds for glibc only; on musl/alpine the postinstall falls back to
 #   node-gyp and fails (no Python/toolchain in the alpine image), crash-looping the UI.
 #   glibc node:24 installs the prebuilt binding with zero toolchain). The `-g` npm install
 #   + pi-web-access extension install run once at (re)start; sessions persist in the
 #   workspace volume.
 #
-#   ⚠ PARKED 2026-09-17 (todo.md HD-386 + services-ai.md decision #26): this template is
-#   NOT DEPLOYED — the registry entry is `enabled: false`. Do not flip it back casually:
-#   pi-harness_openai_api is deliberately EMPTY in 1Password, so enabling renders fail-closed
-#   and takes the whole oldsrv docker_services converge down with it (HD-386). And per
-#   decision #26 a re-onboarded pi harness should talk to the spark name edge DIRECTLY, not
-#   to lan-litellm (why: services-ai.md §9d + pi-harness.md §1b) — which makes this
-#   LiteLLM-backend wiring itself questionable, not just its state.
+#   ⚠ PARKED: this template is NOT DEPLOYED — the registry entry is `enabled: false`. Do not flip
+#   it back casually: pi-harness_openai_api is deliberately EMPTY in 1Password, so enabling renders
+#   fail-closed and takes the whole oldsrv docker_services converge down with it. A re-onboarded pi
+#   harness should talk to the spark name edge DIRECTLY, not to lan-litellm (why: services-ai.md
+#   §9d + pi-harness.md §1b) — which makes this LiteLLM-backend wiring itself questionable.
 #
-#   Secrets (fail-closed, HD-65 — all via 1Password vault refs, never literals):
+#   Secrets (all fail-closed — via 1Password vault refs, never literals):
 #     pi-harness_openai_api (api -> credential) — scoped LiteLLM virtual key for pi's
-#       model backend (HD-247 pattern; minted by the litellm bootstrap glue). NOT the
+#       model backend (minted by the litellm bootstrap glue). NOT the
 #       LiteLLM master key. Model routing: pi talks to LiteLLM as an
 #       OpenAI-compatible endpoint (pi.dev supports any OpenAI-compatible provider).
 #     pi-harness_forgejo_api (api -> credential) — Forgejo service-account token,
@@ -53,7 +51,7 @@
 #       Agents propose via Forgejo PRs against the protected `main` branch; they never
 #       push/merge. Secret access = the isolated workspace only.
 #
-#   Workspace isolation (SECURITY, HD-250-parity): pi may execute arbitrary commands,
+#   Workspace isolation (SECURITY): pi may execute arbitrary commands,
 #   so it mounts ONLY the dedicated /srv/docker/pi-dev/workspace — NEVER /home, /root
 #   or any host source tree. Like DSH, treat as un-sandboxed by default; keep the
 #   permission tier Workspace/Read-Only until trusted. The workspace root is the only
@@ -68,7 +66,7 @@ services:
     image: node:{{ pi_dev_node_version }}
     cap_drop:
       - ALL
-    # HD-298: node-gyp (node-pty compile fallback) must download+extract Node headers
+    # node-gyp (node-pty compile fallback) must download+extract Node headers
     # with fchown during the pi-web-ui npm install at startup; cap_drop ALL strips
     # CHOWN/FOWNER/DAC_OVERRIDE -> EPERM 'operation not permitted, fchown' -> install
     # fails -> crash-loop. These three caps are needed ONLY for that one-time build step;
@@ -96,7 +94,7 @@ services:
         npm install -g --ignore-scripts pi-web-access@{{ pi_web_access_version }}
         # pi-web-ui: Web chat UI for pi (serve :8080). Install pinned; fail-loud on error so
         # monitoring sees a broken UI rather than a silently-idling container.
-        # HD-298: --ignore-scripts REMOVED here ONLY + explicit --allow-scripts — the postinstall
+        # --ignore-scripts REMOVED here ONLY + explicit --allow-scripts — the postinstall
         # compiles the native node-pty binding (required on current node+arch; without it the
         # server crash-loops before ever reaching exec). npm 11.19+ blocks install scripts by
         # default (new allowScripts gate) even without --ignore-scripts, so the three packages
@@ -109,35 +107,35 @@ services:
         fi
         # Serve the pi Web UI in the foreground. PI_WEB_HOST=0.0.0.0 binds inside the container
         # so the HOST publish ({{ oldsrv_home_ip }}:8080, media-bridge) reaches it; the VPS
-        # tailnet edge reaches the publish over WG S2S (HD-355).
+        # tailnet edge reaches the publish over WG S2S.
         # PORT is set via the PI_WEB_PORT env; --no-browser for a headless container.
         exec pi-web-ui --port 8080 --no-browser
     networks:
       - services-internal       # LiteLLM (models) + Forgejo (PR proposals)
     ports:
-      - "{{ oldsrv_home_ip }}:8080:8080"        # HD-355 — oldsrv Home-IP publish (never 0.0.0.0/127.0.0.1)
+      - "{{ oldsrv_home_ip }}:8080:8080"        # oldsrv Home-IP publish (never 0.0.0.0/127.0.0.1)
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       # pi model backend = LiteLLM (the spine). pi talks OpenAI-compatible to LiteLLM;
       # the credential is the SCOPED virtual key minted into pi-harness_openai_api by
-      # the HD-247 bootstrap glue (agent scope, budget-capped) — never the master key.
-      # HD-356: LAN instance (lan-litellm on oldsrv, same services-internal net).
+      # the bootstrap glue (agent scope, budget-capped) — never the master key.
+      # LAN instance (lan-litellm on oldsrv, same services-internal net).
       PI_MODEL_PROVIDER_BASE_URL: "http://lan-litellm:4000/v1"
-      # Folded scalar (HD-233): 1P-sourced values can carry YAML-hostile chars.
+      # Folded scalar: 1P-sourced values can carry YAML-hostile chars.
       PI_MODEL_API_KEY: >-
         {{ vault['pi-harness_openai_api'].credential | replace('$','$$') }}
-      # Forgejo PR-only git credential (HD-268c): pi proposes via Forgejo PRs against
+      # Forgejo PR-only git credential: pi proposes via Forgejo PRs against
       # the protected `main`; token has PR-only scope, NO merge rights. Injected at
       # deploy into the workspace clone's git remote (docs/services-ai.md §7).
       FORGEJO_PR_TOKEN: >-
         {{ vault['pi-harness_forgejo_api'].credential | replace('$','$$') }}
 #      pi-web-access needs no API key by default (zero-config Exa) — docs/deployment-secrets.md.
-      # Web UI: bind inside the container (HD-355); the HOST publish is
+      # Web UI: bind inside the container; the HOST publish is
       # {{ oldsrv_home_ip }}:8080 only — never 0.0.0.0 on the host.
       PI_WEB_HOST: "0.0.0.0"
       PI_WEB_PORT: "8080"
     volumes:
-      # Isolated agent workspace ONLY — never host dirs (HD-268c sandbox rule).
+      # Isolated agent workspace ONLY — never host dirs (sandbox rule).
       - /srv/docker/pi-dev/workspace:/workspace
 networks:
   services-internal:

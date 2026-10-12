@@ -34,9 +34,9 @@ storage_nfs_server: nas.kogler.si   # resolved via /etc/hosts (network role)
 # only oldsrv's Home-VLAN IP may mount the exports.
 storage_nfs_clients: "{{ (network_ranges | selectattr('name', 'equalto', 'nfs-clients') | map(attribute='cidr') | first) }}"
 
-# uid/gid for the exported trees — the NEUTRAL shared-data owner `media` (HD-51/HD-131),
+# uid/gid for the exported trees — the NEUTRAL shared-data owner `media`,
 # NOT domen (1000), NOT an interactive family user. Containers running the filesystem/SMB
-# shared stack (Samba shares, *arr, OpenCloud-local) run as this owner (KOPS-060 / HD-94).
+# shared stack (Samba shares, *arr, OpenCloud-local) run as this owner.
 # The `media` system user at this uid/gid is provisioned on nas + oldsrv (storage role).
 storage_uid: "1005"
 storage_gid: "1005"
@@ -45,19 +45,16 @@ storage_gid: "1005"
 # NSS: `force user`, `force group` and the `@group` form of `valid users` are resolved by NAME,
 # so a numeric id there matches NOTHING and the share fails at TREE CONNECT time, after a
 # perfectly good authentication — indistinguishable from a wrong password from the client side.
-# Measured 2026-10-07 on `force user = 1005` / `valid users = @1005`: every media/music mount has
-# been failing this way since the shares existed, which nothing noticed because until that date no
-# Samba account existed to authenticate with either. samba.yml asserts name↔id agreement.
+# samba.yml asserts name↔id agreement.
 storage_user: media
 storage_group: media
 
-# Samba (D4 / HD-131): per-user private shares + a shared media share on the NAS.
+# Samba: per-user private shares + a shared media share on the NAS.
 # Each family member = one LOCAL Samba account (tdbsam) with a private drive
 # (`valid users = <account>`); plus a `media` shared share (any family account).
-# ⚠ The Authentik-as-LDAP passdb this used to offer (D7/HD-132) is RETIRED 2026-10-07:
-#   it made every LAN drive mount depend on the VPS + the WG S2S tunnel, and Authentik's
-#   LDAP provider cannot answer an NTLM challenge at all (it stores PBKDF2 and serves
-#   `userPassword`, never `sambaNTPassword`). Decision: docs/storage-rejected.md.
+# ⚠ No Authentik-as-LDAP passdb: it would make every LAN drive mount depend on the VPS + the WG
+#   S2S tunnel, and Authentik's LDAP provider cannot answer an NTLM challenge at all — it stores
+#   PBKDF2 and serves `userPassword`, never `sambaNTPassword`. Alternatives: docs/storage-rejected.md.
 # SSOT for the family list = `storage_samba_users` in host_vars (a repo edit, not a
 # directory sync), so a from-scratch rebuild converges the drives with no external pull.
 # Format (name + vault_item are required; uid/shell optional):
@@ -83,10 +80,10 @@ storage_samba_media:
   share: media
   path: /tank/data/shared  # shared family tree; per-user stores live under /tank/data/users
 # The arr MUSIC library, exported so a laptop can drop finished albums straight into the
-# folder Lidarr actually scans (Lidarr rootFolder /media/music == this path; HD-362).
+# folder Lidarr actually scans (Lidarr rootFolder /media/music == this path).
 # Why a share at all: `bulk/media` is NFS-exported to oldsrv only (/bulk/media 10.10.1.30/32),
-# so before this the `media` share (a DIFFERENT tree, /tank/data/shared) was the only
-# Windows-visible path and every manual add needed a privileged mv on oldsrv. smb.conf gives
+# so without it the `media` share (a DIFFERENT tree, /tank/data/shared) is the only
+# Windows-visible path and every manual add needs a privileged mv on oldsrv. smb.conf gives
 # it force user/group = storage_uid, so a dropped file stays media-owned and Lidarr (PUID
 # 1005) can still rename/move/hardlink-import it. Layout the arr expects: <Artist>/<Album>/files.
 storage_samba_music:
@@ -96,11 +93,10 @@ storage_samba_music:
 storage_samba_users_root: /tank/data/users
 
 # PassDB backend — tdbsam is the ONLY supported value, and it is not a knob.
-# The `ldapsam` alternative (D7/HD-132) was retired 2026-10-07: it made a LAN-local drive
-# mount depend on the VPS, its outpost and the WG S2S tunnel, and it can never have worked
-# against Authentik anyway (no Samba attribute support → no NT hash to answer NTLM with).
-# Retired here, not left as a var: a var nobody can satisfy is how the LDAP path stayed
-# "almost deployed" for seven weeks while every tree connect returned ACCESS_DENIED.
+# `ldapsam` is not offered: it would make a LAN-local drive mount depend on the VPS, its outpost
+# and the WG S2S tunnel, and it can never work against Authentik (no Samba attribute support → no NT
+# hash to answer NTLM with). Keeping a var nobody can satisfy is how an unusable path stays "almost
+# deployed" while every tree connect returns ACCESS_DENIED.
 # The rendered smb.conf therefore always says `passdb backend = tdbsam` and carries no
 # `ldap *` directives; the secret lives only in 1Password `smb-<name>_login`, never in
 # smb.conf — which is also why that file is world-readable again (0644, see samba.yml).
@@ -122,8 +118,8 @@ storage_pools:
   - name: nvme
     hosts: [oldsrv]
     allow_create: "{{ storage_allow_pool_create }}"
-    # REAL device path is the SSOT var storage_nvme_data_by_id (set in host_vars/oldsrv.kogler.si.yml,
-    # HD-128/KOPS-057) — never a literal here. A fail-loud guard in zfs_common.yml aborts any CREATE
+    # REAL device path is the SSOT var storage_nvme_data_by_id (set in host_vars/oldsrv.kogler.si.yml)
+    # — never a literal here. A fail-loud guard in zfs_common.yml aborts any CREATE
     # attempt while it still points at the placeholder; import-only runs never touch it.
     vdevs: ["{{ storage_nvme_data_by_id | default('/dev/disk/by-id/UNDEFINED') }}"]
     options: { ashift: "12" }
@@ -139,8 +135,8 @@ _common_zfs_props: &common
 
 storage_datasets:
   # --- nas pool "tank" — user data (BACKED UP) ---
-  # (immich + documents datasets trimmed HD-151: originals/user-files on the live
-  #  Hetzner Box; offline copies were a retained archive — Box + Kopia is recovery.)
+  # Originals and user files live on the live Hetzner Box; Box + Kopia is the recovery path, so no
+  # offline-copy dataset belongs in this pool.
   - { name: tank/data,            props: { canmount: off, mountpoint: none } }
   - { name: tank/data/services,   props: { recordsize: 128K, compression: zstd, <<: *common } }
   - { name: tank/data/db-dumps,   props: { recordsize: 128K, compression: zstd, <<: *common } }
@@ -149,11 +145,11 @@ storage_datasets:
   - { name: bulk/data,            props: { canmount: off, mountpoint: none } }
   - { name: bulk/data/services,   props: { recordsize: 128K, compression: zstd, <<: *common } }
   - { name: bulk/data/db-dumps,   props: { recordsize: 128K, compression: zstd, <<: *common } }
-  - { name: bulk/data/immich-thumbs, props: { recordsize: 128K, compression: lz4, mountpoint: /bulk/data/immich-thumbs, <<: *common } }  # kept (HD-151): nightly face-thumbnail push target — explicit mountpoint (parent bulk/data is mountpoint=none; NFS export target, live-found 2026-09-03)
+  - { name: bulk/data/immich-thumbs, props: { recordsize: 128K, compression: lz4, mountpoint: /bulk/data/immich-thumbs, <<: *common } }  # explicit mountpoint required: parent bulk/data is mountpoint=none; NFS export target for the face-thumbnail push
   # --- oldsrv pool "nvme" — compute-host data (NAS-backed or regenerable) ---
   - { name: nvme/docker-layers,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /var/lib/docker } }
   - { name: nvme/docker,          props: { canmount: off, mountpoint: none } }
-  - { name: nvme/docker/immich,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /srv/docker/immich } }  # kept (HD-151): immich-ml reads thumbs here
+  - { name: nvme/docker/immich,   props: { recordsize: 128K, compression: lz4, atime: "off", mountpoint: /srv/docker/immich } }  # immich-ml reads thumbs here
   - { name: nvme/docker/services, props: { recordsize: 128K, compression: zstd, atime: "off", mountpoint: /srv/docker/services } }
   - { name: nvme/models,          props: { recordsize: 128K, compression: off, atime: "off", mountpoint: /srv/models } }
   - { name: nvme/dumps,           props: { recordsize: 128K, compression: zstd, atime: "off", mountpoint: /srv/dumps } }
@@ -168,7 +164,6 @@ storage_own_pools:
 
 # ---------------------------------------------------------------------
 # Snapshots (sanoid) — cadence per dataset. sanoid.timer runs every 5 min.
-# (The 5-min fine-grained `documents` tier was dropped with the dataset — HD-151.)
 # ---------------------------------------------------------------------
 storage_sanoid:
   templates:
@@ -207,9 +202,8 @@ storage_nfs_mounts:
 
 # ---------------------------------------------------------------------
 # Nightly push leg (oldsrv → nas): DB dumps this host owns. Schedules are systemd
-# OnCalendar specs. Two sibling legs (push-services, push-face-thumbs) were REMOVED
-# 2026-09-28 (HD-468) — their payloads live on the vps, where no push path exists yet;
-# see docs/backup.md rather than re-adding them here.
+# OnCalendar specs. Do not add push legs for payloads that live on the vps — no push path exists
+# there; see docs/backup.md before re-adding one.
 # ---------------------------------------------------------------------
 # expected_source is asserted before the rsync: writing a backup into a directory whose
 # automount silently failed is how you get a green timer and no off-host copy.

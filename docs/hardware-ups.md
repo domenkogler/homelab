@@ -25,14 +25,14 @@ tags: [hardware, ups, power, modbus, nut]
 > **Poweroff, never `shutdown -h`** — a halt leaves this board powered (LEDs on); every path uses
 > `/sbin/poweroff` with a matching sudoers rule.
 >
-> **Defects the drill exposed — all fixed in the role, do not re-introduce:**
-> ① a stray ACL on `upssched-cmd` (`group::r--` despite mode 0750) gave `nut` exec 126 → **no notify and no
-> shutdown on any host**; ② the SMTP credentials rendered as shell vars (`${nut_smtp_*}`) instead of Jinja,
-> so SMTP auth silently failed empty (masked by `|| true`) — they must render inline from the vault;
-> ③ no sudoers rule → `nut` could not run the shutdown command; ④ `nut_signal_helper` aborted the on-battery
-> notify under `set -u` (guard with `${nut_signal_helper:-}`); ⑤ an upssched restart handler that existed
-> only on the master left **clients running stale configs** (oldsrv powered off 60 s after *any* mains loss
-> on first deploy) — the restart handler must apply to **all modes**.
+> **Role invariants — do not re-introduce:**
+> ① `upssched-cmd` must stay executable by `nut` — a stray ACL such as `group::r--` defeats mode 0750 and
+> yields exec 126, so no notify and no shutdown fires on any host; ② SMTP credentials render **inline from
+> the vault** — as shell vars (`${nut_smtp_*}`) auth silently fails empty, masked by `|| true`;
+> ③ a sudoers rule for the shutdown command is required, or `nut` cannot run it; ④ guard the helper with
+> `${nut_signal_helper:-}`, or `nut_signal_helper` aborts the on-battery notify under `set -u`;
+> ⑤ the upssched restart handler applies to **all modes** — master-only handling leaves clients running stale
+> configs, so a client powers off 60 s after *any* mains loss.
 
 ---
 
@@ -77,8 +77,8 @@ The USB link is a HID device, so it is *not* exposed as a serial (`/dev/ttyS*`) 
 ### Modbus TCP notes
 - Unit ID **1**, function **0x03** (Read Holding Registers) works over the LAN (register block 0 identifies
   the model).
-- **Not a consumer of record:** the HA Modbus sensors were removed and UPS monitoring is exclusively NUT over
-  **USB HID**. No register map is needed. The endpoint stays available on the NIC (isolated VLAN, no WAN) but
+- **Not a consumer of record:** UPS monitoring is exclusively NUT over
+  **USB HID**; there are no HA Modbus sensors. No register map is needed. The endpoint stays available on the NIC (isolated VLAN, no WAN) but
   is not part of the design — see [network-rejected.md](network-rejected.md) / [network-vlans.md](network-vlans.md)
   for the NIC's VLAN move.
 
@@ -105,10 +105,10 @@ oldsrv (client, 60 s delay)   ha/Pi (client) — each shuts down locally
 
 ### Wake-after-recharge (WoL)
 
- when mains returns and `battery.charge ≥ nut_wake_charge` (80 on nas), the
+When mains returns and `battery.charge ≥ nut_wake_charge` (80 on nas), the
 master wakes a halted client (e.g. oldsrv, which halts at 75 %) with a magic packet. It must be a
 **persistent systemd timer on nas** (`nut-wake.timer` → `nut-wake.service` → `/usr/local/sbin/nut-wake`,
-every 60 s) — an upssched helper is NOT viable: it died with the SSH session in the first drill and sent no
+every 60 s) — an upssched helper is NOT viable: it dies with the session that started it and sends no
 packet. Conditions: UPS `OL`, charge ≥ threshold, client offline (ping fails) → `wakeonlan <mac>`
 (MACs/IPs from `nut_wake_macs` + `network_static_hosts` SSOTs).
 **BIOS requirements (ASRock Z270 Extreme4, oldsrv — verified):** `Advanced → ACPI Configuration →`
@@ -122,54 +122,51 @@ manual boot before WoL re-arms; with battery ride-down the master never cuts, so
 
 - **NUT master on nas — ✅ live:** `usbhid-ups` (USB), `upsd`, `nut_exporter`, `upssched-cmd` notify —
   the `nut` role in [`deployment-ansible.md`](deployment-ansible.md). `upsc powerwalker@localhost` answers.
-- **NUT clients on oldsrv + Pi — ✅ protected (2026-10-07, HD-467).** The slave mode was always
-  authored (client `upsmon`, a secret-free `upssched-cmd`, charge-threshold shutdown via the
-  upssched poll, HD-06); what was missing was the leg — both got `Connection refused` because
-  the master never bound its LAN listener. Proven live on the day the listener was fixed:
-  nas's journal `User upsmon@<oldsrv Home address> logged into UPS [powerwalker]` **and** the same line
+- **NUT clients on oldsrv + Pi — ✅ protected.** Both run client `upsmon`, a secret-free `upssched-cmd` and
+  charge-threshold shutdown via the upssched poll, and the master's LAN listener is bound, so nas's journal
+  shows `User upsmon@<oldsrv Home address> logged into UPS [powerwalker]` **and** the same line
   for `<Pi Home address>`, with `upsc powerwalker@nas.kogler.si ups.status` answering
   `OL…` on oldsrv and on the Pi. Per-host policy (oldsrv 75 % charge + pre-flush, nas/Pi
-  critical-only) is now actually exercised — but still **untested under a real mains loss**,
-  which is HD-06's drill (owner-gated).
+  critical-only) is in effect — but still **untested under a real mains loss** (owner-gated battery-pull
+  drill).
 - **How to prove a client leg — the read that does not lie:** `systemctl is-active nut-monitor`
   stays `active` while upsmon cannot reach the master (it retries forever), so a unit result is never evidence here.
   The evidence is `upsc powerwalker@nas.kogler.si ups.status` **on the client** plus, on the master, the journal
-  line `User upsmon@<client-ip> logged into UPS [powerwalker]`. Since HD-467 the nut role **runs both reads in
+  line `User upsmon@<client-ip> logged into UPS [powerwalker]`. The nut role **runs both reads in
   every converge**: the client leg asserts (fail-loud, escape hatch `-e nut_require_master_leg=false`),
   and the master asserts the socket is really bound.
 - **`upsd` binds every `LISTEN` address once, at start-up:** if the address is not configured on the interface
   yet it logs `not listening on <addr> port 3493` and keeps serving on what it got — so `upsd.conf` can carry a
   LAN listener that `ss -lntp` proves absent, and remote clients get `Connection refused` with nothing
-  reporting it. That is exactly what happened from **2026-09-14**: nas takes its Home address from DHCP and the
-  distro `nut-server.service` orders only after `network.target` (= "configured", not "address assigned"), so the
-  boot won the race and the unit never retried in 23 days. Fixed in two halves, both in the nut role:
+  reporting it. nas takes its Home address from DHCP and the
+  distro `nut-server.service` orders only after `network.target` (= "configured", not "address assigned"), so
+  a boot can win that race and the unit never retries. The nut role closes it in two halves:
   a `nut-server.service.d/10-network-online.conf` drop-in (`Wants=`/`After=network-online.target`, provided on
   nas by the enabled `NetworkManager-wait-online`), and a converge-time **prove-the-socket-and-repair** task —
   read `ss`, restart `nut-server` **once** if a declared address is missing, read again, then assert. The read
   runs with `check_mode: false` so `--check` reports the real state instead of a hopeful one.
-- **`LISTEN` is the whole access-control story on NUT 2.8 — there is no ACL to declare.** An earlier reading of
-  this defect asked for an `ACCEPT … / REJECT` pair in the same change; the installed **nut-server 2.8.1-5**
-  proves that model is gone: it logs `ACCEPT in upsd.conf is no longer supported - switch to LISTEN` (and the
-  same for `REJECT`) and **ignores both keywords** — measured on nas 2026-10-07, so writing them is a startup
+- **`LISTEN` is the whole access-control story on NUT 2.8 — there is no ACL to declare.** The installed
+  **nut-server 2.8.1-5** logs `ACCEPT in upsd.conf is no longer supported - switch to LISTEN` (and the
+  same for `REJECT`) and **ignores both keywords**, so writing them is a startup
   warning plus a false sense of restriction, not defense-in-depth. Exposure is therefore *which addresses upsd
   listens on* and privilege is *`upsd.users`* (the `upsmon` identity the slaves authenticate as + the read-only
   `nut_exporter` slave, both vault-backed). What an unauthenticated Home-VLAN peer gets is nothing — an
   unauthenticated `GET VAR` reads no data back, upsd answers nothing before `LOGIN`. A per-**address**
   restriction inside the subnet is a firewall decision on nas, never a re-add of those keywords; the nut role
-  now fails the converge when upsd reports an ignored keyword, so the class cannot come back silently.
+  fails the converge when upsd reports an ignored keyword, so the class cannot come back silently.
 - **Metrics + alerts (⏳ verify):** UPS metrics/alerts into VictoriaMetrics + Grafana
   ([`observability.md`](observability.md)) — Critical on battery charge/runtime, Warning on-battery, Info on
   transitions. **Metric shape is settled:** the exporter is DRuggeri `nut_exporter` v3, served on
   `/ups_metrics?ups=powerwalker` as **`network_ups_tools_*`** with per-flag
   `network_ups_tools_ups_status{flag=…}` labels (OL/OB/RB…) — **not** a `nut_*` bitmask. Alert rules,
   dashboard and the Alloy scrape (`metrics_path: /ups_metrics`, `params.ups`) match that shape; keep the
-  **tagged** exporter release pinned in the nut role (a `(devel)` build was the original cause of the
-  mismatch). ⏳ Live-verify the series + one alert firing after the next monitoring converge.
+  **tagged** exporter release pinned in the nut role — a `(devel)` build does not expose this shape.
+  ⏳ Live-verify the series + one alert firing after the next monitoring converge.
   See the monitoring role `vars/main.yml` + `alloy.river.j2`.
-- **No web-UI firewall path:** the UPS NIC sits on IoT VLAN 20 with no WAN, and the old trusted-admin → UPS
-  web forward rule is removed — NUT/USB is the only monitoring path (HD-338).
+- **No web-UI firewall path:** the UPS NIC sits on IoT VLAN 20 with no WAN, and there is no trusted-admin →
+  UPS web forward rule — NUT/USB is the only monitoring path.
 - **Guaranteed notify:** NUT-side `upssched-cmd` on nas emails + sends Signal directly on `ONBATT`/`LOWBATT`,
-  independent of Grafana/n8n. The SMTP credentials must be rendered **inline from the vault** (see defect ②
+  independent of Grafana/n8n. The SMTP credentials must be rendered **inline from the vault** (see invariant ②
   above); after a `smtp_login` rotation, re-converge nas and confirm the value in `/etc/nut/upssched-cmd`
   matches the vault.
 

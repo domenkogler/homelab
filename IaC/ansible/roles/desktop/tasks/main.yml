@@ -7,7 +7,7 @@
 #   2. Xorg fragment pinning the Intel iGPU (HD 630) as primary screen; the AMD
 #      dGPU (RX 7600) stays headless by design — no monitor, reserved for Docker
 #      GPU containers (see amd_rocm role / hardware-gpu.md).
-#   3. PENDING (HD-51, docs note): family user accounts + auto-login — 4 members +
+#   3. PENDING: family user accounts + auto-login — 4 members +
 #      guest + a NEUTRAL family account owning shared media data (NOT a personal
 #      account as uid 1000/1000). User/UID strategy still under research; until
 #      decided, the box boots to the LightDM greeter with no local users. Add here:

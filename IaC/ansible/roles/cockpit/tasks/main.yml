@@ -17,8 +17,7 @@
 - name: Install cockpit
   apt:
     # trixie has no cockpit-zfs package (community plugin, not packaged); cockpit-storaged
-    # is the packaged storage UI and shows ZFS pools via the storaged backend (live-found
-    # 2026-09-03 nas provision — 'No package matching cockpit-zfs is available').
+    # is the packaged storage UI and shows ZFS pools via the storaged backend.
     name: "{{ ['cockpit'] + (['cockpit-storaged'] if inventory_hostname == 'nas.kogler.si' else []) }}"
     state: present
     update_cache: true
@@ -36,11 +35,9 @@
     append: true
   loop: "{{ ansible_admin_users }}"
 
-# Only the Traefik host (oldsrv) drops the route config. Traefik's file
-# provider must watch /opt/traefik/dynamic (see services-traefik.md). On a
-# fresh provision (cockpit runs BEFORE docker_services/traefik), the dir does
-# not exist yet — create it first (idempotent), else the template fails
-# 'Destination directory ... does not exist' (live 2026-09-03 oldsrv).
+# Only the Traefik host (oldsrv) drops the route config; its file provider must watch
+# /opt/traefik/dynamic (see services-traefik.md). Cockpit runs BEFORE traefik, so the dir
+# must be created here (idempotent) — else 'Destination directory ... does not exist'.
 - name: Ensure Traefik file-provider dynamic dir exists
   ansible.builtin.file:
     path: /opt/traefik/dynamic
@@ -59,12 +56,10 @@
     mode: '0644'
   when: inventory_hostname == 'oldsrv.kogler.si'
 
-# HD-361 — the interactive login. Its own file because it is the only part of this role that
-# touches a credential or the PAM stack, so a skipped or failed credential leg is visible in a
-# task name instead of hiding among package and template tasks. It also carries the gate that
-# makes this role's login surface safe to have at all — read maint-user.yml §why-for-this-file
-# before disabling any part of it.
-- name: HD-361 | Provision the maint Cockpit login
+# The interactive login. Its own file because it is the only part of this role that
+# touches a credential or the PAM stack, so a skipped or failed credential leg stays
+# visible. Read maint-user.yml §why-for-this-file before disabling any part of it.
+- name: Provision the maint Cockpit login
   ansible.builtin.include_tasks: maint-user.yml
   when: cockpit_maint_vault_item is defined
 

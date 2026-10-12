@@ -1,50 +1,49 @@
 ---
 # Home server configuration — OLDSRV (bare-metal Debian + Docker, RX 7600, 48 GB RAM)
 #
-# === Service placement (HD-135 split, 2026-08-18) ===
+# === Service placement ===
 # Old-srv keeps the GPU / LAN / storage-bound core (immich-ml, jellyfin,
-# sunshine, media/*arr, DNS, ha-standby) + the thin Alloy collector (dozzle moved to VPS, HD-135b).
+# sunshine, media/*arr, DNS, ha-standby) + the thin Alloy collector.
 # The public edge + live-data apps + AI stack + the observability backend
-# (VictoriaMetrics + VictoriaLogs + Grafana — HD-342 replaced the Prometheus/Loki pair) +
-# the alert brain (n8n) + backup agents moved to the VPS (group_vars/vps.yml). See docs/services.md.
+# (VictoriaMetrics + VictoriaLogs + Grafana — the Victoria stack replaced the Prometheus/Loki
+# pair) + the alert brain (n8n) + backup agents live on the VPS (group_vars/vps.yml). See docs/services.md.
 
-# Reachability (HD-397, decided 2026-09-19): oldsrv sits behind the home NAT, so a runner
+# Reachability: oldsrv sits behind the home NAT, so a runner
 # that is not LAN-attached reaches it ONLY via the VPS jump. The jump therefore travels IN
 # THE INVENTORY (group var = every play sees it: home_servers.yml, all.yml, dns-seed.yml,
 # nut-deploy.yml, monitoring) instead of a per-command flag or one laptop's ssh alias —
 # same doctrine as playbooks/spark.yml ("keep it here so ANY runner converges spark").
 # From a LAN-attached runner it is a harmless no-op. The leg is the HOME leg (VLAN 10,
-# host_vars ansible_host): the Mgmt plane is sealed from the tunnel on purpose (HD-398 →
-# decision A). Matrix + the laptop alias contract: docs/network-vpn.md §Reaching LAN nodes
-# when away. (Measured 2026-09-19: because this var is passed on the ssh command line, no
+# host_vars ansible_host): the Mgmt plane is sealed from the tunnel on purpose.
+# Matrix + the laptop alias contract: docs/network-vpn.md §Reaching LAN nodes
+# when away. Because this var is passed on the ssh command line, no
 # `Host <ip>` block is needed for a converge — the per-IP blocks in the contract are for
-# scp/rsync/git and for humans who type an address.)
+# scp/rsync/git and for humans who type an address.
 ansible_ssh_common_args: "-o ProxyJump=vps"
 
-homelab_mode: desktop          # 'desktop' for Phase 1, 'proxmox' for Phase 2
-# HD-442 (2026-09-23): oldsrv runs `op`-calling glue (bootstrap_keys pre-pass,
+homelab_mode: desktop          # 'desktop' applies the desktop/office roles, 'proxmox' applies the proxmox role
+# oldsrv runs `op`-calling glue (bootstrap_keys pre-pass,
 # key provisioning) and must therefore hold the CURRENT write-scoped 1Password token.
 # The Authentik pre-pass that deploys it never runs here (no `authentik` entry), so
-# without this flag the box keeps whatever copy it happened to get — and the copy it had
-# was a retired service account (403 Service Account Deleted) while the VPS copy of the
-# SAME item probed green. See roles/docker_services/tasks/op-provision-token.yml.
+# without this flag the box keeps whatever copy it happened to get — and a stale copy is a
+# retired service account (403 Service Account Deleted) while the VPS copy of the
+# SAME item probes green. See roles/docker_services/tasks/op-provision-token.yml.
 docker_services_op_provision_token: true
 gpu_vendor: amd
 ollama_keep_alive: 5m
 
-# HA container pin (HD-192/HD-39): the PRIMARY (Pi, raspberry_pi.yml) and the STANDBY (this
+# HA container pin: the PRIMARY (Pi, raspberry_pi.yml) and the STANDBY (this
 # host) MUST run the same version for clean manual failover. The standby compose renders
 # ghcr.io/home-assistant/home-assistant:{{ home_assistant_version }} (standby.yml /
-# home-assistant-standby template) — an undefined var here broke the standby render on oldsrv
-# (2026-09-08).
-# ⚠ FIXED 2026-10-08: this file AND raspberry_pi.yml each carried their own copy of the pin, which
-#   is exactly how a primary/standby pair drifts. One copy now, in `group_vars/all/versions.yml` (§7).
+# home-assistant-standby template) — an undefined var here breaks the standby render.
+# One copy lives in `group_vars/all/versions.yml` (§7): a duplicate in two host files is
+# how a primary/standby pair drifts.
 
 # AMD ROCm host userspace (roles/amd_rocm, docs/hardware-gpu.md)
-# HD-318 (2026-09-07): Ubuntu-noble AMD repo INCOMPATIBLE with Debian trixie
-# (rocm-cmake/hipcc dep conflicts). External AMD repo REMOVED — Debian trixie ships
+# The Ubuntu-noble AMD repo is INCOMPATIBLE with Debian trixie
+# (rocm-cmake/hipcc dep conflicts) — no external AMD repo; Debian trixie ships
 # rocm-opencl-icd/hipcc/rocminfo in main. Host userland = tooling/inspection only;
-# GPU containers bundle their own ROCm (immich-ml; ollama disabled 2026-09-07).
+# GPU containers bundle their own ROCm.
 amd_rocm_packages:
   - rocm-opencl-icd
   - rocminfo
@@ -56,7 +55,7 @@ ha_failover_priority: 120       # failover keepalived (MASTER) must beat Pi prim
 # n8n webhook for ha-failover.sh notifications (event/status payload). Empty = skip
 # notify (always journald-logged). Set once the n8n workflow exists (observability.md).
 failover_notify_webhook: ""
-# Failover trigger API (HD-17) — Homepage buttons call this endpoint on oldsrv.
+# Failover trigger API — Homepage buttons call this endpoint on oldsrv.
 # Shared trigger token comes from 1Password `ha-failover_api` (api → credential),
 # looked up at render time in api.env + homepage services.yaml (fail-closed assert).
 failover_api_port: 8266
@@ -65,7 +64,7 @@ ha_sync_interval: 15           # minutes; Pi → standby config sync (LAN only)
 ha_standby_path: /opt/home-assistant-standby
 # Observability alerting (docs/observability.md) — Grafana alert email recipient.
 # SMTP fail-safe contact point in the monitoring role (grafana-contactpoints.yml.j2).
-# Decision HD-54 (Option B): dedicated transactional relay — SMTP2Go (mail-eu.smtp2go.com:2525).
+# Option B: a dedicated transactional relay — SMTP2Go (mail-eu.smtp2go.com:2525).
 # Credentials: smtp_login (Login) in 1Password — the address (domen@kogler.si)
 # is the Grafana recipient; SMTP2Go authenticates with a separate SMTP username+password.
 # Host/port derive from the SMTP2Go connection SSOT in group_vars/all/ (smtp2go_*).
@@ -75,10 +74,10 @@ grafana_alert_email: domen@kogler.si
 # The n8n workflow 'homelab-alerts' on this route must exist before the first
 # alert (created at n8n setup; URL is internal, traefik-public network).
 grafana_alert_webhook_url: "http://n8n:5678/webhook/homelab-alerts"
-# PrivadoVPN WireGuard egress for the qbittorrent gluetun sidecar (HD-318c).
+# PrivadoVPN WireGuard egress for the qbittorrent gluetun sidecar.
 # SSOT for the NON-secret endpoint config of the VPN tunnel; gluetun runs the
-# provider in `custom` WireGuard mode (gluetun dropped the native `privado`
-# provider — HD-318c) so these values are supplied explicitly instead of via
+# provider in `custom` WireGuard mode (the image has no native `privado`
+# provider) so these values are supplied explicitly instead of via
 # a `SERVER_COUNTRIES`/`privado` server pick. The client private key is the
 # ONLY secret — it lives in 1Password `privado-vpn_api` (field `credential`)
 # and is looked up at render time by the docker_services role (never a literal).
@@ -99,7 +98,7 @@ privado_vpn_cidr: 32                         # [Interface] Address prefix (WG /3
 # When omitted, the service name is used (e.g. traefik → traefik.kogler.si).
 # Required for services whose subdomain ≠ name (e.g. grafana → stats.kogler.si).
 
-# --- Homelable (HD-45, re-scoped 2026-09-09): network/rack topology visualizer ---
+# --- Homelable: network/rack topology visualizer ---
 # Internal-only dashboard on OLDSRV (Home VLAN 10). Scanner target ranges + knobs;
 # the compose template (docker_services/homelable/) renders these into the backend env.
 # `homelable_scanner_ranges_json` = the VLAN subnets the nmap discovery sweeps (site
@@ -118,11 +117,11 @@ homelable_deep_scan_ranges_json: ''
 # (needs the homelable_mcp 1P item + a tailnet Pattern-A route for remote AI clients).
 homelable_mcp_enabled: false
 
-# --- Pinned-AI tier on the RX 7600 (HD-391, decision #27: ggml/Vulkan) ---
+# --- Pinned-AI tier on the RX 7600 (ggml/Vulkan) ---
 # Ports are INTERNAL to the `llm-backend` bridge — none of these legs is published on the
-# host (HD-59: the APIs have no auth, so the network is the boundary). They exist so a
+# host (the APIs have no auth, so the network is the boundary). They exist so a
 # consumer URL is stable and greppable.
-# Memory caps are HARD CAPS in the spark-dcgm doctrine (HD-379): measured peak, then
+# Memory caps are HARD CAPS: measured peak, then
 # headroom, so a leak in one leg can never eat the card the whole tier shares with
 # immich-ML (3-5 GB during a job) and Jellyfin/Sunshine.
 # Plan of record + every measured number: docs/services-ai.md §3a.
@@ -131,24 +130,23 @@ ai_tier_whisper_memory_limit: "4g"      # fp16 GGML = 1.51 GiB + Vulkan buffers;
                                         # native CPU-fallback path (RSS 1.59 GiB measured) must
                                         # still fit under its own cap
 ai_tier_reranker_port: 9001
-ai_tier_reranker_memory_limit: "4g"     # was 1g, sized from "host RSS 157 MiB + 606 MiB Q8_0 weights" —
-                                        # an IDLE/reload reading, which is not the doctrine's "measured
-                                        # peak". Same-image sibling `embed` sits at 838 MiB / 1 GiB (82%)
-                                        # at rest, so 1g sits BELOW the operating point and a real batch
-                                        # memcg-kills the leg (HD-393: that kill is what emitted the
-                                        # `amdgpu: init_user_pages: Failed to get user pages: -1` bursts).
-                                        # 4g = the whisper leg's value for a comparable-size GGUF.
+ai_tier_reranker_memory_limit: "4g"     # a cap sized from an IDLE/reload reading is not the doctrine's
+                                        # "measured peak": the same-image `embed` sibling sits at 82% of a
+                                        # 1 GiB cap at rest, so 1g sits BELOW the operating point and a real
+                                        # batch memcg-kills the leg — and that kill is what emits the
+                                        # `amdgpu: init_user_pages: Failed to get user pages: -1` bursts.
+                                        # 4g matches the whisper leg's value for a comparable-size GGUF.
 ai_tier_embed_port: 9002
 ai_tier_embed_memory_limit: "4g"        # same correction, same image (`llama.cpp:server-vulkan`), same
-                                        # 1g-from-idle mistake; measured 838.4 MiB / 1 GiB at rest on
-                                        # 2026-09-28, with the llama-server process alone at 550 MiB.
+                                        # 1g-from-idle mistake: the llama-server process alone sits near
+                                        # 550 MiB, so a 1 GiB cap leaves no batch headroom.
 # Context window for BOTH GGUF legs. llama.cpp truncates SILENTLY beyond it and
 # llama-server's own default is 512 - which would slice a real ingest chunk in half. The RAG
 # ingest spec is token-based 512/64 (docs/services-ai.md §5b), so 2048 = that spec with 4x
 # headroom (bge-m3 supports 8192; paying KV memory for chunks that do not exist yet buys
-# nothing). Re-derive when rag-mcp (HD-268b) goes live and a real chunk size is measurable.
+# nothing). Re-derive when rag-mcp goes live and a real chunk size is measurable.
 ai_tier_gguf_ctx_size: 2048
-# Physical batch/ubatch size (HD-391, measured live 2026-09-19): ctx-size alone is NOT enough.
+# Physical batch/ubatch size: ctx-size alone is NOT enough.
 # The embedding endpoint rejects an input larger than the **ubatch**, and llama-server's error
 # message calls it "batch size" - which is why the first fix attempt (batch 2048, ubatch 512)
 # still answered HTTP 500 "input (842 tokens) is too large to process (current batch size: 512)",
@@ -159,34 +157,34 @@ ai_tier_gguf_batch_size: 2048
 ai_tier_gguf_ubatch_size: 2048
 
 docker_services:
-  # === This is OLDSRV — GPU / LAN / storage-bound services only (HD-135 split). ===
+  # === This is OLDSRV — GPU / LAN / storage-bound services only. ===
   # Public edge + live-data apps + observability backend + alert brain + backup agents
-  # moved to the VPS (group_vars/vps.yml). old-srv keeps the hardware-bound core + the
+  # live on the VPS (group_vars/vps.yml). old-srv keeps the hardware-bound core + the
   # thin Alloy collector (monitoring role) that forwards home telemetry to the VPS
-  # Victoria backend (VictoriaMetrics + VictoriaLogs, HD-342) over the wg-vps-services tunnel.
+  # Victoria backend (VictoriaMetrics + VictoriaLogs) over the wg-vps-services tunnel.
 
   # --- Compute / GPU backend (cannot leave the GPU box) ---
-  # ollama: RE-ARMED 2026-09-15 (decision #24) as the RX 7600 pinned-services tier, and
-  # DEMOTED by decision #27 (2026-09-18) to the EMBED FALLBACK RUNG: STT + rerank left
-  # Ollama entirely (no ROCm whisper.cpp artifact; no /api/rerank at ANY released version),
-  # and embed moves to the Vulkan `embed` leg below. It stays `enabled: true` until the
-  # Vulkan embed leg is LIVE-VERIFIED, then it is demoted further (not deleted) — its
-  # LiteLLM row stays in the catalog as the documented fallback for the same 1024-dim space.
-  # The `:rocm` image remains the proven RDNA3 ROCm path (verified 2026-08-21).
-  # docs/services-ai.md §3a + §9 #24/#25/#27 · docs/hardware-gpu.md.
+  # --- Compute / GPU backend (cannot leave the GPU box) ---
+  # ollama: the RX 7600 pinned-services tier, demoted to the EMBED FALLBACK RUNG: STT +
+  # rerank left Ollama entirely (no ROCm whisper.cpp artifact; no /api/rerank at ANY
+  # released version), and embed moves to the Vulkan `embed` leg below. It stays
+  # `enabled: true` until the Vulkan embed leg is LIVE-VERIFIED, then it is demoted further
+  # (not deleted) — its LiteLLM row stays in the catalog as the documented fallback for the
+  # same 1024-dim space.
+  # The `:rocm` image remains the proven RDNA3 ROCm path.
+  # docs/services-ai.md §3a · docs/hardware-gpu.md.
   # ⚠ DO NOT flip this back to `enabled: false` while the voice pipeline or the LiteLLM
   # embed row still depends on it: the retire-ollama step is gated on the Vulkan embed leg
-  # being LIVE-VERIFIED (docs/services-ai.md §3a), which is HD-391's last checkbox, not its
-  # first.
+  # being LIVE-VERIFIED (docs/services-ai.md §3a), which is the last checkbox, not the first.
   - { name: ollama,          template_dir: ollama, enabled: true }
 
-  # --- Pinned-AI tier: ggml/Vulkan on the RX 7600 (HD-391, decision #27 ACCEPTED 2026-09-18) ---
+  # --- Pinned-AI tier: ggml/Vulkan on the RX 7600 ---
   # Three legs, two images, ONE engine family. Digest-pinned in group_vars/all/versions.yml
   # (`main-vulkan` / `server-vulkan` are mutable aliases - CONVENTIONS §7). All three mount
   # ONLY the dGPU render node (no /dev/kfd: no ROCm userspace in this tier at all) and sit on
   # `llm-backend` with no publish. Measured tier cost: ~2.4 GiB of 8 GiB VRAM, ~0.5 GiB host
   # RSS. Model artifacts are sha256-verified by the generic model-fetch task in
-  # roles/docker_services/tasks/deploy-service.yml (svc.model_* opt-in, HD-391) and land on
+  # roles/docker_services/tasks/deploy-service.yml (svc.model_* opt-in) and land on
   # the nvme/models dataset (regenerable, never backed up).
   # STT: whisper.cpp whisper-server, `--inference-path /v1/audio/transcriptions` (OpenAI-shaped
   # natively, no wrapper). fp16 large-v3-turbo; q5_0 is the pre-approved -1.0 GiB relief rung
@@ -196,39 +194,38 @@ docker_services:
       model_dir: /srv/models/whisper, model_file: ggml-large-v3-turbo.bin,
       model_sha256: "{{ whisper_cpp_model_sha256 }}" }
   # Rerank: llama.cpp cross-encoder (`--pooling rank --rerank`), routed as LiteLLM `jina_ai/`.
-  # ⚠ SHIPPED DORMANT - its consumer rag-mcp is still the HD-268b stub; verified by a LiteLLM
+  # ⚠ SHIPPED DORMANT - its consumer rag-mcp is still a stub; verified by a LiteLLM
   # probe + a synthetic consumer, not by live RAG traffic (docs/services-ai.md §3a).
   - { name: reranker,        template_dir: reranker, enabled: true,
       model_url: "https://huggingface.co/gpustack/bge-reranker-v2-m3-GGUF/resolve/main/bge-reranker-v2-m3-Q8_0.gguf",
       model_dir: /srv/models/reranker, model_file: bge-reranker-v2-m3-Q8_0.gguf,
       model_sha256: "{{ reranker_model_sha256 }}" }
   # Embed: llama.cpp bge-m3 Q8_0, 1024-dim unchanged (cosine 0.9996 vs the live Ollama vectors
-  # => routing, NOT a corpus migration; HD-268's re-index is not triggered).
+  # => routing, NOT a corpus migration; no re-index is triggered).
   - { name: embed,           template_dir: embed, enabled: true,
       model_url: "https://huggingface.co/ggml-org/bge-m3-Q8_0-GGUF/resolve/main/bge-m3-q8_0.gguf",
       model_dir: /srv/models/embed, model_file: bge-m3-q8_0.gguf,
       model_sha256: "{{ embed_model_sha256 }}" }
   - { name: immich-ml,       template_dir: immich-ml }   # ML offload for immich-app on VPS (over WG)
 
-  # --- DNS (HD-299, VPS-primary 2026-09-03): oldsrv is now the SECONDARY resolver ---
+  # --- DNS (VPS-primary): oldsrv is the SECONDARY resolver ---
   #   PRIMARY = VPS (group_vars/vps.yml), SECONDARY = oldsrv (this entry, instance:
   #   secondary, no web-UI labels — the dns.kogler.si UI lives on the VPS primary),
   #   TERTIARY = Pi (raspberry_pi.yml). LAN DHCP chain + router rules + tailnet
   #   headscale nameservers all list VPS-primary first (see docs/network-dns.md).
-  # HD-476 (owner call 2026-09-30): forwards to the same SSOT upstreams as the primary and the Pi
-  # (one list, not per-instance lists — rejected alternative in docs/network-rejected.md). Egress-only
+  # Forwards to the same SSOT upstreams as the primary and the Pi
+  # (one list, not per-instance lists — alternatives: docs/network-rejected.md). Egress-only
   # knob; behaviour + measurements: docs/network-dns.md §Resolver upstream.
   - { name: technitium,      template_dir: technitium, instance: secondary, enabled: "{{ inventory_hostname == 'oldsrv.kogler.si' }}",
       technitium_forwarders: "{{ dns_resolver_upstreams }}" }
-  # RETIRED 2026-09-10 (network-dns.md): Main-Group ad-blocking moved to Technitium
-  # Advanced Blocking (kept the filter on the reliable VPS/Pi DNS tier instead of
-  # oldsrv). Entry kept `enabled: false` so the deploy loop tears the container down
-  # (2026-09-14 converge was mid-flight when the row was retired — the stale live
-  # pihole container kept crash-looping from the read_only+cap_drop hardening).
-  # Vault item pihole_password intentionally left in place (owner: leave as-is).
+  # Main-Group ad-blocking lives in Technitium
+  # Advanced Blocking (the filter belongs on the reliable VPS/Pi DNS tier, not
+  # oldsrv). This entry stays `enabled: false` so the deploy loop tears the container down;
+  # a retired row that is still `enabled: true` leaves a crash-looping container behind.
+  # Vault item pihole_password is intentionally left in place.
   - { name: pihole,          template_dir: pihole,     subdomain: ad, public: false, enabled: false }
 
-  # --- Home-LAN internal all-app edge (HD-350): traefik-internal on OLDSRV ---
+  # --- Home-LAN internal all-app edge: traefik-internal on OLDSRV ---
   # Host-net, VIP + LAN-IP bound :80/:443, file-provider routes (dynamic/routes.yml.j2),
   # NO Forward-Auth/CrowdSec (VPS-dependent — must survive WAN-out). All internal
   # app names (*arr/media/seerr/…/ha/dns-pi + VPS-hosted via wg-s2s :4443) are served
@@ -242,12 +239,11 @@ docker_services:
   - { name: home-assistant-standby, template_dir: home-assistant-standby, enabled: false }
 
   # --- Observability: LAN log hub (Dozzle) ---
-  # HD-343 ride-along (2026-09-15): the VPS keeps the VPS-only viewer (logs.kogler.si,
-  # group_vars/vps.yml). OLDSRV now runs the LAN log HUB: a full Dozzle (llogs.kogler.si,
+  # The VPS keeps the VPS-only viewer (logs.kogler.si,
+  # group_vars/vps.yml). OLDSRV runs the LAN log HUB: a full Dozzle (llogs.kogler.si,
   # :8081, served by the traefik-internal home edge — WAN-out survival) that shows oldsrv
   # containers + pi + spark via remote agents (DOZZLE_REMOTE_AGENT over the Home VLAN).
-  # LAN logs stay LAN-only by design — never reach the VPS / public / tailnet. The old
-  # HD-135b tombstone (dozzle MOVED to the VPS) is superseded: the home hub is a NEW role.
+  # LAN logs stay LAN-only by design — never reach the VPS / public / tailnet.
   - { name: dozzle,          template_dir: dozzle, subdomain: llogs, public: false, enabled: true,
       dozzle_listen_ip: "{{ oldsrv_home_ip }}", dozzle_http_port: 8081,
       dozzle_agent_connect: ["{{ pi_home_ip }}:7007|pi", "{{ spark_home_ip }}:7007|spark"] }
@@ -260,115 +256,111 @@ docker_services:
 
   # --- Media / *arr stack — internal-only, documents/services.md ---
   - { name: jellyfin,     template_dir: jellyfin,     subdomain: media }
-  - { name: seerr,        template_dir: seerr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318: Docker auto-creates /srv/docker/seerr/config as root; container runs uid 1000 → crash-loop without bind-owner + bind_dirs (the dir must be pre-created 1000-owned)
-  - { name: seerrng,       template_dir: seerrng, subdomain: seerrng, public: false, enabled: true, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-353 (2026-09-10): alongside seerr (same Sonarr/Radarr backends); own Jellyfin login; internal-only; HD-318 ownership — image runs uid 1000, config dir must be pre-created 1000-owned
-  - { name: sonarr,       template_dir: sonarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A: image runs PUID=1005; config dir must be pre-created 1005-owned (2026-09-15 live: root-owned config → crash-loop after converge recreated the container)
-  - { name: radarr,       template_dir: radarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
-  - { name: lidarr,       template_dir: lidarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
-  # HD-362 (2026-09-14, revised 2026-09-14): Music acquisition tier — agreed ladder:
+  - { name: seerr,        template_dir: seerr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # Docker auto-creates /srv/docker/seerr/config as root while the container runs uid 1000 -> crash-loop; bind_owner_uid + bind_dirs pre-create it 1000-owned
+  - { name: seerrng,       template_dir: seerrng, subdomain: seerrng, public: false, enabled: true, bind_owner_uid: 1000, bind_dirs: ['config'] }   # alongside seerr (same Sonarr/Radarr backends); own Jellyfin login; internal-only; ownership — image runs uid 1000, config dir must be pre-created 1000-owned
+  - { name: sonarr,       template_dir: sonarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; a root-owned config dir crash-loops after a converge recreates the container
+  - { name: radarr,       template_dir: radarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; pre-create the config dir 1005-owned or it crash-loops
+  - { name: lidarr,       template_dir: lidarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; pre-create the config dir 1005-owned or it crash-loops
+# Music acquisition tier — agreed ladder:
   #   1) usenet (SABnzbd, existing)  2) Soulseek (slskd)  3) Lidarr-YouTube-Downloader
   #   (youtube → Lidarr). orpheusdl + Murglar = MANUAL device tools (laptop/phone, no
   #   IaC). Aurral (lastfm/metabrainz history, free) = discovery → Lidarr. All P2P egress
   #   (slskd only; qBittorrent stays for VIDEO via Sonarr/Radarr) through the shared
   #   gluetun WireGuard → PrivadoVPN (owner V4); SABnzbd stays plain LAN. Deploy-gated:
   #   owner seeds 1P items then converge oldsrv (see deployment-manual §Phase 3).
-  - { name: aurral,        template_dir: aurral,         public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'downloads'] }  # music discovery (Last.fm/ListenBrainz → Lidarr API), GHCR, v1.53.0 — app su-execs to AURRAL_UID (storage_uid 1005) and writes SQLite into /data; /srv/docker/aurral/config must be pre-created 1005-owned (HD-362 live, SQLITE_CANTOPEN otherwise); `downloads` bound at /app/downloads (weekly playlist manager EACCES otherwise)
+  - { name: aurral,        template_dir: aurral,         public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'downloads'] }  # music discovery (Last.fm/ListenBrainz -> Lidarr API), GHCR — app su-execs to AURRAL_UID (storage_uid 1005) and writes SQLite into /data, so /srv/docker/aurral/config must be pre-created 1005-owned (SQLITE_CANTOPEN otherwise); `downloads` bound at /app/downloads (weekly playlist manager EACCES otherwise)
   - { name: slskd,         template_dir: slskd,          public: false, enabled: true }  # Soulseek P2P #2 — gluetun sidecar (official slskd VPN integration), VPN-locked, fetch-only
-  - { name: lidarr-ydl,    template_dir: lidarr-ydl,     public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'home'] }  # Lidarr-YouTube-Downloader (Angrido) — youtube → Lidarr, #3 priority, Newznab+SABnzbd emulation; s6 setprivs to PUID (1005) and chmods /config — host dir must be 1005-owned (HD-362 live, "chmod /home/appuser: Operation not permitted" otherwise); `home` bound at /home/appuser (the image has NO appuser home on its RO layer — s6's `> /home/appuser/.profile` EACCES crash-loop otherwise)
-  - { name: tube-archivist, template_dir: tube-archivist, public: false, enabled: false, bind_owner_uid: 1000, bind_dirs: ['es'] } # Personal YouTube (headless yt-dlp) — internal only; ES image runs uid 1000 → /srv/docker/tube-archivist/es must be pre-created 1000-owned (HD-362 live, crash-loop "failed to obtain node locks" otherwise) — DISABLED 2026-09-15 (owner: "I don't need it right now"; oldsrv constant CPU / alternating RAM = TA loop on `path.repo` ES snapshot env-check; re-enable once the fix lands in ES elasticsearch.yml directly, HD-362 tail)
-  - { name: prowlarr,     template_dir: prowlarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
-  - { name: bazarr,       template_dir: bazarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop)
-  - { name: sabnzbd,      template_dir: sabnzbd,      subdomain: sab, bind_owner_uid: 1005, bind_dirs: ['config'] }   # HD-318 Class-A: image runs PUID=1005; /srv/docker/sabnzbd/config must be pre-created 1005-owned (2026-09-15 live: root-owned empty config → "Cannot create INI file /config/sabnzbd.ini" crash-loop after a converge recreated the container)
-  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent, bind_owner_uid: 1005, bind_dirs: ['config'], secret_item: qbittorrent_api }   # HD-318 Class-A (2026-09-15 live: root-owned config → crash-loop); + gluetun sidecar in template (HD-362; edge routes: torrent). `secret_item` = the WebUI credential tasks/qbittorrent-seed.yml writes into qBittorrent.conf — a `*_item` registry key on purpose, so scripts/check-vault-items.sh sees it (CONVENTIONS §2 item-reference coverage; the compose itself references no such item, so a literal-lookup grep never would).
-  - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318 Class-A: image su-execs to uid 1000 (docker top: /app/profilarr runs as domen=1000); config dir must be pre-created 1000-owned (2026-09-15: initially mis-set to 1005, corrected — the app runs as 1000)
-  - { name: recyclarr,    template_dir: recyclarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # HD-318 Class-A, CORRECTED 2026-09-28: the image's own USER is 1000:1000 (`docker inspect` Config.User), so the 2026-09-15 fix that moved the bind from root to 1005 (`media`) still left /config unwritable — the @daily run died on `Access to the path '/config/cache' is denied`. Scheduled worker, no UI.
-  # HD-1084: Cloudflare solver for Prowlarr. No UI, no subdomain, no host publish — overlay-only,
+  - { name: lidarr-ydl,    template_dir: lidarr-ydl,     public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'home'] }  # Lidarr-YouTube-Downloader (Angrido) — youtube -> Lidarr, #3 priority, Newznab+SABnzbd emulation; s6 setprivs to PUID (1005) and chmods /config, so the host dir must be 1005-owned ("chmod /home/appuser: Operation not permitted" otherwise); `home` bound at /home/appuser (the image has NO appuser home on its RO layer — s6's `> /home/appuser/.profile` EACCES crash-loop otherwise)
+  - { name: tube-archivist, template_dir: tube-archivist, public: false, enabled: false, bind_owner_uid: 1000, bind_dirs: ['es'] } # Personal YouTube (headless yt-dlp) — internal only; the ES image runs uid 1000, so /srv/docker/tube-archivist/es must be pre-created 1000-owned (crash-loop "failed to obtain node locks" otherwise) — DISABLED: on this box it loops on the `path.repo` ES snapshot env-check (constant CPU / alternating RAM); re-enable once that is set in ES elasticsearch.yml directly
+  - { name: prowlarr,     template_dir: prowlarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; pre-create the config dir 1005-owned or it crash-loops
+  - { name: bazarr,       template_dir: bazarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; pre-create the config dir 1005-owned or it crash-loops
+  - { name: sabnzbd,      template_dir: sabnzbd,      subdomain: sab, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; /srv/docker/sabnzbd/config must be pre-created 1005-owned (an empty root-owned dir gives "Cannot create INI file /config/sabnzbd.ini" after a converge recreates the container)
+  - { name: qbittorrent,  template_dir: qbittorrent,  subdomain: torrent, bind_owner_uid: 1005, bind_dirs: ['config'], secret_item: qbittorrent_api }   # image runs PUID=1005; pre-create the config dir 1005-owned; + gluetun sidecar in the template (edge routes: torrent). `secret_item` = the WebUI credential tasks/qbittorrent-seed.yml writes into qBittorrent.conf — a `*_item` registry key on purpose, so scripts/check-vault-items.sh sees it (CONVENTIONS §2 item-reference coverage; the compose itself references no such item, so a literal-lookup grep never would)
+  - { name: profilarr,    template_dir: profilarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # image su-execs to uid 1000 (docker top: /app/profilarr runs as domen=1000); the config dir must be pre-created 1000-owned — the media uid 1005 is wrong here
+  - { name: recyclarr,    template_dir: recyclarr, bind_owner_uid: 1000, bind_dirs: ['config'] }   # the image's own USER is 1000:1000 (`docker inspect` Config.User), so binding the dir to 1005 (`media`) still leaves /config unwritable — the @daily run dies on `Access to the path '/config/cache' is denied`. Scheduled worker, no UI
+  # Cloudflare solver for Prowlarr. No UI, no subdomain, no host publish — overlay-only,
   # reached by Prowlarr at http://flaresolverr:8194. Added because 1337x.to cannot be added without it
   # (`Unable to access 1337x.to, blocked by Cloudflare Protection`); services-media.md §Catalog had
   # deferred FlareSolverr until an indexer actually demanded a bypass. bind_dirs is empty on purpose:
   # the container persists nothing, so there is no /srv/docker/flaresolverr/config to pre-create.
   - { name: flaresolverr, template_dir: flaresolverr, bind_dirs: [] }
 
-  # --- Dev AI (HD-355/356) — dsh + pi-dev PARKED (DISABLED) 2026-09-17, HD-386 ---
-  # History: MOVED here from the VPS 2026-09-10 (tailscale sidecars removed; UIs were
-  # to publish on oldsrv_home_ip :3080/:8080, media-bridge pattern, reached by the VPS
-  # tailnet edge over WG S2S). The owner has since REMOVED both harnesses — no dsh and
-  # no pi-dev container exists on the VPS (torn down 2026-09-14) or on oldsrv — and per
-  # decision #26 (services-ai.md §9) the coding harnesses are DEDICATED deployments from
-  # now on, not docker_services entries. This registry is therefore their NON-host:
-  # both entries stay DISABLED (kept, not deleted, so template_dir + the port contract
-  # survive a future re-onboarding).
-  # WHY disabled and not merely absent — the fail-closed class that made every oldsrv
+  # --- Dev AI — dsh + pi-dev PARKED (DISABLED) ---
+  # The owner REMOVED both harnesses: no dsh and no pi-dev container exists on the VPS or
+  # on oldsrv, and per services-ai.md §9 the coding harnesses are DEDICATED deployments,
+  # not docker_services entries. This registry is therefore their NON-host: both entries
+  # stay DISABLED (kept, not deleted, so template_dir + the port contract survive a future
+  # re-onboarding).
+  # WHY disabled and not merely absent — the fail-closed class that makes every oldsrv
   # docker_services converge red: both compose templates render a 1P-sourced scoped key
   # (dsh → vault['dsh_api'], pi-dev → vault['pi-harness_openai_api']) and BOTH items are
   # DELIBERATELY EMPTY in the vault (the LAN glue owns their value), so enabling either
   # dies at render ('dict object' has no attribute 'dsh_api') and takes the whole
-  # converge down with it. Live-found 2026-09-15 (the ordering lesson below), re-found
-  # 2026-09-17 while tracing the HD-383 abort — the abort was never the only red thing.
+  # converge down with it.
   #
-  # The LAN LiteLLM itself STAYS ENABLED: per decision #26 it is the gateway for the
+  # The LAN LiteLLM itself STAYS ENABLED: it is the gateway for the
   # SIMPLE QUERIER tier (HomeAssistant, Docling, Open WebUI) + the pinned-AI legs
-  # (embed/STT per decision #25) — that role is independent of the harnesses.
-  # Its bootstrap-keys glue is ON since 2026-09-27, flipped in the same change as its first
-  # real consumer record (`home-assistant`, HD-384/HD-403) — the same-change rule from
-  # hardware-spark.md §Model-catalog sync. What held it OFF for ten days was not the flag:
-  # with the harness records gone the spec list was empty and the glue fail-louds on that
-  # ("FATAL: no scoped-key specs rendered", rc1). That FATAL stays on purpose — it is what
-  # makes a flip-without-a-consumer and a consumer-without-a-flip both a red converge
-  # instead of a runtime 401 — and it is why the two halves must always move together.
-  # Minting also needs the host-side write-scoped op token (HD-442's
-  # `docker_services_op_provision_token`), which is why a flip on a host that cannot reach
+  # (embed/STT) — that role is independent of the harnesses.
+  # Its bootstrap-keys glue is ON, flipped in the same change as its first
+  # real consumer record (`home-assistant`) — the same-change rule from
+  # hardware-spark.md §Model-catalog sync. What keeps it safe to flip is a NON-EMPTY spec
+  # list: with no consumer record the glue fail-louds ("FATAL: no scoped-key specs
+  # rendered", rc1). That FATAL stays on purpose — it is what makes a flip-without-a-
+  # consumer and a consumer-without-a-flip both a red converge instead of a runtime 401 —
+  # and it is why the two halves must always move together.
+  # Minting also needs the host-side write-scoped op token
+  # (`docker_services_op_provision_token`), which is why a flip on a host that cannot reach
   # 1Password is never safe to attempt.
-  # (Historical ordering contract, inert while no consumer exists: a bootstrap_keys
+  # Ordering contract: a bootstrap_keys
   # service MUST precede its consumers in this list, because the glue runs during ITS
-  # deploy pass and refreshes the vault dict the consumers render from.)
-  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway (decision #26); own Postgres; Kopia-backed
-      bootstrap_keys: true }   # HD-386 → HD-384 → HD-403 step 2: FLIPPED 2026-09-27, the act this line told the next session to perform. oldsrv answers again and the token leg that made the glue unwritable is fixed (HD-442), so `home-assistant_api` mints here. ⚠ The glue runs inside THIS service's pass and rc1/rc2/rc4 all fail the converge (`failed_when: rc != 0`), so an empty spec list or a stale vault bearer is a red run by design — remediation is named in the log line (litellm-bootstrap-keys.sh.j2).
-  - { name: dsh,            template_dir: dsh,       public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:3080
-  - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: false }   # PARKED 2026-09-17 (HD-386, decision #26) — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:8080
+  # deploy pass and refreshes the vault dict the consumers render from.
+  - { name: lan-litellm,    template_dir: lan-litellm, public: false, enabled: true,   # simple-querier gateway; own Postgres; Kopia-backed
+      bootstrap_keys: true }   # the first consumer this glue mints for is `home-assistant_api`. ⚠ The glue runs inside THIS service's pass and rc1/rc2/rc4 all fail the converge (`failed_when: rc != 0`), so an empty spec list or a stale vault bearer is a red run by design — remediation is named in the log line (litellm-bootstrap-keys.sh.j2)
+  - { name: dsh,            template_dir: dsh,       public: false, enabled: false }   # PARKED — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:3080
+  - { name: pi-dev,         template_dir: pi-dev,    public: false, enabled: false }   # PARKED — dedicated deployment, not an IaC service; UI would be oldsrv_home_ip:8080
 
-  # ⏳ Spark AI (Qwen3.8-Flash-Next on GB10) — DEPLOY-GATED ON SPARK (HD-359/HD-337):
+  # ⏳ Spark AI (Qwen3.8-Flash-Next on GB10) — DEPLOY-GATED ON SPARK:
   #     the engine lives on the spark NODE (host_vars/spark.kogler.si.yml), NOT oldsrv.
   #     This registry entry is the spark node's inference stack (template_dir spark-ai,
   #     vLLM B1 + llm-d router) and is kept DISABLED here so a homelab converge on
   #     OLDSRV never deploys it; it flips via the spark node's own group_vars once
   #     the box is up + bench certifies the winner engine (then moved to a spark.yml).
 
-  # --- Finance: Actual Budget (HD-57, decision 2026-08-24) — internal-only P+I;
+  # --- Finance: Actual Budget — internal-only P+I;
   #     stable pin + n8n EB bridge (docs/services-finance.md). API leg :5006 published
   #     on oldsrv_home_ip for n8n over WG (immich-ml precedent).
-  - { name: actual-budget,   template_dir: actual-budget, bind_owner_uid: 1001, bind_dirs: ['data'] }   # HD-318: the image's data dir is /data owned by `actual` (uid 1001); bind_owner_uid + bind_dirs pre-create /srv/docker/actual-budget/data 1001-owned so the migration's uid-1001 mkdir succeeds
+  - { name: actual-budget,   template_dir: actual-budget, bind_owner_uid: 1001, bind_dirs: ['data'] }   # the image's data dir is /data owned by `actual` (uid 1001); bind_owner_uid + bind_dirs pre-create /srv/docker/actual-budget/data 1001-owned so the migration's uid-1001 mkdir succeeds
 
-  # --- Backup: off-site agent (HD-191) — client of kopia-server on the VPS ---
+  # --- Backup: off-site agent — client of kopia-server on the VPS ---
   # Snapshots oldsrv-LOCAL state (configs, dumps scratch, thumbs, signal state) to
   # the Hetzner backup Box via kopia-server over the WG S2S tunnel. Never reads NAS
   # mounts (backup.md invariant). Scheduled worker, no UI.
   - { name: kopia-agent,    template_dir: kopia-agent }
 
-  # --- Observability AI-debugging MCP servers (HD-344) — oldsrv (≈600–700 MB RAM each) ---
+  # --- Observability AI-debugging MCP servers — oldsrv (≈600–700 MB RAM each) ---
   # Front-ends to the VPS Victoria backends (VM :8428 / VL :9428) over wg-s2s
-  # (victoria_backend_host). Tailnet/LAN-only, never public. ⏳ deploy-gated: oldsrv
-  # is Phase-3/HD-318 + needs the VPS Victoria backend live (HD-342). See docs/observability.md.
+  # (victoria_backend_host). Tailnet/LAN-only, never public. ⏳ deploy-gated: needs
+  # the VPS Victoria backend live. See docs/observability.md.
   - { name: mcp-victoriametrics, template_dir: mcp-victoriametrics, public: false, enabled: true }
   - { name: mcp-victorialogs,    template_dir: mcp-victorialogs,    public: false, enabled: true }
 
-  # --- Homelable (HD-45, re-scoped 2026-09-09): network/topology visualizer on oldsrv ---
+  # --- Homelable: network/topology visualizer on oldsrv ---
   # Self-hosted network + rack topology canvas, nmap discovery, live healthchecks + MCP
   # (Pouzor/homelable, MIT). Internal-only dashboard — NEVER public/WAN. Access via the
   # Home-VLAN (direct IP or a future local edge) and the tailnet; there is NO home-host
-  # Traefik edge (HD-331), and the VPS traefik-tailnet edge cannot reach back into the
+  # Traefik edge, and the VPS traefik-tailnet edge cannot reach back into the
   # home LAN. ⏳ deploy-gated: owner sign-off + secrets seeded (docs/services-admin.md
   # §Homelable). MCP sub-container is optional (homelable_mcp_enabled) — off by default.
   - { name: homelable, template_dir: homelable, public: false, enabled: false }
 
-  # --- Services MOVED to the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
+  # --- Services on the VPS (group_vars/vps.yml) — not deployed on oldsrv ---
   # opencloud/immich-app/forgejo/litellm/qdrant/docling/open-webui/openclaw,
   # grafana/blackbox-exporter + the Victoria backend (victoria-metrics + victoria-logs —
-  # they replaced prometheus + loki, HD-342), n8n, kopia-server,
+  # they replaced prometheus + loki), n8n, kopia-server,
   # db-backup, matrix, chat, headscale, pairdrop, stirling-pdf, renovate,
-  # homepage (HD-180/HD-183 — family launchpad at the public edge).
-  # metabase: RETIRED from the VPS 2026-09-14 (was here); future home = oldsrv.
-  # MinIO REMOVED (2026-08-18, HD-135): Immich originals = live Hetzner Box (CIFS), not S3.
+  # homepage (the family launchpad at the public edge).
+  # metabase is not deployed anywhere; its future home is oldsrv.
+  # There is no MinIO: Immich originals are the live Hetzner Box (CIFS), not S3.
 #
 # EXPLICITLY an empty LIST, not a key-with-only-comments: YAML would parse that as None
 # and `litellm_scoped_keys | default([])` does NOT rescue None (the default filter fires on
@@ -376,58 +368,52 @@ docker_services:
 # `tasks/deploy-service.yml` both pipe it through `map(attribute='vault_item')` and would
 # die on a full oldsrv converge. `[]` keeps those pipes clean.
 litellm_scoped_keys:
-  # HD-384 (decided 2026-09-21): the simple-querier tier gets the spark ROW, never a
+  # The simple-querier tier gets the spark ROW, never a
   # `spark/*` wildcard, and NO max_budget (owned devices, no metered cost); `rpm` stays —
-  # it is contention protection on spark's single shared KV pool, not a bill. The field
-  # had no code path until 2026-09-26 (litellm-bootstrap-keys.sh.j2 mint_key); the value
+  # it is contention protection on spark's single shared KV pool, not a bill. The value
   # 30 below is the IMPLEMENTER's pick — the owner decided "small caps stay", not a number.
-  # ⛔ MINTING SINCE 2026-09-27 (the `bootstrap_keys: true` flip above): oldsrv answers again and
-  # the write-scoped token leg is fixed (HD-442), so the glue runs on this instance's deploy
-  # pass and `home-assistant_api` is created in the vault by the converge, not by hand.
-  # ⚠ The item's ABSENCE before that flip was the correct state, not a gap: the glue is
-  # create-if-absent and the consumers render only after it refreshes the vault dict.
-  # ✅ THE SECOND GATE RECORDED HERE IS GONE (research 2026-09-26, HD-403): "HA has no surface for a
-  # self-hosted OpenAI-compatible base_url" was true of `openai_conversation` only. HA **2026.8** ships a stock
-  # `litellm` conversation integration (ha-core #172960, merged 2026-07-17; probed at the tags — 404 at 2026.7.0,
-  # 200 at 2026.8.0) and the pin (moved to `group_vars/all/versions.yml`, `2026.9.4` since 2026-10-08) already carries it: any proxy URL + an
-  # optional virtual key, models discovered from `/v1/models`. So `bootstrap_keys` was flipped on 2026-09-27, once oldsrv answered — the key is not minted for nobody. ⚠ Two sequencing facts: HA queries `/v1/models`
-  # **before** it creates its config entry (mint must land first), and voice goes live only once that entry + its
-  # conversation agent exist (config-flow only, no YAML, no template here). Evidence:
-  # smart-home-voice.md §the LLM leg.
-  - { alias: home-assistant, vault_item: home-assistant_api, models: "spark/qwen3.8-flash-next", max_budget: "", budget_duration: "", rpm: "30" }   # HD-384 · consumer HD-403 (surface = HA 2026.8 stock `litellm` integration, already in the pin) · change rpm HERE, never in the LiteLLM DB
-  # LAN LiteLLM scoped keys (HD-356/HD-370) — per-instance SSOT consumed by the
+  # ⚠ The key is minted by the converge, not by hand: the `bootstrap_keys: true` flip above
+  # runs the glue on this instance's deploy pass, and it is create-if-absent, so consumers
+  # render only after it refreshes the vault dict.
+  # HA **2026.8** ships a stock
+  # `litellm` conversation integration (ha-core #172960), so any proxy URL + an
+  # optional virtual key works and models are discovered from `/v1/models`; the pin in
+  # `group_vars/all/versions.yml` already carries that integration. The consumer renders
+  # **before** it creates its config entry (mint must land first), and voice goes live only
+  # once that entry + its conversation agent exist (config-flow only, no YAML, no template
+  # here). Evidence: smart-home-voice.md §the LLM leg.
+  - { alias: home-assistant, vault_item: home-assistant_api, models: "spark/qwen3.8-flash-next", max_budget: "", budget_duration: "", rpm: "30" }   # simple-querier consumer · surface = the HA stock `litellm` integration, already in the pin · change rpm HERE, never in the LiteLLM DB
+  # LAN LiteLLM scoped keys — per-instance SSOT consumed by the
   # bootstrap-keys glue + scripts/check-vault-items.sh (same record shape as the
   # VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS, but the
   # keys minted here live in the LAN lan-litellm-db).
   #
-  # PARKED 2026-09-17 (HD-386, decision #26): the two harness records are commented out
+  # PARKED: the two harness records are commented out
   # because their consumers no longer exist (dsh/pi-dev removed by the owner; coding
-  # harnesses are dedicated deployments now, reached DIRECTLY per decision #26 — they
-  # are not LiteLLM consumers any more). Leaving them in minted keys for nobody and kept
-  # every converge red: the glue probes the stored `dsh_api` credential, gets 401 (it is
-  # a VPS-DB-era value), and correctly refuses to auto-overwrite a secret → ABORT rc2
-  # (that is HD-383). Commenting the records removes both the mint and the probe.
-  # The 1P ITEMS used to stay in the vault (a parked consumer must not imply a deleted
-  # secret). Owner act 2026-09-27 (HD-383): `dsh_api`, `dsh_forgejo_api` and
-  # `tailscale_dsh_api` are now DELETED from the vault, so the stale VPS-DB-era bearer that
-  # used to trip rc2 is gone at the source rather than merely cleared — and enabling the
-  # parked `dsh` service would now fail at the vault lookup, not just at an empty field.
+  # harnesses are dedicated deployments now, reached DIRECTLY — they
+  # are not LiteLLM consumers any more). Leaving them in mints keys for nobody and keeps
+  # every converge red: the glue probes the stored `dsh_api` credential, gets 401, and
+  # correctly refuses to auto-overwrite a secret → ABORT rc2. Commenting the records
+  # removes both the mint and the probe.
+  # A parked consumer must not imply a deleted secret, but the
+  # `dsh_api`, `dsh_forgejo_api` and `tailscale_dsh_api` items are DELETED from the vault
+  # (owner act), so a stale VPS-DB-era bearer cannot trip rc2 here; enabling the parked
+  # `dsh` service would now fail at the vault lookup, not just at an empty field.
   # `pi-harness_openai_api` still holds its value and is NOT remediated.
-  # ✅ DONE 2026-09-28 (HD-383): the orphan alias `dsh` was deleted server-side — but on the
-  # VPS instance, not here. The LAN DB has two keys: `home-assistant` (minted by the flip
-  # below) and `pi.dev laptop` (hand-created 2026-09-17, a live consumer — do not delete it).
-  # The row's "LAN Admin UI" location was wrong; the value it described was a VPS-DB-era
-  # bearer because the KEY lived in the VPS DB the whole time.
-  # The list being EMPTY is what forced `bootstrap_keys: false` on lan-litellm
-  # above until 2026-09-27; the consumer record (HD-384) and the reachable host (HD-455
-  # cleared) are both in place, so the flag is on and this list is its spec.
+  # The LAN DB carries two keys: `home-assistant` (minted by the flip
+  # below) and `pi.dev laptop` (hand-created, a live consumer — do not delete it).
+  # A "LAN Admin UI" location here can describe a VPS-DB-era
+  # bearer: the KEY may live in the VPS DB while the record says otherwise.
+  # An EMPTY list is what forces `bootstrap_keys: false` on lan-litellm
+  # above: the flag needs a non-empty spec, so the consumer record and a reachable host
+  # must both be in place before it flips on.
   # - { alias: dsh, vault_item: dsh_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }
-  # - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }   # HD-268 pi scoped LiteLLM key (dual harness) — PARKED HD-386
-  # The SIMPLE QUERIER tier (decision #26) is what lands here — the harnesses above never
-  # do. First record has landed 2026-09-26 (home-assistant, HD-384); docling and the
-  # owui tier are deliberately NOT here yet, and why is written on the HD-384 row.
+  # - { alias: pi-harness, vault_item: pi-harness_openai_api, models: "ollama/*,openrouter/*", max_budget: "30", budget_duration: "30d" }   # PARKED: pi scoped LiteLLM key (dual harness)
+  # The SIMPLE QUERIER tier is what lands here — the harnesses above never
+  # do. `home-assistant` is the record that landed; docling and the
+  # owui tier are deliberately NOT here yet, and why is written on their rows.
 
-# ==== SSH access (roles/access, HD-443) ====
+# ==== SSH access (roles/access) ====
 # The home tier runs roles/ai_diag, so it also converges the restricted ai-debug
 # account. Defined once in group_vars/all/access.yml; referenced, never copied.
 access_accounts_extra: "{{ [access_account_ai_debug] }}"

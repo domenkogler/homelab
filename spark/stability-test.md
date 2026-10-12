@@ -156,9 +156,10 @@ ssh spark 'SPARK_STRESS_MAX_RUNG=1 BENCH_IN=240000 USABLE_FLOOR_GIB=16 RUNG_PAUS
   CmaFree`), same as the watchdog and the alert rules. Two separate facts you need to set it honestly:
   - idle `usable` with the 16 GiB pool is **18.5 GiB** (measured, flat over ~30 min at 92,343 MiB top-pid),
     down from ~30.5 at 8.2 GiB. A floor above ~17 makes the guard fire on a *normal* dip.
-  - the passing chain's **worst moment was 17.78 GiB** — i.e. the full 2×240k ≈ 94.6 %-of-pool load came
-    within **0.72 GiB** of a 16 floor. That is why 16 is the floor and not a comfortable-looking 12: the
-    margin here is genuinely thin, it is measured, and a future raise must be argued against 17.78.
+  - the passing chain's **worst moment was 17.78 GiB** under the full 2×240k ≈ 94.6 %-of-pool load, so the
+    two real margins are **1.78 GiB** above the `USABLE_FLOOR_GIB=16` floor and **0.72 GiB** below the
+    18.5 GiB idle reading. That is why 16 is the floor and not a comfortable-looking 12: the margin here is
+    genuinely thin, it is measured, and a future raise must be argued against 17.78.
   `MEM_FLOOR_GB` still works as an alias for the same number (older run lines), now on the corrected gauge.
 * The harness's live guard **stops and then restarts the engine** if `usable` crosses the floor or PSI-full
   crosses 50 %, so the kernel never picks the victim. `RestartCount` +1 with a `GUARD FIRE`

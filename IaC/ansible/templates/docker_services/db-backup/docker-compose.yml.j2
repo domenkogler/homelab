@@ -22,14 +22,14 @@ services:
       - FOWNER
       - SETUID
       - SETGID
-    # read_only REMOVED (2026-08-23 triage, HD-218 Class-B, crowdsec precedent): this
+    # read_only is not possible here: this
     # image's s6 cont-init.d MUTATES ITS OWN ROOTFS at every boot — copies service run
     # scripts into /etc/services.available/dbbackup-0X/, writes /usr/bin/backupXX-now
     # wrappers, symlinks /etc/services.d/{03-monitoring,04-scheduling}, rewrites
     # /etc/{msmtprc,sudoers,doas.conf,logrotate.conf} + /root/.bashrc. Under read_only
     # ALL of that failed and /etc/services.d/ stayed EMPTY -> s6 supervised zero
-    # services -> the cron scheduler never ran -> NO DUMP EVER EXECUTED (/backup was
-    # verified empty while the container looked "Up"). tmpfs/bind cannot satisfy these
+    # services -> the cron scheduler never ran -> NO DUMP EVER EXECUTED (the container
+    # still looks "Up"). tmpfs/bind cannot satisfy these
     # writes without hiding shipped image content. Hardening retained: cap_drop ALL,
     # no docker socket, internal networks only; writable layer is ephemeral.
     tmpfs:
@@ -48,20 +48,18 @@ services:
       # No Zabbix server exists anywhere in this stack (Prometheus/Grafana/Loki);
       # disabling skips the whole 03-monitoring init block (/etc/zabbix +
       # /var/lib/zabbix writes) and its dead service link. Honored by the image's
-      # 00-container function (verified 2026-08-23).
+      # 00-container function.
       CONTAINER_ENABLE_MONITORING: "FALSE"
-      # Boot-race fix (HD-222a follow-up, 2026-08-23): image default
-      # DEFAULT_BACKUP_BEGIN=+0 fired dumps THE SAME SECOND s6 cont-init.d started,
-      # before /tmp/backups was prepared -> mktemp EACCES on ALL four targets
-      # (first post-fix run 16:55:34, zero dumps landed). Delay first run +10
-      # MINUTES (UNIT VERIFIED LIVE: bare "120" rejected; "+N" counts MINUTES —
-      # +120 pushed first run 2h out). Init completes in <10s, so this is ample
-      # deterministic margin. Later runs keep the interval cadence from boot.
+      # Boot-race: image default DEFAULT_BACKUP_BEGIN=+0 fires dumps THE SAME SECOND s6
+      # cont-init.d starts, before /tmp/backups is prepared -> mktemp EACCES on all four
+      # targets. Delay the first run +10 MINUTES ("+N" counts MINUTES; a bare "120" is
+      # rejected). Init completes in <10s, so this is ample deterministic margin; later runs
+      # keep the interval cadence from boot.
       DEFAULT_BACKUP_BEGIN: "+10"
       # Retention. NOTE: COMPRESSION=ZSTD kept deliberately — deprecated (warns x4
       # per boot, removed upstream in 4.3.0) but still honored by the pinned 4.1.100;
       # replacing it needs the successor variable name verified against the pinned
-      # image script (HD-222b env-name precedent) at the next version bump.
+      # image script (env-name precedent) at the next version bump.
       COMPRESSION: ZSTD
       RETENTION: "7"
       DB01_TYPE: postgresql
@@ -78,8 +76,8 @@ services:
       DB02_PASS: "{{ vault['forgejo_db'].password | replace('$','$$') }}"
       DB02_NAME: forgejo
 
-      # Immich Postgres — on db-internal (real service name is `immich-postgres`, not
-      # the stale `immich-db` from older notes). KOPS-026 / HD-63.
+      # Immich Postgres — on db-internal (real service name is `immich-postgres`, NOT
+      # `immich-db`).
       DB03_TYPE: postgresql
       DB03_HOST: immich-postgres
       DB03_PORT: "5432"
@@ -87,20 +85,20 @@ services:
       DB03_PASS: "{{ vault['immich_db'].password | replace('$','$$') }}"
       DB03_NAME: immich
 
-      # Qdrant (HD-268) — the AI RAG vector store is a REBUILDABLE CACHE over the git floor (not
+      # Qdrant — the AI RAG vector store is a REBUILDABLE CACHE over the git floor (not
       # irrecoverable metadata, docs/backup.md) AND a non-Postgres store. Therefore it is
       # deliberately NOT a DBxx block here: no pgvector/qdrant Postgres target exists to dump.
       # Its snapshot/state dir is a Kopia-backed host bind (/srv/docker/qdrant); correctness is
       # restored on loss by re-indexing from the Forgejo OKF wiki repos (services-ai.md §5b).
-      # HD-247: STORE_MODEL_IN_DB means keys/models/spend live HERE, not in git config —
-      # irretrievable-metadata class (KOPS-026); CRITICAL state.
+      # STORE_MODEL_IN_DB means keys/models/spend live HERE, not in git config —
+      # irretrievable-metadata class; CRITICAL state.
       # ⚠ **The block number is a SLOT, not a label — numbers must be CONTIGUOUS from DB01.**
-      # Measured 2026-10-07: the image builds one `dbbackup-NN` scheduler per configured block
+      # The image builds one `dbbackup-NN` scheduler per configured block
       # but numbers them 01..N in order, while each scheduler reads `DB{NN}_*` — so with blocks
       # DB01/02/03/**DB06** the fourth scheduler looked for `DB04_*`, logged `No 'appropriate
       # database type' Entered!` on every fire and dumped NOTHING for LiteLLM for weeks, silently
       # (this is why the number, not the block, was the bug). A "reserved for later" number is
-      # therefore a broken block: when zipline-db (HD-112) lands it takes the next CONTIGUOUS
+      # therefore a broken block: when zipline-db lands it takes the next CONTIGUOUS
       # number after the last real block, and nothing gets a number before it exists.
       DB04_TYPE: postgresql
       DB04_HOST: litellm-db
@@ -109,19 +107,18 @@ services:
       DB04_PASS: "{{ vault['litellm_db'].password | replace('$','$$') }}"
       DB04_NAME: litellm
 
-      # HD-112 tail, closed 2026-10-07: zipline-db has been Up/healthy on the VPS since the deploy,
-      # but backup.md's claim that its metadata was "dumped via DB05" was never true — no DB05 block
-      # existed (it was RESERVED, which under the slot rule above means a block that does nothing).
-      # Slot 05 is contiguous now that LiteLLM holds DB04, so this block actually runs.
+      # DB05 slot: zipline-db is Up/healthy on the VPS and its metadata needs a dump target;
+      # a RESERVED slot under the rule above is a block that does nothing,
+      # so this block must exist to run. Slot 05 is contiguous now that LiteLLM holds DB04.
       DB05_TYPE: postgresql
       DB05_HOST: zipline-db
       DB05_PORT: "5432"
       DB05_USER: "{{ vault['zipline_db'].username | replace('$','$$') }}"
       DB05_PASS: "{{ vault['zipline_db'].password | replace('$','$$') }}"
       DB05_NAME: zipline
-      # DB06 (HD-1100): ONLYOFFICE was in NO dump target until 2026-10-08. Its datadir is a NAMED volume
+      # DB06: ONLYOFFICE has no other dump target. Its datadir is a NAMED volume
       #   (onlyoffice-docs_onlyoffice-pgdata), not under /srv/docker, so every target list derived from
-      #   /srv/docker misses it. The compose comment calls that state REGENERABLE (HD-230), which is a
+      # /srv/docker misses it. The compose comment calls that state REGENERABLE, which is a
       #   reason to move fast in a migration window, not a reason to hold no copy of it.
       DB06_TYPE: postgresql
       DB06_HOST: onlyoffice-postgres
@@ -134,19 +131,19 @@ services:
       # OpenCloud uses an EMBEDDED database (no external Postgres) — it is NOT a DBxx
       # block here. Its backup is a tar of the data dir (/srv/docker/opencloud/data,
       # mount `/var/lib/opencloud`), covered by the service-state/OpenCloud Kopia scope
-      # rather than db-backup (KOPS-026 / HD-63, docs/backup.md).
+      # rather than db-backup (docs/backup.md).
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
       # s6-overlay state dir: a tmpfs /run is mounted noexec by Docker (stage0 cannot exec
-      # its extracted binaries -> exit 126), so it is a host bind instead (Wave-3 R2 triage).
+      # its extracted binaries -> exit 126), so it is a host bind instead.
       # Root-owned is fine: s6 stage0 runs as root and manages perms itself.
       - /srv/docker/db-backup/run:/run
       - db-backups:/backup
-      # HD-222a REAL root cause (2026-08-23 23:21 live evidence): image internals
+      # Root cause: image internals
       # DELETE+RECREATE /tmp/backups around first-fire time (dir mtime == fire
       # second), transiently denying mktemp to the job uid REGARDLESS of delay
       # (+10min still EACCES). Dedicated sticky-world-writable tmpfs makes the
-      # scratch usable by any uid at any moment (typed entry per HD-224 chat fix;
+      # scratch usable by any uid at any moment (typed entry;
       # NOTE: belongs under volumes, NOT the string-only tmpfs: key).
       - type: tmpfs
         target: /tmp/backups

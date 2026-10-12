@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-r"""qbittorrent-seeding.py — reconcile qBittorrent's SEEDING GOAL over its own WebAPI (HD-1086).
+r"""qbittorrent-seeding.py — reconcile qBittorrent's SEEDING GOAL over its own WebAPI.
 
 Rendered from qbittorrent-seeding.py.j2 by the docker_services role and run by
 tasks/qbittorrent-seeding.yml against a RUNNING container:
@@ -17,7 +17,7 @@ The API is the better door for a preference: no container stop, no INI-key guess
 is the app's own answer rather than a file that may or may not still be consulted (the SABnzbd
 `dir`/`complete_dir` failure shape — a value sitting in a file, doing nothing).
 
-KEY NAMES WERE READ, NOT REMEMBERED (measured 2026-10-07 against the live 5.2.3 API):
+KEY NAMES WERE READ, NOT REMEMBERED (measured against the live 5.2.3 API):
     max_ratio / max_ratio_enabled / max_ratio_act
     max_seeding_time / max_seeding_time_enabled
     max_inactive_seeding_time / max_inactive_seeding_time_enabled
@@ -26,7 +26,7 @@ KEY NAMES WERE READ, NOT REMEMBERED (measured 2026-10-07 against the live 5.2.3 
 converge must never be able to select it by a typo in a variable — hence the guard below.
 
 ⛔ The ratio is the ONLY limit here. A time goal would stop seeding BEFORE the ratio and quietly
-contradict the HD-1086 ruling, so both time goals stay disabled with their unlimited sentinel (-1).
+contradict the ruling, so both time goals stay disabled with their unlimited sentinel (-1).
 
 ⚠ `| to_json | to_json` on the WANTED line is NOT a typo, and this file was written wrong once already
 (the same bug `2398f9da` fixed for the arr download-client helper): a SINGLE to_json emits JSON, and
@@ -41,7 +41,7 @@ bounds the seeds that keep their files. Autopsy: docs/services-downloads.md §Ha
 impossible while downloads and media are separate bind mounts.
 
 ⚠ ORIGIN: pass the netns owner's overlay origin (`http://<gluetun ip>:8080`), the same one
-qbittorrent-seed.yml verifies at. The HOST publish (`oldsrv_home_ip:8085`, loopback since HD-1083)
+qbittorrent-seed.yml verifies at. The HOST publish (`oldsrv_home_ip:8085`, loopback)
 answers 401 to everything — qbit's validateHostHeader() refuses a Host header whose port is not its own
 socket port, before any credential is read.
 
@@ -141,7 +141,7 @@ PAYLOAD = {k: want for k, (cur, want) in drift.items()}
 # A preference value must be a SCALAR. `drift` stores (current, wanted) pairs to make the report honest,
 # and a dict comprehension that reaches for the wrong half of that pair produces [[-1, 2]] where qbit
 # wants 2 — which it rejects in silence with a 204. Die loudly instead of shipping a write that does
-# nothing (the shape this guard exists for was measured live, 2026-10-07).
+# nothing.
 for _k, _v in PAYLOAD.items():
     if isinstance(_v, (list, tuple, dict)):
         print("FAIL refusing to POST %s as %r — a preference value must be a scalar, not a container. "
@@ -159,9 +159,7 @@ if st not in (200, 204):
 
 # READ BACK — qbit answers 204 to a setPreferences body it applied NONE of (a bool sent where it wants
 # an int, or a value shaped like a list, is skipped silently). The write is never the evidence; the
-# app's own next answer is. This leg earned its keep on 2026-10-07: the first version of this file
-# posted the (current, wanted) TUPLES from `drift` instead of the wanted scalars, qbit answered 204,
-# and the read-back is the only thing that said so.
+# app's own next answer is. A 204 alone proves nothing — only the read-back shows what landed.
 st, raw = call("/api/v2/app/preferences")
 if st != 200:
     print("FAIL read-back GET /api/v2/app/preferences -> %s" % st)

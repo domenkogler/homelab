@@ -8,8 +8,7 @@
 # Prerequisites:
 #   1. Flash the OFFICIAL Raspberry Pi OS Lite (64-bit) image. ⛔ NOT a raspi.debian.net
 #      rebuild — that image boots THIS Pi 4 to a rainbow screen (kernel/firmware mismatch,
-#      recorded in deployment-preseed.md; the wording that told operators to use it lived
-#      in this very file until HD-404).
+#      recorded in deployment-preseed.md).
 #   2. Flash to microSD (≥32 GB) — Raspberry Pi Imager, Balena Etcher, or dd.
 #   3. DO NOT boot yet — re-insert the SD card so the boot partition mounts.
 #
@@ -147,7 +146,7 @@ chmod +x "$BOOT/firstboot.sh"
 echo "  [3/4] Fallback script written (boot/firstboot.sh)"
 
 # -----------------------------------------------------------------
-# 4. Placeholder assertion (B5/H2/H3 — HD-201): refuse to hand back an
+# 4. Placeholder assertion: refuse to hand back an
 #    SD card that would boot with placeholder keys — the Pi has no root
 #    password and no console recovery, so placeholder pubkeys = locked-out
 #    host. The generated files on the card must carry the real 1Password
@@ -161,7 +160,7 @@ PLACEHOLDER_PATTERNS='REPLACE_ME_|<SERIAL>|VNESI_MODEL_IN_SERIJSKO_SSD_STEVILKO|
 placeholder_hits=""
 for cfg_file in "$BOOT/user-data" "$BOOT/firstboot.sh"; do
     if grep -Eq "$PLACEHOLDER_PATTERNS" "$cfg_file"; then
-        echo "FATAL (HD-201): placeholder keys still present in $cfg_file" >&2
+        echo "FATAL: placeholder keys still present in $cfg_file" >&2
         placeholder_hits=1
     fi
 done

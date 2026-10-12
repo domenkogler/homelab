@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# spark-oom-watchdog.sh — GB10 unified-memory forensics catcher (HD-380).
+# spark-oom-watchdog.sh — GB10 unified-memory forensics catcher.
 #
 # WHY THIS EXISTS: spark's vLLM engine dies from the kernel GLOBAL OOM killer,
 # not the container cage. Every prior incident reported `OOMKilled=false` /
@@ -21,9 +21,9 @@
 # On GB10 `nvidia-smi --query-gpu=memory.*` reports N/A, so the per-pid
 # `--query-compute-apps` figure is the only device-side gauge available.
 #
-# GAUGE CORRECTION (HD-381, incidents #7/#8) — read before touching thresholds:
+# GAUGE CORRECTION (incidents #7/#8) — read before touching thresholds:
 #   usable_gib = MemAvailable - CmaFree
-# The 2026-09-17 plan proposed `MemFree - CmaFree`. That gauge is INVERTED on this box:
+# `MemFree - CmaFree` is INVERTED on this box:
 #     state            MemAvail  CmaFree  avail-Cma   MemFree-Cma (the bad gauge)
 #     healthy idle       26.25     0.13     26.13          0.74
 #     #7 KILL            10.45     8.81      1.64          2.17
@@ -37,35 +37,35 @@
 # The plan's ~0.05 GiB figure came from the kernel's PER-ZONE dump (`Node 0 Normal
 # free:9.63 GiB free_cma:9.58 GiB`), which is a zone/migratetype-local number and is
 # not reconstructible from global meminfo. `MemAvailable - CmaFree` is the global gauge
-# that is monotone with danger and is what both this watchdog and the HD-375 alert rules
+# that is monotone with danger and is what both this watchdog and the alert rules
 # (roles/monitoring) use.
 #
-# HD-395 (2026-09-23) — THE BOOT BASELINE IS MEASURED, NOT GUESSED. Read this before
+# THE BOOT BASELINE IS MEASURED, NOT GUESSED. Read this before
 # touching the recycle term:
-#   The idle-recycle trigger is `boot baseline + RECYCLE_GROW_GIB`. The baseline USED TO BE
-#   the first sample of the engine top-pid after the unit started, and on this engine that
-#   first read is a coin-flip: one config has been measured at 71,911 / 86,243 / 92,343 MiB
-#   because the 168 GiB PLE checkpoint loads unevenly. BOTH ends of that spread are failures:
+#   The idle-recycle trigger is `boot baseline + RECYCLE_GROW_GIB`. The baseline is the
+#   engine top-pid after the unit started, and on this engine that first read is a coin-flip:
+#   one config measures 71,911 / 86,243 / 92,343 MiB because the 168 GiB PLE checkpoint loads
+#   unevenly. BOTH ends of that spread are failures:
 #   low floor  ⇒ the trigger sits under ordinary traffic and the watchdog restarts a HEALTHY
-#                engine (two fired 35 min apart, ~20 min cold start + a 502 window);
+#                engine (~20 min cold start + a 502 window);
 #   high floor ⇒ the trigger sits above the traffic peak and recycle goes SILENT, which is
 #                the failure direction the guard exists to prevent.
-#   It is now acquired by a PERSISTED state machine: engine running → /health 200 →
+#   It is acquired by a PERSISTED state machine: engine running → /health 200 →
 #   BASELINE_SETTLE_S quiet → BASELINE_SAMPLES plausible readings inside BASELINE_SPAN_S →
 #   commit the MAX of that window (the max is the floor that matters: a floor measured while
 #   the checkpoint is still landing is not a floor). Acquisition is NEVER re-run on a unit
 #   restart — a converge restarts the UNIT, not the engine, and a sampler restart must not
 #   re-baseline a running engine to a fresh coin-flip. The only re-baseline paths are a NEW
 #   ENGINE INSTANCE (check_engine_restart) and an explicit operator `rebaseline`.
-#   The old "ratchet the baseline DOWN only" rule is GONE deliberately: it converted any
-#   transient low read into a permanently low trigger — the same defect in a different hat.
+#   Never ratchet the baseline DOWN: a transient low read would become a permanently low
+#   trigger.
 #   SAFETY INVARIANT: a missing or partial baseline fails toward SILENCE with a logged
 #   reason, NEVER toward `docker stop`. (A stop/restart here is intentional, so the engine's
 #   `unless-stopped` will not bring it back on its own — see docs/hardware-spark.md.)
-#   The +8 GiB margin is reported against the certified peak at commit time and in `status`:
+#   Report the +8 GiB margin against the certified peak at commit time and in `status`:
 #   at the high end of the measured spread (92,343 MiB) the trigger is 100,535 MiB, which is
 #   ABOVE the certified peak of 96,235 MiB — i.e. a fixed margin over a variable floor cannot
-#   be right on both ends. The watchdog now says so out loud instead of being quietly dead.
+#   be right on both ends. Say so out loud rather than being quietly dead.
 #
 # Modes:
 #   sample-loop              run forever (systemd default)
@@ -79,7 +79,7 @@
 #
 # Cheap on purpose: bash + coreutils + awk + docker + nvidia-smi + journalctl.
 # Runs as root with OOMScoreAdj=-1000 (see the unit) — it must NOT become the
-# next OOM victim the way alloy did in incidents #2/#3.
+# next OOM victim (incidents #2/#3).
 # ============================================================================
 set -uo pipefail
 
@@ -91,23 +91,23 @@ CTR="${VLLM_CONTAINER:-vllm-qwen-spark}"
 
 INTERVAL="${SPARK_OOM_INTERVAL:-15}"          # seconds between samples
 # Thresholds are on usable_gib = MemAvailable - CmaFree (see the gauge correction above).
-# Measured: healthy idle 26-30 GiB; the instant of death 1.6 GiB; the lowest value a
-# 60 s SCRAPE ever recorded in those windows was 5.01. CRIT is therefore 8, NOT the 1.6
+# Healthy idle is 26-30 GiB; the instant of death is 1.6 GiB; the lowest value a 60 s SCRAPE
+# can record is 5.01. CRIT is therefore 8, NOT the 1.6
 # death figure — a restart takes ~4 min, so it has to start while there is still margin,
 # and a threshold below what the monitoring path can observe is just a rule that cannot
-# fire. Kept identical to the HD-375 alert pair (roles/monitoring/vars/main.yml).
-WARN_GIB="${SPARK_OOM_WARN_GIB:-12}"          # was 24 on raw MemAvailable
-CRIT_GIB="${SPARK_OOM_CRIT_GIB:-8}"           # was 16 on raw MemAvailable; death at 1.6
+# fire. Keep it identical to the WARN/CRIT alert pair (roles/monitoring/vars/main.yml).
+WARN_GIB="${SPARK_OOM_WARN_GIB:-12}"
+CRIT_GIB="${SPARK_OOM_CRIT_GIB:-8}"
 PSI_CRIT="${SPARK_OOM_PSI_CRIT:-25}"          # PSI memory full avg10 (%)
-# Hysteresis on the ENFORCEMENT only (HD-494). An enforced CRIT restart LATCHES the enforcer
+# Hysteresis on the ENFORCEMENT only. An enforced CRIT restart LATCHES the enforcer
 # off until the gauge is back above this value, so a box whose REST state sits below CRIT
-# cannot be restarted once per cooldown forever. Measured reason (2026-10-05, live): with the
-# `fast` profile's 25 GB pool the rest value was usable 7.76-7.99 GiB — a steady state, not an
-# excursion — with psi_full 0.0, and the enforcer read it as a standing emergency: one
-# CRIT-ENFORCED restart at 09:22:41Z, then "suppressed by enforce cooldown" on every 5-min
-# tick with the gauge pinned at the same number, i.e. the next restart was already scheduled.
-# Fire once, then make it a human problem. Snapshots, WARN/CRIT alerts and the sampler are
-# NOT latched — the box stays loud; only the restart is held.
+# cannot be restarted once per cooldown forever. A REST state inside the CRIT band is a
+# steady state, not an excursion: with the `fast` profile's 25 GB pool the rest value is
+# usable 7.76-7.99 GiB with psi_full 0.0, which an unhysteresis'd enforcer reads as a
+# standing emergency — one restart, then "suppressed by enforce cooldown" on every tick with
+# the next restart already scheduled. Fire once, then make it a human problem. Snapshots,
+# WARN/CRIT alerts and the sampler are NOT latched — the box stays loud; only the restart is
+# held.
 # Default = WARN, the same invariant the pool ceiling is derived from: a profile is "fixed"
 # when its rest state clears the WARN band, not merely the CRIT trigger.
 REARM_GIB="${SPARK_OOM_REARM_GIB:-$WARN_GIB}"
@@ -117,11 +117,11 @@ WARN_COOLDOWN="${SPARK_OOM_WARN_COOLDOWN:-900}"    # s
 CRIT_COOLDOWN="${SPARK_OOM_CRIT_COOLDOWN:-300}"    # s
 VLLM_PORT="${SPARK_OOM_VLLM_PORT:-8000}"
 
-# ---- enforcing governor (HD-381 term B) --------------------------------------
-# The watchdog used to only NARRATE. At CRIT the choice is a PLANNED engine restart
+# ---- enforcing governor ----------------------------------------------------
+# Forensics alone is not protection. At CRIT the choice is a PLANNED engine restart
 # (~4 min, chosen when nothing is in flight) or a kernel global OOM that takes Traefik,
 # the DGX dashboard, alloy and dcgm with it and wedges the box (invariants #1/#3).
-ENFORCE="${SPARK_OOM_ENFORCE:-1}"                   # 0 = forensics-only (old behaviour)
+ENFORCE="${SPARK_OOM_ENFORCE:-1}"                   # 0 = forensics-only
 ENFORCE_COOLDOWN="${SPARK_OOM_ENFORCE_COOLDOWN:-1800}"   # s between enforced restarts
 ENFORCE_MAX="${SPARK_OOM_ENFORCE_MAX:-2}"                # enforced restarts per window
 ENFORCE_WINDOW="${SPARK_OOM_ENFORCE_WINDOW:-7200}"       # s
@@ -130,18 +130,18 @@ NO_ENFORCE_FILE="$BASE_DIR/no-enforce"                   # touch this to arm-off
 # Idle-recycle: the non-KV engine footprint grows per request shape and NEVER returns
 # (flat at idle, +21 GiB per ~30 min of light agent traffic). Predictable recycling is
 # harmless at idle and removes the cumulative term before it can become a kill.
-# OWNER DECISION 2026-09-23: DISABLED (`SPARK_OOM_RECYCLE=0`, set by the role). The box is
-# stable and a ~5-20 min cold start is not worth buying anything: with a correct (max-of-N)
-# baseline the trigger sits ~4 GiB ABOVE the certified peak, so a reachable margin would mean
-# restarting an engine that is merely healthy. OOM protection does NOT depend on this term —
-# enforce_crit() at usable < CRIT is absolute and baseline-free (HD-381 term B). Re-arm only on
-# measurement: `gpu_top_mib` growing > 2 GiB/h under traffic and not returning at idle (the same
-# re-arm condition as C3/--enforce-eager in HD-380).
+# DISABLED (`SPARK_OOM_RECYCLE=0`, set by the role). A ~5-20 min cold start
+# buys nothing: with a correct (max-of-N) baseline the trigger sits ~4 GiB ABOVE the certified
+# peak, so a reachable margin would mean restarting an engine that is merely healthy. OOM
+# protection does NOT depend on this term —
+# enforce_crit() at usable < CRIT is absolute and baseline-free. Re-arm only on
+# measurement: `gpu_top_mib` growing > 2 GiB/h under traffic and not returning at idle (the
+# same re-arm condition as C3/--enforce-eager).
 RECYCLE="${SPARK_OOM_RECYCLE:-1}"
 RECYCLE_GROW_GIB="${SPARK_OOM_RECYCLE_GROW_GIB:-8}"      # trigger above the boot baseline
 RECYCLE_IDLE_S="${SPARK_OOM_RECYCLE_IDLE_S:-1800}"       # must be idle this long first
 
-# ---- HD-395: how the boot baseline is acquired ----------------------------------------
+# ---- how the boot baseline is acquired -----------------------------------------------
 # Chosen policy: BOTH gates, in order — (a) engine `/health` must answer 200, then (b) a
 # settle window with no measurement, then (c) the MAX of N plausible samples inside a span.
 # `/health` alone is not enough (it goes 200 before the PLE checkpoint has finished
@@ -156,7 +156,7 @@ BASELINE_SPAN_S="${SPARK_OOM_BASELINE_SPAN_S:-600}"       # cap on the collectio
 # a different pid, or nvidia-smi answering nothing. Refuse it rather than commit a floor that
 # would make the recycle trigger reachable by ordinary traffic.
 BASELINE_MIN_MIB="${SPARK_OOM_BASELINE_MIN_MIB:-40000}"
-# Certified arithmetic (hardware-spark.md §Unified-memory budget + HD-380's measured run):
+# Certified arithmetic (hardware-spark.md §Unified-memory budget):
 # used ONLY to report whether the +8 GiB margin is reachable — it never moves the trigger.
 CERTIFIED_PEAK_MIB="${SPARK_OOM_CERTIFIED_PEAK_MIB:-96235}"   # measured per-pid peak, post C1/C2
 CERTIFIED_CAGE_MIB="${SPARK_OOM_CERTIFIED_CAGE_MIB:-107520}"  # spark_vllm_memory_limit = 105 GiB
@@ -168,7 +168,7 @@ case "${1:-sample-loop}" in
   *) mkdir -p "$STATE_DIR" "$SNAP_DIR" ;;
 esac
 
-# ---- persisted state helpers (HD-395) -----------------------------------------------
+# ---- persisted state helpers --------------------------------------------------------
 # Every governor decision state lives in $STATE_DIR, one value per file, so it survives a
 # unit restart AND is readable by a human over SSH without a parser.
 st_read()  { head -1 "$STATE_DIR/$1" 2>/dev/null; }
@@ -186,7 +186,7 @@ psi_val() { # $1 = some|full, $2 = avg10
 gpu_mib() { timeout 8 nvidia-smi --query-compute-apps=pid,used_memory --format=csv,noheader,nounits 2>/dev/null \
             | sort -t, -k2 -rn | head -1 | tr -d ' ' ; }
 eng_field() { timeout 10 docker inspect "$CTR" --format "{{.RestartCount}} {{.State.StartedAt}} {{.State.OOMKilled}}" 2>/dev/null; }
-# HD-395: the baseline machine's two liveness questions. /health is NOT api-key gated (the
+# The baseline machine's two liveness questions. /health is NOT api-key gated (the
 # snapshot's `health_http=` line has always read it without a bearer), so it is safe to poll
 # on every tick; a 401/502/000 answer means "not measurable yet", never "baseline it".
 engine_running()     { [ "$(timeout 10 docker inspect "$CTR" --format '{{.State.Running}}' 2>/dev/null)" = "true" ]; }
@@ -206,8 +206,8 @@ usable_gib() {
 
 # In-flight work. The engine runs with --api-key, so /metrics needs the bearer token;
 # read it from the container's OWN argv (never logged) — same trick as spark/bench.
-# CRITICAL: it must distinguish "0 requests" from "I could not read anything". HD-380 was
-# bitten by exactly this shape: `vllm bench serve` 401s EVERY request against the keyed
+# CRITICAL: it must distinguish "0 requests" from "I could not read anything". This shape
+# bites: `vllm bench serve` 401s EVERY request against the keyed
 # engine and still exits 0 — an unreadable read that looks like "idle" would let the
 # governor restart a busy engine and hand its sessions a 502. Echoes ERR when unknown.
 in_flight() {
@@ -238,11 +238,10 @@ sample_line() {
     "$(psi_val some)" "$(psi_val full)" "$gpu" "${cma:-NA}" "${use:-NA}" "${restarts:-NA}" "$(date -u +%H:%M:%S)"
 }
 
-# NOTE: gpu_mib emits "pid,mib", so a data row is 14 fields wide. The pre-HD-381 header
-# declared 11 names while gpu_mib already emitted two values, so every column after
-# psi_full_avg10 was shifted one position in the data rows (what the header called
-# gpu_top_mib column 9 was the PID; the MiB figure was column 10). The header below is
-# authoritative for rows written from HD-381 on, and a ring written by the old binary is
+# NOTE: gpu_mib emits "pid,mib", so a data row is 14 fields wide. A header that declares
+# fewer names than the data row emits shifts every later column by one (the pid lands where
+# the header says gpu_top_mib). The header below is
+# authoritative for the rows this binary writes, and a ring written with a different width is
 # rotated out rather than appended to — see ensure_ring_header().
 RING_HEADER="epoch,mem_avail_gib,mem_free_gib,cached_gib,anon_gib,swap_used_gib,psi_some_avg10,psi_full_avg10,gpu_top_pid,gpu_top_mib,cma_free_gib,usable_gib,restarts,utc"
 
@@ -349,7 +348,7 @@ check_engine_restart() {
   echo "$cur" > "$STATE_DIR/last_engine"
   if [ -n "$prev" ] && [ "$prev" != "$cur" ]; then
     # New engine instance: the boot baseline is only valid per engine start, so drop it AND
-    # the in-flight acquisition and let the state machine re-acquire it from scratch (HD-395:
+    # the in-flight acquisition and let the state machine re-acquire it from scratch:
     # health 200 → settle → max of N). This is the ONLY automatic re-baseline path; a UNIT
     # restart must never land here, because the engine field has not changed.
     rm -f "$STATE_DIR/last_busy_epoch" 2>/dev/null
@@ -359,13 +358,13 @@ check_engine_restart() {
   fi
 }
 
-# ---- enforcing governor (HD-381 term B) --------------------------------------
+# ---- enforcing governor ------------------------------------------------------------
 # Recorded decisions go to $STATE_DIR/enforce.log so "why did the watchdog restart my
 # engine" is answerable without reconstructing it from the ring.
 act_log() { echo "$(date -u +%FT%TZ) $*" >> "$STATE_DIR/enforce.log"; }
 
 # A watchdog that declines to act must still say WHY, or "disarmed" and "dead" look identical
-# (that symmetry is what made HD-395's silent-recycle direction hard to see). Rate-limited by
+# (that symmetry is what makes a silent-recycle direction hard to see). Rate-limited by
 # key, because "baseline not ready yet" is NORMAL for the first minutes after a boot and must
 # not fill enforce.log.
 reason_note() { # $1 = key, $2 = window seconds, $3 = text
@@ -374,7 +373,7 @@ reason_note() { # $1 = key, $2 = window seconds, $3 = text
   act_log "note[$1]: $3"
 }
 
-# ---- HD-395: the boot baseline state machine ------------------------------------------
+# ---- the boot baseline state machine ------------------------------------------------
 # Stages: (unset)/await-health → settling → collecting → committed. Progress is driven one
 # tick per sampler iteration and NEVER sleeps: the sampler loop already sets the cadence,
 # and a blocking baseline acquisition would stall the forensics ring (the payload).
@@ -401,15 +400,15 @@ bl_track_floor() {
 # is RECYCLE_GROW_GIB over the baseline and nothing here changes it.
 margin_verdict() {
   local base trigger
-  # A verdict about a term that cannot run is a lie, not a readout (owner decision 2026-09-23).
-  [ "$RECYCLE" = "1" ] || { echo "recycle DISABLED by config (SPARK_OOM_RECYCLE=0, owner decision 2026-09-23) — margin not evaluated"; return 0; }
+  # A verdict about a term that cannot run is a lie, not a readout.
+  [ "$RECYCLE" = "1" ] || { echo "recycle DISABLED by config (SPARK_OOM_RECYCLE=0) — margin not evaluated"; return 0; }
   base=$(st_read engine_baseline_mib)
   ge_int "$base" 1 || { echo "no committed baseline ⇒ recycle DISARMED (silence by design)"; return 0; }
   trigger=$(( base + RECYCLE_GROW_GIB * 1024 ))
   if [ "$trigger" -gt "$CERTIFIED_CAGE_MIB" ]; then
     echo "trigger=${trigger} MiB > engine cage ${CERTIFIED_CAGE_MIB} MiB ⇒ recycle unreachable before the cage/OOM"
   elif [ "$trigger" -gt "$CERTIFIED_PEAK_MIB" ]; then
-    echo "trigger=${trigger} MiB > certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle will stay SILENT on ordinary traffic (HD-395 open margin question)"
+    echo "trigger=${trigger} MiB > certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle will stay SILENT on ordinary traffic (open margin question)"
   else
     echo "trigger=${trigger} MiB ≤ certified peak ${CERTIFIED_PEAK_MIB} MiB ⇒ recycle reachable (headroom $(( CERTIFIED_PEAK_MIB - trigger )) MiB)"
   fi
@@ -445,7 +444,7 @@ baseline_tick() {
       fi
       st_write baseline_stage settling
       st_write baseline_deadline $(( now + BASELINE_SETTLE_S ))
-      act_log "baseline: /health 200 — settling ${BASELINE_SETTLE_S}s before measuring (HD-395: the first read is a coin-flip)"
+      act_log "baseline: /health 200 — settling ${BASELINE_SETTLE_S}s before measuring (the first read is a coin-flip)"
       return 0 ;;
     settling)
       [ "$now" -lt "$(st_read baseline_deadline)" ] && return 0
@@ -488,7 +487,7 @@ restart_engine() { # $1 = tag, $2 = reason
     || act_log "$tag: docker restart FAILED/rc=$?"
   date +%s > "$STATE_DIR/last_enforce"
   echo "$tag" > "$STATE_DIR/last_enforce_tag"
-  # HD-494 hysteresis: an ENFORCED restart latches the enforcer off until the gauge re-arms.
+  # Hysteresis: an ENFORCED restart latches the enforcer off until the gauge re-arms.
   # RECYCLE restarts deliberately do NOT latch — recycling is opportunistic and fires at idle,
   # where usable is high by construction; latching there would switch CRIT protection off
   # without ever having used it.
@@ -527,7 +526,7 @@ wait_for_idle() {
   return 1
 }
 
-# ---- hysteresis on the enforcement (HD-494) -----------------------------------------
+# ---- hysteresis on the enforcement --------------------------------------------------
 # The latch is ONE file: "<epoch> <reason>". It is written by an enforced CRIT restart and
 # cleared the first time the gauge is back at/above REARM_GIB. Read-only text for `status`.
 hysteresis_text() {
@@ -554,7 +553,7 @@ hysteresis_gate() { # $1 = reason
     rm -f "$f"
     return 0
   fi
-  act_log "CRIT suppressed by hysteresis: usable=${use}GiB < re-arm ${REARM_GIB}GiB (latched: ${line}) — engine NOT restarted; the REST state is below CRIT, so repeat restarts cannot fix it (HD-494, docs/hardware-spark.md §Unified-memory budget) — re-derive the budget instead: ${1:-}"
+  act_log "CRIT suppressed by hysteresis: usable=${use}GiB < re-arm ${REARM_GIB}GiB (latched: ${line}) — engine NOT restarted; the REST state is below CRIT, so repeat restarts cannot fix it (docs/hardware-spark.md §Unified-memory budget) — re-derive the budget instead: ${1:-}"
   return 1
 }
 
@@ -577,7 +576,7 @@ enforce_crit() { # $1 = reason
 check_idle_recycle() {
   local top base infl now
   [ "$RECYCLE" = "1" ] || return 0
-  # HD-395 SAFETY INVARIANT: no recycle decision without a COMMITTED baseline. A missing or
+  # SAFETY INVARIANT: no recycle decision without a COMMITTED baseline. A missing or
   # half-acquired one fails toward silence-with-a-reason, never toward `docker stop`.
   if [ "$(bl_stage)" != "committed" ] || ! ge_int "$(st_read engine_baseline_mib)" "$BASELINE_MIN_MIB"; then
     reason_note recycle 900 "recycle disarmed: baseline stage='$(bl_stage)', value='$(st_read engine_baseline_mib)' (needs stage=committed and >= ${BASELINE_MIN_MIB} MiB)"
@@ -603,8 +602,8 @@ check_idle_recycle() {
 
 # A manual `sudo /usr/local/bin/spark-oom-watchdog.sh status` does NOT inherit the unit's
 # `Environment=` lines, so it reads the SCRIPT DEFAULTS and can disagree with what the running
-# guard actually does (measured live 2026-09-23: the unit ran SPARK_OOM_RECYCLE=0 while a sudo
-# `status` printed `recycle=1` and a margin verdict for a term the unit cannot execute). The unit
+# guard actually does — the unit can run SPARK_OOM_RECYCLE=0 while a sudo
+# `status` prints `recycle=1` and a margin verdict for a term the unit cannot execute. The unit
 # is what enforces, so say so out loud instead of letting the readout contradict the deploy.
 # SPARK_OOM_UNIT_ENV lets the self-test inject the unit env offline; never set it in production.
 config_drift_note() {
@@ -628,17 +627,17 @@ config_drift_note() {
   return 0
 }
 
-# ---- self-test (HD-395) ---------------------------------------------------------------
+# ---- self-test ----------------------------------------------------------------------
 # Offline by construction: everything external is stubbed on PATH (docker, nvidia-smi, curl,
 # journalctl, dmesg, uptime) and every state file lands in a temp dir. It drives the REAL
 # governor functions by invoking this same script as `_tick` — one process per tick, which is
 # also how the persistence-across-a-unit-restart property is proved. `docker` here is a file
 # append: the test can never touch a real engine.
-# It is written to be RED-able, and the mutants are recorded HERE because the delivery note that
-# used to carry them is deleted: C7 dies if the hysteresis_gate call is dropped from
+# It is written to be RED-able; this map is the record of what each case must catch.
+# C7 dies if the hysteresis_gate call is dropped from
 # enforce_crit, if its usable/REARM comparison is inverted, if the latch is never cleared, or
-# if a RECYCLE restart latches it (HD-494: an enforced restart must not be re-armable while the
-# REST state is below CRIT — that is the 2026-10-05 restart-loop failure mode). C7b is the case
+# if a RECYCLE restart latches it (an enforced restart must not be re-armable while the
+# REST state is below CRIT — the restart-loop failure mode). C7b is the case
 # that kills the "gate call dropped from enforce_crit" mutant: with the cooldown zeroed, a
 # dropped call restarts twice, so `restarts = 1` cannot pass by accident.
 # C1 dies if the `/health`-200 or the settle gate in baseline_tick
@@ -737,7 +736,7 @@ STUB
   bad()  { printf '  FAIL %s\n' "$1"; fail=$((fail+1)); }
   expect_eq() { if [ "$2" = "$3" ]; then ok "$1 = $3"; else bad "$1: got '$2' want '$3'"; fi; }
 
-  printf 'self-test (HD-395 baseline + recycle governance), stubs in %s\n' "$tmp"
+  printf 'self-test (baseline + recycle governance), stubs in %s\n' "$tmp"
 
   # C1 — acquisition waits for a REAL engine, and a LOW first read must never become the
   #      baseline. Until it commits, the recycle path must be silent.
@@ -802,7 +801,7 @@ STUB
     bad "C4c silence was not explained in enforce.log"
   fi
 
-  # C5 — the owner-decided live config (2026-09-23): the recycle term is OFF. Everything that
+  # C5 — the live config: the recycle term is OFF. Everything that
   #      made C3 fire must now be silent, and the readout must SAY it is disabled instead of
   #      printing a margin verdict for a term that can never run.
   new_case
@@ -819,7 +818,7 @@ STUB
     *) bad "C5 margin verdict missing with RECYCLE=1: got '$(margin_line 1)'" ;;
   esac
 
-  # C7 — hysteresis (HD-494): an enforced restart may not become a standing restart-loop.
+  # C7 — hysteresis: an enforced restart may not become a standing restart-loop.
   #      Killed by: dropping the `hysteresis_gate` call in enforce_crit, inverting the
   #      usable/REARM comparison (it would then cry when the budget IS fixed and fire when it
   #      is not), never clearing the latch (protection switched off permanently), or latching on
@@ -856,7 +855,7 @@ STUB
 
   # C7b — the same property on the PATH THAT ACTUALLY DECIDES: enforce_crit itself, with the
   # cooldown zeroed so a second call cannot be excused by the cooldown. Without the gate call
-  # this is two restarts seconds apart — precisely the 2026-10-05 live loop.
+  # this is two restarts seconds apart — the live restart loop.
   enforce_stubbed() { # drive the REAL enforce_crit with the stub PATH + an idle engine
     env PATH="$bin:$PATH" SPARK_OOM_DIR="$tmp/base" SPARK_OOM_STUB_DIR="$st" \
         SPARK_OOM_KEEP_SNAPS=2 SPARK_OOM_ENFORCE=1 SPARK_OOM_ENFORCE_COOLDOWN=0 \
@@ -918,11 +917,11 @@ case "${1:-sample-loop}" in
     echo "baseline: stage=$(bl_stage) value=$(st_read engine_baseline_mib || echo NA) MiB"
     echo "          (acquisition: /health 200 → settle ${BASELINE_SETTLE_S}s → max of ${BASELINE_SAMPLES} plausible reads inside ${BASELINE_SPAN_S}s; plausible ≥ ${BASELINE_MIN_MIB} MiB)"
     [ -s "$STATE_DIR/baseline_meta" ] && echo "          $(st_read baseline_meta)"
-    echo "          boot floor: min=$(st_read boot_min_mib || echo NA) max=$(st_read boot_max_mib || echo NA) MiB  ← the HD-395 coin-flip, as one spread"
+    echo "          boot floor: min=$(st_read boot_min_mib || echo NA) max=$(st_read boot_max_mib || echo NA) MiB  ← the coin-flip, as one spread"
     echo "          margin: $(margin_verdict)"
     echo "in flight: $(in_flight)"
     echo "governor: enforce=$ENFORCE (cooldown ${ENFORCE_COOLDOWN}s, max ${ENFORCE_MAX}/${ENFORCE_WINDOW}s, arm-off file $NO_ENFORCE_FILE) recycle=$RECYCLE (+${RECYCLE_GROW_GIB} GiB / ${RECYCLE_IDLE_S}s idle)"
-    echo "hysteresis: $(hysteresis_text) (re-arm at ${REARM_GIB} GiB = WARN ${WARN_GIB}; HD-494)"
+    echo "hysteresis: $(hysteresis_text) (re-arm at ${REARM_GIB} GiB = WARN ${WARN_GIB})"
     config_drift_note
     [ -s "$STATE_DIR/enforce.log" ] && { echo "governor actions:"; tail -5 "$STATE_DIR/enforce.log"; }
     echo "samples: $(wc -l < "$SAMPLES" 2>/dev/null || echo 0) rows in $SAMPLES"

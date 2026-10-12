@@ -25,13 +25,12 @@
     name:
       - zfsutils-linux
       - sanoid        # ships syncoid (replication tool) — syncoid is NOT a separate
-                      # Debian package on trixie (live-found 2026-09-03 nas provision)
+                      # Debian package on trixie
       - zfs-dkms      # builds the native zfs kernel module (stock Debian kernel lacks it;
-                      # modprobe zfs failed live 2026-09-03 — the module only arrives via DKMS)
+                      # the module only arrives via DKMS, never with the stock Debian kernel)
       - linux-headers-amd64   # headers for the RUNNING kernel — DKMS cannot build the zfs
-                      # module for /lib/modules/<running> without them (live-found 2026-09-03
-                      # oldsrv provision: modprobe zfs FATAL on kernel 6.12.101 — nas had
-                      # linux-headers-* present, oldsrv had none)
+                      # module for /lib/modules/<running> without them; the failure only
+                      # surfaces at modprobe time, after a green install
     state: present
     update_cache: true
 
@@ -59,30 +58,28 @@
 - include_tasks: nas.yml
   when: inventory_hostname in groups['storage'] | default([])
   tags: [storage, nas]
-  # ⚠ Same HD-468 half-1 rule as samba.yml below: an untagged dynamic include is never expanded
-  # by a filtered run, so `--tags storage,nas` used to converge nothing but the `always` guards
-  # while reporting changed=0/failed=0.
+  # ⚠ Same dynamic-include rule as samba.yml below: an untagged dynamic include is never
+  # expanded by a filtered run, so `--tags storage,nas` converges nothing but the `always`
+  # guards while reporting changed=0/failed=0.
 - include_tasks: samba.yml
-  when: inventory_hostname in groups['storage'] | default([])   # Samba shares on the NAS (D4/HD-131)
+  when: inventory_hostname in groups['storage'] | default([])   # Samba shares on the NAS
   tags: [samba, storage]
-  # ⚠ BOTH halves of the HD-468 rule apply here (see oldsrv.yml below): the include must carry
-  # the tag AND every task inside samba.yml must carry it. Measured 2026-10-07 with
-  # `--check --tags samba --limit storage` on a file where NEITHER half held: `ok=24 changed=0
-  # failed=0`, and the TASKS RECAP contained only the `always`-tagged guards + the nut tasks —
-  # not one smb.conf task. A scoped run of that shape reports success while shipping nothing.
+  # ⚠ BOTH halves of the dynamic-include rule apply here (see oldsrv.yml below): the include
+  # must carry the tag AND every task inside samba.yml must carry it. With NEITHER half a
+  # `--check --tags samba --limit storage` run gives `ok=24 changed=0 failed=0` and a recap
+  # holding only the `always` guards + the nut tasks: a scoped run that reports success
+  # while shipping nothing.
 - include_tasks: oldsrv.yml
   when: inventory_hostname in groups['home_servers'] | default([])
   tags: storage
-  # ⚠ TWO places, both load-bearing (HD-468, measured 2026-09-28). oldsrv.yml used to be the one file
-  # in this role with no tags anywhere, so `--tags storage` against oldsrv selected nothing but the
-  # role's `always` guard and reported `ok=23 changed=0 failed=0` — a green, changed=0 run that
-  # converged nothing. Getting scoped runs to work needed BOTH halves, and each half alone still
-  # returns a deceptively green no-op:
+  # ⚠ TWO places, both load-bearing: the include AND every task it pulls in must carry the
+  # tag; either half alone still returns a deceptively green no-op (`ok=23 changed=0
+  # failed=0`) against a host whose files carry neither:
   #   1. the include task itself must carry the tag — a DYNAMIC include that fails the tag filter is
   #      never expanded, so its children never get a chance to match;
   #   2. every task inside oldsrv.yml must carry it too — once expanded, untagged children are
   #      filtered out on their own.
-  # Making the include carry the tag by inheritance is not available on this Ansible (2.21.3 rejects
-  # `apply:` next to `include_tasks`: "conflicting action statements"). And the underlying trap is the
-  # one the playbooks already document for `--tags cockpit`: a bare role name is not a tag.
+  # Tag-by-inheritance is not available on this Ansible (2.21.3 rejects `apply:` next to
+  # `include_tasks`: "conflicting action statements"). The underlying trap: a bare role name
+  # is not a tag.
   # nas.yml / samba.yml / zfs_exporter.yml are tagged the same way.

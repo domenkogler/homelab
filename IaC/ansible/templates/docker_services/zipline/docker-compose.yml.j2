@@ -1,12 +1,12 @@
 # zipline docker-compose.yml — public file bin / URL shortener / QR (bin.kogler.si)
-#   HD-112 (decided 2026-08-24): ONE public host on the crowdsec-only@file tier
+#   ONE public host on the crowdsec-only@file tier
 #   (never zero edge protection; PairDrop precedent). Viewer/shortener routes and the
 #   FOLDER-GUEST upload API are anonymous BY DESIGN; the dashboard is gated by Zipline
 #   NATIVE OIDC against Authentik (provider `zipline` declared in ks-oidc.yml, family-
 #   group binding only). Forward-Auth deliberately NOT stacked (double-auth avoided;
 #   Immich/OpenCloud precedent).
 #
-#   Storage (HD-131-compliant): LOCAL filesystem datasource on VPS NVMe — no S3.
+#   Storage: LOCAL filesystem datasource on VPS NVMe — no S3.
 #     - /srv/docker/zipline/uploads   → datasource (ephemeral guest drops + private files)
 #     - /srv/docker/zipline/postgres  → metadata DB (db-backup DB05)
 #   Backup split: the uploads tree is EXCLUDED from the Kopia VPS snapshot policy
@@ -44,7 +44,7 @@
 #     zipline_db       (Database: username/password for the bundled Postgres)
 #     zipline_oidc     (api: username=client_id, credential=client_secret — seeded by glue)
 {# The Postgres bind target is deliberately version-INDEPENDENT: PGDATA is pinned in the env
-#   block below, which is what lets one mount shape serve 16 and 18 (HD-1100). #}
+   block below, which is what lets one mount shape serve 16 and 18. #}
 services:
   zipline:
     image: ghcr.io/diced/zipline:{{ zipline_version }}
@@ -72,21 +72,21 @@ services:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
       CORE_HOSTNAME: 0.0.0.0
       CORE_PORT: "3000"
-      # Session/config secret (fail-loud: no default(), HD-65)
+      # Session/config secret (fail-loud: no default()).
       CORE_SECRET: >-
         {{ vault['zipline_password'].password | replace('$','$$') }}
       CORE_TRUST_PROXY: "true"            # behind Traefik (real client IP for rate limit)
       CORE_RETURN_HTTPS_URLS: "true"
       CORE_DEFAULT_DOMAIN: bin.kogler.si  # short URLs / shares return this host
-      # HD-112/HD-240 (2026-08-25): credentials MUST be urlencoded — the generated vault
-      # password contained `#` (plus other URL-hostile chars), which truncated the DSN at
-      # the fragment marker → Prisma P1013 "invalid port number" → crash-loop.
+      # Credentials MUST be urlencoded: a generated vault password can contain `#` (plus other
+      # URL-hostile chars), which truncates the DSN at the fragment marker -> Prisma P1013
+      # "invalid port number" -> crash-loop.
       DATABASE_URL: >-
         postgres://{{ vault['zipline_db'].username | urlencode }}:{{ vault['zipline_db'].password | urlencode }}@zipline-db:5432/zipline
       DATASOURCE_TYPE: local
       DATASOURCE_LOCAL_DIRECTORY: /zipline/uploads
-      # Generous GLOBAL cap on purpose (HD-112): the anonymous side is bounded by the
-      # guestbin user's quota + 6h TTL, not by size caps. No disabled types/extensions.
+      # A generous GLOBAL cap on purpose: the anonymous side is bounded by the guestbin user's
+      # quota + 6h TTL, not by size caps. No disabled types/extensions.
       FILES_MAX_FILE_SIZE: 1gb
       FEATURES_USER_REGISTRATION: "false"   # no local signup form
       FEATURES_OAUTH_REGISTRATION: "true"   # first Authentik OIDC login creates the account
@@ -99,12 +99,12 @@ services:
       OAUTH_OIDC_USERINFO_URL: https://sso.kogler.si/application/o/zipline/userinfo
       OAUTH_OIDC_REDIRECT_URI: https://bin.kogler.si/api/auth/oauth/oidc
       # NOTE: OAUTH_BYPASS_LOCAL_LOGIN intentionally NOT set here — flip it ON in
-      # Server Settings AFTER the local admin + first OIDC login are verified live.
+      # Server Settings only AFTER the local admin exists and the first OIDC login succeeds.
     labels:
       traefik.enable: "true"
       traefik.http.routers.zipline.rule: "Host(`bin.kogler.si`)"
       traefik.http.routers.zipline.entrypoints: websecure
-      {{ 'traefik.http.routers.zipline.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.zipline.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.zipline.middlewares: crowdsec-only@file
       traefik.http.services.zipline.loadbalancer.server.port: "3000"
 
@@ -129,22 +129,17 @@ services:
     volumes:
       - /srv/docker/zipline/postgres:/var/lib/postgresql/data
     environment:
-      # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider; every cluster here was
-      #   initdb-ed with libc/en_US.utf8 (measured 2026-10-08: datcollate=en_US.utf8, provider
-      #   = default/libc on all six). Left to the default, an 18 cluster would restore the same
-      #   rows with different sort semantics and silently change ORDER BY / index ordering, so
-      #   the provider is pinned HERE, in the template, before any pin moves. Harmless on 16
-      #   (--locale-provider exists since 15) and ignored on a non-empty datadir, so landing it
-      #   early costs nothing. Measured against postgres:18.6-alpine: datcollate=en_US.utf8.
-      #   HD-1100.
+      # ⚠ PG 18 initializes with ICU as the DEFAULT locale provider, while every cluster here was
+      # initdb-ed with libc/en_US.utf8. Left to the default, an 18 cluster would restore the same
+      # rows with different sort semantics and silently change ORDER BY / index ordering, so the
+      # provider is pinned HERE, in the template, before any pin moves. Harmless on 16
+      # (--locale-provider exists since 15) and ignored on a non-empty datadir.
       POSTGRES_INITDB_ARGS: "--locale=en_US.utf8 --locale-provider=libc"
-      # PG 18 images moved PGDATA to the version-specific /var/lib/postgresql/18/docker and their
-#   entrypoint REFUSES to start when it finds a cluster anywhere else - and the parent-mount layout
-#   it recommends does not work under this fleet's cap_drop: ALL, because the root phase then lacks
-#   CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory (measured: "mkdir: can't create
-#   directory /var/lib/postgresql/18/: Permission denied"). Pinning PGDATA to the existing mount keeps
-#   ONE mount shape for 16 and 18; probed 2026-10-08 with the service's own caps -> server_version
-#   18.6, datcollate=en_US.utf8, "ready to accept connections". HD-1100.
+      # PG 18 images moved PGDATA to the version-specific /var/lib/postgresql/18/docker and the
+      # entrypoint REFUSES to start when it finds the cluster anywhere else. Its recommended
+      # parent-mount layout does not work under this fleet's cap_drop: ALL — the root phase has no
+      # CAP_DAC_OVERRIDE and cannot write a uid-70 0700 directory. Pinning PGDATA to the existing
+      # mount keeps ONE mount shape for 16 and 18.
       PGDATA: /var/lib/postgresql/data
       POSTGRES_DB: zipline
       POSTGRES_USER: "{{ vault['zipline_db'].username | replace('$','$$') }}"

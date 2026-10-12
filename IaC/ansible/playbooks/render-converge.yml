@@ -2,7 +2,7 @@
 # Render the two converge .rsc scripts (SECRETS-INJECTED — never commit)
 # =============================================================================
 #
-# !!! SECRET-EXPOSURE WARNING (CONVENTIONS §2, HD-233/234 lesson) !!!
+# !!! SECRET-EXPOSURE WARNING (CONVENTIONS §2) !!!
 #   Outputs (rb4011_converge.rsc / crs328_converge.rsc) contain LIVE secrets
 #   (mikrotik admin password, PPPoE login). NEVER commit/push, cat/grep/echo
 #   their contents to stdout/chat/transcripts, or keep stale renders around
@@ -33,17 +33,15 @@
         mikrotik_admin_password: "{{ lookup('community.general.onepassword', 'mikrotik-admin_login', field='password', vault=op_vault) }}"
         pppoe_login_user: "{{ lookup('community.general.onepassword', 'pppoe_login', field='username', vault=op_vault) }}"
         pppoe_login_password: "{{ lookup('community.general.onepassword', 'pppoe_login', field='password', vault=op_vault) }}"
-        # SNMP RO community (HD-53): read-only, Mgmt-scoped — resolved at render so the
+        # SNMP RO community: read-only, Mgmt-scoped — resolved at render so the
         # converge templates can reference it without a secret in the repo.
         snmp_ro_community: "{{ lookup('community.general.onepassword', 'network-snmp_api', field='credential', vault=op_vault) }}"
       no_log: true
 
-    - name: Detect n8n router API item (HD-312/4) — absence must not fail the render
-      # The vault lacks mikrotik-n8n_api (owner-side gap, docs claimed done): a bare
-      # lookup would abort the whole converge render. Wrap in onepassword presence
-      # detection so rb4011_converge emits a loud DEFERRED comment instead of a blank
-      # password (fail-loud, no default('')). Owner creates the item per HD-105 then
-      # re-render provisions the n8n user.
+    - name: Detect n8n router API item — absence must not fail the render
+      # Presence detection: a bare lookup would abort the whole converge render when
+      # mikrotik-n8n_api is missing. rb4011_converge then emits a loud DEFERRED comment
+      # instead of a blank password (fail-loud, no default('')).
       command: op item get 'mikrotik-n8n_api' --vault {{ op_vault }} --format json
       register: mikrotik_n8n_item
       changed_when: false
@@ -56,10 +54,9 @@
       no_log: true
 
     - name: Resolve n8n password when the item exists
-      # Now that mikrotik-n8n_api exists (create-it rule: provision-secrets-style manual
-      # item, HD-105 pattern, matching mikrotik-logpipe_api), read its password ONLY in
-      # the present branch so the converge can actually create the n8n user. When absent
-      # the var stays undefined -> template falls to the DEFERRED comment (fail-loud).
+      # Read the password ONLY in the present branch so the converge can create the n8n
+      # user. When absent the var stays undefined -> the template falls to the DEFERRED
+      # comment (fail-loud).
       set_fact:
         mikrotik_n8n_password: "{{ lookup('community.general.onepassword', 'mikrotik-n8n_api', field='password', vault=op_vault) }}"
       when: mikrotik_n8n_present | default(false)
@@ -84,51 +81,50 @@
       template:
         src: "{{ playbook_dir }}/../../router/templates/crs328_fixboot_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/crs328_fixboot_delta.rsc"
-    - name: "Render rb4011_hd307_delta.rsc (HD-307: laptop/Pi static + Mgmt->Home)"
+    - name: "Render rb4011_hd307_delta.rsc (laptop/Pi static + Mgmt->Home)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_hd307_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_hd307_delta.rsc"
-    - name: "Render rb4011_dns_resolver_delta.rsc (HD-317: router DNS-primary DHCP + /ip dns)"
+    - name: "Render rb4011_dns_resolver_delta.rsc (router DNS-primary DHCP + /ip dns)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_dns_resolver_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_dns_resolver_delta.rsc"
-    - name: "Render rb4011_guest_delta.rsc (HD-312: guest turn-up + IOT-WAN/Kids removal)"
+    - name: "Render rb4011_guest_delta.rsc (guest turn-up + IOT-WAN/Kids removal)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_guest_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_guest_delta.rsc"
-    # HD-338: IoT devices off Mgmt + laptop tagged-99 (router live delta).
-    # The FULL converge template (rb4011_converge.rsc.j2) carries the same
-    # changes; this delta is the TRANSIENT apply (network-ops.md 3-tier) —
-    # deleted once folded (it already is: converge template updated HD-338).
-    - name: "Render rb4011_iot_off_mgmt_delta.rsc (HD-338: HAP/UPS off Mgmt + laptop tagged-99)"
+    # IoT devices off Mgmt + laptop tagged-99. The FULL converge template
+    # (rb4011_converge.rsc.j2) carries the same changes; this delta is the TRANSIENT
+    # apply (network-ops.md 3-tier) — delete it once folded into the converge.
+    - name: "Render rb4011_iot_off_mgmt_delta.rsc (HAP/UPS off Mgmt + laptop tagged-99)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_iot_off_mgmt_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_iot_off_mgmt_delta.rsc"
-    - name: "Render rb4011_ha_iot_delta.rsc (HD-319/HD-320: HA node -> KNX udp/3671 + Shelly tcp/80)"
+    - name: "Render rb4011_ha_iot_delta.rsc (HA node -> KNX udp/3671 + Shelly tcp/80)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_ha_iot_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_ha_iot_delta.rsc"
-    - name: "Render crs328_guest_delta.rsc (HD-312: switch AP-port VLAN 30)"
+    - name: "Render crs328_guest_delta.rsc (switch AP-port VLAN 30)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/crs328_guest_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/crs328_guest_delta.rsc"
-    - name: "Render rb4011_hd326_fix_delta.rsc (HD-326/HD-312: per-MAC kids + cloud-IoT WAN live-apply)"
+    - name: "Render rb4011_hd326_fix_delta.rsc (per-MAC kids + cloud-IoT WAN live-apply)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_hd326_fix_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_hd326_fix_delta.rsc"
-    - name: "Render ap_guest_delta.rsc (HD-312: CAP bridge VLAN 30, per-AP)"
+    - name: "Render ap_guest_delta.rsc (CAP bridge VLAN 30, per-AP)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/ap_guest_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/ap_guest_delta.rsc"
-    - name: "Render rb4011_fixsyslog_delta.rsc (HD-313: remote-syslog egress refresh-on-boot workaround)"
+    - name: "Render rb4011_fixsyslog_delta.rsc (remote-syslog egress refresh-on-boot workaround)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_fixsyslog_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_fixsyslog_delta.rsc"
-    - name: "Render mikrotik_admin_rotate_delta.rsc (HD-321: shared admin password rotation)"
+    - name: "Render mikrotik_admin_rotate_delta.rsc (shared admin password rotation)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/mikrotik_admin_rotate_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/mikrotik_admin_rotate_delta.rsc"
-    - name: "Render rb4011_egress_probe_delta.rsc (HD-313: syslog egress test probe)"
+    - name: "Render rb4011_egress_probe_delta.rsc (syslog egress test probe)"
       template:
         src: "{{ playbook_dir }}/../../router/templates/rb4011_egress_probe_delta.rsc.j2"
         dest: "{{ playbook_dir }}/../../router/rendered/rb4011_egress_probe_delta.rsc"

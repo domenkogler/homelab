@@ -3,11 +3,10 @@
 #   Also handles office automation workflows.
 #   Renewal-reminder workflow: docs/automation-renewals.md (infra; create post-deploy).
 #
-#   INTERNAL-ONLY (HD-135b follow-up): the public `auto.kogler.si` route (main
-#   Traefik labels) is REMOVED — n8n is reachable ONLY over the tailnet via the
-#   traefik-tailnet edge (auto.kogler.si / auto.ts.kogler.si, headscale extra_records).
-#   The compose still binds traefik-public (the tailnet edge reaches it by service
-#   name); the service itself owns NO public route.
+#   INTERNAL-ONLY: n8n is reachable ONLY over the tailnet via the traefik-tailnet edge
+#   (auto.kogler.si / auto.ts.kogler.si, headscale extra_records). The compose still binds
+#   traefik-public (the tailnet edge reaches it by service name); the service owns NO public
+#   route.
 #
 #   SQLite database (no external Postgres). Web UI protected by Authentik Forward-Auth.
 #
@@ -16,29 +15,29 @@
 #                     long-lived, immutable; rotating = re-encrypt stored credentials).
 #   - n8n-webhook_api (API/Password → field=credential) — webhook/API auth token, independently
 #                     rotatable (short-lived) so an encryption key is never exposed in webhook
-#                     auth (KOPS-031 / HD-77).
+#                     auth.
 #   Future: n8n-smtp_login (SMTP relay — provider not chosen yet).
 services:
   n8n:
     image: n8nio/n8n:{{ n8n_version }}
     cap_drop:
       - ALL
-    # read_only REMOVED (Wave-3 round-3 triage): n8n writes runtime dirs under $HOME on the
-    # rootfs (~/.cache for the task-runner compile); tmpfs patches would need per-path modes.
-    # Runs as node uid 1000 which owns those paths on the image.
+    # read_only is intentionally absent: n8n writes runtime dirs under $HOME on the rootfs
+    # (~/.cache for the task-runner compile), so tmpfs patches would need per-path modes.
+    # It runs as node uid 1000, which owns those paths in the image.
     tmpfs:
       - /tmp
     container_name: n8n
     restart: unless-stopped
     ports:
-      # HD-342 (Victoria migration): loopback publish of the metrics endpoint (:5678,
-      # N8N_METRICS) so the VPS host-APT Alloy can scrape n8n /metrics. Loopback-only
-      # (authentik HD-143 precedent); n8n itself stays tailnet-only via traefik-tailnet.
+      # Loopback-only publish of the metrics endpoint (:5678, N8N_METRICS) so the VPS host-APT
+      # Alloy can scrape n8n /metrics. Loopback-only: n8n itself stays tailnet-only via
+      # traefik-tailnet.
       - "127.0.0.1:5678:5678"
     networks:
       - traefik-public
       - services-internal
-      - db-internal    # 2026-09-08: Prometheus scrapes n8n:5678/metrics here (N8N_METRICS)
+      - db-internal    # Prometheus scrapes n8n:5678/metrics here (N8N_METRICS)
                        # — same pattern as traefik joining db-internal for its metrics entryPoint.
     volumes:
       - /srv/docker/n8n/data:/home/node/.n8n
@@ -48,44 +47,35 @@ services:
       N8N_HOST: auto.kogler.si
       WEBHOOK_URL: https://auto.kogler.si
       N8N_ENCRYPTION_KEY: "{{ vault['n8n_password'].password | replace('$','$$') }}"
-      # Webhook/API auth — separate, rotatable token from the encryption key (KOPS-031 / HD-77).
+      # Webhook/API auth — a separate, rotatable token, not the encryption key.
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: grafana
       N8N_BASIC_AUTH_PASSWORD: "{{ vault['n8n-webhook_api'].credential | replace('$','$$') }}"
       N8N_METRICS: "true"
       DB_TYPE: sqlite
-      # ⛔ REQUIRED for the alert router, and the default is the WRONG way round (HD-347,
-      # read n8n-workflow/workflow-data-proxy-env-provider.js before changing):
-      #   isEnvAccessBlocked = process.env.N8N_BLOCK_ENV_ACCESS_IN_NODE !== 'false'
-      # — unset therefore means BLOCKED, every `$env.*` expression throws "access to
-      # env vars denied", and with the Signal node's old onError mute the execution still
-      # reported `success`, which is how "alerts go to Signal" stayed false through several
-      # n8n upgrades. The four SIGNAL_* values below are the reason this leg exists: they
-      # are the render's SSOT->runtime handoff, so the alternative (typing them into the
-      # workflow) would fork the SSOT. Cost of the switch: any workflow this instance can
-      # run may read the whole container env — bounded by n8n being admin-only over the
-      # tailnet (auto.ts.kogler.si, no public route, see the labels below).
+      # REQUIRED, and the default is wrong-way-round: isEnvAccessBlocked is
+      # N8N_BLOCK_ENV_ACCESS_IN_NODE !== 'false', so unset means BLOCKED, every `$env.*`
+      # throws "access to env vars denied", and a lenient onError still reports success. The
+      # SIGNAL_* values are the SSOT->runtime handoff; a workflow can then read the whole
+      # container env, bounded by n8n being admin-only over the tailnet (labels below).
       N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # HD-347: homelab-alerts workflow env — Signal delivery via signal-cli-rest-api on
-      # oldsrv (Home-VLAN publish, WG-reachable from the VPS). Values are 1P-resolved at
-      # render; the workflow JSON references these env names, not literals.
-      # :8082 (not :8080 — pi-dev owns oldsrv_home_ip:8080, HD-355/HD-353 collision fix;
-      # signal gateway moved, see signal-cli-rest-api compose).
-      # The gateway takes the token ONLY as `Authorization: Bearer <token>` — measured
-      # 2026-09-28 from the VPS against oldsrv:8082: X-Api-Key -> 401, Bearer -> 200 on
-      # /v1/about. The workflow's header must stay in that shape (its repo copy had drifted
-      # back to X-Api-Key; the live n8n DB copy has carried Bearer since HD-353 on 09-10).
+      # homelab-alerts workflow env — Signal delivery via signal-cli-rest-api on oldsrv
+      # (Home-VLAN publish, WG-reachable from the VPS). Values are 1P-resolved at render; the
+      # workflow JSON references these env names, not literals.
+      # :8082, not :8080 — oldsrv_home_ip:8080 belongs to pi-dev, so the gateway publishes a
+      # distinct port (see the signal-cli-rest-api compose).
+      # The gateway takes the token ONLY as `Authorization: Bearer <token>` (X-Api-Key -> 401).
+      # The workflow's header must stay in that shape, or every send fails with 401.
       SIGNAL_CLI_URL: "http://{{ oldsrv_home_ip }}:8082/v2/send"
       SIGNAL_API_TOKEN: "{{ vault['signal-internal_api'].credential | replace('$','$$') }}"
       SIGNAL_NUMBER: "{{ vault['signal_api'].username | replace('$','$$') }}"
-      # NO default() (HD-347): this value is required for delivery, and the fallback this
-      # line used to carry rendered the group NAME — not a recipient. signal-cli-rest-api
-      # rejects it and the workflow node swallows the rejection (onError:
-      # continueRegularOutput), which is how "alerts go to Signal" stayed silently false.
-      # An empty env is now at least visible in the render / `docker inspect`.
+      # NO default(): this value is required for delivery. A fallback that renders the group
+      # NAME is not a recipient — signal-cli-rest-api rejects it and the workflow node swallows
+      # the rejection (onError: continueRegularOutput), so delivery fails silently. An empty
+      # env is at least visible in the render / `docker inspect`.
       SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | replace('$','$$') }}'
-    labels: {}   # INTERNAL-ONLY (HD-135b follow-up): no public Traefik route on the main
+    labels: {}   # INTERNAL-ONLY: no public Traefik route on the main
                   # edge — n8n is served over the tailnet by the traefik-tailnet edge
                   # (auto.kogler.si / auto.ts.kogler.si).
 networks:

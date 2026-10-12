@@ -1,5 +1,5 @@
 [Unit]
-Description=spark GB10 unified-memory OOM watchdog — forensics + enforcing governor (HD-380/HD-381)
+Description=spark GB10 unified-memory OOM watchdog — forensics + enforcing governor
 After=docker.service
 Wants=docker.service
 
@@ -19,13 +19,13 @@ Environment=SPARK_OOM_ENFORCE_COOLDOWN={{ spark_oom_watchdog_enforce_cooldown }}
 Environment=SPARK_OOM_ENFORCE_MAX={{ spark_oom_watchdog_enforce_max }}
 Environment=SPARK_OOM_ENFORCE_WINDOW={{ spark_oom_watchdog_enforce_window }}
 Environment=SPARK_OOM_ENFORCE_WAIT_MAX={{ spark_oom_watchdog_enforce_wait_max }}
-# HD-494 hysteresis: an enforced restart latches the enforcer off until the gauge is back here
+# Hysteresis: an enforced restart latches the enforcer off until the gauge is back here
 Environment=SPARK_OOM_REARM_GIB={{ spark_oom_watchdog_rearm_gib }}
 # Idle-recycling of the cumulative (never-returned) allocator term
 Environment=SPARK_OOM_RECYCLE={{ 1 if spark_oom_watchdog_recycle | bool else 0 }}
 Environment=SPARK_OOM_RECYCLE_GROW_GIB={{ spark_oom_watchdog_recycle_grow_gib }}
 Environment=SPARK_OOM_RECYCLE_IDLE_S={{ spark_oom_watchdog_recycle_idle_s }}
-# HD-395: the recycle baseline is MEASURED (health 200 → settle → max of N reads in a span),
+# The recycle baseline is MEASURED (health 200 → settle → max of N reads in a span),
 # persisted so a UNIT restart never re-baselines a running engine. See the script header.
 Environment=SPARK_OOM_BASELINE_SETTLE_S={{ spark_oom_watchdog_baseline_settle_s }}
 Environment=SPARK_OOM_BASELINE_SAMPLES={{ spark_oom_watchdog_baseline_samples }}
@@ -34,12 +34,9 @@ Environment=SPARK_OOM_BASELINE_MIN_MIB={{ spark_oom_watchdog_baseline_min_mib }}
 Environment=VLLM_CONTAINER={{ spark_vllm_container }}
 Restart=always
 RestartSec=10s
-# The watchdog must never be the OOM victim — alloy and dcgm-exporter were both
-# killed by the global OOM killer in incidents #2/#3, which blinds monitoring at
-# exactly the wrong moment. Immune + capped so it cannot itself grow; the cap is
-# generous enough that the enforcement children (docker CLI, curl) are not the first
-# thing to die inside it when the box is out of memory (peak measured 71.8M against
-# the old 96M cap while merely sampling).
+# The watchdog must never be the OOM victim: if it dies with the box, monitoring goes blind at
+# exactly the wrong moment. Immune + capped so it cannot itself grow; the cap must stay generous
+# enough that the enforcement children (docker CLI, curl) are not the first thing to die inside it.
 OOMScoreAdjust=-1000
 MemoryMax={{ spark_oom_watchdog_memory_max }}
 MemoryHigh={{ spark_oom_watchdog_memory_high }}

@@ -13,18 +13,17 @@
   tags: always
 
 # Debian trixie apt sources — a minimal/preseed install lands with NO network sources
-# (only a commented cdrom line), so `apt` has no package index at all (nas live-found
-# 2026-09-03: 'No package matching gpg is available' = empty candidate list). We write the
-# deb822 .sources directly (the deb822_repository module no-ops on this ansible-core in the
-# runner venv — reported changed, wrote nothing; live-repaired by direct write 2026-09-03).
+# (only a commented cdrom line), so `apt` has no package index at all (symptom:
+# 'No package matching gpg is available' = empty candidate list). Write the
+# deb822 .sources directly — the deb822_repository module no-ops on this ansible-core in the
+# runner venv (reports changed, writes nothing).
 # Canonical trixie main/contrib/non-free-firmware + security + updates.
 #
-# HD-317 (2026-09-04, live fix): a stock Debian trixie install already ships
+# A stock Debian trixie install already ships
 # /etc/apt/sources.list.d/debian.sources (deb822, Signed-By: …debian-archive-keyring.pgp)
-# covering trixie + trixie-security. Writing the .gpg-Signed-By duplicates below beside it
-# makes apt FAIL with "Conflicting values set for option Signed-By" (live on the Pi
-# 2026-09-04 — blocked the whole converge until the dup files were removed). The role only
-# writes these fragments on hosts that LACK the stock sources file.
+# covering trixie + trixie-security. Writing a .gpg-Signed-By fragment below beside it
+# makes apt FAIL with "Conflicting values set for option Signed-By". This role
+# writes these fragments only on hosts that LACK the stock sources file.
 - name: Assert stock Debian deb822 sources are ABSENT (trixie .sources landed by the OS)
   ansible.builtin.stat:
     path: /etc/apt/sources.list.d/debian.sources
@@ -66,7 +65,7 @@
 
 - name: Update apt repositories and install prerequisites
   apt:
-    name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip, acl, python3-debian, python3-apt, jq]  # jq: authentik secret-egress glue parses API JSON host-side (found missing on the minimal image, Phase 1 2026-08-22)
+    name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip, acl, python3-debian, python3-apt, jq]  # jq: authentik secret-egress glue parses API JSON host-side (absent on the minimal image)
     state: present
     update_cache: true
 

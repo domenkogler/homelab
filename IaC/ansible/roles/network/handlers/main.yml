@@ -1,6 +1,6 @@
 ---
 # network role handlers. tags: always — handlers are tag-filtered like tasks; without it a
-# notified reload is silently skipped under e.g. --tags network (HD-220/HD-237 sweep).
+# notified reload is silently skipped under e.g. --tags network.
 #
 # Two config-managers coexist (network-rejected.md): the Pi uses NetworkManager
 # (pi-eth0 / pi-mgmt keyfiles), nas/oldsrv use systemd-networkd (netd units). Each

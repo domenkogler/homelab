@@ -7,12 +7,12 @@
 
 | Component | Implemented | Stubs / TODO |
 |-----------|-------------|--------------|
-| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch` (HD-03), `home_assistant`, `docker_services` (HD-50), `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard`, `vps-hardening` (HD-154) — count = `ls roles/`, never hand-entered | `proxmox` (TODO, Phase 2) |
+| Ansible roles | `common`, `docker`, `ai_diag`, `nut`, `cockpit`, `network` (foundation), `storage`, `router`, `switch`, `home_assistant`, `docker_services`, `monitoring`, `amd_rocm`, `desktop`, `office`, `cifs`, `cloudflare_dns`, `wireguard`, `vps-hardening` — count = `ls roles/`, never hand-entered | `proxmox` (TODO) |
 | Docker compose templates | implemented set = `templates/docker_services/` (count derived from the directory; count-lint enforced by `validate-docker-services.py`) | — |
 | RouterOS bootstrap scripts | `IaC/router/templates/{rb4011,crs328,ap}_initial.rsc.j2` (3) — rendered with secrets via `playbooks/render-routeros.yml` into gitignored `IaC/router/rendered/`; never import the raw template | — |
 | Bootstrap | runner setup relocated to `scripts/bootstrap-runner.sh`; `post_install.sh`, `pi/first-boot-config.sh` stay in `IaC/host/` (deploy payloads) | — |
 
-> `network` role: static-IP + VLAN trunk provisioning: **Pi (HD-307, 2026-09-01) now implemented via NetworkManager** (RPi OS ships NM; Pi-uses-NetworkManager, `network-rejected.md`); the other hosts' static/VLAN work remains a scoped TODO until each host's config-manager is settled (desktop/VPS use systemd-networkd). See `roles/network/tasks/main.yml`.
+> `network` role: static-IP + VLAN trunk provisioning: **Pi uses NetworkManager** (RPi OS ships NM; Pi-uses-NetworkManager, `network-rejected.md`); the other hosts' static/VLAN work remains a scoped TODO until each host's config-manager is settled (desktop/VPS use systemd-networkd). See `roles/network/tasks/main.yml`.
 
 ## Hostname / Domain Convention
 
@@ -48,13 +48,13 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   ├── group_vars/
 │   │   │   ├── all.yml                     # Timezone, locale (sl_SI.UTF-8), NTP, domain kogler.si; infra vars (network/IP/WG/livebox)
 │   │   │   ├── all/
-│   │   │   │   └── versions.yml              # Docker image version pins (ALL hosts, HD-156) — one-file Renovate review
+│   │   │   │   └── versions.yml              # Docker image version pins (ALL hosts) — one-file Renovate review
 │   │   │   ├── router.yml                  # VLAN map (10/20/21/30/40/50/99), WireGuard, DNS
-│   │   │   ├── vps.yml                     # docker_services list (VPS, Phase 2)
+│   │   │   ├── vps.yml                     # docker_services list (VPS)
 │   │   │   ├── home_servers.yml            # homelab_mode, docker_services list (home), GPU config
 │   │   │   └── raspberry_pi.yml            # HA install method, version
 │   │   ├── host_vars/
-│   │   │   ├── oldsrv.kogler.si.yml        # Phase 1: homelab_mode=desktop, static IP
+│   │   │   ├── oldsrv.kogler.si.yml        # homelab_mode=desktop, static IP
 │   │   │   └── pi.kogler.si.yml             # Static IP, SSH user (node; ha.kogler.si = VIP)
 │   │   ├── templates/
 │   │   │   ├── docker_services/            # docker-compose.yml.j2 per service (canonical list = docs/services.md)
@@ -81,7 +81,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │   └── roles/
 │   │       ├── common/tasks/{main,system}.yml  # fail-closed admin guard, apt, sudo
 │   │       ├── docker/tasks/main.yml        # Docker CE + compose, daemon.json, user group
-│   │       ├── vps-hardening/               # HD-154: VPS pre-deploy hardening (public edge only) — fail2ban, nftables default-deny, docker daemon
+│   │       ├── vps-hardening/               # VPS pre-deploy hardening (public edge only) — fail2ban, nftables default-deny, docker daemon
 │   │       │   ├── tasks/main.yml
 │   │       │   ├── templates/nftables.conf.j2
 │   │       │   └── handlers/main.yml
@@ -99,7 +99,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │   │       ├── office/tasks/main.yml        # ONLYOFFICE, MS fonts, OpenCloud client
 │   │       ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
 │   │       ├── router/tasks/main.yml        # RouterOS REST API or .rsc push
-│   │       ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (Phase 2)
+│   │       ├── proxmox/tasks/main.yml       # Proxmox bridges, storage, VMs (TODO)
 │   │       ├── home_assistant/tasks/main.yml# HA primary (Pi) + standby (oldsrv) + keepalived VIP
 │   │       ├── docker_services/tasks/main.yml # THE key role — generic service deployer
 │   │       ├── monitoring/tasks/main.yml    # Alloy → Prometheus + Loki; Grafana + alerting; blackbox; HA exporter
@@ -123,7 +123,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 │
 ├── docs/                                   # Architecture documentation (canonical)
 ├── manual/                                 # Family guides (Slovenian) — see docs/manual/
-├── client/office-bridge/                   # Native Windows/COM Office MCP bridge (HD-106) — first-class tracked repo component; deployed per-client (not via Ansible); SSOT spec docs/services-office.md
+├── client/office-bridge/                   # Native Windows/COM Office MCP bridge — first-class tracked repo component; deployed per-client (not via Ansible); SSOT spec docs/services-office.md
 └── README.md                               # Repo root (you are here)
 ```
 
@@ -148,7 +148,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Post-install:** `systemd: name=docker state=started enabled=true`, admin user → `docker` group
 - **Secrets:** None
 
-### `vps-hardening`  *(HD-154 — public VPS only, mandatory pre-deploy)*
+### `vps-hardening`  *(public VPS only, mandatory pre-deploy)*
 - **File:** `roles/vps-hardening/tasks/main.yml`, `templates/nftables.conf.j2`, `handlers/main.yml`
 - **Scope:** the VPS is the single public trust boundary — run BEFORE `docker_services` in `playbooks/vps.yml`.
 - **fail2ban:** SSH jail (`maxretry 3`) + `http-auth` jail for public login pages; installed + enabled.
@@ -158,14 +158,14 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 - **Secrets:** None.
 
 ### `network`
-- **Current scope:** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`; **Pi static dual-home via NetworkManager (HD-307, 2026-09-01)** — RPi OS ships NetworkManager, so the Pi gets an NM keyfile profile (`pi-eth0.nmconnection`) with Home + Mgmt static (per `network-addresses-generated.md` SSOT), default via Home (single gateway — no `never-default`), DNS via `bootstrap_dns_servers`. See `network-rejected.md` (Pi-uses-NetworkManager).
+- **Current scope:** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`; **Pi static dual-home via NetworkManager** — RPi OS ships NetworkManager, so the Pi gets an NM keyfile profile (`pi-eth0.nmconnection`) with Home + Mgmt static (per `network-addresses-generated.md` SSOT), default via Home (single gateway — no `never-default`), DNS via `bootstrap_dns_servers`. See `network-rejected.md` (Pi-uses-NetworkManager).
 - **Pending:** static IP + VLAN trunk/sub-interface for oldsrv (VLAN 99 native + 10/20/50 tagged) and nas (VLAN 10 + 99 native) once each host's config-manager is settled (desktop/VPS use systemd-networkd).
 - **All hosts:** `/etc/hosts` template with all node entries (resolved via local DNS)
 
 ### `cockpit`
 - **Scope:** nas + oldsrv only (Pi excluded — managed via SSH/HA UI).
 - Installs `cockpit` (+ `cockpit-zfs` on nas), enables `cockpit.socket`, grants `sudo` group (Cockpit admins on Debian) to `ansible_admin_users`.
-- **Own login — deliberately NOT behind Authentik** (management surface, independent of SSO). Routes are Traefik **file-provider** config (`/opt/traefik/dynamic/cockpit.yml`, rendered on oldsrv): `cockpit-nas → nas.kogler.si:9090`, `cockpit-oldsrv → oldsrv.kogler.si:9090` (backends derived from the address SSOT, HD-188), no Forward-Auth middleware.
+- **Own login — deliberately NOT behind Authentik** (management surface, independent of SSO). Routes are Traefik **file-provider** config (`/opt/traefik/dynamic/cockpit.yml`, rendered on oldsrv): `cockpit-nas → nas.kogler.si:9090`, `cockpit-oldsrv → oldsrv.kogler.si:9090` (backends derived from the address SSOT), no Forward-Auth middleware.
 - Host/Origin note: Traefik preserves the original Host, so cockpit-ws Origin validation passes — no header rewrite on these routes.
 
 ### `nut`
@@ -192,11 +192,11 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 
 ### `router`
 - Method: REST API (preferred) or templated `.rsc` push
-- Configs: VLAN interfaces (10/20/30/40/50/99 — VLAN 21 removed HD-325), DHCP, firewall, WireGuard, CAPsMAN (SSIDs `Kogler`, `Kogler IOT`, `Kogler guest`), DNS forwarding
+- Configs: VLAN interfaces (10/20/30/40/50/99), DHCP, firewall, WireGuard, CAPsMAN (SSIDs `Kogler`, `Kogler IOT`, `Kogler guest`), DNS forwarding
 - Secrets: RouterOS admin password, WireGuard keys
 
 ### `proxmox`
-- Condition: `when: homelab_mode == 'proxmox'` (home Phase 2 only — not on netcup VPS)
+- Condition: `when: homelab_mode == 'proxmox'` (home hosts only — not on netcup VPS)
 - Bridges (vmbr0–vmbr4), storage, firewall; Secrets: Proxmox root password
 
 ### `home_assistant`
@@ -248,7 +248,7 @@ never re-typed here (CONVENTIONS §2):
 - **Home servers (GPU/LAN core):** [`group_vars/home_servers.yml`](ansible/group_vars/home_servers.yml)
 - **Pi:** [`group_vars/raspberry_pi.yml`](ansible/group_vars/raspberry_pi.yml)
 
-Placement follows the HD-135 plane split (oldsrv runs the GPU/LAN core; the public edge, public
+Placement follows the plane split (oldsrv runs the GPU/LAN core; the public edge, public
 services and the observability backend live on the VPS). The human-readable catalog is
 [`docs/services.md`](../docs/services.md); the deploy-loop SSOT is group_vars.
 
@@ -278,7 +278,7 @@ WantedBy=multi-user.target
 ```
 
 This ensures containers start at boot (`multi-user.target`), before any user login —
-critical for Phase 1 where services must run headless.
+critical on hosts where services must run headless.
 
 ---
 
@@ -288,7 +288,7 @@ critical for Phase 1 where services must run headless.
   router forwards to Technitium (fallback `1.1.1.1`). Technitium answers `*.kogler.si` internally.
 - **Public DNS:** Cloudflare (registry registrar: **domenca.com**) publishes only the internet-facing subset
   (`kogler.si`, `foto`, `file`, `git`, `sso`, `ha`, `vpn`). **No proxy** — DNS-only, real client IPs reach Traefik.
-- **Certificates:** single `*.kogler.si` wildcard via ACME **DNS-01**, issued by the **VPS Traefik** (single issuer, HD-178; oldsrv/Pi edges consume synced certs — enforced by the `traefik_acme_issuer` flag, HD-181) with a Cloudflare API token (1Password `Homelab-ansible`).
+- **Certificates:** single `*.kogler.si` wildcard via ACME **DNS-01**, issued by the **VPS Traefik** (single issuer; oldsrv/Pi edges consume synced certs — enforced by the `traefik_acme_issuer` flag) with a Cloudflare API token (1Password `Homelab-ansible`).
 
 ---
 
@@ -306,7 +306,7 @@ See `docs/deployment-secrets.md` for the full master list + rename map (includin
 | `headscale_api` | headscale |
 | `ha_api`, `ha-vrrp_password` | home_assistant / monitoring |
 | `cloudflare_api` | ACME DNS-01 wildcard cert |
-| `mikrotik-admin_login`, `wg_password` | router (+ switch/APs, shared — HD-165) |
+| `mikrotik-admin_login`, `wg_password` | router (+ switch/APs, shared) |
 
 ---
 
@@ -322,7 +322,7 @@ See `docs/deployment-secrets.md` for the full master list + rename map (includin
 | 6 | `home_assistant` role (Pi primary + oldsrv standby + keepalived VIP `ha-vip`) | `docker` |
 | 7 | `monitoring` role (incl. Grafana alerting rules + SMTP) | `docker_services` |
 | 8 | `router` role (+ `.rsc`) | `network` (IPs/VLANs defined) |
-| 9 | `proxmox` (Phase 2) | `network` |
+| 9 | `proxmox` (TODO) | `network` |
 | 10 | Renovate + Homepage templates | `docker_services` |
 | 11 | Post-deploy hooks (Homepage + inventory) | `docker_services` |
 | 12 | Forgejo Actions workflow (`.forgejo/workflows/deploy.yml`) | all roles |

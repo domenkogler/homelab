@@ -14,54 +14,52 @@ op_vault: Homelab-ansible
 domain_public: kogler.si
 domain_local: kogler.si    # the LAN search suffix: rendered as `Domains=` / `dns-search=` on host
                            # NICs (roles/network) and handed to DHCP clients as option 15 by the
-                           # router (HD-1097). NOT a split-horizon switch — the zone is one name-
+                           # router. NOT a split-horizon switch — the zone is one name-
                            # space; `domain_public` is the public half of the same string.
 
-# Bootstrap DHCP DNS for freshly-reset MikroTik gear (HD-193): used by the
-# rb4011_initial template BEFORE Technitium exists (it lands on oldsrv at
-# Phase 3). Upstream public resolver until then.
+# Bootstrap DHCP DNS for freshly-reset MikroTik gear: used by the
+# rb4011_initial template BEFORE Technitium exists (it lands on oldsrv).
+# Upstream public resolver until then.
 bootstrap_dns_servers: "1.1.1.1"
 
-# GPU group IDs — VERIFIED ON THE BOX, not from the Debian defaults table.
-# video:44 is Debian-static (correct). render was ASSUMED 104 ("since bullseye") and
-# that value is WRONG on oldsrv: `getent group 104` = ssl-cert there, while the live
-# `render` group is 992 (measured 2026-09-19 over SSH; bench §1 agrees). So every GPU leg
-# was group_add-ing the SSL-CERT group instead of render. It never broke anything only
-# because the render nodes are world-rw on this desktop box (`getfacl /dev/dri/renderD129`
-# shows other::rw- + a lightdm ACL) — i.e. the wrong gid was masked, not harmless by design.
-# Used by ollama, immich-ml, jellyfin, sunshine + the HD-391 Vulkan AI legs for /dev/dri.
+# GPU group IDs — read them on the box, not from the Debian defaults table.
+# video:44 is Debian-static (correct). `render` is NOT 104 on oldsrv: `getent group 104`
+# there answers ssl-cert, while the live `render` group is 992. Guessing the gid means every
+# GPU leg group_adds the SSL-CERT group instead of render, and that is only harmless while
+# the render nodes happen to be world-rw (`getfacl /dev/dri/renderD129` shows other::rw- +
+# a lightdm ACL) — a masked bug, not a safe design.
+# Used by ollama, immich-ml, jellyfin, sunshine + the Vulkan AI legs for /dev/dri.
 # Verify with: getent group render video
-gpu_render_gid: 992                         # oldsrv live `render` (measured 2026-09-19; 104 = ssl-cert)
+gpu_render_gid: 992                         # oldsrv live `render`; 104 is ssl-cert
 gpu_video_gid: 44
 
-# The dGPU's DRM render node for the Vulkan legs (HD-391, decision #27). Mount ONLY this
+# The dGPU's DRM render node for the Vulkan legs. Mount ONLY this
 # node: renderD128 is the HD 630 iGPU, which is the family desktop's Xorg device AND the
-# Jellyfin QSV transcoder — and using it for AI is measured SLOWER than CPU (rejected by
-# measurement, docs/services-ai-bench.md §4). renderD129 = AMD RX 7600 gfx1102.
+# Jellyfin QSV transcoder — and using it for AI is slower than CPU
+# (docs/services-ai-bench.md §4). renderD129 = AMD RX 7600 gfx1102.
 gpu_vulkan_render_node: /dev/dri/renderD129
 
 # ==== Shared service knobs ====
 # Docker image version pins live in ONE file: `group_vars/all/versions.yml`
-# (HD-156) so Renovate docker datasource updates + version review are a single sheet.
+# so Renovate docker datasource updates + version review are a single sheet.
 # All hosts load it via the `all` group. Keep INFRASTRUCTURE vars here (network, IP,
 # identity, WG, livebox, NUT/ZFS exporters); only VERSION PINS go in versions.yml.
 #
-# (Version pins were moved here → versions.yml by HD-156 on 2026-08-19.)
 # Let's Encrypt account contact — REQUIRED to register the ACME account when the
-# first cert is issued. Issuer = the **VPS Traefik** (HD-178: single issuer; oldsrv/Pi
-# edges consume synced certs; single-issuer enforced by `traefik_acme_issuer`, HD-181).
+# first cert is issued. Issuer = the **VPS Traefik** (single issuer enforced by
+# `traefik_acme_issuer`; oldsrv/Pi edges consume synced certs).
 letsencrypt_email: domen@kogler.si
-# CrowdSec collections to install (HD-85 / KOPS-041): which app logs CrowdSec
-# parses for WAF/brute-force. Included: traefik + linux (baseline) + home-assistant.
-# HD-313: + crowdsecurity/syslog-logs + a1ad/mikrotik (parser + mikrotik-bf +
-# mikrotik-scan-multi_ports scenarios) for the RB4011/switch/AP remote RFC5424
-# syslog stream (host rsyslog receiver -> /var/log/remote-syslog/routeros.log).
+# CrowdSec collections to install: which app logs CrowdSec
+# parses for WAF/brute-force. Included: traefik + linux (baseline) + home-assistant
+# + a1ad/mikrotik (parser + mikrotik-bf + mikrotik-scan-multi_ports scenarios) for the
+# RB4011/switch/AP remote RFC5424 syslog stream (host rsyslog receiver ->
+# /var/log/remote-syslog/routeros.log).
 # Extend here as services are exposed
 # (qBittorrent, jellyfin, n8n …) — a collection only does something if its logs are
 # ALSO sent to CrowdSec (docker.sock container-log parsing).
-# NOTE (Wave-1/3 triage 2026-08-22): crowdsecurity/matrix AND crowdsecurity/grafana do
+# NOTE: crowdsecurity/matrix AND crowdsecurity/grafana do
 # NOT exist upstream — their failed installs abort container startup every boot. Matrix
-# and Grafana log parsing is dropped until collections exist upstream or are authored.
+# and Grafana logs are not parsed until such collections exist upstream or are authored.
 crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/home-assistant a1ad/mikrotik"
 # Wildcard *.kogler.si cert pair file names — shared by the issuer and ALL consumer
 # edges so the VPS ACME issuer, the consumer pull timers and the Traefik configs can
@@ -70,47 +68,47 @@ crowdsec_collections: "crowdsecurity/traefik crowdsecurity/linux crowdsecurity/h
 #   oldsrv traefik + Pi traefik-ha (consumers): pulled to their certs dirs with these names.
 wildcard_cert_file: kogler.si.pem
 wildcard_cert_key_file: kogler.si-key.pem
-# The SECOND issued wildcard (`*.ts.kogler.si`, HD-135b): the tailnet namespace. The VPS
-# issuer requests both SANs and the consumers' cert-pull already carries this pair — it sat
-# UNUSED on oldsrv until HD-405 gave the home edge a tailnet listener to serve it on.
+# The SECOND issued wildcard (`*.ts.kogler.si`): the tailnet namespace. The VPS
+# issuer requests both SANs and the consumers' cert-pull already carries this pair — it is
+# served only where a tailnet listener exists to serve it on.
 wildcard_ts_cert_file: ts.kogler.si.pem
 wildcard_ts_cert_key_file: ts.kogler.si-key.pem
 # The wildcard SAN root — the certs-dumper matches acme.json by this domain and
 # the Pi/oldSrv edges serve all *.kogler.si hosts from the dumped pair.
 wildcard_cert_domain: "kogler.si"
-# (Doco-CD metrics port removed — Doco-CD dropped, HD-150.)
-# Technitium DNS topology (HD-299, VPS-primary 2026-09-03):
+# (No Doco-CD metrics port — Doco-CD is not part of the fleet.)
+# Technitium DNS topology (VPS-primary):
 #   PRIMARY    = VPS  (technitium on the dedicated dns-servers overlay; resolver address = VPS PUBLIC IP)
 #   SECONDARY  = oldsrv (Home VLAN node IP)
 #   TERTIARY   = Pi    (Home VLAN node IP)
 # All three are separate physical hosts (failure-domain split preserved) and all three
 # publish on host :53/udp+tcp. `dns_primary_ip` (below) is the single SSOT for "the
 # primary resolver address" consumed by router rules / DHCP / tailnet headscale
-# nameservers. (pihole retired 2026-09-10 — its old conditional-forwarding used
-# this address; Technitium Advanced Blocking now owns that filter.) DHCP (router role + converge rsc) hands
+# nameservers. (There is no pihole — its old conditional-forwarding used
+# this address; Technitium Advanced Blocking owns that filter.) DHCP (router role + converge rsc) hands
 # out the FULL chain primary->secondary->tertiary->router/IP, and the router /ip dns
 # upstream mirrors the same chain first + Cloudflare last (documented final fallback).
-# DECISION (supervisor, Option A): the primary resolver address is the VPS PUBLIC IP
+# The primary resolver address is the VPS PUBLIC IP
 # (159.195.111.66) — LAN clients hairpin through the existing Home/Media/Guest/Mgmt→WAN
-# egress (HD-309), tailnet resolves it too, and it survives a WG-tunnel drop (unlike a
+# egress, tailnet resolves it too, and it survives a WG-tunnel drop (unlike a
 # tunnel bind). Abuse surface (public UDP 53) is mitigated by the VPS nftables
 # source-allow (tailnet CGNAT 100.64.0.0/10 + home WAN DDNS s.kogler.si, refreshed by an
 # Ansible-managed systemd timer) — see vps-hardening. The dns-servers OVERLAY pin below
 # (technitium_dns_overlay_ip) is the CONTAINER address inside the VPS bridge (joinable by
 # the VPS Traefik edge + local containers only), NOT the client-facing resolver.
-dns_primary_ip: "159.195.111.66"        # Technitium PRIMARY resolver — VPS PUBLIC IP (HD-299, Option A)
+dns_primary_ip: "159.195.111.66"        # Technitium PRIMARY resolver — VPS PUBLIC IP
 tchnitium_dns_overlay_ip: "172.25.0.2"  # Technitium container pin inside the dns-servers overlay (VPS-local)
 dns_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"   # Technitium SECONDARY (oldsrv)
 dns_tertiary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"  # Technitium TERTIARY (Pi)
 # Technitium DNS secondary (Pi) — the dns-pi.kogler.si web-UI backend (== Pi Home VLAN IP, SSOT-derived).
 technitium_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
-# Resolver upstreams for the Technitium tier (HD-476, live 2026-09-29).
-# BEFORE: every instance ran `forwarders = null`, i.e. each cold public name was chased from
-# the ROOT SERVERS by whichever instance answered, with dnssecValidation=true +
+# Resolver upstreams for the Technitium tier.
+# Without forwarders, every instance runs `forwarders = null`, i.e. each cold public name is
+# chased from the ROOT SERVERS by whichever instance answers, with dnssecValidation=true +
 # qnameMinimization=true and resolverTimeout 1500 x resolverRetries 2 as the per-name ceiling.
-# Measured on the Pi (the instance VLAN 10 asks FIRST): 40-way browser-style fan-out p50 143 ms
-# vs oldsrv 74 ms vs 1.1.1.1 46 ms; sequential cold p50 ~49 ms. Forwarding removes the chase.
+# Root-chasing measures far slower than forwarding (a browser-style fan-out from the Pi, the
+# instance VLAN 10 asks first, vs 1.1.1.1). Forwarding removes the chase.
 # WHY TWO UPSTREAMS: with forwarders set, Technitium queries ALL of them in parallel (fastest
 # wins) but does NOT fall back to root recursion when they fail (open vendor request
 # TechnitiumSoftware/DnsServer#481 = "forward-first" is not implemented), so one upstream
@@ -118,21 +116,20 @@ technitium_secondary_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # operators and blocking policies.
 # ⛔ NEVER point these at the router's `/ip dns` (its own upstream is this same resolver chain
 # -> forwarding loop AND oldsrv/the VPS back in the answer path) or at oldsrv itself: the Pi is
-# the HA-primary DNS on purpose and must not depend on the HA standby (HD-477 context).
+# the HA-primary DNS on purpose and must not depend on the HA standby.
 # HA IS UNAFFECTED EITHER WAY: `ha.kogler.si` and the rest of `kogler.si` are answered
-# AUTHORITATIVELY (aa flag proven live 2026-09-29) from each instance's own primary zone, so an
+# AUTHORITATIVELY (aa flag proven live) from each instance's own primary zone, so an
 # upstream is never consulted for them — dead upstreams cannot break HA/DNS-name resolution.
 # Placement is opt-in per instance via `technitium_forwarders` on the docker_services entry
-# (unset == forwarders cleared == root-chase). ALL THREE carry the flag since 2026-09-30 (owner
-# call): the two that were still chasing measured p50 39 ms (tail 116) on the VPS and 85 ms (tail
-# 208) on oldsrv across 12 cold disjoint names, vs ~15-20 ms forwarded — same list for all three,
-# because the point of two upstreams is independence, not per-site tuning (concurrentForwarding
-# already takes the fastest).
+# (unset == forwarders cleared == root-chase). ALL THREE carry the flag:
+# an instance still chasing pays the root-chase tail on every cold name, so there is no
+# per-site reason to leave one off — the point of two upstreams is independence, not
+# per-site tuning (concurrentForwarding already takes the fastest).
 dns_resolver_upstreams:
   - "1.1.1.1"   # Cloudflare — anycast, DNSSEC-validating
   - "9.9.9.9"   # Quad9 — different network + operator + blocking policy
 
-# ==== Spark (DGX GB10) — reserved node IPs, SSOT-derived (HD-359/HD-337) ====
+# ==== Spark (DGX GB10) — reserved node IPs, SSOT-derived ====
 # spark.kogler.si shares the nas/oldsrv pattern: Home (VLAN 10) = SSH + inference endpoint,
 # Mgmt (VLAN 99) = management plane. No literals — the network_static_hosts rows are the source.
 spark_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark') | selectattr('vlan', 'equalto', 10) | first).ip }}"
@@ -141,16 +138,16 @@ spark_mgmt_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark'
 # ==== UPS / NUT (docs/hardware-ups.md) ====
 # Single SSOT `nut_exporter` runs as a HOST binary on the NUT master (nas, no Docker)
 # and is scraped over the WG S2S tunnel: Alloy is the collector tier and ships to the VPS
-# Victoria backend (HD-342 — it replaced the Prometheus/Loki pair). Host derived
+# Victoria backend (it replaced the Prometheus/Loki pair). Host derived
 # from the address SSOT below (nas @ VLAN 10); port matches the nut role's `nut_exporter_listen`.
 nut_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 # nut_exporter_listen in roles/nut/defaults/main.yml (:9199); keep in sync.
 # UPS name served by upsd on nas (ups.conf) — the exporter's /ups_metrics?ups=<name>
-# path; must match the nut role's ups.conf `UPS <name>` (2026-09-04, default powerwalker).
+# path; must match the nut role's ups.conf `UPS <name>` (default powerwalker).
 nut_ups_name: powerwalker
 nut_exporter_port: 9199
 
-# ==== SMTP2Go relay — single connection SSOT (HD-54, Option B) ====
+# ==== SMTP2Go relay — single connection SSOT (Option B) ====
 # Dedicated transactional relay used by BOTH Grafana (grafana_smtp_host) and NUT
 # (nut_smtp_server). Credentials are in 1Password (`smtp_login` /
 # `nut_smtp_login`, Login items); only the connection config lives here.
@@ -158,11 +155,11 @@ nut_exporter_port: 9199
 #   SMTP server: mail-eu.smtp2go.com; SMTP port 2525 (default); alternative
 #   ports 8025, 587, 80, 25 — TLS available on the same ports (STARTTLS).
 #   SSL only on 465, 8465, 443.
-# We use mail-eu.smtp2go.com:2525 + STARTTLS (the SMTP2Go default; 587 was blocked from the
-# VPS egress — only 2525/8025 open live 2026-09-08 — so 2525 is the port used by every consumer).
+# The connection is mail-eu.smtp2go.com:2525 + STARTTLS (the SMTP2Go default; 587 is blocked from
+# the VPS egress — only 2525/8025 are open there — so 2525 is the port every consumer uses).
 smtp2go_host: mail-eu.smtp2go.com
 smtp2go_port: 2525                  # STARTTLS port (default; alternates 8025/587/80/25). 587 is BLOCKED from the VPS egress
-                                     # (only 2525/8025 open — live-verified 2026-09-08); LAN egress reaches both. Use 2525 everywhere.
+                                     # (only 2525/8025 are open there); LAN egress reaches both. Use 2525 everywhere.
 smtp2go_ssl_ports: [465, 8465, 443]  # SSL-only ports (not used)
 smtp2go_smtp_ports: [2525, 8025, 587, 80, 25]  # SMTP ports with TLS available
 
@@ -175,33 +172,33 @@ zfs_exporter_host: "{{ (network_static_hosts | selectattr('name', 'equalto', 'na
 # zfs_exporter_listen in roles/storage/defaults/main.yml (:9198); keep in sync.
 zfs_exporter_port: 9198
 
-# ==== Coding cockpit on oldsrv — reserved ports (HD-409 / HD-411) ====
+# ==== Coding cockpit on oldsrv — reserved ports ====
 # Two surfaces run SIMULTANEOUSLY for the one comparison window the owner asked for, so each gets its
-# own number and neither is ever written as a literal (HD-344 moved MCP off a shared port for exactly
-# this reason). Both bind oldsrv's TAILNET address, never 0.0.0.0 — the pi-web binary refuses a
-# non-loopback bind without PI_WEB_TOKEN, and the headscale ACL is the outer gate.
+# own number and neither is ever written as a literal. Both bind oldsrv's TAILNET address, never
+# 0.0.0.0 — the pi-web binary refuses a non-loopback bind without PI_WEB_TOKEN, and the headscale
+# ACL is the outer gate.
 cockpit_pi_web_port: 31415           # upstream's own default (its README names it); keep the number so
                                      # `/web` links and the QR from `/remote` stay correct without config
-paseo_port: 6767                       # HD-411's daemon. Upstream's own default (its Docker run maps 6767, CLI pairs to host:6767),
-                                     # kept like cockpit_pi_web_port so pairing needs no extra config; 31416 was reserved here earlier
-                                     # in the row and is now freed — do not reuse it, or the two files disagree about what was allocated.
-                                     # Both ports measured free on oldsrv 2026-09-23.
+paseo_port: 6767                       # Upstream's own default (its Docker run maps 6767, CLI pairs to host:6767),
+                                     # kept like cockpit_pi_web_port so pairing needs no extra config.
+                                     # Any other number this file once reserved is freed — do not reuse
+                                     # it, or the two files disagree about what was allocated.
 
-# ==== Kopia off-site target: Hetzner Storage Box backup (SSH/SFTP, HD-31/HD-135) ====
-# The backup Box (u653424) supports SSH/SFTP only (no S3/object storage); iDrive e2 was dropped.
+# ==== Kopia off-site target: Hetzner Storage Box backup (SSH/SFTP) ====
+# The backup Box (u653424) supports SSH/SFTP only (no S3/object storage).
 # These drive the kopia-server repo create sftp backend.
 kopia_sftp_host: u653424.your-storagebox.de
 kopia_sftp_port: 23          # non-standard Hetzner SSH/SFTP port
 kopia_sftp_user: u653424     # SSH key auth (no password) — key in 1Password Hertzner-SB-Backup
-kopia_sftp_path: kopia           # RELATIVE to box home (2026-08-23: Hetzner SFTP returns SSH_FX_FAILURE for the "/" component of absolute paths, breaking kopia create-path even when the dir pre-exists)
+kopia_sftp_path: kopia           # RELATIVE to box home: Hetzner SFTP returns SSH_FX_FAILURE for the "/" component of absolute paths, which breaks kopia create-path even when the dir pre-exists)
 
-# HD-318a: the per-client user@host identity the oldsrv backup agent presents
+# The per-client user@host identity the oldsrv backup agent presents
 # (`--override-username=oldsrv-agent --override-hostname=oldsrv.kogler.si`). It must
 # exist in the kopia-server htpasswd as `user@host` (kopia's allowed-entries model),
 # otherwise the agent session is denied. Same credential as kopia-server-internal_api.
 kopia_agent_user: oldsrv-agent@oldsrv.kogler.si
 
-# HD-318a: kopia-server TLS trust anchor — the SHA-256 (DER) fingerprint of the persisted
+# kopia-server TLS trust anchor — the SHA-256 (DER) fingerprint of the persisted
 # self-signed cert under /srv/docker/kopia-server/config/tls.crt, lowercase hex, recomputed on
 # first start and stored in 1Password `kopia-server_fingerprint` (catalog-generated, NOT auto-
 # rotatable). The oldsrv agent pins it (`kopia repository connect server --server-cert-fingerprint`)
@@ -215,7 +212,7 @@ kopia_server_fingerprint_item: kopia-server_fingerprint   # 1P item (Password) h
 # HA virtual IP (keepalived/VRRP) on Home VLAN 10 — ha.kogler.si. Canonical name `ha-vip`.
 # D2: single /32, no reserved block. Home DHCP pool (10.10.1.100-.199) must stay <= .199
 # and must never be extended into the VIP; 10.10.1.200 is reserved — not a normal static lease.
-# ==== Tailnet (headscale) plane — HD-405 ================================================
+# ==== Tailnet (headscale) plane ================================================
 # The control URL is DERIVED from the domain SSOT (never re-typed): the `vpn` record is
 # seeded by Technitium to the VPS, so headscale is reached at vpn.<domain> from anywhere.
 # NOTE: templates/docker_services/traefik-tailnet still hard-codes the same literal in
@@ -231,9 +228,9 @@ tailnet_oldsrv_node_name: oldsrv
 # listener + the ts-only MagicDNS records simply do not render; set it from
 # `headscale nodes list` after the node joins, then re-converge. roles/tailscale-node
 # asserts the live IP equals this value, so a silent drift is impossible.
-# Live since 2026-09-20 (HD-405): headscale node id 11, name `oldsrv`, tag:dev.
+# Current: headscale node id 11, name `oldsrv`, tag:dev.
 tailnet_oldsrv_ip: "100.64.0.3"
-# HD-435 (2026-09-25): the Pi joins as the SECOND permitted home node (tag:home-edge, tcp/443
+# The Pi joins as the SECOND permitted home node (tag:home-edge, tcp/443
 # only — see policy.hujson.j2) so HA keeps a tailnet answer when the node-carrying box dies.
 # Same contract as above: empty until the node has joined, then read `headscale nodes list`,
 # set it, re-converge; roles/tailscale-node asserts the live address equals it.
@@ -241,19 +238,19 @@ tailnet_oldsrv_ip: "100.64.0.3"
 # listener to point a tailnet answer at — and host networking on that edge means the tailnet
 # address is bindable (ip_nonlocal_bind is already required there for the VIP).
 tailnet_pi_node_name: pi
-# Live since 2026-09-25 (HD-435): headscale node id 13, name `pi`, tag `tag:home-edge`
-# (read back from `headscale nodes list -o json`, not assumed), IPv4 100.64.0.6 — the join
-# landed under the `tagged-devices` user even though the key was minted `--user 2`, which is
-# headscale's own rule for tagged nodes (same as vps-obs), not a mis-mint.
+# Current: headscale node id 13, name `pi`, tag `tag:home-edge`,
+# IPv4 100.64.0.6 — read it back from `headscale nodes list -o json`, never assume it. A
+# tagged node can land under the `tagged-devices` user even when the key was minted for
+# another user; that is headscale's own rule for tagged nodes, not a mis-mint.
 tailnet_pi_ip: "100.64.0.6"
 
 # ============================================================================
-# zone_kogler_si — the kogler.si answer plane as ONE list (HD-436 step 1)
+# zone_kogler_si — the kogler.si answer plane as ONE list
 # ============================================================================
 # Every name in the zone and every address it answers with, in one entry per name.
 #
-# WIRED TODAY (measured on this branch, 2026-09-26 — not what the first draft of this
-# comment claimed, which named two consumers that do not read it):
+# WIRED TODAY (measured, not what an older draft of this
+# comment claimed):
 #   * the Technitium seed (`docker_services/tasks/technitium-seed.yml`) loops
 #     `zone_kogler_si_seed_records` and gates on `zone_kogler_si_lan_only`.
 # NOT WIRED YET — these planes are still DOUBLED (this list + a hand-authored source),
@@ -286,9 +283,9 @@ tailnet_pi_ip: "100.64.0.6"
 #   tailnet:   none | edge | node | dual — what MagicDNS answers (docs/network-vpn.md
 #              §Tailnet boundary). `edge` publishes BOTH `name.kogler.si` and the
 #              `.ts` twin; `node` and `dual` publish the `.ts` twin ONLY, because a
-#              tailnet address answering a plain name client-side is the HD-382/389
+#              tailnet address answering a plain name client-side is the
 #              resolver-ambiguity trap (a phone standing at home stops seeing the LAN
-#              answer). `dual` = the same name answered by two home nodes (HD-435);
+#              answer). `dual` = the same name answered by two home nodes;
 #              no entry uses it yet and nothing renders differently for it today.
 #   tailnet_ip: literal tailnet IPv4. OMIT it to take the class default
 #              (`tailnet_sidecar_ip` for edge, `tailnet_oldsrv_ip` for node/dual).
@@ -297,7 +294,7 @@ tailnet_pi_ip: "100.64.0.6"
 #   ts_router: the name's router is attached to the tailnet listener. Meaningless
 #              (always false) when tailnet is none — `check_zone_kogler_si_parity.py`
 #              fails the build on the mismatch. The renderer for it (the
-#              traefik-tailnet router list) is a later HD-436 step; today the field
+#              traefik-tailnet router list) is a later derivation step; today the field
 #              is the declared intent, and it is validated, not wired.
 #   public:    true = the name is published publicly (canonical Cloudflare CNAME →
 #              vps.kogler.si). DECLARED INTENT, NOT WIRED: the publisher still reads
@@ -324,7 +321,7 @@ zone_kogler_si:
   - { name: ha.kogler.si,            internal: true, ip: "{{ ha_vip }}", tailnet: node, ts_router: false }
   - { name: dns-pi.kogler.si,        internal: true, ip: "{{ ha_vip }}", tailnet: none, ts_router: false }
   # --- home-hosted media stack: oldsrv's internal edge at home, the VPS edge elsewhere ---
-  # media is PUBLISHED (HD-1095, owner decision 2026-10-07): the VPS edge now routes it to the
+  # media is PUBLISHED: the VPS edge routes it to the
   # home edge over WG S2S, so the public answer is served, not just pointed at. seerr/seerrng are
   # routed there too but stay UNPUBLISHED — reachable by name only where a resolver is told.
   - { name: media.kogler.si,         internal: true, ip: "{{ home_edge_ip }}", tailnet: node, ts_router: true, public: true }
@@ -348,29 +345,30 @@ zone_kogler_si:
   - { name: db-spark.kogler.si,      internal: true, ip: "{{ spark_home_ip }}", lan_only: true, tailnet: edge, ts_router: true }
   - { name: llm.kogler.si,           internal: true, ip: "{{ spark_home_ip }}", lan_only: true, tailnet: edge, ts_router: true }
   - { name: llitellm.kogler.si,      internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
-  # HD-188 Cockpit break-glass surfaces: Home addresses, so LAN-only (never the VPS primary).
+  # Cockpit break-glass surfaces: Home addresses, so LAN-only (never the VPS primary).
   - { name: cockpit-oldsrv.kogler.si, internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: cockpit-nas.kogler.si,   internal: true, ip: "{{ nas_home_ip }}", lan_only: true, tailnet: node, ts_router: false }
-  # HD-1097 host A records. Until 2026-10-07 the LAN zone answered SERVICE names only, so a
-  # bare `\\nas\media` SMB path had NO DNS answer at all (measured NXDOMAIN with the aa flag on
+  # Host A records: the LAN zone used to answer SERVICE names only, so a
+  # bare `\\nas\media` SMB path had NO DNS answer at all (NXDOMAIN with the aa flag on
   # both home resolvers) and fell back to LLMNR/NetBIOS broadcast — which a wired switch port
-  # supplies and a Wi-Fi client does not. The owner could mount by IP from Wi-Fi and not by
-  # name; that is this row. `switch`/`ilo` are deliberately ABSENT: they carry only a Mgmt-99
-  # address, which a Home client cannot route to (the answer-must-be-routable rule,
-  # docs/network-dns.md §The answer-plane model), so publishing them would ship a black hole.
+  # supplies and a Wi-Fi client does not. Mounting by IP from Wi-Fi worked while mounting by
+  # name did not; that is what these rows fix. `switch`/`ilo` are deliberately ABSENT: they
+  # carry only a Mgmt-99 address, which a Home client cannot route to (the answer-must-be-
+  # routable rule, docs/network-dns.md §The answer-plane model), so publishing them would ship
+  # a black hole.
   # `tailnet: none` everywhere here: a tailnet device away from home cannot route to 10.10.1.x
   # either, so the netmap gains nothing and the tailnet plane stays answer-neutral.
   - { name: nas.kogler.si,           internal: true, ip: "{{ nas_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: oldsrv.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: pi.kogler.si,            internal: true, ip: "{{ pi_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: router.kogler.si,        internal: true, ip: "{{ router_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
-  # --- tailnet-edge dashboards: internal-only, tailnet-only (never public — HD-135b) ---
+  # --- tailnet-edge dashboards: internal-only, tailnet-only (never public) ---
   - { name: stats.kogler.si,         internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
   - { name: logs.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
   - { name: csui.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
   - { name: traefik.kogler.si,       internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
   - { name: auto.kogler.si,          internal: true, ip: "{{ tailnet_edge_ip }}", tailnet: edge, ts_router: true }
-  # --- VPS-served: the same answer on every instance (split-horizon parity, HD-341) ---
+  # --- VPS-served: the same answer on every instance (split-horizon parity) ---
   - { name: litellm.kogler.si,       internal: true, ip: "{{ dns_primary_ip }}", tailnet: edge, ts_router: true }   # tailnet-only admin edge; never public
   - { name: vps.kogler.si,           internal: true, ip: "{{ dns_primary_ip }}", tailnet: none, ts_router: false,
      public_records: [ { type: A, value: "{{ dns_primary_ip }}" }, { type: AAAA, value: "{{ dns_primary_ipv6 }}" } ] }
@@ -392,7 +390,7 @@ zone_kogler_si:
   # --- tailnet-only names: no LAN answer by design (a LAN client must get NXDOMAIN) ---
   - { name: pi-oldsrv.kogler.si,     internal: false, tailnet: node, ts_router: false }
   # --- names with NO Technitium record: published publicly, resolved by Cloudflare alone ---
-  # `pairdrop` rides alongside `drop` (HD-230). Neither has a docker_services entry, so
+  # `pairdrop` rides alongside `drop`. Neither has a docker_services entry, so
   # nothing here invents them: they are declared, which is the point of the list.
   - { name: pairdrop.kogler.si,      internal: false, tailnet: none, ts_router: false, public: true }
   # SMTP2Go sender verification / DKIM / tracking — consumed by SMTP2Go, not by our edge.
@@ -402,7 +400,7 @@ zone_kogler_si:
      public_records: [ { type: CNAME, value: dkim.smtp2go.net } ] }
   - { name: link.kogler.si,          internal: false, tailnet: none, ts_router: false,
      public_records: [ { type: CNAME, value: track.smtp2go.net } ] }
-  # PARKED (HD-386 decision #26): the dsh / pi-dev backends no longer exist, so the edge
+  # PARKED: the dsh / pi-dev backends no longer exist, so the edge
   # answers 502 BY DESIGN — this is not an outage to chase. Dropping these two would delete
   # live MagicDNS records, which is its own decision, not a tidy-up.
   - { name: dsh.kogler.si,           internal: false, tailnet: edge, ts_router: true }
@@ -411,7 +409,7 @@ zone_kogler_si:
 # Split-horizon target of the home-hosted apps: oldsrv's internal edge at home (no VPS
 # round-trip, so WAN-out survival keeps working), the VPS public edge everywhere else.
 # ONE expression, evaluated per instance by the seed — the same value the seed's inline
-# rows carried before HD-436 folded them into `zone_kogler_si`.
+# rows carried before they were folded into `zone_kogler_si`.
 home_edge_ip: "{{ oldsrv_home_ip if (svc.instance | default('primary')) in ['secondary', 'secondary-pi'] else dns_primary_ip }}"
 # The tailnet Traefik edge (`vps-obs`). `tailnet_sidecar_ip` is a vps.yml value and the
 # seed also runs on oldsrv + the Pi, so the cluster constant is the fallback here too.
@@ -423,7 +421,7 @@ dns_primary_ipv6: "2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5"
 # the seed's inline row did, from `network_static_hosts` itself.
 nas_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 # The router's own Home-leg address (its gateway), read from the same address SSOT — used by
-# the `router.kogler.si` host record (HD-1097).
+# the `router.kogler.si` host record.
 router_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 
 # --- the derived views each consumer loops over ------------------------------------
@@ -445,40 +443,39 @@ ha_keepalived_vrid: 51            # VRRP virtual_router_id — MUST match on bot
 # integration tunnels to. Connection is configured in the KNX config-flow UI (current HA
 # has no YAML connection key), so this var documents + renders the IP used there.
 knx_router_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'knx-ip') | first).ip }}"
-# HA reverse-proxy trust (KOPS-039 / HD-81): only specific Traefik edge container IPs are
+# HA reverse-proxy trust: only specific Traefik edge container IPs are
 # trusted for X-Forwarded-For, NOT the whole traefik-public /16. Each host runs its OWN
 # traefik-public Docker bridge; fill the exact container IPs (default/`172.20.0.2/32` on the
 # oldsrv edge, adjust the Pi traefik-ha edge) at deploy. Both edges must be listed since the
 # SAME configuration.yaml is rendered on primary + standby.
 ha_trusted_proxies:
   - 172.20.0.2/32            # oldsrv traefik (traefik-public bridge default .2) — verify at deploy
-  - 10.10.1.30/32            # HD-350: traefik-internal home-LAN edge on oldsrv — host networking
+  - 10.10.1.30/32            # traefik-internal home-LAN edge on oldsrv — host networking
                              # (network_mode: host), so its source IP is the oldsrv Home-VLAN IP
                              # itself; keep in sync with oldsrv_home_ip (address SSOT)
   - 10.10.1.20/32            # Pi traefik-ha edge — host networking (network_mode: host), so its
                              # source IP is the Pi host IP itself; no container IP exists to trust
-                             # (live 2026-09-03)
-# Overlay-wide header trust (S15/S16 / HD-190): SAME contract as ha_trusted_proxies
-# (KOPS-039/HD-81) — services that consume forwarded headers must trust ONLY the exact
+# Overlay-wide header trust: SAME contract as ha_trusted_proxies
+# — services that consume forwarded headers must trust ONLY the exact
 # Traefik edge container IPs, never the whole traefik-public /16 (any compromised
 # container on that overlay could otherwise spoof X-Forwarded-For / X-authentik-*).
 # The edge IP is no longer left to Docker's dynamic assignment: the traefik compose
-# template pins it via ipv4_address = traefik_edge_ip_pin (HD-240) — a drifted bridge
-# assignment (.12 vs the whitelisted .2) silently broke grafana auth-proxy on
-# 2026-08-24 (401 -> bare /login). Keep this list and the pin in sync per host.
+# template pins it via ipv4_address = traefik_edge_ip_pin — a drifted bridge
+# address silently un-trusts the edge, and the symptom is an auth loop
+# (401 -> bare /login). Keep this list and the pin in sync per host.
 # Consumers today are VPS-resident (authentik AUTHENTIK_TRUSTED_PROXIES, grafana
 # GF_AUTH_PROXY_WHITELIST); extend the list only if another host's edge ever fronts a
 # header-consuming service.
 traefik_edge_ips:
-  - 172.20.0.2/32            # vps traefik — pinned via traefik_edge_ip_pin (HD-240), verified live 2026-08-24
-  - 172.20.0.250/32          # vps traefik-tailnet (HD-135b follow-up) — pinned in the traefik-tailnet compose
+  - 172.20.0.2/32            # vps traefik — pinned via traefik_edge_ip_pin
+  - 172.20.0.250/32          # vps traefik-tailnet — pinned in the traefik-tailnet compose
 # Static edge-container IP pinned by the traefik compose template (ipv4_address on each
-# host's local traefik-public bridge, HD-240). Same value on every host BY CONVENTION
+# host's local traefik-public bridge). Same value on every host BY CONVENTION
 # (bridge default `.2`); every host whose edge fronts a header-consuming service must
 # have exactly this /32 in traefik_edge_ips above.
 traefik_edge_ip_pin: 172.20.0.2
 # RaspberryMatic standby CCU (macvlan on Home VLAN) — XML-RPC 2001/2010 target for
-# ha-failover.full.sh.j2 (local-Homematic variant, HD-13 parked). Only used when the
+# ha-failover.full.sh.j2 (local-Homematic variant, parked). Only used when the
 # HmIP-RFUSB is bought and raspberrymatic-standby is re-added; the active ha-failover.sh
 # (no local Homematic) does not consume this.
 homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'homematic-ccu-oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
@@ -487,8 +484,8 @@ homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto
 # source restriction. Derived from the address SSOT.
 oldsrv_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}"
-# Signal alert recipients — the "Homelab alerts" Signal group (HD-347, owner ruling
-# 2026-09-21: the WHOLE group, not the personal number). JSON-array body WITHOUT the
+# Signal alert recipients — the "Homelab alerts" Signal group, the WHOLE group,
+# not the personal number. JSON-array body WITHOUT the
 # brackets — the n8n workflow renders `recipients = [{{ $env.SIGNAL_RECIPIENTS }}]`, so
 # each entry carries its own JSON quotes (add more entries as `"a", "b"`).
 # The value is the V2 group id (`group.` + base64) that the linked signal-cli daemon
@@ -504,10 +501,10 @@ pi_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | se
 # Non-secret SSOT (like grafana_alert_email): an id names a recipient, it authorises
 # nothing — the send token stays in 1Password `signal-internal_api`.
 signal_alert_recipients: '"group.NVZ6Y212bC9iZnIyNjNyQ0pnaVN6NllMOWRUbSszb0R5K0swbElQdjRrRT0="'
-# ── IPv6 (HD-414, scoped dual-stack) ─────────────────────────────────────────
-# Measured on the live ISP 2026-09-22: the PPPoE session DOES delegate a prefix —
-# DHCPv6-PD hands out `2a00:ee2:2700:8f00::/56` (pool lease ~10 min, renewed). The
-# HD-405 blocker ("no /56 has ever been seen") is therefore CLOSED, and what takes
+# ── IPv6 (scoped dual-stack) ─────────────────────────────────────────
+# Measured on the live ISP: the PPPoE session DOES delegate a prefix —
+#
+# so the earlier "no /56 has ever been seen" blocker is CLOSED, and what takes
 # IPv4 NAT's place as the inbound protection is our own filter — see
 # docs/network-vlans.md §IPv6 allocation. NOTHING here hardcodes the prefix: the
 # router's Home address and the advertised /64 are built FROM THE POOL at runtime
@@ -516,7 +513,7 @@ signal_alert_recipients: '"group.NVZ6Y212bC9iZnIyNjNyQ0pnaVN6NllMOWRUbSszb0R5K0s
 network_ipv6:
   pool: pd-wan6                              # /ipv6 pool the DHCPv6-PD client fills (auto-created on bind)
   router_address_suffix: "::1/64"            # the Home GWA keeps the IPv4 gateway habit (::1); the /64 comes from the pool
-  prefix_hint: "2a00:ee2:2700:8f00::/56"     # what the ISP delegated today (measured 2026-09-22)
+  prefix_hint: "2a00:ee2:2700:8f00::/56"     # what the ISP delegated today
   slaac_vlan_ids: [10]                       # RA/SLAAC on the Home VLAN ONLY; 20/30/40/50/99 stay v4-routed.
                                              # In 7.24 "no RA here" is expressed by "no advertised address here"
                                              # (one `advertise=yes` row device-wide) PLUS the v6 forward-chain
@@ -527,39 +524,39 @@ network_ipv6:
 # (Pi tertiary) instead of the VPS primary. It is the switch that decides which split-horizon
 # ANSWER a device on that VLAN gets for the home-hosted app names (`media`/`seerr`/`seerrng`/
 # the *arr set): a home instance answers `oldsrv_home_ip` (the home edge, works), the VPS
-# primary answers `dns_primary_ip`. The VPS edge had NO route for those names, so a VPS-first VLAN
-# got 404 (measured 2026-10-07 from the Shield on VLAN 50: media.kogler.si → VPS IP → 404, while the
-# same URL on the home edge is 302 → /web/); the VPS-edge routes landed the SAME EVENING, so a
-# VPS-first VLAN is served again and this switch is now resilience rather than the mechanism. Do not add a VLAN to this list without
+# primary answers `dns_primary_ip`. A VLAN that is VPS-first took the VPS answer, so it needs
+# the VPS edge to actually route those names (a VPS-first VLAN measured media.kogler.si →
+# VPS IP → 404 while the same URL on the home edge is 302 → /web/); with the VPS-edge routes in
+# place the switch is resilience rather than the mechanism. Do not add a VLAN to this list without
 # reading docs/network-dns.md §Per-Instance Split-Horizon first: it hands that VLAN the LAN
-# answer for EVERY internal name, not just the one you are fixing. The permanent fix was the
-# VPS-edge route (HD-1095), landed 2026-10-07, which makes the VPS answer correct everywhere — so
-# the Media entry here is now a WAN-out resilience choice, not a requirement.
+# answer for EVERY internal name, not just the one you are fixing. The permanent fix is the
+# VPS-edge route, which makes the VPS answer correct everywhere — so
+# the Media entry here is a WAN-out resilience choice, not a requirement.
 network_vlans:
-  - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler",     lan_first_dns: true }   # HD-334 HA-independence
+  - { id: 10, name: Home,         subnet: "10.10.1.0/24",  pool: "10.10.1.100-10.10.1.199",  ssid: "Kogler",     lan_first_dns: true }   # HA-independence: the Home VLAN must not depend on the VPS for DNS
   - { id: 20, name: IoT,          subnet: "10.10.20.0/24", pool: "10.10.20.100-10.10.20.199", ssid: "Kogler IOT" }
   - { id: 30, name: Guest,        subnet: "10.10.30.0/24", pool: "10.10.30.100-10.10.30.199", ssid: "Kogler guest" }
   - { id: 40, name: Kids,         subnet: "10.10.40.0/24", pool: "10.10.40.100-10.10.40.199", ssid: "Kogler Kids" }
-  - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "",           lan_first_dns: true }   # HD-1095: TV/Shield must resolve the home edge
+  - { id: 50, name: Media,        subnet: "10.10.50.0/24", pool: "10.10.50.100-10.10.50.199", ssid: "",           lan_first_dns: true }   # TV/Shield must resolve the home-hosted media names locally
   - { id: 99, name: Management,   subnet: "10.10.99.0/24", pool: "10.10.99.50-10.10.99.99",  ssid: "" }
 network_static_hosts:
   # Management VLAN 99
   - { name: router,   vlan: 99, ip: "10.10.99.1",  role: "RB4011 gateway" }
   - { name: switch,   vlan: 99, ip: "10.10.99.2",  role: "CRS328 mgmt" }
-  # ap-garage REMOVED 2026-08-30 (HD-03/Phase 1.5 prep): ☠️ DEAD 2026-08-24 (wAP ac
-  # hardware fault), removed from canvas — ether1 on CRS328 is EMPTY. No reserved slot;
-  # any future replacement gets a fresh entry here + switch_port_map.
+   # ap-garage is GONE: a hardware fault, removed from the canvas — ether1 on CRS328 is
+   # EMPTY. No reserved slot; any future replacement gets a fresh entry here +
+   # switch_port_map.
   - { name: ap-spalnica, vlan: 99, ip: "10.10.99.4", mac: "C4:AD:34:42:F1:7D", role: "hAP ac² (spalnica)" }
   - { name: ap-dnevna, vlan: 99, ip: "10.10.99.5", mac: "C4:AD:34:42:F0:B9", role: "hAP ac² (dnevna)" }
   - { name: ap-spare,  vlan: 99, ip: "10.10.99.6", role: "hAP ac² spare" }
-  - { name: ups,      vlan: 20, ip: "10.10.20.9", mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN, HD-338)" }
+  - { name: ups,      vlan: 20, ip: "10.10.20.9", mac: "00:20:85:C0:92:FA", role: "PowerWalker VFI 3000 IoT (USB NUT monitoring; NIC on IoT 20 no-WAN)" }
   - { name: nas,      vlan: 99, ip: "10.10.99.10", mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "HP MicroServer Gen8" }
   - { name: ilo,      vlan: 99, ip: "10.10.99.11", mac: "1C:98:EC:0E:0D:3A", role: "nas iLO4 BMC" }
-  - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary (HD-299)" }
-  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary (HD-299)" }
-  - { name: spark,    vlan: 99, ip: "10.10.99.40", mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home, HD-367); static reservation" }
-  - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra, 2026-09-07" }
-  - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback, 2026-09-07" }
+  - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary" }
+  - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary" }
+  - { name: spark,    vlan: 99, ip: "10.10.99.40", mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home); static reservation" }
+  - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra" }
+  - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback" }
   # Home VLAN 10
   - { name: router,   vlan: 10, ip: "10.10.1.1",   role: "Home gateway" }
   # DHCP client-id = MAC (dhcp_client: mac) for the two DHCP-only Debian hosts (nas/oldsrv):
@@ -568,19 +565,20 @@ network_static_hosts:
   # land on the dynamic pool (.100/.101) instead of their reserved statics (.10/.30). The
   # host-side `network` role (dhcp_client == 'mac') flips the client-id to the interface MAC
   # so the existing RouterOS reservations bind (verified working pattern: knx/bosch/ups/ilo).
-  # SSOT for the marker; converge template + network role both derive from it (HD-314).
+  # SSOT for the marker; converge template + network role both derive from it.
   - { name: nas,      vlan: 10, ip: "10.10.1.10",  mac: "1C:98:EC:0E:0D:38", dhcp_client: mac, role: "Cockpit/NFS/NUT master" }
-  - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS tertiary (HD-299; VRRP anchor)" }
-  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS secondary (HD-299; VRRP anchor)" }
-  # spark MAC learned from the live DHCP lease at first boot 2026-09-14 (lease .106, vlan10-home).
-  - { name: spark,    vlan: 10, ip: "10.10.1.40",  mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint, 2026-09-14)" }
-  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
-  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — HD-13 parked, dormant until HmIP-RFUSB bought" }
+  - { name: pi,       vlan: 10, ip: "10.10.1.20",  mac: "E4:5F:01:26:EF:AA", role: "node + DNS tertiary (VRRP anchor)" }
+  - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS secondary (VRRP anchor)" }
+  # spark MAC comes from the live DHCP lease at first boot (vlan10-home).
+  - { name: spark,    vlan: 10, ip: "10.10.1.40",  mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint)" }
+  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — parked, dormant until HmIP-RFUSB bought" }
+  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — parked, dormant until HmIP-RFUSB bought" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
-  # --- HD-312 static-IP sweep: family/kids WiFi clients (Kogler SSID, VLAN 10) ---
-  # These are the *controlled* family devices — kids-control MAC-address-list (phase 3)
-  # references them by MAC from here. Live-identified 2026-09-03 (lease dump + migration inventory).
-  # HD-326 (2026-09-04): the kids set = rows with `kids: true` — `tablet-valentina` + `tablet-ipad`.
+   # --- static-IP sweep: family/kids WiFi clients (Kogler SSID, VLAN 10) ---
+   # These are the *controlled* family devices — the kids-control MAC-address-list
+   # references them by MAC from here. Identify a MAC from the live lease dump before
+   # adding a row.
+   # The kids set = rows with `kids: true` — `tablet-valentina` + `tablet-ipad`.
   - { name: tablet-valentina, vlan: 10, ip: "10.10.1.60",  mac: "30:56:84:35:00:DC", kids: true, kids_groups: ["Kids-Group"], role: "Valentina tablet (family, Kogler SSID)" }
   - { name: phone-domen,      vlan: 10, ip: "10.10.1.61",  mac: "34:F0:43:73:96:35", role: "Domen's phone A54 (family, Kogler SSID)" }
   - { name: phone-martina,    vlan: 10, ip: "10.10.1.62",  mac: "BE:64:F1:1A:23:38", role: "Martina's phone A55 (family, Kogler SSID)" }
@@ -593,31 +591,31 @@ network_static_hosts:
   - { name: router, vlan: 50, ip: "10.10.50.1",  role: "Media gateway" }
 
   # --- Reservation targets (R-2, migration inventory) — DHCP-reserved static IPs ---
-  # IPs sit below each VLAN's DHCP pool start (.100): Home-.13/.60-.62 (HD-312), IoT-.10/.16 + cloud-IoT-.20/.25 (HD-325),
-  # Media-.10/.11
+   # IPs sit below each VLAN's DHCP pool start (.100): the Home/kids rows, the IoT +
+   # cloud-IoT rows, and the Media rows.
   - { name: canon-ts9550,        vlan: 10, ip: "10.10.1.13",  mac: "74:BF:C0:CD:33:0B", role: "Canon TS9550 printer (family web UI)" }
   - { name: knx-x1,              vlan: 20, ip: "10.10.20.10", mac: "00:0A:B3:29:2C:9E", role: "GIRA X1 KNX controller" }
   - { name: knx-ip,              vlan: 20, ip: "10.10.20.11", mac: "00:0A:B3:27:5F:8B", role: "GIRA IP router (KNX bus)" }
   - { name: reolink-garage,      vlan: 20, ip: "10.10.20.12", mac: "EC:71:DB:5F:BC:C1", role: "Reolink camera (garage)" }
-  # --- HD-312 static-IP sweep: Shelly RGBW2 fleet (VLAN 20, n8n firmware targets) ---
-  # Live MACs from lease dump 2026-09-03; locations per network-migration-inventory.md.
+   # --- static-IP sweep: Shelly RGBW2 fleet (VLAN 20, n8n firmware targets) ---
+   # Take MACs from the live lease dump; locations per network-migration-inventory.md.
   - { name: shelly-rgbw2-kuhinja,   vlan: 20, ip: "10.10.20.13", mac: "50:02:91:B0:AD:A6", role: "Shelly RGBW2 (kuhinja) — n8n firmware target" }
   - { name: shelly-rgbw2-wc,        vlan: 20, ip: "10.10.20.14", mac: "50:02:91:B0:B2:4E", role: "Shelly RGBW2 (WC white 4-ch) — n8n firmware target" }
   - { name: shelly-rgbw2-orhideje,  vlan: 20, ip: "10.10.20.15", mac: "50:02:91:B0:AF:05", role: "Shelly RGBW2 (orhideje) — n8n firmware target" }
   - { name: shelly-rgbw2-kopalnica, vlan: 20, ip: "10.10.20.16", mac: "50:02:91:B0:DE:C4", role: "Shelly RGBW2 (kopalnica) — n8n firmware target" }
-  # --- Cloud-IoT appliances (2×LG, 3×Bosch, HAP) — VLAN 21 REMOVED 2026-09-04 (HD-325) ---
+   # --- Cloud-IoT appliances (2×LG, 3×Bosch, HAP) — there is no VLAN 21 ---
   # VLAN 21 (IoT-Internet) is deleted: cloud-IoT devices join the IOT SSID on VLAN 20 like
   # every other IoT device, and get WAN egress ONLY via the per-device `wan_allow` flag
   # (router role renders one src-mac-address forward-accept per such device — iot-wan-allow).
   # Same net effect as before (cloud devices keep internet), but no phantom VLAN:
-  # wifi-qcom-ac cannot do per-client VLAN tagging (per-MAC vlan-id is not a capability),
-  # so "VLAN 21" was never reachable by these Wi-Fi clients anyway (HD-312 2b rejection).
+   # wifi-qcom-ac cannot do per-client VLAN tagging (per-MAC vlan-id is not a capability),
+   # so "VLAN 21" was never reachable by these Wi-Fi clients anyway.
   - { name: bosch-dishwash,      vlan: 20, ip: "10.10.20.20", mac: "68:A4:0E:0B:E5:81", wan_allow: true, role: "Bosch SMV88TX36E dishwasher (cloud-IoT, WAN via flag)" }
   - { name: bosch-oven,          vlan: 20, ip: "10.10.20.21", mac: "68:A4:0E:2F:46:87", wan_allow: true, role: "Bosch HNG6764B6 oven (cloud-IoT, WAN via flag)" }
   - { name: bosch-cooktop,       vlan: 20, ip: "10.10.20.22", mac: "68:A4:0E:2E:65:AE", wan_allow: true, role: "Bosch CSG656RB7... cooktop (cloud-IoT, WAN via flag)" }
   - { name: lg-ac1,              vlan: 20, ip: "10.10.20.23", mac: "2C:2B:F9:23:41:EC", wan_allow: true, role: "LG AC klima #1 (QCA4002) (cloud-IoT, WAN via flag)" }
   - { name: lg-ac2,              vlan: 20, ip: "10.10.20.24", mac: "2C:2B:F9:22:BA:DD", wan_allow: true, role: "LG AC klima #2 (QCA4002) (cloud-IoT, WAN via flag)" }
-  - { name: homematic-hap,       vlan: 20, ip: "10.10.20.25", mac: "00:1A:22:1E:F7:FD", wan_allow: true, role: "HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20, HD-325)" }
+  - { name: homematic-hap,       vlan: 20, ip: "10.10.20.25", mac: "00:1A:22:1E:F7:FD", wan_allow: true, role: "HMIP-HAP HomeMatic AP (cloud) — WAN via flag (router ether9 pvid20)" }
   - { name: nvidia-shield,       vlan: 50, ip: "10.10.50.10", mac: "48:B0:2D:09:6F:90", role: "NVIDIA Shield (Media) — D2-confirmed" }
   - { name: nintendo-switch,     vlan: 50, ip: "10.10.50.11", mac: "E0:EF:BF:74:CE:07", role: "Nintendo Switch 2 (Media, D3)" }
 # Infrastructure / non-VLAN ranges (tunnels, overlays, Docker bridges) — rendered to
@@ -633,9 +631,9 @@ network_ranges:
   - { name: traefik-public,    cidr: "172.20.0.0/16",  purpose: "Docker bridge — Traefik edge ↔ exposed services" }
   - { name: services-internal, cidr: "172.21.0.0/16",  purpose: "Docker bridge — app ↔ app communication" }
   - { name: db-internal,       cidr: "172.22.0.0/16",  purpose: "Docker bridge — databases (fully isolated)" }
-  - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LiteLLM ↔ its oldsrv LLM backends (the Vulkan pinned tier; Ollama is the embed fallback rung, decision #27), fully isolated (HD-59)" }
-  - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs (HD-296, HD-268c, HD-250); isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
-  # Technitium PRIMARY on the VPS (HD-299, 2026-09-03): DNS is a first-class public
+  - { name: llm-backend,       cidr: "172.23.0.0/16",  purpose: "Docker bridge — LiteLLM ↔ its oldsrv LLM backends (the Vulkan pinned tier; Ollama is the embed fallback rung, decision #27), fully isolated" }
+  - { name: tailnet-apps,      cidr: "172.24.0.0/16",  purpose: "Docker bridge — tailnet Traefik edge (traefik-tailnet) ↔ Pattern-A sidecar UIs; isolated from traefik-public + services-internal so the tailnet edge can't reach apps it shouldn't" }
+   # Technitium PRIMARY on the VPS: DNS is a first-class public
   # resolvable tier — the VPS (always-on, WAN-reachable) hosts the DNS primary.
   # Dedicated overlay keeps the resolver isolated from edge/UI bridges (only the
   # VPS Technitium + whatever joins deliberately); host :53/udp+tcp publishes to
@@ -644,14 +642,14 @@ network_ranges:
   - { name: dns-servers,       cidr: "172.25.0.0/24",  purpose: "Docker bridge — Technitium DNS primary (VPS) ↔ its Traefik edge; the container pin is tchnitium_dns_overlay_ip (client resolver = VPS public IP, dns_primary_ip) " }
   - { name: site,              cidr: "10.10.0.0/16",   purpose: "Whole homelab site — all VLANs (10.10.x.0/24)" }
   - { name: nfs-clients,       cidr: "10.10.1.30/32",  purpose: "NFS export clients — nas tank/data + bulk/media → oldsrv (Home VLAN IP)" }
-  - { name: modem-lan,         cidr: "192.168.1.0/24", purpose: "Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade (HD-302, live-fixed 2026-09-02 from the /32 that had no route) — for the twice-yearly PPPoE-redial dance." }
+  - { name: modem-lan,         cidr: "192.168.1.0/24", purpose: "Comtrend GRG-4260us GPON modem's own LAN (PPPoE bridge mode). The RB4011 takes a /24 on this subnet (192.168.1.2/24 on ether1, connected route to the modem subnet) so the modem's web UI at 192.168.1.1 stays reachable from the homelab — the router presents trusted-admin traffic via srcnat masquerade — for the twice-yearly PPPoE-redial dance." }
 
-# ==== WireGuard S2S: VPS ↔ router (wg-s2s, 10.255.40.0/30) — HD-03 / network-vpn.md ====
+# ==== WireGuard S2S: VPS ↔ router (wg-s2s, 10.255.40.0/30) — network-vpn.md ====
 # Single site-to-site tunnel: home RB4011 (peer .1) ↔ VPS (peer .2). The home router
 # routes `wg-vps-services` via the VPS S2S peer; the VPS routes `site` (10.10.0.0/16)
 # via the home S2S peer. Router-side addressing/port is in group_vars/router.yml
 # (`wireguard_s2s_vps`); this is the VPS-side peer var (the tunnel config lives in the
-# wireguard role). Keys: `wg_password` (router) + `wg_password_vps` (VPS) — DISTINCT per side (HD-285 fix).
+# wireguard role). Keys: `wg_password` (router) + `wg_password_vps` (VPS) — DISTINCT per side.
 wg_s2s_vps:
   # Peer addresses on the `wg-s2s` /30 (10.255.40.0/30): VPS is .2, router is .1.
   # This is the single SSOT for the VPS peer; templates reference these, never literals.
@@ -660,34 +658,34 @@ wg_s2s_vps:
   router_ip: "10.255.40.1"
   listen_port: 51820
   endpoint: "s.kogler.si"           # home WAN DDNS token (Cloudflare-tracked; VPS initiates here, resolves each boot — idempotent + VPS-redo-safe). SSOT: cloudflare_dns/vars/main.yml.
-  peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key', default='') }}"  # router(PubKey), provisioned at deploy  (HD-271: lookup default — no `in vars` membership; the internal vars dict is deprecated at 2.24)
-  # AllowedIPs — LEAST-ACCESS (HD-155): the VPS may reach ONLY the scoped home
+  peer_public_key: "{{ lookup('vars', 'wg_s2s_router_public_key', default='') }}"  # router(PubKey), provisioned at deploy (lookup default — no `in vars` membership test)
+  # AllowedIPs — LEAST-ACCESS: the VPS may reach ONLY the scoped home
   # targets below (exporter/VIP/probe + oldsrv backends when wired), NOT the whole
   # `site` /16. Derived from network_static_hosts by name (never literal IPs). The
   # wg-vps-services range stays (VPS-resident services on the other side of the peer).
   # A compromised VPS can thus only reach nut/zfs/HA + ICMP + the named app backends.
   #
-  # HD-313 live-lesson (2026-09-08): the router's OWN wg-s2s tunnel address
+   # The router's OWN wg-s2s tunnel address
   # (`10.255.40.1`, `router_ip` above) MUST also be in this list. RouterOS remote
   # syslog sends with src-address=10.255.40.1 (the action's src-address); WireGuard
   # silently drops any inner packet whose source IP is not in the peer's AllowedIPs.
-  # That drop is what the HD-313 "zero UDP/514 egress" symptom really was — the
+   # That drop is what the "zero UDP/514 egress" symptom really was — the
   # fixsyslog toggle could never help. Keep both the tunnel addr (here) and the
   # mgmt-99 addr (row below) so ALL router-sourced traffic is permitted.
   # SSOT for BOTH tunnel sides: the router-side peer list (`wireguard_s2s_vps.allowed_ips`,
-  # group_vars/router.yml) derives from this list (HD-200) — edit here only.
+   # group_vars/router.yml) derives from this list — edit here only.
   allowed_ips:
     - "{{ wg_s2s_vps.router_ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'nas') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'ha-vip') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'pi') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"
-    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"   # HD-370: spark (llm.kogler.si + db-spark.kogler.si reach from the VPS/tailnet over WG S2S)
+    - "{{ (network_static_hosts | selectattr('name', 'equalto', 'spark') | selectattr('vlan', 'equalto', 10) | first).ip }}/32"   # spark (llm.kogler.si + db-spark) over S2S
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_static_hosts | selectattr('name', 'equalto', 'switch') | selectattr('vlan', 'equalto', 99) | first).ip }}/32"
     - "{{ (network_ranges | selectattr('name', 'equalto', 'wg-vps-services') | first).cidr }}"
 
-# ---- WireGuard S2S public keys (DISTINCT per side — HD-285 fix, 2026-09-02) ----
+# ---- WireGuard S2S public keys (DISTINCT per side) ----
 # WireGuard requires EACH side to have its OWN keypair: a router cannot peer with a
 # key equal to its own. The old "shared wg_password on both ends" design made both
 # sides' pubkeys identical (`gwXAk+…`) → the router tried to handshake with itself →
@@ -696,32 +694,32 @@ wg_s2s_vps:
 # side's peer = the OTHER side's pubkey (never its own).
 wg_s2s_router_public_key: "gwXAk+550CDfybOg64+v+QUFv1sW0wnGrIiI+EWFhUk="   # RB4011 side = wg_password (router's own private key)
 wg_s2s_vps_public_key: "NeEeWiEdcPfA4N8R0biRffkY4hQPNOtq8z87mr6I/0I="   # VPS side = wg_password_vps (VPS's own private key, NEW item)
-# WG-S2S internal-edge publish port (HD-333): the home `traefik-internal` edge (oldsrv)
+# WG-S2S internal-edge publish port: the home `traefik-internal` edge (oldsrv)
 # and the VPS `traefik-tailnet` edge reach VPS-hosted backends over the wg-s2s bridge on
 # this port. SSOT here (consumed by the shared traefik-internal templates on oldsrv and
 # the VPS-side compose/nftables) so the edges stay in lockstep (derived-values ban).
 wg_internal_edge_port: 4443
 
-# ==== Observability backend target for Alloy (HD-135) ====
+# ==== Observability backend target for Alloy ====
 # Forward target derived from `wg_s2s_vps.ip` (SSOT) — no literal IP embedded here.
-# Per-node model (HD-135b/HD-341): every non-backend Alloy (oldsrv, nas, pi) remote_writes
+# Per-node model: every non-backend Alloy (oldsrv, nas, pi) remote_writes
 # to the VPS Victoria backend over the wg-s2s tunnel; only the VPS (the backend host with
 # VM/VL running locally) uses loopback.
 alloy_backend_host: "{% if inventory_hostname == 'vps.kogler.si' %}127.0.0.1{% else %}{{ wg_s2s_vps.ip }}{% endif %}"
 
-# ==== Victoria* observability backend (HD-341/342 — replaces Prometheus+Loki on the VPS) ====
+# ==== Victoria* observability backend (replaces Prometheus+Loki on the VPS) ====
 # Single Victoria stack on the VPS: VictoriaMetrics (metrics, :8428, pure storage/query —
 # Alloy does ALL scraping, topology (B)) + VictoriaLogs (logs, :9428). Alloy (host/SNMP/
-# exporter remote_write + log push) and Grafana stay; Prometheus + Loki containers/configs
-# are dropped. Retention 365d / 90d (owner decision 2026-09-08) — longer than the old
-# Prometheus 30d / Loki 14d because Victoria compresses far better; the volumes are
-# Kopia-backed (docs/observability.md) — unlike the old regenerable TSDB doctrine.
-# MCP AI-debugging servers (HD-344) live on oldsrv and reach these VPS endpoints over
-# the tailnet (owner plans a full s2s-wg → tailnet redo; MCP leg uses tailnet).
+# exporter remote_write + log push) and Grafana stay; Prometheus and Loki are not deployed.
+# Retention 365d / 90d — more than Prometheus 30d / Loki 14d, because Victoria compresses
+# far better; the volumes are
+# Kopia-backed (docs/observability.md) rather than a regenerable TSDB.
+# The MCP AI-debugging servers live on oldsrv and reach these VPS endpoints over
+# the tailnet (an s2s-wg → tailnet redo is planned; the MCP leg already uses tailnet).
 # 1Password basic-auth items (HYPHENATED <service>_<type>, CONVENTIONS §1):
 #   victoria-metrics_api  — username + password (plaintext Victoria -httpAuth, NOT bcrypt)
 #   victoria-logs_api     — username + password (plaintext Victoria -httpAuth)
-# NOTE (HD-341): Alloy/exporters still reach the VPS over wg-s2s today; the MCP leg is
+# NOTE: Alloy/exporters still reach the VPS over wg-s2s; the MCP leg is
 # the first tailnet consumer. If the VPS Victoria endpoints must also listen on a VPS
 # tailnet address for MCP, that is a publish-address addition owned by the impl leg.
 victoria_metrics_port: 8428              # VictoriaMetrics HTTP endpoint / api/v1/* (query+write+admin)
@@ -731,38 +729,38 @@ victoria_logs_retention_days: 90        # -retentionPeriod; Kopia-backed (docs/o
 victoria_metrics_item: victoria-metrics_api  # 1Password basic-auth item (username + password)
 victoria_logs_item: victoria-logs_api         # 1Password basic-auth item (username + password)
 
-# ==== Victoria backend reach target for the oldsrv MCP AI servers (HD-344) ====
+# ==== Victoria backend reach target for the oldsrv MCP AI servers ====
 # The MCP servers (mcp-victoriametrics / mcp-victorialogs on oldsrv) point at the
 # VPS Victoria backend over wg-s2s TODAY — the same guaranteed-reachable tunnel the
-# Alloy collector uses (`wg_s2s_vps.ip`). Owner plans a full s2s-wg → tailnet redo
-# (future HD): that redo re-plumbs this ONE var to the VPS tailnet address and the
+# Alloy collector uses (`wg_s2s_vps.ip`). A full s2s-wg → tailnet redo is planned:
+# that redo re-plumbs this ONE var to the VPS tailnet address and the
 # MCP compose templates need no other change. No VPS tailnet IP exists in the SSOT
 # yet — do NOT invent one here (check docs/network-vpn.md before the redo).
 victoria_backend_host: "{{ wg_s2s_vps.ip }}"   # MCP → Victoria backend host (wg-s2s now, tailnet later)
 
-# MCP server listen ports on OLDSRV (HD-344). The upstream images bind `MCP_LISTEN_ADDR`
-# (default localhost:8080 metrics / :8081 logs); inside Docker we set :8080/:8081 and
-# publish them loopback-only for the local AI clients (pi/OWUI/OpenClaw on the LAN +
+# MCP server listen ports on OLDSRV. The upstream images bind `MCP_LISTEN_ADDR`
+# (default localhost:8080 metrics / :8081 logs); inside Docker the container binds
+# :8080/:8081, published loopback-only for the local AI clients (pi/OWUI/OpenClaw on the LAN +
 # tailnet). Distinct per server; never expose on the WAN/public edge.
-mcp_metrics_port: 8083  # HD-344 MCP→VM Streamable HTTP (oldsrv) — 8080 belongs to pi-dev (HD-355); moved 2026-09-15 to resolve the oldsrv_home_ip:8080 collision
-mcp_logs_port: 8084    # HD-344 MCP→VL Streamable HTTP (oldsrv) — was 8081; kept sequential with the metrics pair at 8083/8084
+mcp_metrics_port: 8083  # MCP→VM Streamable HTTP (oldsrv) — 8080 belongs to pi-dev, hence 8083
+mcp_logs_port: 8084    # MCP→VL Streamable HTTP (oldsrv) — kept sequential with the metrics pair
 
-# ==== Immich ML cross-host endpoint (HD-184) ====
+# ==== Immich ML cross-host endpoint ====
 # immich-app runs on the VPS; immich-ml (GPU) stays on oldsrv. Docker DNS cannot
 # resolve across hosts, so the app targets oldsrv's Home-VLAN address over the WG
-# S2S tunnel (HD-135/155) — derived from the address SSOT, never a literal IP.
+# S2S tunnel — derived from the address SSOT, never a literal IP.
 immich_ml_bind: "{{ oldsrv_home_ip }}"   # immich-ml publishes :3003 bound to this on oldsrv
 immich_ml_url: "http://{{ immich_ml_bind }}:3003"   # IMMICH_MACHINE_LEARNING_URL on the VPS
 
-# ==== Jellyfin on the home edge (HD-419) ====
+# ==== Jellyfin on the home edge ====
 # The PUBLIC edge reaches Jellyfin inside the `traefik-public` overlay (its compose
 # labels), but traefik-internal runs `network_mode: host` and cannot see a container-only
-# port — that is the live 502 on media.kogler.si from the LAN (measured 2026-09-22: no
+# port — that is the 502 class on media.kogler.si from the LAN (no
 # listener on :8096 at all, while actual-budget :5006 and immich-ml :3003 are published
 # on `oldsrv_home_ip`). Same precedent, tighter bind: the edge and the host are the same
 # box, so LOOPBACK is enough and it does not hand Jellyfin's own login (and its bypass of
 # the edge's CrowdSec/HSTS posture) to every Home device.
-# HD-1083 (owner ruling 2026-10-07): loopback IS the posture for the whole routed group, so this
+# Loopback IS the posture for the whole routed group, so this
 # binds loopback like the rest. A LAN client that insists on dialling :8096 directly is a NEW
 # decision, not a one-line flip — `JELLYFIN_PublishedServerUrl` (compose) already hands every client
 # the edge name, so direct-:8096 access is a regression of the edge, not a client fix.
@@ -770,7 +768,7 @@ jellyfin_bind: "127.0.0.1"
 jellyfin_host_port: 8096                     # host port; the container side stays 8096
 jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-internal's media-backend
 
-# ==== *arr/downloaders on the home edge (the HD-419 pattern, applied per service) ====
+# ==== *arr/downloaders on the home edge (the Jellyfin pattern, applied per service) ====
 # traefik-internal runs `network_mode: host` and can only reach a backend that PUBLISHES a
 # host socket on the address the route names — container-only exposure is invisible to it,
 # and the failure is a silent 502. These publishes give each of the old 502s a loopback
@@ -783,22 +781,22 @@ jellyfin_url: "http://{{ jellyfin_bind }}:{{ jellyfin_host_port }}"   # traefik-
 # is dozzle/llogs, and 8082 is ALREADY TAKEN, see the collision note at qbittorrent_host_port).
 # recyclarr has NO publish: it is a scheduled worker with no UI and talks to
 # sonarr/radarr over the overlay network, not through the edge.
-# HD-1083 (ruled + implemented 2026-10-07): the routed group binds LOOPBACK. The edge reads the same
-# `*_url` vars these publishes do, so a bind and its `*-backend` URL move together in ONE render — that
-# is what keeps `38f918c`'s live lesson (a subset flip 502s the group) unreachable by construction.
-# What loopback does NOT cover, and stays on the Home IP on purpose (measured `ss -ltn` 2026-10-07):
+# The routed group binds LOOPBACK. The edge reads the same
+# `*_url` vars these publishes do, so a bind and its `*-backend` URL move together in ONE render —
+# that is what keeps a subset flip (which 502s the group) unreachable by construction.
+# What loopback does NOT cover, and stays on the Home IP on purpose (check with `ss -ltn`):
 #   immich-ml :3003 + actual-budget :5006 — dialed CROSS-HOST (the VPS over the WG S2S); loopback
 #     would take Immich ML and the n8n→Actual leg down;
 #   lan-litellm :4000 + dozzle :8081 — the edge dials these as LITERALS in routes.yml.j2, not as
 #     `*_url` vars, so they cannot move in this change without introducing those vars; lan-litellm is
-#     the LLM plane and wants its own window. Tracked as the HD-1083 tail.
+#     the LLM plane and wants its own window. Tracked as the lan-litellm tail.
 #   slskd :5030 / aurral :3001 / lidarr-ydl :5005 — publish a host socket with NO router in any edge
-#     file and no record in technitium-seed.yml (HD-1087): loopback here would take away the only way
+#     file and no record in technitium-seed.yml: loopback here would take away the only way
 #     anything reaches them today without adding the door that is actually owed.
 # ⛔ Half-applying is still the bug: bind AND route must move together, in one converge.
 
 # to sonarr/radarr over the overlay network, not through the edge.
-# Every `*_bind` below is loopback by the HD-1083 ruling above. Flipping ONE of them back to
+# Every `*_bind` below is loopback by the ruling above. Flipping ONE of them back to
 # `{{ oldsrv_home_ip }}` re-exposes that one app's own login to the Home VLAN while the edge still
 # works — the change reads as harmless and is exactly the posture the ruling closed.
 sonarr_bind: "127.0.0.1"
@@ -811,9 +809,9 @@ lidarr_bind: "127.0.0.1"
 lidarr_host_port: 8686
 lidarr_url: "http://{{ lidarr_bind }}:{{ lidarr_host_port }}"
 
-# HD-1083: the LAN URL of the LAN-only LiteLLM proxy (container `lan-litellm`, host-net publish
-# on the oldsrv Home address:4000). It had NO var: the edge template carried `http://{{
-# oldsrv_home_ip }}:4000` inline, which is the only reason the name `lan_litellm_url` did not
+# The LAN URL of the LAN-only LiteLLM proxy (container `lan-litellm`, host-net publish
+# on the oldsrv Home address:4000). The edge template used to carry
+# `http://{{ oldsrv_home_ip }}:4000` inline, which is why the name `lan_litellm_url` did not
 # exist to reference. Minted here so the SSOT rule (docs/services-traefik.md §Service URL Map)
 # holds for this service too. ⚠ NOT the VPS `litellm` service and NOT the spark `litellm-*`
 # profiles — and NOT `litellm_scoped_keys`, which is a different name that already means two
@@ -841,27 +839,25 @@ sabnzbd_bind: "127.0.0.1"
 sabnzbd_host_port: 8080
 sabnzbd_url: "http://{{ sabnzbd_bind }}:{{ sabnzbd_host_port }}"
 # qBittorrent's publish lives on the GLUETUN sidecar (the netns owner); loopback there is the same
-# ruling applied (HD-1083). ⚠ The arrs do NOT dial this socket — qbit rejects a Host header whose
-# port is not its own 8080, so consumers use `gluetun:8080` on the overlay (qbittorrent-seed.yml).
+# ruling applied. ⚠ The arrs do NOT dial this socket — qbit rejects a Host header whose
 qbittorrent_bind: "127.0.0.1"
 # qBittorrent WebUI listens :8080 inside the gluetun netns; host port split from sabnzbd's 8080.
 # ⚠ 8082 is NOT free on this host: signal-cli-rest-api publishes {{ oldsrv_home_ip }}:8082:8880
-# (templates/docker_services/signal-cli-rest-api/). The first assignment of torrent→8082 (the
-# *arr front-door change, converged 2026-10-06 13:54) therefore took the port from the Signal
-# gateway — gluetun bound 8082 and `docker-compose@signal-cli-rest-api` failed at 13:55:17, which
-# is an alerting outage dressed up as a media fix. 8085 measured free (8083/8084 are the
+# (templates/docker_services/signal-cli-rest-api/), so the torrent port must not take it —
+# binding 8082 here fails the Signal gateway's container, which is an alerting outage dressed up
+# as a media fix. 8085 is free (8083/8084 are the
 # Victoria* MCP publishes). Any NEW publish here must be checked against EVERY existing
 # `oldsrv_home_ip:` publish in the template tree, not against the neighbouring media ports alone.
 # ⚠ `8085` is also `rmat_ui_port` in templates/docker_services/raspberrymatic/ — harmless ONLY because
-# raspberrymatic was removed from the Pi loop (HD-13 parked, raspberry_pi.yml). If it is ever re-parked
+# raspberrymatic is not in the Pi loop (parked, raspberry_pi.yml). If it is ever re-parked
 # on oldsrv these two collide; check `ss -ltnp | grep 8085` before enabling either.
 qbittorrent_host_port: 8085
 qbittorrent_url: "http://{{ qbittorrent_bind }}:{{ qbittorrent_host_port }}"
 
-# ==== The music trio on the home edge (HD-362, door landed by HD-1087) ====
-# Same HD-419 shape as the *arr set above: traefik-internal is `network_mode: host`, so a
+# ==== The music trio on the home edge ====
+# Same shape as the *arr set above: traefik-internal is `network_mode: host`, so a
 # route can only reach a backend that PUBLISHES a host socket on the address the route names.
-# All three already publish on the oldsrv Home IP (measured 2026-10-07: aurral :3001,
+# All three already publish on the oldsrv Home IP (aurral :3001,
 # slskd :5030 via its gluetun sidecar's publish, lidarr-ydl :5005), so NO compose change is
 # needed — only the vars, the routers and the records. Ports are re-checked against every
 # other `oldsrv_home_ip:` publish per the qbittorrent note above (3001/5005/5030 measured
@@ -873,26 +869,26 @@ aurral_url: "http://{{ aurral_bind }}:{{ aurral_host_port }}"
 slskd_bind: "{{ oldsrv_home_ip }}"
 slskd_host_port: 5030
 slskd_url: "http://{{ slskd_bind }}:{{ slskd_host_port }}"
-# The name is `lidarr-ydl.` (owner ruled 2026-10-07): the tool is Lidarr-only and audio-only,
-# so the neutral `ydl.` was rejected and the older `url-dl.` spelling is retired.
+# The name is `lidarr-ydl.`: the tool is Lidarr-only and audio-only, which is why the name is
+# not the neutral `ydl.` and never the older `url-dl.` — do not rename it.
 lidarr_ydl_bind: "{{ oldsrv_home_ip }}"
 lidarr_ydl_host_port: 5005
 lidarr_ydl_url: "http://{{ lidarr_ydl_bind }}:{{ lidarr_ydl_host_port }}"
 
-# ==== Tailscale listen port (HD-414) ====
+# ==== Tailscale listen port ====
 # 41641 is tailscaled's DEFAULT, so this is not a change — it is the PIN that keeps it
 # true: on a port conflict tailscaled silently falls back to a random port, which would
 # leave any "exactly one UDP exception" rule pointing at nothing. The role writes it to
 # /etc/default/tailscaled (PORT=), which the unit already passes as `--port=${PORT}`.
 tailscale_listen_port: 41641
 
-# ==== Hetzner Storage Box — live (CIFS mount on the VPS, HD-135) ====
+# ==== Hetzner Storage Box — live (CIFS mount on the VPS) ====
 # Immich originals+encoded-video and OpenCloud files live on the live Box (CIFS), mounted
 # on the VPS at /mnt/storagebox. Connection facts (host/user/password) are the live-box
 # entry in subscriptions.yml (`secret: Hertzner-SB-Data`); only the mount-specific knobs
 # live here. SMB username/password resolved at render from the 1Password item.
 # Exposed to containers as the neutral storage owner (storage_uid/storage_gid).
-# Defined here ONCE (HD-51 neutral owner): identical across hosts so file ownership
+# Defined here ONCE (the neutral storage owner): identical across hosts so file ownership
 # survives data moves; CIFS mount + container user: both derive from these.
 storage_uid: "1005"
 storage_gid: "1005"

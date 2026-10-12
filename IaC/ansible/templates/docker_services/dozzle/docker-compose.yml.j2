@@ -51,11 +51,11 @@ services:
       traefik.enable: "true"
       traefik.http.routers.dozzle.rule: "Host(`{{ svc.subdomain | default('logs') }}.kogler.si`)"
       traefik.http.routers.dozzle.entrypoints: websecure
-      {{ 'traefik.http.routers.dozzle.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.dozzle.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.dozzle.middlewares: authentik-forward-auth@file
       traefik.http.services.dozzle.loadbalancer.server.port: "8080"
 {% else %}
-      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
+      # INTERNAL-ONLY (public: false): no public-edge route; served
       # only by the internal edge (traefik-tailnet on VPS; traefik-internal on oldsrv).
       traefik.enable: "false"
 {% endif %}

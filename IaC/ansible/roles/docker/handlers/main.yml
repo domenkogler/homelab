@@ -1,6 +1,6 @@
 ---
 # docker role handlers. tags: always = handlers are tag-filtered like tasks; without it a
-# notified restart is silently skipped under e.g. --tags docker (HD-220 finding, HD-237 sweep).
+# notified restart is silently skipped under e.g. --tags docker.
 
 - name: restart docker
   systemd:

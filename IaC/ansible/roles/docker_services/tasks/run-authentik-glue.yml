@@ -1,12 +1,12 @@
 ---
 # run-authentik-glue.yml — runs AFTER the authentik service is deployed and its API is
-# reachable on host loopback (first live deploy 2026-08-22 showed the glue cannot run
-# before the containers exist: chicken-and-egg with the blueprint it harvests).
+# reachable on host loopback: the glue cannot run before the containers exist
+# (chicken-and-egg with the blueprint it harvests).
 # Retried because the ks-oidc.yml Blueprint may still be applying on the /blueprints
 # volume at container first-start; the script exits 3 (retry-safe) until every
 # provider/client_secret is present.
 
-- name: "Run Authentik secret-egress glue (HD-143)"
+- name: "Run Authentik secret-egress glue"
   ansible.builtin.shell:
     cmd: |
       # The host-side op CLI authenticates via the write-scoped SA token deployed

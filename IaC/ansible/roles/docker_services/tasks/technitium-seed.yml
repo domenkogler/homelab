@@ -1,5 +1,5 @@
 ---
-# technitium-seed.yml — bootstrap + seed Technitium instances idempotently (HD-317/HD-04)
+# technitium-seed.yml — bootstrap + seed Technitium instances idempotently.
 # Runs from docker_services/main.yml AFTER the technitium container is up.
 #
 # Design:
@@ -14,27 +14,27 @@
 #     ?token=<session> (X-Api-Token is for long-lived API tokens only).
 #   * Then ensure the kogler.si primary zone + the split-horizon A records.
 #
-# Secrets: read from the HD-258 `vault` dict (fetched once per converge, no per-task
-# op spawns); `no_log` so values never hit the task log.
+# Secrets: read from the bulk `vault` dict (fetched once per converge, no per-task op spawns);
+# `no_log` so values never hit the task log.
 #
 # Record list mirrors the network-dns.md static-records contract (per-instance):
 #   ha.kogler.si -> {{ ha_vip }}        (10.10.1.200)
 #   dns-pi.kogler.si -> {{ ha_vip }}    (same VIP; the Pi traefik-ha edge)
 #   stats/logs/csui/traefik/auto -> {{ tailnet_sidecar_ip }} (100.64.0.1)
 #   sso.kogler.si -> {{ dns_primary_ip }} (VPS public IP; Authentik edge — same as public CNAME, split-horizon parity)
-#   vpn/home/dns.kogler.si -> {{ dns_primary_ip }} (HD-334: control-plane/home login + headscale coordination + DNS UI;
-#       split-horizon targets so LAN + tailnet resolve the plain names instead of NXDOMAIN on the VPS-primary chain)
+#   vpn/home/dns.kogler.si -> {{ dns_primary_ip }} (control-plane/home login + headscale
+#       coordination + DNS UI; split-horizon so LAN + tailnet resolve the plain names instead of
+#       NXDOMAIN on the VPS-primary chain)
 # The same records on EVERY instance (VPS primary + oldsrv secondary + Pi tertiary).
-# NOTE: `modem.kogler.si` (comtrend_modem.modem_mgmt_ip) is NOT here — the Comtrend UI is LAN/router-only
-# and must NEVER resolve from the VPS/internet; treat as a router-side / LAN-only record (HD-302).
+# NOTE: `modem.kogler.si` (comtrend_modem.modem_mgmt_ip) is NOT here — the Comtrend UI is
+# LAN/router-only and must NEVER resolve from the VPS/internet; treat it as a router-side record.
 
 # Instance-derived container name — MUST mirror the compose template
 # (templates/docker_services/technitium/docker-compose.yml.j2):
 #   primary -> technitium, secondary -> technitium-oldsrv, secondary-pi -> technitium-pi
-# The service entry (e.g. raspberry_pi.yml `technitium-secondary` instance: secondary-pi)
-# carries NO container_name field, so the old `svc.container_name | default('technitium')`
-# fell back to 'technitium' on the Pi -> docker inspect found nothing -> _tech_api stayed
-# 127.0.0.1:5380 -> login failed (live 2026-09-04). Derive from the instance instead.
+# The service entry carries NO container_name field, so a `svc.container_name |
+# default('technitium')` falls back to 'technitium' on the Pi: docker inspect finds nothing,
+# _tech_api stays 127.0.0.1:5380 and login fails. Derive it from the instance.
 - name: "Technitium: derive container name from instance ({{ svc.name }})"
   ansible.builtin.set_fact:
     _tech_container_name: >-
@@ -43,15 +43,12 @@
   when: svc.template_dir | default('') == 'technitium'
   tags: [docker_services, technitium_seed]
 
-# HD-399: the whole block is gated `not ansible_check_mode`. It is the third instance of
-# the class catalogued in docs/deployment-ansible.md §Dry-run Mode: `uri` does not execute in
-# check mode, so `_tech_login` registers a *skipped* dict and the very next task
-# (`_tech_token: "{{ _tech_login.json.token }}"`) died with `object of type 'dict' has no
-# attribute 'json'` — which aborted EVERY `docker_services` `--check` on oldsrv, i.e. the
-# box could not be previewed at all. Gating is correct here rather than simulating: every
-# task in the block drives the live DNS API (login, zone create, settings set, record add)
-# — there is nothing meaningful to simulate, and a skipped block is honest while a faked
-# token would be a lie. ⛔ The fix is NOT `default()` / `failed_when: false` (HD-65 fail-loud).
+# The whole block is gated `not ansible_check_mode`, the third instance of the class catalogued in
+# docs/deployment-ansible.md §Dry-run Mode: `uri` does not execute in check mode, so the login
+# registers a *skipped* dict and the next task (`_tech_login.json.token`) dies with "object of type
+# 'dict' has no attribute 'json'", aborting every `--check` on that box. Gating is right rather than
+# simulating: every task here drives the live DNS API, so a skipped block is honest and a faked token
+# would be a lie. ⛔ The fix is NOT `default()` / `failed_when: false` (fail-loud).
 - name: "Technitium: assert container reachable on local API ({{ svc.name }})"
   when:
     - svc.template_dir | default('') == 'technitium'
@@ -71,11 +68,10 @@
         # services-internal). The old single-line `range` format GLUED the two IPs together
         # (e.g. 172.21.0.3172.20.0.2) and the login hit a garbage URL. Newlines let
         # `awk NR==1` pick the first clean IP deterministically.
-        # HD-330 live 2026-09-07: the docker `--format` Go template emits a literal
-        # backslash-n (NOT a real newline) on the shell, so `awk NR==1` never split and
-        # `_tech_api` became `http://172.21.0.3\n172.20.0.2\n:5380` → login failed.
-        # Fixed: space-delimit the IPs in the template, then `tr` the spaces to newlines
-        # and take the first non-empty line (single IP, no trailing newline).
+        # The docker `--format` Go template emits a LITERAL backslash-n, not a real newline, so an
+        # `awk NR==1` never splits it and `_tech_api` becomes `http://172.21.0.3\n172.20.0.2:5380` ->
+        # login failed. Space-delimit the IPs in the template, `tr` spaces to newlines, take the
+        # first non-empty line.
         cmd: >-
           docker inspect {{ _tech_container_name | default('technitium') }}
           --format '{{ '{{' }}range $k, $v := .NetworkSettings.Networks{{ '}}' }}{{ '{{' }}$v.IPAddress{{ '}}' }} {{ '{{' }}end{{ '}}' }}'
@@ -95,11 +91,9 @@
         method: POST
         body_format: form-urlencoded
         body:
-          # Onepassword lookup resolves on the CONTROL node (deploy-service.yml / HD-258
-          # precedent) — the HD-258 `vault` dict is set on localhost and is NOT visible
-          # to TARGET-side tasks (live 2026-09-07, Pi seed: bare `vault` and
-          # hostvars['localhost']['vault'] both undefined on the target; HD-324 VPS
-          # seed only succeeded earlier because the dict was in play scope then).
+          # A onepassword lookup resolves on the CONTROL node, and the bulk `vault` dict is set on
+          # localhost: it is NOT visible to TARGET-side tasks, so a target-side seed that reads `vault`
+          # (or hostvars['localhost']['vault']) sees an undefined dict. Look the item up here instead.
           user: "{{ lookup('community.general.onepassword', 'technitium_login', field='username', vault=op_vault) }}"
           pass: "{{ lookup('community.general.onepassword', 'technitium_login', field='password', vault=op_vault) }}"
       register: _tech_login
@@ -140,26 +134,23 @@
       register: _tech_acl
       no_log: true
       changed_when: false
-      # Fully API-managed (verified live 2026-09-03): the recursion policy is set via the
-      # BOOLEAN fields `allowRecursion` + `allowRecursionOnlyForPrivateNetworks` (NOT the
-      # read-only `recursion` string enum). allowRecursion=true + onlyForPrivate=false =
-      # "Allow all networks" recursion; the recursionNetworkACL is the least-privilege
-      # allow-list (home VLAN subnets + tailnet CGNAT + loopback). This makes the whole
-      # recursion posture self-managing - NO manual UI step required.
+      # Fully API-managed: the recursion policy is set via the BOOLEAN fields `allowRecursion` +
+      # `allowRecursionOnlyForPrivateNetworks` (NOT the read-only `recursion` string enum).
+      # allowRecursion=true + onlyForPrivate=false = "Allow all networks"; recursionNetworkACL is
+      # the least-privilege allow-list (home VLAN subnets + tailnet CGNAT + loopback). The whole
+      # recursion posture is therefore self-managing — no manual UI step.
       failed_when: _tech_acl.json is not defined or _tech_acl.json.status not in ['ok', 'error']
 
-    # HD-476 (live 2026-09-29): the resolver UPSTREAM (forwarders). Declarative — every
-    # instance is driven from SSOT on every seed: an instance whose docker_services entry
-    # carries `technitium_forwarders` gets them, an instance without gets them CLEARED
-    # (`forwarders=` empty -> readback stays null, i.e. a proven no-op on the VPS/oldsrv).
-    # WHY IT MATTERS: with no forwarders Technitium chases every cold public name from the ROOT
-    # servers itself (dnssecValidation + qnameMinimization on, resolverTimeout 1500 x retries 2)
-    # — measured on the Pi (first resolver for VLAN 10): 40-way fan-out p50 143 ms -> 60 ms after
-    # forwarding. All forwarders are queried in parallel (concurrentForwarding, pinned here) and
-    # there is NO root-recursion fallback once they are set (vendor issue #481), hence TWO
-    # independent upstreams in dns_resolver_upstreams. The local `kogler.si` zone is answered
-    # authoritatively and NEVER reaches a forwarder (aa flag proven live) — so this knob cannot
-    # affect HA name resolution. Placement policy lives in group_vars, not here (CONVENTIONS §3).
+    # The resolver UPSTREAM (forwarders), declarative: every instance is driven from SSOT on every
+    # seed — an entry with `technitium_forwarders` gets them, one without gets them CLEARED (empty
+    # `forwarders=` reads back null, a proven no-op). It matters because with no forwarders
+    # Technitium chases every cold public name from the ROOT servers itself (dnssecValidation +
+    # qnameMinimization on, resolverTimeout 1500 x retries 2), which measurably doubles a cold
+    # lookup. Forwarders are queried in parallel (`concurrentForwarding`, pinned here) and there is
+    # NO root-recursion fallback once they are set (vendor issue #481) — hence TWO independent
+    # upstreams in dns_resolver_upstreams. The local `kogler.si` zone is answered authoritatively
+    # and never reaches a forwarder, so this knob cannot affect HA name resolution. Placement
+    # policy lives in group_vars, not here (CONVENTIONS §3).
     - name: "Technitium: set resolver upstream (forwarders) from SSOT ({{ svc.name }})"
       ansible.builtin.uri:
         url: "{{ _tech_api }}/api/settings/set?token={{ _tech_token }}"
@@ -176,13 +167,12 @@
       failed_when: _tech_fwd.json is not defined or _tech_fwd.json.status not in ['ok', 'error']
 
     - name: "Technitium: ensure split-horizon A records"
-      # HD-436: the record set is ONE list — `zone_kogler_si` in group_vars/all/main.yml,
-      # filtered to the entries the LAN-facing zone carries (`zone_kogler_si_seed_records`).
-      # The rows used to be typed below; a name could then exist in this loop and not in
-      # headscale's lists or the public set, which is the class the measured drift table in
-      # docs/network-dns.md §`zone_kogler_si` catalogues. Per-row `ip:` is authored in the
-      # list now, as a split-horizon EXPRESSION (`home_edge_ip`, `tailnet_edge_ip`, ...), so
-      # this task resolves targets against the instance it runs on.
+      # The record set is ONE list — `zone_kogler_si` in group_vars/all/main.yml, filtered to the
+      # entries the LAN-facing zone carries (`zone_kogler_si_seed_records`). Rows typed here as well
+      # would let a name exist in this loop and not in headscale's lists or the public set — the
+      # class the drift table in docs/network-dns.md §`zone_kogler_si` catalogues. Per-row `ip:` is
+      # a split-horizon EXPRESSION (`home_edge_ip`, `tailnet_edge_ip`, …), so targets resolve against
+      # the instance this runs on.
       ansible.builtin.uri:
         url: "{{ _tech_api }}/api/zones/records/add?token={{ _tech_token }}"
         method: POST
@@ -197,17 +187,16 @@
       register: _tech_record
       no_log: true
       changed_when: false
-      # HD-324: register the loop result (was missing -> `item_resp` undefined -> every
-      # record-add failed closed even when the API returned status:error (idempotent
-      # "already exists"). Now tolerate error as idempotent, like the zone task.
-      # HD-302 (then HD-343/365/370/188): the LAN-only names — modem, spark and its name
-      # edges, llogs, llitellm, the Cockpit surfaces — seed ONLY on the HOME instances (Pi
-      # tertiary `secondary-pi` + oldsrv secondary `secondary`), NEVER on the VPS primary
-      # (`primary`): each answers a Home-VLAN or modem-subnet address, which is a black hole
-      # for a peer that is not at home (and an exposure the docs refuse — see
-      # docs/network-rejected.md). The exclusion list is DERIVED from the same entries'
-      # `lan_only:` flag, so a new LAN-only name cannot be added to the zone and forgotten
-      # here; `scripts/check_dns_seed_drift.py` asserts the gate is wired to that var.
+      # Register the loop result: without it `item_resp` is undefined and every record-add fails
+      # closed even when the API answered status:error (the idempotent "already exists"). Tolerate
+      # error as idempotent, like the zone task.
+      # The LAN-only names — modem, spark and its name edges, llogs, llitellm, the Cockpit surfaces
+      # — seed ONLY on the HOME instances (Pi tertiary + oldsrv secondary), NEVER on the VPS
+      # primary: each answers a Home-VLAN or modem-subnet address, a black hole for a peer that is
+      # not at home (and an exposure the docs refuse — see docs/network-rejected.md). The exclusion
+      # list is DERIVED from the same entries' `lan_only:` flag, so a new LAN-only name cannot be
+      # added to the zone and forgotten here; scripts/check_dns_seed_drift.py asserts the gate is
+      # wired to that var.
       # This `when` is evaluated PER-LOOP-ITEM (Ansible runs the task-level `when` for each
       # item when the task has a `loop`), so `item` is defined here.
       when: item.name not in zone_kogler_si_lan_only or svc.instance | default('primary') in ['secondary', 'secondary-pi']

@@ -1,8 +1,8 @@
 ---
 # role: spark-artifacts — download/verify the GPU-inference artifact store on the
-# DGX Spark (GB10) XFS data partition. GENERAL layer, config-agnostic (HD-359).
+# DGX Spark (GB10) XFS data partition. GENERAL layer, config-agnostic.
 #
-# Design (2026-09-14 fold, artifact-vs-engine split):
+# Design (artifact-vs-engine split):
 #   * ONE download per quant-artifact, keyed by HF repo_id → local_dir on the XFS
 #     data partition (`/mnt/spark_nvme`). Every engine profile (B1 AWQ+PLE vLLM,
 #     future NVFP4/SGLang, …) MOUNTS these paths read-only — nothing is owned or
@@ -12,7 +12,7 @@
 #     converge stages everything the engine compose will bind. It is safe to run
 #     standalone via `--tags spark-artifacts` (pre-bench download staging).
 #   * Deploy-gated: the B1 engine stays `spark-ai.enabled: false` until bench
-#     S1–S5 certifies a winner (HD-359); the artifact store is download-only and
+#     S1–S5 certifies a winner; the artifact store is download-only and
 #     independently useful for every candidate engine.
 #   * Idempotency = repository presence (a repo with `config.json` (weights) or
 #     non-empty dir (overlays/tables) is skipped). `hf_transfer` is installed for

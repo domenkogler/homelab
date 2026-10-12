@@ -2,25 +2,21 @@
 # =====================================================================
 # roles/access — who EXISTS, which key may open which account, and who sshd
 # ADMITS. Inventory SSOT: group_vars/all/access.yml.
-# (HD-443 grant plumbing · HD-492 the seat's SSH door — seat lane 2026-10-05)
 #
-# WHY A ROLE: accounts, authorized_keys and the AllowUsers gate were written
-# once by IaC/host/post_install.sh (and IaC/host/pi/first-boot-config.sh on the
-# Pi) and never converged again, so `--check` could not see reality and a rebuild
-# silently lost the grants — the HD-445 class, in the security plane.
+# WHY A ROLE: accounts, authorized_keys and the AllowUsers gate converge here. The
+# one-shot writers IaC/host/post_install.sh and IaC/host/pi/first-boot-config.sh are
+# not the apply of record, so reality is visible to `--check` only through this role.
 #
-# THE SAFETY PROPERTY (HD-413 lockout set), mechanical not editorial:
-#   1. a key is PLACED before it is REMOVED from an old account (task order —
-#      the "moves" leg runs last);
-#   2. the converge identity is asserted admitted BEFORE the gate is written,
-#      so a mistake fails here rather than locking the fleet;
-#   3. `sshd -t -f` validates the rendered file before it is installed, and the
-#      handler validates again before the reload, so a broken file never reaches
-#      the live daemon;
-#   4. the role IS in the HD-413 self-converge guard set: since oldsrv is itself a
-#      control node (HD-407), a seat-local converge can target the box it runs from,
-#      and a dropped AllowUsers name cuts that session. The guard refuses that
-#      pairing; property 2 protects a mistake, the guard protects an intent.
+# THE SAFETY PROPERTY (lockout set), mechanical not editorial:
+#   1. a key is PLACED before it is REMOVED from an old account (task order — the
+#      "moves" leg runs last);
+#   2. the converge identity is asserted admitted BEFORE the gate is written, so a
+#      mistake fails here rather than locking the fleet;
+#   3. `sshd -t -f` validates the rendered file before install and the handler
+#      validates again before reload: a broken file never reaches the live daemon;
+#   4. this role is in the self-converge guard set: oldsrv is itself a control node,
+#      so a seat-local converge can target the box it runs from and a dropped
+#      AllowUsers name cuts that session — the guard refuses that pairing.
 #
 # THIRD-PARTY KEYS ARE NOT TOUCHED: the module runs non-exclusive, so grants
 # owned by other roles (ha-sync on nas/oldsrv/vps, traefik-cert-sync on the VPS)
@@ -100,7 +96,7 @@
     label: "{{ item.name }} <= {{ item.vault_item }}"
 
 - name: access | Assert the gate will still admit the converge identity
-  # Before the template task: this single line is the HD-413 protection.
+  # Must run before the template task: this assert is the lockout protection.
   ansible.builtin.assert:
     that: ansible_admin_users | difference(access_admitted) | length == 0
     fail_msg: >-
@@ -121,7 +117,7 @@
 
 - name: access | Remove superseded legacy gate files
   # A second gate file is how a stale AllowUsers keeps winning
-  # (first-match-wins, HD-208).
+  # (sshd is first-match-wins).
   ansible.builtin.file:
     path: "{{ item }}"
     state: absent
@@ -130,7 +126,7 @@
 
 - name: access | Retire keys whose placement moved to another account
   # Deliberately the LAST mutating task: the placement above already landed, so
-  # a move can never leave a key on no account (HD-413 order).
+  # a move can never leave a key on no account.
   ansible.builtin.authorized_key:
     user: "{{ item.account }}"
     key: "{{ access_pubkeys[item.vault_item] }}"
@@ -157,5 +153,5 @@
       sshd -T after the change admits
       [{{ access_sshd_live.stdout | regex_findall('(?m)^allowusers (.+)$') | join(' ') }}]
       — none of {{ ansible_admin_users | join(', ') }}. Keep the session open and
-      fix the gate NOW (docs/security.md HD-413 rescue).
+      fix the gate NOW (docs/security.md).
   when: not ansible_check_mode

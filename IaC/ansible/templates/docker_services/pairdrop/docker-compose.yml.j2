@@ -1,6 +1,5 @@
 # pairdrop docker-compose.yml — P2P file share (pairdrop.kogler.si + drop.kogler.si)
-#   PUBLIC P2P file transfer (owner decision 2026-08-23, HD-230 — supersedes the
-#   HD-113 LAN/VPN-only decision): both hostnames serve this instance WITHOUT
+#   PUBLIC P2P file transfer: both hostnames serve this instance WITHOUT
 #   authentik forward-auth, on the crowdsec-only middleware tier (headscale
 #   precedent). Abuse guards: CrowdSec edge bouncer + built-in RATE_LIMIT=true
 #   (100 req / 5 min per client). Data plane is browser WebRTC peer-to-peer — the
@@ -8,23 +7,23 @@
 #   `traefik-public` ONLY (no services-internal/db-internal, no host ports), so a
 #   compromised container has no path into internal services.
 #
-#   Networking: `traefik-public` only (Traefik routes to it); no host port binds (HD-62).
+#   Networking: `traefik-public` only (Traefik routes to it); no host port binds.
 #   TLS via the wildcard *.kogler.si cert is REQUIRED for WebRTC in modern browsers —
 #   the Traefik route provides it. WS_FALLBACK=true covers VPN/WebRTC-blocked clients
 #   (direct local transfers still work peer-to-peer on the same LAN).
 #
-#   Image: lscr.io/linuxserver/pairdrop, pinned via `pairdrop_version` (HD-61/KOPS-053
+#   Image: lscr.io/linuxserver/pairdrop, pinned via `pairdrop_version` (version-pin
 #   convention). Linuxserver image exposes port 3000 (http gui).
 #
 #   Secrets via 1Password lookup at render: onepassword('<name>', field=..., vault=op_vault)
-#   — none required here (no API keys); the route is PUBLIC by design (HD-230),
+#   — none required here (no API keys); the route is PUBLIC by design,
 #   gated only by CrowdSec at the edge.
 services:
   pairdrop:
     image: lscr.io/linuxserver/pairdrop:{{ pairdrop_version }}
     cap_drop:
       - ALL
-    # s6-overlay-suexec must drop to PUID/PGID 1000 (Wave-3 R2 triage; cf. stirling-pdf).
+    # s6-overlay-suexec must drop to PUID/PGID 1000 (cf. stirling-pdf).
     cap_add:
       - CHOWN
       - FOWNER
@@ -52,7 +51,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.pairdrop.rule: "Host(`pairdrop.kogler.si`) || Host(`drop.kogler.si`)"
       traefik.http.routers.pairdrop.entrypoints: websecure
-      {{ 'traefik.http.routers.pairdrop.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.pairdrop.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.pairdrop.middlewares: crowdsec-only@file
       traefik.http.services.pairdrop.loadbalancer.server.port: "3000"
 networks:

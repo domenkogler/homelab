@@ -17,11 +17,9 @@
       docker_services role must only run as an allowed admin user
       ({{ ansible_admin_users | join(', ') }}).
 
-# Fail-closed on secret resolution (HD-91): every compose template resolves 1Password
-# secrets inline. If the op CLI or the vault is unavailable/unset, abort with a clear
-# message BEFORE any render — never proceed to deploy secrets that silently failed.
-# (Template lookups with an explicit `default('')` are the exception and are removed
-# by HD-65/HD-91 policy — see templates/docker_services for the fail-open audit trail.)
+# Fail-closed on secret resolution: every compose template resolves 1Password secrets inline, so if the op
+# CLI or the vault is unavailable the run aborts with a clear message BEFORE any render — never deploy secrets
+# that silently failed. A template lookup with an explicit `default('')` is fail-OPEN and is not allowed here.
 - name: Assert 1Password secret backend is available
   ansible.builtin.assert:
     that:
@@ -39,7 +37,7 @@
   changed_when: false
   check_mode: false
   become: false            # no escalation locally — play-level become:true would break the tmp-dir perms
-  delegate_to: localhost   # lookups resolve on the CONTROL node — never probe the target for op (found live Phase 1, 2026-08-22)
+  delegate_to: localhost   # lookups resolve on the CONTROL node — never probe the target for op
   run_once: true
   tags: [docker_services]
 
@@ -54,34 +52,25 @@
       host and re-run.
   tags: [docker_services]
 
-# ---- HD-258: bulk 1Password pre-pass (static items) ----
-# Derive the host's NEEDED vault item set (in op-vault-export.py --derive mode)
-# from its ENABLED docker_services' template_dir -> items map (_template_vault_items),
-# excluding the glue-seeded items (_bulk_op_glue, fetched after the authentik glue)
-# and the litellm scoped keys (fetched after the litellm bootstrap glue). Fetch
-# them ONCE into a `vault` dict — one concurrent `op` call per item — instead of
-# each template field spawning `op` during the render loop (~160 -> ~55 spawns).
-# Runs BEFORE the authentik lane because the authentik compose renders from the dict.
-#
-# Contract (HD-91/65): fail-closed — the exporter aborts loudly on any needed
-# item that does not resolve (no default('')). delegate localhost, run_once, no_log.
+# ---- Bulk 1Password pre-pass (static items) ----
+# The host's NEEDED item set is DERIVED (`op-vault-export.py --derive`) from its ENABLED services'
+# template_dir -> items map (_template_vault_items), minus the glue-seeded items (_bulk_op_glue) and the
+# litellm scoped keys, both fetched later by their own pre-passes. They land in one `vault` dict from one
+# concurrent `op` call per item instead of each template field spawning `op` in the render loop.
+# Must run BEFORE the authentik lane: the authentik compose renders from the dict.
+# Contract: fail-closed — the exporter aborts loudly on a needed item that does not resolve (no default(''));
+# delegate localhost, run_once, no_log.
 - name: "Bulk 1Password pre-pass (static) — export enabled-services' items into `vault`"
-  # HD-269 / scoped-run fix: the pre-pass derives from the ENABLED services that are
-  # actually IN THE LOOP — full converge (scope=all) exports every enabled template_dir's
-  # items; a DEPLOY-scoped run (docker_services_scope=<svc>) exports ONLY that service's
-  # items instead of paying the full all-services export (was ~5.7s of waste on a
-  # single-service run).
+  # Scope-gated: a full converge (scope=all) exports every enabled template_dir's items; a deploy-scoped run
+  # (`docker_services_scope=<svc>`) exports ONLY that service's, instead of paying for all services.
   ansible.builtin.include_tasks:
     file: fetch-vault-pass.yml
   vars:
     op_mode: "derive"
-    # Enabled-set semantics must MATCH the main deploy loop (default-enabled when
-    # `enabled:` is absent — list entry = runs, `enabled: false` = opt-out).
-    # `selectattr('enabled','truthy')` CRASHES on entries without the key (Jinja
-    # raises "dict has no attribute 'enabled'"). Build the enabled set as:
-    #   defined+truthy  UNION  missing-key (implicitly enabled)  = default(true).
-    # HD-307/310: the Pi entries home-assistant-primary /
-    # technitium-secondary omit `enabled:` entirely.
+    # The enabled set must MATCH the main deploy loop (default-enabled when `enabled:` is absent: a list entry
+    # runs, `enabled: false` opts out). `selectattr('enabled','truthy')` CRASHES on entries without the key
+    # (Jinja raises "dict has no attribute 'enabled'"), so build it as defined+truthy UNION missing-key.
+    # Some Pi entries omit `enabled:` entirely.
     _pi_enabled_dirs: >-
       {{ (docker_services | selectattr('enabled','defined') | selectattr('enabled') | map(attribute='template_dir') | list)
          + (docker_services | rejectattr('enabled','defined') | map(attribute='template_dir') | list) }}
@@ -121,20 +110,16 @@
   when: scope_is_all
   tags: [docker_services, networks]
 
-# Authentik OIDC pre-pass (HD-162) — on hosts where `authentik` is in docker_services
-# (the VPS public edge). First live deploy (2026-08-22) proved the original "glue before
-# the loop" order impossible: the glue needs a RUNNING authentik API, which does not
-# exist before the first deploy. Correct order (HD-146 intent preserved — authentik
-# still precedes every OIDC consumer):
+# Authentik OIDC pre-pass — on hosts where `authentik` is in docker_services (the VPS public edge). The
+# glue needs a RUNNING authentik API, which does not exist before the first deploy, so the order is
+# (authentik still precedes every OIDC consumer):
 #   1. render glue + deploy provision token      (prepass-authentik.yml)
 #   2. deploy authentik (+ bundled pg/redis)     (deploy-service.yml, authentik only)
 #   3. run the glue → seeds 1Password OIDC items (run-authentik-glue.yml)
 #   4. deploy ALL other services                 (deploy-service.yml, authentik excluded)
-# so consumers in step 4 always render with real client creds. Home hosts skip it —
-# which is precisely how HD-442 happened: this include was also the ONLY writer of
-# /etc/op/provision-token, so skipping it left oldsrv holding a token it could never
-# refresh, and that copy died with the service account behind it. The token leg now has
-# its own opt-in path for hosts that write to the vault without running Authentik.
+# so consumers in step 4 always render with real client creds. Home hosts skip this pre-pass, so the token leg
+# has its own opt-in path below: a host that writes to the vault without running Authentik still needs a
+# token it can refresh.
 - name: Authentik OIDC secret-egress pre-pass (render + token)
   ansible.builtin.include_tasks:
     file: prepass-authentik.yml
@@ -143,11 +128,9 @@
     - scope_is_all
   tags: docker_services
 
-# HD-442: token-only pre-pass for a host that needs to WRITE to the vault but does not
-# run Authentik (today: oldsrv, whose `op`-calling glue and key provisioning had been
-# failing closed for eight days). Mutually exclusive with the Authentik pre-pass above,
-# which already deploys the same file — running both would be a redundant write, and on
-# the VPS the Authentik pre-pass is the authoritative order.
+# Token-only pre-pass for a host that must WRITE to the vault but does not run Authentik. Mutually exclusive
+# with the Authentik pre-pass above, which already deploys the same file — running both is a redundant write,
+# and on the VPS the Authentik pre-pass is the authoritative order.
 - name: Deploy the op write-scoped token (non-Authentik hosts, opt-in)
   ansible.builtin.include_tasks:
     file: op-provision-token.yml
@@ -158,15 +141,14 @@
   tags: docker_services
 
 - name: Deploy authentik FIRST (its API must be live before the glue can harvest)
-  # HD-269 / scoped-run fix: scope-gate this so a deploy-scoped run (scope!=all AND
-  # scope!=authentik) does NOT deploy authentik — its items are intentionally excluded
-  # from the scoped pre-pass, so attempting its render would fail-closed on a missing
-  # secret. Only scope=all (full converge) or an explicit scope=authentik deploys it.
+  # Scope-gate this: a deploy-scoped run (scope!=all AND scope!=authentik) must NOT deploy authentik — its
+  # items are intentionally excluded from the scoped pre-pass, so rendering it would fail-closed on a missing
+  # secret. Only scope=all or an explicit scope=authentik deploys it.
   ansible.builtin.include_tasks:
     file: deploy-service.yml
   vars:
-    # Dedicated loop_var (HD-185 pattern): lazy "{{ item }}" would be re-resolved by any
-    # INNER loop in deploy-service.yml (e.g. extra .j2 templates) and shadow into a str.
+    # Dedicated loop_var: a lazy "{{ item }}" would be re-resolved by any INNER loop in
+    # deploy-service.yml (e.g. the extra .j2 templates) and shadow into a str.
     svc: "{{ svc_entry }}"
   loop: "{{ docker_services | selectattr('name', 'equalto', 'authentik') | list }}"
   loop_control:
@@ -176,17 +158,15 @@
     - svc_entry.enabled | default(true)
   tags: docker_services
 
-- name: Apply custom Authentik blueprints one-shot (HD-230) — now EXTERNALIZED
-  # Blueprints change rarely (integration wiring only), and a one-shot `docker exec
-  # ak apply_blueprint` takes ~45s per converge. Per owner decision (2026-08-27) this
-  # step moved OUT of the routine docker_services lane into the dedicated playbook
-  # `playbooks/authentik-blueprints.yml` — run it only when a blueprint file changes.
-  # The secret-egress glue (next) is idempotent-fast once blueprints are applied, so it
-  # stays here.
+- name: Apply custom Authentik blueprints one-shot — now EXTERNALIZED
+  # Blueprints change rarely (integration wiring only) and a one-shot `docker exec ak apply_blueprint`
+  # costs ~45s on every converge, so they are applied by the dedicated playbook
+  # `playbooks/authentik-blueprints.yml` — run it when a blueprint file changes. The secret-egress glue
+  # below is idempotent-fast once the blueprints are applied, so it stays in the routine lane.
   ansible.builtin.debug:
     msg: >-
       Blueprints are applied via the dedicated playbook
-      `playbooks/authentik-blueprints.yml` (externalized from the deploy lane, HD-268)
+      `playbooks/authentik-blueprints.yml` (externalized from the deploy lane)
       — not run during routine docker_services converges.
 
 - name: Run the secret-egress glue (after authentik is up)
@@ -197,10 +177,9 @@
     - scope_is_all
   tags: docker_services
 
-# HD-258 second pre-pass: fetch the glue-seeded OIDC items AFTER the glue has
-# persisted them (they don't exist before it on a fresh host; on this live VPS
-# merge is a no-op refresh). Combines into the same `vault` dict from the static
-# pre-pass above.
+# Second pre-pass: fetch the glue-seeded OIDC items AFTER the glue persisted them — they do not exist
+# before it on a fresh host, and on a provisioned host this is a no-op refresh. They merge into the same
+# `vault` dict as the static pre-pass above.
 - name: "Bulk 1Password pre-pass (glue OIDC) — export {{ _bulk_op_glue | length }} items into `vault`"
   ansible.builtin.include_tasks:
     file: fetch-vault-pass.yml
@@ -216,36 +195,33 @@
   ansible.builtin.include_tasks:
     file: deploy-service.yml
   vars:
-    # Dedicated loop_var (HD-185 pattern): see the authentik-first include above.
+    # Dedicated loop_var: see the authentik-first include above.
     svc: "{{ svc_entry }}"
   loop: "{{ docker_services }}"
   when:
     - svc_entry.enabled | default(true)
     - svc_entry.name != 'authentik'
-    # HD-255/HD-269 surgical scope: full converge (scope=all) deploys every enabled
-    # service; a named scope deploys ONLY those in the list — the per-service tags in
-    # deploy-service.yml already narrow the task list, this collapses the loop so
-    # nothing else even iterates (true scoped converge).
+    # Surgical scope: a full converge (scope=all) deploys every enabled service; a named scope deploys ONLY
+    # the listed ones. The per-service tags narrow the task list; this collapses the loop so nothing else
+    # even iterates.
     - scope_is_all or svc_entry.name in scope_list
   loop_control:
     label: "{{ svc_entry.name }}"
     loop_var: svc_entry
   tags: docker_services
 
-# HD-318a: kopia-server TLS trust anchor sync (VPS only). After kopia-server first
-# start wrote tls.crt/tls.key + tls-sha256 to its config bind, keep the 1Password
-# `kopia-server_fingerprint` item in sync — the oldsrv agent + (server) compose read
-# it via the shared `vault` dict. Idempotent; no-op when already in sync.
-- name: Sync kopia-server TLS fingerprint to 1Password (HD-318a)
+# kopia-server TLS trust-anchor sync (VPS only): after kopia-server's first start wrote tls.crt/tls.key +
+# tls-sha256 into its config bind, the 1Password `kopia-server_fingerprint` item must stay in sync — the
+# oldsrv agent and the server compose read it through the shared `vault` dict. No-op when already in sync.
+- name: Sync kopia-server TLS fingerprint to 1Password
   ansible.builtin.include_tasks:
     file: kopia-fingerprint-sync.yml
   tags: [docker_services, kopia_server, kopia_fingerprint]
 
-# HD-317: Technitium seed — after the technitium container is up, bootstrap the
-# admin (first login on the now-persistent /etc/dns) + ensure the kogler.si zone
-# and split-horizon A records. Runs for every technitium instance that was in the
-# deploy loop (VPS primary, oldsrv secondary, Pi tertiary).
-- name: Seed Technitium instances (HD-317 admin bootstrap + split-horizon records)
+# Technitium seed: once the container is up, bootstrap the admin (first login on the
+# now-persistent /etc/dns) and ensure the kogler.si zone + split-horizon A records. Runs for
+# every technitium instance that was in the deploy loop (VPS primary, oldsrv secondary, Pi tertiary).
+- name: Seed Technitium instances (admin bootstrap + split-horizon records)
   ansible.builtin.include_tasks:
     file: technitium-seed.yml
   vars:
@@ -260,12 +236,12 @@
     loop_var: svc_entry
   tags: [docker_services, technitium_seed]
 
-# HD-147 foto leg: Immich's OAuth (Authentik) settings are NOT compose env — Immich v3 has no
-# OAuth env vars at all; they live in the DB-backed system config the Admin UI writes. Seed them
-# idempotently via PUT /api/admin/config once the stack is up. Autopsy + the reason a seed task
-# exists at all: templates/docker_services/immich-app/docker-compose.yml.j2 + tasks/immich-seed.yml.
+# Immich's OAuth (Authentik) settings are NOT compose env — Immich v3 has no OAuth env vars at all; they
+# live in the DB-backed system config the Admin UI writes. Seed them idempotently via
+# PUT /api/admin/config once the stack is up. Why a seed task exists at all:
+# templates/docker_services/immich-app/docker-compose.yml.j2 + tasks/immich-seed.yml.
 # Gated `not ansible_check_mode`: every task drives the live API (deployment-ansible.md §Dry-run).
-- name: "Seed Immich OAuth system config (HD-147/HD-148)"
+- name: "Seed Immich OAuth system config"
   ansible.builtin.include_tasks:
     file: immich-seed.yml
   vars:
@@ -281,12 +257,11 @@
     loop_var: svc_entry
   tags: [docker_services, immich_seed]
 
-# HD-358: the *arr root folders Seerr needs are APP state (each app's own database), not compose env
-# — so a rebuild leaves them empty and Seerr's Radarr/Sonarr/Lidarr form fails with an EMPTY
-# Root-folder dropdown and a disabled Add button (measured 2026-10-06: radarr + sonarr returned `[]`).
-# Reconcile them idempotently and assert the profile Seerr pins still exists; the profile itself
-# stays Profilarr/Recyclarr-owned. Autopsy + the Lidarr /api/v1 trap: tasks/arr-seed.yml.
-- name: "Seed *arr root folders + assert the Seerr-pinned quality profile (HD-358)"
+# The *arr root folders Seerr needs are APP state (each app's own database), not compose env, so a rebuild
+# leaves them empty and Seerr's form fails with an EMPTY root-folder dropdown and a disabled Add button.
+# Reconcile them and assert the profile Seerr pins still exists; the profile itself stays
+# Profilarr/Recyclarr-owned. Autopsy + the Lidarr /api/v1 trap: tasks/arr-seed.yml.
+- name: "Seed *arr root folders + assert the Seerr-pinned quality profile"
   ansible.builtin.include_tasks:
     file: arr-seed.yml
   vars:
@@ -302,11 +277,11 @@
     loop_var: svc_entry
   tags: [docker_services, arr_seed]
 
-# HD-496: SABnzbd's DNS-rebinding guard refuses every Host this stack uses (the shipped whitelist holds
-# only the container id), so the UI shows "Hostname verification failed" and a Prowlarr download client
-# pointed at sabnzbd:8080 can never be saved. No env translation in the image, no config API — the ini
-# is the only automatable door. Restart only on drift; autopsy in tasks/sabnzbd-seed.yml.
-- name: "Seed the SABnzbd host whitelist (HD-496)"
+# SABnzbd's DNS-rebinding guard refuses every Host this stack uses (the shipped whitelist holds only the
+# container id), so the UI shows "Hostname verification failed" and a client pointed at sabnzbd:8080 can
+# never be saved. No env translation in the image and no config API make the ini the only automatable
+# door. Restart only on drift; autopsy in tasks/sabnzbd-seed.yml.
+- name: "Seed the SABnzbd host whitelist"
   ansible.builtin.include_tasks:
     file: sabnzbd-seed.yml
   vars:
@@ -322,11 +297,11 @@
     loop_var: svc_entry
   tags: [docker_services, sabnzbd_seed]
 
-# The torrent leg (HD-496 Gate 3b): qBittorrent answered 401 to everything because its stored WebUI
-# password was EMPTY — which makes qbit mint a fresh random one at every start, so no download client
-# can survive a recreate. No env translation in the image, no usable API door, so the conf is seeded
-# while the container is stopped; the same pass owns the save path + the per-category paths, which are
-# what stop a grab landing flat in /downloads where no root folder points. Autopsy: tasks/qbittorrent-seed.yml.
+# The torrent leg: an EMPTY stored WebUI password makes qBittorrent mint a fresh random one at every
+# start, so no download client survives a recreate. The image translates no credential env and has no
+# usable write API, so the conf is seeded while the container is stopped. The same pass owns the save path
+# and the per-category paths, which are what stop a grab landing flat in /downloads where no root folder
+# points. Autopsy: tasks/qbittorrent-seed.yml.
 - name: "Seed the qBittorrent WebUI credential + save paths (torrent leg)"
   ansible.builtin.include_tasks:
     file: qbittorrent-seed.yml
@@ -343,10 +318,9 @@
     loop_var: svc_entry
   tags: [docker_services, qbittorrent_seed]
 
-# HD-1086 (2026-10-07): the seeding goal the owner ruled once the EXDEV finding landed — ratio 2.0, then
-# pause. Set over the API against the RUNNING client (no stop for a preference), which is only possible
-# because the seed above wrote the credential this logs in with. Autopsy: tasks/qbittorrent-seeding.yml.
-- name: "Reconcile the qBittorrent seeding goal (HD-1086)"
+# The seeding goal: ratio 2.0, then pause. Set over the API against the RUNNING client (no stop for a
+# preference), which is only possible because the seed above wrote the credential this logs in with.
+- name: "Reconcile the qBittorrent seeding goal"
   ansible.builtin.include_tasks:
     file: qbittorrent-seeding.yml
   vars:
@@ -362,12 +336,11 @@
     loop_var: svc_entry
   tags: [docker_services, qbittorrent_seed]
 
-# Gate 3b of the acquisition lane: the three arrs carried a Usenet client and ZERO torrent clients, so
-# every torrent indexer Prowlarr synced (Zamunda, LimeTorrents, Nyaa) resolved releases nobody could
-# receive. Registered IN EACH APP — including Prowlarr itself since HD-1090, whose own search UI had the
-# same zero-torrent-client shape; that client governs only Prowlarr-originated grabs, because Prowlarr
-# syncs indexers and never download clients. Runs AFTER the qBittorrent seed above, which is what proves
-# the VPN carries the egress.
+# The torrent half of the acquisition lane: the arrs carried a Usenet client and ZERO torrent clients, so
+# every torrent indexer Prowlarr synced resolved releases nobody could receive. Registered IN EACH APP —
+# Prowlarr included, because its own search UI has the same zero-client shape; that client governs only
+# Prowlarr-originated grabs, since Prowlarr syncs indexers and never download clients. Runs AFTER the
+# qBittorrent seed above.
 - name: "Register the qBittorrent download client in each app that asks for one (torrent leg)"
   ansible.builtin.include_tasks:
     file: arr-client-torrent.yml
@@ -384,13 +357,12 @@
     loop_var: svc_entry
   tags: [docker_services, arr_client_seed]
 
-# DNS self-heal (2026-09-15): the seed tail above ONLY runs when a converge's deploy loop
-# includes a technitium instance — a deploy-SCOPED converge (docker_services_scope=<svc>)
-# silently skips it (live llogs gap: Pi zone lacked the record -> ERR_NAME_NOT_RESOLVED).
-# Deploy a systemd timer per DNS host that reconciles the local Technitium container via a
-# no-op-if-synced `docker compose up -d`, closing the drift window without a full converge.
-# The timer name/container derive from svc (the technitium loop item) -> group_vars remain
-# the SSOT for instance naming. See playbooks/dns-seed.yml (on-demand re-seed of all three).
+# DNS self-heal: the seed tail above only runs when a converge's deploy loop includes a technitium
+# instance, so a deploy-SCOPED converge (`docker_services_scope=<svc>`) silently skips it and a zone can
+# drift to ERR_NAME_NOT_RESOLVED. Deploy a systemd timer per DNS host that reconciles the local container
+# with a no-op-if-synced `docker compose up -d`, closing the drift window without a full converge. Timer
+# name and container derive from svc, so group_vars stay the SSOT for instance naming. See
+# playbooks/dns-seed.yml for the on-demand re-seed of all three.
 
 - name: Deploy Technitium seed self-heal timer (per DNS host)
   ansible.builtin.include_tasks:
@@ -407,11 +379,9 @@
     loop_var: svc_entry
   tags: [docker_services, technitium_seed]
 
-# Disabled services get TORN DOWN (not just skipped) — otherwise a flipped-to-false
-# entry leaves its containers running outside IaC control (2026-08-23: renovate was
-# disabled for the missing-Forgejo-repo crash-loop and would have kept restart-looping
-# forever). `compose down` on the service's project dir is idempotent: absent project
-# dir -> rc 14/1 tolerated, running stack -> removed. Rendered files stay on disk.
+# Disabled services get TORN DOWN, not just skipped: a flipped-to-false entry would otherwise leave its
+# containers running outside IaC control, restart-looping forever. `compose down` on the project dir is
+# idempotent — absent project dir (rc 14/1) is tolerated, a running stack is removed, rendered files stay.
 - name: Tear down DISABLED services (enabled=false)
   ansible.builtin.shell:
     cmd: "docker compose -p {{ item.name }} -f {{ docker_compose_dir }}/{{ item.name }}/docker-compose.yml down --remove-orphans || true"
@@ -430,11 +400,9 @@
     label: "{{ item.name }}"
   tags: docker_services
 
-# Disabled services must ALSO lose their boot auto-start unit — otherwise the
-# enabled oneshot `docker-compose@<svc>` re-runs `compose up -d` on the next
-# reboot and resurrects a stack that was deliberately torn down (2026-09-15:
-# tube-archivist — the teardown above stopped the containers but the unit stayed
-# enabled, so a reboot would have brought the crash-looping TA stack back).
+# Disabled services must ALSO lose their boot auto-start unit: the enabled oneshot
+# `docker-compose@<svc>` re-runs `compose up -d` at the next reboot and resurrects a stack that was
+# deliberately torn down — the teardown above stops containers, it does not disable the unit.
 - name: Disable boot auto-start for DISABLED services (enabled=false)
   ansible.builtin.systemd:
     name: "docker-compose@{{ item.name }}"
@@ -451,23 +419,18 @@
     label: "{{ item.name }}"
   tags: docker_services
 
-# Traefik cert-pull consumer wiring (HD-181): non-issuer traefik hosts are cert
-# CONSUMERS — they pull /opt/traefik/certs from the VPS issuer on a timer (decided
-# HD-204: every consumer pulls from the VPS directly, no relay) and serve TLS from
-# the DEFAULT store (dynamic/tls.yml.j2). The issuer (`traefik_acme_issuer: true`,
-# group_vars/vps.yml) issues locally and skips this entirely. Today the only
-# consumer host rendering the shared `traefik` template_dir is oldsrv (internal
-# edge); HD-350 adds traefik-internal (home-LAN edge, also on oldsrv) — its certs
-# dir is {{ docker_compose_dir }}/traefik-internal/certs (see traefik_consumer_dir
-# below), pulled by the SAME script/timer/keys. The Pi's `traefik-ha` keeps its own
-# equivalent puller (home_assistant role, ha-cert-sync). HD-370 adds spark-dashboard
-# (spark's name edge) to the consumer set — {{ docker_compose_dir }}/spark-dashboard/certs.
-# Key authorization on the VPS is a LIVE step: append the consumer's
-# /root/.ssh/traefik-cert-sync.pub to the VPS ansible-admin authorized_keys
-# (restricted options recommended, cf. the Pi ha-sync wrapper precedent).
-# HD-350: the home-LAN edge (traefik-internal) must bind the VIP + LAN IP before/without
-# keepalived holding it — same requirement as the Pi's traefik-ha (home_assistant role
-# sets it there; this covers oldsrv, where keepalived runs as the standby VIP holder).
+# Traefik cert-pull consumer wiring: a non-issuer traefik host is a cert CONSUMER — it pulls
+# /opt/traefik/certs from the VPS issuer on a timer (every consumer pulls from the VPS directly,
+# no relay) and serves TLS from the DEFAULT store (dynamic/tls.yml.j2). The issuer
+# (`traefik_acme_issuer: true`, group_vars/vps.yml) issues locally and skips this entirely. Each
+# consumer edge owns its certs dir at {{ docker_compose_dir }}/<edge>/certs, pulled by the SAME
+# script/timer/keys; the Pi's `traefik-ha` keeps its own equivalent puller (home_assistant role,
+# ha-cert-sync). Key authorization on the VPS is a LIVE step: append the consumer's
+# /root/.ssh/traefik-cert-sync.pub to the VPS ansible-admin authorized_keys (restricted options
+# recommended, cf. the Pi ha-sync wrapper precedent).
+# The home-LAN edge must bind the VIP + LAN IP before/without keepalived holding it — the same
+# requirement as the Pi's traefik-ha (the home_assistant role sets it there; this covers oldsrv,
+# where keepalived runs as the standby VIP holder).
 - name: Enable net.ipv4.ip_nonlocal_bind (traefik-internal VIP/LAN binding)
   ansible.builtin.sysctl:
     name: net.ipv4.ip_nonlocal_bind
@@ -478,10 +441,10 @@
     - "'traefik-internal' in (docker_services | map(attribute='name') | list)"
   tags: [docker_services, hd17]
 
-# HD-362: Tube Archivist's Elasticsearch REQUIRES vm.max_map_count=262144 (ES
-# startup fails with `max virtual memory areas vm.max_map_count [65530] is too low`
-# otherwise). Set on oldsrv where tube-archivist runs (same sysctl.d file as above).
-- name: Enable vm.max_map_count (ES for Tube Archivist, HD-362)
+# Tube Archivist's Elasticsearch REQUIRES vm.max_map_count=262144 — ES startup fails with
+# `max virtual memory areas vm.max_map_count [65530] is too low` otherwise. Set on the host where
+# tube-archivist runs (same sysctl.d file as above).
+- name: Enable vm.max_map_count (ES for Tube Archivist)
   ansible.builtin.sysctl:
     name: vm.max_map_count
     value: '262144'
@@ -492,29 +455,25 @@
   tags: [docker_services, hd362]
 
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
-  # HD-450: these tasks carried NO tag, and `roles/*` here get no implicit role tag
-  # (home_servers.yml comment at the role list) — so `--tags docker_services` silently
-  # filtered the whole block out and reported a clean run. That is how a drifted pull script
-  # survived four days of scoped converges on this box. The platform tag makes it reachable.
+  # These tasks must carry a tag: `roles/*` here get no implicit role tag (see the role list in
+  # home_servers.yml), so an untagged block is silently filtered out of a `--tags docker_services`
+  # run that still reports clean — a drifted pull script then survives every scoped converge.
   tags: docker_services
   when:
     - scope_is_all
     - "('traefik' in (docker_services | map(attribute='name') | list)) or ('traefik-internal' in (docker_services | map(attribute='name') | list)) or ('spark-dashboard' in (docker_services | map(attribute='name') | list))"
     - not (traefik_acme_issuer | default(false))
   vars:
-    # HD-450: the issuer address in ONE named place, so the assert below and the rendered
-    # script cannot disagree about which host is the issuer.
+    # The issuer address in ONE named place, so the assert below and the rendered script cannot
+    # disagree about which host is the issuer.
     cert_issuer_addr: "{{ hostvars['vps.kogler.si'].ansible_host }}"
-    # HD-350/HD-370: which edge the cert pull targets. The shared `traefik` template dir
-    # (old default) vs the home-LAN edge vs the spark-dashboard edge (spark's name edge).
-    # Defaults to the legacy shared dir.
+    # Which edge the cert pull targets: the shared `traefik` dir (old default), the home-LAN edge,
+    # or the spark-dashboard name edge. Defaults to the legacy shared dir.
     traefik_consumer_dir: "{{ 'traefik-internal' if 'traefik-internal' in (docker_services | map(attribute='name') | list) else ('spark-dashboard' if 'spark-dashboard' in (docker_services | map(attribute='name') | list) else 'traefik') }}"
   block:
-    - name: Assert the cert issuer is a remote host (HD-450 self-pull guard)
-      # Live lesson 2026-09-23: oldsrv's rendered pull carried SRC = oldsrv's OWN Home IP
-      # since 2026-09-19, so every timer fire rsynced the box from itself and reported
-      # success while the wildcard pair sat there aging toward expiry (HD-350 tail). A
-      # consumer that pulls from itself is always a fault, never a configuration.
+    - name: Assert the cert issuer is a remote host (self-pull guard)
+      # A consumer that pulls from itself is always a fault, never a configuration: the pull rsyncs
+      # the box from itself, reports success, and lets the wildcard pair age past expiry.
       ansible.builtin.assert:
         that:
           - cert_issuer_addr | length > 0
@@ -522,7 +481,7 @@
           - cert_issuer_addr not in [home_ip | default(''), mgmt_ip | default('')]
         fail_msg: >-
           Cert issuer resolves to {{ cert_issuer_addr }}, which is THIS host ({{ inventory_hostname }}).
-          The single ACME issuer is the VPS Traefik (HD-178/HD-204) — a consumer must never pull from itself.
+          The single ACME issuer is the VPS Traefik — a consumer must never pull from itself.
         quiet: true
 
     - name: Generate traefik-cert-sync SSH keypair (consumer → VPS issuer pull)
@@ -552,10 +511,9 @@
         enabled: true
         state: started
 
-- name: VPS state push to the Storage Box (HD-470 — the VPS's own state has one copy on one disk)
-  # Present only where db-backup runs (the VPS). The script's own guard exits 90 when the box
-  # mount is down, so a dead mount is a LOUD failed unit rather than a silent same-disk copy —
-  # the HD-450 self-pull lesson, transplanted to a different transport.
+- name: VPS state push to the Storage Box (the VPS's own state has one copy on one disk)
+  # Present only where db-backup runs (the VPS). The script's own guard exits 90 when the box mount is
+  # down, so a dead mount is a LOUD failed unit rather than a silent copy onto the same disk.
   tags: docker_services
   when:
     - scope_is_all
@@ -563,7 +521,7 @@
     - "'db-backup' in (docker_services | map(attribute='name') | list)"
   block:
     - name: Assert the Storage Box mount path is a real path and the dump source is named
-      # Check-mode safe, plain `assert`, no default() (HD-399 rule).
+      # Check-mode safe, plain `assert`, and NO default(): a default() lets a missing var pass the guard.
       ansible.builtin.assert:
         that:
           - vps_state_push_mount | length > 0
@@ -620,13 +578,9 @@
       register: homepage_widgets_yaml
 
     - name: Restart Homepage to pick up new config
-      # HD-440 (measured on the VPS 2026-09-27): this task had NO condition and
-      # `changed_when: true`, so it ran `docker compose restart` on the dashboard on
-      # EVERY docker_services converge and reported `changed` every single time — the
-      # exact class this row exists for (a healthy service restarted for no reason, and
-      # the one number that means "this converge did something" stops being readable).
-      # It is not a reporting lie: the restart really happened, because nothing gated it.
-      # Now gated on the two templates that are the ONLY thing this task can pick up.
+      # This restart must be GATED: ungated with `changed_when: true` it bounces the
+      # dashboard on every docker_services converge and makes the `changed` count unreadable.
+      # The two templates below are the only thing a restart can pick up.
       ansible.builtin.shell:
         cmd: "docker compose -f {{ docker_compose_dir }}/homepage/docker-compose.yml restart"
       when: >-
@@ -635,9 +589,7 @@
       changed_when: true
   tags: [homepage, docker_services]
 
-# NOTE (Wave-3 triage 2026-08-22): the former post-deploy render of
-# docs/services-inventory-generated.md lived here and NEVER ran successfully (its
+# Do NOT re-add a host-local render of docs/services-inventory-generated.md here: its
 # inventory.md.j2 needs all_hostvars, which only render-docs.yml builds by recording
-# _docker_services across ALL docker hosts). A single-host run would have clobbered the
-# multi-host doc with partial data. Canonical renderers: scripts/render_all.py (primary)
-# and playbooks/render-docs.yml (site.yml final step). Do not re-add a host-local copy.
+# _docker_services across ALL docker hosts — a single-host run clobbers the multi-host doc with
+# partial data. Canonical renderers: scripts/render_all.py and playbooks/render-docs.yml.

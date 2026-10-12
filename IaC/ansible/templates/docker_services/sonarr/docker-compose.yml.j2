@@ -13,13 +13,13 @@ services:
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
-    # read_only intentionally ABSENT (HD-318): linuxserver s6-overlay images
-    # do not support read_only root — it caused /run/s6 exec + /config/Sentry init
-    # failures. Keep cap_drop: ALL + /run:exec for the remaining hardening.
+    # read_only intentionally ABSENT: linuxserver s6-overlay images do not support a
+    # read_only root (/run/s6 exec + /config/Sentry init fail). Keep cap_drop: ALL +
+    # /run:exec for the remaining hardening.
     tmpfs:
       - /tmp
       - /run:exec
-      # HD-1081: own tmpfs for the app temp dir — the image cannot chown it under cap_drop: ALL,
+      # Own tmpfs for the app temp dir — the image cannot chown it under cap_drop: ALL,
       # and ASP.NET DataProtection keys (login cookies) are written there.
       - /run/sonarr-temp:mode=1777,exec
     container_name: sonarr
@@ -28,7 +28,7 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern: traefik-internal runs `network_mode: host`, so it can only reach a
+      # traefik-internal runs `network_mode: host`, so it can only reach a
       # backend that PUBLISHES a host socket — loopback is enough (edge on this box) and
       # keeps the app's own login off the Home VLAN.
       - "{{ sonarr_bind }}:{{ sonarr_host_port }}:8989"
@@ -44,7 +44,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.sonarr.rule: "Host(`sonarr.kogler.si`)"
       traefik.http.routers.sonarr.entrypoints: websecure
-      {{ 'traefik.http.routers.sonarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.sonarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.sonarr.middlewares: authentik-forward-auth@file
       traefik.http.services.sonarr.loadbalancer.server.port: "8989"
 networks:

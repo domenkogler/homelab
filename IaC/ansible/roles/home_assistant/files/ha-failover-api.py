@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""ha-failover-api — local HTTP trigger for /usr/local/sbin/ha-failover.sh (HD-17).
+"""ha-failover-api — local HTTP trigger for /usr/local/sbin/ha-failover.sh.
 
 Runs on oldsrv; Homepage cards (homepage_services.yaml.j2) trigger it.
 

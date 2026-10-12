@@ -3,7 +3,7 @@
 #
 # Targets: the `monitoring` inventory group (oldsrv collector + vps backend host).
 #
-# Architecture (docs/observability.md, HD-135 split + HD-342 Victoria migration):
+# Architecture (docs/observability.md):
 #   Alloy (host agent: metrics + logs + SNMP) ──remote_write──▶ VictoriaMetrics (on VPS)
 #   Alloy (container logs via docker.sock) ────push──────────▶ VictoriaLogs (on VPS)
 #   Alloy scrapes EVERYTHING (topology B): HA exporter, blackbox, nut/zfs exporters,
@@ -12,10 +12,10 @@
 # Backend: VictoriaMetrics + VictoriaLogs + Grafana run on the VPS (reliable tier).
 # old-srv keeps a thin Alloy collector that forwards home telemetry over the wg-s2s
 # tunnel (alloy_backend_host); the VPS runs its own Alloy + the Grafana provisioning.
-# HD-135b (2026-08-28): the VPS Alloy self-observes on loopback (alloy_backend_host
-# defaults to 127.0.0.1) — VPS container logs/metrics stay local, no tunnel. The WG
-# tunnel dependency applies only to HOME telemetry (oldsrv/Pi collectors), not the
-# VPS's own stack. Dozzle (log viewer) also moved to the VPS (group_vars/vps.yml).
+# The VPS Alloy self-observes on loopback (alloy_backend_host defaults to 127.0.0.1):
+# VPS container logs/metrics stay local, no tunnel. The WG tunnel dependency applies only
+# to HOME telemetry (oldsrv/Pi collectors). Dozzle (log viewer) lives on the VPS
+# (group_vars/vps.yml).
 #
 # This role handles:
 #   1. HA API bearer token (from 1Password ha_api)
@@ -24,7 +24,7 @@
 #
 # Secrets (1Password vault 'Homelab-ansible'):
 #   ha_api (credential) — HA long-lived API token
-#   victoria-metrics_api / victoria-logs_api — Victoria backend basic auth (HD-341/342)
+#   victoria-metrics_api / victoria-logs_api — Victoria backend basic auth
 #
 # Ordering: after docker_services (needs Grafana, VictoriaMetrics, VictoriaLogs containers up)
 
@@ -43,17 +43,17 @@
     dest: /etc/prometheus/ha_token
     content: "{{ lookup('community.general.onepassword', 'ha_api', field='credential', vault=op_vault) }}"
     mode: '0600'
-  # GATED until Phase 4 (alloy_ha_exporter; Wave-3 triage 2026-08-22): no HA behind
-  # ha_vip and no ha_api vault item before the HD-04 cutover - flip the var, seed the item,
-  # add the compose mount and re-enable the scrape job together. Renaming the var here and in
-  # group_vars/vps.yml is ATOMIC work: both readers end `| default(false)`, so renaming one
-  # side and not the other leaves the gate silently off forever rather than failing loudly.
+  # GATED until alloy_ha_exporter is real: no HA behind ha_vip and no ha_api vault item.
+  # Flipping the var, seeding the item, adding the compose mount and re-enabling the scrape
+  # job is together-or-nothing work. Renaming the var here and in group_vars/vps.yml is
+  # ATOMIC: both readers end `| default(false)`, so renaming one side and not the other
+  # leaves the gate silently off forever rather than failing loudly.
   when: inventory_hostname in groups['monitoring'] and alloy_ha_exporter | default(false)
   tags: [monitoring, ha_token]
 
 # ---- Alloy installation (Grafana APT repo) ----
-# deb822_repository (Wave-3 triage 2026-08-22): Debian 13 removed apt-key entirely; the
-# module fetches the armored key to /etc/apt/keyrings and writes the signed-by source.
+# deb822_repository: Debian 13 removed apt-key entirely; the module fetches the armored key
+# to /etc/apt/keyrings and writes the signed-by source.
 - name: Add Grafana APT repo (deb822, for Alloy)
   ansible.builtin.deb822_repository:
     name: grafana
@@ -104,8 +104,8 @@
     mode: '0644'
   notify: restart alloy
   # Same scope as alloy.river.j2's SNMP exporter block: only the OLDSRV collector has
-  # Mgmt-VLAN reach. Rendering on the VPS was dead weight AND failed on an undefined
-  # var inside a template comment (Wave-3 triage 2026-08-22).
+  # Mgmt-VLAN reach. Rendering on the VPS is dead weight AND fails on an undefined
+  # var inside a template comment.
   when: inventory_hostname == 'oldsrv.kogler.si'
   tags: [monitoring, alloy]
 
@@ -119,16 +119,15 @@
   tags: [monitoring, alloy]
 
 # -------------------------------------------------------------------------
-# Host rsyslog remote-syslog receiver (HD-313)
+# Host rsyslog remote-syslog receiver
 #   The RB4011 forwards RFC5424 syslog over wg-s2s to the VPS. rsyslog on the
 #   VPS is the UDP/514 listener writing /var/log/remote-syslog/routeros.log,
 #   which CrowdSec tails (acquis.d) and Loki/Alloy ingest. Only the VPS
-#   (monitoring group) runs this receiver. rsyslog is installed by this role
-#   (netcup minimal boot image ships WITHOUT rsyslog — live 2026-09-03; the old
-#   comment claimed Debian stock rsyslog exists, which was wrong on this image).
+#   (monitoring group) runs this receiver. Install rsyslog here rather than
+#   trusting the base image: the netcup minimal boot image ships without it.
 #   Idempotent: apt + config + dir idempotent; restart only on change.
 # -------------------------------------------------------------------------
-- name: Install rsyslog (UDP/514 receiver for RouterOS logs, HD-313)
+- name: Install rsyslog (UDP/514 receiver for RouterOS logs)
   ansible.builtin.apt:
     name: rsyslog
     state: present
@@ -160,16 +159,16 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, routeros-syslog]
 
-# ---- CrowdSec RouterOS acquisition (HD-313) ----
+# ---- CrowdSec RouterOS acquisition ----
 # The acquisition file must live in the CrowdSec config mount's acquis.d/:
 # /srv/docker/crowdsec/config -> /etc/crowdsec in-container, and CrowdSec reads
 # acquisitions from /etc/crowdsec/acquis.d/. A compose-dir extra-template copy
-# (/opt/crowdsec/) is dead — CrowdSec never reads it (live gap found 2026-09-03
-# while closing the HD-313 deploy gate). This role owns the single live copy.
+# (/opt/crowdsec/) is dead — CrowdSec never reads it. This role owns the single
+# live copy.
 # VPS-only (the CrowdSec host) — the `monitoring` group spans BOTH the oldsrv
 # collector and the VPS backend, but the CrowdSec container + its config mount
 # live on the VPS only; on oldsrv `/opt/crowdsec` does not exist and the restart
-# would fail (live gap 2026-09-08, oldsrv converge). Gate explicitly to groups['vps'].
+# fails. Gate explicitly to groups['vps'].
 # Idempotent: template + docker-compose restart only when the file changes.
 - name: Create CrowdSec acquis.d directory in the config mount
   ansible.builtin.file:
@@ -179,7 +178,7 @@
   when: inventory_hostname in groups['vps']
   tags: [monitoring, routeros-syslog]
 
-- name: Install CrowdSec RouterOS acquisition into the config mount (HD-313)
+- name: Install CrowdSec RouterOS acquisition into the config mount
   ansible.builtin.template:
     src: "{{ role_path }}/templates/acquis-routeros.yml.j2"
     dest: /srv/docker/crowdsec/config/acquis.d/acquis-routeros.yml
@@ -198,9 +197,9 @@
   tags: [monitoring, routeros-syslog]
 
 # -------------------------------------------------------------------------
-# Network-clients exporter (HD-343) — RouterOS-API collector on oldsrv
-#   Host binary (like nut_exporter) reusing the read-only `logpipe` API user
-#   (HD-313). Polls DHCP/ARP/FDB/wifi registration, emits mikrotik_client +
+# Network-clients exporter — RouterOS-API collector on oldsrv
+#   Host binary (like nut_exporter) reusing the read-only `logpipe` API user.
+#   Polls DHCP/ARP/FDB/wifi registration, emits mikrotik_client +
 #   mikrotik_static_host; the oldsrv Alloy scrapes it and remote_writes to the
 #   VPS Prometheus (same channel as SNMP). oldsrv-only (Mgmt-plane reach).
 #   Design SSOT: docs/observability.md §Network Clients Dashboard.
@@ -224,11 +223,10 @@
   tags: [monitoring, network-clients]
 
 - name: Create network-clients exporter venv (routeros-api from PyPI)
-  # HD-318/HD-343 (2026-09-08): Debian trixie has NO `python3-routeros-api`
-  # package (the apt name was wrong — trixie ships `python3-librouteros`, whose
-  # `librouteros` module API differs from what the exporter script imports). The
-  # script imports `routeros_api` (PyPI `routeros-api`), so pin that into a
-  # dedicated root-owned venv — reproducible, matches nut_exporter's
+  # Debian trixie has NO `python3-routeros-api` package: trixie ships
+  # `python3-librouteros`, whose `librouteros` module API differs from what the exporter
+  # script imports. The script imports `routeros_api` (PyPI `routeros-api`), so pin that
+  # into a dedicated root-owned venv — reproducible, matches nut_exporter's
   # pinned-release pattern. Version pin lives in group_vars/all/versions.yml.
   ansible.builtin.command:
     cmd: "/usr/bin/python3 -m venv /opt/network-clients-exporter/venv"
@@ -255,10 +253,10 @@
   tags: [monitoring, network-clients]
 
 - name: Deploy network-clients exporter script (root-owned 0750 networkclients — carries the logpipe credential)
-  # HD-343 fix (2026-09-08): the exporter runs as the unprivileged `networkclients`
-  # user (systemd unit), so a root-0700 file gave "Permission denied" opening it,
-  # status=2 crash-loop. Group-read lets the service user read it while the logpipe
-  # credential stays protected from everyone else (mode 0750 root:networkclients).
+  # The exporter runs as the unprivileged `networkclients` user (systemd unit), so a
+  # root-0700 file gives "Permission denied" opening it and the unit crash-loops.
+  # Group-read lets the service user read it while the logpipe credential stays
+  # protected from everyone else (mode 0750 root:networkclients).
   ansible.builtin.template:
     src: network-clients-exporter.py.j2
     dest: /usr/local/bin/network-clients-exporter
@@ -293,11 +291,11 @@
 # Grafana compose mounts /srv/docker/grafana/provisioning → /etc/grafana/provisioning:ro
 # (templates/docker_services/grafana/docker-compose.yml.j2). Files are read at
 # container start; we write them then restart grafana so provisioning loads.
-# VPS-only gate (2026-09-08 oldsrv-converge fix): the `monitoring` group spans BOTH
-# oldsrv (collector) and the VPS (backend), but Grafana runs ONLY on the VPS. On
-# oldsrv these wrote /srv/docker/grafana and `notify: restart grafana` fired
-# `docker restart grafana` → "No such container". Handler stays unconditional (the
-# 2026-08-23 VPS fix, HD-240) because only VPS tasks notify it now.
+# VPS-only gate: the `monitoring` group spans BOTH oldsrv (collector) and the VPS
+# (backend), but Grafana runs ONLY on the VPS — on oldsrv these tasks would write
+# /srv/docker/grafana and `notify: restart grafana` would fire
+# `docker restart grafana` → "No such container". The handler stays unconditional
+# because only VPS tasks notify it.
 
 - name: Create Grafana provisioning directories
   ansible.builtin.file:
@@ -311,7 +309,7 @@
   when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
-- name: Provision Grafana datasources file (Loki only — see HD-240)
+- name: Provision Grafana datasources file (Loki only)
   ansible.builtin.template:
     src: grafana-datasources.yml.j2
     dest: /srv/docker/grafana/provisioning/datasources/datasources.yml
@@ -320,12 +318,12 @@
   when: inventory_hostname in groups['vps']
   tags: [monitoring, grafana]
 
-# HD-240 (2026-08-24): the Prometheus datasource is seeded via the Grafana HTTP API,
-# NOT the provisioning file — grafana 13.2.0 file-provisioning stores a secureJsonData
-# blob it cannot resolve at query time (wire-capture proof: queries left WITHOUT the
-# Authorization header / "Authentication to data source failed"), while API-created
-# secrets are proven correct. Idempotent: created only when absent. ROTATION of
-# victoria-metrics_api = delete the datasource (API/UI) then re-run this role.
+# The Prometheus/Victoria datasource is seeded via the Grafana HTTP API, NOT the
+# provisioning file — grafana 13.2.0 file-provisioning stores a secureJsonData blob it
+# cannot resolve at query time (queries leave WITHOUT the Authorization header →
+# "Authentication to data source failed"), while API-created secrets are proven correct.
+# Idempotent: created only when absent. ROTATION of victoria-metrics_api = delete the
+# datasource (API/UI) then re-run this role.
 - name: Read grafana admin password from container env
   ansible.builtin.command:
     cmd: docker exec grafana printenv GF_SECURITY_ADMIN_PASSWORD
@@ -337,12 +335,11 @@
     - not ansible_check_mode
   tags: [monitoring, grafana]
 
-# ⚠ --check guard (HD-368 session, 2026-09-16): `command` never executes in check mode, so
+# ⚠ --check guard: `command` never executes in check mode, so
 # gf_admin_password/gf_api_ip register EMPTY stdout → the uri tasks below die on
-# "Error while resolving value for 'url': No first item, sequence was empty" — which aborted
-# every `--check --diff` monitoring run BEFORE the dashboard-copy task (i.e. the one task
-# this lane cares about). The whole Grafana API block is read-or-seed against the LIVE app,
-# so skipping it in check mode is both correct and makes `--check` usable again.
+# "Error while resolving value for 'url': No first item, sequence was empty", aborting
+# every `--check --diff` monitoring run BEFORE the dashboard-copy task. The whole Grafana
+# API block is read-or-seed against the LIVE app, so skipping it in check mode is correct.
 - name: Resolve grafana container IPs for API calls
   ansible.builtin.command:
     cmd: docker exec grafana hostname -i
@@ -353,9 +350,9 @@
     - not ansible_check_mode
   tags: [monitoring, grafana]
 
-# HD-240 (2026-08-24) + HD-342 (Victoria migration): BOTH Victoria* datasources carry
-# basic-auth secrets, so they are API-seeded (file-provisioning stores a secureJsonData
-# blob it cannot resolve at query time). Two datasources, each API-seeded create-only:
+# BOTH Victoria* datasources carry basic-auth secrets, so they are API-seeded
+# (file-provisioning stores a secureJsonData blob it cannot resolve at query time).
+# Two datasources, each API-seeded create-only:
 #   uid prometheus (type prometheus) -> VictoriaMetrics http://victoria-metrics:8428
 #   uid loki        (type victoriametrics-logs-datasource) -> VictoriaLogs http://victoria-logs:9428
 # ROTATION of victoria-metrics_api/victoria-logs_api = delete the datasource (API/UI) then
@@ -420,19 +417,19 @@
       vault_item: victoria-logs_api
   tags: [monitoring, grafana]
 
-# HD-420 (2026-09-22): the interval floor the seed never set. `jsonData.timeInterval` is what
-# floors Grafana's `$__interval` / `$__rate_interval`; without it Grafana floors them at its own
-# 15 s default, so a 5 s scrape is still AVERAGED into 15 s buckets at query time and the nine
-# hot panels stay steppy with perfect data in VM. The seed above is create-only (`status == 404`),
-# so the live datasource needs a PUT — this task reads the CURRENT value through the GET that is
-# already registered (gf_ds_state) and PUTs only when it differs, which is what makes it
-# idempotent instead of a changed-on-every-run task.
-# The body re-sends the vault secret because PUT replaces the datasource record: a body without
-# secureJsonData leaves the HD-240 class of failure (an un-authed datasource, "Authentication to
-# data source failed") that the whole API-seeding design exists to avoid. Re-reading the same
+# The interval floor the seed never set. `jsonData.timeInterval` is what floors
+# Grafana's `$__interval` / `$__rate_interval`; without it Grafana floors them at its own
+# 15 s default, so a 5 s scrape is still AVERAGED into 15 s buckets at query time and the
+# hot panels stay steppy with perfect data in VM. The seed above is create-only
+# (`status == 404`), so the live datasource needs a PUT — read the CURRENT value from the
+# GET that is already registered (gf_ds_state) and PUT only when it differs, which is what
+# makes this idempotent instead of changed-on-every-run.
+# The body re-sends the vault secret because PUT replaces the datasource record: a body
+# without secureJsonData leaves an un-authed datasource ("Authentication to data source
+# failed"), the failure the whole API-seeding design exists to avoid. Re-reading the same
 # 1Password item is not a rotation; nothing is generated here.
-# Check-mode safe by the HD-368 rule above: gf_api_ip/gf_admin_password register empty in --check,
-# and `not ansible_check_mode` is on the task.
+# Check-mode safe by the --check guard above: gf_api_ip/gf_admin_password register empty in
+# --check, and `not ansible_check_mode` is on the task.
 - name: Ensure the VictoriaMetrics datasource carries its 5s interval floor
   ansible.builtin.uri:
     url: "http://{{ gf_api_ip.stdout.split(' ') | first }}:3000/api/datasources/uid/prometheus"
@@ -528,19 +525,18 @@
   when: inventory_hostname in groups['vps']
 
 # -------------------------------------------------------------------------
-# HD-450 — the silent-failure hygiene collector (unit results + consumer cert age)
+# The silent-failure hygiene collector (unit results + consumer cert age)
 # -------------------------------------------------------------------------
-# Found closing HD-350: oldsrv's `traefik-cert-pull.timer` failed every 15 min for DAYS and NO series
-# changed anywhere in the stack. Two gaps, both structural: a systemd unit's result is not scraped at
-# all (Alloy's host exporter ran an explicit collector set with no `systemd` and no `textfile`), and the
-# cert pair a CONSUMER holds is not exported either — the one cert rule (`ssl-cert-expiring`) reads
-# `probe_ssl_earliest_cert_expiry`, which has ZERO series because blackbox emits no SSL expiry, so the
-# rule has been structurally dead since it was written.
-# The collector is a textfile file written by a 5-min timer, not a long-running exporter: it costs
-# nothing to watch, and its OWN staleness becomes a series (`homelab_hygiene_scrape_ok`), which is the
-# rule that catches this collector dying — the class of failure being hunted, pointed at itself.
+# Two structural gaps this closes: a systemd unit's RESULT is not scraped at all (Alloy's
+# host exporter runs an explicit collector set with no `systemd` and no `textfile`), and the
+# cert pair a CONSUMER holds is not exported either — `ssl-cert-expiring` reads
+# `probe_ssl_earliest_cert_expiry`, which blackbox emits no series for, so that rule is
+# structurally dead.
+# A textfile file written by a 5-min timer, not a long-running exporter: it costs nothing to
+# watch and its OWN staleness becomes a series (`homelab_hygiene_scrape_ok`) — the class of
+# failure being hunted, pointed at itself.
 
-- name: Install the hygiene exporter (HD-450)
+- name: Install the hygiene exporter
   # 0750 root:root — it carries no secret (the lists and the loopback port are the only rendered
   # content), but it is the thing the alert rules trust, so it is not world-writable by construction.
   ansible.builtin.template:
@@ -551,7 +547,7 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, hygiene]
 
-- name: Install the hygiene exporter unit (HD-450)
+- name: Install the hygiene exporter unit
   ansible.builtin.copy:
     src: homelab-hygiene.service
     dest: /etc/systemd/system/homelab-hygiene.service
@@ -560,7 +556,7 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, hygiene]
 
-- name: Ensure the hygiene exporter is running (HD-450)
+- name: Ensure the hygiene exporter is running
   ansible.builtin.systemd:
     name: homelab-hygiene
     state: started
@@ -569,7 +565,7 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, hygiene]
 
-- name: Prove the exporter answers and this host's Alloy is alive (HD-450)
+- name: Prove the exporter answers and this host's Alloy is alive
   # Two legs, because "the exporter works" and "the exporter is being scraped" are different claims and
   # only the second one is worth anything: the first curl is the exporter's own /metrics (the series must
   # exist at all), the second is Alloy's listener (:12345, its default — proof the process this file just
@@ -590,7 +586,7 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, hygiene]
 
-- name: Record what the hygiene exporter publishes (HD-450)
+- name: Record what the hygiene exporter publishes
   # The row is about failures being READABLE, so the converge prints the numbers the alert rules
   # threshold on instead of a bare "ok" — including cert days-left, which is the value an owner needs
   # to sanity-check the WARN/CRIT thresholds against the real renewal cycle.

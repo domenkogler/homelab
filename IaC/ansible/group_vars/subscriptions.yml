@@ -13,7 +13,7 @@
 #   - `since`        = when the subscription started / was bought.
 #   - `secret`       = 1Password ref (vault Homelab-ansible) if one exists, else null.
 #   - `calendar_url` = iCal/CalDAV feed URL for the Homepage calendar widget.
-#                     Populate post-deploy (Infomaniak kSuite CalDAV, HD-30);
+#                     Populate post-deploy (Infomaniak kSuite CalDAV);
 #                     null = not yet wired.
 #   - `notify`       = channels to remind on (signal / email); drives the n8n
 #                     workflow. Empty = no push reminder (feed-only/tiles only).
@@ -52,7 +52,7 @@ subscriptions:
     reminder_days: 30
     url: https://nzbgeek.info
     icon: fa-newspaper
-    secret: nzbgeek_api   # vault item created 2026-10-06; Prowlarr's built-in NZBGeek definition authenticates with it
+    secret: nzbgeek_api   # Prowlarr's built-in NZBGeek definition authenticates with it
     calendar_url: null
     notify: [signal]
     status: active
@@ -64,7 +64,7 @@ subscriptions:
     reminder_days: 30
     url: https://www.eweka.nl
     icon: fa-download
-    secret: eweka_login   # vault item created 2026-10-07; the same login lives in SABnzbd → Config → Servers
+    secret: eweka_login   # the same login lives in SABnzbd → Config → Servers
     calendar_url: null
     notify: [signal]
     status: active
@@ -91,7 +91,7 @@ subscriptions:
     secret: null
     calendar_url: null
     notify: [signal]
-    status: active                # replaces deferred Contabo Storage VPS 30 (HD-93)
+    status: active                # replaces the deferred Contabo Storage VPS 30
 
   # --- Active (free) ---
   - name: Meteorblue (weather API)
@@ -101,7 +101,7 @@ subscriptions:
     reminder_days: 30
     url: https://www.meteoblue.com
     icon: fa-cloud-sun
-    secret: meteoblue_api        # 1Password Homelab-ansible, API credential (HD-22)
+    secret: meteoblue_api        # 1Password Homelab-ansible, API credential
     calendar_url: null
     notify: [signal]
     status: active
@@ -115,7 +115,7 @@ subscriptions:
     url: https://www.infomaniak.com
     icon: fa-envelope
     secret: null
-    calendar_url: null          # becomes the CalDAV source for the calendar widget (HD-30)
+    calendar_url: null          # becomes the CalDAV source for the calendar widget
     notify: [signal]
     status: planned
 
@@ -131,14 +131,14 @@ subscriptions:
       FSN1-BX2190 · Falkenstein, Germany · eu-central
     calendar_url: null
     notify: [signal]
-    status: active              # HD-31 redirect — live Immich originals + family SMB/WebDAV drives (CIFS, NOT S3)
+    status: active              # live Immich originals + family SMB/WebDAV drives (CIFS, NOT S3)
     host: "653411.your-storagebox.de"      # server 653411; share //u653411.your-storagebox.de/backup
     username: u653411           # SMB/CIFS + SSH user (SSH key + password in 1Password)
     ssh_port: 23                # non-standard SSH/SFTP port
 
   - name: Hetzner Storage Box (backup)
     cost_eur: 3.90              # BX11 1 TB
-    since: "2026-08-18"           # bought
+    since: "2026-08-18"           # renewal dates are state: Homepage + the n8n reminder read them
     valid_until: null            # monthly
     reminder_days: 30
     url: https://robot.hetzner.com
@@ -154,7 +154,7 @@ subscriptions:
     ssh_port: 23                 # non-standard SSH/SFTP port (same convention as live box)
 
 
-  # --- Dropped (kept for history/provenance) ---
+  # --- Dropped (a row stays here so the rendered table lists it under Dropped / Deferred) ---
   - name: iDrive e2
     cost_eur: 5
     since: null
@@ -165,4 +165,4 @@ subscriptions:
     secret: null
     calendar_url: null
     notify: []
-    status: dropped              # replaced by Hetzner boxes (HD-29/31)
+    status: dropped              # the Hetzner boxes cover this role

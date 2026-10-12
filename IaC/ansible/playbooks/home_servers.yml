@@ -2,38 +2,37 @@
 - hosts: home_servers
   become: true
   pre_tasks:
-    # HD-413: refuse the lockout-capable roles (network / storage / wireguard /
+    # Refuse the lockout-capable roles (network / storage / wireguard /
     # vps-hardening) when this play's target IS the machine running the playbook.
-    # oldsrv is a control node as of HD-407 — this play carries two of those roles.
+    # oldsrv is a control node — this play carries two of those roles.
     # Off-box path + in-band rescue: docs/deployment-ansible.md §Self-converge guardrail.
-    - name: HD-413 | Self-converge guardrail
+    - name: Self-converge guardrail
       ansible.builtin.import_tasks: tasks/self-converge-guard.yml
   roles:
     - common
-    - role: access            # HD-443: accounts + authorized_keys + the AllowUsers gate
+    - role: access            # accounts + authorized_keys + the AllowUsers gate
       tags: [access]          # (bare role names are not tags — scripts/README.md)
     - ai_diag        # restricted diagnostic dispatcher for ai-debug
     - docker
     # Order: network MUST precede storage (NFS mounts depend on the VLAN/static-IP being up)
     # and docker_services MUST follow storage (needs NFS ready) — mirrors the
-    # Implementation Order table (deployment-ansible.md §Implementation Order, KOPS-050).
+    # Implementation Order table (deployment-ansible.md §Implementation Order).
     - network
     - storage        # oldsrv: import/create nvme, datasets+props, NFS mounts, push timers (docs/storage.md)
     - nut             # UPS client (oldsrv) — after network, before monitoring
     - role: cockpit       # management UI (oldsrv) — own login, NOT behind Authentik
       tags: [cockpit]
-    # HD-445: the pi coding seat (pi-web user unit + BOTH drop-ins + token env +
-    # linger + tmux). Its own role, so the seat can be converged without the
+    # The pi coding seat is its own role so it can be converged without the
     # maint-console leg — whose vault-vs-box credential divergence must stay a hard
     # failure (rotating a console credential is an owner act, never a side effect).
     - role: seat
       tags: [seat]
-      when: seat_enable | default(false)     # HD-361: bare role names are not tags — see playbooks/storage.yml for
+      when: seat_enable | default(false)     # bare role names are not tags — see playbooks/storage.yml for
                           # why this line exists (a `--tags cockpit` run was a silent no-op).
-    # HD-405: oldsrv as a headscale node. BEFORE docker_services so the interface exists
+    # oldsrv as a headscale node. BEFORE docker_services so the interface exists
     # when traefik-internal binds its tailnet listener on the same run.
-    # NOTE the explicit `tags:` — roles here carry NO implicit role tag (verified live with
-    # --list-tasks), so `--tags tailscale-node` would otherwise silently filter the whole
+    # NOTE the explicit `tags:` — roles here carry NO implicit role tag, so
+    # `--tags tailscale-node` would otherwise silently filter the whole
     # role out and report a clean, changed=0 run (scripts/README.md §"scoped deploys need
     # BOTH tags", same trap).
     - role: tailscale-node

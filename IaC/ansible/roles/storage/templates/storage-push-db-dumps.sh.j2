@@ -4,10 +4,9 @@
 # because that is the half that touches the docker socket. The copy to the NAS is
 # storage-push-db-dumps-push.sh, which must run as root — see the why in that file.
 #
-# Why this half exists at all (HD-468, measured 2026-09-28): `/srv/dumps` was a permanently EMPTY
-# directory. The old unit rsynced it to `tank/data/db-dumps` and, once the rsync flags were the only
-# thing fixed, would have gone green while shipping nothing. A leg that produces nothing must fail,
-# so every step here is asserted and an empty output is a failure rather than a success.
+# Why this half exists at all: a dump leg that produces nothing can go green while shipping nothing
+# (`/srv/dumps` can sit empty and the rsync still succeeds). Every step here is asserted and an empty
+# output is a failure.
 set -euo pipefail
 umask 022
 

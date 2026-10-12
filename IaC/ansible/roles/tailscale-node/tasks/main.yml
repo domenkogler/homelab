@@ -1,12 +1,12 @@
 ---
-# tailscale-node — HD-405: a home host joins headscale as its own node.
+# tailscale-node — a home host joins headscale as its own node.
 #
-# Why a HOST node and not another Pattern-A sidecar (the vps-obs shape): the point of
-# HD-405 is that remote dev does not cross the VPS. A host `tailscaled` gives a real
-# interface (kernel TUN) instead of a userspace netstack + `serve` port-forwards, so the
-# interactive paths (edge TLS on the node IP, later SSH/RustDesk) ride a DIRECT session
-# end to end. Cost accepted: one new listener on the vault-token box — bounded by the
-# preauth-key tag (`tag:dev`) + the port-scoped ACL in headscale/policy.hujson.j2.
+# Why a HOST node and not another Pattern-A sidecar (the vps-obs shape): remote dev does not
+# cross the VPS. A host `tailscaled` gives a real interface (kernel TUN) instead of a userspace
+# netstack + `serve` port-forwards, so the interactive paths (edge TLS on the node IP, later
+# SSH/RustDesk) ride a DIRECT session end to end. Cost accepted: one more listener on the
+# vault-token box, bounded by the `tag:dev` preauth-key tag + the port-scoped ACL in
+# headscale/policy.hujson.j2.
 #
 # Scope of the JOIN (all of these are load-bearing, see defaults/main.yml):
 #   no advertised routes · no exit node · no Tailscale SSH · no DNS takeover.
@@ -15,7 +15,7 @@
 
 # Detection, not assumption: `dpkg --print-architecture` is the only thing on the host that
 # answers with the name Tailscale's filenames use. The gathered `architecture` fact is the
-# KERNEL name (aarch64 / x86_64) and is wrong here — measured on the Pi 2026-09-25.
+# KERNEL name (aarch64 / x86_64) and is wrong here.
 - name: Read the host's dpkg architecture
   ansible.builtin.command: dpkg --print-architecture
   register: _dpkg_arch
@@ -40,7 +40,7 @@
       Supported: {{ (tailscale_host_deb_sha256_by_arch | default({}, true)).keys() | list }}.
       Add it from https://pkgs.tailscale.com/stable/tailscale_{{ tailscale_host_version }}_
       {{ tailscale_host_arch }}.deb.sha256 — do NOT relax this assert to reuse another arch's
-      checksum, that is the exact failure mode HD-435 hit.
+      checksum.
     quiet: true
 
 - name: Download the pinned tailscale host package (checksum-verified)
@@ -63,7 +63,7 @@
     state: started
     daemon_reload: true
 
-# HD-414: own the listen port. The deb already ships /etc/default/tailscaled with
+# Own the listen port. The deb already ships /etc/default/tailscaled with
 # PORT="41641" and the unit passes `--port=${PORT}`, so on a box that has never been
 # touched this writes an equivalent value — but "the package default happens to be right"
 # is not a statement the router's firewall may depend on: an apt reinstall or an operator
@@ -149,9 +149,8 @@
 # advance — same contract as `tailnet_sidecar_ip`: leave the per-host expectation EMPTY until
 # the node has joined, read `headscale nodes list`, set the group var, re-converge. This
 # guard is what stops the two from drifting silently (derived-values ban, CONVENTIONS §1).
-# HD-435 note: this reads `tailscale_node_expected_ip` (set in host_vars) rather than
-# `tailnet_oldsrv_ip` inline — the old inline form asserted EVERY joining node against
-# OLDSRV's address, so the second home node could never pass its own join guard.
+# The guard reads the per-node `tailscale_node_expected_ip` (set in host_vars), not a shared
+# inline address — an inline address would assert every joining node against one host's IP.
 - name: Assert the IaC tailnet IP matches what headscale assigned
   ansible.builtin.assert:
     that:

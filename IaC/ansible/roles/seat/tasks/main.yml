@@ -1,13 +1,9 @@
 ---
 # =====================================================================
-# roles/seat — the pi CODING SEAT plane on this host (HD-445, 2026-10-05).
-#
-# Before this file, the seat was hand-kept on oldsrv: the pi-web user unit, its
-# two drop-ins, the token env file and linger existed only on the box, so a
-# rebuild of oldsrv lost the cockpit silently and `--check` could not see any of
-# it (the row's own words: "a rebuild of oldsrv today loses the cockpit
-# silently"). The route+bind half landed 2026-09-28 (pi-oldsrv-ts router +
-# loopback :31415); this file converges the host side.
+# roles/seat — the pi CODING SEAT plane on this host.
+# This file is the apply of record for the seat's host side: the pi-web user unit, its
+# two drop-ins, the token env file and linger. A host that is only hand-kept here loses
+# the cockpit on rebuild and is invisible to `--check`.
 #
 # THE TWO DROP-INS ARE NOT OPTIONAL, AND THEY ARE NOT REDUNDANT:
 #   * loopback-bind.conf — re-declares ExecStart with -host/-p so the cockpit
@@ -16,18 +12,17 @@
 #   * pi-on-path.conf — pi-web shells out to `pi` for the model list, every chat
 #     turn and its own self-update, and a systemd USER unit gets no login shell,
 #     so it never sees ~/.profile. Without the pi dirs on the unit's PATH every
-#     send dies with `exec: "pi": executable file not found in $PATH` — what a
-#     phone reported on 2026-10-01, and `pi`'s shebang is `#!/usr/bin/env node`,
-#     so a lone `pi` symlink is not enough. BOTH pi layouts get a dir on PATH
-#     (seat_pi_bin + seat_pi_node_bin): a seat that runs `pi update` moves to pi's
-#     OWN managed launcher (~/.pi/agent/bin) and a node-dir-only PATH goes blind
-#     there — the live oldsrv case of 2026-10-09.
-# Rendering ONE of them and not the other reproduces exactly that incident.
+#     send dies with `exec: "pi": executable file not found in $PATH`. `pi`'s
+#     shebang is `#!/usr/bin/env node`, so a lone `pi` symlink is not enough.
+#     BOTH pi layouts get a dir on PATH (seat_pi_bin + seat_pi_node_bin): `pi update`
+#     moves a seat to pi's OWN managed launcher (~/.pi/agent/bin), where a
+#     node-dir-only PATH goes blind. Rendering ONE drop-in and not the other
+#     reproduces exactly that failure.
 #
 # What stays OUT of this file, deliberately:
 #   * the pi harness itself (pinned Node tarball, the pi npm package, the pi-web
 #     package, ~/.pi/agent/skills, the rendered model contract) — that is
-#     scripts/install-pi-debian.sh (HD-446), and the assert below refuses to
+#     scripts/install-pi-debian.sh, and the assert below refuses to
 #     enable a unit whose binary is missing instead of inventing one;
 #   * settings.json — pi-harness.md §5 is its source and there is no renderer by
 #     design (§1), so no template here may write it;
@@ -67,7 +62,7 @@
       {{ seat_home }}/{{ seat_pi_web_bin }} does not exist — the cockpit
       package is not installed for {{ seat_user }}. Run
       `bash scripts/install-pi-debian.sh --cockpit` as {{ seat_user }}
-      (HD-446) and re-converge; do NOT create the file by hand.
+      and re-converge; do NOT create the file by hand.
 
 - name: seat | Ensure the seat package set
   # tmux belongs here as a package DECISION (the row's point: not a hand
@@ -104,8 +99,8 @@
   notify: seat | reload and restart pi-web
 
 - name: seat | Render the token env file
-  # The token is the cockpit-pi-web_api credential (HD-361 minted it with the same
-  # bearer the Traefik middleware chain uses). 0600 + never a literal (§6).
+  # The token is the cockpit-pi-web_api credential — the same bearer the Traefik
+  # middleware chain uses. 0600 + never a literal (§6).
   ansible.builtin.template:
     src: pi-web-env.j2
     dest: "{{ seat_home }}/.config/pi-web/env"
@@ -136,12 +131,12 @@
   meta: flush_handlers
 
 - name: seat | Prove the running unit carries the PATH that finds `pi`
-  # Read-after-write proof of the ONE property that broke the phone path, taken from
+  # Read-after-write proof of the ONE property that breaks the phone path, taken from
   # the LIVE unit rather than the file: a drop-in that exists but was never reloaded
-  # proves nothing (the `enable --now` lesson from Phase 4c — enabling does not
-  # restart a running unit, only `restart` does). BOTH dirs are asserted: the unit that
-  # passed this on 2026-10-01 (node dir only) could not find pi at all once the seat
-  # migrated to pi's managed launcher on 2026-10-09, so one dir is not the property.
+  # proves nothing (`enable --now` does not restart a running unit; only `restart`
+  # does). BOTH dirs are asserted — a node-dir-only PATH passes until `pi update`
+  # moves the seat to pi's managed launcher, then finds no `pi` at all, so one dir is
+  # not the property.
   ansible.builtin.command: systemctl --user cat pi-web.service
   become: true
   become_user: "{{ seat_user }}"

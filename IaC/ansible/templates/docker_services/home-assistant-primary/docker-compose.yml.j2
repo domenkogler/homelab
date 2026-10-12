@@ -1,11 +1,11 @@
 # home-assistant-primary docker-compose.yml — PRIMARY HA on the Pi (pi.kogler.si)
 #   Always-on HA Container (Debian + docker). docs/smart-home-failover.md.
 #
-#   - Bridged (services-internal) + published :8123 — HD-72/KOPS-014: no
+#   - Bridged (services-internal) + published :8123 — no
 #     `privileged`, no `network_mode: host` on HA itself (security.md §4
 #     minimum-privilege law). Device control stays network-based (Homematic CCU
 #     over macvlan XML-RPC, LAN/Wi-Fi integrations) — no local RF hardware is
-#     attached to the Pi (HD-13 parked, HmIP-HAP in cloud mode), so no targeted
+#     attached to the Pi (HmIP-HAP is in cloud mode), so no targeted
 #     `devices:` are needed either.
 #   - The plain :8123 publish keeps the VIP contract intact: both Traefik edges
 #     and Prometheus target VIP:8123, and an all-addresses publish DNATs any
@@ -18,7 +18,7 @@
 #     ({{ ha_vip }}) in normal mode; config mounted from ./keepalived.conf (role-
 #     rendered; swapped between master/peer variants by the failback runbook).
 #     Host networking here is the ONE documented exemption (VRRP multicast —
-#     security.md §4); caps minimal: NET_ADMIN + NET_RAW only (HD-72).
+#     security.md §4); caps minimal: NET_ADMIN + NET_RAW only.
 #   - NO Traefik labels: ha.kogler.si is served by the VIP-bound `traefik-ha` edge
 #     (docker_services on the Pi, file provider) → VIP:8123. No Authentik
 #     Forward-Auth (breaks the Companion WebSocket/token flow).
@@ -42,11 +42,10 @@ services:
       - services-internal
     ports:
       - "8123:8123"   # VIP:8123 must keep resolving to HA (traefik-ha + prometheus)
-      - "5683:5683/udp"   # Gen1 Shelly CoIoT/CoAP push (HD-323): the CoAP server binds inside
+      - "5683:5683/udp"   # Gen1 Shelly CoIoT/CoAP push — the CoAP server binds inside
                           # the container; publishing udp/5683 to the host makes it reachable at
                           # the VIP (10.10.1.200) from the IoT VLAN. Without this, the Shelly
-                          # integration could never receive device registration/state updates
-                          # (blocked the UI add in HD-320's owner tail).
+                          # integration could never receive device registration/state updates.
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     volumes:
@@ -54,7 +53,7 @@ services:
       - ./secrets.yaml:/config/secrets.yaml:ro   # 1Password-rendered (role)
 
   keepalived:
-    image: osixia/keepalived:{{ keepalived_version }}   # pinned (HD-124/KOPS-053)
+    image: osixia/keepalived:{{ keepalived_version }}   # version pinned via keepalived_version
     restart: unless-stopped
     network_mode: host          # VRRP multicast requires host networking (security.md §4)
     cap_drop:

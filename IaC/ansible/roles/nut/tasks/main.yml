@@ -49,13 +49,11 @@
   when: nut_mode == 'master'
   notify: restart nut services
 
-# HD-467 — the ordering half of the fix. nas gets its Home address from DHCP and the
-# distro unit orders only after network.target, which means "configured", not "address
-# assigned". upsd binds each LISTEN ONCE at start-up, so a boot that wins the race leaves
-# the master serving loopback only forever — live proof: `not listening on <the Home address> port
-# 3493` from 2026-09-14 with the unit never restarted since, while `ip addr` shows the
-# address present now. network-online.target is provided here by NetworkManager-wait-online
-# (both enabled on nas), so this drop-in is what actually waits for the lease.
+# nas gets its Home address from DHCP and the distro unit orders only after network.target, which
+# means "configured", not "address assigned". upsd binds each LISTEN ONCE at start-up, so a boot that
+# wins the race leaves the master serving loopback only forever — `not listening on <the Home address>
+# port 3493` while `ip addr` shows the address present. network-online.target is provided here by
+# NetworkManager-wait-online (both enabled on nas), so this drop-in is what actually waits for the lease.
 - name: Create the nut-server drop-in directory (master)
   file:
     path: /etc/systemd/system/nut-server.service.d
@@ -69,7 +67,7 @@
 - name: Order nut-server after the network is actually up (master)
   copy:
     content: |
-      # managed by Ansible — nut role (HD-467): upsd binds every LISTEN once at start-up,
+      # managed by Ansible — nut role: upsd binds every LISTEN once at start-up,
       # so it must not start before the Home-VLAN address exists.
       [Unit]
       Wants=network-online.target
@@ -140,26 +138,22 @@
 
 # Remove any stray ACL on upssched-cmd and restore the execute bits. A hand-applied
 # ACL (group::r--) strips the group-execute bit even though the mode is 0750, which
-# breaks `nut` running the script (exec_cmd 126 — HD-06 live drill 2026-09-09).
+# breaks `nut` running the script (exec_cmd 126).
 # NOTE: `setfacl -b` alone does NOT restore group perms — it only removes ACL entries;
 # the group class stays at the last ACL value (r--) until an explicit chmod. So always
-# follow with chmod 0750 (verified live 2026-09-09: template mode:'0750' then setfacl -b
-# left the file at 0740 and nut still could not exec).
+# follow with chmod 0750: template mode:'0750' then `setfacl -b` leaves the file at 0740.
 #
-# HD-452 (2026-09-25): the repair task used to carry `changed_when: true` under `tags:
-# always`, so EVERY converge of EVERY tag on every nut host reported `changed=1` forever.
-# That is not a cosmetic wart: `changed` is the one number that means "this converge did
-# something you did not ask for", and a permanently-yellow count is how a real surprise
-# hides. The verdict is now READ, not asserted — probe first (never changes anything,
-# runs under --check too), repair only when the probe says the file is actually wrong.
+# This repair must never carry `changed_when: true` under `tags: always`: that makes every
+# converge of every tag on every nut host report `changed=1` forever, and `changed` is the one
+# number meaning "this converge did something you did not ask for" — a permanently-yellow count is
+# how a real surprise hides. The verdict is READ, not asserted: probe first (never changes
+# anything, runs under --check too), repair only when the probe says the file is actually wrong.
 # ⚠ The probe's three conditions are the defect, not an invention: mode 750 (execute for
-# owner+group), no NAMED ACL entries, and a group class that still carries `x` — the last
-# one is the 2026-09-09 failure (a hand-applied `group::r--`), which a mode-only check
-# would happily pass while nut could not exec the script.
-# ⚙ awk note, learned the hard way on the first run of this task: a base `group::r-x` line
-# splits with -F: into ("group", "", "r-x"), so the permissions are $3, NOT $2 — reading $2
-# yields empty on every compliant file, which made the verdict demand a repair forever and
-# reproduced the exact permanent-yellow this rewrite exists to remove.
+# owner+group), no NAMED ACL entries, and a group class that still carries `x` — a mode-only check
+# passes a file that nut cannot exec.
+# ⚙ awk note: a base `group::r-x` line splits with -F: into ("group", "", "r-x"), so the permissions
+# are $3, NOT $2 — reading $2 yields empty on every compliant file, which makes the verdict demand a
+# repair forever.
 - name: "Probe upssched-cmd mode + ACL state (drives the changed verdict; never mutates)"
   ansible.builtin.shell:
     cmd: |
@@ -203,7 +197,7 @@
 
 # --- Shutdown execution — nut must be able to halt the host ---
 # upsmon/upssched run as `nut` (RUN_AS_USER nut). nut has no polkit rights to
-# /sbin/shutdown (verified live 2026-09-09: "Call to PowerOff failed: Interactive
+# /sbin/shutdown ("Call to PowerOff failed: Interactive
 # authentication required"). Without this entry the shutdown path can never fire.
 - name: Allow nut to halt the host (sudoers)
   copy:
@@ -219,7 +213,7 @@
 # --- nut_exporter: single SSOT exporter, HOST binary on the master ---
 # Resolve the release tag: pinned tag used as-is; '' / '@latest' → latest GitHub release.
 # Guards: this is MASTER-ONLY (client hosts — Pi/oldsrv — never run the exporter; resolving
-# on a client crashed the Pi provision dry-run 2026-09-03: `_nut_exporter_latest` unregistered
+# on a client fails with `_nut_exporter_latest` unregistered
 # → `'dict' has no attribute 'json'`). The uri result is parsed from `content` (no `body_format`),
 # so `.json` is NOT available — parse explicitly.
 - name: Resolve nut_exporter release tag from GitHub (master only, when not pinned)
@@ -336,7 +330,7 @@
     daemon_reload: true
   when: nut_mode == 'client'
 
-# --- HD-467: prove the listener is actually bound, and repair it in the SAME run ---
+# --- Prove the listener is actually bound, and repair it in the SAME run ---
 # A `systemctl is-active nut-server` result is never evidence here (the unit stays active
 # while serving loopback only), and a template task that renders a LISTEN line proves even
 # less. Assert and act together: read the socket set, restart ONCE if a declared address is
@@ -394,12 +388,12 @@
     fail_msg: >-
       upsd is not listening on {{ nut_listen_ip }}:3493 even after one restart — bound
       sockets were [{{ (_nut_bind2.stdout | default(_nut_bind.stdout)).split() | join(' ') }}].
-      Every remote NUT consumer is getting Connection refused (HD-467).
+      Every remote NUT consumer is getting Connection refused.
   when:
     - nut_mode == 'master'
     - not ansible_check_mode
 
-# Tripwire for the ACL class (HD-467): a row asked for an ACCEPT/REJECT list here, and on
+# Tripwire: a row here asks for an ACCEPT/REJECT list, and on
 # NUT 2.8 those keywords are accepted by the parser and IGNORED — the only trace is a
 # start-up line. Without this check, a well-intentioned re-add would render, converge green,
 # and restrict nothing.
@@ -424,10 +418,10 @@
     fail_msg: >-
       upsd reported {{ _nut_ignored_kw.stdout }} "no longer supported" line(s) this boot: this
       tree writes a keyword the installed NUT parses but ignores — the restriction it looks like
-      is not in force. On 2.8 exposure = LISTEN addresses, privilege = upsd.users (HD-467).
+      is not in force. On 2.8 exposure = LISTEN addresses, privilege = upsd.users.
   when: nut_mode == 'master'
 
-# --- HD-467: the client-side read that does not lie ---
+# --- The client-side read that does not lie ---
 # upsmon retries forever and `is-active nut-monitor` stays `active` across a dead master,
 # so the only client-side proof is a real query. Fail-loud by default (nut_require_master_leg);
 # the escape hatch is a per-run -e, never a committed false.
@@ -450,7 +444,7 @@
     fail_msg: >-
       upsc powerwalker@{{ nut_host }} failed on {{ inventory_hostname }} (rc={{ _nut_leg.rc }},
       stdout='{{ _nut_leg.stdout | trim }}', stderr='{{ _nut_leg.stderr | trim }}') — this host is
-      NOT UPS-protected whatever `systemctl is-active nut-monitor` says (HD-467). For a
+      NOT UPS-protected whatever `systemctl is-active nut-monitor` says. For a
       deliberately-offline converge pass -e nut_require_master_leg=false.
   when:
     - nut_mode == 'client'

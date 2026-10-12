@@ -13,13 +13,13 @@ services:
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
-    # read_only intentionally ABSENT (HD-318): linuxserver s6-overlay images
-    # do not support read_only root — it caused /run/s6 exec + /config/Sentry init
-    # failures. Keep cap_drop: ALL + /run:exec for the remaining hardening.
+    # read_only intentionally ABSENT: linuxserver s6-overlay images do not support a
+    # read_only root (/run/s6 exec + /config/Sentry init fail). Keep cap_drop: ALL +
+    # /run:exec for the remaining hardening.
     tmpfs:
       - /tmp
       - /run:exec
-      # HD-1081: this image chowns /run/radarr-temp at startup, but cap_drop: ALL above removes
+      # This image chowns /run/radarr-temp at startup, but cap_drop: ALL above removes
       # CAP_CHOWN, so that chown fails and the dir stays root:root 0755. ASP.NET Core writes its
       # DataProtection key ring (the cookie-signing keys) there via TMPDIR, so an unwritable dir
       # means the app cannot issue a session cookie — every login bounces back to /login. Mount
@@ -31,7 +31,7 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      # Loopback publish so the host-net home edge can reach the backend.
       - "{{ radarr_bind }}:{{ radarr_host_port }}:7878"
     volumes:
       - /srv/docker/radarr/config:/config
@@ -45,7 +45,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.radarr.rule: "Host(`radarr.kogler.si`)"
       traefik.http.routers.radarr.entrypoints: websecure
-      {{ 'traefik.http.routers.radarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.radarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.radarr.middlewares: authentik-forward-auth@file
       traefik.http.services.radarr.loadbalancer.server.port: "7878"
 networks:

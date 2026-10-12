@@ -1,13 +1,12 @@
 {#- CRS328 switch SNMP delta — apply ONLY the SNMP RO enablement without the full
-    converge (the switch converge's bridge/port/vlan blocks are non-idempotent on
-    re-import — live 2026-09-08: the SNMP blocks after a duplicate user/bridge add
-    never landed). Idempotent: set enabled, add-or-set the community, add the
-    INPUT firewall parity (this switch converge lacked it), and the fixsnmp
-    re-assert scheduler (mirrors fixsyslog). Render: render-converge.yml; apply:
+    converge (the switch converge's bridge/port/vlan blocks are non-idempotent, so a
+    re-import aborts before the SNMP blocks land). Idempotent: set enabled,
+    add-or-set the community, add the INPUT firewall parity the converge lacks, and
+    the fixsnmp re-assert scheduler. Render: render-converge.yml; apply:
     scripts/routeros-apply-delta.sh 10.10.99.2 crs328_snmp_delta.rsc. -#}
 # =============================================================================
-# CRS328 — Kogler Homelab — SNMP RO enablement delta (HD-53/HD-346)
-# Source template: Iac/router/templates/crs328_snmp_delta.rsc.j2
+# CRS328 — Kogler Homelab — SNMP RO enablement delta
+# This template: IaC/router/templates/crs328_snmp_delta.rsc.j2
 # Idempotent — safe to re-import. RO community from 1P at render
 # (network-snmp_api -> snmp_ro_community), Mgmt-scoped, read-only.
 # =============================================================================
@@ -16,12 +15,12 @@
 /snmp set enabled=yes
 
 :if ([/snmp community find where name={{ snmp_ro_community }}] = "") do={
-    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller (HD-53)"
+    /snmp community add name={{ snmp_ro_community }} addresses={{ mgmt.subnet }} read-access=yes write-access=no comment="Homelab RO poller"
 } else={
     /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no
 }
 
-# ---- INPUT firewall parity (this switch converge had NO SNMP allow/drop) ----
+# ---- INPUT firewall parity: SNMP allow from Mgmt, drop the rest ----
 # Accept SNMP (udp/161) from the Management VLAN only; drop it everywhere else.
 # Idempotent: remove-by-comment then re-add (the router converge uses the same
 # pattern for its INPUT chain).
@@ -30,7 +29,7 @@
 add chain=input action=accept src-address={{ mgmt.subnet }} protocol=udp dst-port=161 comment="Allow SNMP from Mgmt VLAN"
 add chain=input action=drop protocol=udp dst-port=161 comment="Drop SNMP from non-mgmt"
 
-# ---- SNMP resilience (fixsnmp): re-assert after boot (mirrors fixsyslog) ----
+# ---- SNMP resilience (fixsnmp): re-assert after boot ----
 :if ([/system script find where name=fixsnmp] = "") do={
     /system script add name=fixsnmp source=":delay 5s; /snmp set enabled=yes; :delay 1s; /snmp community set [find where name={{ snmp_ro_community }}] addresses={{ mgmt.subnet }} read-access=yes write-access=no;"
 }

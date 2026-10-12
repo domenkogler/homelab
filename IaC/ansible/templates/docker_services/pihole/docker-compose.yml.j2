@@ -31,10 +31,10 @@ services:
       - /srv/docker/pihole/dnsmasq:/etc/dnsmasq.d
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # HD-318 (2026-09-07, live): pin-hole FTL needs DNSMASQ_USER=root (default-non-root
+      # pin-hole FTL needs DNSMASQ_USER=root (default-non-root
       # cannot set CAP_SETFCAP) — without it pihole crash-loops "Cannot run as non-root".
       DNSMASQ_USER: "root"
-      # Fail-loud (HD-65): a missing `pihole_password` must abort the render, NOT deploy a
+      # Fail-loud: a missing `pihole_password` must abort the render, NOT deploy a
       # Pi-hole with an empty web password. No `default('')` on a secret lookup.
       WEBPASSWORD: "{{ vault['pihole_password'].password | replace('$','$$') }}"
       PIHOLE_DNS_: "technitium:53"
@@ -49,11 +49,11 @@ services:
       traefik.enable: "true"
       traefik.http.routers.pihole.rule: "Host(`ad.kogler.si`)"
       traefik.http.routers.pihole.entrypoints: websecure
-      {{ 'traefik.http.routers.pihole.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.pihole.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.pihole.middlewares: authentik-forward-auth@file
       traefik.http.services.pihole.loadbalancer.server.port: "80"
 {% else %}
-      # RETIRED 2026-09-10 (public: false): no edge route — the container is torn
+      # public: false — no edge route; the container is torn
       # down (enabled: false); the template is kept for a potential re-enable.
       traefik.enable: "false"
 {% endif %}

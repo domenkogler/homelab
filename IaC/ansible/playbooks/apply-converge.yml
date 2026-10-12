@@ -66,7 +66,7 @@
 
     # ---- Step 1: upload the rsc via SCP (RouterOS SSH, ansible identity) ----
     # TOFU host-key pinning: fetch + pin the router's CURRENT SSH host key FIRST
-    # (the router was reset at Phase 1.5 → host key rotated). Never accept blindly.
+    # (a router reset rotates the SSH host key). Never accept blindly.
     #   ssh-keyscan -T 5 -t ed25519,rsa <router> > /tmp/router_hostkeys.txt
     #   ssh-keygen -lf /tmp/router_hostkeys.txt   # verify the fingerprint
     # Reference it via ros_ssh_known_hosts below.
@@ -83,7 +83,7 @@
     # lookup returns the field value directly (no shell-quote wrapper), but a
     # wrong/mangled vault field would otherwise surface only as OpenSSH's
     # cryptic `error in libcrypto` at the SCP task. Fail loud here instead.
-    # (Same guard as scripts/routeros-apply-delta.sh, HD-309.)
+    # (Same guard as scripts/routeros-apply-delta.sh.)
     - name: Verify the ansible SSH key loads (ssh-keygen)
       command: ssh-keygen -y -f "{{ ros_ssh_key_file }}"
       changed_when: false
@@ -103,7 +103,7 @@
         dest: "/{{ converge_rsc }}"          # ABSOLUTE RouterOS remote path — a relative dest
                                              # makes Ansible resolve it on the controller and
                                              # leak a rendered rsc (secrets) into
-                                             # IaC/ansible/playbooks/ (2026-09-03). RouterOS
+                                             # IaC/ansible/playbooks/. RouterOS
                                              # /import + this repo's deltas use the root path.
         mode: "0600"
       delegate_to: localhost

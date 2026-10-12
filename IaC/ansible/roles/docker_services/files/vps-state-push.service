@@ -1,5 +1,5 @@
 [Unit]
-Description=Push VPS dumps + service state off-box to the Hetzner Storage Box (HD-470)
+Description=Push VPS dumps + service state off-box to the Hetzner Storage Box
 Documentation=file:/usr/local/sbin/vps-state-push.sh
 Wants=network-online.target
 After=network-online.target

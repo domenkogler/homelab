@@ -1,6 +1,6 @@
 ---
 # nut role handlers. tags: always = handlers are tag-filtered like tasks; without it a notified
-# restart is silently skipped under filtered runs (HD-220 finding, HD-237 sweep).
+# restart is silently skipped under filtered runs.
 
 - name: restart nut services
   systemd:
@@ -13,11 +13,9 @@
   when: nut_mode == 'master'
   tags: always
 
-# upsmon restart for BOTH modes — upssched.conf/upssched-cmd changes must reload
-# upssched on the client too, or the client keeps running a stale timer (HD-06 drill:
-# oldsrv shut down 60s after ANY mains loss at 84% because its OLD onbatt-delay timer
-# never got reloaded after the config deploy). The mode-split handler above would miss
-# clients, so the upssched tasks notify THIS one.
+# upsmon restart for BOTH modes — upssched.conf/upssched-cmd changes must reload upssched on
+# the client too, or the client keeps running a stale delay timer and sheds load on a mains
+# loss. The mode-split handler above misses clients, so the upssched tasks notify THIS one.
 - name: restart upsmon (all modes)
   systemd:
     name: nut-monitor

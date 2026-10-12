@@ -1,18 +1,16 @@
 ---
 # role: spark — plan the NVMe layout for the DGX Spark GB10 (partition p3 → XFS for PLE/KV).
-# Reference parent: spark/ansible/roles/spark-base/tasks/main.yml (standalone template —
-# folded into IaC here, hardened per review 2026-09-14).
 
-# ---- 1TB NVMe layout (HD-359/HD-363, 2026-09-14) ----
+# ---- 1TB NVMe layout ----
 # spark ships a 1TB self-encrypting NVMe. DGX OS installs: p1 = 512M vfat /boot/efi;
 # p2 = ext4 / (OS/Docker/images, ~953G). The XFS AI-data partition is **p3 = REMAINDER**
-# after shrinking p2 (lived hit 2026-09-14: role assumed p2=XFS but p2 is the LIVE ROOT —
-# never mkfs p2!). p3 holds PLE tables + KV + compile caches AND the weights + overlay
-# artifacts (spark_models_dir points at XFS so we never split or re-download across two FS).
+# after shrinking p2 — p2 is the LIVE ROOT, never mkfs p2. p3 holds PLE tables + KV +
+# compile caches AND the weights + overlay artifacts (spark_models_dir points at XFS so we
+# never split or re-download across two FS).
 spark_nvme_capacity_gb: 1024
 
 # NVMe used for the AI data partition (GB10 has a single system NVMe). DGX OS: p1 vfat EFI,
-# p2 = ext4 root, p3 = AI data = REMAINDER (carve by operator per HD-363, offline resize).
+# p2 = ext4 root, p3 = AI data = REMAINDER (carve by operator, offline resize).
 spark_nvme_data_disk: /dev/nvme0n1
 spark_nvme_data_partition: /dev/nvme0n1p3
 spark_xfs_mount: /mnt/spark_nvme
@@ -25,7 +23,7 @@ spark_overlays_dir: "{{ spark_xfs_mount }}/overlays"
 
 # Headroom target for the full bench set (AWQ+PLE + NVFP4 + both PLE sidecars ≈ 331 GB).
 # The spark role asserts p3 has ≥ this much FREE before download/deploy (re-download
-# avoidance contract, HD-359).
+# avoidance contract).
 spark_disk_headroom_gb: 180
 
 # Guard: only partition/mkfs the data partition when EXPLICITLY allowed. DGX OS ships the disk
@@ -34,12 +32,11 @@ spark_disk_headroom_gb: 180
 # without further prompting (partition already exists → mount-only).
 spark_partition_enable: false
 
-# Headless operating contract (HD-364): TRUE = enforce sleep-target masks + multi-user
-# default.target on this node (DGX Spark ships graphical.target + unmasked sleep targets —
-# an idle headless box suspends and kills the NIC; L2 blackout 2026-09-14). The mask was a
-# one-time MANUAL step in deployment-manual.md §5.2 before; now it is idempotent IO via the
-# spark role, gated so a desktop-style DGX box can opt out (then set also the same contract
-# in host_vars/spark.kogler.si.yml). See group_vars/spark.yml `spark_headless` doc.
+# Headless operating contract: TRUE = enforce sleep-target masks + multi-user
+# default.target on this node. DGX Spark ships graphical.target + unmasked sleep targets —
+# an idle headless box suspends and kills the NIC (L2 blackout). The mask is idempotent IO
+# in the spark role, gated so a desktop-style DGX box can opt out (then set the same
+# contract in host_vars/spark.kogler.si.yml). See group_vars/spark.yml `spark_headless`.
 spark_headless: true
 
 # Sleep targets masked when headless (systemd target names, one per entry). Explicit list
@@ -55,18 +52,18 @@ xfs:
   mount_point: "{{ spark_xfs_mount }}"
   fstype: xfs
   mkfs_options: "-f -d agcount=16"
-  mount_options: "noatime,nodiratime"   # XFS-only; logbufs/logbsize are ext4-isms, nobarrier removed in modern XFS (live-hit 2026-09-14 — kernel rejects it, mount fails)
+  mount_options: "noatime,nodiratime"   # XFS-only; logbufs/logbsize are ext4-isms, nobarrier is removed in modern XFS (kernel rejects it, mount fails)
   directories:
     - kv_cache
     - ples_int4
-    - ples_nvfp4     # NVFP4 PLE tables (fast profile) — same child-dir contract as ples_int4 (HD-469)
+    - ples_nvfp4     # NVFP4 PLE tables (fast profile) — same child-dir contract as ples_int4
     - vllm_cache
     - triton_cache
-    - models        # weights (AWQ/PLE/…) — on XFS, never EXT4 (1TB layout, HD-359)
+    - models        # weights (AWQ/PLE/…) — on XFS, never EXT4
     - overlays      # worker_image_quant.py / ple_layer_quant.py / connector_mrv2.py
   permissions: "0777"
 
-# ---- OOM forensics watchdog (HD-380, 2026-09-16) ----
+# ---- OOM forensics watchdog ----
 # spark's engine dies to the kernel GLOBAL OOM killer, so `docker inspect` reports
 # OOMKilled=false / ExitCode=0 (false negative) and the memory state that explains
 # the kill is destroyed by it. This watchdog samples continuously (the pre-event
@@ -76,101 +73,96 @@ xfs:
 spark_oom_watchdog_enable: true
 spark_oom_watchdog_dir: "{{ spark_xfs_mount }}/oom-watchdog"
 spark_oom_watchdog_interval: 15          # seconds between samples
-# Thresholds are on the CORRECTED gauge usable = MemAvailable - CmaFree, which is the
-# single gauge shared by this watchdog and the HD-375 alert rules. Measured on this box:
-# healthy idle 26-30 GiB, both OOM kills 1.6 GiB at the instant of death (lowest value a
-# 60 s scrape ever saw in those windows: 5.01 — which is why CRIT is 8, not 1.6). (Raw MemAvailable overstates headroom by
-# up to ~9 GiB here because CmaFree inflates under pressure; MemFree - CmaFree is INVERTED
-# and would restart-storm the engine. See docs/spark-incidents.md #7/#8.)
+# Thresholds are on the CORRECTED gauge usable = MemAvailable - CmaFree, the single gauge
+# shared by this watchdog and the alert rules. Healthy idle measures 26-30 GiB on this box;
+# an OOM kill measures ~1.6 GiB, and the lowest value a 60 s scrape sees is ~5 GiB — which
+# is why CRIT is 8, not 1.6. Raw MemAvailable overstates headroom by up to ~9 GiB here
+# because CmaFree inflates under pressure; MemFree - CmaFree is INVERTED and would
+# restart-storm the engine. See docs/spark-incidents.md #7/#8.
 spark_oom_watchdog_warn_gib: 12
 spark_oom_watchdog_crit_gib: 8
-# PSI is a CONFIRMATION trigger only — it carries no lead time (it read 0.0 for ten
-# consecutive 15 s samples before incident #8 died), so it may never enforce on its own.
+# PSI is a CONFIRMATION trigger only — it carries no lead time (it can read 0.0 for ten
+# consecutive 15 s samples before a death), so it may never enforce on its own.
 spark_oom_watchdog_psi_crit: 25          # PSI memory full avg10 (%)
 spark_oom_watchdog_keep_snaps: 20
-# Enforcing governor (HD-381 term B): at CRIT, take the planned ~4 min engine restart
+# Enforcing governor: at CRIT, take the planned ~4 min engine restart
 # instead of letting the kernel global OOM take Traefik/dashboard/alloy/dcgm with it.
 spark_oom_watchdog_enforce: true
 spark_oom_watchdog_enforce_cooldown: 1800     # s between enforced restarts
 spark_oom_watchdog_enforce_max: 2             # enforced restarts per window
 spark_oom_watchdog_enforce_window: 7200       # s
 spark_oom_watchdog_enforce_wait_max: 600      # s to wait for in-flight drain
-# Hysteresis on the ENFORCEMENT (HD-494, 2026-10-05). An enforced CRIT restart latches the
-# enforcer off until the gauge is back above this value — one planned restart, then a human
-# problem, instead of a restart every ENFORCE_COOLDOWN while the REST state sits below CRIT.
-# Live failure mode it closes: `fast` at a 25 GB pool rested at usable 7.76-7.99 GiB with
-# psi_full 0.0, so CRIT was a standing condition and the enforcer had a restart permanently
-# queued (one CRIT-ENFORCED at 09:22:41Z, then "suppressed by enforce cooldown" every 5 min).
-# Snapshots, the sampler and the HD-375 WARN/CRIT alerts are NOT latched — only the restart is.
+# Hysteresis on the ENFORCEMENT. An enforced CRIT restart latches the enforcer off until the
+# gauge is back above this value — one planned restart, then a human problem, instead of a
+# restart every ENFORCE_COOLDOWN while the REST state sits below CRIT (a profile whose rest
+# state is inside the CRIT band makes CRIT standing and the restart permanently queued).
+# Snapshots, the sampler and the WARN/CRIT alerts are NOT latched — only the restart is.
 # Default = warn_gib: a profile counts as fixed when its rest state clears the WARN band, the
-# same invariant `device_hold_ceiling_bytes` is derived from (hardware-spark.md §Unified-memory
-# budget). Set it to crit_gib to get the pre-HD-494 behaviour of firing on every CRIT edge.
+# same invariant `device_hold_ceiling_bytes` is derived from (hardware-spark.md
+# §Unified-memory budget). Set it to crit_gib to fire on every CRIT edge instead.
 spark_oom_watchdog_rearm_gib: "{{ spark_oom_watchdog_warn_gib }}"
 # Idle-recycling of the cumulative allocator term (flat at idle, +21 GiB / ~30 min of
 # light agent traffic, never returned): recycle when the engine sits baseline + N GiB
 # and has been idle for the configured time.
-# ⛔ OWNER DECISION 2026-09-23: OFF. The box is stable and the cold start (~5-20 min of `llm.*`
-# 502s) is not worth buying anything: with HD-395's correct max-of-N baseline the trigger sits
-# ~4 GiB ABOVE the certified peak (92,309 + 8 GiB = 100,501 > 96,235), so making it reachable
-# would mean restarting an engine that is merely healthy. OOM protection does NOT ride on this
-# switch — `enforce` above stays the absolute, baseline-free guard at usable < 8 GiB (HD-381 B),
-# and the sampler/forensics/alerts are untouched. grow/idle stay as the re-arm shape: re-open
-# only on `gpu_top_mib` growing > 2 GiB/h under traffic and not returning at idle (HD-380 C3
-# condition), and re-derive the margin from that measurement rather than from this pair.
+# ⛔ OFF: the cold start (~5-20 min of `llm.*` 502s) buys nothing — with a
+# correct max-of-N baseline the trigger sits ~4 GiB ABOVE the certified peak, so making it
+# reachable would mean restarting an engine that is merely healthy. OOM protection does NOT
+# ride on this switch — `enforce` above stays the absolute, baseline-free guard at
+# usable < 8 GiB, and the sampler/forensics/alerts are untouched. grow/idle stay as the
+# re-arm shape: re-open only on `gpu_top_mib` growing > 2 GiB/h under traffic and not
+# returning at idle, and re-derive the margin from that measurement, not from this pair.
 spark_oom_watchdog_recycle: false
 spark_oom_watchdog_recycle_grow_gib: 8    # dormant while recycle is off — the re-arm shape, not a live trigger
 spark_oom_watchdog_recycle_idle_s: 1800    # dormant while recycle is off
-# HD-395: how the boot baseline (the thing the recycle trigger sits +N GiB above) is acquired.
-# The first post-boot read of the engine top-pid is a coin-flip on this box — 71,911 / 86,243 /
-# 92,343 MiB for ONE config, because the 168 GiB PLE checkpoint loads unevenly — and both ends
-# of that spread are failures: low floor ⇒ the watchdog restarts a healthy engine, high floor ⇒
-# recycle goes silent. So: /health 200, then a settle window, then the MAX of N plausible reads
-# inside a span. Acquisition is persisted, so restarting this UNIT (what a converge does) never
-# re-baselines a running engine; only a new engine instance or `rebaseline` does.
+# How the boot baseline (the thing the recycle trigger sits +N GiB above) is acquired.
+# The first post-boot read of the engine top-pid is a coin-flip on this box: the PLE
+# checkpoint loads unevenly, and both ends of the spread are failures — low floor ⇒ the
+# watchdog restarts a healthy engine, high floor ⇒ recycle goes silent. So: /health 200,
+# then a settle window, then the MAX of N plausible reads inside a span. Acquisition is
+# persisted, so restarting this UNIT (what a converge does) never re-baselines a running
+# engine; only a new engine instance or `rebaseline` does.
 spark_oom_watchdog_baseline_settle_s: 120      # quiet time after /health 200 before measuring
 spark_oom_watchdog_baseline_samples: 8         # plausible reads to collect (max wins)
 spark_oom_watchdog_baseline_span_s: 600        # cap on the collection window (~10 min)
 # Below this a read is not "the engine at rest" (partial load / wrong pid / no answer) and is
 # refused rather than committed — refusing keeps recycle disarmed, which is the safe direction.
 spark_oom_watchdog_baseline_min_mib: 40000
-# Memory cap RAISED (HD-381): it was MemoryMax=96M and the watchdog's own cgroup
-# memory.peak measured 71.8M (75% of the cap) from sampling alone. An ENFORCING watchdog
-# forks the docker CLI (a Go binary) plus a curl of /metrics at exactly the moment the box
-# is out of memory — a 96M cap is a plausible way to kill the child that was supposed to
-# save the box. Hard cap 512M with a 384M throttle: still bounded (the watchdog must never
-# itself contribute to a host OOM — invariant #1), but not in the way of its own action.
+# Memory cap: an ENFORCING watchdog forks the docker CLI (a Go binary) plus a curl of
+# /metrics at exactly the moment the box is out of memory, so a cap the sampler alone can
+# approach is a plausible way to kill the child that was supposed to save the box. Hard cap
+# 512M with a 384M throttle: still bounded (the watchdog must never itself contribute to a
+# host OOM — invariant #1), but not in the way of its own action.
 spark_oom_watchdog_memory_max: 512M
 spark_oom_watchdog_memory_high: 384M
 
-# ---- GPU graphics-clock cap (HD-469, 2026-09-28) ----
+# ---- GPU graphics-clock cap ----
 # GB10 has NO power-limit knob (`nvidia-smi -pl` unsupported; power.limit reads N/A) AND no writable
 # temperature target (`GPU Target Temperature` / Slowdown / Shutdown T.Limit all read N/A), so a
-# graphics-clock CEILING is the only software power/thermal lever on this SoC. Owner decision
-# 2026-09-28: cap at the DEFAULT APPLICATION CLOCK (2418 MHz), not at the 2150-2200 the upstream
-# hard-power-off reports used — this unit has never had one, so we are not paying ~12 % of clock for
-# insurance against a fault it has not shown. What the cap buys now is a KNOWN REGIME (every tok/s
-# comparable) at ~3 % cost, plus a bound on peak draw. Knowledge: docs/hardware-spark.md §GPU clock cap.
+# graphics-clock CEILING is the only software power/thermal lever on this SoC. Cap it at the DEFAULT
+# APPLICATION CLOCK (2418 MHz), not at the 2150-2200 the upstream hard-power-off reports used —
+# this unit has never had a cap, so do not pay ~12 % of clock for insurance against a fault it has
+# not shown. What the cap buys is a KNOWN REGIME (every tok/s comparable) at ~3 % cost, plus a bound
+# on peak draw. Knowledge: docs/hardware-spark.md §GPU clock cap.
 # RANGE form 'min,max' — a bare single value pins min=max and forbids idle downclocking on a box that
 # serves a live agent all day.
 spark_gpu_clock_cap_enable: true
 spark_gpu_clock_cap_mhz: "300,2418"
-# DELIBERATELY NO `..._bin` KNOB. A path nobody overrides is a knob that can only rot — this role has
-# already deleted one piece of dead config (`spark_vllm_gpu_memory_utilization`, HD-374), and the sibling
+# DELIBERATELY NO `..._bin` KNOB. A path nobody overrides is a knob that can only rot; the sibling
 # `spark-oom-watchdog.service.j2` sets the precedent: hard-code the binary, template the tunables.
-# `/usr/bin/nvidia-smi` is therefore hard-coded in the unit and the tasks. Verified on the box 2026-09-28:
-# `command -v nvidia-smi` → `/usr/bin/nvidia-smi` (itself, not a symlink; owned by `nvidia-utils-580`).
+# `/usr/bin/nvidia-smi` is therefore hard-coded in the unit and the tasks (itself, not a symlink;
+# owned by `nvidia-utils-580`).
 # If DGX OS ever relocates it, that is a code change with a review, not a value to re-tune.
 # The ceiling (max of the range) is what `clocks.max.sm` must READ BACK. GB10 will not enumerate
 # clocks for us (`--query-supported-clocks` → N/A), so the read-back IS the verification — exit
 # code 0 is not (a documented GB10 unit accepts `-lgc` and does nothing with it).
 spark_gpu_clock_cap_ceiling_mhz: "{{ (spark_gpu_clock_cap_mhz.split(',')[1] | trim) | int }}"
-# HD-413 classification (read by scripts/check_self_converge_guard.py, not by Ansible).
-# `filesystem`/mount work on the spark data disk, which the detector sees as storage-class —
-# correctly. It is exempt today because (a) mkfs runs only when the partition exists and
+# Self-converge-guard classification (read by scripts/check_self_converge_guard.py, not by Ansible).
+# `filesystem`/mount work on the spark data disk is storage-class to the detector.
+# It is exempt because (a) mkfs runs only when the partition exists and
 # carries no filesystem (`when:` guard, no `force:`), so it cannot reformat a live disk, and
 # (b) the disk is spark's data partition, not a path a control node's workspace lives on.
 # ⚠ CONDITIONAL, and it should be read before any change here: if spark ever becomes a
-# control node (the HD-407 pattern repeated), this is the `storage` class in disguise and
+# control node, this is the `storage` class in disguise and
 # belongs IN the lockout set, not exempted from it.
 homelab_lockout_exempt_reason: >-
   Formats only a partition that carries no filesystem (guarded by `when:`, no force:) and

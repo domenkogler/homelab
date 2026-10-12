@@ -12,9 +12,7 @@ tags: [services, n8n, subscriptions, automation]
 > **Linked from:** `index.md`
 
 > **Status:** 🚧 Infrastructure-prepared, NOT live. Create this workflow in the n8n
-
-> **Status:** 🚧 Infrastructure-prepared, NOT live. Create this workflow in the n8n
-> UI (`auto.kogler.si`) **after deployment** (point 3: wait until CalDAV/Signal/SMTP
+> UI (`auto.kogler.si`) **after deployment** (once CalDAV/Signal/SMTP
 > are live). Do not enable until those channels are wired.
 >
 > This workflow turns `group_vars/subscriptions.yml` renewal dates into a **push
@@ -65,7 +63,7 @@ The list lives in IaC, not in n8n. Two ways to source it at run time:
 | Email  | SMTP (`mail-eu.smtp2go.com:2525` STARTTLS) | `smtp_login` / `smtp_login` |
 
 ## Rollout checklist (post-deploy)
-- [ ] CalDAV (kSuite, HD-30) live → populate `calendar_url` in `subscriptions.yml`
+- [ ] CalDAV (kSuite) live → populate `calendar_url` in `subscriptions.yml`
       (unlocks the Homepage calendar widget too).
 - [ ] Confirm Signal + SMTP relay reachable from n8n (`services-internal`).
 - [ ] Create the webhook + workflow in n8n UI per this spec.

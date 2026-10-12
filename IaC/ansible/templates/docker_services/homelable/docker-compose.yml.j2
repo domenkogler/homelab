@@ -1,4 +1,4 @@
-# homelable docker-compose.yml — network/rack topology visualizer (HD-45, oldsrv)
+# homelable docker-compose.yml — network/rack topology visualizer (oldsrv)
 #   Self-hosted infrastructure visualization: interactive network + rack canvas,
 #   nmap discovery, live healthchecks (ping/http/https/tcp/ssh/prometheus/health),
 #   device inventory + per-device docs, optional MCP server for AI tools.
@@ -15,10 +15,10 @@
 #   listening only on the Home IP — the exact upstream "own reverse proxy" translation
 #   (INSTALLATION.md). No overlay for backend/frontend; no Docker `ports:` (host-net).
 #
-#   ACCESS: internal-only dashboard (HD-251 fleet-exposure policy — same posture as the
+#   ACCESS: internal-only dashboard (fleet-exposure policy — same posture as the
 #   tailnet-only admin dashboards). Reachable on the LAN at
 #   http://<oldsrv_home_ip>:3000 (and via the tailnet once oldsrv has a tailnet
-#   route / Pattern-A sidecar — future, HD-45 deploy tail). NO public record, NO WAN
+#   route / Pattern-A sidecar). NO public record, NO WAN
 #   exposure, never on the VPS edges (the VPS traefik-tailnet cannot reach the home LAN).
 #   RouterOS Home-VLAN isolation keeps it off Guest/IoT/Mgmt by default.
 #
@@ -30,7 +30,7 @@
 #   STATE: SQLite + uploads on a host bind under /srv/docker/homelable (kopia-agent
 #   snapshot scope, backup.md). MCP container (optional) attaches to services-internal.
 #
-#   SECRETS (1Password, fail-closed at render — HD-91/HD-65, NO default('')):
+#   SECRETS (1Password, fail-closed at render — NO default('')):
 #     homelable_login   (Login)        username = AUTH_USERNAME; password = admin
 #                                      password; bcrypt_hash = bcrypt(password) —
 #                                      consumed as AUTH_PASSWORD_HASH.
@@ -39,7 +39,7 @@
 #     homelable_mcp     (API Credential) MCP_API_KEY — REQUIRED only when
 #                                      homelable_mcp_enabled (off by default).
 #   Every vault[...] value passes through | replace('$','$$') (compose-escape
-#   law HD-270) — bcrypt hashes begin with `$2b$`, so this is MANDATORY for
+#   law) — bcrypt hashes begin with `$2b$`, so this is MANDATORY for
 #   AUTH_PASSWORD_HASH; compose interpolates `$$` back to `$` at parse.
 #   Provisioning: provision-secrets.py CATALOG (Login w/ bcrypt_hash field) — the
 #   item must exist BEFORE the first converge (fail-loud). See docs/services-admin.md.

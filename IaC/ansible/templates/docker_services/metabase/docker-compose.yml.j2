@@ -1,40 +1,32 @@
-# Kept but INACTIVE: `metabase` is `enabled: false` in group_vars/vps.yml (retired 2026-09-23, owner
-# decision — the IaC stays as the revival path). What that switch gates, and the Authentik objects it
-# cannot gate, are written out at the metabase entry in group_vars/vps.yml.
-# metabase docker-compose.yml — analytics sandbox (originally CrowdSec dashboard on sec.kogler.si)
-#   RETIRED from the VPS 2026-09-14 (never used; no data to lose; VPS RAM tight). The deploy entry
-#   is enabled:false on the VPS. If ever needed again this runs on OLDSRV (fresh sandbox, no sources —
-#   see docs/services-admin.md). The VPS-local data sources (CrowdSec SQLite bind + Forgejo/Zipline
-#   read-only Postgres over db-internal) are REMOVED below; a future oldsrv home re-adds its own
-#   sources. Net stays on traefik-public + services-internal only (reach that both hosts share).
-#   Internal-only. NOTES (HD-148): Metabase OSS does NOT support OIDC/SSO — paid Enterprise
-#   feature. Auth stays Traefik Forward-Auth; the OIDC provider + `metabase_oidc` item remain
-#   dormant for a hypothetical future Enterprise license. LDAP auth IS included in OSS against
-#   the Authentik outpost — deliberately DEFERRED (HD-243): it would still render a second
-#   login form (no SSO/MFA passthrough) and needs an outpost-binding decision (HD-186 blast
-#   radius); trigger to revisit = second regular human user.
+# Kept but INACTIVE: `metabase` is `enabled: false` in group_vars/vps.yml; the IaC stays
+# as the revival path. What that switch gates, and the Authentik objects it cannot gate, are
+# written out at the metabase entry in group_vars/vps.yml.
+# metabase docker-compose.yml — analytics sandbox. If it is needed again it runs on OLDSRV as a
+#   fresh sandbox with no sources (see docs/services-admin.md); the VPS-local sources (CrowdSec
+#   SQLite bind, Forgejo/Zipline read-only Postgres over db-internal) are NOT wired here. Net stays
+#   on traefik-public + services-internal only — the reach that both hosts share.
+#   Internal-only. NOTES: Metabase OSS does NOT support OIDC/SSO — that is a paid Enterprise
+#   feature, so auth stays Traefik Forward-Auth; the OIDC provider + `metabase_oidc` item stay
+#   dormant for a hypothetical Enterprise license. LDAP IS included in OSS against the Authentik
+#   outpost but is DEFERRED: it renders a second login form (no SSO/MFA passthrough) and needs an
+#   outpost-binding decision; revisit trigger = a second regular human user.
 #
-#   SMTP (HD-241, env-driven): MB_EMAIL_SMTP_* consumes the shared smtp2go SSOT vars
-#   (`smtp2go_host`/`smtp2go_port`, group_vars/all/main.yml — HD-54) + the SHARED `smtp_login`
-#   creds via 1Password lookup. Env-set settings override AND lock the Admin-UI fields → IaC
-#   stays the single source of truth; changing mail config = converge, not clicks.
-#   From address notify@kogler.si = the smtp2go account identity (verified sender);
-#   grafana@kogler.si precedent shows domain senders deliver once domain DKIM is in place.
+#   SMTP (env-driven): MB_EMAIL_SMTP_* consumes the shared smtp2go SSOT vars
+#   (`smtp2go_host`/`smtp2go_port`, group_vars/all/main.yml) + the SHARED `smtp_login` creds via
+#   1Password lookup. Env-set settings override AND lock the Admin-UI fields → IaC stays the single
+#   source of truth; changing mail config = converge, not clicks.
+#   From address notify@kogler.si = the smtp2go account identity (verified sender); domain senders
+#   deliver once domain DKIM is in place.
 #
-#   Data sources — ALL REMOVED 2026-09-14 (owner: retire for now; if needed later → OLDSRV):
-#     ① CrowdSec SQLite host bind /srv/docker/crowdsec/db (VPS-local; was mounted RW for SQLite
-#        WAL-recovery on an unclean crowdsec shutdown; gone with the VPS teardown);
-#     ② Forgejo Postgres db-internal join + `metabase_ro` role (db_ro_sync keys commented out in
-#        vps.yml; the role stays in forgejo-db but is NOT re-synced); ③ Zipline Postgres (never
-#        went live). A future OLDSRV home re-adds LAN sources. See docs/services-admin.md.
+#   Data sources: NONE are wired in this file; a future OLDSRV home re-adds its own LAN sources.
+#   See docs/services-admin.md.
 #   Default H2 app DB on a named volume — upgrade/experiment freedom without data loss.
 services:
   metabase:
     image: metabase/metabase:{{ metabase_version }}
-    # HD-202 hardening RELAXED per-service (Wave-2 triage 2026-08-22): the stock entrypoint
-    # (run_metabase.sh) creates a metabase user/group, chmods the jar and su-drops privileges
-    # at every start - each step needs a writable rootfs and SETUID/SETGID. cap_drop ALL +
-    # read_only each independently broke startup before Java launched.
+    # The stock entrypoint (run_metabase.sh) creates a metabase user/group, chmods the jar and
+    # su-drops privileges at every start — each step needs a writable rootfs and SETUID/SETGID,
+    # so cap_drop ALL and read_only each independently break startup before Java launches.
     # Future hardening: pinned non-root user: + verified upstream support.
     tmpfs:
       - /tmp
@@ -43,7 +35,7 @@ services:
     environment:
       MB_DB_FILE: /metabase.db/metabase.db
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
-      # ---- SMTP (HD-241): shared smtp2go relay SSOT; creds = shared smtp_login item ----
+      # ---- SMTP: shared smtp2go relay SSOT; creds = shared smtp_login item ----
       MB_EMAIL_SMTP_HOST: "{{ smtp2go_host }}"
       MB_EMAIL_SMTP_PORT: "{{ smtp2go_port }}"
       MB_EMAIL_SMTP_SECURITY: starttls
@@ -51,27 +43,28 @@ services:
         {{ vault['smtp_login'].username | replace('$','$$') }}
       MB_EMAIL_SMTP_PASSWORD: >-
         {{ vault['smtp_login'].password | replace('$','$$') }}
-      MB_EMAIL_FROM_ADDRESS: notify@kogler.si   # correct var (was MB_FROM_ADDRESS — ignored → Metabase fell back to notifications@metabase.com, smtp2go rejected unverified domain)
+      MB_EMAIL_FROM_ADDRESS: notify@kogler.si   # the correct var name; MB_FROM_ADDRESS is not read, so Metabase falls back to
+                                       # notifications@metabase.com and smtp2go rejects it
     networks:
       - traefik-public
       - services-internal
-      # db-internal REMOVED 2026-09-14 — the Forgejo read-only Postgres source is gone (Metabase
-      # retired to a sandbox; a future oldsrv home must NOT assume the VPS db-internal overlay).
+      # No db-internal: this service has no database source. A future oldsrv home must NOT assume
+      # the VPS db-internal overlay.
     volumes:
       - metabase-data:/metabase.db
-      # CrowdSec SQLite bind REMOVED 2026-09-14 (VPS-local source; retired — see header).
+      # No CrowdSec SQLite bind (VPS-local source) — see header.
     labels:
 {% if not (svc.public is defined and not svc.public) %}
       traefik.enable: "true"
       traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
       traefik.http.routers.metabase.entrypoints: websecure
-      {{ 'traefik.http.routers.metabase.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
-      # HD-148: OSS has NO OIDC (paid feature) -> stays behind Forward-Auth. Switch route to
+      {{ 'traefik.http.routers.metabase.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
+      # OSS has NO OIDC (paid feature) -> stays behind Forward-Auth. Switch the route to
       # crowdsec-only + enable MB_OIDC_* ONLY if Metabase Enterprise is ever licensed.
       traefik.http.routers.metabase.middlewares: authentik-forward-auth@file
 {% else %}
-      # INTERNAL-ONLY (public: false — HD-331/332): no public-edge route; served
-      # only by the traefik-tailnet internal edge (sec.kogler.si / sec.ts).
+      # INTERNAL-ONLY (public: false): no public-edge route; served only by the
+      # traefik-tailnet internal edge (sec.kogler.si / sec.ts).
       traefik.enable: "false"
 {% endif %}
 volumes:
@@ -81,4 +74,4 @@ networks:
     external: true
   traefik-public:
     external: true
-  # db-internal REMOVED 2026-09-14 (source gone; see header).
+  # No db-internal network here (no database source; see header).

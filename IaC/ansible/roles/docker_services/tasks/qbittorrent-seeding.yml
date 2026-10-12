@@ -1,18 +1,17 @@
 ---
-# qbittorrent-seeding.yml — the HD-1086 seeding goal (ratio 2 → pause), set over qBittorrent's own API.
+# qbittorrent-seeding.yml — the seeding goal (ratio 2 → pause), set over qBittorrent's own API.
 # Included ONCE from docker_services/main.yml, AFTER qbittorrent-seed.yml, gated on the same deploy
 # scope + `not ansible_check_mode` (it drives the live container).
 #
-# WHY IT IS ITS OWN FILE AND ITS OWN MECHANISM: qbittorrent-seed.yml edits `qBittorrent.conf` with the
-# container STOPPED, because qbit rewrites the file on a clean exit. A preference this ordinary does not
-# deserve a downloader stop/start, and the credential that made the API unreachable on a from-zero build
-# is the very thing the seed above just wrote. So: conf for identity + paths (stopped), API for this
-# (running). Order in main.yml is the contract, not a nicety — run this before the seed and login fails
-# against an empty `WebUI\Password_PBKDF2`, i.e. qbit's freshly minted random password.
+# WHY IT IS ITS OWN FILE AND ITS OWN MECHANISM: qbittorrent-seed.yml edits qBittorrent.conf with the
+# container STOPPED, because qbit rewrites the file on a clean exit — a stop/start is not worth an
+# ordinary preference, and the credential that made the API unreachable is what the seed just wrote.
+# So: conf for identity + paths (stopped), API for this (running). The ORDER in main.yml is the
+# contract: run this before the seed and login fails against an empty `WebUI\Password_PBKDF2`.
 #
 # WHAT IT IS NOT: a fix for the hardlink problem. An import MOVES the file (EXDEV across the arr's two
-# binds, Radarr 6.3 has no Link Type), so an imported torrent stops seeding at the import; the goal
-# bounds the seeds that keep their files. docs/services-downloads.md §Hardlink import is impossible.
+# binds; Radarr 6.3 has no Link Type), so an imported torrent stops seeding at the import; the goal
+# bounds the seeds that keep their files. docs/services-downloads.md §Hardlink import is impossible
 
 - name: "qbittorrent-seeding: assert the goal is coherent before touching a live client"
   ansible.builtin.assert:
@@ -23,8 +22,8 @@
       - not (qbit_seed_inactive_goal_enabled | bool)
     fail_msg: >-
       The seeding goal in role defaults is not the ruled shape: action 2 deletes files, a ratio goal
-      needs a value > 0, and a TIME goal would stop seeding before the ratio is reached. The 2026-10-07
-      ruling is ratio {{ qbit_seed_ratio_goal }} then pause — change the ruling in
+      needs a value > 0, and a TIME goal would stop seeding before the ratio is reached.
+      The ruling is ratio {{ qbit_seed_ratio_goal }} then pause — change the ruling in
       docs/services-downloads.md first, not the guard here.
   tags: [docker_services, qbittorrent_seed]
 
@@ -58,9 +57,9 @@
   # the same reason the conf seed does: never write to a live app on a hunch.
   ansible.builtin.command:
     cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }} --check"
-    stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module: at task level Ansible dies with
-    # "conflicting action statements: ansible.builtin.command, stdin" — measured, this file aborted a live
-    # converge at exactly this line on 2026-10-07 (nothing was deployed; the failure is parse-time).
+    stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module: at task level Ansible dies
+    # with "conflicting action statements: ansible.builtin.command, stdin" — a parse-time failure that
+    # deploys nothing, so the whole run aborts.
   no_log: true
   changed_when: false
   register: _qbit_seed_check
@@ -70,20 +69,19 @@
   tags: [docker_services, qbittorrent_seed]
 
 - name: "qbittorrent-seeding: apply the goal if it drifted"
-  # The helper exits 4 when the API accepted the write but the read-back disagrees — that is the class
-  # this whole file exists to close (a value that sits in a preference map doing nothing, the SABnzbd
+  # The helper exits 4 when the API accepted the write but the read-back disagrees — the class this
+  # file exists to close (a value sitting in a preference map doing nothing, the SABnzbd
   # `dir`/`complete_dir` shape). rc 0 with "CHANGED applied and read back" is the only green allowed.
   #
-  # ⚠ This `when:` must stay on the command task. Twice on 2026-10-07 the same expression moved onto a
-  #   `block:` wrapper (or onto a task inside a block/`always` pair) and went silently FALSE while the
-  #   debug in `always:` printed a stdout that plainly contained `CHANGED`: the write was skipped,
-  #   `always:` ran, the recap said ok=186 failed=0. Same family as the `when: … | default('')` against
-  #   a dict-valued `is changed()` above — **the include ran, the write did not, nothing was red.** So:
-  #   no block, no `rescue`, no `ignore_errors` here; prettier failures are not worth an unreliable gate.
+  # ⚠ This `when:` must stay ON the command task. Moved onto a `block:` wrapper (or onto a task in a
+  #   block/`always` pair) the same expression goes silently FALSE while the `always:` debug prints a
+  #   stdout that plainly contains CHANGED: the write is skipped, `always:` runs, the recap says
+  #   ok/failed=0. So: no block, no `rescue`, no `ignore_errors` here — prettier failures are not
+  #   worth an unreliable gate.
   #
   # Failure diagnosis, because `no_log` censors the result and the credential rides in `stdin` (so
-  # switching it off is not the answer): the rendered helper prints its own verdict — as root, with the
-  # credential on stdin, `python3 /usr/local/sbin/qbittorrent-seeding.py <origin> [--check]`.
+  # switching it off is not the answer): the rendered helper prints its own verdict — as root, with
+  # the credential on stdin, `python3 /usr/local/sbin/qbittorrent-seeding.py <origin> [--check]`.
   ansible.builtin.command:
     cmd: "{{ qbit_seeding_helper }} http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }}"
     stdin: "{{ vault[svc.secret_item].credential }}"   # INSIDE the module — see the note above
@@ -95,9 +93,8 @@
 
 - name: "qbittorrent-seeding: record the verdict"
   # The line that makes this reconcile auditable: the goal, as the client reports it after the write.
-  # ⚠ A run whose recap says `ok` and whose log has NO verdict line means the write never happened —
-  #   read the line, not the recap. That is how the silent skip above was found, and it is why this
-  #   debug is unconditional.
+  # ⚠ A recap that says `ok` with NO verdict line in the log means the write never happened — read the
+  # line, not the recap. That is why this debug is unconditional.
   ansible.builtin.debug:
     msg: >-
       seeding goal @ http://{{ _qbit_seed_netns_ip.stdout | trim }}:{{ qbit_webui_port }} →

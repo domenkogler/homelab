@@ -1,7 +1,7 @@
 ---
 # wireguard role — VPS side of the site-to-site tunnel to the home router (wg-s2s)
 #
-# HD-03 / network-vpn.md: a single WireGuard S2S tunnel carries the home↔VPS path.
+# network-vpn.md: a single WireGuard S2S tunnel carries the home↔VPS path.
 #   - Home RB4011: `wg-s2s` peer .1 (RouterOS — configured by the router role via
 #     community.routeros.api_modify; wireguard_s2s_vps in group_vars/router.yml)
 #   - VPS: `wg-s2s` peer .2 (this role — systemd-networkd WireGuard interface)
@@ -9,7 +9,7 @@
 #     reaches nut/zfs/ha_vip/ICMP and old-srv over the router-routed home VLANs.
 #
 # The private key is `wg_password_vps` (1Password → password field) — the VPS's OWN
-# distinct WireGuard keypair (HD-285 fix: WireGuard requires distinct keys per side;
+# distinct WireGuard keypair (WireGuard requires distinct keys per side;
 # the router uses its own `wg_password`). The VPS's peer public key must be provisioned
 # as `wg_s2s_router_public_key` in vars (the router's own pubkey) before deploy —
 # fail-closed if missing.
@@ -18,15 +18,15 @@
 wg_interface: wg-s2s
 wg_netdev_dir: /etc/systemd/network
 
-# HD-306: systemd 257 networkd creates wg-s2s but never applies the [WireGuardPeer] to
+# systemd 257 networkd creates wg-s2s but never applies the [WireGuardPeer] to
 # the kernel (interface up, no peer). The proven reliable workaround is `wg setconf` from
-# a rendered conf file — the conf MUST omit PrivateKey (live-verified 2026-09-01: a
-# setconf conf with a PrivateKey line silently drops the peer on this kernel; the key is
+# a rendered conf file — the conf MUST omit PrivateKey (a setconf conf with a PrivateKey
+# line silently drops the peer on this kernel; the key is
 # already on the interface from the .netdev). The conf is therefore secret-free (0644).
 wg_ensure_dir: /usr/local/libexec/wireguard
 wg_conf_dir: /etc/wireguard
 
-# PersistentKeepalive for the wg-s2s peer (HD-285): the home router WAN is behind
+# PersistentKeepalive for the wg-s2s peer: the home router WAN is behind
 # stateful NAT/CGNAT — without a keepalive WireGuard never initiates the handshake
 # unless app traffic flows, so the tunnel sits down silently. 25 s is the standard
 # NAT-traversal interval. Applied both in the .netdev (boot) and wg-s2s.conf (oneshot).

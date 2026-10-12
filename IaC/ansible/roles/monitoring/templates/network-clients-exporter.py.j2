@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-# Ansible managed — monitoring role (HD-343)
+# Ansible managed — monitoring role
 #
 # network-clients-exporter — RouterOS-API client collector on oldsrv.
 #
-# Polls the RB4011 read-only API (the `logpipe` scoped `read`-group user, HD-313
-# precedent) for the four client views and emits Prometheus metrics:
+# Polls the RB4011 read-only API (the `logpipe` scoped `read`-group user) for the
+# four client views and emits Prometheus metrics:
 #
 #   mikrotik_client{dhcp_status,vlan,hostname,mac,ip,source} 1
 #       source = "dhcp|arp|fdb|wifi|static" — which RouterOS view found the MAC
@@ -16,9 +16,9 @@
 # The oldsrv Alloy `prometheus.scrape`s this endpoint and `remote_write`s the series
 # over wg-s2s to the VPS Prometheus (same channel as the SNMP exporter). No new
 # firewall open, no VPS reachability change — the router API :8728 is already
-# INPUT-scoped to the Mgmt VLAN (HD-78/HD-53) and oldsrv sits on the Mgmt plane.
+# INPUT-scoped to the Mgmt VLAN and oldsrv sits on the Mgmt plane.
 #
-# Design SSOT: docs/observability.md §Network Clients Dashboard (HD-343).
+# Design SSOT: docs/observability.md §Network Clients Dashboard.
 # Reuses the read-only API pattern of skills/mikrotik/scripts/mikrotik-read.py
 # (the `routeros-api` library) with the scoped `logpipe` read-group user.
 #
@@ -55,7 +55,7 @@ except ImportError:
 # router Mgmt-plane IP (VLAN 99) + API port, from network_static_hosts.
 ROUTER_HOST = "{{ (network_static_hosts | selectattr('name', 'equalto', 'router') | selectattr('vlan', 'equalto', 99) | first).ip }}"
 ROUTER_PORT = {{ routeros_api_port | default(8728) }}
-# The logpipe scoped read-only user + its 1Password-sourced password (HD-313).
+# The logpipe scoped read-only user + its 1Password-sourced password.
 ROUTER_USER = "logpipe"
 ROUTER_PASSWORD = "{{ lookup('community.general.onepassword', 'mikrotik-logpipe_api', field='password', vault=op_vault) }}"
 ROUTER_TLS = {{ 'True' if (routeros_tls | default(false)) else 'False' }}
@@ -263,7 +263,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="RouterOS-API network-clients exporter (HD-343).")
+    parser = argparse.ArgumentParser(description="RouterOS-API network-clients exporter.")
     parser.add_argument("--listen", default="127.0.0.1:{{ network_clients_listen | default(9097) }}",
                         help="listen address:port (default 127.0.0.1:{{ network_clients_listen | default(9097) }})")
     parser.add_argument("--interval", type=int, default=SCRAPE_INTERVAL,

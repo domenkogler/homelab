@@ -1,6 +1,6 @@
 ---
 # wireguard role handlers. tags: always = handlers are tag-filtered like tasks; without it a
-# notified restart is silently skipped under e.g. --tags wireguard (HD-220 finding, HD-237 sweep).
+# notified restart is silently skipped under e.g. --tags wireguard.
 
 - name: restart systemd-networkd
   ansible.builtin.systemd:
@@ -14,7 +14,7 @@
     daemon_reload: true
   tags: always
 
-# HD-306: re-apply the peer after networkd (re)creates the interface.
+# Re-apply the peer after networkd (re)creates the interface.
 - name: ensure wg-s2s peer
   ansible.builtin.systemd:
     name: wg-ensure-s2s-peer

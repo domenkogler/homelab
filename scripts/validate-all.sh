@@ -719,6 +719,12 @@ item "check_zone_kogler_si_parity.py (derived zone answers what the hand-authore
 item "check_zone_kogler_si_parity.py --self-test" $PY scripts/check_zone_kogler_si_parity.py --self-test
 item "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/check_dns_seed_drift.py
 item "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/check_self_converge_guard.py
+item "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/check_string_twins.py
+# The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
+# green tree both print one OK line, and the cases that prove the verdict (a sever inside a long
+# change run, a twin renamed on every side, an agreed value in the wrong kind of literal) never
+# ran in the suite. Every other check here registers its self-test too; this one did not.
+item "check_string_twins.py --self-test (the verdict cases: planted severs, the 8b28edd3 control, presence-proven renames)" $PY scripts/check_string_twins.py --self-test
 item "validate-docker-services.py" $PY scripts/validate-docker-services.py
 item "spark-llm-render-matrix.py (HD-489: every profile must RENDER, not just validate)" $PY scripts/spark-llm-render-matrix.py
 item "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scripts/check_doc_path_refs.py
@@ -775,6 +781,12 @@ item "check_md_tables.py (HD-417 width rule + 2026-10-06 duplicate-key rule)" $P
 item "check_md_tables.py --self-test (HD-417 cell-count canary + duplicate-key canary)" $PY scripts/check_md_tables.py --self-test
 item "check_iac_backend_strings.py (HD-404: retired-backend mentions may not regrow)" $PY scripts/check_iac_backend_strings.py
 item "check_iac_backend_strings.py --self-test (HD-404 ratchet canary)" $PY scripts/check_iac_backend_strings.py --self-test
+item "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/check_iac_identifiers.py
+item "check_iac_identifiers.py --self-test (canary)" $PY scripts/check_iac_identifiers.py --self-test
+# homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
+# `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
+# deliberately NOT gated: a suite that mutates the tree is worse than the drift it would catch.
+item "build-llm-dashboard.py --check (the generated dashboard may not drift from its generator)" $PY scripts/build-llm-dashboard.py --check
 item "check_spark_llm_gate.py (HD-469: spark LLM profile matrix + gate canaries)" $PY scripts/check_spark_llm_gate.py
 item "knx-hass-gen.py --self-test (HD-439: emitted addresses must exist in the ETS project)" $PY scripts/knx-hass-gen.py --self-test
 item "laptop-llm.py gate --self-test (HD-474: laptop serving-leg gate must be PROVEN OFFLINE)" $PY scripts/laptop-llm.py gate --self-test

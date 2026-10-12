@@ -54,9 +54,9 @@ chown -R ai-debug:ai-debug /home/ai-debug/.ssh
 # 4. sshd hardening (all homelab hosts)
 # Drop-in (/etc/ssh/sshd_config.d) instead of appending to the main file: sshd uses
 # FIRST-obtained-value-wins, so provider/custom images with explicit "yes" directives
-# would shadow an appended block (found live on netcup 2026-08-21 → HD-208; stock
-# Debian puts Include *.conf at the TOP of sshd_config, so a drop-in always wins).
-# Idempotent (KOPS-012 / HD-88 spirit): skip if the drop-in already exists so a
+# would shadow an appended block (stock Debian puts Include *.conf at the TOP of
+# sshd_config, so a drop-in always wins).
+# Idempotent: skip if the drop-in already exists so a
 # re-run (e.g. preseed retry) never accumulates duplicate sshd directives.
 DROPIN=/etc/ssh/sshd_config.d/00-homelab-hardening.conf
 if [ ! -f "$DROPIN" ]; then
@@ -74,11 +74,11 @@ fi
 systemctl restart ssh 2>/dev/null || systemctl restart sshd 2>/dev/null || true
 
 # ---------------------------------------------------------------------
-# 5. Placeholder assertion (B5/H2/H3 — HD-201): fail loudly BEFORE the
+# 5. Placeholder assertion: fail loudly BEFORE the
 #    installer reboots when the produced config still carries placeholders
 #    (REPLACE_ME_* tokens, placeholder disk serials, placeholder pubkeys).
 #    A host that boots with unreplaced keys is locked out (no root
-#    password, KOPS-044) — the late_command failure surfaces the misfire
+#    password) — the late_command failure surfaces the misfire
 #    on the installer console/log instead.
 #    Covers the shared preseeds (nas + oldsrv) and, by the same rule,
 #    pi/first-boot-config.sh (same assertion, same pattern list).
@@ -95,7 +95,7 @@ for cfg_file in $PLACEHOLDER_CHECK_FILES; do
     fi
 done
 if [ -n "$placeholder_hits" ]; then
-    echo "FATAL (HD-201): placeholder content still present in:$placeholder_hits" >&2
+    echo "FATAL: placeholder content still present in:$placeholder_hits" >&2
     echo "       patterns: $PLACEHOLDER_PATTERNS" >&2
     echo "       Replace the placeholders with the real 1Password Homelab-ansible" >&2
     echo "       values (domen_ssh / ansible-admin_ssh / ai_ssh) and re-run" >&2

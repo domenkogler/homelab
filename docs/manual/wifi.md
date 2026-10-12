@@ -17,7 +17,9 @@ tags: [manual, wifi]
 | **Kogler IOT** | Pametne naprave (luči, žaluzije, kamera, Bosch/LG/HAP) | Brez interneta — razen oblačnih naprav, ki imajo internet prek dovoljenega seznama |
 | **Kogler guest** | Gostje | Samo internet |
 
-> Opomba: stara omrežja **Kogler IOT WAN** in **Kogler Kids** ukiniti (2026-09/2026-09-04 — HD-312/HD-325).
+> Opomba: SSID-jev za otroke in za »IoT internet« ni. Otroške naprave se povežejo na **Kogler**, kjer je
+> njihov DNS filtriran po MAC-naslovu; oblačne IoT naprave internet dobijo prek **Kogler IOT** prek
+> dovoljenega seznama MAC-naslovov.
 
 ## Menjava gesla
 

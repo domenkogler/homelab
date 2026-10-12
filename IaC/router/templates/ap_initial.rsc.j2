@@ -3,8 +3,8 @@
     Management IP (10.10.99.x) from a router static DHCP lease (added by the
     Ansible `router` role). Secrets from 1Password at render time. -#}
 # =============================================================================
-# hAP / wAP — Kogler Homelab — Bootstrap (RENDERED — do not edit, regenerate)
-# Source template: IaC/router/templates/ap_initial.rsc.j2   (UNIVERSAL — all APs)
+# hAP / wAP — Kogler Homelab — Bootstrap (Jinja SOURCE TEMPLATE — rendered to the gitignored rendered/*.rsc)
+# This template: IaC/router/templates/ap_initial.rsc.j2   (UNIVERSAL — all APs)
 # =============================================================================
 # Purpose: Universal bootstrap for every hAP/wAP AP. The AP is placed on a
 #          Management (VLAN {{ mgmt.id }}) access port on the CRS328 and gets its
@@ -38,19 +38,15 @@
 /user add name=ansible group=full disabled=no password="" comment="Ansible automation (SSH-key auth, key-only)"
 /user ssh-keys import public-key-file=flash/ansible.pub user=ansible
 
-# ---- Bridge (uplink + radios only; unused wired ports DISABLED — HD-89/KOPS-046) ----
-# HD-89 (2026-09-08): wired devices on an AP's unused ethernet ports previously got
-# full Management-VLAN access (KOPS-046 — a visitor plugging a laptop into an AP port
-# reached the router admin/UPS/iLO). Per the audit's own recommendation + the owner
-# decision (2026-09-08): DISABLE the unused wired ports (ether2..ether5) — the AP is
-# L2 CAP-only (uplink ether1 + radios), so no wired client port is needed. Keep ONLY
-# the uplink ether1 + wifi1/wifi2 in the bridge; the wired ports stay disabled (default
-# disabled=yes in RouterOS — no bridge membership, no service).
+# ---- Bridge (uplink + radios only; unused wired ports DISABLED) ----
+# A wired device on an AP's ethernet port lands on the full Management VLAN — a visitor
+# there reaches the router admin/UPS/iLO. The AP is L2 CAP-only (uplink ether1 +
+# radios), so ether2..ether5 stay disabled: no bridge membership, no service.
 
 /interface bridge add name=bridge protocol-mode=none
 /interface bridge port add bridge=bridge interface=ether1
 {% for n in range(2, 6) %}
-/interface ethernet set [find default-name=ether{{ n }}] disabled=yes comment="HD-89: unused AP wired port ether{{ n }} disabled (KOPS-046)"
+/interface ethernet set [find default-name=ether{{ n }}] disabled=yes comment="unused AP wired port ether{{ n }} disabled"
 {% endfor %}
 /interface bridge port add bridge=bridge interface=wifi1
 /interface bridge port add bridge=bridge interface=wifi2
@@ -59,17 +55,15 @@
 
 /ip dhcp-client add interface=bridge disabled=no comment="Mgmt IP via router DHCP (static reservation: VLAN {{ mgmt.id }})"
 
-# ---- CAP Mode (SSIDs provisioned by the router CAPsMAN — MODERN wifi-qcom-ac, HD-232/task 8) ----
-# LIVE-VERIFIED 2026-09-02 (RouterOS 7.24.1 + wifi-qcom-ac): bootstrapping the radios
-# into CAP mode REQUIRES (per MikroTik wifi docs, and the live probe below):
-#   1. configuration.manager=capsman on the radios (default manager=local leaves them
-#      as locally-configured masters — they never join the manager).
-#   2. disabled=no (interfaces default disabled=yes → radio never comes up).
+# ---- CAP Mode (SSIDs provisioned by the router CAPsMAN — MODERN wifi-qcom-ac) ----
+# The radios join the manager only with:
+#   1. configuration.manager=capsman (the default manager=local leaves them as
+#      locally-configured masters — they never join the manager).
+#   2. disabled=no (interfaces default to disabled=yes → the radio never comes up).
 # The manager side (capsman_steady-state.rsc.j2) must be enabled + use a datapath
-# WITHOUT vlan-id (wifi-qcom-ac cannot assign datapath vlans on the CAP → the
-# 'vlan-id configured, but interface does not support assigning vlans' disconnect
-# loop, live-probed). Per-SSID VLAN assignment is done by the CAP's bridge (pvid per
-# slave interface + tagged uplink) — see the post-provision bridge block below.
+# WITHOUT vlan-id: a wifi-qcom-ac CAP cannot assign datapath VLANs and clients
+# disconnect-loop ('vlan-id configured, but interface does not support assigning
+# vlans'). Per-SSID VLAN assignment is the CAP's own bridge — see the block below.
 /interface wifi set [ find default-name=wifi1 ] configuration.manager=capsman disabled=no
 /interface wifi set [ find default-name=wifi2 ] configuration.manager=capsman disabled=no
 /interface wifi cap set \
@@ -77,17 +71,17 @@
     discovery-interfaces=bridge \
     slaves-static=yes
 
-# ---- Bridge VLAN mapping (per-SSID pvid + tagged uplink — LIVE-VERIFIED 2026-09-02) ----
-# wifi-qcom-ac does VLAN tagging on the CAP's BRIDGE, not manager datapath. The radios
-# master SSIDs (Kogler) go to VLAN 10; each provisioned slave SSID gets its own bridge
-# access port with pvid=<SSID vlan>, and the uplink (ether1) carries them tagged.
+# ---- Bridge VLAN mapping (per-SSID pvid + tagged uplink) ----
+# wifi-qcom-ac does VLAN tagging on the CAP's BRIDGE, not the manager datapath. The
+# radios' master SSIDs (Kogler) go to VLAN 10; each provisioned slave SSID gets its own
+# bridge access port with pvid=<SSID vlan>, and ether1 carries them tagged.
 # Slave interface names are dynamic (wifi3..wifi20 per radio/provisioning), so the pvid
 # mapping must be applied AFTER CAPsMAN provisions them. The Ansible/router role or a
 # post-provision step applies:
 #   /interface bridge set bridge vlan-filtering=yes
 #   /interface bridge port set [find interface=wifi1] pvid=10
 #   /interface bridge port set [find interface=wifi2] pvid=10
-#   # per provisioned slave (IOT=20, guest=30 — WAN=21/kids=40 deleted 2026-09-03, HD-312):
+#   # per provisioned slave (IOT=20, guest=30):
 #   /interface bridge port add bridge=bridge interface=<slave> pvid=<vlan>
 #   /interface bridge vlan add bridge=bridge vlan-ids=<vlan> tagged=ether1 untagged=<slave>
 # Bootstrap sets the static parts now (vlan-filtering + master pvids are name-stable):
@@ -99,11 +93,10 @@
 {% endfor %}
 
 # ---- Services ----
-# HD-193 + HD-301: scope every management service to the mgmt subnet from FIRST BOOT
-# (B4 binding floor). RouterOS 7 syntax: `available-from=` (NOT `interface=` —
-# rejected with "bad parameter interface" on ROS7, live-validated 2026-08-31).
-# AP is L2-only (no WAN egress, HD-165) so the surface is small, but we still
-# disable the dangerous services defensively.
+# Scope every management service to the mgmt subnet from FIRST BOOT. RouterOS 7
+# syntax: `available-from=` (`interface=` is the RouterOS 6 form, rejected with
+# "bad parameter interface" on ROS7). The AP is L2-only (no WAN egress) so the
+# surface is small; the dangerous services stay disabled defensively.
 
 /ip service set telnet disabled=yes port=23 available-from="{{ mgmt.subnet }}"
 /ip service set ftp disabled=yes port=21 available-from="{{ mgmt.subnet }}"
@@ -117,18 +110,15 @@
 
 # note: the radio CAP interfaces are L2 (no IP); only the bridge carries the mgmt IP.
 
-# ---- INPUT firewall (HD-304 Part 2 / HD-301 parity — steady-state lockdown on the AP) ----
-# Mirrors the router role's HD-78 INPUT chain + the switch's HD-301 parity block:
-# the AP's exposed services (api/www-ssl/ssh/winbox on 22/8728/8729/443/8291) are gated
-# to the Management VLAN + trusted-admin hosts only, and everything else is dropped.
-# The AP is L2-only (no WAN), but WITHOUT this block the services listen on every
-# interface (incl. any wired/unused port) — the bootstrap `available-from=` above is the
-# floor; this is the steady-state INPUT policy so a later converge/delta can't drift it open.
+# ---- INPUT firewall (parity with the router + switch lockdown) ----
+# The AP's services (22/8728/8729/443/8291) answer on EVERY interface unless stopped
+# here: gate them to the Management VLAN + trusted-admin and drop the rest.
+# `available-from=` in the bootstrap is the floor, not the steady-state policy.
 /ip firewall filter
 add chain=input action=accept connection-state=established,related comment="AP: allow established/related input"
 add chain=input action=accept in-interface=bridge comment="AP: allow input on bridge (mgmt DHCP + CAPsMAN discovery)"
 add chain=input action=accept protocol=udp dst-port=68 comment="AP: allow DHCP client input"
-add chain=input action=drop comment="AP: drop all other input (HD-304 lockdown)"
+add chain=input action=drop comment="AP: drop all other input (lockdown)"
 
 # ---- End ----
 # After import, verify on the router: /ip dhcp-server lease print

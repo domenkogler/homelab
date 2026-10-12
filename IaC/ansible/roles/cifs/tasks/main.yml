@@ -1,5 +1,5 @@
 ---
-# cifs role tasks — Live Hetzner Box CIFS mount on the VPS (HD-135)
+# cifs role tasks — Live Hetzner Box CIFS mount on the VPS
 #
 # Order: install cifs-utils → credentials file (0600, from 1Password) → mount (fstab).
 

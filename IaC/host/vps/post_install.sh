@@ -54,9 +54,9 @@ chmod 0440 /etc/sudoers.d/ansible-admin
 #    Drop-in (/etc/ssh/sshd_config.d) instead of appending to the main
 #    file: sshd uses FIRST-obtained-value-wins, and provider images
 #    (netcup) ship explicit "PasswordAuthentication yes" directives that
-#    would shadow any appended block (found live 2026-08-21 → HD-208;
-#    stock Debian puts Include *.conf at the TOP of sshd_config, so a
-#    drop-in always wins). Idempotent: skip if the drop-in exists.
+#    would shadow any appended block (stock Debian puts Include *.conf at
+#    the TOP of sshd_config, so a drop-in always wins). Idempotent: skip if
+#    the drop-in exists.
 # ---------------------------------------------------------------------
 DROPIN=/etc/ssh/sshd_config.d/00-homelab-hardening.conf
 if [ ! -f "$DROPIN" ]; then
@@ -68,7 +68,7 @@ PermitRootLogin no
 PubkeyAuthentication yes
 LogLevel VERBOSE
 AllowUsers ansible-admin
-# HD-154: brute-force throttle — hard cap on auth attempts + dead-connection
+# Brute-force throttle — hard cap on auth attempts + dead-connection
 # cleanup (complements the fail2ban jail installed by the vps-hardening role).
 MaxAuthTries 3
 ClientAliveInterval 300

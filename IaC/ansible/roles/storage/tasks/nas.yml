@@ -45,11 +45,11 @@
       [Service]
       Type=oneshot
             # Was /usr/local/bin/sanoid, which does not exist: the Debian package installs /usr/sbin/sanoid
-      #   (verified 2026-10-08, sanoid 2.2.0-2 -> /usr/sbin/sanoid), so the unit WE GENERATE failed every
+      #   (sanoid 2.2.0-2 -> /usr/sbin/sanoid), so the unit WE GENERATE failed every
       #   timer fire with status=203/EXEC and ZFS POLICY SNAPSHOTS NEVER RAN: zero hourly.*/daily.* in the
       #   pool although sanoid.conf asks for hourly=24 daily=7, the only snapshots present being manual/
       #   migration ones plus syncoid transient pre-sync snaps. The package also ships /etc/cron.d/sanoid,
-      #   which did not compensate. HD-1107.
+      #   which did not compensate.
       ExecStart=/usr/sbin/sanoid --cron
     dest: /etc/systemd/system/sanoid.service
     mode: "0644"
@@ -112,13 +112,10 @@
     enabled: true
     state: started
 
-# HD-318 (2026-09-07, live): the media library subtree under bulk/media is NOT
-# provisioned by ZFS dataset creation — a fresh converge found /bulk/media EMPTY,
-# so every *arr/jellyfin bind-mount (/mnt/nas/media/{media,downloads}) failed with
-# 'mkdir ... permission denied' (root_squash maps root to storage_uid, and the
-# subdirs simply didn't exist). Create the canonical layout here (idempotent,
-# storage_uid-owned) so a reinstall/rebuild no longer hits it.
-- name: Ensure media library layout under /bulk/media (HD-318)
+# The media library subtree under bulk/media is NOT provisioned by ZFS dataset creation: a fresh
+# converge finds /bulk/media EMPTY and every *arr/jellyfin bind-mount fails with 'mkdir ...
+# permission denied' (root_squash maps root to storage_uid). Canonical layout is created below.
+- name: Ensure media library layout under /bulk/media
   ansible.builtin.file:
     path: "/bulk/media/{{ item }}"
     state: directory
@@ -136,10 +133,8 @@
     - downloads/complete/movies
     - downloads/complete/music
     - downloads/incomplete
-    # ⚠ Not cosmetic, and not slskd's job: slskd VALIDATES SLSKD_INCOMPLETE_DIR at startup and
-    # refuses to run if it is missing — it does NOT create it, and it exits 0 while doing so, so
-    # `docker ps` shows `Restarting (0)` with no non-zero code anywhere to catch (live 2026-10-07:
-    # 12 restarts before the directory existed). Created here, storage_uid-owned, before the
-    # service that requires it can start.
+    # ⚠ Not cosmetic, and not slskd's job: slskd VALIDATES SLSKD_INCOMPLETE_DIR at startup, refuses
+    # to run if it is missing and exits 0 while doing so, so `docker ps` shows `Restarting (0)` with
+    # no non-zero code to catch. Create it here, storage_uid-owned, before that service starts.
     - downloads/incomplete/music
   tags: [storage, nas]

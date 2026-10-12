@@ -1,7 +1,7 @@
-{# roles/cockpit seat.yml — the pi-web cockpit unit (HD-445).
+{# roles/cockpit seat.yml — the pi-web cockpit unit.
    A systemd USER unit: installed under the seat account's ~/.config/systemd/user,
    enabled, and started by the handler (never `enable --now`, which will not restart
-   a running unit — the Phase 4c lesson). ExecStart points at the launcher the pi-web
+   a running unit). ExecStart points at the launcher the pi-web
    package installs; the assert in seat.yml refuses to render this unit if that
    binary is missing, and the loopback/on-path drop-ins carry the two properties the
    unit alone cannot express. #}

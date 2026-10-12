@@ -1,18 +1,16 @@
 ---
-# authentik-blueprints.yml — apply custom Authentik blueprints deterministically (HD-230).
+# authentik-blueprints.yml — apply custom Authentik blueprints deterministically.
 #
-# EXTERNALIZED from the routine docker_services deploy lane (owner decision 2026-08-27,
-# HD-268): blueprints are integration wiring that changes rarely, and each one-shot
-# `docker exec authentik-worker ak apply_blueprint` takes ~45s. Running them on EVERY
-# converge wastes ~a minute on unchanged files. Run this playbook explicitly whenever a
-# tracked blueprint file (templates/docker_services/authentik/blueprints/*.yml) is edited.
+# Separate from the routine docker_services deploy lane: each one-shot
+# `docker exec authentik-worker ak apply_blueprint` takes ~45s, so running blueprints on
+# every converge wastes ~a minute on unchanged files. Run this playbook explicitly whenever
+# a tracked blueprint file (templates/docker_services/authentik/blueprints/*.yml) is edited.
 #
-# WHY this exists at all: authentik's blueprints_discovery has NEVER registered
-# /blueprints/custom/* as BlueprintInstances (found live 2026-08-23: 28 instances exist,
-# 0 custom; hourly discovery runs 'done' but skip them). Its file-hash re-apply machinery
-# (instance last_applied_hash vs file sha256) therefore never fires — a local blueprint
-# edit stays inert until applied via `ak apply_blueprint` one-shot. Until that upstream
-# discovery behavior is understood/fixed, every edited blueprint must be applied here.
+# WHY this exists at all: authentik's blueprints_discovery does not register
+# /blueprints/custom/* as BlueprintInstances (hourly discovery logs 'done' but skips them),
+# so its file-hash re-apply machinery (instance last_applied_hash vs file sha256) never
+# fires. A local blueprint edit stays inert until applied by `ak apply_blueprint` one-shot,
+# so every edited blueprint must be applied here.
 #
 # Idempotency: apply_blueprint upserts by identifier — safe to run repeatedly.
 # NOTE: upsert semantics = REMOVING an entry from a blueprint does NOT delete the
@@ -28,7 +26,7 @@
 # and mounts them at /blueprints/custom (the deploy-service template step). This playbook
 # picks them up from that deployed path and pushes each into authentik-worker.
 
-- name: Apply custom Authentik blueprints (externalized, HD-230/HD-268)
+- name: Apply custom Authentik blueprints (externalized)
   hosts: vps
   become: true
   gather_facts: false

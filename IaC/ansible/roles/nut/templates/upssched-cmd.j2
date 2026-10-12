@@ -103,9 +103,8 @@ PYEOF
 send_mail || true
 
 # --- Optional Signal helper ---
-# NOTE: `:-` guard — under `set -u` an unset ${nut_signal_helper} aborted the whole
-# script at this line (HD-06 drill: `vrstica 103: nut_signal_helper: nedoločena
-# spremenljivka`, exec_cmd returned 1). The helper stays optional/shell-defaulted.
+# NOTE: the `:-` guard is required — under `set -u` an unset ${nut_signal_helper} aborts
+# the whole script at this line. The helper stays optional/shell-defaulted.
 if [ -n "${nut_signal_helper:-}" ] && [ -x "${nut_signal_helper:-}" ]; then
   "${nut_signal_helper:-}" "${SUBJ} — ${BODY}" 2>/dev/null || true
 fi

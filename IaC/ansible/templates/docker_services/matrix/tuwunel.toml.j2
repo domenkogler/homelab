@@ -3,15 +3,15 @@
 #
 # Vault-escape note: this file is consumed by Tuwunel itself (NOT `docker compose`
 # interpolation), so `vault['<item>']` values pass through unchanged. Compose's
-# `$`-substitution only applies to compose files (HD-270/HD-233 lesson). TOML values
+# `$`-substitution only applies to compose files. TOML values
 # here use `replace('\\','\\\\') | replace('"','\\"')` for TOML escaping (single/double-
 # quote + backslash safety); `|`|replace('$','$$')` is NOT needed because compose never
 # reads this file.
 #
 # server_name is PERMANENT — it cannot be changed without a DB wipe. We deliberately use
 # the root domain `kogler.si` (clean @user:kogler.si IDs) and delegate the physical host
-# to matrix.kogler.si via .well-known (that root-domain delegation is HD-47).
-# [global] header REQUIRED (Wave-2 triage 2026-08-22): tuwunel rejects any mix of bare
+# to matrix.kogler.si via .well-known.
+# [global] header REQUIRED: tuwunel rejects any mix of bare
 # top-level keys with a [global.*] subtable profile - all plain keys must live under it.
 [global]
 server_name = "kogler.si"
@@ -30,8 +30,8 @@ allow_registration = false
 # bootstrap the first admin. No config edits required for day-to-day operation.
 registration_shared_secret = "{{ vault['matrix_password'].password | replace('\\','\\\\') | replace('"','\\"') }}"
 
-# --- Federation posture (HD-122 / KOPS-033 — DECIDED 2026-08-18) ---
-# Open federation is intentionally kept (matches the recorded KOPS-033 acceptance in
+# --- Federation posture ---
+# Open federation is intentional (security.md §7: a federated homeserver interoperating
 # security.md §7: a federated homeserver interoperating with the wider Matrix world).
 # Two hardenings that fit a family exposure model WITHOUT breaking federation:
 #
@@ -55,15 +55,15 @@ require_auth_for_profile_requests = true
 # --- Discovery (served at matrix.kogler.si) ---
 # [global.well_known] makes matrix.kogler.si/.well-known/matrix/{client,server} work for
 # clients pointed here. Root-domain delegation (kogler.si/.well-known -> matrix.kogler.si)
-# is a Traefik static host and belongs to HD-47.
+# is a Traefik static host and is not configured in this file.
 [global.well_known]
 client = "https://matrix.kogler.si"
 server = "matrix.kogler.si:443"
 
 # --- Authentik OIDC — Matrix-native SSO (docs/services-authentik.md) ---
 #   - client_id / client_secret  -> 1Password `matrix_api` (API credential item:
-#     username = client_id, credential = client_secret), seeded by the secret-egress glue (HD-143)
-#     from the Authentik Blueprint-declared provider (ks-oidc.yml, HD-142).
+#     username = client_id, credential = client_secret), seeded by the secret-egress glue
+#     from the Authentik Blueprint-declared provider (ks-oidc.yml).
 #   - issuer_url must match the Authentik OIDC provider discovery URL.
 #   - The provider's redirect/Allowed redirect URI must be registered EXACTLY as:
 [[global.identity_provider]]

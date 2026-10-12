@@ -1,13 +1,12 @@
 # crowdsec docker-compose.yml — WAF & brute-force protection
 #   Parses Traefik + Authentik logs, maintains a community blocklist,
-#   and feeds the CrowdSec bouncer middleware in Traefik. Since HD-313 it
-#   also ingests RouterOS logs (remote RFC5424 syslog from the RB4011) for
+#   and feeds the CrowdSec bouncer middleware in Traefik. It also ingests
+#   RouterOS logs (remote RFC5424 syslog from the RB4011) for
 #   auth-failure + port-scan detection (a1ad/mikrotik collection) — see
-#   docs/network-ops.md §Central logging.
+#   docs/network-ops.md §Central log shipping.
 #
-#   No web UI — the CrowdSec dashboard was served via the retired-Metabase view (2026-09-14;
-#   the dedicated CrowdSec Web UI csui.kogler.si now covers it).
-#   container (sec.kogler.si) which queries the CrowdSec LAPI.
+#   No web UI here — the dashboard is the CrowdSec Web UI (csui.kogler.si),
+#   which queries the CrowdSec LAPI.
 #
 #   Docker socket access enables container-log parsing (Traefik logs).
 #   The RouterOS syslog stream lands on the HOST at /var/log/remote-syslog/
@@ -21,28 +20,27 @@ services:
     image: crowdsecurity/crowdsec:{{ crowdsec_version }}
     cap_drop:
       - ALL
-    # read_only REMOVED (Wave-3 round-2 triage 2026-08-22): upstream docker_start.sh seeds
-    # and re-links /staging at every boot and assumes it persists on the rootfs; a tmpfs
-    # /staging starts empty, the seed glob degenerates and PID 1 aborts. Same Class-B
-    # relaxation precedent as forgejo/metabase. Follow-up candidate: upstream rootless work.
+    # No read_only here: upstream docker_start.sh seeds and re-links /staging at every
+    # boot and assumes it persists on the rootfs; a tmpfs /staging starts empty, the seed
+    # glob degenerates and PID 1 aborts.
     tmpfs:
       - /tmp
     container_name: crowdsec
     restart: unless-stopped
     ports:
-      # HD-342 (Victoria migration): loopback publish of the metrics endpoint (:6060)
-      # so the VPS host-APT Alloy can scrape CrowdSec /metrics. Loopback-only (authentik
-      # HD-143 precedent). CrowdSec LAPI (:8080) stays overlay-only (Metabase queries it).
+      # Loopback publish of the metrics endpoint (:6060) so the VPS host-APT Alloy can
+      # scrape CrowdSec /metrics. Loopback-only. CrowdSec LAPI (:8080) stays overlay-only
+      # (Metabase queries it).
       - "127.0.0.1:6060:6060"
     networks:
       - traefik-public
-      - db-internal    # 2026-09-08: Prometheus scrapes crowdsec:6060/metrics here.
+      - db-internal    # Prometheus scrapes crowdsec:6060/metrics here.
                        # Same pattern as traefik joining db-internal for its metrics entryPoint.
     volumes:
       - /srv/docker/crowdsec/config:/etc/crowdsec
       - /srv/docker/crowdsec/db:/var/lib/crowdsec/data
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      # HD-313: RouterOS RFC5424 syslog receiver (host rsyslog) -> CrowdSec tail.
+      # RouterOS RFC5424 syslog receiver (host rsyslog) -> CrowdSec tail.
       # The host rsyslog UDP/514 receiver writes /var/log/remote-syslog/routeros.log
       # (provisioned by the monitoring role); CrowdSec acquis.d tails it.
       - /var/log/remote-syslog:/var/log/remote-syslog:ro

@@ -2,8 +2,8 @@
 #   Configuration management for Radarr/Sonarr quality profiles (Dictionarry-Hub).
 #   Two containers: web UI (6868) + parser sidecar (5000). Forward-Auth.
 #   Image source: ghcr.io/dictionarry-hub/profilarr — v2 Deno-based.
-#   HD-192: `latest` is a DOCUMENTED FLUID-TAG EXCEPTION — upstream publishes no
-#   versioned tags (only develop/buildcache/sha256, registry probe 2026-08-21).
+#   `latest` is a DOCUMENTED FLUID-TAG EXCEPTION — upstream publishes no
+#   versioned tags (only develop/buildcache/sha256).
 #   MUST pin to a verified tag if upstream ever starts publishing semver.
 #   See docs/services.md + docs/deployment-compose.md.
 #
@@ -15,10 +15,10 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN   # HD-318: cap_drop ALL strips CHOWN; init chown on /config fails otherwise (crowdsec-web-ui precedent f4c3216)
+      - CHOWN   # cap_drop ALL strips CHOWN; init chown on /config fails otherwise
       - SETGID
-      - SETUID   # HD-318 live: the init ends in `su-exec <uid>` to drop privileges; without SETUID/SETGID it dies "su-exec: setgroups: Operation not permitted"
-    # read_only intentionally ABSENT (HD-318): the profilarr init runs chown on
+      - SETUID   # the init ends in `su-exec <uid>` to drop privileges; without SETUID/SETGID it dies "su-exec: setgroups: Operation not permitted"
+    # read_only intentionally ABSENT: the profilarr init runs chown on
     # /config as root before dropping privileges; read_only root made the chown fail
     # ("Operation not permitted"). Dir ownership via bind_owner_uid on the entry.
     tmpfs:
@@ -29,7 +29,7 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      # Loopback publish so the host-net home edge can reach the backend.
       - "{{ profilarr_bind }}:{{ profilarr_host_port }}:6868"
     volumes:
       - /srv/docker/profilarr/config:/config
@@ -41,7 +41,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.profilarr.rule: "Host(`profilarr.kogler.si`)"
       traefik.http.routers.profilarr.entrypoints: websecure
-      {{ 'traefik.http.routers.profilarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.profilarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.profilarr.middlewares: authentik-forward-auth@file
       traefik.http.services.profilarr.loadbalancer.server.port: "6868"
     healthcheck:
@@ -56,10 +56,10 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      - CHOWN   # HD-318: same chown-under-cap_drop-ALL fix as profilarr
+      - CHOWN   # same chown-under-cap_drop-ALL rule as profilarr
       - SETGID
-      - SETUID   # HD-318: same su-exec privilege-drop path as profilarr
-    # read_only intentionally ABSENT (HD-318): same rationale as profilarr — the
+      - SETUID   # same su-exec privilege-drop path as profilarr
+    # read_only intentionally ABSENT: same rationale as profilarr — the
     # Deno runtime needs a writable /run + config scratch at startup.
     tmpfs:
       - /tmp

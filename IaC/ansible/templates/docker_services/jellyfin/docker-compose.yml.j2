@@ -17,11 +17,9 @@ services:
     devices:
       - /dev/dri:/dev/dri          # Intel HD 630 QuickSync
     ports:
-      # HD-419: the labels below only reach Jellyfin from the OVERLAY edge; traefik-internal
-      # runs `network_mode: host` and has no path to a container-only port, which is why
-      # media.kogler.si answered 502 from the LAN (measured 2026-09-22: nothing listened on
-      # :8096). Same shape as actual-budget :5006 / immich-ml :3003, but bound to loopback —
-      # the edge is on this box, and Jellyfin's own login stays off the Home VLAN.
+      # The labels below only reach Jellyfin from the OVERLAY edge; traefik-internal runs
+      # `network_mode: host`, so publish on the host (loopback, like actual-budget :5006 /
+      # immich-ml :3003) or LAN requests 502. Loopback keeps Jellyfin login off the VLAN.
       - "{{ jellyfin_bind }}:{{ jellyfin_host_port }}:8096"
     group_add:
       - "{{ gpu_render_gid | default(104) }}"
@@ -37,8 +35,8 @@ services:
       traefik.enable: "true"
       traefik.http.routers.jellyfin.rule: "Host(`media.kogler.si`)"
       traefik.http.routers.jellyfin.entrypoints: websecure
-      traefik.http.routers.jellyfin.middlewares: crowdsec-only@file   # CrowdSec block-list; own login, no Forward-Auth (HD-60)
-      {{ 'traefik.http.routers.jellyfin.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      traefik.http.routers.jellyfin.middlewares: crowdsec-only@file   # CrowdSec block-list; own login, no Forward-Auth
+      {{ 'traefik.http.routers.jellyfin.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       # NOTE: no authentik-forward-auth — Jellyfin has its own login (client apps)
       traefik.http.services.jellyfin.loadbalancer.server.port: "8096"
 networks:

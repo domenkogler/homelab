@@ -75,7 +75,7 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 | HMIP-HAP | [`assets/images/HMIP-HAP.png`](assets/images/HMIP-HAP.png) |
 | hAP ac | [`assets/images/hAP-ac.png`](assets/images/hAP-ac.png) |
 | hAP ac² | [`assets/images/hAP-ac2.png`](assets/images/hAP-ac2.png) |
-| ~~wAP ac~~ ☠️ DEAD | (image removed — hardware fault, replacement pending; must be wifi-qcom-ac-capable per HD-232. Diagnosis: [network-migration-inventory.md](network-migration-inventory.md)) |
+| ~~wAP ac~~ ☠️ DEAD | (no image — out of service, replacement pending; must be wifi-qcom-ac-capable. Details: [network-migration-inventory.md](network-migration-inventory.md)) |
 
 ---
 
@@ -85,7 +85,7 @@ Visual layout is maintained in **[Rack.canvas](assets/Rack.canvas)** — open wi
 - **[Rack Connections](network-rack-generated.md)** — per-port wiring (device ↔ patch panel ↔ room/device + MAC)
 - **[Rack Connections JSON](rack-connections.json)** — machine-readable SSOT for the wiring
 - **[Rack Layout Mermaid](rack-layout.mmd)** — wiring diagram
-- **Homelable — implementation authored, ⏳ deploy-gated (HD-45)** — web-based interactive rack + topology visualizer; the live-rack successor to `Rack.canvas`. Spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable.
+- **Homelable — implementation authored, ⏳ deploy-gated** — web-based interactive rack + topology visualizer; the live-rack successor to `Rack.canvas`. Spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable.
 
 > Rack wiring docs are regenerated from `rack-connections.json` via `scripts/render_rack_connections.py` after editing either the SSOT or [`assets/Rack.canvas`](assets/Rack.canvas).
 - **[PowerWalker Manual](assets/manuals/PowerWalker-VFI-3000-ICR-IoT.pdf)**

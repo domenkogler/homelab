@@ -11,9 +11,9 @@ switch_trunk_port: sfp-sfpplus1  # Port 1 on switch, carries all VLANs tagged
 # Management IP is derived from SSOT network_static_hosts in role defaults.
 switch_mgmt_vlan: 99
 
-# RouterOS device identity asserted before any api_modify (HD-161).
+# RouterOS device identity asserted before any api_modify.
 # Must match what crs328_initial.rsc.j2 sets at bootstrap: `/system identity set name=switch.kogler.si`.
-# Set by group_vars so the assert is per-gear (HD-165); role defaults keep only a fail-loud '' guard.
+# Set by group_vars so the assert is per-gear; role defaults keep only a fail-loud '' guard.
 routeros_expected_identity: "switch.kogler.si"
 
 # Access ports per-device VLAN mapping
@@ -31,9 +31,8 @@ routeros_expected_identity: "switch.kogler.si"
 switch_port_map:
   # AP ports (VLAN 99, Management) - PoE enabled
   # MAC addresses from network_static_hosts in group_vars/all/
-  # NOTE (2026-09-03 fix): APs do per-SSID VLAN tagging on their CAP bridge, so their
-  # switch ports must ALSO carry the wifi VLANs (10 Home / 20 IOT) TAGGED — see the
-  # wifi_ports list below; the converge rsc adds them as tagged members of those VLANs.
+  # APs do per-SSID VLAN tagging on their CAP bridge, so their switch ports must
+  # ALSO carry the wifi VLANs (10 Home / 20 IOT) TAGGED — see wifi_ports below.
   ap-spalnica:
     port: ether12
     vlan: 99
@@ -45,7 +44,7 @@ switch_port_map:
     poe: true
     mac: "C4:AD:34:42:F0:B9"
 
-  # UPS NIC (IoT VLAN 20, no WAN — NUT/USB monitoring; HD-338)
+  # UPS NIC (IoT VLAN 20, no WAN — NUT/USB monitoring)
   ups:
     port: ether4
     vlan: 20
@@ -107,16 +106,16 @@ switch_port_map:
     poe: false
     mac: "00:0A:B3:27:5F:8B"
 
-# Wifi AP uplink ports must carry the wifi VLANs TAGGED (2026-09-03 fix): the APs
-# do per-SSID VLAN tagging on their CAP bridge, so their switch ports need tagged
-# membership of the SSID VLANs (10 Home / 20 IOT) in addition to the untagged 99
-# mgmt access — otherwise client data frames (tagged 10/20) are dropped at ingress
-# and clients associate but never get DHCP ('phone disconnects every few seconds').
+# Wifi AP uplink ports must carry the wifi VLANs TAGGED: the APs do per-SSID VLAN
+# tagging on their CAP bridge, so their switch ports need tagged membership of the
+# SSID VLANs (10 Home / 20 IOT) in addition to the untagged 99 mgmt access —
+# otherwise client data frames (tagged 10/20) drop at ingress and clients associate
+# but never get DHCP ('phone disconnects every few seconds').
 wifi_ports:
   - ether12   # ap-spalnica
   - ether11   # ap-dnevna
 
-# VLAN list — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all/), HD-200:
+# VLAN list — DERIVED VIEW of the SSOT `network_vlans` (group_vars/all/):
 # switch consumers use id + name only, so the full SSOT dicts pass through
-# unchanged; no literal duplicate to drift (audit H2 / iac-changes §2).
+# unchanged; no literal duplicate to drift.
 switch_vlans: "{{ network_vlans }}"

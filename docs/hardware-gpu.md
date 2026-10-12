@@ -93,7 +93,7 @@ journalctl -kf | grep -iE 'gpu|kfd|amdgpu|hws'
 
 | Consumer | Runtime | GPU path | Note |
 |---|---|---|---|
-| `bge-m3` embed | `llama.cpp server-vulkan` (Q8_0 GGUF) | **RADV Vulkan** | ~0.33 GiB, and it holds **no `/dev/kfd`** — the ROCm `:rocm` runtime now belongs only to the retained ollama embed-fallback and immich-ML |
+| `bge-m3` embed | `llama.cpp server-vulkan` (Q8_0 GGUF) | **RADV Vulkan** | ~0.33 GiB, and it holds **no `/dev/kfd`** — the ROCm `:rocm` runtime belongs only to the retained ollama embed-fallback and immich-ML |
 | `bge-reranker-v2-m3` | `llama.cpp server-vulkan` (same image) | **RADV Vulkan** | ~0.42 GiB; measured 0.34–0.50 s on-GPU vs **5.3 s on CPU** for a 20-doc Slovenian rerank |
 | Whisper STT | `whisper.cpp main-vulkan` | **RADV Vulkan** | ~1.72 GiB VRAM / 34 MiB RSS; **no published ROCm/HIP artifact exists**, so HIP would be a self-build with no Renovate trail |
 | immich-ML | container-bundled ROCm | KFD compute | existing AMD precedent; shortest, lowest-priority consumer |
@@ -136,8 +136,7 @@ reload latency. A third ceiling: ~276 GB/s puts a 4B VL at ~6–9 s to read a sc
 
 ## spark — NVIDIA GB10 Grace Blackwell (128 GB unified)
 
-The old planned Phase-2 GPU (AMD Radeon AI PRO R9700 32 GB in a Ryzen build) is **superseded**
-([deployment-rejected.md](deployment-rejected.md)). GB10 is not a discrete GPU — it is a unified CPU+GPU
+GB10 is not a discrete GPU — it is a unified CPU+GPU
 superchip with **128 GB shared LPDDR5x** (no separate VRAM division) and **1 PFLOP FP4**.
 
 | Spec | Value |
@@ -150,9 +149,9 @@ superchip with **128 GB shared LPDDR5x** (no separate VRAM division) and **1 PFL
 > ⚠️ **There IS a hard memory budget on GB10 — it is a HOST-RAM budget.** Every GPU allocation is the same
 > 121.62 GiB pool the OS runs in, so a percentage-style GPU budget silently eats the host's reserve, and
 > **the container memory cage cannot protect the host** (GPU pages are not cgroup-charged). The only real
-> governor is vLLM's explicit `--kv-cache-memory-bytes`. Mechanics, sizing table, metric definition and
-> incident history: [hardware-spark.md](hardware-spark.md) **§Unified-memory budget & OOM governance** +
-> [spark-incidents.md](spark-incidents.md). Do not treat "128 GB unified" as "no budget".
+> governor is vLLM's explicit `--kv-cache-memory-bytes`. Mechanics, sizing table and metric definition:
+> [hardware-spark.md](hardware-spark.md) **§Unified-memory budget & OOM governance**;
+> incidents: [spark-incidents.md](spark-incidents.md). Do not treat "128 GB unified" as "no budget".
 
 Serving profiles and the current engine are in
 [hardware-spark.md](hardware-spark.md) §Bench + engine selection; model placement is
@@ -225,15 +224,13 @@ Udev rules set `/dev/kfd` mode 0666 and `/dev/dri/render*` mode 0666 for contain
 | Fact | Measured |
 |---|---|
 | `render` group | **gid 992** (`render:x:992:ansible-admin`) — **NOT** the Debian-table 104 |
-| gid 104 | **`ssl-cert`** — which is what `gpu_render_gid` used to add to every GPU container |
+| gid 104 | **`ssl-cert`** — what the Debian-table "render:104" maps to on this host, not the render group |
 | `video` group | gid 44 (matches the Debian static allocation) |
 | `getfacl /dev/dri/renderD129` | `user::rw- group::rw- other::rw-` + a `user:lightdm:rw-` ACL |
 
-`gpu_render_gid: 104` came from the Debian table ("render:104 since bullseye"), but on this machine that gid
-belongs to **ssl-cert**, so every GPU container was granted the ssl-cert group while *not* being granted
-render. Nothing broke only because the udev rules make the render nodes world-rw — **the wrong gid was
-masked by mode 0666, not harmless.** It is `992` (measured) now. The Vulkan tier is the first consumer that
-cares about naming the render node deliberately: `gpu_vulkan_render_node: /dev/dri/renderD129` (dGPU only —
+`gpu_render_gid: 992` — the measured `render` gid on this host, **not** the Debian-table 104, which here
+belongs to **ssl-cert**. Never re-guess a distribution default: make it a **host var** and verify it with
+`getent group render`. Mode 0666 on the render nodes masks a wrong gid, it does not make it harmless.
+The Vulkan tier is the first consumer that cares about naming the render node deliberately: `gpu_vulkan_render_node: /dev/dri/renderD129` (dGPU only —
 `renderD128` is the HD 630 iGPU: the desktop's Xorg device, the Jellyfin QSV transcoder, and measured slower
-than CPU for AI work). If a future host needs a different gid, make it a **host var** — never re-guess a
-distribution default.
+than CPU for AI work).

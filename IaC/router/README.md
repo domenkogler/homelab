@@ -24,8 +24,8 @@ Bootstrap / initial RouterOS scripts for the homelab network gear — the route
 | `rendered/*.rsc` | Generated output — **gitignored**, never committed |
 
 Scripts rendered: `rb4011_initial.rsc` (router), `crs328_initial.rsc` (switch),
-`ap_initial.rsc` (universal AP), `capsman_steady-state.rsc` (RB4011 CAPsMAN, HD-232),
-plus the converge-escape pair `rb4011_converge.rsc` / `crs328_converge.rsc` (HD-305) —
+`ap_initial.rsc` (universal AP), `capsman_steady-state.rsc` (RB4011 CAPsMAN),
+plus the converge-escape pair `rb4011_converge.rsc` / `crs328_converge.rsc` —
 all via `playbooks/render-routeros.yml` / `render-converge.yml` into the gitignored
 `rendered/` dir.
 
@@ -38,7 +38,7 @@ all via `playbooks/render-routeros.yml` / `render-converge.yml` into the gitigno
    ansible-playbook playbooks/render-routeros.yml -i inventory.ini
    ```
 3. **Upload** each rendered `.rsc` + the 2 `.pub` files to the device's
-   Files (WinBox or `scp`). **Flash-persistence rule (HD-304):** on the switch
+   Files (WinBox or `scp`). **Flash-persistence rule:** on the switch
    and APs the `.pub` files MUST be placed in the `flash/` folder — files in the
    device **root** are wiped on reboot, and the `/user ssh-keys import` runs
    post-reset from `flash/`. The RB4011 boots off flash and is immune, so its
@@ -50,7 +50,7 @@ all via `playbooks/render-routeros.yml` / `render-converge.yml` into the gitigno
 5. Bootstrap device up → **Ansible `router` role** connects (user=`ansible`,
    SSH-key auth) and applies the real config.
 
-> Device reset order within Phase 1: **router → switch → APs**, then Ansible.
+> Device reset order: **router → switch → APs**, then Ansible.
 
 ## AP addressing (no per-AP static IP)
 
@@ -65,16 +65,15 @@ are added by the **Ansible `router` role** (not the router template). AP → IP 
 | ap-dnevna | `C4:AD:34:42:F0:B9` | per `network_static_hosts` (all.yml) |
 | ap-spare | (TBD) | per `network_static_hosts` (all.yml) |
 
-> **ap-garage REMOVED 2026-08-30:** ☠️ wAP ac DEAD 2026-08-24 (hardware fault) — removed from
-> the canvas + `network_static_hosts` + `switch_port_map` (Phase 1.5 prep); CRS328 `ether1` is
-> now EMPTY. Any future replacement gets a fresh AP entry + PoE port config.
+> **ap-garage is not in the fleet:** CRS328 `ether1` is EMPTY — no AP entry, no
+> PoE port config. A future replacement gets a fresh AP entry + port config.
 
 ## Secrets referenced (1Password `Homelab-ansible` vault)
 
 | 1Password item | Used for |
 |----------------|----------|
 | `pppoe_login` | Router egress WAN (Telekom PPPoE) user + password |
-| `mikrotik-admin_login` | Admin password on router + switch + APs (**shared — accepted, HD-165**); every RouterOS mgmt surface binds to Mgmt-VLAN 99 only → never reaches the internet |
+| `mikrotik-admin_login` | Admin password on router + switch + APs (**shared — accepted**); every RouterOS mgmt surface binds to Mgmt-VLAN 99 only → never reaches the internet |
 | `ansible-admin_ssh` / `domen_ssh` | `ansible.pub` / `admin.pub` SSH keys uploaded alongside |
 
 ## Related

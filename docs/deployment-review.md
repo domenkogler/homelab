@@ -13,10 +13,10 @@ tags: [deployment, review, queue]
 
 > ⚠️ **Planning phase — nothing live yet (except the netcup VPS, which has no services deployed).**
 
-> **Lifecycle (per CONVENTIONS.md §8.3):**
+> **Lifecycle (per CONVENTIONS.md §8.3 — it owns the promotion target and the stale rule):**
 > 1. **Before adding**, check [`deployment-rejected.md`](deployment-rejected.md) first (consulted, not auto-blocking; re-review only with an exception note).
-> 2. **Promote** → move the row to `todo.md` as an HD-XXX (pointer back here), then delete it from this file.
-> 3. **Stale** — any row untouched for **30 days** must be promoted to `todo.md` or moved to `deployment-rejected.md`. Review is a queue, not a backlog.
+> 2. **Promote** → move the row out to the tracked backlog and delete it from this file; `-review` has no "accepted" state.
+> 3. **Stale** — any row untouched for **30 days** must be promoted or moved to [`deployment-rejected.md`](deployment-rejected.md). Review is a queue, not a backlog.
 
 ---
 

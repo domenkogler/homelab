@@ -1,32 +1,28 @@
 #!/bin/bash
 # Managed by Ansible — docker_services role ({{ inventory_hostname }}). Pull the
-# wildcard *.kogler.si cert pair from the VPS traefik (the SINGLE ACME issuer,
-# HD-178/HD-181 — decided HD-204: every consumer pulls from the VPS directly, no
-# relay) into the local consumer edge's ./certs (→ /etc/traefik/certs read-only),
+# wildcard *.kogler.si cert pair from the VPS traefik (the SINGLE ACME issuer: every
+# consumer pulls from the VPS directly, no relay) into the local consumer edge's ./certs (→ /etc/traefik/certs read-only),
 # which dynamic/tls.yml.j2 serves via the DEFAULT store. The last synced copy stays
 # valid when the VPS/WAN is down. Runs as root via traefik-cert-pull.timer
 # (key at /root/.ssh/traefik-cert-sync; authorize its pubkey on the VPS at deploy).
 set -euo pipefail
 
-# HD-450: the issuer address is asserted non-empty and non-local by the deploying task
-# (roles/docker_services/tasks/main.yml) AND re-checked at every timer fire below. A drifted
-# SRC that points at THIS host exits 0 while the pair on disk rots toward expiry — that is
-# exactly how oldsrv's renewal sat broken since 2026-09-19 with a green-looking timer.
+# The issuer address is asserted non-empty and non-local by the deploying task
+# (roles/docker_services/tasks/main.yml) AND re-checked at every timer fire below: a
+# drifted SRC that points at THIS host exits 0 while the pair on disk rots toward expiry.
 SRC_HOST="{{ cert_issuer_addr }}"
 SRC="ansible-admin@${SRC_HOST}:/opt/traefik/certs/"
-# HD-350: the home-LAN edge (traefik-internal, oldsrv) pulls into its OWN compose dir
-# (not the shared `traefik` template dir) — parametrize the destination per consumer.
-# Backwards-compatible default (the old shared-dir path) = `traefik`. The deploy loop
-# renders this script once per host; the destination must match the edge's compose dir.
-# The cert-pull timer runs the same script regardless of which consumer edge is live.
+# The home-LAN edge (traefik-internal, oldsrv) pulls into its OWN compose dir: the
+# destination is parametrized per consumer (`traefik_consumer_dir`, default = the shared
+# `traefik` dir) and must match the dir the edge's compose — and the timer — actually run.
 DST="{{ docker_compose_dir }}/{{ traefik_consumer_dir | default('traefik') }}/certs/"
 SSH="ssh -i /root/.ssh/traefik-cert-sync -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 
-# Self-pull guard (HD-450): refuse to run when SRC is one of this host's own addrs.
+# Self-pull guard: refuse to run when SRC is one of this host's own addrs.
 # Scope-global v4 only, so a link-local/container address cannot mask the check.
 if ip -o -4 addr show scope global 2>/dev/null | awk '{print $4}' | cut -d/ -f1 | grep -qx "$SRC_HOST"; then
     echo "FATAL: cert-pull SRC host $SRC_HOST is a LOCAL address on $(hostname) — the issuer" >&2
-    echo "       is the VPS Traefik (HD-178/HD-204), never this consumer. The rendered script" >&2
+    echo "       is the VPS Traefik, never this consumer. The rendered script" >&2
     echo "       has drifted (a hand-edit?); re-converge docker_services instead of editing it." >&2
     exit 90
 fi

@@ -13,13 +13,13 @@ services:
       - NET_BIND_SERVICE
       - SETGID
       - SETUID
-    # read_only intentionally ABSENT (HD-318): linuxserver s6-overlay images
-    # do not support read_only root — it caused /run/s6 exec + /config/Sentry init
-    # failures. Keep cap_drop: ALL + /run:exec for the remaining hardening.
+    # read_only intentionally ABSENT: linuxserver s6-overlay images do not support a
+    # read_only root (/run/s6 exec + /config/Sentry init fail). Keep cap_drop: ALL +
+    # /run:exec for the remaining hardening.
     tmpfs:
       - /tmp
       - /run:exec
-      # HD-1081: own tmpfs for the app temp dir — the image cannot chown it under cap_drop: ALL,
+      # Own tmpfs for the app temp dir — the image cannot chown it under cap_drop: ALL,
       # and ASP.NET DataProtection keys (login cookies) are written there.
       - /run/prowlarr-temp:mode=1777,exec
     container_name: prowlarr
@@ -28,7 +28,7 @@ services:
       - traefik-public
       - services-internal
     ports:
-      # HD-419 pattern: loopback publish so the host-net home edge can reach the backend.
+      # Loopback publish so the host-net home edge can reach the backend.
       - "{{ prowlarr_bind }}:{{ prowlarr_host_port }}:9696"
     volumes:
       - /srv/docker/prowlarr/config:/config
@@ -40,7 +40,7 @@ services:
       traefik.enable: "true"
       traefik.http.routers.prowlarr.rule: "Host(`prowlarr.kogler.si`)"
       traefik.http.routers.prowlarr.entrypoints: websecure
-      {{ 'traefik.http.routers.prowlarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair (HD-181/HD-204)' }}
+      {{ 'traefik.http.routers.prowlarr.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
       traefik.http.routers.prowlarr.middlewares: authentik-forward-auth@file
       traefik.http.services.prowlarr.loadbalancer.server.port: "9696"
 networks:

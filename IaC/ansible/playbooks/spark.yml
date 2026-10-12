@@ -10,10 +10,10 @@
 - hosts: spark
   become: true
   pre_tasks:
-    # HD-413: refuse the lockout-capable roles (network / storage / wireguard /
+    # Refuse the lockout-capable roles (network / storage / wireguard /
     # vps-hardening) when this play's target IS the machine running the playbook.
     # Off-box path + in-band rescue: docs/deployment-ansible.md §Self-converge guardrail.
-    - name: HD-413 | Self-converge guardrail
+    - name: Self-converge guardrail
       ansible.builtin.import_tasks: tasks/self-converge-guard.yml
   vars:
     # Reachability (WSL runner / off-LAN): spark (10.10.1.40) is behind the home NAT.
@@ -25,18 +25,16 @@
     ansible_ssh_common_args: "-o ProxyJump=vps"
   roles:
     - common          # ansible-admin user guard + sudoers + trixie sources + hardening (canonical)
-    - role: access    # HD-443: accounts + authorized_keys + the AllowUsers gate
+    - role: access    # accounts + authorized_keys + the AllowUsers gate
       tags: [access]
     - network         # DHCP client-id=mac + netd units (dual-homed mgmt/home) — same as nas/oldsrv/pi
     - docker
     - spark           # NVMe p2 → XFS for PLE/KV + headroom assert (gated by spark_partition_enable)
-    - spark-llm-profile  # HD-469 read-only gate: which LLM config is about to boot (profile exists, KV math closes, artifacts staged, uncertified override)
-    - spark-artifacts # GENERAL artifact store on XFS: weights + PLE overlays + INT4 tables (manifest spark_artifacts, HD-359)
-    # HD-489: builds the patched vLLM lineage (image ID pinned by hand in versions.yml) and
-    # converts the T80 drafter directory. Opt-in: `spark_ultrafast_build: false` in
-    # group_vars/spark.yml, so a normal converge never clones-and-builds by accident; run it
-    # deliberately with `--tags spark-ultrafast-build` in an artifact window. Ordered BEFORE
-    # docker_services because the compose render needs the image ID to already be pinned.
+    - spark-llm-profile  # read-only gate: which LLM config is about to boot (profile exists, KV math closes, artifacts staged, uncertified override)
+    - spark-artifacts # GENERAL artifact store on XFS: weights + PLE overlays + INT4 tables (manifest spark_artifacts)
+    # builds the patched vLLM lineage (image ID pinned by hand in versions.yml) + T80 drafter
+    # conversion. Opt-in (`spark_ultrafast_build` in group_vars/spark.yml), run deliberately with
+    # `--tags spark-ultrafast-build`. Ordered BEFORE docker_services: the render needs the pin.
     - role: spark-ultrafast-build
       when: spark_ultrafast_build | bool
       tags: [spark-ultrafast-build]

@@ -1,15 +1,15 @@
-# LiteLLM config.yaml — LLM gateway/router spine (docs/services-ai.md, HD-100/HD-247)
+# LiteLLM config.yaml — LLM gateway/router spine (docs/services-ai.md)
 #   Single OpenAI-compatible endpoint for the AI stack; the ONLY component holding
 #   upstream keys (openrouter_api). Local models -> Ollama on `llm-backend`.
 #   Rendered by the docker_services role; secrets resolved from 1Password at render time.
 #
-#   HD-247 v2: model_list is NO LONGER rendered here. With STORE_MODEL_IN_DB=true the
+#   model_list is NOT rendered here. With STORE_MODEL_IN_DB=true the
 #   model catalog lives in the litellm-db Postgres runtime and is Admin-UI-managed
-#   (git drift accepted by owner decision — services-ai.md §9 decision 13). At first
-#   deploy, recreate the former entries via the Admin UI/API using the HD-246-corrected
-#   parameters (ollama/bge-m3 @1024 dims; ollama/bge-reranker-v2-m3 — decision #24,
-#   2026-09-15, Cohere retired) — see this service's compose-header runbook.
-#   HD-370/HD-382: the SPARK generation model (spark/qwen3.8-flash-next) is ALSO a runtime
+#   (git drift accepted — services-ai.md §9 decision 13). At first
+#   deploy, recreate the entries via the Admin UI/API with the
+#   parameters (ollama/bge-m3 @1024 dims; ollama/bge-reranker-v2-m3) —
+#   see this service's compose-header runbook.
+#   The SPARK generation model (spark/qwen3.8-flash-next) is ALSO a runtime
 #   entry in this DB — `base_url: https://llm.kogler.si/v1` and NO api_key: the bearer arrives
 #   from the container's OPENAI_API_KEY env (1P `spark-llm_api`; name resolution via the
 #   service's extra_hosts glue). https because spark's :80 edge is redirect-only.
@@ -21,6 +21,6 @@ litellm_settings:
   drop_params: true
 
 general_settings:
-  master_key: os.environ/LITELLM_MASTER_KEY   # admin/bootstrap credential ONLY (HD-247):
+  master_key: os.environ/LITELLM_MASTER_KEY   # admin/bootstrap credential ONLY:
                                               # consumers use scoped virtual keys minted by
                                               # the bootstrap-keys glue into 1Password.
