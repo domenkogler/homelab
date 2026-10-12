@@ -25,6 +25,10 @@
 # (a day with no series prints NO SERIES and is EXCLUDED from every total — a report that
 # quietly reads it as zero would understate the period, which is the one way to lie here).
 #
+# --csv keeps the SAME field count per row as its header, and marks an unmeasured day in a FIELD
+# rather than as trailing prose — a thousands separator in that output splits one row into several
+# fields, which is what the --csv arm of --self-test holds down.
+#
 # IT IS A WITNESS, NOT THE INSTRUMENT for anything shorter than a day: the cold scrape
 # job samples once a minute, so a sub-minute window is other people's traffic — for a leg
 # use vm-window.sh, which refuses that shape.
@@ -254,7 +258,7 @@ run_self_test() {
   wantnt(){ if printf '%s\n' "$out" | grep -qF -- "$1"; then printf '  FAIL: %s (must NOT contain "%s")\n' "$2" "$1"; fails=$((fails+1)); else printf '  ok:   %s\n' "$2"; fi; }
 
   echo "self-test: bucket labels + the day that ends at each eval_at"
-  out=$(VM_TOKENS_FIXTURE="$fix" "$self" --end 2026-10-12 --days 4 --tz UTC 2>&1)
+  out=$(VM_TOKENS_FIXTURE="$fix" "$self" --end 2026-10-12 --days 4 --tz UTC 2>&1) || true
   want "2026-10-08" "day 8 is labelled 2026-10-08"; want "2026-10-11" "day 11 is labelled 2026-10-11"
   want "NO SERIES"  "an unscraped day prints NO SERIES, not zero"
   want "measured days 2 of 4" "the period says 2 of 4 days were measured"
@@ -265,15 +269,21 @@ run_self_test() {
   want "600,000" "uncached input totals 600,000 (3,000,000 prompt - 2,400,000 cached)"
 
   echo "self-test: price A (0.20 / 0.60 / 0.005 per M)"
-  out=$(VM_TOKENS_FIXTURE="$fix" "$self" --end 2026-10-12 --days 4 --tz UTC --price 0.20,0.60,0.005 2>&1)
+  out=$(VM_TOKENS_FIXTURE="$fix" "$self" --end 2026-10-12 --days 4 --tz UTC --price 0.20,0.60,0.005 2>&1) || true
   want "0.10" "200k in + 800k cached + 100k out = \$0.10"; want "0.21" "400k + 1.6M + 200k = \$0.21"
   want "0.31" "the period total is \$0.31"; want "0.16" "avg/day divides by MEASURED days (a zero-fill says 0.08)"
   wantnt "0.08" "the two unmeasured days are not zero-filled into the average"
 
   echo "self-test: price B (0.10 / 0.35 / 0.0175 per M)"
-  out=$(VM_TOKENS_FIXTURE="$fix" "$self" --end 2026-10-12 --days 4 --tz UTC --price 0.10,0.35,0.0175 2>&1)
+  out=$(VM_TOKENS_FIXTURE="$fix" "$self" --end 2026-10-12 --days 4 --tz UTC --price 0.10,0.35,0.0175 2>&1) || true
   want "0.07" "200k in + 800k cached + 100k out = \$0.07 at price B"
   want "0.21" "the period total is \$0.21 at price B"; want "0.10" "avg/day = \$0.10 at price B"
+
+  echo "self-test: --csv emits one field per column, always"
+  out=$(VM_TOKENS_FIXTURE="$fix" "$self" --end 2026-10-12 --days 4 --tz UTC --price 0.20,0.60,0.005 --csv 2>&1) || true
+  bad=$(printf '%s\n' "$out" | awk -F, '/^2[0-9]{3}-|^TOTAL|^avg/ {if (NF != 7) print $0}')
+  if [ -z "$bad" ]; then printf '  ok:   every csv row has exactly 7 fields\n'
+  else printf '  FAIL: a csv row is not 7 fields (a thousands separator splits it): %s\n' "$bad"; fails=$((fails+1)); fi
 
   echo "self-test: the endpoint comes from IaC, never from a typed address"
   wantnt "10.255.40.2" "no wg-s2s address hardcoded in the script body"
@@ -323,6 +333,10 @@ hdr = ["day", "requests", "input tok (uncached)", "cached tok", "output tok", "r
 W = [11, 9, 20, 14, 12, 9] + ([10] if P else [])          # ONE width list, so header and rows align
 def fmt(vals):
     return ",".join(str(v) for v in vals) if csv else "  ".join(str(v).rjust(w) for v, w in zip(vals, W))
+def num(v, d=0):
+    # CSV never carries a thousands separator: 1,234 is TWO fields there, and a consumer reading
+    # --csv with any CSV parser gets a shifted row (caught by the --csv self-test arm).
+    return f"{v:.{d}f}" if csv else f"{v:,.{d}f}"
 if csv:
     print(",".join(hdr))
 else:
@@ -334,18 +348,23 @@ for t in sorted(rows):
         # Nothing at all answered for this day. It is LEFT OUT, not zero-filled: a period that
         # reads an unscraped day as 0 tokens understates the whole window (the engine came up
         # mid-window, so the earliest days genuinely have no series — Sep 12-14 here).
-        print(fmt([str(d), "-", "NO SERIES", "", "", ""][:len(hdr)]) + "   <- spark had no engine series that day")
+        # CSV keeps the SAME field count as its header and puts the marker in `requests`, so a
+        # machine reader can tell "not scraped" from "zero" without reading prose.
+        if csv:
+            print(fmt([str(d), "NO SERIES", "", "", "", ""] + ([""] if P else [])))
+        else:
+            print(fmt([str(d), "-", "NO SERIES", "", "", ""][:len(hdr)]) + "   <- spark had no engine series that day")
         continue
     miss = [k for k in ("gen", "prompt", "cached") if r.get(k) is None]
     if miss:
         print(f"{d}  INCOMPLETE: no data for {','.join(miss)} — excluded from totals", file=sys.stderr)
         continue
     unc = r["prompt"] - r["cached"]
-    vals = [str(d), f"{r.get('req') or 0:,.0f}", f"{unc:,.0f}", f"{r['cached']:,.0f}", f"{r['gen']:,.0f}", f"{r.get('restarts') or 0:,.0f}"]
+    vals = [str(d), num(r.get('req') or 0), num(unc), num(r['cached']), num(r['gen']), num(r.get('restarts') or 0)]
     if P:
         m = unc * P[0] + r["cached"] * P[2] + r["gen"] * P[1]
         tot["usd"] += m
-        vals.append(f"{m:,.2f}")
+        vals.append(num(m, 2))
     for k, v in (("unc", unc), ("ca", r["cached"]), ("ge", r["gen"]), ("pr", r["prompt"]), ("q", r.get("req") or 0)):
         tot[k] += v
     tot["n"] += 1
@@ -353,8 +372,8 @@ for t in sorted(rows):
 if not tot["n"]:
     sys.exit("ERROR: no day in this window carries engine series — nothing measured, refusing to total zero")
 n = tot["n"]
-print(fmt(["TOTAL", f"{tot['q']:,.0f}", f"{tot['unc']:,.0f}", f"{tot['ca']:,.0f}", f"{tot['ge']:,.0f}", ""] + ([f"{tot['usd']:,.2f}"] if P else [])))
-print(fmt(["avg/day", f"{tot['q']/n:,.0f}", f"{tot['unc']/n:,.0f}", f"{tot['ca']/n:,.0f}", f"{tot['ge']/n:,.0f}", ""] + ([f"{tot['usd']/n:,.2f}"] if P else [])))
+print(fmt(["TOTAL", num(tot['q']), num(tot['unc']), num(tot['ca']), num(tot['ge']), ""] + ([num(tot['usd'], 2)] if P else [])))
+print(fmt(["avg/day", num(tot['q']/n), num(tot['unc']/n), num(tot['ca']/n), num(tot['ge']/n), ""] + ([num(tot['usd']/n, 2)] if P else [])))
 if not csv:
     print(f"\nmeasured days {n} of {days} in the window · cache hit share {tot['ca']/tot['pr']*100:.1f} % of prompt tokens")
     print("tokens are engine-global (every caller at once — no client, key or user label exists on")
