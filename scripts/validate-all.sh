@@ -48,6 +48,11 @@
 #                                     $HOME/.pi/agent/skills is absent (bare CI / non-pi laptop)
 #                                     the gate SKIPs so a pi-less host never breaks validation;
 #                                     on a pi-configured runner deploy is via sync-skills.sh --push.
+#                                     Its --self-test (HD-1129, 2026-10-12) is a separate item: the
+#                                     script had NO test of its own, which is why its encoding guard
+#                                     could not be made fork-free when its sibling's was — breeds drift
+#                                     / untracked / artifact / CRLF / BOM / binary in a temp HOME and
+#                                     refuses a canary that passes (teeth proven by mutation, not hope).
 #  14. check_todo_done.py            — todo.md §4(a) sweep: flag rows marked DONE/✅ that were
 #                                     not deleted (fully-done rows must be removed; only
 #                                     deploy-gated rows with a real ⏳ tail stay), and stale ⏳
@@ -742,6 +747,7 @@ item "pi-self-update.sh --check --strict (the pi build vs pi_host_npm_version)" 
 item "pi-settings-config.sh --check --strict (settings.json vs settings-ssot.json)" blk_pi_settings_check
 item "pi-tui-config.sh --check --strict (open-tui.json footer key)" blk_pi_tui_check
 item "install-nerd-font.sh --check --strict (font dir vs pin)" blk_font_check
+item "sync-skills.sh --self-test (HD-254: drift, untracked, artifacts, CRLF/BOM/binary guard)" bash scripts/sync-skills.sh --self-test
 item "sync-skills.sh --check --strict (skill drift gate, HD-254)" blk_skills_drift
 item "sync-extensions.sh --self-test (HD-254 family: missing fails, extra kept, retired removed)" bash scripts/sync-extensions.sh --self-test
 item "sync-extensions.sh --check --strict (repo pi-agent/extensions == deployed)" blk_extensions_check
