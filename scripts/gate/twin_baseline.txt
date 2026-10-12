@@ -9,7 +9,17 @@
 # replaced). Same call as the merge above, same reason: the population records that they
 # went, rather than the repo re-buying forks to satisfy a byte test. Shape of the move
 # 2300 -> 2304: the lib's new cache lines added four groups while those two shed a side.
-baseline_rev <sha>       the revision the twin population is read from
+#
+# Moved again to 46d9deb6, the harness-leg half of the same HD-1135 diet. Fifteen groups lost a side
+# there and every one of them is a PIPELINE FRAGMENT the diet deleted, not a fact in two places:
+# ` = ` and `$(echo ` and ` | awk '{print $N}')` (the fixture's per-assertion `grep|head` lines),
+# `$(basename ` (now `${rel##*/}`). The one that reads like a real fact is a MOVE, not a loss:
+# `$(date +%Y%m%d-%H%M%S)` is the backup stamp in scripts/harness/pi-settings-config.sh, which now
+# spells the SAME `%Y%m%d-%H%M%S` as `printf '%(…)T'` to stop paying the fork, while
+# guarded-converge.sh, restore-runner-key.sh and install-tmux-conf.sh still pay it. Shape of the
+# move 2304 -> 2314: the rewritten legs introduced ten new groups while those fifteen shed a side,
+# so the population GREW again — the direction the canary exists to distinguish from narrowing.
+baseline_rev 46d9deb66560db8f8773d84f59ec62db19287c61
 #     twin_groups <n>          how many >=2-file exact groups that revision yields
 #     group_keys_sha256 <hex>  sha256 over the sorted group keys, one nested sha256 per key so
 #                              a key carrying a newline cannot shift its neighbours' digest
@@ -30,7 +40,17 @@ baseline_rev <sha>       the revision the twin population is read from
 # replaced). Same call as the merge above, same reason: the population records that they
 # went, rather than the repo re-buying forks to satisfy a byte test. Shape of the move
 # 2300 -> 2304: the lib's new cache lines added four groups while those two shed a side.
-baseline_rev to the wave's last commit, run
+#
+# Moved again to 46d9deb6, the harness-leg half of the same HD-1135 diet. Fifteen groups lost a side
+# there and every one of them is a PIPELINE FRAGMENT the diet deleted, not a fact in two places:
+# ` = ` and `$(echo ` and ` | awk '{print $N}')` (the fixture's per-assertion `grep|head` lines),
+# `$(basename ` (now `${rel##*/}`). The one that reads like a real fact is a MOVE, not a loss:
+# `$(date +%Y%m%d-%H%M%S)` is the backup stamp in scripts/harness/pi-settings-config.sh, which now
+# spells the SAME `%Y%m%d-%H%M%S` as `printf '%(…)T'` to stop paying the fork, while
+# guarded-converge.sh, restore-runner-key.sh and install-tmux-conf.sh still pay it. Shape of the
+# move 2304 -> 2314: the rewritten legs introduced ten new groups while those fifteen shed a side,
+# so the population GREW again — the direction the canary exists to distinguish from narrowing.
+baseline_rev 46d9deb66560db8f8773d84f59ec62db19287c61
 #   python3 scripts/gate/check_string_twins.py --show-baseline
 # and paste all three lines back. A baseline older than one wave (300 commits; wave 2 measured
 # 176) is refused outright, because the per-file difflib alignment degrades against a stale
@@ -68,6 +88,16 @@ baseline_rev to the wave's last commit, run
 # replaced). Same call as the merge above, same reason: the population records that they
 # went, rather than the repo re-buying forks to satisfy a byte test. Shape of the move
 # 2300 -> 2304: the lib's new cache lines added four groups while those two shed a side.
-baseline_rev bb94a5d32120f58d350582dbb780be68bbaa30de
-twin_groups 2304
-group_keys_sha256 9fd53e9ba321bbf7ac089865ece009cc7eff4f03d9dc2d72494c19d4fe6d5e14
+#
+# Moved again to 46d9deb6, the harness-leg half of the same HD-1135 diet. Fifteen groups lost a side
+# there and every one of them is a PIPELINE FRAGMENT the diet deleted, not a fact in two places:
+# ` = ` and `$(echo ` and ` | awk '{print $N}')` (the fixture's per-assertion `grep|head` lines),
+# `$(basename ` (now `${rel##*/}`). The one that reads like a real fact is a MOVE, not a loss:
+# `$(date +%Y%m%d-%H%M%S)` is the backup stamp in scripts/harness/pi-settings-config.sh, which now
+# spells the SAME `%Y%m%d-%H%M%S` as `printf '%(…)T'` to stop paying the fork, while
+# guarded-converge.sh, restore-runner-key.sh and install-tmux-conf.sh still pay it. Shape of the
+# move 2304 -> 2314: the rewritten legs introduced ten new groups while those fifteen shed a side,
+# so the population GREW again — the direction the canary exists to distinguish from narrowing.
+baseline_rev 46d9deb66560db8f8773d84f59ec62db19287c61
+twin_groups 2314
+group_keys_sha256 f090d95b8f02d953a1942ba406426e3014dae07e1d75348ceb77034f5a768e99
