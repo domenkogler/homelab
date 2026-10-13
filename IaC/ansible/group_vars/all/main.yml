@@ -427,6 +427,12 @@ router_home_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'route
 # --- the derived views each consumer loops over ------------------------------------
 # These are VIEWS, not sources: edit `zone_kogler_si`, never these.
 zone_kogler_si_seed_records: "{{ zone_kogler_si | selectattr('internal') | list }}"
+# The prune guard's KEEP list: EVERY name the catalog lists, internal or not, LAN-only or not.
+# Deliberately WIDER than `zone_kogler_si_seed_records`: the seed's delete leg must refuse a name
+# the SSOT lists even on an instance that intentionally never seeds it (the LAN-only class on the
+# VPS primary), so a retirement is the only thing this leg can ever act on. Nothing may widen this
+# list to make a delete succeed: the narrower the refusal set, the weaker the guard.
+zone_kogler_si_all_names: "{{ zone_kogler_si | map(attribute='name') | map('lower') | list }}"
 zone_kogler_si_lan_only: "{{ zone_kogler_si | selectattr('lan_only', 'defined') | selectattr('lan_only') | map(attribute='name') | list }}"
 zone_kogler_si_tailnet_plain: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'equalto', 'edge') | list }}"
 zone_kogler_si_tailnet_ts: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'in', ['node', 'dual']) | list }}"
