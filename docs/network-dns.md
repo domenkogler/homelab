@@ -760,7 +760,7 @@ routes→`*_url` half is deliberately **not** bundled with them.
 | name | reality | class |
 |---|---|---|
 | `music` (navidrome, `enabled: true`) | resolves **nowhere** — not seeded, not public | service up, name absent |
-| `sec` (metabase, `enabled: false`) | still resolves publicly **and** internally to the tailnet edge | name outlives the service |
+| a name that leaves `zone_kogler_si` | keeps answering from every instance's zone until the retirement ledger and the seed's prune leg remove it | name outlives the service |
 | media family | the seed answers **oldsrv**; `network-addresses-generated.md` says the **NAS** | generated view vs source |
 | `stats` / `logs` / `csui` | LAN clients are handed a **tailnet address** | decision 3 above |
 | a workstation hosts file | pins `.ts` + short names to tailnet node addresses and cites `scripts/tailnet-hosts.txt` + `scripts/tailscale-dns-fix.ps1` — files that are **not in git**; the mechanism is rejected ([network-rejected.md](network-rejected.md) "hosts-file aliases as the answer mechanism"), and the shipped answer is `scripts/hardware/wsl-nat-resolv.ps1` | unversioned state with a citation that looks recorded |
@@ -878,6 +878,19 @@ Three mechanisms close it — one command, one schedule, one gate:
    (wired into `validate-all.sh`): renders the seed record table against the SSOT for all three instances
    and enforces the per-instance split + the LAN-only `when`-gate. A record/gate drift FAILS the repo gate
    before a converge ships — the mechanical form of the parity guard below.
+4. **Retirement prune leg (the delete half of the seed)** — `technitium-seed` adds records; its prune leg
+   removes what a retirement left behind. A record whose name left `zone_kogler_si` keeps answering from
+   all three zones forever — `zones/records/add` is additive, so no re-seed removes it, and the drift gate
+   above cannot see it because that gate renders the SSOT rather than live zone state. The leg reads each
+   name on the retirement ledger (`zone_kogler_si_retired`) from the instance it is seeding and deletes
+   exactly the `(name, address)` pairs it read back, behind a per-item guard against
+   `zone_kogler_si_all_names`: a name the catalog lists is not deletable on any instance.
+   [`scripts/gate/check_dns_seed_prune_guard.py`](../scripts/gate/check_dns_seed_prune_guard.py) renders
+   that guard against every listed name and fails the repo gate if any one of them evaluates deletable.
+   ⚠ The ledger IS the candidate set: Technitium's `zones/records/get` answers for one exact domain and the
+   whole-zone endpoints (`records/all`, `unique`, `find`, `export`) are absent, so the leg cannot diff live
+   zone state against the SSOT by itself — a retirement recorded nowhere keeps answering. Procedure in
+   [services-admin.md](services-admin.md) §Open item.
 
 > **Single-namespace parity rule:** the split-horizon zone must carry the SAME public record set that
 > Cloudflare serves — **every `cloudflare_dns/vars/main.yml` public record must also be an A record in the

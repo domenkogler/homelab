@@ -118,7 +118,7 @@ dns:
 {% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_dsh_ip | default('', true) or tailnet_pi_dev_ip | default('', true) or tailnet_oldsrv_ip | default('', true) %}
 {% set ns = namespace(rendered=0) %}
 {% if _any_ip %}
-{% for sub in tailnet_subdomains | default([{'name':'stats'},{'name':'logs'},{'name':'csui'},{'name':'sec'},{'name':'traefik'},{'name':'auto'}]) %}
+{% for sub in tailnet_subdomains | default([{'name':'stats'},{'name':'logs'},{'name':'csui'},{'name':'traefik'},{'name':'auto'}]) %}
 {% set _ip = sub.ip | default(tailnet_sidecar_ip) %}
 {% if _ip %}
 {% set ns.rendered = ns.rendered + 1 %}

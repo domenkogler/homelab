@@ -270,23 +270,41 @@ commented out in `vps.yml`). Revival target is **oldsrv**, not the VPS.
 
 ## Open item — stale DNS record after a service retirement
 
-The `technitium-seed` role only **adds** records (`zones/records/add`) — it never deletes, and no gate reads
-live zone state to notice (`check_dns_seed_drift.py` renders the SSOT, so an orphan is invisible to it). A
-name that leaves `zone_kogler_si` therefore keeps answering: `sec.kogler.si` still returns the tailnet
-sidecar VIP on **all three** instances — the VPS primary, the oldsrv secondary and the Pi tertiary — each
-from its own zone copy, with the seed's own `ttl: 300` and the `aa` flag set. That is a seeded zone record,
-not a cache row, which is why clearing the resolver's DNSDB does not stop the answer. The answer leads
-nowhere: the address is tailnet-only and no running service claims the name — the only `sec.kogler.si`
-router left in the tree belongs to the retired Metabase stack, which runs on no host — but it contradicts
-the SSOT either way.
+⏳ **Pending live:** the seed's prune leg has never run against the three instances — the re-seed that
+carries it is a write on the DNS tier (`playbooks/dns-seed.yml`, `--check` first). Everything below is
+the mechanism that runs when it does.
 
-One delete is not the fix: the same orphan sits in three zones, and a re-seed never removes it. Either
-delete via the Technitium API (`/api/zones/records/delete`) on **each** instance next time Technitium is
-touched, **or** fold a record-prune into the seed role so future retirements cannot leave orphans — the
-second option ends the class, the first only clears this name.
+The `technitium-seed` role has two halves. Its add half asserts the records `zone_kogler_si` lists. Its
+prune half removes the records a retirement left behind, because `zones/records/add` is additive: a name
+that leaves the catalog keeps answering from **all three** instances — the VPS primary, the oldsrv
+secondary and the Pi tertiary — each from its own zone copy, with the seed's own `ttl: 300` and the `aa`
+flag set. That is a seeded zone record, not a cache row, which is why clearing a resolver's DNSDB does not
+stop the answer, and why deleting it on one instance is not the fix either. ⛔ A re-seed alone never
+removes a retired record.
 
-⚠ Headscale is not the source: the rendered config publishes no `sec` record (`tailnet_subdomains` does not
-name it), so dropping the name from the template's unused `default([...])` fallback list changes no answer.
+**Retiring a name** is two edits in `group_vars/all/main.yml`: remove it from `zone_kogler_si`, add it to
+`zone_kogler_si_retired`. The seed then reads each ledger name on every instance and deletes exactly the
+`(name, address)` pairs the read returned — never a whole domain, never an address taken from the SSOT.
+The guard on that delete refuses any name the catalog lists anywhere (`zone_kogler_si_all_names`: internal
+or public, LAN-only or not), so the ledger cannot reach a live record even by an edit that puts a name in
+both lists; `scripts/gate/check_dns_seed_prune_guard.py` renders the guard against every listed name to
+keep that true, and its `--self-test` proves the check can fail.
+
+⚠ The ledger is the whole candidate set, not a convenience. Technitium's `zones/records/get` answers for
+one exact domain and offers no whole-zone listing, so the leg reads candidates by name instead of diffing
+live zone state against the SSOT: a retired name that nobody recorded keeps answering, and no static gate
+sees it — `check_dns_seed_drift.py` renders the SSOT, so an orphan is outside what it can read.
+
+**Read it back rather than assume it** (read-only, per instance):
+
+```bash
+dig +noall +comments +answer sec.kogler.si A @159.195.111.66 +norecurse   # VPS primary
+dig +noall +comments +answer sec.kogler.si A @100.64.0.3 +norecurse       # oldsrv secondary, tailnet listener
+dig +noall +comments +answer sec.kogler.si A @10.10.1.20 +norecurse       # Pi tertiary
+```
+
+`NXDOMAIN` is the retired state; `qr aa` on the answer is what distinguishes a zone record from a cache
+row. A `NOERROR` with an answer means the record is still in that instance's zone.
 
 ## Notes
 
