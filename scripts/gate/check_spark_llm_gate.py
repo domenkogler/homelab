@@ -328,9 +328,13 @@ def canary(cat, pats):
     """Breed one profile per invariant and require a REJECTION of each."""
     print("\n[canary] each invariant must REJECT a profile bred to breach it")
     vllm_breaches = [
-        # The real historical shape: NVFP4's heavier weights + the OLD 16.5 GB pool.
+        # The historical shape was NVFP4's heavier weights + the 16.5 GB pool — but the breach is
+        # DERIVED, never remembered: a literal fixture goes stale (and silently disarms this
+        # canary) the moment the host-floor global is re-derived. pool = global − fixed + 1 GB,
+        # so the hold crosses whatever the ceiling currently declares.
         ("host-floor", lambda p: p.update(fixed_cost_bytes="92100000000",
-                                          kv_cache_memory="16500000000")),
+                                          kv_cache_memory=str(int(cat["spark_llm_device_hold_ceiling_bytes"])
+                                                              - 92100000000 + 1000000000))),
         ("host-floor-declared", lambda p: p.pop("fixed_cost_bytes", None)),
         ("pool-ceiling", lambda p: p.update(kv_cache_memory="18000000000")),
         ("pool-holds-window", lambda p: p.update(kv_cache_memory="100000000")),
