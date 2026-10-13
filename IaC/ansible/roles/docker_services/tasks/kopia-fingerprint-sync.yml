@@ -35,6 +35,9 @@
   tags: [docker_services, kopia_server, kopia_fingerprint]
 
 - name: "Assert kopia-server TLS fingerprint is lowercase hex (128 chars)"
+  # ⚠ Same tags as the include line in main.yml and as the wait/stat block above: a dynamic
+  # include's own tags do not cascade, so a task here without them is silently skipped by every
+  # scoped run that does expand this file.
   ansible.builtin.assert:
     that:
       - kopia_tls_fp_file.content is defined
@@ -75,6 +78,7 @@
   register: kopia_fp_sync
   changed_when: "'updated' in kopia_fp_sync.stdout or 'created' in kopia_fp_sync.stdout"
   no_log: true   # the shell cmd reads the SA token + writes a secret-adjacent anchor
+  tags: [docker_services, kopia_server, kopia_fingerprint]
   when:
     - inventory_hostname == 'vps.kogler.si'
     - kopia_tls_fp_file is defined

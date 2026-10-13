@@ -10,6 +10,11 @@
 #   * interval      -> {{ dns_seed_interval | default('5m') }}
 # The units are a scheduled no-op-if-synced `docker compose up -d` reconcile — see the
 # service template header for the drift rationale (scoped converges skip the seed tail).
+#
+# ⚠ Every task here carries the SAME tags as the include line in main.yml
+# (`docker_services, technitium_seed`). A dynamic include's tags do not cascade: while its tasks
+# carried no tag, `--check --tags docker_services,technitium_seed` expanded this file and then
+# filtered all 5 tasks out — the self-heal timer silently never deployed on a green, failed=0 run.
 - name: "Assert docker_compose_dir is set for {{ svc.name }}"
   ansible.builtin.assert:
     that:
@@ -18,6 +23,7 @@
     fail_msg: >-
       docker_compose_dir is not set (role default /opt). Cannot render the
       dns-seed compose path for {{ svc.name }}.
+  tags: [docker_services, technitium_seed]
 
 - name: "Set dns-seed service metadata for {{ svc.name }}"
   ansible.builtin.set_fact:
@@ -26,6 +32,7 @@
       {{ {'primary': 'technitium', 'secondary': 'technitium-oldsrv', 'secondary-pi': 'technitium-pi'}
          [svc.instance | default('primary')] }}
     _dns_seed_interval: "{{ dns_seed_interval | default('5m') }}"
+  tags: [docker_services, technitium_seed]
 
 - name: "Deploy dns-seed.service for {{ svc.name }}"
   ansible.builtin.template:
@@ -38,6 +45,7 @@
     dns_seed_service_name: "{{ svc.name }}"
     dns_seed_container_name: "{{ _dns_seed_container }}"
   notify: reload systemd
+  tags: [docker_services, technitium_seed]
 
 - name: "Deploy dns-seed.timer for {{ svc.name }}"
   ansible.builtin.template:
@@ -49,6 +57,7 @@
   vars:
     dns_seed_interval: "{{ _dns_seed_interval }}"
   notify: reload systemd
+  tags: [docker_services, technitium_seed]
 
 - name: "Enable + start dns-seed.timer for {{ svc.name }}"
   ansible.builtin.systemd:
@@ -57,3 +66,4 @@
     enabled: true
     daemon_reload: true
   notify: reload systemd
+  tags: [docker_services, technitium_seed]
