@@ -85,6 +85,12 @@ claim can escape together with the token.
 Every REJECT describes a line the diff actually changed, and says so: `this line WAS changed by
 the diff`, with both sides quoted.
 
+The self-test has two halves. The classifier CASES are single-line pairs, so they cannot see the
+payload mask -- block-scalar and heredoc bodies are exercised by the real window the gate replays,
+not there. The pinned-run cases build a throwaway repo and assert the accepts list and the baseline
+canary in BOTH directions, because a self-test that cannot fail is the hole this gate exists to
+close; switch the REJECT branch off and the suite must print FAIL and exit 1.
+
 Exit 0 = every change in the diff is a confined token purge (or is carried by a used, exact
          entry of the signed --accept exceptions list; a stale entry never lets a run pass).
 Exit 1 = at least one change is REJECTED, or the signed accept list holds a stale entry.
