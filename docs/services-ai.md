@@ -773,7 +773,8 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
 - **Memory = agent-memory.dev, per project** — the owner answered OQ-12 in favour of **one central** instance
   (the calls below), so this per-project wording stands as the as-written rule until a central shape that is
   implementable today is accepted. ⏸ **The blueprint stays parked: nothing installed, no compose, no work row
-  minted — the calls below are answered, the deployment is not authorized.** OQ-14 stays unanswered and no
+  minted — the calls below are answered, the deployment is not authorized.** OQ-14 is closed as a **park** — the
+  `bge-m3` memory leg is unbuilt and the condition that re-opens it is stated below — so no
   AI work waits on any of them (the durable negative also stands: LLM memory
   compression scored **R5 0/5** — it rewrites identifiers out of existence). One instance per project (project = 1+ repos), records tagged
   project+repo; **cross-project recall is opt-in, not default**. Data under `~/.agentmemory/<project>`,
@@ -828,7 +829,7 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
     `GET /agentmemory/export` (plain JSON, no CLI verb) ⇒ **lock-in low**; the `iii` **0.11.2** binary ships **no
     verifiable license** (GitHub API `license: None`, no LICENSE file) — record those terms as unverified before
     it ships anywhere. Booting from a different cwd silently switches instance (`dataDirResolution`).
-  * **Owner calls — OQ-12 and OQ-13 are answered; OQ-14 is not.** **OQ-12 = yes**: `agentmemory` **is** the one
+  * **Owner calls — OQ-12 and OQ-13 are answered; OQ-14 is parked (bullet below).** **OQ-12 = yes**: `agentmemory` **is** the one
     central memory plane, with the **`user_id` and `project_id` filters set on each client**. That is the answer
     chosen for the measured "one shared bearer, no per-user isolation" gap, and it means isolation is **by
     client-side filter** — so whether that satisfies the isolation requirement, or whether the
@@ -849,10 +850,20 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
     needs one of two ways out and each is an owner act: a **different memory-server version/build** that does take
     a Qdrant backend, or an **explicit two-plane decision** recorded in
     [`services-ai-rejected.md`](services-ai-rejected.md).
-  * **OQ-14 — whether the `bge-m3` leg is needed at all — is unanswered.** Keyless BM25 cleared every gate the
-    probe set (7/10 hit@5, determinism 10/10, 455 tok/query, no embedding dependency, 2× faster recall) and the
-    leg is a measured **+2** at ≈2× recall latency. Nothing here decides it, and no neighbouring answer implies
-    one; OQ-12/OQ-13 being closed does not close this one.
+  * **OQ-14 — the `bge-m3` memory leg: PARKED, neither "build it" nor "never", with a measured re-open
+    condition.** Keyless BM25-only cleared **every** gate the probe set (hit@5 **7/10** against a ≥7/10 gate,
+    determinism 10/10, 455 tok/query, zero embedding dependency, ≈2× faster recall), so no gate demands the leg;
+    hybrid on our `bge-m3` @1024 measured **+2 hit@5 (9/10) and +2 exact-identifier recall (8/12) at ≈2× recall
+    latency (0.195 s vs 0.100 s)** — an upgrade that is real, which is why the answer is a park and not a no.
+    **The leg is unbuilt, plainly:** no `agentmemory` pin exists, the memory plane is declared nowhere in the
+    IaC, and no compose exists. The `embed` leg the hybrid arm called **is** live for the RAG pipeline (§3a);
+    what does not exist is any memory server wired to it.
+    **Re-open is a condition, not a re-ask:** the leg is funded when recall measured on the **real corpus** falls
+    **below the floor keyless BM25 recorded — hit@5 7/10** (exact-identifier 6/12 raw → 8/9 attributable; that
+    shortfall is a *capture* gap, not a ranking gap — identifiers living only in tool output are never indexed).
+    At or above that floor keyless stands and the question stays closed; re-asking it without a recall number
+    taken against that floor is not a re-open. Declined so it is not silently re-proposed:
+    [`services-ai-rejected.md`](services-ai-rejected.md).
   * **A trap that generalises beyond this product (confirmed twice):** a *falsy-but-set* key is a cloud-egress
     switch. `OPENAI_API_KEY=false` made agentmemory dial **`api.openai.com` once per observation**, and Hermes'
     `provider: custom` with a **non-loopback** `base_url` silently resolved to **`openrouter.ai`** (its trust

@@ -33,6 +33,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `ar-mmap` (AR-hybrid + FP8 PLE mmap) | rejected | Control arm, on par with tier-1, not a candidate |
 | `awq-mmap` / B10 (AWQ on the winner's machinery) | dropped | Owner certified the AR-hybrid winner instead |
 | A wrapper service for OpenAI-shaped STT | rejected | `--inference-path` relocates the route; HA Assist needs no glue |
+| `bge-m3` vector leg for the `agentmemory` plane | dropped | Keyless BM25 clears every gate; recall shortfall re-opens |
 | Bigger window or smaller quant to reopen the agent leg | rejected | The wall is cold prefill, not the carve or context |
 | Coding harnesses behind the LAN LiteLLM hop | rejected | Decision #26 puts harnesses direct on the spark name edge |
 | Coding-seat surfaces in a container | rejected | Would mount the whole watched home tree: theatre |
