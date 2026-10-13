@@ -12,10 +12,11 @@ tags: [smart-home, homeassistant]
 > **Linked from:** `index.md`
 
 > **Status.** The **HA primary is live on the Pi** as **Debian + HA Container**, with **Technitium DNS**
-> co-located and the `ha-vip` VIP held by keepalived. ⏳ **Open:** the **cold standby on oldsrv is not
-> deployed** — the only HA container in the fleet is `home-assistant-primary` on the Pi — and no standby has
-> ever been proven on **KNX**; see [smart-home-failover.md](smart-home-failover.md) before trusting one as a
-> control-plane standby. The **voice pipeline is not built**: the STT/embed/rerank engines it will use are
+> co-located and the `ha-vip` VIP held by keepalived. The standby on oldsrv is **deployed COLD** —
+> rendered and created by the `home_assistant` role, never started — so the fleet runs exactly one HA
+> container (`home-assistant-primary` on the Pi) and the VIP has one advertiser. ⏳ **Open:** the cold
+> *create* waits on a targeted oldsrv converge, and no standby has ever been proven on **KNX**; read
+> [smart-home-failover.md](smart-home-failover.md) before trusting one as a control-plane standby. The **voice pipeline is not built**: the STT/embed/rerank engines it will use are
 > live on the RX 7600, but no wake-word device, Assist pipeline or TTS output is deployed. The live instance
 > inventory is [`home-assistant-current.md`](home-assistant-current.md).
 
@@ -108,7 +109,13 @@ shows up as HA entities going unavailable while the AC itself still works from t
 ## Home Assistant
 
 - **Host (node):** `pi.kogler.si` (Raspberry Pi 4, in daily use) — **primary**; accessed via the VIP `ha.kogler.si`
-- **Fallback:** `home-assistant-standby` Docker container on oldsrv (systemd unit, disabled by default) — **active/standby failover, manual trigger + manual failback**. ⏳ **Not deployed:** the only HA container in the fleet is `home-assistant-primary` on the Pi — the template and the VIP path exist, so "manual failover" is a template, not a capability.
+- **Fallback:** `home-assistant-standby` on oldsrv — **active/standby failover, manual trigger + manual
+  failback**, held **cold** by ruling: the `home_assistant` role renders its config and creates the
+  container, the `enabled: false` registry entry plus `restart: "no"` keep it down, and only the takeover
+  trigger (`/usr/local/sbin/ha-failover.sh forward`, root on oldsrv) raises it. While it is cold its
+  keepalived is down too, so the VIP does not float on its own — "manual failover" means a human firing
+  the trigger, never a VRRP event. ⏳ The cold create is deploy-gated on the next targeted oldsrv converge;
+  see [smart-home-failover.md](smart-home-failover.md).
 - **Configs:** in this homelab repo
 
 > **Failover design → [`smart-home-failover.md`](smart-home-failover.md).** Both nodes share a VIP (keepalived/VRRP); `ha.kogler.si` routes to the VIP so takeover needs no DNS flip or per-device reconfig. WAN loss is NOT a trigger (HA is local); failover is only for Pi failure and must work offline.
