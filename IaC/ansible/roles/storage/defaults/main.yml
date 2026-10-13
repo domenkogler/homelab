@@ -165,6 +165,12 @@ storage_own_pools:
 # ---------------------------------------------------------------------
 # Snapshots (sanoid) — cadence per dataset. sanoid.timer runs every 5 min.
 # ---------------------------------------------------------------------
+# The music master (`bulk/media/media/music`) deliberately has NO sanoid row: sanoid
+# snapshots DATASETS and `bulk/media` is ONE dataset holding the whole *arr library, so a row
+# naming `bulk/media/media/music` would name a path that is not a dataset — the config would
+# render, sanoid would exit 0, and nothing would ever be snapshotted (the reserved-slot class,
+# docs/backup.md §The slot-numbering rule). Snapshotted by Kopia instead; the whole-dataset
+# alternative is declined because it would snapshot the re-downloadable movies/TV tier with it.
 storage_sanoid:
   templates:
     data:            { frequently: 0,  hourly: 24, daily: 7, weekly: 4, monthly: 3 }
@@ -218,6 +224,34 @@ storage_push_db_dumps:
 # working one from the outside.
 storage_push_db_dumps_pg:
   - { container: lan-litellm-db, db_user: litellm }
+
+# ---------------------------------------------------------------------
+# Music master → live Box serving leg (oldsrv → Hetzner Storage Box, SSH/SFTP :23).
+# The FLAC master stays on the NAS (`bulk/media/media/music`, read here through the NFS
+# mount this role already owns); the Box holds Navidrome's SERVING copy. Shape B: rsync over
+# SSH on port 23 — no Box mount is created on oldsrv, so `roles/cifs` keeps asserting the Box
+# mount onto the VPS only. docs/storage.md §Service ↔ Storage Placement.
+# ---------------------------------------------------------------------
+# max_delete bounds `--delete`: a dead source mount reads as an empty directory, and an
+# unbounded --delete would then empty the serving library in one green-running timer fire.
+# A run that would delete more than max_delete entries aborts (rsync rc 25) instead.
+storage_push_music:
+  src: /mnt/nas/media/media/music
+  expected_source: "nas.kogler.si:/bulk/media"   # asserted against findmnt before rsync
+  # Connection facts for the live Box are the live-box row in group_vars/subscriptions.yml
+  # (host `653411.your-storagebox.de`, user `u653411`, ssh_port 23); the CIFS share literal in
+  # `livebox_cifs` (group_vars/all/) is the same host, stated the same way.
+  dest_host: "u653411.your-storagebox.de"
+  dest_user: "u653411"
+  dest_port: 23
+  dest_path: backup/music                        # RELATIVE to the box home: Hetzner SFTP rejects the "/" component of an absolute path (kopia_sftp_path precedent)
+  ssh_key: /root/.ssh/livebox_push               # root-only 0600 identity, NOT seeded yet — see `enabled`
+  max_delete: 50
+  oncalendar: "*-*-* 04:20:00"
+  # The SSH identity that authenticates to the live Box does not exist on oldsrv, so the timer
+  # ships DISABLED: an enabled-but-unauthenticated timer is a red unit in everybody's
+  # `list-fail`, which reads worse than a parked leg. Park + seed, then flip this to true.
+  enabled: false
 
 # Kopia wiring (oldsrv): sources already exist as dirs above; policies are
 # configured in the kopia-agent container config — this role only guarantees
