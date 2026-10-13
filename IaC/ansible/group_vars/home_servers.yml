@@ -418,3 +418,26 @@ litellm_scoped_keys:
 # The home tier runs roles/ai_diag, so it also converges the restricted ai-debug
 # account. Defined once in group_vars/all/access.yml; referenced, never copied.
 access_accounts_extra: "{{ [access_account_ai_debug] }}"
+
+# ==== Music master — the FLAC master is the Lidarr library ON THE NAS ====
+# Stated ONCE here because three legs must point at the SAME tree: the Samba drop share
+# (roles/storage), the Kopia include list (templates/docker_services/kopia-agent) and the
+# live-Box serving push (roles/storage). Two of those consumers live in different roles, so a
+# path declared in a role default would be a second source of truth for the third consumer.
+# ⚠ `bulk/media` is ONE dataset and `media/music` is a DIRECTORY inside it (TRaSH hardlinks need a
+# single filesystem) — sanoid snapshots DATASETS, so the master enters backup scope through Kopia,
+# not through sanoid. A sanoid row naming this path would name a non-dataset: the config renders,
+# sanoid exits 0, nothing is ever snapshotted (the reserved-slot class, docs/backup.md
+# §The slot-numbering rule). docs/storage.md §Service ↔ Storage Placement.
+music_master_nas_path: /bulk/media/media/music              # NAS-side path, inside the bulk/media dataset
+music_master_mount: /mnt/nas/media/media/music              # the same tree on oldsrv, via the /bulk/media NFS export
+music_master_expected_source: "nas.kogler.si:/bulk/media"   # what findmnt/mountinfo must report for the mount to be live
+# The serving copy Navidrome reads: the SAME live Box as `livebox_cifs`, reached over SSH/SFTP on
+# port 23 (ruled shape B — no Box mount is created on oldsrv, so roles/cifs keeps asserting the
+# mount onto the VPS only). Connection facts are the live-box row in subscriptions.yml; the
+# `u<prefix>.your-storagebox.de` SSH host form is the one that resolves and authenticates — the
+# same convention as `kopia_sftp_host` for the backup box.
+music_box_dest_host: "u653411.your-storagebox.de"
+music_box_dest_user: u653411
+music_box_dest_port: 23
+music_box_dest_path: /backup/music    # SSH-view of the CIFS share `//u653411.../backup` + `music/`, which is what Navidrome mounts

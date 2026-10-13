@@ -323,6 +323,11 @@ BASE_CTX.update({
     # edge container IP 172.20.0.250 stripped of /32). Same class as wg_s2s_vps.
     "wg_internal_edge_port": 4443,
     "wg_internal_edge_target_ip": "172.20.0.250",
+    # Music master (NAS FLAC master) source facts — SSOT: group_vars/home_servers.yml, consumed
+    # by the kopia-agent include list. Mirrored here with the SSOT literals (same mock class as
+    # immich_ml_bind / oldsrv_home_ip).
+    "music_master_mount": "/mnt/nas/media/media/music",
+    "music_master_expected_source": "nas.kogler.si:/bulk/media",
     "ansible_user": "ansible-admin",
     "inventory_hostname": "oldsrv.kogler.si",
     "homelab_mode": "desktop",

@@ -4,9 +4,16 @@
 #   VPS-side agent. The repo backend is the Hetzner Storage Box **backup** (SFTP) behind
 #   kopia-server; the agent never touches storage itself.
 #
-#   NAS-independent by invariant (docs/backup.md): the sources below are oldsrv-local paths
-#   only, mounted READ-ONLY. Never mounted: NAS mounts (/mnt/nas/*), model weights
-#   (/srv/models — regenerable), Docker layers and TSDB.
+#   The sources below are oldsrv-local paths (mounted READ-ONLY) plus ONE ruled NAS-resident
+#   source: the music master. Never mounted: model weights (/srv/models — regenerable), Docker
+#   layers and TSDB.
+#
+#   NAS-independence, stated exactly (docs/backup.md §Layer 2): every oldsrv-local source keeps
+#   working while the NAS is fully down, because the music master is snapshotted by its OWN line,
+#   behind its own mount guard. A NAS outage therefore fails one loud line in the log instead of
+#   taking the whole agent with it — which is the invariant's actual purpose (off-site coverage for
+#   local state must not ride on the NAS). The music master cannot be NAS-independent: it IS the
+#   NAS's data, and the ruling that put it in backup scope says so.
 #
 #   Transport: kopia-server :51515 is published ONLY on the VPS WG tunnel address
 #   (wg_s2s_vps.ip — see the kopia-server template); home-initiated connect is
@@ -87,6 +94,33 @@ services:
           echo "[kopia-agent] snapshot create $$(date -u +%FT%TZ)"
           kopia snapshot create /mnt/src/opt /mnt/src/dumps /mnt/src/immich-upload || echo "[kopia-agent] snapshot create FAILED — retrying next interval"
           kopia snapshot create /mnt/src/signal-cli-data || echo "[kopia-agent] signal state snapshot FAILED — retrying next interval"
+          # --- The music master (NAS `bulk/media/media/music`) — its own line, its own guard ---
+          # WHY a guard at all: kopia reports an EMPTY tree as a SUCCESSFUL snapshot, and the next
+          # prune would then retire the last snapshot that actually held the FLACs. A dead NFS
+          # automount IS an empty directory from in here. So refuse to snapshot rather than let
+          # retention eat the only good copy — the same duty `--max-delete` carries on the serving
+          # push leg (docs/storage.md §Service ↔ Storage Placement).
+          # (1) source witness — a bind carries the superblock with it, so either mountinfo names
+          #     the NAS export or statfs reports nfs. Either witness is enough for THIS half.
+          # (2) content witness — a mount that is bound but dead passes (1) and reads empty, so
+          #     the emptiness test is what catches it. Both halves are required; neither alone is.
+          _music_live() {
+            # An empty pattern would make the grep match EVERY line, so a missing value must fail
+            # the guard rather than wave everything through. (An undefined var kills the RENDER
+            # first — this is the belt on the braces.)
+            [ -n "$${KOPIA_MUSIC_EXPECTED_SOURCE}" ] || return 1
+            grep -q "$${KOPIA_MUSIC_EXPECTED_SOURCE}" /proc/self/mountinfo 2>/dev/null \
+              || [ "$$(stat -f -c %T /mnt/src/music 2>/dev/null)" = nfs ] \
+              || return 1
+            [ "$$(find /mnt/src/music -type f 2>/dev/null | wc -l)" -ge 1 ] || return 1
+            return 0
+          }
+          if _music_live; then
+            echo "[kopia-agent] music snapshot $$(date -u +%FT%TZ)"
+            kopia snapshot create /mnt/src/music || echo "[kopia-agent] MUSIC snapshot FAILED — retrying next interval"
+          else
+            echo "[kopia-agent] music master is NOT mounted from $${KOPIA_MUSIC_EXPECTED_SOURCE} (or reads empty) — SKIPPING the music snapshot, a snapshot of an empty tree would prune the last good one"
+          fi
           sleep "$${KOPIA_SNAPSHOT_INTERVAL_SECONDS:-86400}"
         done
     volumes:
@@ -98,6 +132,10 @@ services:
       # project — `name:` pins the projected volume name; renaming that service's
       # project breaks this mount, caught at deploy). Read-only.
       - signal-cli-data:/mnt/src/signal-cli-data:ro
+      # The music master (docs/storage.md §Service ↔ Storage Placement): the FLAC master on the
+      # NAS, read through the /bulk/media NFS export the storage role mounts here. Read-only —
+      # nothing in this container may write the master. Its snapshot line is guarded (see above).
+      - "{{ music_master_mount }}:/mnt/src/music:ro"
       - /srv/docker/kopia-agent/config:/app/config
       - /srv/docker/kopia-agent/cache:/app/cache
     environment:
@@ -116,6 +154,9 @@ services:
       # kopia_agent_user is the group_vars SSOT (all.yml).
       KOPIA_AGENT_USER: "{{ kopia_agent_user | replace('$','$$') }}"
       KOPIA_PASSWORD: "{{ vault['kopia_password'].password | replace('$','$$') }}"   # repo master password (kopia-server precedent)
+      # Source witness for the music-master guard — the NFS source string that must appear in
+      # /proc/self/mountinfo. SSOT: `music_master_expected_source` (group_vars/all/).
+      KOPIA_MUSIC_EXPECTED_SOURCE: "{{ music_master_expected_source }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
 volumes:
   signal-cli-data:
