@@ -254,9 +254,9 @@ class Findings:
                        "playbooks the file is never opened and nothing inside it can match — not "
                        "even `always` (rule 3)")
             else:
-                why = (f"its tags are disjoint from the tags that open the file it sits in, under "
-                       f"{ctx}, so no single --tags filter can reach this file (rule 3 on the "
-                       "second hop)")
+                why = (f"its tags are disjoint from the tags that open the file it sits in "
+                       f"({' | '.join(sorted(s['disjoint'])[:2])}), so no single --tags filter can "
+                       "reach this file (rule 3 on the second hop)")
             if covered:
                 why += f" (it does load under {covered})"
             self.items.add(f"A DEAD INCLUDE {s['role']}: {s['loc']} — {why}\n"
