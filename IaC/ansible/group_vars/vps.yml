@@ -250,6 +250,43 @@ homepage_failover_button: false
 homepage_show_technical: true
 homepage_show_soon: true
 
+# Homepage tile/widget inputs — the endpoints the launchpad points at.
+# Every value is the name the EDGE actually routes that service on today, so the
+# dashboard cannot drift from the route tables (home `traefik-internal` on oldsrv +
+# the VPS edge; docs/services.md §Service Accessibility). An empty value is the
+# "no endpoint declared" state: the template then renders a non-clickable
+# unconfigured tile, never a probe and never a roadmap tile.
+#   media   → Jellyfin, home-edge `media-backend`
+#   seerrng → SeerrNG (the deployed requests UI), home-edge `seerrng-backend`
+#   foto    → Immich, VPS `immich-server`
+# The legacy `seerr` router is routed but tiled nowhere: SeerrNG is the requests UI.
+homepage_media_url: "https://media.{{ domain_local }}"
+homepage_seerrng_url: "https://seerrng.{{ domain_local }}"
+homepage_immich_url: "https://foto.{{ domain_local }}"
+
+# Which of those the homepage container may PROBE (siteMonitor). It runs on the VPS
+# in `traefik-public` and is NOT a tailnet node, so a name it cannot resolve renders a
+# permanent dead dot. `media` is published in the public zone and answers here; the
+# requests UI has no public record (LAN + tailnet name only), so it is linked, not probed.
+homepage_media_probe: true
+homepage_seerrng_probe: false
+homepage_immich_probe: true
+
+# The reachability widget list: public FQDNs only, same rule as above.
+homepage_probe_hosts:
+  - kogler.si
+  - sso
+  - foto
+  - file
+  - git
+  - chat
+  - bin
+  - drop
+  - office
+  - pdf
+  - vpn
+  - media
+
 # HA-exporter scrape job (Alloy `ha_exporter` block, topology B): OFF until the HA cutover.
 # Nothing populates the bearer-token file yet (no vault item, no monitoring render)
 # and ha_vip serves no HA - a live job would just fail. Flip true at the cutover with the HA

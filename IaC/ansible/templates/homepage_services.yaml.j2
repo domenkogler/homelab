@@ -7,14 +7,18 @@
 # See docs/interfaces.md for the 6-tier interface model.
 #
 # Family dashboard split on kogler.si / home.kogler.si:
-#   - Family groups (Photos/Files/Docs/Chat/Git/AI/Tools/Accounts) tile the LIVE,
+#   - Family groups (Photos/Media/Files/Docs/Chat/Git/AI/Tools/Accounts) tile the LIVE,
 #     publicly-routed apps. Health dots = Homepage `siteMonitor` probes of each app's public
 #     URL — probe-based, deliberately NO docker socket (on the VPS it sees only VPS containers).
+#     A tile's endpoint comes from a group_var (homepage_*_url), so the dashboard follows the
+#     edge route tables instead of duplicating them.
 #   - Domen · technical: tailnet-only admin dashboards (stats/logs/csui/traefik/auto/dsh/pi-dev
 #     + headscale control plane), hidden from the family group by `homepage_show_technical`
 #     (default true). Grafana (stats) is the technical dashboard — never a family tile.
-#   - Soon: deploy-gated apps render as description-only tiles (href '#') so the family sees
-#     the roadmap without dead links; gated by `homepage_show_soon` (default true).
+#   - Soon: apps with NO backend at all render as description-only tiles (href '#') so the
+#     family sees the roadmap without dead links; gated by `homepage_show_soon` (default true).
+#     Anything that IS deployed belongs in its family group with a real endpoint — the roadmap
+#     group is never a place a live service can land.
 #
 # Probe policy: siteMonitor is used ONLY for FQDNs the homepage container can actually
 # resolve+reach (the public CNAMEs). Tailnet-only names (stats/logs/csui/sec/traefik/auto/
@@ -43,9 +47,48 @@
 - Photos:
     - Immich:
         icon: mdi-image-multiple
-        href: "https://foto.{{ d }}"
+        href: "{{ homepage_immich_url | default('https://foto.' ~ domain_local) }}"
         description: Family photo & video library
-        siteMonitor: "https://foto.{{ d }}"
+{% if homepage_immich_probe | default(true) %}
+        siteMonitor: "{{ homepage_immich_url | default('https://foto.' ~ domain_local) }}"
+{% endif %}
+
+# ---- Family: Media ----
+# Tile states, and they are mutually exclusive by construction:
+#   LIVE           — an endpoint is declared + probeable → clickable, probed (Homepage counts
+#                    anything under 400 as up, so an edge 502 on a dead backend reads red).
+#   LIVE, UNPROBED — endpoint declared, probe off: the name does not resolve from inside this
+#                    container, so a dot here would be a lie. Clickable, no dot.
+#   UNCONFIGURED   — no endpoint declared → non-clickable tile that says so. A service is
+#                    NEVER rendered into the roadmap group: "Soon" claims not-deployed, and a
+#                    live app rendered there is the bug this group exists to kill.
+{% set media_url = homepage_media_url | default('') %}
+{% set seerrng_url = homepage_seerrng_url | default('') %}
+- Media:
+    - Jellyfin:
+        icon: mdi-film-roll
+{% if media_url %}
+        href: "{{ media_url }}"
+{% if homepage_media_probe | default(true) %}
+        siteMonitor: "{{ media_url }}"
+{% endif %}
+        description: Movies, TV & home media — streams from the home edge
+{% else %}
+        href: "#"
+        description: Home media server — no endpoint declared
+{% endif %}
+    - Requests (SeerrNG):
+        icon: mdi-magnify
+{% if seerrng_url %}
+        href: "{{ seerrng_url }}"
+{% if homepage_seerrng_probe | default(false) %}
+        siteMonitor: "{{ seerrng_url }}"
+{% endif %}
+        description: Request & track movies and series — signs in with Jellyfin
+{% else %}
+        href: "#"
+        description: Request UI for the media server — no endpoint declared
+{% endif %}
 
 # ---- Family: Files ----
 - Files:
@@ -160,11 +203,9 @@
         description: Coding agent UI
 {% endif %}
 
-# ---- Soon — deploy-gated roadmap (family-visible, non-clickable) ----
-# Apps that are NOT reachable yet (hosts unprovisioned). Rendered as
-# description-only tiles (href '#') so the family sees what is coming without
-# dead links. They move to their real family group once the owning host
-# converges (oldsrv / pi + VIP).
+# ---- Soon — genuinely not deployed yet (family-visible, non-clickable) ----
+# Only apps with no backend anywhere. A deployed service with an unreachable-from-here
+# name is a UNPROBED live tile in its family group (see Media), never a Soon tile.
 {% if homepage_show_soon | default(true) %}
 - Soon:
     - Home Assistant:
@@ -175,10 +216,6 @@
         icon: mdi-wifi
         href: "#"
         description: Local smart-home radios — after the HmIP-RFUSB stick
-    - Media & GPU:
-        icon: mdi-film
-        href: "#"
-        description: Jellyfin & AI backends on oldsrv — arrives with Phase 3
 {% endif %}
 
 # ---- Subscriptions / renewal reminders (SSOT: group_vars/subscriptions.yml) ----
