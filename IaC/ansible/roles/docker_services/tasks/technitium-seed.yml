@@ -201,3 +201,85 @@
       # item when the task has a `loop`), so `item` is defined here.
       when: item.name not in zone_kogler_si_lan_only or svc.instance | default('primary') in ['secondary', 'secondary-pi']
       failed_when: _tech_record.json is not defined or _tech_record.json.status not in ['ok', 'error']
+
+    # -----------------------------------------------------------------------------
+    # The prune leg — the delete half of the seed.
+    #
+    # WHY: everything above this line only ADDS. A name that leaves `zone_kogler_si` therefore
+    # keeps answering from every instance's zone forever, and no re-seed and no static gate can
+    # remove it: `check_dns_seed_drift.py` renders the SSOT, so a record that exists ONLY in live
+    # DNS is outside what it can see. This leg is the half that reads live state.
+    #
+    # WHAT IT MAY DELETE: one name, and only this shape of name — one on the retirement ledger
+    # (`zone_kogler_si_retired`, the names whose service is gone) that the zone actually holds.
+    # The Technitium 15.x API offers no whole-zone enumeration (`/api/zones/records/get` answers for
+    # one exact domain and `records/all|unique|find|export` are 404), so candidates are read by name
+    # rather than diffed from a live dump; the ledger is where a retirement records itself, and
+    # scripts/gate/check_dns_seed_prune_guard.py reddens when a name any other plane publishes is
+    # missing from it. That limit is stated here because an over-broad prune on a live DNS tier is
+    # the failure this leg must never become.
+    # -----------------------------------------------------------------------------
+    - name: "Technitium: read what the zone holds for each retired name ({{ svc.name }})"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/zones/records/get"
+        method: GET
+        url_query:
+          token: "{{ _tech_token }}"
+          zone: "kogler.si"
+          domain: "{{ item }}"
+          type: "A"
+          pageNumber: 1
+          pageSize: 50
+      loop: "{{ zone_kogler_si_retired | map('lower') | list }}"
+      loop_control:
+        label: "{{ item }}"
+      register: _tech_retired_read
+      no_log: true
+      changed_when: false
+      # 'error' is the API's shape for a name the zone does not know — the idempotent case here,
+      # exactly as in the add task above. Anything else (auth, transport) must NOT look like an
+      # empty result: fail loud rather than report a clean zone.
+      failed_when: _tech_retired_read.json is not defined or _tech_retired_read.json.status not in ['ok', 'error']
+
+    - name: "Technitium: build the prune candidate list from what the read returned ({{ svc.name }})"
+      ansible.builtin.set_fact:
+        # Built ONLY from records the read actually saw, each with the exact address it was read
+        # with — so a delete targets one (name, address) pair that exists, never a whole domain and
+        # never an address inferred from the SSOT. A name the read could not see yields no
+        # candidate, which is the safe direction for every read failure.
+        _tech_prune_candidates: >-
+          {{ [ {'name': r.item | lower, 'ip': rec.rData.ipAddress}
+               for r in (_tech_retired_read.results | default([], true))
+               for rec in ((r.json.response.records | default([], true))
+                           if (r.json is defined and r.json.response is defined) else [])
+               if (rec.type | default('')) == 'A' and (rec.rData.ipAddress | default('')) | length > 0 ] }}
+
+    - name: "Technitium: delete retired records the zone still holds ({{ svc.name }})"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/zones/records/delete?token={{ _tech_token }}"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          zone: "kogler.si"
+          domain: "{{ item.name }}"
+          type: "A"
+          # Required by the API and taken from the read: without it the call would address a
+          # domain rather than one record. Measured, not assumed — the API rejects the call with
+          # "Parameter 'ipAddress' missing".
+          ipAddress: "{{ item.ip }}"
+      loop: "{{ _tech_prune_candidates | default([], true) }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: _tech_prune
+      # THE GUARD, and the only reason this leg is safe to run against a live DNS tier: it is a
+      # refusal, not a selection. A name the catalog lists anywhere — internal or public, LAN-only
+      # or seeded on this instance — is NOT deletable here, whatever the ledger says or a bad edit
+      # puts in it. Evaluated per loop item (Ansible evaluates a task `when` for each item of a
+      # `loop`), so the refusal is decided for the record being deleted, not for the batch.
+      # scripts/gate/check_dns_seed_prune_guard.py renders THIS expression against every name in
+      # the keep list and fails if any one of them evaluates deletable.
+      when: item.name not in zone_kogler_si_all_names
+      changed_when: (_tech_prune.json is defined) and (_tech_prune.json.status == 'ok')
+      failed_when: >-
+        _tech_prune.json is not defined or _tech_prune.json.status != 'ok'
+      tags: [docker_services, technitium_seed]

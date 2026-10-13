@@ -434,6 +434,15 @@ zone_kogler_si_seed_records: "{{ zone_kogler_si | selectattr('internal') | list 
 # list to make a delete succeed: the narrower the refusal set, the weaker the guard.
 zone_kogler_si_all_names: "{{ zone_kogler_si | map(attribute='name') | map('lower') | list }}"
 zone_kogler_si_lan_only: "{{ zone_kogler_si | selectattr('lan_only', 'defined') | selectattr('lan_only') | map(attribute='name') | list }}"
+# The retirement ledger: names this zone must NOT answer, because the service that owned them is
+# gone from the catalog while the seeded record survived the retirement. State, not history: an
+# entry stays until a read proves NXDOMAIN on every instance, and the seed's prune leg removes it
+# again if it ever reappears. A name that is ALSO in `zone_kogler_si` is a contradiction, and
+# scripts/gate/check_dns_seed_prune_guard.py refuses the tree for it.
+zone_kogler_si_retired:
+  # Metabase is retired and runs on no host; the name still had a seeded A record pointing at the
+  # tailnet edge. Ledger entry stays so the record cannot survive a future re-seed of an old commit.
+  - sec.kogler.si
 zone_kogler_si_tailnet_plain: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'equalto', 'edge') | list }}"
 zone_kogler_si_tailnet_ts: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'in', ['node', 'dual']) | list }}"
 # Public face: the canonical CNAME set, then the names that answer something else.
