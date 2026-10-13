@@ -79,7 +79,10 @@
   # guards while reporting changed=0/failed=0.
 - include_tasks: samba.yml
   when: inventory_hostname in groups['storage'] | default([])   # Samba shares on the NAS
-  tags: [samba, storage]
+  # ⚠ The include tag must name every tag its children carry: the five retired-Authentik-sync legs
+  # at the bottom of samba.yml are tagged `auth-glue`, and a tag the include does not carry never
+  # opens the file at all (rule 2/3) — so `--tags auth-glue` was a green no-op there.
+  tags: [samba, storage, auth-glue]
   # ⚠ BOTH halves of the dynamic-include rule apply here (see oldsrv.yml below): the include
   # must carry the tag AND every task inside samba.yml must carry it. With NEITHER half a
   # `--check --tags samba --limit storage` run gives `ok=24 changed=0 failed=0` and a recap

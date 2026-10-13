@@ -82,9 +82,20 @@
 - name: Primary node tasks (Pi)
   ansible.builtin.include_tasks: pi.yml
   when: inventory_hostname == 'pi.kogler.si'
-  tags: [home_assistant]
+  # ⚠ The include tag must name EVERY tag its children carry (rule 2/3, measured in
+  # scripts/testdata/check_tag_coverage/run.sh): a tag the include lacks never opens pi.yml, so with
+  # only `home_assistant` here all 21 of its topic-tagged legs — `ha_render`/`ha_failover`/`knx`/
+  # `lovelace`/`pi_sd_trim`/`ha_recorder` and the HD ids — were reachable by no filter at all, and
+  # the documented `--tags ha_failover` failover run was a green no-op. Both playbooks that pull this
+  # role (`home_servers.yml`, `raspberry_pi.yml`) do so BARE, so there is no roles:-entry cascade to
+  # lean on; the compound `--tags home_assistant,ha_failover` form keeps working unchanged.
+  tags: [home_assistant, ha_render, ha_failover, ha_recorder, pi_sd_trim, lovelace, knx,
+         hd17, hd19, hd185, hd204]
 
 - name: Standby + failover tasks (oldsrv)
   ansible.builtin.include_tasks: standby.yml
   when: inventory_hostname in groups['home_servers']
-  tags: [home_assistant]
+  # ⚠ Same rule as the Pi include above: standby.yml's 25 legs are tagged `ha_failover` (with
+  # `knx`/`lovelace`/`hd17`), so the include has to carry them for `--tags ha_failover` to open the
+  # file at all — the documented cold-standby apply command, which silently ran nothing.
+  tags: [home_assistant, ha_failover, lovelace, knx, hd17]

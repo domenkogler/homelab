@@ -126,7 +126,10 @@
   when:
     - "'authentik' in (docker_services | map(attribute='name') | list)"
     - scope_is_all
-  tags: docker_services
+  # ⚠ The include tag must name every tag its children carry: prepass-authentik.yml's four tasks are
+  # tagged `authentik, secret-egress`, and a tag the include lacks never opens the file, so those
+  # tasks were unreachable by any filter while the recap stayed green (rule 2/3).
+  tags: [docker_services, authentik, secret-egress]
 
 # Token-only pre-pass for a host that must WRITE to the vault but does not run Authentik. Mutually exclusive
 # with the Authentik pre-pass above, which already deploys the same file — running both is a redundant write,
@@ -175,7 +178,9 @@
   when:
     - "'authentik' in (docker_services | map(attribute='name') | list)"
     - scope_is_all
-  tags: docker_services
+  # ⚠ Same rule as the pre-pass include above: the glue task inside carries `authentik,
+  # secret-egress`, so with only `docker_services` here it never loaded under those tags.
+  tags: [docker_services, authentik, secret-egress]
 
 # Second pre-pass: fetch the glue-seeded OIDC items AFTER the glue persisted them — they do not exist
 # before it on a fresh host, and on a provisioned host this is a no-op refresh. They merge into the same
