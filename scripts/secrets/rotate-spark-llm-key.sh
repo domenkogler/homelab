@@ -99,9 +99,10 @@ say "  environment is not the current item op_api value — rotate it per docs/1
 say "  before: len=${#OLD} hash=$(h "$OLD")"
 
 # ---- 2. vault write -----------------------------------------------------------
-# The write token is read from the vault itself; the old VPS root-only file is the fallback,
-# because that file still carries the token of the DELETED `vps-op-write_api` until its next
-# converge — i.e. the fallback is expected to be dead, and saying so beats a silent 403.
+# The write token is read from the vault itself; the VPS root-only file is only the fallback,
+# because it carries whatever the LAST converge rendered rather than the item's current value —
+# after a rotation of `op-write_api` it is the superseded generation until that host is converged
+# again, so the fallback can be dead. Saying so beats a silent 403.
 SUPERSEDED="${OLD_SPARK_LLM_KEY:-}"
 if [ "$SKIP_ROTATE" = "1" ]; then
   NEW="$OLD"
@@ -113,7 +114,7 @@ else
   else
     TOK=$(timeout 60 ssh "$WRITE_TOKEN_HOST" "sudo cat $WRITE_TOKEN_PATH" 2>/dev/null)
     [ -n "$TOK" ] || { say "ABORT: no write-scoped token (item $WRITE_TOKEN_ITEM unreadable AND ${WRITE_TOKEN_HOST} file empty)"; exit 1; }
-    say "  write token from ${WRITE_TOKEN_HOST}:${WRITE_TOKEN_PATH} (${#TOK} chars, not printed) — NOTE: that file is the pre-2026-09-19 token and may be revoked"
+    say "  write token from ${WRITE_TOKEN_HOST}:${WRITE_TOKEN_PATH} (${#TOK} chars, not printed) — NOTE: that file is what the last converge rendered; after a rotation of $WRITE_TOKEN_ITEM it may be revoked"
   fi
   ( export OP_SERVICE_ACCOUNT_TOKEN="$TOK"; cd "$REPO" && python3 scripts/secrets/provision-secrets.py --rotate "$ITEM" --yes ) || { say "ABORT: rotate failed"; unset TOK; exit 1; }
   unset TOK

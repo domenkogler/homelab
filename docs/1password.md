@@ -78,6 +78,13 @@ for f in ~/.config/op/homelab-sa-token /home/*/.config/op/homelab-sa-token; do \
     ; printf '%s  %s\n' "$f" "$(printf %s "$OP_SERVICE_ACCOUNT_TOKEN" | sha256sum | cut -c1-12)" ); done
 ```
 
+⚠ **Sweep the whole value — a prefix is not evidence.** In an `ops_`-family token the leading bytes are
+an envelope, not entropy: the first 80 characters are byte-identical between `op_api` and
+`op-write_api`, and byte-identical between two generations of the same item (the write item's two
+generations first differ at byte **161**). All of those 80-char prefixes hash to `bd8441df3705`. So a
+transcript that captured only a prefix names neither the item nor the generation, and a prefix hash
+matches every holder of a different credential too.
+
 ### Rotating the control-node token
 `scripts/ansible/bootstrap-runner.sh` is **create-only** — `if [ ! -f "$OP_TOKEN_FILE" ]` — so after a
 rotation it prints *"token already stored"* and changes nothing. Prefer the **pipe form**, which needs
