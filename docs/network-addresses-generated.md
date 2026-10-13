@@ -45,8 +45,6 @@
 | 10 | 10.10.1.20 | pi | node + DNS tertiary (VRRP anchor) |
 | 10 | 10.10.1.30 | oldsrv | node + DNS secondary (VRRP anchor) |
 | 10 | 10.10.1.40 | spark | DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint) |
-| 10 | 10.10.1.50 | homematic-ccu-pi | RaspberryMatic CCU — Pi primary (macvlan) — parked, dormant until HmIP-RFUSB bought |
-| 10 | 10.10.1.51 | homematic-ccu-oldsrv | RaspberryMatic CCU — oldsrv standby (macvlan) — parked, dormant until HmIP-RFUSB bought |
 | 10 | 10.10.1.200 | ha-vip | keepalived VIP — ha.kogler.si |
 | 10 | 10.10.1.60 | tablet-valentina | Valentina tablet (family, Kogler SSID) |
 | 10 | 10.10.1.61 | phone-domen | Domen's phone A54 (family, Kogler SSID) |
@@ -121,4 +119,4 @@ sits behind the ONT). These are not on any homelab VLAN and are not in the
 > Non-HTTP services bypass Traefik: DNS 53 (above) · NUT 3493 (nas master, intra-Home)
 > · SNMP 161 (router/switch) · WireGuard · SSH/WinBox.
 
-> Last generated: 2026-10-12T06:56:40Z
+> Last generated: 2026-10-13T00:00:33Z

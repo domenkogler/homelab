@@ -477,7 +477,9 @@ traefik_edge_ip_pin: 172.20.0.2
 # RaspberryMatic standby CCU (macvlan on Home VLAN) — XML-RPC 2001/2010 target for
 # ha-failover.full.sh.j2 (local-Homematic variant, parked). Only used when the
 # HmIP-RFUSB is bought and raspberrymatic-standby is re-added; the active ha-failover.sh
-# (no local Homematic) does not consume this.
+# (no local Homematic) does not consume this. It resolves from the two parked ledger rows in
+# network_static_hosts below, so it raises on an empty list until they are uncommented with
+# the variant — an unused variable, never an unused failure.
 homematic_ccu_oldsrv_ip: "{{ (network_static_hosts | selectattr('name', 'equalto', 'homematic-ccu-oldsrv') | selectattr('vlan', 'equalto', 10) | first).ip }}"
 # HA sync (Pi-initiated cert/config sync — failover primary side): oldsrv and Pi
 # Home-VLAN IPs, used by ha-cert-sync/ha-config-sync timers + authorized_keys
@@ -571,8 +573,14 @@ network_static_hosts:
   - { name: oldsrv,   vlan: 10, ip: "10.10.1.30",  mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "node + DNS secondary (VRRP anchor)" }
   # spark MAC comes from the live DHCP lease at first boot (vlan10-home).
   - { name: spark,    vlan: 10, ip: "10.10.1.40",  mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — AI inference tier (headless; SSH + inference endpoint)" }
-  - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan) — parked, dormant until HmIP-RFUSB bought" }
-  - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan) — parked, dormant until HmIP-RFUSB bought" }
+  # PARKED: the two RaspberryMatic CCU reservations belong to the local-Homematic variant, and no
+  # HmIP-RFUSB radio exists — Homematic rides the cloud HmIP-HAP (smart-home decision log). A
+  # reservation here advertises hardware that no design will fill, so the rows stay commented out
+  # rather than published in the address SSOT. The variant itself survives in
+  # roles/home_assistant/templates/ha-failover.full.sh.j2: buying the radio means uncommenting
+  # these two rows in that same change, because homematic_ccu_oldsrv_ip resolves from them.
+  # - { name: homematic-ccu-pi, vlan: 10, ip: "10.10.1.50", role: "RaspberryMatic CCU — Pi primary (macvlan)" }
+  # - { name: homematic-ccu-oldsrv, vlan: 10, ip: "10.10.1.51", role: "RaspberryMatic CCU — oldsrv standby (macvlan)" }
   - { name: ha-vip,   vlan: 10, ip: "10.10.1.200", role: "keepalived VIP — ha.kogler.si" }
    # --- static-IP sweep: family/kids WiFi clients (Kogler SSID, VLAN 10) ---
    # These are the *controlled* family devices — the kids-control MAC-address-list
