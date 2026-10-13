@@ -334,6 +334,23 @@ onlyoffice_redis_version: "8.10.2-alpine"
 tube_archivist_redis_version: "7.4.11-alpine"
 onlyoffice_rabbitmq_version: "3.13.7-alpine"
 
+# ==== Host APT: Docker engine family ====
+# The docker-ce engine release the Docker-bearing fleet runs. A HOST-APT pin, not an image: it
+# carries no docker datasource, Renovate cannot see it, and a bump is a hand change here + a
+# deliberate converge that RESTARTS THE DAEMON (every container on that host goes with it).
+# The value is the dpkg UPSTREAM version, epoch included — NOT a full dpkg version string.
+# download.docker.com stamps the SAME engine release with a different dpkg revision per suite
+# (`-1~debian.13~trixie` on Debian 13, `-1~ubuntu.24.04~noble` on spark's Ubuntu 24.04 arm64),
+# so the one literal that can be fleet-wide is the engine family; the revision is the target's
+# own distro stamp and roles/docker matches it with a version wildcard instead of restating it.
+# A per-host override of this value is drift, not a second shape. `apt-mark hold` on the suite
+# (roles/common) is what makes this line the state of the host, not just of the repo.
+docker_ce_version: "5:29.8.2"   # the highest engine release any host in the fleet has run, so
+                                 # pinning it is an upgrade or a no-op everywhere and NEVER a
+                                 # downgrade (a downgrade needs `--allow-downgrades`, forbidden).
+                                 # spark being Ubuntu is why the pin is a FAMILY and not a deb
+                                 # string — one value, one shape, no per-host literal.
+
 # ==== Observability infra ====
 # Alloy is the DELIBERATE exception (host-APT, not Docker).
 alloy_version: "1.20.1-1"    # grafana/agent → alloy (APT, apt.grafana.com stable; amd64) — the ONE
