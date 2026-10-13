@@ -1,0 +1,3 @@
+- name: rule2 include, tagged
+  ansible.builtin.include_tasks: sub.yml
+  tags: [rule2]

@@ -1,0 +1,3 @@
+- name: rule4 untagged child under a static import
+  ansible.builtin.debug:
+    msg: rule4-static

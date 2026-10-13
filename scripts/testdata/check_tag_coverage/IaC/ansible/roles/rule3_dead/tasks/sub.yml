@@ -1,0 +1,4 @@
+- name: rule3 always child, which never runs under a filter
+  ansible.builtin.debug:
+    msg: rule3-sub-always
+  tags: [always]

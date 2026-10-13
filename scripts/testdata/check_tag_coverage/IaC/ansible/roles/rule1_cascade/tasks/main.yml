@@ -1,0 +1,2 @@
+- name: rule1 include, untagged on purpose
+  ansible.builtin.include_tasks: sub.yml

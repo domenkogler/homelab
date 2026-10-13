@@ -1,0 +1,34 @@
+---
+# Tag-cascade lab for scripts/gate/check_tag_coverage.py (HD-1149). Debug tasks only: no host is
+# contacted, nothing is written, and every leg is a `debug` message a run.sh assertion greps for.
+- name: rule 1 — a role-level tag cascades through an untagged dynamic include
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: rule1_cascade
+      tags: [rule1]
+
+- name: rule 2 — an include tag gates loading only
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - rule2_gate
+
+- name: rule 3 — an untagged dynamic include is never expanded under a filter
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - rule3_dead
+
+- name: rule 4 — a static import inherits
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - role: rule4_static
+      tags: [rule4]
+
+- name: rule B — a child tag that no gate on the path carries
+  hosts: localhost
+  gather_facts: false
+  roles:
+    - topic_gate

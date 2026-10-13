@@ -1,0 +1,7 @@
+- name: rule2 untagged child
+  ansible.builtin.debug:
+    msg: rule2-untagged
+- name: rule2 tagged child
+  ansible.builtin.debug:
+    msg: rule2-tagged
+  tags: [rule2]

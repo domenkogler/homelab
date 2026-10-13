@@ -1,0 +1,4 @@
+- name: topic child tagged with its own topic
+  ansible.builtin.debug:
+    msg: topic-child
+  tags: [subtopic]

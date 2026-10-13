@@ -1,0 +1,6 @@
+- name: rule3 always at the top level, which does run under a filter
+  ansible.builtin.debug:
+    msg: rule3-top-always
+  tags: [always]
+- name: rule3 include, untagged on purpose
+  ansible.builtin.include_tasks: sub.yml

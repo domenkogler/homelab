@@ -1,0 +1,3 @@
+- name: topic include, tagged with the role tag
+  ansible.builtin.include_tasks: sub.yml
+  tags: [topic]

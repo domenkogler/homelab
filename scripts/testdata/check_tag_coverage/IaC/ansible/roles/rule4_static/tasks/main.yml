@@ -1,0 +1,2 @@
+- name: rule4 static import, untagged
+  ansible.builtin.import_tasks: sub.yml
