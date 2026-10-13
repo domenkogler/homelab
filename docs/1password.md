@@ -217,7 +217,7 @@ Each of these produces an auth-shaped error with a non-auth cause:
 | `op vault list` only shows some vaults | Service account lacks read grant on the needed vault |
 | `Permission denied (publickey)` to a host | Runner's SSH key not authorized in that host's `authorized_keys` |
 | `invalid JSON provided` / `invalid JSON in piped input` on `op item create/edit` | Non-TTY stdin: op interprets piped input as a JSON item template. Run with `< /dev/null` in scripts, ansible shell tasks, ssh one-liners, cron (provisioner + secret-egress glue precedents) |
-| **Secret VALUE leaked into chat/transcript via `op item get --reveal`** | Rotate the affected secret immediately (see Output hygiene above); if it's a shared Authentik client (`headscale_api`), regenerate the provider client_secret in Authentik, `op item edit` the 1P item, and re-render the consuming services; **never** inspect further in plaintext |
+| **Secret VALUE leaked into chat/transcript — via `op item get --reveal` or a bare `op read` whose stdout the session captures** | Rotate the affected secret immediately (see Output hygiene above); if it's a shared Authentik client (`headscale_api`), regenerate the provider client_secret in Authentik, `op item edit` the 1P item, and re-render the consuming services; if it is a **shared registration secret** (Tuwunel's `matrix_password`, which `tuwunel.toml` renders), its rotation is coupled to what was registered through it, so it is an owner call and not a quick edit; **never** inspect further in plaintext |
 | `Failed to change ownership of the temporary files` | `acl` package (`setfacl`) missing on the target host — added to the `common` role prereqs |
 | **`Couldn't get agent socket?` then `fatal: failed to write commit object` on `git commit`** | `gpg.format=ssh` with `user.signingkey` in the `key::<pub>` form and **no `SSH_AUTH_SOCK`** in a non-interactive shell (pi, cron, a converge). Set `user.signingkey` to the key FILE when it is passphrase-free — `ssh-keygen -y -P '' -f ~/.ssh/github_signing` answers that question — or export `SSH_AUTH_SOCK=/run/user/$(id -u)/openssh_agent`. Refusing the commit is the correct failure; a silently unsigned commit is not (CONVENTIONS §6) |
 | **`git log -1 --format='%G?'` prints `N` on commits you know are signed** | No `gpg.ssh.allowedSignersFile` configured — git cannot verify, so it reports `N` for every commit, signed or not. Use `grep -c '^gpgsig'` over `git cat-file commit HEAD` meanwhile, then set the file (deployment-manual.md §0.4a) |
@@ -228,7 +228,10 @@ Each of these produces an auth-shaped error with a non-auth cause:
 > documents *where* and *how*; the values stay in 1Password and the `0600` runner file.
 >
 > **Output hygiene (CONVENTIONS §2):** when a probe/rotation touches a secret, print
-> **lengths / prefixes / item IDs / hashes only** — never a full value. `op item get … --reveal`
+> **lengths / prefixes / item IDs / hashes only** — never a full value. A read probe therefore ends in
+> `| wc -c` or a `[[ -n … ]]` test, and a **bare `op read` in a shell whose stdout is captured is the
+> failure shape**: the value goes straight into the session/transcript log, where it cannot be scrubbed
+> and only rotation removes it. `op item get … --reveal`
 > into a shell that echoes to a session/transcript log is how live client_secrets leak into
 > chat. Rotating a shared Authentik client: regenerate the secret in the
 > provider ORM (providers don't expose `generate_client_id`; `authentik.lib.generators` has
