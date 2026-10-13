@@ -270,11 +270,23 @@ commented out in `vps.yml`). Revival target is **oldsrv**, not the VPS.
 
 ## Open item — stale DNS record after a service retirement
 
-The `technitium-seed` role only **adds** records (`zones/records/add`) — it never deletes. So the VPS primary
-Technitium still carries the internal `sec.kogler.si` A-record pointing at the dead tailnet-sidecar IP
-(harmless — it 404s — but it contradicts the SSOT). Fix either way: delete via the Technitium API
-(`/api/zones/records/delete`) next time Technitium is touched, **or** fold a record-prune
-into the seed role so future retirements cannot leave orphans.
+The `technitium-seed` role only **adds** records (`zones/records/add`) — it never deletes, and no gate reads
+live zone state to notice (`check_dns_seed_drift.py` renders the SSOT, so an orphan is invisible to it). A
+name that leaves `zone_kogler_si` therefore keeps answering: `sec.kogler.si` still returns the tailnet
+sidecar VIP on **all three** instances — the VPS primary, the oldsrv secondary and the Pi tertiary — each
+from its own zone copy, with the seed's own `ttl: 300` and the `aa` flag set. That is a seeded zone record,
+not a cache row, which is why clearing the resolver's DNSDB does not stop the answer. The answer leads
+nowhere: the address is tailnet-only and no running service claims the name — the only `sec.kogler.si`
+router left in the tree belongs to the retired Metabase stack, which runs on no host — but it contradicts
+the SSOT either way.
+
+One delete is not the fix: the same orphan sits in three zones, and a re-seed never removes it. Either
+delete via the Technitium API (`/api/zones/records/delete`) on **each** instance next time Technitium is
+touched, **or** fold a record-prune into the seed role so future retirements cannot leave orphans — the
+second option ends the class, the first only clears this name.
+
+⚠ Headscale is not the source: the rendered config publishes no `sec` record (`tailnet_subdomains` does not
+name it), so dropping the name from the template's unused `default([...])` fallback list changes no answer.
 
 ## Notes
 

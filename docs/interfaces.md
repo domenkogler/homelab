@@ -80,7 +80,7 @@ tags: [services, interfaces, dashboards]
 
 ## CrowdSec analytics — what serves it now
 
-**There is no `sec.kogler.si` service** — no Cloudflare record, no `extra_records` entry, no route. A Home resolver still answers the name out of a stale **Technitium DNSDB** row pointing at the tailnet VIP (the address lives in [network-addresses-generated.md](network-addresses-generated.md)), where nothing listens. The analytics surface is split between **CrowdSec Web UI**
+**There is no `sec.kogler.si` service** — no Cloudflare record, no `extra_records` entry, no route. The name still **resolves** to the tailnet VIP, though, and lands where nothing listens: every internal Technitium instance answers it **authoritatively** from its own `kogler.si` split-horizon zone — a seeded `A` record, not a cache row — while public DNS answers NODATA and MagicDNS does not publish the name at all, so a tailnet client that gets an answer gets it from the Technitium leg of its resolver chain. The address is a tailnet-only one (see [network-addresses-generated.md](network-addresses-generated.md)) and nothing serves it: the only `sec.kogler.si` route left in the tree belongs to the retired Metabase stack, whose container runs on no host, so the answer leads to a dead address. Clearing the record is the open DNS-side item in [services-admin.md](services-admin.md) §Open item. The analytics surface is split between **CrowdSec Web UI**
 (`csui`, below) for ops and **Grafana** (`stats`) for anything tabular/metric-shaped.
 Revival path if a BI layer is ever wanted: redeploy on **oldsrv**, not the VPS — the template, the
 disabled registry row and the read-only `metabase-forgejo_ro` grant are kept
