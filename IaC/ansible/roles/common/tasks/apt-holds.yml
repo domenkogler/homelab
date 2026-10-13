@@ -1,0 +1,127 @@
+---
+# The pinned host-APT packages are HELD here (owner ruling: option A).
+#
+# `group_vars/all/versions.yml` is the fleet's version truth, so a package's version moves
+# ONLY when that file moves: a Renovate PR, reviewed, then a deliberate converge. `apt-mark
+# hold` is what makes that statement true on the host. Without it, one bare `apt upgrade` —
+# or the distro's own `apt-daily-upgrade.timer` — moves a pinned package off its pin and
+# re-opens the running-vs-pinned class it exists to prevent: the box runs one version, the
+# repo asserts another, and every later converge argues about which one is real. There is NO
+# automated upgrade phase: see the `common` role row in docs/deployment-ansible.md and the
+# declined `roles/updates` phase in docs/deployment-rejected.md.
+#
+# The hold does not block the deliberate upgrade — the half that makes the ruling affordable.
+# Measured against a synthetic dpkg status carrying `Status: hold ok installed`
+# for alloy at 1.20.0-1, resolved against this box's real package indexes (read-only, the
+# real system never touched):
+#   * `apt-get -s install alloy=1.20.1-1` → "The following held packages will be changed",
+#     then installs. An explicitly requested version still goes through, so a pin bump needs
+#     no `apt-mark unhold` dance and `--allow-change-held-packages` stays unnecessary.
+#   * `apt-get -s upgrade` on the same state → "The following packages have been kept back:
+#     alloy". A blanket upgrade does not touch it. That is the whole ruling in two reads.
+#
+# ⛔ Never pair this with `--allow-downgrades`: a standing rule of the pinned-package leg, it
+# would silently downgrade any package whose pin lags the box.
+#
+# Which packages, and why each one is here (kopia is deliberately absent — it is a pinned
+# container image, not a .deb): see common/defaults/main.yml.
+#
+# Tags sit on BOTH every task here and the `include_tasks` line in tasks/main.yml: with a
+# DYNAMIC include, `--tags` evaluates the include statement and every inner task separately,
+# so a tag in only one of the two places silently drops this leg from a scoped run.
+
+- name: Refuse an empty apt-hold list
+  ansible.builtin.assert:
+    that:
+      - common_apt_hold_packages | length > 0
+    fail_msg: >-
+      common_apt_hold_packages is empty on {{ inventory_hostname }}. The pinned packages must
+      be held; an empty list would make this leg inert (and the dpkg-query below would read
+      every package on the box instead of the pinned ones).
+    quiet: true
+  tags: [common, base]
+
+- name: Resolve which pinned host packages this host actually carries
+  ansible.builtin.command:
+    cmd: "dpkg-query -W -f='${Package}\\n' {{ common_apt_hold_packages | join(' ') }}"
+  register: _apt_hold_present
+  changed_when: false
+  # A pin may name a package the host does not carry: no tailscale and no docker-ce on nas,
+  # which runs no Docker. dpkg-query prints the ones it knows and exits 1 for the unknown
+  # rest, so the exit code is not the signal here — stdout is.
+  failed_when: false
+  check_mode: false        # a probe, not a mutation — --check must still be able to judge
+  tags: [common, base]
+
+- name: Read the host's current apt holds
+  ansible.builtin.command:
+    cmd: apt-mark showhold
+  register: _apt_hold_current
+  changed_when: false
+  check_mode: false
+  tags: [common, base]
+
+- name: Compute the pinned packages this host carries but does not hold
+  ansible.builtin.set_fact:
+    _apt_hold_expected: >-
+      {{ common_apt_hold_packages
+         | intersect(_apt_hold_present.stdout_lines | map('trim') | list)
+         | sort }}
+    _apt_hold_missing: >-
+      {{ (common_apt_hold_packages
+          | intersect(_apt_hold_present.stdout_lines | map('trim') | list))
+         | difference(_apt_hold_current.stdout_lines | map('trim') | list)
+         | sort }}
+  tags: [common, base]
+
+# Idempotent in both directions, and the diff — never the command — decides: nothing missing
+# => `when` skips the task and the host reports ok; a host that lost (or never had) a hold runs
+# it and reports changed. ⚠ Under `--check` a command task does not execute and Ansible reports
+# the skip without evaluating `changed_when`, so the dry run's signal is the report task at the
+# end of this file (`already held` vs `held now: …`), not the PLAY RECAP counter.
+- name: Hold the pinned packages this host is missing
+  ansible.builtin.command:
+    cmd: "apt-mark hold {{ _apt_hold_missing | join(' ') }}"
+  when: _apt_hold_missing | length > 0
+  changed_when: true
+  tags: [common, base]
+
+# The read-back. `apt-mark hold` exiting 0 is not the state, and a hold can be lost with no
+# upgrade happening at all — an operator `apt-mark unhold`, a dpkg-database restore, a .deb
+# installed over the held package. Re-reading `showhold` is the loud half of the ruling: the
+# next converge says so, not the next outage. Skipped under `--check`, which never applied
+# the holds it would be checking for — the diff task above is the check-mode signal.
+- name: Re-read the hold list after applying it
+  ansible.builtin.command:
+    cmd: apt-mark showhold
+  register: _apt_hold_after
+  changed_when: false
+  when: not ansible_check_mode
+  tags: [common, base]
+
+- name: Assert every pinned package this host carries is held
+  ansible.builtin.assert:
+    that:
+      - (_apt_hold_lost | length) == 0
+    fail_msg: >-
+      Pinned packages are installed but NOT held on {{ inventory_hostname }}:
+      {{ _apt_hold_lost | join(', ') }}. A held package cannot be moved by `apt upgrade`; an
+      unheld one can, and that is the running-vs-pinned drift this leg exists to prevent. Fix it with
+      `apt-mark hold <package>` — do NOT drop the package from common_apt_hold_packages.
+    quiet: true
+  vars:
+    _apt_hold_lost: >-
+      {{ _apt_hold_expected
+         | difference(_apt_hold_after.stdout_lines | default([], true) | map('trim') | list) }}
+  when: not ansible_check_mode
+  tags: [common, base]
+
+# The state this leg leaves in the log, in both modes: it is the dry run's only would-change
+# signal (see the note above), so it stays un-`when`-ed and always prints.
+- name: Report the hold state this converge found
+  ansible.builtin.debug:
+    msg: >-
+      apt holds — expected {{ _apt_hold_expected | join(', ') }};
+      {{ 'already held' if (_apt_hold_missing | length == 0)
+         else ('held now: ' + (_apt_hold_missing | join(', '))) }}
+  tags: [common, base]

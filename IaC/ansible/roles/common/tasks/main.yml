@@ -1,3 +1,13 @@
 ---
 - name: "Sistemska priprava: Nadgradnja OS in predpogoji"
   include_tasks: system.yml
+
+# The pinned host packages are held here, in the role that owns host base state, so the
+# hold exists on every Linux host this repo converges (vps/home_servers/raspberry_pi/
+# storage/spark) and before any role installs a pinned version. Ruling + proof: apt-holds.yml.
+# The tags sit on the INCLUDE on purpose: an `include_tasks` statement is what the tag
+# filter evaluates, so an untagged include drops the whole file under `--tags common`
+# (only `always` survives) — and `common` carries role-level tags in vps.yml alone.
+- name: "Paketi: apt-mark hold za pripete pakete"
+  include_tasks: apt-holds.yml
+  tags: [common, base]

@@ -13,3 +13,34 @@ homelab_lockout_exempt_reason: >-
   Restates the runner's own NOPASSWD drop-in, validated with visudo -cf before it can land;
   restarts no unit and touches no firewall, netdev, mount or sshd state, so it cannot sever
   the session it is running in.
+
+# Host-APT packages whose version is fleet state, therefore HELD (owner ruling: option A).
+# Read by tasks/apt-holds.yml. A package moves only when group_vars/all/versions.yml moves,
+# through a Renovate PR + a deliberate converge — `apt upgrade` cannot touch a held package,
+# and an explicitly requested version (`apt install <pkg>=<ver>`) still installs.
+# Every entry is a package a pin or a checksum governs; a host that does not carry one is
+# skipped by the dpkg-query read, so one list serves the whole fleet.
+#   alloy               — `alloy_version` (versions.yml); apt.grafana.com is an apt source,
+#                         so a periodic/one-off upgrade would otherwise move the collector
+#                         off the pin — the drift this leg exists to prevent.
+#   docker-ce, docker-ce-cli, containerd.io, docker-buildx-plugin, docker-compose-plugin
+#                       — the download.docker.com suite the docker role adds, with NO
+#                         `docker_version` pin at all: the engine is deliberately outside any
+#                         automatic upgrade path, and engine + CLI must not move apart. The
+#                         drift this list is for is already measurable: docker-ce 29.8.2 on
+#                         oldsrv vs 29.7.2 on pi and vps (measured, not inferred).
+#   tailscale           — roles/tailscale-node installs one checksum-verified .deb and adds
+#                         NO apt source, precisely so nothing auto-updates it; the hold keeps
+#                         a hand-added repo or an operator `apt upgrade` from replacing that
+#                         pin (`tailscale_host_version` + its per-arch .deb digests).
+# Kopia is NOT listed: it ships as the pinned `kopia/kopia` container image
+# (`kopia_version`, templates/docker_services/kopia-{server,agent}), so there is no apt state
+# to hold — its pin is enforced by the compose render, not by dpkg.
+common_apt_hold_packages:
+  - alloy
+  - tailscale
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin
