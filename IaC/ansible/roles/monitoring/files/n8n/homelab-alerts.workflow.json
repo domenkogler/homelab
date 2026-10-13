@@ -206,7 +206,7 @@
       ],
       "onError": "stopWorkflow",
       "parameters": {
-        "method": "POST",
+        "method": "PUT",
         "url": "={{ $env.MATRIX_HOMESERVER_URL }}/_matrix/client/v3/rooms/{{ encodeURIComponent($env.MATRIX_ROOM_ID) }}/send/m.room.message/{{ 'hd1108-a-' + $now.toMillis() }}",
         "sendHeaders": true,
         "headerParameters": {
@@ -237,7 +237,7 @@
       ],
       "onError": "stopWorkflow",
       "parameters": {
-        "method": "POST",
+        "method": "PUT",
         "url": "={{ $env.MATRIX_HOMESERVER_URL }}/_matrix/client/v3/rooms/{{ encodeURIComponent($env.MATRIX_ROOM_ID) }}/send/m.room.message/{{ 'hd1108-r-' + $now.toMillis() }}",
         "sendHeaders": true,
         "headerParameters": {
