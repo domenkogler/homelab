@@ -85,23 +85,42 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
 - **Selection is a UNION.** A filtered run executes every task carrying ANY requested tag
   (plus every task tagged `always`; tasks tagged `never` run only when explicitly named).
   Adding tags to the filter can only ADD work — it never narrows a broader tag.
-- **Inheritance stops at dynamic includes.** Tags attach downward from play → role → block,
-  but `include_tasks:` is evaluated as ONE task: its own effective tags gate WHETHER the file
-  loads at all, and they do NOT cascade into the included file's contents. (`import_tasks:`
-  would inherit/cascade — this role uses `include_tasks:` everywhere.) Inside
-  `docker_services`, that means:
-  - role-level tag `[docker_services]` (`vps.yml`) + explicit `tags: docker_services` on the
-    include lines reach all **direct** `main.yml` tasks (asserts, networks `[docker_services,
-    networks]`, teardown, homepage block `[homepage, docker_services]`) AND fire all six
-    include lines under `--tags docker_services`;
-  - contents of `deploy-service.yml` carry ONLY their per-service tags — all 13 tasks are
-    tagged `"{{ svc.name }}"` (dirs, bind-dir pre-create, copy/template/extra-render, compose
-    config-validate, compose up, systemd enable, db-role-sync, forgejo syncs, OIDC source);
-    nothing inside runs unless the filter names that service;
-  - authentik-lane includes have UNtagged include lines (pre-pass, blueprint one-shot, glue) —
-    they still fire via inherited `[docker_services]`, but their contents self-filter:
-    blueprint apply is `[authentik, docker_services]` (runs on every `docker_services` pass),
-    pre-pass/glue tasks are `[authentik, secret-egress]` (need those tags requested).
+- **What a tag reaches through an include — four rules.** Tags attach downward from play → role →
+  block, and from there:
+  1. a tag on a playbook `roles:` entry **cascades** through dynamic `include_tasks` and into their
+     children — `playbooks/vps.yml` tags the `docker_services` entry `[docker_services]`, which is
+     why an entry-tagged role is fully selectable even when its sub-files carry no role tag;
+  2. a tag on the `include_tasks` task itself gates **only whether the file is loaded**; the
+     children inside are filtered on THEIR own tags, so a child whose tags are disjoint from the
+     include's never runs under that filter even though the file opened;
+  3. an **untagged** dynamic include is **never expanded** under a tag filter — its file is not even
+     parsed, so nothing inside it runs, a `tags: always` guard included;
+  4. `import_tasks` children **inherit** the parent's tags — static, a different mechanism, and the
+     only playbooks that use it are the `playbooks/tasks/self-converge-guard.yml` legs.
+  `tags: always` belongs to the same reading: it makes a task run under every filter **once its file
+  is parsed** — which rule 3 can prevent — and a task tagged `[always, x]` **can** be disarmed by
+  `--skip-tags x`, which is why the run-user guard and its three siblings in
+  `roles/common/tasks/system.yml` keep `always` and nothing else.
+  These four are measured, not recalled: `scripts/testdata/check_tag_coverage/run.sh` asks
+  `ansible-playbook` itself in eight localhost legs, and `scripts/gate/check_tag_coverage.py`
+  re-checks the whole tree statically (its registration in `validate-all.sh` is still the owner's
+  checkpoint — see [`../scripts/README.md`](../scripts/README.md)). Inside `docker_services`:
+  - role-level tag `[docker_services]` (`playbooks/vps.yml:50`) + `docker_services` on every include
+    line reach all **direct** `main.yml` tasks (asserts, networks `[docker_services, networks]`,
+    teardown, homepage block `[homepage, docker_services]`) AND load every include line under
+    `--tags docker_services` — loading is not selection: what runs inside each file is rule 2's
+    question, decided by the child tasks' own tags;
+  - contents of `deploy-service.yml` carry ONLY their per-service tags — each of its 28 tasks is
+    tagged `"{{ svc.name }}"`, the one exception being the first-boot bind-mount guard block
+    (`["{{ svc.name }}", home_assistant, hd185]`). Nothing inside runs unless the filter names that
+    service, so `--tags docker_services` opens the file and executes none of it (rule 2);
+  - the two Authentik secret-egress includes name their own tags — `prepass-authentik.yml` and
+    `run-authentik-glue.yml` are included with `[docker_services, authentik, secret-egress]`
+    (`roles/docker_services/tasks/main.yml:132` and `:183`), because a tag the include lacks never
+    opens the file (rules 2–3) and their tasks are `[authentik, secret-egress]`. The blueprint leg
+    (`roles/docker_services/tasks/main.yml:164`) is an untagged `debug` pointer to
+    `playbooks/authentik-blueprints.yml`, so any filtered run skips it — an untagged task matches no
+    filter.
 - **Consequences / gotchas:**
   - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line → SILENT
     NO-OP. Always pair role + service: `--tags "docker_services,opencloud"`.
@@ -117,10 +136,14 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
     `tags: always`, so a
     notification fired inside a filtered run can never be silently dropped. Keep it that way:
     any new handler must carry `tags: always`.
-  - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user
-    assert and any playbook whose roles have no role-level tags (`home_servers.yml`,
-    `raspberry_pi.yml`, `router.yml`, …) can only ever run their `always`-tagged tasks under
-    `--tags`. Only `vps.yml` (and `all.yml`'s `[hosts]`) supports role-surgical filtering today.
+  - Filtered runs skip untagged top-level tasks: e.g. `site.yml`'s pre-flight admin-user assert,
+    and a role pulled as a **bare** entry name — a bare role name is not a tag, so it contributes no
+    cascade (rule 1) and only the tags its own tasks carry can select them. `vps.yml` tags every
+    entry and `all.yml`'s tasks carry `[hosts]`; `home_servers.yml`, `raspberry_pi.yml`,
+    `spark.yml` and `storage.yml` tag SOME entries (`access`, `cockpit`, `seat`,
+    `tailscale-node`, `spark-ultrafast-build`) and pull the rest bare, so role-surgical filtering
+    works for the tagged ones only; `router.yml`, `switch.yml`, `dns.yml` and `nut-deploy.yml` tag
+    nothing, so under `--tags` those plays can reach only their `always`-tagged tasks.
   - **Base bootstrap tier:** the rarely-changing roles (`common`, `docker`,
     `hardening`, `network`, `cifs`, `wireguard`) each carry an **additive `base` tag** alongside
     their own role tag. Because selection is a UNION, naming `base` groups all six as ONE
