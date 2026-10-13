@@ -60,12 +60,18 @@ table inet filter {
         # `packet-too-big` arrives from an upstream router with a GLOBAL address, and
         # black-holing it is the classic silent-v6 breakage (PMTUD). MLD rides nexthdr 0,
         # not 58, so it cannot share the icmpv6 rule.
-        # ⚠ Second-order effect, and it is an OPEN owner question, not a decision: the
+        # ⚠ Second-order effect, and it is decided: KEEP the parity. The
         # `tcp dport 22/443`, `udp dport 51820` and RustDesk accepts are family-agnostic in
-        # this `inet` table, so they are IPv4-only *in practice* only because NDP
-        # never resolves. Fixing NDP makes them reachable over v6 too; scope them with
-        # `meta nfproto ipv4` if that parity is not wanted. The `ip saddr …` rules (DNS
+        # this `inet` table, so they are IPv4-only *in practice* only while NDP does not
+        # resolve; when it does they are reachable over v6 as well, and they are NOT scoped
+        # `meta nfproto ipv4` — scoping them down is not an available safety improvement.
+        # The duty therefore sits on the proof: a real IPv6 client address must reach a ban
+        # log. Where a listener binds dual-stack it does (`:22` — sshd on `[::]:22`, real
+        # home-prefix client addresses in the log the sshd jail reads); where the publish is
+        # v4-only it cannot yet be shown (`:443` — nothing binds `[::]:443`).
+        # The `ip saddr …` rules (DNS
         # source-allow, wg-s2s scoping) stay IPv4-only by the shape of the match itself.
+        # Proof and state: network-ops.md §IPv6.
         meta l4proto icmpv6 icmpv6 type { nd-neighbor-solicit, nd-neighbor-advert, nd-router-solicit, nd-router-advert } ip6 saddr fe80::/10 accept
         meta l4proto icmpv6 icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem } accept
         meta l4proto icmpv6 icmpv6 type echo-request accept
