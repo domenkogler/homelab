@@ -81,7 +81,6 @@
 1	docs/observability.md	(unresolved target)	§LLM Dashboard
 1	docs/observability.md	(unresolved target)	§LLM Dashboard**, not the metric-name inventory. The three `DCGM_FI_PROF_*` panels are **deleted** — they can never load on GB10 — and the six real GB10 signals are wired in their place: utilisation, die temperature, power draw **with the energy-counter rate beside it**, SM clock, PCIe replays, and `DCGM_FI_DEV_XID_ERRORS` as a readiness stat. The 7 whitelisted `job=
 1	docs/observability.md	docs/network-dns.md	§Cert
-1	docs/observability.md	docs/observability.md	§6
 1	docs/observability.md	docs/observability.md	§Unified-memory
 1	docs/observability.md	docs/observability.md	§above
 1	docs/observability.md	scripts/ansible/build-llm-dashboard.py	§LLM

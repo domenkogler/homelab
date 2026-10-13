@@ -14,12 +14,13 @@ tags: [observability, grafana, prometheus, monitoring]
 > **Status: 🟢 live.** The backend is the **Victoria stack on the VPS** — **VictoriaMetrics** (metrics,
 > 365 d) + **VictoriaLogs** (logs, 90 d) + **Grafana** + blackbox-exporter, all on the tailnet-only edge.
 > Collectors: **Alloy** per host (VPS loopback, oldsrv, spark, nas, Pi), oldsrv's SNMP + network-clients exporters, RouterOS syslog over RFC5424, `nut_exporter` on nas,
-> `zfs_exporter`, blackbox probes. Alerting: **Grafana → n8n (`homelab-alerts` webhook) → Signal + email**,
-> with Grafana-native SMTP in parallel as the fail-safe. The ruled delivery surface is a Matrix
-> `#homelab-alerts` room — see §Alerting.
+> `zfs_exporter`, blackbox probes. Alerting: **Grafana → n8n (`homelab-alerts` webhook) → Signal + Matrix**,
+> with Grafana-native SMTP in parallel as the fail-safe. The ruled delivery surface is the Matrix
+> `#homelab-alerts` room, live but not yet read by a human — see §Alerting.
 >
 > ⏳ **Open:** the **nas + Pi Alloy collectors** (converge adds their `node_*` to the Host Overview),
-> the Matrix `#homelab-alerts` delivery leg, contact-point/datasource password rotation,
+> the last two steps of the Matrix `#homelab-alerts` leg (the operator joining the room, then demoting
+> Signal), contact-point/datasource password rotation,
 > device-side SNMP enablement, and the Kopia wiring for `/srv/docker/victoria-*/data`.
 
 ---
@@ -204,7 +205,7 @@ update, or queries keep 401-ing despite correct rendered files.
 | Logs | Alloy → VictoriaLogs | VictoriaLogs (90d, Kopia) |
 | RouterOS logs (RB4011/switch/AP) | RFC5424 syslog → VPS rsyslog → CrowdSec/VictoriaLogs | VictoriaLogs (90d) |
 | Live logs (ops day-to-day tail) | Dozzle viewers — VPS `logs.kogler.si` (tailnet) + home hub `llogs.kogler.si` (LAN, oldsrv, pi/spark agents) | ephemeral — nothing persisted |
-| Alerts | Grafana Alerting → n8n → Matrix (target) / Signal / email | alert delivery — **Matrix/Element is the ruled delivery surface; Signal + email deliver today** |
+| Alerts | Grafana Alerting → n8n → Matrix + Signal, plus Grafana-native SMTP in parallel | alert delivery — **Matrix/Element is the ruled delivery surface; the room exists and the bot can write it, but no human has joined it, so Signal + email are what a human actually reads today** |
 | Display | Grafana + Homepage | — |
 
 ---
@@ -212,7 +213,12 @@ update, or queries keep 401-ing despite correct rendered files.
 ## Alerting
 
 - **Engine:** Grafana Unified Alerting (rules live with the data; no separate Alertmanager).
-- **Router:** alerts → n8n webhook → normalize / dedup / tier / format → Signal + email. n8n also serves office automation ([`services-office.md`](services-office.md)).
+- **Router:** alerts → n8n webhook → normalize / dedup / tier / format → Signal + Matrix. n8n also serves office automation ([`services-office.md`](services-office.md)).
+- **Delivery is two paths, not one chain.** Path 1 is the n8n workflow: the Signal send, with the Matrix
+  send chained behind it. Path 2 is the **Grafana-native SMTP receiver on the same contact point**, which
+  never touches n8n — that is what survives n8n, Matrix and signal-cli all being down. Both receivers hang
+  off one contact point wired to the default policy, so an alert reaches both and neither depends on the
+  other.
 - **Webhook:** Grafana's contact point posts to `grafana_alert_webhook_url` (group_var, default `http://n8n:5678/webhook/homelab-alerts`, traefik-public). ⚠ The n8n workflow **`homelab-alerts`** on that route must exist before the first alert fires (created at n8n setup; payload = Grafana alert-notification webhook, see the monitoring role `grafana-contactpoints.yml.j2`).
 - **Fail-safe:** Grafana-native SMTP contact point runs in parallel — alerts still go out if n8n/signal-cli is down.
 - **SMTP relay:** SMTP2Go (`mail-eu.smtp2go.com:2525`, STARTTLS). Dedicated transactional relay, free-tier 1000/mo, deliberately independent of the Infomaniak kSuite mailbox so the alert fail-safe isn't coupled to personal email. Grafana + NUT share it; creds = `smtp_login` / `smtp_login` (Login items in 1Password). Rotating `smtp_login` means re-converging **every** consumer and verifying the rendered value: VPS
@@ -223,16 +229,25 @@ update, or queries keep 401-ing despite correct rendered files.
 `GET http://127.0.0.1:8080/v1/groups/$SIGNAL_CLI_PHONE_NUMBER` **inside the container** (that raw upstream
 API has no auth and NO host port — hence `docker exec`, exactly as the `group_vars/all/main.yml` comment
 shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml` (`group.NVZ6Y21…`) — **not** the group's invite link, which is an encrypted join blob and not a recipient the API accepts, and **not** the group's *name*. The ID is only readable from the linked daemon; never reconstruct it from a message-store backup, which would mean reading private messages.
-- **Matrix is the target delivery channel (owner ruling).** Two facts make it a decision, not a
-  preference: the `signal-cli-rest-api` daemon is **linked to the operator's personal number** and the
-  "Homelab Alerts" group's **only human member is the operator** — so nothing in this fleet pages anyone
-  else — and the operator reads **Element**, not Signal, so a Signal-only alert is an alert with no reader.
-  Shape: the same Grafana → n8n chain posts to a dedicated **`#homelab-alerts` room** on the live Tuwunel
-  (a dedicated alert user, not the operator's own account; token in the `Homelab-ansible` vault per §6, never
-  a literal), the **Grafana-native SMTP contact point keeps running in parallel** as the "n8n/Matrix is down"
-  fail-safe, and only then does Signal demote to a documented fallback or come out. ⛔ Delivery is proven by
-  **the room's event**, never by the workflow's `200` (§Alert delivery), and both `onError:
-  continueRegularOutput` mutes have to stay removed on the new leg too.
+- **Matrix is the ruled delivery channel, and it is the leg that is not finished.** Two facts made it a
+  decision rather than a preference: the `signal-cli-rest-api` daemon is **linked to the operator's
+  personal number** and the "Homelab Alerts" group's **only human member is the operator** — so nothing in
+  this fleet pages anyone else — and the operator reads **Element**, not Signal, so a Signal-only alert is
+  an alert with no reader. What exists now: the **`#homelab-alerts` room** and its dedicated bot
+  `@homelab-alerts:kogler.si` on the live Tuwunel, the token in the `Homelab-ansible` vault item
+  `matrix-alerts_api` (never a literal), the recipient state on the n8n registry entry in
+  `group_vars/vps.yml`, and the two `Send Matrix` nodes chained **behind** the untouched Signal sends in
+  `homelab-alerts.workflow.json`. The room id, the MXID, the registration recipe (Tuwunel's own `mac`
+  formula, not Synapse's) and the **`PUT`-not-`POST`** shape of the send are
+  [services-matrix.md](services-matrix.md) §Alert room.
+  - ⚠ **A public room with only the bot in it pages nobody.** The room is `join_rule: public` precisely so
+    the operator can join it by alias from Element without an invite; until that human act happens the
+    Matrix leg delivers into an unread room and Signal + email remain the only channel anyone reads.
+  - **Signal is not deleted by this.** `signal-cli-rest-api` stays live and its nodes stay byte-identical
+    until the Matrix leg proves itself; demoting it to a documented fallback or removing it is the last
+    step, not a side effect of this one. The chain is temporary in shape: a Matrix failure cannot suppress
+    a Signal send, but a Signal failure stops the workflow before the Matrix node — which is exactly why
+    the demotion has to be an act and not a drift.
 
 ### Operational gotchas
 
@@ -306,7 +321,13 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
 - **⚠ That 200 proves the run STARTED, never that anything was delivered.** The
   webhook can answer 200 for executions that send **nothing**. The delivery evidence is downstream and
   specific — n8n's **execution status** for the Signal node, the gateway's `POST /v2/send` → **201**, and
-  the **delivery receipt** signal-cli logs. Ask for those three; a green webhook is not one of them.
+  the **delivery receipt** signal-cli logs. For the Matrix leg the evidence is **the room's own event**:
+  read it back with the bot token (`GET /_matrix/client/v3/rooms/{urlencoded id}/messages?dir=b&limit=5`)
+  and quote the `event_id` — the send's own `200 {"event_id":…}` is the receipt, and the `PUT` form that
+  returns it is [services-matrix.md](services-matrix.md) §Alert room. Ask for those three; a green webhook
+  is not one of them. ⚠ **Any post to this webhook sends on the Signal leg too**, so proving a new node
+  must not be a reason to page a phone: prove the expressions on a **throwaway workflow with its own
+  webhook path**, read the room event, then delete the throwaway and read back that it is gone.
 - **n8n 2.x blocks `$env` in workflow expressions BY DEFAULT, which silently kills the Signal leg.**
   Read inside the pin (`n8n-workflow/dist/esm/workflow-data-proxy-env-provider.js`):
   `isEnvAccessBlocked = process.env.N8N_BLOCK_ENV_ACCESS_IN_NODE !== 'false'` — **unset means blocked**,
@@ -320,11 +341,16 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
   "no recipient configured", "wrong-shaped recipient" and "access to env vars denied" into
   `status=success`. An alerting path that swallows its own send failure cannot ever be trusted, so a failed
   send must be a **RED execution**.
-- **⚠ The versioned workflow JSON is NOT deployed by anything.** The live copy lives in n8n's SQLite
-  (created through the API), so `roles/monitoring/files/n8n/homelab-alerts.workflow.json` drifts
+- **⚠ The versioned workflow JSON is NOT deployed by anything** — no role task imports it. The live copy
+  lives in n8n's SQLite, created and activated by hand through the public API
+  (`n8n_api`), so `roles/monitoring/files/n8n/homelab-alerts.workflow.json` drifts
   silently from it. Two consequences: editing the repo file changes
   nothing until it is PUT to the API, and a re-provision from the repo copy would re-break delivery
-  **after** a green converge. Any change therefore lands in **both** places in one act.
+  **after** a green converge. Any change therefore lands in **both** places in one act, and the act has a
+  shape: `GET /api/v1/workflows/{id}` → **save the export as the rollback file** → `PUT` the repo JSON →
+  `POST …/activate` → read the node list back. ⛔ Never `n8n import:workflow` to update it — import
+  **creates** a workflow, and two active workflows on one webhook path is a duplicate-send fault that
+  announces itself as two pages per alert.
 - **A missing Signal device is silent by design — for the LINK, not for the send.** An unlinked
   `signal-cli` must not be able to break email delivery, so email is a separate parallel Grafana contact
   point (§above) rather than a node downstream of the Signal node. Linking the "Homelab Alerts" device is
@@ -1410,7 +1436,7 @@ convention `homelab-*`, datasource uid `prometheus` — same as the other dashbo
 | Homematic full-local (HmIP-RFUSB + RaspberryMatic on Pi) | **parked** — HmIP-HAP stays in cloud mode until an HmIP-RFUSB is bought | see `smart-home.md` — affects HAP/HA integration, not metrics flow |
 | Container memory working-set metrics (Docker API → VictoriaMetrics) | with the *arr stack | validates the `services.md` RAM budget with real numbers, not estimates |
 | **Homelable** (interactive topology/rack visualizer) | **Authored, deploy-gated** — oldsrv, internal-only dashboard. Live health-check map + rack canvas w/ port patching + nmap scan + MCP server. **Not** a metrics/logs/alert backend — it complements Grafana and the network-clients dashboard (see §Network Clients Dashboard). Owns the "who's on my network + where" visual that Grafana's per-VLAN tables don't. Deployment spec + onboarding: [`services-admin.md`](services-admin.md) §Homelable. |
-| Route alerts to a **Matrix room** (`#homelab`) | with the Matrix stack | optional consolidation — alongside the Signal + SMTP fail-safe; homeserver/exporter only. · [`services-matrix.md`](services-matrix.md) |
+| Route alerts to a **Matrix room** (`#homelab-alerts`) | operator joins the room, then Signal demotes | the room, the bot, the vault token and the n8n leg exist (§Alerting); what is missing is a human member in the room, and only then the Signal teardown. · [`services-matrix.md`](services-matrix.md) §Alert room |
 | **Home-side tunnel check** | after Phase 1.5 cutover | blackbox `wg_icmp` probes run FROM the VPS; add a router-side netwatch → SNMP trap (or equivalent) so a home↔VPS outage is also observable from home when the VPS path is the broken side |
 | **Monitoring role split** | only when dashboard/rule iteration gets slow | Alloy+VictoriaMetrics+VictoriaLogs+Grafana live in one `monitoring` role — any rule tweak redeploys the chain; split into `tasks/{alloy,victoria-metrics,victoria-logs,grafana}.yml` includes + tags (no structural move needed until it hurts) |
 | **Grafana alert-rule provisioning schema** (monitoring role `grafana-rules.yml.j2`) | first deploy of the monitoring role | ⚠ **needs live check:** query+threshold data-model + folder auto-creation unverified against a running Grafana — confirm rules load (Grafana logs) and fire once before trusting alerting |

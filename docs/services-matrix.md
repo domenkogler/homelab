@@ -145,17 +145,36 @@ Grafana-native **SMTP contact point running in parallel** as the fail-safe that 
 Matrix being down ([observability.md](observability.md) §Alerting owns the delivery chain and its two
 silent-failure mutes — read it before touching the workflow).
 
-What is owed, none of it an owner act:
+The pieces, as they exist:
 
-- one **dedicated alert user** on this homeserver (not the operator's account — an alert sent as you
-  cannot be told apart from a message you wrote), with its access token in the `Homelab-ansible` vault
-  (`<service>_<type>` naming per CONVENTIONS §6, rendered block-scalar, never a literal in compose);
-- the **room**, created once, with its id in SSOT the way `signal_alert_recipients` is today — an alias
-  reads better to a human, but the write wants the id;
-- n8n's `homelab-alerts` workflow gains the Matrix leg **beside** the Signal one, so the cutover is a diff
-  in one run rather than swapping a live alerting path out from under the rules;
-- acceptance is **the room's own event read** for a canary: a workflow `200` means a
-  run started, never that a message landed.
+| Piece | State |
+|-------|-------|
+| Room | `#homelab-alerts:kogler.si` = `!L3l9DNtfkCMvQHhYRSEa3st1DE5xJcb4wX78EmpKayo`, `join_rule: public` |
+| Sender | `@homelab-alerts:kogler.si` — a **dedicated alert user**, never the operator's account: an alert sent as you cannot be told apart from a message you wrote |
+| Token | `Homelab-ansible` item [`matrix-alerts_api`](deployment-secrets.md) — `username` = the bot's MXID, `credential` = the access token, `password` = its registration password, held only so the account stays recoverable. Minted once by registration, so it is **not** auto-rotatable: rotating means re-registering (or minting through the admin API) and re-rendering n8n |
+| Recipient state | the n8n entry in `group_vars/vps.yml` (`alert_homeserver_url`, `alert_room_id`) → `MATRIX_HOMESERVER_URL` / `MATRIX_ROOM_ID` in the n8n compose, rendered with **no fallback**. A room id names a recipient and authorises nothing, so it is not a secret; a missing key fails the render rather than pointing an alert at a room nobody reads |
+| Write | `PUT /_matrix/client/v3/rooms/{urlencoded room id}/send/{type}/{txn}` — see the method warning below |
+
+⛔ **The room is public and the bot is its only member, so on Matrix nobody is paged yet.** Public means
+no invite is needed: joining `#homelab-alerts:kogler.si` by alias in Element is the one remaining step on
+this side, and until it happens every alert lands in a room with no reader. IaC cannot close it — an
+invite or a join needs a human session.
+
+**How an alert bot is registered here.** `tuwunel.toml` keeps `allow_registration = false` and publishes
+`registration_shared_secret` (item `matrix_password`), which leaves the Synapse-style
+`/_synapse/admin/v1/register` endpoint serving out-of-band account creation — the door this bot came
+through, with no config edit and no restart. ⚠ **Tuwunel's `mac` is not the Synapse formula.** It is
+`HMAC-SHA1(registration_shared_secret, nonce \0 username \0 password \0 "notadmin")` over four
+NUL-separated fields, **hex**-encoded in `mac` (matrix-construct / Tuwunel
+`src/api/client/admin/register.rs::verify_mac`). The Synapse recipe hashes a differently ordered,
+newline-joined body, so it answers 401 here and reads like a wrong secret when the secret is fine.
+
+⛔ **The send is a `PUT`, never a `POST`.** `POST` to that `/send/` path answers **405 `M_UNRECOGNIZED`**,
+and the `{txn}` segment in the `PUT` form is what makes a retried alert idempotent instead of a duplicate
+message in the room.
+
+**Acceptance is the room's own event read** — the `event_id` a successful send returns — never the
+workflow's `200`, which only proves a run started (observability.md §Alert delivery).
 
 ⛔ Signal is not deleted by this decision. `signal-cli-rest-api` stays live until the Matrix leg proves
 itself, then demotes to a documented fallback or is retired — **that teardown is the last step**.
