@@ -33,7 +33,7 @@ The /56 has not changed in years, but it is *leased*, not static — so no row i
 | The advertised prefix | **nothing configures it.** `advertise=yes` on that one address makes RouterOS create a *dynamic* `/ipv6 nd prefix` row (`2a00:ee2:2700:8f00::/64`, `on-link=yes autonomous=yes`, lifetime follows the lease) | `/ipv6 nd prefix` in 7.24 has no `from-pool`/`template`; the advertised-address mechanism is the one that tracks the delegation |
 | No RA elsewhere | no other VLAN has an address with `advertise=yes` → nothing to advertise. The v6 forward chain also refuses egress from 20/30/40/50 and any origin from 99 | a `disabled=yes` `/ipv6 nd` row does **not** refuse RA — it falls back to the default `interface=all` row and advertises anyway (measured). Do not express "no RA here" that way |
 | Clients | SLAAC (`managed-address-configuration=no`, `other-configuration=no`, **`advertise-dns=no`**) | DNS stays on the DHCP-provided Technitium chain ([network-dns.md](network-dns.md)); a v6 DNS in the RA would silently replace it |
-| Hosts | no host carries an IaC-assigned GUA, and no internal AAAA exists — the reason stands ([network-rejected.md](network-rejected.md) *Internal AAAA records*) | |
+| Hosts | no host carries an IaC-assigned GUA, so there is still nothing to name. Internal AAAA is **authorized** (owner ruling) but sequenced after the VPS v6 publish and pinned to per-host addresses; the addressing half of the reason stands ([network-rejected.md](network-rejected.md) *Internal AAAA records*, [network-dns.md](network-dns.md) §A / AAAA policy) | |
 
 **The filter.** IPv4 inbound safety is an accident of NAT; IPv6 has no NAT, so the filter *is* the
 protection. `/ipv6 firewall filter` is first-match-wins (verified on this device: an exception placed

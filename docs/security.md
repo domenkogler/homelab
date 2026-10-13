@@ -223,10 +223,14 @@ Owning doc: [`deployment-compose.md`](deployment-compose.md).
   only `ip protocol icmp` (IPv4 upper-proto field) silently discards IPv6 NDP/MLD/PMTUD: the host cannot see its
   own neighbour replies, so IPv6 fails in *both* directions while every v4 rule reads correct. The accepts are
   stateless and (for ND) link-local-scoped, so they open **no** service surface. ⚠ **The consequence is a
-  decision, not a detail:** the `:22`, `:443`, `:51820` and RustDesk accepts are family-agnostic, so they have
-  been IPv4-only *in practice* only while NDP was broken — they are reachable over v6 from the moment it works.
-  Confirm that parity or scope them `meta nfproto ipv4`; the `ip saddr …` rules (the DNS allow-set, the wg-s2s
-  scoping) stay IPv4-only by the shape of the match itself. **⏳ owner verdict outstanding.**
+  decision, not a detail — and the decision is given: KEEP THE PARITY** (owner ruling) — the `:22`, `:443`, `:51820`
+  and RustDesk accepts stay family-agnostic and are **not** scoped `meta nfproto ipv4`, so they are reachable
+  over v6 from the moment NDP works. The `ip saddr …` rules (the DNS allow-set, the wg-s2s
+  scoping) stay IPv4-only by the shape of the match itself. The duty sits on the **proof** now: fail2ban or
+  CrowdSec must be shown logging a real IPv6 client address — an address hidden by NAT66 reopens the call.
+  Read on the box: `:22` is proven (`[::]:22`, real home-/64 client addresses in the journal the sshd jail
+  matches); `:443` has no v6 client yet because nothing binds `[::]:443`, so that half is owed with the
+  dual-stack publish. [network-ops.md](network-ops.md) §IPv6 on the RB4011.
 - **SSO on VPS admission** ✅ — the netcup `post_install.sh` SSH config matches the preseed defaults; root-login
   disabled, per-host keys (Domen + Ansible), no `ai-debug` on a public box
   (see [deployment-preseed.md](deployment-preseed.md) → VPS Deviations). ✅ **enforced.**

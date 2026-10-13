@@ -519,7 +519,17 @@ zone answers today.
 - **Manually or via Ansible:** the public record list is the SSOT in `IaC/ansible/roles/cloudflare_dns/vars/main.yml`, applied by `playbooks/dns.yml` (control node, `community.dns.cloudflare_dns`, token `cloudflare_api` in 1Password `Homelab-ansible`; **IP-filtered to the home WAN address — run from the home control plane only**). Records for the VPS public edge (`vps` → the VPS public A/AAAA) are already listed; add each `*.kogler.si` service there as it moves onto the VPS.
 - **Matrix delegation (public):** the homeserver name is `kogler.si`, delegated to `matrix.kogler.si` — publish `_matrix._tcp` SRV (`matrix.kogler.si 443`) and serve `_matrix/client` + `_matrix/server` well-known on `kogler.si` and `matrix.kogler.si` (Caddy/Traefik static host or an intermediate). Required for clean `@user:kogler.si` IDs and federation (see [`services-matrix.md`](services-matrix.md)).
 - **Internal (Technitium):** serve **A (IPv4)** for all hosts/services — primary, deterministic, matches the static VLAN/IPv4 plan and the IPv4 inter-VLAN firewall.
-- **Internal AAAA: rejected for now.** It needs stable per-host global addressing **and** mirroring inter-VLAN isolation in the IPv6 firewall. IPv6 is live on the Home VLAN and the rejection still stands, on the first reason: isolation is mirrored for real (v6 filter + no prefix on 20/30/40/50/99, [network-vlans.md](network-vlans.md) §IPv6), but stable per-host addressing is **more** clearly missing than the second reason suggests — oldsrv's Home NIC runs `addr_gen_mode=1` (RFC 7217) with `use_tempaddr=2`, so the only addresses a home host gets are a hashed stable-privacy GUA plus rotating temporaries. Nothing name-able, no AAAA. Revisit only with a concrete requirement **and** pinned host addresses (`IPv6Token=` / static assignment in `roles/network`). Decision log: [network-rejected.md](network-rejected.md).
+- **Internal AAAA: authorized, sequenced after the publish.** Ruled (owner 2026-10-12): internal AAAA records
+  are **authorized** — the rejection-for-now is superseded, not reversed. The sequence is the ruling: AAAA
+  goes out **after** the public/publish half proves out, so no client is ever handed an AAAA that answers
+  nothing, and **pinned host addresses remain the precondition** (`IPv6Token=` / static assignment in
+  `roles/network`). Isolation is mirrored for real (v6 filter + no prefix on 20/30/40/50/99,
+  [network-vlans.md](network-vlans.md) §IPv6); the **other** reason is untouched and still binding — no host
+  carries a name-able global address today (oldsrv's Home NIC runs `addr_gen_mode=1` (RFC 7217) with
+  `use_tempaddr=2`, so it has only a hashed stable-privacy GUA plus rotating temporaries). The IaC half is a
+  `zone_kogler_si` schema change (an `aaaa` field read by the internal tier; `dns_primary_ipv6` exists but is
+  read only by the Cloudflare path) and belongs to that file's owner, gated on the VPS dual-stack publish.
+  Decision log: [network-rejected.md](network-rejected.md).
 
 ---
 

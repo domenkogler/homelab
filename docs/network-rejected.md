@@ -53,6 +53,7 @@ tags: [network, rejected, decision-log]
 | Inbound v6 exception in chain=input | superseded | Host traffic is forwarded; input never sees it |
 | Inbound v6 udp/41641 accept to oldsrv | dropped | RFC 7217 stable-privacy leaves no address to name |
 | Internal AAAA records | rejected | Needs stable per-host global addressing and mirrored v6 inter-VLAN isolation |
+| Internal AAAA records rejected-for-now | superseded | Authorized now, sequenced after the VPS publish; pinned addresses still owed |
 | IPv6 kept off / WAN-only | superseded | DHCPv6-PD delegates a /56; Home runs scoped dual-stack |
 | Kids filtered-DNS sighting as a separate bedtime close | dropped | One mechanism, one symptom: a re-watch buys nothing |
 | Kids filtering scoped to VLAN 40 only | rejected | The tablets sit on Home VLAN; the per-MAC dst-nat is the mechanism |
@@ -104,6 +105,7 @@ tags: [network, rejected, decision-log]
 | UPS web-UI firewall rule | rejected | UPS left the Mgmt VLAN; its web UI and Modbus stay unused |
 | v4 dst-nat + input accept for tailscale punches | dropped | Scan traffic proves the mechanism; the phone cannot ask |
 | VLAN 21 IoT-Internet as a Wi-Fi-reachable network | dropped | wifi-qcom-ac cannot tag per client; VLAN 20 plus wan_allow is reality |
+| VPS container IPv6 by NAT66 (docker fixed-cidr-v6) | rejected | ipvlan-l2 chosen; NAT66 hides the client address — pre-authorized fallback only |
 | Whole internal zone as MagicDNS extra_records | rejected | A frozen zone copy per device: per-subnet views and VIP semantics die |
 | Winbox `*-wb` LocalForward aliases / Pi-dial pattern | superseded | Winbox binds VLAN 99; use the on-site Mgmt leg |
 | WireGuard on the router for user devices | superseded | Headscale serves the family; one owner WG peer adds a VPS-free path |

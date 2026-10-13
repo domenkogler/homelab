@@ -69,6 +69,15 @@ networks:
     external: true
 ```
 
+**The network that carries a global IPv6 (VPS only).** Where an edge container needs one, it attaches to a
+docker **`ipvlan`** network (`ipvlan_mode=l2`, `parent=eth0`) built on the provider-delegated /64, declared
+`external: true` exactly like the three above and created once, ahead of any stack that uses it. No compose
+file names a v6 subnet or address: the addresses come from the *network*, which keeps the delegated prefix out
+of every service template. The `bridge` + `ipv6: true` + `ipam.config.fixed-cidr-v6` shape is the NAT66
+fallback, not an addition — it is swapped in **alone**, never alongside the ipvlan network, and no stack may
+carry both. Mechanism, the fallback's trigger condition, and the parked apply:
+[services-vps.md](services-vps.md) §IPv6 dual-stack on the VPS.
+
 ## Authentik OIDC provisioning — Blueprint + secret-egress glue
 
 > The Blueprint + secret-egress-glue contract, deploy ordering, and the per-service native-OIDC recipes live in **[`deployment-oidc.md`](deployment-oidc.md)**. This doc stays pure compose conventions.
