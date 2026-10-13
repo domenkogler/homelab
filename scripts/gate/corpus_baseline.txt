@@ -1,0 +1,30 @@
+# Pinned window for scripts/gate/corpus_diff.py --gate. Read that docstring before editing: the
+# fields below are what makes the verdict re-derivable instead of remembered, and a run whose
+# population does not match them REFUSES rather than reporting OK.
+#
+#     baseline_rev    the base end of the audited window
+#     compare_rev     the now end -- a revision, never a working copy, so the gate replays the same
+#                     audit in every clone instead of re-auditing whatever someone had checked out
+#     scope           the path prefix the window is read under
+#     compared_files  how many files the window actually changed under that scope
+#     compared_sha256 sha256 over the sorted "<path>TAB<base blob>TAB<now blob>" keys -- one digest
+#                     per key hashed first, so a path containing a newline cannot shift the digest
+#                     of its neighbours. This is the canary: it is the digest of WHAT WAS COMPARED,
+#                     so narrowing the scope, moving a revision or rewriting a file in the window
+#                     all change it, exactly as twin_baseline.txt's group digest does for the twin
+#                     gate
+#     rejected        how many REJECTs the window reports, every one of them carried by an exact,
+#                     used entry of gate/corpus_diff_accepts.txt -- an accepts list whose REJECTs
+#                     stopped existing is a list that outlived its edits
+#
+# Re-baseline at a wave tip, deliberately, in the commit that publishes all six values: point
+# compare_rev at the tip, run `python3 scripts/gate/corpus_diff.py --gate --show-baseline`, paste.
+# compare_rev older than STALE_AFTER_COMMITS commits behind HEAD is refused, because an ancient
+# window measures an old wave. A re-baseline also re-signs the accepts list: the window's REJECTs
+# are what the entries must cover, so `--gate --show-baseline`'s `reject_key` lines are the input.
+baseline_rev 34e77f82
+compare_rev 5ae34d79
+scope IaC/
+compared_files 125
+compared_sha256 609f6cfd6b74fac1dd363af73629a0b0053bcfd4ec4e7e1621d6600882f172e5
+rejected 3

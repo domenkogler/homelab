@@ -1,0 +1,17 @@
+# Signed exceptions list for the corpus-diff gate -- the edits in the pinned window that are
+# NOT purges. Read scripts/gate/corpus_diff.py before editing this file.
+#
+# One line per accepted edit, three TAB-separated fields:
+#     <path>TAB<line>TAB<reason>
+# An entry applies ONLY to the REJECT at that exact path+line. An entry that matches no REJECT in
+# the run is reported STALE and FAILS it: a signed exception must not outlive the edit it was
+# written for -- the same anti-whitelisting rule gate/iac_identifier_allowlist.txt lives by. The
+# reason must state WHAT the edit was, never that it was fine; a reason is a finding, not a
+# signature line. Deleting an entry here reddens the gate: it names a REJECT the window still has.
+#
+# The window these REJECTs come from is pinned in gate/corpus_baseline.txt (baseline_rev ->
+# compare_rev, scope IaC/), which is what makes each entry re-derivable instead of remembered.
+# The list came from the wave-2 audit's signed file and the entries are carried over unchanged.
+IaC/ansible/group_vars/spark.yml	313	a citation rewrite beside the purge, removing no token: `docs/hardware-spark.md:272` became the heading reference `docs/hardware-spark.md §The GLOBAL ceiling` and the stranded word `was` was dropped; inside a `#` comment line of the ceiling derivation
+IaC/ansible/group_vars/spark.yml	866	a comma closed to a full stop AND a close-paren, `,` -> `).`, because the second citation `HD-380` that the open paren of `(docs/spark-incidents.md,` had reached across was purged from the folded line below; text inside the `uncertified_reason: >-` block scalar
+IaC/ansible/roles/cockpit/tasks/maint-user.yml	319	the fail_msg sentence was re-subjected after deleting its subject: `HD-361 sat "done but unusable" for days.` became `a task sits "done but unusable".` -- the id WAS the sentence's subject, so a plain deletion would strand the verb; inside the `fail_msg: >-` folded scalar of the login-assert task

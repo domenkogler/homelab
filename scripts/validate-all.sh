@@ -273,6 +273,24 @@
 #                                     path + target + the pointer as written, never on line numbers.
 #                                     `--show-baseline` re-derives the ledger; `--self-test` breeds
 #                                     each anchor defect AND both halves of the ratchet.
+#  33. corpus_diff.py --gate          — the string-purge audit, in-tree and pinned: for the window
+#                                     named by `gate/corpus_baseline.txt` (base rev -> now rev under
+#                                     a scope), every changed line must have its change region
+#                                     CONFINED to a string literal or a comment, with the rest of the
+#                                     line byte-identical — a key, an indicator, a Jinja expression,
+#                                     a path, a match-key id, an added or dropped line is REJECTED.
+#                                     The REJECTs the window really has are carried by exact,
+#                                     USED entries of the signed list `gate/corpus_diff_accepts.txt`:
+#                                     deleting one exposes its REJECT and an entry whose REJECT is
+#                                     gone is STALE, so the list cannot narrow in silence (the
+#                                     `gate/iac_identifier_allowlist.txt` discipline). The population
+#                                     is pinned by a digest of what was compared, so a narrowed scope
+#                                     or a moved revision is a refusal, not a smaller check, and a
+#                                     now end older than one wave is refused — the staleness check
+#                                     `gate/check_string_twins.py` has. Its `--self-test` is a separate
+#                                     item: it proves the classifier on bred cases and both halves of
+#                                     the canary on a throwaway repo, because a gate that cannot fail
+#                                     is not a gate.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1122,6 +1140,14 @@ item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratche
 item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" $PY scripts/gate/check_script_layout.py --self-test
 item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/gate/check_iac_identifiers.py
 item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_iac_identifiers.py --self-test
+# The corpus-diff gate, promoted from the hand-run tool it was: `--gate` replays the window pinned
+# in gate/corpus_baseline.txt over the signed exceptions in gate/corpus_diff_accepts.txt, so a green
+# suite means the accepts list was read and matched, not that someone remembered to run a script
+# that lives outside the tree. Both halves are items because a purge audit and the proof that the
+# audit can fail are different claims: the run checks the window, the self-test checks the classifier
+# AND both directions of the accepts/baseline canary on a throwaway repo.
+item_q "corpus_diff.py --gate (the pinned string-purge window, over the in-tree signed accepts list)" $PY scripts/gate/corpus_diff.py --gate
+item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" $PY scripts/gate/corpus_diff.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
 # deliberately NOT gated: a suite that mutates the tree is worse than the drift it would catch.
