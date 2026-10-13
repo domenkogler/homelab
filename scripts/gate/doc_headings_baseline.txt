@@ -69,7 +69,6 @@
 1	docs/hardware-spark.md	docs/hardware-spark.md	§above
 1	docs/hardware-spark.md	docs/hardware-workstation.md	§Text-only
 2	docs/hardware-spark.md	docs/observability.md	§DCGM
-1	docs/home-assistant-current.md	docs/smart-home-failover.md	§Offline-safe
 1	docs/index.md	deployment-manual.md	§oldsrv
 1	docs/index.md	scripts/README.md	§Adjacent
 1	docs/network-dns.md	docs/services-media.md	§How

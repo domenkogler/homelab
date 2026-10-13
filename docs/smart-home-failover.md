@@ -215,7 +215,8 @@ Forward-Auth. Direct fallback `pi:5380` on the LAN.
 
 **Scope:** the Pi edge keeps **HA + the DNS-secondary web UI** reachable when oldsrv is down. The home-LAN **`traefik-internal` (oldsrv)** additionally serves **every internal app** (immich, Forgejo, grafana, …) on the LAN when WAN/VPS is down or the Pi is down (their backends are containers on oldsrv). When oldsrv itself is down, its hosted apps die with it (a second edge cannot rescue them) — HA and DNS are the only survivors (Pi edge).
 
-**Caveats (implementation):**
+### Caveats (implementation)
+
 - **VIP-only bind / gating:** `traefik-ha` uses `network_mode: host` with entrypoints
   explicitly bound to the VIP (`ha-vip`):80/443, and the Pi sets `net.ipv4.ip_nonlocal_bind=1`
   so Traefik can bind the VIP before/without keepalived holding the address. Only the

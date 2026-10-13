@@ -99,7 +99,7 @@ tags: [smart-home, homeassistant, haos, hacs, addons, audit, docker, failover]
 > one resolver and not another is a **seed/zone** problem, not a TLS or routing problem. The Pi's Technitium
 > zone still needs its seed, so resolution today depends on resolver order — see the failover doc's open item.
 > Pi `traefik-ha` TLS serves the synced `*.kogler.si` wildcard
-> ([smart-home-failover.md](smart-home-failover.md) §Offline-safe cert).
+> ([smart-home-failover.md](smart-home-failover.md) §Caveats).
 
 - **One auth provider: `homeassistant`** (local user accounts — `domen` owner + a local `admin`). **Home Assistant Cloud** loaded. `external_url` = `https://ha.kogler.si`.
 - **No Authentik/OIDC — by design, not a gap.** HA is **local-auth + WAN-independent**: the smart home must keep working when the VPS, Authentik and the WAN are all gone ([smart-home-failover.md](smart-home-failover.md)); `ha` is never behind Authentik Forward-Auth (decision log: [smart-home-rejected.md](smart-home-rejected.md)).
