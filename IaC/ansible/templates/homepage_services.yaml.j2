@@ -71,6 +71,11 @@
         href: "{{ media_url }}"
 {% if homepage_media_probe | default(true) %}
         siteMonitor: "{{ media_url }}"
+        # The live answer at the root is the media server's own redirect to its web app, so the
+        # expected set names it: a redirect is UP, the edge's 502-on-dead-backend is DOWN.
+        status:
+          code: [200, 301, 302, 307]
+          description: Up / Down
 {% endif %}
         description: Movies, TV & home media — streams from the home edge
 {% else %}
