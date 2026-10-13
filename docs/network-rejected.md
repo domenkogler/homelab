@@ -107,6 +107,7 @@ tags: [network, rejected, decision-log]
 | VLAN 21 IoT-Internet as a Wi-Fi-reachable network | dropped | wifi-qcom-ac cannot tag per client; VLAN 20 plus wan_allow is reality |
 | VPS container IPv6 by NAT66 (docker fixed-cidr-v6) | rejected | ipvlan-l2 chosen; NAT66 hides the client address — pre-authorized fallback only |
 | Whole internal zone as MagicDNS extra_records | rejected | A frozen zone copy per device: per-subnet views and VIP semantics die |
+| Retiring a DNS record by hand, per instance | rejected | Survives no re-seed; the seed needs the delete half |
 | Winbox `*-wb` LocalForward aliases / Pi-dial pattern | superseded | Winbox binds VLAN 99; use the on-site Mgmt leg |
 | WireGuard on the router for user devices | superseded | Headscale serves the family; one owner WG peer adds a VPS-free path |
 | WSL bridged Mgmt99 route-through as the default | superseded | Durable state is NAT plus generated resolv.conf; Mgmt99 is opt-in on-site |
