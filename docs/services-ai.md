@@ -843,7 +843,9 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
     it never reached Qdrant (`qdrant.kogler.si` is `db-internal`, unreachable from the `domen` seat, and the vault
     carries no Qdrant API-key item), so the claim rests on the vendor's own dependency line **`External deps:
     None (SQLite + iii-engine)`** read out of the published package metadata, not on a run of the pinned build.
-    **Prove or disprove it against the pinned version before any compose lands.** If it stands, the blueprint
+    **Prove or disprove it against the version that would actually ship, before any compose lands** — there is no
+    pin to read today: `agentmemory` is declared nowhere in the IaC and 0.9.29 is only what the probe ran
+    ephemerally. If it stands, the blueprint
     needs one of two ways out and each is an owner act: a **different memory-server version/build** that does take
     a Qdrant backend, or an **explicit two-plane decision** recorded in
     [`services-ai-rejected.md`](services-ai-rejected.md).
@@ -1088,7 +1090,7 @@ is **not** tested through the gateway and stays unsupported there.
 
 | Item | State |
 |------|-------|
-| **Coding-plane memory plane** | **Answered, parked.** OQ-12 and OQ-13 are answered and the durable copy is §9b: `agentmemory` is the **one central plane** with `user_id`/`project_id` filters set per client, and the **Qdrant + one central `agentmemory` + direct clients** blueprint is the target architecture. **OQ-14 — whether the `bge-m3` leg is needed — is still unanswered**: it is the only memory call still waiting on the owner. Nothing is installed and no build is authorized: the shape the blueprint assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29, the client-side filters are an isolation claim that still has to be proven, and the blueprint's **Qdrant-backend collision (§9b) must be proven or disproven against the pinned version before any compose lands.** |
+| **Coding-plane memory plane** | **Answered, parked.** OQ-12 and OQ-13 are answered and the durable copy is §9b: `agentmemory` is the **one central plane** with `user_id`/`project_id` filters set per client, and the **Qdrant + one central `agentmemory` + direct clients** blueprint is the target architecture. **OQ-14 — whether the `bge-m3` leg is needed — is still unanswered**: it is the only memory call still waiting on the owner. Nothing is installed and no build is authorized: the shape the blueprint assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29, the client-side filters are an isolation claim that still has to be proven, and the blueprint's **Qdrant-backend collision (§9b) must be proven or disproven against the version that would actually ship — there is no pin to read today — before any compose lands.** |
 | **Scoped-consumer tier** | Not shipped. `rpm` has a code path — a decided cap must never mint an uncapped key and look green. The first LAN record (`home-assistant`) is authored **and minted**. Held: the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
 | **`rag-mcp` + `forgejo-mcp` implementation** | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **Qdrant cutover + OKF wiki tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |
