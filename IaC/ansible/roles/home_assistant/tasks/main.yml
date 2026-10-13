@@ -33,7 +33,8 @@
 #      fail-closed, as a block scalar
 #    - Render other configs (integrations: knx via GIRA IP Router .118, homematic via the cloud
 #      HmIP-HAP, shelly native)
-#    - Run "owner" recovery account; Authentik OIDC; NO Forward-Auth on ha route
+#    - Run "owner" recovery account; local `homeassistant` auth (no Authentik in the ha path);
+#      NO Forward-Auth on ha route
 #    - keepalived PRIMARY: owns VIP 10.10.1.200 (state MASTER, priority higher than standby)
 #    - Deploy `traefik-ha` edge (docker_services, group_vars/raspberry_pi.yml): VIP-bound
 #      serve of ha.kogler.si → VIP:8123; keeps ha.kogler.si reachable when oldsrv is down.
