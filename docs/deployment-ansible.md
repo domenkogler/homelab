@@ -122,8 +122,10 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
     `playbooks/authentik-blueprints.yml`, so any filtered run skips it — an untagged task matches no
     filter.
 - **Consequences / gotchas:**
-  - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line → SILENT
-    NO-OP. Always pair role + service: `--tags "docker_services,opencloud"`.
+  - `--tags <service>` alone (e.g. `--tags opencloud`) matches no include line — the deploy-loop
+    include carries `docker_services` alone (`roles/docker_services/tasks/main.yml:216`) — so the
+    file is never parsed and the run is a SILENT NO-OP. Always pair role + service:
+    `--tags "docker_services,opencloud"`.
   - TRUE surgical convergence needs the **`docker_services_scope`** var:
     `--tags docker_services -e docker_services_scope=<service>` deploys a single service, or a
     comma-list for several: `-e docker_services_scope="forgejo,traefik"`. Without it, the include
@@ -289,7 +291,8 @@ Used for: initial setup, new hardware, full rebuild.
 # Single-service converge: role tag + the docker_services_scope var (union semantics
 # alone can't narrow the direct-role main.yml tasks — see §Tags & surgical runs above).
 ansible-playbook site.yml --tags docker_services -e docker_services_scope=immich-ml
-# A service tag alone matches nothing; keep the role tag (union semantics).
+# A service tag alone matches nothing: no include line carries it, so deploy-service.yml is
+# never parsed — keep the role tag (see §Tags & surgical runs above).
 ```
 
 > ⚠ **A VPS group converge converges EVERY host in the group** — they all consume `vault_read_token` — and
