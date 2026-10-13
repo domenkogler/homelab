@@ -770,9 +770,10 @@ citation anchors; the wording below is the rule **as it stands**.
 The **coding plane** (IaC/Ansible, C#, React/Vue, homelab epics) is a **separate plane** from the family
 research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from the laptop.
 
-- **Memory = agent-memory.dev, per project (this rule's wording is under an open owner call — see the
-  probe note below).** ⏸ **The blueprint stays parked (owner): nothing installed, no plane chosen, no row
-  minted.** The OQ-12/OQ-13 answers stand as recorded in the open calls below, OQ-14 stays unanswered, and no
+- **Memory = agent-memory.dev, per project** — the owner answered OQ-12 in favour of **one central** instance
+  (the calls below), so this per-project wording stands as the as-written rule until a central shape that is
+  implementable today is accepted. ⏸ **The blueprint stays parked: nothing installed, no compose, no work row
+  minted — the calls below are answered, the deployment is not authorized.** OQ-14 stays unanswered and no
   AI work waits on any of them (the durable negative also stands: LLM memory
   compression scored **R5 0/5** — it rewrites identifiers out of existence). One instance per project (project = 1+ repos), records tagged
   project+repo; **cross-project recall is opt-in, not default**. Data under `~/.agentmemory/<project>`,
@@ -784,14 +785,14 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
   [`../reports/probe-ov-20260921.md`](../reports/probe-ov-20260921.md), decision rows
   [`services-ai-rejected.md`](services-ai-rejected.md). OV is **not** Docker-only — it installs venv-native in
   ~2 min — so that is not the reason. Mem0 stays in the OWUI plane.
-- **Memory plane — probe note: measured, NOT decided** (`agentmemory` 0.9.29, ephemeral on oldsrv
+- **Memory plane — probe note: what was measured, and the owner calls it fed** (`agentmemory` 0.9.29, ephemeral on oldsrv
   under the `domen` seat; interpretation
   [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md), raw evidence in the
-  sibling directory of the same name). Owner rulings on record: **(a)** the wanted
-  shape is **ONE central instance**, not one per project — that *relaxes* the per-project rule above **as a
-  direction only**; the bullet above is **not** amended until the owner accepts a shape that is implementable
-  today; **(b)** "the quadrant" means **[Qdrant](https://qdrant.tech/)** (the vector store
-  already live here), **not a host**; **(c)** **Hermes must not keep its own memory store.** What was measured:
+  sibling directory of the same name). Owner rulings on record: **(a)** the OQ-12 answer is **ONE central
+  instance**, not one per project — that *relaxes* the per-project rule above **as a direction only**; the bullet
+  above is **not** amended until a central shape that is implementable today is accepted; **(b)** "the quadrant"
+  means **[Qdrant](https://qdrant.tech/)** (the vector store already live here), **not a host**; **(c)**
+  **Hermes must not keep its own memory store.** What the measurements showed:
   * **Keyless works, and it is the headline** — 7/10 hit@5 with **zero** LLM in the hot path, determinism 10/10
     (same query ×5 → identical ranking), **455 tok/query** injected vs **5,267** for OV, ≈0 spark tokens/session.
   * **The vector leg is an upgrade, not a dependency** — hybrid on our `bge-m3` @1024 beat keyless BM25-only
@@ -827,12 +828,29 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
     `GET /agentmemory/export` (plain JSON, no CLI verb) ⇒ **lock-in low**; the `iii` **0.11.2** binary ships **no
     verifiable license** (GitHub API `license: None`, no LICENSE file) — record those terms as unverified before
     it ships anywhere. Booting from a different cwd silently switches instance (`dataDirResolution`).
-  * **Open owner calls** (measured, waiting on the owner — nothing here decides them): **OQ-12** single central
-    plane (not as specified — needs a proxy + `project` tags); **OQ-13** Hermes' store (the central plane is the
-    lower-cost option on evidence; **agentmemory can never target Qdrant by design**, so "Hermes on Qdrant +
-    everyone on agentmemory" is two planes nobody reconciles — that arm stayed **unmeasured**, Qdrant is
-    db-internal and unreachable from the seat); **OQ-14** whether the `bge-m3` leg is needed at all (keyless
-    clears every gate; the leg is a measured +2).
+  * **Owner calls — OQ-12 and OQ-13 are answered; OQ-14 is not.** **OQ-12 = yes**: `agentmemory` **is** the one
+    central memory plane, with the **`user_id` and `project_id` filters set on each client**. That is the answer
+    chosen for the measured "one shared bearer, no per-user isolation" gap, and it means isolation is **by
+    client-side filter** — so whether that satisfies the isolation requirement, or whether the
+    forwarder/proxy is still required, is an **implementation-time proof, not a re-ask**. **OQ-13 = the blueprint
+    is the target architecture**: (1) one central **Qdrant** instance; (2) the central `agentmemory` server
+    configured to point at that Qdrant; (3) every client — **Hermes, Open WebUI, pi.dev, OpenClaw** — connecting
+    **directly** to that single `agentmemory` endpoint.
+  * **The collision inside that answer is the first implementation task, not a reason to re-ask.** The
+    2026-09-21 probe records that `agentmemory` **cannot target Qdrant** as its backend, which on that reading
+    makes the blueprint **two planes, not one**: a Qdrant store plus an `agentmemory` store whose divergence
+    nobody reconciles. ⚠ What was actually measured is weaker than that sentence — the arm that could have tested
+    it never reached Qdrant (`qdrant.kogler.si` is `db-internal`, unreachable from the `domen` seat, and the vault
+    carries no Qdrant API-key item), so the claim rests on the vendor's own dependency line **`External deps:
+    None (SQLite + iii-engine)`** read out of the published package metadata, not on a run of the pinned build.
+    **Prove or disprove it against the pinned version before any compose lands.** If it stands, the blueprint
+    needs one of two ways out and each is an owner act: a **different memory-server version/build** that does take
+    a Qdrant backend, or an **explicit two-plane decision** recorded in
+    [`services-ai-rejected.md`](services-ai-rejected.md).
+  * **OQ-14 — whether the `bge-m3` leg is needed at all — is unanswered.** Keyless BM25 cleared every gate the
+    probe set (7/10 hit@5, determinism 10/10, 455 tok/query, no embedding dependency, 2× faster recall) and the
+    leg is a measured **+2** at ≈2× recall latency. Nothing here decides it, and no neighbouring answer implies
+    one; OQ-12/OQ-13 being closed does not close this one.
   * **A trap that generalises beyond this product (confirmed twice):** a *falsy-but-set* key is a cloud-egress
     switch. `OPENAI_API_KEY=false` made agentmemory dial **`api.openai.com` once per observation**, and Hermes'
     `provider: custom` with a **non-loopback** `base_url` silently resolved to **`openrouter.ai`** (its trust
@@ -1070,7 +1088,7 @@ is **not** tested through the gateway and stays unsupported there.
 
 | Item | State |
 |------|-------|
-| **Coding-plane memory plane** | **Measured, undecided.** The `agentmemory` probe answered OQ-12/13/14 in one line each (§9b note + [`../reports/probe-agentmemory-20260921.md`](../reports/probe-agentmemory-20260921.md)); the owner call is open and nothing is installed. ⛔ Do not build a central instance before it: the shape the question assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29. |
+| **Coding-plane memory plane** | **Answered, parked.** OQ-12 and OQ-13 are answered and the durable copy is §9b: `agentmemory` is the **one central plane** with `user_id`/`project_id` filters set per client, and the **Qdrant + one central `agentmemory` + direct clients** blueprint is the target architecture. **OQ-14 — whether the `bge-m3` leg is needed — is still unanswered**: it is the only memory call still waiting on the owner. Nothing is installed and no build is authorized: the shape the blueprint assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29, the client-side filters are an isolation claim that still has to be proven, and the blueprint's **Qdrant-backend collision (§9b) must be proven or disproven against the pinned version before any compose lands.** |
 | **Scoped-consumer tier** | Not shipped. `rpm` has a code path — a decided cap must never mint an uncapped key and look green. The first LAN record (`home-assistant`) is authored **and minted**. Held: the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
 | **`rag-mcp` + `forgejo-mcp` implementation** | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **Qdrant cutover + OKF wiki tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |

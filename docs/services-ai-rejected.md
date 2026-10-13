@@ -25,6 +25,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Subject | Status | Why |
 |---------|--------|-----|
 | `agent-gemma-26b` / `agent-unified*` laptop arms | superseded | Agent leg retired: cold prefill, minutes per turn |
+| `agentmemory` as the Qdrant-backed plane | rejected | Pinned build stores SQLite: a Qdrant leg is a second plane |
 | `agentmemory` central instance as briefed | rejected | Loopback REST, one shared bearer, no per-user isolation |
 | `agentmemory` LLM compression (consolidation, graph extraction) | rejected | Drops every identifier: retrieval-key 0/5 |
 | `ar-blk-lean` (ar-blk minus the ple_dispatch env) | rejected | Crashes at first shard; knobs constitutive |
