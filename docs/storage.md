@@ -100,14 +100,35 @@ case a homelab loses <24 h of DB changes, acceptable.
 ## Snapshot & Replication (sanoid / syncoid)
 
 - **sanoid** on nas snapshots `tank/data/*` (and `bulk/data/*` replicas + `bulk/data/immich-thumbs`).
-  `bulk/media` is excluded from sanoid entirely.
+  `bulk/media` is excluded from sanoid entirely (`autosnap = no`), which is the fact to read back —
+  `zfs list -t snapshot bulk/media` must stay empty.
+- **A policy snapshot is named `@autosnap_<date>_<time>_<tier>`** — `hourly`, `daily`, `weekly`,
+  `monthly`. Grep `@hourly.` and a working sanoid reads as having produced nothing; the read that
+  works is `zfs list -t snapshot | grep _hourly`.
+- Cadence lives in the `storage_sanoid` map in `roles/storage/defaults/main.yml`. `frequently` is 0
+  on every template, so the 5-minute timer fires are due-and-prune checks, not 5-minute snapshots.
+- **The unit that runs sanoid is generated here** (the Debian `sanoid` package ships no unit file) and
+  its `ExecStart` must name `/usr/sbin/sanoid`, where the package installs the binary. A wrong path
+  fails the fire with `status=203/EXEC` before sanoid runs, which no idempotent converge can see.
+  The package's `/etc/cron.d/sanoid` is not a backstop either: its command is guarded by
+  `[ ! -d /run/systemd/system ]` and self-skips on any systemd boot, so **the timer is the only
+  scheduler** and there is no dual scheduling to manage.
+- **A snapshot story is proved by reads, not by the recap**: the last-fire result
+  (`systemctl show sanoid.service -p Result -p ExecMainStatus`) plus fresh policy snapshots on the
+  configured datasets. A green `failed=0` converge says nothing about either.
 - **syncoid** replicates `tank/data/* → bulk/data/*` (incremental `zfs send | zfs recv`). Timer checks
   every 15 min, sends only when a new source snapshot exists — effectively ≈ hourly for services/db-dumps.
+  ⏳ A send that never exits freezes this leg **and** retention: sanoid prints
+  `deferring pruning of <snap> — <dataset> is currently in zfs send or receive`, so a stuck send shows
+  up as a snapshot count that grows past the configured window (`hourly = 24` holding 100) rather than
+  as a red unit. The read that separates the two causes is
+  `sanoid --prune-snapshots --readonly --verbose` next to `systemctl status storage-syncoid.service`
+  — a leg sitting in `activating` for days has not replicated since its start time.
 - Replica datasets retain **independent** snapshot history on the `bulk` pool (protects against source
   deletion/error propagation; the replica is a rollback target of its own).
 - `bulk/data/immich-thumbs` and `bulk/media` are **push targets** — no syncoid definition.
-- Managed by **systemd timers** (`sanoid.timer`, `syncoid.timer`) — journaling, randomized schedules,
-  failure tracking. Not raw cron.
+- Managed by **systemd timers** (`sanoid.timer`, `storage-syncoid.timer`) — journaling, randomized
+  schedules, failure tracking. Not raw cron.
 
 ---
 
@@ -137,6 +158,13 @@ Three exports (one per pool + the face-thumbs push target — mounts can't span 
 - Ownership uid/gid **`storage_uid`/`storage_gid` = 1005 (`media`)** — the neutral shared-data owner, NOT domen/1000; matches *arr `PUID/PGID`, Jellyfin/OpenCloud `user:` and the Samba force user/group; NFS `root_squash` on.
 - fstab mounts via Ansible (`storage` role). Hardlinks only ever cross paths **within** `bulk/media` — one dataset, one filesystem ✓.
 - **The `storage` role applies NFS exports on-change only** — the `Reload NFS exports` handler (`exportfs -ra`) is `notify`-driven by the `Render /etc/exports` template task, so an **idempotent converge (file unchanged) never re-asserts the live nfsd export table**. If a live export is dropped for any reason, subsequent converges won't restore it while `/etc/exports` is already correct — a client then errors `Stale file handle` on that automount. Recovery: `sudo /usr/sbin/exportfs -ra` on the NAS to re-apply (then clear the client's stale handle; runbook in [deployment-manual.md §Phase 2](../deployment-manual.md)). Robustness option: make exports ensure-present each run rather than notify-on-change.
+- **Nothing else publishes these paths.** ZFS share control is off on every dataset
+  (`sharenfs`/`sharesmb` = `off`), so the distro `zfs-share.service` — which runs `zfs share -a` —
+  owns no export here and is **disabled** on nas; its SMB half fails on `sharesmb=on` properties left
+  on the `bulk/migrate` migration-remnant datasets, which no share of this layout serves. The two
+  writers of the live nfsd table are `exportfs -ra` (the `storage` role's reload handler, on change)
+  and `nfs-server.service`'s own `exportfs -r` at boot. Read back with `exportfs -v` — it must match
+  `/etc/exports` row for row.
 - **SMB/Samba is implemented** on the NAS via the `storage` role — its own section below, since
   it exposes a DIFFERENT tree than the NFS exports above and answers to different credentials.
 
@@ -153,6 +181,15 @@ the two shared ones force-owned by the neutral **`media`** account (`force user`
 | `\\nas\media` | `/tank/data/shared` | `/mnt/nas/data/shared` | `@media` (any family account) | family shared tree |
 | `\\nas\music` | `/bulk/media/media/music` | `/mnt/nas/media/media/music` | `shared` only | **the Lidarr rootFolder** — a laptop drops finished albums where the arr scans, no follow-up move |
 | `\\nas\<user>` | `/tank/data/users/<user>` | — | `<user>` | per-user private drive, NO force user (own uid = the isolation) |
+
+**winbind runs, and it authenticates nothing.** The server role is standalone and the passdb is local
+`tdbsam`, so there is no domain, no trust and no user mapping through winbindd — `wbinfo -t` answering
+`could not check secret` is the correct answer on this host, not a fault. The unit ships enabled with
+the `samba`/`winbind` packages and the role asserts it running, because `/etc/nsswitch.conf` names
+`winbind` in `passwd:`/`group:` and the name-service stack calls into the daemon on every lookup. It
+is never disabled to silence a red — that leaves NSS naming a socket nobody serves — and when it has
+failed the cause has been the passdb it initialized at that boot (a retired `ldapsam` backend), not
+winbind itself, so a retry after the config lands is the fix.
 
 **How a client addresses these shares.** `nas.kogler.si` answers on the LAN plane
 and DHCP delivers the `kogler.si` suffix, so `\\nas\media` mounts over Wi-Fi as well as over cable.
@@ -370,13 +407,20 @@ Alerts cover the **nas pools** — Warning **≥ 70%**, Critical **≥ 80%** (bo
 **Music: NAS master + a Box serving copy (Navidrome on the VPS).** The FLAC **master** is
 the Lidarr library on the NAS: `bulk/media/media/music` (Lidarr root `/media/music` — measured, empty today). The
 Hetzner Storage Box **`music/`** is the **serving copy** Navidrome reads through its VPS-side CIFS mount
-(`/mnt/storagebox/music` → `/music`, `rw`). ⚠ `roles/cifs/tasks/main.yml` asserts the Box mount onto the
-**VPS only** — neither oldsrv nor the NAS has one, so no `music → Box` leg exists anywhere and the Box's
-`music/` is empty: only files the owner places on the Box by hand reach Navidrome.
+(`/mnt/storagebox/music` → `/music`, `rw`).
 
-Two consequences worth stating where the layout is read: **(a)** a push must carry the mountpoint guard and
-read-back that `vps-state-push.sh` carries, and any `--delete` must be bounded (`--max-delete`) — a silent dead mount
-on a *serving* tree means Navidrome serves an empty library while the timer reports green; **(b)** **neither copy is a
+**The leg between them is ruled and does not exist.** The shape is a **push from `oldsrv` to the Box over
+rsync/SFTP on port `:23`** — no new mount anywhere, so `roles/cifs/tasks/main.yml` keeps asserting the Box
+mount onto the **VPS only** (measured: `mount | grep cifs` on oldsrv answers nothing, and neither the NAS nor
+oldsrv has a Box mount). It is not authored in IaC today: the `storage` role's push legs cover the DB dumps
+only, and there is no music push unit on oldsrv. So the true statement is that the Box's `music/` receives
+nothing on its own — only files placed there by hand (or by an owner's own SMB mount) reach Navidrome, and a
+music import that appears to work on the NAS has not reached the serving copy.
+
+Two consequences that are part of the requirement, not advice: **(a)** the push must carry the mountpoint
+assert and read-back that `vps-state-push.sh` carries, and any `--delete` must be bounded (`--max-delete`) —
+a dead mount is an empty directory, and an empty directory is what Navidrome will then serve while the timer
+reads green; **(b)** **neither copy is a
 backup** — Kopia's remote is the *backup* box (`kopia_sftp_host`, a different server from the live Box) and `bulk` is
 in the media "redownloadable, not backed up" tier, so a bad delete can reach both. That is acceptable for
 usenet/torrent media and much less so for Soulseek FLAC, which is not reliably re-fetchable: the retention

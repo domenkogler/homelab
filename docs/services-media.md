@@ -54,7 +54,7 @@ Subdomains are relative to `kogler.si` (no port, no suffix). Network codes (`P/I
 | Lidarr-URL-DL | lidarr-ydl | I | 150–300 / 500 | Lidarr-YouTube-Downloader (angrido/lidarr-downloader) — acquisition **#3**: YouTube → Lidarr (Newznab + SABnzbd emulation, yt-dlp + PO-token sidecar), up to 320 kbps MP3/M4A/Opus; internal-only UI |
 | Slskd | slskd | I | 60–140 / 250 | Soulseek P2P daemon (slskd/slskd) — **gluetun WireGuard sidecar, VPN-locked egress**, acquisition **#2**; no inbound port → fetch-only peer (search + download, no upload credit); own login |
 | Tube Archivist | tube | I | 300–700 / 1200 | Personal YouTube (bbilly1/tubearchivist + ES + redis) — headless yt-dlp (bundled), channel/playlist subs, **no Google account**; internal-only; own login · `tube` subdir on nas `bulk/media` · needs `vm.max_map_count` · **⏳ disabled** — ES `path.repo` problem, see §Music Pillar
-| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (`@daily` inside the container, no UI) — **⏳ off**: the mechanism works, the policy switch stays commented because it rewrites live quality profiles. Deferred until upstream profile drift actually costs something — do not re-open it before then: [deployment-secrets.md](deployment-secrets.md) §the `sonarr_api`/`radarr_api` rows |
+| Recyclarr | — | I | 40–80 / 200 | TRaSH custom formats + quality profiles sync (`@daily` inside the container, no UI) — the **service runs**; the **quality-profile policy ships nothing**, by ruling: the `quality_definition:` block stays commented because enabling it rewrites the live Radarr/Sonarr profiles, and the ruled position is that this stays off — a later yes is a new decision, never drift: [deployment-secrets.md](deployment-secrets.md) §the `sonarr_api`/`radarr_api` rows |
 
 ## Storage & Import (Media / *arr)
 
@@ -76,7 +76,7 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
 - **Three NFS exports:** `bulk/media` → oldsrv **`/mnt/nas/media`** (the *arr share), `tank/data` →
   `/mnt/nas/data` (immutable user data) and `bulk/data/immich-thumbs` → `/mnt/nas/thumbs` (push target) —
   two pools, three exports.
-- **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the exception, and its leg **does not exist yet**: Lidarr's root is `/media/music` = nas `bulk/media/media/music` (empty), and neither oldsrv nor the NAS can write the Box — `roles/cifs/tasks/main.yml` asserts the Box mount onto the **VPS only**, and `mount | grep cifs` on oldsrv shows nothing, so a "Lidarr copies music to the Box" path has no mount behind it. The shape: **NAS master + a push leg to the Box**, and the push is **`oldsrv` → Box rsync/SFTP over `:23`** — no new mount, so the VPS-only `cifs` assert stays; the mount assert and a bounded `--max-delete` are part of the requirement, not advice (a dead mount is an empty directory, and an empty directory is what Navidrome will serve). Retention stays an owner call: neither copy is inside Kopia's scope. `docs/storage.md` §Store tiering owns the layout.
+- **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the exception, and its leg **does not exist yet**: Lidarr's root is `/media/music` = nas `bulk/media/media/music` (empty), and neither oldsrv nor the NAS can write the Box — `roles/cifs/tasks/main.yml` asserts the Box mount onto the **VPS only**, and `mount | grep cifs` on oldsrv shows nothing, so a "Lidarr copies music to the Box" path has no mount behind it. The shape: **NAS master + a push leg to the Box**, and the push is **`oldsrv` → Box rsync/SFTP over `:23`** — no new mount, so the VPS-only `cifs` assert stays; the mount assert and a bounded `--max-delete` are part of the requirement, not advice (a dead mount is an empty directory, and an empty directory is what Navidrome will serve). Retention stays an owner call: neither copy is inside Kopia's scope. `docs/storage.md` §Service ↔ Storage Placement owns the layout.
 - **Media is not backed up** (movies/TV) — no sanoid snapshots, no syncoid, no Kopia; lost media is re-fetched via
   usenet/torrents. ⚠ **Music is not "the exception":** the FLAC master sits on the NAS in the same not-backed-up
   tier and the Box holds a second *serving* copy — the Kopia trail runs to the **backup** box (`kopia_sftp_host`, a
@@ -250,10 +250,11 @@ cannot be answered until the provider login works.
 - **Auth:** local logins retained (break-glass + Subsonic clients); the web UI **SSO via Authentik is
   optional** (deploy-gated) — `/rest/*` stays local for Subsonic clients (Symfonium, play:Sub).
 - **Clients:** any Subsonic-compatible app; web at `music.kogler.si` (internal/tailnet — no public record).
-- **Import path:** **not implemented** — Lidarr keeps its root on the NAS (`/media/music`) and the push leg to
-  the Box (§Storage & Import) is what is owed; there is no Box mount on oldsrv to import into.
-  `docs/storage.md` owns the tiering/consequence line. Until that leg lands, only files placed on the Box by hand (or
-  by the owner's own SMB mount) reach Navidrome.
+- **Import path:** **not implemented** — Lidarr keeps its root on the NAS (`/media/music`) and the push leg
+  to the Box (§Storage & Import) is what is owed. The ruled mechanism is a **push from `oldsrv` to the Box
+  over rsync/SFTP on `:23`** — there is deliberately no Box mount on oldsrv to import into, so "wire the
+  mount" is not the missing step. `docs/storage.md` owns the tiering/consequence line. Until that leg lands,
+  only files placed on the Box by hand (or by the owner's own SMB mount) reach Navidrome.
 - **⚠ The door is still missing.** `music.kogler.si` is
   published **nowhere**: no row in `zone_kogler_si` on any of the three Technitium instances, no entry in
   headscale's extra-record sets, and **no router in any edge file** — the VPS `traefik-tailnet` set routes
