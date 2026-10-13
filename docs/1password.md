@@ -60,9 +60,13 @@ passes — so scope a seat only from `op_api/credential`, and prove it by Integr
 | Item / install | value | service account |
 |---|---|---|
 | `op_api` — **current** | `6a1342f44e65` | Integration `DUW6UPKY5JGG3MM6WF3HBHQWGQ` (read) |
-| `op-write_api` — **current** | `b61f34e3bc95` | Integration `PR4Z2FGWW5BRXNL6OR3FNYL3R4` (read+write) |
+| `op-write_api` — **current** | `af0e1cffc9e4` | Integration `WN7FJT54IVHDDC4XR3YJ73R2CY` (read+write) |
 
-The superseded `op_api` value stays valid until its grace window closes on **~2026-10-15**.
+The superseded `op_api` value stays valid until its grace window closes on **~2026-10-15**. The
+write item's current value belongs to a **different integration** than the value it was replaced
+with, so the two facts are not interchangeable: the **value hash** is what identifies a holder (the
+sweep below), the **Integration ID** is what proves scope. An install whose `op whoami` answers a
+write-scoped ID other than the row above is running a superseded credential.
 
 A rotation revokes the consumers of **that item**, and only them. Enumerate consumers by *value hash*,
 not by *doc row* — a host can appear in one item's row while carrying the other item's value.
@@ -101,6 +105,14 @@ into a `printf … 'PASTE_TOKEN' > …` command line is stored verbatim in histo
 The sweep is the `sed` above; the audit is `grep -c '^export OP_SERVICE_ACCOUNT_TOKEN=' ~/.bash_history`.
 **Check the same file on every seat, and check the pi transcripts** — a value that crossed a transcript
 cannot be scrubbed from the repo, only rotated.
+
+**Rotating `op-write_api` is not the re-seat.** Seat and runner files carry `op_api`, so a write-token
+rotation reaches them not at all; the write credential reaches its hosts only as the **rendered copy**
+`/etc/op/provision-token`, which no rotation touches. After rotating the item, the re-seat is the pass
+that re-renders that file: `op-provision-token.yml` (`docker_services_op_provision_token`, `scope_is_all`,
+laptop-issued) on a non-Authentik host, or the Authentik pre-pass on the VPS. Until that pass lands, the
+host keeps presenting the superseded value and every read-side check still passes — so prove a host with
+the hash sweep above plus its own `op item list --vault Homelab-ansible` answer, never with `[ -r … ]`.
 **Trap that bites every time:** an already-running shell keeps exporting the OLD value, and the
 environment beats the file. `op whoami` returning `403 … You aren't authorized to access this
 resource` with a freshly-written file means exactly that — re-`source` the file (or open a new
