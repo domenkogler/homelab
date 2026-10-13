@@ -46,6 +46,7 @@
       /srv/docker/kopia-server/config/tls-sha256 is missing or malformed. It is
       written by the kopia-server container boot script after generating tls.crt/tls.key.
       Redeploy kopia-server first (its first start generates the cert), then re-run.
+  tags: [docker_services, kopia_server, kopia_fingerprint]
   when:
     - inventory_hostname == 'vps.kogler.si'
     - kopia_tls_fp_file is defined
