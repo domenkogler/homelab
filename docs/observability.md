@@ -1351,6 +1351,108 @@ still reports `failed=0`. Proof = a backend query or `docker ps`, never the reca
 
 ---
 
+## SNMP coverage — what the gear actually answers, against what we collect
+
+> **Role:** measurement state for network monitoring over SNMP: which OID families **actually answer** on which device
+> on this firmware, and how that compares with the one module the collector walks
+> ([`snmp.yml.j2`](../IaC/ansible/roles/monitoring/templates/snmp.yml.j2) → `prometheus.exporter.snmp` above).
+> A MIB name is not a capability — an answered OID is, so per-device monitoring decisions go against this table.
+> **Status: ✅ measured read-only on the live gear (2026-10-13, RouterOS 7.24.4). Nothing here changed a device:**
+> `snmpget`/`snmpwalk` only, never `snmpset`, never a device config.
+
+**Method, because it is load-bearing.** Probes ran from the oldsrv seat with the distro `snmpwalk`/`snmpget`
+(net-snmp 5.9.4, already installed — nothing installed for this), SNMPv2c, against the addresses the inventory models
+(`network_static_hosts`). The read-only community resolves from the vault item `network-snmp_api` and is proved
+present by **length only**; it is fed through a `0600` `snmp.conf` (`defCommunity`) so it never reaches `argv`, `ps`,
+or a log. **The seat carries no IETF MIB files** (`/usr/share/snmp/mibs` holds only net-snmp's own), so every probe is
+a **numeric OID walk** (`-On`) and the names below describe the returned payload, not a symbol resolved on the seat.
+The four outcomes are kept apart: **answered** / **`noSuchObject`** (the family is not in the agent's tree) /
+**timeout** (the agent never replied — says nothing about which families it would have) / **refused**.
+
+### Per-device verdict
+
+Addresses are the Mgmt-plane ones the SSOT models — see
+[`network-addresses-generated.md`](network-addresses-generated.md); hostnames are the inventory names, which is how
+the rows below identify a box.
+
+| Device | Reachability proof | SNMP verdict |
+|---|---|---|
+| **router** RB4011iGS+ | ICMP up; `sysDescr` = `RouterOS RB4011iGS+ 7.24.4 (stable)`, `sysObjectID` `.1.3.6.1.4.1.14988.1` | **answers** (rows below) |
+| **switch** CRS328-24P-4S+ | ICMP up; `sysDescr` = `RouterOS CRS328-24P-4S+ 7.24.4 (stable)` | **answers** (rows below) |
+| **ap-spalnica** hAP ac² | ICMP up from the Mgmt plane, ARP `REACHABLE` with the inventory MAC, **and its RouterOS API port accepts a Mgmt-plane TCP connection** | **timeout on every family** — the agent is not answering. Not a Mgmt-plane input-filter problem: another management service on the same box answers from the same source. No IaC on the APs enables SNMP (no `capsman`/router template carries an `/snmp` block), so the likeliest reading is `/snmp enabled=no` on the default config. Family presence stays **unknown**, not absent |
+| **ap-dnevna** hAP ac² | ICMP up, ARP `REACHABLE`, inventory MAC, API port open from Mgmt | **timeout on every family** — same state |
+| **ap-spare** | no ICMP, ARP `INCOMPLETE` | **not on the wire** |
+| **ilo** (nas BMC) | no ICMP, ARP `INCOMPLETE` | **not on the wire** (BMC down/off) — nothing to conclude |
+| **nas** (Mgmt-plane address) | no ICMP, ARP `INCOMPLETE` on Mgmt — the box lives on Home | **timeout**; no SNMP agent is modelled for nas |
+| **ups** PowerWalker (IoT-plane address) | ICMP up (routed) | **timeout** — no SNMP answer; the live truth path is NUT over USB (§UPS / Power-Loss Monitoring), so this is a non-gap |
+| **homematic-hap** | no ICMP, no neighbour entry | **timeout** — HA owns this device, no SNMP path |
+| **TP-Link TL-SG108E** | **no address exists** in `network_static_hosts` or the rack model (`network-rack-generated.md` records it as wiring-unknown) | **not probed** — nothing to reach; the inventory cannot currently say whether it has an agent at all |
+| *MAIPU / UDM / Radlan* | **no such device** in the inventory, the rack model, or any `docs/` inventory; `RADLAN` (`.1.3.6.1.4.1.12837`) answers nowhere | nothing to walk — a device list naming them is wrong, not this network |
+
+The two MikroTiks are the **only** SNMP surfaces in this rack, both on RouterOS 7.24.4 — one module covers 100 % of
+what SNMP can see here.
+
+### Family by family, on the two MikroTiks
+
+`RB4011 / CRS328` = instances a numeric walk returned.
+
+| Family | OID root | Verdict | Rows |
+|---|---|---|---|
+| system (`sysDescr`/`sysObjectID`/`sysUpTime`/`sysContact`/`sysName`/`sysServices`) | `.1.3.6.1.2.1.1` | answered | 6 scalars each |
+| **`ifAdminStatus` / `ifOperStatus`** — *what the collector walks today* | `.1.3.6.1.2.1.2.2.1.7` / `.8` | answered | 23 / 31 |
+| **`ifName`** — *walked today for the label lookup* | `.1.3.6.1.2.1.31.1.1.1.1` | answered | 23 / 31 |
+| ifTable rest (`ifDescr`/`ifType`/`ifSpeed`/`ifMTU`/`ifLastChange`) | `.1.3.6.1.2.1.2.2.1` | answered | 23 / 31 |
+| **throughput + error counters** (`ifInOctets`/`ifOutOctets`/`ifInErrors`/`ifOutErrors`, and the 64-bit `ifHCInOctets`/`ifHCOutOctets`) | `.1.3.6.1.2.1.2.2.1.10/.14/.16/.20`, `.1.3.6.1.2.1.31.1.1.1.6/.10` | answered | 23 / 31 each |
+| `ifAlias` (port description) / `ifHighSpeed` | `.1.3.6.1.2.1.31.1.1.1.18` / `.15` | answered | 23 / 31 — but `ifAlias` is the **empty string** on 22 of 23 and 26 of 31 ports, and `ifHighSpeed` reports `0` for every LAG/virtual interface: present ≠ populated |
+| bridge base + base-port map | `.1.3.6.1.2.1.17.1` | answered | 5 / 28 base ports |
+| **FDB** `dot1dTpFdbPort` | `.1.3.6.1.2.1.17.4.3.1.2` | answered | 14 / 15 entries |
+| **VLAN-aware FDB** `dot1qTpFdbPort` | `.1.3.6.1.2.1.17.7.1.2.2.1.2` | answered | 63 / 76 entries |
+| STP `dot1dStp` | `.1.3.6.1.2.1.17.2` | answered, **walk-hostile on the RB4011** | CRS328 walks (289 rows); the RB4011 walk aborts mid-table with `Error: OID not increasing` at `.17.2.15.1.2` — scrape it column-scoped, never as a subtree walk |
+| ARP `ipNetToMediaTable` | `.1.3.6.1.2.1.4.22.1` | answered | 42 / 3 entries |
+| IPv6 `ipAddressTable` | `.1.3.6.1.2.1.4.34` | **absent** | `noSuchObject` at the group, the table and its columns — IPv6 addresses are not readable over SNMP here
+| ENTITY-MIB `entPhysicalTable` | `.1.3.6.1.2.1.47.1.1.1.1` | **partly** | 9 / 2 entities; `entPhysicalDescr` = `"RouterOS 7.24.4 (stable) on <MODEL>"`, `entPhysicalClass` integer, but **`entPhysicalName` returns `INTEGER: -1`** and serial/model are empty strings — ENTITY says *which box*, never per-port names. `entLogicalTable` absent |
+| sensors / optics DOM (`entSensorTable`) | `.1.3.6.1.2.1.99` | **absent** | no temperature / voltage / `rxPower` via the standard sensor MIB |
+| **PoE** (`pethMainPse`/`pethPortPse`) | `.1.3.6.1.2.1.105` | **absent** | including on the CRS328-**24P** — PoE budget and per-port PoE state are not readable over SNMP on this firmware |
+| Ethernet-like link stats (`dot3StatsTable`, `dot3OperTable`, `etherLikeOETSTable`) | `.1.3.6.1.2.1.10.7.2` / `.10.24` / `.10.20` | **absent** | CRC/alignment error counters have no `dot3` home here — use `ifTable`'s `ifInErrors`/`ifOutErrors`, which do answer |
+| RMON | `.1.3.6.1.2.1.16` | **absent** | no RMON channel counters |
+| LAG (`dot1dLagPort*`) / 802.3ah `aMaMux` | `.1.3.6.1.2.1.17.1.3.1.1` / `.1.2.840.11425.1.2.1` | **absent** | no LAG-member state over SNMP (`.17.1.3.0` answers as a scalar; the table does not exist) |
+| CPU `hrProcessorLoad` | `.1.3.6.1.2.1.25.3.3.1.2` | answered | 4 cores / 1 core |
+| Memory + disk `hrStorageTable` | `.1.3.6.1.2.1.25.2.3.1` | answered | 2 rows each: `"main memory"`, `"system disk"`, 1024-byte units |
+| **MikroTik vendor subtree** | `.1.3.6.1.4.1.14988.1.1.*` | answered | groups `.1 .3 .4 .5 .6 .7 .8 .11 .12 .13 .14 .15 .16 .17 .19 .20 .21 .22`. `.11` is an ARP-shaped table (42 rows), `.14` the large per-interface counter table (1587 / 2139 rows), `.17` flash partitions + the RouterOS build string, `.19` a per-interface table naming the SFP+ ports (`sfp-sfpplus1…4`, 68 rows on the switch) — the only per-SFP SNMP surface on this box; whether any of its integer columns is a DOM value is **not resolvable from a numeric walk**, because no vendor MIB is installed on the seat |
+| Other enterprise stubs | `.1.3.6.1.4.1.9.9.150.1`, `.2021.11.10.0`, `.3495.*` | answered | a handful of scalars, all zero — agent artifacts, not a vendor tree of any device in this rack. **`RADLAN` (`.1.3.6.1.4.1.12837`) answers nowhere** |
+
+**Community behaviour, measured.** A deliberately wrong community **times out** on both boxes (the agent does check),
+SNMPv3 answers `Unknown user name` (v3 present, no users), and **the RouterOS default community `public` also answers
+on both boxes** alongside the vault community — so the dedicated read-only item is currently *additional*, not
+*exclusive*. The switch converge template adds the vault community and never removes the factory one
+(`IaC/router/templates/crs328_converge.rsc.j2`), which is exactly what the walk then confirms on the box. Which
+communities a device accepts, and the `read-access`/`write-access` flags on them, live in device config and are not
+readable over SNMP — this lane changed none of it and ran no SET.
+
+### The gap: what `snmp.yml.j2` asks for vs what the boxes offer
+
+The `mikrotik` module walks exactly three OIDs (`ifAdminStatus`, `ifOperStatus`, `ifName`) and emits exactly two
+metrics; Alloy scrapes it for two targets, `router` and `switch`, from oldsrv only.
+
+- **Asked for, and present:** all three walked OIDs answer on both boxes (23 / 31 instances each). The module is
+  correct — nothing in it asks for a family this firmware lacks, so no collector leg is failing on an absent OID.
+- **Offered, collected by nothing** (each of these is a metric we could have today, from the same two scrapes, with
+  the same auth): 32-bit **and** 64-bit interface byte counters → link throughput; `ifInErrors`/`ifOutErrors` → link
+  quality, the usual early warning on a copper link; `ifAlias` → the port name an operator actually reads;
+  `ifHighSpeed` → negotiated vs rated speed; `hrProcessorLoad` → device CPU; `hrStorageTable` → device RAM and disk;
+  `sysUpTime` → device reboots without a syslog leg; `dot1qTpFdbPort` → which port a MAC sits on, VLAN-aware (this is
+  what the network-clients dashboard currently buys through the RouterOS **API**); ARP; STP state on the switch.
+- **Asked for nowhere, and genuinely not there:** PoE state, `entSensor` DOM/optics, `dot3` error counters, RMON,
+  LAG-member state, ENTITY per-port names. A dashboard or rule that expects any of these over SNMP will be
+  green-by-absence, so the answer for each is its own path (API, Redfish, NUT, HA) — not a longer `walk:` list.
+- **Three traps for whoever extends the module.** (1) The RB4011's `dot1dStp` subtree cannot be walked as a tree —
+  the agent emits a non-increasing OID and the walk dies mid-table, so a `walk:` entry there collects a partial table
+  with no error. (2) `entPhysicalName` answers `INTEGER: -1` rather than a name: an `entity`-module walk yields
+  entities without names. (3) An absent family returns `noSuchObject` **silently at scrape time** — a module asking
+  for PoE or `entSensor` produces no series and no failure, which is how a panel goes green-by-absence.
+
+---
+
 ## Network Clients Dashboard
 
 > **Role:** design SSOT for the "all network clients, grouped per VLAN" Grafana dashboard
