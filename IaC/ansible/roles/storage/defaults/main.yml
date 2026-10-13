@@ -226,31 +226,36 @@ storage_push_db_dumps_pg:
   - { container: lan-litellm-db, db_user: litellm }
 
 # ---------------------------------------------------------------------
-# Music master → live Box serving leg (oldsrv → Hetzner Storage Box, SSH/SFTP :23).
-# The FLAC master stays on the NAS (`bulk/media/media/music`, read here through the NFS
-# mount this role already owns); the Box holds Navidrome's SERVING copy. Shape B: rsync over
-# SSH on port 23 — no Box mount is created on oldsrv, so `roles/cifs` keeps asserting the Box
-# mount onto the VPS only. docs/storage.md §Service ↔ Storage Placement.
+# Music master -> live Box SERVING leg (oldsrv -> Hetzner Storage Box, rsync over SSH on :23).
+# The FLAC master stays on the NAS (`bulk/media/media/music`, read here through the /bulk/media
+# NFS mount this role already owns); the Box holds Navidrome's serving copy. Ruled shape B: no Box
+# mount is created on oldsrv, so `roles/cifs` keeps asserting the Box mount onto the VPS only.
+# Paths + Box facts come from `music_master_*` / `music_box_*` (group_vars) so this leg, the Samba
+# drop share and the Kopia include list cannot point at different trees. docs/storage.md
+# §Service ↔ Storage Placement, docs/backup.md.
 # ---------------------------------------------------------------------
-# max_delete bounds `--delete`: a dead source mount reads as an empty directory, and an
-# unbounded --delete would then empty the serving library in one green-running timer fire.
-# A run that would delete more than max_delete entries aborts (rsync rc 25) instead.
+# max_delete BOUNDS `--delete`. A dead source mount reads as an empty directory, and an unbounded
+# --delete would then empty the serving library in ONE green-running timer fire — Navidrome would
+# serve an empty tree while every unit reads active. A run that would delete more than max_delete
+# entries aborts (rsync rc 25) before touching the destination. min_files is the same duty on the
+# other side of the same mount: refuse to run at all rather than run against an empty source.
 storage_push_music:
-  src: /mnt/nas/media/media/music
-  expected_source: "nas.kogler.si:/bulk/media"   # asserted against findmnt before rsync
-  # Connection facts for the live Box are the live-box row in group_vars/subscriptions.yml
-  # (host `653411.your-storagebox.de`, user `u653411`, ssh_port 23); the CIFS share literal in
-  # `livebox_cifs` (group_vars/all/) is the same host, stated the same way.
-  dest_host: "u653411.your-storagebox.de"
-  dest_user: "u653411"
-  dest_port: 23
-  dest_path: backup/music                        # RELATIVE to the box home: Hetzner SFTP rejects the "/" component of an absolute path (kopia_sftp_path precedent)
-  ssh_key: /root/.ssh/livebox_push               # root-only 0600 identity, NOT seeded yet — see `enabled`
+  src: "{{ music_master_mount }}"
+  expected_source: "{{ music_master_expected_source }}"   # asserted against findmnt before rsync
+  dest_host: "{{ music_box_dest_host }}"
+  dest_user: "{{ music_box_dest_user }}"
+  dest_port: "{{ music_box_dest_port }}"
+  dest_path: "{{ music_box_dest_path }}"
+  ssh_key: /root/.ssh/livebox_push            # root-only 0600 identity — NOT seeded yet, see `enabled`
+  known_hosts: /etc/storage/box_known_hosts   # strict host-key pinning, same discipline as kopia's --known-hosts
   max_delete: 50
+  min_files: 1
   oncalendar: "*-*-* 04:20:00"
-  # The SSH identity that authenticates to the live Box does not exist on oldsrv, so the timer
-  # ships DISABLED: an enabled-but-unauthenticated timer is a red unit in everybody's
-  # `list-fail`, which reads worse than a parked leg. Park + seed, then flip this to true.
+  # The SSH identity that authenticates to the live Box does not exist on oldsrv, and port 23 is
+  # key-auth-only (the live Box's 1Password item holds a CIFS/WebDAV password, not a key). An
+  # ENABLED-but-unauthenticated timer is a red unit in everybody's `list-fail`, which reads worse
+  # than a parked leg, so this ships disabled: seed the key (owner step in the Hetzner console),
+  # then flip this to true and run the leg once.
   enabled: false
 
 # Kopia wiring (oldsrv): sources already exist as dirs above; policies are

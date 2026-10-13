@@ -1,0 +1,12 @@
+[Unit]
+Description=Daily push of the NAS music master to the live Storage Box serving copy
+# Navidrome serves from the destination, so this fires BEFORE the scanner's own window and after
+# the nightly import traffic. Persistent=true catches up a fire missed while the box was down.
+
+[Timer]
+OnCalendar={{ storage_push_music.oncalendar }}
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

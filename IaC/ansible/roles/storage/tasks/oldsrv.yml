@@ -138,3 +138,37 @@
     enabled: true
     state: started
   tags: storage
+
+# ---------------------------------------------------------------------------
+# The music leg: NAS FLAC master -> live Box serving copy (ruled shape B — rsync/SFTP over :23,
+# no Box mount on this host, so roles/cifs keeps asserting the Box mount onto the VPS only).
+# The BACKUP of the same path is the oldsrv kopia-agent's guarded music source
+# (templates/docker_services/kopia-agent); this leg only serves. docs/storage.md
+# §Service ↔ Storage Placement.
+# ---------------------------------------------------------------------------
+- name: Render the music push script and its units
+  ansible.builtin.template:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { src: storage-push-music.sh.j2, dest: /usr/local/sbin/storage-push-music.sh, mode: "0755" }
+    - { src: push-music.service.j2,    dest: /etc/systemd/system/push-music.service, mode: "0644" }
+    - { src: push-music.timer.j2,      dest: /etc/systemd/system/push-music.timer,   mode: "0644" }
+  loop_control:
+    label: "{{ item.dest }}"
+  notify: Reload systemd
+  tags: storage
+
+# Unarmed by design until the Box SSH identity exists (port 23 is key-auth-only and the live Box's
+# 1Password item holds a CIFS/WebDAV password, not a key). Shipping it ENABLED would put a red unit
+# in `systemctl --failed` on every host and teach everyone to ignore the red list. The unit files
+# are still rendered, so the leg is one `systemctl start push-music.service` away once the key is
+# seeded — and the flip is `storage_push_music.enabled: true`, not a hand-edit.
+- name: Arm the music push timer (only when the leg is enabled)
+  ansible.builtin.systemd:
+    name: push-music.timer
+    daemon_reload: true
+    enabled: "{{ storage_push_music.enabled }}"
+    state: "{{ 'started' if storage_push_music.enabled else 'stopped' }}"
+  tags: storage

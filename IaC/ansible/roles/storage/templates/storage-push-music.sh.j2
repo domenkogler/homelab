@@ -1,0 +1,66 @@
+#!/bin/bash
+# Managed by Ansible — storage role. MUSIC leg on oldsrv: copy the NAS FLAC master onto the live
+# Hetzner Storage Box, which is the tree Navidrome serves. Runs as ROOT because the SSH identity is
+# root's (0600) and no other account may hold it.
+#
+# This leg SERVES, it does not back up: the backup of the master is the Kopia snapshot of the same
+# path (templates/docker_services/kopia-agent — a versioned, encrypted copy on the BACKUP box).
+# docs/storage.md §Service ↔ Storage Placement.
+#
+# What is asserted rather than assumed, and why each half is load-bearing:
+#  * the SOURCE really is the NAS export. Here the dead-mount hazard points the other way from the
+#    DB-dump leg: a stale automount makes the source an EMPTY DIRECTORY, and an unbounded `--delete`
+#    then empties the serving library in one fire while the timer reads green. So: mountpoint assert,
+#    a non-empty floor, and `--max-delete` as the last net.
+#  * host keys are PINNED (`StrictHostKeyChecking=yes` + a rendered known_hosts). This unit writes to
+#    a remote box over a public endpoint; TOFU on a root cron job is not a policy.
+#  * ownership flags are OFF: the Box's SFTP receiver is a plain box user and can neither chown nor
+#    set perms (the same rc-23 class the NAS export forces on the other leg).
+set -euo pipefail
+
+SRC={{ (storage_push_music.src | quote) }}
+EXPECT={{ (storage_push_music.expected_source | quote) }}
+DEST_HOST={{ (storage_push_music.dest_host | quote) }}
+DEST_USER={{ (storage_push_music.dest_user | quote) }}
+DEST_PORT={{ (storage_push_music.dest_port | quote) }}
+DEST_PATH={{ (storage_push_music.dest_path | quote) }}
+SSH_KEY={{ (storage_push_music.ssh_key | quote) }}
+KNOWN_HOSTS={{ (storage_push_music.known_hosts | quote) }}
+MAX_DELETE={{ (storage_push_music.max_delete | int) }}
+MIN_FILES={{ (storage_push_music.min_files | int) }}
+
+fail() { echo "FATAL: $*" >&2; exit 1; }
+
+command -v rsync   >/dev/null || fail "rsync not present"
+command -v findmnt >/dev/null || fail "findmnt not present"
+[ -d "$SRC" ] || fail "source $SRC does not exist"
+[ -f "$SSH_KEY" ] || fail "no Box SSH identity at $SSH_KEY — the leg cannot authenticate; seed the key (owner step on the Storage Box), then re-run"
+[ -f "$KNOWN_HOSTS" ] || fail "no pinned Box host keys at $KNOWN_HOSTS — refusing to connect TOFU"
+
+# --- guard 1: the source is the NAS mount, not a directory that happens to be empty -------------
+src=$(findmnt -no SOURCE,FSTYPE -T "$SRC" 2>/dev/null || true)
+case "$src" in
+  *"$EXPECT"*nfs*) : ;;
+  *) fail "$SRC is not mounted from $EXPECT (found: ${src:-nothing}) — refusing to sync a dead mount onto the serving copy" ;;
+esac
+
+# --- guard 2: non-empty (a bound-but-dead mount passes guard 1 and reads as nothing) ------------
+nfiles=$(find "$SRC" -type f 2>/dev/null | wc -l)
+[ "$nfiles" -ge "$MIN_FILES" ] || fail "$SRC holds $nfiles files (< $MIN_FILES) — refusing to push that onto the serving copy"
+
+# --- the copy. Relative dest path on purpose: rsync runs a remote SHELL, so the path resolves
+# against the Box home — the kopia SFTP quirk (absolute paths rejected) does not apply here, but the
+# same "/backup is the box root" view does.
+ssh_cmd="ssh -p $DEST_PORT -i $SSH_KEY -o BatchMode=yes -o PasswordAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KNOWN_HOSTS"
+rsync -rlt --no-perms --no-owner --no-group --delete --max-delete="$MAX_DELETE" \
+      --delay-updates --partial -e "$ssh_cmd" \
+      "$SRC/" "$DEST_USER@$DEST_HOST:$DEST_PATH/" \
+  || fail "rsync $SRC → $DEST_HOST:$DEST_PATH failed (rc $?; rc 25 with 'Too many deletions' means --max-delete=$MAX_DELETE did its job)"
+
+# --- acceptance is read back through the far side, not inferred from rc 0 -----------------------
+remote=$(ssh -p "$DEST_PORT" -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=yes \
+           -o UserKnownHostsFile="$KNOWN_HOSTS" "$DEST_USER@$DEST_HOST" \
+           "find $DEST_PATH -type f 2>/dev/null | wc -l" || true)
+[ -n "$remote" ] || fail "cannot read the file count back from $DEST_HOST:$DEST_PATH"
+[ "$remote" -ge "$MIN_FILES" ] || fail "the serving copy at $DEST_HOST:$DEST_PATH holds $remote files — the push did not land"
+echo "OK: pushed $nfiles files to $DEST_HOST:$DEST_PATH; $remote files read back on the far side"

@@ -1,0 +1,18 @@
+[Unit]
+Description=Push the NAS music master to the live Storage Box serving copy ({{ storage_push_music.dest_path }})
+Documentation=file:///usr/local/sbin/storage-push-music.sh
+# No dependency on the NAS mount unit: the script asserts the mount itself and exits non-zero
+# when it is not there. An automount unit that "succeeds" while the export is stale would otherwise
+# let this fire against an empty directory.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# Runs as ROOT deliberately: the Box SSH identity is a root-owned 0600 key and no other account on
+# this host may hold it. The leg reads the NAS over NFS with no privileged write and writes nothing
+# locally.
+Type=oneshot
+ExecStart=/usr/local/sbin/storage-push-music.sh
+TimeoutStartSec=7200
+Nice=10
+IOSchedulingClass=idle
