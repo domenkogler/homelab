@@ -129,7 +129,7 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   the live Hetzner Box (CIFS) via the Immich storage template;**
   so Immich's container user is not the shared-files owner for originals.
 - **Storage:** media lives in a **single dataset** on the nas `bulk` pool — `bulk/media` → NFS export →
-  oldsrv `/mnt/nas/media` (one filesystem → TRaSH hardlinks; **not backed up**, redownloadable):
+  oldsrv `/mnt/nas/media` (one filesystem → TRaSH hardlinks; the movies/TV tier is **not backed up** and redownloadable — `media/music` is the exception, see [storage.md](storage.md) §Kopia Policy):
   - Jellyfin: `/mnt/nas/media/media/...` **ro**
   - Sonarr/Radarr/Lidarr: library `/mnt/nas/media/media/<cat>` (rw — creates folders) + `downloads/complete/<cat>` (import)
   - SABnzbd / qBittorrent: `/mnt/nas/media/downloads` (rw)

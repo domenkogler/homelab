@@ -39,10 +39,13 @@ nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
 
 ### Layer 2: Kopia (Off-Site — Application-Level, NAS-independent)
 
-Configs, DB dumps, service state, face thumbnails, and VPS/oldsrv local state go off-site via Kopia —
-**local sources only, never NAS mounts**, so off-site backup keeps working while the NAS is fully down.
+Configs, DB dumps, service state, face thumbnails, and VPS/oldsrv local state go off-site via Kopia.
+The oldsrv agent's sources are local paths, so that coverage keeps working while the NAS is fully down;
+the one exception is ruled and named — the **NAS music master**, snapshotted by its own guarded line, so a
+NAS outage costs that snapshot alone.
 Kopia targets the **backup Box over SSH/SFTP (port 23)** — the Hetzner Storage Box supports **SSH/SFTP
-only, NOT S3**.
+only, NOT S3**. One source is NAS-resident (the music master) and is snapshotted by its own guarded line;
+see §What Gets Backed Up and [`storage.md`](storage.md) §Kopia Policy.
 
 The **oldsrv agent runs containerized**: it connects to `kopia-server` on the VPS over
 **HTTPS on the WG S2S tunnel** — **kopia 0.23.x rejects `http://`**, so the server serves a
@@ -53,7 +56,9 @@ certificate means re-seeding it and re-rendering every agent, or every connect f
 port 51515 is bound **only to the VPS tunnel address**
 (`wg_s2s_vps.ip`, never 0.0.0.0; loopback-only until the router peer key is provisioned), so reach stays
 scoped by the S2S ACL. Agent sources are oldsrv-local, read-only: `/opt/*` configs,
-`/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume.
+`/srv/dumps` scratch, the immich upload/thumb dir, and the signal-cli state volume — plus **the NAS music
+master** (`/mnt/nas/media/media/music`), the one NAS-resident source, snapshotted by its own line behind a
+mount-and-emptiness guard so a NAS outage costs that one snapshot and nothing else.
 
 > ✅ **Status: the oldsrv `kopia-agent` connects over HTTPS + fingerprint pin and takes snapshots**
 > (`/opt/*` configs + signal-cli state; retention labels send them offsite to the backup Box). The
@@ -101,7 +106,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 
 | | ZFS send/recv | Kopia |
 |---|---|---|
-| **Scope** | User data (`tank/data/*` → `bulk/data/*`) | Configs, DB dumps, service state, face thumbnails, **live Box originals + encoded-video (CIFS)** |
+| **Scope** | User data (`tank/data/*` → `bulk/data/*`) | Configs, DB dumps, service state, face thumbnails, **live Box originals + encoded-video (CIFS)**, the **NAS music master** |
 | **Speed** | Block-level incremental (very fast) | File-level with dedup |
 | **Encryption** | Optional (ZFS native) | Client-side (before leaving) |
 | **Target** | nas `bulk` pool (local) | Hetzner Storage Box (backup), far DC (off-site) |
@@ -125,7 +130,8 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | Router configs (`*.rsc`) | Git repo | Git + Kopia | Hetzner Storage Box (backup) |
 | Immich **originals + encoded-video** (photos/videos) | **live Hetzner Box** (CIFS `//u653411.../backup`, VPS) | **live tier** | backed by **Kopia → backup Box** (off-site) **+ the Immich DB** (albums/faces/tags) |
 | Immich **face thumbnails** | **VPS** NVMe `/srv/docker/immich/upload/thumbs` (measured 1.2 MB; immich-server/-postgres/-valkey all run there) — **not** oldsrv, which runs only the immich-ml leg and holds no user data | ⚠ **unbacked**: the VPS has no Kopia client and no push path (§VPS-side coverage gap) | `bulk/data/immich-thumbs` + Hetzner Storage Box (backup) |
-| **Media library** (movies/tv/music) | **nas `bulk/media`** | **NOT backed up** | redownloadable via usenet/torrents |
+| **Media library — movies/TV** | **nas `bulk/media`** | **NOT backed up** — no sanoid, no syncoid, no Kopia | redownloadable via usenet/torrents |
+| **Music master (FLAC)** | **nas `bulk/media/media/music`** — a directory inside the `bulk/media` dataset, Lidarr root `/media/music` | **Kopia snapshot** by the oldsrv agent (its own guarded line: mount witness + non-empty floor, so a dead NFS mount can never prune the last good copy) **+** an rsync/SFTP serving push to the live Box | off-site Kopia repo (backup Box, encrypted) + the live Box `music/` serving copy — a Soulseek FLAC is not re-fetchable, so this tree is deliberately NOT part of the unbacked media tier |
 
 > **Victoria observability:** the VictoriaMetrics (VM, 365d metrics) + VictoriaLogs (VL, 90d logs) volumes are **Kopia-backed**. They live on the **VPS NVMe** at `/srv/docker/victoria-metrics/data` + `/srv/docker/victoria-logs/data` (host binds). ⚠ **The snapshooting client for these — and for every other `/srv/docker` path on the VPS — does not exist yet: §VPS-side coverage gap. Until it does, "Kopia-backed" in this section is the policy, not the state.**
 
@@ -151,7 +157,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
   (Git on GitHub), so the rebuild is mechanical — but the **data** is not covered.
 
 **The fix is small and already precedented:** oldsrv's `kopia-agent` (include list = `/opt`,
-`/srv/dumps`, `/srv/docker/immich/upload`, one docker volume) is the shape. A VPS-side agent needs
+`/srv/dumps`, `/srv/docker/immich/upload`, one docker volume, and the NAS music master over its NFS export) is the shape. A VPS-side agent needs
 `/opt`, the `db-backup` dump volume and the `/srv/docker/*` service-state dirs. Until that lands, the
 scope rows above stay written as *policy* — adding a Matrix or RustDesk row to an include list that has
 no client to attach to would only make the doc more fiction.
@@ -206,7 +212,10 @@ database type' Entered!` on every fire and dumps **nothing**, while `docker ps` 
 only a manual `backupNN-now` run says so. The rule: blocks are numbered **contiguously from DB01** and a
 number is never reserved for a database that does not exist yet (a reserved number *is* a broken block).
 The set is `DB01` authentik-postgres, `DB02` forgejo-db, `DB03` immich-postgres, `DB04` litellm-db,
-`DB05` zipline-db, `DB06` onlyoffice-postgres. **The general rule:
+`DB05` zipline-db, `DB06` onlyoffice-postgres — rendered contiguously on the box today, so **`DB07` is the
+next free slot**. A payload that is not a database takes **no slot at all**: a file tree such as the music
+master enters scope through an agent's include list, and giving it a `DB{NN}` block would be the reserved
+number with no block — green container, no output. **The general rule:
 any component whose config is read once at container init, not at run time, needs its container
 recreated after a config change — and a block that never produces output is a fault, so its
 "did it run today" signal has to be the output, not the unit's `active` state.**
@@ -229,10 +238,13 @@ recreated after a config change — and a block that never produces output is a 
   history regardless of what the server snapshot contains. Say so in the family-facing runbook rather
   than implying the server snapshot recovers readable history.
 
-> **Excluded — media + *arr scratch:** `bulk/media` (library **and** `downloads/`) is partially or fully
-> redownloadable via usenet/torrents, so the whole dataset is **unbacked** — no sanoid snapshots, no
-> syncoid, no Kopia. Immich thumbs/encoded-video and ML weights are regenerable, also excluded (face
-> thumbnails are the one exception — see above).
+> **Excluded — media + *arr scratch:** the movies/TV library and `downloads/` are partially or fully
+> redownloadable via usenet/torrents, so they carry **no** sanoid snapshots, no syncoid and no Kopia.
+> The single exception inside that dataset is **`media/music`** — the FLAC master, snapshotted by Kopia
+> (see the table above), because a Soulseek FLAC is not re-fetchable the way a movie is. Splitting it out
+> with sanoid is not available: it is a directory, not a dataset, and sanoid names datasets only
+> (§The slot-numbering rule). Immich thumbs/encoded-video and ML weights are regenerable, also excluded
+> (face thumbnails are the one exception — see above).
 
 ---
 

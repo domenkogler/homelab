@@ -44,11 +44,11 @@ tank   (4 TB mirror — HGST + IronWolf, 24/7-rated)         → BACKED UP
     └── db-dumps/        tiredofit/db-backup output (push from oldsrv)   hourly+ snapshots, syncoid
 
 bulk   (6 TB RAIDZ2 — WD Red + 3× Toshiba P300, consumer disks)  → MIXED ROLE
-├── media/               ACTIVE *arr library + downloads (one dataset = hardlinks) — NOT backed up
+├── media/               ACTIVE *arr library + downloads (one dataset = hardlinks) — NOT backed up, except its `media/music` tree (the FLAC master, Kopia scope; see §Kopia Policy)
 │   ├── media/
 │   │   ├── movies/
 │   │   ├── tv/
-│   │   └── ~~music/~~ *(music: the NAS is the FLAC master, the Box a serving copy for Navidrome on the VPS — see §Service ↔ Storage Placement)*
+│   │   └── music/       the FLAC MASTER — a directory inside this dataset, snapshotted by Kopia and pushed to the live Box (see §Kopia Policy, §Service ↔ Storage Placement)
 │   └── downloads/       transient scratch (hardlink-import → media/, then prune)
 │       ├── incomplete/{usenet,torrent}
 │       └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent)
@@ -102,6 +102,14 @@ case a homelab loses <24 h of DB changes, acceptable.
 - **sanoid** on nas snapshots `tank/data/*` (and `bulk/data/*` replicas + `bulk/data/immich-thumbs`).
   `bulk/media` is excluded from sanoid entirely (`autosnap = no`), which is the fact to read back —
   `zfs list -t snapshot bulk/media` must stay empty.
+- **The one part of `bulk/media` that IS backed up is the music master, and sanoid is not how.**
+  `bulk/media/media/music` is a DIRECTORY inside the `bulk/media` dataset (TRaSH hardlinks require one
+  filesystem), and sanoid names **datasets**: a row naming that path renders a valid config, sanoid exits
+  0, and nothing is ever snapshotted — the reserved-slot class in [backup.md](backup.md) §The
+  slot-numbering rule. Snapshotted `bulk/media` as a whole would instead snapshot the re-downloadable
+  movies/TV tier and the `downloads/` scratch with it. The master therefore enters backup scope through
+  the oldsrv Kopia agent's include list (§Kopia Policy), which works on paths; the movies/TV tier stays
+  unbacked by design.
 - **A policy snapshot is named `@autosnap_<date>_<time>_<tier>`** — `hourly`, `daily`, `weekly`,
   `monthly`. Grep `@hourly.` and a working sanoid reads as having produced nothing; the read that
   works is `zfs list -t snapshot | grep _hourly`.
@@ -280,22 +288,42 @@ These properties of the shape are deliberate:
 
 What the VPS does instead, and why it cannot do it by NFS to the NAS, is in [backup.md](backup.md).
 
-Key properties: dumps are written **locally first** (Kopia snapshots the local dir) and then pushed —
-Kopia never reads NAS mounts, so off-site backup survives a dead NAS. The job is deployed by the Ansible
-`storage` role and driven by systemd timers.
+Key properties: dumps are written **locally first** (Kopia snapshots the local dir) and then pushed.
+The job is deployed by the Ansible `storage` role and driven by systemd timers.
+
+**One leg leaves the house rather than the box: the music serving push.** `push-music.timer` →
+`storage-push-music.sh` (oldsrv, root) rsyncs the NAS music master to the live Storage Box over
+**SSH/SFTP on port `:23`** — ruled shape B: no Box mount is created on oldsrv, so `roles/cifs` keeps
+asserting the Box mount onto the **VPS only**. It carries three gates, all load-bearing: a `findmnt`
+assert that the source really is `nas.kogler.si:/bulk/media`; a **non-empty floor** (a bound-but-dead
+NFS mount passes the assert and reads as an empty directory); and a **bounded `--max-delete`**, because
+an unbounded delete of an empty source would empty the library Navidrome serves while the timer reads
+green. Strict host-key pinning (`UserKnownHostsFile`, `StrictHostKeyChecking=yes`) — the same discipline
+as kopia's `--known-hosts`, not TOFU on a root timer. The timer renders **unarmed** until the Box SSH
+identity exists on oldsrv (port 23 is key-auth-only), and the acceptance read is the file count **on the
+far side**, not rsync's exit code.
 
 ---
 
 ## Kopia Policy (oldsrv agent → Hetzner Storage Box **SB-Backup** `HEL1-BX186`, Helsinki — off-site)
 
-**Sources (all local, none on NAS):**
-- `/srv/dumps` (SQL dump scratch)
-- service state dirs (`/var/lib/forgejo-dump`, n8n backups, …)
-- Immich face thumbnails (`thumbs/`)
-- configs: `/opt/*` compose dirs, systemd units, HA config (/ etc — plus Git for the repo itself)
+**Sources:**
+- `/srv/dumps` (SQL dump scratch) — oldsrv-local
+- service state dirs (`/var/lib/forgejo-dump`, n8n backups, …) — oldsrv-local
+- Immich face thumbnails (`thumbs/`) — oldsrv-local
+- configs: `/opt/*` compose dirs, systemd units, HA config (/ etc — plus Git for the repo itself) — oldsrv-local
+- the signal-cli state volume — oldsrv-local (a docker volume)
+- **the music master `/mnt/nas/media/media/music` (`bulk/media/media/music` on the NAS)** — the ONE
+  NAS-resident source, mounted read-only through the `/bulk/media` export the `storage` role owns.
+  It is snapshotted by its **own** line behind a mount witness (`/proc/self/mountinfo` names the export,
+  or statfs reports `nfs`) **and** a non-empty floor: kopia reports an empty tree as a *successful*
+  snapshot, and the next prune would retire the last snapshot that held the FLACs. So a NAS outage fails
+  that one line loudly and every oldsrv-local source keeps working — which is what "NAS-independent"
+  has always been for: coverage of local state must not ride on the NAS.
 
 **Excluded:** docker named volumes (raw), downloaded model weights (GGUF/HuggingFace, re-pullable), Immich-ML weights,
-`/mnt/nas/*` mounts entirely (NAS independence), `bulk/media` (not backed up by design).
+`/mnt/nas/*` other than the music master above, and the rest of `bulk/media` (movies/TV + `downloads/`
+are re-fetchable and stay unbacked by design).
 > **Observability TSDB (VictoriaMetrics/VictoriaLogs) is Kopia-BACKED** — VM/VL volumes
 > are host binds under `/srv/docker/victoria-*/data` on the VPS, snapshotted by the VPS kopia client.
 
@@ -405,26 +433,28 @@ Alerts cover the **nas pools** — Warning **≥ 70%**, Critical **≥ 80%** (bo
 **Rule of thumb:** *hot/random/synchronous* on local SSD; *bulk/sequential/cold* on the live Box; *media + local backup* on the NAS.
 
 **Music: NAS master + a Box serving copy (Navidrome on the VPS).** The FLAC **master** is
-the Lidarr library on the NAS: `bulk/media/media/music` (Lidarr root `/media/music` — measured, empty today). The
+the Lidarr library on the NAS: `bulk/media/media/music` (Lidarr root `/media/music`). The
 Hetzner Storage Box **`music/`** is the **serving copy** Navidrome reads through its VPS-side CIFS mount
 (`/mnt/storagebox/music` → `/music`, `rw`).
 
-**The leg between them is ruled and does not exist.** The shape is a **push from `oldsrv` to the Box over
-rsync/SFTP on port `:23`** — no new mount anywhere, so `roles/cifs/tasks/main.yml` keeps asserting the Box
-mount onto the **VPS only** (measured: `mount | grep cifs` on oldsrv answers nothing, and neither the NAS nor
-oldsrv has a Box mount). It is not authored in IaC today: the `storage` role's push legs cover the DB dumps
-only, and there is no music push unit on oldsrv. So the true statement is that the Box's `music/` receives
-nothing on its own — only files placed there by hand (or by an owner's own SMB mount) reach Navidrome, and a
-music import that appears to work on the NAS has not reached the serving copy.
+**The master is inside backup scope.** It is snapshotted by the oldsrv Kopia agent as its own guarded
+source (§Kopia Policy) — encrypted, deduplicated, retention-managed, on the **backup** Box
+(a different Storage Box server from the live one) — and it is *not* covered by sanoid, because sanoid
+snapshots datasets and this master is a directory inside `bulk/media` (§Snapshot & Replication). A
+Soulseek FLAC is not re-fetchable the way a movie is, which is exactly why the master is snapshotted
+while the movies/TV tier beside it stays unbacked; the two tiers must not be folded back together.
+Retention follows the agent's existing snapshot-retention policy — the read that shows it is
+`kopia policy get /mnt/src/music` inside the `kopia-agent` container.
 
-Two consequences that are part of the requirement, not advice: **(a)** the push must carry the mountpoint
-assert and read-back that `vps-state-push.sh` carries, and any `--delete` must be bounded (`--max-delete`) —
-a dead mount is an empty directory, and an empty directory is what Navidrome will then serve while the timer
-reads green; **(b)** **neither copy is a
-backup** — Kopia's remote is the *backup* box (`kopia_sftp_host`, a different server from the live Box) and `bulk` is
-in the media "redownloadable, not backed up" tier, so a bad delete can reach both. That is acceptable for
-usenet/torrent media and much less so for Soulseek FLAC, which is not reliably re-fetchable: the retention
-call is an open decision, not a footnote here.
+**The serving copy is a push, not a mount.** `oldsrv` pushes the master to the Box over rsync/SFTP on
+port `:23` (§Nightly Push Jobs) — no new mount anywhere, so `roles/cifs/tasks/main.yml` keeps asserting
+the Box mount onto the **VPS only** (measured: `mount | grep cifs` on oldsrv answers nothing, and neither
+the NAS nor oldsrv has a Box mount). The push carries a mountpoint assert, a non-empty floor and a
+bounded `--max-delete`, because a dead mount is an empty directory and an empty directory is what
+Navidrome would then serve while the timer reads green. The leg is deployed unarmed until the Box SSH
+identity exists on oldsrv, so until it is armed the Box's `music/` still receives nothing on its own —
+only files placed there by hand (or by an owner's own SMB mount) reach Navidrome, and a music import
+that appears to work on the NAS has not reached the serving copy.
 
 ---
 

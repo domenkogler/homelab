@@ -56,7 +56,7 @@ nas (rack) — Debian 13, ZFS
 ├── ZFS pool "tank" (mirror) — HGST 4TB + Seagate IronWolf Pro 4TB — user data, BACKED UP
 │   └── data/{services, db-dumps}
 ├── ZFS pool "bulk" (RAIDZ2) — SilverStone via miniSAS — MIXED role
-│   ├── media/                active *arr library + downloads (hardlinks, NOT backed up)
+│   ├── media/                active *arr library + downloads (hardlinks, NOT backed up — but `media/music`, the FLAC master, is in Kopia scope)
 │   ├── data/                 syncoid replicas of tank/data/* (hourly)
 │   └── immich-thumbs/        face thumbnails (daily rsync ← oldsrv)
 ├── NFS exports → oldsrv: tank/data → /mnt/nas/data · bulk/media → /mnt/nas/media · bulk/data/immich-thumbs → /mnt/nas/thumbs

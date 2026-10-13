@@ -14,7 +14,8 @@ tags: [services, media, arr, photos, streaming]
 > **Status: 🟢 live on oldsrv** — Jellyfin, Seerr/SeerrNG, Sonarr/Radarr/Lidarr/Prowlarr/Bazarr,
 > Profilarr (+parser), Recyclarr, immich-ML, and the music-acquisition pillar (§Music Pillar), with the NFS
 > mounts to nas live (`/mnt/nas/media`, `/mnt/nas/data`, `/mnt/nas/thumbs`). Streaming/immich-app run on the
-> VPS; the **music library** lives on the Hetzner Storage Box.
+> VPS; the **music FLAC master** lives on the NAS (`bulk/media/media/music`) and the Hetzner Storage Box
+> holds Navidrome's serving copy.
 > ⏳ **Open:** immich's whole-collection ML import (a separate task), and Tube Archivist, which is
 > **disabled** until its Elasticsearch `path.repo` problem is fixed (§Music Pillar).
 > ⚠ **SABnzbd is unreachable by anything in this stack unless its `host_whitelist` names the caller** —
@@ -63,11 +64,11 @@ hardlinks between `downloads/` and `media/` require a **single filesystem** (ZFS
 dataset boundaries). Full layout/properties/replication: [`storage.md`](storage.md).
 
 ```
-bulk/media/                       # ONE dataset — ACTIVE library, NOT backed up (redownloadable)
+bulk/media/                       # ONE dataset — ACTIVE library; the movies/TV tier is NOT backed up (redownloadable)
 ├── media/
 │   ├── movies/
 │   ├── tv/
-│   └── (no `music/` — the music library lives on the Hetzner Storage Box as Navidrome's primary, see §Navidrome)
+│   └── music/                    # the FLAC MASTER — backed up (Kopia) + pushed to the Box as Navidrome's serving copy, see §Navidrome
 └── downloads/                    # transient scratch (hardlink-import → media/, then prune)
     ├── incomplete/{usenet,torrent}
     └── complete/{movies,tv,music}   # TRaSH per-category (SABnzbd / qBittorrent save paths)
@@ -77,11 +78,13 @@ bulk/media/                       # ONE dataset — ACTIVE library, NOT backed u
   `/mnt/nas/data` (immutable user data) and `bulk/data/immich-thumbs` → `/mnt/nas/thumbs` (push target) —
   two pools, three exports.
 - **Import = hardlink** for **movies/TV** (the switch is `copyUsingHardlinks` in `mediamanagement` — `true` in all three arrs; current builds no longer expose a "Use Hardlinks" toggle, so look for the key, not the label) — instant, zero-space, atomic. **Music** is the exception, and its leg **does not exist yet**: Lidarr's root is `/media/music` = nas `bulk/media/media/music` (empty), and neither oldsrv nor the NAS can write the Box — `roles/cifs/tasks/main.yml` asserts the Box mount onto the **VPS only**, and `mount | grep cifs` on oldsrv shows nothing, so a "Lidarr copies music to the Box" path has no mount behind it. The shape: **NAS master + a push leg to the Box**, and the push is **`oldsrv` → Box rsync/SFTP over `:23`** — no new mount, so the VPS-only `cifs` assert stays; the mount assert and a bounded `--max-delete` are part of the requirement, not advice (a dead mount is an empty directory, and an empty directory is what Navidrome will serve). Retention stays an owner call: neither copy is inside Kopia's scope. `docs/storage.md` §Service ↔ Storage Placement owns the layout.
-- **Media is not backed up** (movies/TV) — no sanoid snapshots, no syncoid, no Kopia; lost media is re-fetched via
-  usenet/torrents. ⚠ **Music is not "the exception":** the FLAC master sits on the NAS in the same not-backed-up
-  tier and the Box holds a second *serving* copy — the Kopia trail runs to the **backup** box (`kopia_sftp_host`, a
-  different server than the live Box), so nothing snapshots or replicates either copy. A Soulseek FLAC is not
-  re-fetchable the way a movie is; that durability call is the owner's.
+- **Movies/TV media are not backed up** — no sanoid snapshots, no syncoid, no Kopia; lost media is re-fetched via
+  usenet/torrents. **Music is the exception, and it is backed up:** the FLAC master (`bulk/media/media/music`)
+  is a Kopia source of the oldsrv agent — its own guarded snapshot line, encrypted and retention-managed on the
+  **backup** box (`kopia_sftp_host`, a different server from the live Box) — while the live Box holds the *serving*
+  copy. A Soulseek FLAC is not re-fetchable the way a movie is, which is why this tree is not folded back into the
+  unbacked media tier. Neither sanoid nor syncoid covers it: sanoid names **datasets** and the master is a
+  directory inside `bulk/media` ([storage.md](storage.md) §Snapshot & Replication).
 - **Owner = neutral shared owner `storage_uid`/`storage_gid` (`media`, 1005)** across all *arr containers
   (linuxserver `PUID/PGID={{ storage_uid }}`/`PGID={{ storage_gid }}`; Jellyfin `user: "{{ storage_uid }}:{{ storage_gid }}"`).
   SMB/NFS ownership on nas must match.
@@ -250,11 +253,13 @@ cannot be answered until the provider login works.
 - **Auth:** local logins retained (break-glass + Subsonic clients); the web UI **SSO via Authentik is
   optional** (deploy-gated) — `/rest/*` stays local for Subsonic clients (Symfonium, play:Sub).
 - **Clients:** any Subsonic-compatible app; web at `music.kogler.si` (internal/tailnet — no public record).
-- **Import path:** **not implemented** — Lidarr keeps its root on the NAS (`/media/music`) and the push leg
-  to the Box (§Storage & Import) is what is owed. The ruled mechanism is a **push from `oldsrv` to the Box
-  over rsync/SFTP on `:23`** — there is deliberately no Box mount on oldsrv to import into, so "wire the
-  mount" is not the missing step. `docs/storage.md` owns the tiering/consequence line. Until that leg lands,
-  only files placed on the Box by hand (or by the owner's own SMB mount) reach Navidrome.
+- **Import path:** Lidarr keeps its root on the NAS (`/media/music`) — that is where the FLAC master lives and
+  where it is backed up. The Box is filled by a **push from `oldsrv` to the Box over rsync/SFTP on `:23`**
+  (`push-music.timer` → `storage-push-music.sh`, with a mountpoint assert, a non-empty floor and a bounded
+  `--max-delete`); there is deliberately no Box mount on oldsrv to import into, so "wire the mount" is not the
+  missing step. `docs/storage.md` owns the tiering/consequence line. The timer is **not armed** while the Box SSH
+  identity is missing on oldsrv, so today only files placed on the Box by hand (or by the owner's own SMB mount)
+  reach Navidrome, and an import that appears to work on the NAS has not reached the serving copy.
 - **⚠ The door is still missing.** `music.kogler.si` is
   published **nowhere**: no row in `zone_kogler_si` on any of the three Technitium instances, no entry in
   headscale's extra-record sets, and **no router in any edge file** — the VPS `traefik-tailnet` set routes

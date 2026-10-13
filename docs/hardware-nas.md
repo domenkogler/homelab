@@ -141,7 +141,7 @@ one-time bootstrap before the installer boots). The rules that make it safe:
 ## Roles
 
 - Primary ZFS pool "tank" — mirror, 4 TB usable — **user data only** (backed up)
-- Secondary ZFS pool "bulk" — RAIDZ2, 6 TB usable — active media (unbacked) + data replicas + thumb copies
+- Secondary ZFS pool "bulk" — RAIDZ2, 6 TB usable — active media (unbacked, except the `bulk/media/media/music` FLAC master, which is in Kopia scope) + data replicas + thumb copies
 - NAS / file server — NFS shares: `tank/data` (user data), `bulk/media` (media); **Samba/SMB shares live on the NAS**: shared `media` + per-user private drives
 - Local replication — sanoid/syncoid: `tank/data/*` → `bulk/data/*` (incremental, ≈ hourly)
 - Web UI — Cockpit + cockpit-storaged (~150 MB RAM). ⏳ The UI has no valid login: Cockpit is PAM-only and

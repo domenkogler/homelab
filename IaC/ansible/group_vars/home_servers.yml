@@ -427,8 +427,8 @@ access_accounts_extra: "{{ [access_account_ai_debug] }}"
 # ⚠ `bulk/media` is ONE dataset and `media/music` is a DIRECTORY inside it (TRaSH hardlinks need a
 # single filesystem) — sanoid snapshots DATASETS, so the master enters backup scope through Kopia,
 # not through sanoid. A sanoid row naming this path would name a non-dataset: the config renders,
-# sanoid exits 0, nothing is ever snapshotted (the reserved-slot class, docs/backup.md
-# §The slot-numbering rule). docs/storage.md §Service ↔ Storage Placement.
+# sanoid exits 0, nothing is ever snapshotted (the reserved-slot class —
+# docs/backup.md §The slot-numbering rule). docs/storage.md §Service ↔ Storage Placement.
 music_master_nas_path: /bulk/media/media/music              # NAS-side path, inside the bulk/media dataset
 music_master_mount: /mnt/nas/media/media/music              # the same tree on oldsrv, via the /bulk/media NFS export
 music_master_expected_source: "nas.kogler.si:/bulk/media"   # what findmnt/mountinfo must report for the mount to be live

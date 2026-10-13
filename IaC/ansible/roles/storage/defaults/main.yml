@@ -231,8 +231,8 @@ storage_push_db_dumps_pg:
 # NFS mount this role already owns); the Box holds Navidrome's serving copy. Ruled shape B: no Box
 # mount is created on oldsrv, so `roles/cifs` keeps asserting the Box mount onto the VPS only.
 # Paths + Box facts come from `music_master_*` / `music_box_*` (group_vars) so this leg, the Samba
-# drop share and the Kopia include list cannot point at different trees. docs/storage.md
-# §Service ↔ Storage Placement, docs/backup.md.
+# drop share and the Kopia include list cannot point at different trees.
+# docs/storage.md §Service ↔ Storage Placement, docs/backup.md.
 # ---------------------------------------------------------------------
 # max_delete BOUNDS `--delete`. A dead source mount reads as an empty directory, and an unbounded
 # --delete would then empty the serving library in ONE green-running timer fire — Navidrome would
