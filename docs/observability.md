@@ -511,20 +511,28 @@ timer and no second service:
 
 | Series | Meaning |
 | --- | --- |
-| `homelab_pkg_pin_ok{package=}` | 1 when the installed version EQUALS the pin — the shape that keeps "in sync" distinct from "not installed here" |
+| `homelab_pkg_pin_ok{package=}` | 1 when the installed version MATCHES the pin — exactly for a pin that carries a dpkg revision, on the dpkg upstream version for a family pin — the shape that keeps "in sync" distinct from "not installed here" |
 | `homelab_pkg_pin_result{package=, pin=, result=, running=}` | the comparison itself. `result` is `match` / `differ` / `missing` (this host does not carry the package) / `unknown` (dpkg gave nothing readable), and both version strings travel as labels |
 | `homelab_upgrade_plan_ok` | 1 once a simulated plan has been read — `0` means "no readable plan yet" (seconds after a restart, or an apt wedged on its lock), never "nothing pending" |
 | `homelab_upgrade_plan_count` | how many packages this box's own solver would upgrade |
 | `homelab_reboot_required` | 1 while Debian's own `/run/reboot-required` marker exists |
 
-**Where the pin comes from.** `monitoring_hygiene_pins` (`roles/monitoring/defaults/main.yml`) pairs a
-package with the NAME of the `versions.yml` var that pins it, and the template resolves that var at render
-— no version literal exists in the collector, in a rule, or in panel text, and an undefined pin var aborts
-the render instead of reporting "no pin" about a healthy box. The consequence is worth stating plainly:
-the pin the report compares against is the pin **as of the last monitoring converge**, so a `versions.yml`
-bump that never converged reads as "in sync" with the older value. The Docker engine suite is deliberately
-absent from the list: it is held but carries no `*_version` pin, so its cross-host skew is a standing fact
-about the fleet, not a lag this report can name.
+**Where the pin comes from.** `monitoring_hygiene_pins` (`roles/monitoring/defaults/main.yml`) IS the fleet's
+pin map, `host_apt_pin_vars` (`group_vars/all/versions.yml`) — the same mapping that drives `apt-mark hold`
+(`roles/common`) and the `package=version` install (`roles/docker`), so the report cannot fall behind the
+pin set and a package cannot be held with no pin. Each entry pairs a package with the NAME of the
+`versions.yml` var that pins it, and the template resolves that var at render — no version literal exists
+in the collector, in a rule, or in panel text, and an undefined pin var aborts the render instead of
+reporting "no pin" about a healthy box. The consequence is worth stating plainly: the pin the report
+compares against is the pin **as of the last monitoring converge**, so a `versions.yml` bump that never
+converged reads as "in sync" with the older value.
+
+One pin shape needs one comparison rule. A pin that carries a dpkg revision (`alloy_version` =
+`1.20.1-1`) compares EXACTLY; a pin that carries none is a FAMILY pin and compares on the running
+version's dpkg upstream part — everything before the last hyphen — because download.docker.com stamps
+the same release as `5:29.8.2-1~debian.13~trixie` on Debian 13 and `5:29.8.2-1~ubuntu.24.04~noble` on
+Ubuntu 24.04, and a fleet-wide value can only name the part both share. `roles/docker` asserts the same
+rule after installing the suite, so a box the converge never moved reddens instead of reporting green.
 
 **It cannot change anything — and that is a property of the reads, not a promise.** `dpkg-query -W` reads
 the status file without ever taking the dpkg lock; the solver runs as `apt-get -s` (simulate), which

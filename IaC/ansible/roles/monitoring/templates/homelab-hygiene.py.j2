@@ -70,12 +70,13 @@ import urllib.parse
 
 UNITS = {{ monitoring_hygiene_units | to_json }}
 CERTS = {{ monitoring_hygiene_certs | to_json }}
-# Each entry is {"package": <name>, "pin": <the value of that package's versions.yml var>} — the pin is
-# resolved here from the var NAME (roles/monitoring/defaults/main.yml), never typed into this file, and a
-# pin var that does not exist aborts the render rather than reporting "no pin" about a healthy box.
+# The mapping is package -> the NAME of its versions.yml var (default: host_apt_pin_vars, the fleet map
+# that also drives `apt-mark hold` and the `package=version` install). Each pin is resolved here from the
+# var NAME, never typed into this file, and a pin var that does not exist aborts the render rather than
+# reporting "no pin" about a healthy box. A pin with no dpkg revision is a FAMILY pin — see matches_pin().
 PINS = [
-{% for p in monitoring_hygiene_pins %}
-    {"package": {{ p.package | to_json }}, "pin": {{ lookup('vars', p.pin_var) | to_json }}},
+{% for pkg, pin_var in monitoring_hygiene_pins.items() %}
+    {"package": {{ pkg | to_json }}, "pin": {{ lookup('vars', pin_var) | to_json }}},
 {% endfor %}
 ]
 LISTEN = ("{{ monitoring_hygiene_listen }}", {{ monitoring_hygiene_port }})
@@ -219,6 +220,23 @@ def dpkg_version(package: str) -> tuple[str, str]:
     return "", "rc=%d %s" % (r.returncode, (r.stderr or "").strip()[:140])
 
 
+def dpkg_upstream(version: str) -> str:
+    """The dpkg UPSTREAM version: everything before the LAST hyphen, where the Debian revision starts.
+    `5:29.8.2-1~debian.13~trixie` and `5:29.8.2-1~ubuntu.24.04~noble` are the same release with two
+    distro stamps, which is exactly why one fleet-wide pin can name only this part of the string."""
+    return version.rsplit("-", 1)[0] if "-" in version else version
+
+
+def matches_pin(pin: str, running: str) -> bool:
+    """The comparison rule, stated once for the whole fleet. A pin that carries a dpkg revision (it has
+    a hyphen — `alloy_version` = `1.20.1-1`) is a deb pin and compares EXACTLY. A pin that carries none
+    is a FAMILY pin: it names the upstream version and lets the revision belong to the box, because one
+    suite publishes the same release under two distro stamps — that compares on the upstream part.
+    Equality either way: a box ahead of its pin is as broken as a box behind it. roles/docker asserts
+    the same rule after installing the suite — one concept, one name, both places."""
+    return running == pin if "-" in pin else dpkg_upstream(running) == pin
+
+
 def pin_lines(package: str, pin: str) -> list[str]:
     """Running version vs the pin, as the unit leg already does it: one alertable gauge and one series
     that carries the WHY. Equality is the test, not ordering — the drift this reports has gone both ways
@@ -226,7 +244,7 @@ def pin_lines(package: str, pin: str) -> list[str]:
     never the fix), and the two version strings travel as labels so the reader can tell which way."""
     running, err = dpkg_version(package)
     if running:
-        state = "match" if running == pin else "differ"
+        state = "match" if matches_pin(pin, running) else "differ"
     elif "no packages found" in err:
         # Not carried by this host at all — the honest reading of a fleet-wide list on one host, and
         # the reason a rule keys on result="differ" rather than on this gauge alone.
@@ -237,7 +255,7 @@ def pin_lines(package: str, pin: str) -> list[str]:
         print("WARN: dpkg-query %s: %s" % (package, err), file=sys.stderr)
     q = sel('package="%s"' % package)
     return [
-        "# HELP homelab_pkg_pin_ok 1 when the installed version equals the versions.yml pin.",
+        "# HELP homelab_pkg_pin_ok 1 when the installed version matches the versions.yml pin.",
         "# TYPE homelab_pkg_pin_ok gauge",
         "homelab_pkg_pin_ok%s %d" % (q, 1 if state == "match" else 0),
         'homelab_pkg_pin_result%s %s'

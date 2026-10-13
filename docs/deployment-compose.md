@@ -122,6 +122,18 @@ See [`hardware-gpu.md`](hardware-gpu.md) for the GPU topology and VRAM strategy.
   All pinned via `*_version` vars in `group_vars/all/versions.yml` (registry-verified,
   Renovate-tracked); the only `latest` left is Profilarr (no versioned tags upstream —
   documented fluid exception) and tuwunel (MUST-pin).
+- **Host-APT pins are the same kind of truth, in the same sheet.** The Docker engine family
+  (`docker_ce_version`, `containerd_io_version`, `docker_buildx_plugin_version`,
+  `docker_compose_plugin_version`) is pinned there and installed by `roles/docker` as
+  `package=version`, which is what makes `apt-mark hold` freeze repo state instead of whatever each box
+  happened to reach. A host-APT pin states the dpkg UPSTREAM version, epoch included, and NEVER a full
+  deb string: download.docker.com stamps the same release as `-1~debian.13~trixie` on Debian 13 and
+  `-1~ubuntu.24.04~noble` on Ubuntu 24.04, so the fleet pins the FAMILY and the dpkg revision belongs to
+  the box — one documented shape, no per-host literal, no silent per-host drift. Moving the suite
+  restarts the daemon, so every container on that host moves with it: that is a maintenance action, one
+  host at a time. `python3-docker` is installed from the distro archive, so no suite pin names it. The
+  held set, the install set and the pin-lag report are three views of `host_apt_pin_vars`, so a package
+  cannot be held with no pin.
 - **PUID/PGID:** all filesystem/SMB-backed containers (the *arr stack, qBittorrent) run as the
   **neutral shared owner `storage_uid`/`storage_gid` = `1005` (`media`)** — linuxserver images via
   `PUID={{ storage_uid }}`/`PGID={{ storage_gid }}`, Jellyfin/OpenCloud via `user: "{{ storage_uid }}:{{ storage_gid }}"`.

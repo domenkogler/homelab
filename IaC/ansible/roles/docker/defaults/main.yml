@@ -1,0 +1,16 @@
+---
+# docker role defaults
+
+# The download.docker.com packages whose version is fleet state, therefore installed here as
+# `package=version`. Each name is looked up in `host_apt_pin_vars`
+# (`group_vars/all/versions.yml`) to find the var that pins it, so a package listed here with no pin
+# entry — or a pin var that no longer exists — fails the converge instead of quietly installing the
+# newest candidate in the suite. The list is the install set, not the held set: `apt-mark hold` covers
+# every pinned package the fleet carries (including `docker-ce-rootless-extras`, which rides the
+# engine's version and is installed by the engine, not here) — that list is derived from the same map.
+docker_ce_suite_packages:
+  - docker-ce
+  - docker-ce-cli
+  - containerd.io
+  - docker-buildx-plugin
+  - docker-compose-plugin

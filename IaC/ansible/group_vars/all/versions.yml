@@ -334,22 +334,58 @@ onlyoffice_redis_version: "8.10.2-alpine"
 tube_archivist_redis_version: "7.4.11-alpine"
 onlyoffice_rabbitmq_version: "3.13.7-alpine"
 
-# ==== Host APT: Docker engine family ====
-# The docker-ce engine release the Docker-bearing fleet runs. A HOST-APT pin, not an image: it
-# carries no docker datasource, Renovate cannot see it, and a bump is a hand change here + a
-# deliberate converge that RESTARTS THE DAEMON (every container on that host goes with it).
-# The value is the dpkg UPSTREAM version, epoch included — NOT a full dpkg version string.
-# download.docker.com stamps the SAME engine release with a different dpkg revision per suite
-# (`-1~debian.13~trixie` on Debian 13, `-1~ubuntu.24.04~noble` on spark's Ubuntu 24.04 arm64),
-# so the one literal that can be fleet-wide is the engine family; the revision is the target's
-# own distro stamp and roles/docker matches it with a version wildcard instead of restating it.
-# A per-host override of this value is drift, not a second shape. `apt-mark hold` on the suite
-# (roles/common) is what makes this line the state of the host, not just of the repo.
-docker_ce_version: "5:29.8.2"   # the highest engine release any host in the fleet has run, so
-                                 # pinning it is an upgrade or a no-op everywhere and NEVER a
-                                 # downgrade (a downgrade needs `--allow-downgrades`, forbidden).
-                                 # spark being Ubuntu is why the pin is a FAMILY and not a deb
-                                 # string — one value, one shape, no per-host literal.
+# ==== Host APT: the pinned package suite ====
+# HOST-APT pins, not container images: Renovate's docker datasource cannot see them, there is no
+# automated upgrade phase anywhere, and a bump is a hand change to these lines + a deliberate
+# converge. Moving the docker-ce family RESTARTS THE DAEMON, so every container on that host moves
+# with it — a maintenance action, one host at a time, never an incidental side effect of a run.
+#
+# Each value is the dpkg UPSTREAM version, epoch included — NOT a full deb version string.
+# download.docker.com stamps the SAME upstream release with a different dpkg revision per suite:
+# `-1~debian.13~trixie` on Debian 13 and `-1~ubuntu.24.04~noble` on spark's Ubuntu 24.04/arm64 base.
+# That is why the one literal that can be fleet-wide is the upstream version: the revision is the
+# target's own distro stamp and belongs to no file in this repo. roles/docker installs
+# `<pkg>=<pin>-*`, an apt version wildcard that resolves on both suites (solver-checked on trixie
+# amd64, trixie arm64 and noble arm64) and names no distro string anywhere. A per-host override of
+# a value below is drift, not a second shape.
+#
+# Every value is the HIGHEST release already running somewhere in the fleet, NOT the newest release
+# upstream: pinning a release no box has run makes the converge a first contact, and pinning below
+# the highest box would be a DOWNGRADE there — which needs `--allow-downgrades`, forbidden. Where a
+# component's release is not published for every suite in the fleet, this line goes DOWN to one that
+# is, because the fleet does not split into per-host values.
+docker_ce_version: "5:29.8.2"             # docker-ce + docker-ce-cli + docker-ce-rootless-extras:
+                                          # ONE source package, so the engine, its CLI and the
+                                          # rootless extras always carry the same version and this
+                                          # one line is the pin for all three.
+containerd_io_version: "2.3.6"            # containerd.io — its own upstream train, not the engine's.
+docker_buildx_plugin_version: "0.37.1"    # docker-buildx-plugin — `docker buildx`.
+docker_compose_plugin_version: "5.5.1"    # docker-compose-plugin — `docker compose`.
+# `python3-docker` is named by roles/docker WITHOUT a pin on purpose: it comes from the distro
+# archive, not from download.docker.com, so no suite version applies to it. It is a library, not the
+# engine, and it is not part of the held set.
+
+# The HELD set and the PINNED set are the same set, so ONE map owns both and neither can drift.
+# roles/common holds every package in it with `apt-mark hold`; roles/monitoring reports each
+# package's running version against the var NAMED here, resolved at render — never a copied version.
+# A held package with no pin is exactly the defect this map closes: the hold then freezes whatever
+# the box happened to reach instead of freezing repo state. A host that does not carry a package
+# drops it in the per-host `dpkg-query` read, so one map serves the fleet: nas runs no Docker, so
+# the whole family is simply absent there and no leg of the converge changes anything on nas.
+# `docker-ce-rootless-extras` is in the map but in NO install task — it ships with the engine and is
+# installed on the Debian boxes, absent on spark, and the converge must not start installing packages
+# a host never had. Holding it is not optional: it is the one family member an unheld
+# `apt upgrade` moves on its own (measured against a synthetic held dpkg state), and it carries
+# `docker_ce_version` by construction because it is the same source package.
+host_apt_pin_vars:
+  alloy: alloy_version
+  tailscale: tailscale_host_version
+  docker-ce: docker_ce_version
+  docker-ce-cli: docker_ce_version
+  docker-ce-rootless-extras: docker_ce_version
+  containerd.io: containerd_io_version
+  docker-buildx-plugin: docker_buildx_plugin_version
+  docker-compose-plugin: docker_compose_plugin_version
 
 # ==== Observability infra ====
 # Alloy is the DELIBERATE exception (host-APT, not Docker).

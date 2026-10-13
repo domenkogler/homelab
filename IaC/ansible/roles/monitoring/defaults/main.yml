@@ -31,20 +31,25 @@ monitoring_hygiene_units: []
 # Empty on a host that holds no consumer pair: nothing to report, nothing to alert on.
 monitoring_hygiene_certs: []
 
-# The pinned HOST packages the collector measures — the read-only pin-lag leg. An entry names the package
-# and the versions.yml VAR that pins it; the value is resolved at render, so this file can never disagree
-# with `group_vars/all/versions.yml` and a pin var that disappears reddens the converge instead of
-# reporting "no pin" about a healthy box. → docs/observability.md §Silent-failure hygiene
+# The pinned HOST packages the collector measures — the read-only pin-lag leg. DERIVED from
+# `host_apt_pin_vars` (`group_vars/all/versions.yml`), the one map that also drives `apt-mark hold`
+# (roles/common) and the `package=version` install (roles/docker), so the report cannot fall behind
+# the pin set: a package that gains a pin gains a series, and a package held with no pin cannot exist.
+# Each entry is the package and the NAME of its versions.yml var; the template resolves the var at
+# render, so no version literal exists here, in a rule, or in panel text, and a pin var that
+# disappears aborts the converge instead of reporting "no pin" about a healthy box.
+#   → docs/observability.md §Silent-failure hygiene
 #
 # A package a host does not carry reports `result="missing"`, which is what a fleet-wide list read on one
 # host means — so a rule keys on `result="differ"` (the actual drift), not on the ok gauge alone.
 #
-# The `docker-ce` suite is deliberately ABSENT: it is held but carries no `*_version` pin at all, so
-# there is no pin to compare its running version against. Its cross-host skew is a standing fact, not a
-# lag, and reporting it here would read as "the pin moved" when no pin exists.
-# A host that carries a different set overrides this list in its own host_vars, like the two lists above.
-monitoring_hygiene_pins:
-  - package: alloy
-    pin_var: alloy_version
-  - package: tailscale
-    pin_var: tailscale_host_version
+# The Docker family is in here on the same footing as alloy: `docker_ce_version` pins the engine pair
+# and the rootless extras (one source package), and the three suite components with their own upstream
+# trains carry their own pins. Because download.docker.com stamps the same release with a different
+# dpkg revision per suite (`-1~debian.13~trixie` vs `-1~ubuntu.24.04~noble` on spark's Ubuntu base), a
+# fleet-wide pin names only the dpkg UPSTREAM version — the template compares that part for such a
+# pin, and compares exactly when the pin carries a revision (`alloy_version`). Same rule roles/docker
+# asserts against; see the collector's `matches_pin()`.
+# A host that carries a different set overrides this list in its own host_vars, same shape, like the
+# two lists above.
+monitoring_hygiene_pins: "{{ host_apt_pin_vars }}"
