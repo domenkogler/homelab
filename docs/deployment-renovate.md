@@ -174,7 +174,16 @@ Renovate scans:
 - **Python `requirements.txt`** (`client/office-bridge/requirements.txt` + any future)
 
 Does NOT scan:
-- System packages (handled by `unattended-upgrades` on Debian)
+- System packages (host APT). No `apt` datasource is configured — `renovate.json` declares
+  docker, ansible-galaxy, pip-requirements and npm only — and the Debian boxes run no
+  `unattended-upgrades`: measured 2026-10-13 on oldsrv, vps and pi, the package is absent, no
+  `/etc/apt/apt.conf.d/20auto-upgrades` exists, `apt-config dump` carries no `APT::Periodic::*`
+  key, and the apt-daily journal holds no entries — the enabled `apt-daily-upgrade.timer` has
+  nothing configured to do. A pinned host package is instead `apt-mark hold`-ed by
+  `roles/common`, so `apt upgrade` cannot move it either: its version changes only when
+  `IaC/ansible/group_vars/all/versions.yml` changes, and the converge that follows installs the
+  requested version explicitly. An automated apt-upgrade phase stays declined
+  (`deployment-rejected.md`).
 - RouterOS firmware (manual check)
 - The repo's build/test tools in `scripts/*.py` (no declared dependency manifest — the pip manager tracks `requirements*.txt` only)
 

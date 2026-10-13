@@ -203,6 +203,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 | a pin is **never bare `latest`** and never a *mutable alias* (`-rocm`, `main-stable`) **unless** the owning doc records an explicit MUST-pin + verified-semver precondition (Tuwunel / OpenClaw / LiteLLM fluid-tag precedents) | [docs/deployment-compose.md](docs/deployment-compose.md) |
 | on a fluid-tag *first* pin, show the registry-verified tag + Renovate tracking **in the same change** | [docs/deployment-compose.md](docs/deployment-compose.md), [docs/deployment-renovate.md](docs/deployment-renovate.md) |
 | a `*_version` var carries **no `default()` fallback in templates** — a missing pin aborts the render (fail-loud, same as secrets); mutable aliases (`stable`, `release`, `-rocm`) are bare-`latest` equivalents under the same MUST-pin precondition | [docs/deployment-compose.md](docs/deployment-compose.md) |
+| a pinned **host package** (APT, not a container image) is **held in IaC** — `apt-mark hold`, asserted back with `apt-mark showhold` — so `apt upgrade` cannot move it; its version changes only when `versions.yml` changes, as a deliberate Renovate → converge event, and there is **no automated upgrade phase** anywhere in the fleet | [docs/deployment-ansible.md](docs/deployment-ansible.md) |
 
 > Strengthens the §3 "Compose versioning" row (pinned tags, never bare `latest` + Renovate trail) — same owner, more explicit.
 

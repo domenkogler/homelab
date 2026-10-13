@@ -79,6 +79,7 @@ tags: [deployment, rejected, decision-log]
 | WSL Bridged networking                                                         | superseded | NIC pin fails on WiFi/hotspot; NAT is durable                   |
 | WSL `mirrored` networking                                                      | rejected   | wedges ARP for the gateway, survives `wsl --shutdown`           |
 | `Yacht web UI`                                                                 | rejected   | extra VPS web surface, drifts from the Ansible compose model    |
+| `roles/updates` — an automated apt-upgrade phase in the converge wave           | rejected   | an upgrade phase makes the version pin advisory, and the pin is the whole version truth; pinned host packages are `apt-mark hold`-ed and move only as a deliberate Renovate → converge event |
 
 > **Not a deployment-domain decision:** guest-network / storage / services rejections live in their own
 > `<domain>-rejected.md` files — see [`services-rejected.md`](services-rejected.md),

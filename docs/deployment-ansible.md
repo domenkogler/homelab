@@ -129,6 +129,11 @@ How `--tags` actually behaves in THIS repo — verified against `site.yml`,
     roles runs. The tier is never a *skip-default*: a full converge (no `--tags`) runs everything
     in order; `base` only makes the rare roles *selectable as a set*. Roles keep their own tags
     so they can still be run individually (`--tags common`).
+    One of those base duties is version hygiene, not service placement: `common` **holds the
+    pinned host packages** (`apt-mark hold`, asserted back with `apt-mark showhold`), which is
+    what keeps an `apt upgrade` from moving a pinned package between converges. Nothing in this
+    tier — or anywhere else in the fleet — upgrades a package: an upgrade is the
+    `versions.yml` change plus the converge that follows it.
   - **Lane sub-tags** make a single role surgical: `monitoring` tasks carry `alloy`, `grafana`,
     `ha_token`, `hygiene`, `network-clients`, `routeros-syslog` alongside the role tag, so
     `--tags hygiene` converges just the hygiene-exporter leg. Selection is a UNION, so
@@ -888,7 +893,7 @@ IaC/ansible/
 │   ├── vps.kogler.si.yml            # netcup RS 2000 G12 (purchase date: subscription.md)
 │   └── pi.kogler.si.yml             # Static IP, SSH user (node; ha.kogler.si = VIP)
 ├── roles/                            # full catalog = ls roles/ (count derived, never hand-entered)
-│   ├── common/tasks/                # system.yml + main.yml
+│   ├── common/tasks/                # system.yml + apt-holds.yml + main.yml
 │   ├── ai_diag/                     # ai-debug diagnostics dispatcher + sudoers
 │   ├── docker/tasks/main.yml        # Docker CE + compose install
 │   ├── network/tasks/main.yml       # VLAN interfaces, /etc/hosts
@@ -1071,7 +1076,8 @@ domain_local: kogler.si
 
 ### `common`
 - `tasks/system.yml`: **fail-closed guard** (asserts `ansible_user` is in `ansible_admin_users` — `ai-debug` can never run Ansible), apt update, prerequisites (`sudo`, `curl`, `python3-pip`, `openssh-server`), sudoers
-- **Idempotency:** `state: present`, visudo validate
+- `tasks/apt-holds.yml`: **holds the pinned host packages** — `apt-mark hold` for every pinned package the host actually carries (`alloy`, the Docker engine family, `tailscale`; the list is `common_apt_hold_packages`), then `apt-mark showhold` is read back and asserted, so a host that lost a hold reddens the converge instead of drifting silently. A held package cannot be moved by `apt upgrade`; an explicitly requested version (`apt install <pkg>=<ver>`, which is how a pin bump converges) still installs. There is **no automated upgrade phase** on any host: versions move only when `group_vars/all/versions.yml` moves, through Renovate + a deliberate converge. Kopia is not on the list because it is a pinned container image, not a .deb.
+- **Idempotency:** `state: present`, visudo validate; the hold leg diffs `showhold` against the installed pinned set, so an already-held host reports ok and only the missing holds are applied
 - **Depends on:** nothing
 
 ### `docker`
