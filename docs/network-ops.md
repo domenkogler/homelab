@@ -275,6 +275,61 @@ converge's IPv6 section — **do not** leave the device and the plan of record d
 10. **Chain-reset sections are inherently idempotent; address-lists are not.** `/ip firewall nat remove [find chain=…]` / `/ip firewall filter remove [find chain=…]` make NAT/forward/input re-imports land exactly once. But `/ip firewall address-list` has NO reset — a re-import STACKS duplicates, so remove the list members first (`trusted-admin` / `trusted-ha` / `internal_lan`).
 11. **A `comment=` is a string on the device, and sometimes it is code.** A ticket id or a date in a `comment=` value — or in any string an import, a rendered template, or a runner script writes onto a host (`~/.bashrc`, a generated config header, a managed-block marker) — states what used to happen rather than what is true, so the [CONVENTIONS.md §3](../CONVENTIONS.md) comment rule applies to it exactly as it does to a `#` line, and [`scripts/gate/check_iac_identifiers.py`](../scripts/gate/check_iac_identifiers.py) refuses the `IaC/` half of it. The one thing that makes such a string **not** editable is a selector: `find where comment="…"`, `comment~`, a `move`/`set` that resolves through the same text, or the role's `api_modify` `comment:` twin. There the id is a key — removing it from one side makes a `remove` stop matching and re-import STACK a duplicate, or makes a guard add a second rule. So the order is always: grep the exact bytes of the string across `IaC/` and `scripts/`, read every hit for a `find`, then change every side in one commit (`check_string_twins.py` reddens a one-sided rename) or none of them. Where the two sides already disagree, the **converge template wins** — it is the apply of record, so the role comment is the side that gets renamed. A folded delta is the exception that frees the text: the id stops being a key when the delta that matched on it is deleted, not before.
 
+   **Retiring a delta that owns a match key — the procedure and the proof order.** This is state, so the
+   window is a command sequence and not a re-derivation.
+
+   - **Who writes each rule today.** The converge template is the only writer of record for the whole
+     NAT + filter state: it removes both NAT chains
+     ([rb4011_converge.rsc.j2](../IaC/router/templates/rb4011_converge.rsc.j2):314, :315) and rewrites the
+     `forward` and `input` filter chains in template order (:373, :452), the WAN-egress accepts and the
+     Mgmt→Home accept included. The `router` role carries byte-twin `comment:` values for the same rows
+     ([roles/router/tasks/main.yml](../IaC/ansible/roles/router/tasks/main.yml):726, :777) but its
+     full-reconcile task is **gated off**, so it is a second author of that text, not a second writer of the
+     rules. The surviving transient deltas are the only remaining place the same text is used as a
+     **selector**: `find where comment="…"` at
+     [rb4011_hd307_delta.rsc.j2](../IaC/router/templates/rb4011_hd307_delta.rsc.j2):41 and :51 and
+     [rb4011_hd326_fix_delta.rsc.j2](../IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2):56. **No firewall
+     state depends on a delta**: delete the delta templates and the next converge still produces the entire
+     chain set, in order, from the template.
+   - **Prove a delta adds NOTHING before removing it — compare rule attributes, ignore the comment text.**
+     Render both scripts, strip the `comment=` field from every `add` line, resolve Jinja, and diff the two
+     normalized sets. A delta line that matches a converge line on `chain`, `action`, `src-address`,
+     `src-address-list`, `dst-address`, `dst-address-list`, `in-interface`, `out-interface`, `protocol`,
+     `src-mac-address`, `connection-state`, `time` and `dst-port` is redundant — an empty diff is the
+     evidence, and the comment is excluded from the comparison because it is the field being retired.
+     A NAT row whose value comes from a `:local` (e.g. `to-addresses=$vip`) is compared on the resolved
+     literal the converge writes, not on the variable name. Then prove **position** on the live device,
+     which no text diff can see: `/ip firewall filter print where chain=forward` and check the sequence
+     numbers against the order invariants in [network-vlans.md](network-vlans.md) — first-match-wins means a
+     rule that exists below the row that already decides the packet is dead weight that reads as working.
+   - **Sequence, in the window, in this order:** rename the string on **every** side in ONE commit (converge
+     row + role `comment:` twin + every `find where comment=`/`comment~` selector; the twin's own text is
+     pinned by [scripts/gate/check_string_twins.py](../scripts/gate/check_string_twins.py) and the
+     identifier residue by [scripts/gate/check_iac_identifiers.py](../scripts/gate/check_iac_identifiers.py),
+     whose allowlist rows name each twin and which selector matches it) → delete the delta templates in the
+     same commit → `bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/render-converge.yml` →
+     `bash scripts/ansible/ansible-run.sh IaC/ansible/playbooks/apply-converge.yml -e converge_rsc=rb4011_converge.rsc`.
+     A delta's own rule additions need no separate apply: the converge already writes them, which is what the
+     diff above proved. ⛔ Never `--diff` on a router playbook.
+   - **Read the device back through the API — the import exit code proves nothing.** `/import` reports success
+     for a script whose guards all short-circuited, and a guard whose `find` matched nothing prints nothing
+     and changes nothing. So the verdict comes from a read: `api_facts` /
+     [mikrotik-read.py](../skills/mikrotik/scripts/mikrotik-read.py), or `ssh router '/ip firewall filter
+     print where chain=forward'`. The rename is proven when the NEW text appears exactly once per row, the OLD
+     text appears nowhere, and the per-chain row count and order match the template. A row still carrying the
+     old text is a row the import never touched — not a row that was renamed.
+   - **A comment rename on a row a reconcile selects by exact equality is a delete + add, not an edit.** The
+     row is momentarily absent, so the rename belongs inside the window with the accept it touches, never in a
+     background run, and the before/after read is taken from the device on both sides of it.
+   - **Precondition: a station on-site with WinBox reachable on the Home leg.** This apply is device-wide and
+     re-asserts the bridge, which is exactly what the Mgmt-plane caution below refuses unattended — the
+     recovery window when the mgmt plane goes dark is WinBox from the laptop / the Home leg, and the `.99`
+     mgmt path is itself on-site-only. Away from the house this work is **deferred, not improvised**.
+   - **Until the retire lands, the `comment=` match keys stay unedited on every side.** They are keys, not
+     prose; cleaning one side (a doc-adjacent tidy-up, an "id-only-here" convenience) is the string-twins
+     defect `check_string_twins.py` reddens, and the honest state is that the four strings still carry a
+     ticket token because the delta that matches on them is still in the tree.
+
 ### Why this model
 
 `community.routeros.api_modify` / `command` are **order- and state-sensitive**: partials, `can not change dynamic`, needs `librouteros` in the exact interpreter, and framings for `/import` are unreliable. A single imported `.rsc` applies many commands as one atomic-ish set — much easier, reproducible, and reviewable (the diff is the template). The **API remains for verification + idempotent state**; the **rsc import is the apply**.
