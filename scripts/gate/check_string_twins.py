@@ -554,9 +554,14 @@ def check(repo: Path, control: str | None = None, base: str | None = None) -> di
     except ToolError:
         return _refuse(f"ERROR: {base_rev} is not an ancestor of HEAD",
                        "the baseline has to be a revision on the history being checked")
-    behind = int(_git(repo, "rev-list", "--count", f"{base_rev}..HEAD").decode().strip())
+    # Staleness is the window THIS run aligns over: base -> the revision it compares against. A
+    # real run compares against the working tree, so that end is HEAD. A pinned replay -- the
+    # self-test's positive control, the only caller that passes `base` -- compares two fixed
+    # historical revisions, so its window is fixed too and cannot age with the tree.
+    window_end = "HEAD" if base is None else control
+    behind = int(_git(repo, "rev-list", "--count", f"{base_rev}..{window_end}").decode().strip())
     if behind > STALE_AFTER_COMMITS:
-        return _refuse(f"ERROR: the baseline is {behind} commits behind HEAD",
+        return _refuse(f"ERROR: the baseline is {behind} commits behind {window_end}",
                        f"that is more than one wave (the cap is {STALE_AFTER_COMMITS}, a wave "
                        f"measured 176): alignment against a stale baseline turns refactors into "
                        f"false severs, so this gate measures the CURRENT wave or says nothing. "
