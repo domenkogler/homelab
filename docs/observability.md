@@ -474,6 +474,67 @@ root but it is not a safe thing to `grep -A40`. Take credentials through the vau
 uses, or read them into a shell variable and never echo them — this is why the monitoring tasks template
 them from `victoria-metrics_api` / `victoria-logs_api` instead of reading back rendered files.
 
+#### Pin-lag report: running version vs the pin, with no updater anywhere
+
+The visibility half of a version policy that deliberately has no automated upgrade phase
+([CONVENTIONS.md](../CONVENTIONS.md) §7; the hold leg that keeps the pins frozen is
+`roles/common/tasks/apt-holds.yml`): an updater would make the pin advisory, and `group_vars/all/versions.yml`
+is the version truth. So the fleet **reports** the lag instead of closing it — what a host runs, what the
+repo says it should run, and whether a reboot is still owed. Same collector, same loopback port, no second
+timer and no second service:
+
+| Series | Meaning |
+| --- | --- |
+| `homelab_pkg_pin_ok{package=}` | 1 when the installed version EQUALS the pin — the shape that keeps "in sync" distinct from "not installed here" |
+| `homelab_pkg_pin_result{package=, pin=, result=, running=}` | the comparison itself. `result` is `match` / `differ` / `missing` (this host does not carry the package) / `unknown` (dpkg gave nothing readable), and both version strings travel as labels |
+| `homelab_upgrade_plan_ok` | 1 when the simulated plan was readable — `0` means "no idea", never "nothing pending" |
+| `homelab_upgrade_plan_count` | how many packages this box's own solver would upgrade |
+| `homelab_reboot_required` | 1 while Debian's own `/run/reboot-required` marker exists |
+
+**Where the pin comes from.** `monitoring_hygiene_pins` (`roles/monitoring/defaults/main.yml`) pairs a
+package with the NAME of the `versions.yml` var that pins it, and the template resolves that var at render
+— no version literal exists in the collector, in a rule, or in panel text, and an undefined pin var aborts
+the render instead of reporting "no pin" about a healthy box. The consequence is worth stating plainly:
+the pin the report compares against is the pin **as of the last monitoring converge**, so a `versions.yml`
+bump that never converged reads as "in sync" with the older value. The Docker engine suite is deliberately
+absent from the list: it is held but carries no `*_version` pin, so its cross-host skew is a standing fact
+about the fleet, not a lag this report can name.
+
+**It cannot change anything — and that is a property of the reads, not a promise.** `dpkg-query -W` reads
+the status file without ever taking the dpkg lock; the solver runs as `apt-get -s` (simulate), which
+prints a plan and executes nothing; `apt-mark` is not called; the reboot leg is one `stat`. Two details
+make the read HONEST rather than merely harmless:
+
+* `LC_ALL=C` on both apt reads. The plan summary line and dpkg's absent-package message are TRANSLATED —
+  on a Slovene locale a parse that assumed English finds no count and reports a healthy-looking "0
+  pending", which is the fail-open half of the exact class this collector exists for.
+* `apt::get::show-upgraded=false` keeps the summary line and drops the per-package list, so the plan read
+  costs ~1 s instead of dragging thousands of package names through a pipe. It is therefore the ONE leg
+  not collected per scrape: its result is cached for 15 min, because a 1-minute scrape cadence must not
+  buy a solver run every scrape. The pin and reboot legs stay per-scrape, single-digit ms each.
+
+| Question | The read that answers it |
+| --- | --- |
+| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Measured on oldsrv: `alloy` `1.20.1-1` and `tailscale` `1.102.5`, both equal to their pins, so both read `match` |
+| How far from current is the box? | `homelab_upgrade_plan_count` — oldsrv: **35 packages pending while both pins match**, because the plan counts the whole unpinned OS tail. It is the staleness signal, never a pin signal |
+| Does this host even carry the package? | `result="missing"` — what a fleet-wide list reads on a host that legitimately does not carry it, and the reason a first rule keys on `result="differ"` rather than on the ok gauge |
+| Is a reboot still owed? | `homelab_reboot_required` |
+
+⚠ **A HELD package does not appear in the plan count** — the solver keeps held packages back instead of
+listing them, so the pin legs, never the plan, are what reports a held package's version.
+
+**No alert rule ships with the leg.** Not for want of a shape — `count by (instance)
+(homelab_pkg_pin_result{result="differ"})` needs no threshold — but a rule written against a series the
+backend has never held sits green forever, which is the failure mode this whole section documents. The
+rule lands with the deploy, read back from the live series.
+
+**Deploy state: 🟢 IaC done ⏳ deploy-gated.** The leg ships inside `homelab-hygiene.py`, so the series
+exist on a host once the next monitoring converge lands that file. ⛔ That converge is a deliberate
+window, never an unattended one: on the VPS the monitoring role restarts the scrape tier, and `--diff` on
+this role prints vault values into the run log (→ [deployment-secrets.md](deployment-secrets.md); use
+`--check`). After it, the per-host read is
+`curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'`.
+
 ### Tiers
 
 | Severity | What alerts | Channel | Notes |

@@ -21,6 +21,7 @@ tags: [observability, alerting, rejected, decision-log]
 
 | Subject                                         | Status     | Why                                              |
 |-------------------------------------------------|------------|--------------------------------------------------|
+| A collector leg that changes package state      | rejected   | a reporter that upgrades makes the pin advisory  |
 | A durable log store on the Raspberry Pi         | rejected   | bounded buffer only; VictoriaLogs stores logs    |
 | Age-tiering / downsampling of stored metrics    | rejected   | absent from the VictoriaMetrics community binary |
 | Alerting on intentionally-empty state           | rejected   | unprovisioned links are not incident-worthy      |
