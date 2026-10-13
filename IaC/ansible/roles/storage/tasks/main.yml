@@ -21,6 +21,10 @@
   tags: always
 
 - name: Install ZFS userland + supporting packages
+  # `tags: storage` is load-bearing: storage.yml pulls this role as a BARE role (`- storage`),
+  # and a bare role name is not a tag, so without it `--tags storage` skips the package install
+  # while still running the tagged nas/oldsrv legs — a filtered converge that imports pools on a
+  # host where zfsutils was never installed.
   ansible.builtin.apt:
     name:
       - zfsutils-linux
@@ -33,28 +37,40 @@
                       # surfaces at modprobe time, after a green install
     state: present
     update_cache: true
+  tags: storage
 
 - name: NFS server packages (nas is the NFS server)
   ansible.builtin.apt:
     name: [nfs-kernel-server, nfs-common]
     state: present
   when: inventory_hostname in groups['storage'] | default([])
+  tags: storage
 
 - name: NFS client package (oldsrv mounts the shares)
   ansible.builtin.apt:
     name: nfs-common
     state: present
   when: inventory_hostname in groups['home_servers'] | default([])
+  tags: storage
 
 - name: Load ZFS kernel module (present on native kernel images)
   community.general.modprobe:
     name: zfs
     state: present
   when: ansible_facts['os_family'] == 'Debian'
+  tags: storage
 
 - include_tasks: zfs_common.yml
+  tags: storage
+  # ⚠ Same dynamic-include rule as nas.yml below: the include AND all 10 tasks in zfs_common.yml
+  # must carry `storage`. With either half missing, `--tags storage` skipped pool import, the
+  # media group/user and `zfs mount -a` — the ZFS core of the role — while reporting failed=0.
 - include_tasks: zfs_exporter.yml
   when: inventory_hostname in groups['storage'] | default([])
+  tags: zfs_exporter
+  # ⚠ The include tag must name the SAME tag its children carry: zfs_exporter.yml's 7 tasks are
+  # tagged `zfs_exporter`, so an untagged include line was never expanded by `--tags
+  # zfs_exporter` and the exporter silently never converged.
 - include_tasks: nas.yml
   when: inventory_hostname in groups['storage'] | default([])
   tags: [storage, nas]

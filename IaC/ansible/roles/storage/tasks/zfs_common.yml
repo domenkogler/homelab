@@ -7,6 +7,7 @@
 - name: Host short name
   ansible.builtin.set_fact:
     _host_short: "{{ inventory_hostname_short | lower }}"
+  tags: storage
 
 # Neutral shared-data owner `media`: owns all shared NAS datasets,
 # NFS/SMB exports (anonuid/anongid), and the filesystem/SMB-backed service containers
@@ -18,6 +19,7 @@
     system: true
     gid: "{{ storage_gid }}"
   when: storage_uid is defined and storage_gid is defined
+  tags: storage
 
 - name: Create neutral shared-data user (media, storage_uid) in the media group
   ansible.builtin.user:
@@ -28,6 +30,7 @@
     shell: /usr/sbin/nologin
     create_home: false
   when: storage_uid is defined and storage_gid is defined
+  tags: storage
 
 # ---------------------------------------------------------------------------
 # Pools — presence check
@@ -40,6 +43,7 @@
   loop: "{{ storage_pools }}"
   loop_control:
     label: "{{ item.name }}"
+  tags: storage
 
 # ---------------------------------------------------------------------------
 # Pools — import (no mount yet; data untouched)
@@ -55,6 +59,7 @@
     - (item.rc | default(0)) != 0
     - item.item.name in storage_own_pools[_host_short] | default([])
     - not (item.item.allow_create | default(false))   # fresh-build create: skip import — the create task owns a missing pool
+  tags: storage
 
 # ---------------------------------------------------------------------------
 # Pools — fail hard unless a fresh build explicitly allows creating the pool
@@ -73,6 +78,7 @@
     - (item.rc | default(0)) != 0
     - item.item.name in storage_own_pools[_host_short] | default([])
     - not (item.item.allow_create | default(false))
+  tags: storage
 
 - name: Refuse CREATE when a pool vdev still carries a placeholder device
   ansible.builtin.fail:
@@ -90,6 +96,7 @@
     - item.item.allow_create | default(false)
     - item.item.name in storage_own_pools[_host_short] | default([])
     - (item.item.vdevs | join(' ')) is search('UNDEFINED|<|>') or (item.item.vdevs | length) == 0
+  tags: storage
 
 - name: Create pool (fresh build — explicitly allowed)
   community.general.zpool:
@@ -104,6 +111,7 @@
     - (item.rc | default(0)) != 0
     - item.item.allow_create | default(false)
     - item.item.vdevs | length > 0
+  tags: storage
 
 # ---------------------------------------------------------------------------
 # Datasets + properties — apply the storage.md table (all pools this host
@@ -119,6 +127,7 @@
     label: "{{ item.name }}"
   when:
     - item.name.split('/')[0] in storage_own_pools[_host_short] | default([])
+  tags: storage
 
 # ---------------------------------------------------------------------------
 # Mount everything of the imported pools (after datasets exist)
@@ -126,3 +135,4 @@
 - name: Mount all datasets (zfs mount -a)
   ansible.builtin.command: zfs mount -a
   changed_when: false
+  tags: storage
