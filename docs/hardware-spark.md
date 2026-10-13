@@ -293,13 +293,16 @@ that pool. The ledger is validated against the machine, not merely balanced.
 **The rule that falls out of it:** the pool is capped by what the *fixed cost* leaves over, and on
 this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 − 92.13e9 = 20.64 GB`.
 
-> **Rest state at the live 20 GB shape:** `usable` rests at **9.83–9.90 GiB** (`MemAvailable` 13.9 −
-> `CmaFree` 4.03), i.e. **inside the WARN band (< 12), above CRIT (8)** — not the 12.60 GiB the ledger
-> predicts. Two readings of that gap, both kept: the ledger's OS term is a 15-second post-restart
-> sample (4.93e9) while a served box carries more, and `CmaFree` itself moves from 0.13 GiB at boot to
-> 4.03 GiB once the engine is serving. The verdict is unchanged — no enforcement fires at REST — but a
-> lane must not read "pool_max 20.64 GB" as "12 GiB of reserve at rest": on this checkpoint the reserve
-> at rest is ~9.9 GiB. This is also why `SPARK_OOM_REARM_GIB` matters: with it unset, REARM defaults to
+> **Rest state at the live 20 GB shape:** `usable` rests on a recorded distribution, not a number:
+> the watchdog ring (15 s) sits at p50 **16.84 GiB** (p0 15.75, p100 17.14) with `CmaFree` p50 0.13
+> GiB, and the worst REST value ever recorded on a filled working day is **11.73 GiB** — corroborated
+> to ±0.2 GiB by the watchdog's own WARN snapshots (11.82–11.93 GiB, all at `psi_full` ≈ 0). The
+> ledger's 12.60 GiB rest prediction is **not** the box's rest: its OS term is a 15-second
+> post-restart sample (4.93e9) while a served box carries more, and `CmaFree` itself moves — 0.12 GiB
+> quiet, 4.77 GiB under a traffic excursion (a burst, never a rest state). No enforcement fires at
+> REST, but a lane must not read "pool_max 20.87 GB" as "12 GiB of reserve at rest": the reserve at
+> rest is the recorded floor **11.73 GiB**, and that is the term the global ceiling prices. This is
+> also why `SPARK_OOM_REARM_GIB` matters: with it unset, REARM defaults to
 > WARN=12, so a latch at this resting point would never re-arm by itself; the unit env carries
 > `SPARK_OOM_REARM_GIB=12`.
 > Verify a watchdog claim on this host by reading the box (`sha256sum`, `systemctl show -p Environment
@@ -308,16 +311,16 @@ this checkpoint `pool_max = (MemTotal − OS − reserve) − fixed = 112.70e9 �
 ### The GLOBAL ceiling: `spark_llm_device_hold_ceiling_bytes`
 
 The global is the effective ceiling for 15 of the 16 profiles; `fast` carries its own
-`device_hold_ceiling_bytes: 112.70e9`, a **measured exception, not a re-cert** — a per-arm override is
-priced from that arm's own non-engine reserve plus the watchdog's WARN reserve, which is `fast`'s rule
-(row A below). **The value must exist in exactly one place**: a literal copy in a profile file or in a
+`device_hold_ceiling_bytes: 112.70e9` — **locally tighter than the measured global and still
+binding**, priced from that arm's own non-engine reserve plus the watchdog's WARN reserve (row A
+below). **The value must exist in exactly one place**: a literal copy in a profile file or in a
 shared YAML anchor makes the global inert and silently voids any future re-derive
 (`spark-llm-render-matrix.py` shows what actually renders per profile).
 
 | candidate | B | derivation | consequence for the 15 arms gated by it |
 |---|---|---|---|
 | **A — raise on the measured OS term** | 112.774e9 | `MemTotal − 4.934e9 − 12 GiB` (WARN band as reserve) — exactly `fast`'s rule | all legal, pools may grow to 20–36 GB; `fast`'s override becomes redundant |
-| **B — live** | 104.113e9 | `MemTotal − 6.9 GiB − 17.78 GiB` (assumed OS, "worst usable reading") | all legal at their certified pools |
+| **B — prior global** | 104.113e9 | `MemTotal − 6.9 GiB − 17.78 GiB` (assumed OS, "worst usable reading") | all legal at their certified pools |
 | **C — transient priced, floor at CRIT** | 101.951e9 | `MemTotal − 4.934e9 − (14.08 + 8) GiB` | **7 arms illegal as configured** (`reasoning`/`graded`/`u1`–`u4` need 16→15 GB, `nv-patch` 11→9 GB; 547k→483k slots) |
 | **D — transient priced, floor at WARN** | 97.656e9 | `MemTotal − 4.934e9 − (14.08 + 12) GiB` | 8 illegal (adds `awq-mmap`), `nv-patch` down to 5 GB |
 
@@ -327,18 +330,30 @@ heavy prefill, once ending in a governor recycle. Pricing it means the reserve m
 DOWN, not up**: A and the transient cannot both be true.
 
 ⚠ **And the ledger's reserve is not the box's reserve.** At a 20 GB pool the ledger predicts 12.60 GiB
-at rest and the box rests at **9.83–9.90 GiB** — the OS term is a 15-second post-restart sample while a
-served box carries more, and `CmaFree` itself moves (0.13 GiB at boot → 4.03 GiB served). So A's
-"12 GiB reserve" is ~9.3 GiB on the machine: inside the WARN band, 1.3 GiB above CRIT, and one 14 GiB
-burst away from a recycle.
+at rest while the box's recorded rest distribution runs **p0 11.73 → p50 16.84 GiB** — the OS term is a
+15-second post-restart sample while a served box carries more, and `CmaFree` itself moves (0.12 GiB
+quiet, 4.77 GiB under a traffic excursion). So a reserve chosen in the ledger must be checked against
+the samples before it is believed — which is what the Live value below does.
 
-**Live: B — 104.113e9, deliberately.** It is the one value legal for every certified arm AND at or
-below the rest floor actually observed (~9.9 GiB); A buys slots with a reserve that exists only in the
-ledger, and C/D refuse arms that are running today. ⏳ What would settle it is not more arithmetic but
-one measurement the box has never had: a **1 s sampler over one heavy prefill** on the current regime,
-which yields the true OS term at load and the transient's amplitude together. Owner call after that
-read: which floor (CRIT or WARN) the reserve is priced against. Re-certifying the global on the
-measured 4.93e9 OS term is the open ⏳ half.
+**Live: the measured rest floor — 113.000e9.** `MemTotal − 4.934e9 − 11.73 GiB` = 113.064e9, landed
+truncated at 113.000e9. The OS term is the measured restart-delta value; the reserve term is the p0
+of the RECORDED rest distribution of the live shape — the watchdog ring's percentiles plus its WARN
+stamps (`spark/reports/hd494-rest-floor/RESULTS.md`) — not an assumed band and not the ledger's
+prediction, which runs 0.9–2.6 GiB optimistic against the samples. The floor is priced at the worst
+REST the box has actually shown on a filled working day, which sits between the watchdog's bands:
+below WARN (12), well above CRIT (8). C/D remain refused: they price the heavy-prefill transient
+into the REST reserve and refuse arms that run today; the transient stays governed by CRIT
+enforcement and the in-flight drain, not by the rest floor.
+
+**The pool must not drift to 21 GB.** At the measured fixed cost 92.13e9, `pool_max = (113.0 −
+92.13)e9 = 20.87e9`: 20 GB remains the largest 1-GB-rounded pool any arm may declare against this
+ceiling, and 21 GB (113.13e9 declared) crosses it. The guard that makes a rest regression visible is
+the watchdog's **WARN band** — `gauge=MemAvailable−CmaFree warn=12GiB crit=8GiB enforce=1
+recycle=0` in the unit env, journalled per snapshot, with the matching monitoring alert "spark
+usable host memory < 12 GiB": the recorded floor 11.73 sits 0.27 GiB **below** WARN, so a leaking
+or drifting reserve prints before it breaches the floor, and CRIT enforces 3.7 GiB below it. Idle
+recycle is disarmed, so the WARN snapshot is the continuous witness; a regression shows up as
+`last_WARN` moving, not as a crash.
 With `reserve` = the watchdog's WARN band (12 GiB, i.e. "the rest state must not even sit in the
 WARN band"), **20 GB is the largest 1-GB-rounded pool this profile may use**, and `fast` is set to
 it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seqs=8` ceiling).
@@ -350,7 +365,7 @@ it (644,600 slots = 2.46 × the 262,144 window; 80,575 tokens/stream at the `seq
 > ([`spark/reports/hd489-overnight-20261006-0226/raw/b7-watchdog-rest-analysis.txt`](../spark/reports/hd489-overnight-20261006-0226/raw/b7-watchdog-rest-analysis.txt)).
 > The waiver covers the **rest-window** half only; the memory-curve half (gate 7: `gpu_top_mib` growth
 > **> 2 GiB/h**) accrues from the current regime's start at **2026-10-06 11:19Z** and is read when that
-> window fills; the global re-derive above stays open.
+> window fills; the global re-derive reads the recorded rest windows of the live shape.
 > The read is a tool: `scripts/bench/spark/gate7-read.py` buckets the window by hour **on one `gpu_top_pid`**
 > and separates the two shapes the raw CSV confuses — a `gpu_top_pid` that is sometimes another process
 > fabricates a spurious 2,663 MiB/h "growth". It carries a self-test (8 cases: flat, +3 GiB/h leak,
