@@ -158,7 +158,59 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 | 6 | **Docker networks isolated** — overlay networks per role (`traefik-public`/`services-internal`/`db-internal`); WG subnet → services network | compose templates + `deployment-compose.md` | `docker network ls` |
 | 7 | **Published-port bypass closed** — no port is published on a public/WAN interface; the only publishes are WG-address-bound (the internal edge on `:4443`) or loopback — there is no LDAP listener on this box. Docker DNAT'd traffic traverses the *forward* chain (`oifname "docker*" accept`), so the input default-deny alone does NOT cover published ports — the control is publish-scoping. **DNS primary exception:** the Technitium `53:53` publish is intentionally public (the LAN/tailnet resolver is the VPS public IP); its exposure is closed by **source-restricting the forward path** in the nftables FORWARD chain (tailnet CGNAT `100.64/10` + home-WAN `@dns-allow-home` set; everything else dropped) — see security.md §8 + network-dns.md | compose templates (victoria-metrics/victoria-logs WG-bound binds) + `vps-hardening` nftables forward chain | From an external host `nc -vz <vps-public-ip> <published>` → REFUSED for every non-DNS publish (no LDAP listener exists to probe); `nft list ruleset` shows input policy drop + forward `oifname docker* accept`, **and** forward `dport 53` rules source-restricted to `100.64/10` + `@dns-allow-home` (external `dig @<vps-public-ip> example.com` → refused/no-answer, home-WAN + tailnet resolve) |
 | 8 | **RustDesk host-net ports** — `21115/tcp`, `21116/tcp+udp`, `21117/tcp` reachable; `21118`/`21119` NOT. Host-net means there is **no docker DNAT**, so unlike every other service the input chain is the whole gate (row 3). The container still *binds* 21118/21119 (upstream builds them in; `-b/--bind` needs 1.1.17), so the firewall is what closes them — they are web-client-only and upstream trusts unvalidated `X-Real-IP`/`X-Forwarded-For` there | `vps-hardening` nftables input allow-list + `templates/docker_services/rustdesk-server/` | From an external host: `nc -vz <vps-public-ip> 21117` → OPEN, `nc -vz <vps-public-ip> 21118` → **REFUSED**, `nc -vzu <vps-public-ip> 21116` + a RustDesk client registration succeeds; `docker logs rustdesk-server` shows `TOTAL_BANDWIDTH: 48Mb/s` (the caps took effect — hbbr prints its effective values at start-up) |
-| 9 | **IPv6 stateless control traffic** — the `inet` input chain must accept NDP + the ICMPv6 error types + MLD, or the box discards its own neighbour replies and IPv6 is dead in both directions while every v4 rule reads correct. ⚠ Fixing it makes the family-agnostic `:22`/`:443`/`:51820`/RustDesk accepts reachable over v6 as well — that parity is an open owner question, not an accident to leave implicit | `vps-hardening` nftables input chain | `nft list chain inet filter input \| grep -c icmpv6` → ≥ 3; `ip -6 -s neigh show dev eth0` → the gateway **`REACHABLE`**, not `FAILED`; `curl -6 -m 10 -o /dev/null -w '%{http_code}' https://dns.quad9.net/` → a real status code, not a timeout; `nstat -az \| grep Icmp6InNeighborAdvertisements` → non-zero (a zero here with `REACHABLE` means RAs are periodic, not that the rule fails — do not chase it) |
+| 9 | **IPv6 stateless control traffic** — the `inet` input chain must accept NDP + the ICMPv6 error types + MLD, or the box discards its own neighbour replies and IPv6 is dead in both directions while every v4 rule reads correct. ⚠ **Ruled (owner 2026-10-12): the parity is kept, not scoped** — fixing NDP makes the family-agnostic `:22`/`:443`/`:51820`/RustDesk accepts reachable over v6 as well, and they stay family-agnostic (`meta nfproto ipv4` is NOT added); the duty moved to the proof that a real v6 client address reaches a ban log. Measured state and the half still owed: [network-ops.md](network-ops.md) §IPv6 on the RB4011 and [services-vps.md](services-vps.md) §IPv6 dual-stack on the VPS | `vps-hardening` nftables input chain | `nft list chain inet filter input \| grep -c icmpv6` → ≥ 3; `ip -6 -s neigh show dev eth0` → the gateway **`REACHABLE`**, not `FAILED`; `curl -6 -m 10 -o /dev/null -w '%{http_code}' https://dns.quad9.net/` → a real status code, not a timeout; `nstat -az \| grep Icmp6InNeighborAdvertisements` → non-zero (a zero here with `REACHABLE` means RAs are periodic, not that the rule fails — do not chase it) |
+
+---
+
+## IPv6 dual-stack on the VPS
+
+> **Design of record for the VPS v6 leg** (ruled 2026-10-12). The provider is not the blocker: the SCP
+> network page delegates the **whole `2a0a:4cc0:60:fcc::/64`** to this box (the host's own global address is
+> that NIC's EUI-64) and its firewall is Active with 0 policies, so container addresses come out of our own
+> /64 and nothing is owed upstream.
+
+**The chosen mechanism — `ipvlan-l2` on the delegated /64 (shape A).** A dedicated docker `ipvlan` network on
+`parent=eth0` (`ipvlan_mode=l2`) handing containers addresses from the delegated /64. Chosen because it keeps
+the three things this edge is judged on: a true global provider address per container, **real client source
+addresses** in Traefik/CrowdSec/fail2ban (which is what the accept-parity ruling in
+[network-ops.md](network-ops.md) §IPv6 on the RB4011 depends on), and a direct tailscale path. Its two known
+costs are accepted with it: ipvlan **refuses on-host parent↔child traffic** — so a host→container v6 read is
+not a valid test of the path — and the v6 default must be routed via that interface only, never widened.
+
+**The standing fallback — docker `ipv6` + `fixed-cidr-v6` + NAT66 (shape B).** Pre-authorized, to be used
+without going back to the owner **only if** ipvlan's on-host parent↔child block breaks the Traefik backends.
+It keeps no provider address in the container tier, so it costs tailscale its direct path, and the ban and
+attribution logic across the fleet may only be trusted after the client-source visibility is **PROVEN** (the
+access log must show the real client v6 address, not the gateway). **Never both shapes in one commit** — the
+one that lands is the one recorded here, with the read that shows why.
+
+**What must be true first.** The prefix read (step 1) is the precondition for either shape, and it is
+read-only: `ip -6 addr/route/neigh`, `sysctl net.ipv6.conf.all.accept_ra net.ipv6.conf.all.autoconf`,
+`docker network ls`, `cat /etc/docker/daemon.json`, `ip6tables -S`, `ss -lun` on the host **and** inside the
+edge netns, plus which traefik publishes 80/443. Measured 2026-10-13 (read-only, `ssh vps`): the host holds
+`2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5/64` with `default via fe80::1 dev eth0`; `daemon.json` carries
+`"ip6tables": true` but **no `"ipv6": true` and no `fixed-cidr-v6`**; every docker network is driver `bridge`;
+the publishes bind v4-only (`0.0.0.0:80`/`0.0.0.0:443`, the tunnel-bound `:4443`), so nothing binds
+`[::]:443` and the publish is v4-only; `ip6tables -S` shows the DOCKER chains present and empty of v6 rules.
+Only `sshd` (`[::]:22`) and RustDesk (`*:21115`–`*:21119`) are dual-stack today, and `udp 51820` listens on
+`[::]`.
+
+**⛔ Apply is authored and parked — no VPS network change runs unattended.** The VPS is the edge, so this
+runs in an owner-present window, one shape at a time, with the rollback written down first. Shape A, exactly:
+
+```bash
+# ⛔ parked: owner-present window, nothing else changed in the same sitting
+docker network create -d ipvlan -o ipvlan_mode=l2 -o parent=eth0 -o com.docker.network.driver.mtu=1450 \
+  --enable_ipv6=true --subnet 2a0a:4cc0:60:fcc::/64 traefik-v6
+docker network inspect -f '{{range .IPAM.Config}}{{.Subnet}}{{end}}' traefik-v6   # must read the /64 back
+# rollback, complete and reversible in one command:
+docker network rm traefik-v6
+```
+
+Acceptance is the reads, not the config: the `--resolve` read answers from a proven v6 source, a listener
+binds `[::]:443` on the host, a peer reads the tailscale peer as `active; direct [<v6>]:41641`, and a
+container still logs a real client address — then the blackbox-exporter `preferred_ip_protocol: ip4` pin comes
+out. Decision log for the shape declined: [network-rejected.md](network-rejected.md).
 
 ---
 

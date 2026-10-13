@@ -99,11 +99,27 @@ Away from home, router/switch work is **deferred, not improvised** — see [netw
 
 ### IPv6 on the RB4011 — measured facts, the outside-in probe, the rollback
 
-> **The VPS-side v6 publish is authorized work** (owner ruling). The family-agnostic accept parity verdict
-> is **still outstanding**, and with it the `meta nfproto ipv4` scoping half: until that verdict is given,
-> no session narrows the rule set "as a safety improvement" - while NDP was broken the accepts were
-> IPv4-only *in practice*, and a dual-stack box makes them reachable over v6 too, which is exactly what the
-> verdict is asked to decide.
+> **The VPS-side v6 publish is authorized work** (owner ruling), and the family-agnostic accept-parity
+> verdict is **given: KEEP THE PARITY** (owner, 2026-10-12). The `:22`, `:443`, `:51820` and RustDesk accepts
+> stay family-agnostic in the `inet` table and are **not** scoped `meta nfproto ipv4` — so no session narrows
+> the rule set "as a safety improvement", and the family split is decided by what *binds*, not by a filter
+> edit. The duty moved from the rule to the **proof**: a real IPv6 client address must be shown reaching a
+> ban/attribution log (an address hidden by NAT66 reopens the verdict).
+> **Read taken 2026-10-13 on the VPS (read-only):** the host holds a global address
+> (`2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5`, `default via fe80::1 dev eth0`), `sshd` listens on `[::]:22`, and
+> the journal that fail2ban's `sshd` jail matches (`_SYSTEMD_UNIT=ssh.service`) carries **196** lines from a
+> real client address in the advertised home /64 — `Connection from 2a00:ee2:2700:8f00:… on
+> 2a0a:4cc0:60:fcc:d820:9dff:fe4f:95f5 port 22`, 62 of them `Accepted publickey`, spanning the journal window
+> 2026-08-22 → 2026-10-05. So **where a listener binds `[::]`, an inbound v6 address reaches the log
+> unpinned** — the `:22` half of the duty is discharged. The `:443` half cannot be discharged yet: the
+> published edge is v4-only (`0.0.0.0:80`/`0.0.0.0:443` plus the tunnel-bound `:4443`; no `[::]:443`) and Traefik's
+> access log holds **no** v6 client address anywhere in its window (2026-09-03 → 2026-10-13), so the HTTP
+> proof is owed with the dual-stack publish — see
+> [services-vps.md](services-vps.md) §IPv6 dual-stack on the VPS. RustDesk is the one edge that already
+> binds dual-stack (`*:21115`–`*:21119`) and its log does carry v6 peer addresses; `udp 51820` likewise
+> listens on `[::]`. No v6 address has ever been *banned* (`fail2ban.log` has none, CrowdSec's live
+> decisions are all `Ip:<v4>`) — v6 traffic exists, v6 abuse does not yet, so the ban path over v6 is
+> unproven and stays an ⏳ tail.
 
 Plan of record (what is advertised, which VLANs, the filter's rule order, the invariants):
 **[network-vlans.md](network-vlans.md) §IPv6.** This section is the *operating* half: how to measure it, how to
@@ -204,8 +220,9 @@ real artifact URL: rc-file in effect → `302 Found`, control with the family le
 reaches `wget`/`curl` for that user and nothing else: a tool that fetches through its own HTTP stack (a Node
 binary, an IDE's downloader) ignores both files, so it needs its own client-side download switch instead.
 
-⛔ **The durable fix belongs at the router's v6 leg, and the family-agnostic accept-parity verdict at
-the head of this section covers it** — no rule change is authorized here while that verdict is open, so
+⛔ **The durable fix belongs at the router's v6 leg. What the accept-parity verdict at the head of this
+section decides is the filter's *family handling*, not this leg — and it is given (KEEP THE PARITY), so it
+authorizes nothing here**: no rule change follows from this finding before the prefix read below, so
 this is recorded as a measurement plus the probe, never as an edit. What would close it is a prefix-level reachability read from the router itself (`/ipv6 route
 print`, then a test per prefix), with the counter-only discriminator above deciding whether the drop is ours
 or upstream's **before** anything is touched.
