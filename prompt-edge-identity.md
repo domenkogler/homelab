@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the VPS identity + published-name surface. **The rows are the
 > authority** for what is missing and how to do it — this file carries the contract, the order of work and the traps,
-> nothing else: [todo.md](todo.md) **HD-147 · HD-457 · HD-458 · HD-459 · HD-112 · HD-47**
+> nothing else: [todo.md](todo.md) **HD-147 · HD-457 · HD-458 · HD-459 · HD-112 · HD-47 · HD-357** (the launchpad tiles, promoted onto this brief 2026-10-13)
 > (row ids as of `16177f19` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 

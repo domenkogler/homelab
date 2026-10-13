@@ -154,8 +154,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    assertion that landed with the oldsrv host-resolver leg is oldsrv-shaped and reads `nm_oldsrv_profile`, so
    nothing checks the resolver list the Pi writes ([docs/network-dns.md](docs/network-dns.md) §Host-side resolver)),
    plus **HD-04 · 434 · 438 · 439 · 319 · 17 · 217**. → [prompt-smart-home.md](prompt-smart-home.md)
-8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (which seat owns the family Immich library
-   — an owner pick), **HD-458 · 459** (zipline, the published names), **HD-112**. ⏸ **HD-47** stays an owner act,
+8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (the SSO seat owns the family library — ruled; what is left is the per-user/shared-album shape, read at implementation time), **HD-458 · 459** (zipline, the published names), **HD-112**, and **HD-357** — the launchpad tiles, promoted onto this brief 2026-10-13 (its family-surface brief was retired and no successor took the row). ⏸ **HD-47** stays an owner act,
    **Deferred by owner 2026-10-08**: the external-room join is unscheduled; everything publishable is published and
    measured. → [prompt-edge-identity.md](prompt-edge-identity.md)
 9. ⏳ **The LiteLLM consumer chain** — one ordered pair left (**HD-384**).
@@ -213,12 +212,13 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
     - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
-      `--self-test`, and `bash scripts/validate-all.sh --list` prints no item for it, so a `§Heading` pointer that
-      dangles reddens nothing at commit time while its path half (`check_doc_path_refs.py`) IS registered. The size of
+      `--self-test`, and it IS registered now, alongside `check_doc_path_refs.py`: `--list` prints both its run and its
+      `--self-test`, and the anchor half runs against a frozen baseline (`gate/doc_headings_baseline.txt`),
+      so growth is what reddens a commit — re-derive the count by running it, never by quoting it. The size of
       the debt is the last line of its own run, and the same tool copied into a worktree checked out at an earlier
       revision shows which way the trend moves; the three lawful answers are register it with a frozen baseline and
-      refuse growth, run a clearing campaign, or keep it a tool and say so in the index. The owner picks: a lane that
-      registers it has chosen for everyone. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
+      refuse growth, run a clearing campaign, or keep it a tool and say so in the index. Ruled 2026-10-13: option (a) — registered with the frozen baseline, growth refused; no clearing
+      campaign is owed. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
     - ✅ **Which spelling of the IoT DoT-bypass drop is canonical — ANSWERED: the converge's.** The converge writes
       `IoT -> DoT bypass drop tcp (HD-342)` / `… udp (HD-342)` at `IaC/router/templates/rb4011_converge.rsc.j2:441,442`,
       the role's `api_modify` twins at `IaC/ansible/roles/router/tasks/main.yml:793,799` now carry that same pair, and
@@ -241,18 +241,19 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       neither writer can drop it. Narrowing `restrict:` was weighed and declined. What remains is the live apply
       (merge-only so far, the router slot is global) in [todo.md](todo.md) HD-1142 — read the before/after from the
       device, never from the import's exit code.
-    - **Promote the string-purge gate, or keep calling it advisory.** `corpus_diff.py` and its signed accepts list
+    - ✅ **Promote the string-purge gate, or keep calling it advisory — ANSWERED 2026-10-13: promoted, in-tree.** `corpus_diff.py` and its signed accepts list
       live OUTSIDE this repository, so `validate-all.sh` cannot register them and deleting an accept entry narrows the
-      check while the suite stays green. Re-derive that for yourself: `bash scripts/validate-all.sh --list` grepped for
-      corpus answers nothing, and `scripts/corpus_diff.py` does not exist in this tree, because the tool and its
-      accepts list run from a lane directory a fresh clone does not have. Promotion takes three things, in this order:
+      check while the suite stays green. Re-derive it: `--list` now prints items for the run and for its
+      `--self-test`, and `scripts/gate/corpus_diff.py`, `gate/corpus_baseline.txt` and
+      `gate/corpus_diff_accepts.txt` all live in this tree. Promotion takes three things, in this order:
       the tool in-tree with both its run and its `--self-test` registered; a pinned baseline naming the compared
       revision and carrying a digest of what was compared, with the staleness refusal `scripts/gate/check_string_twins.py`
       already has; and the accepts list in-tree under the canary discipline of
-      `scripts/gate/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. Until all
-      three land, a corpus-diff verdict is per-commit and hand-run, and a green one is evidence about that run only -
-      it is not a gate the suite ran. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
-    - **Retire the RB4011 deltas — the only act that frees the `comment=` strings still carrying ticket ids.**
+      `scripts/gate/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. All three landed together, and its self-test shows by mutation that deleting an accept entry
+      reddens the run instead of quietly narrowing it — so deleting an entry is now an act the suite notices. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
+    - ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its
+      proof order are written into [network-ops.md](docs/network-ops.md); the window is owner-set (on-site, WinBox on the
+      Home leg, read state back through the API), and until it runs the four `comment=` match keys stay untouched.
       `IaC/router/templates/rb4011_converge.rsc.j2:314,315,370,449` remove both nat chains and both filter chains and
       rewrite them in template order, and at this tip every firewall rule the surviving `rb4011_*_delta.rsc.j2` /
       `rb4011_ha_iot_repair.rsc.j2` files add is already written by the converge (measured by comparing rule attributes

@@ -36,12 +36,18 @@
 > ±60/+90 characters (six shapes pinned by `--self-test`; the contract is in
 > [scripts/README.md](scripts/README.md)).
 > **Re-synced 2026-10-08 (pi.dev seat lane, HD-1110/1114):** the lane is no longer a plan — the driver and every plane script exist, the Win11 seat is in sync on all planes it can run, and the pi BUILD is pinned and gated (`pi-self-update.sh`). Three rows left the registry as done (HD-1111 pins, HD-1112 the deleted root `update_pi.cmd`, HD-1113 tmux §keyboard); what remains is the two Debian seats’ live legs and the Win11 `pi_auth` auth-mode divergence the driver surfaced (HD-1110’s tail). Also retired this evening (HD-1116): commit signing — the SSH key is gone from GitHub, `gpgsign=false` is the seat default and the rebuild paths say so too, so nothing restores a policy that would only hang a non-interactive committer.
+> **Re-synced 2026-10-13 (the owner-answer wave — ten rulings landed):** the owner answered ten open calls and each answer
+> became work: HD-1150's rotated secret is deployed and proven delivered, HD-1148's Docker suite is pinned in `versions.yml`,
+> HD-1131's orphan is gone from all three instances with a prune leg minted as **HD-1152**, HD-1088's music master is in
+> Kopia scope with its serving push authored and unarmed, HD-494's rest floor is the measured one, HD-357 has a brief again,
+> and OQ-14 is parked on a trigger instead of on the owner. The gate count moved (re-derive with `--list`), and the router
+> delta retirement is ruled-but-scheduled, so its legs stay parked on a window that has no date yet.
 > **Re-synced 2026-10-13 (the cleanup lane — the views catch up with the run):** §B9 re-derived with the command above,
 > which named 13 registry rows the view had never carried (**HD-1135 · 1137 · 1138 · 1139 · 1140 · 1141 · 1142 · 1143 ·
 > 1146 · 1147 · 1148 · 1149 · 1150**) and two view rows the registry no longer carries (**HD-1132 · HD-1134**). The
 > recurrence the 2026-10-12 note describes, at the same seam. Also corrected where the registry proves the sentence false:
 > the memory-plane block (**OQ-12** and **OQ-13** are answered — `agentmemory` is the one central plane and the
-> Qdrant + central-server + direct-clients blueprint is the target; **OQ-14**, the `bge-m3` leg, is the only open call),
+> Qdrant + central-server + direct-clients blueprint is the target; **OQ-14**, the `bge-m3` leg, is **parked on a measured re-open condition**),
 > **HD-454** (the buy-vs-accept question is a ruling now), **HD-1107** (closed on the host; the stalled syncoid send is
 > what is left), **HD-1108** (the Matrix leg is live in the workflow), **HD-1109** (the standby IS cold-deployed — the
 > takeover is the unproven half). §B0's unbriefed count and tail were re-derived, not incremented. No row was closed,
@@ -179,7 +185,7 @@ later session re-asks it. Rows marked ✅ are now pure AI in §B.
 | **Be on-site once** | HD-397 tail | The LAN matrix + the `Mgmt99` vNIC half |
 | **Physical windows** | HD-06 · 288 · 194 · 34/191 | UPS pull → WoL · a router/switch/AP reset · gaming + Moonlight · one edge login/callback · the yearly restore drill (also where HD-207 and HD-230 get decided) — HD-301 left the registry when its floor was verified on the device |
 | *(optional)* | *(no row — HD-409 was delivered and its row deleted; the seat-push posture is the record)* | If you want oldsrv to **push** from the runner clone, a repo-scoped **write-capable** deploy key is still the owner's mint — until then the runner pulls only and commits wait there (the **seat** clone can push: `scripts/ansible/seed-seat-deploy-key.sh`) · [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement |
-| **The memory-plane calls** (OQ-12/13/14) | *(no HD row yet)* | **Two are answered; one is yours.** OQ-12 — `agentmemory` **is** the one central plane, with the `user_id`/`project_id` filters set per client — and OQ-13 — the Qdrant + one central `agentmemory` + direct-clients blueprint **is** the target architecture — were answered by the owner and are written as state in [services-ai.md](docs/services-ai.md) §9b, evidence in [`reports/probe-agentmemory-20260921.md`](reports/probe-agentmemory-20260921.md); do not re-ask either. ⏳ **OQ-14 is open:** whether memory needs the `bge-m3` leg at all — keyless BM25 cleared every gate the probe set and the leg buys **+2** at ≈2× recall latency. Nothing is installed, no row is minted, and no AI work waits on the answer |
+| **The memory-plane calls** (OQ-12/13/14) | *(no HD row yet)* | **Answered or parked — none of them is yours now.** OQ-12 — `agentmemory` **is** the one central plane, with the `user_id`/`project_id` filters set per client — and OQ-13 — the Qdrant + one central `agentmemory` + direct-clients blueprint **is** the target architecture — were answered by the owner and are written as state in [services-ai.md](docs/services-ai.md) §9b, evidence in [`reports/probe-agentmemory-20260921.md`](reports/probe-agentmemory-20260921.md); do not re-ask either. ✅ **OQ-14 parked 2026-10-13:** whether memory needs the `bge-m3` leg at all — keyless BM25 cleared every gate the probe set and the leg buys **+2** at ≈2× recall latency. Nothing is installed, no row is minted, and no AI work waits on the answer |
 
 ---
 
@@ -261,7 +267,7 @@ lives as a plain row in [todo.md](todo.md)**. The live lanes for this plane are
 442–449 residue + the seat plane), [prompt-litellm-consumers.md](prompt-litellm-consumers.md) (the LiteLLM
 consumer chain), [prompt-spark-llm.md](prompt-spark-llm.md) (spark bench + profile certification — one slot, one
 brief) and [prompt-dns-transport.md](prompt-dns-transport.md) (the answer plane). **HD-357, the launchpad row the
-old family-surface brief carried, has no domain successor** — it is unbriefed, so read the row. Run one brief per
+old family-surface brief carried, now rides [prompt-edge-identity.md](prompt-edge-identity.md)** (owner promotion 2026-10-13). Run one brief per
 session — the contract is [docs/orchestration.md](docs/orchestration.md) §4. Decisions are already in the
 `network` / `deployment` / `services` decision logs — start from the brief before re-opening a direction.
 Two standing decisions were **scoped, not repealed**: the tailnet permits **two** home nodes (`oldsrv` + the Pi,
@@ -514,6 +520,7 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-264 | 2 | AI + gate | 2.12 Observability / Alerting | Renovate sandbox domen/test — prove end-to-end tracer bump + PR path before pointing at the real repos | (Parked 2026-09-03, owner steps.) (b) run-model CLOSED 2026-08-29 (IaC: restart: on-failure:5 + RENOVATE_SCHEDULE 6h nightly; live-verified RestartCount=0). Remaining (owner): external re-launch mecha… | — |
 | HD-250 | 3 | AI + gate | 2.12 Observability / Alerting | DeepSeek Harness (DSH) onboarding — PARKED 2026-09-18 with the service | DeepSeek Harness (DSH) onboarding — PARKED 2026-09-18 with the service (dsh is enabled: false per HD-386 and decision #26 routes generation harnesses DIRECT to the engine, so a harness container on ol… | — |
 | HD-1151 | 2 | AI + owner | 2.12 Observability / Alerting | SNMP module widened onto what the two MikroTiks actually answer — 15 column-scoped OIDs / 12 metrics, each proved on a live VictoriaMetrics series, so a box reboot now surfaces as a `sysUpTime` reset | ⏳ owner (device config, out of a read-only lane): the two hAP ac²s answer ICMP and take a RouterOS API connection from Mgmt yet are silent on UDP/161 (the shape of `/snmp enabled=no`, and no IaC carries an `/snmp` block for them), and the factory `public` community still answers on both MikroTiks (`crs328_converge.rsc.j2:118-122`) — settle with `/snmp print` and `/snmp community print` | — (no brief) |
+| HD-1152 | 2 | AI + owner | 2.1 Network & DNS | the DNS seed's record-prune leg has never run against the live tier — it reads the retirement ledger and deletes what `zone_kogler_si` no longer lists, every delete gated per item against the KEEP list | ⏳ owner-present first apply per instance, then the NXDOMAIN read on both paths |
 
 ## C. Standing rules that gate all of the above
 
@@ -571,7 +578,7 @@ also in §A2 with the reasoning.
 | HD-230 · HD-207 | 1 | decide at the drill: which sources get backed up · media rename vs personal-files | the surgical converge + the landing-zone mechanics |
 | HD-362 · HD-57 | 2–3 | the **Soulseek password rotation is DECLINED and risk-accepted on record (owner 2026-10-08) — do not re-open it** · ✅ the `\\nas\music` mount question is closed too: local **tdbsam** accounts land the shares (HD-1093), so the old `ldapsam` half is retired and nothing here waits on it · bank tokens (and see HD-354: there is **no local music** until HD-1088 pushes to the Box) | the last mile on each. slskd's login is SETTLED 2026-10-07 — the vault was right, the compose had four env names slskd does not read; do not re-open the credential. Both rows ride [prompt-media-arrs.md](prompt-media-arrs.md) / [prompt-storage-backup.md](prompt-storage-backup.md) |
 | HD-366 | 2 | **still deliberately untouched by your instruction** — the JupyterLab LAN edge | nothing, unless you ask |
-| OQ-12 · 13 · 14 | 2 | **one call is left**: does memory need the `bge-m3` leg at all (OQ-14) — keyless BM25 cleared every gate the probe set and the leg buys **+2** at ≈2× recall latency. OQ-12 and OQ-13 are answered and stand as state in [services-ai.md](docs/services-ai.md) §9b | a new HD row + the compose/seat work only after your word |
+| OQ-12 · 13 · 14 | 2 | **nothing is left to call**: OQ-14 is parked on a measured recall floor — keyless BM25 cleared every gate the probe set and the leg buys **+2** at ≈2× recall latency. OQ-12 and OQ-13 are answered and stand as state in [services-ai.md](docs/services-ai.md) §9b | a new HD row + the compose/seat work only after your word |
 
 ---
 
@@ -624,7 +631,7 @@ Checked 2026-09-21 against the registry + live SSOT. Each of these has already f
 ## Bottom line
 
 - **The owner-side backlog is now five sentences long:** do the browser logins (HD-147), be present for the
-  windows in §A2, answer the one open **memory-plane** call (OQ-14 — whether memory needs the `bge-m3` leg; OQ-12
+  windows in §A2, note that the **memory-plane** calls are closed — OQ-14 parked on a measured recall floor; OQ-12
   and OQ-13 are answered in [services-ai.md](docs/services-ai.md) §9b and nothing waits on them), answer the one call
   still open from the 2026-09-26 session — **HD-465's node
   question** (does Cockpit hang off the Pi or off oldsrv). **HD-403's LLM-surface call is CLOSED by research:** HA

@@ -970,7 +970,7 @@ spark_llm_profiles:
     max_num_seqs: 8                   # 8 concurrent streams — the pool must supply tokens/stream for all of them
     kv_cache_memory: "20000000000"    # = 644,600 slots = 2.46 × the 262,144 window (20e9 / 31,027 B/token);
                                       # 80,575 tokens/stream at the seqs-8 ceiling
-    # Host-floor EXCEPTION for this arm: the global 104.113e9 ceiling is priced from terms that do
+    # Host-floor EXCEPTION for this arm: the global (113.000e9, the measured rest floor) is priced from terms that do
     # not hold for this checkpoint, so this override is priced from the arm's own non-engine reserve
     # plus the watchdog's WARN reserve. Never restate the global per profile — a copy wins silently
     # and makes a re-derive do nothing.

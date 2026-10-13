@@ -25,16 +25,17 @@ engine or quantization must not move any of those four, or every client breaks a
 measurements is 1.70–1.89×, because fp8 halves the main K/V and leaves the QSA indexer
 side-caches + the GDN state in bf16 — a flat 2× over-promises by ~18 %).
 `spark_llm_pool_ceiling_bytes` = 16 GiB in decimal bytes (the certified practical bf16 ceiling)
-and `spark_llm_device_hold_ceiling_bytes` = 104,113,000,000 B — MemTotal − 6.9 GiB held by
-OS/driver at engine start − the **17.78 GiB** certified worst `usable` — which is what makes a
+and `spark_llm_device_hold_ceiling_bytes` = 113,000,000,000 B — MemTotal − the measured 4.934e9
+non-engine term − the p0 of the measured rest distribution (11.73 GiB), re-derived from a recorded
+heavy-use regime rather than from an assumed OS term — which is what makes a
 weight change a POOL change.
 
 > ⚠ **Both terms behind that global ceiling are wrong for the AR-hybrid checkpoint.** The non-engine
 > term is **4.93e9 B**, not 6.9 GiB, and the 17.78 GiB "worst usable" belongs to the AWQ/16 GiB lane.
 > Measured on the box, `fast`'s real non-KV hold is **92.13e9 B**, so `fast` carries its own
 > `device_hold_ceiling_bytes: 112.70e9` (measured: MemTotal − 4.93e9 − a 12 GiB WARN reserve), a named
-> exception that leaves every other profile gated at 104,113,000,000. Re-deriving the global from the
-> measured OS term is owed. Ledger: [hardware-spark.md](hardware-spark.md) §The fixed cost, MEASURED.
+> exception that leaves every other profile gated at the global 113.000e9. The global is now the
+> measured rest floor; its numbers and the sampler behind them are in Ledger: [hardware-spark.md](hardware-spark.md) §The fixed cost, MEASURED.
 
 No profile on this box claims four concurrent full windows: `reasoning` and `fast` hold **1.97 ×** and
 **2.46 ×**, and four full windows need fp8 KV. A "4 × 262k" claim is an fp8-pool claim built on the

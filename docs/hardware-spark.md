@@ -285,7 +285,7 @@ incident-#6 method — the `MemAvailable` delta across an engine restart):
 | **undeclared gap** | **15.834e9** | **14.75** | the difference the gate must catch |
 | non-engine use at engine start | 4.934e9 | 4.60 | `MemTotal − MemAvailable` 15 s after the restart (`cached` then 5.43 GiB) — vs the **6.9 GiB** the global ceiling assumes |
 
-Worked check of the ledger: at a 25 GB pool the engine hold exceeds the global's certified 104.113e9
+Worked check of the ledger: at a 25 GB pool the engine hold exceeds the then-global certified 104.113e9 — superseded by the measured rest floor below
 ceiling by **12.13 GiB**, and "usable 7.9 GiB" is that overflow measured from the other side —
 `130.594e9 − 4.934e9 − 92.134e9 − 25e9 = 8.53e9 B` = **7.94 GiB**, against 7.76-7.99 GiB observed at
 that pool. The ledger is validated against the machine, not merely balanced.
