@@ -1,6 +1,13 @@
 ---
 - name: "Sistemska priprava: Nadgradnja OS in predpogoji"
   include_tasks: system.yml
+  # ⚠ The include tag must name the SAME tags its children carry: home_servers.yml, storage.yml,
+  # raspberry_pi.yml and spark.yml all pull `common` as a BARE role and a bare role name is not a
+  # tag, so an untagged include line here was never expanded by ANY `--tags` run from those plays
+  # (rule 3) — not even for the `tags: always` guard below, because `always` can only rescue a task
+  # that was parsed. `vps.yml` tags the roles: entry [common, base], which is why the gap was
+  # invisible there.
+  tags: [common, base]
 
 # The pinned host packages are held here, in the role that owns host base state, so the
 # hold exists on every Linux host this repo converges (vps/home_servers/raspberry_pi/

@@ -68,6 +68,11 @@
     name: [apt-transport-https, ca-certificates, curl, gpg, python3-pip, acl, python3-debian, python3-apt, jq]  # jq: authentik secret-egress glue parses API JSON host-side (absent on the minimal image)
     state: present
     update_cache: true
+  # ⚠ Same tags as the include line in main.yml: a dynamic include's own tags do NOT cascade to its
+  # children, so a task here without them is silently skipped by every filtered run (rule 2).
+  # The four `tags: always` tasks above deliberately carry NOTHING but `always`: the run-user guard
+  # is a safety tripwire, and naming it `common` would let `--skip-tags common` disarm it.
+  tags: [common, base]
 
 - name: Configure passwordless sudo for the Ansible admin user
   copy:
@@ -75,3 +80,4 @@
     dest: "/etc/sudoers.d/{{ ansible_user }}"
     mode: '0440'
     validate: '/usr/sbin/visudo -cf %s'
+  tags: [common, base]
