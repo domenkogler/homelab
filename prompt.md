@@ -139,16 +139,17 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    an **OAuth** openrouter entry where the spec renders `api_key`; mint it through the `pi_auth` vendor lane of
    [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/pi-harness.md](docs/pi-harness.md)) and
    never overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
-6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: our own generated
-   `sanoid.service` pointed at `/usr/local/bin/sanoid` while the package installs `/usr/sbin/sanoid`, so every
-   timer fire died `203/EXEC` — fixed and converged, still owed: confirm `hourly.*` snapshots appear and decide
-   whether `/etc/cron.d/sanoid` should stay), **HD-1105** (three enabled-but-dead units on nas), **HD-1106**
+6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: the policy snapshots exist
+   on every configured dataset and the generated unit's last fire is `Result=success`; the package's own
+   `/etc/cron.d/sanoid` self-skips on a systemd boot, so the timer is the only scheduler. What that row owes is now
+   the REPLICATION leg: `storage-syncoid.service` sits in `activating` on `destination already exists`, and sanoid
+   defers pruning while a dataset is in send/receive), **HD-1105** (three enabled-but-dead units on nas), **HD-1106**
    (20 dangling VPS volumes, two with unverified provenance — not deleted), **HD-1093** (**owner**: rotate both
    family SMB passwords, then land them with `storage_samba_password_force` — a vault rotate alone changes nothing
    on the box), **HD-207** and **HD-238**. → [prompt-storage-backup.md](prompt-storage-backup.md)
 7. ⏳ **The Pi's own box** — **HD-418** (the HA restart window, owner-gated; pair it with **HD-1103** so the box
    reboots once: `/var/log` is mode `1777`, so logrotate refuses every file nightly and no role owns the path),
-   **HD-1109** (the HA standby is not deployed, so the failover the docs record as proven has one node),
+   **HD-1109** (the HA standby IS cold-deployed; what has no proof is the takeover that promotes it),
    **HD-1101** (**open, not fixed** — the pi's resolver leg still has no shape guard of its own; the fail-loud
    assertion that landed with the oldsrv host-resolver leg is oldsrv-shaped and reads `nm_oldsrv_profile`, so
    nothing checks the resolver list the Pi writes ([docs/network-dns.md](docs/network-dns.md) §Host-side resolver)),
@@ -196,16 +197,18 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    same commit** that clears them. → [prompt-scripts.md](prompt-scripts.md)
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
     drill · **418** the HA restart window · **HD-06** the UPS drill · **411** the cockpit resume word ·
-    **HD-230/207** the decisions taken at the drill. ⏸ **Deferred by owner 2026-10-08: HD-454** (buy an out-of-band
-    power path for oldsrv, or accept presence-only — nothing purchased, no WoL window scheduled) and **HD-47** above.
+    **HD-230/207** the decisions taken at the drill. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no
+    out-of-band path is scheduled, so a switched-off `oldsrv` waits for presence; the one owner-side leg left is a WoL
+    re-test at a planned power-off) and **HD-47** above.
 13. ⏳ **Unrowed, but not free** — **HD-1100**'s held legs: both owner-authorized PG legs are DONE and verified
     (`litellm-db`, `authentik-postgres`), four middle legs stay held by owner ruling, and two things are still owed —
     the next `db-backup` run is the end-to-end proof the migrated clusters still dump, and **oldsrv still owes its
     `wireguard` leg** (it restarts the tunnel server, so run it alone, last, then re-verify every tunnel path).
-    Rowless but blocking: the **apt upgrade phase** stays OUT of the converge wave until `apt-mark hold` for the
-    Ansible-pinned packages (`alloy`, `tailscale`, `docker-ce`, `kopia`) lands in IaC, or a bare `apt upgrade`
-    re-creates the HD-1094 drift and stacks kernel reboots onto a DB-migration window; the `roles/updates` design is
-    an owner go/no-go.
+    Rowless but not free: the **apt upgrade phase** stays OUT of the converge wave — ruled 2026-10-12 (option A), with
+    `roles/common/tasks/apt-holds.yml` landing the `apt-mark hold` in IaC for the pinned packages (`alloy`, `tailscale`
+    and the `docker-ce` suite; `kopia` ships as a pinned CONTAINER image, so there is no apt state to hold), and the
+    `roles/updates` design is DECLINED, not pending. What is left is the live apply, one host at a time — until a host
+    has run it, `apt upgrade` can still move its pinned packages there. → [todo.md](todo.md) HD-1146 · HD-1147.
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
@@ -216,35 +219,28 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       revision shows which way the trend moves; the three lawful answers are register it with a frozen baseline and
       refuse growth, run a clearing campaign, or keep it a tool and say so in the index. The owner picks: a lane that
       registers it has chosen for everyone. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
-    - **Which spelling of the IoT DoT-bypass drop is canonical.** `IaC/router/templates/rb4011_converge.rsc.j2:438,439`
-      write `IoT -> DoT bypass drop tcp/udp (HD-342)`; `IaC/ansible/roles/router/tasks/main.yml:775,781` write
-      `IoT -> DoT bypass drop - forced DNS to Pi tcp/udp`. One rule, two spellings, and the transient delta at
-      `IaC/router/templates/rb4011_hd326_fix_delta.rsc.j2:40` deletes by prefix (`comment~`) so it catches both, while
-      its guards at `:73,:76,:79,:81,:82` compare with `=` and see only the converge spelling, so a device whose last
-      apply was the ROLE gets the pair re-added beside the role's own. `community.routeros` has no `key:` parameter and
-      pairs device rows to data rows by minimum diff weight, so `comment` is one weighted field and not an identifier:
-      the same split can also land as a silent `update .id=<n> comment=<text>` that erases the anchor the delta selects
-      by. Renaming one side is what `python3 scripts/gate/check_string_twins.py` reddens, naming every other copy of the
-      bytes (proved by editing `IaC/router/templates/rb4011_converge.rsc.j2:438` alone in a scratch worktree and
-      discarding it); the ROLE's differing wording is outside that population by construction, because its sides never
-      agreed at the pinned baseline, so the gate enforces whole renames and arbitrates nothing about which spelling
-      wins. (Rule: [CONVENTIONS.md](CONVENTIONS.md) §6)
-    - **`trusted-ha` membership, stated three ways.** `IaC/ansible/roles/router/tasks/main.yml:360` selects
-      `['oldsrv', 'ha-vip']`, `IaC/router/templates/rb4011_converge.rsc.j2:357` selects `['pi','oldsrv','ha-vip']`, and
-      `docs/network-vlans.md:183` enumerates the list as `oldsrv` + `ha-vip` while `docs/network-vlans.md:200` requires
-      the KNX reverse accept to target `dst-address-list=trusted-ha`, which can only hold if the Pi is in the list. One
-      `grep -n 'trusted-ha'` over those three files reads the contradiction, and the change that widened the template
-      while leaving the role and the doc row behind is named by
-      `git log -S "['pi','oldsrv','ha-vip']" -- IaC/router/templates/rb4011_converge.rsc.j2`. Report it rather than
-      silently picking a side: the answer decides whether the Pi may open Home-to-IoT connections at all.
-    - **The NAT reconcile, and what it removes.** `IaC/ansible/roles/router/tasks/main.yml:455-479` reconciles
-      `ip firewall nat` with `handle_absent_entries: remove` and `restrict: [srcnat, dstnat]`, so every srcnat or
-      dstnat row that its own `data:` does not list comes off the device, including the Comtrend modem `srcnat`
-      masquerade that `docs/network.md:54-61` calls REQUIRED, that `IaC/router/templates/rb4011_converge.rsc.j2:322`
-      writes, and that the role never lists. This wording was proposed by a lane and taken up at handoff rather than
-      derived from a finding, so handle it as deliberately as it was adopted; the trail is in the tree, named by
-      `git log -S 'handle_absent_entries: remove' -- IaC/ansible/roles/router/tasks/main.yml`. Two closes: list the
-      modem row in `data:`, or narrow `restrict:` until the reconcile owns only what it actually lists.
+    - ✅ **Which spelling of the IoT DoT-bypass drop is canonical — ANSWERED: the converge's.** The converge writes
+      `IoT -> DoT bypass drop tcp (HD-342)` / `… udp (HD-342)` at `IaC/router/templates/rb4011_converge.rsc.j2:441,442`,
+      the role's `api_modify` twins at `IaC/ansible/roles/router/tasks/main.yml:793,799` now carry that same pair, and
+      the delta's guards compare on it (`rb4011_hd326_fix_delta.rsc.j2:71,74`), so the re-add-a-second-rule shape is
+      gone and nothing is owed live — the device pair already read this way, and the folded `iot_off_mgmt` delta that
+      used to carry those rows is retired. What the reading taught stays true and general: `community.routeros` has no `key:` parameter
+      and pairs device rows to data rows by minimum diff weight, so `comment` is one weighted field and not an
+      identifier, and renaming one side of a pair is what `check_string_twins.py` reddens. The remaining `comment=` ids
+      come out only with the deltas (the bullet below), which is rule 11 of
+      [network-ops.md](docs/network-ops.md) §Rsc authoring conventions.
+    - ✅ **`trusted-ha` membership, stated three ways — ANSWERED: the Pi IS a member, and the list is DERIVED.** The
+      role and the converge now carry the same expression — the inventory hosts that run HA (`raspberry_pi` +
+      `home_servers`, trimmed to short names) plus the VIP — and [network-vlans.md](docs/network-vlans.md) states the
+      derivation instead of enumerating it; the read-only render proved the derived set is the live list byte for byte,
+      the 2026-09-23 Pi widening included. The live proof (a KNX `GroupValueRead` from the Pi plus the KNX reverse
+      rule's counter) is owed in [todo.md](todo.md) HD-1143.
+    - ✅ **The NAT reconcile, and what it removes — ANSWERED: list it.** The reconcile runs with
+      `handle_absent_entries: remove` and `restrict: [srcnat, dstnat]`, so anything its own `data:` does not list comes
+      off the device — and the Comtrend modem `srcnat` row is now LISTED there, as the byte-twin of the converge's, so
+      neither writer can drop it. Narrowing `restrict:` was weighed and declined. What remains is the live apply
+      (merge-only so far, the router slot is global) in [todo.md](todo.md) HD-1142 — read the before/after from the
+      device, never from the import's exit code.
     - **Promote the string-purge gate, or keep calling it advisory.** `corpus_diff.py` and its signed accepts list
       live OUTSIDE this repository, so `validate-all.sh` cannot register them and deleting an accept entry narrows the
       check while the suite stays green. Re-derive that for yourself: `bash scripts/validate-all.sh --list` grepped for
