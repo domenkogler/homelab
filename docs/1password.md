@@ -236,7 +236,7 @@ Each of these produces an auth-shaped error with a non-auth cause:
 | `op vault list` only shows some vaults | Service account lacks read grant on the needed vault |
 | `Permission denied (publickey)` to a host | Runner's SSH key not authorized in that host's `authorized_keys` |
 | `invalid JSON provided` / `invalid JSON in piped input` on `op item create/edit` | Non-TTY stdin: op interprets piped input as a JSON item template. Run with `< /dev/null` in scripts, ansible shell tasks, ssh one-liners, cron (provisioner + secret-egress glue precedents) |
-| **Secret VALUE leaked into chat/transcript — via `op item get --reveal` or a bare `op read` whose stdout the session captures** | Rotate the affected secret immediately (see Output hygiene above); if it's a shared Authentik client (`headscale_api`), regenerate the provider client_secret in Authentik, `op item edit` the 1P item, and re-render the consuming services; if it is a **shared registration secret** (Tuwunel's `matrix_password`, which `tuwunel.toml` renders), its rotation is coupled to what was registered through it, so it is an owner call and not a quick edit; **never** inspect further in plaintext |
+| **Secret VALUE leaked into chat/transcript — via `op item get --reveal` or a bare `op read` whose stdout the session captures** | **The leaked value is compromised and a transcript cannot be scrubbed — rotation is the only remedy**, so rotate first and reason about blast radius afterwards, never the reverse. A **partial** leak counts as a full one: an `ops_` service-account token's first ~80 bytes are an envelope shared by every generation of the item, so the transcript does not tell you how much of a working token got out, and a shorter-than-expected value is not "only part of it". If it's a shared Authentik client (`headscale_api`), regenerate the provider client_secret in Authentik, `op item edit` the 1P item, and re-render the consuming services. If it is a **shared registration secret** (Tuwunel's `matrix_password`, which `tuwunel.toml` renders): the remedy is still rotation, and its cost is smaller than it looks — rotating invalidates the *registration door* (`/_synapse/admin/v1/register`) and nothing already registered, because accounts and access tokens minted through the secret live in the homeserver's own store; re-render the homeserver config through IaC and read the alert room back. **Never** inspect further in plaintext, and prove the rotation landed by length/hash prefix, not by reading the value (Output hygiene below) |
 | `Failed to change ownership of the temporary files` | `acl` package (`setfacl`) missing on the target host — added to the `common` role prereqs |
 | **`Couldn't get agent socket?` then `fatal: failed to write commit object` on `git commit`** | `gpg.format=ssh` with `user.signingkey` in the `key::<pub>` form and **no `SSH_AUTH_SOCK`** in a non-interactive shell (pi, cron, a converge). Set `user.signingkey` to the key FILE when it is passphrase-free — `ssh-keygen -y -P '' -f ~/.ssh/github_signing` answers that question — or export `SSH_AUTH_SOCK=/run/user/$(id -u)/openssh_agent`. Refusing the commit is the correct failure; a silently unsigned commit is not (CONVENTIONS §6) |
 | **`git log -1 --format='%G?'` prints `N` on commits you know are signed** | No `gpg.ssh.allowedSignersFile` configured — git cannot verify, so it reports `N` for every commit, signed or not. Use `grep -c '^gpgsig'` over `git cat-file commit HEAD` meanwhile, then set the file (deployment-manual.md §0.4a) |
@@ -245,16 +245,38 @@ Each of these produces an auth-shaped error with a non-auth cause:
 
 > **Secrets rule (CONVENTIONS §6):** never put token/item values in docs or git. This file
 > documents *where* and *how*; the values stay in 1Password and the `0600` runner file.
->
-> **Output hygiene (CONVENTIONS §2):** when a probe/rotation touches a secret, print
-> **lengths / prefixes / item IDs / hashes only** — never a full value. A read probe therefore ends in
-> `| wc -c` or a `[[ -n … ]]` test, and a **bare `op read` in a shell whose stdout is captured is the
-> failure shape**: the value goes straight into the session/transcript log, where it cannot be scrubbed
-> and only rotation removes it. `op item get … --reveal`
-> into a shell that echoes to a session/transcript log is how live client_secrets leak into
-> chat. Rotating a shared Authentik client: regenerate the secret in the
-> provider ORM (providers don't expose `generate_client_id`; `authentik.lib.generators` has
-> `generate_id`/`generate_key`/`generate_code_fixed_length`), persist to the 1P item, then
-> re-render the consuming services (headscale + headplane read `headscale_api`) and verify —
-> full step-by-step (incl. the `docker cp`-broken + `op --template`-stdin gotchas) lives in
-> [`services-authentik.md`](services-authentik.md) *Rotating a shared Authentik OIDC client secret* runbook.
+
+### Output hygiene (CONVENTIONS §2) — prove presence, never print
+
+When a probe or rotation touches a secret, print **lengths / prefixes / item IDs / hashes only** —
+never a full value. A read probe therefore ends in `| wc -c` or a `[[ -n … ]]` test, and a **bare
+`op read` in a shell whose stdout is captured is the failure shape**: the value goes straight into the
+session/transcript log, where it cannot be scrubbed and only rotation removes it. `op item get …
+--reveal` into a shell that echoes to a session/transcript log is how live client_secrets leak into
+chat.
+
+**Proving a value's presence = a length or a short hash prefix, never the value.** The same
+12-character `sha256` prefix on both sides is the proof that a rendered config holds the vault value;
+take it through a pipe so no intermediate step can echo the value, and never write a **full** hash of a
+live secret anywhere a transcript can carry it (a full hash is an offline guess-check against a
+low-entropy value).
+
+```bash
+# vault side — length and 12-char prefix, the value never lands on a tty or in a log
+op read 'op://Homelab-ansible/<item>/<field>' | tr -d '\n' | wc -c
+op read 'op://Homelab-ansible/<item>/<field>' | tr -d '\n' | sha256sum | cut -c1-12
+# deployed side — the SAME prefix from the rendered file (here: the homeserver's registration secret)
+sudo grep -m1 '^registration_shared_secret' /opt/matrix/tuwunel.toml \
+    | sed -n 's/.*"\(.*\)"$/\1/p' | tr -d '\n' | sha256sum | cut -c1-12
+```
+
+A **stale deployed copy** is the usual finding after a rotation, and it is not fixed by hand: re-render
+it through that service's own narrow converge, which is also what restarts the container that reads the
+file only at start ([deployment-secrets.md](deployment-secrets.md) §Master Secret List).
+
+Rotating a shared Authentik client: regenerate the secret in the
+provider ORM (providers don't expose `generate_client_id`; `authentik.lib.generators` has
+`generate_id`/`generate_key`/`generate_code_fixed_length`), persist to the 1P item, then
+re-render the consuming services (headscale + headplane read `headscale_api`) and verify —
+full step-by-step (incl. the `docker cp`-broken + `op --template`-stdin gotchas) lives in
+[`services-authentik.md`](services-authentik.md) *Rotating a shared Authentik OIDC client secret* runbook.
