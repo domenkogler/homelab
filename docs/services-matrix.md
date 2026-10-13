@@ -155,6 +155,13 @@ The pieces, as they exist:
 | Recipient state | the n8n entry in `group_vars/vps.yml` (`alert_homeserver_url`, `alert_room_id`) → `MATRIX_HOMESERVER_URL` / `MATRIX_ROOM_ID` in the n8n compose, rendered with **no fallback**. A room id names a recipient and authorises nothing, so it is not a secret; a missing key fails the render rather than pointing an alert at a room nobody reads |
 | Write | `PUT /_matrix/client/v3/rooms/{urlencoded room id}/send/{type}/{txn}` — see the method warning below |
 
+- The sender's profile **`displayname` is `homelab-alerts`** — plain text, no decorative characters, because
+  it is what the client renders as the sender of every delivered alert line. Registration does not set it and
+  no role task sets it (`grep -rn "displayname" IaC/` is empty), so it lives out of band on the homeserver:
+  the read is `GET /_matrix/client/v3/profile/{urlencoded user id}/displayname` and the write is the same path
+  as a `PUT` with `{"displayname":"homelab-alerts"}`. A re-registered bot comes back with a different name,
+  so this is the thing to check when the room looks right and the lines still read wrong.
+
 ⛔ **The room is public and the bot is its only member, so on Matrix nobody is paged yet.** Public means
 no invite is needed: joining `#homelab-alerts:kogler.si` by alias in Element is the one remaining step on
 this side, and until it happens every alert lands in a room with no reader. IaC cannot close it — an
