@@ -306,8 +306,9 @@ pass: the non-`oldsrv` Debian seats still carry `gpgsign=true` until they conver
 scrub the `ollama/*` wildcards from the VPS key model lists) ·
 **HD-1131** (a name answered from a **stale row in the Technitium DNSDB** although no zone and no
 `tailnet_subdomains` entry exists — deleting it is an owner act on the DNS tier, then confirm NXDOMAIN on both resolvers) ·
-**HD-1132** (two address reservations for **hardware never bought**, so the generated address doc publishes ghost
-CCUs — park or delete is an owner decision; the parked local-HomeMatic failover variant itself stays) ·
+**the ghost CCU reservations are parked** (two address reservations for **hardware never bought** had the generated
+address doc publishing ghost CCUs — now commented out in the ledger, not deleted; the parked local-HomeMatic
+failover variant itself stays; nothing left to do here) ·
 **HD-421** (a pre-seeded writable Docling artifacts bind — chowning `/models` cannot work, the mechanism is in
 [docs/services-ai.md](docs/services-ai.md)) · **HD-412** (two enrolment sessions, and ⛔ never on oldsrv: a rescue
 tool behind the thing it rescues is not a rescue) · **HD-406** · **HD-440** · **HD-472** · **HD-454** (⏸ owner) ·
