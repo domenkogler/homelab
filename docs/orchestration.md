@@ -94,7 +94,12 @@
    discards them. A merged lane can still be dirty and still hold work that never reached `main`. So before removing: `git -C <wt> status --porcelain` in each, then for every added line decide
    *present-in-`main` / superseded / to-rescue* (`git grep -F -- '<line>' main -- <path>` names which), rescue what is real into
    its owning doc, and only then remove. A row that was **minted inside** the residue must be re-checked against the registry
-   before it lands: an id already used in `todo.md` for a different subject is a duplicate mint. Where the answer is "superseded", the discard still gets recorded where it is read (the owning doc or
+   before it lands: an id already used in `todo.md` for a different subject is a duplicate mint.
+   The detector is `scripts/gate/check_todo_done.py`, already wired into `validate-all.sh`: it keys ids
+   on the numeric stem and prints `todo.md:line:col` for every row that shares one, so run the gate IN
+   THE MERGED TREE and let it name the collision before anything is re-numbered — it reads only the
+   checked-out registry, which is why a lane's parallel mint stays invisible until its branch lands
+   and why the merged tree is the first place this check can fire. Where the answer is "superseded", the discard still gets recorded where it is read (the owning doc or
    the domain's `-rejected.md`), because "it existed and was thrown away" is the fact the next session cannot otherwise find.
    ⚠ **A patch-absorbed branch is not an ancestor, and `-d` cannot tell the two cases apart.** When a lane's work reached
    `main` through cherry-picks or an earlier rebase, `git cherry -v main <branch>` shows every commit as `-` yet `git branch -d`
