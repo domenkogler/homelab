@@ -52,9 +52,8 @@ a failure can go unseen for days:
 
 Collection happens per scrape (`systemctl show`, `openssl x509 -enddate`, `dpkg-query`, one stat on
 `/run/reboot-required` — single-digit ms each): no cache to go stale, no second timer to fail silently.
-The one exception is the dependency-solver leg: `apt-get -s upgrade` costs ~1 s on a server and several
-seconds on an arm board, so it is read at most once per PLAN_TTL and served from cache between those
-reads — a 1-minute scrape cadence must not buy a solver run every time.
+The one exception is the dependency-solver leg, which costs ~1 s and can wait on the dpkg lock: it runs
+on its own thread and is served from cache, so no scrape ever waits for apt.
 Read-only throughout, no writes.
 """
 import datetime
@@ -81,11 +80,20 @@ PINS = [
 ]
 LISTEN = ("{{ monitoring_hygiene_listen }}", {{ monitoring_hygiene_port }})
 
-# The solver leg only: measured ~1.1 s of CPU per invocation on a server, and the job is scraped every
-# minute. Re-reading it more often than this buys nothing a report needs.
+# The solver leg only. Measured ~1.1 s of CPU per call on a server, so a 1-minute scrape cadence must
+# not buy one per scrape; PLAN_RETRY re-reads sooner after a failed attempt so a transient wedged lock
+# does not go unreported for a whole TTL.
 PLAN_TTL = 900.0
+PLAN_RETRY = 60.0
+PLAN_TIMEOUT = 60.0
 PLAN_LOCK = threading.Lock()
-PLAN_CACHE: dict = {"at": 0.0, "lines": None}
+PLAN_CACHE: dict = {"next_at": 0.0, "lines": None, "refreshing": False}
+PLAN_HEAD = [
+    "# HELP homelab_upgrade_plan_ok 1 when a simulated upgrade plan has been read.",
+    "# TYPE homelab_upgrade_plan_ok gauge",
+    "# HELP homelab_upgrade_plan_count Packages `apt-get -s upgrade` would upgrade.",
+    "# TYPE homelab_upgrade_plan_count gauge",
+]
 
 
 def show(unit: str) -> dict:
@@ -237,52 +245,66 @@ def pin_lines(package: str, pin: str) -> list[str]:
     ]
 
 
-def plan_lines() -> list[str]:
-    """How many packages this box's OWN solver would upgrade, read from `apt-get -s upgrade`.
+def _plan_read() -> list[str]:
+    """The one blocking call: `apt-get -s upgrade`, i.e. this box's OWN solver asked what it would do.
 
     Three things make the read non-obvious, all of them load-bearing:
-      * `-s` is the whole safety story: apt prints the plan and executes nothing. Never add `-y`, never
-        drop `-s`, never set `apt::get::simulate=false` (that last one turns the call into a real
-        upgrade attempt).
+      * `-s` is the whole safety story: apt prints its plan and executes nothing. Never add `-y`, never
+        drop `-s`, never set `apt::get::simulate=false` — that last one turns the call into a real
+        upgrade attempt (measured: it fails asking for the dpkg lock, which is the only reason an
+        unprivileged operator ever survives typing it).
       * `apt::get::show-upgraded=false` keeps the summary line and drops the per-package list, so the
         call costs ~1 s instead of dragging thousands of package names through a pipe.
       * `LC_ALL=C` because the summary line is TRANSLATED: on this fleet's locale the whole output is
         Slovene and only the `Inst`/`Conf` tokens stay English, so parsing without forcing the locale
         would find no count and report it as "nothing pending" — the fail-open half of the bug class.
 
-    A HELD package does not appear in this count (the solver keeps it back instead); the pin legs above
-    are what reports a held package's version."""
-    head = [
-        "# HELP homelab_upgrade_plan_ok 1 when the simulated upgrade plan was readable.",
-        "# TYPE homelab_upgrade_plan_ok gauge",
-        "# HELP homelab_upgrade_plan_count Packages `apt-get -s upgrade` would upgrade.",
-        "# TYPE homelab_upgrade_plan_count gauge",
-    ]
+    A HELD package does not appear in this count (the solver keeps it back instead); the pin legs are
+    what reports a held package's version."""
+    try:
+        r = subprocess.run(
+            ["apt-get", "-s", "-o", "apt::get::show-upgraded=false", "upgrade"],
+            capture_output=True, text=True, check=False,
+            env=dict(os.environ, LC_ALL="C", LANG="C"),
+            timeout=PLAN_TIMEOUT,
+        )
+        m = re.search(r"^(\d+) upgraded", r.stdout or "", re.MULTILINE)
+        if r.returncode != 0 or not m:
+            print("WARN: apt-get -s upgrade rc=%d: %s"
+                  % (r.returncode, ((r.stderr or "").strip() or (r.stdout or "").strip())[:140]),
+                  file=sys.stderr)
+            # A plan that cannot be read is reported as unreadable, never as "0 pending": "0" and
+            # "no idea" must not be the same number.
+            return PLAN_HEAD + ["homelab_upgrade_plan_ok 0"], PLAN_RETRY
+        return PLAN_HEAD + ["homelab_upgrade_plan_ok 1", "homelab_upgrade_plan_count %s" % m.group(1)], PLAN_TTL
+    except Exception as exc:                    # no apt on this box, a solver stuck on the dpkg lock
+        print("WARN: apt-get -s upgrade: %s" % exc, file=sys.stderr)
+        return PLAN_HEAD + ["homelab_upgrade_plan_ok 0"], PLAN_RETRY
+
+
+def _plan_refresh() -> None:
+    out, retry_in = _plan_read()
     with PLAN_LOCK:
-        if PLAN_CACHE["lines"] is not None and time.monotonic() - PLAN_CACHE["at"] < PLAN_TTL:
-            return PLAN_CACHE["lines"]
-        try:
-            r = subprocess.run(
-                ["apt-get", "-s", "-o", "apt::get::show-upgraded=false", "upgrade"],
-                capture_output=True, text=True, check=False,
-                env=dict(os.environ, LC_ALL="C", LANG="C"),
-                timeout=int(PLAN_TTL),
-            )
-            m = re.search(r"^(\d+) upgraded", r.stdout or "", re.MULTILINE)
-            if r.returncode != 0 or not m:
-                print("WARN: apt-get -s upgrade rc=%d: %s"
-                      % (r.returncode, ((r.stderr or "").strip() or (r.stdout or "").strip())[:140]),
-                      file=sys.stderr)
-                # A plan that could not be read is reported as unreadable, never as "0 pending":
-                # 0 and "no idea" must not be the same number.
-                out = head + ["homelab_upgrade_plan_ok 0"]
-            else:
-                out = head + ["homelab_upgrade_plan_ok 1", "homelab_upgrade_plan_count %s" % m.group(1)]
-        except Exception as exc:                    # no apt on this box, a hung solver, a timeout
-            print("WARN: apt-get -s upgrade: %s" % exc, file=sys.stderr)
-            out = head + ["homelab_upgrade_plan_ok 0"]
-        PLAN_CACHE["at"], PLAN_CACHE["lines"] = time.monotonic(), out
-        return out
+        PLAN_CACHE["lines"] = out
+        PLAN_CACHE["next_at"] = time.monotonic() + retry_in
+        PLAN_CACHE["refreshing"] = False
+
+
+def plan_lines() -> list[str]:
+    """The cached plan, with a refresh kicked off in the background when it ages out.
+
+    The read never happens on the request thread, even when the cache is empty: apt waits for the dpkg
+    lock, so an inline solver read would let a converge running `apt` on that host stall this scrape —
+    and a stalled render freezes `homelab_hygiene_scrape_ok`, which is the CRIT heartbeat rule, paging
+    about a dead collector in the middle of an unrelated converge. `homelab_upgrade_plan_ok = 0` is
+    therefore "no readable plan yet", which covers the seconds after a restart and a box whose apt is
+    wedged alike; the value itself returns on the next scrape after a refresh lands.
+    """
+    with PLAN_LOCK:
+        if not PLAN_CACHE["refreshing"] and time.monotonic() >= PLAN_CACHE["next_at"]:
+            PLAN_CACHE["refreshing"] = True
+            threading.Thread(target=_plan_refresh, daemon=True).start()
+        return PLAN_CACHE["lines"] if PLAN_CACHE["lines"] is not None else PLAN_HEAD + ["homelab_upgrade_plan_ok 0"]
 
 
 def reboot_lines() -> list[str]:
