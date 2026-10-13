@@ -149,18 +149,27 @@ The pieces, as they exist:
 
 | Piece | State |
 |-------|-------|
-| Room | `#homelab-alerts:kogler.si` = `!L3l9DNtfkCMvQHhYRSEa3st1DE5xJcb4wX78EmpKayo`, `join_rule: public` |
+| Room | `#homelab-alerts:kogler.si` = `!L3l9DNtfkCMvQHhYRSEa3st1DE5xJcb4wX78EmpKayo`, `join_rule: public`, `m.room.name` = `homelab-alerts` |
 | Sender | `@homelab-alerts:kogler.si` — a **dedicated alert user**, never the operator's account: an alert sent as you cannot be told apart from a message you wrote |
 | Token | `Homelab-ansible` item [`matrix-alerts_api`](deployment-secrets.md) — `username` = the bot's MXID, `credential` = the access token, `password` = its registration password, held only so the account stays recoverable. Minted once by registration, so it is **not** auto-rotatable: rotating means re-registering (or minting through the admin API) and re-rendering n8n |
 | Recipient state | the n8n entry in `group_vars/vps.yml` (`alert_homeserver_url`, `alert_room_id`) → `MATRIX_HOMESERVER_URL` / `MATRIX_ROOM_ID` in the n8n compose, rendered with **no fallback**. A room id names a recipient and authorises nothing, so it is not a secret; a missing key fails the render rather than pointing an alert at a room nobody reads |
 | Write | `PUT /_matrix/client/v3/rooms/{urlencoded room id}/send/{type}/{txn}` — see the method warning below |
 
-- The sender's profile **`displayname` is `homelab-alerts`** — plain text, no decorative characters, because
-  it is what the client renders as the sender of every delivered alert line. Registration does not set it and
-  no role task sets it (`grep -rn "displayname" IaC/` is empty), so it lives out of band on the homeserver:
-  the read is `GET /_matrix/client/v3/profile/{urlencoded user id}/displayname` and the write is the same path
-  as a `PUT` with `{"displayname":"homelab-alerts"}`. A re-registered bot comes back with a different name,
-  so this is the thing to check when the room looks right and the lines still read wrong.
+- **Both readable names are the plain string `homelab-alerts`** — read off the live homeserver 2026-10-13, 14
+  ASCII codepoints each, no emoji and no decorative padding: the bot's profile `displayname`, the room's
+  `m.room.name`, and the bot's `m.room.member` displayname **in this room** (the one a client renders as the
+  sender of every delivered alert line). The member event written at creation had carried `homelab-alerts`
+  followed by U+1F495; a plain member event superseded it, so nothing shows an emoji now.
+- ⚠ **Nothing in the repo sets any of these names** — registration sends no profile fields and
+  `grep -rn "displayname" IaC/` is empty — so they live **out of band on the homeserver and a rename is not
+  converged**: no converge re-asserts them and a re-registered bot comes back with a different name. That is
+  the thing to check when the room looks right and the lines still read wrong. The reads are
+  `GET /_matrix/client/v3/profile/{urlencoded user id}/displayname` and
+  `GET /_matrix/client/v3/rooms/{urlencoded room id}/state/m.room.name/`, the writes the same paths as a `PUT`
+  with `{"displayname":"homelab-alerts"}` / `{"name":"homelab-alerts"}`, and the bot's own token **does** carry
+  the power level for the room-state write (a content-identical `PUT` answered `200` with the **existing**
+  event id, so the server deduplicated it instead of appending a rename to the timeline). Pinning the names
+  from the repo would take a render-and-set leg, which is a decision rather than a fix.
 
 ⛔ **The room is public and the bot is its only member, so on Matrix nobody is paged yet.** Public means
 no invite is needed: joining `#homelab-alerts:kogler.si` by alias in Element is the one remaining step on
