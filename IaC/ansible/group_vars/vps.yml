@@ -25,6 +25,21 @@ vps_host:
 # falls back to `localhost:25` (dead). Derive from the smtp2go SSOT (2525).
 grafana_smtp_host: "{{ smtp2go_host }}:{{ smtp2go_port }}"
 
+# ── Alert delivery → Matrix (HD-1108) ───────────────────────────────────────────
+# NON-SECRET SSOT, the same class as `signal_alert_recipients` (group_vars/all/main.yml): an id
+# names a recipient, it authorises nothing. The SEND TOKEN is 1Password `matrix-alerts_api`
+# (field `credential`) and is referenced ONLY from the n8n compose — never here, never in a doc.
+# The room and the bot are created once, out of band, through the shared-secret registration
+# endpoint tuwunel.toml already enables; docs/services-matrix.md §Alert room states the recipe
+# and ⚠ that no role task reproduces it (the same class of managed state as the n8n workflow).
+# The sender itself is `@homelab-alerts:kogler.si` — its MXID is the `username` field of the same
+# vault item, so it is not duplicated here.
+matrix_alerts_room_id: "!L3l9DNtfkCMvQHhYRSEa3st1DE5xJcb4wX78EmpKayo"
+# Docker-network URL, not matrix.kogler.si: n8n and the homeserver share services-internal, and
+# the leg must not depend on the public edge or on Traefik to deliver an alert (same reasoning as
+# grafana_alert_webhook_url pointing at http://n8n:5678 in group_vars/home_servers.yml).
+matrix_alerts_homeserver_url: "http://matrix:8008"
+
 docker_services:
   # ORDERING CONSTRAINT: `authentik` MUST appear before every native-OIDC consumer
   # (opencloud, immich-app, forgejo, open-webui, matrix, headscale…). The docker_services

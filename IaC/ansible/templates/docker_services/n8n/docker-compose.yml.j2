@@ -1,5 +1,7 @@
 # n8n docker-compose.yml — Workflow automation / alert router (auto.kogler.si)
-#   Routes Grafana alerts to Signal (via signal-cli-rest-api) and email.
+#   Routes Grafana alerts to Signal (via signal-cli-rest-api), to the dedicated
+#   #homelab-alerts Matrix room (HD-1108, docs/services-matrix.md §Alert room) and to
+#   email. Grafana's own SMTP receiver runs in parallel with all of this.
 #   Also handles office automation workflows.
 #   Renewal-reminder workflow: docs/automation-renewals.md (infra; create post-deploy).
 #
@@ -16,6 +18,8 @@
 #   - n8n-webhook_api (API/Password → field=credential) — webhook/API auth token, independently
 #                     rotatable (short-lived) so an encryption key is never exposed in webhook
 #                     auth.
+#   - matrix-alerts_api (API Credential → field=credential) — the #homelab-alerts bot's access
+#                     token; the MXID is the item's `username` field.
 #   Future: n8n-smtp_login (SMTP relay — provider not chosen yet).
 services:
   n8n:
@@ -75,6 +79,14 @@ services:
       # the rejection (onError: continueRegularOutput), so delivery fails silently. An empty
       # env is at least visible in the render / `docker inspect`.
       SIGNAL_RECIPIENTS: '{{ signal_alert_recipients | replace('$','$$') }}'
+      # homelab-alerts workflow env — Matrix delivery (HD-1108, docs/services-matrix.md §Alert room).
+      # Same fail-loud rule as SIGNAL_*: no default(), because a rendered fallback URL or a `''`
+      # token produces a 401 that a lenient onError would hide. The room id is non-secret SSOT
+      # (group_vars/vps.yml); the token is 1Password `matrix-alerts_api` field `credential`, held by
+      # the dedicated bot and by nothing else.
+      MATRIX_HOMESERVER_URL: "{{ matrix_alerts_homeserver_url | replace('$','$$') }}"
+      MATRIX_ROOM_ID: "{{ matrix_alerts_room_id | replace('$','$$') }}"
+      MATRIX_TOKEN: "{{ vault['matrix-alerts_api'].credential | replace('$','$$') }}"
     labels: {}   # INTERNAL-ONLY: no public Traefik route on the main
                   # edge — n8n is served over the tailnet by the traefik-tailnet edge
                   # (auto.kogler.si / auto.ts.kogler.si).

@@ -194,6 +194,68 @@
           "timeout": 15000
         }
       }
+    },
+    {
+      "id": "send-matrix-alerting",
+      "name": "Send Matrix (alerting)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        920,
+        -360
+      ],
+      "onError": "stopWorkflow",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MATRIX_HOMESERVER_URL }}/_matrix/client/v3/rooms/{{ encodeURIComponent($env.MATRIX_ROOM_ID) }}/send/m.room.message/{{ 'hd1108-a-' + $now.toMillis() }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MATRIX_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ msgtype: 'm.text', body: $('Format Alerting Message').item.json.message }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
+    },
+    {
+      "id": "send-matrix-resolved",
+      "name": "Send Matrix (resolved)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        920,
+        360
+      ],
+      "onError": "stopWorkflow",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MATRIX_HOMESERVER_URL }}/_matrix/client/v3/rooms/{{ encodeURIComponent($env.MATRIX_ROOM_ID) }}/send/m.room.message/{{ 'hd1108-r-' + $now.toMillis() }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.MATRIX_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ msgtype: 'm.text', body: $('Format Resolved Message').item.json.message }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      }
     }
   ],
   "connections": {
@@ -242,6 +304,28 @@
         [
           {
             "node": "Send Signal (resolved)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Signal (alerting)": {
+      "main": [
+        [
+          {
+            "node": "Send Matrix (alerting)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Signal (resolved)": {
+      "main": [
+        [
+          {
+            "node": "Send Matrix (resolved)",
             "type": "main",
             "index": 0
           }

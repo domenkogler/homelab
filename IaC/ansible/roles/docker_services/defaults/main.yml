@@ -356,7 +356,7 @@ _template_vault_items:
   mcp-victorialogs: {'victoria-logs_api'}         # MCP→VL basic auth (username/password)
   matrix: {'matrix_api', 'matrix_password'}
   metabase: {'smtp_login'}   # only smtp_login is consumed; the db_ro keys are commented out in vps.yml
-  n8n: {'n8n-webhook_api', 'n8n_password', 'signal-internal_api', 'signal_api'}   # SIGNAL_* env (signal-cli leg) — signal-internal_api (API token) + signal_api (number)
+  n8n: {'n8n-webhook_api', 'n8n_password', 'signal-internal_api', 'signal_api', 'matrix-alerts_api'}   # SIGNAL_* env (signal-cli leg) — signal-internal_api (API token) + signal_api (number); matrix-alerts_api → the Matrix alert bot's token (HD-1108)
   onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
   open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}
   openclaw: {'openclaw_gateway_token', 'openclaw-opencloud_api'}
