@@ -325,7 +325,7 @@ automation path that was designed to be read-only.
 | `owui-public-chat_api`, `owui-public-rag_api`, `owui-int-wife_api`, `owui-int-owner_api`, `openclaw-litellm_api`, `rag-int-svc_api` | `api` → `credential` = LiteLLM virtual key `sk-…` | per-consumer scoped auth to LiteLLM. Creation path: **glue-generated at bootstrap** — minted by POST `/key/generate` during the litellm converge and written straight into 1Password by `litellm-bootstrap-keys.sh`; NOT catalog-random (values are unprovisionable manually — they exist only server-side). Rotation semantics: delete the item's credential field AND the server key by alias in the Admin UI, re-run the glue (create-if-absent); a stale stored sk aborts loudly (rc2) since sks are hashed at rest. **Parked:** `dsh_api` + `pi-harness_openai_api` have NO consuming record any more (the `litellm_scoped_keys` entries are commented out with their consumers), so neither is minted, probed or required; the ITEMS stay in the vault untouched — `dsh_api` would trip rc2 again if the record is ever restored. Scopes/budgets SSOT: `group_vars/vps.yml` `litellm_scoped_keys`; matrix in [services-ai.md](services-ai.md) §4 |
 | `onlyoffice_db` | `password` | onlyoffice-postgres sidecar (ONLYOFFICE Docs metadata/document-tracking DB — regenerable state) |
 | `onlyoffice-rabbitmq_login` | `login` (`username`+`password`) | onlyoffice-rabbitmq sidecar — `RABBITMQ_DEFAULT_USER/PASS` (first mnesia init) + ONLYOFFICE `AMQP_URI`; NOT auto-rotatable (both sides coupled) |
-| `forgejo_api` | `credential` | renovate (`RENOVATE_TOKEN`) — Forgejo token (deploy/CI via the Forgejo Actions runner) |
+| `forgejo_api` | `credential` | renovate (`RENOVATE_TOKEN`) — Forgejo API token. No deploy or CI role: no Forgejo runner exists on any host ([services-vps.md](services-vps.md) §Git hosting roles) |
 | `grafana_login` | `password` | grafana (admin user) |
 | `smtp_login` | `password` | **SMTP relay (SMTP2Go)** — shared by Grafana (SMTP fail-safe) + NUT (UPS email notify) + HA `secrets.yaml` (rendered, consumer pending). `username` = SMTP user + notify email (`notify@kogler.si`); `password` = SMTP pass. |
 | `ha_api` | `credential` | HA long-lived token → Traefik/Companion, `/api/prometheus` bearer for Prometheus |
@@ -881,13 +881,21 @@ in §Master Secret List.
 Paper stored in family safe:
 
 1. **1Password master password + recovery codes**
-2. **Link to Forgejo repo** (primary) + GitHub mirror (fallback)
+2. **Link to the GitHub repo** — `https://github.com/domenkogler/homelab` (public). It is the repo's **only**
+   remote, so this link IS the off-site copy: there is no second git remote to fall back to, and the VPS
+   Forgejo holds no copy of the homelab repo (the two git surfaces and their roles:
+   [services-vps.md](services-vps.md) §Git hosting roles)
 3. **Brief instructions in Slovenian:**
    - "Odpri ta link na računalniku"
    - "Preberi README.md"
    - "Če ne razumeš, pokliči [trusted tech contact]"
 
-This ensures no single point of failure: 1Password cloud + paper backup + Git mirrors.
+This ensures no single point of failure: 1Password cloud + paper backup + one public Git remote.
+
+> **Transport a rebuild needs:** pulling the tree needs no credential at all (public over HTTPS); **pushing**
+> rides SSH to GitHub with the seat key (`GitHub-homelab-deploy_ssh`). The VPS Forgejo publishes no git-SSH port
+> — nothing is pushed there over SSH, and its git surface is HTTPS with a token
+> ([services-vps.md](services-vps.md) §Git transport, as measured).
 
 ---
 

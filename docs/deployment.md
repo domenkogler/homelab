@@ -20,7 +20,9 @@ tags: [deployment, gitops, ansible, renovate, forgejo-actions]
 - **One Git repo** — IaC code + technical docs + family guides together
 - **Ansible-driven** — single deployment/upgrade path for BOTH VPS and oldsrv (idempotent, safe; no Docker-socket agent, no `docker.sock:rw` root-equivalent surface on any target).
 - **Ansible for base deploys + every upgrade** (system-level one-time + app lifecycle reused).
-- **Renovate proposes, Ansible applies** — Renovate opens Forgejo PRs; the **Forgejo Actions deploy button** (`workflow_dispatch`) runs Ansible to apply. Homepage is a dashboard/launcher (no deploy role).
+- **Renovate proposes, Ansible applies** — Renovate opens PRs on the git surface its platform points at; an
+  apply is an **Ansible run from the control node** — no deploy button (`workflow_dispatch`) exists on either
+  git surface, because no runner is installed. Homepage is a dashboard/launcher (no deploy role).
 
 ---
 
@@ -30,7 +32,7 @@ tags: [deployment, gitops, ansible, renovate, forgejo-actions]
 |------|-------|------|
 | **Preseed** | OS installation (Debian) | Initial setup, disaster recovery |
 | **Ansible** | Base system + ALL Docker lifecycle (single path, VPS + oldsrv) | Initial setup, DR, and every upgrade |
-| **Forgejo Actions** | CI (tests) + the **deploy button** (`workflow_dispatch` → Ansible) | PR validation, apply merges |
+| **CI** | **runs on neither git surface today**: no runner is installed on any host and GitHub reports 0 workflows for the repo (the only workflow file in the tree sits in a nested path GitHub never reads) | the local `scripts/validate-all.sh`, before commit |
 | **Renovate** | Upstream version tracking → PRs | Automated, continuous |
 
 ---
@@ -40,7 +42,7 @@ tags: [deployment, gitops, ansible, renovate, forgejo-actions]
 ```
 Upstream release → Renovate (3-day hold) → Dependency Dashboard
     → Domen checks box → Renovate PR → Domen merges
-    → Forgejo Actions deploy button (workflow_dispatch) → Ansible
+    → Ansible apply from the control node (no deploy button exists on either git surface)
         → docker compose up -d → deployed  (same path for VPS + oldsrv)
     → Post-deploy hooks: regenerate Homepage config, inventory docs
 ```
@@ -48,7 +50,7 @@ Upstream release → Renovate (3-day hold) → Dependency Dashboard
 ## Deployment Flow (Custom Apps — Fast Lane)
 
 ```
-git push → (Forgejo Actions CI) → merge → deploy button → Ansible → deployed
+git push → merge → Ansible apply from the control node → deployed   (no CI runs on either git surface)
 ```
 
 ---
@@ -83,7 +85,7 @@ git push → (Forgejo Actions CI) → merge → deploy button → Ansible → de
 |--------|-------------|-----|
 | **oldsrv** (local Docker) | Ansible | single path; SSH into host, no Docker-socket agent |
 | **Proxmox VM** (local Docker) | Ansible | same, portable |
-| **VPS** (remote Docker) | Forgejo Actions + Ansible | the deploy button runs Ansible; SSH is right tool |
+| **VPS** (remote Docker) | Ansible | SSH into the host; no runner-backed deploy button exists on either git surface |
 | **nas** (no Docker) | Ansible (bootstrap only) | ZFS/NFS are system-level |
 
 ---

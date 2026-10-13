@@ -102,6 +102,53 @@ Plain Debian with Docker CE — no hypervisor. The netcup RS is a root server (a
 
 ---
 
+## Git hosting roles — GitHub and Forgejo
+
+Two git surfaces run, and **neither mirrors the other**. `domenkogler/homelab` — the IaC + docs repo — has
+exactly one remote, and it is GitHub.
+
+- **Repo content — GitHub.** Every tree's `origin` is `git@github.com:domenkogler/homelab.git` for fetch AND
+  push, and it is the only remote anything pushes to. The VPS Forgejo holds **no copy of this repo**: its whole
+  repository list is one sandbox repo (`domen/test`) and `domen/homelab` does not exist there. Nothing
+  replicates between the two surfaces, in either direction.
+- **Issues and PRs — GitHub.** The tracker is on for the repo (`api.github.com` → `has_issues: true`). Forgejo's
+  issues serve whatever actually lives in Forgejo (the Renovate sandbox repo), never this repo's work items.
+- **CI — neither surface, and that is the measured state.** GitHub reports **0 workflows** for the repo because
+  the only workflow file in the tree sits at
+  [`spark/.github/workflows/ansible-ci.yml`](../spark/.github/workflows/ansible-ci.yml), a nested path GitHub
+  never reads (there is no root `.github/`), and no Forgejo runner is installed on `vps`, `oldsrv` or `spark`
+  (no container, no unit). So the check that guards a change is the local one: `scripts/validate-all.sh` before
+  commit. Moving CI onto either surface is a change to make, not a switch to flip.
+- **Off-site copy for disaster recovery — GitHub**, the public remote the family-safe link resolves to. There is
+  no second git remote, so "the repo is in Git" is one copy, not two.
+
+**What `git.kogler.si` (Forgejo, this VPS) is for:** self-hosted git for repos that stay on-box, and the API
+platform Renovate is wired to (`RENOVATE_PLATFORM: gitea` over the internal endpoint). It is not a backup of the
+homelab repo, not its review surface, and not its CI.
+
+### Git transport, as measured
+
+- **GitHub leg — SSH over 22, outbound, for both fetch and push.** Credentials:
+  [`deployment-secrets.md`](deployment-secrets.md) §Master Secret List (`GitHub-homelab-deploy_ssh` = the seat's
+  write path, `github-homelab-deploy_api` = the runner's read-only pull). The repo is public, so an anonymous
+  HTTPS *read* of the tree also works — which is why the no-literal-secrets rule is disclosure control, not
+  hygiene.
+- **Forgejo leg — HTTPS only.** The service surface is `https://git.kogler.si`. The image does run its own
+  OpenSSH server inside the container (`app.ini`: `DISABLE_SSH = false`, `SSH_LISTEN_PORT = 22`,
+  `SSH_PORT = 22`, `SSH_DOMAIN = git.kogler.si`), **but no host publishes that port**: `docker port forgejo`
+  prints nothing, and the host's `:22` belongs to the host `sshd` — that is what the firewall's
+  `tcp dport 22 accept` rule in `inet filter` input reaches. So `22/tcp` open on the VPS means **admin SSH,
+  never git**, and the `git@git.kogler.si:<owner>/<repo>.git` URL the UI advertises connects to the admin daemon
+  and fails. The working transport to Forgejo is HTTPS with a token: `forgejo_api` for the API, a per-user PAT
+  for a push. Probe: `docker port forgejo` (empty) and `ss -tlnp | grep ':22 '` (sshd, not the container).
+- **Publishing Forgejo SSH would require** — none of it authorized by this split: a published host port that does
+  not collide with the host sshd on `0.0.0.0:22` (an alternate port), `SSH_PORT`/`SSH_DOMAIN` aligned so the
+  advertised clone URL matches reality, a public firewall accept for that port, fail2ban coverage for a git sshd
+  (the `sshd` jail guards the admin daemon only), and a decision to run an internet-facing git SSH daemon at
+  all. A push to Forgejo needs none of that — a PAT over the existing HTTPS surface is enough.
+
+---
+
 ## Security Hardening
 
 ### Layer 1: Edge exposure — direct, Cloudflare is DNS-only

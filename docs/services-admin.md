@@ -24,7 +24,7 @@ tags: [services, admin, ops, gitops, security, backup]
 
 | Service | Subdomain | Network | RAM (idle/peak MB) | Description |
 |---------|-----------|---------|--------------------|-------------|
-| Forgejo | git | I | 150–250 / 450 | Git hosting, Issues, PRs (+ Actions runner). **GitOps / upgrade-automation trigger** — Forgejo Actions → Renovate → Ansible. **Auth: native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue |
+| Forgejo | git | I | 150–250 / 450 | Git hosting for repos that stay on-box — **not** the homelab repo's remote, which is GitHub ([services-vps.md](services-vps.md) §Git hosting roles). **Auth: native OIDC → Authentik** (web SSO + per-user API/token); client via Blueprint + glue. No Actions runner is installed, so it triggers nothing |
 | Renovate Bot | — | I | 150–300 / 600 | Docker image version tracking (GitOps upgrade automation) |
 | CrowdSec | — | P | 100–200 / 400 | WAF + brute-force protection; its dashboard surface is **CrowdSec Web UI** (`csui.kogler.si`, tailnet-only) |
 | Headscale | vpn | P | 60–120 / 250 | Tailscale coordination server |

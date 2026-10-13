@@ -37,6 +37,7 @@ tags: [deployment, rejected, decision-log]
 | Emergency root password on homelab hosts                                       | rejected   | key-only SSH; identical placeholder-hash risk                   |
 | Excluding `core.config_entries` from HA standby rsync                          | rejected   | standby loses the voice pipeline on failover                    |
 | Forgejo CI runner as `spark-llm_api` holder                                    | dropped    | No runner exists, origin is GitHub                              |
+| Forgejo as the homelab repo's primary remote                                   | rejected   | GitHub is the only remote; nothing mirrors to Forgejo           |
 | `gen_wg_key()` provisioner helper                                              | dropped    | unused; `wg genkey` is authoritative                            |
 | `git bundle` runner seeding                                                    | rejected   | plants a commit GitHub has never seen                           |
 | `git filter-repo` scrub of the leaked bearer                                   | dropped    | Rotated value inert, rewrite buys hygiene only                  |

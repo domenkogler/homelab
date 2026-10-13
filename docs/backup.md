@@ -118,7 +118,7 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
 | **Matrix server state + signing identity + media store** — tuwunel: RocksDB room/user state, the **server signing key** + key-notary data, the E2EE key-backup, `media/` and `archive/` | VPS NVMe `/srv/docker/matrix` (single bind → `/var/lib/tuwunel`) | **Nothing backs it up today** — the path is not in any snapshot because there is no VPS-side Kopia client (§VPS-side coverage gap). Note there is **no separate key file to archive**: `database_path` is the data dir and probing it finds no `*.pem`/keystore file, so the signing identity lives inside the same RocksDB store as the rooms | *(pending the VPS client; then one row covers all of it)* — see §Matrix: what one path buys and what it does not |
 | **RustDesk server keypair + client registrations** — `/srv/docker/rustdesk-server/data` | VPS NVMe | **Primary restore is 1Password `rustdesk_login`, not a snapshot** (the s6 unit re-seeds `/data/id_ed25519*` from `KEY_PUB`/`KEY_PRIV` when absent, so wiping the dir + re-converging restores the identity and enrolled clients keep working). The snapshot only has to cover `db_v2.sqlite3` (client/peer registrations) — losing it re-prompts devices, it does not lock anyone out | 1P (identity) + Kopia once the VPS client exists (registrations) |
 | **Qdrant** vector store (`/srv/docker/qdrant`) | VPS NVMe | **rebuildable cache** (docs/services-ai.md §5b) — snapshot/export via Qdrant REST `/snapshots` + Kopia-backed host bind; **not** a db-backup Postgres dump | `tank/data/services` (ZFS) + Hetzner Storage Box (Kopia) — *intended; same VPS-client caveat* |
-| Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | Forgejo + GitHub mirror / Hetzner Storage Box (backup) |
+| Docker Compose files / systemd units / configs | Git repo + host `/opt/*` (**VPS + oldsrv**) | Git (+ Kopia) | GitHub (the repo's only remote) / Hetzner Storage Box (backup) |
 | Service state (Forgejo dump, n8n sqlite, **LiteLLM keys/spend — the litellm-db Postgres, dumped by `db-backup` `DB04`; `/srv/docker/litellm` keeps only misc app state**, **OpenClaw config/state** on the **VPS**; **AI harness (pi-dev + DSH) workspaces** (`/srv/docker/pi-dev/workspace`, `/srv/docker/dsh/workspace`); **Seerr config + `seerr.db`** on **oldsrv**; …) | VPS NVMe (edge/GitOps/AI tier) · oldsrv NVMe (*arr/LAN core) | VPS: `vps-state-push` mirrors the dumps, every `/opt/*/docker-compose.yml` + `.env` and the n8n sqlite trio to the Storage Box nightly (§VPS state push); oldsrv: Kopia + the dump push | `vps-state/…` on the Storage Box (rsync, unencrypted at rest) + `tank/data/services` (ZFS) and Hetzner Storage Box (backup) |
 | **Zipline file payloads** (`/srv/docker/zipline/uploads` — datasource) | VPS NVMe | **Kopia-EXCLUDED by design**: anonymous dropzone drops self-destruct at ≤ 6h TTL (guestbin quota-bounded); private-account files are owner-managed | — *(ephemeral/regenerable-by-design — the observability-TSDB precedent)*; the metadata DB is dumped as `db-backup DB05` |
 | Home Assistant configs | RPi 4 (+ standby on oldsrv) | Git + standby sync | repo / oldsrv (Kopia) |
@@ -144,10 +144,11 @@ DB dumps are written to a **local scratch dir first** (Kopia snapshots it), then
   `vps-state-push` (§VPS state push), but the intended `→ tank/data/db-dumps` push has never
   run and no Kopia snapshot of that volume exists.
 - **What a VPS NVMe loss costs today, honestly:** every VPS-hosted Postgres (Authentik = the IdP, so
-  SSO for the whole homelab; Forgejo = the Git state that `deployment.md` calls the source of truth;
-  Immich metadata; Zipline; LiteLLM keys/spend/models), the Matrix federation identity, Headscale
+  SSO for the whole homelab; Forgejo = the Git state of the repos it holds — the homelab repo itself is not
+  among them, its only remote is GitHub; Immich metadata; Zipline; LiteLLM keys/spend/models), the Matrix
+  federation identity, Headscale
   (the tailnet control plane), CrowdSec decisions, n8n/OpenCloud/Grafana state. Configs and IaC survive
-  (Git + Forgejo mirror), so the rebuild is mechanical — but the **data** is not covered.
+  (Git on GitHub), so the rebuild is mechanical — but the **data** is not covered.
 
 **The fix is small and already precedented:** oldsrv's `kopia-agent` (include list = `/opt`,
 `/srv/dumps`, `/srv/docker/immich/upload`, one docker volume) is the shape. A VPS-side agent needs
@@ -387,7 +388,7 @@ LiteLLM) and the n8n sqlite have no off-box path but `vps-state-push` (§VPS sta
 
 - **Kopia master password:** 1Password (vault: `Homelab-ansible`)
 - **1Password master password + recovery codes:** Paper in family safe
-- **Family safe also contains:** Link to Git repo (Forgejo + GitHub mirror)
+- **Family safe also contains:** Link to the Git repo (GitHub — its only remote)
 - See [`deployment-secrets.md`](deployment-secrets.md)
 
 ---
