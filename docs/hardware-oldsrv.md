@@ -163,10 +163,16 @@ The power paths that exist are therefore exactly two: the **chassis button**, an
 > `systemd-logind` poweroff, so a silent oldsrv is a **power state before it is a fault** — read
 > `journalctl --list-boots` (a gap between boots is not a lost box) before diagnosing anything.
 > **WoL is unproven, not spent:** `enp0s31f6` reads `Supports Wake-on: pumbg` / `Wake-on: g`; one re-test at
-> a planned power-off settles it. Whether to buy a real out-of-band path, and where such a device may sit
-> (VLAN 99 is sealed same-site), is an **open owner decision**: no purchase, no ruling, no WoL window
-> scheduled — nothing in this section may be written as a device that exists, and no session may treat
-> remote power control as available.
+> a planned power-off settles it.
+> **Presence-only is the standing posture, not an open question.** Nothing is purchased and no out-of-band
+> path is scheduled; work that needs the box powered on waits for a person, and nothing may park behind
+> "wait for the KVM", because no such path is coming. Buying a real path later — and deciding where it may
+> sit (VLAN 99 is sealed same-site) — is a **new decision, not drift**. Nothing in this section may be
+> written as a device that exists, and no session may treat remote power control as available.
+> **What that posture costs, honestly:** reachable over SSH is recoverable remotely — services, containers,
+> packages, config, a clean `systemctl reboot`, filesystem work. Not recoverable remotely: a box that is
+> powered off, a kernel hang, and any boot that never reaches the network (a bad kernel, a broken
+> initramfs or network unit, or a firewall/SSH change that locks the door). Those need presence.
 > The topology outlives any single outage: a down
 > oldsrv takes the home edge with it, including the nas's own Cockpit route, because
 > `/opt/traefik/dynamic/cockpit.yml` is rendered onto oldsrv by the cockpit role

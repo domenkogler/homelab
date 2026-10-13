@@ -37,6 +37,7 @@ tags: [hardware, rejected, decision-log]
 | `num_ctx` 150016 window                                   | dropped    | retired with the agent leg, the window is 32 768              |
 | NUT upsd ACCEPT/REJECT ACL pair                           | superseded | nut-server 2.8.1 ignores both keywords                        |
 | Ollama as the laptop runtime                              | rejected   | no mmproj instruction, same Vulkan engine, no ROCm            |
+| Out-of-band power path for oldsrv                         | rejected   | presence-only accepted, a purchase would be a new decision     |
 | Out-of-band power purchase for oldsrv                     | dropped    | owner: no purchase, no ruling, no WoL window                  |
 | PSI memory full as the watchdog's primary trigger         | rejected   | no lead time: ten samples read 0.0 before the kill            |
 | Publishing plain `spark.kogler.si` into MagicDNS          | rejected   | tailnet clients get the edge IP for the host name             |
