@@ -298,10 +298,14 @@ sees it — `check_dns_seed_drift.py` renders the SSOT, so an orphan is outside 
 **Read it back rather than assume it** (read-only, per instance):
 
 ```bash
-dig +noall +comments +answer sec.kogler.si A @159.195.111.66 +norecurse   # VPS primary
-dig +noall +comments +answer sec.kogler.si A @100.64.0.3 +norecurse       # oldsrv secondary, tailnet listener
-dig +noall +comments +answer sec.kogler.si A @10.10.1.20 +norecurse       # Pi tertiary
+for h in vps.kogler.si oldsrv.kogler.si pi.kogler.si; do
+  dig +noall +comments +answer sec.kogler.si A @$h +norecurse
+done
 ```
+
+One name per instance — VPS primary, oldsrv secondary, Pi tertiary — and every address behind those
+names is in [network-addresses-generated.md](network-addresses-generated.md); the tailnet listener of an
+instance answers too, which is how a peer away from home reads the same zone copy.
 
 `NXDOMAIN` is the retired state; `qr aa` on the answer is what distinguishes a zone record from a cache
 row. A `NOERROR` with an answer means the record is still in that instance's zone.

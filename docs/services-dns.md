@@ -43,9 +43,10 @@ tags: [services, dns, technitium, pihole]
   (`1.1.1.1` + `9.9.9.9`): the Home VLAN asks it first, and public forwarders cut cold-name fan-out on ARM from
   p50 143 ms to 60 ms. Value + rationale: [network-dns.md](network-dns.md) §Resolver upstream.
 
-> **Seeding is add-only (⚠ known gap).** The `technitium-seed` role calls `zones/records/add` and never
-> deletes, so a retired service can leave an orphan record on the primary. Track and prune those explicitly —
-> see [services-admin.md](services-admin.md) §Open item.
+> **Seeding has two halves.** The `technitium-seed` role asserts the listed records with
+> `zones/records/add` and removes the ones a retirement left behind; an orphan sits in **all three**
+> instances' zone copies, not on the primary alone, so one delete is not the fix. A retirement is recorded
+> in `zone_kogler_si_retired` — the prune leg's candidate set — see [services-admin.md](services-admin.md) §Open item.
 
 ## Blocking — retired Pi-hole
 
