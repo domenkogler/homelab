@@ -1421,3 +1421,8 @@
 - name: Include CAPsMAN WiFi management (guarded)
   ansible.builtin.include_tasks: capsman.yml
   when: routeros_capsman_enabled | default(false) | bool
+  # ⚠ The include tag must name the SAME tag its child carries: router.yml pulls `router` as a BARE
+  # role, a bare role name is not a tag, and an untagged dynamic include is never expanded by a
+  # filtered run (rule 3) — so under `--tags network` the guard assert in capsman.yml never even
+  # parsed, and the guard whose whole job is to refuse an early enable silently stood down.
+  tags: [network, router-capsman]

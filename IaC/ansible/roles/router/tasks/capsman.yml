@@ -26,3 +26,7 @@
       routeros_capsman_enabled=true but the CAPsMAN api_modify tasks are not
       implemented yet — see the header of roles/router/tasks/capsman.yml and
       implement them during the cutover-prep live session.
+  # ⚠ Same tags as the include line in main.yml: the guard's whole job is to refuse a premature
+  # enable, and a dynamic include's tags do not cascade — untagged, it was never parsed by a
+  # filtered run, so the guard silently stood down (rule 2).
+  tags: [network, router-capsman]
