@@ -1429,27 +1429,79 @@ on both boxes** alongside the vault community — so the dedicated read-only ite
 communities a device accepts, and the `read-access`/`write-access` flags on them, live in device config and are not
 readable over SNMP — this lane changed none of it and ran no SET.
 
-### The gap: what `snmp.yml.j2` asks for vs what the boxes offer
+### What `snmp.yml.j2` collects now — every metric proved on a live series
 
-The `mikrotik` module walks exactly three OIDs (`ifAdminStatus`, `ifOperStatus`, `ifName`) and emits exactly two
-metrics; Alloy scrapes it for two targets, `router` and `switch`, from oldsrv only.
+The `mikrotik` module walks 15 column-scoped OIDs and emits 12 metrics; Alloy scrapes it for the same two targets,
+`router` and `switch`, from oldsrv only, at the 5 s interval the rest of the MikroTik polling uses. Landed and
+verified live 2026-10-13 with the narrowest scoped change available — `--tags alloy --start-at-task "Template Alloy
+SNMP config (MikroTik module)"` against oldsrv, which renders one file and restarts one collector, touches no device
+and runs no full converge.
 
-- **Asked for, and present:** all three walked OIDs answer on both boxes (23 / 31 instances each). The module is
-  correct — nothing in it asks for a family this firmware lacks, so no collector leg is failing on an absent OID.
-- **Offered, collected by nothing** (each of these is a metric we could have today, from the same two scrapes, with
-  the same auth): 32-bit **and** 64-bit interface byte counters → link throughput; `ifInErrors`/`ifOutErrors` → link
-  quality, the usual early warning on a copper link; `ifAlias` → the port name an operator actually reads;
-  `ifHighSpeed` → negotiated vs rated speed; `hrProcessorLoad` → device CPU; `hrStorageTable` → device RAM and disk;
-  `sysUpTime` → device reboots without a syslog leg; `dot1qTpFdbPort` → which port a MAC sits on, VLAN-aware (this is
-  what the network-clients dashboard currently buys through the RouterOS **API**); ARP; STP state on the switch.
-- **Asked for nowhere, and genuinely not there:** PoE state, `entSensor` DOM/optics, `dot3` error counters, RMON,
-  LAG-member state, ENTITY per-port names. A dashboard or rule that expects any of these over SNMP will be
-  green-by-absence, so the answer for each is its own path (API, Redfish, NUT, HA) — not a longer `walk:` list.
-- **Three traps for whoever extends the module.** (1) The RB4011's `dot1dStp` subtree cannot be walked as a tree —
-  the agent emits a non-increasing OID and the walk dies mid-table, so a `walk:` entry there collects a partial table
-  with no error. (2) `entPhysicalName` answers `INTEGER: -1` rather than a name: an `entity`-module walk yields
-  entities without names. (3) An absent family returns `noSuchObject` **silently at scrape time** — a module asking
-  for PoE or `entSensor` produces no series and no failure, which is how a panel goes green-by-absence.
+**The table is a proof, not a claim.** Each row's last column is the value read back out of VictoriaMetrics
+(`job="alloy-snmp"`) after the deploy, with the number of ports/rows the boxes really return. Presence is enforced
+rather than asserted: [`scripts/ansible/probe-snmp-presence.sh`](../scripts/ansible/probe-snmp-presence.sh) parses
+the metric list **out of the module file** and fails when one stops landing on either box — widening `walk:` widens
+the test for free, and an OID the firmware drops fails a script instead of emptying a panel. Run it after giving a
+just-restarted collector a scrape cycle, or with a wider `--window`.
+
+| Metric | What it proves | Rows returned (RB4011 / CRS328) | First value seen on the series |
+|---|---|---|---|
+| `sysUpTime` | a reboot of gear that runs no node_exporter | 1 / 1 | 2 217 661 s and 2 217 367 s → both boxes booted 2026-09-17, 15:36:44 and 15:40:38 CEST |
+| `ifAdminStatus` / `ifOperStatus` | a port disabled by hand / a link that dropped | 23 / 31 each | 17 router rows and 12 switch rows at `1` (up) |
+| `ifHCInOctets` / `ifHCOutOctets` | link throughput, 64-bit | 23 / 31 each | `rate[5m]`: router `ether2` 24 851 B/s, `pppoe-telekom` 7 800 B/s, switch `sfp-sfpplus1` 1 259 B/s; lifetime max 1 005 466 227 171 B on router `ether1` |
+| `ifInErrors` / `ifOutErrors` | link quality — the only error counters this firmware answers | 23 / 31 each | every `ifInErrors` reads 0 on all 54 rows; exactly one non-zero error counter exists: router `wg-s2s` `ifOutErrors` 148 459 |
+| `ifHighSpeed` | negotiated link speed in Mbps | 23 / 31 rows, **9 / 9 of them non-zero** | 10 000 on both `sfp-sfpplus1`, 1000 / 100 on copper, 50 on `cap-wifi1` |
+| `hrProcessorLoad` | device CPU | 4 rows / 1 row | router 0 / 0 / 0 / 0 % (four cores), switch 2 % (one row) |
+| `hrStorageSize` + `hrStorageUsed` + `hrStorageAllocationUnits` | device RAM and system disk | 2 rows each (`"main memory"`, `"system disk"`), units 1024 B | router RAM 1 073 741 824 B total / 210 100 224 used, disk 536 870 912 / 101 982 208; switch RAM 536 870 912 / 70 348 800, disk 16 777 216 / 13 877 248 |
+| `if_alias` (a **label** on the per-interface metrics, not a metric) | the RouterOS interface comment — the port name an operator reads | 1 of 23 / 5 of 31 rows carry one | switch `ether12` → `PoE for AP: ap-dnevna`, `ether11` → `PoE for AP: ap-spalnica`, `ether3` → `PoE for AP: reolink-camera` |
+
+**A reboot of either box now shows up in a series.** `sysUpTime` counts 1/100 s since the agent started, so a boot
+resets it toward 0: the alertable forms are `resets(sysUpTime{job="alloy-snmp"}[10m]) > 0` and, for "did this box come
+up since I asked", `timestamp() - sysUpTime{job="alloy-snmp"}/100` = the boot timestamp (the two values above are
+what that query returned). `up{job="alloy-snmp"}` is not the reboot signal — it only says the scrape failed, and a box
+that reboots between two 5 s scrapes can keep `up = 1` the whole way through.
+
+**The zero rows are a measured state, not a missing instance.** 7 of 23 router rows and 19 of 31 switch rows report
+`ifHCInOctets = 0`. Every one of them is a real `Counter64: 0` value, not a `noSuchInstance` — the walk returns a
+64-bit instance for **every** row the ifTable lists (23 / 23 and 31 / 31, in and out, no gap in the index sets), and
+the zero rows are the idle ones by name: `ether4`/`ether5`/`ether6`, `vlan30-guest`, `vlan40-kids`, `cap-wifi1`,
+`cap-wifi1-virtual1` on the router, and 19 unconnected switch ports. So "throughput is collected" is honest for all
+54 rows. `ifHighSpeed` reads 0 on the other 14 / 22 rows, and 0 there means *not a physical link* (bridge, VLAN,
+loopback, virtual) — it is not a down port, `ifOperStatus` is what says that.
+
+**Why there is no 32-bit octet twin, and what that buys.** `ifInOctets`/`ifOutOctets` answer too, and they are
+*exactly* the 64-bit counters modulo 2³² on every row of both boxes (23 / 23 and 31 / 31, in and out; every row whose
+64-bit counter is 0 is 0 on the 32-bit one as well). They are therefore a lossy projection of a series already
+stored, at double the per-interface cardinality. The arithmetic also says they would be **wrong**, not merely
+redundant: 2³² octets is 4 294 967 296 B, which a saturated 10 Gb/s row rewrites in **3.4 s** and a 1 Gb/s row in
+**34 s** — against a 5 s scrape that is a wrap *inside* the interval on `sfp-sfpplus1`, so `rate()` on a Counter32
+under-counts there while the same query on the Counter64 is exact. Any future `rate()` on this module's octets
+should use a window of at least two scrapes (≥ 30 s is comfortable); do not re-add the 32-bit pair to "help" the
+10 Gb/s links.
+
+**Which side owns "which port does this MAC sit on": the RouterOS API, not SNMP.** `dot1qTpFdbPort` does answer
+(63 / 76 entries), but
+[`network-clients-exporter.py.j2`](../IaC/ansible/roles/monitoring/templates/network-clients-exporter.py.j2)
+already reads `/interface/bridge/host` from the router API and joins it with DHCP leases, ARP and the wifi
+registration table into one de-duplicated-per-MAC `mikrotik_client` series. The SNMP FDB table would add ~140
+series of raw MAC→port that churn every time a client roams, to answer a question that is already answered and
+joined. Chosen side: **the API**. Corollary — a client-location question is a `network-clients` question; SNMP owns
+the *interface* side of the network story (status, throughput, errors, speed, CPU, memory, uptime).
+
+**Still not collected, on purpose.** ARP (the API exports it, joined with the rest), STP state (see the trap below),
+and the vendor subtree `.14988.1.1.14`, which is 1587 / 2139 rows of per-interface counters nobody has asked a
+question about yet. And the families this firmware does not answer — PoE, `entSensor` DOM/optics, `dot3` errors,
+RMON, LAG-member state, ENTITY per-port names — stay out of the walk: a dashboard or rule that expects any of them
+over SNMP is green-by-absence, so each needs its own path (API, Redfish, NUT, HA), not a longer `walk:` list.
+
+**Three traps for whoever extends the module.** (1) The RB4011's `dot1dStp` subtree cannot be walked as a tree —
+the agent emits a non-increasing OID and the walk dies mid-table, so a `walk:` entry there collects a partial table
+with no error; STP stays out of the shared module for exactly that reason, and if it is ever wanted it needs its own
+per-device module with column-scoped walks, not a line in this one. (2) `entPhysicalName` answers `INTEGER: -1`
+rather than a name: an `entity`-module walk yields entities without names. (3) An absent family returns
+`noSuchObject` **silently at scrape time** — a module asking for PoE or `entSensor` produces no series and no
+failure, which is how a panel goes green-by-absence. The answer is the probe above, never a `default()` in the
+collector: a metric is only listed here once a series carrying a real value is quoted.
 
 ---
 

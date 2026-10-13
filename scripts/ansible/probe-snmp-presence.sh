@@ -17,6 +17,10 @@
 #   VM_URL=http://10.255.40.2:8428 scripts/ansible/probe-snmp-presence.sh
 #   VM_URL=… scripts/ansible/probe-snmp-presence.sh --window 30m
 #   scripts/ansible/probe-snmp-presence.sh --list      # offline: the derived set only
+#   A window narrower than the default 15m can report a metric ABSENT right after a collector
+#   restart: the new series have not had a scrape cycle plus an insert yet (measured — a
+#   --window 5m run minutes after an Alloy restart showed the switch's new series in and the
+#   router's not). Widen --window; do not "fix" the finding.
 #
 # Env:  VM_URL   REQUIRED, no default on purpose (same rule as
 #                scripts/bench/spark/vm-window.sh): the endpoint is the IaC
@@ -41,8 +45,11 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-MODULE=${SNMP_MODULE:-$ROOT/IaC/ansible/roles/monitoring/templates/snmp.yml.j2}
+# HD-1118 Stage 1: the repo root is FOUND by scripts/lib/repo-root.sh, never assumed
+_hl_d="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+while [ ! -f "$_hl_d/lib/repo-root.sh" ] && [ "$_hl_d" != / ]; do _hl_d="$(dirname "$_hl_d")"; done
+. "$_hl_d/lib/repo-root.sh"   # sets REPO
+MODULE=${SNMP_MODULE:-$REPO/IaC/ansible/roles/monitoring/templates/snmp.yml.j2}
 [ -f "$MODULE" ] || { echo "ERROR: no module config at $MODULE (set SNMP_MODULE)" >&2; exit 2; }
 
 # The metric set: every `- name:` under `metrics:`. Anchors/aliases carry the
@@ -52,7 +59,7 @@ METRICS=$(awk '/^    metrics:/{f=1;next} f&&/^      - name: /{print $3}' "$MODUL
 DEVICES="router switch"   # the two MikroTiks Alloy scrapes (alloy.river.j2, oldsrv only)
 
 if [ "$LIST_ONLY" = "1" ]; then
-  echo "# required set, derived from ${MODULE#$ROOT/} — one per device, plus up{} per device:"
+  echo "# required set, derived from ${MODULE#$REPO/} — one per device, plus up{} per device:"
   for m in $METRICS; do for d in $DEVICES; do echo "  $m  instance=$d"; done; done
   exit 0
 fi
