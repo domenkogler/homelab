@@ -487,7 +487,7 @@ timer and no second service:
 | --- | --- |
 | `homelab_pkg_pin_ok{package=}` | 1 when the installed version EQUALS the pin — the shape that keeps "in sync" distinct from "not installed here" |
 | `homelab_pkg_pin_result{package=, pin=, result=, running=}` | the comparison itself. `result` is `match` / `differ` / `missing` (this host does not carry the package) / `unknown` (dpkg gave nothing readable), and both version strings travel as labels |
-| `homelab_upgrade_plan_ok` | 1 when the simulated plan was readable — `0` means "no idea", never "nothing pending" |
+| `homelab_upgrade_plan_ok` | 1 once a simulated plan has been read — `0` means "no readable plan yet" (seconds after a restart, or an apt wedged on its lock), never "nothing pending" |
 | `homelab_upgrade_plan_count` | how many packages this box's own solver would upgrade |
 | `homelab_reboot_required` | 1 while Debian's own `/run/reboot-required` marker exists |
 
@@ -510,8 +510,11 @@ make the read HONEST rather than merely harmless:
   pending", which is the fail-open half of the exact class this collector exists for.
 * `apt::get::show-upgraded=false` keeps the summary line and drops the per-package list, so the plan read
   costs ~1 s instead of dragging thousands of package names through a pipe. It is therefore the ONE leg
-  not collected per scrape: its result is cached for 15 min, because a 1-minute scrape cadence must not
-  buy a solver run every scrape. The pin and reboot legs stay per-scrape, single-digit ms each.
+  not collected per scrape: the read runs on its own thread at most every 15 min (60 s after a failed one)
+  and the scrape serves the cache — never inline, because apt waits for the dpkg lock and a stalled render
+  freezes `homelab_hygiene_scrape_ok`, which is the CRIT heartbeat rule: it would page about a dead
+  collector in the middle of someone's unrelated converge. Measured scrape cost, cold and warm alike:
+  **59 ms**. The pin and reboot legs stay collected per scrape, single-digit ms each.
 
 | Question | The read that answers it |
 | --- | --- |
