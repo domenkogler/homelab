@@ -279,8 +279,12 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
   deployed:** oldsrv's copy is live; the Pi carries the guard from its next `home_assistant` converge — its pull
   works today, so the HA primary is not restarted just to install a guard; Spark's `spark-dashboard` copy picks
   it up at its own next `docker_services` converge (never run from a spark-backed session).
-  Tag arithmetic: reaching the Pi's pull task takes `--tags home_assistant,ha_failover`,
-  because the `include_tasks` is tagged `home_assistant` and the tasks inside are tagged `ha_failover,hd17`.
+  Tag arithmetic: reaching the Pi's pull task needs a filter that names `ha_failover` —
+  `--tags home_assistant,ha_failover` works, and so does `--tags ha_failover` alone, because the Pi
+  include line now names EVERY tag its children carry
+  (`IaC/ansible/roles/home_assistant/tasks/main.yml:92-93`), which is what makes the file LOAD under
+  either form; the tasks inside remain filtered on their own tags (`ha_failover,hd17`).
+  `--tags home_assistant` alone opens the file and executes nothing inside it.
   ⏳ Open: nothing observes pair age at the consumers and nothing watches these units' result.
 - **A consumer's cert pair that is MONITORED is declared, never derived.** The hygiene exporter's `homelab_cert_pair_present` /
 `homelab_cert_days_left` series ([observability.md](observability.md) §Silent-failure hygiene) read the pair a consumer edge actually loads, and that path comes from a per-host `monitoring_hygiene_certs` list — it is never derived from a fact. The two templates that render the entry disagree on the path, and `traefik_consumer_dir` is task-scoped inside `docker_services`, so deriving it silently yields a path that exists nowhere: the series then reports the pair missing on a healthy box. Each entry is an absolute path **confirmed on that host**; this §Certification row is the owning contract for what those paths mean. Declared today on `oldsrv` (`traefik-internal`) and the Pi (`traefik-ha`) only; a host with no entry emits no cert-pair series at all, so standing up a consumer edge means adding the entry in the same change — the absent series is the tell.
