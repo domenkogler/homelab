@@ -20,6 +20,15 @@
 #   * `apt-get -s upgrade` on the same state → "The following packages have been kept back:
 #     alloy". A blanket upgrade does not touch it. That is the whole ruling in two reads.
 #
+# ⚠ What the hold does NOT do: stop an explicitly requested install. A bare
+# `apt-get -s install alloy` (no version, the shape a `state: latest` leg produces) ALSO prints
+# "The following held packages will be changed" and proceeds, rc 0 — the same synthetic state.
+# The hold fences the automatic paths (`apt upgrade`, the periodic timer), not a request that
+# names the package, which is exactly where "a deliberate converge" lives. So a future
+# `state: latest` on any of these packages would defeat the hold inside a converge, silently:
+# no role ships one today (no `state: latest`, no `upgrade:` task anywhere in IaC/ansible), and
+# keep it that way.
+#
 # ⛔ Never pair this with `--allow-downgrades`: a standing rule of the pinned-package leg, it
 # would silently downgrade any package whose pin lags the box.
 #
