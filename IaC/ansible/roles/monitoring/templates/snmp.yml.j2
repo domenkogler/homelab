@@ -1,6 +1,16 @@
 # snmp_exporter config — monitoring role (step 3 / gap: MikroTik link down)
 # Target: /etc/alloy/snmp.yml (consumed by prometheus.exporter.snmp in alloy.river.j2)
-# Minimal MikroTik module: interface admin/oper status + ifName for labels.
+# MikroTik module: interface admin/oper status + names, throughput and error counters,
+# link speed, CPU, RAM/system-disk, and sysUpTime (reboot detection).
+#
+# Every OID below was proved to ANSWER on both MikroTiks (RB4011iGS+ and CRS328-24P-4S+,
+# RouterOS 7.24.4) by a read-only walk — see docs/observability.md §SNMP coverage. OIDs that
+# the firmware does NOT answer (PoE, entSensor DOM, dot3 errors, RMON, LAG members,
+# entPhysicalName per-port names, the whole STP subtree) are deliberately absent: an
+# unanswered OID in a walk fails SILENTLY at scrape time, so it would read as "metric exists,
+# value never arrives" — green-by-absence. Presence is re-proved by
+# scripts/ansible/probe-snmp-presence.sh, which fails when a metric in this file stops
+# arriving in VictoriaMetrics.
 #
 # Device prerequisite (not this file): RouterOS /snmp enabled + the same RO
 # community below must be set on the RB4011 + CRS328 at deploy,
@@ -19,10 +29,30 @@ auths:
 modules:
   mikrotik:
     walk:
+      - 1.3.6.1.2.1.1.3        # sysUpTime (scalar) — reboot detection
       - 1.3.6.1.2.1.2.2.1.7    # ifAdminStatus
       - 1.3.6.1.2.1.2.2.1.8    # ifOperStatus
-      - 1.3.6.1.2.1.31.1.1.1.1 # ifName (ifXtable) — MUST be walked for the lookup below
+      - 1.3.6.1.2.1.2.2.1.14   # ifInErrors  (Counter32 — dot3StatsTable is absent, these are the only error counters)
+      - 1.3.6.1.2.1.2.2.1.20   # ifOutErrors
+      - 1.3.6.1.2.1.31.1.1.1.1 # ifName (ifXtable) — MUST be walked for the lookups below
+      - 1.3.6.1.2.1.31.1.1.1.6 # ifHCInOctets  (Counter64)
+      - 1.3.6.1.2.1.31.1.1.1.10 # ifHCOutOctets (Counter64)
+      - 1.3.6.1.2.1.31.1.1.1.15 # ifHighSpeed — link speed in Mbps, 0 on virtual/LAG rows
+      - 1.3.6.1.2.1.31.1.1.1.18 # ifAlias (comment text) — MUST be walked for the lookups below
+      - 1.3.6.1.2.1.25.3.3.1.2 # hrProcessorLoad — per-core % on the RB4011, single row on the CRS328
+      - 1.3.6.1.2.1.25.2.3.1.3 # hrStorageDescr ("main memory" / "system disk") — lookup only
+      - 1.3.6.1.2.1.25.2.3.1.4 # hrStorageAllocationUnits — 1024 bytes on both boxes
+      - 1.3.6.1.2.1.25.2.3.1.5 # hrStorageSize (in allocation units)
+      - 1.3.6.1.2.1.25.2.3.1.6 # hrStorageUsed (in allocation units)
     metrics:
+      # sysUpTime is the reboot signal for gear that runs no node_exporter: it counts
+      # 1/100 s since the agent started, so a boot resets it to ~0. `resets()` on it is the
+      # alertable form; boot time is `timestamp() - sysUpTime/100`.
+      - name: sysUpTime
+        oid: 1.3.6.1.2.1.1.3
+        type: gauge
+        help: Time in 1/100 s since the device's SNMP agent (re)initialized — a reset is a reboot
+
       - name: ifAdminStatus
         oid: 1.3.6.1.2.1.2.2.1.7
         type: gauge
@@ -38,6 +68,7 @@ modules:
             # hex string (0x65746865…) because the default decode for a lookup OID is gauge.
             # With this + walk present, ifName="ether3" etc. render as readable text.
             type: DisplayString
+
       - name: ifOperStatus
         oid: 1.3.6.1.2.1.2.2.1.8
         type: gauge
@@ -51,3 +82,107 @@ modules:
             oid: 1.3.6.1.2.1.31.1.1.1.1
             # Same DisplayString requirement as ifAdminStatus (see above).
             type: DisplayString
+
+      # ifAlias is the RouterOS interface *comment*. It is empty on 22 of 23 router rows and
+      # 26 of 31 switch rows, so it is NOT its own metric (that would put an empty label on
+      # almost every row) — it rides on the per-interface metrics as `if_alias`, and the rows
+      # with no comment simply carry no such label. The non-empty ones are the useful ones:
+      # on the switch they read "PoE for AP: ap-spalnica" etc.
+      - name: ifHCInOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.6
+        type: counter
+        help: Received octets, 64-bit (Counter64 — no 32-bit twin; see docs/observability.md)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+        lookups: &mikrotik_if_labels
+          - labels: [ifIndex]
+            labelname: ifName
+            oid: 1.3.6.1.2.1.31.1.1.1.1
+            type: DisplayString
+          - labels: [ifIndex]
+            labelname: if_alias
+            oid: 1.3.6.1.2.1.31.1.1.1.18
+            type: DisplayString
+
+      - name: ifHCOutOctets
+        oid: 1.3.6.1.2.1.31.1.1.1.10
+        type: counter
+        help: Transmitted octets, 64-bit
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+        lookups: *mikrotik_if_labels
+
+      - name: ifInErrors
+        oid: 1.3.6.1.2.1.2.2.1.14
+        type: counter
+        help: Inbound error packets (Counter32 — the only error counters this firmware answers)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+        lookups: *mikrotik_if_labels
+
+      - name: ifOutErrors
+        oid: 1.3.6.1.2.1.2.2.1.20
+        type: counter
+        help: Outbound error packets (Counter32)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+        lookups: *mikrotik_if_labels
+
+      # ifHighSpeed is Mbps. 0 means "not a physical link" (bridge, VLAN, LAG, loopback) on
+      # 14 of 23 router rows and 19 of 31 switch rows — 0 is NOT a down link, ifOperStatus is.
+      - name: ifHighSpeed
+        oid: 1.3.6.1.2.1.31.1.1.1.15
+        type: gauge
+        help: Link speed in Mbps (0 on virtual/bonded interfaces, not a fault)
+        indexes:
+          - labelname: ifIndex
+            type: gauge
+        lookups: *mikrotik_if_labels
+
+      # hrProcessorLoad: 4 rows on the RB4011 (one per core), 1 row on the CRS328.
+      - name: hrProcessorLoad
+        oid: 1.3.6.1.2.1.25.3.3.1.2
+        type: gauge
+        help: CPU load percent per processor row (4 cores on the RB4011, 1 row on the CRS328)
+        indexes:
+          - labelname: hrProcessorIndex
+            type: gauge
+
+      # hrStorage: MikroTik exposes the index as a column, so the columns are the RFC 2790
+      # ones as net-snmp numbers them (descr .3, units .4, size .5, used .6). Two rows per
+      # box: "main memory" and "system disk", both with 1024-byte allocation units, so
+      # bytes = value * hrStorageAllocationUnits.
+      - name: hrStorageSize
+        oid: 1.3.6.1.2.1.25.2.3.1.5
+        type: gauge
+        help: Storage row size in allocation units (x hrStorageAllocationUnits = bytes)
+        indexes:
+          - labelname: hrStorageIndex
+            type: gauge
+        lookups: &mikrotik_storage_labels
+          - labels: [hrStorageIndex]
+            labelname: hrStorageDescr
+            oid: 1.3.6.1.2.1.25.2.3.1.3
+            type: DisplayString
+
+      - name: hrStorageUsed
+        oid: 1.3.6.1.2.1.25.2.3.1.6
+        type: gauge
+        help: Storage row used size in allocation units (x hrStorageAllocationUnits = bytes)
+        indexes:
+          - labelname: hrStorageIndex
+            type: gauge
+        lookups: *mikrotik_storage_labels
+
+      - name: hrStorageAllocationUnits
+        oid: 1.3.6.1.2.1.25.2.3.1.4
+        type: gauge
+        help: Bytes per allocation unit for the hrStorage size/used gauges (1024 on both boxes)
+        indexes:
+          - labelname: hrStorageIndex
+            type: gauge
+        lookups: *mikrotik_storage_labels
