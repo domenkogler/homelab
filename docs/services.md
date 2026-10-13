@@ -37,6 +37,12 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 
 **Standalone (owned here, no stack doc):**
 - **Homepage** (family launchpad, `kogler.si` root + `home`) — public behind Forward-Auth, with the HA-failover status widget. Lives on the **VPS**: the route is the compose's Docker-provider labels at the VPS edge; reachability is widget/probe-based (no Docker socket).
+  Tile endpoints are declared once (`group_vars/vps.yml`) and name the edge that serves the
+  service, so the launcher follows the route tables. A tile gets a health dot only where the
+  dashboard container can actually resolve the name — a public CNAME answers, a home-or-tailnet
+  name does not, and an unresolvable name is linked without a dot rather than probed to a
+  permanent false-red. A deployed app is never rendered as a roadmap tile: no declared endpoint
+  renders as unconfigured, and the roadmap group holds only what has no backend anywhere.
 - **Sunshine** — game streaming (manual start, `restart: "no"`), AMD dGPU **gaming-encode first**; immich-ML batch is pause-able GPU consumer (prep-commands). Idle ~5 W when neither gaming nor ML.
 
 **Non-services (link out to owning domain):**
@@ -114,6 +120,9 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 | URL | Backend | Why it's here |
 |-----|---------|---------------|
 | `https://ha.kogler.si` | VIP (`ha-vip`) :8123, keepalived | VIP edge switches nodes (Pi `traefik-ha` normal → oldsrv `traefik-internal` on takeover); never "correct" to a node IP |
+| `https://media.kogler.si` | home edge `media-backend` (Jellyfin on oldsrv) | published twice on purpose: the home edge serves it on the LAN, the public edge dials the home edge over the site-to-site tunnel so the name answers away from home. Own login, CrowdSec-only tier — no Forward-Auth, client apps cannot sit behind it |
+| `https://seerr.kogler.si` · `https://seerrng.kogler.si` | home edge `seerr-backend` / `seerrng-backend` | routed on both edges but published in **no** public zone — reachable on the LAN and over the tailnet (`<name>.ts.kogler.si`), not from the public internet. SeerrNG is the requests UI; `seerr` is the legacy name |
+| `https://foto.kogler.si` | VPS `immich-server` :2283 | the photo library is a VPS service; its ML leg stays on oldsrv |
 | `https://dns-pi.kogler.si` | VIP (`ha-vip`) → Pi `traefik-ha` → `pi:5380` | Pi edge — reachable when oldsrv is down |
 | `https://cockpit-nas.kogler.si` | `nas:9090` (IP per SSOT) | host service (not Docker) |
 | `https://cockpit-oldsrv.kogler.si` | `oldsrv:9090` (IP per SSOT) | host service |
