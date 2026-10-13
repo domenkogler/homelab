@@ -196,8 +196,15 @@ def dpkg_version(package: str) -> tuple[str, str]:
     """Installed version of one package, and an error string when there is none to read.
     `dpkg-query -W` reads `/var/lib/dpkg/status` and never takes the dpkg lock — the read this whole leg
     is built on, because a report that had to acquire the lock would be a report that can wait on (or
-    interrupt) an install."""
-    r = subprocess.run(["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True, check=False)
+    interrupt) an install. An unspawnable binary is reported the same way as an unreadable answer: one
+    missing tool must not take the other legs' scrape down with it. `LC_ALL=C` because the
+    absent-package message is translated, and the branch below reads it — the same locale trap the
+    solver leg documents."""
+    try:
+        r = subprocess.run(["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True,
+                           check=False, env=dict(os.environ, LC_ALL="C", LANG="C"))
+    except OSError as exc:                          # no dpkg on this box
+        return "", "spawn failed %s" % exc
     ver = (r.stdout or "").strip()
     if ver:
         return ver, ""
