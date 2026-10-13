@@ -1432,7 +1432,10 @@ readable over SNMP — this lane changed none of it and ran no SET.
 ### What `snmp.yml.j2` collects now — every metric proved on a live series
 
 The `mikrotik` module walks 15 column-scoped OIDs and emits 12 metrics; Alloy scrapes it for the same two targets,
-`router` and `switch`, from oldsrv only, at the 5 s interval the rest of the MikroTik polling uses. Landed and
+`router` and `switch`, from oldsrv only. **Measured cadence is one scrape every 60 s** (`count_over_time(up{job="alloy-snmp"}[5m])`
+= 5 per box), because the two `prometheus.scrape "snmp_*"` blocks in `templates/alloy.river.j2` set no
+`scrape_interval` and take Alloy's default — the 5–15 s MikroTik poll in §Microservice Notes is the stated intent, not
+the state on the box. Landed and
 verified live 2026-10-13 with the narrowest scoped change available — `--tags alloy --start-at-task "Template Alloy
 SNMP config (MikroTik module)"` against oldsrv, which renders one file and restarts one collector, touches no device
 and runs no full converge.
@@ -1459,7 +1462,8 @@ just-restarted collector a scrape cycle, or with a wider `--window`.
 resets it toward 0: the alertable forms are `resets(sysUpTime{job="alloy-snmp"}[10m]) > 0` and, for "did this box come
 up since I asked", `timestamp() - sysUpTime{job="alloy-snmp"}/100` = the boot timestamp (the two values above are
 what that query returned). `up{job="alloy-snmp"}` is not the reboot signal — it only says the scrape failed, and a box
-that reboots between two 5 s scrapes can keep `up = 1` the whole way through.
+that reboots between two scrapes can keep `up = 1` the whole way through. At the measured 60 s cadence a boot costs at
+most one missed minute of interface series, which is what `sysUpTime` is for.
 
 **The zero rows are a measured state, not a missing instance.** 7 of 23 router rows and 19 of 31 switch rows report
 `ifHCInOctets = 0`. Every one of them is a real `Counter64: 0` value, not a `noSuchInstance` — the walk returns a
@@ -1474,9 +1478,9 @@ loopback, virtual) — it is not a down port, `ifOperStatus` is what says that.
 64-bit counter is 0 is 0 on the 32-bit one as well). They are therefore a lossy projection of a series already
 stored, at double the per-interface cardinality. The arithmetic also says they would be **wrong**, not merely
 redundant: 2³² octets is 4 294 967 296 B, which a saturated 10 Gb/s row rewrites in **3.4 s** and a 1 Gb/s row in
-**34 s** — against a 5 s scrape that is a wrap *inside* the interval on `sfp-sfpplus1`, so `rate()` on a Counter32
+**34 s** — inside a 60 s scrape interval that is a wrap *many times over* on `sfp-sfpplus1`, so `rate()` on a Counter32
 under-counts there while the same query on the Counter64 is exact. Any future `rate()` on this module's octets
-should use a window of at least two scrapes (≥ 30 s is comfortable); do not re-add the 32-bit pair to "help" the
+should use a window of at least two scrapes (two of the measured 60 s ones = 2m); do not re-add the 32-bit pair to "help" the
 10 Gb/s links.
 
 **Which side owns "which port does this MAC sit on": the RouterOS API, not SNMP.** `dot1qTpFdbPort` does answer
