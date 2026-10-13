@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The two things that can age out silently, turned into series.
+"""The things that can age out silently, turned into series.
 
 Oldsrv's `traefik-cert-pull.timer` failed every 15 min for DAYS while the wildcard
 pair sat on a 26-day-old copy, and nothing in the stack could see either half — a systemd unit's result is
@@ -11,7 +11,22 @@ no SSL expiry). This exporter is the collector for both.
     homelab_unit_result{unit="…", result="success|failed|missing"} 1
     homelab_cert_days_left{consumer="traefik-internal"}           44.2
     homelab_cert_pair_present{consumer="traefik-internal"}        1 | 0
-    homelab_hygiene_scrape_ok                                    <unix ts of this collection>
+    homelab_pkg_pin_ok{package="alloy"}                           1 | 0
+    homelab_pkg_pin_result{package="…", pin="…", result="…", running="…"} 1
+    homelab_upgrade_plan_ok                                       1 | 0
+    homelab_upgrade_plan_count                                    <packages the plan would upgrade>
+    homelab_reboot_required                                       1 | 0
+    homelab_hygiene_scrape_ok                                     <unix ts of this collection>
+
+The three `pkg`/`plan`/`reboot` series are the PIN-LAG report: what a host actually runs against what
+`group_vars/all/versions.yml` pins, how far the box's own dependency solver is from that state, and
+whether a kernel or library swap is still waiting on a reboot. It is the visibility half of a decision
+that deliberately rejected an automated upgrade phase — an updater would make the pin advisory, and the
+pin is the whole version truth. Nothing here is an updater: `dpkg-query -W` reads the status file without
+ever taking the dpkg lock, the solver is invoked as `apt-get -s` (simulate), `apt-mark` is never called,
+no unit is touched and nothing is written. The pin arrives as a RENDERED var, so the single copy of the
+version stays in `versions.yml` and a bump reaches this report through the next monitoring converge —
+which also means the report cannot be fresher than the converge that rendered it.
 
 WHY A BINARY EXPORTER AND NOT A TEXTFILE FILE (the obvious cheaper shape): Alloy's
 `prometheus.exporter.unix` here accepts a `textfile {}` block but rejects every attribute name that
@@ -28,24 +43,49 @@ a failure can go unseen for days:
     silence;
   * a cert pair that is absent or unreadable emits `…_pair_present = 0` rather than a NaN days-left
     value: NaN parses, and `NaN < 14` is false, so a vanished pair would have read as "not expiring";
+  * a pinned package the host does not carry reads `result="missing"`, not `"match"` — an empty
+    `dpkg-query` answer is the one answer that must never look like "in sync with the pin";
+  * a solver plan that cannot be read sets `homelab_upgrade_plan_ok = 0` and emits NO count, because a
+    `0` there would be indistinguishable from "this box is fully current";
   * `homelab_hygiene_scrape_ok` is the collector's own heartbeat — this exporter is a systemd service,
     i.e. the same failure class, and `time() - heartbeat > 900` is the rule that watches itself.
 
-Collection happens per scrape (four subprocesses, single-digit ms): no cache to go stale, no second
-timer to fail silently. Read-only throughout — `systemctl show` and `openssl x509 -enddate`, no writes.
+Collection happens per scrape (`systemctl show`, `openssl x509 -enddate`, `dpkg-query`, one stat on
+`/run/reboot-required` — single-digit ms each): no cache to go stale, no second timer to fail silently.
+The one exception is the dependency-solver leg: `apt-get -s upgrade` costs ~1 s on a server and several
+seconds on an arm board, so it is read at most once per PLAN_TTL and served from cache between those
+reads — a 1-minute scrape cadence must not buy a solver run every time.
+Read-only throughout, no writes.
 """
 import datetime
 import email.utils
 import http.server
 import json
 import os
+import re
 import subprocess
 import sys
+import threading
+import time
 import urllib.parse
 
 UNITS = {{ monitoring_hygiene_units | to_json }}
 CERTS = {{ monitoring_hygiene_certs | to_json }}
+# Each entry is {"package": <name>, "pin": <the value of that package's versions.yml var>} — the pin is
+# resolved here from the var NAME (roles/monitoring/defaults/main.yml), never typed into this file, and a
+# pin var that does not exist aborts the render rather than reporting "no pin" about a healthy box.
+PINS = [
+{% for p in monitoring_hygiene_pins %}
+    {"package": {{ p.package | to_json }}, "pin": {{ lookup('vars', p.pin_var) | to_json }}},
+{% endfor %}
+]
 LISTEN = ("{{ monitoring_hygiene_listen }}", {{ monitoring_hygiene_port }})
+
+# The solver leg only: measured ~1.1 s of CPU per invocation on a server, and the job is scraped every
+# minute. Re-reading it more often than this buys nothing a report needs.
+PLAN_TTL = 900.0
+PLAN_LOCK = threading.Lock()
+PLAN_CACHE: dict = {"at": 0.0, "lines": None}
 
 
 def show(unit: str) -> dict:
@@ -152,6 +192,102 @@ def cert_lines(consumer: str, path: str) -> list[str]:
     ]
 
 
+def dpkg_version(package: str) -> tuple[str, str]:
+    """Installed version of one package, and an error string when there is none to read.
+    `dpkg-query -W` reads `/var/lib/dpkg/status` and never takes the dpkg lock — the read this whole leg
+    is built on, because a report that had to acquire the lock would be a report that can wait on (or
+    interrupt) an install."""
+    r = subprocess.run(["dpkg-query", "-W", "-f=${Version}", package], capture_output=True, text=True, check=False)
+    ver = (r.stdout or "").strip()
+    if ver:
+        return ver, ""
+    return "", "rc=%d %s" % (r.returncode, (r.stderr or "").strip()[:140])
+
+
+def pin_lines(package: str, pin: str) -> list[str]:
+    """Running version vs the pin, as the unit leg already does it: one alertable gauge and one series
+    that carries the WHY. Equality is the test, not ordering — the drift this reports has gone both ways
+    in practice (a box ahead of its pin is as broken as a box behind it, and pinning a downgrade is
+    never the fix), and the two version strings travel as labels so the reader can tell which way."""
+    running, err = dpkg_version(package)
+    if running:
+        state = "match" if running == pin else "differ"
+    elif "no packages found" in err:
+        # Not carried by this host at all — the honest reading of a fleet-wide list on one host, and
+        # the reason a rule keys on result="differ" rather than on this gauge alone.
+        state = "missing"
+    else:
+        # dpkg gave nothing explainable. "No version" must never collapse into "match".
+        state = "unknown"
+        print("WARN: dpkg-query %s: %s" % (package, err), file=sys.stderr)
+    q = sel('package="%s"' % package)
+    return [
+        "# HELP homelab_pkg_pin_ok 1 when the installed version equals the versions.yml pin.",
+        "# TYPE homelab_pkg_pin_ok gauge",
+        "homelab_pkg_pin_ok%s %d" % (q, 1 if state == "match" else 0),
+        'homelab_pkg_pin_result%s %s'
+        % (sel('package="%s", pin="%s", result="%s", running="%s"' % (package, pin, state, running)), "1"),
+    ]
+
+
+def plan_lines() -> list[str]:
+    """How many packages this box's OWN solver would upgrade, read from `apt-get -s upgrade`.
+
+    Three things make the read non-obvious, all of them load-bearing:
+      * `-s` is the whole safety story: apt prints the plan and executes nothing. Never add `-y`, never
+        drop `-s`, never set `apt::get::simulate=false` (that last one turns the call into a real
+        upgrade attempt).
+      * `apt::get::show-upgraded=false` keeps the summary line and drops the per-package list, so the
+        call costs ~1 s instead of dragging thousands of package names through a pipe.
+      * `LC_ALL=C` because the summary line is TRANSLATED: on this fleet's locale the whole output is
+        Slovene and only the `Inst`/`Conf` tokens stay English, so parsing without forcing the locale
+        would find no count and report it as "nothing pending" — the fail-open half of the bug class.
+
+    A HELD package does not appear in this count (the solver keeps it back instead); the pin legs above
+    are what reports a held package's version."""
+    head = [
+        "# HELP homelab_upgrade_plan_ok 1 when the simulated upgrade plan was readable.",
+        "# TYPE homelab_upgrade_plan_ok gauge",
+        "# HELP homelab_upgrade_plan_count Packages `apt-get -s upgrade` would upgrade.",
+        "# TYPE homelab_upgrade_plan_count gauge",
+    ]
+    with PLAN_LOCK:
+        if PLAN_CACHE["lines"] is not None and time.monotonic() - PLAN_CACHE["at"] < PLAN_TTL:
+            return PLAN_CACHE["lines"]
+        try:
+            r = subprocess.run(
+                ["apt-get", "-s", "-o", "apt::get::show-upgraded=false", "upgrade"],
+                capture_output=True, text=True, check=False,
+                env=dict(os.environ, LC_ALL="C", LANG="C"),
+                timeout=int(PLAN_TTL),
+            )
+            m = re.search(r"^(\d+) upgraded", r.stdout or "", re.MULTILINE)
+            if r.returncode != 0 or not m:
+                print("WARN: apt-get -s upgrade rc=%d: %s"
+                      % (r.returncode, ((r.stderr or "").strip() or (r.stdout or "").strip())[:140]),
+                      file=sys.stderr)
+                # A plan that could not be read is reported as unreadable, never as "0 pending":
+                # 0 and "no idea" must not be the same number.
+                out = head + ["homelab_upgrade_plan_ok 0"]
+            else:
+                out = head + ["homelab_upgrade_plan_ok 1", "homelab_upgrade_plan_count %s" % m.group(1)]
+        except Exception as exc:                    # no apt on this box, a hung solver, a timeout
+            print("WARN: apt-get -s upgrade: %s" % exc, file=sys.stderr)
+            out = head + ["homelab_upgrade_plan_ok 0"]
+        PLAN_CACHE["at"], PLAN_CACHE["lines"] = time.monotonic(), out
+        return out
+
+
+def reboot_lines() -> list[str]:
+    """`/run/reboot-required` is Debian's own contract: a package that needs it writes it, and a running
+    kernel older than the installed one is otherwise invisible to every other series here."""
+    return [
+        "# HELP homelab_reboot_required 1 while the box says a reboot is pending.",
+        "# TYPE homelab_reboot_required gauge",
+        "homelab_reboot_required %d" % (1 if os.path.isfile("/var/run/reboot-required") else 0),
+    ]
+
+
 def render() -> str:
     now = datetime.datetime.now(datetime.timezone.utc)
     lines: list[str] = []
@@ -159,6 +295,10 @@ def render() -> str:
         lines += unit_lines(unit)
     for cert in CERTS:
         lines += cert_lines(cert["consumer"], cert["path"])
+    for pin in PINS:
+        lines += pin_lines(pin["package"], pin["pin"])
+    lines += plan_lines()
+    lines += reboot_lines()
     lines += [
         "# HELP homelab_hygiene_scrape_ok Unix time of this collection — the collector's own heartbeat.",
         "# TYPE homelab_hygiene_scrape_ok gauge",
@@ -186,12 +326,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def main() -> int:
     # Fail at start, not at scrape time: a list that arrived unrendered means the template was copied
     # without Ansible, and 0 series would otherwise look like "nothing to watch".
-    if "{" + "{" in json.dumps([UNITS, CERTS]):
+    if "{" + "{" in json.dumps([UNITS, CERTS, PINS]):
         print("FATAL: the config lines are still Jinja — run this through the role, not by hand", file=sys.stderr)
         return 3
     srv = http.server.ThreadingHTTPServer(LISTEN, Handler)
-    print("homelab-hygiene exporter on http://%s:%s/metrics · %d unit(s), %d cert(s)"
-          % (LISTEN[0], LISTEN[1], len(UNITS), len(CERTS)), flush=True)
+    print("homelab-hygiene exporter on http://%s:%s/metrics · %d unit(s), %d cert(s), %d pinned package(s)"
+          % (LISTEN[0], LISTEN[1], len(UNITS), len(CERTS), len(PINS)), flush=True)
     srv.serve_forever()
     return 0
 

@@ -30,3 +30,21 @@ monitoring_hygiene_units: []
 # docs/services-traefik.md §Certification owns that contract.
 # Empty on a host that holds no consumer pair: nothing to report, nothing to alert on.
 monitoring_hygiene_certs: []
+
+# The pinned HOST packages the collector measures — the read-only pin-lag leg. An entry names the package
+# and the versions.yml VAR that pins it; the value is resolved at render, so this file can never disagree
+# with `group_vars/all/versions.yml` and a pin var that disappears reddens the converge instead of
+# reporting "no pin" about a healthy box. → docs/observability.md §Silent-failure hygiene
+#
+# A package a host does not carry reports `result="missing"`, which is what a fleet-wide list read on one
+# host means — so a rule keys on `result="differ"` (the actual drift), not on the ok gauge alone.
+#
+# The `docker-ce` suite is deliberately ABSENT: it is held but carries no `*_version` pin at all, so
+# there is no pin to compare its running version against. Its cross-host skew is a standing fact, not a
+# lag, and reporting it here would read as "the pin moved" when no pin exists.
+# A host that carries a different set overrides this list in its own host_vars, like the two lists above.
+monitoring_hygiene_pins:
+  - package: alloy
+    pin_var: alloy_version
+  - package: tailscale
+    pin_var: tailscale_host_version
