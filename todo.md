@@ -32,34 +32,18 @@
 > oldsrv leg that was parked is runnable now. What blocks oldsrv work today is work, not reachability: **HD-467** (no home host is UPS-protected) is P1.
 
 
-> **Open as of 2026-09-22 — three memory-plane calls, measured and waiting (no HD row until you answer):**
-> **OQ-12** is `agentmemory` the ONE central memory plane (not as specified on 0.9.29: loopback-forced REST, one
-> shared bearer, `TEAM_*` inert in the search path ⇒ central means a proxy + `project` tags); **OQ-13** where
-> Hermes' memory lives (the owner ruling "not its own files" **is** implementable — `memory_enabled: false`;
-> `agentmemory` can never target Qdrant, so a Qdrant Hermes means two planes); **OQ-14** whether the `bge-m3` leg
-> is needed (keyless clears every gate; the leg is a measured +2). One line each in
-> [services-ai.md](docs/services-ai.md) §9b, evidence [`reports/probe-agentmemory-20260921.md`](reports/probe-agentmemory-20260921.md).
-> Nothing was installed, nothing was decided, and **no AI work waits on them**.
->
-> **Answered by the owner 2026-09-26** (recorded here on the owner's instruction so it survives to
-> implementation time; the durable copy is still owed to [services-ai.md](docs/services-ai.md) §9b + the
-> services decision log in the same change that implements it):
-> **OQ-12 = YES** — `agentmemory` **is** the ONE central memory plane, with **`user_id` and `project_id`
-> filters set on each client**. That is the owner's chosen answer to the measured "one shared bearer, no
-> per-user isolation" gap: isolation is by client-side filter, so ⚠ whether that satisfies the isolation
-> requirement (or whether the proxy is still required) is an implementation-time proof, not a re-ask.
-> **OQ-13 = this blueprint is the target architecture:** (1) one central **Qdrant** instance; (2) the
-> central `agentmemory` server configured to point at that Qdrant; (3) every client — **Hermes, Open
-> WebUI, pi.dev, OpenClaw** — connecting **directly** to that single `agentmemory` endpoint.
-> ⚠ **This collides with the measured finding above and the collision is the first task, not a reason to
-> re-ask:** the 2026-09-21 probe recorded that `agentmemory` **cannot target Qdrant** as its backend, which
-> on that reading makes a Qdrant-backed deployment two planes rather than one. Prove or disprove that
-> against the pinned version before any compose lands; if it stands, the blueprint needs either a different
-> memory-server version/build or an explicit two-plane decision recorded in the services log.
-> **OQ-14 (the `bge-m3` leg) remains UNANSWERED** — nothing here decided it.
-> ✅ Owner 2026-10-12: **no row is minted** for the blueprint until the owner asks — the spec stands in services-ai.md §9b and no lane launches from it. When it is minted, derive `max(HD)+1` from this file; never type a number (CONVENTIONS §2).
->
-> **Deferred 2026-10-08 (owner): the blueprint stays parked** — no row minted, nothing installed, no plane chosen. The OQ-12/OQ-13 answers above stand as recorded, OQ-14 stays unanswered, and **no AI work waits on any of them**.
+> **Memory-plane calls OQ-12/13/14 — the durable copy is now in
+> [services-ai.md](docs/services-ai.md) §9b**, with the collision row in
+> [services-ai-rejected.md](docs/services-ai-rejected.md); the measurement evidence stays
+> [`reports/probe-agentmemory-20260921.md`](reports/probe-agentmemory-20260921.md). **OQ-12 and OQ-13 were
+> answered by the owner on 2026-09-26 and reaffirmed 2026-10-12** — `agentmemory` is the one central plane with
+> `user_id`/`project_id` filters set per client, and the Qdrant + one central `agentmemory` + direct clients
+> blueprint is the target architecture; its Qdrant-backend collision is named in §9b as the first implementation
+> task, so do not re-ask either call. **OQ-14 (the `bge-m3` leg) is unanswered** — nothing here decided it.
+> **Parked (owner, 2026-10-08 / 2026-10-12): no row minted, nothing installed, no build authorized**, and
+> **no AI work waits on any of them.** ✅ Owner 2026-10-12: **no row is minted** for the blueprint until the owner
+> asks — the spec stands in [services-ai.md](docs/services-ai.md) §9b and no lane launches from it. When it is
+> minted, derive `max(HD)+1` from this file; never type a number (CONVENTIONS §2).
 >
 > **Decided 2026-09-21** — each written once to its owning doc + its `<domain>-rejected.md` row, so do not re-ask any of them: the cockpit surface + which account runs it (**HD-409**), the exit-node host (**HD-408** → row deleted, stays on the Pi), the family-support onboarding model (**HD-412**), the git-credential shape on the control node (**HD-407 / HD-409**), the scoped-consumer grant (**HD-384**), the second OWUI instance (**HD-248**, deferred), the tailnet resolver chain (**HD-415**, redesigned rather than trimmed), the HA trusted-proxy fix (**HD-418**) and the jellyfin publish (**HD-419**). Note for the next session: four items previously described as "only a human can place these" turned out to be AI-runnable (**HD-347** reads its own group id, **HD-350** appends its own pubkey, **HD-407**'s `op read` is non-interactive) or owner-minted into the vault already — so the human-gate wording in a row is a claim to test, not a fact to obey.
 >
