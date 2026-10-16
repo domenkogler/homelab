@@ -124,3 +124,28 @@ group_keys_sha256 f090d95b8f02d953a1942ba406426e3014dae07e1d75348ceb77034f5a768e
 baseline_rev 8a00aed8abc7c2b969046b2f48cc90419f8c9c28
 twin_groups 2448
 group_keys_sha256 a093bf3da44e5388c3462e1df48ab28b5f7f4bdb84a79522447b876544ea7bab
+#
+# Moved to 4eb6bad9 by HD-1117: no wall clock enters a render any more, and the three groups that
+# carried the clock are the only ones that shed a side. `%Y-%m-%dT%H:%M:%SZ` lost BOTH render sides
+# (`scripts/render_all.py`'s `_iso_now` and `scripts/ansible/render_network_addresses.py`'s stamp)
+# and keeps one real side, `scripts/bench/spark/gate7-read.py:231`, where the format PARSES a bench
+# timestamp — a bench script is not a render view, so it stays and the group goes single-sided.
+# (`ansible/restart-watchdog.sh` prints the same pattern inside a `$(date -u …)` line, which the
+# extractor lifts as a different literal, which is why it is not the second side this run sees.)
+# `ansible_date_time` and `iso8601` lost every side in scope, which is the same fact: the two ctx
+# entries and the Jinja `{{ ansible_date_time.iso8601 }}` reference are gone, so the bare key string
+# survives only INSIDE longer strings — the self-test's canary line, a docstring — never as a
+# literal of its own. Renaming is not the remedy here: the ONLY way to keep those bytes is
+# to stamp a tracked file with `datetime.now()`, which is the defect — a faithful re-render then
+# differs from the committed bytes by the clock line alone, so `render_all.py --check` can never read
+# green and the `*-generated.md` docs have no usable drift gate (CONVENTIONS §8.5).
+# Shape of the move 2448 -> 2454: 9 groups ADDED, every one of them a pair between this lane's new
+# `render_all.py --self-test` and a file that already said the same thing (`SELF-TEST {…} arms, …`
+# with `check_subagent_contract.py`, `REPO` with `lib/repo_root.py`, `reset` with `corpus_diff.py`,
+# `status`, `hand edit`, `, f`, ` arms, `, the `IaC/ansible/group_vars/all/main.yml` path, `SELF-TEST `)
+# and 3 shed, all three the retired clock. Net +6, so the population GREW — the direction the canary
+# distinguishes from narrowing. Eligibility, measured BEFORE the move: `git rev-list --count
+# 8a00aed8..HEAD` = 4 (cap 300).
+baseline_rev 4eb6bad9c5ea4969edd70eacd8f69b4861ae0ae9
+twin_groups 2454
+group_keys_sha256 bf4ee1f9e97ddb6c4ab2ead4bea6b35da3d99c62faa6624d80c0cf94e03ae6a0
