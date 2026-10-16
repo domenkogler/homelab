@@ -36,7 +36,8 @@ tags: [harness, pi, agent-harness, seats, tmux, llm]
 - **Domain, not a cross-cutting doc.** [`../CONVENTIONS.md`](../CONVENTIONS.md) §8.4 would allow an
   unprefixed concern doc (`security.md`, `backup.md` shape); the domain wins because harness candidates
   already carry a reject history, which a cross-cutting doc has no decision log of its own to hold. The
-  host-class wording that licenses a seat-class domain is in §8.1 of the same file.
+  host-class wording that licenses a seat-class domain is the **seat-class domain** bullet in
+  [`../CONVENTIONS.md`](../CONVENTIONS.md) §8.1.
 
 ---
 
