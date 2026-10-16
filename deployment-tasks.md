@@ -253,6 +253,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 - [ ] **HD-397** — off-LAN access parity: landed + verified off-LAN; the **on-site** pass is the open leg. · [services-vps.md](docs/services-vps.md)
 - [ ] **HD-316** — the Homepage family launchpad (real app dashboard + a separate technical section). · [services.md](docs/services.md)
 - [ ] **HD-448** — VPS IPv6: NDP + outbound v6 are landed and measured; close the **inbound** half with one `curl -6 https://vps.kogler.si` from an off-net v6 host, and give the verdict on v6 parity for the family-agnostic `:22`/`:443`/`:51820`/RustDesk accepts (confirm it, or scope them `meta nfproto ipv4`). · [services-vps.md](docs/services-vps.md)
+- [ ] **HD-450** — the two silent-failure collector legs (NUT client→master reachability series + the VPS consumer cert pairs): converge `--tags monitoring` on the **VPS** slot (never `--diff` on this role), then read the per-host `/metrics` verdicts and the `nut-master-unreachable` rule back from the live backend. · [observability.md](docs/observability.md) §Silent-failure hygiene
 ---
 
 ## Phase 1a — Parallel Track: NAS Pools + Host Installs (before / during Phase 1.5)

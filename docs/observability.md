@@ -410,17 +410,28 @@ that host's Alloy into the same remote_write path as everything else):
 | `homelab_unit_result{unit=,result="success\|failed\|missing"}` | the reason, for the dashboard and the alert text |
 | `homelab_cert_pair_present{consumer=}` | 1 when the pair this edge actually loads exists |
 | `homelab_cert_days_left{consumer=}` | days to expiry of the pair this edge loads |
+| `homelab_nut_master_reachable{master=}` | 1 when this host's NUT **client** can read its master — a unit result never implies this claim |
+| `homelab_nut_master_result{master=,result="ok\|unreachable\|unknown"}` | why the leg reads what it reads: `unreachable` = `upsc` answered with a failure, `unknown` = no `upsc` binary or the call outlived its 5 s bound |
 | `homelab_hygiene_scrape_ok` | the collector's own heartbeat — the collector is a systemd service, i.e. the same failure class |
 
-⚠ **What the cert legs do NOT cover**, at the metric-name level (VM
-`/api/v1/label/__name__/values`): the only cert families in the backend are `homelab_cert_days_left` (both series
-— `consumer="traefik-internal"` on oldsrv, `consumer="traefik-ha"` on the Pi), `homelab_cert_pair_present` and
-blackbox `probe_ssl_earliest_cert_expiry`. **The VPS box cert
-(acme.sh, `/etc/letsencrypt/live/…`, 61-day cycle, failing renewal step) is in none of them**, so no rule can ever
-catch it and its state has to be read from `/var/log/acme.sh.log` rather than a graph
-(→ [`network-dns.md`](network-dns.md) §Cert chain). Exporting it is a collector leg on the VPS, not a rule; a rule
-written against a plausible-sounding name like `cert_age_days{name="vps-cert"}` would sit green forever on a series
-that has never existed, which is the failure mode this whole section exists to prevent.
+⚠ **What the cert legs cover**, at the metric-name level (VM
+`/api/v1/label/__name__/values`, cross-checked per host against `curl -s 127.0.0.1:9098/metrics`): the
+`homelab_cert_*` family carries one entry per consumer edge that loads a **PEM file** on disk —
+`consumer="traefik-internal"` on oldsrv, `consumer="traefik-ha"` on the Pi, and the VPS pair-dumper's two
+outputs as `"traefik-tailnet"` / `"traefik-tailnet-ts"` (live in the backend today: the first two — the VPS
+entries are the leg the Deploy-state note below still owes). The other cert-bearing series are blackbox
+`probe_ssl_earliest_cert_expiry` (**zero series** — blackbox emits no SSL expiry, which is what makes the
+`ssl-cert-expiring` rule structurally dead) and Traefik's own `traefik_tls_certs_not_after`, which the
+VPS-only `job="traefik"` scrape takes from the **issuer's** in-memory cert view.
+
+**The VPS box cert has no acme.sh behind it** — no `acme.sh` binary, no `/etc/letsencrypt`, no
+`/var/log/acme.sh.log`. The VPS Traefik *is* the fleet's single ACME issuer (Cloudflare DNS-01), so its own
+material lives in `/opt/traefik/acme/acme.json`, a JSON store `openssl x509` cannot open; the part this box
+loads as a pair is the dump in `/opt/traefik/certs/`, bind-mounted into `traefik-tailnet` and written by the
+certs-dumper's rename step. That dump is therefore the cert leg this host was missing, and the issuer's age
+is already a series through Traefik's own metrics. A rule written against a plausible-sounding name like
+`cert_age_days{name="vps-cert"}` would sit green forever on a series that has never existed, which is the
+failure mode this whole section exists to prevent.
 
 *Fail-loud by construction*, because a monitor that says "healthy" about what it cannot see is the worst
 failure here: a listed unit that is not installed → `0`/`missing` (so a wrong list
@@ -489,10 +500,30 @@ v1.20.1 on the box: `collectors_dir`, `directories`, `paths`, `files`, `syntax_v
 follows the shape the same role already proves live (the network-clients exporter), never a textfile
 directory; that is also why `set_collectors` does NOT list `textfile`.
 
-**Coverage today:** 9 series per host — oldsrv `traefik-cert-pull` + `nut-monitor` +
-`nut-client`, Pi `ha-cert-sync` + the two NUT units, all `last_success = 1`. One limit stands: **the NUT
-client→master leg is not a metric** — the exporter reports the NUT *units'* results, which is not the same
-claim as "this client can reach the master", so a loopback-only window between converges stays invisible.
+**Coverage today**, from the read rather than from this sentence
+(`curl -s 127.0.0.1:9098/metrics | grep -c '^homelab_'` on each host): all five monitoring hosts publish the
+heartbeat; oldsrv (`traefik-cert-pull` + the two NUT units) and the Pi (`ha-cert-sync` + the two NUT units)
+also publish one cert pair each, all `last_success = 1`; `nas` and `spark` publish nothing but the
+heartbeat, because neither declares a watched unit or a pair.
+
+**The NUT client→master leg is the claim the unit legs cannot carry.** `nut-monitor.service` and
+`nut-client.service` stay `active` while the master stops answering — `upsmon` retries forever and never
+fails its unit — so a window in which a client reads nothing is invisible until a converge happens to run
+its own client-leg assert. `homelab_nut_master_reachable` runs the client's own
+`upsc <ups>@<master> ups.status` on every scrape, on the client host, against the master `nut_host` names;
+UPS *values* stay single-sourced on the master (see §UPS / Power-Loss Monitoring (NUT)), so this leg adds a
+reachability verdict and never a second copy of the battery numbers. A client that declares no master emits
+no series — the leg is declared per client host, and absence of the declaration is the one case the rule
+cannot see.
+
+**Deploy state: 🟢 IaC done ⏳ deploy-gated.** Both new legs ship inside `homelab-hygiene.py` plus the host
+lists, so their series appear on the next VPS-slot `--tags monitoring` converge (the collector runs on all
+five hosts; `--diff` on this role prints vault values into the run log — →
+[deployment-secrets.md](deployment-secrets.md)). The reads that close it: on oldsrv and the Pi
+`curl -s 127.0.0.1:9098/metrics | grep '^homelab_nut_'` → one pair with `reachable=1`; on the VPS
+`grep '^homelab_cert'` of the same read → two consumers; then `nut-master-unreachable` read back from the
+ruler API the way §Alerting describes. Until that run, `homelab_nut_master_reachable` has no series and the
+rule evaluates `NoData → OK`: silent, never falsely green-with-data.
 
 ⚠ **Never dump `/etc/alloy/config.alloy` to inspect the
 remote_write block**: it prints the VictoriaMetrics **and** VictoriaLogs basic-auth passwords. The file is 0600
@@ -588,6 +619,7 @@ this role prints vault values into the run log (→ [deployment-secrets.md](depl
 ## UPS / Power-Loss Monitoring (NUT)
 
 - **Metrics (single source):** one **nut_exporter** on **nas** (the NUT master) reads local `upsd` → VictoriaMetrics (via Alloy scrape). Other hosts do **not** re-export identical UPS data (avoids redundancy).
+- **Reachability is a separate claim, and a separate series:** `homelab_nut_master_reachable{master=}` is published by the hygiene collector on each **client** host from that client's own `upsc …@<master>` read — `nut-monitor`/`nut-client` staying `active` is not evidence that the master is reachable (→ §Silent-failure hygiene).
 - **Shutdown:** **NUT owns local shutdown** on `nas`, `oldsrv`, and `ha` (Raspberry Pi). Grafana/n8n are **alert-only** — there is **no shutdown action from Grafana** (the observability **backend is on the VPS**, so it must never be the thing that halts the NAS during a power cut; only the host NUT agents power their own box).
 - **Notification ordering & delay:** on mains loss the **Warning "on-battery" alerts at t=0** (WAN still up via router/ONT on UPS → Signal + email deliver). At **Critical**, `oldsrv` is **delayed ~60 s** before powerdown (via NUT `upssched`) so its own Grafana→n8n→Signal/email pipeline flushes the Critical alert, then it powers off. `nas` + `ha` power down immediately.
 - **Guaranteed fallback:** a **NUT-side `notifycmd`/`upssched-cmd` script on nas** emails + sends Signal directly on `ONBATT` and `LOWBATT`, independent of Grafana/n8n — so a pre-shutdown notification is sent even if the observability stack is already degraded.

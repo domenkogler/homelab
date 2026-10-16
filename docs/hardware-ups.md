@@ -134,7 +134,9 @@ manual boot before WoL re-arms; with battery ride-down the master never cuts, so
   The evidence is `upsc powerwalker@nas.kogler.si ups.status` **on the client** plus, on the master, the journal
   line `User upsmon@<client-ip> logged into UPS [powerwalker]`. The nut role **runs both reads in
   every converge**: the client leg asserts (fail-loud, escape hatch `-e nut_require_master_leg=false`),
-  and the master asserts the socket is really bound.
+  and the master asserts the socket is really bound. Between converges the same client read is a series —
+  `homelab_nut_master_reachable{master=}`, published per scrape by the hygiene collector on the client
+  (→ [observability.md](observability.md) §Silent-failure hygiene).
 - **`upsd` binds every `LISTEN` address once, at start-up:** if the address is not configured on the interface
   yet it logs `not listening on <addr> port 3493` and keeps serving on what it got — so `upsd.conf` can carry a
   LAN listener that `ss -lntp` proves absent, and remote clients get `Connection refused` with nothing
