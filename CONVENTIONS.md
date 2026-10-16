@@ -138,8 +138,16 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   which row happened to be minted first in the lane, not the context the session is entering. A brief names the
   rows it carries **as of its own worktree's commit** and **re-derives** those ids from `todo.md` at that commit —
   it never copies an id list from another doc or plan (§4 Backlog). It **links** the lane-session rules
-  ([docs/orchestration.md](docs/orchestration.md) §4, the overrides O1–O9) instead of restating them, and it dies
+  ([docs/orchestration.md](docs/orchestration.md) §4, the overrides O1–O11) instead of restating them, and it dies
   with its rows, deleted by the orchestrator in the cleanup commit (O7).
+- **Subagent children: inherit the model, stay at two, wait out a compaction.** A child launch never names a
+  `model:` — builtins inherit the session model and a seat's rendered model set carries one serving provider, so
+  an override names a provider that does not exist here; the ceiling is a setting (`subagents.modelScope`,
+  `allow: ["inherit"]`) in `pi-agent/settings-ssot.json`, not a habit. **≤2 children run concurrently**, because
+  the engine's `max_num_seqs` minus the parent minus the always-on consumers is 2 (`docs/pi-harness.md` §6) —
+  a third preempts a live prefix rather than queueing. And **a silent child is not a hung child**: a local engine
+  compacts for minutes at a time, so a stall is waited out, and the run deadline is per child, not per parent.
+  Numbers, reasoning, and which file sets each: `docs/orchestration.md` §4 (O10–O11).
 - **Commit signing is OFF: `commit.gpgsign=false`, and a plain
   `git commit` is the correct command.** ⚠ **Do not reach for `git commit -s`** — in git, `-s`/`--signoff`
   adds a `Signed-off-by:` **trailer and signs nothing**; a session that mistakes it for signing leaves a

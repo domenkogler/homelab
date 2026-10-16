@@ -1142,6 +1142,10 @@ item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratche
 item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" $PY scripts/gate/check_script_layout.py --self-test
 item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/gate/check_iac_identifiers.py
 item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_iac_identifiers.py --self-test
+# The child-lane contract (delegation default, ≤2 children, inherit-only model, 2 h deadline) lives in
+# four files at once; this is the only thing that keeps those four agreeing. Run + canaries.
+item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" $PY scripts/gate/check_subagent_contract.py
+item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" $PY scripts/gate/check_subagent_contract.py --self-test
 # The corpus-diff gate, promoted from the hand-run tool it was: `--gate` replays the window pinned
 # in gate/corpus_baseline.txt over the signed exceptions in gate/corpus_diff_accepts.txt, so a green
 # suite means the accepts list was read and matched, not that someone remembered to run a script

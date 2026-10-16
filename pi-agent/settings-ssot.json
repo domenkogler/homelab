@@ -12,5 +12,16 @@
     "provider": { "timeoutMs": 1800000, "maxRetries": 0, "maxRetryDelayMs": 60000 }
   },
   "compaction": { "enabled": true, "reserveTokens": 16384, "keepRecentTokens": 32768 },
-  "thinkingBudgets": { "minimal": 1024, "low": 2048, "medium": 4096, "high": 8192 }
+  "thinkingBudgets": { "minimal": 1024, "low": 2048, "medium": 4096, "high": 8192 },
+  "subagents": {
+    "modelScope": { "enforce": true, "strict": true, "allow": ["inherit"] }
+  },
+  "_subagentConfig": {
+    "_note": "NOT merged into settings.json: pi-settings-config.sh owns only un-prefixed keys. This is the payload for the pi-subagents extension's OWN config file (~/.pi/agent/extensions/subagent/config.json), which no seat plane installs yet — the seat plane for this file is owed, and until it lands these numbers are authored, not effective, and must be passed on the launch. Why each value: docs/orchestration.md §4 O10-O11 + docs/pi-harness.md §6. Enforced in-repo by scripts/gate/check_subagent_contract.py.",
+    "asyncByDefault": true,
+    "timeoutMs": 7200000,
+    "globalConcurrencyLimit": 2,
+    "maxActiveAsyncRunsPerSession": 2,
+    "checkpointBeforeDeadlineMs": 600000
+  }
 }

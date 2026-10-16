@@ -78,7 +78,7 @@
 | Primary checkout `/home/domen/source/homelab` | `main`, working tree **clean** — a merge station, not an edit site |
 | `bash scripts/validate-all.sh` | **GREEN** |
 | Session worktrees | **transient by design** — a lane worktree (`../homelab-wt-<YYYYMMDD>-<HHMM>`) exists only while its lane runs; the parent removes it **after** the merge, by name, with `git worktree remove`, and the branch dies with `git branch -d`, whose refusal on an unmerged branch is itself the proof nothing was stranded (never `rm`, never `-D`) · ⚠ **a worktree existing has repeatedly meant the opposite of "work is in flight"** — read `git log main..<branch>` and `git status` inside it, never the directory name · [docs/orchestration.md](docs/orchestration.md) §4 O8 |
-| **Lane briefs = the dispatch unit** | **one `prompt-<domain>.md` brief = one session = one worktree = one branch** — a brief is named for the host and domain it enters, never for an HD id (CONVENTIONS §6). Each brief carries the rows it owns, the files it owns and the converge host it holds; the row index per brief is §B0 below, and a brief names its rows **as of its own worktree's commit** — ids are re-derived at each `HEAD`, never copied. Waves, pairing and the merge/cleanup contract are in [docs/orchestration.md](docs/orchestration.md) **§4**, whose rules deliberately DIFFER from README §4 and CONVENTIONS §6 (items O1–O9 there) — §4 is silent nowhere this table depends on |
+| **Lane briefs = the dispatch unit** | **one `prompt-<domain>.md` brief = one session = one worktree = one branch** — a brief is named for the host and domain it enters, never for an HD id (CONVENTIONS §6). Each brief carries the rows it owns, the files it owns and the converge host it holds; the row index per brief is §B0 below, and a brief names its rows **as of its own worktree's commit** — ids are re-derived at each `HEAD`, never copied. Waves, pairing and the merge/cleanup contract are in [docs/orchestration.md](docs/orchestration.md) **§4**, whose rules deliberately DIFFER from README §4 and CONVENTIONS §6 (items O1–O11 there) — §4 is silent nowhere this table depends on |
 | **Who writes `prompt.md` / `todo-table.md`** | **The orchestrator only** (§4 O2). Lane sessions edit their own `todo.md` rows and their own `deployment-tasks.md` lines, and never touch these two views — `check_todo_done.py` couples `prompt.md` to `todo.md`, so two writers on the views means a red gate by construction |
 | Stale session branches | deleted with `git branch -d`, which refuses an unmerged branch — so the sweep itself proves nothing was stranded. `git branch --list 'session/*'` is the derived count; never type one here |
 | Registry size | **derived, never typed** — the row count and the next-free id (max + 1) are read out of [todo.md](todo.md) (`grep -c` on its `HD-` rows, `sort` for the max); this sweep deleted rows, so re-derive rather than trusting any number quoted in prose (a literal pipe would break this cell — see [todo.md](todo.md) HD-417) |
@@ -199,7 +199,9 @@ Every row below that has a brief is dispatched **from the brief**, not from this
 ownership, the converge host and the lane contract. Rows with **no brief** stay exactly where they are — that is not
 lost work, it is unassigned work. Waves, pairing, the owner-gate "park and continue" rule and the merge/cleanup
 sequence are [docs/orchestration.md](docs/orchestration.md) **§4** (orchestrator mode), which **overrides**
-parts of README §4 and CONVENTIONS §6 at items O1–O9; this table is a row→brief index only and keeps no
+parts of README §4 and CONVENTIONS §6 at items O1–O11 — O10/O11 bound the **children** inside any one
+session (delegation is the default, ≤2 live children on this engine, inherit-only model, a 2 h deadline),
+which is a different axis from the wave table below; this table is a row→brief index only and keeps no
 second copy of those rules. **A brief is named for its host + domain, never for an HD** (CONVENTIONS §6): the
 eight per-HD briefs this index used to carry are gone, their rows redistributed to the domain briefs below, and
 a row with no successor here is **unbriefed**, not lost — it stays in §B.
@@ -553,6 +555,9 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 6. **Never print a secret value** — lengths, prefixes, item ids and hashes only.
 7. **A test that cannot fail is not evidence** (CONVENTIONS §6): prefer the gate that carries its own self-test over
    prose that asserts coverage.
+8. **Children, not sessions, are the other concurrency axis:** delegation is the default, at most two children run
+   at a time (`max_num_seqs` minus the parent minus the always-on consumers — [docs/pi-harness.md](docs/pi-harness.md) §6),
+   they run the session model, and a minutes-long silence is a compaction pause, not a hang. Contract: [docs/orchestration.md](docs/orchestration.md) §4 (O10–O11); the numbers live in `pi-agent/settings-ssot.json` and are held by `scripts/gate/check_subagent_contract.py`.
 
 ---
 

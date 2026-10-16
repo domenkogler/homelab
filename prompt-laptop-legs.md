@@ -6,7 +6,7 @@
 > quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
-**Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O9) — read it once; it overrides README §4 and
+**Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) — read it once; it overrides README §4 and
 CONVENTIONS §6 at the items it numbers and this brief deliberately restates none of them.
 
 **Host + slots (O3):** the **Win11 seat**, provider-scoped `domenp14s` (`native_only: true` keeps it out of the WSL render —

@@ -642,6 +642,21 @@ Children then run on `spark-lane/spark/qwen3.8-flash-next` (`pi -p --model …`)
 ~3 lanes fit the pool. Not enabled by default — one lane costs 4× less context, so it is a
 per-run choice, not a global default.
 
+**The arithmetic, settled as a ceiling** (`spark_vllm_max_num_seqs` is the second term, and it is the
+engine's, not the harness's): **4 sequences − 1 parent − 1 reserved for the always-on consumers (voice,
+LiteLLM, RAG) = 2 live children.** A third child does not queue behind the other two; it preempts a live
+prefix and pays the recompute, which is the failure family this section records. The ceiling is contract —
+[orchestration.md](orchestration.md) §4's child-lane rules (O11) — and `scripts/gate/check_subagent_contract.py`
+holds the settings file and the rule docs to the same number.
+
+**Why the lane alias is NOT how the ceiling is enforced here.** The repo policy is inherit-only: a child
+runs the session model, enforced by `subagents.modelScope` (`allow: ["inherit"]`) in
+[`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), and the model spec declares no `spark-*`
+alias — so `--model spark-lane/…` is refused at launch, and the way a child costs less KV is a *bounded
+prompt*, not a smaller profile. Landing the alias later is a legitimate move, but it owes three edits in
+one change: the spec client, the widened `allow`, and O11's wording (the twin gate would otherwise be
+silent and the scope would silently reject the alias).
+
 ---
 
 ## 7. Optional knobs (documented, NOT enabled)
@@ -681,6 +696,13 @@ Verified: the row renders `262.1K / 16.4K / thinking yes`, and the smoke test re
 - ⏳ Long-context needle test at 262k (agentic/max-context work is gated on it,
   [`hardware-spark.md`](hardware-spark.md)) — until it passes, treat the top ~20% of the window as
   experimental.
-- ⏳ `spark-lane` profile (§6) is authored-on-paper only; promote it into the reference config once a
-  real orchestrator run measures lane-vs-preemption behavior.
+- ⏳ `spark-lane` profile (§6) is authored-on-paper only; promoting it also owes widening
+  `subagents.modelScope` and restating O11, all in the same change.
+- ⏳ The child-runtime knobs (`timeoutMs`, the two concurrency caps, the pre-deadline checkpoint) are
+  authored in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) as `_subagentConfig` — the
+  payload for the extension's own `~/.pi/agent/extensions/subagent/config.json`, a file **no seat plane
+  installs**. Until a plane owns it, a seat runs the harness's own defaults (a 30-minute run backstop, up to
+  20 concurrent children), and a run must pass the values on the launch instead of assuming them. The settings
+  plane merges un-prefixed keys only, which is why this payload sits under an underscore rather than pretending
+  to be converged.
 - **Pointer (not a tail):** the workstation's two other local model legs — **FIM autocomplete** and **Qwen3-VL visual judgment** (vision reaches spark only as *text*; the engine is text-only) — are owned by [`hardware-workstation.md`](hardware-workstation.md) + decision #28 in [`services-ai.md`](services-ai.md) §9. Nothing here changes; the harness stays direct-to-engine (decision #26).

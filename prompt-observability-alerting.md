@@ -6,7 +6,7 @@
 > HD-1121 · HD-1122** (row ids as of `939ad5e7` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
-**Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O9) — read it once; it overrides README §4 and
+**Lane contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) — read it once; it overrides README §4 and
 CONVENTIONS §6 at the items it numbers and this brief deliberately restates none of them.
 
 **Converge hosts + slots (O3):** the **VPS** is the primary slot (`--tags monitoring` restarts Grafana / VictoriaMetrics /

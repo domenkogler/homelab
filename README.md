@@ -147,7 +147,7 @@ task-specific dispatch. Do **not** bulk-read the repo.
 > evidence: VPS `tailscale-sidecar Exited (128)` after a `timeout 600` kill). Re-running the same
 > playbook is idempotent (the guard restarts the stack cleanly once siblings are up). `--check` is the
 > only safe foreground form. See `scripts/README.md` Notes & conventions for the exact incantation.
-7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required
+7. if it's a planned / multi-step / multi-host / live-deploy change → use the **orchestrator pattern**: a single parent session co-ordinates subagents/parallel lanes with an explicit lane map (see pi-subagents skill), and records the runbook in the owning `docs/*.md` — no separate `plan/` ceremony required. **Delegation is the default here, not an escalation** (CONVENTIONS §6, [docs/orchestration.md](docs/orchestration.md) §4 O10): the parent launches, reads evidence, merges and validates; the children read, analyse and write.
 8. **the runbook is for what the AI cannot do — everything else belongs to its owning doc.** `deployment-manual.md` carries the steps a human must perform and a from-scratch rebuild cannot recover without: first accounts on devices and services, physical console/reseat/label work, and anything gated on a human-held credential. **If the AI can do it, it does not go in the runbook** — automated behaviour lives in IaC, and repeatable procedure + failure semantics live in the owning `docs/*.md`. A session that *ran* a check writes those lines where they are read, not into the runbook: "this session performed it" is not what makes a step runbook material (HD-450, 2026-09-23: a cert-pull health check the session ran over SSH was briefly added here for exactly that wrong reason). Ownership still follows the action for the human-only steps: the imperative line is written **in the same change, by the session that did it** (the lane briefs assign files to avoid two writers, and that root file was assigned to nobody — which is how owed procedure quietly belongs to everybody). The runbook is procedure, not a diary (CONVENTIONS §6.4)
 
 ### Orchestrator + reviewer discipline (lane hygiene, HD-346 lesson)
@@ -157,9 +157,9 @@ task-specific dispatch. Do **not** bulk-read the repo.
 > worktree and branch, then merged and cleaned up by a parent — is governed by
 > [docs/orchestration.md](docs/orchestration.md) **§4 (Orchestrator mode)** (moved out of `prompt.md`
 > 2026-09-28), whose rules **deliberately differ from README §4 and
-> CONVENTIONS §6** at the items it numbers O1–O9 (fast-forward vs rebase, who may write `prompt.md` /
-> `todo-table.md`, per-directory converge slots, park-instead-of-stop on owner gates, and who deletes a brief).
-> Where §4 is silent, this README and CONVENTIONS stand and outrank any brief.
+> CONVENTIONS §6** at the items it numbers O1–O11 (fast-forward vs rebase, who may write `prompt.md` /
+> `todo-table.md`, per-directory converge slots, park-instead-of-stop on owner gates, who deletes a brief, and
+> the child-lane contract O10–O11). Where §4 is silent, this README and CONVENTIONS stand and outrank any brief.
 
 When co-ordinating subagent lanes (item 7), keep children **bounded and focused** — an over-scoped,
 verbose child is worse than none. Live lesson (2026-09-08): a `reviewer` handed two full IaC branches
@@ -172,13 +172,17 @@ a verdict — the parent had already verified the final state itself. Rules:
 - **Give the reviewer the parent's verification notes**: the parent holds authority; a pre-merge review
   is a second opinion, not a fresh audit. State "the parent has already verified X, Y, Z — confirm or
   flag only what contradicts."
-- **Timebox long-hanging reviews**: prefer a fast, capable model; if a child exceeds ~10 min with no
-  verdict, steer it to wrap up with what it has; abort and self-verify if it becomes a bottleneck
-  (the parent's own validation + `validate-all.sh` green is the real gate).
+- **Silence is not a hang, and the parent does not race the child** — the retired clock-based
+  steer-or-abort timer is wrong on a locally-served model, where a child compacts for minutes at ~11 tok/s. Run ≤2 children
+  concurrently, async, on a 2 h deadline, on the parent's own model: the numbers, the reasoning and where each
+  is set are [docs/orchestration.md](docs/orchestration.md) §4's child-lane contract (O10–O11). Steer on a
+  needs-attention notice or a repeated tool failure — never on quiet.
 - **Prefer fresh-context single-purpose children** over broad multi-commit audits; if a review is big,
   split it per commit/branch and run them in parallel.
 - Keep the parent as arbiter: children implement/review within their lane; the parent merges,
-  runs `validate-all.sh`, records the runbook, and owns final acceptance.
+  runs `validate-all.sh`, records the runbook, and owns final acceptance — and by default it does **not**
+  perform the implementation or the analysis itself (O10). A parent that investigates the tree to decide what
+  to delegate has paid for the work twice.
 
 ---
 

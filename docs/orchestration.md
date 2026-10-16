@@ -1,5 +1,6 @@
 > **Role:** the PERMANENT process contract for repo sessions — the working contract (§3) and the
-> lane-session orchestrator mode (§4, overrides O1–O9, launch, merge/cleanup). The LIVE wave table is
+> lane-session orchestrator mode (§4, overrides O1–O11, launch, merge/cleanup) + the child-lane contract
+inside one session. The LIVE wave table is
 > NOT here — it lives in [todo-table.md](../todo-table.md) §B0. Where the contract below is silent,
 > [README.md](../README.md) §4 and [CONVENTIONS.md](../CONVENTIONS.md) §6 stand and outrank everything.
 > **Linked from:** [prompt.md](../prompt.md) · [README.md](../README.md) §4 · [todo-table.md](../todo-table.md) §B0 · [CONVENTIONS.md](../CONVENTIONS.md) §4/§6
@@ -14,7 +15,7 @@
 4. **SSOT direction:** values in IaC (`group_vars/*.yml`, `host_vars/*.yml`) · generated `*-generated.md` never hand-edited · secrets 1Password `Homelab-ansible` only, fail-loud (no `default('')`).
 5. **Lifecycle:** fully-done HD row → **deleted** from todo.md (record in owning doc + git). IaC-done-but-deploy-gated row stays with a ⏳ tail. Decisions written once to the owning doc + `<domain>-rejected.md`.
 6. **Close-out:** record the outcome + runbook in the owning doc; commit (plain `git commit` — commit signing is retired); merge/push per the session branch policy (unmerged `session/*` branches are the norm until the deploy-gate flips).
-7. **Orchestrator discipline:** for multi-step/multi-host/live-deploy changes, one parent co-ordinates bounded single-deliverable subagent lanes (pi-subagents); the parent holds final acceptance + runs validate-all. Timebox reviews (~10 min); a child exceeding that with no verdict is steered to wrap up.
+7. **Orchestrator discipline:** for multi-step/multi-host/live-deploy changes, one parent co-ordinates bounded single-deliverable subagent lanes (pi-subagents); the parent holds final acceptance + runs validate-all. **Delegation is the default, not an escalation** (O10), and a child's silence is a compaction pause, not a hang — the run budget is 2 h per child, so steer on a *needs-attention* notice or the deadline, never on quiet (O11).
 
 **Ask-if-unsure:** planned/multi-host/deploy-gated/irreversible → orchestrator pattern; re-deciding → check owning doc + rejected log first; unsure of the owning doc → `docs/index.md` map.
 
@@ -25,7 +26,7 @@
 
 > **Read this first if you were launched from a `prompt-<domain>.md` brief.** This section is the **parent**
 > contract for running two (or more) independent lane sessions in parallel, and it is an **OVERRIDE, not a
-> restatement**: the nine items **O1–O9** below deliberately behave differently from [README.md](../README.md)
+> restatement**: the eleven items **O1–O11** below deliberately behave differently from [README.md](../README.md)
 > §4 and [CONVENTIONS.md](../CONVENTIONS.md) §6 + its Session close-out row. **Where this section is silent,
 > README and CONVENTIONS stand and outrank everything.** A brief is a dispatch note: it can narrow §4, never
 > widen it, and if a brief contradicts §4 then **§4 wins and the brief is wrong** — fix the brief, do not
@@ -51,6 +52,8 @@
 | **O7** | CONVENTIONS §lifecycle: a closed row is deleted from `todo.md` | Kept for the lane. The **domain brief file itself** is deleted by the **orchestrator**, in the cleanup commit, **in the same commit as the link fixes** in `prompt.md`, `todo.md` and `todo-table.md` | `scripts/gate/check_doc_map.py` scans every root `*.md` **except `prompt-*`**: a dangling link from `todo.md`/`todo-table.md`/`prompt.md` fails the gate, while a link from one brief to another is not checked at all |
 | **O8** | CONVENTIONS §worktree: on a path collision, abort and pick a new name | Hard rule for the parent too: it **never** `rm`s / moves / renames a worktree it did not create; lane worktrees are removed **after** the merge, **by name**, with `git worktree remove`; branches die by `git branch -d` (**never `-D`**) | A worktree removed by a session that did not create it is gone; and `-d`'s refusal is the cheap proof that nothing was stranded |
 | **O9** | README §4.7 + CONVENTIONS §6: nothing bounds how many **sessions** a run may have — O3 caps *converge slots*, not contexts, so launching a lane per brief is legal on its face | Sessions are cheap, **contexts are not**. At most **8 concurrent agent sessions** and at most **2 full-context sessions — the orchestrator counts as one**. The default shape is *orchestrator + one lane*; a **third** is allowed only when the other two are near done, and **4 is the ceiling, never exceeded**. Anything beyond must be a **narrow-context child** (a bounded single-deliverable subagent with its own fresh, small context — README §4 "Orchestrator + reviewer discipline") and never a second full lane wearing a brief. The brief pool is a **dispatch queue, not a parallelism licence** | A full lane session pays the README §0/§1 boot ritual (~60 k tokens of `todo.md` alone), so parallel lanes are paid for out of the context budget, not the session budget; rows queued behind an occupied host slot (O3) are **waiting, not missing** |
+| **O10** | README §4 item 7 + the pi-subagents contract: the parent works directly by default, and delegation must be earned per task | **Delegation is the default.** Every analysis, read-down, authorship and verification task runs as a child. The parent spends its own context on four things only: composing launches, reading **evidence** (`git log`, `git status --porcelain`, `git show --stat`, gate output), merging, and `validate-all.sh` | O9's reasoning applied one level down: a boot ritual costs tens of thousands of tokens, so a parent that re-reads the tree in order to brief a child pays that bill twice. ⚠ This does **not** soften Merge + cleanup step 1: reading evidence *is* the parent's job, and a lane's report is still not proof |
+| **O11** | Harness defaults: up to 20 concurrent children, a 30-minute run backstop, and whatever model a call names | **≤2 children live at a time** (one writer per cwd), **`async: true` on every launch**, a **2 h deadline per child**, and **the parent's model only** — enforced mechanically by `subagents.modelScope` with `allow: ["inherit"]` in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), which the settings plane merges into every seat | The engine sets the number, not taste: `spark_vllm_max_num_seqs: 4`, minus the parent, minus one sequence reserved for the always-on consumers (voice, LiteLLM, RAG) = **2** ([pi-harness.md](pi-harness.md) §6). A third child does not queue politely — it preempts a live prefix and recomputes it |
 
 
 
@@ -67,15 +70,58 @@
 > brief is written only on the owner's request.
 
 
+### Child lanes inside one session (O10–O11)
+
+> O9 bounds **sessions**; this bounds the **children**. Both are about the same scarce thing, and neither
+> is a licence to fan out — the queue of rows is not the queue of children.
+
+- **The parent does not do the work.** It composes launches, reads evidence, merges, runs the gate. Need to
+  know something about the tree? That is a `scout`. Need two independent readings of one change? Two children,
+  not two passes of the parent's own context. Bounded, single-deliverable, one acceptance micro-format each —
+  an over-scoped child is worse than none (README §"Orchestrator + reviewer discipline").
+- **Two live children, and only one writer per cwd.** A third does not wait its turn quietly: on the shared
+  engine it preempts somebody's prefix ([pi-harness.md](pi-harness.md) §6). Concurrency is a KV-pool decision
+  wearing a process-table costume, so the ceiling is the engine's arithmetic, not a preference.
+- **The model is inherited, never overridden.** Every builtin child takes the session model, and a seat's
+  rendered model set carries one serving provider, so a `model:` override names something this harness does
+  not have. The restriction is a setting, not a habit — `subagents.modelScope` (`enforce` + `strict`,
+  `allow: ["inherit"]`) in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) — so an override
+  fails at launch instead of buying an unavailable model at run time. A child therefore pays the **parent's
+  full context window**: keep child prompts bounded and the context `fresh`; forking a 262k parent context
+  into a child is precisely the KV act [pi-harness.md](pi-harness.md) §6 exists to warn about. (The
+  lane-profile alias in that section is a paper artifact and is NOT in the model spec; if it is ever landed,
+  widening the scope is a deliberate change, not a side effect.)
+- **Async always, and silence is not a hang.** Launch with `async: true`, then yield and let the wake bring
+  the parent back — `bg_wait` is for work with no native completion notice, not for every child. A child served
+  by a local engine goes quiet for **minutes** while it compacts (pi compacts at `contextWindow −
+  compaction.reserveTokens`, and thinking-on decode runs ~11 tok/s per [pi-harness.md](pi-harness.md) §5), so
+  **do not steer, stop, or re-launch on silence**. Act on a needs-attention notice, a repeated tool-attempt
+  failure, or the deadline. The deadline is **2 h per child**, because the harness's own 30-minute backstop
+  is shorter than a real bounded task at that decode rate; the value lives with the rest of the child-runtime
+  knobs in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) as `_subagentConfig`, the payload
+  for the extension's own config file — which no seat plane installs yet, so until that leg lands the number
+  must be passed on the launch and read as authored, not as effective.
+- **Dispatch filter on a spark-served seat.** If the session's own model is spark, the spark engine brief is
+  out of scope for the **whole run** — no child may be launched against it, timed or not (standing rule 2 in
+  [todo-table.md](../todo-table.md) §C). A provably engine-safe spark converge stays allowed, with the engine
+  id / `StartedAt` / `RestartCount` read before and after.
+
+
 ### Launch procedure (the parent)
 
 1. Primary = merge station: `git fetch`, `git status` clean, `git checkout main`, `bash scripts/validate-all.sh` green (clean-main is the exempt form under O5).
 2. One worktree + branch per lane, created **by the parent** so the naming is never improvised:
    `git worktree add -b session/<lane>-$(date +%Y%m%d-%H%M) ../homelab-wt-$(date +%Y%m%d-%H%M) main`
 3. Hand each lane exactly four things: its brief path, the sibling brief path, this §4, and the standing
-   instruction **"do not edit `prompt.md` or `todo-table.md`"** (O2). The brief carries the rest.
+   instruction **"do not edit `prompt.md` or `todo-table.md`"** (O2). The brief carries the rest. **O10–O11 apply
+   inside a lane exactly as they apply to the parent** — a lane that performs its own analysis rather than
+   delegating it spends the run's context budget twice.
 4. Check the converge slots before launching: two lanes must not share a host (O3). If the only work left in
    two lanes is on one host, they are sequential, not parallel.
+5. Read the seat's own model (`echo $PI_PROVIDER`): on a spark-served seat the spark engine brief is excluded
+   from the whole run, for the parent and for every child alike (O11's dispatch filter). Say which briefs are
+   excluded and why, in the same breath as the lane map — a lane that discovers the exclusion mid-flight has
+   spent a slot learning it.
 
 
 ### Merge + cleanup (the parent — none of this is ever a lane's job)

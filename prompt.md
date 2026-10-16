@@ -1,6 +1,6 @@
 > **Role:** entry point for the next session — a **lean handoff**, a pointer index and nothing else. Every item's authority
 > is its [todo.md](todo.md) row; permanent knowledge is the owning doc ([docs/index.md](docs/index.md) map); the permanent
-> process contract (working rules, orchestrator mode O1–O9, launch, merge/cleanup) is
+> process contract (working rules, orchestrator mode O1–O11, launch, merge/cleanup) is
 > [docs/orchestration.md](docs/orchestration.md) §4; the planning view for the human is [todo-table.md](todo-table.md).
 > **No history lives here** — session accounts live in owning-doc status blocks + git history (archive-only:
 > `reports/changelog.md`, `reports/deployment-journal.md`). A `prompt-*.md` brief carries a lane's contract and order of
@@ -67,9 +67,18 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
 
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
 
+> **Dispatch, for a session running as the orchestrator.** Delegate the work instead of performing it (O10):
+> the parent launches children, reads evidence, merges, runs `validate-all.sh` and owns acceptance — it does not
+> investigate the tree to decide what to delegate. **≤2 children live at a time**, `async: true`, this session's
+> own model, **2 h per child**, and a minutes-long silence is a compaction pause rather than a stall (O11, and the
+> numbers in `pi-agent/settings-ssot.json`). Read `echo $PI_PROVIDER` **before routing**: on a spark-served seat the
+> spark engine brief and every timed/engine leg are excluded for the whole run, for children as well as the parent
+> (standing rule 2 in [todo-table.md](todo-table.md) §C). Which rows are AI-doable with no owner step in front is the
+> `Who` column of [todo-table.md](todo-table.md) §B/§B9, never this list.
+
 Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** —
 the brief, not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the
-host/slot rule that decides what may run together are [docs/orchestration.md](docs/orchestration.md) §4 (O1–O9);
+host/slot rule that decides what may run together are [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11);
 the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named for a host + domain, never for an HD
 (CONVENTIONS §6), so nothing here points at a per-HD brief any more.
 
