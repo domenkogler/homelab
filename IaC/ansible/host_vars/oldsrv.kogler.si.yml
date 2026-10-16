@@ -113,6 +113,14 @@ monitoring_hygiene_certs:
   - consumer: traefik-internal
     path: "/opt/traefik-internal/certs/{{ wildcard_cert_file }}"
 
+# This host is a NUT CLIENT, and a unit result is not the claim "this client can reach the master":
+# `upsmon` holds a dead upstream with its unit still `active`, so the two NUT units above say nothing
+# about the client→master path. The collector runs the client's own read against the master named by
+# the `nut` role's `nut_host`, so the question a converge's fail-loud client leg asks gets answered on
+# every scrape. → docs/observability.md §Silent-failure hygiene
+monitoring_hygiene_nut_masters:
+  - "{{ nut_host }}"
+
 # No host-level alloy pin here. host_vars outrank group_vars, so even a null override would win
 # and render `apt: name=alloy=` in roles/monitoring. The pin lives in group_vars/all/versions.yml;
 # a host may deviate from it only with a real version value, never with an empty one.

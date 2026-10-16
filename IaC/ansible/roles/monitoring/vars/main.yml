@@ -214,6 +214,21 @@ grafana_alert_rules:
       # not "a renewal is due". See cert-age-critical for the numbers.
       noDataState: OK
       execErrState: Error
+    - uid: nut-master-unreachable
+      title: NUT client cannot reach its master
+      for: 5m
+      expr: "homelab_nut_master_reachable == 0"
+      summary: !unsafe "NUT client on {{ $labels.instance }} cannot read its master {{ $labels.master }} — UPS state and shutdown coordination are blind there"
+      # The unit legs cannot carry this: `upsmon` keeps a dead upstream and its unit stays `active`, so
+      # this is the only series that answers "can THIS client reach the master". `result=` lives on the
+      # twin series, not on this gauge, so the page names host + master and the WHY (`unreachable` vs
+      # `unknown`) is read from `homelab_nut_master_result`. noData=OK because a host that runs no NUT client legitimately emits
+      # nothing — absence there is topology, not an outage; the collector itself going silent is the
+      # hygiene-collector-stale rule's job. `== 0` returns 0, so the evaluator is `lt 1`, not `gt 0`.
+      noDataState: OK
+      execErrState: Error
+      eval_type: lt
+      eval_params: [1]
     # Pre-stage of the critical rule above, same gauge, same source of truth. Gives the
     # owner room to route agent sessions off spark before the governor has to act.
     - uid: spark-host-mem-oom-warning

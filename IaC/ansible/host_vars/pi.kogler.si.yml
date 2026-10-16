@@ -71,3 +71,10 @@ monitoring_hygiene_units:
 monitoring_hygiene_certs:
   - consumer: traefik-ha
     path: "/opt/traefik-ha/certs/{{ wildcard_cert_file }}"
+
+# This host is a NUT CLIENT: `nut-monitor`/`nut-client` stay `active` while the master is unreachable,
+# so the unit results above do not answer "can this client read the master". The collector runs the
+# client's own `upsc` against the master named by the `nut` role's `nut_host` — the same read a
+# converge's fail-loud client leg makes, on every scrape. → docs/observability.md §Silent-failure hygiene
+monitoring_hygiene_nut_masters:
+  - "{{ nut_host }}"

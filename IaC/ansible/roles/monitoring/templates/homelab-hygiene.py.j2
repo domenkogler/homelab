@@ -11,6 +11,8 @@ no SSL expiry). This exporter is the collector for both.
     homelab_unit_result{unit="…", result="success|failed|missing"} 1
     homelab_cert_days_left{consumer="traefik-internal"}           44.2
     homelab_cert_pair_present{consumer="traefik-internal"}        1 | 0
+    homelab_nut_master_reachable{master="nas.kogler.si"}           1 | 0
+    homelab_nut_master_result{master="…", result="ok|unreachable|unknown"} 1
     homelab_pkg_pin_ok{package="alloy"}                           1 | 0
     homelab_pkg_pin_result{package="…", pin="…", result="…", running="…"} 1
     homelab_upgrade_plan_ok                                       1 | 0
@@ -36,6 +38,12 @@ parses), so a textfile leg would have meant shipping the collector blind, to a d
 could name. This file therefore follows the shape the SAME role already proves live — the
 network-clients exporter: a stdlib-only host binary on a loopback port, scraped by this host's Alloy.
 
+WHY THE NUT LEG IS A SEPARATE CLAIM FROM THE UNIT LEGS: `nut-monitor.service` and `nut-client.service`
+stay `active` while the master stops answering — `upsmon` holds a dead upstream without failing its own
+unit — so the two unit series say nothing about the client→master path, and a window in which the client
+talks to nothing but itself passes unseen between converges. This leg asks the question the client itself
+answers: `upsc <ups>@<master> ups.status`, run on the client host, on every scrape.
+
 FAIL-LOUD BY CONSTRUCTION, because a monitor that reports "healthy" about something it cannot see is how
 a failure can go unseen for days:
   * a listed unit that does not EXIST reports last_success=0 with result="missing" — a unit that never
@@ -47,6 +55,11 @@ a failure can go unseen for days:
     `dpkg-query` answer is the one answer that must never look like "in sync with the pin";
   * a solver plan that cannot be read sets `homelab_upgrade_plan_ok = 0` and emits NO count, because a
     `0` there would be indistinguishable from "this box is fully current";
+  * a declared NUT master that cannot be read reports `reachable = 0`: `unreachable` when `upsc` answered
+    with a failure (a wrong `nut_ups_name` lands here, never "ok"), `unknown` when the binary cannot be
+    run or the call outlives NUT_TIMEOUT. A host that declares no master emits no NUT series at all — it
+    runs no client, so it has nothing to claim — which is why the rule keys on `== 0` under
+    `noDataState: OK` rather than on absence.
   * `homelab_hygiene_scrape_ok` is the collector's own heartbeat — this exporter is a systemd service,
     i.e. the same failure class, and `time() - heartbeat > 900` is the rule that watches itself.
 
@@ -70,6 +83,11 @@ import urllib.parse
 
 UNITS = {{ monitoring_hygiene_units | to_json }}
 CERTS = {{ monitoring_hygiene_certs | to_json }}
+# The NUT masters this host's client watches, and the UPS name the client asks for. Both arrive
+# rendered: the master from the `nut` role's own `nut_host`, the name from `nut_ups_name`, so neither
+# string is a second copy here.
+NUT_MASTERS = {{ monitoring_hygiene_nut_masters | to_json }}
+NUT_UPS = {{ nut_ups_name | to_json }}
 # The mapping is package -> the NAME of its versions.yml var (default: host_apt_pin_vars, the fleet map
 # that also drives `apt-mark hold` and the `package=version` install). Each pin is resolved here from the
 # var NAME, never typed into this file, and a pin var that does not exist aborts the render rather than
@@ -87,6 +105,9 @@ LISTEN = ("{{ monitoring_hygiene_listen }}", {{ monitoring_hygiene_port }})
 PLAN_TTL = 900.0
 PLAN_RETRY = 60.0
 PLAN_TIMEOUT = 60.0
+# `upsc` against a host that does not answer waits far longer than a scrape may wait for it: a stalled
+# request thread would freeze the heartbeat, and the heartbeat is the CRIT rule. So this leg is bounded.
+NUT_TIMEOUT = 5.0
 PLAN_LOCK = threading.Lock()
 PLAN_CACHE: dict = {"next_at": 0.0, "lines": None, "refreshing": False}
 PLAN_HEAD = [
@@ -198,6 +219,44 @@ def cert_lines(consumer: str, path: str) -> list[str]:
     return head + [
         "homelab_cert_pair_present%s 1" % q,
         "homelab_cert_days_left%s %.2f" % (q, days),
+    ]
+
+
+def nut_lines(master: str) -> list[str]:
+    """The client→master leg, asked from the client.
+
+    The unit legs cannot carry this claim: `upsmon` keeps a dead upstream and its unit stays `active`,
+    so "the client daemons run" and "the client can reach the master" are different statements and only
+    the second one is worth alerting on. The read is the one the `nut` role's own fail-loud client-leg
+    check runs — `upsc <ups>@<master> ups.status` — so the collector and a converge ask the same
+    question of the same path. An answer is required, not just a zero rc: an rc-0-but-empty answer is
+    reported the same way a refusal is, because "nothing came back" is never evidence of reachability.
+    Nothing here reads UPS values into series — the UPS data itself has one source (the exporter on the
+    master) and re-exporting it from every client would be a second copy of the same numbers."""
+    ok, reason = 0, "unknown"
+    detail = ""
+    try:
+        r = subprocess.run(["upsc", "%s@%s" % (NUT_UPS, master), "ups.status"],
+                           capture_output=True, text=True, check=False, timeout=NUT_TIMEOUT)
+        # `upsc` prints its "Init SSL without certificate database" notice on stderr and the value on
+        # stdout, so stdout is the answer and stderr is only ever the explanation for a failure.
+        detail = (r.stdout or "").strip() or (r.stderr or "").strip()
+        if r.returncode == 0 and detail:
+            ok, reason = 1, "ok"
+        else:
+            reason = "unreachable"
+            print("WARN: upsc %s@%s rc=%d: %s" % (NUT_UPS, master, r.returncode, detail[:140]),
+                  file=sys.stderr)
+    except Exception as exc:                        # no `upsc` here, or the call outlived NUT_TIMEOUT
+        print("WARN: upsc %s@%s: %s" % (NUT_UPS, master, exc), file=sys.stderr)
+    return [
+        "# HELP homelab_nut_master_reachable 1 when this host's NUT client can read its master.",
+        "# TYPE homelab_nut_master_reachable gauge",
+        "# HELP homelab_nut_master_result Why this host's client→master leg reads what it reads.",
+        "# TYPE homelab_nut_master_result gauge",
+        "homelab_nut_master_reachable%s %d" % (sel('master="%s"' % master), ok),
+        'homelab_nut_master_result%s %s'
+        % (sel('master="%s", result="%s"' % (master, reason)), "1"),
     ]
 
 
@@ -342,6 +401,8 @@ def render() -> str:
         lines += unit_lines(unit)
     for cert in CERTS:
         lines += cert_lines(cert["consumer"], cert["path"])
+    for master in NUT_MASTERS:
+        lines += nut_lines(master)
     for pin in PINS:
         lines += pin_lines(pin["package"], pin["pin"])
     lines += plan_lines()
@@ -373,12 +434,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def main() -> int:
     # Fail at start, not at scrape time: a list that arrived unrendered means the template was copied
     # without Ansible, and 0 series would otherwise look like "nothing to watch".
-    if "{" + "{" in json.dumps([UNITS, CERTS, PINS]):
+    if "{" + "{" in json.dumps([UNITS, CERTS, PINS, NUT_MASTERS]):
         print("FATAL: the config lines are still Jinja — run this through the role, not by hand", file=sys.stderr)
         return 3
     srv = http.server.ThreadingHTTPServer(LISTEN, Handler)
-    print("homelab-hygiene exporter on http://%s:%s/metrics · %d unit(s), %d cert(s), %d pinned package(s)"
-          % (LISTEN[0], LISTEN[1], len(UNITS), len(CERTS), len(PINS)), flush=True)
+    print("homelab-hygiene exporter on http://%s:%s/metrics · %d unit(s), %d cert(s), %d pinned "
+          "package(s), %d NUT master(s)"
+          % (LISTEN[0], LISTEN[1], len(UNITS), len(CERTS), len(PINS), len(NUT_MASTERS)), flush=True)
     srv.serve_forever()
     return 0
 
