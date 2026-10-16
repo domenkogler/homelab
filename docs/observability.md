@@ -18,10 +18,13 @@ tags: [observability, grafana, prometheus, monitoring]
 > with Grafana-native SMTP in parallel as the fail-safe. The ruled delivery surface is the Matrix
 > `#homelab-alerts` room, live but not yet read by a human — see §Alerting.
 >
-> ⏳ **Open:** the **nas + Pi Alloy collectors** (converge adds their `node_*` to the Host Overview),
+> ⏳ **Open:**
 > the last two steps of the Matrix `#homelab-alerts` leg (the operator joining the room, then demoting
 > Signal), contact-point/datasource password rotation,
 > device-side SNMP enablement, and the Kopia wiring for `/srv/docker/victoria-*/data`.
+>
+> ✅ All five `monitoring` hosts run the pinned Alloy and ship their own `node_*` — the read that proves it is
+> in §The Alloy pin.
 
 ---
 
@@ -145,6 +148,45 @@ All endpoints are **LAN/tailnet-only** (served on the oldsrv hosts above).
 | Router | **n8n** | Alert routing/dedup → Signal/email | `services-internal` | — |
 | Notify | **signal-cli** | Signal delivery (linked device) | `services-internal` (needs internet) | — |
 | Viewer | **Dozzle** | Live per-container log streaming (read-only `docker.sock`); **two instances** — VPS (`logs.kogler.si`, tailnet via `traefik-tailnet`) + home LAN hub on oldsrv (`llogs.kogler.si`, :8081, via `traefik-internal`, pi/spark remote agents :7007); **viewer only — nothing stored** | `traefik-public` | — |
+
+### The Alloy pin — what actually proves a host is on it
+
+Alloy is the observability tier's only **host package** (APT from `apt.grafana.com`, the deliberate exception
+to the Docker rule), so its version comes from **one** place — `alloy_version` in
+`IaC/ansible/group_vars/all/versions.yml` — and `roles/monitoring/tasks/main.yml` installs it as
+`alloy={{ alloy_version }}` on every host in the `monitoring` group. A `host_vars` override is drift, not a
+second shape, and the fleet pin is what the five collectors must agree with
+([CONVENTIONS.md](../CONVENTIONS.md) §7).
+
+**Reads, and what each one actually answers.** What the package manager recorded is not what is running,
+and neither is what the backend can see:
+
+| Question | The read | Where |
+| --- | --- | --- |
+| What version does the **running** collector report about itself? | `alloy_build_info{version=…}` — the collector's own build info, served by its HTTP server (`server.http.listen-addr`, `127.0.0.1:12345`) | `curl -s 127.0.0.1:12345/metrics \| grep ^alloy_build_info` on the host |
+| …and the same, for the whole fleet at once, out of the store | `alloy_build_info` — every monitoring host remote-writes its own, so `instance` and `version` arrive together | `GET /api/v1/query` on VictoriaMetrics |
+| Is that collector **answering scrapes**? | `up{job="alloy"}` — the `prometheus.scrape "alloy_self"` read of the same `/metrics`, tagged `job="alloy"` + `instance=<host>`, i.e. the pipeline's own liveness view | VictoriaMetrics |
+| What is installed, for context | `dpkg-query -W -f='${Version}' alloy` | on the host — **never the verdict on its own** |
+
+⚠ A `dpkg` read cannot close a version question by itself: a host can carry the pinned package while the
+live process predates the last restart, and every restart drops one scrape cycle — `up` is what says whether
+that cycle came back.
+
+⛔ **A pin that lags the box is a failed converge, never a downgrade.** `Install Alloy` asking for a version
+below what the host already runs dies with `E: Packages were downgraded and -y was used without
+--allow-downgrades` and takes the rest of the monitoring role with it. `--allow-downgrades` is not the fix —
+it would silently pull down every other package whose pin lags its box. The fix is one line in
+`versions.yml`: raise the pin to the highest release **already running** somewhere in the fleet, then
+converge (which costs one Alloy restart per host).
+
+✅ **Live-verified 2026-10-17, all five `monitoring` hosts** (`oldsrv`, `vps`, `nas`, `pi`, `spark`): the
+running `alloy_build_info` `version` equals the pin on every one of them, `up{job="alloy"}` = **1** on every
+one of them, and each unit is `active/running`. The package half agrees (`alloy` = the pinned deb string on
+all five).
+
+The standing, automated version of the same comparison — per package, read on the box, no ssh in the way —
+is §Pin-lag report (`homelab_pkg_pin_result`). The table above is the manual read that stands behind it, and
+it is the one to take when a host is suspected of running something other than what it was told to.
 
 ## Access & login path (stats.kogler.si)
 
@@ -803,7 +845,7 @@ oldsrv is on NVMe and mostly unaffected):
 | **Host Overview** | `homelab-host-overview` | per-instance node resources: CPU, mem, load, uptime, network + **disk capacity AND disk work** — throughput B/s, IOPS, device busy %, avg wait ms — and **hwmon/thermal-zone temperatures**; multi-host (instance template var) | `node_cpu_seconds_total` · `node_memory_*` · `node_load*` · `node_filesystem_*` · `node_network_*` · `node_boot_time_seconds` · **`node_disk_read_bytes_total`/`written_bytes_total`/`reads_completed_total`/`writes_completed_total`/`io_time_seconds_total`/`read_time_seconds_total`/`write_time_seconds_total`** · ⚙ `node_hwmon_temp_celsius` (+ `_max_celsius`/`_crit_celsius`/`sensor_label`) · `node_thermal_zone_temp` — all `job="alloy"`; ⚙ the hwmon/thermal_zone series need the Alloy `set_collectors` converge, the disk ones are live already |
 | **Service Reachability** | `homelab-service-reachability` | blackbox probe tables (HTTP + ICMP) + latency + TLS cert expiry | `probe_success` · `probe_duration_seconds` · `probe_ssl_earliest_cert_expiry` (`job=blackbox_*`) |
 | **WAN & Tunnel** | `homelab-wan-tunnel` | wg-s2s liveness, Traefik requests, CrowdSec decisions, stack up | `probe_success{job=wg_icmp}` · `traefik_entrypoint_requests_total` · **`cs_active_decisions`** (NOT `crowdsec_decisions` — real CrowdSec metric, labels `origin`/`action`/`reason`) · `up{job=…}` |
-| **Stack Health** | `homelab-selfmonitoring` | observability self-monitoring: up() per component | `up{job=victoria-metrics\|victoria-logs\|n8n\|blackbox-exporter\|crowdsec\|traefik}` (Alloy self-scrapes VM/VL /metrics; topology B) — **no alloy**: Alloy remote-writes its own series, so `up{job="alloy"}` has no series by design |
+| **Stack Health** | `homelab-selfmonitoring` | observability self-monitoring: up() per component | `up{job=victoria-metrics\|victoria-logs\|n8n\|blackbox-exporter\|crowdsec\|traefik}` (Alloy self-scrapes VM/VL /metrics; topology B) — **no alloy panel on this board**: Alloy ships its own series by remote-write instead of being scraped over the network. That is NOT the same claim as the series not existing — `up{job="alloy"}` carries one series per monitoring host (the `alloy_self` scrape), which is the collector-liveness read in §The Alloy pin |
 | **UPS** | `homelab-ups` | (pre-existing) NUT battery/load/voltages + status flags panel + **over-time: Output voltage, Load, Runtime, Battery charge** | `network_ups_tools_*` (DRuggeri/nut_exporter v3) |
 | **LLM Inference (vLLM/SGLang)** | `homelab-llm-inference` | unified vLLM+SGLang inference view (grafana.com gnet 25502): request volume, token throughput, latency quantiles, queue/KV-cache, engine/TP-rank | **vLLM half live** (`vllm:*` `{job="vllm"}`, spark). 36 of 74 queries stay empty **by design**: they are the `sglang:*` mirrors — they light up when the SGLang throughput lane lands |
 | **vLLM Monitoring V2** | `homelab-vllm-monitoring-v2` | vLLM server monitoring (gnet 24756): scheduler state by reason, KV-cache %, token rates, latency p50/p95/p99, prefix-cache, preemption, engine RSS/GC | **all 29 queries live** — `vllm:num_requests_{running,waiting,waiting_by_reason}` · `vllm:kv_cache_usage_perc` · `vllm:generation_tokens_total` · `vllm:time_to_first_token_seconds_bucket` · `vllm:num_preemptions_total` … (`vllm:num_requests_swapped` is a V0 name → `vllm:num_requests_waiting_by_reason`) |
