@@ -231,7 +231,8 @@ artifact URL, same minute: rc file in effect → `302`; `wget --no-config` → n
 resolver library: `precedence ::ffff:0:0/96 100` in `/etc/gai.conf` makes glibc hand A first to *every*
 process. That is the converged form — `roles/common` var `ipv4_first_address_family`, on for `home_servers`
 alone (where the asymmetry is measured) and deliberately off on the VPS, where v4-first would mask HD-460's
-v6 parity work.
+v6 parity work. It is selectable on its own — `--tags address-family` expands only that write, so a
+resolver change never drags apt, docker or the network legs into the same wave.
 
 ⛔ **The durable fix belongs at the router's v6 leg. What the accept-parity verdict at the head of this
 section decides is the filter's *family handling*, not this leg — and it is given (KEEP THE PARITY), so it

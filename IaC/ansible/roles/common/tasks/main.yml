@@ -18,3 +18,12 @@
 - name: "Paketi: apt-mark hold za pripete pakete"
   include_tasks: apt-holds.yml
   tags: [common, base]
+
+# Own include line so the write is selectable on its own: `--tags address-family` expands
+# THIS include and no other, which is what keeps a gai.conf change from dragging apt,
+# docker and the network legs along with it. The tag has to sit on the include — an
+# `include_tasks` statement is what the tag filter evaluates, so a child-only tag would
+# read as a clean changed=0 run.
+- name: "Mrežje: Naslovna družina adres (gai.conf)"
+  include_tasks: address-family.yml
+  tags: [common, base, address-family]
