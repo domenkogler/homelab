@@ -389,17 +389,16 @@ litellm_scoped_keys:
   # VPS list in group_vars/vps.yml `litellm_scoped_keys`; same vault ITEMS, but the
   # keys minted here live in the LAN lan-litellm-db).
   #
-  # PARKED: the two harness records are commented out
-  # because their consumers no longer exist (dsh/pi-dev removed by the owner; coding
-  # harnesses are dedicated deployments now, reached DIRECTLY — they
-  # are not LiteLLM consumers any more). Leaving them in mints keys for nobody and keeps
-  # every converge red: the glue probes the stored `dsh_api` credential, gets 401, and
-  # correctly refuses to auto-overwrite a secret → ABORT rc2. Commenting the records
+  # PARKED: the two harness records are commented out — their consumers are gone
+  # (dsh/pi-dev removed; the coding harnesses are dedicated deployments reached
+  # DIRECTLY and are not LiteLLM consumers). Leaving them in mints keys for nobody and
+  # keeps every converge red: the glue probes the stored `dsh_api` credential, gets 401,
+  # and correctly refuses to auto-overwrite a secret → ABORT rc2. Commenting the records
   # removes both the mint and the probe.
   # A parked consumer must not imply a deleted secret, but the
   # `dsh_api`, `dsh_forgejo_api` and `tailscale_dsh_api` items are DELETED from the vault
   # (owner act), so a stale VPS-DB-era bearer cannot trip rc2 here; enabling the parked
-  # `dsh` service would now fail at the vault lookup, not just at an empty field.
+  # `dsh` service fails at the vault lookup, not just at an empty field.
   # `pi-harness_openai_api` still holds its value and is NOT remediated.
   # The LAN DB carries two keys: `home-assistant` (minted by the flip
   # below) and `pi.dev laptop` (hand-created, a live consumer — do not delete it).
@@ -441,3 +440,8 @@ music_box_dest_host: "u653411.your-storagebox.de"
 music_box_dest_user: u653411
 music_box_dest_port: 23
 music_box_dest_path: /backup/music    # SSH-view of the CIFS share `//u653411.../backup` + `music/`, which is what Navidrome mounts
+
+# IPv4-first address family: v6 answers here for some prefixes and not others, so
+# AAAA-first ordering stalls non-racing downloaders. Off on vps, where it would mask
+# that host's IPv6 state. docs/network-ops.md §IPv6 on the RB4011.
+ipv4_first_address_family: true

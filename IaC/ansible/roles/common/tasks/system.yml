@@ -81,3 +81,19 @@
     mode: '0440'
     validate: '/usr/sbin/visudo -cf %s'
   tags: [common, base]
+
+# IPv4-first address family. The home IPv6 egress answers for some prefixes and not
+# others, so an AAAA-first answer stalls downloaders that do not race both families
+# (wget, including the `wget --no-config` the VS Code installer calls).
+# docs/network-ops.md §IPv6 on the RB4011.
+- name: Prefer IPv4 in address-family resolution (gai.conf)
+  ansible.builtin.blockinfile:
+    path: /etc/gai.conf
+    marker: "# {mark} ANSIBLE MANAGED — IPv4-first address family"
+    block: |
+      # IPv4-mapped scope first; delete this block to revert.
+      precedence ::ffff:0:0/96  100
+    create: true
+    mode: '0644'
+  when: ipv4_first_address_family | default(false) | bool
+  tags: [common, base]

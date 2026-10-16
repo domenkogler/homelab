@@ -202,6 +202,8 @@ oldsrv, same host, same URL, same minute:
 | the same three targets over `-4` | `200`/`302` with full bodies |
 | `getent hosts update.code.visualstudio.com` | answers **AAAA first** |
 | the same URL on the **default** family, same host, same minute | `wget` FAILED · `curl` `200` in 0.42 s, over **v4** (0.09 s when pinned) |
+| `wget --no-config` — what the VS Code server installer actually calls | no verdict: the flag drops **every** config file, `~/.wgetrc` included |
+| the VS Code **CLI's** own downloader (Go), same host, same wedge | completed — it races both families, so it survives where `wget` does not |
 
 The home v6 egress is **selectively** dead: it reaches some prefixes and not others — and what that costs
 depends on whether the downloader races. `wget` has no Happy Eyeballs, so given the AAAA-first answer it dies
@@ -219,6 +221,17 @@ prefix reachability.
 real artifact URL: rc-file in effect → `302 Found`, control with the family left default → no verdict. It
 reaches `wget`/`curl` for that user and nothing else: a tool that fetches through its own HTTP stack (a Node
 binary, an IDE's downloader) ignores both files, so it needs its own client-side download switch instead.
+
+**The case the rc files cannot reach, and what it really turns on.** That switch has its own dead end here: the
+Remote-SSH installer calls wget with `--no-config` — its log prints the probe, `Program 'wget' appears to
+support flag '--no-config'` — and the flag drops every config file, `~/.wgetrc` included. Measured on the
+artifact URL, same minute: rc file in effect → `302`; `wget --no-config` → no verdict. So the split is not
+"command-line tools vs an IDE", it is **who races**: `wget` never does (dead), `curl` and the Go CLI both do
+(alive). The one lever that reaches a downloader refusing to read its config sits a layer lower, in the
+resolver library: `precedence ::ffff:0:0/96 100` in `/etc/gai.conf` makes glibc hand A first to *every*
+process. That is the converged form — `roles/common` var `ipv4_first_address_family`, on for `home_servers`
+alone (where the asymmetry is measured) and deliberately off on the VPS, where v4-first would mask HD-460's
+v6 parity work.
 
 ⛔ **The durable fix belongs at the router's v6 leg. What the accept-parity verdict at the head of this
 section decides is the filter's *family handling*, not this leg — and it is given (KEEP THE PARITY), so it

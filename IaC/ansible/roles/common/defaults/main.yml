@@ -45,3 +45,8 @@ homelab_lockout_exempt_reason: >-
 # (`kopia_version`, templates/docker_services/kopia-{server,agent}), so there is no apt state
 # to hold — its pin is enforced by the compose render, not by dpkg.
 common_apt_hold_packages: "{{ host_apt_pin_vars | dict2items | map(attribute='key') | sort | list }}"
+
+# Address-family preference (glibc getaddrinfo order); writes /etc/gai.conf via
+# tasks/system.yml. Off by default — the setting masks IPv6 reachability, so enable it
+# only where the asymmetry is measured on that host. docs/network-ops.md §IPv6.
+ipv4_first_address_family: false
