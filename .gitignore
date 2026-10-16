@@ -21,3 +21,5 @@ IaC/host/post_install_with_secrets.sh
 
 # stability-chain run artifacts (laptop-side evidence; never commit telemetry)
 scripts/bench/spark/overnight/
+
+*-workspace
