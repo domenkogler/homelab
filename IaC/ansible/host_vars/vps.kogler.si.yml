@@ -9,3 +9,19 @@ ansible_become_method: sudo
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
 # Host identity (provider/model/billing or nothing here) -> group_vars/vps.yml `vps_host`
 # Billing (cost/renewal/status) -> group_vars/subscriptions.yml
+
+# ==== What this host's silent-failure collector watches (roles/monitoring) ====
+# The two pairs this box's INTERNAL edge (`traefik-tailnet`) loads, named from the same vars its
+# rendered `dynamic/tls.yml` uses. On disk they live in `/opt/traefik/certs/`, which that edge
+# bind-mounts at `/etc/traefik/certs`; the public `traefik` here is the fleet's single ACME issuer and
+# reads its own material out of `/opt/traefik/acme/acme.json`, a JSON store `openssl x509` cannot open,
+# so its age is reported by Traefik itself as `traefik_tls_certs_not_after` (`job="traefik"`) instead of
+# by this collector. The pair below is therefore the consumer half: if the certs-dumper/`certs-rename.sh`
+# leg stops landing a renewed pair, `homelab_cert_days_left` ages and the cert rules fire.
+#   → docs/observability.md §Silent-failure hygiene
+monitoring_hygiene_certs:
+  - consumer: traefik-tailnet
+    path: "/opt/traefik/certs/{{ wildcard_cert_file }}"
+  # The tailnet-namespaced pair the same edge serves `*.ts.kogler.si` from.
+  - consumer: traefik-tailnet-ts
+    path: "/opt/traefik/certs/{{ wildcard_ts_cert_file }}"
