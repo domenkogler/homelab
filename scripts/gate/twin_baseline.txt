@@ -101,3 +101,26 @@ baseline_rev 46d9deb66560db8f8773d84f59ec62db19287c61
 baseline_rev 46d9deb66560db8f8773d84f59ec62db19287c61
 twin_groups 2314
 group_keys_sha256 f090d95b8f02d953a1942ba406426e3014dae07e1d75348ceb77034f5a768e99
+#
+# The LAST uncommented triple is the recorded one (read_baseline keeps the last occurrence of
+# each field); the older triples above are what earlier re-publications left where their notes
+# ended, and they are not what the gate reads.
+#
+# Moved to 8a00aed8 at HD-436's consumer switch. Four groups lost the side that
+# IaC/ansible/roles/cloudflare_dns/vars/main.yml carried: `vps`, `em918249`, `s918249._domainkey`
+# and `link` — the `name:` values of the hand-authored public-record list. That is the retiring
+# commit (b2528acb + 8a00aed8) doing the row's work, not a rename: the SAME names now live once, in
+# `zone_kogler_si`, spelled as FQDNs (`em918249.kogler.si`), and the group's other side is
+# scripts/testdata/zone_kogler_si_golden.json, the PRE-derivation fixture that
+# capture_zone_kogler_si_golden.py deliberately refuses to regenerate. So no side can be renamed to
+# satisfy the byte test: the fixture is frozen by design and re-typing record names into the role
+# would re-author the list the row deletes. The fifth dropped key, `{{ item.type }}`, is the same
+# switch — the Cloudflare task now reads `item.1.type` — and the two dropped RouterOS comment groups
+# (`HMIP-HAP (IoT VLAN 20 + WAN via flag)`, `Management VLAN (tagged admin + untagged mgmt access)`)
+# left the population because rb4011_iot_off_mgmt_delta.rsc.j2, an ALIGN-UNCERTAIN side at the old B,
+# is where one side moved; this move records nothing that the run had not already declined to accuse.
+# Shape of the move 2314 -> 2448: 139 groups added by the 140 commits of other work since 46d9deb
+# and 5 shed a side, so the population GREW — the direction the canary distinguishes from narrowing.
+baseline_rev 8a00aed8abc7c2b969046b2f48cc90419f8c9c28
+twin_groups 2448
+group_keys_sha256 a093bf3da44e5388c3462e1df48ab28b5f7f4bdb84a79522447b876544ea7bab
