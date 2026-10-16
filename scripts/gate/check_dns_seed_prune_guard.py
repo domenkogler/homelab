@@ -96,9 +96,38 @@ def _guard(path: Path) -> str:
     raise zr.RenderError(f"delete task {DELETE_TASK!r} not found in {path} — the check would be vacuous")
 
 
-def _keep_list(gv: dict, instance: str) -> list[str]:
-    """`zone_kogler_si_all_names` rendered to real strings for one instance."""
+# ONE RESOLVED CONTEXT PER INSTANCE, FOR THE LIFE OF THE PROCESS.
+#
+# WHY: `build_context()` re-reads every group_vars file and re-runs its whole Jinja fixpoint
+# from scratch — 0.177 s measured — and `_deletes` paid TWO of them
+# per record, one for itself and one through the keep list, across 57 names × 3 instances plus
+# the ledger: 351 context builds per verdict pass for 174 guard evaluations. Interleaved A/B in one
+# tree with only this file swapped (oldsrv Debian, 2026-10-16): one `verdict()` pass went 56.1 s to
+# 0.75 s, findings identical by hash on all four legs. In the gate's own `--time` read-out these two
+# items were 78 s + 236 s of a 240 s wall — the self-test runs three passes, so it alone set the
+# wall. What varies per record is the GUARD; the context and the keep list are not functions of the
+# record, so they resolve once and the loop becomes 174 renders of a boolean expression.
+#
+# KEYED ON INSTANCE ONLY, deliberately: neither `build_context()` nor the keep-list expression
+# reads the seed file — the self-test's mutated fixtures rewrite the GUARD and nothing else,
+# which is exactly why three `verdict()` passes may share one context. A future fixture that
+# varied the SSOT instead would need this key to grow with it, or the cache goes stale SILENTLY.
+_CTX: dict[str, dict] = {}
+
+
+def _instance_ctx(gv: dict, instance: str) -> dict:
+    """The resolved context for one instance, with `zone_kogler_si_all_names` already in it."""
+    ctx = _CTX.get(instance)
+    if ctx is not None:
+        return ctx
     ctx = zr.build_context(extra={"svc": {"instance": instance}})
+    ctx["zone_kogler_si_all_names"] = _render_keep_list(gv, instance, ctx)
+    _CTX[instance] = ctx
+    return ctx
+
+
+def _render_keep_list(gv: dict, instance: str, ctx: dict) -> list[str]:
+    """`zone_kogler_si_all_names` rendered to real strings for one instance."""
     try:
         out = zr._render_expr(gv["zone_kogler_si_all_names"], ctx)
     except (zr.RenderError, KeyError) as exc:
@@ -112,10 +141,14 @@ def _keep_list(gv: dict, instance: str) -> list[str]:
     return [n.lower() for n in names]
 
 
+def _keep_list(gv: dict, instance: str) -> list[str]:
+    """The keep list of one instance — the shared cached list, so callers must not mutate it."""
+    return _instance_ctx(gv, instance)["zone_kogler_si_all_names"]
+
+
 def _deletes(guard: str, gv: dict, name: str, instance: str) -> bool:
     """Does the real guard select `name` for deletion on `instance`?"""
-    ctx = zr.build_context(extra={"svc": {"instance": instance}})
-    ctx["zone_kogler_si_all_names"] = _keep_list(gv, instance)
+    ctx = _instance_ctx(gv, instance)   # name-independent: see the _CTX note above
     out = zr._render_expr(guard, dict(ctx, item={"name": name, "ip": "192.0.2.1"}), is_expr=True)
     if out.strip() not in ("True", "False"):
         raise zr.RenderError(f"guard for {name!r} on {instance} is not a boolean: {out[:80]!r}")
