@@ -205,11 +205,18 @@ def main(argv: list[str]) -> int:
 
 
 def self_test() -> int:
-    """Each rule seen to fail on a canary, and the clean corpus seen to pass it."""
+    """Each rule seen to fail on a canary, and the clean corpus seen to pass it.
+
+    The final line prints the ARM COUNT, because the row and the registry refuse to type one: a
+    self-test that reports how many rules it bred is the only honest answer to "does this gate
+    still have teeth" (CONVENTIONS §4 derived-values ban).
+    """
     fails = 0
+    arms = 0
 
     def case(label: str, got: list[str], want: str) -> None:
-        nonlocal fails
+        nonlocal fails, arms
+        arms += 1
         if any(want in p for p in got):
             print(f"  ok   {label}")
             return
@@ -217,7 +224,8 @@ def self_test() -> int:
         print(f"  FAIL {label}: expected a finding matching {want!r}, got {got}")
 
     def case_quiet(label: str, got: list[str]) -> None:
-        nonlocal fails
+        nonlocal fails, arms
+        arms += 1
         if not got:
             print(f"  ok   {label}")
             return
@@ -229,6 +237,7 @@ def self_test() -> int:
                                            "maxActiveAsyncRunsPerSession": CONCURRENCY,
                                            "asyncByDefault": True,
                                            "checkpointBeforeDeadlineMs": CHECKPOINT_MS}})
+    arms += 1
     if check_scope(good) or check_runtime(good):
         fails += 1
         print(f"  FAIL (a) clean settings SSOT must pass both halves, got {check_scope(good) + check_runtime(good)}")
@@ -287,13 +296,14 @@ def self_test() -> int:
     mutated = list(real)
     mutated[0] = json.dumps({"defaultProvider": "spark"})
     m_problems, _ = evaluate(*mutated)
+    arms += 1
     if not m_problems:
         fails += 1
         print("  FAIL (m) an SSOT stripped of both blocks produced no finding -- the gate cannot fail")
     else:
         print(f"  ok   (m) SSOT stripped of both blocks reddens ({len(m_problems)} finding(s))")
 
-    print("SELF-TEST FAIL" if fails else "SELF-TEST OK")
+    print(f"SELF-TEST {'FAIL' if fails else 'OK'}: {arms} arms, {fails} failure(s)")
     return 1 if fails else 0
 
 
