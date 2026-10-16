@@ -18,7 +18,8 @@
 #   * `cloudflare_api` in 1Password Homelab-ansible (credential field)
 #   * Egress IP must be 193.77.156.222 (token IP filter) — home control plane only.
 #
-# The record list is the SSOT in roles/cloudflare_dns/vars/main.yml.
+# The record set is DERIVED from `zone_kogler_si` (group_vars/all/main.yml); the role's vars file
+# points at that view. Publish a name by declaring it in the zone list, never in the role.
 - name: Ensure public Cloudflare DNS records (control plane)
   hosts: localhost
   connection: local

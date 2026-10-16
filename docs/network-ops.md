@@ -190,7 +190,7 @@ destination** — `Could not connect to server` from a host with no global v6 ad
 failure**. Prove the source in the same reading (`curl -6 https://api6.ipify.org` must print an address) before
 writing anything down about the destination.
 DNS is already out of the question: `vps.kogler.si` publishes a DNS-only `AAAA`
-(`IaC/ansible/roles/cloudflare_dns/vars/main.yml`) and `matrix.kogler.si` CNAMEs to it.
+(the `public_records` of its `zone_kogler_si` entry, `IaC/ansible/group_vars/all/main.yml`) and `matrix.kogler.si` CNAMEs to it.
 
 **Egress direction: a host-side download that fails is a v6 path finding, not a service finding.** Measured on
 oldsrv, same host, same URL, same minute:

@@ -236,12 +236,13 @@ sidecar serves to the app over that private network. Functional service-to-servi
 their `.ts` twins keep their headscale `extra_records` **and** their `traefik-tailnet` routers, even though the
 backends are gone: the `dsh-backend` / `pi-backend` load-balancer URLs point at `oldsrv:3080` / `oldsrv:8080`
 over the WG S2S, where nothing listens. So the names resolve
-and the edge answers **502** — that is not an outage to chase, and `group_vars/vps.yml` says so where the
-records live. Deleting them is a decision of its own, because it deletes MagicDNS records: do it as ONE change
-that drops the `tailnet_subdomains` entries, the routers and the two service blocks together.
+and the edge answers **502** — that is not an outage to chase, and the `zone_kogler_si` entry says so
+where the name lives. Deleting them is a decision of its own, because it deletes MagicDNS records: do it
+as ONE change that clears `tailnet:` on those two `zone_kogler_si` entries, the routers and the two
+service blocks together.
 
-**A published name is only as live as the node it points at.** `tailnet_ts_only_subdomains`
-entries inherit `ip: tailnet_oldsrv_ip` unless they say otherwise, so `cockpit-nas.ts.kogler.si`
+**A published name is only as live as the node it points at.** A `node`/`dual` entry takes
+`tailnet_oldsrv_ip` unless it declares its own `tailnet_ip`, so `cockpit-nas.ts.kogler.si`
 resolves to the **oldsrv node's** address while
 `headscale nodes list` reports that node **offline**. Resolution succeeds and the console is unreachable anyway:
 a MagicDNS record is a pointer to a *node*, not to a service, so the question a `.ts` name ever answers is
@@ -488,8 +489,8 @@ edge must agree:** the VPS Technitium primary answers these names with `dns_prim
 whose first resolver is the VPS — every VLAN except Home, and every away session — needs a router for the
 name on that edge, or it gets the 404 for a service that is healthy one hop away
 ([network-dns.md](network-dns.md) §Per-Instance Split-Horizon). The *arr set and the
-downloaders carry no public record at all, and they are **not** LAN-only: their names in
-`tailnet_ts_only_subdomains` (`group_vars/vps.yml`) inherit `tailnet_oldsrv_ip` and publish a `.ts` twin on
+downloaders carry no public record at all, and they are **not** LAN-only: they are `node`-class entries in
+`zone_kogler_si`, so they take `tailnet_oldsrv_ip` and publish a `.ts` twin on
 oldsrv's own `websecure-ts` node listener, so the off-LAN path for that whole set is the tailnet twin, not a
 public door. These apps serve their **own login** behind the `crowdsec-only` middleware with no Forward-Auth, and
 `media.kogler.si` is the one name published publicly, so that login is the internet-facing surface.

@@ -426,6 +426,16 @@ def render_headscale(ctx: dict) -> dict[str, list[dict]]:
     return {"plain": _dedup_sorted(plain), "ts_only": _dedup_sorted(ts_only)}
 
 
+def _load_cf_vars() -> dict:
+    """The role's own vars — absent is legal (a role may carry no vars file at all)."""
+    if not CF_VARS_FILE.exists():
+        return {}
+    try:
+        return yaml.safe_load(CF_VARS_FILE.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        raise RenderError(f"cannot read {CF_VARS_FILE}: {exc}") from exc
+
+
 def render_cloudflare(ctx: dict) -> list[dict]:
     """The public set, driven by the REAL role task and its own vars."""
     task = _find_task(CF_TASKS_FILE, CF_TASK, ("community.general.cloudflare_dns", "cloudflare_dns"))
@@ -436,14 +446,12 @@ def render_cloudflare(ctx: dict) -> list[dict]:
     if str(mod.get("state", "present")) != "present":
         raise RenderError("cloudflare task no longer pins state: present — the role must stay incremental-only")
     cf_ctx = dict(ctx)
-    # A role-var overlay exists only in the PRE-derivation shape (a hand-authored
-    # `cloudflare_dns_records` list in the role). Once the consumer loops the derived view the file
-    # is gone, and the loop — not an overlay — is the source, so absence is normal here and is never
-    # an empty record set: `_loop_items` below refuses a loop that yields nothing.
-    if CF_VARS_FILE.exists():
-        cf_vars = yaml.safe_load(CF_VARS_FILE.read_text(encoding="utf-8")) or {}
-        for key, val in cf_vars.items():
-            cf_ctx.setdefault(key, val)
+    # Role vars are VARIABLES, so Ansible templates them: a post-derivation role carries a pointer
+    # (`cloudflare_dns_records: "{{ zone_kogler_si_public_dns }}"`) rather than a hand-authored list,
+    # and a pointer left untemplate here would be compared as text. An unresolvable pointer RAISES —
+    # it may never degrade into an empty record set (`_loop_items` refuses zero rows too).
+    cf_ctx.update({key: _render_value(val, ctx, _env())
+                   for key, val in _load_cf_vars().items() if key not in cf_ctx})
     rows = []
     for item in _loop_items(task, cf_ctx, "cloudflare_dns"):
         row_ctx = dict(cf_ctx, item=item)

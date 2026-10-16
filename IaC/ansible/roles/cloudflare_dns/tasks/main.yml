@@ -10,13 +10,9 @@
 # IMPORTANT: the cloudflare_api token is IP-filtered to 193.77.156.222 — run this
 # from the home control plane (management laptop/workstation), not the VPS/CI.
 #
-# The record set is ONE list — `zone_kogler_si` in group_vars/all/main.yml, projected by the
-# `zone_kogler_si_public_dns` view: the canonical CNAME for every `public: true` name, then the
-# explicit `public_records` of the names whose public answer is not that CNAME (the VPS host A/AAAA
-# pair, the SMTP2Go delegations). `item.0` is the zone entry, `item.1` the record.
-# Scope is driven by that list, not by an inventory group: whatever it yields is ensured, and this
-# role writes `state: present` ONLY — it never deletes a live Cloudflare record, so dropping a name
-# from the zone list is NOT a deletion and the zone must be cleaned up by hand.
+# The record set is not authored here: `vars/main.yml` points at the public view of
+# `zone_kogler_si` (group_vars/all/main.yml), so a name is published by declaring it in the zone
+# list. `item.0` is that entry, `item.1` the record it publishes.
 
 - name: Resolve Cloudflare API token from 1Password (Homelab-ansible)
   ansible.builtin.set_fact:
@@ -31,9 +27,9 @@
     record: "{{ item.0.name | regex_replace('\\.' ~ domain_public ~ '$', '') }}"
     type: "{{ item.1.type }}"
     value: "{{ item.1.value }}"
-    ttl: 300                 # the zone declares records, not TTLs — 300 s is this consumer's answer
+    ttl: 300                 # the consumer's answer, never a per-record field (see vars/main.yml)
     proxied: false           # DNS-only: Cloudflare's proxy would hide the client IP from the edge
     api_token: "{{ cf_api_token }}"
     state: present
-  loop: "{{ zone_kogler_si_public_dns }}"
+  loop: "{{ cloudflare_dns_records }}"
   register: dns_result

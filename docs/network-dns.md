@@ -507,16 +507,29 @@ broadcast fallback rather than by DNS. §Local Name Resolution records what the
 zone answers today.
 
 - **Local (Technitium):** authoritative for `*.kogler.si` internally — resolves hosts/services to internal IPs; the answer set is what `zone_kogler_si` seeds, not DHCP-lease auto-creation (see §Local Name Resolution & mDNS).
-- **Public (Cloudflare):** publishes **only** the internet-facing subset — the human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan (`kogler.si` root + `home`, `sso`, `dns`, `foto`, `file`, `office`, `ai`, `git`, `ha`, `vpn`, `matrix`, `chat`). Cloudflare is **DNS-only** (no proxy) — real client IPs reach Traefik.
-  **Public-record SSOT method:** publish records **incrementally** — one `*.kogler.si` record added to `cloudflare_dns/vars/main.yml` as each service lands on the VPS edge (gate: applies go LIVE on Cloudflare), and keep `docs/services.md` §Domain & Subdomain Plan as the human-readable mirror re-rendered as the list grows. The live Cloudflare zone + `cloudflare_dns/vars/main.yml` are dual SSOTs — never hand-edit the live zone without the file (and vice-versa).
+- **Public (Cloudflare):** publishes **only** the internet-facing subset — the names `zone_kogler_si`
+marks `public: true` (plus the explicit `public_records`), never a list authored here; the
+human-readable mirror is [`services.md`](services.md) §Domain & Subdomain Plan. Cloudflare is
+**DNS-only** (no proxy) — real client IPs reach Traefik.
+  **Public-record SSOT method:** publish records **incrementally** — one `*.kogler.si` name flipped to
+  `public: true` in `zone_kogler_si` as each service lands on the VPS edge (gate: applies go LIVE on
+  Cloudflare), and keep `docs/services.md` §Domain & Subdomain Plan as the human-readable mirror
+  re-rendered as the set grows. The live Cloudflare zone + `zone_kogler_si` are dual SSOTs — never
+  hand-edit the live zone without the list (and vice-versa).
   **`dns` is the ONE admin-surface exception**: `dns.kogler.si` → `vps.kogler.si` is the public bootstrap path to the VPS DNS admin — needed to reach the UI and to recreate the VPS admin — even though the UI itself sits behind Authentik Forward-Auth.
-- **Internal-only services/hosts** (`stats`, `auto`, `logs`, `cockpit-*`, `router`, `switch`, `nas`, `oldsrv`) have **no public record**; the WAN firewall blocks them (defense in depth). The **observability admin dashboards** (`stats`/`traefik`/`logs`/`csui`/`auto`) are **tailnet-only**: their public CNAMEs are absent from the IaC SSOT (`cloudflare_dns/vars/main.yml`) and ⏳ must be **deleted from the live Cloudflare zone** by the owner (deploy-gated — the Ansible role only ensures `state: present`, it never deletes live records). On the tailnet they resolve via **headscale MagicDNS** (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services); Technitium carries no record for them for non-tailnet clients, which cannot route to the VPS tailnet IP anyway.
+- **Internal-only services/hosts** (`stats`, `auto`, `logs`, `cockpit-*`, `router`, `switch`, `nas`, `oldsrv`) have **no public record**; the WAN firewall blocks them (defense in depth). The **observability admin dashboards** (`stats`/`traefik`/`logs`/`csui`/`auto`) are **tailnet-only**: their public CNAMEs are absent from the IaC SSOT (`zone_kogler_si` carries no `public:`
+flag for them) and ⏳ must be **deleted from the live Cloudflare zone** by the owner (deploy-gated — the Ansible role only ensures `state: present`, it never deletes live records). On the tailnet they resolve via **headscale MagicDNS** (see [`network-vpn.md`](network-vpn.md) §Tailnet-exposed services); Technitium carries no record for them for non-tailnet clients, which cannot route to the VPS tailnet IP anyway.
 - **TLS:** a single wildcard `*.kogler.si` certificate, issued via ACME **DNS-01** with a Cloudflare API token (1Password `Homelab-ansible`) — covers internal and public hostnames alike.
 
 ### A / AAAA policy
 
 - **Public (Cloudflare, DNS-only):** publish **A + AAAA** for the internet-facing set — same list as the mirror in [`services.md`](services.md) §Domain & Subdomain Plan. ⚠ **The "static /56" premise is weaker than it reads:** the home prefix arrives as a **DHCPv6-PD lease** (`2a00:ee2:2700:8f00::/56`, ~15 min lease, renewing) that has not changed in years — same value, but it is *leased*, so any AAAA pointing into it must survive a re-delegation (which is why the router takes its own address from the pool instead of hardcoding the prefix: [network-vlans.md](network-vlans.md) §IPv6). Assign oldsrv a **fixed global IPv6** from the /56 for its AAAA — which today it does **not** have: its Home NIC uses stable-privacy + temporary addresses, so nothing there is assignable (that host-side change is `roles/network`, and it is the missing prerequisite in the one-host IPv6 firewall exception).
-- **Manually or via Ansible:** the public record list is the SSOT in `IaC/ansible/roles/cloudflare_dns/vars/main.yml`, applied by `playbooks/dns.yml` (control node, `community.dns.cloudflare_dns`, token `cloudflare_api` in 1Password `Homelab-ansible`; **IP-filtered to the home WAN address — run from the home control plane only**). Records for the VPS public edge (`vps` → the VPS public A/AAAA) are already listed; add each `*.kogler.si` service there as it moves onto the VPS.
+- **Manually or via Ansible:** the public record set is DERIVED from `zone_kogler_si`
+  (`IaC/ansible/group_vars/all/main.yml`); `IaC/ansible/roles/cloudflare_dns/vars/main.yml` points at that
+  view and `playbooks/dns.yml` applies it (control node, `community.dns.cloudflare_dns`, token
+  `cloudflare_api` in 1Password `Homelab-ansible`; **IP-filtered to the home WAN address — run from the
+  home control plane only**). The VPS public edge (`vps` → its public A/AAAA) is already declared; publish
+  each `*.kogler.si` service by setting `public: true` on its entry as it moves onto the VPS.
 - **Matrix delegation (public):** the homeserver name is `kogler.si`, delegated to `matrix.kogler.si` — publish `_matrix._tcp` SRV (`matrix.kogler.si 443`) and serve `_matrix/client` + `_matrix/server` well-known on `kogler.si` and `matrix.kogler.si` (Caddy/Traefik static host or an intermediate). Required for clean `@user:kogler.si` IDs and federation (see [`services-matrix.md`](services-matrix.md)).
 - **Internal (Technitium):** serve **A (IPv4)** for all hosts/services — primary, deterministic, matches the static VLAN/IPv4 plan and the IPv4 inter-VLAN firewall.
 - **Internal AAAA: authorized, sequenced after the publish.** Ruled (owner 2026-10-12): internal AAAA records
@@ -729,11 +742,11 @@ and never an unversioned per-box resolver drop-in, which is a fourth source this
 
 ### `zone_kogler_si` — the zone as one derived list
 
-The zone's membership has three sources — the Technitium seed's inline record list, headscale's
-`tailnet_subdomains` / `tailnet_ts_only_subdomains` lists, and the public Cloudflare set — plus a
-**fourth** that exists as unversioned state on a workstation. The refactor deletes those lists by deriving
-them. **The Technitium seed is derived; the other two still hand-author**, so those planes are doubled and the
-parity gate holds.
+The zone's membership is authored in ONE place — `zone_kogler_si` in
+`IaC/ansible/group_vars/all/main.yml` — and every IaC plane reads a view of it: the Technitium seed,
+headscale's MagicDNS `extra_records`, and the public Cloudflare set. A name that exists in one plane
+and not another is therefore a bug, never a maintenance chore. The **fourth** source is not IaC: it is
+unversioned state on a workstation, and the drift table below is what it does.
 
 There is already a machine-readable source: the `docker_services` entries in `group_vars` carry
 `name`, `subdomain`, `public:` and `enabled:`, and `docs/services-inventory-generated.md` renders them.
@@ -745,17 +758,19 @@ tailnet: none|edge|node|dual    # answer published into every client's netmap (d
 ts_router: true|false           # attach this service's router to the tailnet listener
 ```
 
-rendered into: the Technitium seed, the watched records JSON, the public Cloudflare set, and the tailnet
-listener's router list — with a validator that fails the build on the mismatch classes (see the table
-below), and an optional **generated** per-workstation alias file for unqualified names, so no hosts entry
-is ever typed again by hand.
+rendered into: the Technitium seed, the public Cloudflare set and headscale's MagicDNS records — the
+tailnet listener's router list and the watched records JSON are still authored per service, so
+`ts_router:` is declared intent there, not their source — with a validator that fails the build on the
+mismatch classes (see the table below), and an optional **generated** per-workstation alias file for
+unqualified names, so no hosts entry is ever typed again by hand.
 
-✅ **In an unattended window, only the dry-diff runs** — render both remaining
-consumers against `zone_kogler_si_render.py`, write the diff into the report as the artifact, converge
-nothing. The two converges stay owner-present (they re-render live edge routing), and the
+✅ **In an unattended window, only the dry-diff runs** — render every consumer with
+`scripts/ansible/zone_kogler_si_render.py`, write the diff into the report as the artifact, converge
+nothing. The converges stay owner-present (they re-render live edge routing), and the
 routes→`*_url` half is deliberately **not** bundled with them.
 
-**The drift these validators exist to catch** — every row is a mismatch between the four sources:
+**The drift these validators exist to catch** — every row is a mismatch between a plane and the list,
+or between the list and unversioned state:
 
 | name | reality | class |
 |---|---|---|
@@ -768,30 +783,34 @@ routes→`*_url` half is deliberately **not** bundled with them.
 The last row also costs an instrument: a hosts override sits **above** DNS on the one machine you would
 otherwise debug on, so a wrong zone answer becomes invisible exactly where it would have been noticed.
 
-**Derivation is partial.** The parity gate compares the derived views against a snapshot of the hand-authored
-sources, so it can prove that the derivation changed no answer — it **cannot** prove that a name added to a
-hand-authored source after the snapshot was taken reached the derived list; the diff of that change is where
-such a name shows up. Re-derive the parity
-fixture only as part of the consumer switch, never from the derived list itself
-(`capture_zone_kogler_si_golden.py` refuses to). Where the answers are identical there is nothing to push, so
-no converge is owed.
+**Derivation is partial.** The parity gate compares the rendered planes against a snapshot of the
+hand-authored sources, so it can prove that the derivation changed no answer — it **cannot** prove
+anything about a live instance a converge has not applied yet, about the tailnet router lists that still
+author their own routers, or about a workstation hosts file. Re-derive the parity
+fixture only as part of a deliberate answer change, never from the derived list itself
+(`capture_zone_kogler_si_golden.py` refuses to). Identical answers mean nothing to push on the ANSWER
+plane; a consumer whose config FILE changes anyway — headscale rewrites `config.yaml`, entry order and
+comments rather than records — still owes one converge, and that converge restarts the control plane.
 
 | plane | state | what is the source of truth today |
 |---|---|---|
 | Technitium seed | **derived** | `zone_kogler_si` — `loop: zone_kogler_si_seed_records`, gate `zone_kogler_si_lan_only` |
-| MagicDNS + the tailnet router lists | still hand-authored | `group_vars/vps.yml` → `tailnet_subdomains` / `tailnet_ts_only_subdomains` |
-| public Cloudflare set | still hand-authored | `roles/cloudflare_dns/vars/main.yml` → `cloudflare_dns_records` |
+| MagicDNS `dns.extra_records` | **derived** | `zone_kogler_si`'s `tailnet:` field → `zone_kogler_si_tailnet_plain` / `zone_kogler_si_tailnet_ts`, aliased in `group_vars/vps.yml` as `tailnet_subdomains` / `tailnet_ts_only_subdomains` and looped by `headscale/config.yaml.j2` |
+| public Cloudflare set | **derived** | `zone_kogler_si`'s `public:` / `public_records:` → `zone_kogler_si_public_dns`, looped by `roles/cloudflare_dns/tasks/main.yml` |
+| the tailnet listener's router list | declared, not wired | `ts_router:` records the decision; the per-service `dynamic/routes.yml.j2` files still author their own routers |
 
-Two planes are therefore **doubled**, and while they are, `scripts/gate/check_zone_kogler_si_parity.py`
-(runs in `validate-all.sh`) is what keeps the halves answering the same thing: it diffs the derived
-views against `scripts/testdata/zone_kogler_si_golden.json` — a snapshot of what the hand-authored
+Nothing is authored twice any more, and `scripts/gate/check_zone_kogler_si_parity.py`
+(runs in `validate-all.sh`) is what proves the derivation answers what the hand-authored sources
+answered: it renders all three consumers and diffs the result against
+`scripts/testdata/zone_kogler_si_golden.json` — a snapshot of what the hand-authored
 sources answered BEFORE the derivation — and refuses a dropped name, a re-pointed address, a
 `.ts`-only name published in the plain namespace, a consumer answering nothing, or a golden field
 silently dropped from a row. The two failure shapes it exists for: a `when` gate that compares
 `item.name` against a var that resolved to the STRING repr of a list, which turns `in` into a substring test
 and drops names from the VPS primary; and `check_dns_seed_drift.py`, which understands only literal inline
 `loop:` lists and can report "OK: 43 records" while reading ZERO rows from a derived loop. A contract gate and
-the thing it guards can be blind in the same way, at the same time.
+the thing it guards can be blind in the same way, at the same time. Flipping one `tailnet:` or `public:`
+flag in the list turns the matching surface RED, which is the canary that the consumers really read it.
 
 ⛔ So: do not write that a consumer reads this list until its `loop:` or template actually does. No
 gate catches that sentence; the next NXDOMAIN does.
@@ -893,7 +912,7 @@ Three mechanisms close it — one command, one schedule, one gate:
    [services-admin.md](services-admin.md) §Open item.
 
 > **Single-namespace parity rule:** the split-horizon zone must carry the SAME public record set that
-> Cloudflare serves — **every `cloudflare_dns/vars/main.yml` public record must also be an A record in the
+> Cloudflare serves — **every public record of `zone_kogler_si` must also be an A record in the
 > `technitium-seed` loop** (target `dns_primary_ip` = what the public CNAMEs resolve to), including the
 > apex `vps.kogler.si` (the A/AAAA host every public CNAME flattens to). The authoritative VPS primary
 > answers `NXDOMAIN`/`NOERROR`-0 for anything missing from its zone, and it is first in several resolver

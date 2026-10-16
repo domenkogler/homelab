@@ -1,0 +1,24 @@
+---
+# Public DNS records managed by Ansible (playbooks/dns.yml) — the internet-facing face of
+# `zone_kogler_si` (group_vars/all/main.yml). This is a POINTER, not a source: a name is published by
+# setting `public: true` on its zone entry, which answers the canonical CNAME to
+# `zone_kogler_si_public_cname_target`, or by declaring `public_records:` on that entry when its
+# public answer is something else (the VPS host A/AAAA pair, the SMTP2Go delegations). The view those
+# two classes project into is `zone_kogler_si_public_dns` — one (entry, record) pair per published
+# record — and the task loops it. Authoring a record list here instead is the doubled public plane
+# that `scripts/gate/check_zone_kogler_si_parity.py` exists to refuse.
+#
+# What the consumer adds on top of the list, and never changes per record:
+#   * `state: present` ONLY — the role CREATES/UPDATES what the list yields and NEVER touches or
+#     deletes any other Cloudflare record, so dropping a name from the zone list is NOT a deletion:
+#     the live zone must be cleaned up by hand (⏳ owner, deploy-gated).
+#   * `ttl: 300` and `proxied: false` (DNS-only) — a proxied record hides the real client IP from the
+#     edge, which is the whole point of the VPS terminating TLS.
+#   * Scope is driven by the list, not by an inventory group; the list is VPS-only because the public
+#     edge terminates there. Internal-only and tailnet-only names get NO public record.
+#
+# NOTE: the token (cloudflare_api) is IP-filtered to 193.77.156.222, so this
+# playbook must run from a machine behind that egress IP (home control plane),
+# NOT from the VPS or CI runners.
+
+cloudflare_dns_records: "{{ zone_kogler_si_public_dns }}"
