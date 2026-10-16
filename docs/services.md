@@ -47,6 +47,7 @@ Each `services-<x>.md` owns its catalog rows + detail. Cross-cutting facts (netw
 
 **Non-services (link out to owning domain):**
 - **Home Assistant standby** → [`smart-home-failover.md`](smart-home-failover.md) (failover, not services catalog). HomeMatic has no local RF leg here: Homematic rides the cloud HmIP-HAP.
+- **The coding harness** → [`harness.md`](harness.md) (the seat-class `harness` domain: operator seats, a plane set, no container). What here is only the boundary: harnesses go **direct** to the engine (decision #26 in [`services-ai.md`](services-ai.md) §9) and the `dsh` / `pi-dev` catalog entries are parked (`enabled: false`, kept so the port contract survives a re-onboarding).
 
 ---
 

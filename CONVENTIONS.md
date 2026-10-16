@@ -232,8 +232,8 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 ### 8.1 Domains & stack index (placement axis)
 - **Domain** = a deployable stack: the set of services (plus their docs) that deploy together under one
   owning `domain:` value. A domain has a **primary owning host / host-class** (e.g. `smart-home` →
-  Pi/oldsrv, `network` → router/switch, `observability` → VPS backend). Frontmatter: `domain: <stack>`
-  + a document `role:`.
+  Pi/oldsrv, `network` → router/switch, `observability` → VPS backend, `harness` → the operator seats).
+  Frontmatter: `domain: <stack>` + a document `role:`.
 - **`role:` values** (the doc's *shape*, not a placement statement): `index` (domain hub linking sub-docs),
   `broad` (overview), `ssot` (single source of truth for a concern), `detail` (a sub-topic), `reference`,
   `design-spec`, `runbook`, `research`, `cross-cutting`. A domain hub is `role: index` (or `broad`).
@@ -246,6 +246,13 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   is the hub; its Document Map/Related seed the cross-cutting children `security.md`, `backup.md`,
   `storage.md` (all `domain: deployment`, `cross_cutting: true`). An umbrella hub is still
   `role: index|broad`; each child keeps `cross_cutting: true` + its own `role:` (detail/ssot).
+- **Seat-class domain** — the host-class of a domain may be the **operator seats** instead of a fleet
+  machine, and such a domain is still a clean domain (not cross-cutting). Precedent: **`harness`** —
+  `harness.md` is the hub for the coding-agent harness on the seats, and what deploys together there is a
+  **plane** set (`scripts/lib/seat-planes.yml`, fanned out by `scripts/harness/pi-seat-sync.sh`) rather
+  than a `docker_services` catalog. Harness docs are therefore **not** `domain: services`: a coding
+  harness is not a service — it consumes the engine directly — so its config, seat and terminal subjects
+  belong to the seat-class domain even though the model contract it writes is about an AI engine.
 - **Central service stack index** = `docs/services.md` (catalog + networks + domains). It is the *only*
   pointer from `docs/index.md` for service layout.
 - **No doc is both** an index and a dumping ground: when a domain doc grows past ~1 screen of catalog
@@ -290,7 +297,10 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   old one).
 - The **services** domain seeds the pattern: `docs/services-review.md` +
   `docs/services-rejected.md`. Other big domains (network, hardware, smart-home) opt in with their own
-  `<domain>-{review,rejected}.md` when they have enough volume.
+  `<domain>-{review,rejected}.md` when they have enough volume. A domain **cut out of an existing one**
+  opens its log with **seed pointers** to the logs that already hold its history rather than migrating
+  rows — the moved domain's log is then append-only from the split onward (`harness-rejected.md`, seeded
+  from `services-rejected.md` + `services-ai-rejected.md`).
 
 ### 8.4 Cross-cutting docs (ownership axis)
 - **Cross-cutting** = the doc's *content* is **owned by no single host/module** — a policy or

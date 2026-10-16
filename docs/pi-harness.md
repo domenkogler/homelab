@@ -1,9 +1,9 @@
 ---
 title: pi.dev Harness — Client-Side Model Config (spark provider)
 role: detail
-domain: services
+domain: harness
 status: active
-tags: [ai, pi, agent-harness, spark, llm, tuning]
+tags: [ai, pi, agent-harness, harness, spark, llm, tuning]
 ---
 # pi.dev Harness — Client-Side Model Config
 
@@ -14,7 +14,9 @@ tags: [ai, pi, agent-harness, spark, llm, tuning]
 > measured engine facts behind them. Server-side (vLLM on spark) numbers stay in
 > [`hardware-spark.md`](hardware-spark.md) — direction of truth: engine → harness, never the reverse.
 > **Linked from:** [`index.md`](index.md) (Document Map + dispatcher) ·
+> [`harness.md`](harness.md) (the `harness` domain hub — placement map + the `pi` vs `pi.dev` naming rule) ·
 > [`services-ai.md`](services-ai.md) §pi.dev + DSH
+> **Domain hub (NOT this doc):** [`harness.md`](harness.md) — which harness subject is owned where.
 > **Engine-side owner (NOT this doc):** [`hardware-spark.md`](hardware-spark.md) — vLLM args, unified-memory
 > governance, S1 certification; incident history in [`spark-incidents.md`](spark-incidents.md).
 

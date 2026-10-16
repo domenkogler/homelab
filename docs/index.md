@@ -40,11 +40,13 @@ tags: [index, dispatcher, ai]
 | **Network / rack topology dashboard (Homelable)** | [`services-admin.md`](services-admin.md) §Homelable | `observability.md` (§Network Clients Dashboard), `network-rack.md`, `deployment-compose.md`, `deployment-secrets.md` |
 | **Music pillar** | [`services-media.md`](services-media.md) §Music Pillar | `deployment-secrets.md` (lidarr_api, slskd_login, lastfm/metabrainz, tube_archivist_*, lidarr-url-dl_login) · `deployment-manual.md` §oldsrv first-boot follow-ups · `services-downloads.md` §VPN |
 | **Understand messaging / Matrix chat** | [`services-matrix.md`](services-matrix.md) | `services-traefik.md`, `services-authentik.md`, `services.md` |
-| **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `hardware-spark.md`, `spark-incidents.md`, `services-ai.md` |
+| **Tune the pi.dev harness (workstation agent → spark: context window, thinking, timeouts)** | [`pi-harness.md`](pi-harness.md) | `harness.md` (the domain hub), `hardware-spark.md`, `spark-incidents.md`, `services-ai.md` |
+| **Harness domain: which doc owns a harness subject, the seat × plane set, the `pi` vs `pi.dev` naming rule** | [`harness.md`](harness.md) | `pi-harness.md`, [`../scripts/lib/seat-planes.yml`](../scripts/lib/seat-planes.yml), [`../scripts/README.md`](../scripts/README.md) |
+| **Triage a harness candidate / check past harness rejections (seats, planes, terminal layer)** | [`harness-review.md`](harness-review.md) + [`harness-rejected.md`](harness-rejected.md) | `harness.md`, `services-ai-rejected.md`, `services-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Switch / certify a spark LLM config (reasoning · graded · fast · fast-sglang)** | [`spark-llm-profiles.md`](spark-llm-profiles.md) | `hardware-spark.md` (pool budget), `pi-harness.md` (measured reasoning surface), `../spark/llm-profiles/README.md` (certify gate) |
 | **Measure spark LLM speed (throughput · TTFT · power) or run a profile leg** | [`../scripts/bench/spark/run-scenario.sh`](../scripts/bench/spark/run-scenario.sh) — **the** timed instrument; it lives outside `scripts/`, so a brief that searches only `scripts/` will miss it | `../spark/llm-profiles/README.md` (the gate ladder it feeds), `../scripts/bench/spark/vm-window.sh` + `observability.md` §Scrape cadence (what VictoriaMetrics keeps, at what resolution, and what it cannot attribute), `hardware-spark.md` §Unified-memory budget, `deployment-ai-stack-secrets.md` (the bearer-scrub rule this harness carries) |
 | **Understand / build the AI stack (chat + RAG + agents)** | [`services-ai.md`](services-ai.md) | `services-office.md`, `services-authentik.md`, `deployment-secrets.md`, `deployment-ai-stack-secrets.md` (item-creation runbook), `hardware-gpu.md` |
-| **Triage an AI-plane candidate / check past rejections (RAG, memory, gateways, harnesses)** | [`services-ai-rejected.md`](services-ai-rejected.md) — append-only decision log | `services-ai.md`, `services-rejected.md`, `CONVENTIONS.md` §8.3 |
+| **Triage an AI-plane candidate / check past rejections (RAG, memory, gateways)** | [`services-ai-rejected.md`](services-ai-rejected.md) — append-only decision log | `services-ai.md`, `services-rejected.md`, `harness-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Check a past observability / alerting rejection (where a signal is taken from, what will not be instrumented)** | [`observability-rejected.md`](observability-rejected.md) — append-only decision log | `observability.md`, `services-ai-rejected.md`, `CONVENTIONS.md` §8.3 |
 | **Decide where an AI leg runs (generation vs client-side FIM/vision vs pinned services)** | [`hardware-workstation.md`](hardware-workstation.md) (client-side tier) + [`services-ai.md`](services-ai.md) §9 decision #28 | `hardware-spark.md` (text-only engine), `hardware-gpu.md` (8 GiB ledger), `pi-harness.md` |
 | **Size / pick an AI inference engine or device on oldsrv (STT, rerank, VRAM budget)** | [`services-ai-bench.md`](services-ai-bench.md) — measured numbers, not arithmetic | `services-ai.md` (§3a plan of record + §9 #24/#27 + §9c), `hardware-gpu.md`, `smart-home-voice.md` |
@@ -142,7 +144,11 @@ docs/
 ├── services-ai.md                         ★ AI platform: LiteLLM spine, Open WebUI (chat+RAG), OpenClaw agents, Docling OCR, Qdrant — §3a = oldsrv pinned-AI plan of record (decision #27)
 ├── services-ai-rejected.md                AI-plane decision log (append-only; OpenViking rejected outright)
 ├── services-ai-bench.md                   ★ Measured AI inference benchmarks on oldsrv (STT + rerank + embed device sweep, FP16/Q8_0 quant sweep, iGPU verdict, VRAM ledger) — evidence behind services-ai.md §9 #24/#27
-├── pi-harness.md                          pi.dev workstation harness model config for spark — 262k ctx, thinking control, timeouts, lane rule
+│
+├── harness.md                             Index: the harness domain — coding-agent seats, the plane set, which doc owns which harness subject
+├── harness-review.md                      Harness intake queue (rejected first, 30-day stale)
+├── harness-rejected.md                    Append-only harness decision log (seed pointers into the two services logs)
+├── pi-harness.md                          pi.dev workstation harness model config for spark — 262k ctx, thinking control, timeouts, lane rule (domain hub: harness.md)
 │
 ├── storage.md                         ★ ZFS dataset tree, properties, replication (SSOT — authoring spec for the `storage` role)
 ├── storage-review.md                    Storage intake queue
