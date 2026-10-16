@@ -115,7 +115,11 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    completed. (**HD-1089**, the SABnzbd locality read, is the same lane's subject but no brief claims the row —
    it is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
 5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
-   1110 · 1115**) with its owner-gated tails intact. **HD-495**: role-own the oldsrv seat's git plumbing — its
+   1110 · 1115 · 1138 · 1139 · 1140**) with its owner-gated tails intact. **The laptop↔oldsrv coding leg closed
+   2026-10-16:** the alias contract is LAN-direct by default with `<node>-vps` as the opt-in hop, all three seats
+   carry one contract digest, and VS Code connects over `oldsrv-domen`; what is left in that cluster is the
+   away-case spelling in the scripts that shell out (`1138`) and the router-side v6 prefix read (`1139`, the
+   host-level IPv4-first preference is already converged on oldsrv). **HD-495**: role-own the oldsrv seat's git plumbing — its
    **signing** half was retired 2026-10-08 by HD-1116, so a rebuild now recovers `gpgsign=false` instead of hanging;
    what is left to own is the transport key and the global `~/.gitconfig`. Its **SA-token leg** closed on 2026-10-09:
 both service accounts are rotated and all three Debian installs (laptop, oldsrv runner, oldsrv seat) are re-seated to

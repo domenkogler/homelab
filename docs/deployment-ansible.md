@@ -640,6 +640,15 @@ or the static gate fails.
 > pinning `IdentitiesOnly yes` per `Host` block is the durable fix, and `ssh -G <host> | grep
 > -E 'identityfile|identitiesonly'` is the five-second diagnostic. Check this BEFORE concluding a
 > grant is missing.
+>
+> **A run pointed at the box the controller stands on takes the local connection.** The inventory carries
+> `-o ProxyJump=vps` for every behind-NAT host, so a self-target run hops out to the VPS and back, and the
+> final hop authenticates against the bare `ansible_host` address — where the seat config pins
+> `IdentityFile ~/.ssh/domen_ssh` with `IdentitiesOnly yes`, so the runner key is never offered and the run
+> dies `UNREACHABLE … Permission denied (publickey)`: a transport lie about a host that is literally local.
+> For a tag-scoped leg on the controller's own host pass `-c local` — same play, same `become`, no transport
+> to lie about. Do not "fix" it with `-e ansible_host=` (§Three ways a converge lies to you — that form also
+> rewrites `delegate_to` targets).
 
 The runner is whatever machine executes `scripts/ansible/ansible-run.sh`; both scripts and the IaC
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on

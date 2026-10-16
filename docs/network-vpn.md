@@ -662,6 +662,19 @@ them discoverable from the shell:
   whose `$HOME` is another distro's home (no alias-contract block, no seat keys), which makes any probe run
   there a measurement of the wrong box. The win11 seat's harness commands belong to Git-Bash
   (`C:\Program Files\Git\bin\bash.exe`), not to whatever `bash` PATH resolves.
+- a Windows home reached through a mount (`/mnt/c/...`) is auto-detected as the **wsl** class from
+  `/proc/version`, so the block gets stamped `seat=laptop-wsl` inside the Windows home. Pass
+  `--seat laptop-win11` there; `--force` rewrites the block but the class stamp is what misleads the next
+  `--check`, so retire the file (`mv` it aside, dated) and re-push from the right shell.
+
+**The install side of the same seat — four facts, none visible from the shell.** The resolver runs an
+install script on every attempt and **there is no attach-to-a-running-server**, so a server started by hand is
+invisible to it. The artifact it fetches is keyed to the **commit id**: a VS Code update silently invalidates
+anything staged for the previous build. A failed attempt leaves `command-shell` / `agent host` processes
+behind holding the CLI's server-download lock — the log reads `Another instance is already downloading the
+server`, and sweeping them (`pgrep -f vscode-server/code-`) is what makes the next attempt attach. And the
+host-side download runs `wget --no-config`, which drops `~/.wgetrc`, so only the resolver-level preference
+([network-ops.md](network-ops.md) §IPv6) makes that leg deterministic.
 A `.pub` hint as `IdentityFile` is never self-sufficient: it selects a key an AGENT must hold, so Windows
 OpenSSH authenticates (`Offering public key: … explicit agent`) while the Git-Bash build cannot load the file
 (`Load key "…ansible-admin_ssh.pub": invalid format`), offers no key at all and dies `Permission denied`.

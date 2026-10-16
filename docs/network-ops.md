@@ -233,6 +233,10 @@ process. That is the converged form — `roles/common` var `ipv4_first_address_f
 alone (where the asymmetry is measured) and deliberately off on the VPS, where v4-first would mask HD-460's
 v6 parity work. It is selectable on its own — `--tags address-family` expands only that write, so a
 resolver change never drags apt, docker or the network legs into the same wave.
+**State on oldsrv:** the managed block is in `/etc/gai.conf`, `getent ahosts update.code.visualstudio.com`
+answers `v4 v6` (it was `v6 v4`), `wget --no-config` on the artifact URL returns `302` (it returned no
+verdict), and the control `curl -6 https://www.google.com` still returns `200` — the preference
+deprioritizes v6, it does not break it.
 
 ⛔ **The durable fix belongs at the router's v6 leg. What the accept-parity verdict at the head of this
 section decides is the filter's *family handling*, not this leg — and it is given (KEEP THE PARITY), so it
