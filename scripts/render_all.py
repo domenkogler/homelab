@@ -29,6 +29,10 @@ Usage:
     python scripts/render_all.py rack
     python scripts/render_all.py all
     python scripts/render_all.py --check        # render then diff vs index; exit 1 on drift; tree restored to its pre-run state
+    python scripts/render_all.py --self-test    # prove --check can read green twice AND still redden, in a throwaway repo
+
+Determinism: a rendered file is a pure function of its SSOT, so `--check` can read green on an
+up-to-date tree. No render context carries a wall clock — see CONVENTIONS.md §8.5.
 
 After any edit to `group_vars/*.yml` / `host_vars/*.yml` / `rack-connections.json`,
 run `python scripts/render_all.py`, then `bash scripts/validate-all.sh`, then
@@ -38,9 +42,11 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import os
+import shutil
 import subprocess
 import sys
-from datetime import datetime, timezone
+import tempfile
 from pathlib import Path
 
 import yaml
@@ -96,9 +102,6 @@ def _render_template(template_path: Path, dest: Path, ctx: dict) -> None:
     print(f"Rendered {dest.resolve()}")
 
 
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
 
 # --------------------------------------------------------------------------- #
 # Renderers — each returns the list of files it produced.
@@ -144,7 +147,6 @@ def render_inventory() -> list[Path]:
     all_yml = _load_yml(GROUP_VARS / "all" / "main.yml")
     ctx = {
         "ansible_managed": MANAGED,
-        "ansible_date_time": {"iso8601": _iso_now()},
         "all_hostvars": all_hostvars,
         "domain_public": all_yml.get("domain_public", "kogler.si"),
     }
@@ -157,7 +159,6 @@ def render_subscriptions() -> list[Path]:
     subs = _load_yml(GROUP_VARS / "subscriptions.yml")
     ctx = {
         "ansible_managed": MANAGED,
-        "ansible_date_time": {"iso8601": _iso_now()},
         "subscriptions": subs.get("subscriptions", []),
     }
     dest = DOCS / "subscriptions-table-generated.md"
@@ -212,8 +213,9 @@ def _check_target(name: str) -> bool:
     generated doc was replaced by the render and then restored as the render, so the edit was
     destroyed on a command that promised not to touch the tree. Measured 2026-10-09: `--check` on
     a clean tree left 2 files dirty, and run from the primary checkout on `main` that dirtiness is
-    a CONVENTIONS §6 hard gate failure. No `--self-test` here on purpose: proving it would have to
-    render into the real tree, which is the thing under test.
+    a CONVENTIONS §6 hard gate failure. The `--self-test` below asserts this restore, and it runs
+    in a throwaway repo reached through `$REPO` — so the fixture's `docs/` takes the writes and
+    this tree never does.
     """
     snap = _snapshot_generated()
     produced = _run_target(name)
@@ -243,6 +245,172 @@ def _check_target(name: str) -> bool:
     return drifted
 
 
+# --------------------------------------------------------------------------- #
+# Self-test — the proof that `--check` can read green (CONVENTIONS §6: a test that
+# cannot fail is not evidence).
+#
+# Why these arms and not a mocked diff: a wall clock stamped into a render makes its own
+# `--check` red forever — the diff is the clock, not the data — and the only way to SEE that is
+# to run the check twice over a real render of real templates. So the legs run the real entry
+# point against a throwaway git repo whose root is handed over with `$REPO` (the fixture hook in
+# `lib/repo_root.py`): `--check` writes into `docs/`, and the fixture's `docs/` is the one thing
+# this may touch. The templates are the repo's OWN files, copied in — a fixture template of my
+# own invention could stay clock-free while the real one stamped a time.
+# --------------------------------------------------------------------------- #
+
+# A minimal SSOT shaped like the real one: TEST-NET/EXAMPLE values only, never a homelab value.
+_FIXTURE_ALL_MAIN = """\
+network_vlans:
+  - {id: 10, name: Home, subnet: 192.0.2.0/24, pool: "192.0.2.100-192.0.2.199", ssid: fixture}
+network_static_hosts:
+  - {name: oldsrv, vlan: 10, ip: 192.0.2.10, role: fixture server}
+  - {name: pi, vlan: 10, ip: 192.0.2.12, role: fixture pi}
+network_ranges:
+  - {name: mgmt, cidr: 198.51.100.0/24, purpose: fixture management}
+ha_vip: 192.0.2.200
+dns_primary_ip: 203.0.113.10
+domain_public: example.invalid
+"""
+
+_FIXTURE_DOCKER = {
+    "vps.yml": "docker_services:\n  - {name: kopia, subdomain: backup}\n",
+    "home_servers.yml": "docker_services:\n  - {name: traefik, subdomain: edge}\n",
+    "raspberry_pi.yml": "docker_services:\n  - {name: technitium, subdomain: dns}\n",
+}
+
+# target -> (template it renders from, doc it writes, SSOT file to mutate, (old, new) for the
+# mutation arm). One entry per template that ever carried a stamp.
+_FIXTURE_TARGETS = {
+    "network-addresses": ("network-addresses.md.j2", "network-addresses-generated.md",
+                          "IaC/ansible/group_vars/all/main.yml", ("192.0.2.10", "192.0.2.11")),
+    "inventory": ("inventory.md.j2", "services-inventory-generated.md",
+                  "IaC/ansible/group_vars/vps.yml", ("name: kopia", "name: kopia-renamed")),
+}
+
+_GIT_BASE = ["-c", "commit.gpgsign=false", "-c", "core.autocrlf=false",
+             "-c", "user.name=render-self-test", "-c", "user.email=self-test@invalid"]
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    """git inside the fixture only. `commit.gpgsign=false` because a signing key an agent has to
+    ask about would BLOCK the fixture commit — the trap CONVENTIONS §6 records for real commits."""
+    return subprocess.run(["git", *_GIT_BASE, *args], cwd=str(repo),
+                          capture_output=True, text=True)
+
+
+def _run_self(args: list[str], repo: Path) -> subprocess.CompletedProcess:
+    """One run of THIS entry point against a fixture root ($REPO is the fixture hook)."""
+    return subprocess.run([sys.executable, str(Path(__file__).resolve()), *args],
+                          cwd=str(repo), env={**os.environ, "REPO": str(repo)},
+                          capture_output=True, text=True)
+
+
+def _fixture(repo: Path) -> None:
+    """A mini-tree that is a repo by the lib's own markers, with the REAL render templates."""
+    (repo / "IaC" / "ansible" / "group_vars" / "all").mkdir(parents=True, exist_ok=True)
+    tpl = repo / "IaC" / "ansible" / "templates"
+    tpl.mkdir(parents=True, exist_ok=True)
+    (repo / "docs").mkdir(parents=True, exist_ok=True)
+    (repo / "docs" / "index.md").write_text("# fixture index\n", encoding="utf-8")
+    (repo / "IaC" / "ansible" / "group_vars" / "all" / "main.yml").write_text(
+        _FIXTURE_ALL_MAIN, encoding="utf-8")
+    for name, body in _FIXTURE_DOCKER.items():
+        (repo / "IaC" / "ansible" / "group_vars" / name).write_text(body, encoding="utf-8")
+    for name, _, _, _ in _FIXTURE_TARGETS.values():
+        shutil.copy(TEMPLATES / name, tpl / name)
+
+
+def self_test() -> int:
+    """Run the legs; returns the number of arms NOT caught."""
+    arms = fails = 0
+
+    def arm(ok: bool, name: str, detail: str = "") -> None:
+        nonlocal arms, fails
+        arms += 1
+        if ok:
+            print(f"  ok   {name}")
+        else:
+            fails += 1
+            print(f"  FAIL {name}" + (f" — {detail}" if detail else ""))
+
+    tmp = Path(tempfile.mkdtemp(prefix="render-all-selftest-"))
+    try:
+        for target, (tpl_name, doc_name, ssot_rel, (old, new)) in _FIXTURE_TARGETS.items():
+            repo = tmp / target
+            repo.mkdir(parents=True)
+            if _git(repo, "init", "-q").returncode != 0:
+                raise SystemExit("render_all --self-test: git is unavailable, the fixture legs "
+                                 "cannot run — a check that never executed is not a green")
+            _fixture(repo)
+            setup = _run_self([target], repo)
+            if setup.returncode != 0:
+                raise SystemExit(f"render_all --self-test: the fixture cannot render "
+                                 f"{target}: {(setup.stderr or setup.stdout).strip()[-400:]}")
+            _git(repo, "add", "-A")
+            committed = _git(repo, "commit", "-q", "--no-verify", "-m", "fixture")
+            if committed.returncode != 0:
+                raise SystemExit(f"render_all --self-test: fixture commit failed: "
+                                 f"{committed.stderr.strip()[-400:]}")
+            base = _git(repo, "rev-parse", "HEAD").stdout.strip()
+
+            first = _run_self(["--check", target], repo)
+            arm(first.returncode == 0, f"{target}: --check is green on an up-to-date tree",
+                (first.stdout or first.stderr).strip()[-200:])
+            second = _run_self(["--check", target], repo)
+            arm(second.returncode == 0,
+                f"{target}: --check is green a SECOND time (a stamped clock reddens here)",
+                (second.stdout or second.stderr).strip()[-200:])
+            dirty = _git(repo, "status", "--porcelain").stdout.strip()
+            arm(dirty == "", f"{target}: --check left the tree exactly as it found it",
+                f"dirty: {dirty!r}")
+
+            # mutation: a real SSOT change must still redden the check — the arms above pass for an
+            # always-green check too, so without this one they prove nothing.
+            ssot = repo / ssot_rel
+            original = ssot.read_text(encoding="utf-8")
+            if old not in original:
+                arm(False, f"{target}: the SSOT value to mutate is present", f"{ssot_rel} has no {old!r}")
+            else:
+                ssot.write_text(original.replace(old, new, 1), encoding="utf-8")
+                mutated = _run_self(["--check", target], repo)
+                arm(mutated.returncode != 0 and doc_name in mutated.stdout,
+                    f"{target}: a changed SSOT value reddens it", "check stayed green on a real change")
+                ssot.write_text(original, encoding="utf-8")
+
+            # a hand edit is a FORBIDDEN act against a render view (CONVENTIONS §8.2), and what
+            # `--check` owes here is narrower than it looks: the diff is SSOT-render vs the INDEX, so
+            # an UNCOMMITTED edit is not drift — it must instead come back unharmed (the 2026-10-09
+            # bug was `--check` quietly replacing it), and a COMMITTED one must redden.
+            doc = repo / "docs" / doc_name
+            doc.write_text(doc.read_text(encoding="utf-8") + "\n<!-- hand-edited -->\n",
+                           encoding="utf-8")
+            handed = _run_self(["--check", target], repo)
+            arm("hand-edited" in doc.read_text(encoding="utf-8"),
+                f"{target}: --check does not destroy an uncommitted edit to a render view",
+                (handed.stdout or handed.stderr).strip()[-200:])
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-q", "--no-verify", "-m", "hand edit")
+            committed_edit = _run_self(["--check", target], repo)
+            arm(committed_edit.returncode != 0 and doc_name in committed_edit.stdout,
+                f"{target}: a COMMITTED hand edit of a render view reddens it",
+                "check stayed green over a hand edit")
+            _git(repo, "reset", "--hard", "-q", base)
+
+            # the fix is structural, not a deleted line: the render context carries no clock, so a
+            # template that asks for one DIES instead of stamping it.
+            tpl = repo / "IaC" / "ansible" / "templates" / tpl_name
+            tpl.write_text(tpl.read_text(encoding="utf-8") + "\n> {{ ansible_date_time.iso8601 }}\n",
+                           encoding="utf-8")
+            clock = _run_self([target], repo)
+            arm(clock.returncode != 0,
+                f"{target}: a template that asks for a wall clock cannot render",
+                "the clock is back in the context")
+        print(f"SELF-TEST {'FAIL' if fails else 'OK'}: {arms} arms, {fails} failure(s)")
+        return fails
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument(
@@ -257,7 +425,15 @@ def main() -> int:
         action="store_true",
         help="render then git-diff against the committed (index) state; exit 1 on drift (the tree is restored to its pre-run state)",
     )
+    ap.add_argument(
+        "--self-test",
+        action="store_true",
+        help="prove --check can read green twice and still redden, in a throwaway fixture repo (nothing is written into this tree)",
+    )
     args = ap.parse_args()
+
+    if args.self_test:
+        return 1 if self_test() else 0
 
     if args.check:
         targets = list(_JOBS) if args.target == "all" else [args.target]

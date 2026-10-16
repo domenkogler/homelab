@@ -332,6 +332,10 @@ A new service must clear this path (each step's owning doc is the anchor; violat
 - Rendering direction is always **IaC → generated MD** (single hand-editing path):
   `group_vars/*.yml` / `rack-connections.json` → `render-docs.yml` / `scripts/render_*.py` →
   `*-generated.md`.
+- **A rendered file's bytes are a pure function of its SSOT — no wall clock may enter a render
+  context.** A stamped "generated at" is the one diff that re-rendering can never clear: it makes the
+  drift check above permanently red, so "when was this generated?" stays out of the compared bytes and
+  in git, which already keeps it (`git log -1 --format=%ci -- <generated file>`).
 
 ---
 

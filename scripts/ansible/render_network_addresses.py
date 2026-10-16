@@ -10,9 +10,12 @@ after any master .yml change WITHOUT needing a working Ansible install.
 Run after editing group_vars/all/main.yml (or the DNS host_vars):
     python scripts/ansible/render_network_addresses.py  # requires PyYAML
 
-Idempotent: overwrites docs/network-addresses-generated.md.
+Idempotent: overwrites docs/network-addresses-generated.md, and the bytes it writes are a
+function of `group_vars` ONLY — the render context carries no wall clock, because a stamped
+time makes this renderer's own `render_all.py --check` permanently red: a faithful re-render
+would differ from the committed file by that one line, so checking could never read green.
+"When was this generated?" is git's answer (`git log -1 --format=%ci -- <generated file>`).
 """
-from datetime import datetime, timezone
 from pathlib import Path
 
 import yaml
@@ -53,9 +56,6 @@ def main() -> int:
 
     ctx = {
         "ansible_managed": "Ansible managed",
-        "ansible_date_time": {
-            "iso8601": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        },
         "network_vlans": all_yml["network_vlans"],
         "network_static_hosts": all_yml["network_static_hosts"],
         "network_ranges": all_yml["network_ranges"],

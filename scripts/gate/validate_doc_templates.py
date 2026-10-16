@@ -12,7 +12,8 @@ What is checked:
 
 Mocked (host/instance-specific, no plain group_vars equivalent): per-host
 dns_*_ip entries are derived here from network_static_hosts exactly like the
-playbook does; ansible_date_time is a fixed instant.
+playbook does. The context deliberately carries NO `ansible_date_time`: a template that asks
+for a wall clock must fail to render here rather than stamp one into a tracked file.
 
 Run:   python scripts/gate/validate_doc_templates.py
 Exit:  0 = both templates render; 1 = any render/parsing failure.
@@ -86,7 +87,6 @@ def main() -> int:
         # Canonical managed header (CONVENTIONS §8.2 / HD-163): exactly Ansible's
         # built-in ansible_managed default.
         "ansible_managed": "Ansible managed",
-        "ansible_date_time": {"iso8601": "2026-01-01T00:00:00Z"},
         "network_vlans": gv["network_vlans"],
         "network_static_hosts": gv["network_static_hosts"],
         "network_ranges": gv["network_ranges"],

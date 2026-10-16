@@ -291,6 +291,18 @@
 #                                     item: it proves the classifier on bred cases and both halves of
 #                                     the canary on a throwaway repo, because a gate that cannot fail
 #                                     is not a gate.
+#  34. render_all.py --self-test        — HD-1117: the generated-doc drift check must be able to read
+#                                     GREEN. A wall clock stamped into a render made `--check` red
+#                                     forever — a faithful re-render differs from the committed file
+#                                     by the clock line alone, so the check could never clear and the
+#                                     `*-generated.md` docs had no usable SSOT gate. The arms run the
+#                                     REAL templates in a throwaway git repo (`$REPO` hook; this tree
+#                                     is never the render target): green, green AGAIN (the idempotence
+#                                     a stamp destroys), the tree left exactly as found, a changed
+#                                     SSOT value reddens it, an uncommitted hand edit survives, a
+#                                     COMMITTED hand edit reddens it, and a template that asks for a
+#                                     wall clock cannot render at all — the clock is out of the
+#                                     context, not merely out of the file.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1075,6 +1087,7 @@ item_q "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/che
 item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" $PY scripts/gate/check_doc_headings.py
 item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" $PY scripts/gate/check_doc_headings.py --self-test
 item_q "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
+item_q "render_all.py --self-test (HD-1117: the generated-doc drift check reads green twice, and an SSOT change still reddens it)" $PY scripts/render_all.py --self-test
 item_q "check_vault_name.py" $PY scripts/gate/check_vault_name.py
 item_q "check_placeholders.py" $PY scripts/gate/check_placeholders.py
 item_q "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
