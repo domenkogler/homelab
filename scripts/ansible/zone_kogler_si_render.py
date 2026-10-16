@@ -125,6 +125,22 @@ def _env(strict: bool = True) -> Environment:
     env.filters["to_json"] = lambda v, **kw: json.dumps(v)
     env.filters["from_json"] = lambda v: json.loads(v)
     env.filters["from_yaml"] = lambda v: yaml.safe_load(v)
+
+    def _combine(base, *others, **kwargs):  # ansible's `combine`, shallow merge only
+        """Merge dicts — the one use is attaching the canonical public CNAME record to an entry.
+
+        ``recursive=``/``list_merge=`` are NOT implemented: the answer plane declares exposure, it
+        never merges deep structures, and a shim that quietly differed from Ansible here would make
+        the parity claim fiction. An option this renderer does not implement RAISES.
+        """
+        if kwargs:
+            raise RenderError(f"combine options {sorted(kwargs)} are not implemented in the answer-plane renderer")
+        out = dict(base)
+        for other in others:
+            out.update(other)
+        return out
+
+    env.filters["combine"] = _combine
     # The handful of Ansible-only filters/tests the loaded group_vars actually use.
     # Deliberately an allowlist, not a catch-all: an unknown filter must raise rather
     # than silently return empty, or a typo inside a zone entry would render quietly.
@@ -420,9 +436,14 @@ def render_cloudflare(ctx: dict) -> list[dict]:
     if str(mod.get("state", "present")) != "present":
         raise RenderError("cloudflare task no longer pins state: present — the role must stay incremental-only")
     cf_ctx = dict(ctx)
-    cf_vars = yaml.safe_load(CF_VARS_FILE.read_text(encoding="utf-8")) or {}
-    for key, val in cf_vars.items():
-        cf_ctx.setdefault(key, val)
+    # A role-var overlay exists only in the PRE-derivation shape (a hand-authored
+    # `cloudflare_dns_records` list in the role). Once the consumer loops the derived view the file
+    # is gone, and the loop — not an overlay — is the source, so absence is normal here and is never
+    # an empty record set: `_loop_items` below refuses a loop that yields nothing.
+    if CF_VARS_FILE.exists():
+        cf_vars = yaml.safe_load(CF_VARS_FILE.read_text(encoding="utf-8")) or {}
+        for key, val in cf_vars.items():
+            cf_ctx.setdefault(key, val)
     rows = []
     for item in _loop_items(task, cf_ctx, "cloudflare_dns"):
         row_ctx = dict(cf_ctx, item=item)

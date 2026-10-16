@@ -96,45 +96,44 @@ dns:
     - "{{ tailnet_oldsrv_ip }}"  # Technitium SECONDARY on oldsrv, over its tailnet node address
 {% endif %}
     - "{{ dns_primary_ip }}"   # Technitium PRIMARY (VPS public) — the fallback
-  # Tailnet-only dashboards: the tailnet Traefik edge serves
-  # stats/logs/csui/sec/traefik/auto (and their *.ts.kogler.si MagicDNS twins) on
-  # the sidecar node `vps-obs` (tag:sidecar). These custom A records make the CLEAN
-  # subdomain names resolve for tailnet clients via MagicDNS — both namespaces are
-  # declared here so `stats.kogler.si` AND `stats.ts.kogler.si` work. headscale ≥0.24
-  # schema (pinned 0.29.3): `dns.extra_records` = [{name, type, value}].
-  # The target IP is the sidecar's tailnet IPv4, assigned SEQUENTIALLY by headscale
-  # at node join (current nodes: 100.64.0.3 laptop, 100.64.0.4 phone). It is NOT
-  # known at authoring time → rendered from `tailnet_sidecar_ip` (group_vars/vps.yml,
-  # default ""). Deploy step: read `headscale nodes list` after the sidecar joins,
-  # set `tailnet_sidecar_ip`, re-converge + restart headscale. Leave empty → no
-  # extra_records (fail-loud render guard below).
+  # MagicDNS A records for the tailnet-served names: the tailnet Traefik edge (the sidecar node
+  # `vps-obs`, tag:sidecar) serves them, and these custom A records make the CLEAN subdomain names
+  # resolve for tailnet clients — `stats.kogler.si` AND `stats.ts.kogler.si`. The name set is the
+  # tailnet views of `zone_kogler_si` (group_vars), never a list authored here.
+  # The target IP is a tailnet IPv4 assigned SEQUENTIALLY by headscale at node join, so it is NOT
+  # known at authoring time: it comes from the group_vars class defaults (`tailnet_sidecar_ip`,
+  # `tailnet_oldsrv_ip`) that the deploy step fills from `headscale nodes list` after each node
+  # joins. An entry whose address resolves to nothing renders no record, and the guard below renders
+  # `[]` rather than a half-populated netmap.
   #
-  # The schema is now {name, ip} dicts. `ip` defaults to
-  # `tailnet_sidecar_ip` when omitted (the observability entries stay terse), and
-  # the Pattern-A sidecars pin their own tailnet IP. Records render
-  # for BOTH the plain `*.kogler.si` and the `*.ts.kogler.si` namespaces —
-  # identical pattern for both observability edge and Pattern-A sidecars.
+  # The loop items are `zone_kogler_si` entries, reached through the two aliases in
+  # group_vars/vps.yml and keyed by their FQDN `name`. The tailnet address is an entry's
+  # `tailnet_ip:`, never its `ip:` — `ip:` is the LAN (Technitium) answer. `edge` entries answer BOTH
+  # namespaces, `node`/`dual` entries the `.ts` twin ONLY; that split is a per-name decision recorded
+  # in the zone list, not here. headscale 0.29.3 `dns.extra_records` = [{name, type, value}].
   extra_records:
 {% set _any_ip = tailnet_sidecar_ip | default('', true) or tailnet_dsh_ip | default('', true) or tailnet_pi_dev_ip | default('', true) or tailnet_oldsrv_ip | default('', true) %}
 {% set ns = namespace(rendered=0) %}
 {% if _any_ip %}
-{% for sub in tailnet_subdomains | default([{'name':'stats'},{'name':'logs'},{'name':'csui'},{'name':'traefik'},{'name':'auto'}]) %}
-{% set _ip = sub.ip | default(tailnet_sidecar_ip) %}
+{% for sub in tailnet_subdomains %}
+{% set _ip = sub.tailnet_ip | default(tailnet_sidecar_ip) %}
 {% if _ip %}
+{% set _ts_name = sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain) %}
 {% set ns.rendered = ns.rendered + 1 %}
-    - name: "{{ sub.name }}.kogler.si"
+    - name: "{{ sub.name }}"
       type: "A"
       value: "{{ _ip }}"
-    - name: "{{ sub.name }}.ts.kogler.si"
+    - name: "{{ _ts_name }}"
       type: "A"
       value: "{{ _ip }}"
 {% endif %}
 {% endfor %}
-{% for sub in tailnet_ts_only_subdomains | default([]) %}
-{% set _ip = sub.ip | default(tailnet_oldsrv_ip) %}
+{% for sub in tailnet_ts_only_subdomains %}
+{% set _ip = sub.tailnet_ip | default(tailnet_oldsrv_ip) %}
 {% if _ip %}
+{% set _ts_name = sub.name | regex_replace('\\.' ~ domain_public ~ '$', '.' ~ tailnet_base_domain) %}
 {% set ns.rendered = ns.rendered + 1 %}
-    - name: "{{ sub.name }}.{{ tailnet_base_domain }}"
+    - name: "{{ _ts_name }}"
       type: "A"
       value: "{{ _ip }}"
 {% endif %}

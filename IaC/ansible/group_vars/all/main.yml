@@ -249,22 +249,21 @@ tailnet_pi_ip: "100.64.0.6"
 # ============================================================================
 # Every name in the zone and every address it answers with, in one entry per name.
 #
-# WIRED TODAY (measured, not what an older draft of this
-# comment claimed):
+# WIRED (every consumer below reads this list; the claim is checkable with
+# `python3 scripts/ansible/ansible_query.py --var zone_kogler_si`):
 #   * the Technitium seed (`docker_services/tasks/technitium-seed.yml`) loops
 #     `zone_kogler_si_seed_records` and gates on `zone_kogler_si_lan_only`.
-# NOT WIRED YET — these planes are still DOUBLED (this list + a hand-authored source),
-# and `check_zone_kogler_si_parity.py` is what keeps the two halves answering the same:
-#   * MagicDNS / the tailnet routers read `tailnet_subdomains` and
-#     `tailnet_ts_only_subdomains` in `group_vars/vps.yml` — consumed by
-#     `templates/docker_services/headscale/config.yaml.j2` and the traefik-internal,
-#     traefik-tailnet, traefik-ha and spark-dashboard `dynamic/routes.yml.j2`.
-#   * the public Cloudflare set reads `cloudflare_dns_records` in
-#     `roles/cloudflare_dns/vars/main.yml`.
-# ⛔ Editing this list therefore changes LIVE DNS only for Technitium. For the other two
-# planes it changes nothing on the wire — the gate proves the derived view still matches
-# them, it does NOT publish anything. Switching a consumer is its own step, done behind
-# this gate, never asserted in a comment.
+#   * headscale's `dns.extra_records` loops the two tailnet views; `tailnet_subdomains` /
+#     `tailnet_ts_only_subdomains` in `group_vars/vps.yml` are aliases of those views, not lists.
+#   * the public Cloudflare set (`roles/cloudflare_dns/tasks/main.yml`) loops
+#     `zone_kogler_si_public_dns`.
+# `check_zone_kogler_si_parity.py` renders all three consumers and diffs the result against the
+# pre-derivation fixture, so a name that reaches one plane and not another is RED at the gate.
+# ⛔ A change here reaches the wire only through the consumer's own converge (the seed for
+# Technitium, the headscale config for MagicDNS, `playbooks/dns.yml` for Cloudflare); editing this
+# list publishes nothing by itself. The traefik-internal, traefik-tailnet, traefik-ha and
+# spark-dashboard `dynamic/routes.yml.j2` router lists are still authored per service, so `ts_router:`
+# below is validated intent, not their source.
 #
 # This var lives in group_vars/all because the seed runs on VPS + oldsrv + the Pi and
 # `playbooks/dns.yml` runs against localhost; `all` is the only group in scope for all
@@ -296,13 +295,14 @@ tailnet_pi_ip: "100.64.0.6"
 #              fails the build on the mismatch. The renderer for it (the
 #              traefik-tailnet router list) is a later derivation step; today the field
 #              is the declared intent, and it is validated, not wired.
-#   public:    true = the name is published publicly (canonical Cloudflare CNAME →
-#              vps.kogler.si). DECLARED INTENT, NOT WIRED: the publisher still reads
-#              `cloudflare_dns_records`; the parity gate fails if the two disagree.
+#   public:    true = the name is published publicly, as the canonical Cloudflare CNAME →
+#              `zone_kogler_si_public_cname_target`, so every published name flattens to one
+#              IP source. WIRED: `roles/cloudflare_dns` loops `zone_kogler_si_public_dns`.
 #   public_records: explicit Cloudflare records for a name whose public answer is not
 #              that CNAME (the VPS host A/AAAA pair, the SMTP2Go delegations).
 #              `proxied: false` (DNS-only) is the consumer's default, not per record.
-#              Also declared, not wired.
+#              One of `public:` / `public_records:` is what publishes a name; declaring both on one
+#              entry publishes both answers, which is a decision, not a tidy-up.
 #
 # ⛔ A change here changes live Technitium DNS on the next seed converge, and nothing
 # else. The parity gate (`scripts/gate/check_zone_kogler_si_parity.py`, in validate-all)
@@ -445,11 +445,20 @@ zone_kogler_si_retired:
   - sec.kogler.si
 zone_kogler_si_tailnet_plain: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'equalto', 'edge') | list }}"
 zone_kogler_si_tailnet_ts: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'in', ['node', 'dual']) | list }}"
-# Public face: the canonical CNAME set, then the names that answer something else.
-# `subelements` pairs each name with each of its declared records, so one entry per
-# name can still publish an A and an AAAA (item.0 = the entry, item.1 = the record).
-zone_kogler_si_public_cnames: "{{ zone_kogler_si | selectattr('public', 'defined') | selectattr('public') | map(attribute='name') | list }}"
-zone_kogler_si_public_records: "{{ q('ansible.builtin.subelements', zone_kogler_si | selectattr('public_records', 'defined') | list, 'public_records') }}"
+# The ONE canonical public answer: a `public: true` name is published as a CNAME to the VPS host
+# record, so the whole public face flattens to a single IP source. A name whose public answer is
+# something else declares `public_records` instead (the VPS host A/AAAA pair, the SMTP2Go delegations).
+zone_kogler_si_public_cname_target: "vps.kogler.si"
+# The Cloudflare publisher's loop: one (entry, record) pair per published record, so one name can
+# still publish an A and an AAAA (item.0 = the entry, item.1 = the record). Cloudflare's `record`
+# argument is zone-relative — the consumer spells the FQDN down to a label; these rows carry FQDNs.
+zone_kogler_si_public_dns: >-
+  {{ q('ansible.builtin.subelements',
+       ((zone_kogler_si | selectattr('public', 'defined') | selectattr('public')
+          | map('combine', {'public_records': [{'type': 'CNAME',
+                                                'value': zone_kogler_si_public_cname_target}]})) | list)
+       + (zone_kogler_si | selectattr('public_records', 'defined') | list),
+       'public_records') }}
 
 ha_vip: 10.10.1.200                # keepalived VIP — ha.kogler.si
 ha_vip_cidr: 24                    # VIP prefix — shared by primary + standby keepalived

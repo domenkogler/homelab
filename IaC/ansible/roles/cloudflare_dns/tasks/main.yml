@@ -9,20 +9,31 @@
 #
 # IMPORTANT: the cloudflare_api token is IP-filtered to 193.77.156.222 — run this
 # from the home control plane (management laptop/workstation), not the VPS/CI.
+#
+# The record set is ONE list — `zone_kogler_si` in group_vars/all/main.yml, projected by the
+# `zone_kogler_si_public_dns` view: the canonical CNAME for every `public: true` name, then the
+# explicit `public_records` of the names whose public answer is not that CNAME (the VPS host A/AAAA
+# pair, the SMTP2Go delegations). `item.0` is the zone entry, `item.1` the record.
+# Scope is driven by that list, not by an inventory group: whatever it yields is ensured, and this
+# role writes `state: present` ONLY — it never deletes a live Cloudflare record, so dropping a name
+# from the zone list is NOT a deletion and the zone must be cleaned up by hand.
 
 - name: Resolve Cloudflare API token from 1Password (Homelab-ansible)
   ansible.builtin.set_fact:
     cf_api_token: "{{ lookup('community.general.onepassword', 'cloudflare_api', field='credential', vault=op_vault) }}"
 
 - name: Ensure public DNS records are present (idempotent)
+  # Cloudflare's `record` argument is zone-relative, so the FQDN is spelled down to a label here.
+  # The pattern is anchored on a DOT on purpose: the apex entry IS the zone name, has no dot to
+  # strip, and stays `kogler.si` — an empty `record` would be a different answer, not the same apex.
   community.general.cloudflare_dns:
-    zone: "{{ domain_public | default('kogler.si') }}"
-    record: "{{ item.name }}"
-    type: "{{ item.type }}"
-    value: "{{ item.value }}"
-    ttl: "{{ item.ttl | default(300) }}"
-    proxied: "{{ item.proxied | default(false) }}"
+    zone: "{{ domain_public }}"
+    record: "{{ item.0.name | regex_replace('\\.' ~ domain_public ~ '$', '') }}"
+    type: "{{ item.1.type }}"
+    value: "{{ item.1.value }}"
+    ttl: 300                 # the zone declares records, not TTLs — 300 s is this consumer's answer
+    proxied: false           # DNS-only: Cloudflare's proxy would hide the client IP from the edge
     api_token: "{{ cf_api_token }}"
     state: present
-  loop: "{{ cloudflare_dns_records }}"
+  loop: "{{ zone_kogler_si_public_dns }}"
   register: dns_result

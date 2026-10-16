@@ -318,122 +318,22 @@ tailnet_sidecar_ip: "100.64.0.1"
 tailnet_dsh_ip: "100.64.0.2"
 tailnet_pi_dev_ip: "100.64.0.5"
 
-# Subdomains served by the tailnet edge (watched by headscale config.yaml.j2
-# extra_records render). Each entry is `{name: <sub>, ip: <tailnet IPv4>}`.
-# `ip` defaults to `tailnet_sidecar_ip` (the traefik-tailnet observability
-# edge on `vps-obs`, 100.64.0.1) when omitted. EVERY
-# clean-URL FQDN (incl. dsh/pi) must resolve to this edge — it terminates TLS
-# (wildcard cert) + Host-routes to the backends. Do NOT pin the Pattern-A
-# sidecar IPs here: the sidecars only serve plain HTTP (:3080/:8080) with no
-# TLS/Host-routing, so pointing the FQDN at them breaks the clean URLs.
-#
-# NOTE: the `ip` value is a LITERAL tailnet IPv4 (NOT a Jinja var reference).
-# Ansible's group_vars loader treats YAML scalars as-is (no second Jinja pass);
-# if `ip` were `{{ tailnet_sidecar_ip }}` it would render as the literal string
-# `{{ tailnet_sidecar_ip }}` in the headscale config, NOT the variable's value.
-# The deploy step MUST keep each per-sub IP in sync with the corresponding
-# `tailnet_<svc>_ip` group_var; today every entry omits `ip` -> all resolve to
-# tailnet_sidecar_ip = 100.64.0.1 (vps-obs edge).
-# Keep in sync with traefik-tailnet dynamic/routes.yml (obs edge) +
-# the sidecar compose templates (Pattern-A: dsh + pi-dev).
-tailnet_subdomains:
-  # --- traefik-tailnet observability edge (vps-obs, tailnet_sidecar_ip) ---
-  - { name: stats }
-  - { name: logs }
-  - { name: csui }
-  # No `sec` entry: Metabase is retired from the VPS.
-  - { name: traefik }
-  - { name: auto }
-  # --- DSH / pi-dev: resolve to the edge, hosted on OLDSRV; the tailnet
-  # edge serves the clean URLs + the *.ts twins; it reaches the backends over WG
-  # to {{ oldsrv_home_ip }}:3080/:8080 (the dsh/pi-dev route re-point lives in
-  # templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2) ---
-  # ⚠ PARKED: the BACKENDS DO NOT EXIST any more —
-  # dsh/pi-dev are removed (and the coding harnesses are dedicated deployments now, not
-  # oldsrv containers), so these two names resolve and the edge answers 502 BY DESIGN.
-  # This is NOT an outage to chase. Left in place deliberately: dropping the entries
-  # would delete MagicDNS records (a behavior change, its own decision) while buying
-  # nothing — the records are harmless and the routes cost no failure. Remove both here
-  # AND the dsh-backend/pi-backend blocks in routes.yml.j2 together, in one change, if
-  # the owner decides the names should stop resolving.
-  - { name: dsh }     # -> edge -> dsh-backend    http://{{ oldsrv_home_ip }}:3080 (over WG) — backend PARKED, 502 expected
-  - { name: pi-dev }  # -> edge -> pi-backend     http://{{ oldsrv_home_ip }}:8080 (over WG) — backend PARKED, 502 expected
-  # spark AI endpoints + LiteLLM admin — resolve to the vps-obs edge (same as above);
-  # the tailnet edge Host-routes db-spark/llm to spark's edge over WG + litellm to the VPS
-  # container. The .ts twins get the same extra_records (MagicDNS).
-  - { name: db-spark }   # -> edge -> db-spark-backend  https://{{ spark_home_ip }}:443 (over WG; spark's own edge)
-  - { name: llm }        # -> edge -> llm-backend       https://{{ spark_home_ip }}:443 (over WG; spark's own edge)
-  - { name: litellm }    # -> edge -> litellm-backend   http://litellm:4000 (docker DNS; tailnet-only)
-
-# MagicDNS records for the **`*.ts.kogler.si` namespace ONLY**.
-# This list exists because the one above renders BOTH namespaces (plain + `.ts`) — adding
-# `ha` there would repoint plain `ha.kogler.si` to a tailnet IP for every tailnet client,
-# which is the documented resolver-ambiguity trap AND (worse here) would make a
-# tailnet-enabled phone at home stop resolving HA to the VIP, putting a new dependency on
-# oldsrv inside the oldsrv failover domain. `ip` defaults to
-# `tailnet_oldsrv_ip` (group_vars/all/main.yml), served by oldsrv's own edge.
-tailnet_ts_only_subdomains:
-  - { name: ha }     # -> oldsrv tailnet node -> traefik-internal `ha-ts` router -> VIP:8123
-  # The pi agent web UI on oldsrv (tailnet seat). It lives HERE, not in the list above, for a
-  # reason rather than taste: the list above
-  # renders BOTH namespaces, and MagicDNS answers extra_records CLIENT-SIDE, so publishing a plain
-  # `pi-oldsrv.kogler.si` would be a second door nobody asked for (and `pi.kogler.si` was never on
-  # the table — that FQDN is the RPi4 node itself, inventory.ini + host_vars/pi.kogler.si.yml;
-  # hence the `-oldsrv` host suffix, the same shape as `cockpit-oldsrv` and `dns-pi`).
-  # Served by OLDSRV's own `websecure-ts` listener on its own tailnet node — no VPS edge, no WG S2S
-  # hop, so the seat keeps working when the VPS does not. `ip` defaults to `tailnet_oldsrv_ip`.
-  - { name: pi-oldsrv }  # -> oldsrv tailnet node -> traefik-internal `pi-oldsrv-ts` -> 127.0.0.1:{{ cockpit_pi_web_port }}
-  # The spark DGX dashboard, short name, OFF-LAN. Deliberately HERE and not
-  # in `tailnet_subdomains`: that list renders BOTH namespaces, and publishing the plain HOST name
-  # `spark.kogler.si` into MagicDNS would answer every tailnet client with the edge IP for the
-  # name the inventory, the docs and the humans use for the box itself — the known
-  # resolver-ambiguity trap (`ansible_host` pins SSH, but a browser at home with tailscale on
-  # would hairpin through the VPS for a page the LAN already serves directly, i.e. a new VPS
-  # dependency inside the oldsrv failure domain). So off-LAN the dashboard is
-  # **`spark.ts.kogler.si`** — tailnet-only BY CONSTRUCTION, and NEVER a Cloudflare/public record
-  # (`dig A spark.kogler.si @1.1.1.1` = no answer; it must stay that way).
-  # `ip` is a LITERAL here because the group_vars loader does no second Jinja pass (see the NOTE
-  # above `tailnet_subdomains`) — keep it equal to `tailnet_sidecar_ip` (100.64.0.1, the vps-obs
-  # edge, which Host-routes it over WG S2S to spark's own edge :443). The LAN answer is
-  # unchanged: Technitium seeds `spark.kogler.si` = `spark_home_ip` on the HOME instances only.
-  - { name: spark, ip: "100.64.0.1" }   # -> vps-obs edge -> db-spark-backend -> https://{{ spark_home_ip }}:443
-  # The nas management console, away from home. `cockpit-nas.kogler.si` is
-  # LAN-ONLY in the seed (its answer is a Home-VLAN address, i.e. a black hole for a peer that is
-  # not at home — see LAN_ONLY in scripts/gate/check_dns_seed_drift.py), so before this row an
-  # off-LAN admin had NO name for the nas console at all: the tunnel (`ssh -J vps -L 9090:…`) was
-  # the only path. A `.ts` twin needs no resolver to fight (resolver-ambiguity rule #1) and repoints
-  # nothing. `ip` defaults to `tailnet_oldsrv_ip`, i.e. oldsrv's own `websecure-ts` listener ->
-  # cockpit role's `cockpit-nas-ts` router -> nas:9090 over the Home VLAN.
-  # THE COUPLING, named out loud: this tailnet path DIES WITH OLDSRV. Accepted deliberately — the
-  # decoupled alternative is the VPS `traefik-tailnet` edge, which needs a NEW nftables/WG allow
-  # for VPS -> nas:9090 (blocked: the route exists, nas:22 is allowed, :9090 is
-  # not) and the nas itself runs no edge by design. Note the LAN route already had this coupling:
-  # `/opt/traefik/dynamic/cockpit.yml` is rendered ONTO OLDSRV by the cockpit role, so when oldsrv
-  # left the network at 21:39:55 the healthy nas lost its console route too. If that ever stops
-  # being acceptable, the fix is `ip: tailnet_sidecar_ip` + the firewall allow + an edge-side router.
-  - { name: cockpit-nas }  # -> oldsrv tailnet node -> cockpit role `cockpit-nas-ts` -> nas:9090
-  # The home-hosted media/*arr/ downloader set + the music trio, OFF-LAN. HERE and not in
-  # `tailnet_subdomains` on purpose — that
-  # list renders BOTH namespaces and MagicDNS answers CLIENT-SIDE, so publishing the plain HOST name
-  # would hairpin a tailnet-enabled phone standing AT HOME through the VPS instead of oldsrv's LAN
-  # answer (the ha/spark resolver-ambiguity trap). `ip` defaults to `tailnet_oldsrv_ip`
-  # -> oldsrv's own `websecure-ts` listener -> the `<name>-ts` routers in traefik-internal -> the
-  # oldsrv publishes. Node-direct: no VPS hop, so it survives a WAN-out at home. Same coupling to
-  # oldsrv as cockpit-nas, accepted for the same reason.
-  - { name: media }
-  - { name: seerr }
-  - { name: seerrng }
-  - { name: sonarr }
-  - { name: radarr }
-  - { name: lidarr }
-  - { name: prowlarr }
-  - { name: bazarr }
-  - { name: profilarr }
-  - { name: sab }
-  - { name: torrent }
-  - { name: aurral }
-  - { name: slskd }
-  - { name: lidarr-ydl }
+# Subdomains served by the tailnet edge — the two lists headscale's `config.yaml.j2` renders into
+# `dns.extra_records`. Both are ALIASES of the tailnet views of `zone_kogler_si`
+# (group_vars/all/main.yml): a name joins or leaves one of them by editing that entry's `tailnet:`
+# field, never here, because the same entry also decides the Technitium seed and the public set.
+#   * `tailnet_subdomains` — the `edge` class, rendered as `name.kogler.si` AND its `.ts` twin.
+#   * `tailnet_ts_only_subdomains` — the `node`/`dual` class, rendered as the `.ts` twin ONLY: a
+#     tailnet address answering a PLAIN name client-side is the resolver-ambiguity trap, so a
+#     tailnet-enabled phone standing at home keeps the LAN answer for `ha`, for the media family and
+#     for the host name `spark` itself (docs/network-vpn.md §Tailnet boundary).
+# An entry's tailnet answer is its `tailnet_ip:`, never its `ip:` — `ip:` is the LAN (Technitium)
+# answer, a different address class. OMIT `tailnet_ip:` to take the class default:
+# `tailnet_sidecar_ip` for `edge`, `tailnet_oldsrv_ip` for `node`/`dual`, which is why a `.ts` name is
+# only as live as the node it points at. A written `tailnet_ip:` is a literal address and must equal
+# the class default it stands in for; the parity fixture pins both spellings.
+tailnet_subdomains: "{{ zone_kogler_si_tailnet_plain }}"
+tailnet_ts_only_subdomains: "{{ zone_kogler_si_tailnet_ts }}"
 
 # WG-S2S reach for the internal all-app edge.
 # The internal edge (`traefik-tailnet`, container) listens on :443 in its bridge
