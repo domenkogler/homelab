@@ -104,11 +104,11 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
 3. ⏳ **Silent-failure alerting** — **HD-450**'s rules are live and proven end to end (the alert read closed
    2026-10-09); two things are owed: leg (c), the NUT client→master **metric**, and exporting the VPS **box** cert,
    which has no series at all. ⚠ The canary recipe this handoff used to carry could not fire — a transient unit
-   outside `monitoring_hygiene_units` is invisible to the exporter; the working trigger is in the doc. **HD-1094**
-   is **proof-owed, not closed**: the fleet pin IS `alloy_version: "1.20.1-1"`
-   (`IaC/ansible/group_vars/all/versions.yml:347`) with no per-host override left, so the decision is taken — what
-   remains is reading each monitoring host's **running** version against the pin and quoting `up{job="alloy"}` after
-   its restart. A `dpkg` read is not a health read, and ⛔ never add `--allow-downgrades`. **LLM token accounting
+   outside `monitoring_hygiene_units` is invisible to the exporter; the working trigger is in the doc. The **Alloy
+   fleet pin** is CLOSED 2026-10-17: `alloy_version: "1.20.1-1"` (`IaC/ansible/group_vars/all/versions.yml`) with
+   no per-host override, and all five monitoring hosts run it and answer scrapes — the four reads, the apt failure
+   shape and the ⛔ never-`--allow-downgrades` rule are in [docs/observability.md](docs/observability.md)
+   §The Alloy pin. **LLM token accounting
    (HD-1120 · 1121 · 1122, minted 2026-10-09)** is now in the same brief: the engine counters report for **every**
    caller (totals known, attribution not), the two LiteLLM gateways and the oldsrv serving tier report **nothing**, and
    attribution is taken from the **edge access log** — a metering proxy hop was ruled out because it re-buys the hop
