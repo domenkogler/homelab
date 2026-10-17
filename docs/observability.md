@@ -658,8 +658,7 @@ mode this whole section documents. Its two non-obvious settings are reasoned in
 [`../IaC/ansible/roles/monitoring/vars/main.yml`](../IaC/ansible/roles/monitoring/vars/main.yml) and are
 not copies of the neighbours: it keys on `result="differ"` and **never** on `homelab_pkg_pin_ok` (the ok
 gauge is 0 for "off its pin" AND for "this host does not carry the package", so a fleet-wide rule on it
-pages `nas` forever), and it takes `noDataState: OK` because a filtered-empty result IS NoData (§Alerting,
-Operational gotchas) — `Alerting` here would page every evaluation on a fleet that is entirely in sync.
+pages `nas` forever), and it takes `noDataState: OK` because a filtered-empty result IS NoData (§Operational gotchas) — `Alerting` here would page every evaluation on a fleet that is entirely in sync.
 
 **What the fleet reads today** (2026-10-17, `count by (instance, result) (homelab_pkg_pin_result)` out of
 VictoriaMetrics, cross-checked against each host's own `:9098`):
@@ -707,7 +706,7 @@ afterwards — a rule that is authored is not a rule that is loaded.
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
 | **Critical** | oldsrv disk ≥90%, **nas ZFS pool usage ≥80% (`tank` & `bulk`)**, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
-| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) · a NUT client that cannot read its master (`nut-master-unreachable`) · a host off its `versions.yml` pin (`pkg-pin-drift`) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
+| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) · a NUT client that cannot read its master (`nut-master-unreachable`) · a host off its version pin (`pkg-pin-drift`, §Pin-lag report) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).

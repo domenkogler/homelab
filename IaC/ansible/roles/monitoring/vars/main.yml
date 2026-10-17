@@ -230,10 +230,10 @@ grafana_alert_rules:
       eval_type: lt
       eval_params: [1]
     # ---- running version vs the versions.yml pin (docs/observability.md §Pin-lag report) ----------
-    # The rule half of HD-1147. It ships AFTER the series, not with them: a rule aimed at a series the
-    # backend has never held sits green forever (§Operational gotchas: "alert rules must match the live
-    # backend"). The pin legs went live on all five monitoring hosts first, and were read back out of
-    # VictoriaMetrics before this line was written.
+    # The rule half of the pin-lag leg. It ships AFTER the series, not with them: a rule aimed at a
+    # series the backend has never held sits green forever (docs/observability.md §Operational gotchas:
+    # "alert rules must match the live backend"). The pin legs went live on all five monitoring hosts
+    # first, and were read back out of VictoriaMetrics before this line was written.
     - uid: pkg-pin-drift
       title: A host runs a package that is not its pin
       for: 30m
@@ -248,7 +248,7 @@ grafana_alert_rules:
       # collector could not explain, printed to its own journal, not a version that moved.
       # noDataState: OK, reasoned rather than copied. This expression is EMPTY when every host matches,
       # because a count over a filtered selector with no matches returns no series — the same NoData
-      # state §Operational gotchas warns about, and the exact defect the corrected
+      # state docs/observability.md §Operational gotchas warns about, and the exact defect the corrected
       # hygiene-collector-stale was written to stop. `Alerting` here would page every evaluation on a
       # fleet that is entirely in sync. Blindness is not this rule's job either: a collector that stops
       # reporting is hygiene-collector-stale (CRIT), which already names the host.
