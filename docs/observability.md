@@ -674,10 +674,11 @@ VictoriaMetrics, cross-checked against each host's own `:9098`):
 
 ⚠ **So `pkg-pin-drift` fires the day it loads, on `pi`, `spark` and `vps`, and that is true, not a false
 positive**: `docker_ce_version` is `5:29.8.2` and those three boxes still run `5:29.7.2` (`containerd.io`
-`2.3.6` vs `2.3.4`, buildx `0.37.1` vs `0.37.0`, compose `5.5.1` vs `5.5.0`). The drift is HD-1148's
-pending `--tags docker` applies — every one of them restarts the daemon, so they are owner-windowed, not a
-converge a lane may run. Now that the family is HELD, `apt upgrade` will not close the gap on its own: the
-rule stays red until those applies run. Do not mute it to make the landing quiet.
+`2.3.6` vs `2.3.4`, buildx `0.37.1` vs `0.37.0`, compose `5.5.1` vs `5.5.0`). The drift is the pending
+`--tags docker` applies on the pinned docker-family suite `roles/docker` installs — each restarts the
+daemon, so they are owner-windowed, one host at a time, not a converge a lane may run. Now that the
+family is HELD, `apt upgrade` will not close the gap on its own: the rule stays red until those applies
+run. Do not mute it to make the landing quiet.
 
 ⚠ **`docker-ce-rootless-extras` is named in the suite, so nothing keeps this rule red except the
 applies themselves.** It is in the pin map and in the held set, and `roles/docker` installs it there:
