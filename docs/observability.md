@@ -460,8 +460,9 @@ that host's Alloy into the same remote_write path as everything else):
 `/api/v1/label/__name__/values`, cross-checked per host against `curl -s 127.0.0.1:9098/metrics`): the
 `homelab_cert_*` family carries one entry per consumer edge that loads a **PEM file** on disk —
 `consumer="traefik-internal"` on oldsrv, `consumer="traefik-ha"` on the Pi, and the VPS pair-dumper's two
-outputs as `"traefik-tailnet"` / `"traefik-tailnet-ts"` (live in the backend today: the first two — the VPS
-entries are the leg the Deploy-state note below still owes). The other cert-bearing series are blackbox
+outputs as `"traefik-tailnet"` / `"traefik-tailnet-ts"` — **all four are in the backend today**, read on
+2026-10-17 as `homelab_cert_pair_present` = 1 for each (`traefik-internal` 34.85 d, `traefik-ha` 34.85 d,
+`traefik-tailnet` 34.85 d, `traefik-tailnet-ts` 40.74 d). The other cert-bearing series are blackbox
 `probe_ssl_earliest_cert_expiry` (**zero series** — blackbox emits no SSL expiry, which is what makes the
 `ssl-cert-expiring` rule structurally dead) and Traefik's own `traefik_tls_certs_not_after`, which the
 VPS-only `job="traefik"` scrape takes from the **issuer's** in-memory cert view.
@@ -489,10 +490,13 @@ Shipped: **WARN 14 d / CRIT 7 d** + a critical on
 `pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
 
 **Fleet coverage:** the exporter runs on `oldsrv · pi · nas · vps · spark` — `count by (instance)
-(homelab_hygiene_scrape_ok)` → **1 for each of the five**. The five rules are in
-Grafana: of 24 rules loaded, **5 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
+(homelab_hygiene_scrape_ok)` → **1 for each of the five** (re-read 2026-10-17: five series, freshest host
+6 s old, stalest 59 s — i.e. every host is collecting). The rules are in
+Grafana: of 25 rules loaded, **6 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
 `cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
-(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m).
+(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m). Count them
+from the ruler API, never from this sentence — the read is in the table below, and a seventh
+(`pkg-pin-drift`, §Pin-lag report) ships with the next rules converge.
 
 **`hygiene-collector-stale` must be written as unfiltered A + a threshold expression**, the shape
 §Alerting demands: `time() - max_over_time(homelab_hygiene_scrape_ok[6h])` in A, `gt [900]` in B, `for: 5m`,
@@ -544,9 +548,10 @@ directory; that is also why `set_collectors` does NOT list `textfile`.
 
 **Coverage today**, from the read rather than from this sentence
 (`curl -s 127.0.0.1:9098/metrics | grep -c '^homelab_'` on each host): all five monitoring hosts publish the
-heartbeat; oldsrv (`traefik-cert-pull` + the two NUT units) and the Pi (`ha-cert-sync` + the two NUT units)
-also publish one cert pair each, all `last_success = 1`; `nas` and `spark` publish nothing but the
-heartbeat, because neither declares a watched unit or a pair.
+heartbeat and the pin-lag legs (§Pin-lag report); oldsrv (`traefik-cert-pull` + the two NUT units) and the
+Pi (`ha-cert-sync` + the two NUT units) also publish one cert pair and the NUT client leg each, all
+`last_success = 1`; `nas` and `spark` publish no unit or cert series, because neither declares a watched
+unit or a pair — that absence is topology, and it is why the cert rules read four consumers, not five.
 
 **The NUT client→master leg is the claim the unit legs cannot carry.** `nut-monitor.service` and
 `nut-client.service` stay `active` while the master stops answering — `upsmon` retries forever and never
@@ -558,14 +563,26 @@ reachability verdict and never a second copy of the battery numbers. A client th
 no series — the leg is declared per client host, and absence of the declaration is the one case the rule
 cannot see.
 
-**Deploy state: 🟢 IaC done ⏳ deploy-gated.** Both new legs ship inside `homelab-hygiene.py` plus the host
-lists, so their series appear on the next VPS-slot `--tags monitoring` converge (the collector runs on all
-five hosts; `--diff` on this role prints vault values into the run log — →
-[deployment-secrets.md](deployment-secrets.md)). The reads that close it: on oldsrv and the Pi
-`curl -s 127.0.0.1:9098/metrics | grep '^homelab_nut_'` → one pair with `reachable=1`; on the VPS
-`grep '^homelab_cert'` of the same read → two consumers; then `nut-master-unreachable` read back from the
-ruler API the way §Alerting describes. Until that run, `homelab_nut_master_reachable` has no series and the
-rule evaluates `NoData → OK`: silent, never falsely green-with-data.
+**Deploy state: ✅ LIVE on all five monitoring hosts (read 2026-10-17).** Both legs shipped inside
+`homelab-hygiene.py` plus the host lists and landed with the `--tags monitoring` converges; what closed
+them is the read, not the run log:
+
+| Leg | The read that closed it | Verdict |
+| --- | --- | --- |
+| NUT client → master | `curl -s 127.0.0.1:9098/metrics \| grep '^homelab_nut_'` on oldsrv and on the Pi | `homelab_nut_master_reachable{master="nas.kogler.si"} 1` + `homelab_nut_master_result{master="nas.kogler.si", result="ok"} 1` on **both** clients |
+| …in the store | `GET /api/v1/query?query=homelab_nut_master_reachable` through the datasource proxy | two series, `instance=oldsrv.kogler.si` and `instance=pi.kogler.si`, both 1 |
+| VPS consumer cert pairs | `curl -s 127.0.0.1:9098/metrics \| grep '^homelab_cert'` on the VPS | `homelab_cert_pair_present{consumer="traefik-tailnet"} 1` and `{consumer="traefik-tailnet-ts"} 1` |
+| …in the store | the same query for `homelab_cert_pair_present` | four consumers across three hosts — the VPS pair arrived with the other two |
+| The rule | `GET /api/ruler/grafana/api/v1/rules` | loaded in `Homelab · Warning` as "NUT client cannot reach its master", `expr: homelab_nut_master_reachable == 0`, `for: 5m`, `no_data_state: OK`, `exec_err_state: Error`, condition B `lt 1` |
+
+`nas` and `spark` emit no `homelab_nut_*` series and that is correct: neither declares
+`monitoring_hygiene_nut_masters`, so they run no NUT client — absence is topology here, and the rule's
+`noDataState: OK` is what keeps it silent rather than falsely green. A host that DOES declare a master and
+stops producing the series is the `hygiene-collector-stale` rule's page, not this one's.
+
+⛔ The converges that landed this are not repeatable casually: `--diff` on this role prints vault values
+into the run log (→ [deployment-secrets.md](deployment-secrets.md)), and on the VPS the monitoring role
+restarts the scrape tier.
 
 ⚠ **Never dump `/etc/alloy/config.alloy` to inspect the
 remote_write block**: it prints the VictoriaMetrics **and** VictoriaLogs basic-auth passwords. The file is 0600
@@ -625,32 +642,72 @@ make the read HONEST rather than merely harmless:
 
 | Question | The read that answers it |
 | --- | --- |
-| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Measured on oldsrv: `alloy` `1.20.1-1` and `tailscale` `1.102.5`, both equal to their pins, so both read `match` |
-| How far from current is the box? | `homelab_upgrade_plan_count` — oldsrv: **35 packages pending while both pins match**, because the plan counts the whole unpinned OS tail. It is the staleness signal, never a pin signal |
-| Does this host even carry the package? | `result="missing"` — what a fleet-wide list reads on a host that legitimately does not carry it, and the reason a first rule keys on `result="differ"` rather than on the ok gauge |
+| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Measured 2026-10-17: on oldsrv all eight pins match (`alloy` `1.20.1-1`, `tailscale` `1.102.5`, the docker family at `5:29.8.2`/`2.3.6`/`0.37.1`/`5.5.1`); on vps/pi/spark the six docker-family entries read `differ` — see the fleet table below |
+| How far from current is the box? | `homelab_upgrade_plan_count` — measured 2026-10-17: oldsrv **56**, vps 74, pi 93, nas 95, spark 230, while only 0–6 of those are pinned packages, because the plan counts the whole unpinned OS tail. It is the staleness signal, never a pin signal |
+| Does this host even carry the package? | `result="missing"` — what a fleet-wide list reads on a host that legitimately does not carry it, and the reason a first rule keys on `result="differ"` rather than on the ok gauge. Measured 2026-10-17: `nas` reports `missing` for the whole docker family (no Docker there) and for `tailscale` |
+| …and if dpkg answers nothing at all? | `result="unknown"` — measured on spark for `docker-ce-rootless-extras`: an empty version with rc 0, because the dpkg state is `hold ok not-installed`. A held package the box never installed is NOT the same fact as `missing`, and neither one is drift |
 | Is a reboot still owed? | `homelab_reboot_required` |
 
 ⚠ **A HELD package does not appear in the plan count** — the solver keeps held packages back instead of
 listing them, so the pin legs, never the plan, are what reports a held package's version.
 
-**No alert rule ships with the leg.** Not for want of a shape — `count by (instance)
-(homelab_pkg_pin_result{result="differ"})` needs no threshold — but a rule written against a series the
-backend has never held sits green forever, which is the failure mode this whole section documents. The
-rule lands with the deploy, read back from the live series.
+**The rule is `pkg-pin-drift`, and it was written AFTER the series were read out of the store, not with
+them.** The shape needs no threshold — `count by (instance) (homelab_pkg_pin_result{result="differ"})` —
+but a rule written against a series the backend has never held sits green forever, which is the failure
+mode this whole section documents. Its two non-obvious settings are reasoned in
+[`../IaC/ansible/roles/monitoring/vars/main.yml`](../IaC/ansible/roles/monitoring/vars/main.yml) and are
+not copies of the neighbours: it keys on `result="differ"` and **never** on `homelab_pkg_pin_ok` (the ok
+gauge is 0 for "off its pin" AND for "this host does not carry the package", so a fleet-wide rule on it
+pages `nas` forever), and it takes `noDataState: OK` because a filtered-empty result IS NoData (§Alerting,
+Operational gotchas) — `Alerting` here would page every evaluation on a fleet that is entirely in sync.
 
-**Deploy state: 🟢 IaC done ⏳ deploy-gated.** The leg ships inside `homelab-hygiene.py`, so the series
-exist on a host once the next monitoring converge lands that file. ⛔ That converge is a deliberate
-window, never an unattended one: on the VPS the monitoring role restarts the scrape tier, and `--diff` on
-this role prints vault values into the run log (→ [deployment-secrets.md](deployment-secrets.md); use
-`--check`). After it, the per-host read is
-`curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'`.
+**What the fleet reads today** (2026-10-17, `count by (instance, result) (homelab_pkg_pin_result)` out of
+VictoriaMetrics, cross-checked against each host's own `:9098`):
+
+| Host | `match` | `differ` | `missing` | `unknown` |
+| --- | --- | --- | --- | --- |
+| oldsrv | 8 | — | — | — |
+| nas | 1 (`alloy`) | — | 7 (the docker family + `tailscale` — nas runs no Docker and no Tailscale) | — |
+| pi | 2 (`alloy`, `tailscale`) | 6 (the docker family) | — | — |
+| spark | 1 (`alloy`) | 5 (the docker family) | 1 (`tailscale`) | 1 (`docker-ce-rootless-extras`) |
+| vps | 1 (`alloy`) | 6 (the docker family) | 1 (`tailscale`) | — |
+
+⚠ **So `pkg-pin-drift` fires the day it loads, on `pi`, `spark` and `vps`, and that is true, not a false
+positive**: `docker_ce_version` is `5:29.8.2` and those three boxes still run `5:29.7.2` (`containerd.io`
+`2.3.6` vs `2.3.4`, buildx `0.37.1` vs `0.37.0`, compose `5.5.1` vs `5.5.0`). The drift is HD-1148's
+pending `--tags docker` applies — every one of them restarts the daemon, so they are owner-windowed, not a
+converge a lane may run. Now that the family is HELD, `apt upgrade` will not close the gap on its own: the
+rule stays red until those applies run. Do not mute it to make the landing quiet.
+
+⚠ **`unknown` is a fourth reading, and the hold leg explains it.** On spark `dpkg-query -W
+-f='${Version}' docker-ce-rootless-extras` answers **empty with rc 0** — the dpkg status is
+`Status: hold ok not-installed`, a package the database knows and holds but has never installed — so the
+absent-package branch (`"no packages found" in stderr`) does not fire and the collector reports `unknown`
+rather than `missing`. That is the fail-loud branch working: "no version" never collapses into "match". It
+is also a standing correction to the idea that a host holds only what it runs — the hold leg's "which
+packages does this host carry" probe is `dpkg-query -W -f='${Package}'`, which answers for a deinstalled
+package too, so a held-but-not-installed package is a real state in this fleet (read `apt-mark showhold`
+against `dpkg-query -s <pkg>`, never against each other).
+
+**Deploy state: 🟢 the collector leg is LIVE on all five hosts; ⏳ the rule is authored and needs one
+converge.** The collector half landed with the `--tags monitoring` converges and was verified per host with
+`curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'` — 8 pin pairs +
+`homelab_upgrade_plan_ok`/`_count` + `homelab_reboot_required` on each of `oldsrv · vps · nas · pi ·
+spark`, and the same series in the store (`count by (instance) (homelab_pkg_pin_result)` → 8 for each of
+the five). `pkg-pin-drift` ships in `roles/monitoring/vars/main.yml` and reaches Grafana only through the
+rules task, which `--list-tasks` proves is selected by `bash scripts/ansible/ansible-run.sh
+playbooks/vps.yml --tags monitoring` and by nothing else — `--tags grafana` alone does NOT select it
+(measured: 0 matching tasks). ⛔ That converge is a deliberate window, never an unattended one: on the VPS
+the monitoring role restarts the scrape tier, and `--diff` on this role prints vault values into the run
+log (→ [deployment-secrets.md](deployment-secrets.md); use `--check`). Read it back from the ruler API
+afterwards — a rule that is authored is not a rule that is loaded.
 
 ### Tiers
 
 | Severity | What alerts | Channel | Notes |
 |----------|-------------|---------|-------|
 | **Critical** | oldsrv disk ≥90%, **nas ZFS pool usage ≥80% (`tank` & `bulk`)**, host down, ZFS pool degraded, service down >2min, `probe_success==0` · **UPS battery <20% or runtime <5 min (impending shutdown)** | Signal + email | page-worthy |
-| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
+| **Warning** | high CPU/load (`host-load-high`), HA unreachable (`ha-unreachable`), **nas pool ≥70%** (`zfs-pool-warn`) · **UPS on-battery / mains lost (`ups-on-battery`, auto-clears on return)** · a systemd unit whose last run failed (`unit-last-result-failed`) · a consumer cert under 14 d (`cert-age-warning`) · spark usable memory < 12 GiB (`spark-host-mem-oom-warning`) · a NUT client that cannot read its master (`nut-master-unreachable`) · a host off its `versions.yml` pin (`pkg-pin-drift`) | Signal (deduped) | sent once. There is **no `mikrotik-link-down` rule** (an unpatched port is not incident-worthy, §Operational gotchas) and **no container-restart rule**; adding either class needs a rule in `roles/monitoring/vars/main.yml`, not a doc edit |
 | **Info** | transient / everything else · **UPS online ↔ on-battery transitions / restored** | logged only | no push |
 
 - **Poke/throttle:** re-send only if still firing after ~30 min (prevents overnight alert floods).

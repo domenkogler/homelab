@@ -229,6 +229,34 @@ grafana_alert_rules:
       execErrState: Error
       eval_type: lt
       eval_params: [1]
+    # ---- running version vs the versions.yml pin (docs/observability.md §Pin-lag report) ----------
+    # The rule half of HD-1147. It ships AFTER the series, not with them: a rule aimed at a series the
+    # backend has never held sits green forever (§Operational gotchas: "alert rules must match the live
+    # backend"). The pin legs went live on all five monitoring hosts first, and were read back out of
+    # VictoriaMetrics before this line was written.
+    - uid: pkg-pin-drift
+      title: A host runs a package that is not its pin
+      for: 30m
+      expr: "count by (instance) (homelab_pkg_pin_result{result=\"differ\"})"
+      summary: !unsafe "{{ $labels.instance }} runs {{ $values.A }} pinned package(s) off their versions.yml pin — read homelab_pkg_pin_result for pin= vs running="
+      # ⚠ Keyed on result="differ" and NEVER on homelab_pkg_pin_ok. The ok gauge is 0 for TWO different
+      # statements: "off its pin" and "this host does not carry the package" (result="missing" — `nas`
+      # runs no Docker at all, and the pin map is fleet-wide). A rule on the gauge pages on a host that
+      # legitimately has nothing to be in sync with, forever.
+      # result="unknown" (dpkg answered no version with no error — a HELD-but-not-installed package, as
+      # measured on spark's docker-ce-rootless-extras) is deliberately absent too: it is a read the
+      # collector could not explain, printed to its own journal, not a version that moved.
+      # noDataState: OK, reasoned rather than copied. This expression is EMPTY when every host matches,
+      # because a count over a filtered selector with no matches returns no series — the same NoData
+      # state §Operational gotchas warns about, and the exact defect the corrected
+      # hygiene-collector-stale was written to stop. `Alerting` here would page every evaluation on a
+      # fleet that is entirely in sync. Blindness is not this rule's job either: a collector that stops
+      # reporting is hygiene-collector-stale (CRIT), which already names the host.
+      # for: 30m — pin drift is a queue item, not an outage: the fix is a reviewed Renovate PR plus a
+      # deliberate converge, never a midnight action. The hold also covers the one legitimate transient,
+      # a pinned suite install caught mid-flight with some members moved and others not.
+      noDataState: OK
+      execErrState: Error
     # Pre-stage of the critical rule above, same gauge, same source of truth. Gives the
     # owner room to route agent sessions off spark before the governor has to act.
     - uid: spark-host-mem-oom-warning
