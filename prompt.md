@@ -199,11 +199,15 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    rather than replaying it: `scripts/` is now `lib/ gate/ ansible/ secrets/ git/ harness/ bench/ hardware/
    testdata/` with `validate-all.sh` + `render_all.py` at root, root resolution is structural, and
    `gate/check_script_layout.py` holds the tree from inside `validate-all.sh`. The lane's 13 commits were not
-   replayable (0/13 applied across 676 commits of drift) and are pinned as `rescue/hd1118-20261011`. Three live
-   legs stay in the row; **the two seat legs are run FROM the seats — `bash scripts/harness/pi-seat-sync.sh
-   --check` and `install-tmux-conf.sh --push` on the win11 and `wsl -d Debian` seats, in their own sessions
-   (2026-10-12)** — because a seat plane converges from its own clone and the station cannot speak for a seat's
-   PATH; `install-pi-debian.sh --check` on a clean Debian seat is the third. **HD-1119** — the `harness` docs domain — is the
+   replayable (0/13 applied across 676 commits of drift) and are pinned as `rescue/hd1118-20261011`. Two live
+   legs stay in the row; **the seat leg is run FROM the seat — `bash scripts/harness/pi-seat-sync.sh
+   --check` and `install-tmux-conf.sh --push` on the win11 seat, in its own session** — because a seat plane
+   converges from its own clone and the station cannot speak for a seat's PATH. **The `wsl -d Debian` seat is
+   done 2026-10-17, run from that seat**: three planes had sat red there (the tmux target still carried the
+   pre-move marker, the skills plane had never been pushed since the self-learn landed, and the settings plane
+   had nothing to merge into), one pass of the three owners turned them green, and `pi-seat-sync.sh --seat wsl
+   --check` now reports every declared plane OK; `install-pi-debian.sh --check` on a clean Debian seat is the
+   other leg. **HD-1119** — the `harness` docs domain — is the
    only authored work the brief still carries, and it is now registered rather than missing: the hub
    [docs/harness.md](docs/harness.md) and its §8.3 review/rejected pair exist, `docs/pi-harness.md` is
    [docs/harness-pi.md](docs/harness-pi.md), and what the row owes is the split of that file by subject plus
@@ -211,8 +215,10 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
    [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
    [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
-   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py); **HD-1153** keeps the two
-   seat legs, which can only be run FROM the seats. **The registry's own prose is now a rule with a checker** —
+   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py); **HD-1153** keeps its two
+   seat legs (win11 + oldsrv), which can only be run FROM the seats — the wsl leg closed 2026-10-17 and showed what the
+   plane cannot prove: that seat carried **no `subagents` key at all** and its `packages` sat two fleet rows short, and
+   `--push` fixes the *declaration* only, so `pi list` is the read that says whether pi resolved each name. **The registry's own prose is now a rule with a checker** —
    [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) is built and self-tested but left unwired while the
    rows still carry the ids and dates it refuses (`--show` prints the live count, never a number typed into a handoff), so the
    work is one sweep: clear the rows — ids, dates, diary tenses, the six rows that dropped their **Owning spec** cell, the

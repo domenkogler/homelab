@@ -296,18 +296,27 @@ file (owned keys replaced, everything else preserved, timestamped backup, an unp
 REFUSAL; `packages` is composed from the `versions.yml` pins and a seat-local package the repo does
 not name — the cockpit's pi-web — is KEPT and printed, never deleted).
 
-**The owned package set.** The set this plane writes is `pi-web-access` + `pi-open-tui` + `pi-subagents` +
-`pi-deepseek-optimized`, each at its pin. `seat-local` is where an unmanaged package hides: a package named
-only in an unversioned installer line is classified seat-local and **kept**, which reads as "fine, nothing to
-do" while nothing converges it, no version is recorded anywhere, and a seat carries it only because someone
-hand-ran `pi install` there. So every package a seat is meant to run is pinned and owned: the plane fails
-(`--check --strict`) when a seat is missing one and `--push` restores it at the pin — an arm of `--self-test`
-proves that half, and another proves the cockpit's pi-web still survives the same write.
-`@season179/pi-worktree` and `@ogulcancelik/pi-ssh-tools` are NOT in the set: they are unversioned lines in
-[`../scripts/harness/install-pi-wsl.sh`](../scripts/harness/install-pi-wsl.sh) owned by no plane — residue, not a ruling that
-they are seat-only. What stays seat-local is exactly the placement a fleet key must not own: the cockpit's
+**The owned package set.** The set this plane writes is DISCOVERED from the `pi_pkg_*` inventory in
+[`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml) — every `scope: fleet`
+row, at its pin — so a row added there reaches every seat on the next plane run and no doc or script carries
+a second copy of the list (§2: a re-typed set drifts silently). `seat-local` is where an unmanaged package
+hides: a package named only in an unversioned installer line is classified seat-local and **kept**, which
+reads as "fine, nothing to do" while nothing converges it, no version is recorded anywhere, and a seat
+carries it only because someone hand-ran `pi install` there. So every package a seat is meant to run is
+pinned and owned: the plane fails (`--check --strict`) when a seat is missing one and `--push` restores it at
+the pin — an arm of `--self-test` proves that half, and another proves the cockpit's pi-web still survives
+the same write. What stays seat-local is exactly the placement a fleet key must not own: the cockpit's
 `@ygncode/pi-web` (`--with-package`). A seat-local entry is retired on the seat with `pi remove` — the sync
 never deletes one.
+
+**The settings plane converges the declaration, not the bytes.** `--push` writes the package entries into
+`settings.json` and runs no installer, so a seat that is already installed and merely gains a fleet row reads
+`OK` on the plane with the new name unresolved — pi loads nothing for it. The installer leg is the half that
+places code ([`../scripts/harness/install-pi-wsl.sh`](../scripts/harness/install-pi-wsl.sh) runs `pi install` for the
+same fleet rows), and the read that tells the two states apart on a live seat is `pi list`: it prints a path
+under every package it has resolved and **nothing** under a declaration it has not. The repair is
+`pi install <source>@<pin>`; `pi update --extensions` is never the repair, because it moves every package to
+whatever the registry calls `latest` and walks a pinned seat off its pins one sync at a time (§7).
 
 **Which pi build a seat runs is a pinned value too** (`pi_host_npm_version`, and `pi_dev_npm_version` must equal it — both are `1.1.0`, and the reasoning lives in the `versions.yml` pin lines, not in prose). Every other plane compares files, so without a binary plane a seat quietly runs a pi release the repo has not reviewed. [`../scripts/harness/pi-self-update.sh`](../scripts/harness/pi-self-update.sh) is that plane: `BEHIND` and `AHEAD` are both drift, an already-correct seat runs nothing, and `--push` re-probes the binary instead of trusting the installer.
 
