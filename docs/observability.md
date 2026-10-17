@@ -686,8 +686,8 @@ map), on the rule that a converge must not start installing a package a host nev
 `dpkg-query -W -f='${Version}' docker-ce-rootless-extras` reads `5:29.8.2-1~debian.13~trixie` on oldsrv
 (match), `5:29.7.2-…` on vps and pi (**differ**), empty-with-rc-0 on spark (`unknown`, `hold ok
 not-installed`), "no packages found" on nas. So on the two Debian boxes where it IS installed, nothing in
-the repo will ever move it to the pin — and since HD-1146 the hold no longer lets `apt upgrade` move it
-either. Either name it in the suite list where the host carries it, or drop it from the pin map for hosts
+the repo will ever move it to the pin — and the `roles/common/tasks/apt-holds.yml` hold no longer lets
+`apt upgrade` move it either. Either name it in the suite list where the host carries it, or drop it from the pin map for hosts
 that do not install it; both are an owner call on the docker leg, and until one is taken this rule's red on
 those two hosts is the honest reading, not noise.
 
