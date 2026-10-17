@@ -345,6 +345,47 @@ services:
 
 ---
 
+## Boot auto-start (docker-compose@)
+
+Every deployed service gets a `docker-compose@<service>.service` oneshot (enabled at deploy time),
+which is the only thing that brings stacks back after a host reboot. Its `ExecStart` is
+`/usr/local/sbin/docker-compose-ensure <dir>`, **not** a bare `docker compose up -d`, because
+`up -d` exits `0` on three states in which the service is dead:
+
+| shape | what it looks like | why `up -d` says OK |
+|-------|--------------------|---------------------|
+| a `network_mode: service:X` sibling of a container whose own start failed | `docker compose ps -a` shows it `Created`, never started; `restart: unless-stopped` never picks a `created` container up again, so it stays dead across every later daemon restart | the netns owner started, the dependent was simply never reached |
+| a published port whose **host** address is not assigned yet — a tunnel interface's IP (e.g. the `wg-s2s` address an internal edge is published on) | `failed to bind host port <ip>:<port>/tcp: cannot assign requested address`; the whole start aborts, dependents are left created | the failure is the *owner's*, and the dependent's start is skipped, not failed |
+| a container `running` with **no network endpoint** | `Up (healthy)` in `docker ps`, absent from `docker network inspect`, no Docker DNS entry, no published port → consumers fail on `dial tcp: lookup <svc>: no such host` | the container started; nothing proves the endpoint exists |
+
+The wrapper's contract, in order: wait for the daemon → wait (bounded) for every literal host
+address the rendered compose publishes → `up -d` → **verify membership of every declared
+container on its own network**, counting declared vs processed so a partial walk cannot print OK
+→ on failure escalate once to `up -d --force-recreate` and re-verify. `0` only when everything is
+running and attached; a failing verdict fails the unit, so the damage is visible in
+`systemctl --failed` rather than only in the dashboard that quietly stopped having data.
+The same script runs from `deploy-service.yml` after `up -d`, so a converge and a boot share one
+verdict (`--verify-only` skips the `up`).
+
+- **A published tunnel address is a boot-order dependency, stated not hidden:** waiting is bounded
+  (`DCS_ADDR_WAIT`), so a genuinely down interface fails the unit with the address named, instead of
+  the stack half-starting and staying half-started forever.
+- **`netns` siblings are verified through their owner:** a `network_mode: service:X` container has no
+  endpoint of its own, so its state (`Created` = never started) is what is checked.
+- **Boot units for projects this host no longer declares are disabled by the converge.** A deleted
+  registry row is invisible to the `enabled: false` teardown loop, so an old unit keeps resurrecting
+  a stack IaC does not own — or fails at `Failed at step CHDIR` once its `/opt/<svc>/` is gone.
+- **A scheduled task that finished is not a failure:** a container exited `0` under
+  `restart: "no"`/`on-failure` counts as attached-and-done (renovate, the db-backup pattern).
+  Exited under `always`/`unless-stopped` is BAD — that shape means the daemon gave up or someone
+  stopped it by hand.
+- Separating read when a service is `Up` but unreachable: `docker inspect -f
+  '{{len .NetworkSettings.Networks}}' <c>` → `0` on a container that declares a user-defined
+  network. `docker restart` does **not** repair it (libnetwork re-joins the endpoint it believes
+  exists); recreate does.
+
+---
+
 ## Container Security
 
 ```yaml

@@ -208,6 +208,22 @@
     project_src: "{{ docker_compose_dir }}/{{ svc.name }}"
     state: restarted
 
+# ---- Reachability verdict (what `up -d` cannot tell you) ----
+# `docker compose up -d` exits 0 on a stack whose containers are uncreated (a netns-sharing
+# sibling of a failed dependency), unbound (published host address not on the host yet) or
+# `running` with no network endpoint at all — in the last shape `docker ps` even says
+# `Up (healthy)` while every consumer fails on `lookup <svc>: no such host`. The same wrapper
+# the boot unit runs re-reads the verdict here, so neither path can report green on a service
+# nobody can reach. ⚠ A crash-looping container reads BAD for the same reason — by design.
+# → docs/deployment-compose.md §Boot auto-start (docker-compose@)
+- name: "Verify {{ svc.name }} containers are attached to their networks"
+  # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
+  tags: "{{ svc.name }}"
+  ansible.builtin.command:
+    cmd: /usr/local/sbin/docker-compose-ensure --verify-only {{ docker_compose_dir }}/{{ svc.name }}
+  changed_when: false
+  when: ansible_facts['service_mgr'] == 'systemd'
+
 - name: "Enable systemd service docker-compose@{{ svc.name }} (boot auto-start)"
   # per-service tag: lets --tags select this service's tasks (tag semantics at the top of this file)
   tags: "{{ svc.name }}"

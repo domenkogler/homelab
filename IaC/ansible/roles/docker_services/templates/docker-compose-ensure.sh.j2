@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# {{ ansible_managed }}
+# docker-compose-ensure — bring ONE compose project up and PROVE it is reachable.
+#
+# `docker compose up -d` exits 0 for three states that are all broken, so an `Up`
+# in `docker ps` is not a verdict:
+#   1. A sibling that shares another service's netns (`network_mode: service:X`)
+#      is created but NEVER STARTED when the netns owner's own start fails — and
+#      `restart: unless-stopped` never picks a `created` container up again, so it
+#      stays dead across every later daemon restart (the tailnet edge's
+#      `tailscale-sidecar` is exactly this shape).
+#   2. A published port whose HOST address does not exist yet — a tunnel/WireGuard
+#      IP that the interface has not been assigned — fails the whole start with
+#      `failed to bind host port <ip>:<port>: cannot assign requested address`.
+#   3. A container can be `running` with NO network endpoint: absent from
+#      `docker network inspect`, so it has no Docker DNS entry and no published
+#      port, and every consumer fails on `dial tcp: lookup <svc>: no such host`
+#      while `docker ps` says `Up (healthy)`.
+#
+# So this wrapper waits for the daemon, waits for the host addresses the project
+# publishes, brings the project up, then VERIFIES endpoint membership — escalating
+# once to `--force-recreate` — and exits non-zero if any declared container is
+# still unreachable. It is the ExecStart of `docker-compose@.service` (boot) and
+# the post-`up` check of `deploy-service.yml` (converge), so neither path can
+# report green on a container nobody can reach.
+#
+# Usage:   docker-compose-ensure [--verify-only] <project-dir>
+# Exit:    0 all declared containers running AND attached
+#          1 at least one is not  (the verdict line names each offender)
+#          2 usage / project dir or compose file missing
+# Env:     DCS_DOCKER_WAIT=90   seconds to wait for the daemon
+#          DCS_ADDR_WAIT=120    seconds to wait for a published host address
+#          DCS_VERIFY_WAIT=60   seconds to let a starting stack settle
+#          DCS_SETTLE=5         poll interval for all three waits
+# → docs/deployment-compose.md §Boot auto-start (docker-compose@)
+set -uo pipefail
+
+verify_only=false
+dir=""
+
+log() { printf 'docker-compose-ensure[%s]: %s\n' "${project:-?}" "$*"; }
+die() { printf 'docker-compose-ensure[%s]: %s\n' "${project:-?}" "$*" >&2; exit "${2:-1}"; }
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --verify-only) verify_only=true ;;
+        -*)            die "unknown option: $1" 2 ;;
+        *)             dir="$1" ;;
+    esac
+    shift
+done
+
+[ -n "$dir" ] || die "usage: docker-compose-ensure [--verify-only] <project-dir>" 2
+[ -f "$dir/docker-compose.yml" ] || die "no compose file in $dir" 2
+project="$(basename "$dir")"
+compose="$dir/docker-compose.yml"
+
+DOCKER_WAIT="${DCS_DOCKER_WAIT:-90}"
+ADDR_WAIT="${DCS_ADDR_WAIT:-120}"
+VERIFY_WAIT="${DCS_VERIFY_WAIT:-60}"
+SETTLE="${DCS_SETTLE:-5}"
+
+wait_for() {   # wait_for <seconds> <description> <probe...>
+    local limit="$1" desc="$2" waited=0
+    shift 2
+    while ! "$@" >/dev/null 2>&1; do
+        [ "$waited" -ge "$limit" ] && { log "TIMEOUT waiting for $desc"; return 1; }
+        sleep "$SETTLE"; waited=$((waited + SETTLE))
+    done
+    return 0
+}
+
+has_addr() {   # is <ipv4> assigned to some interface on this host?
+    ip -4 -o addr show | grep -qE "(^|[[:space:]])$1([[:space:]%/]|$)"
+}
+
+# --- 1. the daemon -----------------------------------------------------------
+wait_for "$DOCKER_WAIT" "docker daemon" docker info || die "docker daemon never answered" 1
+
+# --- 2. host bind addresses the project publishes ----------------------------
+# Only a literal IPv4 before the first colon of a `ports:` entry is a HOST bind
+# address (0.0.0.0 / 127.0.0.1 bind unconditionally). Everything else — service
+# names, env interpolation, container-side ports — is not an address to wait on.
+published_host_addrs() {
+    awk '/^[[:space:]]*ports:/ {inports=1; next}
+         inports && /^[[:space:]]*[^[:space:]#-]/ {inports=0}
+         inports && /^[[:space:]]*-[[:space:]]/ {print}' "$compose" \
+      | tr -d '"' \
+      | sed -E 's/^[[:space:]]*-?[[:space:]]*//' \
+      | cut -d: -f1 \
+      | grep -E '^([0-9]{1,3}\.){3}[0-9]{1,3}$' \
+      | grep -vE '^(0\.0\.0\.0|127\.)' \
+      | sort -u
+}
+
+for a in $(published_host_addrs); do
+    wait_for "$ADDR_WAIT" "host address $a" has_addr "$a" \
+        || die "host never had address $a (the interface that owns it is down?) — refusing to start $project" 1
+done
+
+# --- 3. the verdict ----------------------------------------------------------
+# Declared vs attached, counted: "containers processed" must equal "containers
+# the project declares", or a partial walk could print OK.
+bad=""; ok=0; declared=0
+verify_once() {
+    local ids cid name mode st net
+    bad=""; ok=0; declared=0
+    ids="$(docker compose -f "$compose" ps -aq 2>/dev/null)"
+    for cid in $ids; do
+        declared=$((declared + 1))
+        # The format strings below are Go templates, not Jinja — wrapped in raw blocks.
+        read -r name mode st rpoly ec <<<"$(docker inspect --format '{% raw %}{{.Name}} {{.HostConfig.NetworkMode}} {{.State.Status}} {{.HostConfig.RestartPolicy.Name}} {{.State.ExitCode}}{% endraw %}' "$cid" 2>/dev/null)"
+        name="${name#/}"
+        [ -n "$name" ] || { bad="$bad <undocked-container"; continue; }
+        case "$mode" in
+            container:*|host|none) ok=$((ok + 1)); continue ;;   # shares another netns: nothing to attach here
+        esac
+        if [ "$st" != "running" ]; then
+            # A clean exit (0) under a policy that never promises a running container —
+            # `restart: "no"` or `on-failure` — is a FINISHED scheduled run (renovate, the
+            # db-backup pattern), not a failure. `always`/`unless-stopped` + exited means the
+            # daemon gave up or someone stopped it by hand: that stays BAD.
+            if [ "$st" = "exited" ] && [ "$ec" = "0" ]; then
+                case "$rpoly" in
+                    no|on-failure) ok=$((ok + 1)); continue ;;
+                esac
+            fi
+            bad="$bad $name(state=$st)"
+            continue
+        fi
+        # Membership on the network object is what creates the Docker DNS entry —
+        # a `running` container absent from it answers nothing to anyone.
+        net=" $(docker network inspect --format '{% raw %}{{range $k, $v := .Containers}}{{ $v.Name }} {{end}}{% endraw %}' "$mode" 2>/dev/null) "
+        case "$net" in
+            *" $name "*) ok=$((ok + 1)) ;;
+            *) bad="$bad $name(running-on-no-network:$mode)" ;;
+        esac
+    done
+    [ -z "$bad" ]     # success = nothing bad to report (inverted once; the sweep caught it)
+}
+
+bad_count() { printf '%s\n' "$bad" | tr -s ' ' '\n' | grep -c . ; }
+
+verify_settled() {   # a starting stack legitimately has no endpoints for a moment
+    local waited=0
+    while ! verify_once; do
+        [ "$waited" -ge "$VERIFY_WAIT" ] && return 1
+        sleep "$SETTLE"; waited=$((waited + SETTLE))
+    done
+    return 0
+}
+
+compose_up() {
+    docker compose -f "$compose" up -d --remove-orphans "$@" \
+        || { log "'docker compose up -d $*' failed (see output above)"; return 1; }
+}
+
+if ! $verify_only; then
+    compose_up || true            # the failure itself is reported by the verdict below
+fi
+
+if verify_settled; then
+    if [ "$declared" = 0 ]; then
+        # No containers behind this compose file: nothing to prove. Normal for a torn-down
+        # (`enabled: false`) stack, whose deploy task is skipped; loud, because a project that
+        # declares services and creates none must not read as a pass.
+        printf 'docker-compose-ensure[%s]: RESULT ok=0 bad=0 declared=0 WARN: no containers for this compose file\n' "$project"
+        exit 0
+    fi
+    printf 'docker-compose-ensure[%s]: RESULT ok=%s bad=0 declared=%s\n' "$project" "$ok" "$declared"
+    exit 0
+fi
+
+if $verify_only; then
+    printf 'docker-compose-ensure[%s]: RESULT ok=%s bad=%s declared=%s BAD:%s\n' \
+        "$project" "$ok" "$(bad_count)" "$declared" "$bad" >&2
+    exit 1
+fi
+
+log "not reachable yet — escalating to --force-recreate (was:$bad)"
+compose_up --force-recreate || true
+if verify_settled; then
+    printf 'docker-compose-ensure[%s]: RESULT ok=%s bad=0 declared=%s (after recreate)\n' "$project" "$ok" "$declared"
+    exit 0
+fi
+
+printf 'docker-compose-ensure[%s]: RESULT ok=%s bad=%s declared=%s BAD:%s\n' \
+    "$project" "$ok" "$(bad_count)" "$declared" "$bad" >&2
+printf 'docker-compose-ensure[%s]: a container is Up but unreachable — `Up` proves nothing; see docs/deployment-compose.md §Boot auto-start (docker-compose@)\n' "$project" >&2
+exit 1

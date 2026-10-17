@@ -1,14 +1,29 @@
 # {{ ansible_managed }}
+# Boot auto-start for ONE compose project (docs/deployment-compose.md §Boot auto-start).
+# ExecStart is the ENSURE wrapper, not a bare `docker compose up -d`: `up -d` exits 0 on a
+# project whose containers are uncreated, unbound (a published host address the interface
+# does not have yet) or attached to no network — three shapes where every service of the
+# stack is unreachable while `docker ps` says `Up`. The wrapper waits for the daemon and for
+# the published host addresses, starts the project, then proves every declared container is
+# running AND listed as a member of its own network, escalating once to `--force-recreate`.
+# A failing verdict fails this unit, so the breakage is visible in `systemctl --failed`
+# instead of only in the dashboard that silently stopped having data.
 [Unit]
 Description=Docker Compose service: %i
 Requires=docker.service
-After=docker.service
+# Ordering only — no Wants/Requires on the network units, so a host whose config manager is
+# not systemd-networkd (or has no networkd-wait-online) loses nothing and waits on nothing.
+# The address wait lives in the script.
+After=docker.service systemd-networkd.service network-online.target
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory={{ docker_compose_dir }}/%i
-ExecStart=/usr/bin/docker compose -f {{ docker_compose_dir }}/%i/docker-compose.yml up -d
+# Must exceed the wrapper's own waits (daemon + address + two verify settles), or systemd
+# kills the oneshot mid-wait and the unit reads failed on a stack that was still coming up.
+TimeoutStartSec=600
+ExecStart=/usr/local/sbin/docker-compose-ensure {{ docker_compose_dir }}/%i
 ExecStop=/usr/bin/docker compose -f {{ docker_compose_dir }}/%i/docker-compose.yml down
 StandardOutput=journal
 User={{ ansible_user }}

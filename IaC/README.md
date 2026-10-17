@@ -213,7 +213,8 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 
 ### `docker_services` (Key Role)
 - **Input:** `docker_services` list from group vars
-- **Loop:** skip if `enabled: false` → create `/opt/<service>/` → template `docker-compose.yml.j2` → template extra configs → create `docker-compose@<service>.service` → `systemctl enable --now`
+- **Loop:** skip if `enabled: false` → create `/opt/<service>/` → template `docker-compose.yml.j2` → template extra configs → `docker compose up -d` → **reachability verdict** (`/usr/local/sbin/docker-compose-ensure --verify-only`, proves every container is attached to its network) → create/enable `docker-compose@<service>.service` (its `ExecStart` is the same ensure wrapper) → boot units for projects the host no longer declares are disabled
+  (the verdict and the boot-order traps it exists for: `docs/deployment-compose.md` §Boot auto-start)
 - **Post-deploy:** template Homepage config + inventory docs, reload Homepage, commit+push to Git
 - **Tags:** each service task tagged `{{ item.name }}` for targeted `--tags`
 

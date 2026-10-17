@@ -233,6 +233,16 @@ it), and Grafana provisioning does NOT overwrite `secureJsonData` of an EXISTING
 rotated datasource password must be re-applied via delete+recreate with the same uid or an API
 update, or queries keep 401-ing despite correct rendered files.
 
+**"The dashboard opens but has no data" is a reachability fault, not a query fault.** Grafana's
+VictoriaMetrics datasource is queried **server-side** by name (`http://victoria-metrics:8428`), so every
+panel — and every alert rule — fails together with `dial tcp: lookup victoria-metrics on 127.0.0.11:53:
+no such host` while the UI itself loads fine behind SSO. Docker's embedded DNS answers only for
+containers that are **members of the network**, so a metrics container that is `Up (healthy)` yet
+attached to nothing removes the name and silently removes the whole observability plane. Separating
+read: `docker inspect -f '{{len .NetworkSettings.Networks}}' victoria-metrics` → `0` means detached
+(`docker restart` does not repair it; recreate does). The same class and its guard:
+[deployment-compose.md](deployment-compose.md) §Boot auto-start (docker-compose@).
+
 ---
 
 ## Single Source of Truth Matrix

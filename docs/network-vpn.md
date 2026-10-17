@@ -875,6 +875,16 @@ container on the VPS, per §Two Layers above).
    session worktree and report stale state (e.g. "the group var does not carry the jump"). Always `cd`
    first, then background the command — and print `pwd` + `git rev-parse --abbrev-ref HEAD` in any
    measurement you intend to quote in a doc.
+6. **A name that resolves to a tailnet address and hangs is a dead EDGE NODE, not a dead app.** Every
+   `tailnet: edge` / `tailnet_ip:` record in `zone_kogler_si` (`stats`/`logs`/`csui`/`traefik`/`auto`,
+   the AI names `llm`/`db-spark`, and `spark` itself on a tailnet client) points at ONE node — the
+   `traefik-tailnet` sidecar. When it drops out of the netmap, all of those names go quiet at once
+   **while the services behind them are healthy**, because the same names still answer on their LAN
+   addresses for a client that is on the LAN. The separating reads, in order: headscale's own node
+   table (`Connected`), then a LAN-address probe of the app, then the container's `Up` — which is
+   **not** evidence of anything here, since the netns owner of a `network_mode: service:` sibling
+   reports `Up` while the sidecar that carries the tailnet sits `Created`. See
+   [deployment-compose.md](deployment-compose.md) §Boot auto-start (docker-compose@).
 
 **Also worth knowing off-LAN:** the Pi is the **toggle-only Slovenian exit node** (egress, not ingress —
 see the section below; ⏳ **Not yet advertised in IaC**), and the tailnet does **not** bridge the home LAN,

@@ -92,6 +92,17 @@
       {{ {'services': op_derive_services, 'map': _template_vault_items, 'glue': op_derive_glue} }}
   tags: [docker_services, secrets]
 
+- name: Install docker-compose-ensure (boot/deploy reachability verdict)
+  # The verdict `up -d` cannot give: a container can be `Up` and still be uncreated,
+  # unbound, or attached to no network. Used by docker-compose@.service (boot) and by
+  # deploy-service.yml (converge). → docs/deployment-compose.md §Boot auto-start
+  ansible.builtin.template:
+    src: docker-compose-ensure.sh.j2
+    dest: /usr/local/sbin/docker-compose-ensure
+    owner: root
+    group: root
+    mode: '0755'
+
 - name: Create systemd template unit for Docker Compose services
   ansible.builtin.template:
     src: docker-compose@.service.j2
@@ -422,6 +433,42 @@
     - ansible_facts['service_mgr'] == 'systemd'
   loop_control:
     label: "{{ item.name }}"
+  tags: docker_services
+
+# A unit installed for a project that has LEFT the registry (row deleted, not flipped to
+# `enabled: false`) survives as enabled+enabled-at-boot: the `enabled: false` loop above cannot
+# see a name that is no longer declared, so every boot re-runs `compose up` for a stack IaC no
+# longer owns — and if its directory is gone the unit fails (`Failed at step CHDIR`) forever.
+# Discover what is actually enabled on the box and disable whatever this host does not declare.
+- name: Discover installed docker-compose@ boot units
+  # `systemctl list-unit-files 'docker-compose@*.service'` matches only the TEMPLATE file — the
+  # instances live as symlinks in the target's .wants dir, so the glob reports 1 and every stale
+  # instance stays invisible. Read the enablement where it is actually stored.
+  ansible.builtin.shell:
+    cmd: ls -1 /etc/systemd/system/multi-user.target.wants/ 2>/dev/null | grep '^docker-compose@' || true
+  args:
+    warn: false
+  register: boot_units_raw
+  changed_when: false
+  when:
+    - scope_is_all
+    - ansible_facts['service_mgr'] == 'systemd'
+  tags: docker_services
+
+- name: Disable boot auto-start for projects this host no longer declares
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    enabled: false
+  loop: >-
+    {{ (boot_units_raw.stdout | default('')).split('\n')
+       | map('regex_replace', '^docker-compose@(.+)\.service$', '\1')
+       | select
+       | reject('in', docker_services | map(attribute='name') | list) | list }}
+  when:
+    - scope_is_all
+    - ansible_facts['service_mgr'] == 'systemd'
+  loop_control:
+    label: "docker-compose@{{ item }}"
   tags: docker_services
 
 # Traefik cert-pull consumer wiring: a non-issuer traefik host is a cert CONSUMER — it pulls
