@@ -232,10 +232,17 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     `roles/updates` design is DECLINED and not pending, and the `apt-mark hold` that ruling required is now live on
     all five hosts (`roles/common/tasks/apt-holds.yml`, read back with `apt-mark showhold`), so `apt upgrade` can no
     longer move a pinned HOST package anywhere in the fleet (`kopia` ships as a pinned CONTAINER image, so there is
-    no apt state there). That leaves the pin LAG, not the pin: **HD-1147**'s report is live on all five hosts and its
-    `pkg-pin-drift` rule is authored but **not loaded** — one `--tags monitoring` converge on the VPS ships it, and it
-    will go RED on pi/vps/spark, which is **HD-1148**'s unrun `--tags docker` applies showing up as true drift, one of
-    those entries being an owner call on the docker leg rather than drift. → [todo.md](todo.md) HD-1147 · HD-1148.
+    no apt state there). What that leaves is the pin LAG, not the pin, and it is reported: the read-only
+    pin-lag series are live on all five hosts and the `pkg-pin-drift` rule is in the ruler (read from
+    the ruler API, not from the repo: it sits in `Homelab · Warning` on `count by (instance)
+    (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `noDataState: OK` — count what loads with
+    that same read, never from this sentence). It reads RED on `pi`, `vps` and `spark` and that is true
+    drift, not noise: **HD-1148**'s unrun `--tags docker` applies, which is now the only thing left on
+    the docker leg — the one pinned package that no task could reach is named in
+    `docker_ce_suite_packages`, so one list drives the apt call, the hold lift and the read-back, and an
+    apply moves the family to its pin by lifting the hold for exactly the names it touches. →
+    [todo.md](todo.md) HD-1148 ·
+    [docs/observability.md](docs/observability.md) §Pin-lag report.
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
@@ -334,10 +341,13 @@ controller, or use one of the two forms that section measures:
 `ifupdown` owner of `eno1` is replaced, every address and resolver leg there stays frozen · **HD-384 step 2** — the
 two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
 list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
-call · **the docker-family pin decision** `pkg-pin-drift` pages on: `docker-ce-rootless-extras` is pinned and held but
-named in no install task, so on `vps` and `pi` the rule is red with nothing in the repo able to move it — either name
-it in the suite where hosts carry it or drop it from the pin map. HD-1148's `--tags docker` applies restart the daemon
-and every container on the host: vps and pi are maintenance windows, and spark's is an owner window too.
+call · **the docker-family applies** **HD-1148** still owes, which are the whole of the docker leg and what
+`pkg-pin-drift` is red for: `--tags docker` on `vps` and on `pi` (maintenance windows — the daemon restart takes every
+container on the host with it, so one host at a time, detached with a log to poll, `--check` first, never behind a
+timeout, ⛔ not overnight) and on `spark` (an owner window — vLLM serving state). `oldsrv` owes no apply and `nas` runs
+no docker role at all. An apply lifts the hold for exactly the suite names it moves and re-holds them in the same play,
+so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; the rule stays RED on `pi`/`vps`/`spark`
+until these run, which is the gap being reported, not a false positive.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
 list is **derived** in [todo-table.md](todo-table.md) §B0, so only the ones an owner or a

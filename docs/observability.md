@@ -492,11 +492,11 @@ Shipped: **WARN 14 d / CRIT 7 d** + a critical on
 **Fleet coverage:** the exporter runs on `oldsrv · pi · nas · vps · spark` — `count by (instance)
 (homelab_hygiene_scrape_ok)` → **1 for each of the five** (re-read 2026-10-17: five series, freshest host
 6 s old, stalest 59 s — i.e. every host is collecting). The rules are in
-Grafana: of 25 rules loaded, **6 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
+Grafana: of 26 rules loaded, **7 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
 `cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
-(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m). Count them
-from the ruler API, never from this sentence — the read is in the table below, and a seventh
-(`pkg-pin-drift`, §Pin-lag report) ships with the next rules converge.
+(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m) and `pkg-pin-drift`
+(WARN, 30 m, §Pin-lag report) — read back from the ruler API on 2026-10-17. Count them from the ruler API, never
+from this sentence — the read is in the table below.
 
 **`hygiene-collector-stale` must be written as unfiltered A + a threshold expression**, the shape
 §Alerting demands: `time() - max_over_time(homelab_hygiene_scrape_ok[6h])` in A, `gt [900]` in B, `for: 5m`,
@@ -708,8 +708,9 @@ packages does this host carry" probe is `dpkg-query -W -f='${Package}'`, which a
 package too, so a held-but-not-installed package is a real state in this fleet (read `apt-mark showhold`
 against `dpkg-query -s <pkg>`, never against each other).
 
-**Deploy state: 🟢 the collector leg is LIVE on all five hosts; ⏳ the rule is authored and needs one
-converge.** The collector half landed with the `--tags monitoring` converges and was verified per host with
+**Deploy state: 🟢 LIVE — the collector on all five hosts and the rule loaded in the ruler; the rule reads 🔴 red on
+`pi`, `vps` and `spark`, which is the docker-family lag being reported rather than work left on this leg.** The
+collector half landed with the `--tags monitoring` converges and was verified per host with
 `curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'` — 8 pin pairs +
 `homelab_upgrade_plan_ok`/`_count` + `homelab_reboot_required` on each of `oldsrv · vps · nas · pi ·
 spark`, and the same series in the store (`count by (instance) (homelab_pkg_pin_result)` → 8 for each of
@@ -719,7 +720,14 @@ playbooks/vps.yml --tags monitoring` and by nothing else — `--tags grafana` al
 (measured: 0 matching tasks). ⛔ That converge is a deliberate window, never an unattended one: on the VPS
 the monitoring role restarts the scrape tier, and `--diff` on this role prints vault values into the run
 log (→ [deployment-secrets.md](deployment-secrets.md); use `--check`). Read it back from the ruler API
-afterwards — a rule that is authored is not a rule that is loaded.
+afterwards — a rule that is authored is not a rule that is loaded. **That read has been done** (2026-10-17):
+`pkg-pin-drift` is loaded in the `Homelab · Warning` namespace with `expr: count by (instance)
+(homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `no_data_state: OK`, `provenance: file` —
+the seventh of the `homelab_*` rules listed at §Alerting. What keeps it red is nothing in this
+repository: `roles/docker` names every package the pin map pins, and the pending `--tags docker`
+applies — each one a daemon restart, therefore an owner window — are what moves `pi`/`vps`/`spark`
+onto the pin, `roles/common/tasks/apt-holds.yml` holding the family in place between them. Until
+those applies run, the red is the report working.
 
 ### Tiers
 

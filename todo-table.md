@@ -52,6 +52,19 @@
 > what is left), **HD-1108** (the Matrix leg is live in the workflow), **HD-1109** (the standby IS cold-deployed — the
 > takeover is the unproven half). §B0's unbriefed count and tail were re-derived, not incremented. No row was closed,
 > minted or renumbered by this sweep, and no HD id was added to `prompt.md`'s prose.
+> **Re-synced 2026-10-17b (the docker leg — one converge ran and one owner call landed):** **HD-1147**'s row left the
+> registry. Its one open `⏳` was the VPS `--tags monitoring` converge that loads `pkg-pin-drift`; that converge has
+> run and the rule reads back out of the ruler API (`Homelab · Warning`, `count by (instance)
+> (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `noDataState: OK`) — an authored rule is now a loaded rule,
+> so CONVENTIONS §4(a) deletes the row and this view's §B9 line with it, and the durable proof stays in
+> [docs/observability.md](docs/observability.md) §Pin-lag report, where the per-host read already lives. The
+> `docker-ce-rootless-extras` owner call is taken and landed: `docker_ce_suite_packages` is the ONE list that drives
+> the apt call, the pre-install hold decision and the read-back assert, so a pin bump lifts the hold for exactly the
+> names it moves. **HD-1148** therefore still owes exactly what it owed — the owner-windowed `--tags docker` applies
+> (`vps` + `pi` maintenance windows, `spark` an owner window, `oldsrv` nothing, `nas` no docker role) — plus the
+> `pi`/`vps`/`spark` red those applies clear. Both derivations re-run, not adjusted: the §B9 ↔ registry set diff over
+> `grep -o '^| HD-[0-9a-zA-Z()]*'` is empty at **153 = 153**, and §B0's unbriefed count is **68** (the registry's row
+> ids minus the ids §B0's row-lists name).
 > **Re-synced 2026-10-17 (the cleanup lane — the post-merge views catch up again):** **HD-1146**'s row left the
 > registry, proof-complete by its own tail, so its §B9 line and its `prompt.md` pointer left with it and the two
 > sentences in **HD-1147**'s and **HD-1148**'s rows that named it now name the mechanism instead
@@ -65,8 +78,9 @@
 > that remains), **HD-487** / **HD-488** (the per-host config-manager truth is declared in `host_vars` and held by a
 > gate — the owed half is now the `--tags network` converges, with nas frozen until its NM adoption), **HD-1117**
 > (no wall clock enters a render), **HD-1119** (the domain is registered and the rename landed), **HD-1147** (the
-> series are live; one VPS `--tags monitoring` converge loads the rule), **HD-1148** (the suite is pinned; the
-> applies are what is owed). No row was minted, renumbered or closed by this sweep besides HD-1146's deletion.
+> series were live; its pending item was the one VPS `--tags monitoring` converge — the note above records it run
+> and the row deleted), **HD-1148** (the suite is pinned; the applies are what is owed). No row was minted, renumbered
+> or closed by this sweep besides HD-1146's deletion.
 > **Re-synced 2026-10-12 (HD-1136 landed; §B9 re-derived complete:** the appendix had fallen behind the registry again — comparing the registry's row ids with the same extraction over §B9 named **HD-1128 · 1129 · 1130 · 1131 · 1132 · 1133 · 1134 · 1135** missing, the recurrence of exactly what the 2026-10-09 note below records at 18 rows. Re-derive it with `grep -o '^| HD-[0-9a-zA-Z()]*' todo.md` against the same extraction over §B9 and diff the two sorted lists: a row the registry carries and this appendix does not is the bug this file's own header warns about, and it is invisible to every gate because nothing lint cross-checks the view against the registry.
 > **Re-synced 2026-10-09 (the brief restructure switch):** the eight per-HD lane briefs are **deleted** and their
 > rows redistributed across 11 domain briefs (§B0 is the index; CONVENTIONS §6 now requires the host+domain name).
@@ -248,7 +262,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > `observability-alerting` + `storage-backup` pair only host-by-host: HD-450 reads the units HD-191's clients write.
 >
 > **Unbriefed but still open — not lost, just unassigned** (derived from [todo.md](todo.md) at this `HEAD`; §B and
-> §B9 stay the index, this is the honest count: **69** open rows carry no brief — the registry's row ids minus the ids
+> §B9 stay the index, this is the honest count: **68** open rows carry no brief — the registry's row ids minus the ids
 > the §B0 table's row-lists name, both re-extracted here, never carried over). The ones worth naming:
 > **357** (the launchpad tiles — the family-surface brief died and **no domain brief took this row**, so it is
 > linkless here and wants a promoting decision), **1100** (PG 16→18 — owner-paced, one leg per window, and it spans
@@ -258,7 +272,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > **412** · **440** (§D hands and plain rows), and the long tail: **14 · 28 · 32 · 34 · 45 · 57 · 101 ·
 > 104 · 111 · 133 · 141 · 159 · 160 · 194 · 248 · 250 · 251 · 264 · 268 · 280 · 287 · 288 · 316 · 318 · 335 · 336 ·
 > 337 · 366 · 369 · 397 · 401 · 404 · 421 · 472 · 491 · 1123 · 1125 · 1126 · 1127 · 1128 · 1129 · 1130 · 1131 · 1133 ·
-> 1135 · 1136 · 1137 · 1138 · 1139 · 1140 · 1142 · 1143 · 1147 · 1148 · 1149 · 1150 · 1151 · 1152**. Adding a brief is a view edit, not a contract change,
+> 1135 · 1136 · 1137 · 1138 · 1139 · 1140 · 1142 · 1143 · 1148 · 1149 · 1150 · 1151 · 1152**. Adding a brief is a view edit, not a contract change,
 > so this list is a queue, not a verdict.
 > **Briefed, not running:** the transport plane — [prompt-dns-transport.md](prompt-dns-transport.md) carries
 > **436 · 435 · 460** — is stopped on presence, not on work: everything owed on 436 is an owner-present converge
@@ -432,7 +446,7 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-1118 | 2 | AI | 2.3 Platform & Deploy | `scripts/` is foldered and root resolution is structural — landed 2026-10-12, re-derived at the tip (the unreplayable 2026-10-09 lane tree is pinned as `rescue/hd1118-20261011`); the tree is held by `gate/check_script_layout.py` · ⏳ seat `pi-seat-sync.sh --check` after each fast-forward, from-zero `install-pi-debian.sh --check`, tmux `--push` on the two laptop seats · [todo.md](todo.md) |
 | HD-1136 | 2 | AI + gate | 2.3 Platform & Deploy | Ticket ids and dates still reach the device through three rendered strings — the authored half is landed; the re-render half and the match-key residue are not. The proof order is rule 11 of network-ops.md §Rsc authoring conventions… | ⏳ Converge `monitoring` on oldsrv, re-render the model contract per seat, hand-edit the runner's `~/.bashrc` block once; the match-key residue waits on the delta retirement, because editing a `comment=` guard either ADDs a rule or stops a `remove` matching | — (no brief) |
 | HD-1141 | 2 | AI | 2.3 Platform & Deploy | `scripts/README.md` narrates what happened instead of stating what each script does — the sweep `IaC/` already had never reached this file | ⏳ The sweep the row defines, in the brief's order; the registry notes that this index owed the id, so a lane could not record it | prompt-scripts.md |
-| HD-1148 | 2 | AI + owner | 2.3 Platform & Deploy | The Docker engine family is PINNED — `host_apt_pin_vars` + `docker_ce_version` in `versions.yml`, installed as `package=version` by `roles/docker`, so the fleet-wide `apt-mark hold` freezes repo state and not whatever each box happened to reach | ⏳ the live `--tags docker` applies — each one RESTARTS THE DAEMON, so one host at a time, `--check` first, detached, never overnight: vps and pi, and **spark is an owner window**. oldsrv owes nothing (its installed suite already equals the pin) | — (no brief) |
+| HD-1148 | 2 | AI + owner | 2.3 Platform & Deploy | The Docker engine family is PINNED — `host_apt_pin_vars` + `docker_ce_version` in `versions.yml`, installed as `package=version` by `roles/docker` from the one `docker_ce_suite_packages` list that also drives the hold decision and the dpkg read-back, so the fleet-wide `apt-mark hold` freezes repo state and not whatever each box happened to reach | ⏳ the live `--tags docker` applies — each one RESTARTS THE DAEMON and every container on that host, so one host at a time, `--check` first, detached with a log to poll, never behind a timeout, ⛔ never overnight: vps and pi, and **spark is an owner window** (vLLM serving state). oldsrv owes nothing (its installed suite already equals the pin) and nas runs no docker role. The apply lifts the hold for just the suite names it moves and re-holds them in the same play — no manual `apt-mark` dance, no `--allow-change-held-packages` — and the pre-apply `--check --tags docker` already passes on vps/pi/spark | — (no brief) |
 | HD-1149 | 1 | AI + gate | 2.3 Platform & Deploy | A filtered converge can report `failed=0` while running a fraction of a role's tasks — a tag on an `include_tasks` gates only whether the file loads, and an untagged dynamic include is never expanded at all, `tags: always` guards included (measured by the gate's lab; two live proofs: storage ran 21 of 36 task lines, the dns-seed include ran none of its five units) | ⏳ The gate is authored, self-tested and the live tree reads 0 findings under it; the row owes the two `item_q` lines in `validate-all.sh` at the owner's registration checkpoint, plus its two audit leftovers | — (no brief) |
 | HD-353 | 2 | AI | 2.4 Services & Edge | SeerrNG — ✅ DEPLOYED + LIVE 2026-09-14 (oldsrv converge). | Remaining (owner): verify own Jellyfin login at seerrng route. · services-media.md · | — |
 | HD-354 | 2 | AI | 2.4 Services & Edge | Navidrome on VPS + Storage Box (IaC IMPLEMENTED 2026-09-10) | Remaining: the Box library is empty (owner: put music on the Storage Box), no admin user exists yet (navidrome logs that playlist import stays disabled until one does), and the Subsonic/ExtAuth verify… | — |
@@ -506,7 +520,6 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-1130 | 2 | AI | 2.7 AI & Office | `ollama` is declared enabled on oldsrv and deployed nowhere — no `/srv/docker/ollama`, nothing listening on `11434`, no route names it, so the pin and the `bge-m3` embed-fallback rung have no runtime… | Decide converge-or-delete: converge and prove `/api/embed` answers, or drop the declaration and scrub the `ollama/*` wildcards from the VPS key model lists | — (no brief) |
 | HD-1135 | 2 | AI | 2.7 AI & Office | The Win11 seat's `validate-all` took 5 min 51 s for what WSL Debian finishes in 8 s — it paid a FORK per assertion, not work; the fork diet is ported into `lib/pi-seat.sh` and the four harness legs | ⏳ `seat_pkg_val()` still pays two execs per value, most of what `pi-settings-config --self-test` spends of its 102 s; Debian/WSL is unmeasured for all of it, and `check_doc_path_refs.py` still crashes when a human runs it on the Windows seat | — (no brief) |
 | HD-1137 | 2 | AI | 2.7 AI & Office | `validate-all.sh` could not answer "what did that cost, and what did it skip" — `--time` and `--profile quick` now live in the SAME script, with registration separated from launching and every exclusion named | ⏳ The quick subset was never compared against a full gate that passed in the same tree; Debian/WSL is unmeasured for both flags; the per-item `test_*/test.sh` split (HD-1118 Stage 2) is still ahead | — (no brief) |
-| HD-1147 | 3 | AI | 2.7 AI & Office | Periodicity without an updater — the READ-ONLY pin-lag report that stands in for `roles/updates`: running version vs the `versions.yml` pin, the simulated solver plan, reboot state; the pin is read by var name, never copied | ⏳ one converge: `--tags monitoring` on the VPS, which is the only task set that loads `pkg-pin-drift` (`--tags grafana` matches 0 tasks) — never unattended, never `--diff`, then read the rule back from the ruler API. Expect it RED on pi/vps/spark: true docker-family drift, and the `docker-ce-rootless-extras` pin-without-install half of that is an owner call on the docker leg | — (no brief) |
 | HD-361 | 2 | AI | 2.8 Security & Secrets | Cockpit break-glass login (maint) on the second cockpit host, oldsrv | Prove the authenticated pane in a browser per host (only GET /cockpit/login + Basic tells the truth — and even 200 leaves the WebSocket Origin check unproven; the nas-from-away half is blocked by HD-4… | prompt-seat-cockpit-grants.md |
 | HD-465 | 2 | AI + owner | 2.8 Security & Secrets | cockpit-nas.ts.kogler.si — premise wrong twice: the name IS published (since 97d9fbf) and oldsrv answers again… | Deploy the router, then the browser load (authenticated pane) is the acceptance. | prompt-seat-cockpit-grants.md |
 | HD-194 | 1 | AI + gate | 2.8 Security & Secrets | sso route edge middleware (S17a) | Deploy-gated: confirm a login + one OIDC callback end-to-end at VPS deploy. Closes audit S17(a). · security.md §1, services-traefik.md · | — |
