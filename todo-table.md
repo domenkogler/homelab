@@ -257,7 +257,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 
 > **The seat brief is not a wave.** `prompt-laptop-wsl` carries no rows, so it never takes a priority wave — it takes the
 > **host it is converging**, and for that window the owning brief's slot is occupied. Read its §2 before launching anything on
-> that host, and its §0 first if you are the session standing on that seat (its own gate is red before you edit anything).
+> that host, and its §0 first if you are the session standing on that seat (its own gate is green at `fcdbeb20` — 85 items, two named SKIPs: no tmux binary and not-a-Windows-seat).
 >
 > **Waves that may pair:** **1+1** — `prompt-spark-llm` with `prompt-laptop-legs` (spark slot + a seat with no
 > converge). **2+1 or 2+3** — one of `dns-transport` / `media-arrs` / `litellm-consumers` with `laptop-legs` or
@@ -267,7 +267,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > `observability-alerting` + `storage-backup` pair only host-by-host: HD-450 reads the units HD-191's clients write.
 >
 > **Unbriefed but still open — not lost, just unassigned** (derived from [todo.md](todo.md) at this `HEAD`; §B and
-> §B9 stay the index, this is the honest count: **68** open rows carry no brief — the registry's row ids minus the ids
+> §B9 stay the index, this is the honest count: **69** open rows carry no brief (was 68 before HD-1154 landed — the seat brief carries no rows) — the registry's row ids minus the ids
 > the §B0 table's row-lists name, both re-extracted here, never carried over). The ones worth naming:
 > **357** (the launchpad tiles — the family-surface brief died and **no domain brief took this row**, so it is
 > linkless here and wants a promoting decision), **1100** (PG 16→18 — owner-paced, one leg per window, and it spans
@@ -277,7 +277,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > **412** · **440** (§D hands and plain rows), and the long tail: **14 · 28 · 32 · 34 · 45 · 57 · 101 ·
 > 104 · 111 · 133 · 141 · 159 · 160 · 194 · 248 · 250 · 251 · 264 · 268 · 280 · 287 · 288 · 316 · 318 · 335 · 336 ·
 > 337 · 366 · 369 · 397 · 401 · 404 · 421 · 472 · 491 · 1123 · 1125 · 1126 · 1127 · 1128 · 1129 · 1130 · 1131 · 1133 ·
-> 1135 · 1136 · 1137 · 1138 · 1139 · 1140 · 1142 · 1143 · 1148 · 1149 · 1150 · 1151 · 1152**. Adding a brief is a view edit, not a contract change,
+> 1135 · 1136 · 1137 · 1138 · 1139 · 1140 · 1142 · 1143 · 1148 · 1149 · 1150 · 1151 · 1152 · 1154**. Adding a brief is a view edit, not a contract change,
 > so this list is a queue, not a verdict.
 > **Briefed, not running:** the transport plane — [prompt-dns-transport.md](prompt-dns-transport.md) carries
 > **436 · 435 · 460** — is stopped on presence, not on work: everything owed on 436 is an owner-present converge
@@ -453,6 +453,7 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 | HD-1141 | 2 | AI | 2.3 Platform & Deploy | `scripts/README.md` narrates what happened instead of stating what each script does — the sweep `IaC/` already had never reached this file | ⏳ The sweep the row defines, in the brief's order; the registry notes that this index owed the id, so a lane could not record it | prompt-scripts.md |
 | HD-1148 | 2 | AI + owner | 2.3 Platform & Deploy | The Docker engine family is PINNED — `host_apt_pin_vars` + `docker_ce_version` in `versions.yml`, installed as `package=version` by `roles/docker` from the one `docker_ce_suite_packages` list that also drives the hold decision and the dpkg read-back, so the fleet-wide `apt-mark hold` freezes repo state and not whatever each box happened to reach | ⏳ the live `--tags docker` applies — each one RESTARTS THE DAEMON and every container on that host, so one host at a time, `--check` first, detached with a log to poll, never behind a timeout, ⛔ never overnight: vps and pi, and **spark is an owner window** (vLLM serving state). oldsrv owes nothing (its installed suite already equals the pin) and nas runs no docker role. The apply lifts the hold for just the suite names it moves and re-holds them in the same play — no manual `apt-mark` dance, no `--allow-change-held-packages` — and the pre-apply `--check --tags docker` already passes on vps/pi/spark | — (no brief) |
 | HD-1149 | 1 | AI + gate | 2.3 Platform & Deploy | A filtered converge can report `failed=0` while running a fraction of a role's tasks — a tag on an `include_tasks` gates only whether the file loads, and an untagged dynamic include is never expanded at all, `tags: always` guards included (measured by the gate's lab; two live proofs: storage ran 21 of 36 task lines, the dns-seed include ran none of its five units) | ⏳ The gate is authored, self-tested and the live tree reads 0 findings under it; the row owes the two `item_q` lines in `validate-all.sh` at the owner's registration checkpoint, plus its two audit leftovers | — (no brief) |
+| HD-1154 | 2 | AI | 2.3 Platform & Deploy | The WSL Debian laptop seat is the designated runner station — off-box for every converge target, not the engine host, owner of no converge slot (rule 9), the seat-role facts in docs/harness-pi.md §5a, and the legs it may drive in prompt-laptop-wsl.md §2 | ⏳ Re-measured FROM the seat at `fcdbeb20`: `pi-seat-sync.sh --check` returns `ok=9 problems=1` with every `wsl` line `OK` — the `--push`-then-`--check` leg is DONE; the one `problems=1` is oldsrv's cockpit `STALE-CLONE`. The seat payload half of HD-1116 (`~/.gitconfig-github` `gpgsign = true`) stays a hand edit. Station-stamp check and starting-legs re-derive the reachability claim | (no brief) |
 | HD-353 | 2 | AI | 2.4 Services & Edge | SeerrNG — ✅ DEPLOYED + LIVE 2026-09-14 (oldsrv converge). | Remaining (owner): verify own Jellyfin login at seerrng route. · services-media.md · | — |
 | HD-354 | 2 | AI | 2.4 Services & Edge | Navidrome on VPS + Storage Box (IaC IMPLEMENTED 2026-09-10) | Remaining: the Box library is empty (owner: put music on the Storage Box), no admin user exists yet (navidrome logs that playlist import stays disabled until one does), and the Subsonic/ExtAuth verify… | — |
 | HD-357 | 2 | AI | 2.4 Services & Edge | Homepage tiles fix (bug #6, 2026-09-10 handoff) | 2 · Homepage tiles fix (bug #6, 2026-09-10 handoff) — no working Jellyfin/Seerr tiles on the Homepage; Immich stuck in “Soon” though live. Wire the layout/widgets to the verified live endpoints (new t… | — (no brief) |

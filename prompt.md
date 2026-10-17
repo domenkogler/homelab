@@ -19,9 +19,8 @@ fleet's live set (harness state in [docs/harness-pi.md](docs/harness-pi.md)). Th
 now has a job: it is the designated runner station for externally-served runs** — off-box for every converge target, not the
 engine host, owner of no converge slot (the 2026-10-09 “retained but rarely used as a seat” ruling still stands for the
 pi-dev-seat question, which is a different one; the rule is [todo-table.md](todo-table.md) §C rule 9 and the state is
-[docs/harness-pi.md](docs/harness-pi.md) §5a).
-it stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state — and its own seat
-planes are drift-red until a session standing **on** it converges them ([prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0). Two refs were unique to that box — a stash (`On main: never_evict
+[docs/harness-pi.md](docs/harness-pi.md) §5a). It stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state — its own seat
+planes are green as of `fcdbeb20` (`pi-seat-sync.sh --check`: every `wsl` line OK, `ok=9 problems=1`, the one problem being the oldsrv cockpit's `STALE-CLONE`). Two refs were unique to that box — a stash (`On main: never_evict
 pin experiment`, 2026-10-03) and `session/arr-door-20261006`, whose remote ref the arr-door lane had deleted
 after landing its work. Neither is live, and both are closed: the stash re-armed a flag main REJECTED on
 2026-10-05 (`group_vars/spark.yml` §never-evict — the pin held 0 blocks, and `check_spark_llm_gate.py` refuses

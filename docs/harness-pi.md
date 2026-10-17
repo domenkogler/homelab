@@ -409,11 +409,9 @@ laptop (§1).
 
 Three seats exist and all three run this harness: **Win11**, **the WSL Debian seat**, and **the oldsrv cockpit**. The WSL
 Debian seat is the **designated runner station** for externally-served sessions — the one box that is off-box for every
-converge target, is not the engine host, and owns no converge slot (the rule and its exclusions: [orchestration.md](orchestration.md)
-§4 and [todo-table.md](../todo-table.md) §C rule 9; the legs it may drive: [../prompt-laptop-wsl.md](../prompt-laptop-wsl.md)). It
-stays in `pi-seat-sync.sh`'s `SEATS` on purpose: a fan-out must still name it, and it reports drift there is real rather than
-certifying another seat — from **inside** WSL the driver names only the `wsl` and `oldsrv` seats, so the Win11 seat's planes can
-only be proven from that seat. That is also why the "two seats on ONE machine" case below is occasional rather than daily.
+converge target, is not the engine host, and owns no converge slot. It stays in `pi-seat-sync.sh`'s `SEATS` on purpose:
+a fan-out must still name it, and it reports drift where drift is real rather than certifying another seat — from **inside**
+WSL the driver names only the `wsl` and `oldsrv` seats, so the Win11 seat's planes can only be proven from that seat. That is also why the "two seats on ONE machine" case below is occasional rather than daily.
 **Pi has no setting for footer
 content** — `settings.md` §Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else,
 and the default footer shows folder / model / context / cost. So "which machine am I typing to" is only
