@@ -27,7 +27,14 @@ services:
       HOMEPAGE_ALLOWED_HOSTS: "{{ domain_local | default('kogler.si') }},home.{{ domain_local | default('kogler.si') }}"
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     networks:
-      - traefik-public
+      traefik-public:
+        # Reserve the edge's pinned IP (traefik_edge_ip_pin: 172.20.0.2) for the edge:
+        # homepage joins the same overlay and the bridge's sequential DHCP would hand
+        # it .2, colliding with the edge pin and wedging the public edge's bind
+        # ("Address already in use" on traefik up; homepage had
+        # grabbed 172.20.0.2). Pin the family launchpad to .5 — far above the
+        # sequential .3+ allocation and never an edge IP (traefik-tailnet keeps .250).
+        ipv4_address: "{{ homepage_ip_net | default('172.20.0.5') }}"
     volumes:
       - ./config:/app/config                            # services.yaml + widgets.yaml (auto-generated)
     labels:

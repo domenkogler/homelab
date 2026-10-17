@@ -235,7 +235,7 @@ def _load_ssot_ctx():
     except (OSError, yaml.YAMLError) as e:
         print(f"FAIL: cannot read group_vars/vps.yml ({vpy}): {e}", file=sys.stderr)
         sys.exit(1)
-    for k in ("docling_memory_limit",):
+    for k in ("docling_memory_limit", "homepage_ip_net"):
         if k in vpdata:
             ctx[k] = vpdata[k]
     # Spark (DGX GB10, HD-359) — group_vars/spark.yml holds the spark-ai compose
