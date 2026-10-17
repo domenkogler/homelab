@@ -10,24 +10,27 @@
 # automated upgrade phase: see the `common` role row in docs/deployment-ansible.md and the
 # declined `roles/updates` phase in docs/deployment-rejected.md.
 #
-# The hold does not block the deliberate upgrade — the half that makes the ruling affordable.
-# Measured against a synthetic dpkg status carrying `Status: hold ok installed`
-# for alloy at 1.20.0-1, resolved against this box's real package indexes (read-only, the
-# real system never touched):
-#   * `apt-get -s install alloy=1.20.1-1` → "The following held packages will be changed",
-#     then installs. An explicitly requested version still goes through, so a pin bump needs
-#     no `apt-mark unhold` dance and `--allow-change-held-packages` stays unnecessary.
-#   * `apt-get -s upgrade` on the same state → "The following packages have been kept back:
-#     alloy". A blanket upgrade does not touch it. That is the whole ruling in two reads.
+# What the hold does to a deliberate upgrade — the half that decides whether this ruling is
+# affordable, measured on a host that really holds the suite, both spellings of the same request:
+#   * `apt-get -s install docker-ce=5:29.8.2-*` → "The following held packages will be changed", then
+#     it resolves the upgrade. A hold does not fence a request that names a version.
+#   * the same command with `-y` → the same plan, then
+#     `E: Held packages were changed and -y was used without --allow-change-held-packages`, rc 100.
+#     ⚠ The ansible `apt` module ALWAYS passes `-y`, so the module path IS fenced: an ordinary
+#     `apt: name=<pkg>=<version>` task cannot move a held package. That is why `roles/docker` lifts the
+#     hold for exactly the suite names it is about to install and puts it back in the same play (its
+#     unhold → install → re-hold block, asserted against `apt-mark showhold`). ⛔ No role passes
+#     `allow_change_held_packages`: the hold is the invariant and a pin bump is the exception, so the
+#     exception names the packages it touches instead of switching the fence off for the whole call.
+#   * `apt-get -s upgrade` on the same state → "The following packages have been kept back: docker-ce".
+#     A blanket upgrade does not touch it. That is the whole ruling in two reads.
 #
-# ⚠ What the hold does NOT do: stop an explicitly requested install. A bare
-# `apt-get -s install alloy` (no version, the shape a `state: latest` leg produces) ALSO prints
-# "The following held packages will be changed" and proceeds, rc 0 — the same synthetic state.
-# The hold fences the automatic paths (`apt upgrade`, the periodic timer), not a request that
-# names the package, which is exactly where "a deliberate converge" lives. So a future
-# `state: latest` on any of these packages would defeat the hold inside a converge, silently:
-# no role ships one today (no `state: latest`, no `upgrade:` task anywhere in IaC/ansible), and
-# keep it that way.
+# ⚠ What the hold does NOT do: fence a package the box is NOT holding. A bare `apt-get -s install alloy`
+# (no version — the shape a `state: latest` leg produces) moves an unheld package wherever the candidate
+# says, and on a held package it is refused exactly like the versioned form above. So a `state: latest`
+# on a pinned package fails loudly instead of defeating the hold from inside a converge — and no role
+# ships one today (no `state: latest`, no `upgrade:` task anywhere in IaC/ansible). Keep it that way:
+# the day one lands on a host that lost its hold, the pin becomes a suggestion.
 #
 # ⛔ Never pair this with `--allow-downgrades`: a standing rule of the pinned-package leg, it
 # would silently downgrade any package whose pin lags the box.

@@ -34,9 +34,10 @@ homelab_lockout_exempt_reason: >-
 #                       — the download.docker.com suite. `docker_ce_version` pins the engine family
 #                         (docker-ce, docker-ce-cli and the rootless extras are ONE source package and
 #                         always share a version); containerd and the two plugins ship their own
-#                         upstream trains and carry their own pins. roles/docker installs the
-#                         installable members AT those versions, so the hold freezes repo state rather
-#                         than an accident — held-but-unpinned is not a version policy.
+#                         upstream trains and carry their own pins. roles/docker installs EVERY member
+#                         of the suite AT those versions, so the hold freezes repo state rather than an
+#                         accident: held-but-unpinned is not a version policy, and held-but-never-
+#                         installed is the same defect wearing a clean converge.
 #   tailscale           — roles/tailscale-node installs one checksum-verified .deb and adds NO apt
 #                         source, precisely so nothing auto-updates it; the hold keeps a hand-added
 #                         repo or an operator `apt upgrade` from replacing that pin

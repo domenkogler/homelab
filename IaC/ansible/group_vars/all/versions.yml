@@ -372,11 +372,12 @@ docker_compose_plugin_version: "5.5.1"    # docker-compose-plugin — `docker co
 # the box happened to reach instead of freezing repo state. A host that does not carry a package
 # drops it in the per-host `dpkg-query` read, so one map serves the fleet: nas runs no Docker, so
 # the whole family is simply absent there and no leg of the converge changes anything on nas.
-# `docker-ce-rootless-extras` is in the map but in NO install task — it ships with the engine and is
-# installed on the Debian boxes, absent on spark, and the converge must not start installing packages
-# a host never had. Holding it is not optional: it is the one family member an unheld
-# `apt upgrade` moves on its own (measured against a synthetic held dpkg state), and it carries
-# `docker_ce_version` by construction because it is the same source package.
+# `docker-ce-rootless-extras` is the engine's own rootless support: the same source package, so the
+# same pin, and it is in `docker_ce_suite_packages` because a pinned-and-held package that nothing
+# installs is the half of this defect the map alone cannot close — the hold then freezes the box at an
+# accident forever. Every entry here must be named by a role that INSTALLS it at its pin; roles/docker
+# asserts that for the download.docker.com family, and a host that runs no Docker is kept out of that
+# role by its playbook (`playbooks/storage.yml` carries no docker role), not by a condition here.
 host_apt_pin_vars:
   alloy: alloy_version
   tailscale: tailscale_host_version

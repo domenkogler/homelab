@@ -679,17 +679,24 @@ pending `--tags docker` applies — every one of them restarts the daemon, so th
 converge a lane may run. Now that the family is HELD, `apt upgrade` will not close the gap on its own: the
 rule stays red until those applies run. Do not mute it to make the landing quiet.
 
-⚠ **And one entry will still be red after those applies, on `vps` and `pi`: `docker-ce-rootless-extras`.**
-It is in the pin map and in the held set, but `roles/docker` deliberately installs the other five only (the
-suite list is `docker_ce_suite_packages`, and the read-back assert loops over that list, not over the pin
-map), on the rule that a converge must not start installing a package a host never had. Measured:
-`dpkg-query -W -f='${Version}' docker-ce-rootless-extras` reads `5:29.8.2-1~debian.13~trixie` on oldsrv
-(match), `5:29.7.2-…` on vps and pi (**differ**), empty-with-rc-0 on spark (`unknown`, `hold ok
-not-installed`), "no packages found" on nas. So on the two Debian boxes where it IS installed, nothing in
-the repo will ever move it to the pin — and the `roles/common/tasks/apt-holds.yml` hold no longer lets
-`apt upgrade` move it either. Either name it in the suite list where the host carries it, or drop it from the pin map for hosts
-that do not install it; both are an owner call on the docker leg, and until one is taken this rule's red on
-those two hosts is the honest reading, not noise.
+⚠ **`docker-ce-rootless-extras` is named in the suite, so nothing keeps this rule red except the
+applies themselves.** It is in the pin map and in the held set, and `roles/docker` installs it there:
+the suite list is `docker_ce_suite_packages`, which drives the apt call, the pre-install hold decision
+and the read-back assert alike, and the family the pin map names is asserted to BE that list — a pinned
+docker package that no task installs now reddens the converge instead of waiting for someone to notice.
+What that means host by host: on `vps` and `pi` the pending `--tags docker` apply moves it to `5:29.8.2`
+with the rest of the family, so their `differ` entry clears and cannot come back un-invited; on `spark`
+the same apply INSTALLS it — its dpkg state today is `hold ok not-installed`, `dpkg-query` answers empty
+with rc 0, and the simulate there reads `5 upgraded, 1 newly installed` with this package as the new one
+and `dbus-user-session` + `libc6` as its only dependencies, both already present; on `nas` nothing
+changes, because `playbooks/storage.yml` carries no docker role at all, so the `missing` reading there
+is structural and stays. ⚠ And the apply has to lift the hold to work, which is now the role's job and
+not the operator's: a held package is NOT movable by an apt-module install
+(`apt-get -s -y install 'docker-ce=5:29.8.2-*' …` answers `E: Held packages were changed and -y was used
+without --allow-change-held-packages`, rc 100, where the same command without `-y` resolves), so
+`roles/docker` unholds the names it moves, installs, and re-holds them in the same play — see
+[deployment-ansible.md](deployment-ansible.md) §common. Until those applies run the rule stays red on
+`pi`, `spark` and `vps`, and that is the honest reading, not noise.
 
 ⚠ **`unknown` is a fourth reading, and the hold leg explains it.** On spark `dpkg-query -W
 -f='${Version}' docker-ce-rootless-extras` answers **empty with rc 0** — the dpkg status is

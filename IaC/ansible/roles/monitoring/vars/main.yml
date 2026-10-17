@@ -243,8 +243,8 @@ grafana_alert_rules:
       # statements: "off its pin" and "this host does not carry the package" (result="missing" — `nas`
       # runs no Docker at all, and the pin map is fleet-wide). A rule on the gauge pages on a host that
       # legitimately has nothing to be in sync with, forever.
-      # result="unknown" (dpkg answered no version with no error — a HELD-but-not-installed package, as
-      # measured on spark's docker-ce-rootless-extras) is deliberately absent too: it is a read the
+      # result="unknown" (dpkg answered no version with no error — the state of a package the database
+      # knows and holds and has NEVER installed) is deliberately absent too: it is a read the
       # collector could not explain, printed to its own journal, not a version that moved.
       # noDataState: OK, reasoned rather than copied. This expression is EMPTY when every host matches,
       # because a count over a filtered selector with no matches returns no series — the same NoData

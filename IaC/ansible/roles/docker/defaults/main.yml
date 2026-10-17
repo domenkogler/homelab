@@ -1,16 +1,35 @@
 ---
 # docker role defaults
 
-# The download.docker.com packages whose version is fleet state, therefore installed here as
-# `package=version`. Each name is looked up in `host_apt_pin_vars`
-# (`group_vars/all/versions.yml`) to find the var that pins it, so a package listed here with no pin
-# entry — or a pin var that no longer exists — fails the converge instead of quietly installing the
-# newest candidate in the suite. The list is the install set, not the held set: `apt-mark hold` covers
-# every pinned package the fleet carries (including `docker-ce-rootless-extras`, which rides the
-# engine's version and is installed by the engine, not here) — that list is derived from the same map.
+# The install set: the download.docker.com packages whose version is fleet state, therefore installed
+# here as `package=version`, each name looked up in `host_apt_pin_vars`
+# (`group_vars/all/versions.yml`) to find the var that pins it — so a package listed here with no pin
+# entry, or a pin var that no longer exists, fails the converge instead of quietly installing the
+# newest candidate in the suite.
+#
+# ONE list drives the apt call AND the dpkg read-back, which is the whole point of it being a list:
+# a pinned family member that no task installs is held at whatever the box happened to reach and
+# nothing in this repo can ever move it. `docker-ce-rootless-extras` is therefore in the list — it is
+# the engine's own rootless support, built from the same source package as `docker-ce` and published
+# for every suite in the fleet, so it rides `docker_ce_version` and the suite carries it to the pin
+# like the other members. The two asserts in `tasks/main.yml` hold this list and the pin map together
+# from both sides: install set ⊆ pin map, and every docker package the map pins ⊆ install set.
 docker_ce_suite_packages:
   - docker-ce
   - docker-ce-cli
+  - docker-ce-rootless-extras
   - containerd.io
   - docker-buildx-plugin
   - docker-compose-plugin
+
+# The `versions.yml` vars whose packages come from download.docker.com. This is what "docker family"
+# MEANS for the assert, so the family is derived from the pin map instead of repeated here as a second
+# list of package names that can lag it. Extend it only when `versions.yml` gains a pin var for a
+# package this suite publishes; `alloy_version` and `tailscale_host_version` are deliberately absent —
+# those packages are installed by their own roles, and a docker package named by neither list is the
+# failure the assert is written to refuse.
+docker_ce_suite_pin_vars:
+  - docker_ce_version
+  - containerd_io_version
+  - docker_buildx_plugin_version
+  - docker_compose_plugin_version

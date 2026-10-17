@@ -48,43 +48,14 @@
     fail_msg: "Unsupported docker suite '{{ ansible_facts['distribution'] }}/{{ ansible_facts['distribution_release'] }}' — add to docker role's distro map"
   tags: [docker]
 
-# The suite is installed as `package=version`, with the version read from the pin map in
-# `group_vars/all/versions.yml` by NAME — never a literal here, so this file cannot disagree with the
-# pin. Why the version must be named: a HELD package with no version named is frozen at whatever the
-# box happened to reach (`apt upgrade` keeps it back), which is repo state by accident rather than by
-# decision. All five components go into ONE apt call so a half-moved suite fails in the solver instead
-# of converging.
-#
-# The `-*` is the apt module's documented version wildcard. The dpkg REVISION is the target's own
-# distro stamp — download.docker.com publishes the same upstream release as `5:29.8.2-1~debian.13~
-# trixie` and `5:29.8.2-1~ubuntu.24.04~noble` — so the pin states the upstream version and the suite
-# supplies the suffix; no distro string is written anywhere in this repo, and spark's Ubuntu base is
-# therefore not a per-host pin. The hyphen anchors the pattern, so `5:29.8.2-*` cannot match a
-# hypothetical `5:29.8.20-*`. `docker-ce-rootless-extras` is deliberately NOT installed here: it
-# rides docker_ce_version where it exists (the Debian boxes), is absent on spark, and installing a
-# package a host never had is not this role's call — it is in the held set so it cannot drift.
-#
-# An empty `apt-mark hold` set is what makes an upgrade here safe to run at all: an explicitly
-# versioned install goes THROUGH a hold ("The following held packages will be changed", measured
-# against a synthetic held dpkg state), so the `common` role's hold leg needs no unhold/re-hold dance
-# and `--allow-change-held-packages` stays unnecessary. ⛔ Never add `--allow-downgrades`: a pin that
-# lags a box must fail, not downgrade it.
-- name: Install the pinned Docker suite
-  apt:
-    name:
-      - "docker-ce={{ docker_ce_version }}-*"
-      - "docker-ce-cli={{ docker_ce_version }}-*"
-      - "containerd.io={{ containerd_io_version }}-*"
-      - "docker-buildx-plugin={{ docker_buildx_plugin_version }}-*"
-      - "docker-compose-plugin={{ docker_compose_plugin_version }}-*"
-      - python3-docker
-    state: present
-    update_cache: true
-  tags: [docker, base]
-
-# A pin named here but missing from `host_apt_pin_vars` would be installed WITHOUT a version, i.e. at
-# whatever the suite's candidate happens to be — held set and install set would disagree and the
-# converge would look green. Fail here instead.
+# The install set and the pin map are ONE fact about the same packages, so BOTH directions of their
+# agreement are asserted here, before anything is installed. A package this role installs that the map
+# does not pin would be installed WITHOUT a version, at whatever the suite's candidate happens to be.
+# A package the map pins that this role does not install is the same disagreement from the other side,
+# and the worse half: `roles/common` holds every package in the map, so a pinned package with no
+# install task is frozen at whatever the box happened to reach, NO converge can ever move it, and the
+# pin-lag report calls a healthy-looking host drifted for as long as the hold stands. Both gaps are
+# repo state, so both are decidable without asking a host anything.
 - name: Assert every installed package is in the fleet pin map
   ansible.builtin.assert:
     that:
@@ -95,6 +66,189 @@
       (group_vars/all/versions.yml), so it would be installed at the suite's candidate and NOT held.
       Add the pin there — do not add a version here.
     quiet: true
+  tags: [docker, base]
+
+- name: Assert no pinned docker package sits outside the install set
+  # The family is DERIVED from the pin map: a pinned package belongs to it when the var that pins it
+  # publishes through download.docker.com (`docker_ce_suite_pin_vars`). One definition here, so there
+  # is no second list of package names that can lag the map it is supposed to describe.
+  ansible.builtin.assert:
+    that:
+      - (_docker_pinned_ce_packages | difference(docker_ce_suite_packages)) | length == 0
+    fail_msg: >-
+      {{ _docker_pinned_ce_packages | difference(docker_ce_suite_packages) | join(', ') }} is pinned in
+      `host_apt_pin_vars` (group_vars/all/versions.yml) and therefore HELD by the `common` role, but no
+      task installs it — so the hold freezes whatever {{ inventory_hostname }} happens to run, nothing
+      in this repo can move it, and the pin-lag report reads it as drift for good. Name it in
+      `docker_ce_suite_packages` (roles/docker/defaults/main.yml) so the suite installs it at its pin
+      and reads it back, or drop it from the map: never leave a package pinned and held with no task
+      that installs it.
+    quiet: true
+  vars:
+    _docker_pinned_ce_packages: >-
+      {{ host_apt_pin_vars | dict2items
+         | selectattr('value', 'in', docker_ce_suite_pin_vars)
+         | map(attribute='key') | sort | list }}
+  tags: [docker, base]
+
+# The suite is installed as `package=version`, with the version read from the pin map in
+# `group_vars/all/versions.yml` by NAME — never a literal here, so this file cannot disagree with the
+# pin. Why the version must be named: a HELD package with no version named is frozen at whatever the
+# box happened to reach (`apt upgrade` keeps it back), which is repo state by accident rather than by
+# decision. Every component goes into ONE apt call so a half-moved suite fails in the solver instead
+# of converging.
+#
+# The specs are BUILT from `docker_ce_suite_packages` rather than written out beside it: one name,
+# installed once, and the list that drives the apt call is the same list the read-back below loops
+# over, so the install set cannot quietly grow past the assertions that guard it.
+#
+# The `-*` is the apt module's documented version wildcard. The dpkg REVISION is the target's own
+# distro stamp — download.docker.com publishes the same upstream release as `5:29.8.2-1~debian.13~
+# trixie` and `5:29.8.2-1~ubuntu.24.04~noble` — so the pin states the upstream version and the suite
+# supplies the suffix; no distro string is written anywhere in this repo, and spark's Ubuntu base is
+# therefore not a per-host pin. The hyphen anchors the pattern, so `5:29.8.2-*` cannot match a
+# hypothetical `5:29.8.20-*`.
+#
+# A HELD package is a different story from an unheld one, and the honest version is measured, not
+# assumed: `apt-get -s -y install 'docker-ce=5:29.8.2-*' …` prints its plan and then dies with
+# "E: Held packages were changed and -y was used without --allow-change-held-packages" (rc 100), while
+# the same command WITHOUT `-y` resolves the upgrade fine. The apt module always passes `-y`, so the
+# hold does NOT step aside for a versioned install and the leg below lifts it deliberately. ⛔ Never add
+# `--allow-downgrades`: a pin that lags a box must fail, not downgrade it.
+- name: Build the pinned Docker suite install specs
+  # `query('vars', …)` resolves each package's pin var BY NAME (it returns a list, `lookup` would
+  # return it joined into one string), `zip` pairs the values back onto the names in list order.
+  # A name with no pin var cannot reach here: the assert above refuses the run first.
+  ansible.builtin.set_fact:
+    _docker_suite_install_specs: >-
+      {{ (docker_ce_suite_packages
+          | zip(query('vars', *docker_ce_suite_packages | map('extract', host_apt_pin_vars)))
+          | map('join', '=') | list)
+         | map('regex_replace', '$', '-*') | list }}
+  tags: [docker, base]
+
+# ── the hold, and the one moment a converge is allowed to lift it ────────────────────────────
+# `roles/common` holds every package in `host_apt_pin_vars` so `apt upgrade` cannot move one, and that
+# fence also blocks a PIN BUMP: the module path always passes `-y`, which apt refuses to answer when a
+# held package would change (see the note above). So the exception has to be explicit, and it has to be
+# narrow — the packages THIS run moves, never a blanket `apt-mark unhold $(apt-mark showhold)`, which
+# would hand `alloy` and `tailscale` to any `apt upgrade` racing the converge. A host already at its
+# pin lifts nothing at all, so a routine converge never opens the window.
+- name: Read which packages this host holds
+  ansible.builtin.command:
+    cmd: apt-mark showhold
+  register: _docker_holds_before
+  changed_when: false
+  check_mode: false        # a probe, not a mutation — --check must still be able to judge
+  tags: [docker, base]
+
+# The same read the assertion at the end of this file makes, taken once MORE and once BEFORE: here it
+# decides which names the hold is standing in the way of, there it decides whether anything moved
+# silently. The comparison is the dpkg upstream part — one rule, shared with the assert below and with
+# the pin-lag collector (`roles/monitoring/templates/homelab-hygiene.py.j2`).
+- name: Read the Docker suite versions before this run moves anything
+  ansible.builtin.command:
+    cmd: "dpkg-query -W -f='${package}=${version}\\n' {{ docker_ce_suite_packages | join(' ') }}"
+  register: _docker_suite_before
+  changed_when: false
+  failed_when: false       # a name this host's dpkg database does not know exits 1 and still prints the rest
+  check_mode: false
+  tags: [docker, base]
+
+- name: Decide which held Docker packages the pin bump has to move
+  # Held AND off its pin — that is the exact set apt would refuse. A name the host does not carry at
+  # all (a `hold ok not-installed` package) reads as an empty version here, so it is in the set too:
+  # it has to be installed, and it is held, so apt would refuse that as well.
+  ansible.builtin.set_fact:
+    # `default('', true)` is load-bearing: a Jinja block that emits NOTHING comes back as Python None,
+    # not as an empty string, and `None.split()` yields ['None'] — without the cast a host that needs
+    # no lift would run `apt-mark unhold None`.
+    _docker_suite_to_lift: "{{ (_docker_lift_candidates | default('', true) | trim).split() }}"
+  vars:
+    _docker_lift_candidates: |-
+      {%- set _held = _docker_holds_before.stdout_lines | map('trim') | list %}
+      {%- set _carried = dict(_docker_suite_before.stdout_lines | reject('equalto', '') | map('split', '=')) %}
+      {%- for _pkg in docker_ce_suite_packages %}
+      {%- set _actual = (_carried[_pkg] | default('')).rsplit('-', 1)[0]
+                        if '-' in (_carried[_pkg] | default(''))
+                        else (_carried[_pkg] | default('')) %}
+      {%- if _pkg in _held and _actual != lookup('vars', host_apt_pin_vars[_pkg]) %}{{ _pkg }} {% endif %}
+      {%- endfor %}
+  tags: [docker, base]
+
+- name: Move the pinned Docker suite past its hold
+  # The re-hold sits in `always`, so a failed install leaves the PRE-state — held, old version — and
+  # never a docker suite nobody is holding any more.
+  block:
+    - name: Say what the dry run cannot simulate on a held suite
+      # Under `--check` nothing is mutated, so the unhold below never lands and apt's own `--simulate`
+      # refuses the plan for a reason the real run will not have. Reporting that as a failure would
+      # teach everyone to reach for the forbidden flag, so the dry run says what it cannot see instead,
+      # and names the packages it would move. The read-back at the end of this file is the dry-run
+      # signal on a host that needs no lift, which is every host that is already at its pin.
+      ansible.builtin.debug:
+        msg: >-
+          --check leaves {{ _docker_suite_to_lift | join(', ') }} held, so the apt task below is
+          skipped rather than run against a hold the real apply lifts first. The plan itself is
+          readable any time with `apt-get -s install {{ _docker_suite_install_specs | join(' ') }}`
+          on {{ inventory_hostname }} — no -y, no hold refusal, nothing executed.
+      when: ansible_check_mode and (_docker_suite_to_lift | length > 0)
+
+    - name: Lift the hold on the Docker packages this run moves
+      ansible.builtin.command:
+        cmd: "apt-mark unhold {{ _docker_suite_to_lift | join(' ') }}"
+      when: _docker_suite_to_lift | length > 0
+      changed_when: true
+
+    - name: Install the pinned Docker suite
+      apt:
+        name: "{{ _docker_suite_install_specs + ['python3-docker'] }}"
+        state: present
+        update_cache: true
+      # `python3-docker` is the ONE name here that is not in the pin map and not in the suite list: it
+      # comes from the distro archive, not from download.docker.com, so no suite version applies to it.
+      # It is a library, not the engine, so it is not part of the held set either.
+      when: not (ansible_check_mode and (_docker_suite_to_lift | length > 0))
+
+    - name: Report what this run lifted
+      # Never under `--check`, where nothing was lifted: the voice above is what a dry run says.
+      ansible.builtin.debug:
+        msg: >-
+          hold lifted for the pin bump on {{ _docker_suite_to_lift | join(', ') }} —
+          re-held below, whether the install worked or not
+      when: _docker_suite_to_lift | length > 0 and not ansible_check_mode
+
+  always:
+    - name: Put the hold back on the Docker packages this run lifted
+      ansible.builtin.command:
+        cmd: "apt-mark hold {{ _docker_suite_to_lift | join(' ') }}"
+      when: _docker_suite_to_lift | length > 0
+      changed_when: true
+
+    - name: Read the holds this leg leaves behind
+      # `check_mode: false` because this is the re-READ, not the mutation: under `--check` it still
+      # reports what the host actually holds, which is what the assert below needs (a skipped register
+      # would read as "nothing is held" and accuse a healthy host of losing its holds).
+      ansible.builtin.command:
+        cmd: apt-mark showhold
+      register: _docker_holds_after
+      changed_when: false
+      check_mode: false
+      when: _docker_suite_to_lift | length > 0
+
+    - name: Assert the Docker suite is held again
+      # `apt-mark hold` exiting 0 is not the state. A suite left unheld converges green and moves on
+      # the next `apt upgrade`, which is the running-vs-pinned class the hold exists to close.
+      ansible.builtin.assert:
+        that:
+          - (_docker_suite_to_lift | difference(_docker_holds_after.stdout_lines | default([], true) | map('trim') | list)) | length == 0
+        fail_msg: >-
+          {{ _docker_suite_to_lift | difference(_docker_holds_after.stdout_lines | default([], true) | map('trim') | list) | join(', ') }}
+          was unheld by this run on {{ inventory_hostname }} and is NOT held again. Every converge from
+          here would leave it to `apt upgrade`. Re-hold it with `apt-mark hold <package>` and find out
+          why the leg above did not land — do not drop the package from `host_apt_pin_vars`.
+        quiet: true
+      when: _docker_suite_to_lift | length > 0
   tags: [docker, base]
 
 # The read-back, because the apt module has a SILENT path this closes: when the package IS installed
@@ -110,8 +264,9 @@
     cmd: "dpkg-query -W -f='${package}=${version}\\n' {{ docker_ce_suite_packages | join(' ') }}"
   register: _docker_suite_read
   changed_when: false
-  # A family member this host does not carry (docker-ce-rootless-extras on spark) makes dpkg-query
-  # exit 1 while still printing the ones it knows — stdout is the signal, the exit code is not.
+  # A family member this host's dpkg database does not know at all makes dpkg-query exit 1 while still
+  # printing the ones it knows — stdout is the signal, the exit code is not. One map is fleet-wide, so
+  # a short read here is a host that carries less, not a leg that broke.
   failed_when: false
   check_mode: false        # a probe, not a mutation — --check must still be able to judge
   tags: [docker, base]
@@ -121,12 +276,13 @@
     that:
       - _docker_expected == _docker_actual_upstream
     fail_msg: >-
-      {{ item }} on {{ inventory_hostname }} carries "{{ _docker_read[item] | default('nothing') }}"
+      {{ item }} on {{ inventory_hostname }} carries "{{ _docker_read[item] | default('nothing', true) }}"
       but {{ _docker_expected }} is pinned. Either the suite moved without
       the repo (a box ahead of its pin), or NOTHING moved: the apt module silently skips a version its
-      own suite does not publish, so check `apt-cache policy {{ item }}` on this host before touching
-      the pin. ⛔ Do not fix this by editing the pin to match the host, and never with
-      `--allow-downgrades`.
+      own suite does not publish, and a package whose dpkg state is `hold ok not-installed` — pinned
+      and held, never installed — reads the same way. Check `apt-cache policy {{ item }}` and
+      `dpkg -l {{ item }}` on this host before touching the pin. ⛔ Do not fix this by editing the pin
+      to match the host, and never with `--allow-downgrades`.
     quiet: true
   vars:
     _docker_read: >-
@@ -137,8 +293,9 @@
          else (_docker_read[item] | default('')) }}
     _docker_expected: "{{ lookup('vars', host_apt_pin_vars[item]) }}"
   loop: "{{ docker_ce_suite_packages }}"
-  # Skipped under `--check`, which never installed anything: there the apt task's own
-  # changed/ok — backed by `apt-get --simulate` — is the dry-run signal.
+  # Skipped under `--check`, which never installed anything. The dry-run signal there is the apt task's
+  # own changed/ok — except on a host whose suite is held and off its pin, where the lift cannot happen
+  # in a check run either, and the voice above says so instead.
   when: not ansible_check_mode
   tags: [docker, base]
 
