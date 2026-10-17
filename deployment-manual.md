@@ -868,11 +868,25 @@ First-boot notes:
   ```
   A plain docker restart does NOT wipe the inet filter table.
 - **VPS reboot checklist** (~2 min): `docker ps` roster complete; inet filter present with
-  input policy drop; ip nat has dnat entries; sso/git return 302.
+  input policy drop; ip nat has dnat entries; sso/git return 302. Then prove every stack is
+  *attached*, not merely started (a container can be `Up` with no network endpoint, and
+  `docker compose up -d` exits 0 on a dependent it never started):
+  ```bash
+  for d in /opt/*/; do [ -f "$d/docker-compose.yml" ] && /usr/local/sbin/docker-compose-ensure --verify-only "$d"; done
+  # BAD lines name the offender; escalate one project with:
+  #   docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate
+  systemctl --failed   # orphaned docker-compose@<svc> units = a project dir that is gone
+  ```
 - **Renovate repo-error diagnosis** (FATAL summary hides cause):
   `docker compose -f /opt/renovate/docker-compose.yml run --rm -e LOG_LEVEL=debug renovate`
 - **Stale compose env:** container env older than rendered file (compose sees no change):
   `docker compose -f /opt/<svc>/docker-compose.yml up -d --force-recreate`.
+- **`Up` but unreachable (running, attached to no network):** consumers fail on
+  `dial tcp: lookup <svc> ... no such host` while `docker ps` says `Up (healthy)`. Read:
+  `docker inspect -f '{{len .NetworkSettings.Networks}}' <c>` → `0`. Repair = **recreate**
+  (the command above); a plain `docker restart` re-joins the endpoint it believes exists and
+  leaves the container unreachable. Mechanism: [deployment-compose.md](docs/deployment-compose.md)
+  §Boot auto-start (docker-compose@).
 
 ### 1.11 RustDesk server — hbbs + hbbr (HD-412, VPS) `[MANUAL + Ansible]`
 

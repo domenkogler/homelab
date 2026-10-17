@@ -329,6 +329,22 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     act is now safe to perform anywhere in a wave, because HD-1118 pinned the gate's own positive control to a
     population of its own (`CONTROL_BASE_REV`) and made the divergent-family witness a fixture — before that, moving
     `baseline_rev` past `8b28edd3` made case (v) measure backwards, which is why an earlier attempt was backed out.
+    - ⏳ **Rotate the tailnet sidecar's pre-auth key (`tailscale-sidecar_api`).** The key VALUE reached a session
+      transcript — a `grep` whose redaction covered `KEY=value` but not the rendered-compose form `KEY: "value"` — and
+      it is a live grant, not an inert secret: it is what registers a replacement `vps-obs` node. Mint in headscale →
+      repoint the vault item → `docker compose -f /opt/traefik-tailnet/docker-compose.yml up -d` picks it up, and
+      `headscale nodes list` must still read `vps-obs … online` afterwards.
+      (Owning: [docs/deployment-secrets.md](docs/deployment-secrets.md) · [docs/network-vpn.md](docs/network-vpn.md)
+      §Tailnet-exposed services)
+    - ⏳ **`metabase`: retire the entry or enable it.** `/opt/metabase/docker-compose.yml` exists with no containers
+      behind it, so the compose-boot verdict prints `WARN: no containers for this compose file` on every pass — either
+      the service is gone (registry row + `/opt` directory both go) or it is owed (flip `enabled`). One call, no rows.
+      (Owning: [docs/services.md](docs/services.md) · `IaC/ansible/group_vars/vps.yml`)
+    - ⏳ **Prove the compose-boot verdict idempotent with one real converge.** The new
+      `/usr/local/sbin/docker-compose-ensure` and the rewritten `docker-compose@.service` reached vps/oldsrv/pi/spark
+      through task-level template runs, so one `--tags docker_services` pass must return those two legs
+      `ok`/unchanged and every service's new reachability check green — the leg that proves IaC and the hosts agree.
+      (Owning: [docs/deployment-compose.md](docs/deployment-compose.md) §Boot auto-start (docker-compose@))
 
 15. ⏳ **The gate's own speed on a Windows seat** — **HD-1135** landed the fork diet (gate 134 s → 78 s measured
     interleaved on the Win11 git-bash seat, `$(<file)` proven to be as blind to CR as plain `grep` was) and gave
