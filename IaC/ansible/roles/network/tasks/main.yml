@@ -151,7 +151,9 @@
          | rejectattr('AdministrativeState', 'equalto', 'unmanaged')
          | rejectattr('Name', 'equalto', 'lo')
          | map(attribute='Name') | list }}
-  when: net_guard_networkd_running | bool
+  when:
+    - not ansible_check_mode
+    - net_guard_networkd_running | bool
   tags: [network, net-guard]
 
 - name: Decide whether a second running manager is provably harmless
@@ -183,7 +185,7 @@
       - >-
         (network_manager == 'NetworkManager'
          and net_guard_nm_running
-         and (not net_guard_networkd_running or net_guard_disarm_ok))
+         and (not net_guard_networkd_running or net_guard_disarm_ok or not net_guard_measured))
         or (network_manager == 'systemd-networkd' and net_guard_networkd_running and not net_guard_nm_running)
         or (network_manager == 'ifupdown' and not net_guard_networkd_running)
     fail_msg: >-
@@ -235,7 +237,9 @@
       route-if {{ net_guard_route_if }}: NM={{ net_guard_nm_states.get(net_guard_route_if, 'not-measured') }}
       ifupdown={{ net_guard_ifupdown_owns_route }} |
       {{ 'FROZEN: owner and target differ, no address leg is written here' if not net_manager_settled else 'legs open' }}
-      {{ '| SKIPPED the route-ownership half (--check runs no nmcli)' if ansible_check_mode }}
+      {{ '| PARTIAL: --check runs no nmcli and no networkctl, so the route-ownership half and whether a
+         second running manager can be disarmed are NOT measured here — this run neither refuses nor
+         disarms on that half' if ansible_check_mode }}
   tags: [network, net-guard]
 
 - name: Remove the netd units no manager reads

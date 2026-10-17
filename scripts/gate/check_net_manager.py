@@ -423,6 +423,13 @@ LIVE_CASES = [
           ctl=[("enP7s7", "unmanaged"), ("wg-x", "configured")]),
      "refuse-shape"),
     # The third state, measured on nas: NM runs and is told to leave the port alone, ifupdown holds it.
+    # --check runs no nmcli and no networkctl: the run may neither refuse on the ownership half nor
+    # disarm, and it must say PARTIAL instead of deciding from a half-measurement.
+    ("--check cannot prove disarmability", "NetworkManager", "NetworkManager",
+     dict(check_mode=True, services={"NetworkManager.service": {"state": "running"},
+                                     "systemd-networkd.service": {"state": "running"}},
+          route="enP7s7", ifstate=["lo=lo"], nm_devices={"enP7s7": "connected"}),
+     "pass"),
     ("the third state: ifupdown owns the uplink", "ifupdown", "NetworkManager",
      dict(services={"NetworkManager.service": {"state": "running"}}, route="eno1",
           ifstate=["eno1=eno1", "lo=lo"],
@@ -541,9 +548,16 @@ def _raw_ctx(case: dict, manager: str, target: str) -> dict:
 def _derive(tasks_doc, ctx: dict) -> dict:
     """Run the role's measurement-derivation tasks over the raw facts."""
     for task in tasks_doc:
-        for key, expr in (task.get("ansible.builtin.set_fact") or {}).items():
-            if str(key).startswith("net_guard"):
-                ctx[key] = _eval(expr, ctx)
+        facts = {k: v for k, v in (task.get("ansible.builtin.set_fact") or {}).items()
+                 if str(k).startswith("net_guard")}
+        if not facts:
+            continue
+        # A `when:` here is the role's own skip condition, and under --check it is the difference
+        # between a fact the run measured and one it did not take at all.
+        if not all(bool(_eval(c, ctx)) for c in whens(task)):
+            continue
+        for key, expr in facts.items():
+            ctx[key] = _eval(expr, ctx)
     return ctx
 
 
@@ -555,8 +569,8 @@ def live_cases(tasks_main: Path, role_vars_main: Path) -> list[str]:
         if "net_manager_settled" not in role_vars:
             return ["guard-live: net_manager_settled is gone from roles/network/vars/main.yml, so the "
                     "freeze rule has no definition to evaluate"]
-        shape = _task_by(tasks_doc, "contradict the declaration")["ansible.builtin.assert"]["that"]
-        owner = _task_by(tasks_doc, "does not own the interface")["ansible.builtin.assert"]["that"]
+        shape = _task_by(tasks_doc, "contradict the declaration")
+        owner = _task_by(tasks_doc, "does not own the interface")
         disarm = _task_by(tasks_doc, "Disarm the second config-manager")
         dmodule = next(v for k, v in disarm.items() if k.split(".")[-1] == "systemd")
         if dmodule.get("name") != "systemd-networkd" or dmodule.get("state") != "stopped":
@@ -574,8 +588,12 @@ def live_cases(tasks_main: Path, role_vars_main: Path) -> list[str]:
             ctx = _raw_ctx(case, manager, target)
             ctx["net_manager_settled"] = _eval(role_vars["net_manager_settled"], ctx)
             ctx = _derive(tasks_doc, ctx)
-            shape_ok = all(bool(_eval(c, ctx)) for c in shape)
-            owner_ok = all(bool(_eval(c, ctx)) for c in owner)
+            # An assert whose `when:` is false does not run: under --check the ownership half is
+            # declared unmeasurable, and reading its condition anyway would invent a refusal.
+            shape_ok = all(bool(_eval(c, ctx)) for c in whens(shape)) and \
+                all(bool(_eval(c, ctx)) for c in shape["ansible.builtin.assert"]["that"])
+            owner_ok = not all(bool(_eval(c, ctx)) for c in whens(owner)) or \
+                all(bool(_eval(c, ctx)) for c in owner["ansible.builtin.assert"]["that"])
             held = [i["Name"] for i in json.loads(ctx["net_guard_networkctl"]["stdout"])["Interfaces"]
                     if i["AdministrativeState"] != "unmanaged" and i["Name"] != "lo"]
             disarm_allowed = all(bool(_eval(c, ctx)) for c in when) and not held
