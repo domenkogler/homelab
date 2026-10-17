@@ -244,8 +244,8 @@ homepage_failover_button: false
 # the VPS edge pin (traefik_edge_ip_pin: 172.20.0.2) — the bridge's sequential DHCP
 # once handed homepage .2 and wedged the public edge's bind ("Address already in use"
 # on traefik up). .5 is far above the sequential .3+ allocation and
-# below the tailnet edge's .250 reserve.
-homepage_ip_net: "172.20.0.5"
+# below the tailnet edge's .250 reserve (crowdsec_web_ui already took .5).
+homepage_ip_net: "172.20.0.24"
 
 # Homepage family-vs-technical split:
 #   - homepage_show_technical (default true): render the "Domen · technical"

@@ -34,7 +34,7 @@ services:
         # ("Address already in use" on traefik up; homepage had
         # grabbed 172.20.0.2). Pin the family launchpad to .5 — far above the
         # sequential .3+ allocation and never an edge IP (traefik-tailnet keeps .250).
-        ipv4_address: "{{ homepage_ip_net | default('172.20.0.5') }}"
+        ipv4_address: "{{ homepage_ip_net | default('172.20.0.24') }}"
     volumes:
       - ./config:/app/config                            # services.yaml + widgets.yaml (auto-generated)
     labels:
