@@ -169,14 +169,16 @@ Then restructure `scripts/README.md` into one section per folder (the file's own
 "Utilities" sections become folder sections), and update [docs/harness-pi.md](docs/harness-pi.md) §1/§5 +
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement for the new paths.
 
-## Out of scope for this lane (do not start it here)
+## HD-1119 — the `harness` docs domain (this brief's live row; the `docs/`-wide move stays out of scope)
 
-**HD-1119 — the `docs/` reorganisation + the missing `harness` domain.** It is the *same* naming decision one level up
-(`harness-pi.md` declares `domain: services`; `spark-llm-profiles.md` and `orchestration.md` declare no domain at all;
-harness decisions currently sit in `services-ai-rejected.md` / `services-rejected.md`, which a `harness` prior-art sweep
-cannot find), and it must not be folded in: `docs/<file>.md` is referenced ~2,289 times across 73 files, so the docs half has
-its own cost curve and its own owner gate. If the domain set changes while this lane runs, only `gate/`'s and `lib/`'s
-exception note is affected — which is why the note is prose in the registry header and not hardcoded in the checker.
+The `harness` domain exists now, so this is no longer a naming decision waiting to be made — what is left is what the row's
+⏳ names. **(a)** Split [`docs/harness-pi.md`](docs/harness-pi.md) by subject, as its own change with its own reference sweep:
+a `docs/<file>.md` rename has call sites across the whole tree, which is why it is never folded into a stage commit here.
+**(b)** Write `scripts/gate/check_doc_domain.py`, which does not exist yet and cannot be written at floor 0 before the
+taxonomy call the row names — the same change declares the docs that carry no `domain:` at all
+([`docs/spark-llm-profiles.md`](docs/spark-llm-profiles.md), [`docs/orchestration.md`](docs/orchestration.md)). If the domain
+set changes while this lane runs, only `gate/`'s and `lib/`'s exception note is affected — which is why the note is prose in
+the registry header and not hardcoded in the checker.
 
 ## Acceptance
 
