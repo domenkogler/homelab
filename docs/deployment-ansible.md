@@ -641,14 +641,49 @@ or the static gate fails.
 > -E 'identityfile|identitiesonly'` is the five-second diagnostic. Check this BEFORE concluding a
 > grant is missing.
 >
-> **A run pointed at the box the controller stands on takes the local connection.** The inventory carries
-> `-o ProxyJump=vps` for every behind-NAT host, so a self-target run hops out to the VPS and back, and the
-> final hop authenticates against the bare `ansible_host` address — where the seat config pins
-> `IdentityFile ~/.ssh/domen_ssh` with `IdentitiesOnly yes`, so the runner key is never offered and the run
-> dies `UNREACHABLE … Permission denied (publickey)`: a transport lie about a host that is literally local.
-> For a tag-scoped leg on the controller's own host pass `-c local` — same play, same `become`, no transport
-> to lie about. Do not "fix" it with `-e ansible_host=` (§Three ways a converge lies to you — that form also
-> rewrites `delegate_to` targets).
+> **A run pointed at the box the controller stands on dies at the transport, and the error lies.** The
+> inventory carries `-o ProxyJump=vps` for every behind-NAT host, so a self-target run hops out to the VPS
+> and back, and the final hop authenticates against the bare `ansible_host` address — where the cockpit
+> seat's own alias block pins the OPERATOR key with `IdentitiesOnly yes`, so the runner key is never
+> offered and the run dies `UNREACHABLE … Permission denied (publickey)` at the very first task: a
+> transport lie about a host that is literally local. Measured 2026-10-17 on the oldsrv cockpit seat:
+> `ansible oldsrv.kogler.si -m ping` → `ansible-admin@10.10.1.30: Permission denied (publickey)`, while
+> `host_vars/oldsrv.kogler.si.yml` says `ansible_user: ansible-admin` and the runner key sits on that box
+> as `~/.ssh/ansible-admin_ssh`. The five-second diagnostic is
+> `ssh -G -o ProxyJump=vps ansible-admin@10.10.1.30 | grep -E 'identityfile|identitiesonly'` — it prints
+> `identityfile ~/.ssh/domen_ssh` + `identitiesonly yes`, which is the whole story: OpenSSH matches the
+> name **actually typed** (rule 2 of the alias contract), Ansible types `ansible_host` (the Home address),
+> and the cockpit self-alias in `ssh/aliases.tmpl` claims that address spelling for `User domen`.
+> Nothing is wrong with the grant; the seat's own alias block answered a question the runner asked.
+>
+> Two ways through, **both measured on that seat**, and they are NOT equivalent:
+>
+> | Form | Verdict | What it actually runs as |
+> | --- | --- | --- |
+> | `-c local` (the old advice) | `ping` → `pong`, no transport to lie about | **`domen`** — `ansible oldsrv.kogler.si -m command -a 'id -un' -c local` answers `domen`. Fine for a read or a `--check` leg; a play whose tasks do not `become` runs under the seat account, not the inventory one |
+> | `-e "ansible_ssh_common_args='-o IdentityAgent=none -o IdentitiesOnly=yes -i ~/.ssh/ansible-admin_ssh'"` | `ping` → `pong` over the real transport | **`ansible-admin`** — the same command answers `ansible-admin`, i.e. the identity the inventory names |
+>
+> ⚠ The second form is a **GLOBAL extra-var**, the same trap as `-e ansible_host=` in §Three ways a
+> converge lies to you: it REPLACES the group value for every host in the invocation, so one invocation
+> means **one host**, and it also drops `-o ProxyJump=vps` — correct only when the runner is LAN-attached
+> (measured: from oldsrv the same form reached `nas.kogler.si` directly, jumpless), wrong from any runner
+> that needs the jump. And ⛔ never "fix" the address with `-e ansible_host=`: that form also rewrites
+> `delegate_to` targets.
+>
+> **The durable fix is an alias block, not a flag:** give the cockpit class its own admin-leg spelling —
+> a dedicated `Host oldsrv-admin` carrying `User ansible-admin` + the runner key + `IdentitiesOnly yes`,
+> exactly as the same class already spells `nas` / `pi` / `spark` — so the operator's self-alias stops
+> being the block a converge falls into. Measured against a stub config: with that block claiming the FQDN
+> and address spellings, `ssh -G 10.10.1.30` resolves `user ansible-admin` +
+> `identityfile ~/.ssh/ansible-admin_ssh` while `ssh -G oldsrv` still resolves `user domen` — the two legs
+> finally have two blocks. Two shapes that do NOT work, both measured: a `Host ansible-admin@<address>`
+> pattern never matches (`identitiesonly` stays `no`, so the block is dead text), and a
+> `Match host <address> user ansible-admin` block APPENDS its `IdentityFile` to the one the `Host` block
+> already set, so the operator key is still offered first. That edit belongs to the alias-contract plane
+> (`ssh/aliases.tmpl` + `scripts/harness/seed-seat-ssh-config.sh`, the plane HD-1123/HD-1138 own) — it is
+> not a converge and not a `host_vars` change. **No new row: the class was already written down here,
+> with `-c local` as its remedy; this is the same finding, re-measured, with the second remedy and the
+> durable fix added.**
 
 The runner is whatever machine executes `scripts/ansible/ansible-run.sh`; both scripts and the IaC
 resolve their own paths, so a second runner is a bootstrap, not a fork. Seeding one on
@@ -1111,7 +1146,7 @@ domain_local: kogler.si
 
 ### `common`
 - `tasks/system.yml`: **fail-closed guard** (asserts `ansible_user` is in `ansible_admin_users` — `ai-debug` can never run Ansible), apt update, prerequisites (`sudo`, `curl`, `python3-pip`, `openssh-server`), sudoers
-- `tasks/apt-holds.yml`: **holds the pinned host packages** — `apt-mark hold` for every pinned package the host actually carries (`alloy`, the Docker engine family, `tailscale`; the list is `common_apt_hold_packages`, DERIVED from `host_apt_pin_vars` in `group_vars/all/versions.yml`, the one map that also picks which versions `roles/docker` installs and which packages the pin-lag collector reports), then `apt-mark showhold` is read back and asserted, so a host that lost a hold reddens the converge instead of drifting silently. A held package cannot be moved by `apt upgrade`; an explicitly requested version (`apt install <pkg>=<ver>`, which is how a pin bump converges) still installs — so a `state: latest` leg on one of these packages would defeat the hold from inside a converge, and no role ships one (no `state: latest`, no `upgrade:` task anywhere in the IaC). There is **no automated upgrade phase** on any host: versions move only when `group_vars/all/versions.yml` moves, through Renovate + a deliberate converge. Kopia is not on the list because it is a pinned container image, not a .deb.
+- `tasks/apt-holds.yml`: **holds the pinned host packages** — ✅ **live on all five hosts, read back with `apt-mark showhold` on 2026-10-17**: oldsrv 8 and pi 8 (`alloy`, `tailscale` + the six-package docker family), vps 7 and spark 7 (`tailscale` absent there — `dpkg-query: no packages found matching tailscale`), nas 1 (`alloy` only; it runs no Docker). Per host the held set is exactly `common_apt_hold_packages` ∩ what the box carries, so a short list is the leg working and not a missing hold. ⚠ A hold freezes the version a box ALREADY runs: on vps/pi/spark it froze the engine family at `5:29.7.2` against the `5:29.8.2` pin, which only the `roles/docker` apply closes ([observability.md](observability.md) §Pin-lag report reports the gap as `homelab_pkg_pin_result{result="differ"}`). On spark one entry is `docker-ce-rootless-extras`, whose dpkg state is `hold ok not-installed` — the carry-probe is `dpkg-query -W -f='${Package}'`, which answers for a package the database knows but has never installed. The list itself is every pinned package the host actually carries (`alloy`, the Docker engine family, `tailscale`) and it is `common_apt_hold_packages`, DERIVED from `host_apt_pin_vars` in `group_vars/all/versions.yml`, the one map that also picks which versions `roles/docker` installs and which packages the pin-lag collector reports), then `apt-mark showhold` is read back and asserted, so a host that lost a hold reddens the converge instead of drifting silently. A held package cannot be moved by `apt upgrade`; an explicitly requested version (`apt install <pkg>=<ver>`, which is how a pin bump converges) still installs — so a `state: latest` leg on one of these packages would defeat the hold from inside a converge, and no role ships one (no `state: latest`, no `upgrade:` task anywhere in the IaC). There is **no automated upgrade phase** on any host: versions move only when `group_vars/all/versions.yml` moves, through Renovate + a deliberate converge. Kopia is not on the list because it is a pinned container image, not a .deb.
 - **Idempotency:** `state: present`, visudo validate; the hold leg diffs `showhold` against the installed pinned set, so an already-held host reports ok and only the missing holds are applied
 - **Depends on:** nothing
 
