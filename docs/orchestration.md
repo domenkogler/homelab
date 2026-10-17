@@ -105,6 +105,15 @@ inside one session. The LIVE wave table is
   out of scope for the **whole run** — no child may be launched against it, timed or not (standing rule 2 in
   [todo-table.md](../todo-table.md) §C). A provably engine-safe spark converge stays allowed, with the engine
   id / `StartedAt` / `RestartCount` read before and after.
+- **The seat axis is separate from the model axis, and a launch must state both.** Two different things gate a run: *which
+  model serves the session* decides whether timed and engine legs are allowed at all, and *which box the session stands on*
+  decides whether a converge is refused by the self-converge guard — that guard fires when the target **is** the controller,
+  and it asks nothing about the model. So a session may be barred from a timed leg while standing on the one box that may
+  drive a lockout-class converge, and the reverse is equally possible. Externally-served runs take the designated runner
+  station (the WSL Debian laptop seat: off-box for every target, not the engine host, owner of no converge slot) — see
+  standing rule 9 in [todo-table.md](../todo-table.md) §C and [../prompt-laptop-wsl.md](../prompt-laptop-wsl.md), which is a
+  **seat** brief: it claims **legs, not rows**, so the row→brief index in [todo-table.md](../todo-table.md) §B0 stays the single owner of every row and the
+  station never becomes a second claimant on a domain lane's work.
 
 
 ### Launch procedure (the parent)
@@ -122,6 +131,10 @@ inside one session. The LIVE wave table is
    from the whole run, for the parent and for every child alike (O11's dispatch filter). Say which briefs are
    excluded and why, in the same breath as the lane map — a lane that discovers the exclusion mid-flight has
    spent a slot learning it.
+6. Read the seat's **placement** the same way: whether this box is the target of any leg it is about to drive. A
+   lockout-class role on the controller's own host is refused by the guard and must be re-driven from another control node
+   (the seat brief names the legs), and an externally-served run belongs on the designated runner station — naming the seat
+   in the launch is what makes a timed leg's provenance checkable afterwards.
 
 
 ### Merge + cleanup (the parent — none of this is ever a lane's job)

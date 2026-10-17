@@ -253,7 +253,12 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 | [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md) cockpit on both nodes, the coding seats, grants, the seat plane | **3** | **361** · **442** · **443** · **465** · **444** · **411** · **495** · **1085** · **1110** · **1115** | **oldsrv** + **nas** (SSH-lockout class — drive them off-box); `roles/access` touches **every** host slot, so run it host-by-host. The **seat plane is not a converge** |
 | [prompt-observability-alerting.md](prompt-observability-alerting.md) silent-failure rules, Matrix alerting, boards | **3** | **450** · **1108** · **342** · **344** · **315** · **343** · **377** · **1120** · **1121** · **1122** | the **VPS** is the primary slot (`--tags monitoring` restarts the scrape tier); oldsrv carries the MCP servers + the network-clients exporter; nas/pi/spark are collector legs. The LLM-telemetry trio adds a **spark** hunk (`spark-dashboard` access log) and an **oldsrv** `docker_services` hunk (`--metrics`) — neither in a bench window |
 | [prompt-storage-backup.md](prompt-storage-backup.md) nas ZFS policy units, Kopia, the DR story | **3** | **06** · **207** · **1105** · **1106** · **1107** · **191** · **238** · **1093** | **nas** is the primary slot (`storage.yml`); **oldsrv** the Kopia-agent legs; **VPS** `kopia-server` + the volume inventory; the **nas+pi+oldsrv** `nut` legs are one logical change |
+| [prompt-laptop-wsl.md](prompt-laptop-wsl.md) the **seat** brief — the WSL Debian laptop seat as the neutral runner station (§C rule 9) | **not a wave** | **none — it claims legs, not rows**: the rows above keep owning them, this brief names only the legs that box may drive | none of its own; it borrows the host it is converging, so for that window the owning brief's slot is taken |
 
+> **The seat brief is not a wave.** `prompt-laptop-wsl` carries no rows, so it never takes a priority wave — it takes the
+> **host it is converging**, and for that window the owning brief's slot is occupied. Read its §2 before launching anything on
+> that host, and its §0 first if you are the session standing on that seat (its own gate is red before you edit anything).
+>
 > **Waves that may pair:** **1+1** — `prompt-spark-llm` with `prompt-laptop-legs` (spark slot + a seat with no
 > converge). **2+1 or 2+3** — one of `dns-transport` / `media-arrs` / `litellm-consumers` with `laptop-legs` or
 > `scripts`, provided neither takes the router. **Never** two of {`dns-transport`, `media-arrs`,
@@ -590,6 +595,17 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 8. **Children, not sessions, are the other concurrency axis:** delegation is the default, at most two children run
    at a time (`max_num_seqs` minus the parent minus the always-on consumers — [docs/harness-pi.md](docs/harness-pi.md) §6),
    they run the session model, and a minutes-long silence is a compaction pause, not a hang. Contract: [docs/orchestration.md](docs/orchestration.md) §4 (O10–O11); the numbers live in `pi-agent/settings-ssot.json` and are held by `scripts/gate/check_subagent_contract.py`.
+9. **An externally-served session runs from the WSL Debian laptop seat — the designated runner station.** Three facts make it
+   the station and not a preference: it is **off-box for every converge target**, so `IaC/ansible/playbooks/tasks/self-converge-guard.yml`
+   never fires and the lockout-class legs stay drivable; it is **not the engine host**, so Rule 0 holds by construction there;
+   and it **owns no converge slot**, so it never collides with a domain lane's host. ⚠ The station does **not** lift Rule 0 —
+   if the session's own model is spark, every timed/engine exclusion in rule 2 binds the whole run wherever it sits; and if an
+   externally-served session takes a timed leg from another box, `scripts/bench/spark/run-scenario.sh` has already stamped that
+   leg `<hostname>/agent:<PI_MODEL>`, so the results CSV's `client` column shows afterwards who actually took the window.
+   Legs that are physically Win11-local (that seat's runtime legs, its own `~/.ssh` retirement items) stay Win11-local: from
+   inside WSL the seat driver names only the `wsl` and `oldsrv` seats, so this box cannot certify the Win11 one. Brief:
+   [prompt-laptop-wsl.md](prompt-laptop-wsl.md) — a **seat** brief, which claims **legs, not rows**, so the row→brief index in
+   §B0 stays the single owner of every row; the station's own readiness is queued in [todo.md](todo.md).
 
 ---
 

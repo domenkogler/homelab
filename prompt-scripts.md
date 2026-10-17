@@ -14,6 +14,22 @@
 `todo.md` limited to **this row**. No live converges except the one named in Stage 3. `bash scripts/validate-all.sh` green
 **in this worktree** before every commit; close-out = commit, row tail, stop.
 
+**Who runs this brief (lane C — the context-bound lane).** The rows here are *theoretically* engine-neutral work with no host
+risk, which is exactly why they read as spark-doable; the binding term is not the host, it is the **working set**. Take the
+number instead of trusting this sentence: `wc -c scripts/README.md todo.md CONVENTIONS.md docs/index.md`, and
+`python3 scripts/gate/check_registry_prose.py --show` for what the prose sweep actually covers. What that arithmetic says: the
+file this lane must hold in one pass is a large fraction of a locally-served lane's rendered window (262 144 with
+`compaction.reserveTokens` 16 384 — [pi-agent/settings-ssot.json](pi-agent/settings-ssot.json)), and the mandatory reading sits
+on top of it. A lane that reads its contract and then sweeps that file does so with its own contract already compacted — the
+failure [`spark/llm-profiles/README.md`](spark/llm-profiles/README.md) records for the small local model, at a larger number. So:
+
+| Part of this brief | Serve it from |
+|---|---|
+| the **campaign** items — the `scripts/README.md` prose sweep (HD-1141), the `docs/harness-pi.md` split with its reference sweep (HD-1119), and the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison) | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
+| the **prep** for them — measure the corpus, list the cells that must change, name the six rows whose Owning-spec column is missing, print the live count `check_registry_prose.py --show` prints | any seat, spark-served: it is read-only arithmetic and it is what makes the campaign one pass instead of a re-measurement |
+
+Row ownership does not move: this brief keeps the rows (§B0 is the index), the station brief claims **legs, not rows**.
+
 **Why stages, not one move commit:** ~1,500 literal `scripts/<name>` references across 173 tracked files, and — the part that
 would have bitten first — **the scripts do not know where the repo root is, they assume a fixed depth.** Fix that before any
 file changes directory, or the move turns validators green-while-checking-nothing (Stage 1 is the whole reason Stage 3 is safe).

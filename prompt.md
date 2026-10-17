@@ -15,9 +15,13 @@
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
-fleet's live set (harness state in [docs/harness-pi.md](docs/harness-pi.md)). The laptop's WSL Debian clone is **retained but
-rarely used as a seat (owner ruling 2026-10-09, which supersedes the 2026-10-07 “retired” wording)** —
-it stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state. Two refs were unique to that box — a stash (`On main: never_evict
+fleet's live set (harness state in [docs/harness-pi.md](docs/harness-pi.md)). The laptop's WSL Debian clone is **retained, and
+now has a job: it is the designated runner station for externally-served runs** — off-box for every converge target, not the
+engine host, owner of no converge slot (the 2026-10-09 “retained but rarely used as a seat” ruling still stands for the
+pi-dev-seat question, which is a different one; the rule is [todo-table.md](todo-table.md) §C rule 9 and the state is
+[docs/harness-pi.md](docs/harness-pi.md) §5a).
+it stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state — and its own seat
+planes are drift-red until a session standing **on** it converges them ([prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0). Two refs were unique to that box — a stash (`On main: never_evict
 pin experiment`, 2026-10-03) and `session/arr-door-20261006`, whose remote ref the arr-door lane had deleted
 after landing its work. Neither is live, and both are closed: the stash re-armed a flag main REJECTED on
 2026-10-05 (`group_vars/spark.yml` §never-evict — the pin held 0 blocks, and `check_spark_llm_gate.py` refuses
@@ -75,6 +79,16 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
 > spark engine brief and every timed/engine leg are excluded for the whole run, for children as well as the parent
 > (standing rule 2 in [todo-table.md](todo-table.md) §C). Which rows are AI-doable with no owner step in front is the
 > `Who` column of [todo-table.md](todo-table.md) §B/§B9, never this list.
+>
+> **Read the seat too, not only the model.** A lockout-class leg is gated by *which box drives* (the self-converge guard fires
+> when the target is the controller) and that has nothing to do with which model is serving the session; the two axes are
+> stated separately in [docs/orchestration.md](docs/orchestration.md) §4. Externally-served runs belong on the WSL Debian
+> station, and the legs only that box may drive are listed in [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §2.
+
+**Seat brief (not a wave):** [prompt-laptop-wsl.md](prompt-laptop-wsl.md) — the WSL Debian laptop seat as the neutral runner
+station: its §0 pre-flight (the seat's own gate is red before you edit anything), the legs only that box may drive (§2), what a
+spark-served session must not start there (§3), and the rehearse-everything rule for owner windows (§4). It claims **legs, not
+rows**, so it never takes a row out of the brief that owns it.
 
 Ranked by what unblocks the most. Each line is the item + **the domain brief that carries its order of work** —
 the brief, not this list, holds the steps, the file ownership and the converge host. Waves, pairing and the
