@@ -169,7 +169,7 @@ Then restructure `scripts/README.md` into one section per folder (the file's own
 "Utilities" sections become folder sections), and update [docs/harness-pi.md](docs/harness-pi.md) §1/§5 +
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement for the new paths.
 
-## HD-1119 — the `harness` docs domain (this brief's live row; the `docs/`-wide move stays out of scope)
+## HD-1119 — the `harness` docs domain (one live row here; the `docs/`-wide move stays out of scope)
 
 The `harness` domain exists now, so this is no longer a naming decision waiting to be made — what is left is what the row's
 ⏳ names. **(a)** Split [`docs/harness-pi.md`](docs/harness-pi.md) by subject, as its own change with its own reference sweep:
@@ -179,6 +179,11 @@ taxonomy call the row names — the same change declares the docs that carry no 
 ([`docs/spark-llm-profiles.md`](docs/spark-llm-profiles.md), [`docs/orchestration.md`](docs/orchestration.md)). If the domain
 set changes while this lane runs, only `gate/`'s and `lib/`'s exception note is affected — which is why the note is prose in
 the registry header and not hardcoded in the checker.
+
+## HD-1141 — the `scripts/README.md` prose sweep (the other live row here)
+
+This one is the brief's own file, with no converge and no host slot: [todo.md](todo.md) HD-1141 is the authority for its items,
+and wiring `scripts/gate/check_registry_prose.py` into `validate-all.sh` is that row's LAST item, not separate work.
 
 ## Acceptance
 

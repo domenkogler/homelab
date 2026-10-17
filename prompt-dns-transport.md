@@ -83,6 +83,7 @@ to the unattended report) · headscale answering through `extra_records_path` wi
 answering from whichever box is live, drill recorded honestly and the accidental direction labelled a proxy · a real client
 getting `NXDOMAIN` only where a list exists, on **all three** instances, and the pi-web seat loading with Technitium stopped ·
 `logQueries` proven on the Pi tertiary with the retention rendered · the VLAN-10 offer showing the VIP with all three gates
-evidenced · oldsrv's dead netd renders gone with the guard asking the host · the router's stray logging rule gone with the
-four forwarding rows intact and the rule count re-printed · the VPS answering over v6 — the `--resolve` read, `[::]:443` on the host and a peer printing `direct [<v6>]:41641` — with the accept-parity verdict applied or named open · the device legs on `HD-1095` / `HD-1097` named by device ·
+evidenced · HD-487's owed `--tags network` converges, in the order its row names, each host proved by
+`scripts/ansible/probe-net-manager.sh <host>` read back before and after — the dead unit off and its file absent · the router's
+stray logging rule gone with the four forwarding rows intact and the rule count re-printed · the VPS answering over v6 — the `--resolve` read, `[::]:443` on the host and a peer printing `direct [<v6>]:41641` — with the accept-parity verdict applied or named open · the device legs on `HD-1095` / `HD-1097` named by device ·
 rows deleted or trimmed to their tails, no history in the row · `bash scripts/validate-all.sh` green **in this worktree** → **stop**.

@@ -84,9 +84,9 @@ the spark LLM profile matrix (the spark lane owns the engine-side bench); traefi
 ## Acceptance
 
 Every item returns `PASS` / `FAIL` / `BLOCKED` / `PARKED` + the number + the evidence path; a claim with no path counts as
-not run. Concretely: an alert event read back from `#homelab-alerts` for a named canary, with the SMTP fail-safe still
-configured and the Signal demotion stated as the remaining step or done · the NUT reachability series present and the VPS box
-cert exported as a series (or the exact blocker for it) with a rule that fires on a deliberate silence · every monitoring
+not run. Concretely: an alert event read back from `#homelab-alerts` for a named canary — triggered by the collector-silence
+recipe so the rule that catches a deliberate silence fires with it — with the SMTP fail-safe still configured and the Signal
+demotion stated as the remaining step or done · every monitoring
 host's running Alloy == `1.20.1-1` with `up{job="alloy"}` after the restart, or the host that refused and the failing task
 quoted · the MCP endpoints registered in each named consumer, ports taken from the vars · HD-342's tail phrased as the HD-191
 dependency, with no include-list edit · the wifi-reg source named from a live router answer · the two board render-verifications
