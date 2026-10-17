@@ -642,7 +642,7 @@ make the read HONEST rather than merely harmless:
 
 | Question | The read that answers it |
 | --- | --- |
-| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Measured 2026-10-17: on oldsrv all eight pins match (`alloy` `1.20.1-1`, `tailscale` `1.102.5`, the docker family at `5:29.8.2`/`2.3.6`/`0.37.1`/`5.5.1`); on vps/pi/spark the six docker-family entries read `differ` — see the fleet table below |
+| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Measured 2026-10-17: on oldsrv all eight pins match (`alloy` `1.20.1-1`, `tailscale` `1.102.5`, the docker family at `5:29.8.2`/`2.3.6`/`0.37.1`/`5.5.1`); on vps/pi/spark the docker-family entries read `differ` — 6 on vps and pi, 5 on spark plus one `unknown` — see the fleet table below |
 | How far from current is the box? | `homelab_upgrade_plan_count` — measured 2026-10-17: oldsrv **56**, vps 74, pi 93, nas 95, spark 230. None of those are the pinned packages, because a HELD package is kept back rather than listed (the ⚠ below): the count is the whole unpinned OS tail. It is the staleness signal, never a pin signal |
 | Does this host even carry the package? | `result="missing"` — what a fleet-wide list reads on a host that legitimately does not carry it, and the reason a first rule keys on `result="differ"` rather than on the ok gauge. Measured 2026-10-17: `nas` reports `missing` for the whole docker family (no Docker there) and for `tailscale` |
 | …and if dpkg answers nothing at all? | `result="unknown"` — measured on spark for `docker-ce-rootless-extras`: an empty version with rc 0, because the dpkg state is `hold ok not-installed`. A held package the box never installed is NOT the same fact as `missing`, and neither one is drift |
@@ -658,7 +658,8 @@ mode this whole section documents. Its two non-obvious settings are reasoned in
 [`../IaC/ansible/roles/monitoring/vars/main.yml`](../IaC/ansible/roles/monitoring/vars/main.yml) and are
 not copies of the neighbours: it keys on `result="differ"` and **never** on `homelab_pkg_pin_ok` (the ok
 gauge is 0 for "off its pin" AND for "this host does not carry the package", so a fleet-wide rule on it
-pages `nas` forever), and it takes `noDataState: OK` because a filtered-empty result IS NoData (§Operational gotchas) — `Alerting` here would page every evaluation on a fleet that is entirely in sync.
+pages `nas` forever), and it takes `noDataState: OK` because a filtered-empty result IS NoData
+(§Operational gotchas) — `Alerting` here would page every evaluation on a fleet that is entirely in sync.
 
 **What the fleet reads today** (2026-10-17, `count by (instance, result) (homelab_pkg_pin_result)` out of
 VictoriaMetrics, cross-checked against each host's own `:9098`):
