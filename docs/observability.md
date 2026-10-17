@@ -678,6 +678,18 @@ pending `--tags docker` applies — every one of them restarts the daemon, so th
 converge a lane may run. Now that the family is HELD, `apt upgrade` will not close the gap on its own: the
 rule stays red until those applies run. Do not mute it to make the landing quiet.
 
+⚠ **And one entry will still be red after those applies, on `vps` and `pi`: `docker-ce-rootless-extras`.**
+It is in the pin map and in the held set, but `roles/docker` deliberately installs the other five only (the
+suite list is `docker_ce_suite_packages`, and the read-back assert loops over that list, not over the pin
+map), on the rule that a converge must not start installing a package a host never had. Measured:
+`dpkg-query -W -f='${Version}' docker-ce-rootless-extras` reads `5:29.8.2-1~debian.13~trixie` on oldsrv
+(match), `5:29.7.2-…` on vps and pi (**differ**), empty-with-rc-0 on spark (`unknown`, `hold ok
+not-installed`), "no packages found" on nas. So on the two Debian boxes where it IS installed, nothing in
+the repo will ever move it to the pin — and since HD-1146 the hold no longer lets `apt upgrade` move it
+either. Either name it in the suite list where the host carries it, or drop it from the pin map for hosts
+that do not install it; both are an owner call on the docker leg, and until one is taken this rule's red on
+those two hosts is the honest reading, not noise.
+
 ⚠ **`unknown` is a fourth reading, and the hold leg explains it.** On spark `dpkg-query -W
 -f='${Version}' docker-ce-rootless-extras` answers **empty with rc 0** — the dpkg status is
 `Status: hold ok not-installed`, a package the database knows and holds but has never installed — so the
