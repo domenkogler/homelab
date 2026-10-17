@@ -556,7 +556,7 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 7. **A test that cannot fail is not evidence** (CONVENTIONS §6): prefer the gate that carries its own self-test over
    prose that asserts coverage.
 8. **Children, not sessions, are the other concurrency axis:** delegation is the default, at most two children run
-   at a time (`max_num_seqs` minus the parent minus the always-on consumers — [docs/pi-harness.md](docs/pi-harness.md) §6),
+   at a time (`max_num_seqs` minus the parent minus the always-on consumers — [docs/harness-pi.md](docs/harness-pi.md) §6),
    they run the session model, and a minutes-long silence is a compaction pause, not a hang. Contract: [docs/orchestration.md](docs/orchestration.md) §4 (O10–O11); the numbers live in `pi-agent/settings-ssot.json` and are held by `scripts/gate/check_subagent_contract.py`.
 
 ---

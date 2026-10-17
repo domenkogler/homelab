@@ -53,7 +53,7 @@ inside one session. The LIVE wave table is
 | **O8** | CONVENTIONS §worktree: on a path collision, abort and pick a new name | Hard rule for the parent too: it **never** `rm`s / moves / renames a worktree it did not create; lane worktrees are removed **after** the merge, **by name**, with `git worktree remove`; branches die by `git branch -d` (**never `-D`**) | A worktree removed by a session that did not create it is gone; and `-d`'s refusal is the cheap proof that nothing was stranded |
 | **O9** | README §4.7 + CONVENTIONS §6: nothing bounds how many **sessions** a run may have — O3 caps *converge slots*, not contexts, so launching a lane per brief is legal on its face | Sessions are cheap, **contexts are not**. At most **8 concurrent agent sessions** and at most **2 full-context sessions — the orchestrator counts as one**. The default shape is *orchestrator + one lane*; a **third** is allowed only when the other two are near done, and **4 is the ceiling, never exceeded**. Anything beyond must be a **narrow-context child** (a bounded single-deliverable subagent with its own fresh, small context — README §4 "Orchestrator + reviewer discipline") and never a second full lane wearing a brief. The brief pool is a **dispatch queue, not a parallelism licence** | A full lane session pays the README §0/§1 boot ritual (~60 k tokens of `todo.md` alone), so parallel lanes are paid for out of the context budget, not the session budget; rows queued behind an occupied host slot (O3) are **waiting, not missing** |
 | **O10** | README §4 item 7 + the pi-subagents contract: the parent works directly by default, and delegation must be earned per task | **Delegation is the default.** Every analysis, read-down, authorship and verification task runs as a child. The parent spends its own context on four things only: composing launches, reading **evidence** (`git log`, `git status --porcelain`, `git show --stat`, gate output), merging, and `validate-all.sh` | O9's reasoning applied one level down: a boot ritual costs tens of thousands of tokens, so a parent that re-reads the tree in order to brief a child pays that bill twice. ⚠ This does **not** soften Merge + cleanup step 1: reading evidence *is* the parent's job, and a lane's report is still not proof |
-| **O11** | Harness defaults: up to 20 concurrent children, a 30-minute run backstop, and whatever model a call names | **≤2 children live at a time** (one writer per cwd), **`async: true` on every launch**, a **2 h deadline per child**, and **the parent's model only** — enforced mechanically by `subagents.modelScope` with `allow: ["inherit"]` in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), which the settings plane merges into every seat | The engine sets the number, not taste: `spark_vllm_max_num_seqs: 4`, minus the parent, minus one sequence reserved for the always-on consumers (voice, LiteLLM, RAG) = **2** ([pi-harness.md](pi-harness.md) §6). A third child does not queue politely — it preempts a live prefix and recomputes it |
+| **O11** | Harness defaults: up to 20 concurrent children, a 30-minute run backstop, and whatever model a call names | **≤2 children live at a time** (one writer per cwd), **`async: true` on every launch**, a **2 h deadline per child**, and **the parent's model only** — enforced mechanically by `subagents.modelScope` with `allow: ["inherit"]` in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), which the settings plane merges into every seat | The engine sets the number, not taste: `spark_vllm_max_num_seqs: 4`, minus the parent, minus one sequence reserved for the always-on consumers (voice, LiteLLM, RAG) = **2** ([harness-pi.md](harness-pi.md) §6). A third child does not queue politely — it preempts a live prefix and recomputes it |
 
 
 
@@ -80,7 +80,7 @@ inside one session. The LIVE wave table is
   not two passes of the parent's own context. Bounded, single-deliverable, one acceptance micro-format each —
   an over-scoped child is worse than none (README §"Orchestrator + reviewer discipline").
 - **Two live children, and only one writer per cwd.** A third does not wait its turn quietly: on the shared
-  engine it preempts somebody's prefix ([pi-harness.md](pi-harness.md) §6). Concurrency is a KV-pool decision
+  engine it preempts somebody's prefix ([harness-pi.md](harness-pi.md) §6). Concurrency is a KV-pool decision
   wearing a process-table costume, so the ceiling is the engine's arithmetic, not a preference.
 - **The model is inherited, never overridden.** Every builtin child takes the session model, and a seat's
   rendered model set carries one serving provider, so a `model:` override names something this harness does
@@ -88,13 +88,13 @@ inside one session. The LIVE wave table is
   `allow: ["inherit"]`) in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) — so an override
   fails at launch instead of buying an unavailable model at run time. A child therefore pays the **parent's
   full context window**: keep child prompts bounded and the context `fresh`; forking a 262k parent context
-  into a child is precisely the KV act [pi-harness.md](pi-harness.md) §6 exists to warn about. (The
+  into a child is precisely the KV act [harness-pi.md](harness-pi.md) §6 exists to warn about. (The
   lane-profile alias in that section is a paper artifact and is NOT in the model spec; if it is ever landed,
   widening the scope is a deliberate change, not a side effect.)
 - **Async always, and silence is not a hang.** Launch with `async: true`, then yield and let the wake bring
   the parent back — `bg_wait` is for work with no native completion notice, not for every child. A child served
   by a local engine goes quiet for **minutes** while it compacts (pi compacts at `contextWindow −
-  compaction.reserveTokens`, and thinking-on decode runs ~11 tok/s per [pi-harness.md](pi-harness.md) §5), so
+  compaction.reserveTokens`, and thinking-on decode runs ~11 tok/s per [harness-pi.md](harness-pi.md) §5), so
   **do not steer, stop, or re-launch on silence**. Act on a needs-attention notice, a repeated tool-attempt
   failure, or the deadline. The deadline is **2 h per child**, because the harness's own 30-minute backstop
   is shorter than a real bounded task at that decode rate; the value lives with the rest of the child-runtime

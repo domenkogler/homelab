@@ -70,7 +70,7 @@
 # PI_ENTRY_DIR (default $HOME/.pi/agent/bin, pi's own launcher dir — the managed layout).
 # Portability: bash + the platform installer; `$HOME`/self-derived paths only.
 #
-# Owning rule: docs/pi-harness.md §1 (the pin table) · §5 (what the harness is).
+# Owning rule: docs/harness-pi.md §1 (the pin table) · §5 (what the harness is).
 set -uo pipefail
 
 # `:-$0` for the pipe-over-ssh form (`ssh seat 'bash -s' < this-file`), where BASH_SOURCE is unset

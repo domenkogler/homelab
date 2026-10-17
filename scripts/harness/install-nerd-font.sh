@@ -20,7 +20,7 @@
 # itself. The Debian leg is still worth having (a seat that ever grows a GUI or a `fc-list`
 # consumer gets the right family, and `fc-list` is the effectiveness probe that makes this
 # script able to fail), but the doc says so out loud instead of letting a seat's green check
-# imply that someone can SEE the icons: docs/pi-harness.md §5a.
+# imply that someone can SEE the icons: docs/harness-pi.md §5a.
 #
 # PROOF MODEL
 #           --check compares three things, and each can fail on its own:
@@ -51,7 +51,7 @@
 # $HOME/.cache/nerd-fonts), NERD_FCCACHE / NERD_FCLIST (command overrides; the self-test
 # uses them to breed the SKIP and the ineffective-install states).
 #
-# Owning rule: docs/pi-harness.md §5a · CONVENTIONS §7 (the release pin lives in versions.yml).
+# Owning rule: docs/harness-pi.md §5a · CONVENTIONS §7 (the release pin lives in versions.yml).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

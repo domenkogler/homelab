@@ -11,8 +11,8 @@ tags: [hardware, ai, workstation, strix-point, fim, vision, gpu]
 > must run **locally** (FIM autocomplete + visual judgment), why the vision hand-off to spark is a
 > **cascade** and not token-level split inference, and why the **NPU stays out** of the AI tier. Owning doc
 > for the *placement* decision of these two legs; the pi.dev harness's model config stays in
-> [`pi-harness.md`](pi-harness.md), spark's engine config in [`hardware-spark.md`](hardware-spark.md).
-> **Links to:** `hardware-gpu.md`, `hardware-spark.md`, `services-ai.md`, `pi-harness.md`, `network-vpn.md`
+> [`harness-pi.md`](harness-pi.md), spark's engine config in [`hardware-spark.md`](hardware-spark.md).
+> **Links to:** `hardware-gpu.md`, `hardware-spark.md`, `services-ai.md`, `harness-pi.md`, `network-vpn.md`
 > (laptop alias contract)
 > **Linked from:** `hardware.md`, `index.md`
 
@@ -383,5 +383,5 @@ documented order: **unload → confirm release → load**, never optimistically 
 - [`hardware.md`](hardware.md) roster · [`hardware-gpu.md`](hardware-gpu.md) (the 8 GiB card this doc deliberately
   does **not** use) · [`hardware-spark.md`](hardware-spark.md) §Text-only engine mode
 - [`services-ai.md`](services-ai.md) §9 decision #28 (vision placement across tiers)
-- [`pi-harness.md`](pi-harness.md) — the harness's model config on this machine (never duplicated here)
+- [`harness-pi.md`](harness-pi.md) — the harness's model config on this machine (never duplicated here)
 - [`../spark/`](../spark/) research: `resources/R1-hf-model-card.md` (architecture), `RESEARCH-VERDICTS.md`

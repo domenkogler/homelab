@@ -24,7 +24,7 @@
 #     package, ~/.pi/agent/skills, the rendered model contract) — that is
 #     scripts/harness/install-pi-debian.sh, and the assert below refuses to
 #     enable a unit whose binary is missing instead of inventing one;
-#   * settings.json — pi-harness.md §5 is its source and there is no renderer by
+#   * settings.json — harness-pi.md §5 is its source and there is no renderer by
 #     design (§1), so no template here may write it;
 #   * the Traefik route — roles/cockpit/templates/cockpit-routes.yml.j2 (the cockpit role
 #     owns the route; this role owns the host side of the seat).

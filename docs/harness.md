@@ -13,10 +13,10 @@ tags: [harness, pi, agent-harness, seats, tmux, llm]
 > never a `docker_services` catalog. This page decides **placement** (which doc owns which harness
 > subject) and the naming rule that keeps the host `pi` and the harness `pi.dev` apart; every number,
 > mechanism and measurement stays in the docs it is owned by, linked below.
-> **Links to:** `pi-harness.md`, `harness-review.md`, `harness-rejected.md`, `hardware-spark.md`,
+> **Links to:** `harness-pi.md`, `harness-review.md`, `harness-rejected.md`, `hardware-spark.md`,
 > `spark-llm-profiles.md`, `hardware-workstation.md`, `services-ai.md`,
 > [`../scripts/README.md`](../scripts/README.md)
-> **Linked from:** `index.md`, `pi-harness.md`, `services.md`
+> **Linked from:** `index.md`, `harness-pi.md`, `services.md`
 
 ---
 
@@ -26,7 +26,7 @@ tags: [harness, pi, agent-harness, seats, tmux, llm]
   seat planes and the terminal it runs in. The **engine** it calls is a different domain — vLLM args,
   KV-pool governance and profile certification are owned by [`hardware-spark.md`](hardware-spark.md) and
   [`spark-llm-profiles.md`](spark-llm-profiles.md). Direction of truth is **engine → harness, never the
-  reverse** ([`pi-harness.md`](pi-harness.md) §1).
+  reverse** ([`harness-pi.md`](harness-pi.md) §1).
 - **A coding harness is not a service.** Harnesses reach the engine **directly** at the spark name edge —
   the consumption boundary is decision #26 in [`services-ai.md`](services-ai.md) §9, and the parked
   `dsh` / `pi-dev` catalog entries (`enabled: false`, kept so the port contract survives a re-onboarding)
@@ -50,7 +50,7 @@ tags: [harness, pi, agent-harness, seats, tmux, llm]
 | `oldsrv` — "oldsrv cockpit seat" (account `domen`) | A Debian seat that renders the model contract locally and serves the harness's own web front-end | [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) (`--cockpit` adds the cockpit package); the driver's `oldsrv` leg uses the seat-local `oldsrv-domen` alias, which exists in the workstation's ssh config |
 
 Three seats, two in daily use; which one is which, why the WSL seat stays in the list, and why a run **on**
-oldsrv reports every leg `UNREACHABLE` by design: [`pi-harness.md`](pi-harness.md) §5a. One command fans
+oldsrv reports every leg `UNREACHABLE` by design: [`harness-pi.md`](harness-pi.md) §5a. One command fans
 every plane out to every seat and **fails** on an unreachable one — the driver, its plane registry and its
 verdict vocabulary are registered in [`../scripts/README.md`](../scripts/README.md) §`scripts/harness/`.
 
@@ -65,19 +65,19 @@ harness) so the next harness is a row there and not a restructure here.
 
 | Subject | Owning doc / SSOT |
 |---|---|
-| Seat × plane matrix, the fan-out driver, the from-zero installers | [`pi-harness.md`](pi-harness.md) §1 · [`../scripts/lib/seat-planes.yml`](../scripts/lib/seat-planes.yml) · [`../scripts/README.md`](../scripts/README.md) §`scripts/harness/` |
-| The **model contract** — `models.json`, context window, thinking control, timeouts, the second vendor's block | [`pi-harness.md`](pi-harness.md) §4 · SSOT [`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml), rendered by [`../scripts/harness/render-pi-config.py`](../scripts/harness/render-pi-config.py) |
-| The **settings plane** — harness keys + the package set composed from the pins | [`pi-harness.md`](pi-harness.md) §5 · SSOT [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), pins in [`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml) |
-| **Seat identity** — what the footer names, the TUI key, the Nerd Font the icons come from | [`pi-harness.md`](pi-harness.md) §5a |
-| The **terminal harness** — tmux mouse, OSC 52 clipboard, and why a byte-identical config can still be inert | [`pi-harness.md`](pi-harness.md) §5b (harness-**independent**: it is the terminal, not pi, that owns the mouse and the clipboard) |
-| Subagent concurrency — how many children the shared engine can actually serve | [`pi-harness.md`](pi-harness.md) §6 + [`orchestration.md`](orchestration.md) §4 (O10–O11) |
+| Seat × plane matrix, the fan-out driver, the from-zero installers | [`harness-pi.md`](harness-pi.md) §1 · [`../scripts/lib/seat-planes.yml`](../scripts/lib/seat-planes.yml) · [`../scripts/README.md`](../scripts/README.md) §`scripts/harness/` |
+| The **model contract** — `models.json`, context window, thinking control, timeouts, the second vendor's block | [`harness-pi.md`](harness-pi.md) §4 · SSOT [`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml), rendered by [`../scripts/harness/render-pi-config.py`](../scripts/harness/render-pi-config.py) |
+| The **settings plane** — harness keys + the package set composed from the pins | [`harness-pi.md`](harness-pi.md) §5 · SSOT [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), pins in [`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml) |
+| **Seat identity** — what the footer names, the TUI key, the Nerd Font the icons come from | [`harness-pi.md`](harness-pi.md) §5a |
+| The **terminal harness** — tmux mouse, OSC 52 clipboard, and why a byte-identical config can still be inert | [`harness-pi.md`](harness-pi.md) §5b (harness-**independent**: it is the terminal, not pi, that owns the mouse and the clipboard) |
+| Subagent concurrency — how many children the shared engine can actually serve | [`harness-pi.md`](harness-pi.md) §6 + [`orchestration.md`](orchestration.md) §4 (O10–O11) |
 | The **engine** behind the harness (vLLM args, KV pool, profile switching, incidents) | [`hardware-spark.md`](hardware-spark.md), [`spark-llm-profiles.md`](spark-llm-profiles.md), [`spark-incidents.md`](spark-incidents.md) |
 | The workstation's **client-side legs** (FIM autocomplete, visual judgment) | [`hardware-workstation.md`](hardware-workstation.md) + decision #28 in [`services-ai.md`](services-ai.md) §9 |
 | The seat's **ssh alias plane** (lives in `scripts/harness/`, owned elsewhere) | [`network-vpn.md`](network-vpn.md) §The laptop alias contract + [`../ssh/aliases.tmpl`](../ssh/aliases.tmpl) |
 | Harness **candidates and rejections** | [`harness-review.md`](harness-review.md) (queue), [`harness-rejected.md`](harness-rejected.md) (decision log, with the seed pointers into the older logs) |
 
 The split above is a **placement decision, not yet a file split**: today every harness detail named in the
-table is carried by [`pi-harness.md`](pi-harness.md). Splitting it into `harness-<sub>.md` files is a
+table is carried by [`harness-pi.md`](harness-pi.md). Splitting it into `harness-<sub>.md` files is a
 later change with its own reference sweep — the naming rule below is what keeps the present shape
 unambiguous in the meantime.
 
@@ -91,7 +91,7 @@ as if it were about a machine:
 | Name | It is | Owned by |
 |---|---|---|
 | **`pi` / `pi.kogler.si`** | the **Raspberry Pi 4 host** — Home Assistant primary, Technitium tertiary, `traefik-ha` edge | [`hardware.md`](hardware.md), [`smart-home.md`](smart-home.md), [`deployment-pi-provision.md`](deployment-pi-provision.md) |
-| **`pi.dev` / "the harness"** | the **coding-agent harness** this domain documents | [`pi-harness.md`](pi-harness.md), this hub |
+| **`pi.dev` / "the harness"** | the **coding-agent harness** this domain documents | [`harness-pi.md`](harness-pi.md), this hub |
 
 So: say **`pi.dev`** or **the harness** for the toolchain, **`pi`** only for the host, and never
 `pi` + `harness` collapsed into one bare word where a reader could take it for the Raspberry Pi.
@@ -103,7 +103,7 @@ the prose was.
 ## Related
 
 - [`index.md`](index.md) — the document map and the AI dispatcher this hub is registered in.
-- [`pi-harness.md`](pi-harness.md) — the domain's detail doc today (all of the rows above).
+- [`harness-pi.md`](harness-pi.md) — the domain's detail doc today (all of the rows above).
 - [`harness-review.md`](harness-review.md) / [`harness-rejected.md`](harness-rejected.md) — the
   [`../CONVENTIONS.md`](../CONVENTIONS.md) §8.3 pair.
 - [`../CONVENTIONS.md`](../CONVENTIONS.md) §8.1 — the domain/host-class rule that admits a seat-class domain.

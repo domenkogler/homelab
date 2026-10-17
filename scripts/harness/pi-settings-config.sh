@@ -7,7 +7,7 @@
 # -------------------------------------
 # Three seats run this harness (Win11, WSL Debian, the oldsrv cockpit) and until
 # 2026-10-08 the only way their `settings.json` agreed was a session remembering to edit
-# each one — docs/pi-harness.md §5 WAS the SSOT (a doc block, hand-copied). Owner ruling
+# each one — docs/harness-pi.md §5 WAS the SSOT (a doc block, hand-copied). Owner ruling
 # 2026-10-08: the harness keys become a repo file and a script, so a new seat starts
 # correct. Fleet driver: scripts/harness/pi-seat-sync.sh.
 #
@@ -42,7 +42,7 @@
 # PI_NODE (which node — the oldsrv seat runs this over `ssh seat '…'`, a NON-interactive
 # non-login shell that reads no profile, so PATH may not carry node: HD-446).
 #
-# Owning rule: docs/pi-harness.md §5 · CONVENTIONS §6 (repo = SSOT) · §7 (pins).
+# Owning rule: docs/harness-pi.md §5 · CONVENTIONS §6 (repo = SSOT) · §7 (pins).
 set -uo pipefail
 
 # HD-1118 Stage 1: the repo root is FOUND by scripts/lib/repo-root.sh, never assumed
@@ -191,7 +191,7 @@ run_node() {
 
     const bad = owned.filter((k) => !eq(cur[k], ssot[k]));
     // A package is only OK when the seat carries the OWNED source byte-for-byte: a seat on
-    // an older version of the same package is drift, and the pin wins (docs/pi-harness.md §1).
+    // an older version of the same package is drift, and the pin wins (docs/harness-pi.md §1).
     const badPkgs = pkgs.filter((src) => !have.some((h) => nameOf(h) === nameOf(src) && eq(h, src)));
     const detail = [...bad, ...(badPkgs.length ? ["packages"] : [])].join(",");
 

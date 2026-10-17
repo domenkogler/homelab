@@ -46,7 +46,7 @@
 #
 # Readers: scripts/harness/pi-seat-sync.sh (the fan-out), scripts/harness/install-pi-debian.sh and
 # scripts/harness/install-pi-wsl.sh (the config stage), scripts/lib/pi-seat.sh (the reader itself).
-# Owning doc: docs/pi-harness.md §1 (the plane set) / §5 (what the harness is).
+# Owning doc: docs/harness-pi.md §1 (the plane set) / §5 (what the harness is).
 
 ---
 plane: pi-self
@@ -145,7 +145,7 @@ installer: debian cockpit wsl
 ---
 # The Windows leg of the SAME plane: a font changes what a TERMINAL rasterises, and on
 # Windows `~/.local/share/fonts` rasterises nothing, so the placement is the per-user font
-# API (docs/pi-harness.md §5a). One plane, two placements.
+# API (docs/harness-pi.md §5a). One plane, two placements.
 plane: font
 harness: all
 owner: install-nerd-font.ps1

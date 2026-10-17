@@ -19,7 +19,7 @@
   WHAT THIS CANNOT PROVE: that pi LOOKS right. The font must also be selected in the TERMINAL
   PROFILE (Windows Terminal: settings.json fontFace; VS Code: terminal.integrated.fontFamily).
   Owning that choice is the operator's - pi-open-tui's `icons.mode: auto` picks Nerd glyphs from
-  the terminal environment, not from the font list, and docs/pi-harness.md sec 5a says where to set
+  the terminal environment, not from the font list, and docs/harness-pi.md sec 5a says where to set
   it. -Check prints the font families Windows now offers so the operator can compare.
 .PARAMETER Check
   Report only (default): installed release vs the pin, the manifest, and what the registry lists.

@@ -258,7 +258,7 @@ spark_headless: true
 # render key; the flat `spark_vllm_*` names below stay as PASS-THROUGHS of the
 # ACTIVE profile because two non-template consumers read them
 # (roles/spark/files/spark-oom-watchdog.sh + spark-oom-watchdog.service.j2) and
-# because docs/hardware-spark.md §Bench + engine selection + docs/pi-harness.md
+# because docs/hardware-spark.md §Bench + engine selection + docs/harness-pi.md
 # cite them as the live-value pointer. Do not re-hardcode a value in either
 # place — edit the profile entry.
 #
@@ -425,7 +425,7 @@ spark_llm_profiles:
     args_extra: []
     # What the CLIENT may vary on this engine: BINARY. `reasoning_effort` is
     # accepted-but-ignored by this build; the graded surface is
-    # `thinking_token_budget` per pi level (docs/pi-harness.md §2).
+    # `thinking_token_budget` per pi level (docs/harness-pi.md §2).
     reasoning_surface: binary
     client_context_window: 262144
     client_max_tokens: 16384
@@ -468,7 +468,7 @@ spark_llm_profiles:
 
   # ── 2. GRADED = same weights/engine, fp8 KV so graded thinking + full windows coexist ─
   # The grading itself is CLIENT-side (pi `thinkingLevelMap` + `thinking_token_budget`,
-  # docs/pi-harness.md §2/§4); what this profile changes on the server is the KV
+  # docs/harness-pi.md §2/§4); what this profile changes on the server is the KV
   # shape: fp8 shrinks bytes/token by ~1.7-1.9x (NOT 2x — see the constant above), so
   # the SAME 16 GB pool would hold ~877k-913k slots ≈ 3.3-3.5 full windows, and thinking
   # chains stop evicting each other at 4 sessions.
@@ -682,7 +682,7 @@ spark_llm_profiles:
       - "0.80"
     # SGLang cannot turn thinking OFF on this model (vendor: "always reasons"), and depth is
     # requested via `reasoning_effort` — the opposite of the vLLM build we measured
-    # (binary enable_thinking, reasoning_effort accepted-and-ignored, docs/pi-harness.md §2).
+    # (binary enable_thinking, reasoning_effort accepted-and-ignored, docs/harness-pi.md §2).
     # That measurement is ENGINE-specific: a sglang profile must not inherit the pi harness
     # flags without re-measuring them, and `spark-llm-probe.py reasoning` legs are expected
     # to FAIL on this engine by design until someone re-measures.
@@ -771,7 +771,7 @@ spark_llm_profiles:
     spec_tokens: 3
     tool_call_parser: qwen3_coder     # ours, not upstream's qwen3_xml — the pi tool-calling
     generation_config_override: '{"temperature":1,"top_p":0.95,"top_k":20}'   # client-owned temp NOT possible: AR loader needs temperature present
-    reasoning_surface: binary         # certified against THIS (docs/pi-harness.md §2).
+    reasoning_surface: binary         # certified against THIS (docs/harness-pi.md §2).
     client_context_window: 262144
     client_max_tokens: 16384
     ple_offload: true                 # render the primitive-ai CPU-offload env trio

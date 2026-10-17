@@ -612,7 +612,7 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
       retirement/embed cutover → Mem0 + OpenHands. Most legs are done; the row stays open until the tail lands. · [hardware-spark.md](docs/hardware-spark.md)
 - [ ] **HD-336** — the coding plane: agent-memory.dev per-project memory on oldsrv (MCP + a LiteLLM key), the
       ZeroClaw system-mgmt runner, CrewAI gated on the homelab being finished. · [services-ai.md](docs/services-ai.md)
-- [ ] **HD-376** — harness-side context/timeout tuning (its `HD-388` half — client model config rendered from one repo spec — shipped 2026-09-23 and that row is deleted; record [pi-harness.md](docs/pi-harness.md) §4)
+- [ ] **HD-376** — harness-side context/timeout tuning (its `HD-388` half — client model config rendered from one repo spec — shipped 2026-09-23 and that row is deleted; record [harness-pi.md](docs/harness-pi.md) §4)
 - [ ] **HD-369** — the tail of the tier row: Ollama stays as the **embed fallback** (the owner keeps it), and
       the rerank leg still has **no consumer** — `rag-mcp` is a compose stub, so nothing calls the reranker yet. · [services-ai.md](docs/services-ai.md)
 - [x] **HD-393** — **CLOSED 2026-09-28.** Attributed: a `CONSTRAINT_MEMCG` kill of the 1g-capped pinned-tier

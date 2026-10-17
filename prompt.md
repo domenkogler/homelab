@@ -15,7 +15,7 @@
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
-fleet's live set (harness state in [docs/pi-harness.md](docs/pi-harness.md)). The laptop's WSL Debian clone is **retained but
+fleet's live set (harness state in [docs/harness-pi.md](docs/harness-pi.md)). The laptop's WSL Debian clone is **retained but
 rarely used as a seat (owner ruling 2026-10-09, which supersedes the 2026-10-07 “retired” wording)** —
 it stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state. Two refs were unique to that box — a stash (`On main: never_evict
 pin experiment`, 2026-10-03) and `session/arr-door-20261006`, whose remote ref the arr-door lane had deleted
@@ -150,7 +150,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    fixed — `4677cd05` found a dead PATH shim hiding a healthy pinned-prefix pi 1.1.0, so the old "Volta shim"
    premise is history, not a task) and the Win11 `pi_auth` drift — the seat holds
    an **OAuth** openrouter entry where the spec renders `api_key`; mint it through the `pi_auth` vendor lane of
-   [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/pi-harness.md](docs/pi-harness.md)) and
+   [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/harness-pi.md](docs/harness-pi.md)) and
    never overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
 6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: the policy snapshots exist
    on every configured dataset and the generated unit's last fire is `Result=success`; the package's own

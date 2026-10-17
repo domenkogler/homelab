@@ -17,7 +17,7 @@ tags: [services, ai, llm, llm-gateway, rag, agents, okf, vector]
 > [`hardware-gpu.md`](hardware-gpu.md); the spark engine itself = [`hardware-spark.md`](hardware-spark.md).
 >
 > **Links to:** `services-office.md`, `hardware-gpu.md`, `hardware-spark.md`, `services-authentik.md`,
-> `services-traefik.md`, `deployment-secrets.md`, `services.md`, `pi-harness.md`
+> `services-traefik.md`, `deployment-secrets.md`, `services.md`, `harness-pi.md`
 > **Linked from:** `services.md`, `index.md`
 
 > **Status:** the VPS platform is **live** — LiteLLM spine (Postgres-backed, models in the DB, version
@@ -54,7 +54,7 @@ and STT are local on the oldsrv RX 7600** (§3a). Model routing, cost, rate limi
 are centralized there.
 
 The coding harnesses are the deliberate exception — they go **direct** to the spark name edge (§9 row 26,
-§9b, [pi-harness.md](pi-harness.md) §1b).
+§9b, [harness-pi.md](harness-pi.md) §1b).
 
 **Two invariants of the knowledge layer:**
 - **The vector store is independent of Open WebUI.** Qdrant stands alone (hybrid dense+sparse BM25), so
@@ -288,7 +288,7 @@ driver. Nothing here adds a scrape target or a dashboard.
   through the LAN `home-assistant` record; Docling is covered by the rule but has **no key yet** (§10).
 - **Direct to the engine:** the coding harnesses (workstation pi.dev, Continue.dev, future dedicated
   harness deploys) → `https://llm.kogler.si/v1`. Rationale in §9 row 26 + §9d; the client-side contract in
-  [pi-harness.md](pi-harness.md) §1b.
+  [harness-pi.md](harness-pi.md) §1b.
 - **External generation:** one `openrouter_api` key (api → credential) reused for **all** external
   chat/LLM models, declared in LiteLLM's `config.yaml`; any model on OpenRouter is selectable through the
   one LiteLLM dropdown.
@@ -928,7 +928,7 @@ README in the npm registry** (the GitHub README is the only contract), and the b
 
 **The seat's model leg.** The rendered spark block matches the spec field-for-field and `pi --list-models` on that
 box prints `spark | spark/qwen3.8-flash-next | 262.1K | 16.4K | yes | no` — the row
-[pi-harness.md](pi-harness.md) §8 predicts — so the harness parses the contract it was rendered. The engine is
+[harness-pi.md](harness-pi.md) §8 predicts — so the harness parses the contract it was rendered. The engine is
 reachable **from oldsrv**, and reaching it is one host-resolver fact: oldsrv asks its
 own Technitium instance first and the Pi tertiary second (`host_resolver_dns` in
 [`host_vars/oldsrv.kogler.si.yml`](../IaC/ansible/host_vars/oldsrv.kogler.si.yml), applied by the
@@ -981,7 +981,7 @@ Traps, each with the runbook step that prevents it ([../deployment-manual.md](..
 `pi`**.
 
 **The seat's harness defaults:** `~/.pi/agent/settings.json` carries the whole
-[pi-harness.md](pi-harness.md) §5 block (`defaultProvider`/`defaultModel` = spark, `defaultThinkingLevel`,
+[harness-pi.md](harness-pi.md) §5 block (`defaultProvider`/`defaultModel` = spark, `defaultThinkingLevel`,
 timeouts, compaction) with the workstation key `packages` preserved, so a seat session starts on the local
 engine instead of a cloud model. It is hand-written from §5 **by design**: `render-pi-config.py` has no
 settings vendor and `models-spec.yml` states the boundary — the spec renders the *model contract*, never
@@ -1019,7 +1019,7 @@ settings. What the picker offers is 419 rows (openrouter 386 · opencode-go 30 �
   Both seats run the pinned **pi** (`pi_host_npm_version`) on the same pinned Node tarball (**22.23.3** ⏳)
   and the cockpit is
   **pi-web beta.38**; the seat's `settings.json`
-  carries the [pi-harness.md](pi-harness.md) §5 block verbatim (`defaultThinkingLevel: high`, the
+  carries the [harness-pi.md](harness-pi.md) §5 block verbatim (`defaultThinkingLevel: high`, the
   900 s idle timeout, the 16 k/32 k compaction pair, the 8 k thinking budget) and a smoke turn on
   the spark leg answers.
   ⚠ **PATH splits by shell kind**: interactive shells get
@@ -1092,7 +1092,7 @@ request bodies. Use (a)+(b).
 **What does not change:** decision #26 stands — generation harnesses still go **direct** to the engine, the gateway
 serves the simple-querier tier, and nothing here moves the harness route. pi's
 `compat.thinkingFormat: "qwen-chat-template"` control is proven at **both** hops
-([pi-harness.md](pi-harness.md) §2 carries the harness-side numbers: 82 capped vs 121 uncapped on *its* prompt — the
+([harness-pi.md](harness-pi.md) §2 carries the harness-side numbers: 82 capped vs 121 uncapped on *its* prompt — the
 absolute counts are prompt-dependent, the 0 / capped / uncapped relation is what generalises). `reasoning_effort`
 is **not** tested through the gateway and stays unsupported there.
 

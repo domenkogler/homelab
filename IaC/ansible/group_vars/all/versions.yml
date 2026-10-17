@@ -557,7 +557,7 @@ pi_host_web_npm_version: "0.0.1-beta.38"       # the observed version behind the
                                                # a pinned string in the seat's settings packages would stop
                                                # that path working)
 # The seat's TUI skin (pi-open-tui, the pi package behind the footer that names the machine —
-# docs/pi-harness.md §5a). Fleet-wide: every pi.dev node installs this pair through the two
+# docs/harness-pi.md §5a). Fleet-wide: every pi.dev node installs this pair through the two
 # install-pi-* scripts, so it is a pin and not a seat-local `pi install npm:pi-open-tui`.
 pi_host_tui_npm_package: "pi-open-tui"
 pi_host_tui_npm_version: "0.3.11"              # npm dist-tag `latest` (`npm view pi-open-tui version`), which

@@ -47,7 +47,7 @@
 # counted as in-sync, and a seat that "synced" by skipping its plane list is a FAILURE — the loop
 # reads on FD 3 and the ssh transport takes `-n` for exactly that reason (see sync_seat).
 #
-# Owning rule: docs/pi-harness.md §1 + §5/§5a · CONVENTIONS §6.
+# Owning rule: docs/harness-pi.md §1 + §5/§5a · CONVENTIONS §6.
 set -uo pipefail
 
 # HD-1118 Stage 1: the repo root is FOUND by scripts/lib/repo-root.sh, never assumed

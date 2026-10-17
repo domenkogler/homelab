@@ -3,7 +3,7 @@
 > **Role:** dispatch note for **one** lane session: reorganise `scripts/` into named folders **without changing what any
 > script does**. The rows are the authority for what is missing: [todo.md](todo.md) HD-1118 (+ HD-1119 for the docs half).
 > The structure itself was brainstormed with the owner on 2026-10-09 and is **agreed as the target, not as a doc** — this
-> file is the only place the agreed tree + the stage order are written down. Design context: [docs/pi-harness.md](docs/pi-harness.md)
+> file is the only place the agreed tree + the stage order are written down. Design context: [docs/harness-pi.md](docs/harness-pi.md)
 > §1/§5 (the seat planes), [CONVENTIONS.md](CONVENTIONS.md) §6 (worktree/gate discipline), [`scripts/README.md`](scripts/README.md) (the registry).
 > **Linked from:** [todo.md](todo.md) HD-1118
 > **Status 2026-10-12:** HD-1118 **landed**, re-derived at the tip — Stages 1–4 below are the tree's provenance,
@@ -166,13 +166,13 @@ one `scripts/gate/check_merge_markers.py` now refuses.
 5. no `.ps1` and no data file at `scripts/` top level; `testdata/**` excluded from the registry requirement.
 
 Then restructure `scripts/README.md` into one section per folder (the file's own §"Validation gate" / "Renderers" /
-"Utilities" sections become folder sections), and update [docs/pi-harness.md](docs/pi-harness.md) §1/§5 +
+"Utilities" sections become folder sections), and update [docs/harness-pi.md](docs/harness-pi.md) §1/§5 +
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement for the new paths.
 
 ## Out of scope for this lane (do not start it here)
 
 **HD-1119 — the `docs/` reorganisation + the missing `harness` domain.** It is the *same* naming decision one level up
-(`pi-harness.md` declares `domain: services`; `spark-llm-profiles.md` and `orchestration.md` declare no domain at all;
+(`harness-pi.md` declares `domain: services`; `spark-llm-profiles.md` and `orchestration.md` declare no domain at all;
 harness decisions currently sit in `services-ai-rejected.md` / `services-rejected.md`, which a `harness` prior-art sweep
 cannot find), and it must not be folded in: `docs/<file>.md` is referenced ~2,289 times across 73 files, so the docs half has
 its own cost curve and its own owner gate. If the domain set changes while this lane runs, only `gate/`'s and `lib/`'s

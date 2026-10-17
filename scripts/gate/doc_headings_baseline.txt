@@ -68,6 +68,13 @@
 1	docs/hardware-spark.md	docs/hardware-spark.md	§above
 1	docs/hardware-spark.md	docs/hardware-workstation.md	§Text-only
 2	docs/hardware-spark.md	docs/observability.md	§DCGM
+1	docs/harness-pi.md	(unresolved target)	§5 is
+1	docs/harness-pi.md	(unresolved target)	§5 remains the place that says WHY each key is what it is
+1	docs/harness-pi.md	(unresolved target)	§5b**. Not yet called by the seat installer
+1	docs/harness-pi.md	(unresolved target)	§7
+1	docs/harness-pi.md	(unresolved target)	§Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else
+1	docs/harness-pi.md	docs/harness-pi.md	§9d
+1	docs/harness-pi.md	docs/services-ai.md	§pi.dev
 1	docs/index.md	deployment-manual.md	§oldsrv
 1	docs/index.md	scripts/README.md	§Adjacent
 1	docs/network-dns.md	docs/services-media.md	§How
@@ -88,13 +95,6 @@
 1	docs/orchestration.md	deployment-manual.md	§4.8
 1	docs/orchestration.md	docs/orchestration.md	§1
 1	docs/orchestration.md	todo-table.md	§C4
-1	docs/pi-harness.md	(unresolved target)	§5 is
-1	docs/pi-harness.md	(unresolved target)	§5 remains the place that says WHY each key is what it is
-1	docs/pi-harness.md	(unresolved target)	§5b**. Not yet called by the seat installer
-1	docs/pi-harness.md	(unresolved target)	§7
-1	docs/pi-harness.md	(unresolved target)	§Terminal and display carries `theme`/`tuiMode`/`terminal.*` and nothing else
-1	docs/pi-harness.md	docs/pi-harness.md	§9d
-1	docs/pi-harness.md	docs/services-ai.md	§pi.dev
 1	docs/security.md	docs/network-dns.md	§8
 1	docs/security.md	docs/security.md	§VPS-Specific
 1	docs/services-admin.md	CONVENTIONS.md	§4(b

@@ -31,7 +31,7 @@
 # every seat forever, invisible to a gate that only compares repo-side files. So retirement
 # is explicit, in ONE place, and enforced by both --push (removes) and --check --strict
 # (fails while one is still deployed). Retired: `host-status.ts` (the footer hostname is
-# pi-open-tui's own segment now — docs/pi-harness.md §5a) and `remote-bash.ts` (Windows
+# pi-open-tui's own segment now — docs/harness-pi.md §5a) and `remote-bash.ts` (Windows
 # sshpass.exe + drive-letter paths, never in the repo by design, dropped 2026-10-08).
 #
 # Artifacts never compared or deployed: __pycache__/**, .DS_Store, *.bak, *.log.

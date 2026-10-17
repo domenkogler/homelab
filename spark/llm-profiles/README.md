@@ -56,7 +56,7 @@ whether it will survive an agent session.
 | 2 | Non-interference | `spark-llm-probe.py … health` + `reasoning` while the box is otherwise idle | both PASS, host `usable = MemAvailable − CmaFree` ≥ **17.78 GiB** (the certified worst moment, [`../stability-test.md`](../stability-test.md) §2 / [`reports/stability/README.md`](../reports/stability/README.md)) — that number, not a rounded one, is what `spark_llm_device_hold_ceiling_bytes` is built from |
 | 3 | Real depth | `spark-llm-probe.py … ctx <max_model_len>` | HTTP 200, `prompt_tokens` ≥ 80 % of the ask, no preemption in `/metrics` |
 | 4 | Concurrency | `spark-llm-probe.py … concurrent <max_num_seqs>` | all 200s, and the slowest latency is within 3× the solo latency |
-| 5 | Needle | the [pi-harness.md §3](../../docs/pi-harness.md) needle protocol at the profile's operating depth (≥ 90 % of window) | the needle is recalled correctly at depth, 3/3 |
+| 5 | Needle | the [harness-pi.md §3](../../docs/harness-pi.md) needle protocol at the profile's operating depth (≥ 90 % of window) | the needle is recalled correctly at depth, 3/3 |
 | 6 | Accuracy | the same fixed 15-prompt local-knowledge + tool-call battery used for the AWQ 98/100 and NVFP4 91-vs-99 captures ([R2-nvfp4.md §B](../resources/R2-nvfp4.md)) | score within the profile's declared tolerance **and** the engine/effort/template are recorded with it (that capture's contradiction came from unrecorded confounds) |
 | 7 | Memory curve | one working day of `spark-oom-watchdog` samples (`/mnt/spark_nvme/oom-watchdog/state/samples.csv`, `gpu_top_mib`) | no growth > 2 GiB/h under traffic that fails to return at idle — the C3 re-arm rule in [docs/hardware-spark.md](../../docs/hardware-spark.md) §Unified-memory budget. **This is also the gate that falsifies a DERIVED `fixed_cost_bytes`** (the `fast` profile's pool is sized against one) |
 
@@ -108,7 +108,7 @@ Every rule below was bought with a number already in this repo.
   local-knowledge battery over **this repo** as corpus (`spark/resources/R2-nvfp4.md` §B); JSON-schema-strict extraction;
   tool-call items carrying a real `tools` schema (every HD-489 tool-call item came back `EMPTY` because the probe sent no
   schema); a Slovenian set scored exact-match plus a 2-rubric annotator; short code tasks with a `pytest` oracle.
-* **L3 — end-to-end:** the [pi-harness.md §3](../../docs/pi-harness.md) task list on both profiles. That score is the
+* **L3 — end-to-end:** the [harness-pi.md §3](../../docs/harness-pi.md) task list on both profiles. That score is the
   certified lane's anchor — a profile that wins tok/s and loses tasks is not a win.
 * **Statistics.** Paired binary items ⇒ **McNemar exact test**; report `n`, both discordant cells and a 95 % CI. Minimum `n`
   for 80 % power at α = 0.05 two-sided at a ~10 % discordance rate: **5 pts → 314 · 3 pts → 873 · 2 pts → 1,963**. The

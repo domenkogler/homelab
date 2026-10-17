@@ -96,7 +96,7 @@ The server var does not reach the harness. `contextWindow`/`max_tokens` live in
 carries the `client_context_window` that file must carry. A profile that serves a *smaller* window
 while pi still sends a full-window conversation returns engine `400`s mid-session. Reasoning surface
 is the same kind of split: the engine's own surface is measured in
-[pi-harness.md](pi-harness.md) §2 (binary `enable_thinking` + `thinking_token_budget` honored;
+[harness-pi.md](harness-pi.md) §2 (binary `enable_thinking` + `thinking_token_budget` honored;
 top-level `reasoning_effort` accepted-and-**ignored**), so "graded reasoning" is client-side
 per-level budgets until a profile proves otherwise — `scripts/bench/spark-llm-probe.py effort high` is the
 one command that re-measures it.
@@ -136,7 +136,7 @@ the NVIDIA NVFP4 export 94.16–95.07 %).
   ≈ 1.4 GB → **~10 GB ≈ 13 % of the NVFP4 pool**. Our AWQ lane: 515,679 slots total =
   **1.97 ×** window, so one full-window session consumes ~half the box. **That gap — not decode
   speed, not accuracy — is the argument for this model**, and it is the same gap behind the
-  0 %-prefix-hit re-prefill pain ([pi-harness.md](pi-harness.md): a 162 k-token session re-prefilling
+  0 %-prefix-hit re-prefill pain ([harness-pi.md](harness-pi.md): a 162 k-token session re-prefilling
   at 17,008 tok/s). 1 M context = 32.8 GB fp8 (fits the NVFP4/FP8 cells) but 65.5 GB bf16 (does not),
   so YaRN-to-1 M is fp8-KV-only and quality-unverified for our workloads either way.
 * **Read the number, do not trust the arithmetic:** sglang's startup log (`max_total_num_tokens=`,

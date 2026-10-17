@@ -144,7 +144,7 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   `model:` — builtins inherit the session model and a seat's rendered model set carries one serving provider, so
   an override names a provider that does not exist here; the ceiling is a setting (`subagents.modelScope`,
   `allow: ["inherit"]`) in `pi-agent/settings-ssot.json`, not a habit. **≤2 children run concurrently**, because
-  the engine's `max_num_seqs` minus the parent minus the always-on consumers is 2 (`docs/pi-harness.md` §6) —
+  the engine's `max_num_seqs` minus the parent minus the always-on consumers is 2 (`docs/harness-pi.md` §6) —
   a third preempts a live prefix rather than queueing. And **a silent child is not a hung child**: a local engine
   compacts for minutes at a time, so a stall is waited out, and the run deadline is per child, not per parent.
   Numbers, reasoning, and which file sets each: `docs/orchestration.md` §4 (O10–O11).

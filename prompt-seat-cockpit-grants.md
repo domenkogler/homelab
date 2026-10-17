@@ -19,7 +19,7 @@ Before any `scripts/harness/pi/` hunk, `git worktree list` + `git log --oneline 
 edits the same directory.
 
 **Read first:** [docs/security.md](docs/security.md) (cockpit `maint`, the grant rulings) →
-[docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes → [docs/pi-harness.md](docs/pi-harness.md) §1, §5, §5a,
+[docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes → [docs/harness-pi.md](docs/harness-pi.md) §1, §5, §5a,
 §5b → [docs/services-ai.md](docs/services-ai.md) §9b → [docs/deployment-secrets.md](docs/deployment-secrets.md).
 
 ## Order of work
@@ -61,7 +61,7 @@ edits the same directory.
 of the tailnet listener's dynamic dir, `scripts/{pi-seat-sync.sh,pi-settings-config.sh,pi-tui-config.sh,pi-self-update.sh,install-tmux-conf.sh,install-nerd-font.sh,install-pi-debian.sh,install-pi-wsl.sh,sync-extensions.sh,git-bootstrap.sh,git-bootstrap-win11.sh}`
 and `scripts/win/`, `scripts/harness/pi/`, `pi-agent/**` (incl. `tmux/tmux.conf`, `settings-ssot.json`),
 `scripts/git/`, the grant/seat sections of `docs/security.md`, `docs/services-traefik.md` §Cockpit Routes,
-`docs/pi-harness.md`, `docs/services-ai.md` §9b, `docs/deployment-secrets.md`, and your own `todo.md` rows.
+`docs/harness-pi.md`, `docs/services-ai.md` §9b, `docs/deployment-secrets.md`, and your own `todo.md` rows.
 **Never:** `prompt.md` / `todo-table.md` (O2) or another brief's rows; headscale/tailnet **policy** files and the DNS answer
 plane (the transport lane records the denied pair); traefik edge/route work beyond the cockpit routers; the Authentik clients
 and OIDC providers (the edge-identity lane); `templates/docker_services/{litellm,lan-litellm}/**`; `roles/monitoring/**`;

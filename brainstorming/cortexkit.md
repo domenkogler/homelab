@@ -6,7 +6,7 @@
 > It **does not** amend any decision row. Every claim is labelled **measured** (this session, on this box) /
 > **doc** (from a cited source) / **unverified** (must be measured before it is load-bearing).
 > **Links to:** [`docs/services-ai.md`](../docs/services-ai.md) §9b/§9c · [`docs/hardware-workstation.md`](../docs/hardware-workstation.md) ·
-> [`docs/hardware-gpu.md`](../docs/hardware-gpu.md) · [`docs/pi-harness.md`](../docs/pi-harness.md) ·
+> [`docs/hardware-gpu.md`](../docs/hardware-gpu.md) · [`docs/harness-pi.md`](../docs/harness-pi.md) ·
 > probes in [`../reports/`](../reports/) · OQ-12/OQ-13/OQ-14 in [`../todo.md`](../todo.md) §1
 
 ---
