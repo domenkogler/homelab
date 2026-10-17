@@ -101,6 +101,10 @@ inside one session. The LIVE wave table is
   knobs in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) as `_subagentConfig`, the payload
   for the extension's own config file — which no seat plane installs yet, so until that leg lands the number
   must be passed on the launch and read as authored, not as effective.
+- **A missing verdict is a blocker, never a green.** A reviewer launch whose structured output comes back empty passes a
+  `if (!verdict.blockers)` test exactly as a clean review does, so a verdict-gated fix stage silently no-ops and the run ships
+  a review it never received. A script must treat a MISSING verdict as a blocker and dispatch the fix from the reviewer's
+  **prose**, which is the half that always comes back.
 - **Dispatch filter on a spark-served seat.** If the session's own model is spark, the spark engine brief is
   out of scope for the **whole run** — no child may be launched against it, timed or not (standing rule 2 in
   [todo-table.md](../todo-table.md) §C). A provably engine-safe spark converge stays allowed, with the engine

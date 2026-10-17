@@ -85,7 +85,7 @@ request `git-receive-pack`). A retry a few minutes later pushed clean. So on tha
 > station, and the legs only that box may drive are listed in [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §2.
 
 **Seat brief (not a wave):** [prompt-laptop-wsl.md](prompt-laptop-wsl.md) — the WSL Debian laptop seat as the neutral runner
-station: its §0 pre-flight (the seat's own gate is red before you edit anything), the legs only that box may drive (§2), what a
+station: its §0 pre-flight (this box's own gate is **green** before you edit anything — re-derive the count with `--list | wc -l` and read the SKIPs by name: the tmux load probe has no binary here, and the two Windows-only arms are not this seat), the legs only that box may drive (§2), what a
 spark-served session must not start there (§3), and the rehearse-everything rule for owner windows (§4). It claims **legs, not
 rows**, so it never takes a row out of the brief that owns it.
 
@@ -228,10 +228,12 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
    [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
    [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
-   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py); **HD-1153** keeps its two
-   seat legs (win11 + oldsrv), which can only be run FROM the seats — the wsl leg closed 2026-10-17 and showed what the
-   plane cannot prove: that seat carried **no `subagents` key at all** and its `packages` sat two fleet rows short, and
-   `--push` fixes the *declaration* only, so `pi list` is the read that says whether pi resolved each name. **The registry's own prose is now a rule with a checker** —
+   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py); **HD-1153** keeps one seat leg — the Win11 settings check, run FROM that seat; the wsl leg closed 2026-10-17 and showed what
+   the plane cannot prove: that seat carried **no `subagents` key at all** and its `packages` sat two fleet rows short, and
+   `--push` fixes the *declaration* only, so `pi list` is the read that says whether pi resolved each name (oldsrv's `settings`
+   line reads `OK` when the driver is run from the WSL seat, so it is no longer a leg of its own). What is parked in its place
+   is an owner call: **no plane owns `~/.pi/agent/extensions/subagent/config.json`**, so `_subagentConfig` is authored rather
+   than effective, and no seat may be reported as running the O11 numbers until one installs it. **The registry's own prose is now a rule with a checker** —
    [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) is built and self-tested but left unwired while the
    rows still carry the ids and dates it refuses (`--show` prints the live count, never a number typed into a handoff), so the
    work is one sweep: clear the rows — ids, dates, diary tenses, the six rows that dropped their **Owning spec** cell, the
@@ -244,9 +246,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     out-of-band path is scheduled, so a switched-off `oldsrv` waits for presence; the one owner-side leg left is a WoL
     re-test at a planned power-off) and **HD-47** above.
 13. ⏳ **Unrowed, but not free** — **HD-1100**'s held legs: both owner-authorized PG legs are DONE and verified
-    (`litellm-db`, `authentik-postgres`), four middle legs stay held by owner ruling, and two things are still owed —
-    the next `db-backup` run is the end-to-end proof the migrated clusters still dump, and **oldsrv still owes its
-    `wireguard` leg** (it restarts the tunnel server, so run it alone, last, then re-verify every tunnel path).
+    (`litellm-db`, `authentik-postgres`), four middle legs stay held by owner ruling — run one cluster per window on the
+    owner's word, each proved by its `pg_control` + key-table read and by the next `db-backup` run that dumps it. ⚠ The
+    `wireguard` leg this line used to owe on **oldsrv does not exist there**: `home_servers.yml` carries no `wireguard` role,
+    so `--tags wireguard` there selects zero role tasks; the only wg leg in the tree is the **VPS** side, and it restarts the
+    tunnel every off-box converge rides — owner-present, detached, run **last**, then re-verify every tunnel path.
     Rowless but not free: the **apt upgrade phase** stays OUT of the converge wave — ruled 2026-10-12 (option A), the
     `roles/updates` design is DECLINED and not pending, and the `apt-mark hold` that ruling required is now live on
     all five hosts (`roles/common/tasks/apt-holds.yml`, read back with `apt-mark showhold`), so `apt upgrade` can no
@@ -364,9 +368,12 @@ action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.ya
 converge — the answer set is identical, the FILE is not (entry order + comments), so it reports changed and restarts
 the control plane: sampled liveness probe, never a one-shot inspect; (b) `IaC/ansible/playbooks/dns.yml` from the **home control
 plane**, because the Cloudflare token is IP-filtered there, expected to report no record change; and its step 2 (the
-`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **every `--tags network` leg**
-HD-487 and HD-488 still owe — the spark networkd disarm (drop the dead `20-eno1.*`, engine untouched), the pi
-removals (two dead units), the nas removals under its `ifupdown` freeze, and oldsrv's own lockout-class run **alone**
+`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **every network leg**
+HD-487 and HD-488 still owe — the tag is **per-host** and the rows carry the exact command: `--tags network` where a manager
+counts, and the narrow `--tags netd` where only the dead renders may be touched. The spark networkd disarm (drop the dead
+`20-eno1.*`, engine untouched — one converge serves both rows), the pi removals (three unread units), the nas removals
+(four, under its `ifupdown` freeze — the narrow tag is what keeps that box's frozen address/resolver legs off the run), and
+oldsrv's own lockout-class run **alone**
 and off the box with a console reachable (driven FROM the oldsrv controller its `network` tag is refused by the
 self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml`, by design; and a self-target run dies at
 the transport before the guard is even reached — the inventory's `ProxyJump=vps` makes the last hop authenticate
@@ -391,7 +398,8 @@ lane should not lose are named here: **HD-357** (the launchpad tiles — the fam
 **HD-1083** (the routed group's routes→`*_url` half, owner-present edge window — read §Reachability rule in
 [docs/services-traefik.md](docs/services-traefik.md) before touching a route or a publish) · **HD-1089** (one read
 from a real tailnet client; the fix is live) · **HD-1116** / **HD-1117** (the two gate halves of the same hygiene
-pass: the non-`oldsrv` Debian seats still carry `gpgsign=true` until they converge, and `render_all.py --check` is
+pass: what HD-1116 still owes is the Win11 payload and any Debian seat other than `oldsrv` — the WSL seat's own
+`~/.gitconfig-github` was paid 2026-10-17, run FROM that box — and `render_all.py --check` is
 still not wired into the gate — the wall clock it used to stamp is out of every render, which is what finally lets
 that check read green twice) ·
 **HD-1130** (a service `enabled: true` in IaC that is **deployed nowhere** — the probe that does not lie is

@@ -7,7 +7,7 @@
 > [docs/orchestration.md](docs/orchestration.md) §4 + [todo-table.md](todo-table.md) §C rule 9; the seat-role facts are
 > [docs/harness-pi.md](docs/harness-pi.md) §5a. Registering the station is [todo.md](todo.md) HD-1154.
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md) HD-1154 · [prompt.md](prompt.md) §2
-> **Rows named as of** `fcdbeb20` — re-derive every id at your own `HEAD` before quoting one (CONVENTIONS §4).
+> **Rows named as of** `02721b29` — re-derive every id at your own `HEAD` before quoting one (CONVENTIONS §4).
 
 **Contract:** [docs/orchestration.md](docs/orchestration.md) §4 (O1–O11) + README §4. One session, one worktree, one branch.
 ⛔ Never edit `prompt.md` or `todo-table.md` from a lane (O2) — the session running *this* file as a lane included.
@@ -35,20 +35,22 @@ edits while the primary sits on `main`) and the prior-art sweep for whatever you
 |---|---|
 | It is a control node | `~/ansible-venv` + `~/.config/op/homelab-sa-token` present; `ansible all -m ping` answers for `vps nas spark oldsrv pi`; `librouteros` imports, so the RouterOS API path works from here — the API port answered on the Mgmt address and **not** on the Home one (addresses: [docs/network-addresses-generated.md](docs/network-addresses-generated.md)) |
 | It is **off-box** for every target | the inventory carries the VPS jump (`group_vars/{home_servers,storage,raspberry_pi,spark}.yml`), and no converge target is the controller → `IaC/ansible/playbooks/tasks/self-converge-guard.yml` never fires here. This is the whole reason the seat exists as a dispatch target |
-| Its own git transport | `origin` is SSH and `git ls-remote origin` answers. `commit.gpgsign` reads `false` in the clone config and the effective value is `false`, and `git log -1 --format='%G?'` is `N` — signing is retired, so committing here needs nothing and there is no hang on this box. One HD-1116 leg is still unpaid and it is the **seat payload**, not the clone: `~/.gitconfig-github` still carries `gpgsign = true` under `[commit]`, and it is not inert here, because this clone's `origin` is a github.com URL and `~/.gitconfig` includes that file through `includeIf "hasconfig:remote.*.url:*github.com*/**"` (`git config --list --show-origin` prints both files; the clone's own `false` wins). `git-bootstrap.sh --ssh-auth` does not write that file — its signing block writes the clone's config and says so on screen |
-| Its gate is green **before you start** — re-measure anyway | run `bash scripts/validate-all.sh --list \| wc -l` and read the verdicts by name: at `fcdbeb20` this box is **green with two named SKIPs**, and the three seat items that used to redden it now pass — `pi-settings-config.sh --check --strict` OK, `sync-skills.sh --check --strict` OK, and `install-tmux-conf.sh --check --strict` exits 0 (`SAME` + `IN PLACE`) with its load probe printing `SKIP: no tmux on PATH`. So the one live caveat is not your gate, it is the **binary**: `tmux` is absent here, therefore every load-probe leg on this box prints **SKIP, not a verdict** (CONVENTIONS §6) and a green tmux plane proves the config, never the effect |
+| Its own git transport | `origin` is SSH and `git ls-remote origin` answers. `commit.gpgsign` reads `false` in the clone config and the effective value is `false`, and `git log -1 --format='%G?'` is `N` — signing is retired, so committing here needs nothing and there is no hang on this box. HD-1116's **seat payload** is paid here: `~/.gitconfig-github` reads `gpgsign = false` under `[commit]`, so both files a github-remote clone resolves — that seat file, included through `includeIf "hasconfig:remote.*.url:*github.com*/**"`, and the clone's own config — print `false` in `git config --list --show-origin`. `git-bootstrap.sh --ssh-auth` never writes that file (its signing block writes the clone's config and says so on screen), so it was a hand edit run FROM this box; the seats HD-1116 still owes are Win11-local per §1.4 |
+| Its gate is green **before you start** — re-measure anyway | run `bash scripts/validate-all.sh --list \| wc -l` and read the verdicts by name: at `02721b29` this box is **green**, and the three seat items that used to redden it now pass — `pi-settings-config.sh --check --strict` OK, `sync-skills.sh --check --strict` OK, and `install-tmux-conf.sh --check --strict` exits 0 (`SAME` + `IN PLACE`) with its load probe printing `SKIP: no tmux on PATH`. Three items still print **SKIP** here, and a SKIP is not a pass (CONVENTIONS §6): the tmux **load probe**, and the two Windows-only arms — `scripts/harness/seat-ssh-build.sh --check --strict` (not a Windows seat) and `probe-client` in `scripts/bench/laptop-llm.py` (a `native_only` client contract that lives on the Win11 seat). So the one live caveat that belongs to THIS seat is not your gate, it is the **binary**: `tmux` is absent here, therefore every load-probe leg on this box prints **SKIP, not a verdict**, and a green tmux plane proves the config, never the effect |
 | Both models are already rendered | `providers.entrim` (`deepseek-ai/DeepSeek-V4-Flash`, 1 M ctx; `Qwen/Qwen3.6-27B`) **and** `providers.spark` (262 144) come from `scripts/harness/pi/models-spec.yml`; the default is spark. An externally-served run is a model switch, not a config change |
 
 **Fix your own seat first** (⛔ every one of these legs must be run **from** this box — the station cannot speak for a seat's
-PATH). At `fcdbeb20` the seat planes are already clean, so do **not** run `pi-seat-sync.sh --push` to repair a red that is not
-there: `--check` here prints `RESULT ok=9 problems=1` with every `wsl` line `OK`, and the single problem is the **oldsrv**
-seat's `STALE-CLONE`, fixed on oldsrv's own clone (`git -C ~/source/homelab fetch origin && git -C ~/source/homelab merge
---ff-only origin/main`) and not from here. What this box still owes is two things, both named in [todo.md](todo.md) HD-1154:
-the **seat payload** half of HD-1116 (`~/.gitconfig-github` → `gpgsign = false`; the clone's `git config --local
-commit.gpgsign false` is already in place, and `--ssh-auth` will not touch the seat file), and the **`tmux` binary** — the
-config plane is `IN PLACE`, so `install-tmux-conf.sh --push` buys nothing until the binary exists, and installing it is a
-host change with no in-repo path, because `roles/seat`'s `seat_packages` reaches only hosts in
-[`IaC/ansible/inventory.ini`](IaC/ansible/inventory.ini) and this laptop is not one of them. Park it with the exact command.
+PATH). At `02721b29` this box's own nine planes are `OK`, so do **not** run `pi-seat-sync.sh --push` to repair a red that is not
+there: `--check` here prints `RESULT ok=9 problems=1 skipped=0` with every `wsl` line `OK`, and the single problem is the
+**oldsrv** seat's `STALE-CLONE` — that seat's clone, not this box's — fixed on oldsrv (`git -C ~/source/homelab fetch origin
+&& git -C ~/source/homelab merge --ff-only origin/main`) and not from here; while that clone lags, the driver skips oldsrv's
+planes, so the `ok=` count names the `wsl` half only and the same command prints `ok=18 problems=0` once it is current. What
+this box still owes is **one** thing, named in [todo.md](todo.md) HD-1154: the **`tmux` binary** — the config plane is
+`IN PLACE`, so `install-tmux-conf.sh --push` buys nothing until the binary exists, and installing it is a host change with no
+in-repo path, because `roles/seat`'s `seat_packages` reaches only hosts in
+[`IaC/ansible/inventory.ini`](IaC/ansible/inventory.ini) and this laptop is not one of them. Park it with the exact command —
+`sudo apt-get install -y tmux`, then `bash scripts/harness/install-tmux-conf.sh --reload` to turn the SKIP into a verdict —
+and say **SKIP-until-installed**, never a pass, for every load-probe leg until then.
 Re-run `bash scripts/validate-all.sh` afterwards: **record the item count with `--list | wc -l`, never a number typed into a report.**
 
 ## 1. The runner rule (one sentence each, no re-derivation later)
@@ -83,7 +85,7 @@ oldsrv seat and inside this box's reach. Row ownership does not move (O3 is abou
 | **HD-1152** | the DNS seed's record-prune apply across the three Technitium instances, detached | owner-present apply; never `--diff` on `docker_services` |
 | **HD-1128** | the Pi exit-node advertisement + the headscale route, converge Pi + VPS, then prove egress from a tailnet client | `tailscale-node` is guard-listed on the Pi's own box |
 | **HD-1116** | this box's git identity/config leg (§0) | only this box can write its own seat config |
-| **HD-1110** · **HD-1115** · **HD-1153** · **HD-1085** | this box's seat planes are green at `fcdbeb20` (`--check`, not `--push` — there is nothing here to push), so what is left in this lane is HD-1085's tmux **effectiveness** leg, which cannot be closed until the binary exists (§0); the Win11 legs of the other three rows stay Win11-local per §1.4 | a seat plane converges from its own clone, and from inside WSL the driver cannot certify the Win11 seat |
+| **HD-1110** · **HD-1115** · **HD-1153** · **HD-1085** | this box's own seat planes are `OK` at `02721b29` (`--check`, not `--push` — there is nothing here to push), so what is left in this lane is HD-1085's tmux **effectiveness** leg, which cannot be closed until the binary exists (§0); the Win11 legs of the other three rows stay Win11-local per §1.4 | a seat plane converges from its own clone, and from inside WSL the driver cannot certify the Win11 seat |
 | **HD-1123** · **HD-1125** · **HD-1138** | the alias-plane legs that must be run from a laptop class, and the four callers that reach the VPS by bare FQDN | the seat's own `~/.ssh/config` and its own callers |
 
 ⛔ **Never** a second session on one converge host at the same time (O3), and **never** a timed spark leg from this session
