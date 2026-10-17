@@ -673,13 +673,18 @@ or the static gate fails.
 > **The durable fix is an alias block, not a flag:** give the cockpit class its own admin-leg spelling —
 > a dedicated `Host oldsrv-admin` carrying `User ansible-admin` + the runner key + `IdentitiesOnly yes`,
 > exactly as the same class already spells `nas` / `pi` / `spark` — so the operator's self-alias stops
-> being the block a converge falls into. Measured against a stub config: with that block claiming the FQDN
-> and address spellings, `ssh -G 10.10.1.30` resolves `user ansible-admin` +
-> `identityfile ~/.ssh/ansible-admin_ssh` while `ssh -G oldsrv` still resolves `user domen` — the two legs
-> finally have two blocks. Two shapes that do NOT work, both measured: a `Host ansible-admin@<address>`
-> pattern never matches (`identitiesonly` stays `no`, so the block is dead text), and a
-> `Match host <address> user ansible-admin` block APPENDS its `IdentityFile` to the one the `Host` block
-> already set, so the operator key is still offered first. That edit belongs to the alias-contract plane
+> being the block a converge falls into. Measured against stub configs, the seat's own file never touched:
+> with that block claiming the FQDN and address spellings, `ssh -G 10.10.1.30` resolves
+> `user ansible-admin` + `identityfile ~/.ssh/ansible-admin_ssh` while `ssh -G oldsrv` still resolves
+> `user domen` — the two legs finally have two blocks, and a login on each spelling answers the user that
+> block names (`ansible-admin` and `domen` respectively). Of the two shortcuts that look equivalent, one
+> works by accident and one does not work at all: a `Match host <address> user ansible-admin` block only
+> **appends** its `IdentityFile` after the one the `Host` block already set, so it authenticates against
+> this box (measured: `ansible-admin`) but offers the OPERATOR key first and takes the denial first — the
+> `Too many authentication failures` class against a peer with a low `MaxAuthTries`, which is exactly what
+> the VPS is; and a `Host ansible-admin@<address>` pattern never matches at all (`identitiesonly` stays
+> `no`, so the block is dead text that keeps looking authoritative). One block per spelling, not a Match.
+> That edit belongs to the alias-contract plane
 > (`ssh/aliases.tmpl` + `scripts/harness/seed-seat-ssh-config.sh`, the plane HD-1123/HD-1138 own) — it is
 > not a converge and not a `host_vars` change. **No new row: the class was already written down here,
 > with `-c local` as its remedy; this is the same finding, re-measured, with the second remedy and the
