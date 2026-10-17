@@ -12,7 +12,7 @@
 | RouterOS bootstrap scripts | `IaC/router/templates/{rb4011,crs328,ap}_initial.rsc.j2` (3) — rendered with secrets via `playbooks/render-routeros.yml` into gitignored `IaC/router/rendered/`; never import the raw template | — |
 | Bootstrap | runner setup relocated to `scripts/ansible/bootstrap-runner.sh`; `post_install.sh`, `pi/first-boot-config.sh` stay in `IaC/host/` (deploy payloads) | — |
 
-> `network` role: static-IP + VLAN trunk provisioning: **Pi uses NetworkManager** (RPi OS ships NM; Pi-uses-NetworkManager, `network-rejected.md`); the other hosts' static/VLAN work remains a scoped TODO until each host's config-manager is settled (desktop/VPS use systemd-networkd). See `roles/network/tasks/main.yml`.
+> `network` role: static-IP + VLAN trunk provisioning. **Which config manager a host is configured through is a declared fact of that host** — `host_vars/<host>.yml` carries `network_manager` (measured owner) and `network_manager_target` (owed state), and `docs/network.md` §Config-manager truth is the rule; `scripts/ansible/probe-net-manager.sh` is the read-only measurement. Where owner and target differ the role writes no address leg (a frozen host), and a leg is never implied by a role default — the units this role used to render on hosts whose manager did not read them converged green while changing nothing. See `roles/network/tasks/main.yml` and `scripts/gate/check_net_manager.py`.
 
 ## Hostname / Domain Convention
 
@@ -159,7 +159,7 @@ wildcard certificate issued with Cloudflare **DNS-01** (Cloudflare = DNS-only, n
 
 ### `network`
 - **Current scope:** admin-role assert + `/etc/hosts` sync; SSOT doc render via `render-docs.yml`; **Pi static dual-home via NetworkManager** — RPi OS ships NetworkManager, so the Pi gets an NM keyfile profile (`pi-eth0.nmconnection`) with Home + Mgmt static (per `network-addresses-generated.md` SSOT), default via Home (single gateway — no `never-default`), DNS via `bootstrap_dns_servers`. See `network-rejected.md` (Pi-uses-NetworkManager).
-- **Pending:** static IP + VLAN trunk/sub-interface for oldsrv (VLAN 99 native + 10/20/50 tagged) and nas (VLAN 10 + 99 native) once each host's config-manager is settled (desktop/VPS use systemd-networkd).
+- **Per-host config-manager:** declared in `host_vars/` (`network_manager` measured, `network_manager_target` owed). A host whose owner and target differ is **frozen** for address legs — the next step there is an owner-present converge, never a render under the manager that does not own the box. See `docs/network.md` §Config-manager truth.
 - **All hosts:** `/etc/hosts` template with all node entries (resolved via local DNS)
 
 ### `cockpit`

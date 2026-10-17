@@ -23,6 +23,49 @@ tags: [network, topology]
 
 ---
 
+## Config-manager truth
+
+One config manager per box, and which one it is on a given box is a **declared fact of that host**:
+`IaC/ansible/host_vars/<host>.yml` carries `network_manager` (who owns the interface the default route
+rides today) and `network_manager_target` (what is owed there). Equal values = settled. Different
+values = an owner-present migration is owed and `roles/network` **freezes** every address and resolver
+leg on that host, because writing config under a manager that does not own the box produces files
+nothing reads. Listing the hosts and their states here would only drift from that file — the read-only
+answer for any moment is `scripts/ansible/probe-net-manager.sh`, and
+`scripts/gate/check_net_manager.py` refuses a commit where a host the `network` role touches declares
+nothing, declares a value outside the vocabulary, or implies one from a role default.
+
+Three states are legal, and the third is not a config manager at all:
+
+| State | What it means | What `roles/network` does there |
+|-------|---------------|---------------------------------|
+| `NetworkManager` | NM holds the uplink (keyfiles in `/etc/NetworkManager/system-connections`) | renders/edits NM config only; a second running manager is refused or, when it provably holds no interface, disarmed by the same run |
+| `systemd-networkd` | networkd is the manager whose units this repo writes | renders netd units only where the host also declares its NIC (`netd_phys_name`); a host that declares none renders none |
+| `ifupdown` | **neither** manager owns the uplink: classic `/etc/network/interfaces`, driven by dhcpcd/dhclient, owns the address — proved by the route interface being up in `/run/network/ifstate`. A box here is *managed*, by a third path; both managers may be installed and running while configuring nothing | writes no address leg; it removes the netd units no manager reads and reports the state |
+
+And two shapes that are findings, not states: `BOTH` (two managers able to rewrite one interface —
+[network-rejected.md](network-rejected.md) *Two config managers, or none, on one box*) and `NONE`
+(the address came from somewhere this repo cannot see).
+
+⚠ **A rendered file is not configuration.** A unit written for a manager that does not run on the box
+changes nothing on the wire and the converge still prints green — so a leg is gated on the *declared
+manager*, never on whether some variable happens to be defined (a role-level NIC default once made
+every such guard true on every host, and units naming `eno1` landed on the Pi, on spark and on the
+VPS, none of which has that interface). `systemctl is-active` is not "owns the route" either: a
+manager can be enabled, active and holding nothing, which is why the verdict is read from the
+interface the default route rides.
+
+The converge-time half lives in `roles/network`: it measures the box (`service_facts`,
+`/run/network/ifstate`, `nmcli`, `networkctl`) and refuses where the measurement contradicts the
+declaration, naming the fix. The one host where the declared manager is not the uplink's owner is the
+VPS: its address belongs to the provider image's own `ifupdown` file, and networkd there exists only to
+create the `wg-s2s` netdev, deliberately told to configure no interface
+([network-vpn.md](network-vpn.md) §Layer 1: WireGuard Site-to-Site). So the rule asserts only what the declaration
+commits to there — networkd runs, and no second manager runs beside it — while "the manager configures
+nothing" stays a finding on every other box.
+
+---
+
 ## WAN / ISP
 
 - **ISP:** Telekom Slovenije
@@ -92,8 +135,8 @@ Internet → ONT → router ether1 (WAN)
   (☠️ garage AP DEAD — hardware fault, ether1 reserved for replacement)
 ```
 
-- **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable; host-side dual-home (Home 10 untagged + Mgmt 99 tagged) via the `network` role's systemd-networkd units
-- **nas** connects via access port (VLAN 10 Home, VLAN 99 tagged for Mgmt — dual-home via the same netd role units)
+- **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable; host-side dual-home (Home 10 untagged + Mgmt 99 tagged) is carried by **NetworkManager**, the manager that owns this box ([§Config-manager truth](#config-manager-truth))
+- **nas** connects via access port (VLAN 10 Home, VLAN 99 tagged for Mgmt); its uplink belongs to neither config manager — the host side is [hardware-nas.md](hardware-nas.md) §Network, the manager rule is [network.md](network.md) §Config-manager truth
 
 ---
 

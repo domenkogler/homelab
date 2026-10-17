@@ -294,11 +294,14 @@ dynamic address until the lease turns over.
 > - **SSH alias names are NOT defined here** — the single alias SSOT is
 >   [network-vpn.md](network-vpn.md) §The laptop alias contract.
 >
-> **Host-side dual-home for nas + oldsrv** (desktop/VPS class) is rendered by the `network` role as
-> systemd-networkd units: physical `.network` (untagged Home 10 + default route) + VLAN-99 tagged
-> sub-interface (`.netdev` `eno1.99`) + its `.network` (Mgmt address, connected route only, no default).
-> The Pi keeps the NetworkManager keyfile path (`pi-eth0.nmconnection`). See
-> [network-rejected.md](network-rejected.md) *systemd-networkd on the Pi* and `roles/network/`.
+> **Host-side dual-home** is rendered by the `network` role **under the config manager that host
+> declares as its owner** ([network.md](network.md) §Config-manager truth): a `systemd-networkd` host gets
+> the physical `.network` (untagged Home 10 + default route) + VLAN-99 tagged sub-interface (`.netdev`
+> `<parent>.99`) + its `.network` (Mgmt address, connected route only, no default); a NetworkManager host
+> gets keyfile profiles (`pi-eth0.nmconnection` on the Pi). A host whose declared owner is not the one
+> that owns its uplink is frozen: the switch side above is complete, the host legs are settled one
+> owner-present converge at a time. See [network-rejected.md](network-rejected.md)
+> *systemd-networkd on the Pi* and `roles/network/`.
 
 ---
 

@@ -1130,7 +1130,12 @@ domain_local: kogler.si
 - **Secrets:** None.
 
 ### `network`
-- **Home server (nas/oldsrv, systemd-networkd):** static dual-home — physical `.network` (untagged Home 10 + default route) + VLAN-99 tagged sub-interface (`.netdev` `eno1.99`) + its `.network` (Mgmt address, connected route only). Rendered by the role under `/etc/systemd/network/`; `netd_phys_name` pinned per host in host_vars.
+- **Per host, not per class** ([network.md](network.md) §Config-manager truth): the role writes address legs only
+  under the manager that host declares as its owner, so a `network` converge renders config where that
+  box will read it. A host that declares no netd NIC (`netd_phys_name`) renders no netd units at all,
+  and any it carried are removed — the fleet once carried `20-eno1.*` units on hosts without an `eno1`,
+  which converged green while changing nothing. What each host declares is in
+  `IaC/ansible/host_vars/`; the read-only measurement is `scripts/ansible/probe-net-manager.sh`.
 - **VPS:** Static IP on services bridge
 - **Pi:** Static IP on Home VLAN (NetworkManager keyfile)
 - **All:** `/etc/hosts` template with all nodes

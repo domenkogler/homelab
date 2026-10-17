@@ -89,7 +89,7 @@ tags: [network, rejected, decision-log]
 | Self-hosted DERP on the VPS | rejected | Another relay leg; latency sits on the phone leg |
 | Single shared WireGuard keypair on both wg-s2s ends | rejected | WireGuard silently refuses to handshake with your own key |
 | Split-DNS routes and client --accept-dns toggles for tailnet names | rejected | A client-side stopgap; the headscale chain is the durable fix |
-| systemd-networkd as the nas and oldsrv config manager | superseded | nas only: oldsrv is NetworkManager too, its netd units name nothing |
+| systemd-networkd as the nas and oldsrv config manager | superseded | Neither: oldsrv is NetworkManager, nas is configured by ifupdown — the netd units named nothing |
 | systemd-networkd as the oldsrv config manager | rejected | NetworkManager already holds the routes; cutover risks the converge leg itself |
 | systemd-networkd as the repo-wide config manager | superseded | Measured per host instead; NetworkManager fleet-wide, networkd on the VPS |
 | systemd-networkd on the Pi | superseded | The Pi ships NetworkManager; two keyfiles are the dual-home shape |

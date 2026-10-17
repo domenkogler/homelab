@@ -227,8 +227,9 @@ enabled+active, `systemd-networkd` **disabled and inactive**, and the rendered
 `ha_keepalived_interface` names). There is no race for `resolv.conf` — the netd path is inert — and the
 resolver leg goes through the installer's NM profile (`Wired connection 1`, written on disk **without** the
 `.nmconnection` suffix the Pi/spark keyfiles carry). One config manager per box, **NetworkManager
-fleet-wide** ([network-rejected.md](network-rejected.md)); `netd_phys_name: eno1` and those dead unit files
-are the evidence for that rule, not part of this one.
+fleet-wide** ([network-rejected.md](network-rejected.md)); the dead unit files were evidence for that
+rule, not part of this one — they are removed on a host whose declared manager is not networkd
+([network.md](network.md) §Config-manager truth).
 
 **The Pi needs no nmcli leg, and that is a fact about the two boxes, not a shortcut.** oldsrv's uplink
 profile is installer-owned, so its resolver must be read, modified and reapplied; the Pi's keyfile is rendered by
@@ -241,8 +242,9 @@ same rule as oldsrv, VPS absent for the reason above.
 
 ⚠ **`nas` is not in this class**: its `resolv.conf` is
 `dns_tertiary_ip, dns_primary_ip, dns_secondary_ip` — Pi, VPS, oldsrv, in that order — so internal names resolve — but the VPS sits between two home
-rungs, which is precisely the rung this design refuses, and `systemd-networkd` is **inactive** there, so
-which manager owns the file is unresolved. Fixing it through this template would be guessing.
+rungs, which is precisely the rung this design refuses. Neither config manager owns that file: the box is
+configured by **ifupdown** ([network.md](network.md) §Config-manager truth), so while the host declares that
+owner its resolver is not this template's to write. Fixing it through this template would be guessing.
 
 **Session-safe mechanism — `device reapply`, never `connection up`.** `connection modify` writes the
 profile; the file is rewritten only when NM re-commits it. `connection up` tears the interface down and

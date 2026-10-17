@@ -943,9 +943,10 @@ seat's own bearer, the token never leaving a pipe: `/v1/models` returns the row,
 The prerequisite that makes a host-side resolver safe is that every DNS instance **forwards** rather than
 root-chasing: otherwise pointing a host at an instance trades a ~20 ms direct path for a chase.
 
-⚠ On oldsrv `systemd-networkd` is **disabled and inactive** — NetworkManager holds the address, so the
-role's netd renders there are inert and name an interface the box does not have. The per-host config-manager
-decision is open work (§10); ask the host with `scripts/ansible/probe-net-manager.sh` before editing a manager file.
+⚠ On oldsrv `systemd-networkd` is **disabled and inactive** — NetworkManager holds the address, so a
+netd render there is inert. The per-host config-manager decision is **declared** now
+(`host_vars/oldsrv.kogler.si.yml`, rule in [network.md](network.md) §Config-manager truth); ask the host
+with `scripts/ansible/probe-net-manager.sh` before editing any manager file.
 
 **The unit needs `pi` on PATH, and `pi-web` has no flag to be told where it is.** `pi-web` is a Go binary
 that **shells out to `pi`** for the model list, for every chat turn, and for its own self-update — and
