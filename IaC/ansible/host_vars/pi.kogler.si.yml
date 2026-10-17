@@ -14,6 +14,14 @@ mgmt_ip: 10.10.99.20              # VLAN 99 (Management) — static reg on the m
 # → docs/network-dns.md §Host-side resolver — what a box asks its OWN `/etc/resolv.conf`
 # ⛔ Floating the resolver with the VIP REPLACES the first entry, it does not add one.
 host_resolver_dns: "{{ [dns_tertiary_ip, dns_secondary_ip] | join(',') }}"
+# ==== Which config-manager owns this box ====
+# MEASURED (`scripts/ansible/probe-net-manager.sh pi`): NetworkManager enabled+active, holding eth0
+# and the default route; systemd-networkd disabled+inactive. The two keyfiles below ARE this box's
+# addressing, so the manager and the renderer are the same party — no dead-file class here, and the
+# reason this host needs no nmcli leg. States + what each commits roles/network to:
+# docs/network.md §Config-manager truth.
+network_manager: NetworkManager
+network_manager_target: NetworkManager   # equal to the owner = settled, nothing owed
 ansible_user: ansible-admin        # created by preseed post_install.sh (like nas/oldsrv)
 # NUT: UPS CLIENT (slave to nas) — power down immediately on critical
 nut_mode: client

@@ -1,11 +1,24 @@
 ---
 # HP MicroServer Gen8 — ZFS storage server
 ansible_host: 10.10.1.10           # VLAN 10 (Home) — static (Cockpit/NFS/NUT master)
-# Physical uplink NIC for the network role netd units (systemd-networkd):
-# eno1 = HP MicroServer Gen8 onboard NIC #1 -> CRS328 ether10 (SSOT switch_port_map nas-eno1).
-# Port model: Home (10) untagged + Mgmt (99) tagged on this NIC.
-netd_phys_name: eno1
-mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native
+# ==== Which config-manager owns this box ====
+# MEASURED (`scripts/ansible/probe-net-manager.sh nas`, then the confirming reads): the uplink is
+# owned by NEITHER NetworkManager NOR systemd-networkd. NetworkManager is installed and running but
+# reports eno1 `unmanaged`; systemd-networkd is disabled+inactive while reading four unit files that
+# name eno1; the address and the default route come from classic ifupdown — /etc/network/interfaces
+# (`allow-hotplug eno1`, a dhcp iface) with dhcpcd running as its client and `eno1` listed in
+# /run/network/ifstate. This is the fleet's THIRD state: a box managed by a path that is not one of
+# the two config-managers (docs/network.md §Config-manager truth). It is managed — by ifupdown.
+# While network_manager_target differs from network_manager, roles/network freezes every address and
+# resolver leg here: an edit today writes files nothing reads.
+# ⛔ Adopting NetworkManager here is an owner-present, lockout-class change (eno1 carries NFS, NUT
+# and the Cockpit leg); the keyfile, the adoption order and the rescue path are the row's, not this
+# file's.
+network_manager: ifupdown
+network_manager_target: NetworkManager     # owed: one manager fleet-wide, adopted in a window
+mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native; RESERVED on the router side,
+                                    # not configured on this host: the eno1.99 leg has no manager
+                                    # that would apply it while network_manager is ifupdown
 ilo_ip: 10.10.99.11                # iLO4 remote mgmt
 ansible_user: ansible-admin        # created by preseed post_install.sh
 # NUT: UPS MASTER — only host physically USB-wired to the PowerWalker

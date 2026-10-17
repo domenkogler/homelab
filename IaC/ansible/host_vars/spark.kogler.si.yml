@@ -7,6 +7,17 @@ ansible_host: "{{ spark_home_ip }}"     # VLAN 10 (Home) — SSH + inference end
 mgmt_ip: "{{ spark_mgmt_ip }}"          # VLAN 99 (Management) — SSOT-derived; static reservation
 ansible_user: ansible-admin         # provisioned on first touch (no preseed — DGX OS; see deployment-manual spark section)
 homelab_mode: headless
+# ==== Which config-manager owns this box ====
+# MEASURED (`scripts/ansible/probe-net-manager.sh spark`): NetworkManager owns enP7s7 (Home, DHCP)
+# and enP7s7.99 (tagged Mgmt) — the two keyfiles roles/network renders — AND systemd-networkd is
+# still running alongside it. Two managers on one box is the refused shape (docs/network.md
+# §Config-manager truth): networkd here reads unit files that name a NIC this box does not have, so
+# it configures nothing while still being able to rewrite the box. roles/network removes those units
+# and, when the measurement proves networkd holds no addressed or routed interface, disables and
+# stops it — the drift is repaired by the converge that removes the dead renders, not remembered in
+# a runbook.
+network_manager: NetworkManager
+network_manager_target: NetworkManager   # equal to the owner = settled; the second manager is the drift
 # Headless contract is enforced at converge: sleep masks + multi-user default.target.
 # Group-var default is true; set false explicitly to keep the DGX graphical desktop.
 spark_headless: true

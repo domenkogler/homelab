@@ -6,6 +6,19 @@ ansible_user: ansible-admin        # comment + SSH agent identity, like nas/olds
 # become via sudo (ansible-admin has NOPASSWD:ALL). Note: hosts must have the `acl`
 # package (setfacl) for Ansible's become temp-ownership path — added in the common role.
 ansible_become_method: sudo
+# ==== Which config-manager owns this box ====
+# MEASURED (`scripts/ansible/probe-net-manager.sh vps`): systemd-networkd enabled+active, and
+# NetworkManager is not installed at all — so exactly one manager runs here, which is the whole
+# point of the declaration. ⚠ Read the measurement, not the name: networkd runs here to CREATE the
+# wg-s2s netdev, and the wireguard role renders that unit deliberately Unmanaged, so it configures
+# no interface; eth0's address belongs to the provider image's own ifupdown file
+# (/etc/network/interfaces.d/50-cloud-init.cfg, `eth0` listed in /run/network/ifstate) and IaC owns
+# no address leg on this host. The VPS is therefore the systemd-networkd CLASS with a
+# provider-written uplink — docs/network.md §Config-manager truth.
+# ⛔ Never disable or stop systemd-networkd on this host: with it gone the wg-s2s netdev is never
+# created and the site-to-site tunnel (the only Mgmt-plane path off-site) dies at the next boot.
+network_manager: systemd-networkd
+network_manager_target: systemd-networkd   # equal to the owner = settled, nothing owed
 # SSH identity: 1Password SSH agent + ~/.ssh/config (no key files on disk)
 # Host identity (provider/model/billing or nothing here) -> group_vars/vps.yml `vps_host`
 # Billing (cost/renewal/status) -> group_vars/subscriptions.yml

@@ -7,11 +7,20 @@ ansible_host: "{{ home_ip }}"      # VLAN 10 (Home) — the admin leg for EVERY 
 # a station physically on the Mgmt VLAN. Off-LAN admin is the HOME leg, as on pi/spark.
 # Rule: docs/network-vpn.md §Reaching LAN nodes when away.
 # ⚠ Do NOT "fix" reachability by widening AllowedIPs — the seal is the decision.
-# Physical uplink NIC for the network role netd units (systemd-networkd):
-# eno1 = Z270 onboard NIC -> CRS328 ether11 (SSOT switch_port_map oldsrv-eno1).
-# Port model: Home (10) untagged + Mgmt (99) tagged on this NIC.
-netd_phys_name: eno1
-mgmt_ip: 10.10.99.30               # VLAN 99 (Management) — tagged leg (netd-vlan.network)
+# ==== Which config-manager owns this box ====
+# MEASURED, not assumed: `scripts/ansible/probe-net-manager.sh oldsrv` answers it from the live box
+# (NetworkManager enabled+active holding the default route; systemd-networkd disabled+inactive).
+# roles/network refuses a host where this declaration and the box disagree — and declares nothing
+# on this host's behalf, because a role-level default is what made every render guard here read as
+# satisfied while writing units nothing read. The three states a host may be in, and what each one
+# commits the role to: docs/network.md §Config-manager truth.
+# ⛔ This is not a NIC name and not a unit name: the Home parent is the interface
+# ha_keepalived_interface names, and the profile that carries the addressing is nm_oldsrv_profile.
+network_manager: NetworkManager
+# Equal to network_manager = settled, nothing owed. A different value = an owner-present migration
+# is owed and roles/network freezes every address/resolver leg here.
+network_manager_target: NetworkManager
+mgmt_ip: 10.10.99.30               # VLAN 99 (Management) — tagged leg
 home_ip: "{{ oldsrv_home_ip }}"     # VLAN 10 (Home) node IP (VRRP anchor) — SSOT-derived
                                     # from the network_static_hosts lookup in all.yml;
                                     # no literal here to drift from the address SSOT
@@ -32,9 +41,9 @@ host_resolver_dns: "{{ [dns_secondary_ip, dns_tertiary_ip] | join(',') }}"
 
 # The NetworkManager profile that ACTUALLY owns this box's uplink (installer-created; IaC modifies
 # it, it does not render it).
-# ⛔ This is NOT netd_phys_name: systemd-networkd here is disabled + inactive, its rendered
-# 20-eno1.* units are inert, and `eno1` is not this box's NIC — the live Home parent is enp0s31f6
-# (see ha_keepalived_interface). Pointing this var at the netd unit name fixes nothing.
+# ⛔ This is the ONLY profile on this box that carries its addressing: systemd-networkd here is
+# disabled + inactive, so a netd unit written for this host is inert by construction, whatever it
+# is named. Pointing an address leg at a unit name instead of at this profile fixes nothing.
 nm_oldsrv_profile: "Wired connection 1"
 # ⚠ The keyfile on disk is the BARE profile name — the installer wrote it WITHOUT the `.nmconnection`
 # suffix the Pi/spark keyfiles carry, so this path cannot be built by suffixing the profile name.

@@ -1,17 +1,42 @@
-# network role hosts — netd (systemd-networkd) vars for nas / oldsrv (desktop/VPS class).
-# Pi uses NetworkManager (network-rejected.md) — no netd units there.
+# network role hosts — role-internal knobs. The config-manager of a host is declared in that host's
+# host_vars (network_manager / network_manager_target) and never here: see docs/network.md
+# §Config-manager truth for the three states and what each one commits this role to.
 # ---- Role-internal knobs (architecture values stay in host_vars/group_vars) ----
 
-# Per-host config-manager: systemd-networkd for nas/oldsrv (desktop/VPS class);
-# RPi OS ships NetworkManager (Pi-uses-NM decision). This role only touches netd
-# on hosts that explicitly opt in (netd_* below) and never disables a manager.
+# The three states a host's config-manager may be in, and the ONLY vocabulary a host_vars declaration
+# may use. scripts/gate/check_net_manager.py reads the list out of THIS file, so the role and the gate
+# cannot disagree about what a declaration means.
+network_manager_kinds:
+  - NetworkManager
+  - systemd-networkd
+  - ifupdown
+
+# A host is SETTLED when the manager that owns it is also the ruled end-state for it. While the two
+# differ the host is FROZEN: no address leg is rendered and none is activated, because a leg written
+# under a manager the box does not run is a file nothing reads, and a leg activated under a manager
+# that is about to be replaced moves the interface the converge is sitting on. The freeze is the
+# mechanical half of "settle the manager first": flipping the declaration is the owner's act, not an
+# edit to a render guard. docs/network.md §Config-manager truth.
+net_manager_settled: "{{ network_manager == network_manager_target }}"
+
+# This role's namespace inside netd_dir: the unit-file names its dual-home model writes. The cleanup
+# leg removes exactly this pattern on a host that declares no netd leg, and never a wider glob —
+# /etc/systemd/network also holds units another role owns (the wireguard role's wg-s2s.*) and units
+# the OS owns (99-default.link), and deleting one of those is an outage, not a tidy-up. No other role
+# may render into this namespace; the gate enforces the split.
+netd_unit_namespace:
+  - 20-*.network
+  - 20-*.netdev
+  - 30-*-tunnel.network
 
 # systemd-networkd unit dir.
 netd_dir: /etc/systemd/network
 
-# Physical uplink NIC — per host! (nas eno1 → switch ether10; oldsrv eno1 → switch ether11)
-# Defaults sane for desktop-class; host_vars pin the real interface.
-netd_phys_name: eno1
+# The physical uplink NIC is a FACT OF THE HOST, so host_vars declares it and this file does not:
+# a role-level value makes `netd_phys_name is defined` true everywhere, and a guard built on that
+# definedness is a tautology — the same silent-failure class as the `dhcp_client` note below. That is
+# how this role came to write units naming hardware its target does not have (on the Pi, on spark and
+# on the VPS alike) and a NIC name oldsrv never had.
 
 # VLAN sub-interface on the physical NIC (tagged Management 99).
 netd_vlan_ifname: "{{ netd_phys_name }}.99"
@@ -22,11 +47,12 @@ netd_vlan_description: "{{ inventory_hostname }} tagged Management VLAN (99) sub
 
 # --- Observability tunnel route ---
 # The home-side Alloy collectors remote_write to the VPS Victoria endpoint
-# (wg_s2s_vps.ip = 10.255.40.2). On nas, a second NIC (eno2) carries a DHCP default
-# route (metric 100) that shadows eno1's Home default (metric 1002), so the kernel
-# egresses the tunnel from eno2 -> the router drops it. Pin the VPS tunnel endpoint to
-# the managed Home NIC (eno1) with a host route at metric 50 so it always wins over
-# eno2's stray default. SSOT value never literal.
+# (wg_s2s_vps.ip = 10.255.40.2). Where a host's addresses are rendered by this role, a second NIC
+# with a lower-metric DHCP default can shadow the managed Home NIC, so the tunnel endpoint gets a
+# host route at metric 50 that always wins. SSOT value, never a literal.
+# ⚠ On a host whose manager is not systemd-networkd this route is NOT applied by anything: nas's
+# routes come from ifupdown's dhcpcd, so its shadowing default is a live routing fact with no netd
+# leg to fix it (docs/hardware-nas.md §Network).
 netd_tunnel_route: "{{ wg_s2s_vps.ip }}/32"  # VPS Victoria/wg-s2s endpoint (SSOT)
 netd_tunnel_route_metric: 50
 

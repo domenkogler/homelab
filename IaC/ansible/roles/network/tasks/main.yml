@@ -14,6 +14,9 @@
 #      systemd-networkd is disabled, so naming nothing on that box is the current state.
 #   6. oldsrv host-side resolver: the box's own /etc/resolv.conf -> the DNS tier it hosts,
 #      written through the NetworkManager profile that really owns that uplink (nmcli, needs become).
+#   7. config-manager truth, measured on the box before anything is written: the declared manager
+#      (host_vars network_manager) must be what the host is running, the units no manager reads are
+#      removed, and a host whose owner and target differ writes no address leg here.
 - name: Refuse network runs as ai-debug or unknown users
   assert:
     that:
@@ -32,10 +35,284 @@
     mode: '0644'
   tags: [hosts, network]
 
-# Pi static dual-home via NetworkManager (Pi-uses-NM: docs/network-rejected.md).
-# RPi OS ships NetworkManager (no systemd-networkd active) — this is the Pi's manager.
-# Guarded to pi.kogler.si only: no other host opts into NM dual-home yet; desktop/VPS stay
-# systemd-networkd. Values are SSOT-derived (host_vars ansible_host/mgmt_ip + network_static_hosts).
+# ---- Which config-manager owns this box: measured, not implied --------------------------------
+# One manager per box, and it must be the one the host DECLARES (docs/network.md
+# §Config-manager truth). A unit rendered for a manager that does not run here is a file nothing
+# reads: the converge prints green, nothing on the wire changes, and the next edit lands in the dead
+# file again — the same silent-no-op class as a duplicate YAML key. So the declaration is compared
+# with the box before any write below runs, and every write is gated on the declaration instead of on
+# whether a role var happens to be defined (a role-level default made those guards true everywhere).
+# Tagged net-guard as well as network: `--tags net-guard` is the read-only "what owns this box"
+# converge, and it is the tag the self-converge guard's vocabulary must cover.
+- name: Refuse a host that does not declare its config-manager
+  ansible.builtin.assert:
+    that:
+      - network_manager is defined and network_manager in network_manager_kinds
+      - network_manager_target is defined and network_manager_target in network_manager_kinds
+    fail_msg: >-
+      {{ inventory_hostname }} must declare both network_manager and network_manager_target in its
+      host_vars, each one of: {{ network_manager_kinds | join(' | ') }}. roles/network supplies no
+      default for either on purpose — a role-level value makes every `is defined` render guard on this
+      fleet a tautology, which is how units came to be written on boxes whose manager never read them.
+    quiet: true
+  tags: [network, net-guard]
+
+- name: Measure which config-managers are running
+  # service_facts is a fact module, so it really executes under --check. That is why this block needs
+  # no check_mode: false — roles/network may not carry one, being declared check-safe in the
+  # self-converge guard (a read that runs during --check and claims to be a proof is the other way to
+  # hand back a lockout).
+  ansible.builtin.service_facts:
+  tags: [network, net-guard]
+
+- name: Measure the interface this box sends through
+  # NOT decoration, and the same reason as the nm-resolver block: `--tags <anything>` skips the
+  # implicit fact-gathering task, so the default-route fact must be taken explicitly here.
+  ansible.builtin.setup:
+    filter: ansible_default_ipv4
+  tags: [network, net-guard]
+
+- name: Look for the interface file ifupdown maintains
+  # Classic ifupdown keeps /run/network/ifstate, listing one line per interface it brought up. A box
+  # with no such file has no ifupdown leg at all — which is what separates `ifupdown` from
+  # NetworkManager / systemd-networkd as a declared state.
+  ansible.builtin.stat:
+    path: /run/network/ifstate
+  register: net_guard_ifstate_file
+  changed_when: false
+  tags: [network, net-guard]
+
+- name: Read the interfaces ifupdown claims
+  ansible.builtin.slurp:
+    path: /run/network/ifstate
+  register: net_guard_ifstate_raw
+  when: net_guard_ifstate_file.stat.exists
+  tags: [network, net-guard]
+
+- name: Read which devices NetworkManager holds
+  # `command` is SKIPPED under --check, so the route-ownership half is labelled SKIPPED there and
+  # never counted as a pass: a verdict that depends on the invocation instead of on the box is not a
+  # verdict (CONVENTIONS §6, prove the probe not the platform).
+  ansible.builtin.command:
+    argv: [nmcli, '-t', '-f', 'DEVICE,STATE', 'device']
+  register: net_guard_nm_devices
+  changed_when: false
+  when: not ansible_check_mode
+  tags: [network, net-guard]
+
+- name: Take the measurement apart
+  ansible.builtin.set_fact:
+    net_guard_svc: "{{ ansible_facts['services'] }}"
+    net_guard_route_if: "{{ ansible_facts['default_ipv4']['interface'] }}"
+    net_guard_ifstate_lines: >-
+      {{ (net_guard_ifstate_raw.content | b64decode).splitlines()
+         if net_guard_ifstate_file.stat.exists else [] }}
+    net_guard_nm_states: >-
+      {{ dict(net_guard_nm_devices.stdout_lines | map('split', ':') | list)
+         if not ansible_check_mode else {} }}
+  tags: [network, net-guard]
+
+- name: Derive the verdict the guards read
+  ansible.builtin.set_fact:
+    net_guard_nm_running: >-
+      {{ 'NetworkManager.service' in net_guard_svc
+         and net_guard_svc['NetworkManager.service'].get('state', 'unknown') == 'running' }}
+    net_guard_networkd_running: >-
+      {{ 'systemd-networkd.service' in net_guard_svc
+         and net_guard_svc['systemd-networkd.service'].get('state', 'unknown') == 'running' }}
+    net_guard_ifupdown_owns_route: >-
+      {{ (net_guard_route_if ~ '=' ~ net_guard_route_if) in net_guard_ifstate_lines }}
+    net_guard_nm_owns_route: >-
+      {{ net_guard_nm_states.get(net_guard_route_if, 'not-measured').startswith('connected') }}
+    # --check proves the manager states and the ifupdown claim; the two nmcli halves below need the
+    # box to answer, so under --check the verdict is PARTIAL and the asserts that need it do not run.
+    net_guard_measured: "{{ not ansible_check_mode }}"
+  tags: [network, net-guard]
+
+- name: Read which interfaces systemd-networkd has taken
+  # Only while it runs: a stopped networkd holds nothing by definition. `AdministrativeState` is what
+  # answers "did networkd take this interface", which is the question the refusal and the disarm below
+  # must both be able to ask about a manager they are about to judge.
+  ansible.builtin.command:
+    argv: [networkctl, '--json=short', '--no-pager']
+  register: net_guard_networkctl
+  changed_when: false
+  when:
+    - not ansible_check_mode
+    - net_guard_networkd_running | bool
+  tags: [network, net-guard]
+
+- name: List the interfaces the second manager has taken
+  # Loopback aside: on a box where NetworkManager owns the uplink this list must be EMPTY for the
+  # second manager to be either harmless or removable.
+  ansible.builtin.set_fact:
+    net_guard_networkd_held: >-
+      {{ (net_guard_networkctl.stdout | from_json).Interfaces
+         | rejectattr('AdministrativeState', 'equalto', 'unmanaged')
+         | rejectattr('Name', 'equalto', 'lo')
+         | map(attribute='Name') | list }}
+  when: net_guard_networkd_running | bool
+  tags: [network, net-guard]
+
+- name: Decide whether a second running manager is provably harmless
+  # The ONE definition of the safety decision, read by both the refusal below and the disarm. Three
+  # conditions, all measured here rather than trusted from the declaration: (1) a declared, settled
+  # owner that is not networkd, (2) the default route provably rides that owner, (3) networkd has
+  # taken no interface besides loopback, so stopping it removes no address and no route. Anything
+  # unverifiable — a --check run that executed no nmcli, a manager that never answered — leaves this
+  # false, and then the refusal names the one-line fix instead of the role acting on an assumption.
+  ansible.builtin.set_fact:
+    net_guard_disarm_ok: >-
+      {{ (network_manager == 'NetworkManager')
+         and net_manager_settled
+         and (net_guard_nm_owns_route | bool)
+         and (net_guard_networkd_running | bool)
+         and (net_guard_networkd_held is defined)
+         and ((net_guard_networkd_held | length) == 0) }}
+  tags: [network, net-guard]
+
+- name: Refuse a box whose running managers contradict the declaration
+  # The two-managers half of the rule, and it runs under --check too because service_facts does.
+  # Per kind, what the box must look like: NetworkManager -> NM runs and no second manager is left
+  # standing; systemd-networkd -> networkd runs and NM does not; ifupdown -> networkd does not run
+  # (NM may be installed and idle, as on nas: what matters is that it holds nothing).
+  # The one exception is a second manager this same run can provably disarm — refusing a box the
+  # converge is about to repair would turn self-curing drift back into a manual act.
+  ansible.builtin.assert:
+    that:
+      - >-
+        (network_manager == 'NetworkManager'
+         and net_guard_nm_running
+         and (not net_guard_networkd_running or net_guard_disarm_ok))
+        or (network_manager == 'systemd-networkd' and net_guard_networkd_running and not net_guard_nm_running)
+        or (network_manager == 'ifupdown' and not net_guard_networkd_running)
+    fail_msg: >-
+      {{ inventory_hostname }} declares network_manager={{ network_manager }} but the box runs
+      NetworkManager={{ net_guard_nm_running }} and systemd-networkd={{ net_guard_networkd_running }},
+      and systemd-networkd has taken {{ net_guard_networkd_held | default(['<not measured>']) | join(', ') }}.
+      Two managers on one box is the refused shape: either one can rewrite the interface the other was
+      configured through, and the converge that follows cannot say which won. This run will not
+      disarm it because a condition above could not be proved here. Either fix the declaration to what
+      the box does (scripts/ansible/probe-net-manager.sh {{ inventory_hostname_short }}) or bring the
+      box to the declared state — and if the box needs a manager this repo does not know about, that
+      is a decision for docs/network.md §Config-manager truth, not a var edit here.
+    quiet: true
+  tags: [network, net-guard]
+
+- name: Refuse a box where the declared manager does not own the interface the default route rides
+  # The second half of the rule, and the one `is-active` cannot answer: a manager can be running and
+  # still own nothing, which is how "the repo says networkd, the box says NetworkManager" stayed alive
+  # for a year. A systemd-networkd host that declares NO netd address leg claims nothing about its
+  # uplink address (the VPS: the provider image's own ifupdown file carries eth0 while networkd only
+  # creates wg-s2s), so this task asserts the leg it can see: where a NIC is declared, that NIC must
+  # be the one the route rides — a unit aimed at absent hardware is the defect this row exists for.
+  ansible.builtin.assert:
+    that:
+      - >-
+        (network_manager == 'NetworkManager' and net_guard_nm_owns_route and not net_guard_ifupdown_owns_route)
+        or (network_manager == 'ifupdown' and net_guard_ifupdown_owns_route and not net_guard_nm_owns_route)
+        or (network_manager == 'systemd-networkd'
+            and (netd_phys_name is not defined or netd_phys_name == net_guard_route_if))
+    fail_msg: >-
+      {{ inventory_hostname }} declares network_manager={{ network_manager }} but the default route
+      rides '{{ net_guard_route_if }}', where NetworkManager reports
+      '{{ net_guard_nm_states.get(net_guard_route_if, 'no-device') }}' and ifupdown claims it is
+      up={{ net_guard_ifupdown_owns_route }}. Nothing this role writes under the declared manager can
+      change that interface, so a converge here would report success and change nothing — which is the
+      failure this task exists to make loud. Read the box with
+      scripts/ansible/probe-net-manager.sh {{ inventory_hostname_short }} and settle it there.
+    quiet: true
+  when: net_guard_measured | bool
+  tags: [network, net-guard]
+
+- name: Report the measured config-manager verdict
+  # One line per host on every run, so the next agent does not have to guess which of the three
+  # states this box is in, and so a --check run says SKIPPED where it did not measure.
+  ansible.builtin.debug:
+    msg: >-
+      config-manager: declared {{ network_manager }} (target {{ network_manager_target }}) |
+      running networkd={{ net_guard_networkd_running }} NetworkManager={{ net_guard_nm_running }} |
+      route-if {{ net_guard_route_if }}: NM={{ net_guard_nm_states.get(net_guard_route_if, 'not-measured') }}
+      ifupdown={{ net_guard_ifupdown_owns_route }} |
+      {{ 'FROZEN: owner and target differ, no address leg is written here' if not net_manager_settled else 'legs open' }}
+      {{ '| SKIPPED the route-ownership half (--check runs no nmcli)' if ansible_check_mode }}
+  tags: [network, net-guard]
+
+- name: Remove the netd units no manager reads
+  # A host that declares no netd address leg must carry none of this role's units: while the running
+  # manager does not read them they are not config, they are files that read as authored truth, and
+  # editing them is a green converge that changes nothing. No networkd reload is notified here — on a
+  # host whose manager is not networkd a reload could only disturb a manager that is holding
+  # something, which is exactly the case the assert above already refused.
+  ansible.builtin.find:
+    paths: "{{ netd_dir }}"
+    patterns: "{{ netd_unit_namespace }}"
+  register: netd_stray_units
+  when: netd_phys_name is not defined
+  changed_when: false
+  tags: [network, netd]
+
+- name: Delete each unread netd unit
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ netd_stray_units.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when: netd_phys_name is not defined
+  tags: [network, netd]
+
+- name: Disarm the second config-manager running beside the declared owner
+  # The drift class made self-curing: on a box where NetworkManager is the declared, settled owner and
+  # networkd is running while holding nothing, switching it off is the whole repair and belongs in the
+  # converge, not in a runbook line somebody has to remember. Every condition lives in
+  # net_guard_disarm_ok above, measured on the box. A box where the split is AUTHORED (the VPS:
+  # networkd creates wg-s2s and is deliberately told to configure nothing) is excluded by the first
+  # term, because its declared manager is networkd itself — stopping it there would end the
+  # site-to-site tunnel at the next boot.
+  ansible.builtin.systemd:
+    name: systemd-networkd
+    state: stopped
+    enabled: false
+  register: net_guard_disarm
+  when: net_guard_disarm_ok | bool
+  tags: [network, net-guard]
+
+- name: Re-read the devices after disarming the second manager
+  ansible.builtin.command:
+    argv: [nmcli, '-t', '-f', 'DEVICE,STATE', 'device']
+  register: net_guard_after
+  changed_when: false
+  when: net_guard_disarm.changed | bool
+  tags: [network, net-guard]
+
+- name: Assert the leg still rides the declared manager after the disarm
+  # The disarm is allowed only because stopping it cannot move traffic; this is where that claim is
+  # either true or a failed play. Asserting it in the SAME run is the point — checked in a later run,
+  # the box has already been left without the leg the operator is sitting on.
+  ansible.builtin.assert:
+    that:
+      - nm_after_state is match('^connected')
+    fail_msg: >-
+      Stopping systemd-networkd on {{ inventory_hostname }} left '{{ net_guard_route_if }}' without a
+      manager — NetworkManager now reports it as '{{ nm_after_state }}'. Bring the declared owner back
+      over that interface at once (`nmcli connection up <the connection for
+      {{ net_guard_route_if }}>`) and re-enable networkd (`systemctl enable --now systemd-networkd`)
+      until the box is understood: a second manager carrying the leg is exactly what the condition
+      list above was supposed to rule out.
+    quiet: true
+  vars:
+    nm_after_map: "{{ dict(net_guard_after.stdout_lines | map('split', ':') | list) }}"
+    nm_after_state: "{{ nm_after_map.get(net_guard_route_if, 'gone') }}"
+  when: net_guard_disarm.changed | bool
+  tags: [network, net-guard]
+
+# Pi/spark static dual-home via NetworkManager. RPi OS and DGX OS ship NetworkManager and it owns
+# their uplink (docs/network-rejected.md), so these keyfiles ARE those hosts' addressing.
+# Gated on the host being in the dual-home list AND declaring NetworkManager as a SETTLED owner: a
+# host with an owed migration (nas declares ifupdown today) gets no keyfile rendered and none
+# activated, because activating one moves the interface the converge is sitting on.
+# Values are SSOT-derived (host_vars ansible_host/mgmt_ip + network_static_hosts).
 # The untagged parent (pi-eth0) carries HOME only; the MGMT IP rides the TAGGED eth0.99
 # sub-interface (pi-mgmt). A connected route for 10.10.99.x on the parent hijacks lookups away
 # from the tagged leg, and the router then reports 'No route to host' for the mgmt address.
@@ -48,6 +325,8 @@
     mode: '0600'
   when:
     - inventory_hostname in network_nm_dualhome_hosts
+    - network_manager == 'NetworkManager'
+    - net_manager_settled
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
@@ -56,14 +335,15 @@
   notify: reload NetworkManager
   tags: [network, nm-pi]
 
-# ---- nas/oldsrv netd (systemd-networkd) static dual-home ----
-# desktop/VPS-class hosts use systemd-networkd (docs/network-rejected.md: netplan rejected,
-# systemd-networkd the config-manager; the Pi's NM use is the Pi exception). The port model is
-# untagged Home (10) + tagged Mgmt (99) on the SAME physical NIC; netd
-# units render the physical .network (Home addr + default) + a .99 VLAN sub-interface
-# (.netdev) + its .network (mgmt addr, connected route only).
-# Session-safe: rendering units is additive; networkd-reload applies them without
-# severing the existing session on the Home leg (the mgmt leg is a tagged addition).
+# ---- the systemd-networkd dual-home legs (only where networkd IS the declared owner) ----
+# Where a host declares systemd-networkd AND declares which NIC it owns, the port model is untagged
+# Home (10) + tagged Mgmt (99) on the SAME physical NIC: a physical .network (Home address + default
+# route), a .99 VLAN sub-interface (.netdev) and its .network (Mgmt address, connected route only).
+# No host in the inventory is in that shape today: the VPS is the only systemd-networkd host and its
+# uplink address belongs to the provider image, so it declares no netd_phys_name and renders none of
+# these. Session-safe when a host is: rendering units is additive and the networkd-reload handler
+# applies them without severing the Home leg the session rides (the Mgmt leg is a tagged addition).
+# docs/network-rejected.md: netplan rejected; config-managers are measured per host, not ruled fleet-wide.
 - name: Render systemd-networkd .network for the physical uplink (Home 10 + mgmt-99 tagged)
   ansible.builtin.template:
     src: netd-phys.network.j2
@@ -72,6 +352,11 @@
     group: root
     mode: '0644'
   when:
+    # The guard asks the HOST: the declared manager owns this leg, and the host declares the NIC it
+    # owns. A role-level NIC default made the old `netd_phys_name is defined` guard true on every
+    # host in the inventory, which is how netd units reached boxes that never read them.
+    - network_manager == 'systemd-networkd'
+    - net_manager_settled
     - netd_phys_name is defined
     - host_home_ip is defined
     - home_gateway_ip is defined
@@ -86,6 +371,8 @@
     group: root
     mode: '0644'
   when:
+    - network_manager == 'systemd-networkd'
+    - net_manager_settled
     - netd_phys_name is defined
     - netd_vlan_ifname is defined
   notify: reload systemd-networkd
@@ -99,17 +386,18 @@
     group: root
     mode: '0644'
   when:
+    - network_manager == 'systemd-networkd'
+    - net_manager_settled
+    - netd_phys_name is defined
     - netd_vlan_ifname is defined
     - mgmt_ip is defined
   notify: reload systemd-networkd
   tags: [network, netd]
 
 - name: Render systemd-networkd .network pinning the VPS tunnel route to the Home NIC
-  # nas only: its second NIC (eno2) holds a DHCP default (metric 100) that shadows the
-  # managed Home NIC (eno1, metric 1002) — Alloy's remote_write to the VPS Victoria
-  # endpoint egresses eno2 and the router drops it. Pin the
-  # wg-s2s endpoint (/32, metric 50) to eno1 so it always wins. oldsrv has no such
-  # conflict (its Alloy ships); leave it untouched.
+  # Author-shaped for a netd host with a second NIC whose DHCP default shadows the managed Home
+  # NIC. No host is in that shape today: nas's routes come from ifupdown's dhcpcd, so a netd route
+  # unit there is read by nothing (docs/hardware-nas.md §Network) and the freeze above keeps it out.
   ansible.builtin.template:
     src: netd-tunnel-route.network.j2
     dest: "{{ netd_dir }}/30-{{ netd_phys_name }}-tunnel.network"
@@ -117,7 +405,9 @@
     group: root
     mode: '0644'
   when:
-    - inventory_hostname == 'nas.kogler.si'
+    - network_manager == 'systemd-networkd'
+    - net_manager_settled
+    - netd_phys_name is defined
     - netd_tunnel_route is defined
   notify: reload systemd-networkd
   tags: [network, netd]
@@ -397,6 +687,8 @@
     mode: '0600'
   when:
     - inventory_hostname in network_nm_dualhome_hosts
+    - network_manager == 'NetworkManager'
+    - net_manager_settled
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
@@ -423,6 +715,8 @@
   changed_when: false
   when:
     - inventory_hostname in network_nm_dualhome_hosts
+    - network_manager == 'NetworkManager'
+    - net_manager_settled
     - ansible_facts['service_mgr'] == 'systemd'
   tags: [network, nm-pi]
 
@@ -437,6 +731,8 @@
   changed_when: false
   when:
     - inventory_hostname in network_nm_dualhome_hosts
+    - network_manager == 'NetworkManager'
+    - net_manager_settled
     - ansible_facts['service_mgr'] == 'systemd'
   tags: [network, nm-pi]
 - name: Load + activate Pi eth0 NM connection (Home parent)
@@ -452,6 +748,8 @@
     - nm_pi_up.rc != 0
   when:
     - inventory_hostname in network_nm_dualhome_hosts
+    - network_manager == 'NetworkManager'
+    - net_manager_settled
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
@@ -476,6 +774,8 @@
     - nm_pi_mgmt_up.rc != 0
   when:
     - inventory_hostname in network_nm_dualhome_hosts
+    - network_manager == 'NetworkManager'
+    - net_manager_settled
     - ansible_facts['service_mgr'] == 'systemd'
     - mgmt_ip is defined
     - ansible_host is defined
