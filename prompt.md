@@ -91,24 +91,30 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    with the value deliberately unchanged — price the 2026-10-06 transient before touching the var, and read
    [docs/hardware-spark.md](docs/hardware-spark.md) first. →
    [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-376 · 400 · 359 · 367 · 380 ride it too)
-2. ⏳ **The transport / answer plane** — **HD-436**'s hinge: the derived `zone_kogler_si` list is on `main`; switch
-   the two consumers that still hand-author (`vps.yml`'s subdomain lists, `roles/cloudflare_dns/vars`). The
-   blocker that was mechanical is gone — the seat drives the RouterOS API now (**HD-495**, 2026-10-08) — so what
-   remains is the owner-present window, not the tooling. Alongside it: **HD-477** (make the resolver actually float
-   with the VIP; premise measured green, the row carries the three gates), **HD-487** (config-manager truth per host
-   — `scripts/ansible/probe-net-manager.sh` reads the verdict off the interface the default route rides: oldsrv/pi =
-   NetworkManager with dead networkd renders on disk, vps = networkd, **spark = both managers on one box**,
-   **nas = neither**), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed and was verified
-   2026-10-08**; spark still waits on a spark-slot converge, nas on HD-487), and the DNS-policy rows **HD-480–483**.
-   → [prompt-dns-transport.md](prompt-dns-transport.md)
-3. ⏳ **Silent-failure alerting** — **HD-450**'s rules are live and proven end to end (the alert read closed
-   2026-10-09); two things are owed: leg (c), the NUT client→master **metric**, and exporting the VPS **box** cert,
-   which has no series at all. ⚠ The canary recipe this handoff used to carry could not fire — a transient unit
-   outside `monitoring_hygiene_units` is invisible to the exporter; the working trigger is in the doc. The **Alloy
-   fleet pin** is CLOSED 2026-10-17: `alloy_version: "1.20.1-1"` (`IaC/ansible/group_vars/all/versions.yml`) with
-   no per-host override, and all five monitoring hosts run it and answer scrapes — the four reads, the apt failure
-   shape and the ⛔ never-`--allow-downgrades` rule are in [docs/observability.md](docs/observability.md)
-   §The Alloy pin. **LLM token accounting
+2. ⏳ **The transport / answer plane** — **HD-436**'s hinge has closed on the repo side: `zone_kogler_si` is the one
+   derived list and BOTH remaining consumers read it (`vps.yml`'s two tailnet lists are aliases of its views, the
+   headscale template loops them by FQDN, and `roles/cloudflare_dns` loops the public view with its vars file now a
+   pointer) — parity-proven on all six surfaces, so nothing hand-authors a subdomain list any more. What the row
+   owes is only the live half: the two converges named in the parked list below. Alongside it: **HD-477** (make the
+   resolver actually float with the VIP; premise measured green, the row carries the three gates), **HD-487** (the
+   config-manager truth is now DECLARED per host in `host_vars/<host>.yml` — oldsrv/pi/spark = NetworkManager, vps =
+   systemd-networkd, **nas = `ifupdown`**, the legal third state — held down by
+   [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read per host with
+   `scripts/ansible/probe-net-manager.sh`; the phantom `eno1` renders are gone and unowned units are removed, so what
+   is left is converging, host by host), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed
+   and was verified 2026-10-08**; spark waits on a spark-slot converge, nas is frozen behind HD-487), and the
+   DNS-policy rows **HD-480–483**. → [prompt-dns-transport.md](prompt-dns-transport.md)
+3. ⏳ **Silent-failure alerting** — **HD-450**'s collector legs are LIVE and read back per host 2026-10-17: the NUT
+   client→master metric with `nut-master-unreachable` loaded, and the VPS's own on-disk cert pair exported. The
+   `acme.sh` premise this handoff used to carry is dead — that box's Traefik IS the ACME issuer and its age was
+   already a series; the missing half was the on-disk pair. What the row still owes is one re-point: alert delivery
+   moves to Matrix under **HD-1108**, and until that leg is proven Signal stays the path alerts are read on.
+   ⚠ The canary recipe this handoff used to carry could not fire — a transient unit outside
+   `monitoring_hygiene_units` is invisible to the exporter; the working trigger is in the doc. The **Alloy fleet
+   pin** is settled state, not an open question: `alloy_version: "1.20.1-1"`
+   (`IaC/ansible/group_vars/all/versions.yml`) with no per-host override and all five monitoring hosts on it — the
+   reads, the apt failure shape and the ⛔ never-`--allow-downgrades` rule are in
+   [docs/observability.md](docs/observability.md) §The Alloy pin. **LLM token accounting
    (HD-1120 · 1121 · 1122, minted 2026-10-09)** is now in the same brief: the engine counters report for **every**
    caller (totals known, attribution not), the two LiteLLM gateways and the oldsrv serving tier report **nothing**, and
    attribution is taken from the **edge access log** — a metering proxy hop was ruled out because it re-buys the hop
@@ -197,10 +203,16 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    legs stay in the row; **the two seat legs are run FROM the seats — `bash scripts/harness/pi-seat-sync.sh
    --check` and `install-tmux-conf.sh --push` on the win11 and `wsl -d Debian` seats, in their own sessions
    (2026-10-12)** — because a seat plane converges from its own clone and the station cannot speak for a seat's
-   PATH; `install-pi-debian.sh --check` on a clean Debian seat is the third. **HD-1119** — the missing `harness`
-   docs domain — is the only authored work the brief still carries, and it no longer gates the tree: folders are
-   named for the toolchain each script drives, and the `gate/`/`lib/` exception is written into
-   [scripts/README.md](scripts/README.md). **The registry's own prose is now a rule with a checker** —
+   PATH; `install-pi-debian.sh --check` on a clean Debian seat is the third. **HD-1119** — the `harness` docs domain — is the
+   only authored work the brief still carries, and it is now registered rather than missing: the hub
+   [docs/harness.md](docs/harness.md) and its §8.3 review/rejected pair exist, `docs/pi-harness.md` is
+   [docs/harness-pi.md](docs/harness-pi.md), and what the row owes is the split of that file by subject plus
+   `scripts/gate/check_doc_domain.py`, which does not exist yet and wants a taxonomy call first. **The
+   child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
+   [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
+   [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
+   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py); **HD-1153** keeps the two
+   seat legs, which can only be run FROM the seats. **The registry's own prose is now a rule with a checker** —
    [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) is built and self-tested but left unwired while the
    rows still carry the ids and dates it refuses (`--show` prints the live count, never a number typed into a handoff), so the
    work is one sweep: clear the rows — ids, dates, diary tenses, the six rows that dropped their **Owning spec** cell, the
@@ -216,11 +228,14 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     (`litellm-db`, `authentik-postgres`), four middle legs stay held by owner ruling, and two things are still owed —
     the next `db-backup` run is the end-to-end proof the migrated clusters still dump, and **oldsrv still owes its
     `wireguard` leg** (it restarts the tunnel server, so run it alone, last, then re-verify every tunnel path).
-    Rowless but not free: the **apt upgrade phase** stays OUT of the converge wave — ruled 2026-10-12 (option A), with
-    `roles/common/tasks/apt-holds.yml` landing the `apt-mark hold` in IaC for the pinned packages (`alloy`, `tailscale`
-    and the `docker-ce` suite; `kopia` ships as a pinned CONTAINER image, so there is no apt state to hold), and the
-    `roles/updates` design is DECLINED, not pending. What is left is the live apply, one host at a time — until a host
-    has run it, `apt upgrade` can still move its pinned packages there. → [todo.md](todo.md) HD-1146 · HD-1147.
+    Rowless but not free: the **apt upgrade phase** stays OUT of the converge wave — ruled 2026-10-12 (option A), the
+    `roles/updates` design is DECLINED and not pending, and the `apt-mark hold` that ruling required is now live on
+    all five hosts (`roles/common/tasks/apt-holds.yml`, read back with `apt-mark showhold`), so `apt upgrade` can no
+    longer move a pinned HOST package anywhere in the fleet (`kopia` ships as a pinned CONTAINER image, so there is
+    no apt state there). That leaves the pin LAG, not the pin: **HD-1147**'s report is live on all five hosts and its
+    `pkg-pin-drift` rule is authored but **not loaded** — one `--tags monitoring` converge on the VPS ships it, and it
+    will go RED on pi/vps/spark, which is **HD-1148**'s unrun `--tags docker` applies showing up as true drift, one of
+    those entries being an owner call on the docker leg rather than drift. → [todo.md](todo.md) HD-1147 · HD-1148.
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
@@ -302,6 +317,28 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     when a human runs it with `py -3` on that seat while staying green inside the gate. Record: [scripts/README.md](scripts/README.md)
     `validate-all.sh` + `sync-skills.sh` rows.
 
+**Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
+action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.yaml` on the **VPS** slot, ONE guarded
+converge — the answer set is identical, the FILE is not (entry order + comments), so it reports changed and restarts
+the control plane: sampled liveness probe, never a one-shot inspect; (b) `IaC/ansible/playbooks/dns.yml` from the **home control
+plane**, because the Cloudflare token is IP-filtered there, expected to report no record change; and its step 2 (the
+`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **every `--tags network` leg**
+HD-487 and HD-488 still owe — the spark networkd disarm (drop the dead `20-eno1.*`, engine untouched), the pi
+removals (two dead units), the nas removals under its `ifupdown` freeze, and oldsrv's own lockout-class run **alone**
+and off the box with a console reachable (driven FROM the oldsrv controller its `network` tag is refused by the
+self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml`, by design; and a self-target run dies at
+the transport before the guard is even reached — the inventory's `ProxyJump=vps` makes the last hop authenticate
+against the bare `ansible_host`, where the seat's own alias block pins the operator key — so drive it from another
+controller, or use one of the two forms that section measures:
+[docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement) · **nas's NetworkManager adoption** — until the measured
+`ifupdown` owner of `eno1` is replaced, every address and resolver leg there stays frozen · **HD-384 step 2** — the
+two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
+list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
+call · **the docker-family pin decision** `pkg-pin-drift` pages on: `docker-ce-rootless-extras` is pinned and held but
+named in no install task, so on `vps` and `pi` the rule is red with nothing in the repo able to move it — either name
+it in the suite where hosts carry it or drop it from the pin map. HD-1148's `--tags docker` applies restart the daemon
+and every container on the host: vps and pi are maintenance windows, and spark's is an owner window too.
+
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
 list is **derived** in [todo-table.md](todo-table.md) §B0, so only the ones an owner or a
 lane should not lose are named here: **HD-357** (the launchpad tiles — the family-surface brief was retired and
@@ -309,8 +346,9 @@ lane should not lose are named here: **HD-357** (the launchpad tiles — the fam
 **HD-1083** (the routed group's routes→`*_url` half, owner-present edge window — read §Reachability rule in
 [docs/services-traefik.md](docs/services-traefik.md) before touching a route or a publish) · **HD-1089** (one read
 from a real tailnet client; the fix is live) · **HD-1116** / **HD-1117** (the two gate halves of the same hygiene
-pass: the non-`oldsrv` Debian seats still carry `gpgsign=true` until they converge, and
-`render_network_addresses.py` stamps a wall clock into a tracked file so its `--check` can never be clean) ·
+pass: the non-`oldsrv` Debian seats still carry `gpgsign=true` until they converge, and `render_all.py --check` is
+still not wired into the gate — the wall clock it used to stamp is out of every render, which is what finally lets
+that check read green twice) ·
 **HD-1130** (a service `enabled: true` in IaC that is **deployed nowhere** — the probe that does not lie is
 `ss -ltn | grep 11434` on every host plus the absence of `/srv/docker/<svc>`; decide converge-or-delete, and if delete,
 scrub the `ollama/*` wildcards from the VPS key model lists) ·
