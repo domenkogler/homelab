@@ -624,7 +624,6 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
       1.59 GiB CPU-fallback path needed. The old “bounded episode” reading was a wrapped `dmesg` ring. What
       survives this line is **not** HD-393: the spark re-cert gating the rerank cutover is HD-369's tail, and the
       standing rule stands — **never converge an unpinned AI leg.** · [services-ai.md](docs/services-ai.md)
-- [x] **HD-386 tail** — **CLOSED 2026-09-21: there was no owner step.** The retired `dsh`/`pi-dev` harness records and their 502 tailnet routes were settled in `group_vars/vps.yml` and documented in [network-vpn.md](docs/network-vpn.md) — the names stay, the 502 is the design, and removal is the one-change procedure written there. What is left on HD-386 is the `failed=0` oldsrv converge sighting, which is Table AI work, not an owner call.
 - [ ] **HD-367 / HD-359** — the Mgmt-99 dual-home leg + the engine-neutral benchmark kit: IaC and boot done, the
       **S1 bench is not yet certified** — the numbers still do not back the tier decision. · [services-ai-bench.md](docs/services-ai-bench.md)
 - [x] **HD-375** — **CLOSED 2026-09-22 (owner).** The two spark host-memory OOM rules are live in the ruler
@@ -793,6 +792,7 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 - HA recorder trim (`purge_keep_days`) to protect the Pi SD — **HD-19**
 - Grafana Alerting tiers (Critical/Warning/Info), self-monitoring, n8n + signal-cli-routing (details: `docs/observability.md`)
 - ~~Victoria backend~~ — ✅ LIVE 2026-09-08 (HD-341/342); the Prometheus/Loki rule set is gone (HD-347 swept the orphans)
+- alerting tail tracked where its host is: **HD-159** (Phase 1, prove `wg-s2s-down` fires).
 
 **Deploy-gated verification (Phase 6):** ✅ the migration itself is **done** — VictoriaMetrics + VictoriaLogs run
 on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the single UI.
@@ -810,7 +810,6 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
       (`--tags monitoring`, `failed=0`); read back on the backend: `up{job="alloy-snmp",instance="router"}=1`,
       `instance="switch"}=1`, `ifOperStatus` = 23 router + 31 switch series with those labels.
       · [observability.md](docs/observability.md)
-- [ ] alerting tail tracked where its host is: **HD-159** (Phase 1, prove `wg-s2s-down` fires).
 
 
 ---
