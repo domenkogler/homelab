@@ -258,7 +258,7 @@ each with one claimed home` / `FAIL: <file>: <rule> — <detail>` with rc 1, `CA
 nothing; `--self-test` proves **both halves** of every rule from a fixture under `scripts/testdata/` (excluded from the registry
 requirement by `check_script_layout.py` rule 5) — missing `domain`, unknown-domain pair, second hub, missing hub on a ≥2-doc
 domain, unknown `role`, and the empty-corpus floor. Do not add "every hub is linked from `docs/index.md`": `check_doc_map.py`
-already fail-closes on the map, and a second checker for the same fact is the §2 second-opinion error.
+already refuses a doc under `docs/` that the map cannot reach — its map rule is **coverage**, basename-matched, with `manual/*` exempt because `manual/README.md` is their hub — so an orphaned hub cannot exist, and a second checker for the same fact is the §2 second-opinion error. Two of its boundaries matter to whoever writes this one: a **stale basename inside the `## Document Map` code block is NOT its finding** (measured at the tip: a bogus name there still prints `OK`; `check_doc_path_refs.py` is what catches it), and **`prompt-*.md` handoffs sit outside both its scans**, so a link written in a brief is guarded by `check_doc_path_refs.py` alone — which is why every path this brief names has to be a real one.
 
 ## HD-1141 — the `scripts/README.md` prose sweep (the other live row here)
 
