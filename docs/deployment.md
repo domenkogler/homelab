@@ -108,6 +108,33 @@ git push → merge → Ansible apply from the control node → deployed   (no CI
 | Deployment as-built (frozen archive, pre-2026-09-01) | [`../reports/deployment-journal.md`](../reports/deployment-journal.md) |
 | Deployment runbook (redeploy procedure, true zero → live) | [`../deployment-manual.md`](../deployment-manual.md) |
 
+---
+
+## Phase numbering across the ledger and the runbook
+
+**The invariant:** the `## Phase <n>` headings of [`../deployment-tasks.md`](../deployment-tasks.md)
+(the ledger) and [`../deployment-manual.md`](../deployment-manual.md) (the runbook) name the SAME
+work — "Phase 4b" is one machine and one procedure, not two. Both documents state it: the ledger's
+phase blocks are the plan, and the runbook's charter line says its phase numbering follows the ledger
+exactly. One exception is allowed by design: the runbook orders a true-zero rebuild in the order the
+steps must be pressed, so it may number a phase the ledger carries as a step inside another phase —
+and that exemption is a single documented value, `Phase 0.5` (the VPS re-provisioning, which the
+ledger folds into its Phase 1 steps). Rule and owning doc: [CONVENTIONS.md](../CONVENTIONS.md) §4.
+
+**How it is enforced, and what the enforcement cannot see:**
+[`../scripts/gate/check_runbook_purity.py`](../scripts/gate/check_runbook_purity.py) compares the two
+documents' phase headings (`phase-alignment`, run by `scripts/validate-all.sh`). Its capture admits a
+digit, an optional `.N`, and a trailing `a` or `b` — nothing else. A phase heading written with any
+other suffix is therefore not compared in EITHER direction: it is not reported as an orphan, and it
+is not counted in the phase total the verdict prints, so `OK: … N phases aligned with the ledger` can
+be true of a runbook that numbers more phases than the sentence claims. The exemption set cannot
+rescue such a heading either, because it lists `0.5` only. The checker's `--self-test` carries a
+**KNOWN-LIMITATION** arm that asserts precisely this blindness, so it turns RED if the capture is
+ever widened without the record — this paragraph, that checker's comment and the
+[`../scripts/README.md`](../scripts/README.md) row — being updated in the same change. So a phase this
+gate cannot see is a phase nobody agreed to: read both documents directly (`grep -n '^## Phase'` in
+each) whenever a phase number outside that shape appears, and treat a divergence as open work.
+
 ## Related
 
 - [Preseed & Post-Install Specification](deployment-preseed.md)

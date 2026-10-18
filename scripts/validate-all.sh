@@ -19,7 +19,10 @@
 #                                     carries a date (no HD status prose pasted into the blocks)
 #   8c. check_runbook_purity.py     — deployment-manual.md is PROCEDURE: no status glyphs, no
 #                                     dated/execution history, no duplicate headings, and its phase
-#                                     numbering matches the ledger's (HD-253-class drift gate)
+#                                     numbering matches the ledger's (HD-253-class drift gate). The
+#                                     capture admits a trailing a or b only, so a phase written with
+#                                     any other suffix is never compared — the checker names that
+#                                     hole on record and --self-test canaries it
 #   8d. check_vault_docs.py         — every vault item the IaC reads has a row in the secrets master
 #                                     list (an undocumented prerequisite fails a true-zero deploy)
 #   9. check_placeholders.py        — placeholder tokens only in designated bootstrap files (HD-201)
@@ -1165,6 +1168,7 @@ item_q "check_doc_domain.py --self-test (HD-1119: each rule seen RED on a fixtur
 item_q "check_generated_suffix.py" $PY scripts/gate/check_generated_suffix.py
 item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/gate/check_ledger_state.py
 item_q "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/gate/check_runbook_purity.py
+item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; the a-or-b suffix hole ON RECORD; a blind walk or a missing input refused, never OK: 0 phases)" $PY scripts/gate/check_runbook_purity.py --self-test
 item_q "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/gate/check_vault_docs.py
 item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
 item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs
