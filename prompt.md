@@ -371,17 +371,25 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     act is now safe to perform anywhere in a wave, because HD-1118 pinned the gate's own positive control to a
     population of its own (`CONTROL_BASE_REV`) and made the divergent-family witness a fixture — before that, moving
     `baseline_rev` past `8b28edd3` made case (v) measure backwards, which is why an earlier attempt was backed out.
-    - ⏳ **Rotate the tailnet sidecar's pre-auth key (`tailscale-sidecar_api`).** The key VALUE reached a session
-      transcript — a `grep` whose redaction covered `KEY=value` but not the rendered-compose form `KEY: "value"` — and
-      it is a live grant, not an inert secret: it is what registers a replacement `vps-obs` node. Mint in headscale →
-      repoint the vault item → `docker compose -f /opt/traefik-tailnet/docker-compose.yml up -d` picks it up, and
-      `headscale nodes list` must still read `vps-obs … online` afterwards.
+    - ✅ **Rotate the tailnet sidecar's pre-auth key (`tailscale-sidecar_api`) — ANSWERED 2026-10-18: rotated, and the
+      key that leaked is expired.** headscale minted a replacement (`tag:sidecar`, reusable), the vault item points at
+      it, and the rendered compose and the live container env both carry it; the leaked key was expired afterwards with
+      `vps-obs` still `online`, its tags unchanged, the peer roster identical and a `tailscale ping` ponging. What that
+      did NOT prove is the new key's power to register a REPLACEMENT node — `TS_AUTH_ONCE: "true"` means containerboot
+      authenticates only when the node is not already logged in, so the new key still reads `Used=false`, and exercising
+      it needs a genuine re-registration window, which drops every tailnet dashboard and is an owner-present act. The
+      leak class is worth remembering: a redactor that matches `KEY=value` does not match `KEY: "value"`.
       (Owning: [docs/deployment-secrets.md](docs/deployment-secrets.md) · [docs/network-vpn.md](docs/network-vpn.md)
       §Tailnet-exposed services)
-    - ⏳ **`metabase`: retire the entry or enable it.** `/opt/metabase/docker-compose.yml` exists with no containers
-      behind it, so the compose-boot verdict prints `WARN: no containers for this compose file` on every pass — either
-      the service is gone (registry row + `/opt` directory both go) or it is owed (flip `enabled`). One call, no rows.
-      (Owning: [docs/services.md](docs/services.md) · `IaC/ansible/group_vars/vps.yml`)
+    - ✅ **`metabase`: retire the entry or enable it — ANSWERED 2026-10-18: revived on OLDSRV, and the VPS copy is
+      gone.** The owner ruled the revival (native login, since Metabase OSS has no OIDC; `sec.kogler.si` stays retired
+      forever), so it now runs on oldsrv at `metabase.kogler.si` — a loopback publish, `metabase` + `metabase-ts`
+      routers in oldsrv's own `traefik-internal`, no Authentik anywhere, both names answering 200 — and the VPS's
+      `/opt/metabase` is removed (16K of two September-2025 renders, no containers, no data volume: nothing to
+      preserve). Two hands: the DNS seed converge (`playbooks/dns-seed.yml`, owner-present under HD-436) — until it
+      runs the name does not resolve, and every doc says so rather than claiming a live service — and the browser
+      first-run wizard plus the `metabase_login` vault item, both in `deployment-manual.md` §P3.7.
+      (Owning: [docs/services.md](docs/services.md) · [docs/services-admin.md](docs/services-admin.md) §Metabase)
     - ⏳ **Prove the compose-boot verdict idempotent with one real converge.** The new
       `/usr/local/sbin/docker-compose-ensure` and the rewritten `docker-compose@.service` reached vps/oldsrv/pi/spark
       through task-level template runs, so one `--tags docker_services` pass must return those two legs
@@ -438,8 +446,9 @@ lane should not lose are named here: **HD-357** (the launchpad tiles — the fam
 from a real tailnet client; the fix is live) · **HD-1116** / **HD-1117** (the two gate halves of the same hygiene
 pass: both payloads are paid — Win11, and the WSL seat's own `~/.gitconfig-github` 2026-10-17 run FROM that box — and the
 generated-doc drift check is wired as `render_all.py --check --no-write`, because the in-place form truncates `docs/`
-and raced every doc-reading checker in the pool. What HD-1116 still owes is only the read-back through the seat path on
-a Debian seat that is not `oldsrv`; this seat prints `false` only) ·
+and raced every doc-reading checker in the pool. HD-1116's Debian-seat leg is paid — the explicit `commit.gpgsign =
+false` was installed and read back FROM `oldsrv`, `vps` and `spark` (the runner accounts; the rest of the Debian seats
+are provably not git seats) — and what is left of that row is the owner's `GitHub sign` 1Password deletion) ·
 **HD-1130** (a service `enabled: true` in IaC that is **deployed nowhere** — the probe that does not lie is
 `ss -ltn | grep 11434` on every host plus the absence of `/srv/docker/<svc>`; decide converge-or-delete, and if delete,
 scrub the `ollama/*` wildcards from the VPS key model lists) ·
