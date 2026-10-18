@@ -878,6 +878,13 @@ First-boot notes:
   # verify: nft list tables | grep inet filter ; nft list table ip nat | grep -c dnat
   ```
   A plain docker restart does NOT wipe the inet filter table.
+- **After any dockerd restart, restart every container that MOUNTS `/var/run/docker.sock`** — a live-restore survivor keeps its bind to the OLD socket inode while dockerd re-creates the host socket, so its docker provider spams `Cannot connect to the Docker daemon at unix:///var/run/docker.sock` and its docker-sourced routes 404 until the survivor itself restarts. The edge drops exactly the docker-labeled routes (sso/git/vpn/ai …) while the apps (authentik etc.) stay healthy internally. Recovery:
+  ```bash
+  sudo docker restart traefik dozzle crowdsec   # every container that mounts the socket
+  # verify: docker logs traefik --since "<restart-time>" | grep -c "Cannot connect to the Docker daemon" → 0
+  #         sso/git/vpn/ai answer 200|302 again; a service crash-looping on OIDC discovery 404 (issuer route down) recovers on its own
+  ```
+  Find the survivors with: `for c in $(docker ps -q); do docker inspect --format '{{.Name}} {{range .Mounts}}{{.Source}} {{end}}' $c | grep docker.sock; done`. The daemon restart is the apply leg; the survivor restart is the direct remediation — never a second converge.
 - **VPS reboot checklist** (~2 min): `docker ps` roster complete; inet filter present with
   input policy drop; ip nat has dnat entries; sso/git return 302. Then prove every stack is
   *attached*, not merely started (a container can be `Up` with no network endpoint, and

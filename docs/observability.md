@@ -655,7 +655,7 @@ make the read HONEST rather than merely harmless:
 
 | Question | The read that answers it |
 | --- | --- |
-| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Measured 2026-10-17: on oldsrv all eight pins match (`alloy` `1.20.1-1`, `tailscale` `1.102.5`, the docker family at `5:29.8.2`/`2.3.6`/`0.37.1`/`5.5.1`); on vps/pi/spark the docker-family entries read `differ` — 6 on vps and pi, 5 on spark plus one `unknown` — see the fleet table below |
+| Is a host off its pin? | `homelab_pkg_pin_result{result="differ"}` — the two labels ARE the proof (`pin=`, `running=`). Measured 2026-10-18 after the vps `--tags docker` apply (which moved vps to the pin): oldsrv and vps all their pins match (`alloy` `1.20.1-1`, `tailscale` `1.102.5` — `missing` on vps, which carries no Tailscale — and the docker family at `5:29.8.2`/`2.3.6`/`0.37.1`/`5.5.1`); on pi/spark the docker-family entries still read `differ` (6 on pi, 5 on spark plus one `unknown`) — see the fleet table below |
 | How far from current is the box? | `homelab_upgrade_plan_count` — measured 2026-10-17: oldsrv **56**, vps 74, pi 93, nas 95, spark 230. None of those are the pinned packages, because a HELD package is kept back rather than listed (the ⚠ below): the count is the whole unpinned OS tail. It is the staleness signal, never a pin signal |
 | Does this host even carry the package? | `result="missing"` — what a fleet-wide list reads on a host that legitimately does not carry it, and the reason a first rule keys on `result="differ"` rather than on the ok gauge. Measured 2026-10-17: `nas` reports `missing` for the whole docker family (no Docker there) and for `tailscale` |
 | …and if dpkg answers nothing at all? | `result="unknown"` — measured on spark for `docker-ce-rootless-extras`: an empty version with rc 0, because the dpkg state is `hold ok not-installed`. A held package the box never installed is NOT the same fact as `missing`, and neither one is drift |
@@ -683,23 +683,26 @@ VictoriaMetrics, cross-checked against each host's own `:9098`):
 | nas | 1 (`alloy`) | — | 7 (the docker family + `tailscale` — nas runs no Docker and no Tailscale) | — |
 | pi | 2 (`alloy`, `tailscale`) | 6 (the docker family) | — | — |
 | spark | 1 (`alloy`) | 5 (the docker family) | 1 (`tailscale`) | 1 (`docker-ce-rootless-extras`) |
-| vps | 1 (`alloy`) | 6 (the docker family) | 1 (`tailscale`) | — |
+| vps | 7 (`alloy` + the docker family) | — | 1 (`tailscale`) | — |
 
-⚠ **So `pkg-pin-drift` fires the day it loads, on `pi`, `spark` and `vps`, and that is true, not a false
-positive**: `docker_ce_version` is `5:29.8.2` and those three boxes still run `5:29.7.2` (`containerd.io`
+⚠ **So `pkg-pin-drift` fires the day it loads, first on `pi`, `spark` and `vps`, and that is true, not a false
+positive**: `docker_ce_version` is `5:29.8.2` and those three boxes ran `5:29.7.2` (`containerd.io`
 `2.3.6` vs `2.3.4`, buildx `0.37.1` vs `0.37.0`, compose `5.5.1` vs `5.5.0`). The drift is the pending
 `--tags docker` applies on the pinned docker-family suite `roles/docker` installs — each restarts the
 daemon, so they are owner-windowed, one host at a time, not a converge a lane may run. Now that the
 family is HELD, `apt upgrade` will not close the gap on its own: the rule stays red until those applies
-run. Do not mute it to make the landing quiet.
+run. vps was established on the pin 2026-10-18 (`--tags docker` apply + `sudo docker restart traefik
+dozzle crowdsec` recovery — the daemon restart stale-sockets the docker.sock mounts of the live-restore
+survivors, see deployment-manual §1.10), so the rule now reads red on `pi` and `spark` only. Do not mute it to make the landing quiet.
 
 ⚠ **`docker-ce-rootless-extras` is named in the suite, so nothing keeps this rule red except the
 applies themselves.** It is in the pin map and in the held set, and `roles/docker` installs it there:
 the suite list is `docker_ce_suite_packages`, which drives the apt call, the pre-install hold decision
 and the read-back assert alike, and the family the pin map names is asserted to BE that list — a pinned
 docker package that no task installs now reddens the converge instead of waiting for someone to notice.
-What that means host by host: on `vps` and `pi` the pending `--tags docker` apply moves it to `5:29.8.2`
-with the rest of the family, so their `differ` entry clears and cannot come back un-invited; on `spark`
+What that means host by host: on `vps` the 2026-10-18 `--tags docker` apply moved it to
+`5:29.8.2` with the rest of the family (their `differ` entries cleared and the collector re-reads
+`match` on vps — measured on the host itself); on `pi` the same pending apply moves it; on `spark`
 the same apply INSTALLS it — its dpkg state today is `hold ok not-installed`, `dpkg-query` answers empty
 with rc 0, and the simulate there reads `5 upgraded, 1 newly installed` with this package as the new one
 and `dbus-user-session` + `libc6` as its only dependencies, both already present; on `nas` nothing
@@ -710,7 +713,7 @@ not the operator's: a held package is NOT movable by an apt-module install
 without --allow-change-held-packages`, rc 100, where the same command without `-y` resolves), so
 `roles/docker` unholds the names it moves, installs, and re-holds them in the same play — see
 [deployment-ansible.md](deployment-ansible.md) §common. Until those applies run the rule stays red on
-`pi`, `spark` and `vps`, and that is the honest reading, not noise.
+`pi` and `spark` (vps is in sync since 2026-10-18), and that is the honest reading, not noise.
 
 ⚠ **`unknown` is a fourth reading, and the hold leg explains it.** On spark `dpkg-query -W
 -f='${Version}' docker-ce-rootless-extras` answers **empty with rc 0** — the dpkg status is
@@ -723,7 +726,9 @@ package too, so a held-but-not-installed package is a real state in this fleet (
 against `dpkg-query -s <pkg>`, never against each other).
 
 **Deploy state: 🟢 LIVE — the collector on all five hosts and the rule loaded in the ruler; the rule reads 🔴 red on
-`pi`, `vps` and `spark`, which is the docker-family lag being reported rather than work left on this leg.** The
+`pi` and `spark` only — vps is ON the pin since the 2026-10-18 `--tags docker` apply, and its collector
+re-reads `match` for the whole docker family (measured on the host); the remaining red is the pi/spark
+docker-family lag being reported rather than work left on this leg.** The
 collector half landed with the `--tags monitoring` converges and was verified per host with
 `curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'` — 8 pin pairs +
 `homelab_upgrade_plan_ok`/`_count` + `homelab_reboot_required` on each of `oldsrv · vps · nas · pi ·
@@ -739,8 +744,9 @@ afterwards — a rule that is authored is not a rule that is loaded. **That read
 (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `no_data_state: OK`, `provenance: file` —
 the seventh of the `homelab_*` rules listed at §Alerting. What keeps it red is nothing in this
 repository: `roles/docker` names every package the pin map pins, and the pending `--tags docker`
-applies — each one a daemon restart, therefore an owner window — are what moves `pi`/`vps`/`spark`
-onto the pin, `roles/common/tasks/apt-holds.yml` holding the family in place between them. Until
+applies — each one a daemon restart, therefore an owner window — are what moves `pi`/`spark`
+onto the pin (vps already made it, 2026-10-18), `roles/common/tasks/apt-holds.yml` holding the
+family in place between them. Until
 those applies run, the red is the report working.
 
 ### Tiers
