@@ -43,27 +43,66 @@ See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md)
 
 VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
 
-| Source VLAN | Technitium Group | Upstream Filter | Purpose |
+| Source VLAN | Policy group (declared) | Upstream (declared — see the capability note) | Purpose |
 |--------------|------------------|-----------------|---------|
 | Management | — | Local system | Infrastructure isolation |
-| Home (10) | Main-Group | **Technitium Advanced Blocking** (ad-block lists, per-client groups, multiple block-list formats) | Aggressive ad-blocking on the reliable DNS tier (VPS/Pi). The two kids tablets are **per-MAC dst-nat'd to the Kids-Group resolver**: router NAT redirects their `:53` to Technitium, which applies the Kids-Group policy. |
-| Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering — the VLAN-40 hijack covers the (currently unused for Wi-Fi) Kids VLAN; the Home-VLAN kids tablets get the same policy via the per-MAC dst-nat |
-| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking. **No ad block lists here:** appliance firmware is the flakiest thing on the network and shares CDN/IP ranges with ad-serving endpoints, so the IoT tier gets malware blocking at the resolver and nothing more. Cloud-IoT devices with `wan_allow` still resolve through this row — they gain WAN egress only, never a DNS bypass. IoT plain `:53` is dst-nat'd to the **Pi tertiary** (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). |
-| Guest (30) | Guest-Group | Same as Home | **Guest inherits the Home block set** — the same protection for unmanaged guest devices, and one group fewer to maintain. Home and Guest carry **no block list** (see §Tier policy rulings). |
+| Home (10) | Main-Group | **none — no list on this tier** | No block list is loaded here ([network-rejected.md](network-rejected.md)); the tier answers the operator's own tailnet traffic, where a false positive is self-inflicted. The two kids tablets are **per-MAC dst-nat'd off this row** by router NAT, onto the VPS primary address — see the dst-nat note below, which is the half that is actually live. |
+| Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering — the enforcement is the **upstream**, not a list: Families answers `NXDOMAIN` for the whole family-blocked set. The VLAN-40 hijack covers the (currently unused for Wi-Fi) Kids VLAN; the Home-VLAN kids tablets are meant to get the same policy via the per-MAC dst-nat |
+| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking. **No ad block lists here:** appliance firmware is the flakiest thing on the network and shares CDN/IP ranges with ad-serving endpoints, so the IoT tier gets malware blocking at the resolver and nothing more. Cloud-IoT devices with `wan_allow` still resolve through this row — they gain WAN egress only, never a DNS bypass. IoT plain `:53` is meant to be dst-nat'd to the **Pi tertiary** (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). |
+| Guest (30) | Guest-Group | Same as Home | **Guest inherits the Home posture** — same protection (which is: no list), one group fewer to maintain. Home and Guest carry **no block list** (see §Tier policy rulings). |
 
-> ⚠ **The Group / Upstream-Filter columns above are DESIGN, not live state.**
-> Read over the API on the Pi tertiary **and** the VPS primary: `blockListUrls = null` (blocking is enabled,
-> `blockingType = NxDomain`, but there is not a single list), **no client custom options exist at all** —
-> which is the mechanism Technitium uses for per-subnet upstreams — and `logQueries = false` on both, with no
-> `/var/log/technitium/dns` on the Pi. So what enforces per-VLAN behaviour today is the **router-side**
-> per-VLAN / per-MAC `:53` dst-nat, which chooses *which resolver answers*, not the upstream
-> filter. Consequence: the Kids (Cloudflare Families) and IoT (Quad9) rows are **not implemented on the DNS
-> tier**, and the per-device query visibility this doc cites as the reason for Pi-first (and for the IoT
-> dst-nat) **cannot be observed at all**.
-> The *capability* stays intended, so the table is design/pending rather than deleted. Pending, on the DNS
-> tier: client groups + the block-list mechanism, the Kids → Cloudflare Families `1.1.1.3` upstream, the
-> IoT → Quad9 upstream, and `logQueries` on the Pi. Until those land nothing in the Group / Upstream-Filter
-> columns is enforced, and the visibility claim must not be written up as achieved anywhere.
+### What the pin can and cannot enforce
+
+⛔ **Technitium has no per-client-group upstream API — on the pin and upstream.** The `Policy group`
+and `Upstream` columns above are therefore **declared**, and the mechanism the rows used to name for
+them ("client custom options") does not exist in the product:
+
+* **endpoint probe** (read-only, on the Pi tertiary `technitium/dns-server:15.6.0` == the pin in
+  [`group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml), with
+  `/api/settings/get` answering `200` in the same run as the sanity control):
+  `api/settings/client/options/{get,set}`, `api/settings/client/resolvers/{get,set}`,
+  `api/settings/client/networks/get`, `api/settings/client/customOptions/get`,
+  `api/settings/client/accessRules/*`, `api/settings/clientOptions/*`,
+  `api/settings/clientGroups/get`, `api/settings/clientSpecificResolvers/get` — **all `404`**;
+* **the console the container ships** calls none of them: the endpoint list extracted from
+  `js/main.js` and every other `js/*.js` the running instance serves is
+  `settings/{get,set,backup,restore,forceUpdateBlockLists,temporaryDisableBlocking,getTsigKeyNames}`
+  plus the zone/cache/log/auth/dhcp/app surfaces — there is no client-group screen at all, and the
+  only `Group` UI in the console is the **admin** user groups;
+* **`APIDOCS.md` upstream** (the vendor's own reference for the Settings API) documents the same set
+  and no per-client resolver or per-client block list, and the changelog's `Group` entries are admin
+  groups and the retired Advanced Blocking **app**, not core settings. `/api/apps/list` on this
+  instance reports no apps installed.
+
+So the upstream column is not a knob this tier can turn, and **no version bump buys it** — the
+feature is not in the product. `technitium_dns_policy` in
+[`group_vars/all/main.yml`](../IaC/ansible/group_vars/all/main.yml) carries the ruled policy in
+machine-readable form; `block_lists` there IS applied (next section), `upstreams` there is intent
+with no consumer, and `scripts/gate/check_dns_policy_drift.py` reddens if a file starts applying it
+while this page still says it cannot be applied. Which upstream a VLAN actually reaches is decided
+**by the router**, in the `:53` dst-nat map — which chooses *which resolver answers*, never what that
+resolver asks outward.
+
+**The live dst-nat map, read off the device (read-only print).** `ip firewall nat`, chain `dstnat`,
+holds **one** `:53` pair tonight: the two rows for `tablet-ipad`'s MAC, both to `dns_primary_ip` —
+the **VPS primary**, the same address the Home tier already uses. The Kids-VLAN-40 pair, the
+IoT-VLAN-20 pair and the second tablet's pair are **absent from the device** (the reconcile that
+would write them is parked in the router's own row, whose trunk parity gap would darken the mgmt
+plane). Two consequences, both load-bearing:
+
+* **no policy VLAN has its own resolver address.** Kids traffic lands on the shared primary, so a
+  Families upstream set there would filter the whole Home tier and the tailnet too — this is the
+  owner decision about a per-policy resolver address or the router rows, not an oversight here;
+* **the per-device query visibility this doc cites as the reason for the IoT row is not observable,
+  because IoT traffic is not being steered anywhere** — it resolves by the ordinary DHCP chain.
+  `logQueries` is on the Pi tertiary (§Tier policy rulings) and its retention is rendered, so what
+  *does* reach that instance is logged; the IoT half of the claim waits on those router rows.
+
+✅ **What IS applied from IaC:** the block-list posture and the resolver tuning —
+`technitium_dns_policy` + `technitium_resolver_settings`, written by one seed task and proved by a
+read-back (§Resolver upstream). A tier that loads no list reads `enableBlocking=false`; blocking
+switched on with nothing loaded was the silent-failure shape and the seed no longer permits it. An
+instance found carrying a list no group declares stops the run rather than being quietly un-blocked.
 
 ### Tier policy rulings — what the DNS-tier work is built against
 
@@ -76,7 +115,7 @@ policy table above must not restate it.**
 | 2 | **Kids** scope | **VLAN 40 AND the two Home-VLAN kids tablets.** The per-MAC `:53` dst-nat is already live and lands on a group that does not exist; the tablets are the actual children, so VLAN-only would leave the doc's claim false. Upstream = **Cloudflare Families `1.1.1.3`**, never a block list — Families answers `NXDOMAIN` for the whole family-blocked set, which is the enforcement |
 | 3 | **IoT** | **Quad9 upstream, no block lists** (see the table row above for why) |
 | 4 | **Guest** | **Same as Home** |
-| 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought |
+| 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought. The rendered knob is `maxLogFileDays` on that instance's `technitium_settings` — Technitium's own default is 365 days, so a retention that is not written down is not this ruling. ⚠ **Where the log lives is a separate fact:** the compose binds `/etc/technitium` and `/etc/dns` only, so `/var/log/technitium/dns` is inside the container's writable layer — root-readable **in the container**, not on the host, and it does not survive a container recreate. A bind for the log dir is a compose change, which means recreating the resolver; it is not a settings write. |
 
 ✅ **The Home/Guest tier carries NO block list** ([network-rejected.md](network-rejected.md)); the enforcement
 the family actually needs (Kids) is an **upstream** (Cloudflare Families), not a list. A tier with no list
@@ -177,12 +216,23 @@ authoritative on every instance
 (`llm.kogler.si` → spark's Home address, `ha.kogler.si` → `ha_vip`, flags `qr aa`), on loopback **and**
 on the LAN address alike.
 
-⚠ **Still un-owned by IaC:** the rest of the resolver's tuning is live-state product default that no role
-sets — `resolverTimeout` / `resolverRetries`, `maxConcurrentResolutionsPerCore`, `cacheMaximumEntries = 10000`,
-`dnssecValidation`, `qnameMinimization`, `serveStale`, `logQueries`. Forwarders eliminate the dominant cost; the
-rest stays UI-and-memory until the seed owns it — and note the overlap: `logQueries` is also what the IoT
-visibility claim and the Pi query log depend on, so whoever owns this tuning must not set a value that
-silently closes or reopens that claim.
+⛔ **Still un-owned by IaC — nothing.** The rest of the resolver's tuning is now owned by
+`technitium_resolver_settings` in [`group_vars/all/main.yml`](../IaC/ansible/group_vars/all/main.yml):
+`resolverTimeout` / `resolverRetries`, `maxConcurrentResolutionsPerCore`, `cacheMaximumEntries`,
+`dnssecValidation`, `qnameMinimization`, `serveStale`, `logQueries`, plus the log retention
+(`maxLogFileDays`). One seed task posts the dict — the fleet values merged with the instance's own
+`technitium_settings` override, the same opt-in shape as `technitium_forwarders` — and the POST is
+**not** trusted: the task reads `/api/settings/get` back and asserts every key, so a UI change or a
+version-default shift fails the next converge instead of becoming the tier's behaviour.
+`enableBlocking` is not typed in the dict; it is **derived** from `technitium_dns_policy`, which is
+what makes "blocking on, nothing loaded" unrepresentable, and the write is preceded by a read that
+refuses the run on any instance carrying a list no group declares — a declarative default may never
+weaken protection that is live today.
+
+⚠ `logQueries` is the one key with a legitimate per-instance value, and it is the one that must never
+be "tidied" to a fleet-wide value: it is ON only on the instance the router aims client traffic at
+(the Pi tertiary), with its retention set beside it, because a per-device query record belongs to one
+box and not to three. Fleet-wide query logging is declined ([network-rejected.md](network-rejected.md)).
 
 ---
 
@@ -913,6 +963,13 @@ Three mechanisms close it — one command, one schedule, one gate:
    whole-zone endpoints (`records/all`, `unique`, `find`, `export`) are absent, so the leg cannot diff live
    zone state against the SSOT by itself — a retirement recorded nowhere keeps answering. Procedure in
    [services-admin.md](services-admin.md) §Open item.
+5. **Behaviour drift gate** — [`scripts/gate/check_dns_policy_drift.py`](../scripts/gate/check_dns_policy_drift.py)
+   (wired into `validate-all.sh`) guards the half the record gates cannot see: which **behaviour** the
+   instances run with. It requires every setting the resolver doc names to be owned by
+   `technitium_resolver_settings`, requires exactly one seed task to write them with a value-comparing
+   read-back, refuses a second writer of any owned key anywhere in IaC, keeps the policy list and this
+   page's §Per-Subnet DNS Policy table naming the same groups, and refuses a change that starts applying
+   the list's declared `upstreams` while the pin exposes no such API.
 
 > **Single-namespace parity rule:** the split-horizon zone must carry the SAME public record set that
 > Cloudflare serves — **every public record of `zone_kogler_si` must also be an A record in the

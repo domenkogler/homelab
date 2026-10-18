@@ -166,6 +166,109 @@
       # 'error' tolerated for the same idempotency reason as the ACL task above.
       failed_when: _tech_fwd.json is not defined or _tech_fwd.json.status not in ['ok', 'error']
 
+    # -----------------------------------------------------------------------------
+    # Resolver TUNING + the BLOCKING posture, declarative — the same shape as the forwarder task
+    # above, with one addition: the POST is never trusted. The settings are read back and asserted
+    # key by key, because a settings/set that answers status:ok while writing nothing is exactly how
+    # this tier's tuning became live-state product default in the first place.
+    #
+    # WHY THE BLOCKING READ COMES FIRST: `enableBlocking=false` is only ever correct on a tier that
+    # loads no list. The live read is what proves that, so the flag is written only when the instance
+    # demonstrably carries no list; an instance that DOES carry a list the SSOT does not declare stops
+    # the run instead of being quietly un-blocked. Never the web UI: a hand-set list is live state no
+    # role owns, and this is the read that catches one.
+    #
+    # The per-subnet `upstreams` in `technitium_dns_policy` are NOT applied here and cannot be: the
+    # pinned Technitium exposes no per-client-group upstream surface, so this task writes the parts of
+    # the policy that exist as settings and scripts/gate/check_dns_policy_drift.py is what keeps the
+    # declared half declared (docs/network-dns.md §Per-Subnet DNS Policy).
+    # -----------------------------------------------------------------------------
+    - name: "Technitium: read the live settings before writing tuning ({{ svc.name }})"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/settings/get"
+        method: GET
+        url_query:
+          token: "{{ _tech_token }}"
+      register: _tech_settings_before
+      no_log: true
+      changed_when: false
+      # Strict on purpose: this read gates a write, so a tolerated 'error' here would let the write
+      # run against a state nobody looked at.
+      failed_when: _tech_settings_before.json is not defined or _tech_settings_before.json.status != 'ok'
+
+    - name: "Technitium: build the wanted settings from SSOT ({{ svc.name }})"
+      ansible.builtin.set_fact:
+        # The fleet dict plus this instance's own override — `logQueries` is a per-box decision (the
+        # dst-nat target keeps the record, the others must not) and `combine` is the only place that
+        # reconciles the two, so no second task can be writing the same key to another value.
+        # `enableBlocking` is DERIVED from the policy list, never typed: a tier with no list cannot
+        # carry blocking on, and a tier that ever loads one turns blocking on in the same change.
+        _tech_settings_wanted: >-
+          {{ technitium_resolver_settings
+             | combine(svc.technitium_settings | default({}, true))
+             | combine({'enableBlocking': (technitium_dns_block_lists | count > 0)}) }}
+
+    # A separate task because a set_fact cannot consume a fact the same task is still defining.
+    - name: "Technitium: shape the settings body for form-urlencoded ({{ svc.name }})"
+      ansible.builtin.set_fact:
+        # form-urlencoded wants strings; the coercion happens only here, so the dict above stays
+        # typed and the read-back compares against typed values.
+        _tech_settings_body: >-
+          {{ dict(_tech_settings_wanted | dict2items | map(attribute='key')
+                  | zip(_tech_settings_wanted | dict2items | map(attribute='value') | map('string')
+                        | map('lower'))) }}
+
+    # BEFORE any write: the same read that authorises enableBlocking=false is the reason it is safe.
+    - name: "Technitium: refuse to change blocking on an instance that carries an undeclared list ({{ svc.name }})"
+      ansible.builtin.assert:
+        that:
+          - (_tech_settings_before.json.response.blockListUrls | default([], true) | difference(technitium_dns_block_lists)) | count == 0
+        fail_msg: >-
+          {{ svc.name }} loads block list(s) that `technitium_dns_policy` declares no group owns
+          ({{ _tech_settings_before.json.response.blockListUrls | default([], true) }}).
+          Nothing was written: switching enableBlocking off would delete protection that is live
+          today. Record the list in the SSOT or remove it through the API, then re-run.
+        quiet: true
+
+    - name: "Technitium: set resolver tuning from SSOT ({{ svc.name }})"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/settings/set?token={{ _tech_token }}"
+        method: POST
+        body_format: form-urlencoded
+        body: "{{ _tech_settings_body }}"
+      register: _tech_tune
+      no_log: true
+      changed_when: false
+      # A settings write is proved by the read-back below, so a non-'ok' here is a failed write, not
+      # an idempotent no-op — no 'error' tolerance on this one.
+      failed_when: _tech_tune.json is not defined or _tech_tune.json.status != 'ok'
+
+    - name: "Technitium: read the settings back ({{ svc.name }})"
+      ansible.builtin.uri:
+        url: "{{ _tech_api }}/api/settings/get"
+        method: GET
+        url_query:
+          token: "{{ _tech_token }}"
+      register: _tech_settings_after
+      no_log: true
+      changed_when: false
+      failed_when: _tech_settings_after.json is not defined or _tech_settings_after.json.status != 'ok'
+
+    - name: "Technitium: assert the settings read-back equals SSOT ({{ svc.name }})"
+      ansible.builtin.assert:
+        # Every key, compared against the typed dict — this is the half that makes the write real.
+        # A key the API ignored, renamed, or clamped reads here instead of becoming the fleet's
+        # silent behaviour after the next version bump.
+        that:
+          - _tech_settings_after.json.response[item.key] == item.value
+        fail_msg: >-
+          {{ svc.name }}: {{ item.key }} reads {{ _tech_settings_after.json.response[item.key] | default('<absent>') }}
+          but SSOT wants {{ item.value }} — the write did not take (or the pin renamed the key).
+        quiet: true
+      loop: "{{ _tech_settings_wanted | dict2items }}"
+      loop_control:
+        label: "{{ item.key }}"
+
     - name: "Technitium: ensure split-horizon A records"
       # The record set is ONE list — `zone_kogler_si` in group_vars/all/main.yml, filtered to the
       # entries the LAN-facing zone carries (`zone_kogler_si_seed_records`). Rows typed here as well

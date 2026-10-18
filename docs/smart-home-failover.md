@@ -196,9 +196,17 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
 
 - The router advertises **three** resolvers on every DHCP network (Home: Pi → VPS → oldsrv), so a Pi-out does
   not leave the house unable to name anything. ⚠ **"The router points only at the Pi" is the claim to check
-  before acting on it.** The real residual is per-VLAN, not global: IoT's `:53` is dst-nat'd to the **Pi
-  alone** and the Kids rules to the **VPS alone**, both deliberate, both single-target
-  ([network-dns.md](network-dns.md) §The answer-plane model decision 4).
+  before acting on it.** The real residual is per-VLAN, not global, and it is a question of which rows the
+  device actually carries: a read of `ip firewall nat` chain `dstnat` shows **one** `:53` pair — the kids
+  tablet MACs onto the **VPS primary** — while the IoT-VLAN-20 pair is **absent**, so IoT resolves by the
+  ordinary three-server chain and loses nothing when the Pi dies. The Kids half is single-target as
+  designed; the IoT half exists in the role and the converge template, not on the device, and its
+  reconcile is parked with the router's VLAN-99 trunk parity
+  ([network-dns.md](network-dns.md) §What the pin can and cannot enforce).
+  ⚠ **The per-device query record depends on this map, not on the resolver's settings:** the Pi tertiary
+  does log queries ([network-dns.md](network-dns.md) §Tier policy rulings), but with no IoT dst-nat rows
+  live, IoT traffic is not being steered to it. Re-measure the device map before citing per-device
+  visibility anywhere.
 
 ### State to restore after a takeover
 

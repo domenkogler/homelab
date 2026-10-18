@@ -1107,6 +1107,7 @@ item_q "check_yaml_dup_keys.py --self-test (HD-1098 canaries + corpus probe)" $P
 item_q "check_zone_kogler_si_parity.py (derived zone answers what the hand-authored sources did, HD-436)" $PY scripts/gate/check_zone_kogler_si_parity.py
 item_q "check_zone_kogler_si_parity.py --self-test" $PY scripts/gate/check_zone_kogler_si_parity.py --self-test
 item_q "check_dns_seed_drift.py (Technitium split-horizon seed contract, HD-341 parity)" $PY scripts/gate/check_dns_seed_drift.py
+item_q "check_dns_policy_drift.py (the DNS policy SSOT, its one writer, and its asserted read-back)" $PY scripts/gate/check_dns_policy_drift.py
 item_q "check_dns_seed_prune_guard.py (the seed delete leg cannot delete a listed record)" $PY scripts/gate/check_dns_seed_prune_guard.py
 item_q "check_dns_seed_prune_guard.py --self-test (the refusal must be seen to fail three ways)" $PY scripts/gate/check_dns_seed_prune_guard.py --self-test
 item_q "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/gate/check_self_converge_guard.py

@@ -43,8 +43,18 @@ docker_services:
   # seeded with `forwarders=` empty and chases the roots instead.
   # Value + the full rationale (why two, why never the router/oldsrv): dns_resolver_upstreams
   # in group_vars/all/main.yml; behaviour: docs/network-dns.md §Resolver upstream.
+  #
+  # `technitium_settings` is this instance's override of the fleet dict
+  # `technitium_resolver_settings` — the same opt-in shape as technitium_forwarders, and the ONLY
+  # place a per-instance resolver value may differ. It differs here for one key pair:
+  # this is the instance the router's :53 dst-nat aims traffic at, so it is the instance that
+  # carries the per-device query record, and a query record without a stated retention is a
+  # surveillance surface. Retention is therefore rendered with the flag, never left at the
+  # product default and never hand-set in the UI. Rationale + readers: docs/network-dns.md
+  # §Per-Subnet DNS Policy (query-log ruling).
   - { name: technitium-secondary,  template_dir: technitium, instance: secondary-pi,
-      technitium_forwarders: "{{ dns_resolver_upstreams }}" }
+      technitium_forwarders: "{{ dns_resolver_upstreams }}",
+      technitium_settings: { logQueries: true, maxLogFileDays: 14 } }
   - { name: traefik-ha,            template_dir: traefik-ha, enabled: "{{ ha_edge_enabled }}" }   # HA edge, VIP-bound (oldsrv-down gap)
   # Dozzle remote agent — exposes pi's containers to the oldsrv LAN log hub (llogs.kogler.si)
   # over the Home VLAN (:7007, LAN-only bind — never WAN).

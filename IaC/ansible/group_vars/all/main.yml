@@ -129,6 +129,52 @@ dns_resolver_upstreams:
   - "1.1.1.1"   # Cloudflare — anycast, DNSSEC-validating
   - "9.9.9.9"   # Quad9 — different network + operator + blocking policy
 
+# Resolver tuning for the Technitium tier — the scalar settings that are otherwise live-state
+# product default. Every value below is the value the three instances were READ to hold, so the
+# dict owns the values without changing behaviour; the point of owning them is that a web-UI change
+# or a version-default shift now shows up as a failed read-back instead of invisible drift.
+# One key is legitimately per-instance: `logQueries` is a per-device behaviour record, so it is ON
+# only on the instance the router aims client traffic at, and its retention is set beside it. The
+# override lives on that instance's docker_services entry (`technitium_settings`), the same opt-in
+# shape as `technitium_forwarders` above — never as a second key that writes the same API setting.
+# API: POST /api/settings/set, asserted by GET /api/settings/get in the seed task.
+technitium_resolver_settings:
+  resolverTimeout: 1500                    # ms, per resolver attempt; with resolverRetries this is the per-name chase ceiling
+  resolverRetries: 2
+  maxConcurrentResolutionsPerCore: 100     # the resolver queue depth per CPU core
+  cacheMaximumEntries: 10000
+  dnssecValidation: true
+  qnameMinimization: true
+  serveStale: true
+  logQueries: false                        # on only where a query record is the design (the dst-nat target)
+  maxLogFileDays: 365                      # log retention; the instance that answers logQueries shortens it
+
+# The per-subnet DNS policy, as ONE list (docs/network-dns.md §Per-Subnet DNS Policy is the
+# owning statement; this is its machine-readable form and scripts/gate/check_dns_policy_drift.py
+# holds the two together). `block_lists` and the derived blocking flag ARE applied — the seed
+# writes them. `upstreams` is DECLARED intent, applied by NOTHING: the pinned Technitium has no
+# per-client-group upstream surface (no such endpoint exists — the probe is recorded in
+# docs/network-dns.md §Per-Subnet DNS Policy), so what decides which upstream a VLAN reaches today
+# is the router's :53 dst-nat map, not this list. A row that lands a per-policy resolver address
+# changes the router rows; nothing here becomes live by editing it.
+technitium_dns_policy:
+  - { group: Main-Group,  vlan: 10, block_lists: [], upstreams: [] }
+  # Guest inherits the Home tier's posture verbatim — same rule, one fewer object to maintain.
+  - { group: Guest-Group, vlan: 30, block_lists: [], upstreams: [] }
+  # IoT: malware blocking at the resolver, no ad lists (appliance firmware shares CDN ranges with
+  # ad endpoints). Quad9 is the upstream the answer plane was supposed to reach, not this list.
+  - { group: IoT-Group,   vlan: 20, block_lists: [], upstreams: ["9.9.9.9"] }
+  # Kids: the FILTER is the upstream — Cloudflare Families answers NXDOMAIN for the whole
+  # family-blocked set, which is why this tier has no block list of its own.
+  - { group: Kids-Group,  vlan: 40, block_lists: [], upstreams: ["1.1.1.3"] }
+
+# The union of `block_lists` above is what an instance must load. Empty is a policy, not an
+# absence: blocking switched on with nothing loaded is the silent-failure shape, so the seed
+# writes enableBlocking=false wherever the live read proves no list is loaded, and refuses to
+# write anything where the live read shows a list this file does not declare.
+technitium_dns_block_lists: >-
+  {{ technitium_dns_policy | map(attribute='block_lists') | flatten | unique }}
+
 # ==== Spark (DGX GB10) — reserved node IPs, SSOT-derived ====
 # spark.kogler.si shares the nas/oldsrv pattern: Home (VLAN 10) = SSH + inference endpoint,
 # Mgmt (VLAN 99) = management plane. No literals — the network_static_hosts rows are the source.

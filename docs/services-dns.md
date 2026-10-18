@@ -39,6 +39,13 @@ tags: [services, dns, technitium, pihole]
 - **Tertiary — Raspberry Pi** (`pi.kogler.si`): web UI at `dns-pi.kogler.si` through the Pi `traefik-ha` edge
   (the container publishes :5380 on the host) so it stays reachable when oldsrv is down. Port/record detail:
   [network-dns.md](network-dns.md).
+  ⚠ **A scoped Pi converge names the SERVICE, and the service is not called `technitium` here.** The Pi's
+  entry is `technitium-secondary` (`group_vars/raspberry_pi.yml`) with `instance: secondary-pi`, which is what
+  selects the container `technitium-pi`; `docker_services_scope=technitium` matches no entry on this host and
+  deploys nothing while still reporting a clean run. `playbooks/dns-seed.yml` derives the name from the
+  `docker_services` list and is the form to prefer; the hand-written equivalent is
+  `playbooks/raspberry_pi.yml --limit pi.kogler.si --tags docker_services -e docker_services_scope=technitium-secondary`.
+  The name is historical — the live tier is VPS primary + oldsrv secondary + Pi **tertiary**.
 - **Resolver upstream (live):** the **Pi** instance is the only one given public forwarders
   (`1.1.1.1` + `9.9.9.9`): the Home VLAN asks it first, and public forwarders cut cold-name fan-out on ARM from
   p50 143 ms to 60 ms. Value + rationale: [network-dns.md](network-dns.md) §Resolver upstream.
@@ -50,20 +57,31 @@ tags: [services, dns, technitium, pihole]
 
 ## Blocking — retired Pi-hole
 
-Ad blocking is **Technitium Advanced Blocking** (per-client groups, multiple block-list formats) running on
-the reliable VPS/Pi DNS tier — not an oldsrv container. Rationale + the decision:
-[services-rejected.md](services-rejected.md).
+Ad blocking is a **Technitium** question and nothing in this fleet loads a list — the tier ruling is
+in [network-dns.md](network-dns.md) §Tier policy rulings, and the decision not to run a Pi-hole-class
+blocker is [services-rejected.md](services-rejected.md).
 
-⚠ **Live state: nothing is blocked.** The API read of the Pi tertiary and the VPS primary
-shows `enableBlocking = true` / `blockingType = NxDomain` but `blockListUrls = null` and **no client custom
-options**, i.e. no lists and no per-subnet groups anywhere. The per-subnet policy in
-[network-dns.md](network-dns.md) §Per-Subnet DNS Policy is therefore design-only until lists/groups land.
+The part that was a defect is now owned: **`enableBlocking = true` with `blockListUrls = null`** was
+live on all three instances — blocking switched on with nothing loaded, which reads as "protection is
+configured" in an API dump and enforces nothing. The seed derives the flag from
+`technitium_dns_policy` instead of trusting the instance, so a list-free tier reads
+`enableBlocking = false`, and an instance found carrying a list the SSOT does not declare fails the
+converge instead of being switched off. Per-instance values, read back over the API:
 
-Two facts worth keeping if it is ever re-enabled:
-- A forwarder in front of Technitium must **conditionally forward the local domain to the Technitium
-  primary**, or its logs will show IPs instead of hostnames.
-- If an external blocker runs, Technitium's own blocklists should be **disabled** — two blockers in series
-  costs RAM and makes "why is this blocked?" ambiguous.
+| Instance | `enableBlocking` | `blockListUrls` |
+|---|---|---|
+| VPS primary | from the last seed | none declared |
+| oldsrv secondary | from the last seed | none declared |
+| Pi tertiary | from the last seed | none declared |
+
+Two facts worth keeping if a list is ever loaded: a forwarder in front of Technitium must
+**conditionally forward the local domain to the Technitium primary**, or its logs will show IPs
+instead of hostnames; and if an external blocker ever runs, Technitium's own lists should be
+**disabled** — two blockers in series costs RAM and makes "why is this blocked?" ambiguous.
+
+⚠ **What is NOT true here, despite how a Technitium feature list reads:** there is no per-client-group
+blocking and no per-client-group upstream on this pin — the product exposes neither, and the probe is
+recorded in [network-dns.md](network-dns.md) §What the pin can and cannot enforce.
 
 ## Related
 - [Network DNS architecture](network-dns.md) — VLAN/subnet policy, port-53 binding, DNS SSOT
