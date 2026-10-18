@@ -1048,9 +1048,12 @@ First-boot notes:
 6. **Delete the moved-aside dirs only after step 5 is green**, and record the retirement in
    [services-rejected.md](docs/services-rejected.md) / the owning doc so the next census finds nothing
    unexplained. A stack that is removed but not written down reappears as a mystery bind dir.
-7. **Do not retire these** (they look unowned and are not): `/opt/metabase` (registry entry exists,
-   `enabled: false` — a flip re-renders it), and any container whose project name IS an enabled
-   registry entry but whose `/opt` dir you cannot find (the render lives where the template says).
+7. **Do not retire these** (they look unowned and are not): any container whose project name IS an enabled
+   registry entry but whose `/opt` dir you cannot find — the render lives where the template says, not where the name
+   suggests. A host move is the concrete case: Metabase's `/opt/metabase` sat on the VPS behind an `enabled: false`
+   entry that no census could explain, and after its revival the dir exists only on **oldsrv**
+   ([docs/services-admin.md](docs/services-admin.md) §Metabase) — so "no dir behind that name on this host" is a
+   question about the registry, never a licence to delete.
 
 ## Phase 1a — Homelab host installs (oldsrv / nas)
 
