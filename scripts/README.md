@@ -267,52 +267,52 @@ Every script must run natively in WSL Debian; paths use `$HOME`, `$SRC`, `$REPO`
 
 | Script | Shell/PY | Windows-only assumption? | Status |
 |--------|----------|--------------------------|--------|
-| `ak-shell.sh` | bash | none (self-derived path comment only) | 🟢 portable |
-| `ansible-run.sh` | bash | none (paths from `$REPO`/`$HOME`) | 🟢 portable |
-| `ansible_query.py` | python3 | none (tree root self-derived from the script's own path; re-execs into `~/ansible-venv/bin/python3`, no Windows idiom — needs PyYAML+Jinja2 from that venv) | 🟢 portable |
-| `check-vault-items.sh` | bash | none (`$HOME`, self-derived `REPO`) | 🟢 portable |
-| `collect-disk-facts.sh` | POSIX sh | none (live/Linux only; `/tmp` + `mktemp`) | 🟢 portable |
-| `collect-smart-live.sh` | bash | none (live SystemRescue/Linux only; `/tmp`) | 🟢 portable |
-| `collect-smart.ps1` | PowerShell | **Windows-only by design** (SMART from a Windows host; intentional sibling of `collect-smart-live.sh`) | ⬛ exception (not a migration target) |
-| `wsl-nat-resolv.ps1` | PowerShell | **Windows-only by design** (WSL2 NAT + auto-resolv network fix; replaces the bridged `wsl-vlan-trunk.ps1`) | ⬛ exception (not a migration target) |
-| `gen-htpasswd.py` | python3 | none | 🟢 portable |
+| `ansible/ak-shell.sh`| bash | none (self-derived path comment only) | 🟢 portable |
+| `ansible/ansible-run.sh`| bash | none (paths from `$REPO`/`$HOME`) | 🟢 portable |
+| `ansible/ansible_query.py`| python3 | none (tree root self-derived from the script's own path; re-execs into `~/ansible-venv/bin/python3`, no Windows idiom — needs PyYAML+Jinja2 from that venv) | 🟢 portable |
+| `gate/check-vault-items.sh`| bash | none (`$HOME`, self-derived `REPO`) | 🟢 portable |
+| `hardware/collect-disk-facts.sh`| POSIX sh | none (live/Linux only; `/tmp` + `mktemp`) | 🟢 portable |
+| `hardware/collect-smart-live.sh`| bash | none (live SystemRescue/Linux only; `/tmp`) | 🟢 portable |
+| `hardware/collect-smart.ps1`| PowerShell | **Windows-only by design** (SMART from a Windows host; intentional sibling of `collect-smart-live.sh`) | ⬛ exception (not a migration target) |
+| `hardware/wsl-nat-resolv.ps1`| PowerShell | **Windows-only by design** (WSL2 NAT + auto-resolv network fix; replaces the bridged `wsl-vlan-trunk.ps1`) | ⬛ exception (not a migration target) |
+| `secrets/gen-htpasswd.py`| python3 | none | 🟢 portable |
 | `next-hd.sh` | bash | none (paths from `$REPO`; no Windows idioms) | 🟢 portable |
-| `git-bootstrap.sh` | bash | none (paths from `$SRC`/`$REPOPATH`/`$HOME`; `/mnt/d` mention is a comment) | 🟢 portable |
-| `git-bootstrap-win11.sh` | bash | none (paths from `$USERPROFILE`/`$SRC`/`$REPOPATH`; Windows OpenSSH via `core.sshCommand`; `--git-identity` reads `KEYDIR`/`NIGHTLY_SRC`/`GIT_BUNDLED_SSH`) | 🟢 portable |
-| `guard-session.sh` | bash | none (`mktemp`/`${TMPDIR:-/tmp}`; Windows comment only) | 🟢 portable |
-| `install-pi-wsl.sh` | bash | none (paths from `$SCRIPT_DIR`/`$HOME`; `/mnt/c` is a comment) | 🟢 portable |
-| `op-vault-export.py` | python3 | none | 🟢 portable |
-| `probe-net-manager.sh` | bash | none (ssh to hosts by short name; `/etc` reads only) | 🟢 portable |
-| `probe-snmp-presence.sh` | bash | python3 + curl + `op` (VM query only; `VM_URL` required, no default); `--list` is offline | 🟢 portable |
-| `provision-secrets.py` | python3 | **`py -3` default** → now auto-detects `python3`/`py -3`/`sys.executable` and probes `import bcrypt` (falls back on a broken `BCRYPT_PY` override);  | 🟢 portable ( fix) |
-| `check_dns_seed_drift.py` | python3 | none (PyYAML + jinja2; imports `zone_kogler_si_render`) | 🟢 portable |
-| `check_dns_seed_prune_guard.py` | python3 | none (PyYAML + jinja2; imports `zone_kogler_si_render`) | 🟢 portable |
-| `zone_kogler_si_render.py` | python3 | none (PyYAML + jinja2, stdlib) | 🟢 portable |
-| `check_zone_kogler_si_parity.py` | python3 | none (imports `zone_kogler_si_render`; reads `testdata/`) | 🟢 portable |
-| `capture_zone_kogler_si_golden.py` | python3 | none; REFUSES once the zone is derived | 🟢 portable |
-| `check_secrets.py` | python3 | git + stdlib | 🟢 portable |
-| `check_merge_markers.py` | python3 | git (`ls-files`) + stdlib; `--self-test` needs a working `git init`/`commit` | 🟢 portable |
-| `check_md_tables.py` | python3 | stdlib + `git ls-files` | 🟢 portable |
-| `check_iac_backend_strings.py` | python3 | stdlib only (reads the two IaC trees) | 🟢 portable |
-| `check_traefik_host_rules.py` | python3 | none | 🟢 portable |
-| `adapt-vllm-dashboards.py` | python3 | reads `/tmp/vllm-dash/*.json` in adapt mode (write the downloads there, or use `--inplace`); dashboard dir self-derived from the script path | 🟢 portable |
-| `build-llm-dashboard.py` | python3 | reads the three repo dashboard JSONs, writes `homelab-llm.json` in the same dir; no network, no `/tmp` dependency | 🟢 portable |
-| `provision-vault.sh` | bash | none (paths from `$REPO`; `python3` already) | 🟢 portable |
+| `git/git-bootstrap.sh`| bash | none (paths from `$SRC`/`$REPOPATH`/`$HOME`; `/mnt/d` mention is a comment) | 🟢 portable |
+| `git/git-bootstrap-win11.sh`| bash | none (paths from `$USERPROFILE`/`$SRC`/`$REPOPATH`; Windows OpenSSH via `core.sshCommand`; `--git-identity` reads `KEYDIR`/`NIGHTLY_SRC`/`GIT_BUNDLED_SSH`) | 🟢 portable |
+| `gate/guard-session.sh`| bash | none (`mktemp`/`${TMPDIR:-/tmp}`; Windows comment only) | 🟢 portable |
+| `harness/install-pi-wsl.sh`| bash | none (paths from `$SCRIPT_DIR`/`$HOME`; `/mnt/c` is a comment) | 🟢 portable |
+| `secrets/op-vault-export.py`| python3 | none | 🟢 portable |
+| `ansible/probe-net-manager.sh`| bash | none (ssh to hosts by short name; `/etc` reads only) | 🟢 portable |
+| `ansible/probe-snmp-presence.sh`| bash | python3 + curl + `op` (VM query only; `VM_URL` required, no default); `--list` is offline | 🟢 portable |
+| `secrets/provision-secrets.py`| python3 | **`py -3` default** → now auto-detects `python3`/`py -3`/`sys.executable` and probes `import bcrypt` (falls back on a broken `BCRYPT_PY` override);  | 🟢 portable |
+| `gate/check_dns_seed_drift.py`| python3 | none (PyYAML + jinja2; imports `zone_kogler_si_render`) | 🟢 portable |
+| `gate/check_dns_seed_prune_guard.py`| python3 | none (PyYAML + jinja2; imports `zone_kogler_si_render`) | 🟢 portable |
+| `ansible/zone_kogler_si_render.py`| python3 | none (PyYAML + jinja2, stdlib) | 🟢 portable |
+| `gate/check_zone_kogler_si_parity.py`| python3 | none (imports `zone_kogler_si_render`; reads `testdata/`) | 🟢 portable |
+| `ansible/capture_zone_kogler_si_golden.py`| python3 | none; REFUSES once the zone is derived | 🟢 portable |
+| `gate/check_secrets.py`| python3 | git + stdlib | 🟢 portable |
+| `gate/check_merge_markers.py`| python3 | git (`ls-files`) + stdlib; `--self-test` needs a working `git init`/`commit` | 🟢 portable |
+| `gate/check_md_tables.py`| python3 | stdlib + `git ls-files` | 🟢 portable |
+| `gate/check_iac_backend_strings.py`| python3 | stdlib only (reads the two IaC trees) | 🟢 portable |
+| `gate/check_traefik_host_rules.py`| python3 | none | 🟢 portable |
+| `ansible/adapt-vllm-dashboards.py`| python3 | reads `/tmp/vllm-dash/*.json` in adapt mode (write the downloads there, or use `--inplace`); dashboard dir self-derived from the script path | 🟢 portable |
+| `ansible/build-llm-dashboard.py`| python3 | reads the three repo dashboard JSONs, writes `homelab-llm.json` in the same dir; no network, no `/tmp` dependency | 🟢 portable |
+| `secrets/provision-vault.sh`| bash | none (paths from `$REPO`; `python3` already) | 🟢 portable |
 | `render_all.py` | python3 | none | 🟢 portable |
-| `render_network_addresses.py` | python3 | none | 🟢 portable |
-| `knx-hass-gen.py` | python3 | `xknxproject` for generation and `--check`; nothing for `--self-test` — ⚠ the dep is declared nowhere in the repo (measured ) | 🟡 dep missing |
-| `render_rack_connections.py` | python3 | none | 🟢 portable |
-| `restore-runner-key.sh` | bash | none (paths from `$HOME`) | 🟢 portable |
-| `seed-runner-ssh.sh` | bash | none (`$HOME`, `ssh`/`ssh-keygen`) | 🟢 portable |
-| `seed-seat-deploy-key.sh` | bash | none — but it is **target-side**: runs as root on the host holding the seat (`/home/domen`, `/etc/op/provision-token`, `op`, `/dev/shm`) | 🟢 portable |
-| `check_ssh_grants.py` | python3 | `op` CLI + SA token file (doc-only fallback), `ssh` | 🟢 portable |
-| `routeros-apply-delta.sh` | bash | none (self-derived `$REPO`, `mktemp`, python3 verify) | 🟢 portable |
-| `sync-skills.sh` | bash | none (paths from `$HOME`/`$REPO`; POSIX `tr`/`od`, no Windows idioms) | 🟢 portable |
-| `sync-extensions.sh` | bash | none (paths from `$REPO`/`$HOME`; `PI_EXT_DIR` is the self-test's sandbox hook) | 🟢 portable |
-| `install-tmux-conf.sh` | bash | none (paths from `$REPO`/`$HOME`; `TMUX_CONF`/`TMUX_CONF_SRC`/`TMUX_SOCKET` exist for the self-test's sandbox; the `script(1)` pty arm SKIPs with a printed reason where util-linux or tmux is absent — never counted as a pass) | 🟢 portable |
-| `bootstrap-runner.sh` | bash | none (self-derived `$REPO`; `$HOME`/`~` for venv/token/ssh) | 🟢 portable |
-| `gen-custom-script.sh` | bash | none (self-derived `$REPO`; output to `IaC/host/vps/`) | 🟢 portable |
-| `gen-media-post-install.sh` | bash | none (self-derived `$REPO`; output to `IaC/host/`) | 🟢 portable |
+| `ansible/render_network_addresses.py`| python3 | none | 🟢 portable |
+| `ansible/knx-hass-gen.py`| python3 | `xknxproject` for generation and `--check`; nothing for `--self-test` — ⚠ the dep is declared nowhere in the repo  | 🟡 dep missing |
+| `ansible/render_rack_connections.py`| python3 | none | 🟢 portable |
+| `ansible/restore-runner-key.sh`| bash | none (paths from `$HOME`) | 🟢 portable |
+| `ansible/seed-runner-ssh.sh`| bash | none (`$HOME`, `ssh`/`ssh-keygen`) | 🟢 portable |
+| `ansible/seed-seat-deploy-key.sh`| bash | none — but it is **target-side**: runs as root on the host holding the seat (`/home/domen`, `/etc/op/provision-token`, `op`, `/dev/shm`) | 🟢 portable |
+| `gate/check_ssh_grants.py`| python3 | `op` CLI + SA token file (doc-only fallback), `ssh` | 🟢 portable |
+| `ansible/routeros-apply-delta.sh`| bash | none (self-derived `$REPO`, `mktemp`, python3 verify) | 🟢 portable |
+| `harness/sync-skills.sh`| bash | none (paths from `$HOME`/`$REPO`; POSIX `tr`/`od`, no Windows idioms) | 🟢 portable |
+| `harness/sync-extensions.sh`| bash | none (paths from `$REPO`/`$HOME`; `PI_EXT_DIR` is the self-test's sandbox hook) | 🟢 portable |
+| `harness/install-tmux-conf.sh`| bash | none (paths from `$REPO`/`$HOME`; `TMUX_CONF`/`TMUX_CONF_SRC`/`TMUX_SOCKET` exist for the self-test's sandbox; the `script(1)` pty arm SKIPs with a printed reason where util-linux or tmux is absent — never counted as a pass) | 🟢 portable |
+| `ansible/bootstrap-runner.sh`| bash | none (self-derived `$REPO`; `$HOME`/`~` for venv/token/ssh) | 🟢 portable |
+| `secrets/gen-custom-script.sh`| bash | none (self-derived `$REPO`; output to `IaC/host/vps/`) | 🟢 portable |
+| `secrets/gen-media-post-install.sh`| bash | none (self-derived `$REPO`; output to `IaC/host/`) | 🟢 portable |
 | `testdata/check-vault-items/run.sh` | bash | none | 🟢 portable |
 | `validate-all.sh` | bash | `py -3` fallback is fine (Windows path); new sweep uses `python3` | 🟢 portable |
 | all other `*.py` (check_doc_*, validate_*, render_*) | python3 | none | 🟢 portable |
