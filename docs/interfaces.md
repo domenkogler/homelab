@@ -80,14 +80,13 @@ tags: [services, interfaces, dashboards]
 
 ## CrowdSec analytics — what serves it now
 
-**There is no `sec.kogler.si` service** — no Cloudflare record, no `extra_records` entry, no route, and no answer: public DNS returns NODATA, MagicDNS does not publish the name, and the internal Technitium tier returns `NXDOMAIN` on all three instances. The shape it had is the trap, not the address: the name stayed answerable from each instance's own `kogler.si` zone — a seeded `A` record with the `aa` flag, not a cache row — long after the service that owned it was retired, so clearing a resolver's cache or deleting the record on one instance changes nothing. The only `sec.kogler.si` route still in the tree belongs to the retired Metabase stack, which runs on no host. The retirement path that keeps it gone is [services-admin.md](services-admin.md) §Open item. The analytics surface is split between **CrowdSec Web UI**
+**There is no `sec.kogler.si` service** — no Cloudflare record, no `extra_records` entry, no route, and no answer: public DNS returns NODATA, MagicDNS does not publish the name, and the internal Technitium tier returns `NXDOMAIN` on all three instances. The shape it had is the trap, not the address: the name stayed answerable from each instance's own `kogler.si` zone — a seeded `A` record with the `aa` flag, not a cache row — long after the service that owned it was retired, so clearing a resolver's cache or deleting the record on one instance changes nothing. No `sec.kogler.si` route exists in the tree at all: Metabase's door is the home edge under its own name. The retirement path that keeps it gone is [services-admin.md](services-admin.md) §Open item. The analytics surface is split between **CrowdSec Web UI**
 (`csui`, below) for ops and **Grafana** (`stats`) for anything tabular/metric-shaped.
-Revival path if a BI layer is ever wanted: redeploy on **oldsrv**, not the VPS — the template, the
-disabled registry row and the read-only `metabase-forgejo_ro` grant are kept
-([services-admin.md](services-admin.md)). Two constraints apply to any Metabase restart: Metabase OSS has **no OIDC/SSO** (Enterprise-only), so a revival is
-Forward-Auth + local admin, never SSO; and its JWT signing secret must **never** be
-re-provisioned/rotated, or every existing session token fails signature validation and the UI becomes
-an infinite login loop.
+The BI layer is **Metabase on oldsrv** (`metabase.kogler.si` at home, `metabase.ts.kogler.si` on the
+tailnet, no public record and no route on either VPS edge). Two constraints bind any Metabase change:
+Metabase OSS has **no OIDC/SSO** (Enterprise-only), so its login is **native** — no Authentik object
+exists for it, on any host; and its JWT signing secret must **never** be re-provisioned/rotated, or
+every existing session token fails signature validation and the UI becomes an infinite login loop.
 
 ---
 

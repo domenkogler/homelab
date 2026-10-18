@@ -41,7 +41,6 @@
 1	IaC/ansible/roles/spark-llm-profile/tasks/main.yml	(no owning document)	§Qwen3.8-Flash-Next / §Qwen3.8
 1	IaC/ansible/roles/spark-llm-profile/tasks/main.yml	docs/hardware-spark.md	§Partition
 1	IaC/ansible/roles/storage/tasks/samba.yml	docs/storage-rejected.md	§2
-1	IaC/ansible/templates/docker_services/authentik/blueprints/ks-oidc.yml	docs/services-authentik.md	§Item
 1	docs/1password.md	deployment-tasks.md	§Vault
 1	docs/1password.md	docs/deployment-secrets.md	§op-write_api
 2	docs/backup.md	(unresolved target)	§VPS state push

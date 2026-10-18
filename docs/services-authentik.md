@@ -83,8 +83,8 @@ User → Traefik (port 443)
 1. **Blueprint (`ks-oidc.yml`)** declares the OIDC providers + applications idempotently
    (config-as-code): Open WebUI, Headscale, Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC,
    multi-redirect web + desktop + mobile), **Immich** (web + `app.immich:///oauth-callback`),
-   **Forgejo**, plus a **dormant Metabase provider** that stays declared (Metabase itself is dropped —
-   [services-rejected.md](services-rejected.md); see deployment-secrets.md `metabase_oidc`). Concern = **shape** (providers, apps, flows, outposts).
+   **Forgejo**. Metabase is deliberately absent: OSS has no OIDC, so the service owns its login and
+   this blueprint asserts nothing for it ([services-admin.md](services-admin.md) §Metabase). Concern = **shape** (providers, apps, flows, outposts).
 2. **Secret-egress glue** runs once after blueprints apply: `GET /api/v3/core/providers/oauth2/`
    → reads the generated `client_id` + `client_secret` → writes them into the 1Password item the
    consuming compose/`lookup()` expects. Concern = **credentials**, which Blueprint deliberately

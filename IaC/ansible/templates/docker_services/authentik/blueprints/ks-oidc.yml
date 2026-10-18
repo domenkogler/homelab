@@ -360,15 +360,11 @@ entries:
 
 
   # ==================================================================================
-  # Metabase — retired service: no provider_metabase / app_metabase entries here.
-  # A blueprint apply is an UPSERT, so removing the entries needs the
-  # ak-shell ORM one-shot in the SAME change — see ks-forward-auth.yml's header note and
-  # docs/services-authentik.md §Blueprint authoring notes.
-  # ⚠ If Metabase ever comes back: the `metabase:metabase_oidc` entry in
-  # templates/authentik-secret-egress.sh.j2 is registry-gated (renders only while
-  # `enabled: true`) and the 1Password item no longer exists — so a
-  # re-enable must mint that item first, and the item TITLE is load-bearing (§Item titles
-  # are load-bearing).
+  # No Metabase provider/app entries: Metabase owns its OWN login, and Metabase OSS has no
+  # OIDC/SSO at all (paid Enterprise only) — so there is nothing to declare here for it on any
+  # host. An OIDC provider for a client that cannot speak OIDC would still be asserted on every
+  # blueprint apply, and its secret-egress item would be minted for a service that can never read
+  # it (docs/services-admin.md §Metabase).
   # ==================================================================================
 
   # ==================================================================================

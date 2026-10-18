@@ -1,33 +1,35 @@
-# Kept but INACTIVE: `metabase` is `enabled: false` in group_vars/vps.yml; the IaC stays
-# as the revival path. What that switch gates, and the Authentik objects it cannot gate, are
-# written out at the metabase entry in group_vars/vps.yml.
-# metabase docker-compose.yml — analytics sandbox. If it is needed again it runs on OLDSRV as a
-#   fresh sandbox with no sources (see docs/services-admin.md); the VPS-local sources (CrowdSec
-#   SQLite bind, Forgejo/Zipline read-only Postgres over db-internal) are NOT wired here. Net stays
-#   on traefik-public + services-internal only — the reach that both hosts share.
-#   Internal-only. NOTES: Metabase OSS does NOT support OIDC/SSO — that is a paid Enterprise
-#   feature, so auth stays Traefik Forward-Auth; the OIDC provider + `metabase_oidc` item stay
-#   dormant for a hypothetical Enterprise license. LDAP IS included in OSS against the Authentik
-#   outpost but is DEFERRED: it renders a second login form (no SSO/MFA passthrough) and needs an
-#   outpost-binding decision; revisit trigger = a second regular human user.
+# metabase docker-compose.yml — BI sandbox on OLDSRV (docs/services-admin.md §Metabase).
+#   Internal-only, home-hosted: ONE entry, `public: false`, in group_vars/home_servers.yml.
+#   No data sources are wired here — an oldsrv sandbox starts empty; the VPS-local sources
+#   (CrowdSec SQLite bind, Forgejo/Zipline read-only Postgres over db-internal) stay OFF this
+#   box by design, so there is no `db-internal` join either.
+#
+#   AUTH = Metabase's OWN native login. Metabase OSS has no OIDC/SSO (paid Enterprise only) and
+#   LDAP is rejected (docs/services-rejected.md), so there is NO Forward-Auth label, NO OIDC env
+#   and no Authentik object for this service anywhere in the tree.
+#
+#   REACH = the home edge, not a docker-label edge: `traefik-internal` is `network_mode: host`
+#   with a file provider only, so container labels are invisible to it. The published LOOPBACK
+#   socket below is what its `metabase` / `metabase-ts` routers dial, through the `metabase_url`
+#   SSOT var (group_vars/all/main.yml) — bind AND route move together. `traefik.enable: "false"`
+#   keeps any docker-provider edge from minting a second, unauthenticated router for :3000.
 #
 #   SMTP (env-driven): MB_EMAIL_SMTP_* consumes the shared smtp2go SSOT vars
 #   (`smtp2go_host`/`smtp2go_port`, group_vars/all/main.yml) + the SHARED `smtp_login` creds via
 #   1Password lookup. Env-set settings override AND lock the Admin-UI fields → IaC stays the single
 #   source of truth; changing mail config = converge, not clicks.
-#   From address notify@kogler.si = the smtp2go account identity (verified sender); domain senders
-#   deliver once domain DKIM is in place.
+#   From address notify@kogler.si = the smtp2go account identity (verified sender); the var name
+#   is MB_EMAIL_FROM_ADDRESS — `MB_FROM_ADDRESS` is not read, so Metabase would fall back to
+#   notifications@metabase.com and smtp2go would reject the reset mail.
 #
-#   Data sources: NONE are wired in this file; a future OLDSRV home re-adds its own LAN sources.
-#   See docs/services-admin.md.
-#   Default H2 app DB on a named volume — upgrade/experiment freedom without data loss.
+#   State: the H2 app DB on a named volume, so an upgrade or an experiment cannot lose it.
 services:
   metabase:
     image: metabase/metabase:{{ metabase_version }}
     # The stock entrypoint (run_metabase.sh) creates a metabase user/group, chmods the jar and
     # su-drops privileges at every start — each step needs a writable rootfs and SETUID/SETGID,
     # so cap_drop ALL and read_only each independently break startup before Java launches.
-    # Future hardening: pinned non-root user: + verified upstream support.
+    # Future hardening: pinned non-user + verified upstream support.
     tmpfs:
       - /tmp
     container_name: metabase
@@ -43,28 +45,39 @@ services:
         {{ vault['smtp_login'].username | replace('$','$$') }}
       MB_EMAIL_SMTP_PASSWORD: >-
         {{ vault['smtp_login'].password | replace('$','$$') }}
-      MB_EMAIL_FROM_ADDRESS: notify@kogler.si   # the correct var name; MB_FROM_ADDRESS is not read, so Metabase falls back to
-                                       # notifications@metabase.com and smtp2go rejects it
+      MB_EMAIL_FROM_ADDRESS: notify@kogler.si
+      # Canonical name from the registry entry's `subdomain`, so reset mail carries
+      # https://metabase.kogler.si/… instead of the default localhost:3000. The wizard's other two
+      # choices (anonymous tracking, HTTPS redirect) stay wizard choices per the owning doc —
+      # env-setting them here would lock fields the owner still has to see.
+      MB_SITE_URL: "https://{{ svc.subdomain | default(svc.name) }}.kogler.si"
     networks:
-      - traefik-public
       - services-internal
-      # No db-internal: this service has no database source. A future oldsrv home must NOT assume
-      # the VPS db-internal overlay.
+      # No db-internal: this service has no database source, and an oldsrv converge must not
+      # assume the VPS's db-internal overlay.
+    ports:
+      # Loopback publish (the `metabase_bind` ruling, group_vars/all/main.yml): the home edge is
+      # on this box, so loopback is the reach it needs and the edge stays the only door.
+      # Host port 3002, container port 3000 (Metabase's fixed listen).
+      - "{{ metabase_bind }}:{{ metabase_host_port }}:3000"
     volumes:
       - metabase-data:/metabase.db
-      # No CrowdSec SQLite bind (VPS-local source) — see header.
     labels:
 {% if not (svc.public is defined and not svc.public) %}
+      # The docker-provider form, for a host that runs one. Metabase's login is its OWN (OSS has no
+      # OIDC/SSO), so the tier is the CrowdSec block-list and NEVER `authentik-forward-auth` — no
+      # Authentik object exists for this service. The rule names the entry's `subdomain`, never a
+      # literal host the registry does not declare.
       traefik.enable: "true"
-      traefik.http.routers.metabase.rule: "Host(`sec.kogler.si`)"
+      traefik.http.routers.metabase.rule: "Host(`{{ svc.subdomain | default(svc.name) }}.kogler.si`)"
       traefik.http.routers.metabase.entrypoints: websecure
       {{ 'traefik.http.routers.metabase.tls.certresolver: letsencrypt' if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS from the synced cert pair' }}
-      # OSS has NO OIDC (paid feature) -> stays behind Forward-Auth. Switch the route to
-      # crowdsec-only + enable MB_OIDC_* ONLY if Metabase Enterprise is ever licensed.
-      traefik.http.routers.metabase.middlewares: authentik-forward-auth@file
+      traefik.http.routers.metabase.middlewares: crowdsec-only@file
+      traefik.http.services.metabase.loadbalancer.server.port: "3000"
 {% else %}
-      # INTERNAL-ONLY (public: false): no public-edge route; served only by the
-      # traefik-tailnet internal edge (sec.kogler.si / sec.ts).
+      # INTERNAL-ONLY (`public: false`, what the registry declares): the home edge
+      # (`traefik-internal`) owns the route — it is `network_mode: host` with a file provider, so it
+      # dials the loopback publish above and no docker label is read here.
       traefik.enable: "false"
 {% endif %}
 volumes:
@@ -72,6 +85,3 @@ volumes:
 networks:
   services-internal:
     external: true
-  traefik-public:
-    external: true
-  # No db-internal network here (no database source; see header).

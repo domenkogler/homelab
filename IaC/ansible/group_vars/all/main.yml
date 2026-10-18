@@ -338,6 +338,11 @@ zone_kogler_si:
   - { name: aurral.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: node, ts_router: true }
   - { name: slskd.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: node, ts_router: true }
   - { name: lidarr-ydl.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: node, ts_router: true }
+  # Metabase (BI sandbox on oldsrv) takes the music-trio class, NOT the media-family class: a
+  # `home_edge_ip` answer points the VPS PRIMARY at an edge file that carries no route for it, so
+  # the name would resolve and then 404 away from home. Away from home the `.ts` twin answers from
+  # oldsrv's own node, so the plain record stays Home-only (`lan_only: true`).
+  - { name: metabase.kogler.si,        internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: node, ts_router: true }
   # --- LAN-only: answers a Home/modem address, so the VPS primary must never carry them ---
   - { name: llogs.kogler.si,         internal: true, ip: "{{ oldsrv_home_ip }}", lan_only: true, tailnet: none, ts_router: false }
   - { name: modem.kogler.si,         internal: true, ip: "192.168.1.1", lan_only: true, tailnet: none, ts_router: false }   # Comtrend UI; mirrors group_vars/router.yml modem_mgmt_ip
@@ -440,8 +445,10 @@ zone_kogler_si_lan_only: "{{ zone_kogler_si | selectattr('lan_only', 'defined') 
 # again if it ever reappears. A name that is ALSO in `zone_kogler_si` is a contradiction, and
 # scripts/gate/check_dns_seed_prune_guard.py refuses the tree for it.
 zone_kogler_si_retired:
-  # Metabase is retired and runs on no host; the name still had a seeded A record pointing at the
-  # tailnet edge. Ledger entry stays so the record cannot survive a future re-seed of an old commit.
+  # Superseded by `metabase.kogler.si`, which is the Metabase name now and is listed in
+  # `zone_kogler_si`. This one stays on the ledger: the seeded A record it carried pointed at the
+  # tailnet edge and only the seed's prune leg may delete it, so removing the entry would hand the
+  # orphan back to every future re-seed of an old commit.
   - sec.kogler.si
 zone_kogler_si_tailnet_plain: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'equalto', 'edge') | list }}"
 zone_kogler_si_tailnet_ts: "{{ zone_kogler_si | selectattr('tailnet', 'defined') | selectattr('tailnet', 'in', ['node', 'dual']) | list }}"
@@ -913,6 +920,19 @@ slskd_url: "http://{{ slskd_bind }}:{{ slskd_host_port }}"
 lidarr_ydl_bind: "{{ oldsrv_home_ip }}"
 lidarr_ydl_host_port: 5005
 lidarr_ydl_url: "http://{{ lidarr_ydl_bind }}:{{ lidarr_ydl_host_port }}"
+
+# ==== Metabase on the home edge ====
+# The Jellyfin/*-arr class, NOT the music-trio class: Metabase has a router in
+# `traefik-internal`, so the bind stays LOOPBACK — the edge is on this box and a loopback socket
+# keeps Metabase's own (native) login off the Home VLAN, making the router the only door. The
+# trio's Home-IP bind is the documented opposite case (no router in any edge, direct-IP access is
+# their access model); copying it here would open a second, edge-less door.
+# Host port 3002 because :3000 on this host belongs to homelable's nginx front-end
+# (templates/docker_services/homelable, host-net on the Home IP) — checked against every
+# `oldsrv_home_ip:`/`127.0.0.1:` publish in the template tree AND `ss -ltn` on oldsrv.
+metabase_bind: "127.0.0.1"
+metabase_host_port: 3002
+metabase_url: "http://{{ metabase_bind }}:{{ metabase_host_port }}"   # traefik-internal's metabase-backend
 
 # ==== Tailscale listen port ====
 # 41641 is tailscaled's DEFAULT, so this is not a change — it is the PIN that keeps it

@@ -355,7 +355,7 @@ _template_vault_items:
   mcp-victoriametrics: {'victoria-metrics_api'}   # MCP→VM basic auth (username/password)
   mcp-victorialogs: {'victoria-logs_api'}         # MCP→VL basic auth (username/password)
   matrix: {'matrix_api', 'matrix_password'}
-  metabase: {'smtp_login'}   # only smtp_login is consumed; the db_ro keys are commented out in vps.yml
+  metabase: {'smtp_login'}   # the compose's only reference: the SMTP2Go relay creds. The admin account is NOT here — it is created in the first-run wizard, so `metabase_login` is an owner-reference item with no compose consumer
   n8n: {'n8n-webhook_api', 'n8n_password', 'signal-internal_api', 'signal_api', 'matrix-alerts_api'}   # SIGNAL_* env (signal-cli leg) — signal-internal_api (API token) + signal_api (number); matrix-alerts_api → the Matrix alert bot's token
   onlyoffice-docs: {'onlyoffice_db', 'onlyoffice-rabbitmq_login', 'opencloud-collab_password'}
   open-webui: {'openwebui_api', 'openwebui_secret', 'owui-public-chat_api'}

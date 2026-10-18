@@ -122,6 +122,7 @@ The catalog stack docs list each service's subdomain. **Only** the following sub
 |-----|---------|---------------|
 | `https://ha.kogler.si` | VIP (`ha-vip`) :8123, keepalived | VIP edge switches nodes (Pi `traefik-ha` normal → oldsrv `traefik-internal` on takeover); never "correct" to a node IP |
 | `https://media.kogler.si` | home edge `media-backend` (Jellyfin on oldsrv) | published twice on purpose: the home edge serves it on the LAN, the public edge dials the home edge over the site-to-site tunnel so the name answers away from home. Own login, CrowdSec-only tier — no Forward-Auth, client apps cannot sit behind it |
+| `https://metabase.kogler.si` | home edge `metabase-backend` (`127.0.0.1:3002` on oldsrv) | internal-only BI: **no public record and no VPS route**, so the plain name answers at home and `metabase.ts.kogler.si` answers on the tailnet. Native login — this is the one analytics surface with no Authentik in front of it ([services-admin.md](services-admin.md) §Metabase) |
 | `https://seerr.kogler.si` · `https://seerrng.kogler.si` | home edge `seerr-backend` / `seerrng-backend` | routed on both edges but published in **no** public zone — reachable on the LAN and over the tailnet (`<name>.ts.kogler.si`), not from the public internet. SeerrNG is the requests UI; `seerr` is the legacy name |
 | `https://foto.kogler.si` | VPS `immich-server` :2283 | the photo library is a VPS service; its ML leg stays on oldsrv |
 | `https://dns-pi.kogler.si` | VIP (`ha-vip`) → Pi `traefik-ha` → `pi:5380` | Pi edge — reachable when oldsrv is down |

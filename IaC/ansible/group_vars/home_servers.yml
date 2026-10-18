@@ -331,6 +331,16 @@ docker_services:
   #     on oldsrv_home_ip for n8n over WG (immich-ml precedent).
   - { name: actual-budget,   template_dir: actual-budget, bind_owner_uid: 1001, bind_dirs: ['data'] }   # the image's data dir is /data owned by `actual` (uid 1001); bind_owner_uid + bind_dirs pre-create /srv/docker/actual-budget/data 1001-owned so the migration's uid-1001 mkdir succeeds
 
+  # --- Analytics: Metabase — internal-only, own login ---
+  #   BI sandbox on this box (NOT the VPS — VPS RAM is the binding constraint). Reach is the home
+  #   edge: `metabase.kogler.si` at home, `metabase.ts.kogler.si` on the tailnet, never published
+  #   publicly. Auth is Metabase's OWN native login — OSS has no OIDC/SSO and LDAP is rejected, so
+  #   there is no Authentik object for this service anywhere. Backend socket + routers: the
+  #   `metabase_*` vars (group_vars/all/main.yml) + traefik-internal/dynamic/routes.yml.j2.
+  #   First run needs the browser setup wizard (deployment-manual.md); the app DB is the
+  #   `metabase-data` named volume, so recreating the container loses nothing.
+  - { name: metabase,      template_dir: metabase,  subdomain: metabase, public: false, enabled: true }
+
   # --- Backup: off-site agent — client of kopia-server on the VPS ---
   # Snapshots oldsrv-LOCAL state (configs, dumps scratch, thumbs, signal state) to
   # the Hetzner backup Box via kopia-server over the WG S2S tunnel. Never reads NAS
@@ -359,7 +369,7 @@ docker_services:
   # they replaced prometheus + loki), n8n, kopia-server,
   # db-backup, matrix, chat, headscale, pairdrop, stirling-pdf, renovate,
   # homepage (the family launchpad at the public edge).
-  # metabase is not deployed anywhere; its future home is oldsrv.
+  # metabase runs HERE, not on the VPS (see the Analytics entry above).
   # There is no MinIO: Immich originals are the live Hetzner Box (CIFS), not S3.
 #
 # EXPLICITLY an empty LIST, not a key-with-only-comments: YAML would parse that as None

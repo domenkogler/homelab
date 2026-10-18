@@ -9,7 +9,7 @@ tags: [deployment, authentik, oidc, blueprint]
 
 > **Role:** ★ Design spec — read this to **provision or correct** Authentik OIDC wiring for any
 > homelab service: the Blueprint (`ks-oidc.yml`) + secret-egress glue contract, deploy ordering,
-> and the per-service native-OIDC recipes (OpenCloud, Immich, Forgejo, Metabase). It is the
+> and the per-service native-OIDC recipes (OpenCloud, Immich, Forgejo). It is the
 > OIDC side of [`deployment-compose.md`](deployment-compose.md), which stays pure compose conventions.
 > **Links to:** `services-authentik.md`, `deployment-compose.md`, `deployment-ansible.md`, `deployment-secrets.md`
 > **Linked from:** `deployment-compose.md`, `services-authentik.md`, `index.md`
@@ -27,7 +27,7 @@ This file is the compose/provisioning-side contract.
 The `authentik-server` service mounts a **`blueprints/`** volume (alongside the existing
 `/templates`): Authentik applies the Blueprint idempotently at startup / on demand. The
 `ks-oidc.yml` Blueprint declares the OIDC providers + applications for Open WebUI, Headscale,
-Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect), **Immich, Forgejo, Metabase**.
+Matrix (Tuwunel), OpenClaw, OpenCloud (native OIDC, multi-redirect), **Immich, Forgejo**.
 No LDAP provider/outpost is declared here — NAS SMB auth is local tdbsam
 ([storage.md](storage.md) §Samba (SMB) shares).
 
@@ -47,7 +47,7 @@ file (`docker compose -f … validate`) before `up`. See
    do NOT hand-create in the UI.
 3. **Run the secret-egress glue** — for each declared provider, `GET /api/v3/core/providers/oauth2/`
    → seed the 1Password item (`openwebui_api`, `headscale_api`, `matrix_api`, `openclaw_api`,
-   `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`, `metabase_oidc`). The OpenCloud Graph-API
+   `opencloud_oidc`, `immich_oidc`, `forgejo_oidc`). The OpenCloud Graph-API
    service account `opencloud-service_api` is NOT this glue's job.
 4. Deploy the **OIDC consumers** — their compose `lookup()` now resolves real client creds.
 
@@ -151,10 +151,13 @@ cannot prove from the API side. ⚠ Still open on this service: `immich_version`
 (server on the VPS, `immich-machine-learning` on oldsrv), and the pair sits SPLIT 3.2.2 / 3.1.0 — the ML leg
 can be converged.
 
-### Forgejo / Metabase native-OIDC notes
+### Forgejo native-OIDC notes
 - **Forgejo** (`git.`): callback `https://git.kogler.si/user/oauth2/<app-slug>/callback`; keep
   `crowdsec-only` edge; decide whether git-over-https/API pushes stay open or follow web SSO.
-- **Metabase** (`sec.`): **retired from the VPS**; the future home is oldsrv. Metabase OSS has **NO OIDC/SSO — paid Enterprise only** (image pinned in `group_vars/all/versions.yml`); the `metabase_oidc` provider is declared (Blueprint) only for a future Enterprise license, so the route **is Forward-Auth**. A future oldsrv Metabase is a sandbox (no sources) and does **not** re-use this VPS Authentik OIDC provider — revisit only with an Enterprise license + VPS Authentik.
+- **Metabase** — **no entry in this doc, by design**: Metabase OSS has **no OIDC/SSO** (paid
+  Enterprise only), so there is no client to declare and the service logs in natively on
+  `metabase.kogler.si` (oldsrv). A future Enterprise license would be a new decision, not a re-enable
+  of something here — see [services-admin.md](services-admin.md) §Metabase.
 
 ### Open WebUI native-OIDC note — the callback path
 

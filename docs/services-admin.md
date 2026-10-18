@@ -16,7 +16,8 @@ tags: [services, admin, ops, gitops, security, backup]
 > kopia-server leg wired end to end), Forgejo repo creation/migration, and the owner's kopia seed/wiring
 > decisions. **RustDesk is 🟢 live** (`enabled: true`) — ⏳ client enrolment + its two acceptance sessions
 > remain; see §RustDesk.
-> **Metabase is retired** — it is not in the running stack; see §Metabase for the revival path.
+> **Metabase is live on OLDSRV** (`metabase.kogler.si`, internal-only, native login) — see §Metabase.
+> It is not a VPS service and the VPS registry carries no entry for it.
 
 ---
 
@@ -247,26 +248,46 @@ future `--tags monitoring` change rather than on a lane of its own.
 a family machine**, and a **direct-IP tailnet session to oldsrv with the relay demonstrably uninvolved**
 (`printf 'ls' | nc 127.0.0.1 21117` shows no active relay during it).
 
-## Metabase — retired (revival path documented)
+## Metabase — live on oldsrv (internal-only, native login)
 
-Metabase is **not part of the running stack** — the VPS is RAM-constrained. Retained on
-purpose so a revival is cheap: the compose template, the **disabled** VPS `docker_services` entry, the vault
-item `metabase-forgejo_ro` and the `metabase_ro` role in forgejo-db (no longer re-synced — the db_ro keys are
-commented out in `vps.yml`). Revival target is **oldsrv**, not the VPS.
+**🟢 live on oldsrv (2026-10-18)**, at `https://metabase.kogler.si` from the home LAN and
+`https://metabase.ts.kogler.si` on the tailnet. Not on the VPS: VPS RAM is the binding constraint and
+the registry carries no metabase entry there, so nothing on that box can re-render it. No public
+record, no Cloudflare leg, no VPS edge route.
 
+- **Auth: Metabase's OWN native login.** OSS has no OIDC/SSO (paid Enterprise only) and LDAP is
+  rejected ([services-rejected.md](services-rejected.md)), so there is **no Authentik object for this
+  service** — no OIDC provider, no proxy provider, no application, and no row in the secret-egress
+  table. The home edge carries no auth middleware of any kind, so the router is the door and
+  Metabase's own login is the only check behind it.
+- **Reach:** the home edge (`traefik-internal`, file provider) serves it — the `metabase` and
+  `metabase-ts` routers there dial the container's **loopback** publish through `metabase_url`, the
+  same way the Jellyfin/*-arr group is served. The compose deliberately renders
+  `traefik.enable: "false"`: oldsrv runs no docker-provider edge, so a label would mint a second,
+  unauthenticated route nowhere. The answer-plane row is the LAN-only class (`oldsrv_home_ip`,
+  `lan_only: true`, `tailnet: node`), so the plain name is answered at home and the `.ts` twin
+  answers on the tailnet; `sec.kogler.si` is NOT this name and stays retired.
+- **State:** the H2 app DB on the `metabase-data` named volume. **Backups are still owed** — the
+  volume is not yet in a [backup.md](backup.md) policy row, so a recreate is safe but a disk loss is
+  not.
+- **Data sources: none wired.** This is a sandbox; connecting anything (the VPS Postgres, the
+  CrowdSec DB) is a separate change with its own network reach question, and the VPS `db-internal`
+  overlay must not be assumed from here.
 - **CrowdSec's dashboard surface is CrowdSec Web UI** (`csui.kogler.si`) — it is not a Metabase
   consumer, and CrowdSec's own bundled Metabase image is not used.
-- **Auth posture:** Metabase OSS has **no OIDC/SSO** (paid tier only), and LDAP would mean
-  a second login plus an extra outpost's blast radius for a single-user tool ⇒ **Forward-Auth at the edge +
-  local admin**. See [services-rejected.md](services-rejected.md).
-- **First boot (wizard):** language → admin account → data-source (**skip it**) → usage prefs. Anonymous
-  tracking OFF, HTTPS-redirect OFF, admin account from the `metabase_login` vault item.
-- **SMTP:** `MB_EMAIL_SMTP_*` from the smtp2go SSOT + the shared `smtp_login`, From = `notify@kogler.si`.
-  Working values: **port 2525**, host as used by `grafana_smtp_host`, and `MB_EMAIL_FROM_ADDRESS` must be set
-  explicitly or the reset mail is rejected.
-- **Revival steps:** add an oldsrv `docker_services` entry (`template_dir: metabase`, `public: false`) →
-  decide reach/auth (LAN direct vs a future oldsrv edge) → re-add the LAN data sources to the template →
-  seed `smtp_login` + `metabase_login` → converge oldsrv.
+- **First boot (wizard):** language → admin account → data-source (**skip it**) → usage prefs.
+  Anonymous tracking OFF, HTTPS-redirect OFF, admin account from the `metabase_login` vault item.
+  The wizard is a browser step — see [../deployment-manual.md](../deployment-manual.md) §P3.7.
+- **SMTP:** `MB_EMAIL_SMTP_*` from the smtp2go SSOT + the shared `smtp_login`, From =
+  `notify@kogler.si`. Working values: **port 2525**, host as used by `grafana_smtp_host`, and
+  `MB_EMAIL_FROM_ADDRESS` must be set explicitly or the reset mail is rejected.
+- **Vault items:** `smtp_login` (compose consumer) and `metabase_login` (owner-reference — the admin
+  account the wizard creates; no IaC reads it, so `check-vault-items.sh` never asks for it). The
+  intentionally-inert `metabase-forgejo_ro` is a **different** item: nothing consumes it and no
+  `db_ro_sync` runs, so it neither grants nor seeds anything for this service.
+- **Pin:** `metabase_version` in `group_vars/all/versions.yml`; the image's stock entrypoint needs a
+  writable rootfs + SETUID/SETGID, which is why this container is on the `cap_drop` exemption list
+  rather than hardened like the rest.
 
 ## Open item — stale DNS record after a service retirement
 

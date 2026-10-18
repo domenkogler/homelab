@@ -194,6 +194,9 @@ def _load_ssot_ctx():
         "profilarr_bind", "profilarr_host_port",
         "sabnzbd_bind", "sabnzbd_host_port",
         "qbittorrent_bind", "qbittorrent_host_port",
+        # Metabase host publish on oldsrv — same class: the loopback socket the home edge's
+        # `metabase-backend` dials, so the validator's context must read the SSOT pair.
+        "metabase_bind", "metabase_host_port",
     ):
         if k in data:
             ctx[k] = data[k]

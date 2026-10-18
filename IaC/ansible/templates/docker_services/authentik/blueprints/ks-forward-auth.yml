@@ -14,7 +14,7 @@
 #   Matrix-native SSO (matrix/chat), WOPI-only office, the IdP itself (sso),
 #   internal-tier services without public routes,
 #   pairdrop — PUBLIC: crowdsec-only tier, no forward-auth.
-#   sec / sec.ts (Metabase): retired service, no forward-auth objects.
+#   metabase — owns its OWN native login (Metabase OSS has no SSO): no forward-auth object, on any host.
 #   forgejo/git — NATIVE OIDC: SSO via ks-oidc.yml provider_forgejo, no forward-auth object.
 # The route count is derived, not stated: count the forward_single providers and the
 # tailnet .ts twins below. Re-derive any count from the outpost list
@@ -40,7 +40,8 @@ entries:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-  # provider_edge_sec (forward-sec → http://metabase:3000): retired service, no entry here.
+  # No `provider_edge_sec`: Metabase owns its own native login, so no edge proxy provider points at
+  # it — a proxy provider with no route behind it is still asserted on every apply.
   # ⚠ A blueprint apply is an UPSERT: removing an entry here does NOT delete the server-side
   # object. The same change must carry the ak-shell ORM one-shot, and the ORDER matters —
   # deleting the object while `outpost_embedded` still references it is what makes the next
@@ -188,8 +189,8 @@ entries:
       authentication_flow: !Find [authentik_flows.flow, [slug, default-authentication-flow]]
       authorization_flow: !Find [authentik_flows.flow, [slug, default-provider-authorization-implicit-consent]]
       invalidation_flow: !Find [authentik_flows.flow, [slug, default-provider-invalidation-flow]]
-  # provider_edge_sec_ts (forward-sec-ts): retired service, no entry here — see the UPSERT
-  # rule at the top of this file; the same one-shot applies.
+  # No `provider_edge_sec_ts` — Metabase has no forward-auth provider, plain or `.ts` twin; the
+  # home edge serves both of its names and Authentik is not in that path.
   - model: authentik_providers_proxy.proxyprovider
     id: provider_edge_auto_ts
     identifiers:
@@ -247,8 +248,8 @@ entries:
       name: Grafana (edge)
       meta_launch_url: https://stats.kogler.si
       provider: !KeyOf provider_edge_stats
-  # app_edge_sec (slug: edge-metabase): retired service, no entry here — see the UPSERT rule
-  # at the top of this file.
+  # No Metabase application entry (neither here nor in the `.ts` group): an entry in the launcher
+  # for a service that does not use Authentik is a tile that cannot log anyone in.
   - model: authentik_core.application
     id: app_edge_auto
     identifiers:
@@ -334,8 +335,7 @@ entries:
       name: Grafana (tailnet ts)
       meta_launch_url: https://stats.ts.kogler.si
       provider: !KeyOf provider_edge_stats_ts
-  # app_edge_sec_ts (slug: edge-metabase-ts): retired service, no entry here — see the UPSERT
-  # rule at the top of this file.
+  # No Metabase `.ts` application entry — see the note on the plain group above.
   - model: authentik_core.application
     id: app_edge_auto_ts
     identifiers:

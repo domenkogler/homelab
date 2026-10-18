@@ -46,13 +46,12 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 27 | matrix | matrix | `https://matrix.kogler.si` | enabled |
 | 28 | chat | chat | `https://chat.kogler.si` | enabled |
 | 29 | headscale | vpn | `https://vpn.kogler.si` | enabled |
-| 30 | metabase | sec | `https://sec.kogler.si` | disabled |
-| 31 | crowdsec-web-ui | csui | `https://csui.kogler.si` | enabled |
-| 32 | pairdrop | drop | `https://drop.kogler.si` | enabled |
-| 33 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
-| 34 | renovate | renovate | `https://renovate.kogler.si` | enabled |
-| 35 | navidrome | music | `https://music.kogler.si` | enabled |
-| 36 | rustdesk-server | rustdesk-server | `https://rustdesk-server.kogler.si` | enabled |
+| 30 | crowdsec-web-ui | csui | `https://csui.kogler.si` | enabled |
+| 31 | pairdrop | drop | `https://drop.kogler.si` | enabled |
+| 32 | stirling-pdf | pdf | `https://pdf.kogler.si` | enabled |
+| 33 | renovate | renovate | `https://renovate.kogler.si` | enabled |
+| 34 | navidrome | music | `https://music.kogler.si` | enabled |
+| 35 | rustdesk-server | rustdesk-server | `https://rustdesk-server.kogler.si` | enabled |
 
 ## oldsrv.kogler.si
 
@@ -92,10 +91,11 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 32 | dsh | dsh | `https://dsh.kogler.si` | disabled |
 | 33 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | disabled |
 | 34 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
-| 35 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
-| 36 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
-| 37 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
-| 38 | homelable | homelable | `https://homelable.kogler.si` | disabled |
+| 35 | metabase | metabase | `https://metabase.kogler.si` | enabled |
+| 36 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 37 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
+| 38 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
+| 39 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
 

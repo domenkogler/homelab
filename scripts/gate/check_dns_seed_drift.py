@@ -89,6 +89,10 @@ LAN_ONLY = {
     "aurral.kogler.si": None,                  # oldsrv_home_ip — music discovery (HD-362)
     "slskd.kogler.si": None,                   # oldsrv_home_ip — Soulseek daemon UI (HD-362)
     "lidarr-ydl.kogler.si": None,              # oldsrv_home_ip — YouTube->Lidarr (HD-362)
+    # Metabase on oldsrv's home edge — the trio's class, for the reason stated above: its router
+    # lives in `traefik-internal` on this box, so the plain answer stays Home-only and the
+    # away-from-home path is the `.ts` twin answered by oldsrv's own tailnet node.
+    "metabase.kogler.si": None,               # oldsrv_home_ip — BI sandbox, home-edge routed
     # HD-1097 (2026-10-07): the HOST names. Before this row the LAN zone answered service
     # names only, so `nas.kogler.si` was NXDOMAIN and `\\nas\media` rode the NetBIOS/LLMNR
     # broadcast fallback — fine on a wired port, gone on Wi-Fi (measured: mount by IP works,
@@ -113,6 +117,9 @@ TAILNET = {"stats", "logs", "csui", "traefik", "auto"}
 # target is the oldsrv Home IP; on the VPS PRIMARY they are gated out (lan_only) — see the note in
 # LAN_ONLY above for why they are not in the family's HOME_HOSTED class.
 TRIO = {"aurral.kogler.si", "slskd.kogler.si", "lidarr-ydl.kogler.si"}
+# The trio's class, widened by Metabase: home-edge routers on oldsrv, `oldsrv_home_ip` on the home
+# instances, gated out on the VPS PRIMARY (see the note in LAN_ONLY above).
+HOMED_ROUTED = TRIO | {"metabase.kogler.si"}
 # HD-1097 — a host name must answer that host's Home address (never a shared edge address):
 # a name that resolves to the wrong machine mounts the wrong tree, which is worse than NXDOMAIN.
 HOST_RECORDS = {
@@ -253,7 +260,7 @@ def main() -> int:
                 else:
                     if name in ("spark.kogler.si", "db-spark.kogler.si", "llm.kogler.si"):
                         target = EXPECT["spark"]
-                    elif name in ("llogs.kogler.si", "llitellm.kogler.si") or name in TRIO:
+                    elif name in ("llogs.kogler.si", "llitellm.kogler.si") or name in HOMED_ROUTED:
                         target = EXPECT["oldsrv"]
                     elif name == "cockpit-oldsrv.kogler.si":   # HD-188 Cockpit on oldsrv
                         target = EXPECT["oldsrv"]

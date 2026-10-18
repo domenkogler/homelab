@@ -162,6 +162,16 @@ http:
         - websecure-lan
       service: lidarr-ydl-backend
       tls: true
+    # Metabase (BI sandbox, oldsrv). Own NATIVE login — no Forward-Auth and no OIDC anywhere on
+    # this name (Metabase OSS has no SSO), and this edge carries no auth middleware at all, so the
+    # router is the door and Metabase's own login is the only check behind it.
+    metabase:
+      rule: "Host(`metabase.kogler.si`)"
+      entryPoints:
+        - websecure
+        - websecure-lan
+      service: metabase-backend
+      tls: true
     # LAN log hub (Dozzle multi-host): llogs.kogler.si
     # served by the traefik-internal HOME edge (WAN-out survival — no VPS dependency).
     # Backend = the oldsrv Dozzle hub (:8081); it shows oldsrv + pi + spark containers
@@ -319,6 +329,12 @@ http:
         - websecure-ts
       service: lidarr-ydl-backend
       tls: true
+    metabase-ts:
+      rule: "Host(`metabase.{{ tailnet_base_domain }}`)"
+      entryPoints:
+        - websecure-ts
+      service: metabase-backend
+      tls: true
 {% endif %}
     dns-pi:
       rule: "Host(`dns-pi.kogler.si`)"
@@ -433,6 +449,10 @@ http:
       loadBalancer:
         servers:
           - url: "{{ lidarr_ydl_url }}"
+    metabase-backend:
+      loadBalancer:
+        servers:
+          - url: "{{ metabase_url }}"
     llogs-backend:
       loadBalancer:
         servers:

@@ -1813,6 +1813,53 @@ field `credential` — there is no `litellm_master_key` item). Exact payloads:
    `/downloads/complete/<category>/…`, the arr reports the import, the file exists under
    `/mnt/nas/media/media/{movies,tv}/…`, and Jellyfin serves it.
 
+### P3.7 Metabase first run — the setup token, then the wizard `[MANUAL — owner browser]`
+
+> Design, values and the auth ruling: [services-admin.md](docs/services-admin.md) §Metabase. This section is
+> the order of hands only. Metabase OSS has no OIDC/SSO, so **the account created here is the only login**
+> the service has — there is no Authentik object behind the door and no IaC task can create it.
+
+1. **Converge the service on oldsrv** (probe first, then run; the row is in the oldsrv registry, so the
+   scoped run is the whole deploy):
+   ```bash
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si \
+        --tags docker_services -e docker_services_scope=metabase --check
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si \
+        --tags docker_services -e docker_services_scope=metabase
+   ```
+2. **Prove the door and the bind** before opening a browser — the publish must be loopback-only and the
+   name must be served by the home edge, not by the container's port:
+   ```bash
+   ssh ansible-admin@oldsrv 'ss -ltnp | grep :3002'                    # 127.0.0.1:3002 — never 0.0.0.0
+   ssh ansible-admin@oldsrv 'curl -s -o /dev/null -w "%{http_code}\n" \
+     --resolve metabase.kogler.si:443:<% oldsrv_home_ip %> https://metabase.kogler.si/api/health'
+   ```
+   Evidence: one `127.0.0.1:3002` line, and an HTTP answer from the name. Away from home use
+   `https://metabase.ts.kogler.si`; the plain name answers only at home, and there is **no public record**.
+   A `server failed` on the name is the **seed leg**, not this deploy — the name resolves only after the
+   normal DNS-seed converge, so run that before reading a `NXDOMAIN` as a broken route.
+3. **Read the setup token** — print-only, it opens nothing:
+   ```bash
+   ssh ansible-admin@oldsrv 'docker exec metabase /app/run_metabase.sh --setup-token'
+   ```
+4. **Run the wizard** at `https://metabase.kogler.si`: paste the token → language → **"I'll use my own
+   email and password"** → **Skip** the data-source step (this instance is a sandbox: adding a database is
+   its own change) → turn **anonymous tracking OFF** and **HTTPS-redirect OFF** (the edge terminates TLS).
+5. **Put the credential in the vault in the same sitting** — the admin e-mail + password you just typed,
+   into the `metabase_login` item, via the round-trip template (never argv, and this item is deliberately
+   outside the generated catalog, so no script writes it for you):
+   ```bash
+   printf '%s\n' '{"title":"metabase_login","vault":"personal","category":"Login",\
+   "fields":[{"label":"username","value":"<the admin e-mail>"},\
+   {"label":"password","purpose":"PASSWORD","value":""}]}' | \
+     op item create --template -
+   ```
+   Nothing in the IaC reads it, so no converge and no vault-items audit will ask for it — which is exactly
+   why a missing item here fails **loud and late**, at the login prompt.
+6. **Verify** — `docker ps --filter name=metabase --format '{{.Status}}'` reads `Up (healthy)`; the login
+   succeeds; and `docker exec metabase id` shows uid **0** (the image's entrypoint `chown`s runtime dirs —
+   a non-root `user:` here makes the container exit at `Permission denied`).
+
 ## Phase 4 — Pi Fresh Install + HA Primary (`pi.kogler.si`)
 
 > **Depends on:** Phase 1.5 (VLANs / network reachability), Phase 2 (NAS NUT master), Phase 3 (old srv standby, Forgejo). The Pi is the HA **primary** node; oldsrv (Phase 3) is standby. Both share one `configuration.yaml` and the VIP (`ha-vip`).

@@ -180,10 +180,10 @@
   "counts": {
     "cloudflare": 22,
     "headscale:plain": 10,
-    "headscale:ts_only": 28,
+    "headscale:ts_only": 29,
     "technitium:primary": 35,
-    "technitium:secondary": 50,
-    "technitium:secondary-pi": 50
+    "technitium:secondary": 51,
+    "technitium:secondary-pi": 51
   },
   "headscale": {
     "plain": [
@@ -376,6 +376,11 @@
       },
       {
         "name": "lidarr-ydl.ts.kogler.si",
+        "type": "A",
+        "value": "100.64.0.3"
+      },
+      {
+        "name": "metabase.ts.kogler.si",
         "type": "A",
         "value": "100.64.0.3"
       }
@@ -724,6 +729,10 @@
       {
         "ip": "10.10.1.1",
         "name": "router.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "metabase.kogler.si"
       }
     ],
     "secondary-pi": [
@@ -926,6 +935,10 @@
       {
         "ip": "10.10.1.1",
         "name": "router.kogler.si"
+      },
+      {
+        "ip": "10.10.1.30",
+        "name": "metabase.kogler.si"
       }
     ]
   }
