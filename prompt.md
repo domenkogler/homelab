@@ -284,6 +284,19 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       row still owes is on [todo.md](todo.md) HD-1158: re-sign the window at a wave tip so the signed entries shrink with
       the tree, and rule whether `audit_text()`'s add/drop-line rule takes the same anchor — that is what would let the run
       item come back into the pool. · [todo.md](todo.md) HD-1158 · [scripts/README.md](scripts/README.md) §Validation gate
+    - ⏳ **The mint space is poisoned by test fixtures — settle which namespace is reserved before anything else is
+      minted.** `scripts/next-hd.sh` takes the next id from the maximum across `todo.md`, the docs and
+      `git log -S 'HD-'`; and `scripts/gate/corpus_diff.py`'s classifier fixtures use synthetic ids from a reserved
+      9000-block, so the next real mint lands up there rather than beside its siblings. Re-derive with
+      `bash scripts/next-hd.sh`; that command is the only honest way to see this. Two findings stay **un-rowed** until the
+      reservation is ruled, because a row minted from a poisoned scan is a pointer the next session cannot trust: the
+      `git-bootstrap.sh --self-test` `signedout` arm keys on a string its own fixture writes, so it proves branch logic
+      and not the `op` contract it depends on (assert the echoed refusal instead), and the scanner wants the reserved
+      range written down where the id lifecycle lives.
+    - **This station merges; it does not have to push.** `git status -sb` reports local `main` ahead of
+      `origin/main` by however many commits it says — re-derive that, never copy a count — and pushing belongs to the
+      station that owns the remote (§1). A session closing with a count above zero has left that step undone on request,
+      not failed it.
 
     - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
       `--self-test`, and it IS registered now, alongside `check_doc_path_refs.py`: `--list` prints both its run and its
