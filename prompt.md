@@ -113,8 +113,7 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    systemd-networkd, **nas = `ifupdown`**, the legal third state — held down by
    [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read per host with
    `scripts/ansible/probe-net-manager.sh`; the dead `eno1` renders are off the fleet (pi/oldsrv removals landed, the nas
-   removal under its `ifupdown` freeze landed), so what is left is the **spark** networkd disarm and nas's **NM adoption**), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed
-   and was verified 2026-10-08**; spark waits on a spark-slot converge, nas is frozen behind HD-487), and the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/HD-488 close, HD-1148 docker family applied live)
+   removal under its `ifupdown` freeze landed), so what is left is the **spark** networkd disarm and nas's **NM adoption**), **the host-resolver class beyond oldsrv** (the Pi leg landed and was verified 2026-10-08; spark's converge closed it 2026-10-18 — resolver pair + networkd disarm via the spark slot), and the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/the host-resolver row close, HD-1148 docker family applied live)
    DNS-policy rows **HD-480–483**. → [prompt-dns-transport.md](prompt-dns-transport.md)
 3. ⏳ **Silent-failure alerting** — **HD-450**'s collector legs are LIVE and read back per host 2026-10-17: the NUT
    client→master metric with `nut-master-unreachable` loaded, and the VPS's own on-disk cert pair exported. The
@@ -374,7 +373,7 @@ the transport before the guard is even reached — the inventory's `ProxyJump=vp
 against the bare `ansible_host`, where the seat's own alias block pins the operator key — so drive it from another
 controller, or use one of the two forms that section measures:
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement) · **nas's NetworkManager adoption** — until the measured
-`ifupdown` owner of `eno1` is replaced, every address and resolver leg there stays frozen · **HD-384 step 2** — the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/HD-488 close, HD-1148 docker family applied live)
+`ifupdown` owner of `eno1` is replaced, every address and resolver leg there stays frozen · **HD-384 step 2** — the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/the host-resolver row close, HD-1148 docker family applied live)
 two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
 list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
 call · **the docker-family applies** **HD-1148** owes on `pi` and on `spark` (vps is landed) — the daemon restart takes every
