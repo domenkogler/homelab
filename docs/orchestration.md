@@ -6,7 +6,7 @@ cross_cutting: true
 status: active
 tags: [meta, process, orchestration, sessions]
 ---
-> **Role:** the PERMANENT process contract for repo sessions — the working contract (§3) and the
+> **Role:** the PERMANENT process contract for repo sessions (cross-cutting) — the working contract (§3) and the
 > lane-session orchestrator mode (§4, overrides O1–O11, launch, merge/cleanup) + the child-lane contract
 inside one session. The LIVE wave table is
 > NOT here — it lives in [todo-table.md](../todo-table.md) §B0. Where the contract below is silent,

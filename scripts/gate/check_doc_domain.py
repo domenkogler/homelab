@@ -15,11 +15,19 @@ the checker's universe moves with it. What IS written down is the `role:` vocabu
 §8.1, because a typo'd role would otherwise drop a doc out of the hub rules below and out of every
 other rule that reads role.
 
-FOUR RULES, both halves proved by --self-test:
+SIX RULES, both halves proved by --self-test:
 
   domain        every in-scope doc declares a `domain:` in its leading `---` block. A
                 `-generated.md` render view is out of scope: §8.2 says generated views carry no
                 frontmatter by design, so demanding one here would be a lie about the format.
+  domain-shape  that value must be a BARE lowercase slug. `domain: "network"`, `domain: Network` and
+                `domain: network # retag` all used to be accepted, and each one silently MINTS a new
+                one-doc domain while dropping the doc out of the domain whose hub rule it was
+                satisfying — the run prints `OK` and `--show` prints a domain nobody meant. The finding
+                quotes what a parser would have stored, so the fix is visible from the line alone.
+  dup-key       a `domain:`/`role:` written TWICE in one block is last-wins with no warning — the
+                frontmatter twin of `check_yaml_dup_keys.py` (CONVENTIONS §6 "a duplicate YAML mapping
+                key is a silent no-op"). Refused, never guessed: the gate does not pick a winner.
   role          every in-scope doc declares a `role:` that exists in the §8.1 vocabulary (widened
                 2026-10-18 with the four values the tree already carries: log, queue, evidence,
                 incident-log). A missing role is the same defect as a wrong one — an undeclared role
@@ -43,9 +51,10 @@ Output: `OK: <n> docs, <m> domains, each with one claimed home`, or one
 DOMAIN in the file slot, because the fact is about the domain and naming one of its docs would blame
 a file that did nothing.
 
-Exit: 0 clean · 1 finding(s) · 2 could not run (no tracked docs, or no fixture for --self-test). A
-corpus floor refuses a walk that saw almost nothing — the HD-1118 mute-failure class: a gate that
-cannot see the files cannot fail either. Stdlib + git only.
+Exit: 0 clean · 1 finding(s) · 2 could not run (no tracked docs, or no fixture for --self-test). TWO
+floors refuse a walk that saw almost nothing — `WALK_FLOOR` on tracked files, `CORPUS_FLOOR` on parsed
+docs, for the HD-1118 mute-failure class: a gate that cannot see the files cannot fail either. Stdlib
++ git only.
 """
 from __future__ import annotations
 
@@ -79,10 +88,37 @@ ROLE_VOCAB = ("index", "broad", "ssot", "detail", "reference", "design-spec", "r
 HUB_ROLES = ("index", "broad")
 PAIR_SUFFIXES = ("-review.md", "-rejected.md")
 GENERATED_SUFFIX = "-generated.md"
-# Far below the real count (84 in-scope docs measured 2026-10-18): it fires on a broken walk, never
-# on an ordinary commit that deletes one doc.
+# TWO floors, because the walk and the parse can each go blind on their own, and the numbers below are
+# MEASUREMENTS, not the floors — the floor is the number that stays put while the measurement drifts.
+#   CORPUS_FLOOR — in-scope PARSED docs: 84 measured 2026-10-18, so this sits far below the tree and
+#     fires on a broken root/walk, never on an ordinary commit that deletes one doc.
+#   WALK_FLOOR   — tracked `.md` under docs/ BEFORE the `-generated` exemption: 88 measured the same day
+#     (84 in scope + 4 `-generated`), of which `docs/manual/` is 13. It sits 8 below the measurement, so
+#     losing a whole subdirectory is RED while deleting one doc in a normal commit is not: 88 tracked and
+#     a `manual`-blind walk yields 75, and 75 is below 80. CORPUS_FLOOR cannot catch that shape (75 - 4
+#     generated = 71 parsed, still over 40) and no sibling gate covers it: `check_doc_map.py` exempts
+#     `manual/*`. Raise WALK_FLOOR when the tree grows past the drift margin.
 CORPUS_FLOOR = 40
+WALK_FLOOR = 80
 KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_-]*):(.*)$")
+# A `domain:` is a slug, not free text: lowercase alphanumerics, hyphens between, nothing else.
+DOMAIN_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# One quoted YAML scalar: quotes are syntax, not content, and may be followed by a comment.
+QUOTED_RE = re.compile(r"""^(?:(['"])(.*?)\1)\s*(?:#.*)?$""")
+
+
+def scalar(raw: str) -> str:
+    """What a YAML reader would STORE for this scalar: one layer of matching quotes, then an UNQUOTED
+    trailing comment (YAML opens a comment at a `#` preceded by whitespace, so `foo#bar` is a value and
+    `foo #bar` is `foo`). This is the value a downstream parser uses — it is NOT the verdict: the
+    `domain-shape` rule judges the RAW text, because a value that needs parsing to be understood is
+    already a value no sibling doc carries.
+    """
+    raw = raw.strip()
+    m = QUOTED_RE.match(raw)
+    if m:
+        return m.group(2) or ""
+    return re.split(r"\s+#", raw, maxsplit=1)[0].strip()
 
 
 def is_pair(rel: str) -> bool:
@@ -90,26 +126,38 @@ def is_pair(rel: str) -> bool:
 
 
 def frontmatter(text: str):
-    """(fields | None, error | None) from the LEADING `---` block only — prose is never read.
+    """(fields | None, error | None, dup {key: [line, …]}) from the LEADING `---` block only.
 
-    Returns (None, None) for a file with no frontmatter block at all, and (None, msg) for a block
-    that opens and never closes, because those are different defects: the first is a missing field,
-    the second is a truncated file that would otherwise read as "no frontmatter" forever. The scan
-    stops 40 lines in: a `---` that opens and does not close inside 40 lines is a Markdown
-    horizontal rule above a document, not a frontmatter block, and parsing prose as fields is worse
-    than refusing it. Keys are matched at column 0 only, so a nested list item cannot read as one.
+    Prose is never read. Returns (None, None, {}) for a file with no frontmatter block at all, and
+    (None, msg, {}) for a block that opens and never closes, because those are different defects: the
+    first is a missing field, the second is a truncated file that would otherwise read as "no
+    frontmatter" forever. The scan stops 40 lines in: a `---` that opens and does not close inside 40
+    lines is a Markdown horizontal rule above a document, not a frontmatter block, and parsing prose as
+    fields is worse than refusing it. Keys are matched at column 0 only, so a nested list item cannot
+    read as one. A key seen TWICE is reported, not resolved: `fields` keeps the LAST value because that
+    is what every real YAML parser does, and the caller turns the repetition into a finding.
     """
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
-        return None, None
-    fields = {}
-    for ln in lines[1:40]:
+        return None, None, {}
+    fields: dict[str, str] = {}
+    first: dict[str, int] = {}
+    dups: dict[str, list[int]] = {}
+    for n, ln in enumerate(lines[1:40], start=2):
         if ln.strip() == "---":
-            return fields, None
+            break
         m = KEY_RE.match(ln)
-        if m:
-            fields[m.group(1)] = m.group(2).strip()
-    return None, "the `---` block never closes"
+        if not m:
+            continue
+        key = m.group(1)
+        if key in first:
+            dups.setdefault(key, [first[key]]).append(n)
+        else:
+            first[key] = n
+        fields[key] = m.group(2).strip()
+    else:
+        return None, "the `---` block never closes", {}
+    return fields, None, dups
 
 
 def scan(corpus: dict[str, str]):
@@ -121,17 +169,36 @@ def scan(corpus: dict[str, str]):
         if rel.rsplit("/", 1)[-1].endswith(GENERATED_SUFFIX):
             n_generated += 1              # §8.2: a render view, out of scope by design
             continue
-        fields, err = frontmatter(corpus[rel])
+        fields, err, dups = frontmatter(corpus[rel])
         if err:
             findings.append(f"FAIL: {rel}: frontmatter — {err}")
             continue
+        if dups:
+            detail = "; ".join(f"`{k}` appears {len(v)}× in one frontmatter block "
+                               f"on line{'s' * (len(v) > 1)} {' + '.join(map(str, v))}"
+                               for k, v in sorted(dups.items()))
+            findings.append(f"FAIL: {rel}: dup-key — {detail} — the LAST one wins silently, so the first "
+                            "keeps looking authoritative while editing it is a no-op (CONVENTIONS §6, the "
+                            "frontmatter twin of check_yaml_dup_keys.py): delete the stale key")
+            continue
         fields = fields or {}
-        domain = fields.get("domain", "").strip()
+        raw_domain = fields.get("domain", "").strip()
+        domain = scalar(raw_domain)
         role = fields.get("role", "").strip()
         if not domain:
-            findings.append(f"FAIL: {rel}: domain — no `domain:` in the frontmatter block, so the doc "
-                            "claims no home in the derived set")
+            findings.append(f"FAIL: {rel}: domain — no `domain:` value in the frontmatter block, so the "
+                            "doc claims no home in the derived set")
             continue
+        if raw_domain != domain or not DOMAIN_RE.match(domain):
+            parsed = "" if domain == raw_domain else f" (a parser reads it as `{domain or 'nothing'}`)"
+            findings.append(f"FAIL: {rel}: domain-shape — `{raw_domain}` is not a bare lowercase "
+                            f"slug{parsed}. Write it lowercase with hyphens and nothing after it — quotes, "
+                            "capitals and a trailing `# …` each mint a NEW one-doc domain and drop the doc "
+                            "from the domain it belongs to (CONVENTIONS §8.1)")
+            continue
+        # `role:` needs no shape rule of its own and no scalar(): membership in ROLE_VOCAB is a strict
+        # equality, so anything that is not EXACTLY one of the §8.1 words — quoted, capitalised, commented
+        # — is already a finding. The open set is the one that needs the slug rule.
         if not role:
             findings.append(f"FAIL: {rel}: role — no `role:` in the frontmatter block, so the doc "
                             "cannot be read as a hub or a body")
@@ -168,6 +235,10 @@ def scan(corpus: dict[str, str]):
 
     for rel in sorted(docs):
         d = docs[rel]
+        # Read rule 2 for exactly what it enforces: the pair's `domain:` appears on SOME doc BODY — it is
+        # NOT hub-proof. A domain can satisfy this line and still owe a hub to the rule above, so when
+        # HD-1119(a) gives `harness` bodies nobody should read a green pair-domain as "that domain has an
+        # entry point".
         if is_pair(rel) and d["domain"] not in body_domains:
             findings.append(
                 f"FAIL: {rel}: pair-domain — `domain: {d['domain']}` appears on no doc body, and a "
@@ -190,13 +261,19 @@ def show(corpus: dict[str, str]) -> int:
     return 0
 
 
-def report(corpus: dict[str, str], verbose: bool = False) -> int:
-    """The verdict half — separate from main() so --self-test can drive it with a fixture tree."""
-    if not corpus:
+def report(corpus: dict[str, str], verbose: bool = False, unreadable=()) -> int:
+    """The verdict half — separate from main() so --self-test can drive it with a fixture tree.
+
+    `unreadable` is the list of already-worded FAIL lines for docs whose bytes could not be read. They
+    are FINDINGS, counted here rather than short-circuiting the run: an unreadable doc may never reach
+    the `OK` line, and it may never mute the rest of the tree either.
+    """
+    if not corpus and not unreadable:
         print("CANNOT RUN: no tracked docs were read. `git ls-files` answered with nothing under "
               "docs/, and a gate that sees nothing cannot fail either (HD-1118 Stage 1).")
         return 2
     findings, stats = scan(corpus)
+    findings = list(unreadable) + findings
     if verbose:
         show(corpus)
     for line in findings:
@@ -211,7 +288,13 @@ def report(corpus: dict[str, str], verbose: bool = False) -> int:
 
 
 def tracked_docs() -> list[str]:
-    """Tracked `.md` under docs/ — the whole corpus, derived from git, never from a list."""
+    """Tracked `.md` under docs/ — the whole corpus, derived from git, never from a list.
+
+    The `--  docs` pathspec is the ONE place this walk is stated, which is why the hand proof for
+    WALK_FLOOR is "narrow that pathspec" (`git ls-files -z -- docs/manual` is 13 files of these 88): a
+    walk that silently loses a subdirectory has to be visible in the count, and the count is proved
+    below by require_walk.
+    """
     r = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--", "docs"],
                        capture_output=True)
     if r.returncode != 0:
@@ -220,6 +303,18 @@ def tracked_docs() -> list[str]:
         raise SystemExit(2)
     return [p for p in r.stdout.decode("utf-8", "replace").split("\0")
             if p.endswith(".md") and "/assets/" not in "/" + p]
+
+
+def require_walk(files: list[str]) -> int:
+    """Refuse a walk that saw almost none of the corpus, then hand back the count.
+
+    tracked_docs() alone only refuses an EMPTY walk, so a pathspec/glob regression that drops one
+    subdirectory would print `OK: 71 docs, 9 domains` for a tree this gate only partly read — and
+    `docs/manual/` is 13 of the 88, uncovered by any sibling gate. Returns len(files); raises when the
+    walk is below WALK_FLOOR.
+    """
+    return require_corpus(len(files), WALK_FLOOR,
+                          "check_doc_domain walked tracked .md under docs/")
 
 
 def fixture_corpus() -> dict[str, str]:
@@ -309,6 +404,22 @@ def self_test() -> int:
     # 5 — a typo'd role must not silently leave every other rule.
     red("unknown role", "role", set_field("docs/subscription.md", "role", "overview"))
 
+    # 5b — the SHAPE of the value, not just the value. Each of these three used to be accepted, minting a
+    # one-doc domain and dropping the doc from the domain it was written for; the run stayed green.
+    for shape, raw in (("quoted", '"network"'),
+                       ("uppercase", "Network"),
+                       ("trailing comment", "network # retag")):
+        red(f"domain-shape: {shape} value", "domain-shape",
+            set_field("docs/network-dns.md", "domain", raw))
+
+    # 5c — the same key TWICE in one block: last wins, silently — the frontmatter twin of the duplicate
+    # YAML mapping key CONVENTIONS §6 names and check_yaml_dup_keys.py refuses in IaC.
+    def repeat_domain(mutant):
+        lines = mutant["docs/network-dns.md"].splitlines()
+        lines.insert(1, "domain: governance")        # a second `domain:` above the first, both at column 0
+        mutant["docs/network-dns.md"] = "\n".join(lines) + "\n"
+    red("duplicate `domain:` in one block", "dup-key", repeat_domain)
+
     # 6 — §8.2: a render view is out of scope, so its missing frontmatter is NOT a finding.
     gen = dict(base)
     gen["docs/services-inventory-generated.md"] = "# Ansible managed\n\nrendered view, no frontmatter\n"
@@ -328,6 +439,44 @@ def self_test() -> int:
     else:
         print(f"  FAIL  an empty walk returned rc {rc} instead of 2")
         ok = False
+
+    # 7b — the WALK floor, proved at its own boundary rather than by a number copied from the tree:
+    # exactly WALK_FLOOR tracked paths must be refused and one more must pass. This is the class the hand
+    # proof reproduces — narrowing `git ls-files -z -- docs` by hand so the walk loses docs/manual (13 of
+    # 88) leaves 75 files, which still parses 71 docs and so sails under CORPUS_FLOOR.
+    for n, expect_refusal in ((WALK_FLOOR, True), (WALK_FLOOR + 1, False)):
+        refused = None
+        try:
+            require_walk([f"docs/d{i}.md" for i in range(n)])
+        except SystemExit as e:
+            refused = str(e)
+        if expect_refusal and refused:
+            print(f"  RED   walk floor: a walk of {n} files is refused — {refused.splitlines()[0]}")
+        elif expect_refusal:
+            print(f"  FAIL  walk floor: a walk of {n} files passed. A walk that loses a subdirectory "
+                  "would print OK — that is the failure this floor exists for")
+            ok = False
+        elif refused:
+            print(f"  FAIL  walk floor: a healthy walk of {n} files was refused — "
+                  f"{refused.splitlines()[0]}")
+            ok = False
+        else:
+            print(f"  GREEN walk floor: {n} tracked files pass, {WALK_FLOOR} does not")
+
+    # 7c — floor vs drift: the measurement WALK_FLOOR was derived from. `docs/manual` is 13 of these, so
+    # a tree that drifts far enough to sit under its own floor says so here instead of going red in CI.
+    try:
+        measured = len(tracked_docs())
+    except SystemExit:
+        measured = 0                      # no git on this seat: an environment boundary, never a pass
+    if not measured:
+        print("  SKIP  no `git ls-files` here, so the walk floor is proved at its boundary only")
+    elif measured <= WALK_FLOOR:
+        print(f"  FAIL  the real walk yields {measured} tracked .md, at or below WALK_FLOOR "
+              f"{WALK_FLOOR} (measured 88 on 2026-10-18) — raise the floor with the tree")
+        ok = False
+    else:
+        print(f"  OK    the real walk yields {measured} tracked .md, above WALK_FLOOR {WALK_FLOOR}")
 
     # 8 — the single-doc-domain half of the hub rule, stated where it is exercised: the fixture's
     # `governance` doc is alone in its domain with `role: reference` and yields nothing.
@@ -353,20 +502,25 @@ def main() -> int:
         print("CANNOT RUN: `git ls-files` reports no tracked .md under docs/ — either the walk is "
               "broken or this is not the repo root. A gate that sees nothing cannot fail either.")
         return 2
+    require_walk(files)
     corpus = {}
-    unreadable = []
+    unreadable_findings = []
     for f in files:
         try:
             corpus[f] = (ROOT / f).read_text(encoding="utf-8")
         except (UnicodeDecodeError, OSError):
-            unreadable.append(f)
-    for f in unreadable:
-        # A doc whose bytes cannot be read cannot be proved to carry a `domain:` — reported, not
-        # skipped, because a silently-missing doc is the mute-failure class this gate exists for.
-        print(f"FAIL: {f}: frontmatter — unreadable as UTF-8, so its `domain:` cannot be checked")
+            # A doc whose bytes cannot be read cannot be proved to carry a `domain:` — reported, not
+            # skipped, because a silently-missing doc is the mute-failure class this gate exists for.
+            unreadable_findings.append(
+                f"FAIL: {f}: frontmatter — unreadable as UTF-8, so its `domain:` cannot be checked")
     if "--show" in sys.argv:
+        for line in unreadable_findings:
+            print(line)
         return show(corpus)
-    return 1 if unreadable else report(corpus, "--verbose" in sys.argv)
+    # One unreadable doc is ONE finding, not a verdict on the run: report() scans the rest of the tree and
+    # counts these into the total, so a single latin-1 file can neither print OK nor hide what it masked
+    # (review HD-1119b — this used to be `return 1 if unreadable else report(…)`).
+    return report(corpus, "--verbose" in sys.argv, unreadable_findings)
 
 
 if __name__ == "__main__":
