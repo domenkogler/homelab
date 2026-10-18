@@ -1168,7 +1168,7 @@ item_q "check_doc_domain.py --self-test (HD-1119: each rule seen RED on a fixtur
 item_q "check_generated_suffix.py" $PY scripts/gate/check_generated_suffix.py
 item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/gate/check_ledger_state.py
 item_q "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/gate/check_runbook_purity.py
-item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; the a-or-b suffix hole ON RECORD; a blind walk or a missing input refused, never OK: 0 phases)" $PY scripts/gate/check_runbook_purity.py --self-test
+item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; every single-letter phase suffix proved compared; a blind walk or a missing input refused, never OK: 0 phases)" $PY scripts/gate/check_runbook_purity.py --self-test
 item_q "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/gate/check_vault_docs.py
 item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
 item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs

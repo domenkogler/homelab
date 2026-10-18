@@ -18,13 +18,15 @@ Checks:
   4. dup-heading    — two identical headings (a renumbering accident that hides a section).
   5. phase-alignment— every `## Phase X` in the runbook must exist in the ledger, so "Phase 5"
                       cannot mean the deploy button in one file and a GPU box in the other. The
-                      capture admits a digit, an optional `.N`, and a TRAILING `a` OR `b` — see
-                      PHASE_RE for what a phase written outside that shape does to the verdict.
+                      capture admits a digit, an optional `.N`, and ONE trailing letter `a`-`z`, so
+                      every letter-suffixed phase either document can write is compared and counted;
+                      PHASE_RE states the one shape still outside it (a TWO-letter suffix, arm (d)).
 
 The phase comparison is the only rule here that reads a SECOND document, so it is the one rule that
 can go blind silently: a runbook that numbers more phases than the verdict counts is a runbook this
 gate did not read. `--self-test` proves each arm can fail — an orphan phase RED, the `0.5` exemption
-GREEN (live, not dead code), the shape hole ON RECORD, and a probe witness that refuses a run whose
+GREEN (live, not dead code), a letter suffix past `b` RED on a ledger that omits it and GREEN once the
+ledger names it (the arm that keeps the capture honest), and a probe witness that refuses a run whose
 walk saw no phase heading or could not open one of the two documents.
 
 Run:   python3 scripts/gate/check_runbook_purity.py              # the tree
@@ -61,19 +63,15 @@ STATUS_HEADING_RE = re.compile(r"\b(deploy-gated|as-built|current state|\bstatus
 # exactly ONE documented exception; a runbook-only phase with any other suffix is an undocumented one.
 MANUAL_ONLY_PHASES = {"0.5"}
 
-# KNOWN LIMITATION, on record and canaried by self-test arm (c): the capture admits a trailing `a` OR
-# `b` and NOTHING ELSE. A runbook phase carrying any other suffix is invisible to rule 5 — not
-# compared to the ledger, not reported as an orphan, and not counted in the verdict's own total, which
-# is how `OK: … N phases aligned with the ledger` can be true of a runbook that numbers more than N.
-# Measured 2026-10-18: captured 9, numbered 10 — `## Phase 4c` (`deployment-manual.md:2076`) is the
-# tenth, and `Phase 4d`/`Phase 6c` would be exactly as invisible, so the hole is the SHAPE, not that
-# heading. The runbook's own Phase index table and its charter footer omit the phase too, so the tree
-# states it nowhere. Which closure to take — widen the suffix to `a-z` and exempt `4c` (that makes a
-# SECOND documented runbook-only phase, and the gate is red until the exemption lands), or author a
-# real `## Phase 4c` section in the ledger (which `check_ledger_state.py` then dates and ties to a
-# `todo.md` row) — is the owner's call and is parked in `todo.md`. Arm (c) goes RED when the capture
-# changes without this comment, the `scripts/README.md` row and `docs/deployment.md` changing with it.
-PHASE_RE = re.compile(r"^## Phase (\d+(?:\.\d+)?[ab]?)(?=[\s—-])", re.M)
+# The capture admits a digit, an optional `.N` and ONE trailing letter `a`-`z`. ONE regex serves both
+# documents, so the runbook half and the ledger half of rule 5 cannot disagree about what a phase
+# number is. A phase whose suffix is not exactly one letter (a two-letter suffix, a second `.N`) yields
+# no capture at all and is therefore invisible to rule 5 — arm (d) names that residue and arm (c) proves
+# no single-letter suffix is invisible: a runbook phase the ledger does not carry goes RED whatever
+# letter it carries. Consequence for a writer: a phase the runbook numbers needs its ledger section in
+# the same change, and changing this shape changes this comment, the `scripts/README.md` row and
+# `docs/deployment.md` §Phase numbering with it — arm (c) reddens when those drift apart.
+PHASE_RE = re.compile(r"^## Phase (\d+(?:\.\d+)?[a-z]?)(?=[\s—-])", re.M)
 # Shape-agnostic witness, used ONLY by self-test arm (c): every `## Phase <something starting with a
 # digit>` heading, whatever its suffix. The DELTA between what PHASE_RE captures and what this counts
 # IS the blind spot, so arm (c) cannot pass by both regexes going blind at once.
@@ -176,7 +174,7 @@ def refusal_for_phases(manual_phases: set[str], ledger_phases: set[str]):
         return ("CANNOT RUN: the runbook yielded no `## Phase …` heading that the capture admits, so "
                 "there was nothing to align. Either the walk is blind (wrong repo root, moved file) "
                 "or every phase heading is outside the admitted shape — a digit, an optional `.N`, "
-                "then `a`, `b` or nothing. An empty phase set is not a pass (CONVENTIONS §6).")
+                "then at most ONE letter. An empty phase set is not a pass (CONVENTIONS §6).")
     if not ledger_phases:
         return ("CANNOT RUN: the ledger yielded no `## Phase …` heading that the capture admits, so "
                 "every runbook phase would be reported as an orphan by accident rather than by rule. "
@@ -225,11 +223,12 @@ def fixture_ledger(phases=BASE_PHASES) -> str:
 
 
 def self_test() -> int:
-    """Every arm seen RED, the same fixtures seen GREEN, and the shape hole seen STILL TRUE.
+    """Every arm seen RED, the same fixtures seen GREEN, and the suffix capture proved to reach past `b`.
 
     Arms are strings in memory: breed one heading, require the finding, put it back, require silence.
-    The last arm is NOT a claim of correctness — it is the blind spot on record, and it fails when
-    someone closes it without updating the record.
+    Arm (c) is the canary for the capture itself — a letter suffix this gate could not see would make
+    rule 5 a rule about only the phases the regex happens to match, so it is seen RED and GREEN rather
+    than described.
     """
     ok = True
     base_manual, base_ledger = fixture_manual(), fixture_ledger()
@@ -284,39 +283,40 @@ def self_test() -> int:
     orphan("(b) the same shape OUTSIDE the exemption set (`## Phase 6.5`)",
            fixture_manual(extra_headings=("## Phase 6.5 — A phase nothing exempts",)), base_ledger)
 
-    # (c) NOT a claim of correctness, a limitation on the record (the check_doc_headings.py (h) arm).
-    # `4d` and `6c` are outside the suffix the capture admits, so two phases the ledger does not
-    # carry produce NO finding at all — the verdict would still print `OK`. The arm holds only while
-    # the capture is exactly as blind as this comment says: widen the suffix and the finding appears,
-    # narrow it and `1a`/`4b` drop out of the captured set. Either way this arm reddens and the record
-    # (this comment, the scripts/README.md row, the owning doc) has to be re-argued, not discovered.
-    hidden = fixture_manual(extra_headings=("## Phase 4d — Invisible in the runbook",
-                                            "## Phase 6c — Also invisible",))
-    captured = set(PHASE_RE.findall(hidden))
-    numbered = set(PHASE_ANY_RE.findall(hidden))
-    invisible = sorted(numbered - captured)
-    got = findings_of(hidden, base_ledger)
-    if not got and invisible == ["4d", "6c"] and captured == set(BASE_PHASES):
-        print(f"  ON RECORD (c) KNOWN LIMITATION still true: the capture admits a trailing `a` or `b` "
-              f"only, so of the {len(numbered)} phases this fixture numbers the gate sees "
-              f"{len(captured)} — `Phase 4d` and `Phase 6c` yield no finding and no orphan, exactly "
-              "as `Phase 4c` does on the real runbook (captured 9, numbered 10). Widening PHASE_RE "
-              "means updating this arm, the scripts/README.md row and the owning doc.")
-    else:
-        print(f"  FAIL  (c) the phase-suffix capture changed: findings={shown(got)} "
-              f"captured={sorted(captured)} invisible={invisible} — the limitation is closed or moved, "
-              "and the record (PHASE_RE comment, scripts/README.md row, owning doc) has not been "
-              "updated. Arm (c) fails on purpose: it is the canary, not the rule.")
+    # (c) The suffix capture is the load-bearing half of rule 5, so it is canaried rather than
+    # described. `4d` is the shape that used to be invisible — the capture stopped at `b`. With
+    # `a`-`z` admitted, a runbook numbering a `Phase 4d` the ledger omits MUST redden rule 5, and the
+    # SAME fixtures with a ledger that names that phase MUST be silent, or the arm proves nothing
+    # either way. Reverting the widening reddens it twice over: the orphan half finds no finding at
+    # all, and the witness delta below goes nonzero (a heading numbered but never captured).
+    manual_4d = fixture_manual(extra_headings=("## Phase 4d — A suffix the capture must admit",))
+    orphan("(c) `## Phase 4d` with no ledger counterpart — every letter suffix is compared",
+           manual_4d, base_ledger)
+    green("(c) the same runbook with a ledger that names Phase 4d",
+          manual_4d, fixture_ledger(tuple(BASE_PHASES) + ("4d",)))
+    # The witness half: PHASE_ANY_RE counts every `## Phase <digit…>` heading whatever its shape, so a
+    # nonzero delta IS a phase rule 5 never sees. Both regexes going blind at once cannot pass here.
+    captured = set(PHASE_RE.findall(manual_4d))
+    numbered = set(PHASE_ANY_RE.findall(manual_4d))
+    if numbered - captured:
+        print(f"  FAIL  (c) the capture went blind: {sorted(numbered - captured)} numbered but NOT "
+              f"captured — the suffix set and this arm disagree, and the record (this checker's "
+              "comment, the scripts/README.md row, docs/deployment.md) has to be re-argued.")
         ok = False
+    else:
+        print(f"  GREEN (c) the capture admits every single-letter suffix: {len(captured)} of "
+              f"{len(numbered)} phases this fixture numbers reach rule 5")
 
     # (d) The probe witness: a walk that saw no phase heading, or a missing input, must REFUSE. Both
-    # halves of the phase witness, plus the case that matters here — both documents headed only with
-    # a phase OUTSIDE the admitted shape, which is the blind spot turning into a false `OK: 0 phases`.
+    # halves of the phase witness, plus the case that matters here — both documents headed only with a
+    # phase OUTSIDE the admitted shape, which is the blind spot turning into a false `OK: 0 phases`.
+    # The residue is a TWO-letter suffix: one letter is admitted since the capture widened to `a-z`,
+    # so this arm names the only phase shape rule 5 still cannot see.
     for label, manual, ledger in (
             ("(d) a runbook with no phase heading at all", "", base_ledger),
             ("(d) a ledger with no phase heading at all", base_manual, ""),
-            ("(d) both sides headed only with `Phase 4c`, outside the admitted shape",
-             fixture_manual(phases=("4c",)), fixture_ledger(("4c",)))):
+            ("(d) both sides headed only with `Phase 4ca`, outside the admitted shape",
+             fixture_manual(phases=("4ca",)), fixture_ledger(("4ca",)))):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             rc = report(manual, ledger)
@@ -347,8 +347,7 @@ def self_test() -> int:
               f"{buf.getvalue().strip()}")
         ok = False
 
-    print("self-test: " + ("all arms caught, control clean, the shape hole is on record"
-                           if ok else "NOT PROVEN"))
+    print("self-test: " + ("all arms caught, control clean" if ok else "NOT PROVEN"))
     return 0 if ok else 1
 
 

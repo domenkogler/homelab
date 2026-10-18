@@ -121,19 +121,19 @@ steps must be pressed, so it may number a phase the ledger carries as a step ins
 and that exemption is a single documented value, `Phase 0.5` (the VPS re-provisioning, which the
 ledger folds into its Phase 1 steps). Rule and owning doc: [CONVENTIONS.md](../CONVENTIONS.md) §4.
 
-**How it is enforced, and what the enforcement cannot see:**
+**How it is enforced, and what the enforcement sees:**
 [`../scripts/gate/check_runbook_purity.py`](../scripts/gate/check_runbook_purity.py) compares the two
-documents' phase headings (`phase-alignment`, run by `scripts/validate-all.sh`). Its capture admits a
-digit, an optional `.N`, and a trailing `a` or `b` — nothing else. A phase heading written with any
-other suffix is therefore not compared in EITHER direction: it is not reported as an orphan, and it
-is not counted in the phase total the verdict prints, so `OK: … N phases aligned with the ledger` can
-be true of a runbook that numbers more phases than the sentence claims. The exemption set cannot
-rescue such a heading either, because it lists `0.5` only. The checker's `--self-test` carries a
-**KNOWN-LIMITATION** arm that asserts precisely this blindness, so it turns RED if the capture is
-ever widened without the record — this paragraph, that checker's comment and the
-[`../scripts/README.md`](../scripts/README.md) row — being updated in the same change. So a phase this
-gate cannot see is a phase nobody agreed to: read both documents directly (`grep -n '^## Phase'` in
-each) whenever a phase number outside that shape appears, and treat a divergence as open work.
+documents' phase headings (`phase-alignment`, run by `scripts/validate-all.sh`) with ONE capture applied
+to both sides: a digit, an optional `.N`, and at most ONE trailing letter. So every phase either
+document can write is compared and counted — the phase total the `OK` line prints is the number of
+phases the runbook actually numbers, no letter suffix is invisible to the check, and a runbook phase
+the ledger does not carry is reported as an orphan whatever suffix it carries. `MANUAL_ONLY_PHASES` is
+the only documented exception and it holds exactly one value (`0.5`), so beyond that one phase a
+divergence between the two documents is a red gate, not a footnote. The residue is a phase heading whose
+suffix is not exactly one letter (a two-letter suffix, a second `.N`): it yields no capture at all, and
+`--self-test` keeps that shape visible in its probe-witness arm while its suffix arm is seen RED (a
+letter-suffixed phase the ledger omits) and GREEN (the same phase named by the ledger) — so widening the
+capture, or numbering a phase the ledger does not carry, cannot pass quietly.
 
 ## Related
 

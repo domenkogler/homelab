@@ -662,6 +662,86 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 
 ---
 
+## Phase 4c — Coding cockpit on oldsrv (pi-web) — HD-409
+
+> **Depends on:** Phase 3 (oldsrv live, with the unprivileged `domen` seat account `roles/seat`
+> configures), Phase 4b (spark is the generation tier the cockpit's model picker reads). The
+> runbook uses the **same** numbering (its cockpit section is §Phase 4c). `docs/services-ai.md` §9b-1 is
+> the SSOT for the placement and the auth decision; `docs/harness-pi-seats.md` §1 and
+> `docs/harness-pi-terminal.md` §5b own the planes the last step converges. The phase is **native host
+> processes under `domen`, not containers** — the cockpit reads `~/.pi/agent/sessions/`, so a container
+> boundary there would be theatre and `domen` is the blast radius.
+> **1Password prerequisites:** `cockpit-pi-web_api` (the cockpit token — the SAME value the seat's env file
+> carries, or every paired client needs re-pairing) and `GitHub-homelab-deploy_ssh` (the seat clone's
+> repo-scoped write key, installed by `scripts/ansible/seed-seat-deploy-key.sh`).
+
+- [x] **Node runtime for the seat** — ✅ 2026-09-23: a pinned nodejs.org tarball under `domen`, never apt's
+   Node (apt's 20.x cannot run pi). The version is the `pi_host_node_version` pin in
+   `IaC/ansible/group_vars/all/versions.yml` — read it, never restate it — and the unit reaches it through
+   the stable `pi-node/current` symlink, so a pin bump moves one link instead of editing a unit file.
+- [x] **pi + the cockpit, installed as a pi package** — ✅ 2026-09-23: `pi install npm:@ygncode/pi-web@beta`
+   pulls the Go binary and writes the systemd **user** unit; the cockpit's own Update path is live since
+   2026-10-01 and updates pi-web only — `pi` itself is the `pi_host_npm_version` plane.
+- [x] **The sessions directory, before the first start** — ✅ 2026-09-23: `~/.pi/agent/sessions` must exist
+   or the binary exits 1 rather than creating it, which is how an enabled unit sits in a restart loop.
+- [x] **Model contract + provider auth rendered from git** — ✅ 2026-09-23:
+   `scripts/harness/render-pi-config.py` produces `models.json` + `auth.json` (0600, `domen`-owned).
+   `settings.json` stays hand-written from `docs/harness-pi-seats.md` §5 by design — the spec renders the
+   model contract, never anyone's editor settings, and a seat rebuilt without it defaults to a cloud
+   model and thinks every turn.
+- [x] **The cockpit token** — ✅ 2026-09-23 in `~/.config/pi-web/env` (dir 700 / file 600), with the vault
+   counterpart `cockpit-pi-web_api` carrying the same value since 2026-09-28. A non-loopback bind without
+   it is refused by the binary unless `-insecure`, which this phase never passes.
+- [x] **Loopback bind, the PATH drop-in, linger** — ✅ the two-dir PATH drop-in since 2026-10-01: `pi-web`
+   shells out to `pi` for the model list, every chat turn and its own self-update, and a systemd **user**
+   unit gets no login shell, so the unit's PATH has to be stated. `roles/seat` renders the unit, both
+   drop-ins and the env file (`IaC/ansible/roles/seat/tasks/main.yml`) since 2026-10-05; the runbook step
+   is the human leg of the same files and proves the LIVE unit, not the fragments on disk.
+- [x] **The tailnet edge** — ✅ 2026-09-23: published as `https://pi-oldsrv.ts.kogler.si` by oldsrv's own
+   `websecure-ts` listener (401 without the token, 302 with it), and read from outside the fleet
+   2026-10-12: the phone on mobile data reaches it — the one proof no laptop-side test can produce,
+   because every node reachable from a session is itself ACL-scoped away from oldsrv.
+- [x] **[MANUAL]** **The seat clone and its write credential** — ✅ 2026-09-28:
+   `/home/domen/source/homelab` is the clone the seat edits (`ansible-admin`'s converges), and the
+   repo-scoped write key is installed under `domen` only — the acceptance is `git push --dry-run` exiting
+   0, never the key's existence. Registering the public half with write access is the owner's browser tab.
+- [x] **The seat's pi harness planes from git** — ✅ the repeatable step since 2026-10-08
+   (`scripts/harness/pi-seat-sync.sh --check/--push`; a clone off the SSOT commit is refused as
+   `STALE-CLONE`), live on all three seats since 2026-10-09. A plane that REFUSES — a `~/.tmux.conf` that
+   predates the SSOT and carries no `managed-by:` marker — waits for a human diff, which is the design.
+
+**Verify:**
+- `ss -ltnp` on the cockpit port shows **127.0.0.1 only** — no LAN listener, no `0.0.0.0`, and no leftover
+  `tailscale0` bind sitting next to a 404ing URL.
+- No token → **401**, `?token=` → **302** (that pair is the whole auth contract); `/api/models` needs the
+  cookie jar the 302 sets, and answers 500 `pi executable not found` when the PATH drop-in is absent.
+- `systemctl --user cat pi-web.service` carries the two-dir `Environment=PATH=` line, and `curl -kIs` with
+  `--resolve` pointing `pi-oldsrv.ts.kogler.si` at the box's own `tailscale0` address answers **401** —
+  TLS, router and backend proven by one call that never leaves the box.
+- `scripts/harness/pi-seat-sync.sh --check` prints one line per declared plane for the cockpit seat.
+
+**Deploy-gated verification (Phase 4c — oldsrv cockpit):**
+- [ ] **HD-444** — the phone→oldsrv crossing: the path and the page are proven from the phone on mobile
+      data, the leg still owed is **one chat round-trip in a real session** — token gate + session list +
+      turn, all three, before the row closes. · [services-ai.md](docs/services-ai.md) §9b-1
+- [ ] **HD-411** — the second surface of this same account: the Paseo daemon is **not installed**, so its
+      tailnet bind, its password, its hostnames and its one 1Password item still wait on an owner verdict
+      taken with a hand on the phone. · [services-ai.md](docs/services-ai.md) §9b
+- [ ] **HD-442** — the token's vault leg read back rather than inferred: `cockpit-pi-web_api` carries the
+      value, and the catalog-completeness read plus the revoke-or-rotate decision on value identity are
+      still owed. · [deployment-secrets.md](docs/deployment-secrets.md)
+- [x] **HD-409** — **CLOSED 2026-09-23** (`00bcc773`): the phone-first cockpit is live on oldsrv under
+      `domen`; the row shipped with the surface and was deleted, the record is `docs/services-ai.md` §9b-1.
+- [x] **HD-449** — **CLOSED 2026-09-28** (`116ba6e6`): the seat's write path is proven — `git push --dry-run`
+      rc 0 with the deploy key under `domen` and not under `ansible-admin`.
+- [x] **HD-484** — **CLOSED 2026-10-01** (`f7f36022`): the cockpit had no `pi` on PATH — that was the whole
+      "no model available" — closed by the `pi-on-path.conf` drop-in the step installs before the first start.
+- [x] **HD-445** — **CLOSED 2026-10-05** (`d2ddb93f`): the port derive names both clone paths and REFUSES
+      rather than rendering an empty bind, and the step `restart`s the unit and reads the live fragment
+      back, because `enable --now` never restarts an already-running one.
+
+---
+
 ## Phase 5 — GitOps Deploy Button (Forgejo Actions → Ansible) — Doco-CD removed (HD-150)
 
 > **Depends on:** Phase 3 (Forgejo + services live, Renovate running), Phase 4 (HA live).

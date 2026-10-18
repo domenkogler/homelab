@@ -40,6 +40,7 @@
 | 3 | oldsrv services + first-boot tiers | oldsrv | [hardware-oldsrv.md](docs/hardware-oldsrv.md), [services-ai.md](docs/services-ai.md) |
 | 4 | Pi install + HA primary | pi | [deployment-pi-provision.md](docs/deployment-pi-provision.md) |
 | 4b | DGX Spark first-boot + onboarding | spark | [hardware-spark.md](docs/hardware-spark.md) |
+| 4c | Coding cockpit (pi-web) + seat planes | oldsrv | [services-ai.md](docs/services-ai.md) §9b-1 |
 
 ---
 
@@ -2068,7 +2069,7 @@ ssh spark 'docker exec traefik-spark traefik healthcheck --ping'   # "OK: http:/
 
 ---
 
-*Charter: imperative redeploy procedure only (true zero → live) for Phases 0, 0.5, 1, 1a, 1.5, 2, 3, 4 and 4b.
+*Charter: imperative redeploy procedure only (true zero → live) for Phases 0, 0.5, 1, 1a, 1.5, 2, 3, 4, 4b and 4c.
 Progress lives in [deployment-tasks.md](deployment-tasks.md), knowledge in the owning docs, history in git.*
 
 ---
