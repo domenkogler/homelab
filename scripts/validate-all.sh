@@ -276,24 +276,25 @@
 #                                     path + target + the pointer as written, never on line numbers.
 #                                     `--show-baseline` re-derives the ledger; `--self-test` breeds
 #                                     each anchor defect AND both halves of the ratchet.
-#  33. corpus_diff.py --gate          — the string-purge audit, in-tree and pinned: for the window
-#                                     named by `gate/corpus_baseline.txt` (base rev -> now rev under
-#                                     a scope), every changed line must have its change region
-#                                     CONFINED to a string literal or a comment, with the rest of the
-#                                     line byte-identical — a key, an indicator, a Jinja expression,
-#                                     a path, a match-key id, an added or dropped line is REJECTED.
-#                                     The REJECTs the window really has are carried by exact,
-#                                     USED entries of the signed list `gate/corpus_diff_accepts.txt`:
-#                                     deleting one exposes its REJECT and an entry whose REJECT is
-#                                     gone is STALE, so the list cannot narrow in silence (the
-#                                     `gate/iac_identifier_allowlist.txt` discipline). The population
-#                                     is pinned by a digest of what was compared, so a narrowed scope
-#                                     or a moved revision is a refusal, not a smaller check, and a
-#                                     now end older than one wave is refused — the staleness check
-#                                     `gate/check_string_twins.py` has. Its `--self-test` is a separate
-#                                     item: it proves the classifier on bred cases and both halves of
-#                                     the canary on a throwaway repo, because a gate that cannot fail
-#                                     is not a gate.
+#  33. corpus_diff.py --self-test     — the string-purge audit's proof that it can fail: the bred
+#                                     classifier cases on single-line pairs plus both halves of the
+#                                     accepts/baseline canary, on a throwaway repo that carries its
+#                                     own baseline and accepts list — so it reads the same in every
+#                                     clone and needs neither pinned file. The RUN half, `--gate`,
+#                                     is deliberately NOT an item; the note at its registration
+#                                     carries the measured reason. Its verdict is a function of the
+#                                     window named by `gate/corpus_baseline.txt` (base rev -> now rev
+#                                     under a scope), where a changed line that is not a CONFINED
+#                                     purge owes an exact entry of the signed list
+#                                     `gate/corpus_diff_accepts.txt`. Everything else about the audit
+#                                     stays in-tree and replayable either way: deleting an entry
+#                                     exposes its REJECT, and an entry whose REJECT is gone is STALE
+#                                     (the `gate/iac_identifier_allowlist.txt` discipline). The digest
+#                                     of what was compared makes a narrowed scope or a moved revision
+#                                     a refusal rather than a smaller check, and a now end older than
+#                                     one wave is refused — the staleness check
+#                                     `gate/check_string_twins.py` has. Re-signing a wave is an act
+#                                     the next wave notices, in the commit that publishes the fields.
 #  34. render_all.py --self-test        — HD-1117: the generated-doc drift check must be able to read
 #                                     GREEN. A wall clock stamped into a render made `--check` red
 #                                     forever — a faithful re-render differs from the committed file
@@ -1211,13 +1212,25 @@ item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_ia
 # four files at once; this is the only thing that keeps those four agreeing. Run + canaries.
 item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" $PY scripts/gate/check_subagent_contract.py
 item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" $PY scripts/gate/check_subagent_contract.py --self-test
-# The corpus-diff gate, promoted from the hand-run tool it was: `--gate` replays the window pinned
-# in gate/corpus_baseline.txt over the signed exceptions in gate/corpus_diff_accepts.txt, so a green
-# suite means the accepts list was read and matched, not that someone remembered to run a script
-# that lives outside the tree. Both halves are items because a purge audit and the proof that the
-# audit can fail are different claims: the run checks the window, the self-test checks the classifier
-# AND both directions of the accepts/baseline canary on a throwaway repo.
-item_q "corpus_diff.py --gate (the pinned string-purge window, over the in-tree signed accepts list)" $PY scripts/gate/corpus_diff.py --gate
+# NOTE: corpus_diff.py --gate is deliberately NOT gated — the seat-ssh-build.sh --self-test shape
+# two blocks above. Its verdict is a function of the window pinned in gate/corpus_baseline.txt, and
+# every changed line inside that window that is not a confined purge owes its own exact entry of
+# gate/corpus_diff_accepts.txt. Measured at this tip: the oldest compare_rev the staleness cap
+# permits reports 1,182 REJECTs and HEAD reports 324, and both windows remove zero tokens with them
+# — ordinary development, not the purge. So the audit is green in the one commit that re-signs a
+# wave tip and red in every commit after it, which is the definition of an item this pool cannot
+# hold. It is not weakened: the window and its signed entries stay published and replayable, and
+# re-signing is a wave-boundary act, owned by whoever lands the purge, in the commit that publishes
+# the six fields:
+#   python3 scripts/gate/corpus_diff.py --gate --show-baseline             # the fields to publish
+#   git diff --name-only --no-renames <baseline_rev> <compare_rev> -- IaC/ > /tmp/window.txt
+#   python3 scripts/gate/corpus_diff.py . <baseline_rev> --list /tmp/window.txt \
+#           --against <compare_rev> --accept scripts/gate/corpus_diff_accepts.txt   # rc 0 = audited
+# A directory walk is NOT the same population: the pinned run derives its file set from the two
+# revisions, and naming `IaC/` as a path argument adds files the window never compared, which enter
+# as REJECT "not in base ref" and redden a window that is otherwise clean. What the pool KEEPS is
+# the proof the audit can still fail — the item below, whose arms build their own throwaway repo,
+# baseline and accepts list, and stay green with both pinned files moved out of the tree.
 item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" $PY scripts/gate/corpus_diff.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is
