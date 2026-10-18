@@ -222,7 +222,13 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    only authored work the brief still carries, and it is now registered rather than missing: the hub
    [docs/harness.md](docs/harness.md) and its §8.3 review/rejected pair exist, `docs/pi-harness.md` is
    [docs/harness-pi.md](docs/harness-pi.md), and what the row owes is the split of that file by subject plus
-   `scripts/gate/check_doc_domain.py`, which does not exist yet and wants a taxonomy call first. **The
+   `scripts/gate/check_doc_domain.py`, which does not exist yet — and **no longer waits on a decision**: the
+   taxonomy call is made and recorded in [prompt-scripts.md](prompt-scripts.md) §The taxonomy call (domain set
+   derived from frontmatter; hub required only at ≥2 non-pair docs; a `-review`/`-rejected` pair cannot create a
+   domain, so `storage` is not one and its pair retags to `domain: deployment`; `orchestration.md` → `meta`,
+   `spark-llm-profiles.md` → `hardware`, `manual/README.md` → `role: index`; §8.1's role vocabulary admits
+   `log`/`queue`/`evidence`/`incident-log`). The remaining work is the checker plus the six-file floor-0 diff
+   named there, wired in the same commit that makes it green. **The
    child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
    [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
    [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
