@@ -162,6 +162,10 @@ inside one session. The LIVE wave table is
    `git rm` each finished brief **together with** its link fixes in `prompt.md` / `todo.md` / `todo-table.md`
    (O7). No view may link a deleted brief.
 5. `git worktree remove` each lane worktree, `git worktree prune`, `git branch -d session/<lane>…` (O8), `git push`.
+   **The station that merged is the station that pushes** — every station pushes after its merge, so no merged commit
+   waits on another host being switched on, and `git status -sb` reading level with `origin/main` is the close-out
+   check (an ahead-of count is a step left undone, not a step skipped on request). On `remote: fatal error in
+   commit_refs`: re-prove the ACL with `--dry-run`, then retry — GitHub-side, not a key or ACL fault.
    ⚠ **A merged branch does not mean a drained worktree — inventory the residue first.** `git merge-base --is-ancestor` proves
    only the *commits*. A lane can be fully merged and still hold uncommitted and untracked files, and `git worktree remove`
    discards them. A merged lane can still be dirty and still hold work that never reached `main`. So before removing: `git -C <wt> status --porcelain` in each, then for every added line decide

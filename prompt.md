@@ -14,8 +14,10 @@
 ## 1. Environment
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
-land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
-fleet's live set (harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). The laptop's WSL Debian clone is **retained, and
+land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live set
+(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). **Pushing is not that station's exclusive
+job: every station pushes after it merges** (the rule is [docs/orchestration.md](docs/orchestration.md) §4 step 5 — an
+unpushed `main` is one disk between the work and the fleet). The laptop's WSL Debian clone is **retained, and
 now has a job: it is the designated runner station for externally-served runs** — off-box for every converge target, not the
 engine host, owner of no converge slot (the 2026-10-09 “retained but rarely used as a seat” ruling still stands for the
 pi-dev-seat question, which is a different one; the rule is [todo-table.md](todo-table.md) §C rule 9 and the state is
@@ -298,10 +300,12 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       prose is this change; the `git-bootstrap.sh --self-test` `signedout` arm (it keys on a string its own fixture
       writes, so it proves branch logic and not the `op` contract) is now row **HD-1159** — minted from the clean space,
       which is what made rowing it trustworthy possible.
-    - **This station merges; it does not have to push.** `git status -sb` reports local `main` ahead of
-      `origin/main` by however many commits it says — re-derive that, never copy a count — and pushing belongs to the
-      station that owns the remote (§1). A session closing with a count above zero has left that step undone on request,
-      not failed it.
+    - ✅ **Does this station have to push? — ANSWERED: yes, every station pushes after it merges** (option B3).
+      The old wording made the push another station's job, which left the fleet's only copy of merged work on one
+      disk. So: merge → `git push` → and the check is `git status -sb` reading **level with** `origin/main` (re-derive
+      it, never copy a count). A session closing with a count above zero has left a step undone, not skipped one on
+      request. On `remote: fatal error in commit_refs` the answer is the §1 retry (`--dry-run` to re-prove ACL, then
+      push again), not a permissions hunt — and the commit is never lost, it is on `main` locally the moment you merge.
 
     - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
       `--self-test`, and it IS registered now, alongside `check_doc_path_refs.py`: `--list` prints both its run and its
