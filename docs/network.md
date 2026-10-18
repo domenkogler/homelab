@@ -137,6 +137,7 @@ Internet → ONT → router ether1 (WAN)
 
 - **oldsrv** uses single UTP (Intel i350-T2) to switch as VLAN trunk — all VLANs over one cable; host-side dual-home (Home 10 untagged + Mgmt 99 tagged) is carried by **NetworkManager**, the manager that owns this box ([§Config-manager truth](#config-manager-truth))
 - **nas** connects via access port (VLAN 10 Home, VLAN 99 tagged for Mgmt); its uplink belongs to neither config manager — the host side is [hardware-nas.md](hardware-nas.md) §Network, the manager rule is [network.md](network.md) §Config-manager truth
+- **pi** connects via access port (VLAN 10 Home); **NetworkManager** owns its uplink and carries its addressing ([§Config-manager truth](#config-manager-truth)) — `/etc/systemd/network` holds no netd units (only the OS `.link` files)
 
 ---
 
