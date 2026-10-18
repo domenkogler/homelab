@@ -114,8 +114,9 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    NM enabled, `networking` disabled, the `nas-eth0` keyfile up) — held down by
    [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read per host with
    `scripts/ansible/probe-net-manager.sh`; every dead `eno1` netd render is off the fleet — pi/oldsrv/nas removals landed,
-   and spark's `/etc/systemd/network` read **empty** on 2026-10-18 with networkd `disabled`, which contradicts the row's
-   "spark is the one entry owed", so that discrepancy is the dns lane's to verify or close, not this list's), **the
+   and spark's `/etc/systemd/network` read **empty** on 2026-10-18 with networkd `disabled`. The fleet probe settled the
+   question the row used to carry: four hosts are clean, and the ONE thing owed moved to the **VPS** — a dead
+   `/etc/systemd/network/20-eno1.netdev` only the role's removal leg can delete), **the
    host-resolver class beyond oldsrv** (the Pi leg landed and was verified 2026-10-08; spark's converge closed it
    2026-10-18 — resolver pair + networkd disarm via the spark slot), and the
    DNS-policy rows **HD-480–483**. → [prompt-dns-transport.md](prompt-dns-transport.md)
@@ -274,6 +275,21 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
+    - ⏳ **`corpus_diff.py --gate` is registered and cannot read green outside a purge campaign — take the call.** The
+      registered run replays a pinned historical window (`34e77f82..5ae34d79`, the closed string-purge campaign: 125
+      files, 528 signed accepts, 3 REJECTs all covered by used, exact entries) while its staleness guard measures
+      `compare_rev..HEAD` and demands the campaign be *now*: `301 > STALE_AFTER_COMMITS = 300` (corpus_diff.py:901,
+      :117), rc 2. No revision choice is green — a sweep of eleven windows gives 324 REJECTs at `5ae34d79..HEAD`, 1 at
+      `e078d3fb..HEAD`, and every window inside the cap spans ordinary development the classifier calls insert/replace
+      (*"a purge never adds or drops a line"*). Signing those would be whitelisting, and the tool already refuses to be
+      narrowed into retirement: a zero-width window dies in `require_corpus()` before the accepts list is read, and the
+      narrowest real window reports all three signed entries STALE. The twins-gate analogy does not carry — that gate
+      diffs a population (time-invariant, green at this tip), this one signs individual edits. Two lawful answers:
+      **(a)** de-register the run, keep tool + accepts list + the registered `--self-test` (its mutation arms stay in
+      the suite) — this supersedes the 2026-10-13 "promoted, in-tree" call in this very list; **(b)** re-aim the guard
+      at the window actually replayed, which reads green forever and needs a cap ruling, the closed campaign being 301
+      wide itself. · [todo.md](todo.md) HD-1158 · [scripts/README.md](scripts/README.md) §Validation gate
+
     - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
       `--self-test`, and it IS registered now, alongside `check_doc_path_refs.py`: `--list` prints both its run and its
       `--self-test`, and the anchor half runs against a frozen baseline (`gate/doc_headings_baseline.txt`),
@@ -373,11 +389,12 @@ action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.ya
 converge — the answer set is identical, the FILE is not (entry order + comments), so it reports changed and restarts
 the control plane: sampled liveness probe, never a one-shot inspect; (b) `IaC/ansible/playbooks/dns.yml` from the **home control
 plane**, because the Cloudflare token is IP-filtered there, expected to report no record change; and its step 2 (the
-`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **every network leg**
-HD-487's row still names — the tag is **per-host** and the rows carry the exact command: `--tags network` where a manager
-counts, and the narrow `--tags netd` where only the dead renders may be touched. The spark networkd disarm (drop the dead
-`20-eno1.*`, engine untouched), the pi removals (three unread units) and the nas removals (four) are **landed** — and the
-nas box settled on NetworkManager on 2026-10-18, so its address and resolver legs are no longer frozen — and
+`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **the one network leg**
+HD-487's row still names — the narrow `--tags netd` delete of `/etc/systemd/network/20-eno1.netdev` **on the VPS**
+(vps declares no `netd_phys_name`, so only the role's removal leg reaches it; `wg-s2s.*` and the OS units sit outside the
+namespace pattern). The spark networkd disarm, the pi removals (three unread units) and the nas removals (four) are
+**landed** — and the nas box settled on NetworkManager on 2026-10-18, so its address and resolver legs are no longer
+frozen — and
 oldsrv's own lockout-class run **alone**
 and off the box with a console reachable (driven FROM the oldsrv controller its `network` tag is refused by the
 self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml`, by design; and a self-target run dies at
