@@ -98,7 +98,7 @@ docs/
 ├── services-downloads.md                  Usenet/torrent ingress (SABnzbd, qBittorrent, gluetun)
 ├── services-dns.md                        DNS services (Technitium authoritative; Advanced Blocking designed — ⚠ no lists live)
 ├── services-utilities.md                  Utility sidekicks (n8n, signal-cli, PairDrop, Stirling)
-├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup) · **Homelable topology dashboard** · Metabase → live on oldsrv
+├── services-admin.md                      Ops/GitOps/security/backup (Forgejo, Renovate, CrowdSec, Headscale, Kopia, DB Backup) · **Homelable topology dashboard** · Metabase → deployed on oldsrv (⏳ seed converge owner-present)
 ├── observability.md                        Observability domain — stack, alerting, retention
 ├── observability-rejected.md               Append-only observability decision log (§8.3)
 ├── services-traefik.md                    Reverse proxy edge, CrowdSec, SSL

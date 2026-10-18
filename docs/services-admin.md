@@ -248,12 +248,14 @@ future `--tags monitoring` change rather than on a lane of its own.
 a family machine**, and a **direct-IP tailnet session to oldsrv with the relay demonstrably uninvolved**
 (`printf 'ls' | nc 127.0.0.1 21117` shows no active relay during it).
 
-## Metabase — live on oldsrv (internal-only, native login)
+## Metabase — deployed on oldsrv (internal-only, native login)
 
-**🟢 live on oldsrv (2026-10-18)**, at `https://metabase.kogler.si` from the home LAN and
-`https://metabase.ts.kogler.si` on the tailnet. Not on the VPS: VPS RAM is the binding constraint and
-the registry carries no metabase entry there, so nothing on that box can re-render it. No public
-record, no Cloudflare leg, no VPS edge route.
+**🟡 deployed on oldsrv (2026-10-18), name not yet resolving** — the container is Up, the home edge
+serves the router, and `metabase.kogler.si` answers when addressed directly; the split-horizon record
+for it is not seeded yet, so a client that resolves normally gets `NXDOMAIN` — **⏳ seed converge
+owner-present** (`bash scripts/ansible/ansible-run.sh playbooks/dns-seed.yml`, HD-436). Not on the VPS:
+VPS RAM is the binding constraint and the registry carries no metabase entry there, so nothing on that
+box can re-render it. No public record, no Cloudflare leg, no VPS edge route.
 
 - **Auth: Metabase's OWN native login.** OSS has no OIDC/SSO (paid Enterprise only) and LDAP is
   rejected ([services-rejected.md](services-rejected.md)), so there is **no Authentik object for this
@@ -265,8 +267,11 @@ record, no Cloudflare leg, no VPS edge route.
   same way the Jellyfin/*-arr group is served. The compose deliberately renders
   `traefik.enable: "false"`: oldsrv runs no docker-provider edge, so a label would mint a second,
   unauthenticated route nowhere. The answer-plane row is the LAN-only class (`oldsrv_home_ip`,
-  `lan_only: true`, `tailnet: node`), so the plain name is answered at home and the `.ts` twin
-  answers on the tailnet; `sec.kogler.si` is NOT this name and stays retired.
+  `lan_only: true`, `tailnet: node`), so the plain answer stays Home-only and the away-from-home path is
+  the `.ts` twin; **the record is seeded, not live** until the owner-present DNS-seed converge runs —
+  until then `dig metabase.kogler.si` is `NXDOMAIN` while its seeded peer `aurral.kogler.si` still
+  answers — which is how to tell "not seeded" from "broken route". `sec.kogler.si` is NOT this name and
+  stays retired.
 - **State:** the H2 app DB on the `metabase-data` named volume. **Backups are still owed** — the
   volume is not yet in a [backup.md](backup.md) policy row, so a recreate is safe but a disk loss is
   not.
