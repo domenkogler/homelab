@@ -203,10 +203,12 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
   designed; the IoT half exists in the role and the converge template, not on the device, and its
   reconcile is parked with the router's VLAN-99 trunk parity
   ([network-dns.md](network-dns.md) §What the pin can and cannot enforce).
-  ⚠ **The per-device query record depends on this map, not on the resolver's settings:** the Pi tertiary
-  does log queries ([network-dns.md](network-dns.md) §Tier policy rulings), but with no IoT dst-nat rows
-  live, IoT traffic is not being steered to it. Re-measure the device map before citing per-device
-  visibility anywhere.
+  ⚠ **The per-device query record does not depend on this map.** The Pi tertiary logs queries
+  ([network-dns.md](network-dns.md) §Tier policy rulings) and its own log carries per-client lines whose addresses
+  are in the IoT subnet — because the Pi is the **first resolver DHCP advertises**, so IoT clients ask it first
+  with no NAT involved. What escapes both the steering and the record is a client that ignores its DHCP resolver
+  (hardcoded `1.1.1.1`, DoT); that is the half the absent rows would have covered, so do not cite per-device
+  coverage as complete.
 
 ### State to restore after a takeover
 

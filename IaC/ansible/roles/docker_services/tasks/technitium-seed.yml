@@ -187,7 +187,11 @@
       ansible.builtin.uri:
         url: "{{ _tech_api }}/api/settings/get"
         method: GET
-        url_query:
+        # The token rides in the BODY, like every other call in this file. Measured on the Pi
+        # tertiary with one token and two shapes: form body → `status: ok`, `url_query` → no JSON answer at
+        # all. A read that gates a write cannot be the one place that guesses.
+        body_format: form-urlencoded
+        body:
           token: "{{ _tech_token }}"
       register: _tech_settings_before
       no_log: true
@@ -207,16 +211,34 @@
           {{ technitium_resolver_settings
              | combine(svc.technitium_settings | default({}, true))
              | combine({'enableBlocking': (technitium_dns_block_lists | count > 0)}) }}
-
-    # A separate task because a set_fact cannot consume a fact the same task is still defining.
+    # Three tasks because a set_fact cannot read a fact the same task is still defining.
     - name: "Technitium: shape the settings body for form-urlencoded ({{ svc.name }})"
       ansible.builtin.set_fact:
-        # form-urlencoded wants strings; the coercion happens only here, so the dict above stays
-        # typed and the read-back compares against typed values.
+        # form-urlencoded wants strings, so the coercion happens once, here: the write gets strings and the
+        # comparison below compares the same stringified form on both sides.
         _tech_settings_body: >-
           {{ dict(_tech_settings_wanted | dict2items | map(attribute='key')
                   | zip(_tech_settings_wanted | dict2items | map(attribute='value') | map('string')
                         | map('lower'))) }}
+
+    - name: "Technitium: name what differs between SSOT and the live instance ({{ svc.name }})"
+      ansible.builtin.set_fact:
+        # `k=v` pairs on both sides; the difference of the two lists IS the change this run is making, so the
+        # write's `changed` verdict reports what the box did instead of that a POST was issued. Values are
+        # compared stringified: this API answers some keys as bools and some as strings, and a bool is not a
+        # different value from the same bool.
+        _tech_settings_pairs_wanted: >-
+          {{ (_tech_settings_body | dict2items | map(attribute='key') | list)
+             | zip(_tech_settings_body | dict2items | map(attribute='value') | list)
+             | map('join', '=') | list }}
+        _tech_settings_pairs_live: >-
+          {{ ((_tech_settings_before.json.response | dict2items
+               | selectattr('key', 'in', _tech_settings_body) | map(attribute='key') | list)
+              | zip(_tech_settings_before.json.response | dict2items
+                    | selectattr('key', 'in', _tech_settings_body)
+                    | map(attribute='value') | map('string') | map('lower') | list))
+             | map('join', '=') | list }}
+        _tech_settings_keys_live: "{{ _tech_settings_before.json.response | default({}) | list }}"
 
     # BEFORE any write: the same read that authorises enableBlocking=false is the reason it is safe.
     - name: "Technitium: refuse to change blocking on an instance that carries an undeclared list ({{ svc.name }})"
@@ -238,7 +260,12 @@
         body: "{{ _tech_settings_body }}"
       register: _tech_tune
       no_log: true
-      changed_when: false
+      # The honest verdict: changed only when the box actually differed from SSOT (computed from the read
+      # above), never merely because a POST was issued.
+      changed_when: >-
+        (((_tech_settings_pairs_wanted | difference(_tech_settings_pairs_live))
+          + (_tech_settings_body | dict2items | map(attribute='key') | list
+             | difference(_tech_settings_keys_live))) | unique) | length > 0
       # A settings write is proved by the read-back below, so a non-'ok' here is a failed write, not
       # an idempotent no-op — no 'error' tolerance on this one.
       failed_when: _tech_tune.json is not defined or _tech_tune.json.status != 'ok'
@@ -247,7 +274,11 @@
       ansible.builtin.uri:
         url: "{{ _tech_api }}/api/settings/get"
         method: GET
-        url_query:
+        # The token rides in the BODY, like every other call in this file. Measured on the Pi
+        # tertiary with one token and two shapes: form body → `status: ok`, `url_query` → no JSON answer at
+        # all. A read that gates a write cannot be the one place that guesses.
+        body_format: form-urlencoded
+        body:
           token: "{{ _tech_token }}"
       register: _tech_settings_after
       no_log: true

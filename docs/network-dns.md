@@ -93,10 +93,13 @@ plane). Two consequences, both load-bearing:
 * **no policy VLAN has its own resolver address.** Kids traffic lands on the shared primary, so a
   Families upstream set there would filter the whole Home tier and the tailnet too — this is the
   owner decision about a per-policy resolver address or the router rows, not an oversight here;
-* **the per-device query visibility this doc cites as the reason for the IoT row is not observable,
-  because IoT traffic is not being steered anywhere** — it resolves by the ordinary DHCP chain.
-  `logQueries` is on the Pi tertiary (§Tier policy rulings) and its retention is rendered, so what
-  *does* reach that instance is logged; the IoT half of the claim waits on those router rows.
+* **the per-device query visibility this doc cites as the reason for the IoT row is real, but it does not
+  come from the dst-nat.** The instance's own query log carries per-client `QNAME` lines whose client
+  addresses are in the IoT subnet — IoT queries reach the Pi because it is the **first resolver DHCP
+  advertises** (§DNS Flow), with no NAT involved. What the absent rows actually cost is narrower: a client
+  that ignores its DHCP-assigned resolver (hardcoded `1.1.1.1`, or DoT) is neither steered nor logged, and
+  a per-policy upstream cannot be attached to traffic that is not being steered — the decision **HD-1160**
+  has to make, not a DNS setting.
 
 ✅ **What IS applied from IaC:** the block-list posture and the resolver tuning —
 `technitium_dns_policy` + `technitium_resolver_settings`, written by one seed task and proved by a
@@ -115,7 +118,7 @@ policy table above must not restate it.**
 | 2 | **Kids** scope | **VLAN 40 AND the two Home-VLAN kids tablets.** The per-MAC `:53` dst-nat is already live and lands on a group that does not exist; the tablets are the actual children, so VLAN-only would leave the doc's claim false. Upstream = **Cloudflare Families `1.1.1.3`**, never a block list — Families answers `NXDOMAIN` for the whole family-blocked set, which is the enforcement |
 | 3 | **IoT** | **Quad9 upstream, no block lists** (see the table row above for why) |
 | 4 | **Guest** | **Same as Home** |
-| 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought. The rendered knob is `maxLogFileDays` on that instance's `technitium_settings` — Technitium's own default is 365 days, so a retention that is not written down is not this ruling. ⚠ **Where the log lives is a separate fact:** the compose binds `/etc/technitium` and `/etc/dns` only, so `/var/log/technitium/dns` is inside the container's writable layer — root-readable **in the container**, not on the host, and it does not survive a container recreate. A bind for the log dir is a compose change, which means recreating the resolver; it is not a settings write. |
+| 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought. The rendered knob is `maxLogFileDays` on that instance's `technitium_settings` — Technitium's own default is 365 days, so a retention that is not written down is not this ruling. ⚠ **Where the record lives, measured:** the query log is `/var/log/technitium/dns/<date>.log` **inside the container**, one line per query carrying the client address (`[<client>:port] [UDP] QNAME: …; RCODE: …`) — that field is what makes it a per-device record. The compose binds `/etc/technitium` and `/etc/dns` only, so the directory sits in the container's writable layer: readable as root **in the container** (or via the console's query-log view), not on the host, and it does not survive a container recreate. A bind mount for it is a compose change — a resolver recreate — so it is a decision, not a settings write. The same file also carries the server's error lines, so an empty-looking log is not evidence that query logging is off; read `logQueries` back. |
 
 ✅ **The Home/Guest tier carries NO block list** ([network-rejected.md](network-rejected.md)); the enforcement
 the family actually needs (Kids) is an **upstream** (Cloudflare Families), not a list. A tier with no list
