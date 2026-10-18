@@ -210,35 +210,37 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    rather than replaying it: `scripts/` is now `lib/ gate/ ansible/ secrets/ git/ harness/ bench/ hardware/
    testdata/` with `validate-all.sh` + `render_all.py` at root, root resolution is structural, and
    `gate/check_script_layout.py` holds the tree from inside `validate-all.sh`. The lane's 13 commits were not
-   replayable (0/13 applied across 676 commits of drift) and are pinned as `rescue/hd1118-20261011`. Two live
-   legs stay in the row; **the seat leg is run FROM the seat — `bash scripts/harness/pi-seat-sync.sh
+   replayable (0/13 applied across 676 commits of drift) and are pinned as `rescue/hd1118-20261011`. Three live
+   legs stay in the row — the two seat legs and the from-zero leg; **the seat legs are run FROM the seat —
+   `bash scripts/harness/pi-seat-sync.sh
    --check` and `install-tmux-conf.sh --push` on the win11 seat, in its own session** — because a seat plane
    converges from its own clone and the station cannot speak for a seat's PATH. **The `wsl -d Debian` seat is
    done 2026-10-17, run from that seat**: three planes had sat red there (the tmux target still carried the
    pre-move marker, the skills plane had never been pushed since the self-learn landed, and the settings plane
    had nothing to merge into), one pass of the three owners turned them green, and `pi-seat-sync.sh --seat wsl
    --check` now reports every declared plane OK; `install-pi-debian.sh --check` on a clean Debian seat is the
-   other leg. **HD-1119** — the `harness` docs domain — is the
-   only authored work the brief still carries, and it is now registered rather than missing: the hub
-   [docs/harness.md](docs/harness.md) and its §8.3 review/rejected pair exist, `docs/pi-harness.md` is
-   [docs/harness-pi-engines.md](docs/harness-pi-engines.md), and what the row owes is the split of that file by subject plus
-   `scripts/gate/check_doc_domain.py`, which does not exist yet — and **no longer waits on a decision**: the
-   taxonomy call is made and recorded in [prompt-scripts.md](prompt-scripts.md) §The taxonomy call (domain set
+   third leg and it is **parked** — no host in the fleet is a spare clean Debian box to run it on. **HD-1119** — the `harness` docs domain — is landed and
+   registered rather than missing: the hub [docs/harness.md](docs/harness.md) and its §8.3 review/rejected pair exist, the
+   one-file harness body is now five subject docs — [docs/harness-pi-engines.md](docs/harness-pi-engines.md),
+   [docs/harness-pi-models.md](docs/harness-pi-models.md), [docs/harness-pi-seats.md](docs/harness-pi-seats.md),
+   [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md), [docs/harness-pi-terminal.md](docs/harness-pi-terminal.md) —
+   with the whole-tree reference sweep in the same change, and
+   [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) runs in `validate-all.sh` (run + `--self-test`) and prints
+   `OK: 88 docs, 10 domains, each with one claimed home`. The taxonomy call it was told about is recorded in
+   [prompt-scripts.md](prompt-scripts.md) §The taxonomy call (domain set
    derived from frontmatter; hub required only at ≥2 non-pair docs; a `-review`/`-rejected` pair cannot create a
    domain, so `storage` is not one and its pair retags to `domain: deployment`; `orchestration.md` → `meta`,
    `spark-llm-profiles.md` → `hardware`, `manual/README.md` → `role: index`; §8.1's role vocabulary admits
-   `log`/`queue`/`evidence`/`incident-log`). The remaining work is the checker plus the six-file floor-0 diff
-   named there, wired in the same commit that makes it green. **The
+   `log`/`queue`/`evidence`/`incident-log`). What the row still owes is the three prose tails its own ⏳ tail names —
+   no legs and no checker work left in it. **The
    child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
    [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
    [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
    [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py). The arm is landed: the `subagent` seat plane ([`scripts/harness/pi-subagent-config.sh`](scripts/harness/pi-subagent-config.sh)) writes `_subagentConfig` → `~/.pi/agent/extensions/subagent/config.json` on every seat, the win11 leg is converged, and the Debian seats converge the payload on the next per-seat `pi-seat-sync.sh --push` — until a seat's own `--check` prints `OK` for that file, the seat runs the harness defaults and a run must pass the values on the launch ([docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1). **The registry's own prose is now a rule with a checker** —
-   [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) is built and self-tested but left unwired while the
-   rows still carry the ids and dates it refuses (`--show` prints the live count, never a number typed into a handoff), so the
-   work is one sweep: clear the rows — ids, dates, diary tenses, the six rows that dropped their **Owning spec** cell, the
-   `check_merge_markers.py` row's mangled divider span that leaves an unescaped pipe in the cell, the 42 Portability rows still
-   naming pre-move paths, the stale `Layout` note and the `Last updated` footer — then add the `item_q` lines at floor 0 **in the
-   same commit** that clears them. → [prompt-scripts.md](prompt-scripts.md)
+   [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) runs in `validate-all.sh` with its `--self-test` and prints
+   `registry: 120 linked rows, 0 state-date exempt site(s), 0 finding(s)` (`--show` prints the live count, never a number typed
+   into a handoff), so `scripts/README.md` is a facts-only map: a row states what its script does — flags, verdicts, exit
+   contract, declared limits — and names the doc that owns the detail. → [prompt-scripts.md](prompt-scripts.md)
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
     drill · **418** the HA restart window · **HD-06** the UPS drill · **411** the cockpit resume word ·
     **HD-230/207** the decisions taken at the drill. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no

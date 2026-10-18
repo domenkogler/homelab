@@ -839,8 +839,6 @@ on the VPS, Pi and oldsrv ship Alloy + network-clients + syslog, Grafana is the 
 - [ ] **Local Homematic RF** — parked by decision (the old HD-13 lineage; **no `todo.md` row**): re-add
       `raspberrymatic` + an HmIP-RFUSB **only** when local RF is purchased — until then HmIP stays on the HAP in
       cloud mode. · [smart-home.md](docs/smart-home.md)
-- [ ] **HD-17 / HD-217** — the failover button: tracked in Phase 4 (its host is the Pi).
-- [ ] **HD-319** — the KNX bus tail (rekuperator group addresses) is tracked in Phase 4.
 
 
 ---
