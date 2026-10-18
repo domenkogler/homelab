@@ -41,6 +41,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+# HD-1135#2: on a Windows seat the locale default is cp1252, so printing a non-Latin1
+# character (the → in a finding, or any UTF-8 filename) raises UnicodeEncodeError and
+# `text=True` subprocess reads crash on non-decodable bytes. Pin stdout/stderr to UTF-8
+# for this process — the byte-truthful half; a no-op on UTF-8 platforms.
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except (AttributeError, ValueError):
+    pass
 # HD-1118 Stage 1: FOUND, not assumed from a depth — scripts/lib/repo_root.py.
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
@@ -220,13 +229,17 @@ def check(corpus, exists, ignored=frozenset(), verbose=False, render_map=None):
 
 
 def git_files():
+    # git emits UTF-8 filenames; decode them explicitly. `text=True` lets subprocess decode
+    # with the LOCALE default, which on a Windows seat is cp1252 — a non-decodable byte makes
+    # r.stdout None and this crashes (HD-1135#2). text=False + .decode("utf-8") is the
+    # byte-truthful form and works on any platform (git ls-files -z is NUL-separated bytes).
     r = subprocess.run(["git", "-C", str(ROOT), "ls-files", "-z", "--",
                         "*.md", "*.yml", "*.yaml", "*.j2"],
-                       capture_output=True, text=True)
+                       capture_output=True)
     if r.returncode != 0:
-        print(f"ERROR: git ls-files failed: {r.stderr.strip()}", file=sys.stderr)
+        print(f"ERROR: git ls-files failed: {r.stderr.decode('utf-8', 'replace').strip()}", file=sys.stderr)
         sys.exit(2)
-    return [f for f in r.stdout.split("\0") if f]
+    return [f for f in r.stdout.decode("utf-8", "replace").split("\0") if f]
 
 
 def git_ignored(paths):
@@ -239,14 +252,15 @@ def git_ignored(paths):
     out = set()
     for i in range(0, len(paths), 64):
         chunk = paths[i:i + 64]
+        # input is the joined UTF-8 paths; git answers UTF-8 — same explicit-decode rule as git_files.
         r = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "--stdin"],
-                           input="\n".join(chunk), capture_output=True, text=True)
+                           input="\n".join(chunk).encode("utf-8"), capture_output=True)
         if r.returncode in (0, 1):
-            out.update(x for x in r.stdout.splitlines() if x)
+            out.update(x for x in r.stdout.decode("utf-8", "replace").splitlines() if x)
             continue
         for one in chunk:
             r2 = subprocess.run(["git", "-C", str(ROOT), "check-ignore", "--", one],
-                                capture_output=True, text=True)
+                                capture_output=True)
             if r2.returncode == 0:
                 out.add(one)
     return frozenset(out)
