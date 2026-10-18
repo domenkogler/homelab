@@ -50,9 +50,9 @@ netd_vlan_description: "{{ inventory_hostname }} tagged Management VLAN (99) sub
 # (wg_s2s_vps.ip = 10.255.40.2). Where a host's addresses are rendered by this role, a second NIC
 # with a lower-metric DHCP default can shadow the managed Home NIC, so the tunnel endpoint gets a
 # host route at metric 50 that always wins. SSOT value, never a literal.
-# ⚠ On a host whose manager is not systemd-networkd this route is NOT applied by anything: nas's
-# routes come from ifupdown's dhcpcd, so its shadowing default is a live routing fact with no netd
-# leg to fix it (docs/hardware-nas.md §Network).
+# ⚠ On a host whose manager is not systemd-networkd this route is NOT applied by anything: its routes
+# come from that manager's own profile (NetworkManager keyfile / profile, or the provider's file on
+# the VPS), so a shadowing default there is a live routing fact with no netd leg to fix it.
 netd_tunnel_route: "{{ wg_s2s_vps.ip }}/32"  # VPS Victoria/wg-s2s endpoint (SSOT)
 netd_tunnel_route_metric: 50
 

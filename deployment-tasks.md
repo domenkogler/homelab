@@ -337,6 +337,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
    (ansible-admin + ai-debug keys, sshd hardening).
 - [x] **Ansible** — ✅ **EXECUTED 2026-09-03 (failed=0):** `ansible-playbook -i inventory.ini playbooks/storage.yml`:
    `common` → `ai_diag` → `network` (client-id=MAC on 10.10.1.10 + tagged-99 netd units; HD-314) → `storage` (ZFS import, datasets+props, NFS exports, sanoid/syncoid, Samba, exporters) → `nut` (mode=master, LIVE) → `cockpit` (cockpit-storaged on trixie) → `monitoring` (per-node Alloy, apt — no Docker on nas).
+   ⚠ The tagged-99 netd units in that line are gone: nas is a **NetworkManager** host and carries no netd unit, so read its host side in [docs/hardware-nas.md](docs/hardware-nas.md) §Network, not here.
 - [x] **NUT master** — ✅ LIVE 2026-09-03 (client auth + the notify/shutdown layer fixed 2026-09-08/09,
    see HD-06): `nut-server` + `usbhid-ups` (PowerWalker USB), `upsd` on the intra-VLAN `nas:3493` (no inter-VLAN
    rule needed), `nut_exporter` as a host binary (:9199), `upssched-cmd` email/Signal notify (`smtp_login`).

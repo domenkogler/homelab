@@ -6,9 +6,12 @@ be defined — and that variable had a ROLE-LEVEL default (`netd_phys_name: eno1
 true on every host in the inventory. The result, measured host by host: oldsrv carried three
 `/etc/systemd/network` files that a DISABLED systemd-networkd never reads while NetworkManager holds
 the address; the Pi and the VPS got units naming `eno1`, an interface neither box has; spark ran BOTH
-managers at once; nas ran NEITHER — its uplink belongs to classic ifupdown. Editing any of those dead
+managers at once; nas ran NEITHER — classic ifupdown held its uplink there. Editing any of those dead
 files is a green converge that changes nothing on the wire, which is the same silent-no-op class as a
-duplicate YAML key (check_yaml_dup_keys.py) and an untagged repair block (HD-450).
+duplicate YAML key (check_yaml_dup_keys.py) and an untagged repair block (HD-450). The `ifupdown`
+state is still legal and still measured — the VPS's uplink is held that way by the provider image's own
+interfaces file, while networkd there exists only for the wg-s2s netdev — but no `host_vars` file
+declares it today, so the vocabulary and the probe must keep naming a state no home host is in.
 
 THE RULES, each one a finding rather than a paragraph:
 
@@ -427,7 +430,6 @@ LIVE_CASES = [
           route="enP7s7", ifstate=["lo=lo"], nm_devices={"enP7s7": "connected"},
           ctl=[("enP7s7", "unmanaged"), ("wg-x", "configured")]),
      "refuse-shape"),
-    # The third state, measured on nas: NM runs and is told to leave the port alone, ifupdown holds it.
     # --check runs no nmcli and no networkctl: the run may neither refuse on the ownership half nor
     # disarm, and it must say PARTIAL instead of deciding from a half-measurement.
     ("--check cannot prove disarmability", "NetworkManager", "NetworkManager",
@@ -435,6 +437,9 @@ LIVE_CASES = [
                                      "systemd-networkd.service": {"state": "running"}},
           route="enP7s7", ifstate=["lo=lo"], nm_devices={"enP7s7": "connected"}),
      "pass"),
+    # The third state: NEITHER manager owns the uplink, classic ifupdown does. A legal state, and a
+    # synthetic shape — no host in the inventory declares it today (the VPS declares networkd and gets
+    # its address from the provider's own interfaces file).
     ("the third state: ifupdown owns the uplink", "ifupdown", "NetworkManager",
      dict(services={"NetworkManager.service": {"state": "running"}}, route="eno1",
           ifstate=["eno1=eno1", "lo=lo"],

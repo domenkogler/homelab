@@ -240,9 +240,12 @@ same rule as oldsrv, VPS absent for the reason above.
 
 ⚠ **`nas` is not in this class**: its `resolv.conf` is
 `dns_tertiary_ip, dns_primary_ip, dns_secondary_ip` — Pi, VPS, oldsrv, in that order — so internal names resolve — but the VPS sits between two home
-rungs, which is precisely the rung this design refuses. Neither config manager owns that file: the box is
-configured by **ifupdown** ([network.md](network.md) §Config-manager truth), so while the host declares that
-owner its resolver is not this template's to write. Fixing it through this template would be guessing.
+rungs, which is precisely the rung this design refuses. **NetworkManager** owns that box
+([network.md](network.md) §Config-manager truth), and the three entries are the `dns=` line of its
+manual-static keyfile `/etc/NetworkManager/system-connections/nas-eth0.nmconnection` — a file
+`roles/network` does not render, because nas is outside `network_nm_dualhome_hosts` and declares no
+`host_resolver_dns`. So the manager changed and this template is still not the path to that box:
+fixing the order through it would be guessing.
 
 **Session-safe mechanism — `device reapply`, never `connection up`.** `connection modify` writes the
 profile; the file is rewritten only when NM re-commits it. `connection up` tears the interface down and

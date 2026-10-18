@@ -328,8 +328,9 @@
 # Pi/spark static dual-home via NetworkManager. RPi OS and DGX OS ship NetworkManager and it owns
 # their uplink (docs/network-rejected.md), so these keyfiles ARE those hosts' addressing.
 # Gated on the host being in the dual-home list AND declaring NetworkManager as a SETTLED owner: a
-# host with an owed migration (nas declares ifupdown today) gets no keyfile rendered and none
-# activated, because activating one moves the interface the converge is sitting on.
+# host whose migration is still owed gets no keyfile rendered and none activated, because activating
+# one moves the interface the converge is sitting on. A settled NetworkManager host is only rendered
+# here if the list names it — nas keeps its own keyfile outside this role.
 # Values are SSOT-derived (host_vars ansible_host/mgmt_ip + network_static_hosts).
 # The untagged parent (pi-eth0) carries HOME only; the MGMT IP rides the TAGGED eth0.99
 # sub-interface (pi-mgmt). A connected route for 10.10.99.x on the parent hijacks lookups away
@@ -414,8 +415,9 @@
 
 - name: Render systemd-networkd .network pinning the VPS tunnel route to the Home NIC
   # Author-shaped for a netd host with a second NIC whose DHCP default shadows the managed Home
-  # NIC. No host is in that shape today: nas's routes come from ifupdown's dhcpcd, so a netd route
-  # unit there is read by nothing (docs/hardware-nas.md §Network) and the freeze above keeps it out.
+  # NIC. No host is in that shape today: the only systemd-networkd host is the VPS, whose uplink
+  # address is the provider's. On a NetworkManager host the routes come from that host's own profile,
+  # so a shadowing default there is a live routing fact this netd leg cannot reach.
   ansible.builtin.template:
     src: netd-tunnel-route.network.j2
     dest: "{{ netd_dir }}/30-{{ netd_phys_name }}-tunnel.network"
@@ -431,12 +433,14 @@
   tags: [network, netd]
 
 # ---- DHCP client-id = MAC ------------------------------------------
-# nas/oldsrv are the only DHCP-managed homelab hosts (Pi+VPS are static). Their DHCP
-# client (dhcpcd on nas, NetworkManager on oldsrv) presents an RFC4361 DUID client-id by
-# default, which does NOT match the MAC-keyed RouterOS reservations in network_static_hosts
-# (mac: field) — so they land on the dynamic VLAN-10 pool (.100/.101) instead of their
-# reserved statics (.10/.30). RouterOS matches reservations on client-id (DUID ≠ MAC pretty
-# much always), so the host must present the interface MAC as client-id.
+# nas/oldsrv are the hosts this leg was written for (Pi+VPS are static). It edits the client config
+# each box carries — /etc/dhcpcd.conf on nas, the NetworkManager profile on oldsrv — because their
+# DHCP client presents an RFC4361 DUID client-id by default, which does NOT match the MAC-keyed
+# RouterOS reservations in network_static_hosts (mac: field) — so a lease lands on the dynamic
+# VLAN-10 pool (.100/.101) instead of the reserved statics (.10/.30). RouterOS matches reservations
+# on client-id (DUID ≠ MAC pretty much always), so the host must present the interface MAC as
+# client-id. ⚠ Neither box addresses itself by DHCP any more (nas: NM keyfile, oldsrv: NM profile,
+# both `manual`), so what this leg protects is a lease, not either host's address.
 #
 # The marker lives in the SSOT (network_static_hosts dhcp_client: mac on nas/oldsrv rows);
 # this block applies it on the host: dhcpcd gets `clientid` (MAC/LL client-id) in its conf,
@@ -450,7 +454,7 @@
   when: dhcp_client_optin
   tags: [network, dhcp-client]
 
-- name: dhcpcd disable the RFC4361 DUID (nas; dhcpcd managed by ifupdown)
+- name: dhcpcd disable the RFC4361 DUID (nas)
   ansible.builtin.lineinfile:
     path: /etc/dhcpcd.conf
     # neutralize the RFC4361 DUID (the default) so the server sees only our MAC client-id

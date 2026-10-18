@@ -2,15 +2,18 @@
 # HP MicroServer Gen8 — ZFS storage server
 ansible_host: 10.10.1.10           # VLAN 10 (Home) — static (Cockpit/NFS/NUT master)
 # ==== Which config-manager owns this box ====
-# NetworkManager — settled (adopted on eno1, owner-present): manual-static keyfile
-# /etc/NetworkManager/system-connections/nas-eth0.nmconnection; ifupdown networking + dhcpcd
-# disabled; the ifupdown plugin removed from NetworkManager.conf. NM owns the Home uplink; the
-# MGMT .99 leg (mgmt_ip) stays RESERVED / not configured.
+# NetworkManager owns eno1 (settled): the manual-static keyfile
+# /etc/NetworkManager/system-connections/nas-eth0.nmconnection carries the Home address, the gateway
+# and the resolver list; the ifupdown `networking` service is disabled and no dhcpcd unit exists, so
+# no second leg configures the uplink. Verify with `scripts/ansible/probe-net-manager.sh nas`.
+# ⚠ That keyfile is NOT rendered by roles/network — nas is outside network_nm_dualhome_hosts — so a
+# `network` converge neither rewrites it nor removes it: edits here reach the box only when someone
+# applies them to the keyfile.
 network_manager: NetworkManager
-network_manager_target: NetworkManager     # settled: NM adopted on eno1 (manual static keyfile; ifupdown networking+dhcpcd disabled)
-mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native; RESERVED on the router side,
-                                    # not configured on this host: the eno1.99 leg has no manager
-                                    # that would apply it while network_manager is ifupdown
+network_manager_target: NetworkManager     # equal to the owner = settled, nothing owed
+mgmt_ip: 10.10.99.10               # VLAN 99 (Management) — native; RESERVED on the router side and
+                                    # deliberately not configured here: the keyfile carries the
+                                    # untagged Home leg only, so no eno1.99 sub-interface exists
 ilo_ip: 10.10.99.11                # iLO4 remote mgmt
 ansible_user: ansible-admin        # created by preseed post_install.sh
 # NUT: UPS MASTER — only host physically USB-wired to the PowerWalker

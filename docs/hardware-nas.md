@@ -154,10 +154,22 @@ one-time bootstrap before the installer boots). The rules that make it safe:
 
 **Single cable, single trunk on CRS328 port 1:** VLAN **10 (Home) untagged** (PVID 10, the data plane:
 file sharing, backup, NUT) + VLAN **99 (Mgmt) tagged**. The Mgmt leg on the host (`eno1.99`) is
-**not yet active** — convenience only; management currently runs over Home. The host is configured
-through neither NetworkManager nor systemd-networkd: classic **ifupdown** (`/etc/network/interfaces`,
-with dhcpcd) owns `eno1`, which is why this host carries none of the role's netd units — the dead
-renders were removed ([network.md](network.md) §Config-manager truth). Target-state and firewall side:
+**not configured** — the address is reserved on the router side and nothing here carries it; management
+runs over Home.
+
+✅ **NetworkManager owns `eno1`** (settled, and the freeze is lifted): `NetworkManager` is `enabled`,
+`nmcli device status` reads `eno1 ethernet connected`, `systemd-networkd` is `disabled` + `inactive`
+with its socket `disabled` too, and `/etc/systemd/network` is empty — none of the role's `20-*` /
+`30-*-tunnel` units remains here ([network.md](network.md) §Config-manager truth). The addressing lives
+in one manual-static keyfile, `/etc/NetworkManager/system-connections/nas-eth0.nmconnection`
+(the `nas` Home row from `network_static_hosts` + the gateway + the resolver list +
+`dns-search=kogler.si`), and **this role renders no keyfile here** — nas is outside
+`network_nm_dualhome_hosts`, so a `network` converge neither rewrites nor removes that file.
+⚠ Two legs of the ifupdown path still sit on the box: `/etc/network/interfaces`
+carries `iface eno1 inet dhcp`, and a `dhcpcd` that has no unit (`systemctl is-enabled dhcpcd` →
+`not-found`) keeps a second `default … proto dhcp metric 1002` behind NetworkManager's `metric 100` —
+same gateway, so no traffic depends on it, but it is not nothing. Read the verdict, never the files:
+`bash scripts/ansible/probe-net-manager.sh nas`. Target-state and firewall side:
 [network-vlans.md](network-vlans.md); port-by-port wiring: [network-rack.md](network-rack.md).
 (The second NIC port is unused.)
 
