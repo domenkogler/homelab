@@ -35,6 +35,17 @@ answer for any moment is `scripts/ansible/probe-net-manager.sh`, and
 `scripts/gate/check_net_manager.py` refuses a commit where a host the `network` role touches declares
 nothing, declares a value outside the vocabulary, or implies one from a role default.
 
+**Freeze is decided by the owed target, never by list membership.** `network_nm_dualhome_hosts` selects
+which hosts get the NetworkManager keyfile leg, and that leg follows the manager the host **adopted**
+(`network_manager`), not the one it is heading toward — so a settled NetworkManager host may legally sit
+in the list, and a host whose `NetworkManager` declaration still owes `systemd-networkd` may not: the
+latter would move the address under a manager that does not own the box, leaving the real one with no
+address leg at all. The two shapes are one field apart and both read as "`NetworkManager` in a list", so
+the gate's `--self-test` breeds the frozen state deliberately — an owed target in `host_vars`, then each of
+the three things a frozen host may not declare (membership in the keyfile list, a `netd_phys_name`, a resolver
+leg) — while a SETTLED host joining that same list is held out as a required-green control, so an always-red
+check cannot masquerade as coverage.
+
 Three states are legal, and the third is not a config manager at all:
 
 | State | What it means | What `roles/network` does there |

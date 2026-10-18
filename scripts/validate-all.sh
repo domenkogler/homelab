@@ -1075,7 +1075,7 @@ item_q "check_dns_seed_prune_guard.py (the seed delete leg cannot delete a liste
 item_q "check_dns_seed_prune_guard.py --self-test (the refusal must be seen to fail three ways)" $PY scripts/gate/check_dns_seed_prune_guard.py --self-test
 item_q "check_self_converge_guard.py (HD-413 guardrail completeness, static)" $PY scripts/gate/check_self_converge_guard.py
 item_q "check_net_manager.py (per-host config-manager declaration: no implied manager, no implied render leg)" $PY scripts/gate/check_net_manager.py
-item_q "check_net_manager.py --self-test (each rule bred on a tree copy: 11 canaries + 2 green controls)" $PY scripts/gate/check_net_manager.py --self-test
+item_q "check_net_manager.py --self-test (each rule bred on a tree copy: canaries must redden, the legal shapes must stay green)" $PY scripts/gate/check_net_manager.py --self-test
 item_q "probe-net-manager.sh --self-test (the config-manager verdict still separates the states it names)" bash scripts/ansible/probe-net-manager.sh --self-test
 item_x "walks every byte under IaC/ for twin groups and its self-test re-derives a 2,300-group baseline — minutes on this host, and a pre-commit edit does not rename a twin" "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/gate/check_string_twins.py
 # The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
