@@ -12,16 +12,17 @@
 *.yaml text eol=lf
 
 # Binary files - never touch
-*.png binary
-*.jpg binary
-*.jpeg binary
-*.gif binary
-*.ico binary
-*.svg binary
-*.woff binary
-*.woff2 binary
-*.ttf binary
-*.eot binary
-*.zip binary
-*.tar.gz binary
-*.gz binaryscripts/lib/seat-planes.yml -text
+*.png 
+*.jpg 
+*.jpeg 
+*.gif 
+*.ico 
+*.svg 
+*.woff 
+*.woff2 
+*.ttf 
+*.eot 
+*.zip 
+*.tar.gz 
+*.gz  -text
+scripts/lib/seat-planes.yml -text
