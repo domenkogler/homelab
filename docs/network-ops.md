@@ -42,6 +42,16 @@ tags: [network, routeros, ops]
 > reconciles the `srcnat`/`dstnat` table with `handle_absent_entries: remove`, so the table converges
 > to exactly the rows both writers list — a NAT row the device carries must be listed on **both**
 > sides (the role's `data:` and the converge template) or whichever writer runs last deletes it.
+> **Live state 2026-10-18:** the device carries exactly `Masquerade -> WAN` (srcnat pppoe-telekom)
+> and `modem UI via router SNAT (trusted-admin)` (srcnat ether1) — the Comtrend masquerade is
+> listed on both writers and the old `HD-302:` prefix is gone — but the dstnat half (Kids-40
+> forced DNS, IoT-20 forced DNS, per-MAC kids pairs) is **absent** on the device, so a live role
+> run is not converged yet.
+> **Live state 2026-10-18 (VLAN-99 trunk parity gap):** the role's `Configure VLANs on trunk port
+> to switch` writes VLAN-99 `tagged=bridge-lan,sfp-sfpplus1` only, while the converge template
+> writes `tagged=bridge-lan,sfp-sfpplus1,ether2,ether3,ether8,ether10 untagged=ether7` — NOT
+> byte-identical, so a live role run strips the tagged admin legs from the Mgmt VLAN and repeats
+> the mgmt-plane darkening. Maintain parity on BOTH writers before converging the router.
 
 ### The three tiers (roles + when each is used)
 
