@@ -244,7 +244,7 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 |---|---|---|---|
 | [prompt-spark-llm.md](prompt-spark-llm.md) the GB10 engine: profiles, certify, bench evidence — the one brief that absorbed the three spark-lane briefs of the retired per-HD set (one spark slot, one brief) | **1** | **469** (the under-cap `clocks.sm` baseline + `reasoning` gates 5–7) · **473** (engine pin, upstream-blocked) · **475** (`fast`'s triton fix → gates 0–7) · **489** (the certificate's last lines) · **494** (the measured budget's owed evidence) · **376** · **400** · **359** · **367** · **380** | **spark** — one converge, one service dir. ⛔ rule 0: no timed leg from a spark-served session; never beside another spark-slot lane or a probe lane |
 | [prompt-laptop-legs.md](prompt-laptop-legs.md) the Win11 seat — **FIM + vision only** (the agent leg was retired 2026-10-09) | **1** | **474** · **476** | **the laptop, in Windows** — claims no converge slot, so it pairs with any lane, EXCEPT a live pi-seat lane (`scripts/harness/pi/models-spec.yml` is shared) |
-| [prompt-scripts.md](prompt-scripts.md) the `scripts/` restructure + the `harness` docs domain — **the domain-named brief that predates this roster** | **2** | **1119** · **1141** — HD-1118's three live legs stay in its row; HD-1141 is the same sweep on `scripts/README.md`, and the registry row names this brief | none — in-repo work; the IaC hunk (`roles/docker_services/defaults/main.yml`) landed with it and the seat converge proves it end to end |
+| [prompt-scripts.md](prompt-scripts.md) the `scripts/` restructure + the `harness` docs domain — **the domain-named brief that predates this roster** | **2** | **1119** · **1141** · **1125** · **1138** · **1153** — HD-1118's three live legs stay in its row; HD-1141 is the same sweep on `scripts/README.md`, and the registry row names this brief; 1125 / 1138 / 1153 join it because every remaining leg of each of them edits `scripts/**` | none — in-repo work; the IaC hunk (`roles/docker_services/defaults/main.yml`) landed with it and the seat converge proves it end to end |
 | [prompt-dns-transport.md](prompt-dns-transport.md) the answer plane + DNS policy + the v6 tails | **2** | **436** · **435** · **460** · **461** · **477** · **480** · **481** · **482** · **483** · **487** · **488** · **448** · **1095** · **1097** | **oldsrv** + **VPS** + the **Pi** tertiary + the **router** (global). HD-436's two converges are owner-present, and so is every `--tags network` converge HD-487 / HD-488 owe (lockout-class: oldsrv's runs alone and off-box); 461 is parked on reachability, and 448's remaining half is a v6 read plus one owner-side Cloudflare allowlist edit |
 | [prompt-media-arrs.md](prompt-media-arrs.md) media, the music ladder, subtitles, downloads | **2** | **362** · **1088** · **1090** · **1091** · **1092** · **1096** · **353** · **354** · **230** | **oldsrv**; HD-354's `music` door has one **VPS** leg — sequence it, never bundle it |
 | [prompt-litellm-consumers.md](prompt-litellm-consumers.md) scoped keys, the thinking control, voice's LLM leg, n8n, `/ui` | **2** | **384** only — the ids this line used to carry reached ground 2026-10-09: **387** + **373** closed by measurement (§9d / §4c), **403** live (HA entry + Assist wire, Slovenian turn proven), **249** audited shut with no key to mint | **oldsrv** `docker_services` + the **VPS** instance; a dial that reaches spark's engine needs the **spark** slot, so never inside a bench window |
@@ -267,17 +267,17 @@ these rows are *queued behind a slot*, which is waiting work, not missing work.
 > `observability-alerting` + `storage-backup` pair only host-by-host: HD-450 reads the units HD-191's clients write.
 >
 > **Unbriefed but still open — not lost, just unassigned** (derived from [todo.md](todo.md) at this `HEAD`; §B and
-> §B9 stay the index, this is the honest count: **69** open rows carry no brief (was 68 before HD-1154 landed — the seat brief carries no rows) — the registry's row ids minus the ids
-> the §B0 table's row-lists name, both re-extracted here, never carried over). The ones worth naming:
+> §B9 stay the index, this is the honest count: **66** open rows carry no brief — every row id `todo.md` carries
+> at this commit minus the ids the §B0 row-lists name, both re-extracted here and never carried over; re-derive it with
+> `comm -23 <(grep -oE '^\| HD-[0-9]+' todo.md | grep -oE '[0-9]+' | sed 's/^0*//' | sort -u) <(sed -n '/^### B0\./,/^### 🔥/p' todo-table.md | awk -F'|' '/^\| \[prompt-/{print $4}' | grep -oE '\*\*[0-9]{2,4}\*\*|HD-[0-9]+' | grep -oE '[0-9]+' | sed 's/^0*//' | sort -u) | wc -l`. The ones worth naming:
 > **357** (the launchpad tiles — the family-surface brief died and **no domain brief took this row**, so it is
 > linkless here and wants a promoting decision), **1100** (PG 16→18 — owner-paced, one leg per window, and it spans
 > every host so no single domain owns it), **1116** / **1117** (the two gate halves of the same hygiene pass),
-> **1083** / **1089** (edge routes and the SAB locality read, each with an owner eyeball left), **1153** (the child-lane
-> contract: the seat legs can only be run FROM the seats), **454** · **406** ·
+> **1083** / **1089** (edge routes and the SAB locality read, each with an owner eyeball left), **454** · **406** ·
 > **412** · **440** (§D hands and plain rows), and the long tail: **14 · 28 · 32 · 34 · 45 · 57 · 101 ·
 > 104 · 111 · 133 · 141 · 159 · 160 · 194 · 248 · 250 · 251 · 264 · 268 · 280 · 287 · 288 · 316 · 318 · 335 · 336 ·
-> 337 · 366 · 369 · 397 · 401 · 404 · 421 · 472 · 491 · 1123 · 1125 · 1126 · 1127 · 1128 · 1129 · 1130 · 1131 · 1133 ·
-> 1135 · 1136 · 1137 · 1138 · 1139 · 1140 · 1142 · 1143 · 1148 · 1149 · 1150 · 1151 · 1152 · 1154**. Adding a brief is a view edit, not a contract change,
+> 337 · 366 · 369 · 397 · 401 · 404 · 421 · 472 · 491 · 1123 · 1126 · 1127 · 1128 · 1129 · 1130 · 1131 · 1133 ·
+> 1135 · 1136 · 1137 · 1139 · 1140 · 1142 · 1143 · 1148 · 1149 · 1150 · 1151 · 1152 · 1154**. Adding a brief is a view edit, not a contract change,
 > so this list is a queue, not a verdict.
 > **Briefed, not running:** the transport plane — [prompt-dns-transport.md](prompt-dns-transport.md) carries
 > **436 · 435 · 460** — is stopped on presence, not on work: everything owed on 436 is an owner-present converge

@@ -34,3 +34,4 @@ decisions taken since the domain existed.
 | Subject | Status | Why |
 |---------|--------|-----|
 | The harness as an unprefixed cross-cutting doc | rejected | Harness candidates already carry a reject history |
+| The subagent payload as a second settings-plane target | rejected | Coverage comes free in the matrix; a second target escapes it |
