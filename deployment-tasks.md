@@ -460,8 +460,11 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 
 - [ ] **HD-57** — Finance stack: the tokens + EB app creation are owner steps; then the n8n import/categorization
       flows, the WG AllowedIPs scope for the :5006 API leg, and the first live verify. · [services-finance.md](docs/services-finance.md)
-- [ ] **HD-318(b)** — recyclarr @daily quality-profile sync verify (the stacks have been up since 2026-09-08; the
-      *arr configs were chowned to their image uid 2026-09-15 after a converge recreated them root-owned). · [hardware-oldsrv.md](docs/hardware-oldsrv.md)
+- [x] **HD-318(b)** — ✅ **CLOSED + LIVE 2026-10-18**: the recyclarr `@daily` sync landed and keeps landing — ten
+      consecutive fires (`iteration=0`…`9`, 2026-10-09→18), each processing both configured instances
+      `radarr-homelab` + `sonarr-homelab`, zero `[ERR]`/`[WRN]`. The fix that made it land is `5dbe85a6`
+      (**2026-09-28**, `bind_owner_uid` 1005 → the image's own 1000), not the 2026-09-15 sweep this line used to
+      cite. Measured facts, plus the Lidarr gap: the status block of [services-media.md](docs/services-media.md)
 - [x] **HD-350** — **CLOSED 2026-09-23.** oldsrv's `traefik-cert-sync.pub` is authorized on the VPS (the grant has
       been in `ansible-admin`'s `authorized_keys` since 2026-09-15 — `SHA256:VX0TbLr…`, matching
       [deployment-secrets.md](docs/deployment-secrets.md)), and the pull now lands: `traefik-cert-pull.service`

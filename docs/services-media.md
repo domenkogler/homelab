@@ -25,6 +25,16 @@ tags: [services, media, arr, photos, streaming]
 > ⏳ **Prowlarr holds 0 indexers and 0 synced apps, so no request can be searched end-to-end** — the
 > request half of this stack is live (§Request → import wiring) and the acquisition half is not.
 >
+> ✅ **Recyclarr `@daily` sync verified on the box (HD-318(b), 2026-10-18)** — image 8.7.2, `Up 9 days`
+> (`StartedAt` 2026-10-08T17:24:54Z, `RestartCount=0`); ten consecutive fires `iteration=0`…`9` (00:00 local,
+> 2026-10-09→18), each processing **both** configured instances `radarr-homelab` + `sonarr-homelab`, zero
+> `[ERR]`/`[WRN]` lines; `/config` carries the image's own uid 1000, and the date the sync actually landed is
+> **2026-09-28** (fix `5dbe85a6`) — the 2026-09-15 `bind_owner_uid` sweep set 1005, so every run before it died
+> on `Access to the path '/config/cache' is denied`. It authenticates and ships nothing, by ruling (§Catalog):
+> both instances' `state/*/*-mappings.json` are `{"mappings": []}`. ⚠ Two traps: `recyclarr sync` **exits 0 even
+> when it skips every config**, so only log lines and the `state/` mtimes are evidence (an `Up` container proves
+> nothing); and **Lidarr is not a configured instance** — no `lidarr:` block in `recyclarr.yml`, no
+> `state/lidarr/` — so this service has never touched Lidarr.
 > ✅ **Immich SSO is live** (`foto.kogler.si` → Authentik). The settings are NOT compose env:
 > Immich v3 has no OAuth env vars, so `roles/docker_services/tasks/immich-seed.yml` PUTs them into the
 > service's own database config (why an env block is inert:
