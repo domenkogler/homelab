@@ -32,9 +32,8 @@ Its one non-derived gitignored file, `skills/mikrotik/.env.op` (`op://` referenc
 values), is TRACKED from this commit, so a clone elsewhere loses nothing. Read the inventory's `laptop-wsl` role
 ("durable runner state = NAT + auto-resolv") as that host's **network** mode, not as a job runner: nothing
 is scheduled on it (no crontab, stock Debian timers only). No command changes, because the seat's clone sits
-at the same `~/source/homelab`. What the seat does buy: HD-1085's canary prints SKIP for its load-probe legs
-where the `tmux` binary is missing — five of them did on WSL (`validate-all.sh` there is GREEN but partly
-unmeasured) — while on the seat, which runs tmux 3.5a, they execute. Owner/cleanup sessions also run from
+at the same `~/source/homelab`. What the seat does buy: HD-1085's canary and its load-probe legs execute here —
+tmux 3.5a is installed on this seat, so the load probe prints a **verdict**, not a SKIP. Owner/cleanup sessions also run from
 the **Win11 Git-Bash** seat.
 `python3`/bash/LF/UTF-8 no-BOM (`.gitattributes` pins `eol=lf`, so a checkout is LF on Windows too). On a Win11 seat four
 gates were silently blind or misleadingly red until 2026-10-07 — MSYS text mode makes `grep` miss the CR of a CRLF pair
@@ -113,8 +112,8 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    config-manager truth is now DECLARED per host in `host_vars/<host>.yml` — oldsrv/pi/spark = NetworkManager, vps =
    systemd-networkd, **nas = `ifupdown`**, the legal third state — held down by
    [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read per host with
-   `scripts/ansible/probe-net-manager.sh`; the phantom `eno1` renders are gone and unowned units are removed, so what
-   is left is converging, host by host), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed
+   `scripts/ansible/probe-net-manager.sh`; the dead `eno1` renders are off the fleet (pi/oldsrv removals landed, the nas
+   removal under its `ifupdown` freeze landed), so what is left is the **spark** networkd disarm and nas's **NM adoption**), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed
    and was verified 2026-10-08**; spark waits on a spark-slot converge, nas is frozen behind HD-487), and the
    DNS-policy rows **HD-480–483**. → [prompt-dns-transport.md](prompt-dns-transport.md)
 3. ⏳ **Silent-failure alerting** — **HD-450**'s collector legs are LIVE and read back per host 2026-10-17: the NUT
@@ -228,12 +227,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
    [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
    [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
-   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py); **HD-1153** keeps one seat leg — the Win11 settings check, run FROM that seat; the wsl leg closed 2026-10-17 and showed what
-   the plane cannot prove: that seat carried **no `subagents` key at all** and its `packages` sat two fleet rows short, and
-   `--push` fixes the *declaration* only, so `pi list` is the read that says whether pi resolved each name (oldsrv's `settings`
-   line reads `OK` when the driver is run from the WSL seat, so it is no longer a leg of its own). What is parked in its place
-   is an owner call: **no plane owns `~/.pi/agent/extensions/subagent/config.json`**, so `_subagentConfig` is authored rather
-   than effective, and no seat may be reported as running the O11 numbers until one installs it. **The registry's own prose is now a rule with a checker** —
+   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py). The arm is landed: the `subagent` seat plane ([`scripts/harness/pi-subagent-config.sh`](scripts/harness/pi-subagent-config.sh)) writes `_subagentConfig` → `~/.pi/agent/extensions/subagent/config.json` on every seat, the win11 leg is converged, and the Debian seats converge the payload on the next per-seat `pi-seat-sync.sh --push` — until a seat's own `--check` prints `OK` for that file, the seat runs the harness defaults and a run must pass the values on the launch ([docs/harness-pi.md](docs/harness-pi.md) §1). **The registry's own prose is now a rule with a checker** —
    [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) is built and self-tested but left unwired while the
    rows still carry the ids and dates it refuses (`--show` prints the live count, never a number typed into a handoff), so the
    work is one sweep: clear the rows — ids, dates, diary tenses, the six rows that dropped their **Owning spec** cell, the
@@ -259,8 +253,8 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     pin-lag series are live on all five hosts and the `pkg-pin-drift` rule is in the ruler (read from
     the ruler API, not from the repo: it sits in `Homelab · Warning` on `count by (instance)
     (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `noDataState: OK` — count what loads with
-    that same read, never from this sentence). It reads RED on `pi`, `vps` and `spark` and that is true
-    drift, not noise: **HD-1148**'s unrun `--tags docker` applies, which is now the only thing left on
+    that same read, never from this sentence). It reads RED on `pi` and `spark` and that is true
+    drift, not noise: **HD-1148**'s unrun `--tags docker` applies (vps is landed), which is now the only thing left on
     the docker leg — the one pinned package that no task could reach is named in
     `docker_ce_suite_packages`, so one list drives the apt call, the hold lift and the read-back, and an
     apply moves the family to its pin by lifting the hold for exactly the names it touches. →
@@ -368,27 +362,18 @@ action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.ya
 converge — the answer set is identical, the FILE is not (entry order + comments), so it reports changed and restarts
 the control plane: sampled liveness probe, never a one-shot inspect; (b) `IaC/ansible/playbooks/dns.yml` from the **home control
 plane**, because the Cloudflare token is IP-filtered there, expected to report no record change; and its step 2 (the
-`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **every network leg**
-HD-487 and HD-488 still owe — the tag is **per-host** and the rows carry the exact command: `--tags network` where a manager
-counts, and the narrow `--tags netd` where only the dead renders may be touched. The spark networkd disarm (drop the dead
-`20-eno1.*`, engine untouched — one converge serves both rows), the pi removals (three unread units), the nas removals
-(four, under its `ifupdown` freeze — the narrow tag is what keeps that box's frozen address/resolver legs off the run), and
-oldsrv's own lockout-class run **alone**
-and off the box with a console reachable (driven FROM the oldsrv controller its `network` tag is refused by the
-self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml`, by design; and a self-target run dies at
-the transport before the guard is even reached — the inventory's `ProxyJump=vps` makes the last hop authenticate
-against the bare `ansible_host`, where the seat's own alias block pins the operator key — so drive it from another
-controller, or use one of the two forms that section measures:
-[docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement) · **nas's NetworkManager adoption** — until the measured
-`ifupdown` owner of `eno1` is replaced, every address and resolver leg there stays frozen · **HD-384 step 2** — the
+`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **the network legs**
+HD-487 and HD-488 owe are trimmed to the owner-gated half — the per-host netd removals (pi two dead units,
+nas four under its freeze, oldsrv alone off-box) are landed, and the tag is **per-host** with the narrow `--tags netd` where only dead renders may be touched;
+what stays is the **spark** converge both rows share (the networkd disarm + the resolver pair, engine untouched) and **nas's NetworkManager adoption** (the measured
+`ifupdown` owner of `eno1` is replaced owner-present — until then every address and resolver leg there stays frozen) · **HD-384 step 2** — the
 two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
 list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
-call · **the docker-family applies** **HD-1148** still owes, which are the whole of the docker leg and what
-`pkg-pin-drift` is red for: `--tags docker` on `vps` and on `pi` (maintenance windows — the daemon restart takes every
-container on the host with it, so one host at a time, detached with a log to poll, `--check` first, never behind a
-timeout, ⛔ not overnight) and on `spark` (an owner window — vLLM serving state). `oldsrv` owes no apply and `nas` runs
+call · **the docker-family applies** **HD-1148** owes on `pi` and on `spark` (vps is landed) — the daemon restart takes every
+container on the host with it, so one host at a time, detached, `--check` first, never behind a
+timeout, ⛔ not overnight, and spark is an owner window (vLLM serving state). `oldsrv` owes no apply and `nas` runs
 no docker role at all. An apply lifts the hold for exactly the suite names it moves and re-holds them in the same play,
-so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; the rule stays RED on `pi`/`vps`/`spark`
+so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; the rule stays RED on `pi`/`spark`
 until these run, which is the gap being reported, not a false positive.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
