@@ -29,6 +29,7 @@ Usage:
     python scripts/render_all.py rack
     python scripts/render_all.py all
     python scripts/render_all.py --check        # render then diff vs index; exit 1 on drift; tree restored to its pre-run state
+    python scripts/render_all.py --check --no-write  # the same verdict, rendered in a temp dir: docs/ is never written (the form validate-all.sh runs)
     python scripts/render_all.py --self-test    # prove --check can read green twice AND still redden, in a throwaway repo
 
 Determinism: a rendered file is a pure function of its SSOT, so `--check` can read green on an
@@ -59,6 +60,12 @@ from repo_root import root as _hl_root, script_path as _hl_script_path  # noqa: 
 ROOT = _hl_root(__file__)
 ANSIBLE = ROOT / "IaC" / "ansible"
 DOCS = ROOT / "docs"
+
+# Where render PRODUCTS go: the tree's `docs/` for every write mode, a temp dir for
+# `--check --no-write`. Only the products move — a renderer's SSOT inputs keep resolving under
+# ROOT, because the direction is IaC → view (CONVENTIONS §8.5) and `docs/` itself holds one input
+# (`rack-connections.json`), which the rack renderer must still READ from the tree.
+OUT_DIR = DOCS
 GROUP_VARS = ANSIBLE / "group_vars"
 HOST_VARS = ANSIBLE / "host_vars"
 TEMPLATES = ANSIBLE / "templates"
@@ -79,6 +86,25 @@ DOCKER_HOST_GROUPVARS = [
 
 def _load_yml(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def _redirect_outputs(mod, **attrs: str) -> None:
+    """Aim an imported renderer's OUTPUT paths at `OUT_DIR`; its input paths stay in the tree.
+
+    The match test is the teeth, not politeness: `setattr` on a name the renderer no longer uses
+    would create a stray attribute and the renderer would quietly write into the real `docs/` —
+    which is the one thing `--check --no-write` exists to make impossible. A renderer that renames
+    or relocates its destination therefore STOPS the umbrella instead of re-enabling the race.
+    """
+    for attr, name in attrs.items():
+        tree_path, current = DOCS / name, getattr(mod, attr, None)
+        if current is None:
+            raise SystemExit(f"render_all: {getattr(mod, '__name__', mod)}.{attr} does not exist — "
+                             "cannot aim a renderer at a directory it has no output path in")
+        if Path(current) != tree_path:
+            raise SystemExit(f"render_all: {getattr(mod, '__name__', mod)}.{attr} = {str(current)!r}, "
+                             f"not {str(tree_path)!r} — the umbrella's output-path map is stale")
+        setattr(mod, attr, OUT_DIR / name)
 
 
 def _render_template(template_path: Path, dest: Path, ctx: dict) -> None:
@@ -129,10 +155,11 @@ def _load_renderer(name: str):
 
 def render_network_addresses() -> list[Path]:
     mod = _load_renderer("render_network_addresses")
+    _redirect_outputs(mod, DEST="network-addresses-generated.md")
     rc = mod.main()
     if rc != 0:
         raise SystemExit(f"render_network_addresses.py exited {rc}")
-    return [DOCS / "network-addresses-generated.md"]
+    return [OUT_DIR / "network-addresses-generated.md"]
 
 
 def render_inventory() -> list[Path]:
@@ -150,7 +177,7 @@ def render_inventory() -> list[Path]:
         "all_hostvars": all_hostvars,
         "domain_public": all_yml.get("domain_public", "kogler.si"),
     }
-    dest = DOCS / "services-inventory-generated.md"
+    dest = OUT_DIR / "services-inventory-generated.md"
     _render_template(TEMPLATES / "inventory.md.j2", dest, ctx)
     return [dest]
 
@@ -161,17 +188,18 @@ def render_subscriptions() -> list[Path]:
         "ansible_managed": MANAGED,
         "subscriptions": subs.get("subscriptions", []),
     }
-    dest = DOCS / "subscriptions-table-generated.md"
+    dest = OUT_DIR / "subscriptions-table-generated.md"
     _render_template(TEMPLATES / "subscription-table.md.j2", dest, ctx)
     return [dest]
 
 
 def render_rack() -> list[Path]:
     mod = _load_renderer("render_rack_connections")
+    _redirect_outputs(mod, MD_DEST="network-rack-generated.md", MMD_DEST="rack-layout.mmd")
     rc = mod.main()
     if rc != 0:
         raise SystemExit(f"render_rack_connections.py exited {rc}")
-    return [DOCS / "network-rack-generated.md", DOCS / "rack-layout.mmd"]
+    return [OUT_DIR / "network-rack-generated.md", OUT_DIR / "rack-layout.mmd"]
 
 
 _JOBS = {
@@ -191,21 +219,60 @@ def _run_all() -> None:
         _JOBS[name]()
 
 
-def _snapshot_generated() -> dict[Path, bytes | None]:
-    """Every file a renderer can overwrite, read BEFORE anything is written.
+def _snapshot_generated() -> dict[Path, tuple[bytes | None, int | None]]:
+    """Every file a renderer can overwrite, read BEFORE anything is written, with its mtime.
 
     The set is the repo's own naming rule (CONVENTIONS §8.2: machine-produced docs carry
     `-generated.md`) applied to `docs/` — the only dir the jobs write into — plus the one
     non-md output. That is a SAFE SUPERSET of what the jobs produce, so no path is listed
     twice and a new renderer needs no edit here.
+
+    The mtime is what makes it a witness and not a receipt: a truncate-then-write that ends up
+    writing identical bytes leaves the BYTES alone and still opens the empty-file window the
+    write-free form exists to close, so `--check --no-write` compares mtime too. `--check` uses
+    the bytes half to put the tree back.
     """
     paths = list(dict.fromkeys(sorted(DOCS.glob("*-generated.md")) + [DOCS / "rack-layout.mmd"]))
-    return {p: (p.read_bytes() if p.exists() else None) for p in paths}
+    out = {}
+    for p in paths:
+        if p.exists():
+            out[p] = (p.read_bytes(), p.stat().st_mtime_ns)
+        else:
+            out[p] = (None, None)
+    return out
 
 
-def _check_target(name: str) -> bool:
-    """Render, then `git diff` each produced file against the index (committed) state; returns
-    True if any drifted. The working tree is restored to its **pre-run** state afterwards.
+def _committed_bytes(path: Path) -> bytes | None:
+    """The INDEX bytes for a repo path (`git show :<path>`) — the same basis `git diff` compares
+    against, read without touching the working copy. None = the path is not in the index at all,
+    which is drift like any other difference."""
+    rel = path.relative_to(ROOT).as_posix()
+    res = subprocess.run(["git", "show", f":{rel}"], cwd=str(ROOT), capture_output=True)
+    return res.stdout if res.returncode == 0 else None
+
+
+def _report(produced: list[Path], differs) -> bool:
+    """ONE report for both write policies: one line per produced file, True when anything drifted.
+    `--check` and `--check --no-write` differ in WHERE they render, never in what they say."""
+    drifted = False
+    for dest in produced:
+        if not dest.exists():
+            print(f"DRIFT  {dest.name}: renderer produced nothing")
+            drifted = True
+        elif differs(dest):
+            print(f"DRIFT  {dest.name}: differs from committed index state")
+            drifted = True
+        else:
+            print(f"ok     {dest.name}: matches index")
+    return drifted
+
+
+def _check_target(name: str, *, write: bool = True) -> bool:
+    """Render, then compare what the render produced against the committed index state; returns
+    True if any drifted.
+
+    `write=True` is `--check`'s pinned contract: render into the tree, `git diff` it, restore the
+    tree to its **pre-run** state.
 
     ⚠ The snapshot must be taken BEFORE the render. It used to be taken after `_run_target()`, so
     the "restore" wrote back the bytes the renderer had just produced: `--check` left the tree
@@ -216,33 +283,67 @@ def _check_target(name: str) -> bool:
     a CONVENTIONS §6 hard gate failure. The `--self-test` below asserts this restore, and it runs
     in a throwaway repo reached through `$REPO` — so the fixture's `docs/` takes the writes and
     this tree never does.
+
+    `write=False` is `--check --no-write`, the form the GATE runs: render into a temp dir and
+    compare those bytes to `git show :<path>`, so no write handle is ever opened on `docs/`. The
+    reason is measured, not theoretical: `write_text` truncates before it writes, so looping
+    `--check` while a watcher read the five render products produced 2,383 zero-length or partial
+    reads out of 6,669,855. `validate-all.sh` runs its items in a POOL, so an in-place `--check`
+    hands every doc-reading checker beside it a window in which the generated doc it is scanning
+    is EMPTY — a green that measured nothing, or a corpus floor that fired on a half-written file.
     """
+    if not write:
+        return _check_target_detached(name)
     snap = _snapshot_generated()
     produced = _run_target(name)
     try:
-        drifted = False
-        for dest in produced:
-            if not dest.exists():
-                print(f"DRIFT  {dest.name}: renderer produced nothing")
-                drifted = True
-                continue
-            rc = subprocess.run(
-                ["git", "diff", "--exit-code", "--", str(dest)],
-                capture_output=True,
-                text=True,
-            )
-            if rc.returncode != 0:
-                print(f"DRIFT  {dest.name}: differs from committed index state")
-                drifted = True
-            else:
-                print(f"ok     {dest.name}: matches index")
+        def differs(dest: Path) -> bool:
+            rc = subprocess.run(["git", "diff", "--exit-code", "--", str(dest)],
+                                capture_output=True, text=True).returncode
+            return rc != 0
+        return _report(produced, differs)
     finally:
-        for p, b in snap.items():
+        for p, (b, _t) in snap.items():
             if b is None:
                 p.unlink(missing_ok=True)
             else:
                 p.write_bytes(b)
-    return drifted
+
+
+def _check_target_detached(name: str) -> bool:
+    """Render into a throwaway dir and diff that; the tree is never the render target.
+
+    The refusal after the render is what makes the promise checkable: a job whose output paths the
+    umbrella could not aim would otherwise print `ok` while having written into `docs/`.
+    """
+    global OUT_DIR
+    tmp = Path(tempfile.mkdtemp(prefix="render-all-check-"))
+    prev, OUT_DIR = OUT_DIR, tmp
+    # Read BEFORE the render, and never written: the promise is that the tree's render products are
+    # untouched, so the snapshot is the whole check. `--check`'s restore is the write half; here
+    # there is no write half to restore.
+    snap = _snapshot_generated()
+    try:
+        produced = _run_target(name)
+        for dest in produced:
+            if tmp not in dest.parents:
+                raise SystemExit(f"render_all --check --no-write: {name} produced {str(dest)!r} outside "
+                                 f"{str(tmp)!r} — the write-free form renders into its temp dir only")
+        for path, (before, stamp) in snap.items():
+            after = path.read_bytes() if path.exists() else None
+            now = path.stat().st_mtime_ns if path.exists() else None
+            if (after, now) != (before, stamp):
+                raise SystemExit(
+                    f"render_all --check --no-write: {name} touched {path.name} in the tree — "
+                    "either a renderer escaped the temp dir (the output-path map is stale) or "
+                    "something else wrote docs/ mid-run. The write-free form cannot run here.")
+
+        def differs(dest: Path) -> bool:
+            return _committed_bytes(DOCS / dest.relative_to(tmp)) != dest.read_bytes()
+        return _report(produced, differs)
+    finally:
+        OUT_DIR = prev
+        shutil.rmtree(tmp, ignore_errors=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -396,6 +497,35 @@ def self_test() -> int:
                 "check stayed green over a hand edit")
             _git(repo, "reset", "--hard", "-q", base)
 
+            # The GATED form: `--check --no-write`, the one validate-all.sh runs. Same verdicts, and
+            # the tree is never the render target — the gate runs its items in a POOL, and an
+            # in-place `--check` was measured here giving a concurrent reader 2,383 zero-length or
+            # partial reads of the five render products out of 6.67 M. `--check`'s own arms above stay
+            # exactly as they are: this leg adds the write policy, it does not re-derive the rest.
+            detached = _run_self(["--check", "--no-write", target], repo)
+            untouched = _git(repo, "status", "--porcelain").stdout.strip()
+            arm(detached.returncode == 0 and untouched == "",
+                f"{target}: --check --no-write is green and writes nothing",
+                f"rc={detached.returncode} dirty={untouched!r}")
+            if old in original:
+                ssot.write_text(original.replace(old, new, 1), encoding="utf-8")
+                detached_mut = _run_self(["--check", "--no-write", target], repo)
+                arm(detached_mut.returncode != 0 and doc_name in detached_mut.stdout,
+                    f"{target}: --check --no-write reddens on a changed SSOT value",
+                    "the write-free check stayed green on a real change")
+                ssot.write_text(original, encoding="utf-8")
+            doc.write_text(doc.read_text(encoding="utf-8") + "\n<!-- hand-edited -->\n",
+                           encoding="utf-8")
+            _git(repo, "add", "-A")
+            _git(repo, "commit", "-q", "--no-verify", "-m", "write-free hand edit")
+            detached_edit = _run_self(["--check", "--no-write", target], repo)
+            after_edit = _git(repo, "status", "--porcelain").stdout.strip()
+            arm(detached_edit.returncode != 0 and doc_name in detached_edit.stdout
+                and after_edit == "",
+                f"{target}: --check --no-write reddens on a COMMITTED hand edit, writing nothing",
+                f"rc={detached_edit.returncode} dirty={after_edit!r}")
+            _git(repo, "reset", "--hard", "-q", base)
+
             # the fix is structural, not a deleted line: the render context carries no clock, so a
             # template that asks for one DIES instead of stamping it.
             tpl = repo / "IaC" / "ansible" / "templates" / tpl_name
@@ -426,11 +556,21 @@ def main() -> int:
         help="render then git-diff against the committed (index) state; exit 1 on drift (the tree is restored to its pre-run state)",
     )
     ap.add_argument(
+        "--no-write",
+        action="store_true",
+        help="with --check: render into a temp dir and diff THAT against the index, so docs/ is never the render target (the form validate-all.sh runs — its items run concurrently and a doc reader must never see a half-written render)",
+    )
+    ap.add_argument(
         "--self-test",
         action="store_true",
         help="prove --check can read green twice and still redden, in a throwaway fixture repo (nothing is written into this tree)",
     )
     args = ap.parse_args()
+
+    # A write policy with nothing to write about is a mistake, not a mode: `--no-write` alone would
+    # fall through to the plain render, which is the exact opposite of what it reads like.
+    if args.no_write and not args.check:
+        ap.error("--no-write needs --check: it selects the write policy of a check, it is not a check")
 
     if args.self_test:
         return 1 if self_test() else 0
@@ -439,7 +579,7 @@ def main() -> int:
         targets = list(_JOBS) if args.target == "all" else [args.target]
         any_drift = False
         for name in targets:
-            if _check_target(name):
+            if _check_target(name, write=not args.no_write):
                 any_drift = True
         return 1 if any_drift else 0
 

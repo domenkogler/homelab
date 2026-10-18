@@ -683,6 +683,14 @@ rather than wait. The traps:
   (and any bare Debian seat) the ONLY git config is `~/.gitconfig` — leaving it at `gpgsign = true` keeps the
   hang while every repo-side path reads green. The acceptance form is the same everywhere: a commit under a
   `github.com` remote from a bare `env -i` shell returns immediately with `%G?` = `N`.
+  ⚠ **A seat payload is a hand edit; the scripted step cannot pay it.** `git-bootstrap.sh --ssh-auth` writes
+  the **clone's** config and says so, so the seat's own global file keeps whatever it already held. Take the
+  backup in the same command (`cp -p <file> ~/.gitconfig.pre-signing-$(date +%Y%m%d-%H%M%S)`, then
+  `git config --file <file> commit.gpgsign false`) and read the verdict knowing that the backup legitimately
+  still holds `true` — a glob-wide `grep -n gpgsign ~/.gitconfig*` returning "no `true`" is therefore NOT the
+  acceptance form; `git config --list --show-origin` inside a `github.com` clone, printing `false` only, is.
+  On a CRLF seat file `git config --file` rewrites the touched line with a bare LF — harmless to git, and
+  `sed -i 's/gpgsign = true/gpgsign = false/'` preserves the file's byte pattern instead.
 * **The repo's own `.git/config` outranks every global file** and pinned `user.signingkey` to the
   public-key string, so the file alone was not enough — `--git-identity` rewrites the local pin to the
   key path (it was `git-bootstrap.sh` that wrote the string form in the first place).

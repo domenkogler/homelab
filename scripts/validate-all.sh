@@ -306,6 +306,22 @@
 #                                     COMMITTED hand edit reddens it, and a template that asks for a
 #                                     wall clock cannot render at all — the clock is out of the
 #                                     context, not merely out of the file.
+#  34b. render_all.py --check --no-write — HD-1117's other half: the check over the REAL tree,
+#                                     registered. What makes it legal in this file is the WRITE
+#                                     policy: the render goes to a temp dir and those bytes are
+#                                     compared against `git show :<path>`, so `docs/` is never the
+#                                     render target. The in-place `--check` cannot be a pool item —
+#                                     `write_text` truncates before it fills, and a watcher reading
+#                                     the five render products while `--check` looped in this tree
+#                                     took 2,383 zero-length or partial reads out of 6,669,855, so
+#                                     every doc-reading checker beside it would get a window in
+#                                     which the file it is scanning is EMPTY (a green that measured
+#                                     nothing, or a corpus floor fired by a half-written file). It
+#                                     runs AFTER the `--self-test` above, so the fixture proves the
+#                                     checker before it judges the tree, and it refuses rather than
+#                                     lying: if the render touches a tracked generated doc at all —
+#                                     bytes OR mtime — it exits naming the file instead of printing
+#                                     a green.
 #  35. check_registry_prose.py       — CONVENTIONS §6, state-only docs, applied to this file: the
 #                                     registry must say what each script DOES (flags, verdicts, exit
 #                                     contract, declared limits) and which doc owns the detail — no
@@ -331,7 +347,9 @@
 # HOW THIS RUNS (2026-10-09, HD-1117): the items above are QUEUED and run CONCURRENTLY,
 #   8 in flight on an 8-core runner — 32 s -> 12 s. They are independent: every check is
 #   read-only over the repo (the sweeps write only gitignored __pycache__, the self-tests
-#   sandbox in temp dirs / private sockets, nothing here writes to the tree).
+#   sandbox in temp dirs / private sockets, nothing here writes to the tree). That sentence is a
+#   claim the registry has to keep honouring: the one item whose SUBJECT is a write — the
+#   generated-doc drift check — is registered in its write-free form for exactly that reason.
 #   The numbered list above is the WHY of each check and is HISTORICAL — item numbers moved
 #   when the long legs were moved to the front of the queue; `--list` prints the real set,
 #   in launch order. Long items first, because queue order IS the schedule.
@@ -1110,6 +1128,12 @@ item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states f
 item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" $PY scripts/gate/check_registry_prose.py --self-test
 item_q "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
 item_q "render_all.py --self-test (HD-1117: the generated-doc drift check reads green twice, and an SSOT change still reddens it)" $PY scripts/render_all.py --self-test
+# The fixture first, then the tree it judges: the arms above prove the checker can read green AND
+# can still redden, so a red from the real-tree leg below is a drift finding, not a broken checker.
+# `--no-write` is what makes the real-tree leg legal in a POOL — it renders into a temp dir, so no
+# item beside it can ever read a generated doc that is mid-write (an in-place `--check` measured
+# 2,383 zero-length or partial reads out of 6.67 M for a concurrent reader in this tree).
+item_q "render_all.py --check --no-write (HD-1117: every *-generated.md must equal the render of its SSOT; rendered in a temp dir, so docs/ is never the target)" $PY scripts/render_all.py --check --no-write
 item_q "check_vault_name.py" $PY scripts/gate/check_vault_name.py
 item_q "check_placeholders.py" $PY scripts/gate/check_placeholders.py
 item_q "bash -n sweep (HD-256 portability, all scripts/*.sh)" blk_bash_n_sweep
