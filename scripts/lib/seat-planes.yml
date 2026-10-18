@@ -143,6 +143,16 @@ seats: wsl oldsrv
 installer: debian cockpit wsl
 
 ---
+plane: subagent
+harness: pi
+owner: pi-subagent-config.sh
+runner: bash
+check: --check --strict
+push: --push
+seats: win11 wsl oldsrv
+installer: debian cockpit wsl
+
+---
 # The Windows leg of the SAME plane: a font changes what a TERMINAL rasterises, and on
 # Windows `~/.local/share/fonts` rasterises nothing, so the placement is the per-user font
 # API (docs/harness-pi.md §5a). One plane, two placements.
