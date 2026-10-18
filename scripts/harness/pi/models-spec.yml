@@ -3,7 +3,7 @@
 #
 # Why this file exists: the harness contract used to be a hand-maintained
 # ~/.pi/agent/models.json on one laptop, which `scripts/harness/install-pi-wsl.sh` refuses to sync
-# ("Provider/auth config ... is NOT auto-synced") and which docs/harness-pi-engines.md §1 had to call
+# ("Provider/auth config ... is NOT auto-synced") and which docs/harness-pi-seats.md §1 had to call
 # its own "reference copy" because it carries a bearer key. The moment a second client exists
 # (a second workstation, the cockpit on oldsrv under HD-409, a `spark-lane` profile, a
 # Continue.dev in VS Code) a hand-copied JSON is a drift generator with no gate.

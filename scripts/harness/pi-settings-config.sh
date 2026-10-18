@@ -191,7 +191,7 @@ run_node() {
 
     const bad = owned.filter((k) => !eq(cur[k], ssot[k]));
     // A package is only OK when the seat carries the OWNED source byte-for-byte: a seat on
-    // an older version of the same package is drift, and the pin wins (docs/harness-pi-engines.md §1).
+    // an older version of the same package is drift, and the pin wins (docs/harness-pi-seats.md §1).
     const badPkgs = pkgs.filter((src) => !have.some((h) => nameOf(h) === nameOf(src) && eq(h, src)));
     const detail = [...bad, ...(badPkgs.length ? ["packages"] : [])].join(",");
 

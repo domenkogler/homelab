@@ -2,7 +2,7 @@
 """Render the client model contract from ONE spec (HD-388).
 
 SSOT: scripts/harness/pi/models-spec.yml  →  per-vendor files. Replaces the hand-maintained
-~/.pi/agent/models.json that docs/harness-pi-engines.md §1 had to call its own "reference copy" because
+~/.pi/agent/models.json that docs/harness-pi-seats.md §1 had to call its own "reference copy" because
 carrying a bearer key made it uncommittable, and that scripts/harness/install-pi-wsl.sh deliberately
 refuses to sync. A second client (HD-409's cockpit on oldsrv, a `spark-lane` profile, a second
 workstation) turns a hand-copied JSON into silent drift; this makes the drift a non-zero exit.

@@ -2157,7 +2157,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
      | sudo tee /home/domen/.config/systemd/user/pi-web.service.d/loopback-bind.conf
    sudo rm -f /home/domen/.config/systemd/user/pi-web.service.d/tailnet-bind.conf   # superseded by loopback-bind
    # Drop-in 2 — without it the cockpit cannot see `pi` (HD-484, live 2026-10-01). It must exist BEFORE the
-   # first start, not after the first complaint. TWO dirs = pi's two layouts (docs/harness-pi-engines.md §1);
+   # first start, not after the first complaint. TWO dirs = pi's two layouts (docs/harness-pi-seats.md §1);
    # a seat that later runs `pi update` moves to pi's OWN launcher and a node-dir-only PATH goes blind
    # there — the live oldsrv breakage of 2026-10-09.
    printf '[Service]\nEnvironment=PATH=/home/domen/.pi/agent/bin:/home/domen/.local/share/pi-node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\n' \
@@ -2181,12 +2181,12 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    -token/-insecure -o -version`). A systemd **user** unit gets no login shell, so `~/.profile` never runs
    and the unit's PATH stays `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`, while `pi` lives inside
    the Node tarball — every send died with `exec: "pi": executable file not found in $PATH` and the phone's
-   picker showed no model. **List BOTH pi layouts** (docs/harness-pi-engines.md §1): `~/.pi/agent/bin` is pi's own
+   picker showed no model. **List BOTH pi layouts** (docs/harness-pi-seats.md §1): `~/.pi/agent/bin` is pi's own
    launcher dir and the pinned **Node bin dir** is where the npm -g `pi` symlink and the interpreter live —
    `bin/pi`'s shebang is `#!/usr/bin/env node`, so a lone `pi` symlink (and `~/.local/bin`, which a user
    unit does not get anyway) is not enough — that variant fails as `env: 'node': No such file or directory`.
    A node-dir-only PATH is what made the cockpit unreadable after the seat ran `pi update`: the migration
-   deletes the node-dir `pi` symlink (layouts + evidence: [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md) §1).
+   deletes the node-dir `pi` symlink (layouts + evidence: [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §1).
    `roles/seat` renders both dirs; this step is the human leg of the same file, so keep the two in step.
    Remove the old `tailnet-bind.conf` drop-in: the router proxies to loopback, so a daemon still bound to the
    `tailscale0` address leaves a healthy-looking listener next to a 404ing URL.

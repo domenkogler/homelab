@@ -27,7 +27,7 @@ tags: [harness, pi, agent-harness, seats, tmux, llm]
   seat planes and the terminal it runs in. The **engine** it calls is a different domain — vLLM args,
   KV-pool governance and profile certification are owned by [`hardware-spark.md`](hardware-spark.md) and
   [`spark-llm-profiles.md`](spark-llm-profiles.md). Direction of truth is **engine → harness, never the
-  reverse** ([`harness-pi-engines.md`](harness-pi-engines.md) §1).
+  reverse** ([`harness-pi-seats.md`](harness-pi-seats.md) §1).
 - **A coding harness is not a service.** Harnesses reach the engine **directly** at the spark name edge —
   the consumption boundary is decision #26 in [`services-ai.md`](services-ai.md) §9, and the parked
   `dsh` / `pi-dev` catalog entries (`enabled: false`, kept so the port contract survives a re-onboarding)
@@ -66,7 +66,7 @@ harness) so the next harness is a row there and not a restructure here.
 
 | Subject | Owning doc / SSOT |
 |---|---|
-| Seat × plane matrix, the fan-out driver, the from-zero installers | [`harness-pi-engines.md`](harness-pi-engines.md) §1 · [`../scripts/lib/seat-planes.yml`](../scripts/lib/seat-planes.yml) · [`../scripts/README.md`](../scripts/README.md) §`scripts/harness/` |
+| Seat × plane matrix, the fan-out driver, the from-zero installers | [`harness-pi-seats.md`](harness-pi-seats.md) §1 · [`../scripts/lib/seat-planes.yml`](../scripts/lib/seat-planes.yml) · [`../scripts/README.md`](../scripts/README.md) §`scripts/harness/` |
 | The **model contract** — `models.json`, context window, thinking control, timeouts, the second vendor's block | [`harness-pi-models.md`](harness-pi-models.md) §4 · SSOT [`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml), rendered by [`../scripts/harness/render-pi-config.py`](../scripts/harness/render-pi-config.py) |
 | The **settings plane** — harness keys + the package set composed from the pins | [`harness-pi-seats.md`](harness-pi-seats.md) §5 · SSOT [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json), pins in [`../IaC/ansible/group_vars/all/versions.yml`](../IaC/ansible/group_vars/all/versions.yml) |
 | **Seat identity** — what the footer names, the TUI key, the Nerd Font the icons come from | [`harness-pi-seat-identity.md`](harness-pi-seat-identity.md) §5a |
@@ -76,6 +76,7 @@ harness) so the next harness is a row there and not a restructure here.
 | The workstation's **client-side legs** (FIM autocomplete, visual judgment) | [`hardware-workstation.md`](hardware-workstation.md) + decision #28 in [`services-ai.md`](services-ai.md) §9 |
 | The seat's **ssh alias plane** (lives in `scripts/harness/`, owned elsewhere) | [`network-vpn.md`](network-vpn.md) §The laptop alias contract + [`../ssh/aliases.tmpl`](../ssh/aliases.tmpl) |
 | Harness **candidates and rejections** | [`harness-review.md`](harness-review.md) (queue), [`harness-rejected.md`](harness-rejected.md) (decision log, with the seed pointers into the older logs) |
+| The harness subject's **open tails** — what is measured and what is still unsettled | [`harness-pi-engines.md`](harness-pi-engines.md) §9 |
 
 The split above is a **placement decision, now carried by the four split docs**: every harness detail named in the
 table is owned by `harness-pi-engines.md` / `harness-pi-models.md` / `harness-pi-seats.md` /
@@ -103,9 +104,9 @@ the prose was.
 ## Related
 
 - [`index.md`](index.md) — the document map and the AI dispatcher this hub is registered in.
-- [`harness-pi-engines.md`](harness-pi-engines.md) — the domain's engine-side detail doc (§1/§1b/§2/§3/§6/§7/§8).
+- [`harness-pi-engines.md`](harness-pi-engines.md) — the domain's engine-side detail doc (§1b/§2/§3/§6/§7/§8/§9).
 - [`harness-pi-models.md`](harness-pi-models.md) — the rendered model contract (§4/§4b).
-- [`harness-pi-seats.md`](harness-pi-seats.md) — the settings plane (§5).
+- [`harness-pi-seats.md`](harness-pi-seats.md) — the harness scope + deploy direction and the settings plane (§1/§5).
 - [`harness-pi-seat-identity.md`](harness-pi-seat-identity.md) — seat identity (§5a).
 - [`harness-pi-terminal.md`](harness-pi-terminal.md) — the terminal harness (§5b).
 - [`harness-review.md`](harness-review.md) / [`harness-rejected.md`](harness-rejected.md) — the

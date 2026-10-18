@@ -46,7 +46,7 @@
 #
 # Readers: scripts/harness/pi-seat-sync.sh (the fan-out), scripts/harness/install-pi-debian.sh and
 # scripts/harness/install-pi-wsl.sh (the config stage), scripts/lib/pi-seat.sh (the reader itself).
-# Owning doc: docs/harness-pi-engines.md §1 (the plane set) / docs/harness-pi-seats.md §5 (what the harness is).
+# Owning doc: docs/harness-pi-seats.md §1 (the plane set) / docs/harness-pi-seats.md §5 (what the harness is).
 
 ---
 plane: pi-self

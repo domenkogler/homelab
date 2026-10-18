@@ -202,7 +202,7 @@ one `scripts/gate/check_merge_markers.py` now refuses.
 5. no `.ps1` and no data file at `scripts/` top level; `testdata/**` excluded from the registry requirement.
 
 Then restructure `scripts/README.md` into one section per folder (the file's own §"Validation gate" / "Renderers" /
-"Utilities" sections become folder sections), and update [docs/harness-pi-engines.md](docs/harness-pi-engines.md) §1 + [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §5 +
+"Utilities" sections become folder sections), and update [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 + [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §5 +
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement for the new paths.
 
 ## HD-1119 — the `harness` docs domain (one live row here; the `docs/`-wide move stays out of scope)

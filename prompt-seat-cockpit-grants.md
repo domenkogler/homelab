@@ -18,7 +18,7 @@ Before any `scripts/harness/pi/` hunk, `git worktree list` + `git log --oneline 
 edits the same directory.
 
 **Read first:** [docs/security.md](docs/security.md) (cockpit `maint`, the grant rulings) →
-[docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes → [docs/harness-pi-engines.md](docs/harness-pi-engines.md) §1, [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §5, [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a,
+[docs/services-traefik.md](docs/services-traefik.md) §Cockpit Routes → [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1, [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §5, [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a,
 §5b → [docs/services-ai.md](docs/services-ai.md) §9b → [docs/deployment-secrets.md](docs/deployment-secrets.md).
 
 ## Order of work
