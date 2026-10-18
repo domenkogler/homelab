@@ -2080,30 +2080,43 @@ Native host processes under the unprivileged `domen` account — **not** contain
 gateway-auth. Rationale, the auth decision and what is unproven: [`docs/services-ai.md`](docs/services-ai.md)
 §9b-1. Ports come from `group_vars/all/main.yml` (`cockpit_pi_web_port`, `paseo_port` — read them, never
 restate them here; this line used to hard-code `paseo_port: 31416`, a number the SSOT explicitly freed,
-and it stayed true in prose for weeks after the var moved to 6767: HD-404 class) —
-**no role owns these unit files yet**, so keeping the numbers in step below is a hand step, not a converge.
+and it stayed true in prose for weeks after the var moved to 6767: HD-404 class). `roles/seat` **owns the
+unit, both drop-ins and the token env file** (`IaC/ansible/roles/seat/tasks/main.yml`) and takes the port
+from `seat_pi_web_port` → the same `cockpit_pi_web_port`, so the writes in step 6 below are the human leg
+of files a converge owns — run the seat-role converge leg (step 7) and let the role prove the live unit.
 Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as `domen`.
 
 1. **Install the Node runtime `domen` needs — do NOT use apt's Node.** pi's package declares
    `engines.node >= 22.19.0`; Debian 13 ships 20.19.2, so `apt install nodejs` produces an install that
    cannot start. Use the same shape the laptop uses (a pinned tarball, no system footprint, no third-party
-   apt repo):
+   apt repo). **The pin pair is READ from the SSOT, never typed here** — `pi_host_node_version`,
+   `pi_host_npm_package` and `pi_host_npm_version` in `IaC/ansible/group_vars/all/versions.yml`
+   (CONVENTIONS §7: one pin, one file):
    ```bash
+   VY=/home/domen/source/homelab/IaC/ansible/group_vars/all/versions.yml
+   [ -f "$VY" ] || VY=/home/ansible-admin/source/homelab/IaC/ansible/group_vars/all/versions.yml
+   NODE_V=$(awk -F'"' '/^pi_host_node_version:/{print $2; exit}' "$VY" 2>/dev/null)
+   PI_PKG=$(awk -F'"' '/^pi_host_npm_package:/{print $2; exit}' "$VY" 2>/dev/null)
+   PI_V=$(awk -F'"' '/^pi_host_npm_version:/{print $2; exit}'   "$VY" 2>/dev/null)
+   [ -n "$NODE_V" ] && [ -n "$PI_PKG" ] && [ -n "$PI_V" ] \
+     || { echo "FATAL: neither clone carries the pi_host_* pins — pull the repo; do NOT type a version (IaC SSOT)"; exit 1; }
    sudo -u domen mkdir -p /home/domen/.local/share/pi-node
-   sudo -u domen bash -lc 'cd ~/.local/share/pi-node && \
-     curl -fsSLO https://nodejs.org/dist/v22.23.2/node-v22.23.2-linux-x64.tar.xz && \
-     tar -xf node-v22.23.2-linux-x64.tar.xz && rm node-v22.23.2-linux-x64.tar.xz && \
-     ./node-v22.23.2-linux-x64/bin/node -v'          # → v22.23.2
+   sudo -u domen bash -lc "cd ~/.local/share/pi-node && \
+     curl -fsSLO https://nodejs.org/dist/v${NODE_V}/node-v${NODE_V}-linux-x64.tar.xz && \
+     tar -xf node-v${NODE_V}-linux-x64.tar.xz && rm node-v${NODE_V}-linux-x64.tar.xz && \
+     ./node-v${NODE_V}-linux-x64/bin/node -v"        # prints v$NODE_V — anything else is a seat off the pin
    ```
 2. **Install pi, then the cockpit AS A PI PACKAGE** (it is a pi package, not a standalone daemon — the
-   package pulls the Go binary and writes the user unit for you):
+   package pulls the Go binary and writes the user unit for you). `${PI_PKG}@${PI_V}` is the pin read in
+   step 1: an unpinned install takes whatever `latest` the registry answers, which is how a seat runs
+   **AHEAD** of its pin (CONVENTIONS §7):
    ```bash
-   export PATH=/home/domen/.local/share/pi-node/node-v22.23.2-linux-x64/bin:$PATH
-   sudo -u domen env PATH=$PATH npm install -g @earendil-works/pi-coding-agent && sudo -u domen env PATH=$PATH pi --version
+   export PATH=/home/domen/.local/share/pi-node/node-v${NODE_V}-linux-x64/bin:$PATH
+   sudo -u domen env PATH=$PATH npm install -g "${PI_PKG}@${PI_V}" && sudo -u domen env PATH=$PATH pi --version
    sudo -u domen env PATH=$PATH pi install npm:@ygncode/pi-web@beta    # → ~/.pi/agent/bin/pi-web + ~/.config/systemd/user/pi-web.service
    # Stable name for the tarball: the cockpit's unit points at `current/bin` (step 6), so a later Node
    # bump re-points this one link instead of editing a unit file.
-   sudo -u domen ln -sfn /home/domen/.local/share/pi-node/node-v22.23.2-linux-x64 \
+   sudo -u domen ln -sfn /home/domen/.local/share/pi-node/node-v${NODE_V}-linux-x64 \
                          /home/domen/.local/share/pi-node/current
    ```
    `npm -g` installs **inside the tarball**, so `pi` is a **symlink**
@@ -2135,9 +2148,10 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    seat defaults to a **cloud** model and thinks every turn; the phone's session inherits both.
 5. **Set the token** in `/home/domen/.config/pi-web/env` as `PI_WEB_TOKEN=...` (dir 700, file 600, owner
    `domen`). A non-loopback bind is impossible without it — the binary refuses unless you pass `-insecure`,
-   which you must not do here. The vault item and its minting rule:
-   [`docs/deployment-secrets.md`](docs/deployment-secrets.md) `cockpit-pi-web_api` — mint it with the **same**
-   value, or every paired client needs re-pairing.
+   which you must not do here. Its vault item — an API Credential whose `credential` field is the bearer:
+   [`docs/deployment-secrets.md`](docs/deployment-secrets.md) `cockpit-pi-web_api`. Write the file with
+   THAT value and never mint a second one — a different value re-pairs every paired client, and the converge
+   leg below renders the item's value over this file.
 6. **Bind loopback and survive logout.** The seat is published as `https://pi-oldsrv.ts.kogler.si` by
    oldsrv's own `traefik-internal` `websecure-ts` listener, which runs `network_mode: host` and therefore
    reaches the host's loopback — so the daemon needs no routable socket at all: no LAN listener, no
@@ -2191,7 +2205,26 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    `roles/seat` renders both dirs; this step is the human leg of the same file, so keep the two in step.
    Remove the old `tailnet-bind.conf` drop-in: the router proxies to loopback, so a daemon still bound to the
    `tailscale0` address leaves a healthy-looking listener next to a 404ing URL.
-7. **Verify** (the 401/302 pair is the whole auth contract):
+7. **Converge the host side from git — this leg is the apply of record for what steps 5 and 6 wrote by
+   hand.** Run it from the management runner, never on the target:
+   ```bash
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --tags seat --check
+   bash scripts/ansible/ansible-run.sh playbooks/home_servers.yml --limit oldsrv.kogler.si --tags seat
+   ```
+   `seat` is the **include's** tag in `IaC/ansible/playbooks/home_servers.yml` — a bare role name is not a
+   tag, and an untagged include filters the run down to a clean, `changed=0` nothing. The leg is gated by
+   `seat_enable` (`false` in `IaC/ansible/group_vars/all/seat.yml`, `true` only in
+   `IaC/ansible/host_vars/oldsrv.kogler.si.yml`), so read the gate, not just the green. `--check` prints
+   the renders; the role's proof task is skipped under check mode (`not ansible_check_mode`), so the real
+   run is the one that proves anything. The restart handler carries `tags: always`, so a scoped run still
+   reloads and restarts the unit before step 8 reads it. Evidence: the run ends with the role reading the
+   LIVE unit (`systemctl --user cat pi-web.service`, carrying BOTH pi dirs on its `Environment=PATH=`) and
+   the second run reporting `changed=0`. Two refusals to expect, both deliberate: the role **asserts** that
+   `~/.pi/agent/bin/pi-web` exists rather than inventing a binary (step 2 installs it), and it asserts that
+   the seat account exists (the access role owns the account). The env file renders the token FROM the vault
+   item, so the item and step 5's value must already agree — the converge writes the item's value, never
+   the file's.
+8. **Verify** (the 401/302 pair is the whole auth contract):
    ```bash
    ss -ltnp "( sport = :$PORT )"                        # 127.0.0.1:$PORT and NOTHING else — no LAN socket
    curl -s -o /dev/null -w 'no-token %{http_code}\n'  "http://127.0.0.1:$PORT/"                                       # → 401
@@ -2215,7 +2248,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    A 404 here = the `pi-oldsrv-ts` router is not converged yet; a TLS name mismatch = the `*.ts.kogler.si`
    wildcard is not loaded (`check_traefik_host_rules.py` catches the template shape, not the cert store).
    Final word is a **tailnet peer** — see HD-444: no node inside this fleet may reach oldsrv's tailnet node.
-8. **Seat clone (the authoring repo) + its own write credential.** oldsrv runs two clones: `/home/ansible-admin/source/homelab`
+9. **Seat clone (the authoring repo) + its own write credential.** oldsrv runs two clones: `/home/ansible-admin/source/homelab`
    **converges**, `/home/domen/source/homelab` **is what the seat edits** — roles, update rules and why they
    are separate are in [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement. The seat
    pushes with the repo-scoped SSH deploy key in 1Password `GitHub-homelab-deploy_ssh` (note the capital `G`);
@@ -2244,19 +2277,20 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    user.email` + the signing pointer in step 4 (the signing key needs a human `op` sign-in; the read-scope SA
    cannot read it).
 
-9. **Update / stop / roll back.** **Update:** the cockpit's own Update button, or by hand as `domen` with
+10. **Update / stop / roll back.** **Update:** the cockpit's own Update button, or by hand as `domen` with
    the Node dir on PATH — `pi install npm:@ygncode/pi-web@beta`. The updater restarts `pi-web.service`
    itself and leaves the drop-in directory alone; re-check anyway — `systemctl --user show pi-web.service
    -p Environment` must still print the `pi-on-path` PATH, since an update that rewrote the fragment
-   without it returns the 500 signature again. **Updating pi-web does not update `pi`** (that is a separate
-   `npm install -g @earendil-works/pi-coding-agent` against the same prefix).
+   without it returns the 500 signature again. **Updating pi-web does not update `pi`** — that plane is
+   `scripts/harness/pi-self-update.sh --push`, which installs the `pi_host_npm_version` pin and re-probes
+   the binary (the same pin step 1 read; a bare `npm install -g` on a Debian seat is the unpinned shape).
    **Stop:** `sudo -u domen XDG_RUNTIME_DIR=/run/user/$(id -u domen) systemctl --user disable
    --now pi-web.service`, then remove the drop-in to return to the installer's loopback-only default.
    To undo only the PATH fix, delete `pi-on-path.conf` and `systemctl --user daemon-reload &&
    systemctl --user restart pi-web.service` — the symptom returns as `GET /api/models` → HTTP 500
    `{"error":"pi executable not found: …"}`.
 
-9. **Converge the seat's pi harness planes from git — the seat is not hand-configured.** Every plane has an
+11. **Converge the seat's pi harness planes from git — the seat is not hand-configured.** Every plane has an
    owner script under `scripts/`; run them from a clone at the SAME commit as the SSOT (the driver refuses a
    stale clone as `STALE-CLONE`, and that refusal is the point). Each script prints its own per-plane evidence:
    ```bash
@@ -2285,4 +2319,5 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    A seat that carries its own extra pi package (this cockpit runs pi-web itself) is KEPT and printed by the
    settings plane — never deleted to make a check go green. Updating pi ITSELF is in no script on the Windows
    side (Volta is Windows-only): `volta install @earendil-works/pi-coding-agent@<pi_host_npm_version>`, the
-   version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest` (HD-1111, HD-1112).
+   version read from `IaC/ansible/group_vars/all/versions.yml` — never bare `@latest`, which moves a seat
+   ahead of its pin instead of to it (CONVENTIONS §7).
