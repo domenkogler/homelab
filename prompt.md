@@ -275,20 +275,15 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
-    - ⏳ **`corpus_diff.py --gate` is registered and cannot read green outside a purge campaign — take the call.** The
-      registered run replays a pinned historical window (`34e77f82..5ae34d79`, the closed string-purge campaign: 125
-      files, 528 signed accepts, 3 REJECTs all covered by used, exact entries) while its staleness guard measures
-      `compare_rev..HEAD` and demands the campaign be *now*: `301 > STALE_AFTER_COMMITS = 300` (corpus_diff.py:901,
-      :117), rc 2. No revision choice is green — a sweep of eleven windows gives 324 REJECTs at `5ae34d79..HEAD`, 1 at
-      `e078d3fb..HEAD`, and every window inside the cap spans ordinary development the classifier calls insert/replace
-      (*"a purge never adds or drops a line"*). Signing those would be whitelisting, and the tool already refuses to be
-      narrowed into retirement: a zero-width window dies in `require_corpus()` before the accepts list is read, and the
-      narrowest real window reports all three signed entries STALE. The twins-gate analogy does not carry — that gate
-      diffs a population (time-invariant, green at this tip), this one signs individual edits. Two lawful answers:
-      **(a)** de-register the run, keep tool + accepts list + the registered `--self-test` (its mutation arms stay in
-      the suite) — this supersedes the 2026-10-13 "promoted, in-tree" call in this very list; **(b)** re-aim the guard
-      at the window actually replayed, which reads green forever and needs a cap ruling, the closed campaign being 301
-      wide itself. · [todo.md](todo.md) HD-1158 · [scripts/README.md](scripts/README.md) §Validation gate
+    - ✅ **`corpus_diff.py --gate` in the pool, or a hand-run wave audit — ANSWERED: out of the pool, and the classifier
+      now anchors on a token.** `--list` prints no run item for it; `corpus_diff.py --self-test` stays registered, so the
+      proof that the audit can fail is still in the suite, and the tool's own `--gate` still refuses a stale window rather
+      than pretending to be current. `audit_line()` reports only where a token actually left the changed line, so a window
+      may contain ordinary development; every count is re-derived by running it (`--gate --show-baseline`, and the
+      closed-window hand-run recipe in the NOTE beside the registration it replaced), never quoted from here. What the
+      row still owes is on [todo.md](todo.md) HD-1158: re-sign the window at a wave tip so the signed entries shrink with
+      the tree, and rule whether `audit_text()`'s add/drop-line rule takes the same anchor — that is what would let the run
+      item come back into the pool. · [todo.md](todo.md) HD-1158 · [scripts/README.md](scripts/README.md) §Validation gate
 
     - **Register the heading gate, price it, or leave it a tool.** `scripts/gate/check_doc_headings.py` exists and carries
       `--self-test`, and it IS registered now, alongside `check_doc_path_refs.py`: `--list` prints both its run and its
@@ -320,7 +315,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       neither writer can drop it. Narrowing `restrict:` was weighed and declined. What remains is the live apply
       (merge-only so far, the router slot is global) in [todo.md](todo.md) HD-1142 — read the before/after from the
       device, never from the import's exit code.
-    - ✅ **Promote the string-purge gate, or keep calling it advisory — ANSWERED 2026-10-13: promoted, in-tree.** `corpus_diff.py` and its signed accepts list
+    - ✅ **Promote the string-purge gate, or keep calling it advisory — ANSWERED 2026-10-13: promoted, in-tree; SUPERSEDED — the run half left the pool, the `--self-test` stayed.** `corpus_diff.py` and its signed accepts list
       live OUTSIDE this repository, so `validate-all.sh` cannot register them and deleting an accept entry narrows the
       check while the suite stays green. Re-derive it: `--list` now prints items for the run and for its
       `--self-test`, and `scripts/gate/corpus_diff.py`, `gate/corpus_baseline.txt` and
@@ -328,8 +323,8 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       the tool in-tree with both its run and its `--self-test` registered; a pinned baseline naming the compared
       revision and carrying a digest of what was compared, with the staleness refusal `scripts/gate/check_string_twins.py`
       already has; and the accepts list in-tree under the canary discipline of
-      `scripts/gate/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. All three landed together, and its self-test shows by mutation that deleting an accept entry
-      reddens the run instead of quietly narrowing it — so deleting an entry is now an act the suite notices. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
+      `scripts/gate/iac_identifier_allowlist.txt`, so that deleting an entry reddens instead of quietly narrowing. All three landed together; the run half was later taken out of the pool, because its verdict is a function of the window it pins and a pool item must read the same way at every commit. Its self-test still shows by mutation that deleting an accept entry
+      reddens the run instead of quietly narrowing it — so deleting an entry remains an act the suite notices. (Owning index: [scripts/README.md](scripts/README.md) §Validation gate)
     - ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its
       proof order are written into [network-ops.md](docs/network-ops.md); the window is owner-set (on-site, WinBox on the
       Home leg, read state back through the API), and until it runs the four `comment=` match keys stay untouched.
