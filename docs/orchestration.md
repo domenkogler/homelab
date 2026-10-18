@@ -1,3 +1,11 @@
+---
+title: Repo Session Contract and Orchestrator Mode
+role: reference
+domain: meta
+cross_cutting: true
+status: active
+tags: [meta, process, orchestration, sessions]
+---
 > **Role:** the PERMANENT process contract for repo sessions — the working contract (§3) and the
 > lane-session orchestrator mode (§4, overrides O1–O11, launch, merge/cleanup) + the child-lane contract
 inside one session. The LIVE wave table is

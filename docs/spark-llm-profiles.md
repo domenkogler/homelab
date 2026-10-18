@@ -1,3 +1,10 @@
+---
+title: LLM serving profiles — one-var config switching
+role: design-spec
+domain: hardware
+status: active
+tags: [hardware, spark, llm, vllm, profile]
+---
 ## LLM serving profiles — one-var config switching
 
 **The dial is `spark_llm_profile`** (`IaC/ansible/host_vars/spark.kogler.si.yml`) + one converge. The

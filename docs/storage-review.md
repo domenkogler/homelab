@@ -1,7 +1,7 @@
 ---
 title: Storage — Review Queue
 role: queue
-domain: storage
+domain: deployment
 status: active
 tags: [storage, review, queue]
 ---

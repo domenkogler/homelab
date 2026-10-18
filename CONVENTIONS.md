@@ -236,7 +236,22 @@ A new service must clear this path (each step's owning doc is the anchor; violat
   Frontmatter: `domain: <stack>` + a document `role:`.
 - **`role:` values** (the doc's *shape*, not a placement statement): `index` (domain hub linking sub-docs),
   `broad` (overview), `ssot` (single source of truth for a concern), `detail` (a sub-topic), `reference`,
-  `design-spec`, `runbook`, `research`, `cross-cutting`. A domain hub is `role: index` (or `broad`).
+  `design-spec`, `runbook`, `research`, `cross-cutting` — plus the four shapes the tree already carried and
+  this list omitted: `log` (a `-rejected` decision log), `queue` (a `-review` intake queue), `evidence` (a
+  captured bench run), `incident-log`. A domain hub is `role: index` (or `broad`). Membership is gated by
+  [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py), so a typo'd role cannot silently
+  drop a doc out of every other rule in this section.
+- **The hub floor, and where it does NOT apply** (gated by the same checker): a domain owes a
+  `role: index|broad` hub only when it has **≥2 non-pair docs**. A domain whose whole body is ONE doc **is**
+  its entry point whatever its role — an `ssot` body or a `reference` one — so the floor never invents a
+  file for a one-doc domain. Two `index|broad` docs in one domain is a defect: two hubs are two opinions
+  about where to start. The domain **set** is DERIVED from the `domain:` frontmatter over `docs/**/*.md`
+  and is written down nowhere, which is why adding or retagging a domain is a frontmatter edit.
+- **A `-review` / `-rejected` pair cannot create a domain** (§8.3): a pair's `domain:` must also appear on a
+  doc **body**, because a pair is a decision log dispatched from a hub. Precedent: **`storage` is not a
+  domain** — ZFS spans nas + oldsrv with no primary owning host (the test above), and `storage.md` already
+  lives under the `deployment` umbrella (§8.4) — so `docs/storage-review.md` + `docs/storage-rejected.md`
+  carry `domain: deployment` instead of opening a domain nothing can dispatch from.
 - **Domain index** links to `<domain>-<sub>.md` detail docs. Canonical pattern: `smart-home.md` →
   `smart-home-{voice,audio,failover}.md`. **Stack / sub-domain docs** group a big domain's catalog into
   `services-<x>.md` — e.g. `services-matrix.md`, and `services-office.md` as the office-workload slice of the

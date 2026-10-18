@@ -1,7 +1,7 @@
 ---
 title: Storage — Rejected / Dropped Decision Log
 role: log
-domain: storage
+domain: deployment
 status: active
 tags: [storage, rejected, decision-log]
 ---

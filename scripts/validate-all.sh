@@ -1141,6 +1141,11 @@ item_q "check_doc_ips.py" $PY scripts/gate/check_doc_ips.py
 item_q "check_traefik_host_rules.py" $PY scripts/gate/check_traefik_host_rules.py
 item_q "validate-secrets.py" $PY scripts/gate/validate-secrets.py
 item_q "check_doc_map.py" $PY scripts/gate/check_doc_map.py
+# The map above proves a doc is REACHABLE; nothing proved a doc CLAIMS a domain, or that a domain has
+# exactly one entry point. HD-1119(b): the domain set is DERIVED from the docs' own frontmatter, so a
+# retag moves the rule and this file never has to.
+item_q "check_doc_domain.py (HD-1119: every doc claims a domain, every domain has one entry point; the set is derived, never listed)" $PY scripts/gate/check_doc_domain.py
+item_q "check_doc_domain.py --self-test (HD-1119: each rule seen RED on a fixture mutation, the legal fixture GREEN, an empty walk refused)" $PY scripts/gate/check_doc_domain.py --self-test
 item_q "check_generated_suffix.py" $PY scripts/gate/check_generated_suffix.py
 item_q "check_ledger_state.py (ledger = checkboxes, open rows only, ticks dated)" $PY scripts/gate/check_ledger_state.py
 item_q "check_runbook_purity.py (runbook = imperative procedure only)" $PY scripts/gate/check_runbook_purity.py

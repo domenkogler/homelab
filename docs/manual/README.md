@@ -1,6 +1,6 @@
 ---
 title: Dokumentacija za družino
-role: reference
+role: index
 domain: manual
 status: wip
 tags: [manual, index, slovenian]
