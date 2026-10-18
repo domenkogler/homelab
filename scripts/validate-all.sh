@@ -303,6 +303,20 @@
 #                                     COMMITTED hand edit reddens it, and a template that asks for a
 #                                     wall clock cannot render at all — the clock is out of the
 #                                     context, not merely out of the file.
+#  35. check_registry_prose.py       — CONVENTIONS §6, state-only docs, applied to this file: the
+#                                     registry must say what each script DOES (flags, verdicts, exit
+#                                     contract, declared limits) and which doc owns the detail — no
+#                                     `HD-<n>` tokens, no `20YY-MM-DD` the line does not name as STATE
+#                                     (an expiry/renewal is state, the day it landed is not), no
+#                                     diary narrative, no completion glyphs, every row carrying its
+#                                     owning-spec cell (EXACT column equality — stricter than
+#                                     check_md_tables.py's wider-only — the only way to see a silently
+#                                     dropped third cell), no unescaped pipe inside inline code (GFM
+#                                     cuts the cell there) and no passage pasted twice inside one row.
+#                                     A corpus floor refuses a walk that counts no rows. Its
+#                                     `--self-test` breeds each rule, requires each exemption to stay
+#                                     quiet, and refuses an empty walk — a checker that lost its
+#                                     target must not be able to print OK.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1089,6 +1103,8 @@ item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scri
 item_q "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/check_doc_path_refs.py --self-test
 item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" $PY scripts/gate/check_doc_headings.py
 item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" $PY scripts/gate/check_doc_headings.py --self-test
+item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states facts + owning spec, no ids/dates/narrative/glyphs/pipe-in-code/dup-paragraph)" $PY scripts/gate/check_registry_prose.py
+item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" $PY scripts/gate/check_registry_prose.py --self-test
 item_q "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
 item_q "render_all.py --self-test (HD-1117: the generated-doc drift check reads green twice, and an SSOT change still reddens it)" $PY scripts/render_all.py --self-test
 item_q "check_vault_name.py" $PY scripts/gate/check_vault_name.py
