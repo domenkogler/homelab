@@ -156,8 +156,8 @@ one-time bootstrap before the installer boots). The rules that make it safe:
 file sharing, backup, NUT) + VLAN **99 (Mgmt) tagged**. The Mgmt leg on the host (`eno1.99`) is
 **not yet active** — convenience only; management currently runs over Home. The host is configured
 through neither NetworkManager nor systemd-networkd: classic **ifupdown** (`/etc/network/interfaces`,
-with dhcpcd) owns `eno1`, which is why the netd units this role used to render here never had any
-effect ([network.md](network.md) §Config-manager truth). Target-state and firewall side:
+with dhcpcd) owns `eno1`, which is why this host carries none of the role's netd units — the dead
+renders were removed ([network.md](network.md) §Config-manager truth). Target-state and firewall side:
 [network-vlans.md](network-vlans.md); port-by-port wiring: [network-rack.md](network-rack.md).
 (The second NIC port is unused.)
 
