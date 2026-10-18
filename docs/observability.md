@@ -454,7 +454,10 @@ and the rule `ssl-cert-expiring` reads `probe_ssl_earliest_cert_expiry`, which i
 because blackbox emits no SSL expiry and that metric has **zero series**.
 
 `roles/monitoring` ships `homelab-hygiene.py` on every monitoring host (loopback `:9098`, scraped by
-that host's Alloy into the same remote_write path as everything else):
+that host's Alloy into the same remote_write path as everything else). The exporter's rendered docstring
+carries no ticket-id token and no ISO date: the deployed copy on oldsrv
+(`/usr/local/sbin/homelab-hygiene.py`) returns zero hits for both patterns, and `check_iac_identifiers.py`
+holds the `IaC/` template half clean:
 
 | Series | Meaning |
 | --- | --- |

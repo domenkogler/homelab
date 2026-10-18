@@ -221,15 +221,11 @@ compare on the first alone stays green on a box whose second never landed. The r
 only on profile drift, re-commits whenever the **applied** state is wrong (so a half-applied box
 self-heals), and asserts the file at the end.
 
-**NetworkManager owns oldsrv's uplink; systemd-networkd does not run there.** `NetworkManager` is
-enabled+active, `systemd-networkd` **disabled and inactive**, and the rendered
-`20-eno1.*` units name an interface this box does not have (the live Home parent is the same interface
-`ha_keepalived_interface` names). There is no race for `resolv.conf` — the netd path is inert — and the
+**NetworkManager owns oldsrv's uplink; systemd-networkd does not run there.** `NetworkManager` is enabled+active, `systemd-networkd` **disabled and inactive**, and `/etc/systemd/network` carries none of the role's units — the `20-eno1.*` renders (a NIC this box does not have; the live Home parent is the same interface `ha_keepalived_interface` names) are removed, as they are on any host whose declared manager is not networkd. There is no race for `resolv.conf` — the netd path is inert — and the
 resolver leg goes through the installer's NM profile (`Wired connection 1`, written on disk **without** the
 `.nmconnection` suffix the Pi/spark keyfiles carry). One config manager per box, **NetworkManager
 fleet-wide** ([network-rejected.md](network-rejected.md)); the dead unit files were evidence for that
-rule, not part of this one — they are removed on a host whose declared manager is not networkd
-([network.md](network.md) §Config-manager truth).
+rule, not part of this one ([network.md](network.md) §Config-manager truth).
 
 **The Pi needs no nmcli leg, and that is a fact about the two boxes, not a shortcut.** oldsrv's uplink
 profile is installer-owned, so its resolver must be read, modified and reapplied; the Pi's keyfile is rendered by
