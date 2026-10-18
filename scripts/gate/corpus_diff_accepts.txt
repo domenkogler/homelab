@@ -11,7 +11,25 @@
 #
 # The window these REJECTs come from is pinned in gate/corpus_baseline.txt (baseline_rev ->
 # compare_rev, scope IaC/), which is what makes each entry re-derivable instead of remembered.
-# The list came from the wave-2 audit's signed file and the entries are carried over unchanged.
-IaC/ansible/group_vars/spark.yml	313	a citation rewrite beside the purge, removing no token: `docs/hardware-spark.md:272` became the heading reference `docs/hardware-spark.md §The GLOBAL ceiling` and the stranded word `was` was dropped; inside a `#` comment line of the ceiling derivation
-IaC/ansible/group_vars/spark.yml	866	a comma closed to a full stop AND a close-paren, `,` -> `).`, because the second citation `HD-380` that the open paren of `(docs/spark-incidents.md,` had reached across was purged from the folded line below; text inside the `uncertified_reason: >-` block scalar
+
+# Re-signed at the 2e065032 wave tip: the window's REJECTs are 17, every one named
+# by the change that made it -- 8 are files the window added or deleted (no other side exists),
+# the rest are edits beside the purge. Nothing here is a standing permission.
+IaC/ansible/group_vars/all/main.yml	559	the `laptop-wsl` seat row's `role:` prose gained the script it now runs (`scripts/hardware/wsl-nat-resolv.ps1`) while its trailing `2026-09-07` citation was purged; inside a flow-mapping `role:` string, so the value grew as the id left it
+IaC/ansible/group_vars/all/main.yml	573	the `spark` row's `role:` lost its `(headless; SSH + inference endpoint, 2026-09-14)` date paren and the block below it grew a PARKED note, so a 3-line block became 9; the purged `HD-13` sat in the same `role:` text
+IaC/ansible/playbooks/render-converge.yml	96	the retired IoT-off-Mgmt delta's 8-line explanatory comment collapsed to the `- name:` line when the folded delta was deleted (its absences now read on the device), so four ids the comment carried left with the comment, not out of it
 IaC/ansible/roles/cockpit/tasks/maint-user.yml	319	the fail_msg sentence was re-subjected after deleting its subject: `HD-361 sat "done but unusable" for days.` became `a task sits "done but unusable".` -- the id WAS the sentence's subject, so a plain deletion would strand the verb; inside the `fail_msg: >-` folded scalar of the login-assert task
+IaC/ansible/roles/common/tasks/address-family.yml	0	the window ADDED this file -- no base side exists, so there is nothing to confine a purge to; it makes the `gai.conf` write selectable (address-family task, split out of roles/common)
+IaC/ansible/roles/common/tasks/apt-holds.yml	0	the window ADDED this file -- no base side exists; it is the read-back half of the apt-hold ruling, the leg that makes `apt-mark showhold` a fact on every host
+IaC/ansible/roles/docker/defaults/main.yml	0	the window ADDED this file -- no base side exists; the docker role's defaults, created when the suite list became the single driver of install/hold/read-back
+IaC/ansible/roles/docker_services/templates/docker-compose-ensure.sh.j2	0	the window ADDED this file -- no base side exists; the per-compose reachability verdict that replaced the `no containers for this compose file` blind spot
+IaC/ansible/roles/monitoring/files/dashboards/homelab-llm.json	5114	the panel's prose gained the generator's NEW path after the `scripts/` foldering (`scripts/ansible/build-llm-dashboard.py`), and the `HD-368` citation in the same markdown cell was purged; a rendered dashboard string, so the parse is the JSON escaping alone
+IaC/ansible/roles/network/tasks/main.yml	107	the nas-only netd route-pin task became author-shaped once no host was in that shape: its `- name:` lost the trailing `(HD-346)` and the 6-line `# nas only:` comment became a 5-line one; the config-manager per-host declaration is what made the shape empty
+IaC/ansible/roles/router/tasks/capsman.yml	28	a sentence about doing the capsman rates 'during the cutover-prep live session (HD-229)' became an explicit statement of the shipped defaults, so the line the id sat on was replaced by five; the include that carried them gained a tag, which is why its guard assert now parses
+IaC/ansible/roles/storage/tasks/nas.yml	47	six `#` lines explaining that sanoid lives in /usr/sbin (verified against sanoid 2.2.0-2) were DELETED when the dead-unit rulings landed on nas, taking their `HD-1107` and the `2026-10-08` verification date with them
+IaC/ansible/roles/storage/templates/push-music.service.j2	0	the window ADDED this file -- no base side exists; the oldsrv-to-Storage-Box music leg's unit
+IaC/ansible/roles/storage/templates/push-music.timer.j2	0	the window ADDED this file -- no base side exists; the timer for the same music leg, and the only scheduler it has
+IaC/ansible/roles/storage/templates/storage-push-music.sh.j2	0	the window ADDED this file -- no base side exists; the rsync/SFTP sender the unit above runs
+IaC/ansible/templates/docker_services/metabase/docker-compose.yml.j2	61	the revival replaced the published-host route with a loopback publish: the ACME-issuer conditional (whose else-branch text carried `HD-181/HD-204`) and the label lines became a `{{ metabase_bind }}` ports entry, so the ids left with the lines, not out of them
+IaC/ansible/templates/homepage_services.yaml.j2	177	the launchpad's group restructure collapsed a 5-line `Media & GPU:` entry into the single `description:` line it still needs, and `HD-13` left the radio tile's description text in the same hunk
+IaC/router/templates/rb4011_iot_off_mgmt_delta.rsc.j2	0	the window DELETED this file -- the folded IoT-off-Mgmt delta died once both absences read on the device, so its `2026-09-25` header date left with the file rather than out of a line

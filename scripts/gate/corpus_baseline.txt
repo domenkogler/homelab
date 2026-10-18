@@ -23,8 +23,8 @@
 # window measures an old wave. A re-baseline also re-signs the accepts list: the window's REJECTs
 # are what the entries must cover, so `--gate --show-baseline`'s `reject_key` lines are the input.
 baseline_rev 34e77f82
-compare_rev 5ae34d79
+compare_rev 2e065032
 scope IaC/
-compared_files 125
-compared_sha256 609f6cfd6b74fac1dd363af73629a0b0053bcfd4ec4e7e1621d6600882f172e5
-rejected 3
+compared_files 186
+compared_sha256 d4171a5d26d2044331e31735c0e49787300138bd9361dffe3f37cfda0ed09ef7
+rejected 18

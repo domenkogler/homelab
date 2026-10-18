@@ -1214,27 +1214,26 @@ item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_ia
 # four files at once; this is the only thing that keeps those four agreeing. Run + canaries.
 item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" $PY scripts/gate/check_subagent_contract.py
 item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" $PY scripts/gate/check_subagent_contract.py --self-test
-# NOTE: corpus_diff.py --gate is deliberately NOT gated — the seat-ssh-build.sh --self-test shape
-# two blocks above. Its verdict is a function of the window pinned in gate/corpus_baseline.txt: a
-# changed line that loses an HD-/KOPS-/date token outside rendered text owes an exact entry of
-# gate/corpus_diff_accepts.txt, and so does every line the window adds or drops. Measured at this
-# tip with compare_rev at HEAD: 179 REJECTs — 169 of them lines the window added or dropped, 7
-# files the window added since the base revision, 1 file it deleted, 1 changed line — and only 7 of
-# the 179 lose a token at all, every one of those purged by a commit already inside the published
-# window. The rest is ordinary development, not the purge. So the audit is green in the one commit
-# that re-signs a wave tip and red in every commit after it, which is the definition of an item
-# this pool cannot hold. It is not weakened: the window and its signed entries stay published and
-# replayable, and re-signing is a wave-boundary act, owned by whoever lands the purge, in the commit
-# that publishes the six fields:
+# corpus_diff.py --gate IS in the pool, and what made that possible is the token anchor on the
+# add/drop-line rule. Its verdict is a pure function of the two revisions pinned in
+# gate/corpus_baseline.txt, so it reads identically at every commit until the staleness cap trips it
+# (~300 commits; a wave measured 176) — and THAT red is the scheduled re-sign announcing itself, not
+# a regression. Measured at one tip BEFORE the anchor: 203 REJECTs, 194 of them ordinary development
+# that removed no token and 7 that lost one, i.e. a window green only in the commit that signed it.
+# A changed line that loses an HD-/KOPS-/date token outside rendered text still owes an exact entry
+# of gate/corpus_diff_accepts.txt, and so does every block the window adds or drops: 18 entries now,
+# each naming the change that made it, none a standing permission. Re-signing at a wave tip is the
+# commit that publishes the six fields:
 #   python3 scripts/gate/corpus_diff.py --gate --show-baseline             # the fields to publish
 #   git diff --name-only --no-renames <baseline_rev> <compare_rev> -- IaC/ > /tmp/window.txt
 #   python3 scripts/gate/corpus_diff.py . <baseline_rev> --list /tmp/window.txt \
 #           --against <compare_rev> --accept scripts/gate/corpus_diff_accepts.txt   # rc 0 = audited
 # A directory walk is NOT the same population: the pinned run derives its file set from the two
 # revisions, and naming `IaC/` as a path argument adds files the window never compared, which enter
-# as REJECT "not in base ref" and redden a window that is otherwise clean. What the pool KEEPS is
-# the proof the audit can still fail — the item below, whose arms build their own throwaway repo,
-# baseline and accepts list, and stay green with both pinned files moved out of the tree.
+# as REJECT "not in base ref" and redden a window that is otherwise clean. The self-test item below
+# stays registered too: its arms build their own throwaway repo, baseline and accepts list, so the
+# proof that the audit can still fail does not depend on the pinned window's contents.
+item_q "corpus_diff.py --gate (replays the pinned purge window: every change confined to rendered text, or signed by name)" $PY scripts/gate/corpus_diff.py --gate
 item_q "corpus_diff.py --self-test (classifier cases + both halves of the accepts/baseline canary)" $PY scripts/gate/corpus_diff.py --self-test
 # homelab-llm.json is GENERATED: a hand-edit that diverges from the generator is silent otherwise.
 # `--check` only compares, it writes nothing — the write-half (adapt-vllm-dashboards.py --inplace) is

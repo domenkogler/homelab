@@ -80,6 +80,15 @@ The REJECT set is TOKEN-ANCHORED. A changed line is REJECTED only when a token t
 carries is GONE from the new side *and* some change region reaches outside rendered text. A line
 that removes no token is INFORMATIONAL -- reported and counted, never a verdict -- because what
 this gate audits is what a purge may touch, and an edit that removes no token cannot be a purge.
+The SAME anchor governs the other rule, the one that fires when a file's line count changes: a
+block that adds or drops a line REJECTs only when a token left that block. It did not used to, and
+that asymmetry was the reason the registered run could not be a pool item -- measured at one wave
+tip, 203 of that window's REJECTs were this one rule firing on ordinary development (a line
+appeared, a line went away) and only 7 of the 203 lost a token at all. Re-signing a tip therefore
+owed ~200 signed exceptions whose reasons each had to name an edit that was not a purge, which is
+how an exceptions list rots. The anchor costs no purge coverage: a DROPPED line loses every token it
+carried, so it still REJECTs, and what goes silent is an ADDED line -- where a token minted into
+`IaC/` is `check_iac_identifiers.py`'s verdict, in the pool, whatever this gate says.
 That anchor is what makes a window holding the ordinary development between two purge commits
 auditable at all: without it every changed line in such a window owes a signed exception, and the
 audit could only ever be replayed over a wave that is nothing but purges. What the anchor does NOT
@@ -763,23 +772,18 @@ def audit_text(base, new, rel="", selectors=()):
     slash = bool(re.search(r"\.(river|hujson)(\.j2)?$", rel))
     py, md = bool(re.search(r"\.py(\.j2)?$", rel)), bool(re.search(r"\.md(\.j2)?$", rel))
     acc, rej = {}, {}
-    if len(bl) != len(nl):                             # a line appeared or vanished
-        rng = lambda x, y: f"{x + 1}" if y <= x + 1 else f"{x + 1}-{y}"
-        for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, bl, nl).get_opcodes():
-            if op != "equal" and (i2 - i1) != (j2 - j1):
-                rej[i1 + 1] = (f"lines were added or removed ({op}) -- a purge never adds or "
-                               f"drops a line: base {rng(i1, i2)} -{i2 - i1} / new {rng(j1, j2)} +{j2 - j1}"
-                               + CHANGED,
-                               "\n".join(bl[i1:i2]), "\n".join(nl[j1:j2]))
-        return acc, rej
     payload = set(x for s, e in payload_regions(base) for x in range(s, e))
     keys = key_sites(rel, bl, selectors)
     doca, docb = py_docstate(bl, py), py_docstate(nl, py)
-    for i, (a, b) in enumerate(zip(bl, nl)):
+
+    def judged(i, j, a, b):
+        """One PAIRED line, keyed by its BASE line number. Shared by both shapes of diff: the aligned
+        rewrite in a file of unchanged length, and the aligned rewrite inside a file that grew or
+        shrank somewhere else -- which used to be skipped whole (see the opcode walk below)."""
         if a == b:
-            continue
+            return
         try:                                        # an unauditable line is never hidden
-            rec, why = audit_line(a, b, i in payload, yamlish, slash, py, md, doca[i], docb[i],
+            rec, why = audit_line(a, b, i in payload, yamlish, slash, py, md, doca[i], docb[j],
                                   keys[i + 1]["why"] if i + 1 in keys else None)
         except Exception as exc:
             rec, why = None, "could not analyse this line (" + exc.__class__.__name__ + ")"
@@ -789,6 +793,53 @@ def audit_text(base, new, rel="", selectors=()):
             rej[i + 1] = (why + CHANGED, a, b)
         elif rec:
             acc[i + 1] = rec
+
+    if len(bl) != len(nl):                             # a line appeared or vanished
+        rng = lambda x, y: f"{x + 1}" if y <= x + 1 else f"{x + 1}-{y}"
+        for op, i1, i2, j1, j2 in difflib.SequenceMatcher(None, bl, nl).get_opcodes():
+            if op == "equal":
+                continue
+            if (i2 - i1) == (j2 - j1):
+                # An ALIGNED rewrite inside a file that changed length SOMEWHERE ELSE. These lines
+                # still pair up, so they are judged one by one -- and they were not judged at all:
+                # this branch used to return straight after the add/drop rule, so every in-place edit
+                # in any file that had gained or lost a line went unaudited. A purge that reworded a
+                # line in place in a file which had also grown was, until this pairing existed,
+                # outside the gate. `--self-test` case `v2 block reflow` is that hole, asserted.
+                for k in range(i2 - i1):
+                    judged(i1 + k, j1 + k, bl[i1 + k], nl[j1 + k])
+                continue
+            bt, nt = "\n".join(bl[i1:i2]), "\n".join(nl[j1:j2])
+            # The same anchor audit_line applies to a changed line, applied to the block: this
+            # rule exists to catch a purge that ADDS or DROPS a line instead of editing one in
+            # place, and a block that loses no token cannot be that. Unanchored, every ordinary
+            # edit that changed a file's line count REJECTed -- 194 of the 203 REJECTs measured
+            # at one wave tip, 7 of which lost a token -- so a wave-tip window owed ~200 signed
+            # exceptions for edits no purge made, and the exceptions list rotted. The anchor
+            # spends no coverage: a dropped line loses every token it carried, so it still
+            # REJECTs; what goes silent is an ADDED line, and a token minted into IaC is
+            # check_iac_identifiers.py's verdict, in the pool, whatever this renders.
+            gone = [t for t in dict.fromkeys(TOKEN.findall(bt)) if t not in TOKEN.findall(nt)]
+            if not gone:
+                got_t = [t for t in dict.fromkeys(TOKEN.findall(nt))
+                         if t not in TOKEN.findall(bt)]
+                acc[i1 + 1] = {"cat": classify(bt or nt, False), "a": bt, "b": nt,
+                               "info": True, "ids": 0, "dates": 0,
+                               "why": ["no HD-/KOPS-/date token left this block -- the file "
+                                       "grew or shrank here, but a purge takes tokens out of "
+                                       "rendered text and nothing left, so this gate renders no "
+                                       "verdict on it"
+                                       + (f"; {' '.join(got_t)} was ADDED here, which no purge "
+                                          "does" if got_t else "")]}
+                continue
+            rej[i1 + 1] = (f"lines were added or removed ({op}) -- a purge never adds or "
+                           f"drops a line: base {rng(i1, i2)} -{i2 - i1} / new {rng(j1, j2)} "
+                           f"+{j2 - j1}; {' '.join(sorted(set(gone)))} left the block with them"
+                           + CHANGED,
+                           bt, nt)
+        return acc, rej
+    for i, (a, b) in enumerate(zip(bl, nl)):
+        judged(i, i, a, b)
     return acc, rej
 
 
@@ -1211,7 +1262,8 @@ CASES = {  # (base, edited, verdict, rel, expected match-key sites) -- verdict "
     "o docstring quote": ('"""Seed goals: the HD-1086 ruling."""\n',
                           "'''Seed goals: the ruling.'''\n", "bad",
                           "roles/docker_services/t/qbittorrent-seeding.py.j2", None),
-    # the anchor is LINE-local, and this is that limit stated where a reader will meet it: the same
+    # the anchor is LINE-local for a changed line and BLOCK-local for an added or dropped one, and
+    # this is that limit stated where a reader will meet it: the same
     # re-quote, with the token leaving a DIFFERENT line than the one whose parse moved, is invisible
     # to this gate -- reported as an edit, and the run goes green. The blind spot the registry row
     # carries, asserted rather than assumed.
@@ -1260,6 +1312,22 @@ CASES = {  # (base, edited, verdict, rel, expected match-key sites) -- verdict "
                           "  restart_interval: 30   # the drain window\n", "ok", "", None),
     "z purge in code":   ("  restart_delay: 30   # HD-9006\n",
                           "  restart_interval: 30   # the pin\n", "bad", "", None),
+    # the add/drop-line rule, both sides of the same anchor. w2 is the file growing with an edit no
+    # purge made: a record, no verdict. z2 is the act this rule exists for -- a line carried a token
+    # and the line is GONE, so every token on it left with it, and dropping a line instead of
+    # editing it in place moved the text. Delete the anchor and w2 goes RED; delete the gone test
+    # and z2 goes GREEN. Both are the proof, not these comments.
+    "w2 line added":     ("- name: Restart nginx\n  tags: [web]\n",
+                          "- name: Restart nginx\n  tags: [web]\n  notify: reload\n", "ok", "", None),
+    "z2 line dropped":   ("- name: Restart nginx\n  tags: [web]\n  notify: drain   # HD-9008\n",
+                          "- name: Restart nginx\n  tags: [web]\n", "bad", "", None),
+    # The hole this change really closed: a CODE change on an aligned line inside a file that also
+    # grew or shrank somewhere else. That shape used to be skipped entirely -- the branch returned
+    # after its add/drop sweep -- so a purge that reached the parse in any file which had gained a
+    # line went unjudged. Same pair in a file of unchanged length is case `b`; both must be bad.
+    "v2 shifted rewrite": ("    enabled: true   # HD-9010\n- name: Keep nginx\n",
+                           "    enabled: false   # the pin\n- name: Keep nginx\n  tags: [web]\n",
+                           "bad", "", None),
     # a reflow around a purged line is still a purge that moved code: RED with the token gone,
     # nothing to report with no token gone (the old classifier called the second pair a REJECT too)
     "y purge reflowed":  ("# HD-9007 restarts the arr after the pin\n",

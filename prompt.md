@@ -277,15 +277,19 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
-    - ✅ **`corpus_diff.py --gate` in the pool, or a hand-run wave audit — ANSWERED: out of the pool, and the classifier
-      now anchors on a token.** `--list` prints no run item for it; `corpus_diff.py --self-test` stays registered, so the
-      proof that the audit can fail is still in the suite, and the tool's own `--gate` still refuses a stale window rather
-      than pretending to be current. `audit_line()` reports only where a token actually left the changed line, so a window
-      may contain ordinary development; every count is re-derived by running it (`--gate --show-baseline`, and the
-      closed-window hand-run recipe in the NOTE beside the registration it replaced), never quoted from here. What the
-      row still owes is on [todo.md](todo.md) HD-1158: re-sign the window at a wave tip so the signed entries shrink with
-      the tree, and rule whether `audit_text()`'s add/drop-line rule takes the same anchor — that is what would let the run
-      item come back into the pool. · [todo.md](todo.md) HD-1158 · [scripts/README.md](scripts/README.md) §Validation gate
+    - ✅ **`corpus_diff.py --gate` in the pool, or a hand-run wave audit — ANSWERED: it is a pool item now, and
+      the rule that kept it out is the rule that changed.** Both halves are registered (`--list` prints the run and
+      its `--self-test`). What held it out was that its verdict is a function of a pinned window: measured at one tip
+      it printed 203 REJECTs, 194 of them the add/drop-line rule firing on ordinary development and 7 losing a token
+      at all — a window green only in the commit that signed it, which is the definition of an item this pool cannot
+      hold. The fix was not the constant. `audit_text()`'s add/drop-line rule now carries the same token anchor
+      `audit_line()` got, and walking a length-changed file by opcode closed a real hole beside it: an aligned
+      in-place rewrite in any file that had also grown or shrunk went unjudged entirely. The same window after:
+      17 REJECTs, every one signed by name in [`scripts/gate/corpus_diff_accepts.txt`](scripts/gate/corpus_diff_accepts.txt)
+      with the change that made it named in the reason. The pinned pair is immutable, so the item reads the same at
+      every commit until `STALE_AFTER_COMMITS` trips it — and that red is the re-sign being owed, not a regression.
+      Re-derive every count by running it (`--gate --show-baseline`, plus the closed-window recipe in the NOTE beside
+      the registration), never from this sentence. · [scripts/README.md](scripts/README.md) §Validation gate
     - ✅ **The mint space is poisoned by test fixtures — ANSWERED: `9000–9999` is the fixture block, and a gate holds it**
       (owner ruling, A1). A per-id exclusion list was the first answer and it went stale the day a fixture was added:
       `corpus_diff.py`'s classifier fixtures must mint ids that look real, and `scripts/next-hd.sh` scans the whole tree

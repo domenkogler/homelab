@@ -30,6 +30,7 @@ tags: [deployment, rejected, decision-log]
 | Control node = the admin laptop                                                | superseded | oldsrv is the primary control node, laptop is rescue-only       |
 | `corpus_diff.py` as a registered gate                                          | rejected   | runs outside the tree; three preconditions gate promotion       |
 | `corpus_diff.py --gate` as a pool item                                         | superseded | the pinned window is a wave-boundary act; the cap and the accepts list agree only at the tip |
+| `corpus_diff.py --gate` outside the pool                                       | superseded | add/drop rule took the token anchor; the verdict is a function of two revisions |
 | Doco-CD                                                                        | dropped    | second Docker-socket deploy path; Ansible is the single path    |
 | `doco-cd_password` webhook HMAC                                                | superseded | single Ansible-only deploy path                                 |
 | DSH as LiteLLM consumer (`dsh_api`)                                            | rejected   | harness removed; parked, not re-minted                          |
