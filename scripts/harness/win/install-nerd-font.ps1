@@ -43,8 +43,20 @@ $ErrorActionPreference = 'Stop'
 $ScriptHome = if ($PSScriptRoot) { $PSScriptRoot }
               elseif ($MyInvocation.MyCommand.Path) { Split-Path -Parent $MyInvocation.MyCommand.Path }
               else { (Get-Location).Path }
-if (-not $RepoRoot) { $RepoRoot = Split-Path -Parent (Split-Path -Parent $ScriptHome) }
-if (-not (Test-Path (Join-Path $RepoRoot 'IaC/ansible/group_vars/all/versions.yml'))) {
+if (-not $RepoRoot) {
+  # Walk UP until the repo's structural marker is found (repo-root rule, HD-1118): a fixed
+  # depth was correct only while this file sat at scripts/win/ (two levels up) — the HD-1118
+  # folder move put it at scripts/harness/win/ (three levels up), so a fixed Split-Path
+  # resolved to scripts/ and died. The marker is the same one lib/repo-root.sh walks to.
+  $cur = $ScriptHome
+  while ($cur) {
+    if (Test-Path (Join-Path $cur 'IaC/ansible/group_vars/all/versions.yml')) { $RepoRoot = $cur; break }
+    $parent = Split-Path -Parent $cur
+    if ($parent -eq $cur) { break }
+    $cur = $parent
+  }
+}
+if (-not $RepoRoot -or -not (Test-Path (Join-Path $RepoRoot 'IaC/ansible/group_vars/all/versions.yml'))) {
   Write-Host "  cannot find the repo from $ScriptHome - run this from a clone or pass -RepoRoot"; exit 1
 }
 $StateDir = Join-Path $env:LOCALAPPDATA 'homelab-nerd-font'

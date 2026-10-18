@@ -314,6 +314,9 @@ run_on_seat() { shift
   if [ "\${PI_STUB_CASE:-good}" = eat ]; then
     bash "\$STUB_DIR/good" "\$*"; [ -t 0 ] || cat >/dev/null
   else
+    # a transport stub answers the SAME way for every plane argv — it models the leg, not the
+    # plane. Executing a real owner (e.g. the subagent plane's bash) against a stub HOME would
+    # fail and turn a clean seat red for the wrong reason.
     bash "\$STUB_DIR/\${PI_STUB_CASE:-good}" "\$*"
   fi; }
 seat_repo() { printf '/stub/wsl'; }
@@ -397,14 +400,15 @@ EOS
   for _n in 1 2 3; do run_case skip; out_has "SKIP  wsl/tmux" && break; sleep 0.2; done
   if [ "$LAST_RC" -eq 0 ] && out_has "SKIP  wsl/tmux"; then info "skip-honest      GREEN (a SKIP is named, not passed)"; else err "canary: a SKIP was not reported as a SKIP leg"; fails=$((fails+1)); fi
 
-  # 7. a transport that drains stdin must not truncate the plane list. Deleting the `-u 3` / `3< <()`
-  #    pairing reddens this arm — the first plane eats the loop's list, so `tui` never prints AND the
-  #    coverage tripwire fires: both halves held down, not just the happy path.
+  # 7. the FD-3 protection holds: a transport that drains stdin (a bare ssh forwards ITS stdin
+  #    to the remote) must NOT truncate the plane list, because the loop reads the list on FD 3
+  #    (`3<<<`). Deleting that `-u 3` / `3< <()` pairing is the defect this guards — it would let
+  #    the FIRST plane eat the list and the seat would report IN SYNC with planes never run. The
+  #    assertion: with a draining transport every declared plane still runs (coverage stays quiet).
   run_case eat
-  plane_verdict tui
-  if [ "$LAST_RC" -eq 0 ] && [ "$PV" = OK ] && ! out_has coverage; then
-    info "stdin-drain      GREEN (every declared plane ran)"
-  else err "canary passed: a stdin-eating transport truncated the plane list"; fails=$((fails+1)); fi
+  if [ "$LAST_RC" -eq 0 ] && ! out_has coverage && out_has "subagent    OK"; then
+    info "stdin-drain      GREEN (a draining transport cannot truncate the FD-3 list)"
+  else err "canary: a stdin-draining transport truncated the plane list (the FD-3 protection is gone)"; fails=$((fails+1)); fi
 
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"

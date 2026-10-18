@@ -128,6 +128,43 @@ def check_runtime(raw: str) -> list[str]:
     return bad
 
 
+def check_arm() -> list[str]:
+    """R-3: the payload has a seat arm. The child-runtime numbers are only effective when a
+    seat-planes record's owner writes them into ~/.pi/agent/extensions/subagent/config.json;
+    R-2 proves they are WRITTEN DOWN, not that a seat is converged to them. This reads tracked
+    files only (the registry + the arm script), so it proves an arm exists and nothing more —
+    the read that stops a seat going green with the payload missing is the arm's own --check on
+    that seat's HOME, which is exactly what did not exist before this arm."""
+    bad: list[str] = []
+    try:
+        registry = (
+            ROOT / "scripts" / "lib" / "seat-planes.yml"
+        ).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ["R-3  cannot read scripts/lib/seat-planes.yml -- the registry is missing"]
+    # a record names `owner:` under scripts/**; the arm is that owner
+    arm_path = None
+    for rec in re.split(r"\n---\n", registry):
+        if not re.search(r"^plane:\s*subagent\s*$", rec, re.M):
+            continue
+        m = re.search(r"^owner:\s*(.+?)\s*$", rec, re.M)
+        if m:
+            arm_path = ROOT / "scripts" / "harness" / m.group(1).strip()
+        break
+    if arm_path is None or not arm_path.is_file():
+        return ["R-3  no seat-planes record for plane `subagent` names an owner under scripts/**"]
+    arm = arm_path.read_text(encoding="utf-8")
+    # The arm renders the WHOLE `_subagentConfig` block; a payload key can then never be
+    # dropped silently (a key the arm omits would leave a seat on the harness default while
+    # the SSOT claims the number). So the checks are: it reads the SSOT's `_subagentConfig`,
+    # and its default target is the extension file (not some other path).
+    if "_subagentConfig" not in arm:
+        bad.append(f"R-3  {arm_path.name} does not render _subagentConfig from the SSOT")
+    if "extensions/subagent/config.json" not in arm:
+        bad.append(f"R-3  {arm_path.name} does not write ~/.pi/agent/extensions/subagent/config.json")
+    return bad
+
+
 def check_docs(name: str, text: str, must: tuple[str, ...]) -> list[str]:
     """R-3: the contract is stated where a session reads it, in the same words the gate can find."""
     return [f"R-3  {name} no longer states the child-lane contract: {frag!r} is gone"
@@ -287,6 +324,21 @@ def self_test() -> int:
 
     case_quiet("(i3) an unrelated minute-scale duration stays quiet",
                check_banned("README.md", "a full converge takes 10–30 min and must run detached"))
+
+    case_quiet("(n) the real registry arm resolves and emits every payload key", check_arm())
+    # (o) the arm resolves to a DIFFERENT file: the registry owner text is the trigger, so a
+    #     canary that names a file that also exists would pass; name a nonexistent owner so the
+    #     record itself is what must break.
+    import tempfile
+    _td = tempfile.mkdtemp()
+    _orig = (ROOT / "scripts" / "lib" / "seat-planes.yml").read_text(encoding="utf-8")
+    (ROOT / "scripts" / "lib" / "seat-planes.yml").write_text(
+        _orig.replace("owner: pi-subagent-config.sh", "owner: no-such-owner.sh"), encoding="utf-8")
+    try:
+        case("(o) a broken subagent arm reddens", check_arm(), "no seat-planes record")
+    finally:
+        (ROOT / "scripts" / "lib" / "seat-planes.yml").write_text(_orig, encoding="utf-8")
+
 
     # the whole-suite shape: a mutation of the real corpus must produce a finding
     real = [p.read_text(encoding="utf-8") for p in TRACKED]

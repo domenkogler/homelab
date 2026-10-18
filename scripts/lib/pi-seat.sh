@@ -198,7 +198,12 @@ seat_planes_emit() {
   path="${HL_REPO_PREFIX:-}${path}"
   case "$runner" in
     bash)       printf '%s\t%s %s %s\n' "$plane" bash "$path" "$args" ;;
-    python3)    printf '%s\t%s %s %s\n' "$plane" python3 "$path" "$args" ;;
+    python3)    # Windows: `python3` resolves to the Microsoft-Store alias stub; `py -3` is the real
+                 # interpreter (HD-1110). Debian/WSL seats keep the bare `python3` (the venv).
+                 case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*)
+                   printf '%s\t%s %s %s\n' "$plane" py "-3 $path $args" ;;
+                 *) printf '%s\t%s %s %s\n' "$plane" python3 "$path" "$args" ;;
+                 esac ;;
     powershell) printf '%s\tpowershell.exe -NoProfile -ExecutionPolicy Bypass -File %s %s\n' "$plane" "$path" "$args" ;;
     *) printf 'FATAL: seat-planes.yml: plane %s has unknown runner %s\n' "$plane" "$runner" >&2; return 1 ;;
   esac

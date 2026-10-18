@@ -87,12 +87,12 @@ Nothing in this stage depends on the tree decision, and Stage 3 is unsafe withou
 2. **Corpus-non-empty assertions** in every checker that walks a tree (the `check_md_tables.py` model: assert >N files
    walked), so a broken root can never print `OK: 0 files`. This is what turns Stage 3 from a gamble into a mechanical sweep.
 3. **`lib/pi-seat.sh`**: one `pin()` replacing the 5 byte-identical copies (`install-pi-debian.sh:60`, `pi-self-update.sh:64`,
-   `install-nerd-font.sh:61`, `pi-settings-config.sh:89`, `install-pi-wsl.sh:51`), **carrying the `$()`-subshell fix** — HD-1115
+   `install-nerd-font.sh:61`, `pi-settings-config.sh:89`, `install-pi-wsl.sh:51`), **carrying the `$()`-subshell fix** — the pin helper
    recorded that `pin()`'s `exit 1` inside `$( )` cannot stop the caller and that the shape is still live in
    `install-pi-debian.sh` / `pi-settings-config.sh`. Self-test both halves: a missing pin stops the caller; a present pin
    returns the value.
 4. **Registry hygiene, no moves:** add the missing [`scripts/README.md`](scripts/README.md) row for `pi-self-update.sh` (the
-   `pi-self` plane landed in HD-1115 with **no registry row** — the dispatcher missed a whole plane), and delete the two
+   `pi-self` plane landed (with the pin helper) with **no registry row** — the dispatcher missed a whole plane), and delete the two
    duplicate rows in the cross-platform table (`check_iac_backend_strings.py`, `testdata/check-vault-items/run.sh` —
    `check_md_tables.py`'s duplicate-identity half only fires on link-headed rows, so plain-text keys are invisible to it).
 5. **`scripts/utils.txt` → delete after folding its four one-liners into their owning docs** (spark vllm health-wait →
