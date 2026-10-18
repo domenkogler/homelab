@@ -331,13 +331,17 @@ def self_test() -> int:
     #     record itself is what must break.
     import tempfile
     _td = tempfile.mkdtemp()
-    _orig = (ROOT / "scripts" / "lib" / "seat-planes.yml").read_text(encoding="utf-8")
-    (ROOT / "scripts" / "lib" / "seat-planes.yml").write_text(
-        _orig.replace("owner: pi-subagent-config.sh", "owner: no-such-owner.sh"), encoding="utf-8")
+    _orig = (ROOT / "scripts" / "lib" / "seat-planes.yml").read_bytes()
+    # the whole block round-trips BYTES (binary): Path.write_text on Windows defaults to CRLF
+    # text mode, which re-CRLFs the registry on every self-test run (the CRLF round-trip that
+    # reddened the pi-seat/lib self-tests inside the gate). read_bytes/write_bytes is the
+    # byte-truthful half and matches the file's LF discipline (.gitattributes eol=lf).
     try:
+        (ROOT / "scripts" / "lib" / "seat-planes.yml").write_bytes(
+            _orig.replace(b"owner: pi-subagent-config.sh", b"owner: no-such-owner.sh"))
         case("(o) a broken subagent arm reddens", check_arm(), "no seat-planes record")
     finally:
-        (ROOT / "scripts" / "lib" / "seat-planes.yml").write_text(_orig, encoding="utf-8")
+        (ROOT / "scripts" / "lib" / "seat-planes.yml").write_bytes(_orig)
 
 
     # the whole-suite shape: a mutation of the real corpus must produce a finding
