@@ -24,4 +24,4 @@
 *.eot binary
 *.zip binary
 *.tar.gz binary
-*.gz binary
+*.gz binaryscripts/lib/seat-planes.yml -text
