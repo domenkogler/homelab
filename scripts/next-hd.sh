@@ -55,6 +55,19 @@ GIT_SCAN=1  # also scan `git log -S 'HD-'` for closed rows (widest superset)
 # value must mean "no filtering", which `:-` cannot express — it silently re-applies the default
 # and turns the mutation test into a pass that proves nothing (measured on first try here).
 RESERVED_IDS="${RESERVED_IDS-900 901}"
+# RESERVED RANGES — the whole 9000-block is the TOOL-FIXTURE namespace, one call, recorded here and
+# in CONVENTIONS §1 / todo.md §0. The list above is a per-id patch and it did not hold: the 900/901
+# exclusion was written against ONE tool's canary, and `corpus_diff.py`'s classifier fixtures mint
+# their own synthetic ids (`HD-9001`…`HD-9007`) because the shapes under test must look like real
+# tokens. Measured 2026-10-18: `next-hd.sh` printed **HD-9008** while the registry top was HD-1158 —
+# the same mis-mint class as HD-901, four orders of magnitude higher, and it recurs on every fixture
+# anyone adds. So the exclusion is a RANGE now, not a list: 9000-9999 is reserved for synthetic
+# tokens and no backlog row may ever be minted into it. `scripts/gate/check_hd_mint_space.py` holds
+# both halves — a synthetic id OUTSIDE the block reddens, and a registry row INSIDE it reddens — so
+# the block stays exclusive by rule rather than by nobody noticing. Same `${VAR-default}` form as
+# RESERVED_IDS: an explicitly empty value means "no filtering", so a test can prove it is load-bearing
+# (`RESERVED_RANGES='' bash scripts/next-hd.sh --max` → the poisoned 9000-block max comes back).
+RESERVED_RANGES="${RESERVED_RANGES-9000-9999}"
 # Did the CALLER restrict the scan set? Test BEFORE defaulting FILES, or the default assignment
 # below makes every run look "restricted" and silently disables the tree scan — which is exactly how
 # this patch failed its first test run (it printed 451, the very collision it was written to catch).
@@ -97,10 +110,16 @@ extract_ids() {
     # CI/debug scoping and must keep meaning "exactly these files".
     [ "${FILES_RESTRICTED:-0}" = "0" ] && scan_tree
   } | grep -oE '[0-9]+' |
-    # drop reserved ids (fixture text / mis-mints) before the max is taken — see RESERVED_IDS above.
+    # drop reserved ids (fixture text / mis-mints) and reserved ranges (the tool-fixture namespace)
+    # before the max is taken — see RESERVED_IDS / RESERVED_RANGES above.
     # awk, not `grep -f <(...)`: an empty RESERVED_IDS must be a PASS-THROUGH, and an empty pattern
     # file would instead delete every candidate and make the script fail as though no HD existed.
-    awk -v reserved="${RESERVED_IDS}" 'BEGIN{split(reserved,a," ");for(i in a)skip[a[i]+0]=1} !skip[$1+0]' |
+    awk -v reserved="${RESERVED_IDS}" -v ranges="${RESERVED_RANGES}" '
+      BEGIN{
+        split(reserved,a," "); for(i in a) skip[a[i]+0]=1
+        n=split(ranges,r,","); for(i=1;i<=n;i++){ split(r[i],b,"-"); lo[i]=b[1]+0; hi[i]=(b[2]""=="")?b[1]+0:b[2]+0 }
+      }
+      { if(skip[$1+0]) next; for(i=1;i<=n;i++) if($1+0>=lo[i] && $1+0<=hi[i]) next; print }' |
     sort -n | uniq   # numerically sorted, deduped; empty-safe
 }
 

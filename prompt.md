@@ -284,15 +284,20 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       row still owes is on [todo.md](todo.md) HD-1158: re-sign the window at a wave tip so the signed entries shrink with
       the tree, and rule whether `audit_text()`'s add/drop-line rule takes the same anchor — that is what would let the run
       item come back into the pool. · [todo.md](todo.md) HD-1158 · [scripts/README.md](scripts/README.md) §Validation gate
-    - ⏳ **The mint space is poisoned by test fixtures — settle which namespace is reserved before anything else is
-      minted.** `scripts/next-hd.sh` takes the next id from the maximum across `todo.md`, the docs and
-      `git log -S 'HD-'`; and `scripts/gate/corpus_diff.py`'s classifier fixtures use synthetic ids from a reserved
-      9000-block, so the next real mint lands up there rather than beside its siblings. Re-derive with
-      `bash scripts/next-hd.sh`; that command is the only honest way to see this. Two findings stay **un-rowed** until the
-      reservation is ruled, because a row minted from a poisoned scan is a pointer the next session cannot trust: the
-      `git-bootstrap.sh --self-test` `signedout` arm keys on a string its own fixture writes, so it proves branch logic
-      and not the `op` contract it depends on (assert the echoed refusal instead), and the scanner wants the reserved
-      range written down where the id lifecycle lives.
+    - ✅ **The mint space is poisoned by test fixtures — ANSWERED: `9000–9999` is the fixture block, and a gate holds it**
+      (owner ruling, A1). A per-id exclusion list was the first answer and it went stale the day a fixture was added:
+      `corpus_diff.py`'s classifier fixtures must mint ids that look real, and `scripts/next-hd.sh` scans the whole tree
+      on purpose, so the minter handed out an id four orders of magnitude above the registry top. The reservation is a
+      RANGE now — `RESERVED_RANGES` in `scripts/next-hd.sh` — stated in [CONVENTIONS.md](CONVENTIONS.md) §1 and
+      [todo.md](todo.md) §0, and held in BOTH directions by
+      [`scripts/gate/check_hd_mint_space.py`](scripts/gate/check_hd_mint_space.py) (registered: a fixture id outside the
+      block reddens, a registry row inside it reddens, prose that disagrees with the tool reddens, a minter that declares
+      no block refuses to run). Its ceiling is the **registry rows**, not the token max — a token-based ceiling is a test
+      the poison passes by existing, which is how the minter was fooled. Re-derive with `bash scripts/next-hd.sh`; every
+      count is that command's output, never this sentence. Of the two findings this line kept un-rowed, the reserved-range
+      prose is this change; the `git-bootstrap.sh --self-test` `signedout` arm (it keys on a string its own fixture
+      writes, so it proves branch logic and not the `op` contract) is now row **HD-1159** — minted from the clean space,
+      which is what made rowing it trustworthy possible.
     - **This station merges; it does not have to push.** `git status -sb` reports local `main` ahead of
       `origin/main` by however many commits it says — re-derive that, never copy a count — and pushing belongs to the
       station that owns the remote (§1). A session closing with a count above zero has left that step undone on request,
