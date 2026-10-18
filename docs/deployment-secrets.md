@@ -708,6 +708,21 @@ rather than wait. The traps:
   (and any bare Debian seat) the ONLY git config is `~/.gitconfig` — leaving it at `gpgsign = true` keeps the
   hang while every repo-side path reads green. The acceptance form is the same everywhere: a commit under a
   `github.com` remote from a bare `env -i` shell returns immediately with `%G?` = `N`.
+  ✅ **Every account on a fleet host that owns a `github.com` clone carries the explicit `false` in its own
+  user-scoped global file** — measured FROM each seat, 2026-10-18. On the Debian seats that file is `~/.gitconfig`
+  alone (`oldsrv` seat + runner, `vps` runner, `spark` runner, whose `/opt/homelab/ultrafast-src` third-party
+  `github.com` checkout is what makes that account a git seat); on the Windows and WSL seats it is the per-remote
+  `~/.gitconfig-github`, fired by `includeIf "hasconfig:remote.*.url:*github.com*/**"`, and that seat's own
+  `~/.gitconfig` carries no `gpgsign` line at all, so the *no remote, no payload* case above applies there too.
+  An account that owns no clone owes nothing, and that is the trap in reading this state: **git's own default for
+  `commit.gpgsign` is already `false`**, so an unconverged seat answers `false` to a bare
+  `git config --global commit.gpgsign` without anything having converged — the verdict is `git config --global
+  --show-origin --get-all commit.gpgsign` printing the value while NAMING the seat file, plus
+  `git config --list --show-origin | grep -i gpgsign` inside a `github.com` clone showing `false` and nothing
+  else. No fleet host carries a `gpgsign` key in `/etc/gitconfig` or in an XDG config, so a machine-wide source
+  is measured absent, not assumed. A host with no `git` binary at all (`nas`) is not a git seat, and neither is an
+  account that owns no clone: no cron job or systemd timer on any fleet host runs `git`, so nothing there commits
+  outside an interactive shell.
   ⚠ **A seat payload is a hand edit; the scripted step cannot pay it.** `git-bootstrap.sh --ssh-auth` writes
   the **clone's** config and says so, so the seat's own global file keeps whatever it already held. Take the
   backup in the same command (`cp -p <file> ~/.gitconfig.pre-signing-$(date +%Y%m%d-%H%M%S)`, then

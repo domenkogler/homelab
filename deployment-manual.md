@@ -212,7 +212,14 @@ bash scripts/git/git-bootstrap.sh --ssh-auth                # idempotent; pulls 
 git config --global commit.gpgsign false                # the DEBIAN seat's own global file: the command above
                                                         # writes the CLONE's config only, and a seat left at
                                                         # `true` hangs the next cron/converge/pi committer
-                                                        # (seat file map: docs/deployment-secrets.md §6)
+                                                        # on a fresh seat there is no file to back up — this command
+                                                        # creates it; where one exists, `cp -p ~/.gitconfig
+                                                        # ~/.gitconfig.pre-signing-$(date +%Y%m%d-%H%M%S)` first.
+                                                        # Verdict: `git config --global --show-origin --get-all
+                                                        # commit.gpgsign` prints `false` NAMING this file — a bare
+                                                        # read says `false` on a seat that converged nothing, because
+                                                        # `false` is git's own default (seat file map:
+                                                        # docs/deployment-secrets.md §SSH Key Separation)
 ```
 
 ✔-evidence: `ssh-add -l` lists two identities, `git config --get user.signingkey` prints a path, and
