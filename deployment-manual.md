@@ -137,6 +137,17 @@ other SSOT content (`pi-agent/`, packages); once pi is present, `sync-skills.sh`
 in drift-free sync. On a TRUE-ZERO runner without pi, `sync-skills.sh --check` SKIPs and `--push` populates
 `~/.pi/agent/skills` for the first time.
 
+### 0.3.6 Terminal harness binary + config (tmux) `[MANUAL — hand step, no in-repo path]`
+
+`roles/seat`'s `seat_packages` covers only hosts in `IaC/ansible/inventory.ini`; the WSL runner is not one, so apt is the only path for the binary. The config plane is repo-SSOT-driven and converges on its own (`pi-seat-sync.sh`/`install-tmux-conf.sh --check --strict`); only the binary + the first config deploy are hand:
+
+```bash
+sudo apt-get install -y tmux
+bash scripts/harness/install-tmux-conf.sh --push   # SSOT -> ~/.tmux.conf (a foreign file is a REFUSAL)
+bash scripts/harness/install-tmux-conf.sh --reload # push-if-needed + source the RUNNING server + read it back
+```
+
+✔ `command -v tmux` answers `/usr/bin/tmux`; `bash scripts/harness/install-tmux-conf.sh --check --strict` prints `load probe OK` and `OK: seat tmux config == repo SSOT and effective` (the load-probe line is a verdict, not a SKIP); `--verify` from inside a tmux session prints the live probe `mouse`/`extended-keys`/`set-clipboard` reads and an `OSC 52 arm OK` line. The owner-only acceptance leg (mouse-select in a pane, paste on the machine) is in [docs/harness-pi.md](docs/harness-pi.md) §5b.
 
 ### 0.4 Windows-side interactive SSH *(one-time, recommended — not required by the runner)*
 

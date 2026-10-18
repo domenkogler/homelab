@@ -593,10 +593,19 @@ terminal is refusing OSC 52** — `xterm` needs the `allowWindowOps: true` resou
 wezterm, foot and alacritty accept by default. Nothing inside tmux can fix that leg, which is why it is
 an ⏳ owner-gated tail and not a bug in the script.
 
-**Not wired yet:** neither [`../scripts/harness/install-pi-debian.sh`](../scripts/harness/install-pi-debian.sh) nor
-[`../scripts/harness/install-pi-wsl.sh`](../scripts/harness/install-pi-wsl.sh) calls this installer, so a freshly
-bootstrapped seat still gets no `~/.tmux.conf`. Run it once
-per seat until that step lands.
+**Seat state (WSL Debian laptop; live-verified marker):** tmux 3.5a is installed on this seat and the config is
+*effective*, not just in place — `install-tmux-conf.sh --check --strict` prints `load probe OK — the SSOT parses AND
+applies` and `OK: seat tmux config == repo SSOT and effective` (the load-probe line is a **verdict**, not a SKIP),
+and `--verify` run FROM INSIDE the session reports the sandbox load probe OK, the running server's `mouse on` /
+`extended-keys on` / `set-clipboard on`, and one OSC 52 emission left on the wire. The **binary** is a host change
+with no in-repo path: `roles/seat`'s `seat_packages` covers only hosts in `IaC/ansible/inventory.ini` and this
+laptop is not one of them, so a rebuilt WSL seat comes back without tmux and must replay `sudo apt-get install -y tmux
+&& bash scripts/harness/install-tmux-conf.sh --reload` ([../deployment-manual.md](../deployment-manual.md) §0.3.6).
+
+**Not wired yet (debian only):** `install-pi-debian.sh` runs the tmux plane through `scripts/lib/seat-planes.yml`;
+[`../scripts/harness/install-pi-wsl.sh`](../scripts/harness/install-pi-wsl.sh) still does not call this installer, so a freshly
+bootstrapped **WSL** seat gets no `~/.tmux.conf` until `install-tmux-conf.sh --push` runs once (and, as above, the tmux
+binary must be installed by hand).
 
 ### The three ways this plane's own scripts can lie
 
