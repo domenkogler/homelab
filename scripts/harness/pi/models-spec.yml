@@ -3,7 +3,7 @@
 #
 # Why this file exists: the harness contract used to be a hand-maintained
 # ~/.pi/agent/models.json on one laptop, which `scripts/harness/install-pi-wsl.sh` refuses to sync
-# ("Provider/auth config ... is NOT auto-synced") and which docs/harness-pi.md §1 had to call
+# ("Provider/auth config ... is NOT auto-synced") and which docs/harness-pi-engines.md §1 had to call
 # its own "reference copy" because it carries a bearer key. The moment a second client exists
 # (a second workstation, the cockpit on oldsrv under HD-409, a `spark-lane` profile, a
 # Continue.dev in VS Code) a hand-copied JSON is a drift generator with no gate.
@@ -39,7 +39,7 @@ vendors:
   continue:
     # A SEPARATE generated file, never merged into a workstation's own config: a generated block
     # written over user-authored keys is a data-loss bug. Wiring it in (@-import or merge) is a
-    # per-machine step and is NOT verified by the renderer — docs/harness-pi.md §4b.
+    # per-machine step and is NOT verified by the renderer — docs/harness-pi-models.md §4b.
     # It lives under ~/.continue/, not ~/.pi/agent/: this is not a pi artifact, and a stray
     # generated file in the agent directory gets read by the agent (learned on the first run).
     out: ~/.continue/homelab-models.generated.yaml
@@ -226,7 +226,7 @@ auth:
     type: api_key
     credential: {vault: Homelab-ansible, item: opencode-go, field: credential}
 
-# Workstation-local keys are NOT here and must not be added: harness-pi.md §5 keeps theme,
+# Workstation-local keys are NOT here and must not be added: harness-pi-seats.md §5 keeps theme,
 # packages, lastChangelogVersion and the rest of settings.json on the machine. This spec renders
 # the *model contract* only — that boundary is what lets a laptop and a cockpit share a render
 # without carrying someone's editor taste, or a token, from one to the other.

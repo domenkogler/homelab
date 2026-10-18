@@ -54,7 +54,7 @@ SPARK_VARS = ROOT / "IaC" / "ansible" / "group_vars" / "spark.yml"
 HOST_VARS = ROOT / "IaC" / "ansible" / "host_vars" / "spark.kogler.si.yml"
 VAULT_ITEM = "spark-llm_api"
 VAULT_VAULT = "Homelab-ansible"
-# ~6 English tokens/word for Qwen-style BPE (docs/harness-pi.md §3 uses 1.38 chars/token
+# ~6 English tokens/word for Qwen-style BPE (docs/harness-pi-engines.md §3 uses 1.38 chars/token
 # for the request body; the filler below is repetitive so real-token math is safer).
 TOKENS_PER_WORD = 6
 WORD = ("The quick brown fox jumps over the lazy dog while the historian records "
@@ -310,7 +310,7 @@ class Probes:
     def effort(self, level):
         """NATIVE graded effort. Expected to FAIL on the certified vLLM build —
         that failure is the measurement that keeps supportsReasoningEffort: false
-        honest (docs/harness-pi.md §2)."""
+        honest (docs/harness-pi-engines.md §2)."""
         q = [{"role": "user", "content": "Which is faster: radix sort or comparison sort? Explain."}]
         a, t1, ca = self.ep.chat(q, {"reasoning_effort": "low"})
         b, t2, cb = self.ep.chat(q, {"reasoning_effort": "high"})

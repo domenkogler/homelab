@@ -215,7 +215,7 @@
 #                                     config that errors mid-load leaves the options at their DEFAULTS
 #                                     while the caller gets exit 0 and empty stderr, so a byte-compare
 #                                     of two identical files can sit next to a seat with no mouse and
-#                                     no clipboard (measured six ways, docs/harness-pi.md §5b). The
+#                                     no clipboard (measured six ways, docs/harness-pi-terminal.md §5b). The
 #                                     self-test therefore mutates FIXTURES, not the checker: seven
 #                                     canaries, two of them a byte-identical SSOT/target pair that is
 #                                     inert by construction (one bad command mid-file; the nested

@@ -231,7 +231,7 @@ def main(argv: list[str]) -> int:
         print(f"FAIL: {len(problems)} subagent-contract problem(s):")
         for p in problems:
             print(f"  - {p}")
-        print("\nContract: docs/orchestration.md §4 (O10-O11) + docs/harness-pi.md §6. The values live "
+        print("\nContract: docs/orchestration.md §4 (O10-O11) + docs/harness-pi-engines.md §6. The values live "
               "in pi-agent/settings-ssot.json; the docs cite it, they do not restate numbers.")
         return 1
     for line in ok:

@@ -28,7 +28,7 @@
 #   `scope: fleet` rows of the pi_pkg_* inventory in IaC/ansible/group_vars/all/versions.yml, and
 #   the seat TUI pair (pi_host_tui_npm_*) from the same file, exactly like install-pi-debian.sh
 #   reads its pins, so a hand-typed `pi install npm:pi-open-tui` on one seat cannot quietly become
-#   the fleet's state (docs/harness-pi.md §5a).
+#   the fleet's state (docs/harness-pi-seat-identity.md §5a).
 #
 # Env overrides: REPO (default: repo root found from this script's path). The package set is NOT
 #   overridable here — it is the inventory's, and a private list is what drifted.
@@ -181,7 +181,7 @@ if [ "$MODE" != "--pi-only" ]; then
   info "installed: $("$PI_BIN" list 2>/dev/null | tr '\n' ' ')"
 
   # The seat TUI package carries ONE harness-relevant key: the footer's hostname segment,
-  # which is what answers "which box am I typing to" (docs/harness-pi.md §5a — the job the
+  # which is what answers "which box am I typing to" (docs/harness-pi-seat-identity.md §5a — the job the
   # retired pi-agent/extensions/host-status.ts used to do). pi-open-tui's own DEFAULT is
   # OFF, so `pi install` alone leaves the seat anonymous: this sets that key and touches
   # nothing else the operator tuned through /open-tui.
@@ -233,7 +233,7 @@ echo "   Run:      pi"
 echo "   Extensions: available in ~/.pi/agent/extensions (repo files are the SSOT set; a"
 echo "               machine-local file stays local, and retired names are removed by --push)."
 echo "   TUI:      pi-open-tui (pin pi_host_tui_npm_*, installed above) — /open-tui tunes it;"
-echo "               its footer hostname IS the seat identity: docs/harness-pi.md §5a"
+echo "               its footer hostname IS the seat identity: docs/harness-pi-seat-identity.md §5a"
 echo "   Session:  cd $REPO && bash scripts/gate/guard-session.sh  (create a worktree first)"
 echo "   Update:   pi update --extensions   +   re-run this script to re-sync repo SSOT"
 echo

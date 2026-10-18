@@ -10,7 +10,7 @@ tags: [harness, pi, agent-harness, seats, rejected, decision-log]
 > **Role:** Decision log — coding-harness / seat options this homelab evaluated and declined; the
 > `harness` domain's **decision-log SSOT** ([`../CONVENTIONS.md`](../CONVENTIONS.md) §8.3). One row per
 > decision, sorted by subject. The current-state fact a decision settled lives in the owning doc, not here.
-> **Links to:** [`harness.md`](harness.md), [`harness-pi.md`](harness-pi.md),
+> **Links to:** [`harness.md`](harness.md), [`harness-pi-engines.md`](harness-pi-engines.md),
 > [`services-rejected.md`](services-rejected.md), [`services-ai-rejected.md`](services-ai-rejected.md)
 > **Linked from:** [`index.md`](index.md), [`harness.md`](harness.md)
 

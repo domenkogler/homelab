@@ -15,11 +15,11 @@
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land, `main` is pushed and `scripts/validate-all.sh` runs there, so `git worktree list` on that host is the
-fleet's live set (harness state in [docs/harness-pi.md](docs/harness-pi.md)). The laptop's WSL Debian clone is **retained, and
+fleet's live set (harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). The laptop's WSL Debian clone is **retained, and
 now has a job: it is the designated runner station for externally-served runs** — off-box for every converge target, not the
 engine host, owner of no converge slot (the 2026-10-09 “retained but rarely used as a seat” ruling still stands for the
 pi-dev-seat question, which is a different one; the rule is [todo-table.md](todo-table.md) §C rule 9 and the state is
-[docs/harness-pi.md](docs/harness-pi.md) §5a). It stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state — its own seat
+[docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a). It stays in `pi-seat-sync.sh`'s `SEATS`, so a fan-out still names it and keeps reporting its real state — its own seat
 planes are green (`pi-seat-sync.sh --check`: every `wsl` line OK; the one problem is the oldsrv cockpit's `STALE-CLONE`, and that `ok=` count is a function of THAT seat's clone lagging `main` — with oldsrv current the same command prints `ok=18 problems=0`, so re-derive it, never copy it). Two refs were unique to that box — a stash (`On main: never_evict
 pin experiment`, 2026-10-03) and `session/arr-door-20261006`, whose remote ref the arr-door lane had deleted
 after landing its work. Neither is live, and both are closed: the stash re-armed a flag main REJECTED on
@@ -167,7 +167,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    fixed — `4677cd05` found a dead PATH shim hiding a healthy pinned-prefix pi 1.1.0, so the old "Volta shim"
    premise is history, not a task) and the Win11 `pi_auth` drift — the seat holds
    an **OAuth** openrouter entry where the spec renders `api_key`; mint it through the `pi_auth` vendor lane of
-   [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/harness-pi.md](docs/harness-pi.md)) and
+   [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/harness-pi-models.md](docs/harness-pi-models.md)) and
    never overwrite a live token to green a check. → [prompt-seat-cockpit-grants.md](prompt-seat-cockpit-grants.md)
 6. ⏳ **Storage, backup, the DR story** — **HD-191**'s ZFS policy units (**HD-1107**: the policy snapshots exist
    on every configured dataset and the generated unit's last fire is `Result=success`; the package's own
@@ -221,7 +221,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    other leg. **HD-1119** — the `harness` docs domain — is the
    only authored work the brief still carries, and it is now registered rather than missing: the hub
    [docs/harness.md](docs/harness.md) and its §8.3 review/rejected pair exist, `docs/pi-harness.md` is
-   [docs/harness-pi.md](docs/harness-pi.md), and what the row owes is the split of that file by subject plus
+   [docs/harness-pi-engines.md](docs/harness-pi-engines.md), and what the row owes is the split of that file by subject plus
    `scripts/gate/check_doc_domain.py`, which does not exist yet — and **no longer waits on a decision**: the
    taxonomy call is made and recorded in [prompt-scripts.md](prompt-scripts.md) §The taxonomy call (domain set
    derived from frontmatter; hub required only at ≥2 non-pair docs; a `-review`/`-rejected` pair cannot create a
@@ -232,7 +232,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    child-lane contract is a rule with a ceiling and a gate now** — O10/O11 in
    [docs/orchestration.md](docs/orchestration.md) §4 and `subagents.modelScope` in
    [`pi-agent/settings-ssot.json`](pi-agent/settings-ssot.json), held by
-   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py). The arm is landed: the `subagent` seat plane ([`scripts/harness/pi-subagent-config.sh`](scripts/harness/pi-subagent-config.sh)) writes `_subagentConfig` → `~/.pi/agent/extensions/subagent/config.json` on every seat, the win11 leg is converged, and the Debian seats converge the payload on the next per-seat `pi-seat-sync.sh --push` — until a seat's own `--check` prints `OK` for that file, the seat runs the harness defaults and a run must pass the values on the launch ([docs/harness-pi.md](docs/harness-pi.md) §1). **The registry's own prose is now a rule with a checker** —
+   [`scripts/gate/check_subagent_contract.py`](scripts/gate/check_subagent_contract.py). The arm is landed: the `subagent` seat plane ([`scripts/harness/pi-subagent-config.sh`](scripts/harness/pi-subagent-config.sh)) writes `_subagentConfig` → `~/.pi/agent/extensions/subagent/config.json` on every seat, the win11 leg is converged, and the Debian seats converge the payload on the next per-seat `pi-seat-sync.sh --push` — until a seat's own `--check` prints `OK` for that file, the seat runs the harness defaults and a run must pass the values on the launch ([docs/harness-pi-engines.md](docs/harness-pi-engines.md) §1). **The registry's own prose is now a rule with a checker** —
    [`gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py) is built and self-tested but left unwired while the
    rows still carry the ids and dates it refuses (`--show` prints the live count, never a number typed into a handoff), so the
    work is one sweep: clear the rows — ids, dates, diary tenses, the six rows that dropped their **Owning spec** cell, the

@@ -54,7 +54,7 @@
 # Requires: curl, xz, tar, git. `--config-only`/full also needs 1Password access
 #   on the machine running it (render-pi-config.py resolves credentials at render
 #   time); without it, render on a machine that has access and use --out + scp.
-# Owner: the pi.dev seat lane (`prompt-seat-cockpit-grants.md`). Record in docs/harness-pi.md §1.
+# Owner: the pi.dev seat lane (`prompt-seat-cockpit-grants.md`). Record in docs/harness-pi-engines.md §1.
 # =====================================================================
 set -euo pipefail
 
@@ -178,7 +178,7 @@ install_pi() {
   info "pi $("$pb" --version 2>&1 | head -1) [$pb]"
 }
 install_tui() {
-  # The seat's TUI skin (docs/harness-pi.md §5a): pi-open-tui owns the footer, and the
+  # The seat's TUI skin (docs/harness-pi-seat-identity.md §5a): pi-open-tui owns the footer, and the
   # footer's hostname segment is what answers "which box am I typing to" — the job the
   # retired pi-agent/extensions/host-status.ts used to do. Fleet-wide, not seat-local:
   # the version is the pi_host_tui_npm_version pin, never a bare `pi install npm:…`.

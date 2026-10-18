@@ -3,8 +3,8 @@
 > **Role:** dispatch note for **one** lane session: reorganise `scripts/` into named folders **without changing what any
 > script does**. The rows are the authority for what is missing: [todo.md](todo.md) HD-1118 (+ HD-1119 for the docs half).
 > The structure itself was brainstormed with the owner on 2026-10-09 and is **agreed as the target, not as a doc** — this
-> file is the only place the agreed tree + the stage order are written down. Design context: [docs/harness-pi.md](docs/harness-pi.md)
-> §1/§5 (the seat planes), [CONVENTIONS.md](CONVENTIONS.md) §6 (worktree/gate discipline), [`scripts/README.md`](scripts/README.md) (the registry).
+> file is the only place the agreed tree + the stage order are written down. Design context: [docs/harness-pi-engines.md](docs/harness-pi-engines.md)
+> §1 (the seat planes, split into [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §5), [CONVENTIONS.md](CONVENTIONS.md) §6 (worktree/gate discipline), [`scripts/README.md`](scripts/README.md) (the registry).
 > **Linked from:** [todo.md](todo.md) HD-1118
 > **Status 2026-10-12:** HD-1118 **landed**, re-derived at the tip — Stages 1–4 below are the tree's provenance,
 > not work; the unreplayable 2026-10-09 lane tree is pinned as `rescue/hd1118-20261011`. This brief now carries
@@ -28,7 +28,7 @@ failure [`spark/llm-profiles/README.md`](spark/llm-profiles/README.md) records f
 
 | Part of this brief | Serve it from |
 |---|---|
-| the **campaign** items — the `scripts/README.md` prose sweep (HD-1141), the `docs/harness-pi.md` split with its reference sweep (HD-1119), and the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison) | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
+| the **campaign** items — the `scripts/README.md` prose sweep (HD-1141), the `docs/harness-pi-*.md` split with its reference sweep (HD-1119), and the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison) | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
 | the **prep** for them — measure the corpus, list the cells that must change, name the six rows whose Owning-spec column is missing, print the live count `check_registry_prose.py --show` prints | any seat, spark-served: it is read-only arithmetic and it is what makes the campaign one pass instead of a re-measurement |
 
 Row ownership does not move: this brief keeps the rows (§B0 is the index), the station brief claims **legs, not rows**.
@@ -44,7 +44,7 @@ Nothing in this brief moves a file any more. Stages 1-4 are provenance, **and St
 | Leg | State | Who may run it |
 |---|---|---|
 | HD-1118 **(b)** — `install-pi-debian.sh --check` on a from-zero Debian seat | **PARKED, not open.** It is the only proof that the from-zero path converges the foldered tree, and it needs a clean Debian box: there is no in-lane command and no host in this repo that is a spare Debian box. Do not re-derive it here; the row closes when someone runs it in the seat lane | a clean Debian box, not this lane |
-| HD-1119 **(a)** — split [`docs/harness-pi.md`](docs/harness-pi.md) by subject | open, **campaign class** — a `docs/<file>.md` split has call sites across the whole tree, so it is its own change with its own reference sweep | externally-served model on the runner station |
+| HD-1119 **(a)** — split [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md) by subject | open, **campaign class** — a `docs/<file>.md` split has call sites across the whole tree, so it is its own change with its own reference sweep | externally-served model on the runner station |
 | HD-1119 **(b)** — `scripts/gate/check_doc_domain.py` (**not yet created** — this lane writes it) | **unblocked** — the taxonomy call it was waiting on is made, in §HD-1119 below. Not a corpus sweep: it reads frontmatter only (the first `---` block), so it is legal on a spark-served session | any seat, spark-served included |
 | HD-1141 — `scripts/README.md` prose sweep, then wire `check_registry_prose.py` | open, **campaign class** (measure the live count with `python3 scripts/gate/check_registry_prose.py --show`; never type it here). Batch it — §HD-1141 | externally-served model on the runner station; the prep (which cells, which rows lack the third column) is any-seat work |
 
@@ -202,13 +202,13 @@ one `scripts/gate/check_merge_markers.py` now refuses.
 5. no `.ps1` and no data file at `scripts/` top level; `testdata/**` excluded from the registry requirement.
 
 Then restructure `scripts/README.md` into one section per folder (the file's own §"Validation gate" / "Renderers" /
-"Utilities" sections become folder sections), and update [docs/harness-pi.md](docs/harness-pi.md) §1/§5 +
+"Utilities" sections become folder sections), and update [docs/harness-pi-engines.md](docs/harness-pi-engines.md) §1 + [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §5 +
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement for the new paths.
 
 ## HD-1119 — the `harness` docs domain (one live row here; the `docs/`-wide move stays out of scope)
 
 The `harness` domain exists now, so this is no longer a naming decision waiting to be made — what is left is what the row's
-⏳ names. **(a)** Split [`docs/harness-pi.md`](docs/harness-pi.md) by subject, as its own change with its own reference sweep:
+⏳ names. **(a)** Split [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md) by subject, as its own change with its own reference sweep:
 a `docs/<file>.md` rename has call sites across the whole tree, which is why it is never folded into a stage commit here.
 **(b)** Write `scripts/gate/check_doc_domain.py` (**not yet created** — the rules below are its spec, so it is written once, at floor 0). **The taxonomy call is made** (owner accepted these defaults 2026-10-18) — the
 remaining work is the checker plus the six-file floor-0 diff, not another decision.

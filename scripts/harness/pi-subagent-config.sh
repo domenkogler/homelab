@@ -27,7 +27,7 @@
 # Env (sandbox hooks only): REPO, PI_SUBAGENT_CONF (default
 # $HOME/.pi/agent/extensions/subagent/config.json), PI_NODE.
 #
-# Owning rule: docs/harness-pi.md §1/§6 · CONVENTIONS §6 (repo = SSOT).
+# Owning rule: docs/harness-pi-engines.md §1/§6 · CONVENTIONS §6 (repo = SSOT).
 set -uo pipefail
 
 # HD-1118 Stage 1: the repo root is FOUND by scripts/lib/repo-root.sh, never assumed.

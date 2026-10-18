@@ -38,7 +38,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | Coding harnesses behind the LAN LiteLLM hop | rejected | Decision #26 puts harnesses direct on the spark name edge |
 | Coding-seat surfaces in a container | rejected | Would mount the whole watched home tree: theatre |
 | `context-mode` laptop seat entry | dropped | Per-machine install, not a fleet key |
-| Copying a laptop settings.json to a seat | rejected | Settings have no renderer; harness-pi.md §5 is the source |
+| Copying a laptop settings.json to a seat | rejected | Settings have no renderer; harness-pi-seats.md §5 is the source |
 | CrewAI pilot | dropped | Parked until one real multi-agent epic mishandles a lane |
 | Cross-encoder rerank computed from `/api/embed` embeddings | rejected | A cross-encoder cannot be rebuilt from two embeddings |
 | Dedicated exporter or scrape target for the pinned AI legs | dropped | Alloy host metrics plus `amdgpu` sysfs counters cover them |

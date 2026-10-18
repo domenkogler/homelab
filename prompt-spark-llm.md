@@ -25,7 +25,7 @@ still identifiable afterwards in the results CSV's `client` column.
 **Read first:** [docs/spark-llm-profiles.md](docs/spark-llm-profiles.md) (the catalogue, the arithmetic, §7 = what the dial
 value `fast` means **today**) → [spark/llm-profiles/README.md](spark/llm-profiles/README.md) (rule 0 + the gate ladder =
 the test plan) → [docs/hardware-spark.md](docs/hardware-spark.md) §Unified-memory budget + §GPU clock cap →
-[spark/BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §6/§6a/§9 → [docs/harness-pi.md](docs/harness-pi.md) §2–§3.
+[spark/BENCHMARK-PLAN.md](spark/BENCHMARK-PLAN.md) §6/§6a/§9 → [docs/harness-pi-engines.md](docs/harness-pi-engines.md) §2–§3.
 
 ## Order of work
 

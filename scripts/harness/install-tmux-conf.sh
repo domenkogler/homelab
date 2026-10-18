@@ -8,7 +8,7 @@
 # the gap is not theoretical — it cost this session an hour of "the file is on disk
 # and mouse is still off" with every command returning 0. Six fixtures on tmux 3.5a,
 # each loaded with `tmux -L <sock> -f <conf> new-session -d` (method + table in
-# docs/harness-pi.md §5b):
+# docs/harness-pi-terminal.md §5b):
 #
 #   block opened at end of a line ......... EFFECTIVE   ← ordinary wrapped shapes
 #   backslash-continued command ........... EFFECTIVE     load fine
@@ -71,7 +71,7 @@
 # is absent (native Windows runner) the load/live arms SKIP with a printed reason —
 # a SKIP is printed, never counted as a pass.
 #
-# Owning rule: docs/harness-pi.md §5b · CONVENTIONS §6 (repo = SSOT).
+# Owning rule: docs/harness-pi-terminal.md §5b · CONVENTIONS §6 (repo = SSOT).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -487,7 +487,7 @@ self_test() {
   #    the installed target are BYTE-IDENTICAL (a `diff` says SAME, an install says
   #    done), while tmux leaves every option at its DEFAULT. Both shapes were
   #    measured on tmux 3.5a; the same SSOT without the appended line is GREEN
-  #    (canary 1), so the red can only come from that line. See docs/harness-pi.md §5b.
+  #    (canary 1), so the red can only come from that line. See docs/harness-pi-terminal.md §5b.
   inert_case() {  # $1 = label, $2 = sandbox root holding ./conf as the fixture
     mkdir -p "$2/repo/pi-agent/tmux"; cp "$2/conf" "$2/repo/pi-agent/tmux/tmux.conf"
     cp "$2/conf" "$2/tmux.conf"
@@ -525,7 +525,7 @@ EOS
   # 6b. THE Ms CANARY. Same fixture, the terminal-overrides line removed: the OSC 52
   #     arm must go RED. Without this arm the emission probe could be passing because
   #     it emits for the wrong reason (its TERM is chosen so that ONLY the override
-  #     can earn the sequence — measured 1 vs 0, see docs/harness-pi.md §5b).
+  #     can earn the sequence — measured 1 vs 0, see docs/harness-pi-terminal.md §5b).
   sed "s/^set -g terminal-overrides.*$/# Ms override removed (canary)/" \
     "$REPO/pi-agent/tmux/tmux.conf" > "$tmp/noms.conf"
   grep -q '^# Ms override removed' "$tmp/noms.conf" \

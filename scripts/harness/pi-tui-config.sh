@@ -11,7 +11,7 @@
 # own footer segment (`extensions/open-tui/footer.ts`: `os.hostname()` truncated to the short
 # form). So installing the package is NOT enough: pi-open-tui's `DEFAULT_CONFIG` ships
 # `footerSegments.hostname: false`, and a seat that only ran `pi install` gets a footer with
-# no machine in it — a silent loss of the invariant docs/harness-pi.md §5a calls "the only
+# no machine in it — a silent loss of the invariant docs/harness-pi-seat-identity.md §5a calls "the only
 # place that fact is written down", and the loss lands exactly where nobody looks: on the
 # SSH legs, where the prompt is gone. Hence a check, not a README line.
 #
@@ -20,7 +20,7 @@
 # Everything else in that file is machine-local tuning the operator changes through pi's
 # `/open-tui` command, and the package REWRITES the file on every settings change. A
 # byte-compare drift gate would therefore fight the extension's own settings UI — the
-# same boundary harness-pi.md §5 draws for settings.json ("the block is the part that must
+# same boundary harness-pi-seats.md §5 draws for settings.json ("the block is the part that must
 # match", no renderer by design). So this script asserts ONE invariant and preserves every
 # other key it did not come to set.
 #
@@ -42,7 +42,7 @@
 # Portability: bash + node (every pi seat has node — pi's own shebang is `#!/usr/bin/env
 # node`); `$HOME`/self-derived paths only, no Windows idiom.
 #
-# Owning rule: docs/harness-pi.md §5a · CONVENTIONS §6 (repo = SSOT).
+# Owning rule: docs/harness-pi-seat-identity.md §5a · CONVENTIONS §6 (repo = SSOT).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -148,7 +148,7 @@ do_check() {
     ok)      info "OK: $KEY_PATH is true in $CONF (the footer names this machine)" ; return 0 ;;
     missing) err "MISSING: no $CONF — the TUI footer will NOT name the machine (pi-open-tui defaults hostname to false). Run 'pi-tui-config.sh --push'"
              return 1 ;;
-    drift)   err "DRIFT: $CONF has $KEY_PATH not true — the seat footer is anonymous (docs/harness-pi.md §5a)"
+    drift)   err "DRIFT: $CONF has $KEY_PATH not true — the seat footer is anonymous (docs/harness-pi-seat-identity.md §5a)"
              [ "$STRICT" -eq 1 ] && return 1
              info "reported, not failed (add --strict for the gate form)"; return 0 ;;
     *)       err "INVALID: $CONF is not parseable JSON — fix it by hand; this script will NOT rewrite a file it cannot read"

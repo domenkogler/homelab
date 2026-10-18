@@ -5,7 +5,7 @@
 > brief that carries it in [todo-table.md](todo-table.md) §B0, and this file says **which legs only this box may drive** and
 > **which model may take them**. The rows are the authority for what is owed; the permanent rule is
 > [docs/orchestration.md](docs/orchestration.md) §4 + [todo-table.md](todo-table.md) §C rule 9; the seat-role facts are
-> [docs/harness-pi.md](docs/harness-pi.md) §5a. Registering the station is [todo.md](todo.md) HD-1154.
+> [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a. Registering the station is [todo.md](todo.md) HD-1154.
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md) HD-1154 · [prompt.md](prompt.md) §2
 > **Rows named as of** `02721b29` — re-derive every id at your own `HEAD` before quoting one (CONVENTIONS §4).
 

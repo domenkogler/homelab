@@ -147,7 +147,7 @@ bash scripts/harness/install-tmux-conf.sh --push   # SSOT -> ~/.tmux.conf (a for
 bash scripts/harness/install-tmux-conf.sh --reload # push-if-needed + source the RUNNING server + read it back
 ```
 
-✔ `command -v tmux` answers `/usr/bin/tmux`; `bash scripts/harness/install-tmux-conf.sh --check --strict` prints `load probe OK` and `OK: seat tmux config == repo SSOT and effective` (the load-probe line is a verdict, not a SKIP); `--verify` from inside a tmux session prints the live probe `mouse`/`extended-keys`/`set-clipboard` reads and an `OSC 52 arm OK` line. The owner-only acceptance leg (mouse-select in a pane, paste on the machine) is in [docs/harness-pi.md](docs/harness-pi.md) §5b.
+✔ `command -v tmux` answers `/usr/bin/tmux`; `bash scripts/harness/install-tmux-conf.sh --check --strict` prints `load probe OK` and `OK: seat tmux config == repo SSOT and effective` (the load-probe line is a verdict, not a SKIP); `--verify` from inside a tmux session prints the live probe `mouse`/`extended-keys`/`set-clipboard` reads and an `OSC 52 arm OK` line. The owner-only acceptance leg (mouse-select in a pane, paste on the machine) is in [docs/harness-pi-terminal.md](docs/harness-pi-terminal.md) §5b.
 
 ### 0.4 Windows-side interactive SSH *(one-time, recommended — not required by the runner)*
 
@@ -2127,7 +2127,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    **The seat's `~/.pi/agent/settings.json` is NOT rendered** — `render-pi-config.py` has no settings
    vendor and `scripts/harness/pi/models-spec.yml` states that boundary on purpose (the spec renders the
    model contract, never someone's editor settings). Write it from the reference block in
-   [`docs/harness-pi.md`](docs/harness-pi.md) §5 (`defaultProvider`/`defaultModel` = spark,
+   [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §5 (`defaultProvider`/`defaultModel` = spark,
    `defaultThinkingLevel` — **take its value from §5, this line is a pointer not a second source**, the
    prefill timeouts, compaction) and **keep the workstation keys the
    installer wrote** (`packages` — that is what keeps pi-web installed as a pi package). Without it the
@@ -2157,7 +2157,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
      | sudo tee /home/domen/.config/systemd/user/pi-web.service.d/loopback-bind.conf
    sudo rm -f /home/domen/.config/systemd/user/pi-web.service.d/tailnet-bind.conf   # superseded by loopback-bind
    # Drop-in 2 — without it the cockpit cannot see `pi` (HD-484, live 2026-10-01). It must exist BEFORE the
-   # first start, not after the first complaint. TWO dirs = pi's two layouts (docs/harness-pi.md §1);
+   # first start, not after the first complaint. TWO dirs = pi's two layouts (docs/harness-pi-engines.md §1);
    # a seat that later runs `pi update` moves to pi's OWN launcher and a node-dir-only PATH goes blind
    # there — the live oldsrv breakage of 2026-10-09.
    printf '[Service]\nEnvironment=PATH=/home/domen/.pi/agent/bin:/home/domen/.local/share/pi-node/current/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin\n' \
@@ -2181,12 +2181,12 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    -token/-insecure -o -version`). A systemd **user** unit gets no login shell, so `~/.profile` never runs
    and the unit's PATH stays `/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin`, while `pi` lives inside
    the Node tarball — every send died with `exec: "pi": executable file not found in $PATH` and the phone's
-   picker showed no model. **List BOTH pi layouts** (docs/harness-pi.md §1): `~/.pi/agent/bin` is pi's own
+   picker showed no model. **List BOTH pi layouts** (docs/harness-pi-engines.md §1): `~/.pi/agent/bin` is pi's own
    launcher dir and the pinned **Node bin dir** is where the npm -g `pi` symlink and the interpreter live —
    `bin/pi`'s shebang is `#!/usr/bin/env node`, so a lone `pi` symlink (and `~/.local/bin`, which a user
    unit does not get anyway) is not enough — that variant fails as `env: 'node': No such file or directory`.
    A node-dir-only PATH is what made the cockpit unreadable after the seat ran `pi update`: the migration
-   deletes the node-dir `pi` symlink (layouts + evidence: [`docs/harness-pi.md`](docs/harness-pi.md) §1).
+   deletes the node-dir `pi` symlink (layouts + evidence: [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md) §1).
    `roles/seat` renders both dirs; this step is the human leg of the same file, so keep the two in step.
    Remove the old `tailnet-bind.conf` drop-in: the router proxies to loopback, so a daemon still bound to the
    `tailscale0` address leaves a healthy-looking listener next to a 404ing URL.
@@ -2278,7 +2278,7 @@ Run everything as root on oldsrv (`sudo -n`); the cockpit itself always runs as 
    #     with `tmux show -gv` at start-up, and a server that was already up keeps its old values.
    ```
    On the Windows seat a **machine-wide** JetBrainsMono install satisfies the font plane (the operator-installed case,
-   [docs/harness-pi.md](docs/harness-pi.md) §5a): the ps1 reports `OK (machine-wide)` and installs nothing a second time
+   [docs/harness-pi-seat-identity.md](docs/harness-pi-seat-identity.md) §5a): the ps1 reports `OK (machine-wide)` and installs nothing a second time
    per-user.
 
    A seat that carries its own extra pi package (this cockpit runs pi-web itself) is KEPT and printed by the
