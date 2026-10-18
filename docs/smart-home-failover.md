@@ -201,9 +201,55 @@ when the VIP is on oldsrv. Because the VIP already tracks the active HA node, th
 
 ### State to restore after a takeover
 
-- After any forward takeover, oldsrv's **active** `keepalived.conf` holds the failover
-  variant (MASTER, prio 120). Restore the standby (BACKUP, prio 100) config before the next standby cold
-  boot, or the system never returns to its designed rest state.
+- After any forward takeover, oldsrv's **active** `keepalived.conf` holds the failover variant
+  (MASTER, prio 120) and **nothing restores it on its own.** The `reverse` leg of `ha-failover.sh` copies
+  the standby variant back; a converge deliberately cannot — the role bootstraps the active name with
+  `force: false` so that re-converging never clobbers a live runtime swap, while the render task that *does*
+  stay current writes the sibling `keepalived.standby.conf`. So a takeover that ends without `reverse`
+  — a drill stopped after its forward leg counts — leaves oldsrv in the failover variant indefinitely. It is
+  inert only while the standby is cold: the first cold start of the standby's keepalived raises
+  MASTER/120 against a healthy Pi at 110, which is a self-inflicted takeover, not a failover. Restore it
+  before the standby is created or started again.
+- **Read the state before writing anything.** If the standby stack is running, or the VIP is on oldsrv's
+  Home interface, that is a live or half-finished failover and not drift: leave the file alone and either
+  finish the takeover or run `sudo /usr/local/sbin/ha-failover.sh reverse` — the heavier form that restores
+  the same bytes *and* restarts keepalived, which is what a live failback wants and what an idle standby
+  must not be given.
+- The hand restore is the same copy `reverse` performs. Nothing needs to be running and nothing may be
+  restarted for it: keepalived reads the file at container start, so the file only decides what the **next**
+  start does. Keep the replaced file — the failover variant is the drill's artifact.
+
+  ```bash
+  D=/opt/home-assistant-standby
+  sudo cp -a "$D/keepalived.conf" "$D/keepalived.conf.bak-$(date +%s)"
+  sudo cp "$D/keepalived.standby.conf" "$D/keepalived.conf"
+  grep -nE 'state |priority ' "$D/keepalived.conf"   # state BACKUP / priority 100
+  ip -4 addr show dev enp0s31f6                       # oldsrv's own address only — no `ha-vip` in rest state
+  ```
+
+  Ownership/mode come from the source sibling (`root:root 0644`), which is what the compose's
+  `./keepalived.conf:ro` bind expects; the two siblings must keep their own checksums.
+- Prove the result without starting a daemon, using the keepalived image the standby compose already
+  carries. In keepalived 2.x the config-test flag is `-t`; `-c` is `checkers_pid` and answers
+  `Missing parameter for option -c`, which says nothing about the file.
+
+  ```bash
+  D=/opt/home-assistant-standby
+  IMG=$(awk '/image: osixia\/keepalived/ {print $2; exit}' "$D/docker-compose.yml")  # the pin, not a literal
+  docker run --rm --network host -v "$D":/chk:ro --entrypoint /usr/local/sbin/keepalived \
+    "$IMG" -f /chk/keepalived.conf -p /dev/null -t && echo VALID
+  ```
+
+  A canary earns the verdict: the same invocation on a config with a non-numeric `priority` must exit non-zero.
+- **There is no IaC guard on this drift, and there will not be one from the facts a converge can see.** The
+  obvious assert — active conf is the failover variant **and** the standby is cold — is also true for
+  seconds *inside* `ha-failover.sh forward`, which copies the failover variant in before the container that
+  advertises the VIP is up; a converge landing in that window would read a real takeover as drift. Adding a
+  staleness clause (conf unchanged for a day) closes that window, but the safety of what is left rests on a
+  "is the standby cold" probe — container state plus VIP presence — and a probe that errors reads as cold,
+  which is the one mistake that can demote the live node. So the restore stays a human step owned by the
+  `reverse` leg and recorded here; `force: false` stays because a converge that could write this file is a
+  converge that can demote whichever node is active.
 
 **The same edge also serves the DNS-secondary web UI (`dns-pi.kogler.si`).**
 `dns-pi.kogler.si` resolves to the **VIP** (FQDN shape borrowed from the cockpit

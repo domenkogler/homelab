@@ -54,7 +54,9 @@
 # mount ./keepalived.conf:ro is a REAL FILE from render time (not an empty dir Docker
 # auto-creates). Mirrors the Pi's `force: false` from-MASTER copy (pi.yml): first deploy
 # only — ha-failover.sh swaps .standby/.failover into this name at failover runtime and
-# re-converges must never clobber a live swap.
+# re-converges must never clobber a live swap. Consequence: a forward takeover whose reverse leg never ran
+# leaves the MASTER/120 variant in this name and no converge clears it, so the next standby start preempts
+# the Pi → docs/smart-home-failover.md §State to restore after a takeover.
 - name: Create active standby keepalived.conf from BACKUP (first deploy only)
   ansible.builtin.copy:
     src: /opt/home-assistant-standby/keepalived.standby.conf   # rendered above; remote_src needs the ABSOLUTE path
