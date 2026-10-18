@@ -99,8 +99,10 @@ inside one session. The LIVE wave table is
   failure, or the deadline. The deadline is **2 h per child**, because the harness's own 30-minute backstop
   is shorter than a real bounded task at that decode rate; the value lives with the rest of the child-runtime
   knobs in [`../pi-agent/settings-ssot.json`](../pi-agent/settings-ssot.json) as `_subagentConfig`, the payload
-  for the extension's own config file — which no seat plane installs yet, so until that leg lands the number
-  must be passed on the launch and read as authored, not as effective.
+  for the extension's own config file, installed by the `subagent` seat plane
+  ([`../scripts/harness/pi-subagent-config.sh`](../scripts/harness/pi-subagent-config.sh)); a seat whose own
+  `--check` does not print `OK` for that file still runs the harness defaults and the numbers must be passed on
+  the launch and read as authored, not as effective.
 - **A missing verdict is a blocker, never a green.** A reviewer launch whose structured output comes back empty passes a
   `if (!verdict.blockers)` test exactly as a clean review does, so a verdict-gated fix stage silently no-ops and the run ships
   a review it never received. A script must treat a MISSING verdict as a blocker and dispatch the fix from the reviewer's

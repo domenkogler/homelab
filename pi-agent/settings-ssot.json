@@ -17,7 +17,7 @@
     "modelScope": { "enforce": true, "strict": true, "allow": ["inherit"] }
   },
   "_subagentConfig": {
-    "_note": "NOT merged into settings.json: pi-settings-config.sh owns only un-prefixed keys. This is the payload for the pi-subagents extension's OWN config file (~/.pi/agent/extensions/subagent/config.json), which no seat plane installs yet — the seat plane for this file is owed, and until it lands these numbers are authored, not effective, and must be passed on the launch. Why each value: docs/orchestration.md §4 O10-O11 + docs/harness-pi.md §6. Enforced in-repo by scripts/gate/check_subagent_contract.py.",
+    "_note": "Installed by the subagent seat plane (scripts/harness/pi-subagent-config.sh, registered in scripts/lib/seat-planes.yml) to the extension's own config file (~/.pi/agent/extensions/subagent/config.json). A seat whose own --check does not print OK for that file still runs the harness defaults (30-minute backstop, 20-child ceiling) and the numbers must be passed on the launch. Why each value: docs/orchestration.md §4 O10-O11 + docs/harness-pi.md §6. Enforced in-repo by scripts/gate/check_subagent_contract.py.",
     "asyncByDefault": true,
     "timeoutMs": 7200000,
     "globalConcurrencyLimit": 2,

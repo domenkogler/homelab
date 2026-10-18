@@ -19,7 +19,7 @@ RULES
        `subagents.*` key is replaced by that merge -- the plane names it as drift before it writes.
   R-2  the child-runtime knobs are written down once. `_subagentConfig` (the UNDERSCORE prefix is
        what keeps the plane from merging it -- it is the payload for the extension's own
-       ~/.pi/agent/extensions/subagent/config.json, which no seat plane installs yet) must carry
+       ~/.pi/agent/extensions/subagent/config.json, installed by the `subagent` seat plane) must carry
        timeoutMs = 7200000 (2 h), globalConcurrencyLimit = 2, maxActiveAsyncRunsPerSession = 2,
        asyncByDefault = true, and a checkpointBeforeDeadlineMs that is positive and leaves room.
   R-3  the docs state the same contract. docs/orchestration.md names O10 and O11 and the child-lane
