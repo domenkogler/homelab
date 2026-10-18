@@ -10,7 +10,13 @@
 > not work; the unreplayable 2026-10-09 lane tree is pinned as `rescue/hd1118-20261011`. This brief now carries
 > **HD-1119** (the `harness` docs domain) and the row's live legs. **Status 2026-10-18:** re-derived at the tip — the tree is
 > foldered and `gate/check_script_layout.py` is wired, Stage 2's package-inventory tail is landed, HD-1118's two seat legs are
-> closed and its third is **parked** (needs a clean Debian box), and the **HD-1119(b) taxonomy call is made** (§HD-1119 below).
+> closed and its third is **parked** (needs a clean Debian box). **HD-1141 landed**: [`scripts/gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py)
+> prints `registry: 120 linked rows, 0 state-date exempt site(s), 0 finding(s)` and runs in `validate-all.sh` with its
+> `--self-test`. **HD-1119(a) landed**: the split was of `harness-pi.md` — not of [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md),
+> which is one of the five children it produced alongside [`docs/harness-pi-models.md`](docs/harness-pi-models.md), [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md),
+> [`docs/harness-pi-seat-identity.md`](docs/harness-pi-seat-identity.md), [`docs/harness-pi-terminal.md`](docs/harness-pi-terminal.md) — with its
+> reference sweep and hub-map repair. **HD-1119(b) landed**: [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) exists, runs in
+> `validate-all.sh` (run + `--self-test`) and prints `OK: 88 docs, 10 domains, each with one claimed home`.
 > Read §What is open at this commit first; everything above it in this file is provenance.
 
 **Contract:** README §4 (this is a normal lane, not an §4-orchestrator lane): one session, one worktree, one branch, edits to
@@ -28,8 +34,8 @@ failure [`spark/llm-profiles/README.md`](spark/llm-profiles/README.md) records f
 
 | Part of this brief | Serve it from |
 |---|---|
-| the **campaign** items — the `scripts/README.md` prose sweep (HD-1141), the `docs/harness-pi-*.md` split with its reference sweep (HD-1119), and the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison) | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
-| the **prep** for them — measure the corpus, list the cells that must change, name the six rows whose Owning-spec column is missing, print the live count `check_registry_prose.py --show` prints | any seat, spark-served: it is read-only arithmetic and it is what makes the campaign one pass instead of a re-measurement |
+| the **campaign** items — the landed `scripts/README.md` prose sweep (HD-1141) and the landed `docs/harness-pi-*.md` split with its reference sweep (HD-1119), and the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison) | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
+| the **prep** for the campaign legs still live — measure the corpus, list the cells that must change, print the live count `check_registry_prose.py --show` prints (0 findings since HD-1141 landed, so the six rows that lacked the third column are repaired, not owed) | any seat, spark-served: it is read-only arithmetic and it is what makes the campaign one pass instead of a re-measurement |
 
 Row ownership does not move: this brief keeps the rows (§B0 is the index), the station brief claims **legs, not rows**.
 
@@ -44,11 +50,11 @@ Nothing in this brief moves a file any more. Stages 1-4 are provenance, **and St
 | Leg | State | Who may run it |
 |---|---|---|
 | HD-1118 **(b)** — `install-pi-debian.sh --check` on a from-zero Debian seat | **PARKED, not open.** It is the only proof that the from-zero path converges the foldered tree, and it needs a clean Debian box: there is no in-lane command and no host in this repo that is a spare Debian box. Do not re-derive it here; the row closes when someone runs it in the seat lane | a clean Debian box, not this lane |
-| HD-1119 **(a)** — split [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md) by subject | open, **campaign class** — a `docs/<file>.md` split has call sites across the whole tree, so it is its own change with its own reference sweep | externally-served model on the runner station |
-| HD-1119 **(b)** — `scripts/gate/check_doc_domain.py` (**not yet created** — this lane writes it) | **unblocked** — the taxonomy call it was waiting on is made, in §HD-1119 below. Not a corpus sweep: it reads frontmatter only (the first `---` block), so it is legal on a spark-served session | any seat, spark-served included |
-| HD-1141 — `scripts/README.md` prose sweep, then wire `check_registry_prose.py` | open, **campaign class** (measure the live count with `python3 scripts/gate/check_registry_prose.py --show`; never type it here). Batch it — §HD-1141 | externally-served model on the runner station; the prep (which cells, which rows lack the third column) is any-seat work |
+| HD-1119 **(a)** — split `harness-pi.md` by subject | **landed.** Five children now carry the content — [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md), [`docs/harness-pi-models.md`](docs/harness-pi-models.md), [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md), [`docs/harness-pi-seat-identity.md`](docs/harness-pi-seat-identity.md), [`docs/harness-pi-terminal.md`](docs/harness-pi-terminal.md) — with the whole-tree reference sweep and the hub-map repair in the same wave | nobody — the row's remaining ⏳ is in [todo.md](todo.md) HD-1119 |
+| HD-1119 **(b)** — [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) | **landed and wired.** The run and its `--self-test` are `validate-all.sh` items; the verdict is `OK: 88 docs, 10 domains, each with one claimed home`. The domain set stays derived from `docs/**/*.md` frontmatter, so a retag moves the rule and not the code — the six floor-0 files in §The taxonomy call are what it was told about | nobody — retags are frontmatter edits, not a lane |
+| HD-1141 — `scripts/README.md` prose sweep, then wire `check_registry_prose.py` | **landed.** `python3 scripts/gate/check_registry_prose.py --show` prints `registry: 120 linked rows, 0 state-date exempt site(s), 0 finding(s)` and the checker + `--self-test` run as gate items. The row is a record until the owner confirms the delete | nobody — [todo.md](todo.md) HD-1141 states the pending delete |
 
-**Ordering inside this brief** (it was undeclared, and both live rows edit the same file): **HD-1141 first, then HD-1119(a)** — the split's reference sweep must land on the registry text that will survive, not on prose that is about to be rewritten. `gate/`'s and `lib/`'s exception note in the registry header is the only thing a domain-set change can touch here.
+**Ordering inside this brief** (it was undeclared when two rows here edited the same file): that ordering is spent — **HD-1141** landed first and **HD-1119(a)**'s sweep landed on the registry text that survived it, exactly in that order. The only live work this brief carries now is **HD-1118's seat legs, run FROM the seats** (`pi-seat-sync.sh --check`, `install-tmux-conf.sh --push` on the win11 seat) and its **parked** from-zero leg; nothing in this brief has a file-moving order dependency left, and `gate/`'s and `lib/`'s exception note in the registry header stays the only registry text a domain-set change may touch.
 
 ## The agreed target tree
 
@@ -205,13 +211,15 @@ Then restructure `scripts/README.md` into one section per folder (the file's own
 "Utilities" sections become folder sections), and update [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 + [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §5 +
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement for the new paths.
 
-## HD-1119 — the `harness` docs domain (one live row here; the `docs/`-wide move stays out of scope)
+## HD-1119 — the `harness` docs domain (both legs landed; the `docs/`-wide move stays out of scope)
 
-The `harness` domain exists now, so this is no longer a naming decision waiting to be made — what is left is what the row's
-⏳ names. **(a)** Split [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md) by subject, as its own change with its own reference sweep:
-a `docs/<file>.md` rename has call sites across the whole tree, which is why it is never folded into a stage commit here.
-**(b)** Write `scripts/gate/check_doc_domain.py` (**not yet created** — the rules below are its spec, so it is written once, at floor 0). **The taxonomy call is made** (owner accepted these defaults 2026-10-18) — the
-remaining work is the checker plus the six-file floor-0 diff, not another decision.
+The `harness` domain exists now and both legs are landed, so what is left is what the row's ⏳ names.
+**(a)** Landed: `harness-pi.md` was split by subject into the five `docs/harness-pi-*.md` children, as its own change with its
+own reference sweep — a `docs/<file>.md` split has call sites across the whole tree, which is why it was never folded into a
+stage commit here. **(b)** Landed: [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) is written, wired into
+`validate-all.sh` with its `--self-test`, and green at floor 0. **The taxonomy call was made** (owner accepted these defaults
+2026-10-18) and the rules below are what it was built from — they stay the binding reading of the domain set for whoever
+retags a doc, because the set is derived and the checker carries no list.
 
 ### The taxonomy call (binding for the checker and for the docs it checks)
 
@@ -260,13 +268,15 @@ requirement by `check_script_layout.py` rule 5) — missing `domain`, unknown-do
 domain, unknown `role`, and the empty-corpus floor. Do not add "every hub is linked from `docs/index.md`": `check_doc_map.py`
 already refuses a doc under `docs/` that the map cannot reach — its map rule is **coverage**, basename-matched, with `manual/*` exempt because `manual/README.md` is their hub — so an orphaned hub cannot exist, and a second checker for the same fact is the §2 second-opinion error. Two of its boundaries matter to whoever writes this one: a **stale basename inside the `## Document Map` code block is NOT its finding** (measured at the tip: a bogus name there still prints `OK`; `check_doc_path_refs.py` is what catches it), and **`prompt-*.md` handoffs sit outside both its scans**, so a link written in a brief is guarded by `check_doc_path_refs.py` alone — which is why every path this brief names has to be a real one.
 
-## HD-1141 — the `scripts/README.md` prose sweep (the other live row here)
+## HD-1141 — the `scripts/README.md` prose sweep (landed; the row is a record)
 
 This one is the brief's own file, with no converge and no host slot: [todo.md](todo.md) HD-1141 is the authority for its items,
-and wiring `scripts/gate/check_registry_prose.py` into `validate-all.sh` is that row's LAST item, not separate work.
+and wiring `scripts/gate/check_registry_prose.py` into `validate-all.sh` is that row's LAST item, not separate work. **Landed:**
+`python3 scripts/gate/check_registry_prose.py --show` prints `registry: 120 linked rows, 0 state-date exempt site(s), 0 finding(s)`
+and the checker runs there with its `--self-test`. The sequence below is the method, kept because the next registry sweep reuses it.
 
-**How to survive it in one lane** (the file is a large fraction of a locally-served lane's rendered window — §Who runs this brief
-— so this is a sequence of small commits, not one pass):
+**How it was survived in one lane** (the file is a large fraction of a locally-served lane's rendered window — §Who runs this brief
+— so it went as a sequence of small commits, not one pass):
 
 1. Measure once, with the gate: `python3 scripts/gate/check_registry_prose.py --show`. Count cells with a script, never by eye —
    `check_md_tables.py` is wider-only, so a row that lost its Owning-spec column is invisible to it (the row names the six).
@@ -288,8 +298,8 @@ and wiring `scripts/gate/check_registry_prose.py` into `validate-all.sh` is that
 - `git grep 'scripts/[a-z-]*\.\(sh\|py\|ps1\)'` returns **no** reference to a path that does not exist.
 - the seat driver's `--self-test` (wherever Stage 3 puts it) has all canaries caught, and its `--list` prints the same plane set the
   registry declares.
-- **HD-1119(b):** `python3 scripts/gate/check_doc_domain.py` (not yet created — the checker this lane writes) is green **and wired into `validate-all.sh` in the same commit that
-  made it green**, with `--self-test` catching both halves of every rule. The six floor-0 files named in §The taxonomy call are
+- **HD-1119(b):** `python3 scripts/gate/check_doc_domain.py` prints `OK: 88 docs, 10 domains, each with one claimed home` and is
+  **wired into `validate-all.sh` in the same commit that made it green**, with `--self-test` catching both halves of every rule. The six floor-0 files named in §The taxonomy call are
   the only things it was told about — if it needs a list to pass, it is hardcoded and wrong.
 - **HD-1141:** `python3 scripts/gate/check_registry_prose.py --show` prints **0 findings** and the checker runs as a gate item; the
   registry's `What it does` column states facts, not the story of how they were found.
