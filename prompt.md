@@ -109,11 +109,15 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    pointer) — parity-proven on all six surfaces, so nothing hand-authors a subdomain list any more. What the row
    owes is only the live half: the two converges named in the parked list below. Alongside it: **HD-477** (make the
    resolver actually float with the VIP; premise measured green, the row carries the three gates), **HD-487** (the
-   config-manager truth is now DECLARED per host in `host_vars/<host>.yml` — oldsrv/pi/spark = NetworkManager, vps =
-   systemd-networkd, **nas = `ifupdown`**, the legal third state — held down by
+   config-manager truth is now DECLARED per host in `host_vars/<host>.yml` — oldsrv/pi/spark/nas = NetworkManager, vps =
+   systemd-networkd; the `ifupdown` third state is off the fleet, nas having adopted NM on `eno1` (2026-10-18, read back:
+   NM enabled, `networking` disabled, the `nas-eth0` keyfile up) — held down by
    [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read per host with
-   `scripts/ansible/probe-net-manager.sh`; the dead `eno1` renders are off the fleet (pi/oldsrv removals landed, the nas
-   removal under its `ifupdown` freeze landed), so what is left is the **spark** networkd disarm and nas's **NM adoption**), **the host-resolver class beyond oldsrv** (the Pi leg landed and was verified 2026-10-08; spark's converge closed it 2026-10-18 — resolver pair + networkd disarm via the spark slot), and the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/the host-resolver row close, HD-1148 docker family applied live)
+   `scripts/ansible/probe-net-manager.sh`; every dead `eno1` netd render is off the fleet — pi/oldsrv/nas removals landed,
+   and spark's `/etc/systemd/network` read **empty** on 2026-10-18 with networkd `disabled`, which contradicts the row's
+   "spark is the one entry owed", so that discrepancy is the dns lane's to verify or close, not this list's), **the
+   host-resolver class beyond oldsrv** (the Pi leg landed and was verified 2026-10-08; spark's converge closed it
+   2026-10-18 — resolver pair + networkd disarm via the spark slot), and the
    DNS-policy rows **HD-480–483**. → [prompt-dns-transport.md](prompt-dns-transport.md)
 3. ⏳ **Silent-failure alerting** — **HD-450**'s collector legs are LIVE and read back per host 2026-10-17: the NUT
    client→master metric with `nut-master-unreachable` loaded, and the VPS's own on-disk cert pair exported. The
@@ -370,18 +374,18 @@ converge — the answer set is identical, the FILE is not (entry order + comment
 the control plane: sampled liveness probe, never a one-shot inspect; (b) `IaC/ansible/playbooks/dns.yml` from the **home control
 plane**, because the Cloudflare token is IP-filtered there, expected to report no record change; and its step 2 (the
 `extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **every network leg**
-HD-487 still owes — the tag is **per-host** and the rows carry the exact command: `--tags network` where a manager
+HD-487's row still names — the tag is **per-host** and the rows carry the exact command: `--tags network` where a manager
 counts, and the narrow `--tags netd` where only the dead renders may be touched. The spark networkd disarm (drop the dead
-`20-eno1.*`, engine untouched — landed with the resolver pair in one converge), the pi removals (three unread units), the nas removals
-(four, under its `ifupdown` freeze — the narrow tag is what keeps that box's frozen address/resolver legs off the run), and
+`20-eno1.*`, engine untouched), the pi removals (three unread units) and the nas removals (four) are **landed** — and the
+nas box settled on NetworkManager on 2026-10-18, so its address and resolver legs are no longer frozen — and
 oldsrv's own lockout-class run **alone**
 and off the box with a console reachable (driven FROM the oldsrv controller its `network` tag is refused by the
 self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml`, by design; and a self-target run dies at
 the transport before the guard is even reached — the inventory's `ProxyJump=vps` makes the last hop authenticate
 against the bare `ansible_host`, where the seat's own alias block pins the operator key — so drive it from another
 controller, or use one of the two forms that section measures:
-[docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement) · **nas's NetworkManager adoption** — until the measured
-`ifupdown` owner of `eno1` is replaced, every address and resolver leg there stays frozen · **HD-384 step 2** — the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/the host-resolver row close, HD-1148 docker family applied live)
+[docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement) ·
+**HD-384 step 2** — the
 two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
 list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
 call · **the docker-family applies** **HD-1148** owes on `pi` and on `spark` (vps is landed) — the daemon restart takes every
@@ -398,10 +402,10 @@ lane should not lose are named here: **HD-357** (the launchpad tiles — the fam
 **HD-1083** (the routed group's routes→`*_url` half, owner-present edge window — read §Reachability rule in
 [docs/services-traefik.md](docs/services-traefik.md) before touching a route or a publish) · **HD-1089** (one read
 from a real tailnet client; the fix is live) · **HD-1116** / **HD-1117** (the two gate halves of the same hygiene
-pass: what HD-1116 still owes is the Win11 payload and any Debian seat other than `oldsrv` — the WSL seat's own
-`~/.gitconfig-github` was paid 2026-10-17, run FROM that box — and `render_all.py --check` is
-still not wired into the gate — the wall clock it used to stamp is out of every render, which is what finally lets
-that check read green twice) ·
+pass: both payloads are paid — Win11, and the WSL seat's own `~/.gitconfig-github` 2026-10-17 run FROM that box — and the
+generated-doc drift check is wired as `render_all.py --check --no-write`, because the in-place form truncates `docs/`
+and raced every doc-reading checker in the pool. What HD-1116 still owes is only the read-back through the seat path on
+a Debian seat that is not `oldsrv`; this seat prints `false` only) ·
 **HD-1130** (a service `enabled: true` in IaC that is **deployed nowhere** — the probe that does not lie is
 `ss -ltn | grep 11434` on every host plus the absence of `/srv/docker/<svc>`; decide converge-or-delete, and if delete,
 scrub the `ollama/*` wildcards from the VPS key model lists) ·
