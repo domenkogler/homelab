@@ -284,8 +284,8 @@
 #                                     is deliberately NOT an item; the note at its registration
 #                                     carries the measured reason. Its verdict is a function of the
 #                                     window named by `gate/corpus_baseline.txt` (base rev -> now rev
-#                                     under a scope), where a changed line that is not a CONFINED
-#                                     purge owes an exact entry of the signed list
+#                                     under a scope), where a changed line that loses a token
+#                                     outside rendered text owes an exact entry of the signed list
 #                                     `gate/corpus_diff_accepts.txt`. Everything else about the audit
 #                                     stays in-tree and replayable either way: deleting an entry
 #                                     exposes its REJECT, and an entry whose REJECT is gone is STALE
@@ -1213,15 +1213,17 @@ item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_ia
 item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" $PY scripts/gate/check_subagent_contract.py
 item_q "check_subagent_contract.py --self-test (each rule bred, plus the silence canaries)" $PY scripts/gate/check_subagent_contract.py --self-test
 # NOTE: corpus_diff.py --gate is deliberately NOT gated — the seat-ssh-build.sh --self-test shape
-# two blocks above. Its verdict is a function of the window pinned in gate/corpus_baseline.txt, and
-# every changed line inside that window that is not a confined purge owes its own exact entry of
-# gate/corpus_diff_accepts.txt. Measured at this tip: the oldest compare_rev the staleness cap
-# permits reports 1,182 REJECTs and HEAD reports 324, and both windows remove zero tokens with them
-# — ordinary development, not the purge. So the audit is green in the one commit that re-signs a
-# wave tip and red in every commit after it, which is the definition of an item this pool cannot
-# hold. It is not weakened: the window and its signed entries stay published and replayable, and
-# re-signing is a wave-boundary act, owned by whoever lands the purge, in the commit that publishes
-# the six fields:
+# two blocks above. Its verdict is a function of the window pinned in gate/corpus_baseline.txt: a
+# changed line that loses an HD-/KOPS-/date token outside rendered text owes an exact entry of
+# gate/corpus_diff_accepts.txt, and so does every line the window adds or drops. Measured at this
+# tip with compare_rev at HEAD: 179 REJECTs — 169 of them lines the window added or dropped, 7
+# files the window added since the base revision, 1 file it deleted, 1 changed line — and only 7 of
+# the 179 lose a token at all, every one of those purged by a commit already inside the published
+# window. The rest is ordinary development, not the purge. So the audit is green in the one commit
+# that re-signs a wave tip and red in every commit after it, which is the definition of an item
+# this pool cannot hold. It is not weakened: the window and its signed entries stay published and
+# replayable, and re-signing is a wave-boundary act, owned by whoever lands the purge, in the commit
+# that publishes the six fields:
 #   python3 scripts/gate/corpus_diff.py --gate --show-baseline             # the fields to publish
 #   git diff --name-only --no-renames <baseline_rev> <compare_rev> -- IaC/ > /tmp/window.txt
 #   python3 scripts/gate/corpus_diff.py . <baseline_rev> --list /tmp/window.txt \

@@ -76,11 +76,22 @@ file, matches its value. Same menu + `=` (whole-string equality) is a key, same 
 different menu is never a key -- `/ipv6 address remove [find where comment~"^HD-414"]` cannot
 find a `/ipv6 firewall filter` row, so that row's comment is prose.
 
-A change that removes no in-scope token is rejected too (an edit, not a purge), and so is any
-word absent from the base line. Accepted changes are classified and counted per file and
-category; every change that is more than the bare token removal -- rewording, reordering,
-dropped punctuation, a Jinja literal -- is listed for manual review, because that is where a
-claim can escape together with the token.
+The REJECT set is TOKEN-ANCHORED. A changed line is REJECTED only when a token the BASE side
+carries is GONE from the new side *and* some change region reaches outside rendered text. A line
+that removes no token is INFORMATIONAL -- reported and counted, never a verdict -- because what
+this gate audits is what a purge may touch, and an edit that removes no token cannot be a purge.
+That anchor is what makes a window holding the ordinary development between two purge commits
+auditable at all: without it every changed line in such a window owes a signed exception, and the
+audit could only ever be replayed over a wave that is nothing but purges. What the anchor does NOT
+relax: a line that DOES lose a token still has every one of its regions judged, so a purge that
+hid by reflowing the code around it stays REJECTED, an expiry date stays protected, and a line
+that mints a token while losing another is a rewrite. A MATCH KEY site is judged first, under the
+other promise above: changing it edits WHICH object is found, token or not.
+
+Accepted changes are classified and counted per file and category; every change that is more than
+the bare token removal -- rewording, reordering, dropped punctuation, a Jinja literal, or no token
+removal at all -- is listed for manual review, because that is where a claim can escape together
+with the token.
 
 Every REJECT describes a line the diff actually changed, and says so: `this line WAS changed by
 the diff`, with both sides quoted.
@@ -91,8 +102,9 @@ not there. The pinned-run cases build a throwaway repo and assert the accepts li
 canary in BOTH directions, because a self-test that cannot fail is the hole this gate exists to
 close; switch the REJECT branch off and the suite must print FAIL and exit 1.
 
-Exit 0 = every change in the diff is a confined token purge (or is carried by a used, exact
-         entry of the signed --accept exceptions list; a stale entry never lets a run pass).
+Exit 0 = every change in the diff is a confined token purge, or removes no token at all (an
+         informational edit, reported not judged), or is carried by a used, exact entry of the
+         signed --accept exceptions list; a stale entry never lets a run pass.
 Exit 1 = at least one change is REJECTED, or the signed accept list holds a stale entry.
 Exit 2 = the gate could not measure: nothing was audited (no files in scope, or a scope with no
          changed line in it), or a baseline that does not describe the population it is pinned
@@ -631,17 +643,43 @@ CHANGED = "; this line WAS changed by the diff (base -> new, both sides quoted b
 
 def audit_line(a, b, in_payload, yamlish=False, slash=False, py=False, md=False,
                doca=None, docb=None, key=None):
-    """One changed line -> (accepted record | None, reject reason | None)."""
+    """One changed line -> (accepted record | None, reject reason | None).
+
+    The REJECT set is TOKEN-ANCHORED. A changed line REJECTs only when a token the BASE side
+    carries is GONE from the NEW side *and* some change region reaches outside rendered text. A
+    line that removes no token is INFORMATIONAL and can never be a REJECT: what this gate promises
+    is that a string-only token purge may not touch anything but rendered text, so an ordinary edit
+    that removes no token is outside the promise -- and without that rule no window containing the
+    development between two purge commits could be audited at all.
+
+    What the anchor does NOT relax: every region of a line that DOES lose a token is still judged,
+    so a purge that hid by reflowing the code around it stays RED, an expiry date stays protected,
+    and a line that gains a token while losing another is a rewrite, not a purge. A MATCH KEY site
+    is the one exception and is judged first, because it rests on a different promise: changing it
+    edits WHICH object a selector finds, token or not (`--keys` is that ledger).
+    """
     if key:
         side = ("the base side carries the match key and the new side removes it"
                 if IDSH.search(a) and not IDSH.search(b) else
                 "the id-shaped text is on both sides, so this is a rewrite of the key itself")
         return None, ("this value is a MATCH KEY, not a mention: " + key +
                       " -- deleting an id here changes WHICH object is found; " + side)
+    gone = [t for t in TOKEN.findall(a) if t not in TOKEN.findall(b)]
+    added_t = [t for t in dict.fromkeys(TOKEN.findall(b)) if t not in TOKEN.findall(a)]
+    if not gone:
+        # No token left this line, so there is nothing here a purge could have done and nothing to
+        # judge -- the edit is reported for the reviewer's eye, never as a verdict. `added_t` keeps
+        # the one shape worth a shout: a line that MINTS a token is not a purge either.
+        return {"cat": classify(a, in_payload), "a": a, "b": b, "info": True, "ids": 0, "dates": 0,
+                "why": ["no HD-/KOPS-/date token left this line -- an edit, not a purge, so this "
+                        "gate renders no verdict on it"
+                        + (f"; {' '.join(added_t)} was ADDED here, which no purge does"
+                           if added_t else "")]}, None
     if re.match(r"[ \t]*", a).group(0) != re.match(r"[ \t]*", b).group(0):
         return None, "indentation changed"
-    if [t for t in TOKEN.findall(b) if t not in TOKEN.findall(a)]:
-        return None, "an id/date token was added, not removed"
+    if added_t:
+        return None, ("an id/date token was added here (" + " ".join(added_t) +
+                      ") while another was removed -- a purge removes tokens, it does not mint one")
     ka, va, _ = scan_line(a, yamlish, slash, py, md, doca)
     kb, _, _ = scan_line(b, yamlish, slash, py, md, docb)
     # the characters that are NOT rendered text must be identical, or the parse moved
@@ -651,7 +689,6 @@ def audit_line(a, b, in_payload, yamlish=False, slash=False, py=False, md=False,
         return None, ("the syntax of the line itself changed: "
                       f"{nontext[0][:70]!r} != {nontext[1][:70]!r}")
     lit_val = va is not None and va < len(b) and lit(a[va:], b[va:])   # value is a literal
-    gone = [t for t in TOKEN.findall(a) if t not in TOKEN.findall(b)]
     if [t for t in gone if DATE.match(t)] and STATE_DATE.search(a):
         return None, "this date IS state (expiry/renewal) -- RULES keeps it"
     # where this line's scalar value ends (before any trailing comment), if it has one
@@ -682,8 +719,6 @@ def audit_line(a, b, in_payload, yamlish=False, slash=False, py=False, md=False,
             bad.append("an indicator/number value changed, not text")
         if va is not None and i1 <= va and i2 >= vend and len(seg.split()) <= 1:
             bad.append("the whole value of this key changed, not a token inside it")
-        elif not TOKEN.search(seg) and not gone:
-            bad.append("the changed text removes no HD-/KOPS-/date token (an edit, not a purge)")
     if bad:
         return None, "; ".join(dict.fromkeys(bad))
     wa, wb = words(a), words(b)
@@ -972,7 +1007,7 @@ def report(repo, ref, paths, accept_path=None, now_ref=None, quiet=False):
                   "run proves nothing -- fix the list first")
             return 2, stats
     acc_all, rej_all, cats, per_file = {}, {}, {}, {}
-    ids = dates = clean = binary = 0
+    ids = dates = clean = binary = info = 0
     texts = {}
     for rel in paths:                                # the join needs every file, not one
         got, err = git_text(repo, ref, rel, now_ref)
@@ -1003,6 +1038,7 @@ def report(repo, ref, paths, accept_path=None, now_ref=None, quiet=False):
         for rec in acc.values():
             cats[rec["cat"]] = cats.get(rec["cat"], 0) + 1
             ids, dates = ids + rec["ids"], dates + rec["dates"]
+            info += 1 if rec.get("info") else 0     # reported, not judged -- no token left the line
         if acc or rej:
             per_file[rel] = (len(acc), len(rej))
         else:
@@ -1042,7 +1078,7 @@ def report(repo, ref, paths, accept_path=None, now_ref=None, quiet=False):
         if not cats:
             print("      0 (none)")
     print(f"\ntotals: accepted={acc_n} rejected={len(rej_all)} "
-          f"ids-removed={ids} dates-removed={dates} needs-review={rev}"
+          f"ids-removed={ids} dates-removed={dates} needs-review={rev} informational={info}"
           + (f" accept-covered={len(covered)} accept-stale={len(pending)}" if accept_path else ""))
     if not quiet:
         print("\n-- manual review: accepted changes that are MORE than a token removal --")
@@ -1119,14 +1155,21 @@ def keys_report(repo, paths):
     return 0
 
 
-CASES = {  # (base, edited, verdict, rel, expected match-key sites) -- a/b/e are the required trio
+CASES = {  # (base, edited, verdict, rel, expected match-key sites) -- verdict "none" = no record
+           # at all, which only an UNCHANGED line produces; "ok" with an info record means the
+           # audit saw an edit and correctly rendered no verdict on it (the token anchor, w/x/y/z)
     "a task-name id":  ("- name: Restart nginx after HD-312 reload\n",
                         "- name: Restart nginx after reload\n", "ok", "", None),
-    "b indicator":     ("    enabled: true\n", "    enabled: false\n", "bad", "", None),
-    "e jinja default": ("  port: {{ x | default(8) }}\n", "  port: {{ x | default(6) }}\n",
+    # each of these four is a CODE change, so under the token anchor it needs a token on the base
+    # side to be judged at all -- the same pair with no token removed is arm w, which is not a
+    # verdict. The tokens below are fixtures, not citations: they name nothing.
+    "b indicator":     ("    enabled: true   # HD-9001\n",
+                        "    enabled: false   # the pin\n", "bad", "", None),
+    "e jinja default": ("  port: {{ x | default(8) }}   # HD-9002\n",
+                        "  port: {{ x | default(6) }}   # tuning\n", "bad", "", None),
+    "c path in cmd":   ("  cmd: /opt/forwarder/run.sh --state /opt/old/state   # HD-9003\n",
+                        "  cmd: /opt/forwarder/run.sh --state /opt/new/state   # the pin\n",
                         "bad", "", None),
-    "c path in cmd":   ("  cmd: /opt/forwarder/run.sh --state /opt/old/state\n",
-                        "  cmd: /opt/forwarder/run.sh --state /opt/new/state\n", "bad", "", None),
     "d payload #":     ("  - |\n    # HD-298: keep the ignore flag\n    run: x\n",
                         "  - |\n    # keep the ignore flag\n    run: x\n", "ok", "", None),
     "f msg":           ('    msg: "disk quota HD-411 exceeded"\n',
@@ -1141,9 +1184,9 @@ CASES = {  # (base, edited, verdict, rel, expected match-key sites) -- a/b/e are
                         "if (traefik_acme_issuer | default(false)) else '# consumer mode: TLS "
                         "from the synced cert pair' }}\n", "ok", "c/docker-compose.yml.j2", None),
     "i jinja filter":  ("      {{ 'x' if (traefik_acme_issuer | default(8)) else '# consumer "
-                        "mode' }}\n",
+                        "mode' }}   # HD-9004\n",
                         "      {{ 'x' if (traefik_acme_issuer | default(6)) else '# consumer "
-                        "mode' }}\n", "bad", "c/docker-compose.yml.j2", None),
+                        "mode' }}   # tuning\n", "bad", "c/docker-compose.yml.j2", None),
     "j docstring body": ('r"""qbittorrent-seeding.py -- reconcile the goal.\n'
                          '\nKEY NAMES WERE READ, NOT REMEMBERED (measured 2026-10-07, API 5.2.3):\n'
                          '"""\nimport sys\n',
@@ -1162,12 +1205,19 @@ CASES = {  # (base, edited, verdict, rel, expected match-key sites) -- a/b/e are
     "m find-where key": ('/ipv6 address remove [find where comment~"^HD-414"]\n',
                          '/ipv6 address remove [find where comment~"^"]\n',
                          "bad", "router/templates/rb4011_converge.rsc.j2", 1),
-    "n md jinja tag":  ("{% for r in network_ranges %}\n| {{ r.name }} | {{ r.cidr }} |\n",
-                        "{% for r in network_ranges if r.id != 99 %}\n| {{ r.name }} | {{ r.cidr }} |\n",
+    "n md jinja tag":  ("{% for r in network_ranges %} (HD-9005)\n",
+                        "{% for r in network_ranges if r.id != 99 %} (the reserved row)\n",
                         "bad", "templates/network-addresses.md.j2", None),
-    "o docstring quote": ('"""Seed goals.\nboth goals stay off, the HD-1086 ruling\n"""\n',
-                          "'''Seed goals.\nboth goals stay off, the ruling\n'''\n", "bad",
+    "o docstring quote": ('"""Seed goals: the HD-1086 ruling."""\n',
+                          "'''Seed goals: the ruling.'''\n", "bad",
                           "roles/docker_services/t/qbittorrent-seeding.py.j2", None),
+    # the anchor is LINE-local, and this is that limit stated where a reader will meet it: the same
+    # re-quote, with the token leaving a DIFFERENT line than the one whose parse moved, is invisible
+    # to this gate -- reported as an edit, and the run goes green. The blind spot the registry row
+    # carries, asserted rather than assumed.
+    "ab requote elsewhere": ('"""Seed goals.\nboth goals stay off, the HD-1086 ruling\n"""\n',
+                             "'''Seed goals.\nboth goals stay off, the ruling\n'''\n", "ok",
+                             "roles/docker_services/t/qbittorrent-seeding.py.j2", None),
     "p tags item":     ("  tags: [ha_failover, hd17]\n", "  tags: [ha_failover]\n",
                         "bad", "roles/home_assistant/tasks/standby.yml", 1),
     "q compared string": ('if profile == "HD-1080p":\n', 'if profile == "":\n', "bad",
@@ -1199,7 +1249,26 @@ CASES = {  # (base, edited, verdict, rel, expected match-key sites) -- a/b/e are
                              '/ip firewall filter remove [find where comment~"^HD-326"]\n'
                              'add chain=forward action=drop src-address=10.10.40.0/24 '
                              'comment="kids bedtime WAN block"\n',
-                             "bad", "router/templates/rb4011_converge.rsc.j2", 2)}
+                             "bad", "router/templates/rb4011_converge.rsc.j2", 2),
+    # --- the token anchor: what a window may contain besides the purge -------------------------
+    # w and z are ONE pair, the same renamed key, differing only in whether a token left the line.
+    # That is the fix seen from both sides: the anchor must let ordinary development through (w
+    # prints a record and no verdict) and it must not soften a purge that reached the parse (z
+    # quotes the two key names at each other). Delete the anchor and w goes RED; delete the region
+    # judgement and z goes GREEN. Either way this pair is the proof, not this comment.
+    "w no-token edit":   ("  restart_delay: 30   # the drain window\n",
+                          "  restart_interval: 30   # the drain window\n", "ok", "", None),
+    "z purge in code":   ("  restart_delay: 30   # HD-9006\n",
+                          "  restart_interval: 30   # the pin\n", "bad", "", None),
+    # a reflow around a purged line is still a purge that moved code: RED with the token gone,
+    # nothing to report with no token gone (the old classifier called the second pair a REJECT too)
+    "y purge reflowed":  ("# HD-9007 restarts the arr after the pin\n",
+                          "    # restarts the arr after the pin\n", "bad", "", None),
+    "x reflow no token": ("# restarts the arr after the pin\n",
+                          "    # restarts the arr after the pin\n", "ok", "", None),
+    # a line the diff never touched answers with nothing at all: no record, no verdict, no count
+    "aa unchanged line": ("# restarts the arr after the pin\n",
+                          "# restarts the arr after the pin\n", "none", "", None)}
 
 
 GUARD_CANARIES = {  # run ONLY by --guard-self-test; both FAIL the suite BY DESIGN, because a
@@ -1229,7 +1298,9 @@ def _one_case(name, base, new, want, rel, want_keys):
     # the key join is corpus-wide, so the audit and the count must see the same selectors
     sels = corpus_selectors({rel or "x": base})
     acc, rej = audit_text(base, new, rel=rel, selectors=sels)
-    got = "ok" if acc and not rej else "bad"
+    # "none" is the face of a line the diff did not change: neither record. It is asserted, not
+    # assumed -- a pair that produced no record for some other reason would pass a weaker check.
+    got = "none" if not acc and not rej else ("bad" if rej else "ok")
     found = len(key_sites(rel, base.split("\n"), sels))
     keys_ok = want_keys is None or found == want_keys
     ok = (got == want) and keys_ok
@@ -1303,11 +1374,14 @@ def self_test(guard=False):
 
 FIXTURE_BASE = ["- name: Restart nginx after HD-312 reload\n",
                 "- name: Reload nginx after HD-313 drain\n",
-                "- name: Verify nginx listeners\n"]
+                "- name: Verify nginx listeners   # HD-314\n"]
 FIXTURE_NOW = ["- name: Restart nginx reload\n",          # a confined purge -- accepted
                "- name: Reload nginx\n",
-               "# a line the purge also added -- a purge never adds a line, so this is a REJECT\n"]
-FIXTURE_REASON = "a comment line was added beside the purge; it carries no token of its own"
+               # the parse moved: a `- name:` item became a top-level comment while its token left.
+               # Not a thing a purge may do, and the one REJECT the gate cases sign and remove.
+               "# verify nginx listeners after the drain\n"]
+FIXTURE_REASON = ("the task's `- name:` line was rewritten into a top-level comment beside the "
+                  "purge, so the parse moved with the token")
 
 
 class _FixtureRepo:
