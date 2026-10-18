@@ -119,7 +119,7 @@ homelable_mcp_enabled: false
 # --- Pinned-AI tier on the RX 7600 (ggml/Vulkan) ---
 # Ports are INTERNAL to the `llm-backend` bridge — none of these legs is published on the
 # host (the APIs have no auth, so the network is the boundary). They exist so a
-# consumer URL is stable and greppable.
+# consumer URL is stable and greppable. ONE gated exception: `ai_tier_metrics_publish` below.
 # Memory caps are HARD CAPS: measured peak, then
 # headroom, so a leak in one leg can never eat the card the whole tier shares with
 # immich-ML (3-5 GB during a job) and Jellyfin/Sunshine.
@@ -154,6 +154,19 @@ ai_tier_gguf_ctx_size: 2048
 # ubatch, not with ctx) - see docs/services-ai.md §3a-1 for the before/after numbers.
 ai_tier_gguf_batch_size: 2048
 ai_tier_gguf_ubatch_size: 2048
+
+# The ONE switch that turns on engine telemetry for the GGUF legs. `true` renders, in the same converge:
+# the `--metrics` flag in the `embed` + `reranker` command lists, a 127.0.0.1 publish of each leg's own
+# port, and `prometheus.scrape "llama_cpp"` in roles/monitoring. All three halves or none — the flag
+# without the publish is a surface nothing can scrape, and the job without either is a target that can
+# never answer (it would still count in `count(up{…})`). Off by default because each half recreates a
+# serving container, which is a `docker_services` decision, not a monitoring one.
+# `--metrics` is PROVED present on the pin: read-only `docker exec embed /app/llama-server --help` →
+# "enable prometheus compatible metrics endpoint (default: disabled)" (docs/observability.md §LLM token
+# accounting rule 4).
+# Shape borrowed from `spark_metrics_publish` (templates/docker_services/spark-ai/).
+#   → docs/observability.md §LLM token accounting
+ai_tier_metrics_publish: false
 
 docker_services:
   # === This is OLDSRV — GPU / LAN / storage-bound services only. ===

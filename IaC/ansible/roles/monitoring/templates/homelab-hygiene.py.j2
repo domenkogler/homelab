@@ -13,6 +13,10 @@ no SSL expiry). This exporter is the collector for both.
     homelab_cert_pair_present{consumer="traefik-internal"}        1 | 0
     homelab_nut_master_reachable{master="nas.kogler.si"}           1 | 0
     homelab_nut_master_result{master="…", result="ok|unreachable|unknown"} 1
+    homelab_gpu_present{gpu="rx7600"}                              1 | 0
+    homelab_gpu_vram_used_bytes{gpu="rx7600"}                      <bytes>
+    homelab_gpu_vram_total_bytes{gpu="rx7600"}                     <bytes>
+    homelab_gpu_busy_percent{gpu="rx7600"}                         <0-100>
     homelab_pkg_pin_ok{package="alloy"}                           1 | 0
     homelab_pkg_pin_result{package="…", pin="…", result="…", running="…"} 1
     homelab_upgrade_plan_ok                                       1 | 0
@@ -63,6 +67,13 @@ a failure can go unseen for days:
   * `homelab_hygiene_scrape_ok` is the collector's own heartbeat — this exporter is a systemd service,
     i.e. the same failure class, and `time() - heartbeat > 900` is the rule that watches itself.
 
+WHY THE GPU LEG LIVES HERE AND NOT IN A NEW BINARY: the amdgpu counters of the oldsrv RX 7600 need a
+host-side publisher, and the two publish shapes available on this Alloy build are a `textfile` directory
+(unusable — the paragraph above) and a stdlib binary on a loopback port scraped by this host's Alloy. The
+loopback binary is this file, it already runs on that host, and the leg is declared per host like the NUT
+leg, so a host that declares no GPU reports no GPU series. `rocm-smi`/`amd_smi` are not options: the host
+ships neither (docs/observability.md §LLM token accounting rule 6).
+
 Collection happens per scrape (`systemctl show`, `openssl x509 -enddate`, `dpkg-query`, one stat on
 `/run/reboot-required` — single-digit ms each): no cache to go stale, no second timer to fail silently.
 The one exception is the dependency-solver leg, which costs ~1 s and can wait on the dpkg lock: it runs
@@ -88,6 +99,20 @@ CERTS = {{ monitoring_hygiene_certs | to_json }}
 # string is a second copy here.
 NUT_MASTERS = {{ monitoring_hygiene_nut_masters | to_json }}
 NUT_UPS = {{ nut_ups_name | to_json }}
+# The GPUs whose counters this host publishes (empty by default, so a host that declares no GPU emits
+# no GPU series at all). sysfs and not `rocm-smi`/`amd_smi` because the fleet's GPU host ships neither
+# binary — docs/observability.md §LLM token accounting rule 6, and the same read the RX 7600 bench used
+# (docs/services-ai-bench.md). Each entry is a name and the device DIRECTORY, reached by render node
+# rather than by `cardN`: the card index is probe order and churns across kernels, the render node is
+# the node the Vulkan legs mount (`gpu_vulkan_render_node`).
+GPUS = {{ monitoring_hygiene_gpus | to_json }}
+# sysfs file -> metric name. A file the kernel does not publish on this card yields no series and
+# `homelab_gpu_present = 0`; it is never guessed at or zero-filled.
+GPU_FILES = {
+    "mem_info_vram_used": "homelab_gpu_vram_used_bytes",
+    "mem_info_vram_total": "homelab_gpu_vram_total_bytes",
+    "gpu_busy_percent": "homelab_gpu_busy_percent",
+}
 # The mapping is package -> the NAME of its versions.yml var (default: host_apt_pin_vars, the fleet map
 # that also drives `apt-mark hold` and the `package=version` install). Each pin is resolved here from the
 # var NAME, never typed into this file, and a pin var that does not exist aborts the render rather than
@@ -260,6 +285,48 @@ def nut_lines(master: str) -> list[str]:
     ]
 
 
+def gpu_lines(name: str, device: str) -> list[str]:
+    """One GPU's amdgpu sysfs counters, read on this scrape.
+
+    Three files, read the way the bench read them: the values are plain integers already in the unit
+    the metric names, so there is no arithmetic here and nothing to convert. `gpu_busy_percent` is the
+    card's own utilisation figure and NOT a VRAM claim, which is why it is a separate name; the two
+    `mem_info_vram_*` files are the only VRAM counters this fleet has (GB10 exposes none —
+    docs/observability.md §LLM Dashboard).
+
+    Fail-loud the way every other leg here is: a device directory that is gone (a re-probed card, a
+    kernel that renamed it) reports `homelab_gpu_present = 0` and emits only the series it could read.
+    A zero-filled VRAM used would read as "the card is idle" — the exact silent-failure class this
+    collector exists to close — so an unreadable file emits NOTHING rather than a plausible 0."""
+    q = sel('gpu="%s"' % name)
+    head = [
+        "# HELP homelab_gpu_present 1 while every declared sysfs counter of this GPU reads.",
+        "# TYPE homelab_gpu_present gauge",
+        "# HELP homelab_gpu_vram_used_bytes amdgpu sysfs mem_info_vram_used.",
+        "# TYPE homelab_gpu_vram_used_bytes gauge",
+        "# HELP homelab_gpu_vram_total_bytes amdgpu sysfs mem_info_vram_total.",
+        "# TYPE homelab_gpu_vram_total_bytes gauge",
+        "# HELP homelab_gpu_busy_percent amdgpu sysfs gpu_busy_percent.",
+        "# TYPE homelab_gpu_busy_percent gauge",
+    ]
+    out: list[str] = head + ["homelab_gpu_present%s 1" % q]
+    present_at = len(head)
+    present = 1
+    for fname, metric in GPU_FILES.items():
+        path = os.path.join(device, fname)
+        try:
+            with open(path, encoding="ascii") as fh:
+                value = int(fh.read().strip())
+        except (OSError, ValueError) as exc:        # renamed card, unreadable file, non-numeric kernel answer
+            print("WARN: %s: %s" % (path, exc), file=sys.stderr)
+            present = 0
+            continue
+        out.append("%s%s %d" % (metric, q, value))
+    if present == 0:
+        out[present_at] = "homelab_gpu_present%s 0" % q   # the present line, corrected not duplicated
+    return out
+
+
 def dpkg_version(package: str) -> tuple[str, str]:
     """Installed version of one package, and an error string when there is none to read.
     `dpkg-query -W` reads `/var/lib/dpkg/status` and never takes the dpkg lock — the read this whole leg
@@ -403,6 +470,8 @@ def render() -> str:
         lines += cert_lines(cert["consumer"], cert["path"])
     for master in NUT_MASTERS:
         lines += nut_lines(master)
+    for gpu in GPUS:
+        lines += gpu_lines(gpu["name"], gpu["device"])
     for pin in PINS:
         lines += pin_lines(pin["package"], pin["pin"])
     lines += plan_lines()
@@ -434,13 +503,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
 def main() -> int:
     # Fail at start, not at scrape time: a list that arrived unrendered means the template was copied
     # without Ansible, and 0 series would otherwise look like "nothing to watch".
-    if "{" + "{" in json.dumps([UNITS, CERTS, PINS, NUT_MASTERS]):
+    if "{" + "{" in json.dumps([UNITS, CERTS, PINS, NUT_MASTERS, GPUS]):
         print("FATAL: the config lines are still Jinja — run this through the role, not by hand", file=sys.stderr)
         return 3
     srv = http.server.ThreadingHTTPServer(LISTEN, Handler)
     print("homelab-hygiene exporter on http://%s:%s/metrics · %d unit(s), %d cert(s), %d pinned "
-          "package(s), %d NUT master(s)"
-          % (LISTEN[0], LISTEN[1], len(UNITS), len(CERTS), len(PINS), len(NUT_MASTERS)), flush=True)
+          "package(s), %d NUT master(s), %d GPU(s)"
+          % (LISTEN[0], LISTEN[1], len(UNITS), len(CERTS), len(PINS), len(NUT_MASTERS), len(GPUS)), flush=True)
     srv.serve_forever()
     return 0
 

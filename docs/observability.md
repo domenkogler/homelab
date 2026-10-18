@@ -467,6 +467,8 @@ holds the `IaC/` template half clean:
 | `homelab_cert_days_left{consumer=}` | days to expiry of the pair this edge loads |
 | `homelab_nut_master_reachable{master=}` | 1 when this host's NUT **client** can read its master — a unit result never implies this claim |
 | `homelab_nut_master_result{master=,result="ok\|unreachable\|unknown"}` | why the leg reads what it reads: `unreachable` = `upsc` answered with a failure, `unknown` = no `upsc` binary or the call outlived its 5 s bound |
+| `homelab_gpu_present{gpu=}` | 1 while EVERY declared sysfs counter of that GPU reads — a renamed/re-probed card reports `0` and emits no value, because a zero-filled "used" would read as an idle card |
+| `homelab_gpu_vram_used_bytes{gpu=}` · `homelab_gpu_vram_total_bytes{gpu=}` · `homelab_gpu_busy_percent{gpu=}` | the `amdgpu` sysfs counters (`mem_info_vram_used` / `mem_info_vram_total` / `gpu_busy_percent`) — the only GPU telemetry the oldsrv RX 7600 can produce, because that host ships no `rocm-smi`/`amd_smi` (§LLM token accounting rule 6). Declared per host in `host_vars/oldsrv.kogler.si.yml`, addressed by **render node** so a card re-numbering cannot silently orphan the leg |
 | `homelab_hygiene_scrape_ok` | the collector's own heartbeat — the collector is a systemd service, i.e. the same failure class |
 
 ⚠ **What the cert legs cover**, at the metric-name level (VM
@@ -1042,8 +1044,11 @@ cut 100 % — every one of its 14 queries is covered by a better-scoped panel el
 **The join rule (the part that matters for the RX 7600 later).** Every carried query is
 rewritten to group `by (job, instance)` and to honour `$instance`, because a `sum()`
 across two engines is not a metric. Adding an engine must add a *series*, not a dashboard
-— so the RX 7600 (oldsrv, ROCm) and SGLang both land in these same rows with only a
-scrape job each. `guard_instance()` refuses any query that ignores the picker. Joins are
+— so SGLang lands in these same rows with only a scrape job, and the RX 7600's llama.cpp
+legs (oldsrv, Vulkan) join the `by (job, instance)` panels the same way once
+`ai_tier_metrics_publish` flips. They do **not** fill the `vllm:*`/`sglang:*` panels: llama.cpp
+publishes its own `llama_*` names, so a join there would be a claim about a metric that does
+not exist. `guard_instance()` refuses any query that ignores the picker. Joins are
 applied **only** where both engines expose the same metric name; where they do not
 (vLLM `prompt_tokens_total` vs SGLang `realtime_tokens_total` — different quantities,
 the latter carries a `mode` dimension) the two upstream panels are kept side by side
@@ -1193,13 +1198,14 @@ open.
 > reports a per-client token number that no instrument produced.
 > **Linked from:** §LLM Dashboard · [services-ai.md](services-ai.md) §9 decision #26
 
-Three instruments touch LLM traffic. **Only one of them reports today.**
+Three instruments touch LLM traffic. **One reports fully; the second reports only its GPU half; the third
+is dark for a reason that is now measured rather than assumed.**
 
 | Instrument | Where it sits | In VM? | What it can prove |
 |---|---|---|---|
-| **Engine counters** `vllm:*` | spark's own `/metrics` on the API port, scraped by `vllm` + `vllm_hot` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:517`, `:546`) | ✅ live | **tokens** — prompt / generation / cached / by-source, for **every caller**, because the counter is on the engine and does not care who sent the request. Labels: `model_name` + `instance` + `job` — no client, key or user dimension exists. |
-| **LiteLLM gateways** (`litellm` on the VPS, `lan-litellm` on oldsrv) | the proxy's own process | ❌ nothing | per-key / per-user spend and `rpm` — the attribution the fleet could get for *free*. `grep -rn litellm IaC/ansible/roles/monitoring/` = **0 hits**: no `job="litellm"`, so those numbers live only in the gateway's Postgres + Admin UI. |
-| **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers | ❌ nothing | llama.cpp publishes request/token counters behind a `--metrics` flag **the rendered command lists do not carry** (`IaC/ansible/templates/docker_services/embed/docker-compose.yml.j2:39`, `IaC/ansible/templates/docker_services/reranker/docker-compose.yml.j2:43`). whisper.cpp has no metrics surface. |
+| **Engine counters** `vllm:*` | spark's own `/metrics` on the API port, scraped by `vllm` + `vllm_hot` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:557`, `:586`) | ✅ live | **tokens** — prompt / generation / cached / by-source, for **every caller**, because the counter is on the engine and does not care who sent the request. Labels: `model_name` + `instance` + `job` — no client, key or user dimension exists. |
+| **LiteLLM gateways** (`litellm` on the VPS, `lan-litellm` on oldsrv) | the proxy's own process — and in this pin, from a **separate metrics process/port** | ❌ nothing, and now for a measured reason | per-key / per-user spend and `rpm` — the attribution the fleet could get for *free*. Those numbers live only in each gateway's Postgres + Admin UI. See **Why the LiteLLM surface is dark** below: the endpoint is not mounted in the running process, so there is deliberately **no `job="litellm"`** anywhere. |
+| **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers + the host's `amdgpu` sysfs | 🟡 **GPU counters live, engine counters gated** | The card now reports: `homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent` (`gpu="rx7600"`), published by the host hygiene collector. The request/token counters need llama.cpp's `--metrics`, **proved present on the pin** and rendered into both command lists behind `ai_tier_metrics_publish` (`IaC/ansible/group_vars/home_servers.yml`) — off until an oldsrv `docker_services` window. whisper.cpp has no metrics surface. |
 
 The honest sentence this section exists to force: **totals are known, attribution is not.**
 `sum(increase(vllm:generation_tokens_total[1d]))` is a measurement; "this machine / this harness used N
@@ -1213,6 +1219,45 @@ proxy re-buys the hop, the key management and the failure surface that decision 
 the token SSOT (it needs no change); attribution comes from the edge access log. Wanting per-key
 spend *as measurement* later means re-opening #26 — that is an owner call, never an implementation detail.
 The rejection itself is logged in [observability-rejected.md](observability-rejected.md).
+
+### Why the LiteLLM surface is dark — measured on both gateways, same pin
+
+The probe was the first step, and it does **not** end in "no Prometheus surface": the endpoint exists in
+`docker.litellm.ai/berriai/litellm:v1.104.0` but is **not mounted in the running process**. Measured on
+`lan-litellm` (oldsrv, `:4000`) and on `litellm` (VPS, container `:4000`):
+
+| Read | Answer |
+|---|---|
+| `GET /metrics` unauthenticated | `401` — "…To allow unauthenticated access, set `litellm_settings.require_auth_for_metrics_endpoint: false`" |
+| `GET /metrics` **with a valid admin bearer** | `404 {"detail":"Not Found"}` — the route is not there |
+| rendered `config.yaml` on both | no `callbacks:` key at all (only `litellm_settings: drop_params` + `general_settings`) |
+
+The reason is in the pin's own source: `PrometheusLogger._mount_metrics_endpoint()` — the call that does
+`app.mount("/metrics", …)` — is invoked from the **callback loader**, only when `"prometheus"` is one of
+the configured callbacks. No callback is configured, so nothing mounts, and the auth middleware 401s on a
+route that would 404 anyway. `litellm/proxy/prometheus_metrics_server.py` additionally documents that a
+worker-separated deployment serves `/metrics` from **its own process** via the CLI flag
+`--prometheus_metrics_port` (which must differ from `--port` and auto-creates `PROMETHEUS_MULTIPROC_DIR`).
+
+So enabling the surface is a **gateway change**, not a monitoring one, and until it lands a scrape job
+here would scrape nothing — which is why there is no `job="litellm"` in
+[`alloy.river.j2`](../IaC/ansible/roles/monitoring/templates/alloy.river.j2). Two independent halves must
+land, in this order:
+
+1. **Mount it** (both gateways): add the `prometheus` callback to the rendered `config.yaml` — and name
+   the auth story with it, because the endpoint answers `401` to a scraper by default. Either keep auth
+   and give Alloy a bearer (`bearer_token_file`, the `/etc/prometheus/ha_token` precedent in
+   `roles/monitoring/tasks/main.yml`), or set `require_auth_for_metrics_endpoint: false` and accept that
+   per-key spend becomes readable by anything that can reach the port. ⚠ `lan-litellm` publishes
+   `oldsrv_home_ip:4000` — a LAN bind, so the unauthenticated form is a LAN-wide read of the spend ledger.
+2. **Reach it** (VPS only): the VPS `litellm` publishes **no host port at all**, and `discovery.docker`
+   finds 0 targets for a container with no port mapping, so the VPS instance additionally needs a
+   loopback publish of the metrics port (the `spark_metrics_publish` shape) before any job can address it
+   — an ephemeral `172.22.x.x` target is the dangling-static-IP failure class, not a fix.
+
+When both land, one `prometheus.scrape` per instance with an **explicit `job` and `instance`** (the two
+instances must never merge) at the **60 s cold** cadence, and a keep-list built from the names quoted by
+the live render at that moment — never from this document.
 
 ### The trap that makes per-client accounting silently wrong: which address is the client?
 
@@ -1244,22 +1289,34 @@ per-client where the path allows it, per-plane (Home vs tailnet) where it does n
    The host-file bind for Traefik exists because **fail2ban cannot read the Docker JSON log** — copying it here
    adds a host bind for nothing. `traefik-spark` carries neither `--accesslog.*` nor
    `--metrics.prometheus=true` today (`IaC/ansible/templates/docker_services/spark-dashboard/docker-compose.yml.j2:47`).
-4. **Probe the pin before writing a scrape job.** Whether the pinned LiteLLM image exposes a Prometheus
-   surface, on which port, and with which names is a runtime read — the container's own API port is 4000
-   (`IaC/ansible/templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2:570`), and the same rule covers llama.cpp's `--metrics` on the
-   pinned `llama_cpp_vulkan_image`. Quote names from a live render; the metric-name list above is the
-   graveyard of guesses.
+4. **Probe the pin before writing a scrape job** — and report what the probe answered, even when the
+   answer is "not tonight". Both halves are now read rather than guessed:
+   * **LiteLLM** (`docker.litellm.ai/berriai/litellm:v1.104.0`, API port 4000 per
+     `IaC/ansible/templates/docker_services/traefik-tailnet/dynamic/routes.yml.j2:570`): the endpoint is
+     **not mounted** — `401` unauthenticated, `404` with a valid admin bearer, on both gateways. The
+     enable shape is in **Why the LiteLLM surface is dark** above. No scrape job until it lands.
+   * **llama.cpp** (`llama_cpp_vulkan_image`): `--metrics` **exists** — read read-only off the running
+     containers, `docker exec {embed,reranker} /app/llama-server --help` →
+     `--metrics  enable prometheus compatible metrics endpoint (default: disabled)`
+     (`LLAMA_ARG_ENDPOINT_METRICS`). It serves on the leg's own `--host`/`--port`; there is no separate
+     metrics port, which is why the flag and a loopback publish are one gated change.
+   Quote names from a live render; the metric-name list above is the graveyard of guesses.
 5. **New jobs land at 60 s cold**, hot only by named family (§What resolution costs: ≈0.33 B/sample,
    ≈51 MB/day for all of spark today). A gateway job is tens of series — it does not start in the hot set.
-6. **GPU numbers on oldsrv come from sysfs, not `rocm-smi`** — the host does not ship it
-   ([services-ai-bench.md](services-ai-bench.md) read VRAM from the `amdgpu` sysfs counter for that
-   reason). The publish path is the **collector's direct-publish pattern** the hygiene collector
-   uses (§Silent-failure hygiene), **not** a `textfile` directory — textfile is unusable on this Alloy
-   build.
+6. **GPU numbers on oldsrv come from sysfs, not `rocm-smi`** — the host ships neither `rocm-smi` nor
+   `amd_smi` ([services-ai-bench.md](services-ai-bench.md) read VRAM from the `amdgpu` sysfs counter for
+   that reason). The publish path IS shipped: the hygiene collector's **direct-publish** leg
+   (§Silent-failure hygiene) reads `mem_info_vram_used` / `mem_info_vram_total` / `gpu_busy_percent` and
+   publishes `homelab_gpu_*{gpu="rx7600"}` on the loopback exporter — ⛔ not a `textfile` directory
+   (unusable on this Alloy build) and not a new daemon. Declare the device by **render node**
+   (`/sys/class/drm/{{ gpu_vulkan_render_node | basename }}/device` in `host_vars/oldsrv.kogler.si.yml`),
+   never by `cardN`: the index is probe order and renames.
 7. **The RX 7600 is the only host that can show VRAM** — GB10 exposes none (§LLM Dashboard → GPU). The
-   board says so itself (`IaC/ansible/roles/monitoring/files/dashboards/homelab-llm.json:5114`), and its
-   engine-count readiness panel reads **1** today (`:253`): scraping the oldsrv serving tier must move that
-   panel to 2, which is its own acceptance check.
+   board says so itself, and its engine-count readiness panel reads **1** today (`count(up{job=~"…"})`,
+   spark vLLM only). Two corrections to the earlier claim that scraping this tier moves that panel
+   "1 → 2": the llama.cpp legs are **two** containers, so the honest ceiling is **3**, and they only join
+   when `ai_tier_metrics_publish` flips (each leg is one `up` target). The panel's own text says this now
+   — it is generated by `scripts/ansible/build-llm-dashboard.py`, so the text is fixed in the generator.
 
 ### The per-day token report
 

@@ -7,8 +7,13 @@
 #   §3b), so this is ROUTING, not a corpus migration: the Qdrant re-index is NOT
 #   triggered. The Ollama `:rocm` leg stays enabled above as the FALLBACK RUNG.
 #   `--embd-normalize 2` (L2) pins what the GGUF metadata implies (|v| = 1.0).
-#   Network doctrine: `llm-backend` only, NO `ports:`, NO Traefik labels — no auth
+#   Network doctrine: `llm-backend` only, NO published ports, NO Traefik labels — no auth
 #   on this API, so the network is the boundary; Qdrant/OWUI/Docling go through LiteLLM.
+#   ONE gated exception: `ai_tier_metrics_publish` adds a 127.0.0.1 publish of this leg's own port so
+#   the host's Alloy can scrape `/metrics` (llama.cpp serves metrics on the API port; there is no
+#   separate metrics port). The publish and the `--metrics` flag below are the SAME gated switch, and it
+#   is off by default: nothing is exposed and nothing restarts until someone flips the var (the shape is
+#   `spark_metrics_publish` in templates/docker_services/spark-ai/, same purpose, same discipline).
 #   Device: the dGPU render node only (renderD129); the iGPU is Xorg + Jellyfin QSV and is
 #   slower than CPU (bench §4).
 #   Resident by design (no keep-alive/LRU in llama-server; `--sleep-idle-seconds` costs a
@@ -26,6 +31,12 @@ services:
       - no-new-privileges:true
     networks:
       - llm-backend
+{% if ai_tier_metrics_publish | default(false) %}
+    ports:
+      # Loopback-only, for the host Alloy (prometheus.scrape "llama_cpp" in roles/monitoring).
+      # Never 0.0.0.0 and never a LAN publish: the API has no auth.
+      - "127.0.0.1:{{ ai_tier_embed_port }}:{{ ai_tier_embed_port }}"
+{% endif %}
     devices:
       - "{{ gpu_vulkan_render_node }}:{{ gpu_vulkan_render_node }}"
     group_add:
@@ -59,6 +70,11 @@ services:
       - "0.0.0.0"                                  # llm-backend only — never published
       - "--port"
       - "{{ ai_tier_embed_port }}"
+{% if ai_tier_metrics_publish | default(false) %}
+      # Proved on the pinned image (read-only `docker exec embed /app/llama-server --help`):
+      # "--metrics  enable prometheus compatible metrics endpoint (default: disabled)".
+      - "--metrics"
+{% endif %}
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     # Same :8080-hardcoded image healthcheck problem as the reranker leg (`unhealthy`

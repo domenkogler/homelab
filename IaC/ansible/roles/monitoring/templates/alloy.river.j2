@@ -362,6 +362,38 @@ prometheus.scrape "zfs_exporter" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
+// ---- llama.cpp serving tier on the RX 7600 (embed + reranker) — GATED ----
+// `--metrics` EXISTS on the pinned `llama_cpp_vulkan_image` (proved read-only on the box:
+// `docker exec embed /app/llama-server --help` → "--metrics enable prometheus compatible metrics
+// endpoint (default: disabled)", env LLAMA_ARG_ENDPOINT_METRICS), and the flag is rendered into both
+// command lists behind `ai_tier_metrics_publish`. That same var renders the loopback publish in the two
+// composes — the flag WITHOUT the publish is a surface nothing can scrape, and this file must not grow
+// a target that cannot answer (a permanently-failing target still counts in `count(up{…})`).
+// So: flip `ai_tier_metrics_publish` (group_vars/home_servers.yml) and all three halves land on the next
+// oldsrv converge — command lists + publish + this job. Cold 60 s: no `scrape_interval` line, which IS
+// the fleet cold cadence (§Scrape cadence).
+// `leg` is the discriminator the panels need: llama.cpp names carry no per-leg label, so embed and
+// reranker would otherwise merge into one series per name under one job/instance pair.
+{% if ai_tier_metrics_publish | default(false) %}
+prometheus.scrape "llama_cpp" {
+    targets = [
+        {"__address__" = "127.0.0.1:{{ ai_tier_embed_port }}", "job" = "llama-cpp", "instance" = "{{ inventory_hostname }}", "leg" = "embed"},
+        {"__address__" = "127.0.0.1:{{ ai_tier_reranker_port }}", "job" = "llama-cpp", "instance" = "{{ inventory_hostname }}", "leg" = "reranker"},
+    ]
+    forward_to = [prometheus.remote_write.metrics.receiver]
+}
+{% endif %}
+
+// ---- LiteLLM gateways: NO job here, and the reason is a measured read (HD-1121) ----
+// Both gateways answer the API port 4000 with `401` on /metrics unauthenticated and `404` WITH a valid
+// admin bearer (measured on `lan-litellm` here and on `litellm` on the VPS, same pin
+// `docker.litellm.ai/berriai/litellm:v1.104.0`). The surface is therefore NOT mounted in the running
+// process: in this build `/metrics` is mounted by `PrometheusLogger._mount_metrics_endpoint()`, which
+// the config loader calls only when `"prometheus"` is one of the configured callbacks — and neither
+// rendered config declares any callback. A scrape job here would scrape nothing, so the enable step comes
+// first and belongs to the gateway config; the whole finding + the exact shape is in
+// docs/observability.md §LLM token accounting. Do not re-derive it and do not add a guessed job.
+
 // ---- HA exporter (edge HA /api/prometheus). GATED until Phase 4 ----
 // (alloy_ha_exporter): no HA behind ha_vip + no token
 // file pre-cutover. Flip the var with the HA token + compose mount — the mount is
@@ -443,6 +475,14 @@ prometheus.scrape "wg_icmp" {
     }
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
+
+// `litellm` (the VPS gateway) has NO scrape job either — same measured finding as the oldsrv block
+// above: `401` unauthenticated / `404` with a valid admin bearer on :4000/metrics, because the pin
+// mounts the endpoint only when the `prometheus` callback is configured. This instance has a second
+// blocker: its compose publishes no host port at all, so even an enabled endpoint has no stable address
+// here (`discovery.docker` finds 0 targets for a container with no port mapping — see the note in
+// loki.source.file "container_logs" above). Both halves are in docs/observability.md §LLM token
+// accounting; a guessed job here would be a false-green.
 
 // Service self-metrics: traefik (loopback publish :8082)
 prometheus.scrape "traefik" {

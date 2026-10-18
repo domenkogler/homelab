@@ -389,13 +389,16 @@ NEW_PANELS = {
         "type": "stat",
         "title": "Engines scraped",
         "description": (
-            "count of inference-engine scrape targets across vLLM + SGLang. Replaces the "
-            "K8s-only vllm:healthy_pods_total the production-stack export shipped. "
-            "1 today (spark vLLM); rises with SGLang on spark or an RX 7600 engine on "
-            "oldsrv. 0 = the metrics pipeline itself is down."
+            "count of inference-engine scrape targets across vLLM + SGLang + the llama.cpp "
+            "legs on the RX 7600. Replaces the K8s-only vllm:healthy_pods_total the "
+            "production-stack export shipped. 1 today (spark vLLM): the oldsrv llama.cpp "
+            "legs join when `ai_tier_metrics_publish` flips (group_vars/home_servers.yml), "
+            "and they join as TWO targets — embed and reranker are separate containers with "
+            "one name space each, so the honest ceiling for this panel is 3, not 2. "
+            "0 = the metrics pipeline itself is down."
         ),
         "unit": "short",
-        "targets": [{"expr": "count(up{job=~\"vllm|sglang\"})", "legend": "engines"}],
+        "targets": [{"expr": "count(up{job=~\"vllm|sglang|llama-cpp\"})", "legend": "engines"}],
         "thresholds": [{"color": "red", "value": None}, {"color": "green", "value": 1}],
     },
     "model_served": {
@@ -873,9 +876,14 @@ NEW_PANELS = {
             "`by (job, instance)` and filters on `$instance`/`$model_name`, so adding a "
             "target adds a series, not a dashboard. "
             "**RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 "
-            "embed + bge-reranker):** needs an ROCm exporter (`rocm-smi`/amd_smi → "
-            "Prometheus textfile) + an oldsrv Alloy scrape job, then its GPU columns land "
-            "in the node row here — that card DOES expose VRAM, unlike the GB10. "
+            "embed + bge-reranker):** its GPU counters are ALREADY here — the host ships no "
+            "`rocm-smi`/`amd_smi` and this Alloy build cannot use a `textfile` collector, so "
+            "the `amdgpu` sysfs files are published by the host's hygiene collector "
+            "(`homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent`, labelled "
+            "`gpu=\"rx7600\"`), and that card DOES expose VRAM, unlike the GB10. What is not "
+            "here is the engine side: `llama-server --metrics` is proved present on the pin and "
+            "wired behind `ai_tier_metrics_publish`, which recreates two serving containers, so "
+            "it waits for an oldsrv `docker_services` window. "
             "**SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — "
             "its `sglang:*` sibling is already written into every joined query, so the "
             "SGLang half fills from the same file. TWO places are deliberately vLLM-only "

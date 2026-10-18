@@ -40,6 +40,14 @@ monitoring_hygiene_certs: []
 #   → docs/observability.md §Silent-failure hygiene
 monitoring_hygiene_nut_masters: []
 
+# The GPUs whose sysfs counters this host publishes — empty by default, so a host that declares no GPU
+# emits no GPU series at all (the same stated limit as the two lists above). The read is amdgpu sysfs,
+# because the fleet's GPU host ships no `rocm-smi`/`amd_smi`; the names and the fail-loud rule live in
+# the template. Declare the device DIRECTORY by RENDER NODE, not by `cardN`: the card index is probe
+# order and can rename across kernels, while the render node is the SSOT the Vulkan legs mount.
+#   → docs/observability.md §LLM token accounting (rule 6)
+monitoring_hygiene_gpus: []
+
 # The pinned HOST packages the collector measures — the read-only pin-lag leg. DERIVED from
 # `host_apt_pin_vars` (`group_vars/all/versions.yml`), the one map that also drives `apt-mark hold`
 # (roles/common) and the `package=version` install (roles/docker), so the report cannot fall behind

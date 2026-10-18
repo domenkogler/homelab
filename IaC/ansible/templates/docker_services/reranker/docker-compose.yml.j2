@@ -7,8 +7,12 @@
 #   (docs/services-ai-bench.md §3/§5). It is also NOT an Ollama endpoint: no
 #   released ollama serves /api/rerank, and an embed-based adapter cannot fake a
 #   cross-encoder (joint query+passage attention).
-#   Network doctrine: `llm-backend` only, NO `ports:`, NO Traefik labels — the API
+#   Network doctrine: `llm-backend` only, NO published ports, NO Traefik labels — the API
 #   has no auth, so the network is the boundary; consumers go through LiteLLM.
+#   ONE gated exception: `ai_tier_metrics_publish` adds a 127.0.0.1 publish of this leg's own port so the
+#   host's Alloy can scrape `/metrics` (llama.cpp serves metrics on the API port; no separate metrics
+#   port exists). Same switch as the `--metrics` flag below, off by default — see the `embed` compose for
+#   why the two must land together.
 #   Device: the dGPU render node only (renderD129); the iGPU is Xorg + Jellyfin QSV and is
 #   slower than CPU (bench §4).
 #   ⚠ CONSUMER STATUS: this leg is SHIPPED DORMANT. Its intended consumer `rag-mcp` is
@@ -32,6 +36,12 @@ services:
       - no-new-privileges:true
     networks:
       - llm-backend
+{% if ai_tier_metrics_publish | default(false) %}
+    ports:
+      # Loopback-only, for the host Alloy (prometheus.scrape "llama_cpp" in roles/monitoring).
+      # Never 0.0.0.0 and never a LAN publish: the API has no auth.
+      - "127.0.0.1:{{ ai_tier_reranker_port }}:{{ ai_tier_reranker_port }}"
+{% endif %}
     devices:
       - "{{ gpu_vulkan_render_node }}:{{ gpu_vulkan_render_node }}"
     group_add:
@@ -63,6 +73,11 @@ services:
       - "0.0.0.0"                                  # llm-backend only — never published
       - "--port"
       - "{{ ai_tier_reranker_port }}"
+{% if ai_tier_metrics_publish | default(false) %}
+      # Proved on the pinned image (read-only `docker exec reranker /app/llama-server --help`):
+      # "--metrics  enable prometheus compatible metrics endpoint (default: disabled)".
+      - "--metrics"
+{% endif %}
     environment:
       TZ: "{{ timezone | default('Europe/Ljubljana') }}"
     # The image's own HEALTHCHECK is hardcoded to :8080; this leg listens on its own port, so
