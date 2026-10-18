@@ -114,7 +114,7 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read per host with
    `scripts/ansible/probe-net-manager.sh`; the dead `eno1` renders are off the fleet (pi/oldsrv removals landed, the nas
    removal under its `ifupdown` freeze landed), so what is left is the **spark** networkd disarm and nas's **NM adoption**), **HD-488** (the same host-resolver class beyond oldsrv — the **Pi leg landed
-   and was verified 2026-10-08**; spark waits on a spark-slot converge, nas is frozen behind HD-487), and the
+   and was verified 2026-10-08**; spark waits on a spark-slot converge, nas is frozen behind HD-487), and the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/HD-488 close, HD-1148 docker family applied live)
    DNS-policy rows **HD-480–483**. → [prompt-dns-transport.md](prompt-dns-transport.md)
 3. ⏳ **Silent-failure alerting** — **HD-450**'s collector legs are LIVE and read back per host 2026-10-17: the NUT
    client→master metric with `nut-master-unreachable` loaded, and the VPS's own on-disk cert pair exported. The
@@ -362,11 +362,19 @@ action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.ya
 converge — the answer set is identical, the FILE is not (entry order + comments), so it reports changed and restarts
 the control plane: sampled liveness probe, never a one-shot inspect; (b) `IaC/ansible/playbooks/dns.yml` from the **home control
 plane**, because the Cloudflare token is IP-filtered there, expected to report no record change; and its step 2 (the
-`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **the network legs**
-HD-487 and HD-488 owe are trimmed to the owner-gated half — the per-host netd removals (pi two dead units,
-nas four under its freeze, oldsrv alone off-box) are landed, and the tag is **per-host** with the narrow `--tags netd` where only dead renders may be touched;
-what stays is the **spark** converge both rows share (the networkd disarm + the resolver pair, engine untouched) and **nas's NetworkManager adoption** (the measured
-`ifupdown` owner of `eno1` is replaced owner-present — until then every address and resolver leg there stays frozen) · **HD-384 step 2** — the
+`extra_records_path` swap) is the converge **HD-435**'s `tailnet: dual` publish rides · **every network leg**
+HD-487 still owes — the tag is **per-host** and the rows carry the exact command: `--tags network` where a manager
+counts, and the narrow `--tags netd` where only the dead renders may be touched. The spark networkd disarm (drop the dead
+`20-eno1.*`, engine untouched — landed with the resolver pair in one converge), the pi removals (three unread units), the nas removals
+(four, under its `ifupdown` freeze — the narrow tag is what keeps that box's frozen address/resolver legs off the run), and
+oldsrv's own lockout-class run **alone**
+and off the box with a console reachable (driven FROM the oldsrv controller its `network` tag is refused by the
+self-converge guard `IaC/ansible/playbooks/tasks/self-converge-guard.yml`, by design; and a self-target run dies at
+the transport before the guard is even reached — the inventory's `ProxyJump=vps` makes the last hop authenticate
+against the bare `ansible_host`, where the seat's own alias block pins the operator key — so drive it from another
+controller, or use one of the two forms that section measures:
+[docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement) · **nas's NetworkManager adoption** — until the measured
+`ifupdown` owner of `eno1` is replaced, every address and resolver leg there stays frozen · **HD-384 step 2** — the (spark: land the host-resolver pair + the networkd disarm over the socket too; HD-487/HD-488 close, HD-1148 docker family applied live)
 two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
 list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
 call · **the docker-family applies** **HD-1148** owes on `pi` and on `spark` (vps is landed) — the daemon restart takes every

@@ -44,7 +44,7 @@ edits the same directory.
   tailnet listener belongs to `traefik-internal`. Converging `roles/cockpit` writes a file nothing watches — the converge is
   green and the router is dead. Read the mount line of the edge that owns the entrypoint.
 * **A Pi read-back proves nothing about `.ts`** — the `.ts` namespace is answered by the VPS primary (a **zone** fact, not a
-  `resolv.conf` symptom, and the HD-488 resolver fix did not change that). **Being off the tailnet is the blocker; being away
+  `resolv.conf` symptom, and the host-resolver fix did not change that). **Being off the tailnet is the blocker; being away
   is not.**
 * `--check` on `cockpit` is structurally red; `--check` on a guarded converge is what an unattended run is authorised for, so
   say which of the two you ran.

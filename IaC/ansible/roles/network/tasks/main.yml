@@ -282,6 +282,20 @@
   when: net_guard_disarm_ok | bool
   tags: [network, net-guard]
 
+- name: Disarm the socket that re-activates the second config-manager
+  # Measured on spark: stopping systemd-networkd alone does NOT settle the box, because the
+  # service is TriggeredBy=systemd-networkd.socket (netlink/rtnetlink socket activation). The socket
+  # survives the service stop, and the NEXT RTNL event — even the same play's own nmcli reload/up on
+  # the NM leg — re-spawns the second manager within seconds. networkd.socket must be stopped AND
+  # disabled in the same disarm, so no later event can resurrect the manager this converge disarmed.
+  # Same conditions and same settle-proof as the service: every term still measured on the box.
+  ansible.builtin.systemd:
+    name: systemd-networkd.socket
+    state: stopped
+    enabled: false
+  when: net_guard_disarm_ok | bool
+  tags: [network, net-guard]
+
 - name: Re-read the devices after disarming the second manager
   ansible.builtin.command:
     argv: [nmcli, '-t', '-f', 'DEVICE,STATE', 'device']

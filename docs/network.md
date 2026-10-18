@@ -64,6 +64,14 @@ create the `wg-s2s` netdev, deliberately told to configure no interface
 commits to there — networkd runs, and no second manager runs beside it — while "the manager configures
 nothing" stays a finding on every other box.
 
+⚠ **Disarming the second manager must stop its socket too.** A `systemd-networkd` that holds no
+interface and must be stood down is stopped *and disabled* by the same role, and so is its
+`systemd-networkd.socket`: the service is `TriggeredBy` that socket (netlink/rtnetlink activation),
+and a socket that survives the service stop will re-spawn the second manager on the next RTNL event
+— measured live when the same play's own NM reload brought networkd back seconds after the stop. A
+disarm that leaves the socket enabled is not settled: the next event resurrects the shape the
+converge refused.
+
 ---
 
 ## WAN / ISP

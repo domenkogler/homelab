@@ -188,9 +188,11 @@ silently closes or reopens that claim.
 
 ## Host-side resolver — what a box asks its OWN `/etc/resolv.conf`
 
-✅ **live on oldsrv** (`home_servers.yml --tags nm-resolver`) and ✅ **on the Pi**
+✅ **live on oldsrv** (`home_servers.yml --tags nm-resolver`), ✅ **on the Pi**
 (`raspberry_pi.yml --tags nm-pi` → keyfile + `reload NetworkManager`; `getent llm.kogler.si` answers spark's
-Home address **on the Pi itself**). Everything above this section is about what an *instance* asks outward.
+Home address **on the Pi itself**) and ✅ **on spark** (the network keyfile leg: `spark-eth0.nmconnection`
+renders the two-tier pair from `host_resolver_dns` — oldsrv secondary + Pi tertiary, wired through the
+`--tags network` converge). Everything above this section is about what an *instance* asks outward.
 This is the other axis: which resolver **the host itself** asks. Every home host inherits
 `bootstrap_dns_servers` (`1.1.1.1`) — sound at boot, because a box that hosts the DNS tier must not need
 it to boot, and disqualifying for the running box: a host on `1.1.1.1` cannot name one split-horizon service

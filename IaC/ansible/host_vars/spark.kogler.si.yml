@@ -18,6 +18,12 @@ homelab_mode: headless
 # a runbook.
 network_manager: NetworkManager
 network_manager_target: NetworkManager   # equal to the owner = settled; the second manager is the drift
+# ==== This box's OWN resolver (what lands in /etc/resolv.conf) ====
+# The oldsrv Technitium SECONDARY first, the Pi TERTIARY second. spark hosts no DNS instance, so
+# there is no own-instance-first rung; the VPS PRIMARY is absent because it answers the LAN-only
+# names not at all — docs/network-dns.md §Per-Instance Split-Horizon.
+# Rendered as ONE comma-joined string on purpose: the keyfile `dns=` leg wants that form.
+host_resolver_dns: "{{ [dns_secondary_ip, dns_tertiary_ip] | join(',') }}"
 # Headless contract is enforced at converge: sleep masks + multi-user default.target.
 # Group-var default is true; set false explicitly to keep the DGX graphical desktop.
 spark_headless: true
