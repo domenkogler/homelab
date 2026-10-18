@@ -135,8 +135,8 @@ monitoring_hygiene_nut_masters:
 # accounting rule 6; the same read the RX 7600 bench used, docs/services-ai-bench.md). Addressed by
 # RENDER NODE, not card index — `card1` is probe order and can rename, `renderD129` is the node the
 # Vulkan legs mount (`gpu_vulkan_render_node`), and /sys/class/drm/renderD129/device is the same PCI
-# device the bench read. This is the GPU-counter half of HD-1122; the engine-counter half is gated on
-# `ai_tier_metrics_publish` and deploy-parked in that row.
+# device the bench read. This is the GPU-counter half of the oldsrv serving-tier telemetry row; the
+# engine-counter half is gated on `ai_tier_metrics_publish` and deploy-parked in that row.
 monitoring_hygiene_gpus:
   - name: rx7600
     device: "/sys/class/drm/{{ gpu_vulkan_render_node | basename }}/device"

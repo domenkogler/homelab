@@ -384,7 +384,7 @@ prometheus.scrape "llama_cpp" {
 }
 {% endif %}
 
-// ---- LiteLLM gateways: NO job here, and the reason is a measured read (HD-1121) ----
+// ---- LiteLLM gateways: NO job here, and the reason is a measured read ----
 // Both gateways answer the API port 4000 with `401` on /metrics unauthenticated and `404` WITH a valid
 // admin bearer (measured on `lan-litellm` here and on `litellm` on the VPS, same pin
 // `docker.litellm.ai/berriai/litellm:v1.104.0`). The surface is therefore NOT mounted in the running

@@ -225,6 +225,11 @@ def _load_ssot_ctx():
         "ai_tier_reranker_port", "ai_tier_reranker_memory_limit",
         "ai_tier_embed_port", "ai_tier_embed_memory_limit",
         "ai_tier_gguf_ctx_size", "ai_tier_gguf_batch_size", "ai_tier_gguf_ubatch_size",
+        # The GGUF telemetry switch (HD-1122) — the SAME plain var the real render reads, so the
+        # offline render cannot drift from the deploy. Needed rather than `| default`-only because this
+        # env's mocked `default` filter does not swallow StrictUndefined, so an unlisted var is a render
+        # error here even though a default would carry it under Ansible.
+        "ai_tier_metrics_publish",
     ):
         if k in hdata:
             ctx[k] = hdata[k]

@@ -504,9 +504,14 @@ issuer renews late in that window, so a healthy consumer's `days_left` bottoms o
 Shipped: **WARN 14 d / CRIT 7 d** + a critical on
 `pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
 
-**Fleet coverage:** the exporter runs on `oldsrv · pi · nas · vps · spark` — `count by (instance)
-(homelab_hygiene_scrape_ok)` → **1 for each of the five** (re-read 2026-10-17: five series, freshest host
-6 s old, stalest 59 s — i.e. every host is collecting). The rules are in
+**Fleet coverage:** the exporter runs on `oldsrv · pi · nas · vps · spark` — but **four** reach the backend,
+not five: `count by (instance) (homelab_hygiene_scrape_ok)` read **4 series on 2026-10-18** (`oldsrv · pi ·
+spark · vps`), and `nas.kogler.si` contributed **nothing at all** — no `up{job="alloy"}`, no `node_uname_info`,
+while on the box `alloy` and `homelab-hygiene` were both `active`, `:9098` answered 19 `homelab_*` lines, and
+`127.0.0.1:12345` (Alloy's own server) refused a `curl`. A unit that is `active` while its HTTP server does
+not answer is exactly the class this section exists to close, and `hygiene-collector-stale` cannot see it:
+the rule's A leg is unfiltered, so a host with **no** series never becomes a value. Read the per-instance
+enumeration, never just the count of the heartbeat. The rules are in
 Grafana: of 26 rules loaded, **7 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
 `cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
 (WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m) and `pkg-pin-drift`
