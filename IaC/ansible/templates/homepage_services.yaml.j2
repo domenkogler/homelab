@@ -27,18 +27,20 @@
 
 # Manual HA failover buttons (docs/smart-home-failover.md): href cards call the
 # ha-failover-api endpoint on oldsrv (?token= GET; POST with X-Failover-Token also works).
-# FORWARD REQUIRES the HmIP-RFUSB stick physically moved to oldsrv. Rendered only when the
-# group_var homepage_failover_button is true, so a button is never dead.
+# The trigger is IP-only: it moves the HA VIP and starts/stops the standby container — nothing
+# physical moves, Homematic rides the cloud HAP. `failover_api_url` is the oldsrv HOME-VLAN
+# address, so the card works from a device on the home network and reaches nothing from away.
+# Rendered only when the group_var homepage_failover_button is true, so a button is never dead.
 {% if homepage_failover_button %}
 - Smart Home Failover:
     - HA Forward Takeover:
         icon: sh-home-assistant
-        href: "http://{{ failover_api_url }}/failover?token={{ lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) }}"
-        description: Pi → oldsrv (RMat → wait CCU → VIP → HA standby)
+        href: "{{ failover_api_url }}/failover?token={{ lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) }}"
+        description: Pi → oldsrv — VIP move, then standby start
     - HA Reverse Failback:
         icon: sh-home-assistant
-        href: "http://{{ failover_api_url }}/failback?token={{ lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) }}"
-        description: oldsrv → Pi (VIP back, standby off)
+        href: "{{ failover_api_url }}/failback?token={{ lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) }}"
+        description: oldsrv → Pi — standby down, then VIP back
 {% endif %}
 
 {% set d = domain_local | default('kogler.si') %}

@@ -27,9 +27,10 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > is cold the `ha-vip` has exactly **one advertiser — the Pi**: the VIP never floats on its own and "HA
 > failed over" is always a human act, never a VRRP event. ⏳ **Deploy-gated:** the cold *create* is
 > authored but not yet run, so today `docker ps -a` on oldsrv still lists no HA container — the files and
-> the synced config are there, the created container is not. The **Homepage failover buttons are gated
-> off** (`homepage_failover_button: false`), so the trigger that exists today is root on oldsrv running
-> `/usr/local/sbin/ha-failover.sh forward`. Homematic has no local RF path; the HmIP-HAP stays cloud-mode
+> the synced config are there, the created container is not. The **Homepage failover cards are rendered**
+> (`homepage_failover_button: true`): they are the same `/usr/local/sbin/ha-failover.sh` trigger behind
+> root's `sudo … forward`, reachable from the home network only (§Forward Takeover, *Who fires it*).
+> Homematic has no local RF path; the HmIP-HAP stays cloud-mode
 > ([smart-home-rejected.md](smart-home-rejected.md)). Runbooks below are the spec to be executed at
 > takeover time.
 
@@ -293,14 +294,27 @@ Forward-Auth. Direct fallback `pi:5380` on the LAN.
 **Two manual actions total:** (1) confirm Pi down, and (2) fire **one** takeover trigger. Everything after the trigger is a single orchestrated script — no VIP / standby steps.
 
 **Who fires it:** `ha-failover.sh` is the only mechanism, and the standing way to reach it is **root on
-oldsrv**: `sudo /usr/local/sbin/ha-failover.sh forward`. The Homepage button is the *same* trigger with a
-web wrapper — `ha-failover-api` is live on oldsrv on `failover_api_port` — but the card itself renders only
-when group_var `homepage_failover_button: true`, which it is not, so **the button is not a path anyone can
-take today** (no dead button on the dashboard either).
+oldsrv**: `sudo /usr/local/sbin/ha-failover.sh forward`. The Homepage card is the **same** trigger behind a
+web wrapper — `ha-failover-api` runs on oldsrv on `failover_api_port`, and the two cards render when the
+group_var `homepage_failover_button` is true (`group_vars/vps.yml`; the gate exists so a card is never a
+dead link).
+
+> **What the card is, and where it works.** The href is the oldsrv **Home-VLAN** address —
+> `failover_api_url` = `http://`*oldsrv home IP*`:`*`failover_api_port`* — plain HTTP, token in the query
+> string (the card is a link, so GET is the only shape a browser gives it; `POST` + the `X-Failover-Token`
+> header works too). The API binds `0.0.0.0` on the Home VLAN and **nothing publishes it**: no edge route,
+> no `.ts` name, no TLS, no Authentik. So the card answers for a device on the home network — the family
+> Kogler SSID is VLAN 10, the same L2 subnet oldsrv sits on, so there is no firewall hop to open — and it
+> reaches **nothing from away**: away from the house the click just times out, and the SSH/root path above
+> is the one that still works there. The token also lands in the rendered `services.yaml` on the VPS, so
+> reading that file grants the ability to fire the trigger *from inside the home network* — the same
+> accepted trade the API's own bind comment states. The click is **synchronous**: the API runs the script
+> and answers when it exits, so the browser tab waits on the VIP hand-off (`promote_vip` waits up to 30 s
+> for the address) before the response arrives.
 
 1. **Confirm Pi is down** (human verifies — power, SD, OS, network).
-2. **Fire the trigger** — `/usr/local/sbin/ha-failover.sh forward` on oldsrv, directly or (once the button
-   is rendered) through `ha-failover-api`, which runs the same script:
+2. **Fire the trigger** — `/usr/local/sbin/ha-failover.sh forward` on oldsrv, directly or from the
+   Homepage card, which calls `ha-failover-api` to run the same script:
    a. promotes keepalived (Pi MASTER demoted / oldsrv BACKUP promoted → the VIP moves to oldsrv),
    b. starts `home-assistant-standby` (re-polls KNX/Shelly).
    The API reads its token from `/etc/ha-failover/api.env`, parsed like a systemd `EnvironmentFile` —
@@ -367,7 +381,10 @@ take today** (no dead button on the dashboard either).
 - [x] Stale state on takeover (15-min snapshot) = **acceptable**.
 - [x] WAN access in fallback = **not required** (LAN/VPN only).
 - [x] The Pi runs **Debian + HA Container** — the VRRP prerequisite (see `home-assistant-current.md`).
-- [ ] Implement the **single failover button** + `ha-failover.sh` orchestrator (VIP → standby) on Homepage.
+- [x] The **single failover trigger** = `ha-failover.sh` (VIP move → standby start), reachable from the
+      Homepage cards. The trigger is **IP-only** — it moves the VIP and starts/stops the standby container;
+      there is no RF path to move (*Homematic* rides the cloud HAP, see the decision log), so nothing
+      physical is part of the button.
 - [x] **VIP address / notation + firewall IP-set**: `ha-vip` (`/32`), DHCP pool stays ≤ `.199` (per SSOT); router lists `trusted-ha` + `trusted-admin`. See **HA VIP** above.
 
 ## Related

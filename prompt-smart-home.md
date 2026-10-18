@@ -2,7 +2,7 @@
 
 > **Role:** dispatch note for **one** lane session on the smart-home domain. **The rows are the authority** for what is
 > missing and how to do it — this file carries the contract, the order of work and the traps, nothing else:
-> [todo.md](todo.md) **HD-04 · HD-418 · HD-434 · HD-438 · HD-439 · HD-319 · HD-1109 · HD-1103 · HD-1101 · HD-17 · HD-217**
+> [todo.md](todo.md) **HD-04 · HD-418 · HD-434 · HD-438 · HD-439 · HD-319 · HD-1109 · HD-1103 · HD-1101 · HD-17**
 > (row ids as of `9e661845` — re-derive with `grep -c "^| HD-<id> " todo.md` before quoting one).
 > **Linked from:** [todo-table.md](todo-table.md) §B0 · [todo.md](todo.md)
 
@@ -32,8 +32,7 @@ HD-1103 in the same Pi window** — the reboot is owed once, not twice — and i
 | 7 | **HD-434** | Owner-present takeover-drill retest of KNX on the standby, once HD-1109 says a standby exists: bring it up, confirm a live tunnel via an entity that moves with the bus, and on failure read `xknx` for authorization vs no-channel vs no-route | The GIRA-router explanation was withdrawn — oldsrv has always been in `trusted-ha`. Do not re-run the probe class that produced it |
 | 8 | **HD-04** | The two owner legs that remain: the GIRA-side KNX allowlist check on the standby, and the `ha.kogler.si` HTTPS-with-Pi-down gap | The forward takeover is proven; what no converge can prove is the standby driving the bus and an edge that survives the Pi |
 | 9 | **HD-319** | Owner/verify: confirm the three rekuperator group addresses (12/1/*) answer on the bus (the `GroupValueRead` warnings are the only signal so far) | One positive read closes it; a warning count going down is not a read |
-| 10 | **HD-17** | Render the Homepage failover button in its **IP-only** form behind the `homepage_failover_button` gate, on the template, not the live file | ⛔ The RFUSB path is obsolete — the stick was rejected; the live path is VIP move + standby start. The visual pass is the owner's eye: land the wiring, hand over the eyeball, keep the ⏳ tail |
-| 11 | **HD-217** | The next green `vps.yml` run renders the homepage with the gate off — verify the render, do not re-author the gate | Deploy-gated: if no VPS window is open, park with the exact command and continue |
+| 10 | **HD-17** | The **IP-only** cards are rendered and live on the launchpad (`homepage_failover_button: true`, converged + verified in the rendered `services.yaml`): what remains is the **owner's visual pass** — look at the group, click nothing | ⛔ The RFUSB path is obsolete — the stick was rejected; the card only moves the VIP and starts/stops the standby, and it answers from the home network only. A click IS a takeover: any deliberate click belongs in a supervised window with the `reverse` leg ready |
 
 ## ⛔ Traps that cost a round (re-grounded at this `HEAD`)
 

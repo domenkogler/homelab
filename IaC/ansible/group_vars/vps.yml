@@ -235,10 +235,12 @@ litellm_scoped_keys:
   - { alias: rag-int-svc, vault_item: rag-int-svc_api, models: "ollama/bge-m3,ollama/bge-reranker-v2-m3", max_budget: "5", budget_duration: "30d" }  # rag key for the internal RAG service; see the stale-model note on the record above
 
 # Homepage HA-failover buttons: render the HA Forward Takeover /
-# Reverse Failback cards in templates/homepage_services.yaml.j2 ONLY when true.
-# Stays false until failover goes live (the `ha-failover_api` vault item seeded +
-# the HmIP-RFUSB stick moved at runbook time), then flips true.
-homepage_failover_button: false
+# Reverse Failback cards in templates/homepage_services.yaml.j2 ONLY when true, so a tile is
+# never dead. True asserts the trigger behind them exists: `ha-failover-api` active on oldsrv
+# and the `ha-failover_api` vault item seeded (the card's lookup fails loud without the item).
+# The cards are the same trigger as root's `/usr/local/sbin/ha-failover.sh`, reachable from the
+# home network only — docs/smart-home-failover.md.
+homepage_failover_button: true
 
 # Pin homepage's IP on the traefik-public overlay (HOME launchpad). Must NEVER equal
 # the VPS edge pin (traefik_edge_ip_pin: 172.20.0.2) — the bridge's sequential DHCP
