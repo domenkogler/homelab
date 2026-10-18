@@ -248,58 +248,18 @@ that answer is harder to write.
 ## Notes & conventions
 
 - **Never edit a `-generated` doc directly** — change the SSOT (`group_vars/*.yml`, `rack-connections.json`) and re-render, then `git diff --exit-code` to confirm.
-- **A script must not derive the repo root from its own depth — and a probe that cannot see the files must
-   not be able to say OK.** Every script here used to resolve `$REPO` from its own path (measured 2026-10-09:
-   21 bash sites in four spellings of `$SCRIPT_DIR/..`, 33 python sites as `parent.parent` / `parents[1]`, one
-   ps1 as `$PSScriptRoot\..\..`, plus two same-directory python imports). That is correct **only at the current
-   depth**: add one folder level and all of them resolve to `scripts/`, so `IaC/` and `docs/` silently vanish
-   from a validator's view and it prints `OK: 0 files` — a green gate that checked nothing, the HD-417 class at
-   maximum width. What landed instead (HD-1118 Stage 1, 2026-10-09): [`lib/repo-root.sh`](lib/repo-root.sh) and
-   [`lib/repo_root.py`](lib/repo_root.py) walk UP to the two structural markers (`IaC/ansible` + `docs/index.md`)
-   and fail loud when nothing matches, every tree-walking checker asserts a non-empty corpus through
-   `require_corpus()`, and both helpers' `--self-test` — wired into `validate-all.sh` — proves the same resolver
-   answers identically at TWO depths of a fixture repo (a fixed-depth resolver fails the second arm, which is the
-   point). The ratchet that keeps it from regrowing one file at a time is `gate/check_script_layout.py` (HD-1118
-   Stage 4).
-- **`validate-all.sh` judges what is TRACKED — so `git add` a new file before believing a green run.** The path/secret/table
-   walkers list files with `git ls-files`, so an untracked file is invisible to them. Measured 2026-10-09: a new root-level
-   doc passed the whole gate while untracked and failed it the moment a merge made it tracked (three citations to a path that
-   does not exist yet). For a **new validator** the same trap is worse — a green run in which the new check never executed.
-- **Layout:** `scripts/` is one flat directory today (79 executables at top level, measured 2026-10-09) plus `git/`,
-   `pi-config/`, `laptop-llm/`, `win/`, `testdata/` — and since HD-1118 Stage 1 also `lib/`, which holds the root
-   resolvers and the shared seat helpers (not runnable, hence the exception note in the target tree's header).
-   The agreed target structure, the per-file assignment and the stage order
-   are [../prompt-scripts.md](../prompt-scripts.md) / [`todo.md`](../todo.md) HD-1118 — read that before proposing a move,
-   because Stage 1 (root resolution) has to land first.
-- **Judge `validate-all.sh` by its EXIT CODE, never by a filtered view of its output.** Live
-  2026-09-25: `bash scripts/validate-all.sh 2>&1 | grep -iE "FAIL|OK: all validators" && git commit … &&
-  git push` — the pipeline's status is GREP's, and grep exits 0 when it finds something, so a run that
-  printed `FAIL: 2 internal IP literal(s)` happily committed and pushed to `main`. Run the gate, check
-  `$?` (or `&&` on the bare command), and only then filter the log for reading: `bash
-  scripts/validate-all.sh >/tmp/v.log 2>&1; echo "exit=$?"; grep -iE 'FAIL|OK: all' /tmp/v.log`.
+- **A script must not derive the repo root from its own depth — and a probe that cannot see the files must not be able to say OK.** Every script resolves the root by walking UP to the two structural markers (`IaC/ansible` + `docs/index.md`) via `lib/repo-root.sh` / `lib/repo_root.py`, and fails loud when nothing matches; every tree-walking checker asserts a non-empty corpus through `require_corpus()` (a walk that found nothing is a broken root, not a clean tree). `gate/check_script_layout.py` is the ratchet that keeps the fixed-depth derivations from regrowing.
+- **`validate-all.sh` judges what is TRACKED — so `git add` a new file before believing a green run.** The path/secret/table walkers list files with `git ls-files`, so an untracked file is invisible to them. For a **new validator** the same trap is worse — a green run in which the new check never executed.
+- **Layout:** the registry below is the tree — folder by folder, one row per tracked file under `scripts/` (`gate/check_script_layout.py` enforces registry ≡ tree). Top level holds the entry points only (`README.md`, `next-hd.sh`, `render_all.py`, `validate-all.sh`); everything else lives in its toolchain folder (`ansible/`, `bench/`, `gate/`, `git/`, `hardware/`, `harness/`, `lib/`, `secrets/`, `testdata/`). The agreed structure, the per-file assignment and the stage order are `prompt-scripts.md` / `todo.md` HD-1118 — read that before proposing a move.
+- **Judge `validate-all.sh` by its EXIT CODE, never by a filtered view of its output.** A pipeline's status is the last command's (grep exits 0 when it finds something), so a run that printed `FAIL: …` could happily commit and push. Run the gate, check `$?` (or `&&` on the bare command), and only then filter the log for reading.
 - **No secrets outside 1Password `Homelab-ansible`.** Render scripts that need one (e.g. `render-routeros.yml` → device `.rsc`) resolve via `lookup(...)`; the pure-Python renderers here intentionally touch **no** secrets (they read only the YAML/JSON SSOT).
-- **Windows vs Linux:** the Python scripts run cross-platform (PyYAML + Jinja2). Ansible playbooks (`render-docs.yml`, `render-routeros.yml`) require WSL/CI on this machine. Since the WSL ext4 move (HD-259) the Debian/WSL primary is the canonical runner, so scripts must not assume Windows-only launchers/paths; the gate enforces this (see §Portability). Like `ansible-run.sh`, the `validate-all.sh` `--syntax-check` gate exports `ANSIBLE_CONFIG`/`ANSIBLE_ROLES_PATH` from the repo root so roles resolve (HD-256).
-- **Live converges run ASYNC (HD-370 live lesson 2026-09-15):** a full/`--tags docker_services` converge takes **10–30+ min** (Bulk 1P pre-pass, authentik glue, per-service compose up, restart guards, Technitium seed). Running it in the foreground of a tool/terminal shell (or behind the container host's own timeout) lets an outer timeout kill it **mid-restart** — live evidence: a `timeout 600` killed a VPS converge right at `docker compose restart traefik-tailnet`, leaving `tailscale-sidecar Exited (128)` and a `cannot join network namespace of a non running container` failure on the *next* run's restart guard. Always launch converges **detached** and poll:
-  ```bash
-  # from the WSL runner (same env exports as ansible-run.sh)
-  nohup ansible-playbook -i IaC/ansible/inventory.ini playbooks/…yml \
-      --limit hosts --tags … > /tmp/converge-<host>-<ts>.log 2>&1 &
-  # then poll: tail -f /tmp/converge-<host>-<ts>.log → PLAY RECAP
-  ```
-  - ⚠ **A detached converge inherits the invocation's checkout, not the directory you `cd` into inside
-    the same command line (live 2026-10-07, HD-1095):** in `cd ../wt-x && nohup A & nohup B &`, the shell
-    backgrounds the **whole** `cd && …` chain for A and runs B in the shell's *original* directory — so B
-    converged the primary checkout at `main` and returned `ok=41 changed=0` for a commit that had just
-    changed that exact service, which reads as "already deployed". `ansible-run.sh` derives `$REPO` from its
-    own path, so the only trace is the `included: /path/…/deploy-service.yml` line in the log: **read that
-    path before believing a `changed=0`**, and launch one detached converge per command.
-  `--check` is the only safe foreground form (fast, read-only). If a converge is killed mid-restart, the fix is idempotent: re-run the same playbook (the restart-on-config-change guard restarts the stack cleanly once the sibling containers are up).
-- **Scoped service deploys need BOTH tags (live 2026-09-17, HD-382):** `-e docker_services_scope=<svc>` alone does **not** deploy the service. The deploy-loop include carries `docker_services` alone (`IaC/ansible/roles/docker_services/tasks/main.yml:216`) and the tasks inside `deploy-service.yml` carry `"{{ svc.name }}"`, so under `--tags docker_services` the include's tag OPENS the file and the loop iterates (it even prints `included: … item=<svc>`), while the children are then filtered on their OWN tags and every one of them drops — a silent no-op that reports `changed=0/1, failed=0` while the rendered compose stays stale on the host. Asking the service tag alone is the mirror case: no include line carries it, so the file is never even parsed. Correct form: `--tags docker_services,<svc>` (the HD-220 intent as the task comments state). When a scoped run looks suspiciously cheap, verify with `docker inspect` / the rendered file rather than trusting the RECAP. What a child tag must appear on its include line for is exactly finding B of [`check_tag_coverage.py`](gate/check_tag_coverage.py) above — the four rules this bullet is an instance of are measured in [`testdata/check_tag_coverage/run.sh`](testdata/check_tag_coverage/run.sh) and stated in `docs/deployment-ansible.md` §Tags & surgical runs.
-- **Never run a `docker_services` converge with `--diff` (secret hygiene, live 2026-09-17):** the 1P bulk pre-pass is `no_log`, but the **template diff of a rendered `docker-compose.yml` is not** — `--check --diff` printed live `LITELLM_MASTER_KEY` / `OPENROUTER_API_KEY` values onto stdout into the run log (CONVENTIONS §6: never print a secret VALUE). `--check` alone stays safe; the *diff* is what leaks. Verify renders from the template or diff the rendered host file with secret lines filtered; purge any log that caught values (`shred -u`) instead of grepping it.
+- **Windows vs Linux:** the Python scripts run cross-platform (PyYAML + Jinja2). Ansible playbooks (`render-docs.yml`, `render-routeros.yml`) require WSL/CI on this machine. The Debian/WSL ext4 primary is the canonical runner, so scripts must not assume Windows-only launchers/paths; the gate enforces this (§Portability). Like `ansible-run.sh`, the `validate-all.sh` `--syntax-check` gate exports `ANSIBLE_CONFIG`/`ANSIBLE_ROLES_PATH` from the repo root so roles resolve.
+- **Live converges run ASYNC:** a full/`--tags docker_services` converge takes **10–30+ min** (Bulk 1P pre-pass, authentik glue, per-service compose up, restart guards, Technitium seed). Running it in the foreground lets an outer timeout kill it **mid-restart** and poison the next run's restart guard. Launch converges detached and poll — the exact commands and the `cd`-checkout trap are in `docs/deployment-ansible.md` §Running a converge; `--check` is the only safe foreground form (fast, read-only). If a converge is killed mid-restart, the fix is idempotent: re-run the same playbook (the restart-on-config-change guard restarts the stack cleanly once the sibling containers are up).
+- **Scoped service deploys need BOTH tags:** `-e docker_services_scope=<svc>` alone does **not** deploy the service. The deploy-loop include carries `docker_services` alone and the tasks inside `deploy-service.yml` carry only the service tag, so under `--tags docker_services` the include opens the file and the children drop — a silent no-op that reports `changed=0/1, failed=0` while the rendered compose stays stale on the host; asking the service tag alone never even parses the file. Correct form: `--tags docker_services,<svc>` (the four include rules, measured, are in `docs/deployment-ansible.md` §Tags & surgical runs; `gate/check_tag_coverage.py` + `testdata/check_tag_coverage/run.sh` enforce the static half). When a scoped run looks suspiciously cheap, verify with `docker inspect` / the rendered file rather than trusting the RECAP.
+- **Never run a `docker_services` converge with `--diff` (secret hygiene):** the 1P bulk pre-pass is `no_log`, but the **template diff of a rendered `docker-compose.yml` is not** — `--check --diff` printed live `LITELLM_MASTER_KEY` / `OPENROUTER_API_KEY` values onto stdout into the run log (CONVENTIONS §6: never print a secret VALUE). `--check` alone stays safe; the *diff* is what leaks. Verify renders from the template or diff the rendered host file with secret lines filtered; purge any log that caught values (`shred -u`) instead of grepping it.
 - **Validator wiring:** anything added to `validate-all.sh` must be listed here; keep the comment block in `validate-all.sh` in sync.
 - **Config / "what reads what":** `CONVENTIONS.md` §8 is the canonical index of rules these scripts enforce; this file is a *map* — the owning specs remain authoritative.
 
----
 
 ## Portability (Debian/WSL ext4 primary, HD-256)
 
