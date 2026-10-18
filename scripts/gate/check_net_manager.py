@@ -22,9 +22,10 @@ THE RULES, each one a finding rather than a paragraph:
   3. render-gate   — every task that renders a systemd-networkd unit must gate on the DECLARED
                      manager, not on whether a var is defined. This is the half that keeps the root
                      fix from regrowing.
-  4. freeze        — while a host's owner and its ruled target differ, that host declares no
-                     netd_phys_name, appears in no NetworkManager dual-home list, and defines no
-                     resolver/profile leg: an owed migration is a frozen host, not a half-written one.
+  4. freeze        — while a host has ADOPTED NetworkManager but its ruled target still differs,
+                     that host declares no netd_phys_name, appears in no NetworkManager dual-home
+                     list, and defines no resolver/profile leg: an owed migration is a frozen
+                     host, not a half-written one.
   5. guard-live    — the role must still ask the BOX: the three refuses exist, the removal leg uses
                      the role's declared unit namespace (never a wider glob), the disarm of a second
                      manager carries all five of its safety conditions, and the post-disarm read-back
@@ -42,9 +43,9 @@ block, which measures the box (`service_facts`, `/run/network/ifstate`, `nmcli`,
 refuses a mismatch at converge time; `scripts/ansible/probe-net-manager.sh` is the read-only verdict.
 
 Self-test:  python3 scripts/gate/check_net_manager.py --self-test
-            breeds every rule on a copy of the tree and requires RED each time, plus two controls
-            that must stay GREEN (a settled systemd-networkd host with a declared NIC, and an
-            ifupdown host whose target is NetworkManager).
+            breeds every rule on a copy of the tree and requires RED each time, plus three controls
+            that must stay GREEN (a settled systemd-networkd host with a declared NIC, a settled
+            NetworkManager host outside the dual-home list, and an ifupdown host with nothing owed).
 Run:        python3 scripts/gate/check_net_manager.py
 Exit:       0 = clean · 1 = finding(s) · 2 = could not run (missing corpus).
 Wired into scripts/validate-all.sh.
@@ -259,13 +260,17 @@ def check(root_dir: Path) -> list[str]:
                 f"(`network_manager == 'systemd-networkd'`) — a render gated only on var definedness "
                 f"is a tautology")
 
-    # 4 — an owed migration freezes the host's legs
+    # 4 — a host that adopted NetworkManager while the ruled target still differs freezes its legs
     dualhome = (_load(role / "defaults" / "main.yml") or {}).get("network_nm_dualhome_hosts") or []
     dualhome = [str(h) for h in (dualhome if isinstance(dualhome, list) else [])]
     for host in sorted(hosts):
         hv = host_vars(ansible, host)
         owner, target = str(hv.get("network_manager")), str(hv.get("network_manager_target"))
-        if owner not in kinds or target not in kinds or owner == target:
+        # FROZEN is the adopted-but-owed shape: the host declared NetworkManager (it adopted the
+        # manager) while its ruled target still differs. A settled host — declared == target — is
+        # never frozen: a settled NetworkManager host outside the dual-home list is the ordinary
+        # single-uplink layout, and the settled-nas control below proves the reader stays green.
+        if owner != "NetworkManager" or target not in kinds or owner == target:
             continue
         if "netd_phys_name" in hv:
             problems.append(
@@ -657,8 +662,28 @@ def self_test(src: Path) -> int:
         task = _find_task(doc, "physical uplink")
         task["when"] = [w for w in task["when"] if "network_manager" not in str(w)]
 
+    def freeze_target(doc):
+        # Make nas a FROZEN host: it adopted NetworkManager (eno1) but the ruled target is still
+        # owed. The freeze IS the target-differs condition, so this host_vars shape is what the
+        # freeze rules exist for — a settled host (declared == target) is never frozen.
+        doc["network_manager_target"] = "systemd-networkd"
+
     def freeze_leg(doc):
+        # A frozen host renders no keyfile leg, so a frozen host joining network_nm_dualhome_hosts
+        # is the violation. (This edit touches the defaults file only; the FROZEN shape comes from
+        # freeze_target on the host_vars, applied by the same case.)
         doc["network_nm_dualhome_hosts"].append("nas.kogler.si")
+
+    def freeze_nic(doc):
+        # Nor may a frozen host declare the NIC: netd_phys_name is the netd address leg it must
+        # not render.
+        doc["network_manager_target"] = "systemd-networkd"
+        doc["netd_phys_name"] = "eno1"
+
+    def freeze_resolver(doc):
+        # Nor a resolver leg: it resolves off a manager that does not yet own the box.
+        doc["network_manager_target"] = "systemd-networkd"
+        doc["host_resolver_dns"] = "10.10.1.1"
 
     def _edit_fact(doc, key, old, new=""):
         for task in _tasks(doc):
@@ -698,7 +723,11 @@ def self_test(src: Path) -> int:
         ("a declaration leaves the vocabulary", ("host_vars/pi.kogler.si.yml", bad_value)),
         ("the role default grows back", ("roles/network/vars/main.yml", role_default)),
         ("a netd render stops asking the host", ("roles/network/tasks/main.yml", ungate_render)),
-        ("a frozen host joins the keyfile list", ("roles/network/defaults/main.yml", freeze_leg)),
+        ("a frozen host joins the keyfile list",
+         [("host_vars/nas.kogler.si.yml", freeze_target),
+          ("roles/network/defaults/main.yml", freeze_leg)]),
+        ("a frozen host declares a NIC", ("host_vars/nas.kogler.si.yml", freeze_nic)),
+        ("a frozen host declares a resolver leg", ("host_vars/nas.kogler.si.yml", freeze_resolver)),
         ("the disarm loses a safety condition", ("roles/network/tasks/main.yml", drop_route_condition)),
         ("the held-interface probe goes blind", ("roles/network/tasks/main.yml", blind_held_probe)),
         ("a refuse task is deleted", ("roles/network/tasks/main.yml", drop_refuse)),
@@ -706,11 +735,14 @@ def self_test(src: Path) -> int:
         ("a group_vars file re-imposes a manager", ("group_vars/home_servers.yml", group_default)),
     ]
     # canaries: every mutation must turn the checker RED
-    for label, (rel, edit) in cases:
+    for label, steps in cases:
+        if isinstance(steps, tuple) and len(steps) == 2 and isinstance(steps[0], str):
+            steps = (steps,)   # a single (rel, edit) pair — the common case shape
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td) / "repo"
             shutil.copytree(src, tmp)
-            _mutate(tmp, rel, edit)
+            for rel, edit in steps:
+                _mutate(tmp, rel, edit)
             got = check(tmp)
             if not got:
                 print(f"NOT CAUGHT: {label}")
@@ -743,6 +775,22 @@ def self_test(src: Path) -> int:
             fails += 1
         else:
             print("control green: settled systemd-networkd host with a declared NIC still renders")
+
+    # and the settled nas shape: nas declared == target (NetworkManager), so it is SETTLED and
+    # never FROZEN regardless of the dual-home list. The mutation adds nas to the list only — a
+    # settled host sitting in the list is legal; only a FROZEN host joining it is a finding.
+    with tempfile.TemporaryDirectory() as td:
+        tmp = Path(td) / "repo"
+        shutil.copytree(src, tmp)
+        _mutate(tmp, "roles/network/defaults/main.yml", lambda doc: doc.update(
+            {"network_nm_dualhome_hosts": ["pi.kogler.si", "spark.kogler.si",
+                                           "nas.kogler.si"]}))
+        got = check(tmp)
+        if got:
+            print(f"CONTROL FAILED: a settled NetworkManager host joining the keyfile list is legal -> {got[:2]}")
+            fails += 1
+        else:
+            print("control green: settled NetworkManager host joining the keyfile list is not a freeze finding")
 
     # and the third state must be legal in itself: a host may declare ifupdown with nothing owed.
     with tempfile.TemporaryDirectory() as td:
