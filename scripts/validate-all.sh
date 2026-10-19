@@ -1274,6 +1274,17 @@ item_q "check_script_layout.py (HD-1118 Stage 4: registry ≡ tree, depth ratche
 item_q "check_script_layout.py --self-test (HD-1118: each rule seen to fail, corpus floor included)" $PY scripts/gate/check_script_layout.py --self-test
 item_q "check_iac_identifiers.py (no changelog identifier may live in IaC/)" $PY scripts/gate/check_iac_identifiers.py
 item_q "check_iac_identifiers.py --self-test (canary)" $PY scripts/gate/check_iac_identifiers.py --self-test
+# A filtered converge can execute a fraction of a role and still recap `failed=0`: a tag on a playbook
+# `roles:` entry cascades into every task of the role, a tag on the `include_tasks` LINE decides only
+# whether the FILE loads (its children are then filtered on their own tags), and an untagged dynamic
+# include is never expanded by a filtered run at all — `tags: always` children included, because
+# `always` can only rescue a task that was parsed. The two items below are the static half: they walk
+# the tree, name the include line and the task, and cost half a second. The lab after them asks
+# ansible-playbook the same four questions about itself (debug-only legs, the literal `localhost`
+# inventory), which is why it is NOT in the quick profile.
+item_q "check_tag_coverage.py (a task below a dynamic include must be selectable by some tag)" $PY scripts/gate/check_tag_coverage.py
+item_q "check_tag_coverage.py --self-test (each cascade rule planted in a temp tree; a missing tree exits 2)" $PY scripts/gate/check_tag_coverage.py --self-test
+item_x "every leg executes real ansible-playbook against the literal localhost inventory: it needs ~/ansible-venv, and the static walk above already judges THIS tree — the lab proves the rules the walk reasons with, so buy it when a tag or an include line changes, not per keystroke" "testdata/check_tag_coverage/run.sh (the four cascade rules, asked of ansible itself)" bash scripts/testdata/check_tag_coverage/run.sh
 # The child-lane contract (delegation default, ≤2 children, inherit-only model, 2 h deadline) lives in
 # four files at once; this is the only thing that keeps those four agreeing. Run + canaries.
 item_q "check_subagent_contract.py (the subagent contract agrees across settings SSOT + the three rule docs)" $PY scripts/gate/check_subagent_contract.py

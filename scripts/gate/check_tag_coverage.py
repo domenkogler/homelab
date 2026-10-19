@@ -51,8 +51,10 @@ Exit:  0 = coverage holds · 1 = finding(s), including a file the gate could not
 run (no IaC tree — a silent 0 there would read as "checked everything, found nothing"). Stdlib +
 PyYAML only, no network, no ansible, deterministic ordering.
 
-STATUS: authored and self-tested for HD-1149, NOT registered in scripts/validate-all.sh — the
-`item_q` line is the owner's checkpoint.
+STATUS: registered in scripts/validate-all.sh — the static walk and `--self-test` run in every profile,
+and `scripts/testdata/check_tag_coverage/run.sh` (the live witness, SKIPs without ansible) runs in the
+full profile. A red here is a tag-coverage finding in the tree, not a broken checker: `--self-test` is
+registered beside it precisely so the two cannot be confused.
 """
 from __future__ import annotations
 
