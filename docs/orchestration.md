@@ -162,6 +162,13 @@ inside one session. The LIVE wave table is
    **finisher** child in the *same* worktree carrying only the unfinished scope and the parent's own measurements of the
    live state — the finisher starts from landed commits, and must not be told to re-derive what the parent has already
    measured on the host.
+9. **The merge station is not exempt from the rule it enforces.** A parent's "small doc fix" made directly in the primary
+   is the same violation CONVENTIONS §6 forbids a lane, and `guard-session.sh` says so in its own words — *validate-all ran from the
+   PRIMARY checkout on 'main' with DIRTY files* — which means the gate cannot be run green until the edit is either
+   committed or moved. Committing to get a green run inverts the order and is how the guard's warning becomes a notice
+   served after the fact. So: **make the parent's own edit in a worktree, gate it there, FF-merge it** — exactly the
+   lane procedure, with the parent as the lane. The one legitimate primary-side act is running the gate at a CLEAN tree
+   after a merge (O5's exempt form); "dirty, then commit, then gate" is not that.
 
 
 ### Merge + cleanup (the parent — none of this is ever a lane's job)
