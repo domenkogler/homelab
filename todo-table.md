@@ -219,6 +219,14 @@
   `ok=32 changed=3 failed=0`, the same apply again `changed=0`), and its enforcement is proven from HA's own
   `[http.ban]` / `[http.forwarded]` lines — but the row is **open, not closed**: two reads stay owed, the takeover-shaped
   request from the oldsrv edge and the XFF-present → `200` read through the `traefik-internal` middleware.
+- **A dark host pages now, and one host is dark while you read this (measured 2026-10-19).** The silent-failure rules
+  are no longer authored-and-unloaded: a `--tags grafana` window loaded the generated per-host
+  `absent_over_time(up{job="alloy",instance=…}[10m])` form onto the backend and it was **watched red** — a collector host
+  publishing nothing used to leave every other rule `Normal`, which is the failure this class exists to catch
+  (**HD-1163**). The first live red is **`nas`**, and that red is correct rather than a tuning problem: its collector dies
+  within seconds of every start (**HD-1164**), so until that host publishes again
+  `scripts/gate/check_host_reporting.py --check` reads red for it — the fleet pages on four hosts with one knowingly
+  blind.
 - **⚠ The asymmetry a transport session must not read backwards:** the tailnet EDGE now survives either home box,
   the tailnet ANSWER does not. MagicDNS still answers `ha.ts.kogler.si` with **oldsrv's node address only**, so the away path that
   works today is `pi.ts.kogler.si`, and the fix is HD-436's `tailnet: dual` step (HD-435).
