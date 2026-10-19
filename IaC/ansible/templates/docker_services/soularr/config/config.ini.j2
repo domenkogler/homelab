@@ -48,7 +48,12 @@ download_dir = /downloads/complete/music
 # own history is the only place a stalled Soulseek transfer is visible.
 delete_searches = False
 stalled_timeout = 3600
-remote_queue_timeout = 300
+# Measured, not guessed: while a peer is actually sending, slskd keeps reporting the transfer as QUEUED,
+# so a short bound here deletes an album that is downloading fine. A first album was enqueued at 17:17:35
+# and deleted at 17:22:39 — 304 s, the old 300 — while its FLACs were landing in slskd's incomplete tree at
+# 17:18 and 17:22. Both patience knobs therefore meet at one hour: the queue can take an hour to move on
+# Soulseek; after that the album is gone from the grab list and the next poll re-searches it.
+remote_queue_timeout = 3600
 
 [Release Settings]
 # Lidarr's own release preference wins over soularr guessing which release the peers hold.

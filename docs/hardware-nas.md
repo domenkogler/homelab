@@ -85,8 +85,11 @@ tags: [hardware, nas, zfs]
 
 - **4 TB usable**, fully redundant mirror — reserved for **user data** (backed up). No media.
 - Datasets (all snapshotted + syncoid-replicated to `bulk`):
-  - `tank/data/services` → nightly state pushes from oldsrv (Forgejo dump, n8n sqlite, …)
-  - `tank/data/db-dumps` → tiredofit/db-backup output (pushed from oldsrv local scratch)
+  - `tank/data/services` → the state-push target. **Unmounted (`mountpoint=none` inherited from `tank/data`),
+    so nothing can be written into it and no push targets it** — the half of the pair that carries state is
+    Kopia, not this dataset; see [`backup.md`](backup.md) §Layer 1
+  - `tank/data/db-dumps` → tiredofit/db-backup output (pushed from oldsrv local scratch). The push lands in
+    the **parent `tank` filesystem**, not in this dataset, for the same mount reason
   - Originals and user-files live on the live Box — there is no NAS copy.
   - `tank` holds **user data only**; the media library lives on the `bulk` pool.
     Full layout: [`storage.md`](storage.md)

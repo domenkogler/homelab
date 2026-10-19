@@ -37,6 +37,26 @@ nas ZFS pool "tank"  ──zfs send/recv──→  nas ZFS pool "bulk"
 - Replication: syncoid timer checks every 15 min, sends when a new source snapshot exists (≈ hourly)
 - Managed via **sanoid/syncoid**, run by **systemd timers** (sanoid.timer + syncoid.timer) — not raw cron; gives journaling, randomized schedules, and failure tracking
 
+- **This layer is a name-only layer on the `tank` side: the two source datasets carry no payload, and the
+  invariant that decides it is a mount, not a policy.** `tank/data` is `canmount=off` with
+  `mountpoint=none`, and `tank/data/services` / `tank/data/db-dumps` inherit that `mountpoint=none`, so
+  **neither child is ever mounted** — `zfs get mounted` reads `no` and the paths do not exist in the
+  namespace (`/tank/data/services` is simply absent). sanoid and syncoid name datasets, so both run green,
+  take their hourly snapshots and send their incrementals against a dataset whose `refer` sits at the
+  empty-dataset floor (`96K`) and whose snapshots all report `used=0B`: a snapshot of a dataset nothing can
+  write is a snapshot of nothing, and the stream is metadata-sized. Two consequences, both measured:
+  **the state-push half has no writer at all** — nothing in the tree, no unit and no script, targets
+  `tank/data/services`, and the directory has never existed on either side of the NFS mount; **the dump-push
+  half does fire, but lands in the wrong dataset** — `storage-push-db-dumps.sh` writes
+  `/mnt/nas/data/db-dumps`, the export of `/tank/data` resolves that path into the **parent `tank`
+  filesystem** (`findmnt -T` names `tank`, whose own `refer` carries the ~14 MB of dumps), while
+  `tank/data/db-dumps` stays at `96K`. So the nightly dumps are protected by **Kopia** from the oldsrv
+  scratch dir, not by this layer, and `tank` itself has no sanoid policy at all. **The rule to carry
+  forward:** a dataset a backup tool names must also be mounted and have a writer; the same shape as a
+  reserved dump slot that no dump takes — a policy row that points at an unmounted dataset renders green,
+  fires on schedule and protects nothing. The destination mirror is the same story in miniature:
+  `bulk/data/services` is unmounted too and its snapshot history is `used=0B` all the way down.
+
 ### Layer 2: Kopia (Off-Site — Application-Level, NAS-independent)
 
 Configs, DB dumps, service state, face thumbnails, and VPS/oldsrv local state go off-site via Kopia.
