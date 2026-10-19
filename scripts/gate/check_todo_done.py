@@ -84,6 +84,7 @@ Exit:  0 = clean, 1 = violations found. Wired into `scripts/validate-all.sh`.
 """
 from __future__ import annotations
 
+import hashlib as _hashlib
 import re
 import sys
 from pathlib import Path
@@ -640,6 +641,45 @@ _ST_REJECT = ("decision REJECTED", "row SUPERSEDED by HD-1")
 _ST_NOT_REJECT = ("this is unresolved, not a rejection", "supersede logic in lowercase")
 
 
+class _TreeGuard:
+    """A read-only witness over one tracked file: snapshot, then ask whether anything touched it.
+
+    Bytes are not enough. A `write_bytes` that restores identical bytes leaves the CONTENT unchanged
+    and still truncates the file for the length of the write — which is the exact hazard a concurrent
+    gate reader falls into. So the witness is (size, mtime_ns, sha256): the mtime catches a
+    same-content rewrite that the hash would forgive.
+    """
+
+    def __init__(self, path: Path) -> None:
+        self.path = path
+        try:
+            st = path.stat()
+            self.size = st.st_size
+            self.mtime_ns = st.st_mtime_ns
+            self.digest = _hashlib.sha256(path.read_bytes()).hexdigest()
+        except OSError as exc:            # unreadable at snapshot time: the canary reports it anyway
+            self.size = -1
+            self.mtime_ns = -1
+            self.digest = ""
+            self.error = f"cannot snapshot {path.name}: {exc}"
+        else:
+            self.error = ""
+
+    def check(self, what: str) -> list[str]:
+        if self.error:
+            return [self.error]
+        try:
+            st = self.path.stat()
+            now = (st.st_size, st.st_mtime_ns, _hashlib.sha256(self.path.read_bytes()).hexdigest())
+        except OSError as exc:   # gone or unreadable now is not a subtle case: it moved, say so
+            return [f"{what} left the tracked {self.path.name} unreadable: {exc}"]
+        if now == (self.size, self.mtime_ns, self.digest):
+            return []
+        return [f"{what} touched the tracked {self.path.name} — a self-test writes only into its own "
+                f"temp tree. A concurrent gate reader can catch the file mid-write (`w` truncates "
+                f"first) and scan a truncated registry: that is the HD-1117 pool flake, not a verdict"]
+
+
 def _self_test() -> int:
     # The canaries need a scratch tree: the marker/claim cases are pure strings, the reference and
     # duplicate-ID cases write fixtures. `tempfile`/`os` are imported ONCE here, for both canaries.
@@ -792,9 +832,10 @@ def _self_test() -> int:
         fails.append(f"the reference pass found only {_real_briefs} brief(s) at the repo root — "
                      f"the `{_BRIEF_GLOB}` glob is not matching the briefs")
 
-# ── Duplicate-ID gate (HD-485). The canary writes into todo.md and restores it from a
-    # byte-for-byte snapshot in `finally`: the assertion "the gate sees the duplicate" is only
-    # evidence if a crash cannot leave a fabricated row in the backlog.
+# ── Duplicate-ID gate (HD-485). The canary injects a TEMP registry and never writes todo.md
+    # (HD-1117 — it used to write the real file and restore it from a byte snapshot in `finally`):
+    # the assertion "the gate sees the duplicate" is equally evidence either way, and a crash can no
+    # longer leave a fabricated row in the backlog because there is no write that could leave one.
     dup_row = ("| HD-476 | 2 | AI | 1 | canary second claimant — ⏳ a tail so it is not "
                "also flagged fully_done · [x](docs/index.md) |\n")
     sub_row = ("| HD-900z | 2 | AI | 1 | canary sub-ID — ⏳ tail · [x](docs/index.md) |\n")
@@ -817,6 +858,20 @@ def _self_test() -> int:
         finally:
             os.unlink(tmp)
 
+    # ⚠ THE SELF-TEST NEVER WRITES todo.md, and the witness below proves it (HD-1117).
+    # Every canary here injects an INJECTED registry — `_dup_gate` and `_ref_gate` both build a
+    # throwaway file and repoint `TODO` — so the real backlog is only ever READ. The item used to end
+    # with `finally: TODO.write_bytes(original)`, restoring a file nothing had modified: `write_bytes`
+    # opens with `w`, which TRUNCATES first, and the pool runs this item CONCURRENTLY with the plain
+    # `check_todo_done.py`, `--refs`, `check_hd_mint_space.py` and every doc checker that reads todo.md.
+    # Measured 2026-10-19 on the WSL Debian seat: three readers sampling todo.md beside 250 back-to-back
+    # `--self-test` runs caught 6,548 / 6,146 / 6,110 truncated reads out of ~1.5 M samples each, at
+    # sizes 0, 4,096, 8,192 … against a true size of 353,762 — the SAME race with the restore removed
+    # reads 0 / 0 / 0, and putting the `finally` back reddens THIS item with the witness's own line.
+    # A sibling that opens the file in that window scans a truncated registry: the
+    # green-that-measured-nothing / red-that-is-not-a-verdict shape, and why this item "flakes red
+    # under the pool and is green alone".
+    untouched = _TreeGuard(TODO)
     try:
         original = TODO.read_bytes()
     except OSError as exc:  # the canary needs the real registry; a missing one is a hard error
@@ -847,8 +902,11 @@ def _self_test() -> int:
                              "— the exemption path is untested and would be a silent hole")
         except Exception as exc:  # never leave the registry mutated, never swallow the reason
             fails.append(f"duplicate-ID canary could not run: {type(exc).__name__}: {exc}")
-        finally:
-            TODO.write_bytes(original)
+
+    # The write-free witness. Bytes alone would miss a rewrite that restored the same content, so
+    # mtime_ns + size are checked too: a `write_bytes` of identical bytes changes the mtime, which is
+    # exactly the operation that truncates the file out from under a concurrent reader.
+    fails += untouched.check("the duplicate-ID / reference canaries")
 
     if fails:
         print(f"FAIL: check_todo_done self-test — {len(fails)} case(s):")

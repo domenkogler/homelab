@@ -66,9 +66,28 @@ checks=0
 # 11.4 s, 20 % of the whole gate). So each leg now runs in the background writing output + rc into
 # $WORK; the ASSERTIONS are unchanged and still run in the declared order in this shell, reading
 # those files. expect() only launches; check_leg() asserts.
-NPAR=4
-command -v nproc >/dev/null 2>&1 && NPAR="$(nproc)"
-NPAR="${GATE_NPAR:-$NPAR}"
+#
+# ⚠ SLOT CONTROL IS AN ACQUIRE, NOT A POLL (HD-1117). This leg used to throttle with
+# `[ "$(jobs -rp | wc -l)" -ge "$NPAR" ]`, the shape HD-1135 deleted from the pool RUNNER and left
+# alive HERE. `wc` is an EXEC, so a busy loop forks two processes (wc + sleep) every 50 ms just to ask
+# "is anything free?" — counted 2026-10-19 on the WSL Debian seat with `wc`/`sleep` shimmed onto PATH:
+# 102 forks (60 wc + 42 sleep) for one 18-leg run at GATE_NPAR=4 and 188 (103 wc + 85 sleep) at 2,
+# against 0 with the acquire below. The tighter the bound the more it costs, and the fixture runs
+# INSIDE the gate's pool, so those forks land on the same non-scaling resource — process creation —
+# that the 18 ansible-playbook interpreters here and the 16 in `validate-all.sh`'s syntax loop need.
+# `wait -n` blocks until a slot is genuinely free, at zero forks. Measured verdicts are identical
+# (18/18 cases, rc 0) at GATE_NPAR 1, 2, 4 and 12, and 12 quiet plus 6 load-saturated runs came back
+# green — the fixture's own contribution to the pool flake is the fork storm, and it is gone.
+NPAR="${GATE_NPAR:-}"
+if [ -z "$NPAR" ]; then
+    NPAR=4
+    command -v nproc >/dev/null 2>&1 && NPAR="$(nproc)"
+fi
+# Probe `wait -n` the way validate-all does: supported => it reaps the `true` below with rc 0;
+# unsupported => wait errors (rc 2) and blocks, so the sleep-poll fallback stays.
+HAVE_WAITN=0
+true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1
+in_flight=0
 leg_ids=(); leg_want=(); leg_label=(); leg_dummy=(); leg_section=()
 SECTION="<ungrouped>"
 # section "<heading>" — legs launched after this call are reported under that heading, so the
@@ -93,14 +112,23 @@ expect() {
         esac
     fi
 
+    # ACQUIRE A SLOT BEFORE LAUNCHING. The old form launched, then polled for a free slot, so the
+    # bound was held by ASKING (a fork every 50 ms) instead of by WAITING. Waiting is exact and free.
+    if [ "$HAVE_WAITN" = 1 ]; then
+        while [ "$in_flight" -ge "$NPAR" ]; do
+            wait -n >/dev/null 2>&1 || true
+            in_flight=$((in_flight - 1))
+        done
+    else
+        while [ "$(jobs -rp | wc -l)" -ge "$NPAR" ]; do sleep 0.05; done   # bash < 5.1: no wait -n
+    fi
+
     local id="leg${#leg_ids[@]}"
     ( ansible-playbook -i "$INV" "$PB" --limit "$limit" ${args[@]+"${args[@]}"} \
         > "$WORK/$id.out" 2>&1; echo "$?" > "$WORK/$id.rc" ) &
+    in_flight=$((in_flight + 1))
     leg_ids+=("$id"); leg_want+=("$want"); leg_dummy+=("$want_dummy")
     leg_label+=("limit=$limit ${args[*]:-<no --tags>}"); leg_section+=("$SECTION")
-
-    # Throttle: sleep-poll instead of `wait -n`, so nothing here leans on bash 4.3+.
-    while [ "$(jobs -rp | wc -l)" -ge "$NPAR" ]; do sleep 0.05; done
 }
 
 # check_leg <index> — the verdict assertions, moved VERBATIM from the inline version; the only
