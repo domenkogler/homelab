@@ -446,8 +446,11 @@
   # instance stays invisible. Read the enablement where it is actually stored.
   ansible.builtin.shell:
     cmd: ls -1 /etc/systemd/system/multi-user.target.wants/ 2>/dev/null | grep '^docker-compose@' || true
-  args:
-    warn: false
+  # No `args: {warn: false}` here: the `warn` parameter was REMOVED in ansible-core 2.21, so passing it
+  # is not a silenced warning but a hard task failure (`Unsupported parameters for (command) module: warn`),
+  # which reddens EVERY unscoped `--tags docker_services` converge at this task on a core 2.21 runner. The
+  # module emits no deprecation warning to suppress. The scoped form (`-e docker_services_scope=<svc>`) is
+  # the workaround on an older tree, because this task is gated on `scope_is_all`.
   register: boot_units_raw
   changed_when: false
   when:
