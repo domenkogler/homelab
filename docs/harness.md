@@ -78,7 +78,7 @@ harness) so the next harness is a row there and not a restructure here.
 | Harness **candidates and rejections** | [`harness-review.md`](harness-review.md) (queue), [`harness-rejected.md`](harness-rejected.md) (decision log, with the seed pointers into the older logs) |
 | The harness subject's **open tails** — what is measured and what is still unsettled | [`harness-pi-engines.md`](harness-pi-engines.md) §9 |
 
-The split above is a **placement decision, now carried by the four split docs**: every harness detail named in the
+The split above is a **placement decision, now carried by five docs**: every harness detail named in the
 table is owned by `harness-pi-engines.md` / `harness-pi-models.md` / `harness-pi-seats.md` /
 `harness-pi-seat-identity.md` / `harness-pi-terminal.md` (HD-1119a split, 2026-10-18).
 
@@ -92,7 +92,7 @@ as if it were about a machine:
 | Name | It is | Owned by |
 |---|---|---|
 | **`pi` / `pi.kogler.si`** | the **Raspberry Pi 4 host** — Home Assistant primary, Technitium tertiary, `traefik-ha` edge | [`hardware.md`](hardware.md), [`smart-home.md`](smart-home.md), [`deployment-pi-provision.md`](deployment-pi-provision.md) |
-| **`pi.dev` / "the harness"** | the **coding-agent harness** this domain documents | [`harness-pi-engines.md`](harness-pi-engines.md) + the four split docs, this hub |
+| **`pi.dev` / "the harness"** | the **coding-agent harness** this domain documents | the five `harness-pi-*.md` docs (`-engines`, `-models`, `-seats`, `-seat-identity`, `-terminal`), this hub |
 
 So: say **`pi.dev`** or **the harness** for the toolchain, **`pi`** only for the host, and never
 `pi` + `harness` collapsed into one bare word where a reader could take it for the Raspberry Pi.

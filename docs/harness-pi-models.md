@@ -1,6 +1,6 @@
 ---
 title: pi.dev Harness — The rendered models.json (spark provider)
-role: ssot
+role: detail
 domain: harness
 status: active
 tags: [ai, pi, agent-harness, harness, spark, llm, model-contract]
@@ -8,7 +8,13 @@ tags: [ai, pi, agent-harness, harness, spark, llm, model-contract]
 
 # pi.dev Harness — The Model Contract
 
-> **Role:** SSOT — the **rendered model contract**: `~/.pi/agent/models.json` is generated from [`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml); this doc is the field-by-field rationale plus the Continue.dev vendor block.
+> **Role:** detail — the **model contract in prose**: the field-by-field rationale for
+> `~/.pi/agent/models.json`, plus the Continue.dev vendor block. **The SSOT is the spec, not this doc** —
+> [`../scripts/harness/pi/models-spec.yml`](../scripts/harness/pi/models-spec.yml), rendered by
+> [`../scripts/harness/render-pi-config.py`](../scripts/harness/render-pi-config.py).
+> The block in §4 below is that render's OUTPUT, not its source: CONVENTIONS §8.5 puts the values in the
+> SSOT and the reasoning in the doc, and this doc is the reasoning. (HD-1119b: the role read `ssot`,
+> which §4 of this doc contradicted.)
 > **Linked from:** [`index.md`](index.md) (Document Map + dispatcher) ·
 > [`harness.md`](harness.md) (the `harness` domain hub — placement map).
 
