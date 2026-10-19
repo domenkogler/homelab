@@ -33,7 +33,7 @@ dangling refs and are not, and each is exempted with a reason printed in --verbo
      beside it. Reading the whole line would have traded one blind spot for a bigger one.
 
 WHAT THE MATCHER SEES, because the matcher shape decides what is checked (HD-1156 found the
-anchor half of this, in `check_doc_headings.py`, and HD-1168 the citation half here): the
+anchor half of this, in `check_doc_headings.py`, and HD-1169 the citation half here): the
 original `BARE_RE` carried a backtick in its lookbehind, so `` `scripts/x.py` `` — the way
 almost every path in this repo is actually written — was never handed to `Path.exists()`,
 and `extract()` masked only markdown-link spans. A backticked path is now read as the claim
@@ -136,7 +136,7 @@ BARE_RE = re.compile(
     r"[^\s`'\"|<>)\],;]*[A-Za-z0-9_])" % _ROOT_ALT
 )
 # A backticked span: the way this repo writes almost every path. The old BARE_RE lookbehind
-# carried a backtick, which made the whole form invisible to the gate (HD-1168).
+# carried a backtick, which made the whole form invisible to the gate (HD-1169).
 CODE_SPAN_RE = re.compile(r"`([^`\n]+)`")
 # `path:NN`, `path:NN-MM`, `path:var-or-label` — the file is the promise, the suffix is where
 # inside it to look. Without this rule a `file.yml:302` citation is "dangling" and the honest
@@ -262,7 +262,7 @@ def extract(path, text):
     common `[`x/y.md`](../x/y.md)` shape would otherwise be counted a second time as a
     root-relative claim that does not exist. BACKTICKED spans are read one token at a time, so
     `` `ansible-playbook playbooks/site.yml` `` checks the playbook it names: BARE_RE's lookbehind
-    has always refused a path that a backtick stands in front of, and that blind spot is HD-1168."""
+    has always refused a path that a backtick stands in front of, and that blind spot is HD-1169."""
     out = []
     for m in LINK_RE.finditer(text):
         t = m.group(1).split("#")[0]
@@ -605,11 +605,11 @@ def self_test():
         "docs/sibling.md": "the real sibling of the RENDERED document\n",
         "IaC/ansible/templates/tpl.md.j2": "[`sibling.md`](sibling.md)\n",
         "IaC/ansible/roles/real/tasks/main.yml": "- debug: msg=ok\n",
-        "IaC/ansible/roles/real/templates/real.j2": "ok\n",
+        "IaC/ansible/roles/real/templates/real.j2": "ok",
         "IaC/host/gen.sh": "#!/bin/sh\n",
-        "spark/reports/x.md": "ok\n",
-        "spark/tool.md": "ok\n",
-        "scripts/tool.py": "ok\n",
+        "spark/reports/x.md": "ok",
+        "spark/tool.md": "ok",
+        "scripts/tool.py": "ok",
         "reports/changelog.md": "deleted `IaC/ansible/playbooks/gone.yml` here once\n",
         "reports/run-log.md": ("ran `IaC/ansible/playbooks/gone.yml`, then "
                                "`scripts/never-existed-4242.py` in the same pass\n"),
@@ -638,7 +638,7 @@ def self_test():
             hits(("docs/a.md", "spark/reports/gone.md")) == [("docs/a.md", "spark/reports/gone.md")],
             str(sorted(got)))
         want_back = [("docs/a.md", "scripts/gone-backtick.py")]
-        arm("backtick arm (HD-1168): a dangling `path` is caught -- the form the old lookbehind "
+        arm("backtick arm (HD-1169): a dangling `path` is caught -- the form the old lookbehind "
             "handed to nobody", hits(*want_back) == want_back, str(sorted(got)))
         want_cmd = [("docs/a.md", "playbooks/gone-cmd.yml")]
         arm("command-span arm: the SECOND token of `ansible-playbook playbooks/x.yml` is checked",
