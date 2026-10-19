@@ -49,8 +49,14 @@ if [ "${1:-}" = "--self-test" ]; then
               bash "$SELF" --ssh-auth 2>&1 || true; }
   mk() { mkdir -p "$TMP/$1"; printf '#!/bin/sh\ncase "$1 $2" in\n%s\nesac\n' "$2" > "$TMP/$1/op"; chmod +x "$TMP/$1/op"; }
   ACCT='"account list") echo "SHORTHAND    URL"; echo "my           https://my.1password.eu"; exit 0;;'
-  # signed out — op refuses, but the account IS on disk (real op lists accounts either way)
-  mk signedout "  \"vault list\") echo '[ERROR] You are not currently signed in.' >&2; exit 1;;
+  # signed out — op refuses, but the account IS on disk (real op lists accounts either way).
+  # HD-1159: the refusal text is HANDED to the fixture in a file, never written inside it, so the
+  # fixture and the detector below no longer share a literal the test could agree with by accident.
+  # Upstream `op` rewording the refusal is the failure this models: the string still has to reach the
+  # operator (asserted below), and a fixture that emits a different refusal must redden the run.
+  REFUSAL_SIGNEDOUT='[ERROR] You are not currently signed in.'
+  printf '%s\n' "$REFUSAL_SIGNEDOUT" > "$TMP/signedout.refusal"
+  mk signedout "  \"vault list\") cat '$TMP/signedout.refusal' >&2; exit 1;;
     $ACCT"
   # no account configured at all — real op says THIS, not "not signed in", and the branch order
   # depends on the difference (my first fixture faked the wrong message and the test went red)
@@ -86,6 +92,14 @@ if [ "${1:-}" = "--self-test" ]; then
     fi
   }
   check signedout   "has no session"              ""  "no human 1Password account"
+  # The hand-off half (HD-1159). `check` above proves the branch was taken; this proves the refusal
+  # `op` actually handed us reached the operator, which is the whole reason the branch is diagnosable.
+  # Without it the arm tested a string BOTH sides wrote: deleting the `op:` echo line from the
+  # signed-out branch left the self-test GREEN (measured 2026-10-19), i.e. an operator would get
+  # "an account IS configured, but this context has no session" with nothing naming why.
+  out=$(run "$TMP/signedout" "" "")
+  printf '%s' "$out" | grep -qF "$REFUSAL_SIGNEDOUT" \
+    || { echo "SELFTEST FAIL [signedout-handoff]: the refusal the fixture was handed never reached the output — the arm proves the branch but not the hand-off"; fails=$((fails+1)); }
   check noacct      "no human 1Password account"  ""
   check wrongvault  "vault is NOT among"          ""  "has no session"
   # the runtime-dir guard must fire BEFORE any op call. PATH keeps a real shell (a bare
