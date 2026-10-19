@@ -361,6 +361,18 @@ shows) → `.id` on the linked oldsrv daemon, stored in `group_vars/all/main.yml
   **and** the lookup must declare `type: DisplayString`; otherwise labels are missing (`interface [no value]`)
   and values render as hex (`0x65746865…`). Give each device its own `instance` label or two devices
   collapse into one flat series.
+- **A probe job needs a per-target label, or every probe of that job collapses into one series.** The
+  blackbox target shape is `__address__` = the exporter and `__param_target` = the thing probed, and
+  `__param_*` is a QUERY PARAMETER — it never becomes a label. So `instance` on a probe series is the
+  exporter's own address (`127.0.0.1:9115`) for every target of the job, the store keeps ONE series per
+  job no matter how many hosts it probes, and `count by (instance) (probe_success{job=…})` returns the
+  exporter, not the fleet. Two consequences follow: a rule over the bare job (`host-unreachable`,
+  `public-service-down`) pages without naming anything, and a rule that filters on a probed URL
+  (`instance="https://…"`) selects NO series at all — with the only sane `noDataState` for it, `OK`, it
+  is green forever. The fix is the SNMP rule above applied to the probe jobs: name the target inside the
+  target map, or relabel `__param_target` into a label. The read that shows it in one line is
+  `count by (job, instance) (probe_success)` — a probe job whose count is 1 is a job whose targets cannot
+  be told apart.
 - **Do not alert on intentionally-empty state.** Unprovisioned is not incident-worthy: a link rule that
   matches every switch port pages on the ports that carry nothing (ten simultaneous instances on ports with
   no cable). Alert on the loss of a link that carries something.
