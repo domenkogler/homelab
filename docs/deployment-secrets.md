@@ -890,6 +890,15 @@ is being locked out by your own fix, so the order matters and each step is evide
    `atime` is not evidence: a read-only `grep -r` over the home directory updates it. Disuse is also
    not what `host_vars` implies: the consumer may be the **operator's own client config**, and then
    the count that looks like idleness is the human at the keyboard.
+   ⚠ **Two ways this reading lies, both measured on the Pi (HD-443, 2026-10-19).** (a) The Pi runs
+   `Storage=volatile`, so its journal reaches back exactly one boot — the window it happened to cover
+   started 2026-10-04 23:00 and CONTAINED nine `admin` acceptances, so the row's 14-day and 30-day claims
+   are not windows on this host at all: they are the same seven days of RAM read twice. A volatile host
+   cannot prove a 30-day silence; say so rather than reporting zero. (b) **A raw journal grep matches the
+   probe that greps for it** — an ansible `command` task carrying the literal string in its `_raw_params`
+   lands in the journal and was counted as an acceptance (it read 1-in-7-days for a fingerprint with no
+   logins at all). Filter on the authorizing unit (`sshd-session[…]: Accepted publickey for <user>`, or
+   `_EXE=` / `-u ssh.service`), never on the bare phrase.
 3. **Back up, then neutralize without deleting** — comment the line out with a dated marker.
    One line, instantly revertible.
 4. **Prove inert with something you actually depend on:** a fresh `ssh` as that account plus one
