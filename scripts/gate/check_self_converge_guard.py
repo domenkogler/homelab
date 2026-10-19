@@ -34,10 +34,21 @@ Checks:
                       `untagged` — that name is Ansible-reserved and warns on every converge.
   5. fail-loud        — no `default(` and no `failed_when` outside comments in the guard
                       (the HD-399 rule: a fallback in a guard converts a refusal into a
-                      silent pass). A role dir carrying `check_mode: false` must be declared
-                      `check_safe: false`, because such a task really writes during `--check`
-                      (live: roles/vps-hardening's sshd_config assert) — an over-stated
-                      check_safe would hand back the lockout through the check-mode escape.
+                      silent pass). A `check_mode: false` task makes a role really execute
+                      during `--check`, so a role whose such tasks CAN WRITE must declare
+                      `check_safe: false` — an over-stated check_safe would hand back the
+                      lockout through the check-mode escape (live: roles/vps-hardening's
+                      sshd_config assert). Two halves, both load-bearing:
+                        * the detector carries the trailing comment, because YAML ends a plain
+                          scalar at ` #` and this repo's read-back lines all carry one — an
+                          end-of-line anchor sees none of them, and the claim then holds only
+                          by accident (measured 2026-10-19: cockpit's eight sites, zero seen);
+                        * the site is CLASSIFIED by what its task does. A read-only module
+                          (`stat`/`slurp`/`find`/`get_state`/`*_facts`) or a `command`/`shell`
+                          declaring `changed_when: false` is a read-back and leaves
+                          `check_safe: true` honest — HD-361's cockpit read-backs are exactly
+                          that shape. Anything else, including a module this file does not
+                          know, is a write and reddens naming `file:line`.
   6. identity-source  — the controller must be identified by a controller-side lookup
                       (`lookup('pipe', ...)`), never by a target fact: `ansible_hostname` is
                       the box being converged, which would make the guard compare a host
@@ -223,13 +234,109 @@ UNIT_MODULES = ("systemd", "systemd_service", "service")
 DETECTOR_LIMITS = ("community.docker", "ansible.builtin.docker", "uri", "get_url")
 
 
+# ── check 5's `check_mode: false` detector ------------------------------------------------
+# YAML ends a plain scalar at the first ` #`, so `check_mode: false   # read-back` IS the boolean
+# false for Ansible. A pattern anchored at end-of-line does not see it, which is the blind spot
+# HD-1165 measured: `roles/cockpit/tasks/maint-user.yml` carries eight such lines, every one of
+# them written in this file's own in-file style with a trailing comment, and the anchored detector
+# counted zero — so a role that really writes during `--check` could keep the check-mode escape by
+# adding a comment. The comment half is part of the pattern, not an afterthought.
+CHECK_MODE_FALSE = re.compile(r"^\s*check_mode:\s*false\s*(?:#.*)?$")
+
+# The task keywords, as ONE list for the YAML reader (`_module_of`) and the line reader below —
+# two spellings of "is this line a module or a keyword" is how the two would drift apart.
+TASK_KEYWORDS = ("name", "when", "vars", "tags", "become", "notify", "register",
+                 "changed_when", "failed_when", "loop", "with_items", "no_log",
+                 "check_mode", "block", "rescue", "always", "listen", "run_once",
+                 "environment", "delegate_to", "ignore_errors", "until", "retries",
+                 "delay", "throttle", "any_errors_fatal")
+
+# What the CARRYING TASK can do decides whether `check_safe: true` is an honest claim, because
+# step 1 alone would accuse every read-back in the fleet. A read-only module cannot write under
+# `--check` however it is scheduled, and the `_facts` family is read-only by definition. A
+# `command`/`shell` that declares `changed_when: false` declares itself a read-back — the shape
+# HD-361 needed, where a task SKIPPED under `--check` yields an empty stdout and the assert beside
+# it then fires on a healthy box. Everything else — copy/template/file/user/group/service/systemd/
+# mount/lineinfile, an `include_tasks` whose children are unknown to this scan, or a module this
+# list has never heard of — is a WRITE. The classifier answers "could this touch the box?" with
+# yes whenever it cannot tell, because a false RED costs one `check_safe: false` line and a false
+# GREEN costs the lockout HD-413 exists to refuse.
+CHECK_MODE_READ_MODULES = ("stat", "slurp", "find", "get_state", "debug", "assert", "fail",
+                           "set_fact", "meta", "ping", "wait_for_connection")
+CHECK_MODE_CMD_MODULES = ("command", "shell")
+
+
+def _indent(line: str) -> int:
+    return len(line) - len(line.lstrip(" "))
+
+
+def _is_list_item(line: str) -> bool:
+    return bool(re.match(r"^\s*-\s", line))
+
+
+def classify_check_mode_sites(role_dir: Path, rel_base: Path | None = None) -> tuple[list[str], list[str]]:
+    """(writes, reads) — every `check_mode: false` under a role dir, as `path:line`.
+
+    `rel_base` is what the named path is relative to (the tree's `IaC/ansible` in the gate, the
+    fixture root in the self-test), so the message a reader acts on is a real path in both.
+
+    Text, not YAML, on purpose: the finding is a LINE number, and `safe_load` throws the line away.
+    Each site is attributed to the task that carries it by walking up to the nearest list item at a
+    shallower indent (the task's own start line), then reading that task's key level for its module
+    and for a `changed_when: false` at the SAME indent as the `check_mode` line — the task's own
+    declaration, never one belonging to a task nested inside it.
+
+    Reads and writes both come back named, because "which lines did the detector see at all" is the
+    question HD-1165 was written to make answerable.
+    """
+    writes: list[str] = []
+    reads: list[str] = []
+    for f in sorted(role_dir.rglob("*.yml")):
+        lines = f.read_text(encoding="utf-8").splitlines()
+        starts = [i for i, ln in enumerate(lines) if _is_list_item(ln)]
+        for i, line in enumerate(lines):
+            if not CHECK_MODE_FALSE.match(line):
+                continue
+            where = f"{f.relative_to(rel_base or role_dir.parent)}:{i + 1}"
+            key_indent = _indent(line)
+            # The task that carries this line: the nearest list item ABOVE it at a shallower indent.
+            start = next((j for j in sorted(starts, reverse=True) if j < i and _indent(lines[j]) < key_indent), None)
+            if start is None:
+                writes.append(f"{where} (no task found — cannot classify, so assumed)")
+                continue
+            # ...and the end of that task: the next list item at its own indent or shallower.
+            task_indent = _indent(lines[start])
+            end = next((j for j in starts if j > start and _indent(lines[j]) <= task_indent), len(lines))
+            module, changed_never = "", False
+            for j in range(start, end):
+                body = lines[j].strip()
+                if _indent(lines[j]) != key_indent or not body or body.startswith("#"):
+                    continue
+                m = re.match(r"^([\w.]+)\s*:", body)
+                if not m:
+                    continue
+                key = m.group(1)
+                if key == "changed_when":
+                    changed_never = bool(re.match(r"changed_when:\s*false\s*(?:#.*)?$", body))
+                elif key not in TASK_KEYWORDS and not module:
+                    module = key.split(".")[-1]
+            # A module written on the task's own dash line (`- copy: content=x`) carries no key line.
+            if not module:
+                m = re.match(r"^-\s+([\w.]+)\s*:", lines[start].lstrip())
+                if m and m.group(1) not in TASK_KEYWORDS:
+                    module = m.group(1).split(".")[-1]
+            if module in CHECK_MODE_READ_MODULES or module.endswith("_facts"):
+                reads.append(f"{where} ({module}: read-only module)")
+            elif module in CHECK_MODE_CMD_MODULES and changed_never:
+                reads.append(f"{where} ({module} + changed_when: false: read-back)")
+            else:
+                writes.append(f"{where} ({module or 'module not found'})")
+    return writes, reads
+
+
 def _module_of(task: dict) -> tuple[str, dict]:
     for key, val in task.items():
-        if key in ("name", "when", "vars", "tags", "become", "notify", "register",
-                   "changed_when", "failed_when", "loop", "with_items", "no_log",
-                   "check_mode", "block", "rescue", "always", "listen", "run_once",
-                   "environment", "delegate_to", "ignore_errors", "until", "retries",
-                   "delay", "throttle", "any_errors_fatal"):
+        if key in TASK_KEYWORDS:
             continue
         if isinstance(val, dict) or val is None:
             return str(key).split(".")[-1], (val or {})
@@ -343,6 +450,73 @@ def fixture_problems() -> list[str]:
     return problems
 
 
+def _check_mode_self_test() -> list[str]:
+    """HD-1165: the `check_mode: false` detector must SEE the commented form the tree writes,
+    and must then classify what it saw.
+
+    Four arms, each built to differ under exactly one behaviour. Drop the `(?:#.*)?` from
+    CHECK_MODE_FALSE and the two commented cases disappear, so arm 1 and arm 4 go silent-while-
+    blind and this function reports them; drop the read-back clause and `readback` reddens; drop
+    the read-only-module clause and `readonly` reddens; and a classifier that calls everything a
+    write reddens exactly the two arms that must be reads. A mutation that cannot turn an arm red
+    is not a test, which is the whole reason the cases are separate role dirs.
+    """
+    import tempfile
+
+    cases = {
+        # a WRITE carrying the in-file comment -- the case the old anchored pattern lost
+        "wrote": ["- name: write the gate line",
+                  "  ansible.builtin.copy:",
+                  "    dest: /etc/pam.d/cockpit",
+                  "  check_mode: false   # a comment here is not evidence of anything"],
+        # a `command` that declares itself a read-back, commented like cockpit's eight
+        "readback": ["- name: read the group set back",
+                     "  ansible.builtin.command:",
+                     "    cmd: id -nG maint",
+                     "  changed_when: false",
+                     "  check_mode: false   # a probe, not a mutation"],
+        # a read-only module, commented
+        "readonly": ["- name: is the file there",
+                     "  ansible.builtin.stat:",
+                     "    path: /etc/ssh/sshd_config",
+                     "  check_mode: false   # a probe, not a mutation"],
+        # the pre-existing uncommented case, so the fix cannot have traded the old detection away
+        "plainwrite": ["- name: assert sshd hardening",
+                       "  ansible.builtin.lineinfile:",
+                       "    path: /etc/ssh/sshd_config",
+                       "  check_mode: false"],
+        # a command WITHOUT changed_when: the classifier cannot call it a read-back, so it is a write
+        "barecmd": ["- name: run something",
+                    "  ansible.builtin.command:",
+                    "    cmd: systemctl restart sshd",
+                    "  check_mode: false   # no changed_when, so no read-back claim"],
+    }
+    problems: list[str] = []
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        for name, lines in cases.items():
+            d = root / "roles" / name / "tasks"
+            d.mkdir(parents=True)
+            (d / "main.yml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+        writes, reads = classify_check_mode_sites(root / "roles", root / "roles")
+        seen = {n: (any(s.startswith(f"{n}/") for s in writes),
+                    any(s.startswith(f"{n}/") for s in reads)) for n in cases}
+        for name, (is_w, is_r) in seen.items():
+            want = {"wrote": (True, False), "readback": (False, True), "readonly": (False, True),
+                    "plainwrite": (True, False), "barecmd": (True, False)}[name]
+            if (is_w, is_r) != want:
+                problems.append(
+                    f"check_mode self-test: role dir '{name}' classified as "
+                    f"{'write' if is_w else 'read' if is_r else 'INVISIBLE'}"
+                    f" — expected {'write' if want[0] else 'read'}")
+        # The site must be named as file:line, because "role X writes" is not actionable and a
+        # reader has to be able to land on the line that carries the claim.
+        if not any(re.search(r":\d+$", s.split(" ")[0]) for s in writes + reads):
+            problems.append("check_mode self-test: no site was named as file:line — the message "
+                            "cannot be acted on")
+    return problems
+
+
 def self_test() -> list[str]:
     """Prove the two scanners can see the things they claim to see.
 
@@ -382,6 +556,7 @@ def self_test() -> list[str]:
     collected, _ = tags_in(walk_tasks([{"block": [{"name": "inner", "tags": ["only-in-block"]}]}], []))
     if "only-in-block" not in collected:
         problems.append(f"vocabulary self-test: a block-only tag was not collected (got {sorted(collected)})")
+    problems += _check_mode_self_test()
     # The fixture witness (check 8), green case and red case together. The red case is the
     # wave-2 shape: a play whose pre_tasks no longer imports the guard. If the detector cannot
     # see that, the assertion can only ever pass and the fixture claim is unguarded again.
@@ -496,21 +671,21 @@ def main() -> int:
               "saying why it cannot cut a session.")
 
     # 3 + 5: per-role declarations are self-consistent with the role dirs on disk.
+    sites_seen: dict[str, str] = {}
     for name, spec in sorted(roles.items()):
         role_dir = ANSIBLE / "roles" / name
         if not role_dir.is_dir():
             problems.append(f"coverage-role: guard declares lockout role '{name}' but "
                             f"IaC/ansible/roles/{name}/ does not exist (renamed role?)")
             continue
-        writes_in_check = sorted(
-            str(p.relative_to(ANSIBLE))
-            for p in sorted(role_dir.rglob("*.yml"))
-            if re.search(r"^\s*check_mode:\s*false\s*$", p.read_text(encoding="utf-8"), re.M)
-        )
+        writes_in_check, reads_in_check = classify_check_mode_sites(role_dir, ANSIBLE)
+        # Recorded for the closing line even when both are empty: the doc's claim that a
+        # `--tags network --check` is read-only is THIS read, not a sentence in a table.
+        sites_seen[name] = f"{len(writes_in_check)} write / {len(reads_in_check)} read-back"
         if writes_in_check and spec["check_safe"]:
             problems.append(
                 f"fail-loud: role '{name}' declares check_safe: true but writes during "
-                f"--check (check_mode: false in {', '.join(writes_in_check)}) — the "
+                f"--check (check_mode: false at {', '.join(writes_in_check)}) — the "
                 f"check-mode escape hands the lockout straight back; set "
                 f"homelab_guard_check_safe: false")
         if not spec["tags"]:
@@ -610,6 +785,10 @@ def main() -> int:
 
     print(f"[detected] {len(guarded_by_detector)} guarded role(s) justified by behaviour: "
           f"{', '.join(guarded_by_detector) or '-'}")
+    # The check_mode: false inventory, printed rather than argued: "the gate sees the line" is the
+    # claim this line exists to make re-checkable instead of a claim about a regex.
+    print("[check_mode: false] " + ("; ".join(f"{k} -> {v}" for k, v in sorted(sites_seen.items()))
+                                    or "no lockout role declared a role dir to read"))
     if exempt_rows:
         print(f"[exempt] {len(exempt_rows)} role(s) exempt by written argument: {', '.join(exempt_rows)}")
     require_corpus(len(roles), 5, "check_self_converge_guard lockout-role set")

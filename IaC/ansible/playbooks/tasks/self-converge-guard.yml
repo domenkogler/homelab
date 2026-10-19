@@ -202,8 +202,10 @@
       remove the console it is being run from, and both failure modes of a bad PAM line
       (deny-everyone, or an auth rule sitting after the session rules and enforcing nothing)
       look like success to the caller. Off-box: run this leg from a controller that is not
-      the target. Check mode of this role IS allowed (nothing in it carries
-      `check_mode: false`).
+      the target. Check mode of this role IS allowed: the `check_mode: false` tasks in it are
+      read-backs and a hash computation, each declaring `changed_when: false`, so a `--check`
+      of this role writes nothing (the static checker classifies every such line and refuses a
+      `check_safe: true` claim the moment one of them can write).
       Tags requested: {{ ansible_run_tags | join(',') }}.
       Details: deployment-ansible.md §Self-converge guardrail.
   vars:
