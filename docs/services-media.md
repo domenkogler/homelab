@@ -359,6 +359,18 @@ cannot be answered until the provider login works.
      media-owned (`force user/group = storage_uid`) so the arr can still rename/hardlink them. Mount it with
      the **`shared`** Samba service account (`smb-shared_login`; local tdbsam, no IdP in the path) — see
      [storage.md](storage.md) §Samba (SMB) shares on the NAS.
+- **Lidarr's root-folder set is SSOT'd as ONE path** — `arr_seed_apps.lidarr.root_folders: ['/media/music']`
+  (`roles/docker_services/defaults/main.yml`), and `roles/docker_services/tasks/arr-seed.yml` GETs the live
+  `rootfolder` list and POSTs **only the absent paths**. **There is no DELETE for `rootfolder` anywhere in
+  `IaC/`**, so a root that exists in the running app but is not declared is neither removed nor reported —
+  the converge reads `ok` over it while the dropdown offers it. That matters because `/downloads/complete/music`
+  is simultaneously slskd's completion dir (`SLSKD_DOWNLOADS_DIR`) and soularr's `download_dir` (both
+  `[Lidarr]` and `[Slskd]`), and Lidarr binds `/mnt/nas/media/downloads` to `/downloads`: an album pinned to a
+  root inside the completion tree lives where soularr's timeout pass deletes (measured, in the soularr ini's own
+  comment: an album enqueued at 17:17:35 was deleted at 17:22:39 — 304 s). **Never pin a library root inside
+  `downloads/`**; prove the live set with `GET /api/v1/rootfolder` (`lidarr_api`) rather than trusting the YAML,
+  because the YAML cannot see the difference. Options and the owed read-and-report leg: [`todo.md`](todo.md)
+  HD-1172, cross-linked to HD-1091.
 - *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr.
   ⚠ **slskd cannot be a Lidarr download client at all** — `GET /api/v1/downloadclient/schema` on the live
   Lidarr **3.1.0.4875** returns 18 client types and every one is usenet or torrent; there is no Soulseek/Slskd
