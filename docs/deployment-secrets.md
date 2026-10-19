@@ -293,6 +293,25 @@ from a runner, these rules are what make it safe *and correct*:
   `grep -oE '^[a-z_]+' f | sort -u` for the key names · `stat -c '%a %U:%G %s' f` for the shape. A file that
   is `0600` on the host is still plaintext to the converge that reads it, and to whoever runs `exec cat`.
   Proving a consumer agrees is a **prefix comparison between two such variables**, never a diff of the files.
+- **Reading a PROCESS ENVIRONMENT is the same act, and it is the shape nothing guards.** Never dump
+  `/proc/<pid>/environ`, never `grep`/`cat` an environment, never `env` / `set` / `printenv` into a
+  transcript. The environment of a control node or a seat carries `OP_SERVICE_ACCOUNT_TOKEN` — the
+  `op_api` read-scoped token that reads **every other item in this vault** (§Item catalogue, `op_api`) —
+  plus whatever `GIT_*` / `VAULT_*` / provider tokens the invocation exported, so a filter shaped like
+  `grep -iE "^(GIT|OP|VAULT|AWS|TOKEN|SECRET|KEY)"` is not a filter: it prints all of them, in plaintext,
+  into the session capture and into every `/tmp/pi-subagents-*/` copy the run writes. **A diagnostic that
+  lists "interesting" environment variables is a secret read wearing a lab coat**, and it is the first
+  thing an agent reaches for when a process looks hung — which is why the rule is about the *shape of the
+  question*, not about carelessness. Ask it as a **COUNT** or a **HASH** instead, and the answer is the
+  same answer: `tr '\0' '\n' < /proc/<pid>/environ | grep -c '^OP_SERVICE_ACCOUNT_TOKEN='` → `0` = the
+  process was started without the token, `1` = it was started with it; to tell two processes' credentials
+  apart, `tr '\0' '\n' < /proc/<pid>/environ | sed -n 's/^OP_SERVICE_ACCOUNT_TOKEN=//p' | sha256sum | cut -c1-12`
+  and compare 12 hex characters (the same hash-the-holder rule as [1password.md](1password.md) §Proving
+  which service account an install holds). What already crossed a transcript cannot be scrubbed — the
+  capture lives outside the repo and is appended for the life of the session — so the only close is
+  ROTATING the item ([1password.md](1password.md) §Rotating the control-node token), and
+  [`scripts/gate/check_secret_leak.py`](../scripts/gate/check_secret_leak.py) is the eye that says whether
+  it is still sitting there: it compares CURRENT values across the tree **and** the run-capture class.
 - **A minted preauth key is captured, never displayed.** headscale 0.29.4 has no `--output <file>` —
   `-o` is the FORMAT flag — so `preauthkeys create … -o json` writes the value to stdout, and the
   documented mint commands in this repo and in `deployment-manual.md` are therefore only safe inside a
