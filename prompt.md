@@ -197,11 +197,19 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    the slskd login question is CLOSED (the vault was right; the compose carried four env names slskd does not read —
    probe with `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose) and the Soulseek password
    rotation is **DECLINED and risk-accepted on record** — do not re-open either. **HD-1090** owes one grab started
-   in Prowlarr's own UI. **HD-1091** is authored and deliberately OFF: `templates/docker_services/soularr/` +
-   `soularr_version: "1.2.2"` + both vault items landed, and the entry ships `enabled: false` because **this box has no
-   slskd API key** — `/api/v0/options` answers `401` for every key tried, `soulseek_api` included (that value is the UI
-   password → JWT). Its one blocked action is seeding that key, which recreates slskd and drops the session; the
-   `SLSKD_DOWNLOADS_DIR` retarget is decided as NONE (soularr renames in place and fires `DownloadedAlbumsScan`, so the
+   in Prowlarr's own UI. **HD-1091** is authored and **ARMED**, not OFF: `templates/docker_services/soularr/` +
+   `soularr_version: "1.2.2"`, `enabled: true` on the oldsrv Home leg, and ONE vault item (`soulseek-internal_api`)
+   rendered into **both** ends — `SLSKD_API_KEY` in slskd's env and `[Slskd] api_key` in soularr's rendered
+   `config.ini` — so neither side can be armed alone. The arm is proven in the order that matters: the internal key
+   answers `200` on `GET /api/v0/options`, the UI password answers `401` there, and `POST /api/v0/session` with the UI
+   password still returns a JWT, so the owner's login survives the arm. That item was **rotated twice**, once for each
+   of two leaks of its own making, and the read pattern that caused the second is now written into
+   [deployment-secrets.md](docs/deployment-secrets.md) — the key was never absent, it was never *rendered*, which is
+   why the row's earlier "this box has no slskd API key" was true when written and is not true now. What the row owes
+   is not a seed: **one album crossed end-to-end**, which needs a peer to finish one inside the poll window (the last
+   attempt crossed everything but soularr's final rename, and the `remote_queue_timeout` that cut it is measured and
+   raised), and the **`lidarr_api` rotation**, which `provision-secrets.py` refuses to auto-rotate and which moves
+   four copies in a forced order. The `SLSKD_DOWNLOADS_DIR` retarget is decided as NONE (soularr renames in place and fires `DownloadedAlbumsScan`, so the
    import still moves the file and seeding stops at import). **HD-1088** now RENDERS on oldsrv (`--tags storage` →
    `ok=46 changed=2 failed=0`: script + service + timer, timer **disabled** while `storage_push_music.enabled` is
    false), its guard was proven before any push, and two of its premises were corrected: `--max-delete` is a **CAP,
@@ -441,8 +449,8 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     pin-lag series are live on all five hosts and the `pkg-pin-drift` rule is in the ruler (read from
     the ruler API, not from the repo: it sits in `Homelab · Warning` on `count by (instance)
     (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `noDataState: OK` — count what loads with
-    that same read, never from this sentence). It reads RED on `pi` and `spark` and that is true
-    drift, not noise: **HD-1148**'s unrun `--tags docker` applies (vps is landed), which is now the only thing left on
+    that same read, never from this sentence). It reads RED on `pi` and that is true
+    drift, not noise: **HD-1148**'s one unrun `--tags docker` apply (`vps` and `spark` landed 2026-10-18), which is now the only thing left on
     the docker leg — the one pinned package that no task could reach is named in
     `docker_ce_suite_packages`, so one list drives the apt call, the hold lift and the read-back, and an
     apply moves the family to its pin by lifting the hold for exactly the names it touches. →
@@ -618,12 +626,13 @@ controller, or use one of the two forms that section measures:
 **HD-384 step 2** — the
 two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
 list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
-call · **the docker-family applies** **HD-1148** owes on `pi` and on `spark` (vps is landed) — the daemon restart takes every
+call · **the docker-family apply** **HD-1148** owes on `pi` (`vps` landed 2026-10-18 and `spark` landed in its owner
+window the same day, so the daemon restart is no longer owed on either) — the restart takes every
 container on the host with it, so one host at a time, detached, `--check` first, never behind a
-timeout, ⛔ not overnight, and spark is an owner window (vLLM serving state). `oldsrv` owes no apply and `nas` runs
+timeout, ⛔ not overnight. `oldsrv` owes no apply and `nas` runs
 no docker role at all. An apply lifts the hold for exactly the suite names it moves and re-holds them in the same play,
-so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; the rule stays RED on `pi`/`spark`
-until these run, which is the gap being reported, not a false positive. Six more parks carry exactly one blocked action
+so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; the rule stays RED on `pi`
+until that runs, which is the gap being reported, not a false positive. Six more parks carry exactly one blocked action
 each, all measured into their rows on 2026-10-19: **HD-1160** — the owner chooses A/B/C/D for where a per-policy DNS
 upstream may live at all (Technitium 15.6 has no such surface and the router's one `:53` dst-nat pair aims every policy
 at one shared address; ⛔ shipping a fourth resolver instance as a side effect of a DNS row is what the row forbids) ·
@@ -635,10 +644,12 @@ The two seed halves are **already done on oldsrv and verified there** — `/root
 half re-derived from the private key with `ssh-keygen -yf` and diffed against the stored `.pub`, and
 `/etc/storage/box_known_hosts` `0600` carrying the Box's three host keys for the `:23` endpoint — so no seed step is
 owed here. Then set `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`,
-`systemctl start push-music.service` once · **HD-1091** — seed `SLSKD_API_KEY` on slskd (or mint `soulseek-internal_api` and point both
-templates at it), confirm `GET /api/v0/options` → `200`, flip `enabled: true`, converge
-`--tags docker_services,slskd,soularr --limit oldsrv.kogler.si`, then the one-album proof — seeding the key recreates
-slskd and drops the Soulseek session · **HD-1107** — the parked `systemctl stop storage-syncoid.service` on `nas` was RUN
+`systemctl start push-music.service` once · **HD-1091** — rotate `lidarr_api` in an owner window: it is
+`NOT_AUTO_ROTATABLE`, the order is forced (mint → write Lidarr's own `config.xml` → restart lidarr → re-render
+soularr's `config.ini` → re-point Seerr), and missing a step 401s every consumer while the vault looks correct; blast
+radius lidarr/soularr/seerr. Then the one-album proof, which waits on a peer finishing a transfer inside the poll
+window rather than on an act here. Seeding the slskd API key is **done** — soularr is `enabled: true` and both ends
+already hash to the same credential — so do not re-open that half · **HD-1107** — the parked `systemctl stop storage-syncoid.service` on `nas` was RUN
 and the wedged tree died, but the authorised re-fire failed a different way: **66 snapshots on the destination are newer
 than the send base and every one is a sanoid `@autosnap_*` the replica takes for itself** (`use_template = data` on
 `bulk/data/*`), and an incremental `-F` receive cannot land on a target holding snapshots the stream does not contain —
