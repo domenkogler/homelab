@@ -164,8 +164,24 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    **HD-1163** names a dark monitoring host instead of discovering it in a forum post — the `curl 127.0.0.1:12345/metrics`
    probe + conditional restart leg in `roles/monitoring` and
    [`scripts/gate/check_host_reporting.py`](scripts/gate/check_host_reporting.py) (four verdicts, expected set read from
-   `[monitoring]`) are landed, and the PAGING half is deliberately unwritten because a ruler rule can only compare values
-   the backend holds, which needs a VPS `--tags monitoring` window; and **HD-1164** is why `nas` is the blind host — the
+   `[monitoring]`) are landed, and **the PAGING half is authored, LOADED on the backend and watched red** — the
+   generated `absent_over_time`-per-host form was chosen over the anti-join (an anti-join needs a publisher nothing
+   publishes, so its failure direction is silence), one rule per `[monitoring]` host, `noDataState: OK` with
+   `execErrState: Alerting`, proven at 16:30 on the box that has published nothing since its collector began
+   crash-looping. The proof is the loaded set (`GET /api/v1/provisioning/alert-rules` → 32 rules, `provenance: file`),
+   never the repo file, because **a rule that is authored is not a rule that is loaded** — and the one-word reason it
+   used to be unverifiable was a provisioning task with no `tags:` of its own: the ROLE is tagged `monitoring` and
+   Ansible inherits role tags onto every task, so `--tags monitoring` always selected it, while **`--tags grafana`
+   silently dropped it** and still recapped `failed=0` (measured both ways on the backend: no task line at all, then
+   the task line and `changed=2` once the tag was added). The task carries `[monitoring, grafana]` now, so either filter
+   loads rules; that is also why no row is minted for "write the paging rule in a grafana window".
+   **HD-1166** is the reachability half of the same sweep and it is a FINDING about a rule we already ship:
+   `host-unreachable` cannot name the host that is down, because `probe_success{job="blackbox_icmp"}` carries the
+   EXPORTER's address (`127.0.0.1:9115`) as `instance` for all five targets — `__param_target` is a query parameter and
+   never becomes a label — and `ha-unreachable`'s `instance="https://ha.kogler.si"` filter can therefore never match a
+   series at all. Its first act is one read, `count by (job, instance) (probe_success)`, and nothing was written for it
+   and no row was minted for the probe-label rule itself, which is already written down for SNMP.
+   **HD-1164** is why `nas` is the blind host — the
    collector dies ~5 s after every start with `fatal error: traceback did not unwind completely` on Go 1.26.7, with the
    repo, the backend and the DMAR lines all excluded, so the acceptance is a firmware/kernel look plus a memory test the
    owner schedules and the unit stays **stopped on purpose** meanwhile. ⚠ `check_host_reporting.py --check` reads RED for
@@ -286,35 +302,53 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    whose WOPI/JWT keypair is **re-minted at every recreate**), **HD-1093** (**owner**: rotate both
    family SMB passwords, then land them with `storage_samba_password_force` — a vault rotate alone changes nothing
    on the box), **HD-207** and **HD-238**. → [prompt-storage-backup.md](prompt-storage-backup.md)
-7. ⏳ **The Pi's own box** — **HD-418** (pair it with **HD-1103** so the box reboots once, and read the premise first:
-   on this instance the trust list HA **enforces** is the `.storage/http` object, not the rendered YAML —
-   `yaml_migration_done: true`, `stable` and `pending` each carry two entries with `pending.error = "not_promoted"`
-   while the rendered `configuration.yaml` lists a third, so `grep -A6 trusted_proxies configuration.yaml` — the read
-   this handoff used to tell the next session to take — can neither prove nor fix the `400 untrusted proxy`, and
-   neither can a converge of the YAML. The instrument is the **request** (`200` = trusted, `400` names the missing
-   address); reconcile BOTH halves on the ACTIVE node and restart in the window the owner authorized 2026-10-08),
-   **HD-1103** (the cause is a **tmpfs mounted without `mode=`**, not a mode that drifted — the mount owns the `1777`,
-   `mount -o remount,mode=0755` returns 0 and leaves it `1777`, and the fleet value logrotate's secure-parent check
-   accepts is `755 root:adm`, not the row's `0755 root:root`. Both halves landed 2026-10-19 in
-   `roles/home_assistant/tasks/pi.yml` — fstab `…size=100m,mode=0755,uid=0,gid=0`, the APPLIED mount read with
-   `findmnt --target` under `check_mode: false`, the directory reconciled only when the measurement disagrees, plus the
-   `ai_diag` `smartctl --scan` probe that starts or masks `smartd` symmetrically — and `logrotate -d` on the Pi now
-   prints no `insecure permissions` line at all. The running mount stays without `mode=` until the next boot, and the
-   three units still in `systemctl --failed` are each named: logrotate's entry predates the write and clears itself
-   tonight, `smartmontools` waits the same untagged `ai_diag` leg, `ha-cert-sync` is the HD-418-family `ha-sync`
-   authorisation half), **HD-1109** (⚠ **corrected 2026-10-19: the standby is not cold-deployed, it is UNDEPLOYED** —
-   oldsrv runs **39 containers and none of them is `home-assistant-standby` or `keepalived`**, running or stopped; the
-   render pins `home-assistant:2026.9.4` and the host holds only `2026.8.1`/`latest`, so `compose up` has never run
-   against the current render; `ha-config-sync.timer` is `not-found` and `/usr/local/sbin/ha-config-sync.sh` does not
-   exist, so the ~15-min config sync is not installed either; and the VIP is held by the Pi with no live outage. So
-   HD-418's standby-edge proof and HD-434's standby KNX tunnel have **no subject** until that cold leg runs — and probe
-   the standby with `docker compose -f /opt/home-assistant-standby/docker-compose.yml ps`, NEVER with
-   `systemctl is-active keepalived`: its `inactive`/`not-found` is the CORRECT read, because the VRRP half is the
-   container that compose does not have), **HD-1101** (**fixed, teeth measured 2026-10-19** — the fail-loud assert is
-   keyed on `host_resolver_dns` alone with a per-host `set_fact` naming the profile THIS host writes (`nm_oldsrv_profile`
-   → the nmcli leg, `nm_pi_profile` + `nm_parent_iface` → the keyfile leg), so the Pi's resolver list is finally checked
-   and `--check --tags nm-resolver` fails on the committed fixture both ways; what remains is the **apply** of that tag
-   on pi and oldsrv, the same owner-window Pi apply HD-1103's legs wait in), plus **HD-04 · 434 · 438 · 439 · 319 · 17**.
+7. ⏳ **The Pi's own box** — **HD-418** (✅ **reconciled at both ends and owned in IaC** — `roles/home_assistant/tasks/pi.yml`,
+   tag **`hd418`**: `.storage/http` now carries `oldsrv_home_ip`/32 in `stable` AND `pending`, `--check ok=27 changed=1`
+   → apply `ok=32 changed=3 failed=0` → the same apply again `ok=26 changed=0`, no second restart. The proof is
+   BEHAVIOUR and not the YAML, because on this instance the list HA **enforces** is the `.storage/http` object
+   (`yaml_migration_done: true`) and `grep -A6 trusted_proxies configuration.yaml` can neither prove nor fix a `400`:
+   HA's own log shows the real client address honoured through the Pi's `traefik-ha` edge, and a forged
+   `X-Forwarded-For: 1.1.1.1` at `VIP:8123` still answers the `400` that **names the untrusted address** — enforcement,
+   not an echo. ⏳ what that does not buy is the takeover-shaped request sent **from the oldsrv edge** (another lane's
+   host), and the standby-shaped case has **no subject** while HD-1109 stands), **HD-1103** (the cause was a **tmpfs
+   mounted without `mode=`**, not a mode that drifted — the mount owns the `1777`, `mount -o remount,mode=0755` returns
+   0 and leaves it `1777`, and the fleet value logrotate's secure-parent check accepts is `755 root:adm`. The logrotate
+   half is now **proven by a real rotation**: `systemctl start logrotate.service` → rc 0, `Result=success`, the `.1`
+   files on disk stamped in the same second as `/var/lib/logrotate/status`, and `systemctl --failed` is down to
+   **`smartmontools` alone**. Two halves remain and both are choices, not commands: `/var/log` is a **100 MB tmpfs** on
+   `weekly` + `rotate 4` with **no `compress`** — 77 M of 100 M was in use, so rotating only moved bytes within the
+   same filesystem — so either `compress` + `delaycompress` (four periods inside 100 MB, at the cost of recompressing
+   a ~75 MB `syslog` every rotation) or `rotate 1` + `maxsize` (trivial arithmetic, one period of local history on a
+   box whose durable log store is VictoriaLogs on the VPS); **the first act is `logrotate -d` plus `df -h /var/log`,
+   and the repo owns no logrotate config at all today**, so whichever wins is a NEW file sized against `size=100m`, not
+   an edit. The other half is the smartd park, measured to the end: smartmontools **7.4-3** cannot address this card by
+   any type (`-d scamm` → `Unknown device type 'scamm'`, `scsi` → "Both 36 and 64 byte INQUIRY failed", `sat` → "Read
+   Device Identity failed", `smartd -q onecheck` exits 17 with nothing to monitor), so the choice is a ≥7.5 source or
+   the mask `roles/ai_diag` **derives** from an empty `smartctl --scan` — a designed converge outcome the next
+   UNTAGGED converge applies in an owner window, and a lane hand-disabling the unit by hand would be the actual defect.
+   The fstab `mode=0755` becomes true on the mount at the **next boot**, not from a converge; ⛔ never
+   `mount -o remount` as the fix), **HD-1167** (a comment in a template can rewrite a running box's addressing file:
+   `Render Pi eth0 NetworkManager keyfile` reports `changed` on EVERY converge while every functional line already
+   matches, because `#`-lines in a `.j2` are literal OUTPUT rather than `{# … #}` Jinja comments — and `changed` is
+   what notifies `reload NetworkManager` on a box of the DNS tier. First act is the stripped comparison, both sides
+   (`grep -v '^#'` on the host file against the template's non-comment lines); the fix belongs in `roles/network`,
+   never on the host; the one-time re-render that brings an existing box in line is an owner-window act with HD-1101's
+   rollback standing by, and `spark` uses the same render unmeasured), **HD-1109** (⚠ **the standby is UNDEPLOYED, not
+   cold-deployed** — oldsrv runs **39 containers and none of them is `home-assistant-standby` or `keepalived`**, and
+   the render pins `home-assistant:2026.9.4` which that host does not hold, so `compose up` has never run against it
+   and HD-418's standby-edge proof and HD-434's standby KNX tunnel have **no subject**. ⚠ **and half of the first
+   correction was itself wrong**: `ha-config-sync.timer` is not missing — on the Pi it is `enabled` + `active`, fires
+   every ~15 min and its last run was `rc=0`; the `not-found` was read on **oldsrv**, the wrong host, which is exactly
+   the class this row exists for (a systemd/file-presence probe answers about the box you ran it on). Probe the standby
+   with `docker compose -f /opt/home-assistant-standby/docker-compose.yml ps`, NEVER `systemctl is-active keepalived`:
+   its `inactive` is the CORRECT read, because the VRRP half is the container that compose does not have),
+   **HD-1101** (**fixed and APPLIED on both hosts** — the fail-loud assert is keyed on `host_resolver_dns` alone with a
+   per-host `set_fact` naming the profile THIS host writes (`nm_oldsrv_profile` → the nmcli leg, `nm_pi_profile` +
+   `nm_parent_iface` → the keyfile leg), so the Pi's resolver list is finally checked and the committed fixture fails
+   the guard both ways. Pi: `--check ok=22 changed=0` then apply `ok=22 changed=0` — the guard RAN and PASSED and
+   nothing was written, because the Pi was already correct; oldsrv: `ok=33 changed=0`. ⚠ tag class, so nobody
+   re-derives it wrong: on a keyfile host the write leg is **`nm-pi`**; `--tags nm-resolver` there selects the guard
+   and proves the check, and writes nothing), plus **HD-04 · 434 · 438 · 439 · 319 · 17**.
    → [prompt-smart-home.md](prompt-smart-home.md)
 8. ⏳ **Edge and identity** — **HD-147**'s browser-login tail, **HD-457** (the SSO seat owns the family library — ruled; what is left is the per-user/shared-album shape, read at implementation time), **HD-458 · 459** (zipline, the published names), **HD-112**, and **HD-357** — the launchpad tiles, promoted onto this brief 2026-10-13 (its family-surface brief was retired and no successor took the row). ⏸ **HD-47** stays an owner act,
    **Deferred by owner 2026-10-08**: the external-room join is unscheduled; everything publishable is published and
@@ -385,7 +419,9 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    into a handoff), so `scripts/README.md` is a facts-only map: a row states what its script does — flags, verdicts, exit
    contract, declared limits — and names the doc that owns the detail. → [prompt-scripts.md](prompt-scripts.md)
 12. ⏳ **Owner-gated tails** (exact steps in the rows): **377** the Grafana render re-do · **444** the phone-crossing
-    drill · **418** the HA restart window · **HD-06** the UPS drill · **411** the cockpit resume word ·
+    drill · **1103 + 1167** one Pi visit — the boot that makes the fstab `mode=` true on the mount, and the one-time
+    re-render of `pi-eth0.nmconnection` that notifies `reload NetworkManager` (HD-418's HA restart window was spent in
+    the reconcile apply, so it is no longer gated) · **HD-06** the UPS drill · **411** the cockpit resume word ·
     **HD-230/207** the decisions taken at the drill. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no
     out-of-band path is scheduled, so a switched-off `oldsrv` waits for presence; the one owner-side leg left is a WoL
     re-test at a planned power-off) and **HD-47** above.
@@ -597,8 +633,12 @@ holds only a CIFS/WebDAV password), seed `/root/.ssh/livebox_push` 0600 + `/etc/
 push-music.service` once · **HD-1091** — seed `SLSKD_API_KEY` on slskd (or mint `soulseek-internal_api` and point both
 templates at it), confirm `GET /api/v0/options` → `200`, flip `enabled: true`, converge
 `--tags docker_services,slskd,soularr --limit oldsrv.kogler.si`, then the one-album proof — seeding the key recreates
-slskd and drops the Soulseek session · **HD-1107** — `systemctl stop storage-syncoid.service` on nas to reap the
-spinning `pv` and its tree, then watch one full timer cycle; nothing was signalled on the host from the read ·
+slskd and drops the Soulseek session · **HD-1107** — the `systemctl stop storage-syncoid.service` on `nas` was RUN
+(the unit and its spinning `pv` are gone), and the re-fire failed a different way, so the ask is now wider: the
+destination carries **66 sanoid `@autosnap_*` snapshots newer than the send base**, and `zfs receive -F` refuses a send
+whose origin is ahead of the receiver — either destroy those 66 (read them first) or stop snapshotting the replica, since
+`roles/storage/templates/sanoid.conf.j2` recurses into every `tank.*` including the dataset that HOLDS the replica
+marker. The one-shot re-fire timer is already armed and needs no help ·
 **HD-1106** — the prune itself, one `docker volume rm` per row the table marks `prune`, and a named volume or bind for
 the two `onlyoffice-docs` paths · **HD-1164** — an `intel_iommu=off` experiment plus a memory test on the HP Gen8 in a
 window the owner schedules (the box holds the NFS media export, the Kopia agent and HD-1107's stuck `zfs receive`, so
@@ -606,8 +646,10 @@ nobody reboots it overnight); the restore line is `systemctl start alloy` on `na
 then · **HD-1143** — exactly one KNX `GroupValueRead` from the Pi with the reverse rule's counters read either side,
 which needs a privileged act (`docker exec` into the HA container, or an integration reload) · **HD-1152** — the first
 REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired, because `--check` skips
-the whole Technitium block and can never name candidates · **HD-1101 + HD-1103** — one owner-window Pi apply carrying
-`--tags nm-resolver` and the untagged `ai_diag` leg, which is where both rows' remaining halves land ·
+the whole Technitium block and can never name candidates · **HD-1103 + HD-1167** — one owner-window Pi visit carrying
+the boot that makes the fstab `mode=` true on the running mount, the UNTAGGED converge that applies `ai_diag`'s derived
+smartd mask, and the one-time re-render of `pi-eth0.nmconnection` (⛔ the `nm-resolver` applies and HD-418's reconcile
+are DONE on both hosts — do not re-run them; on a keyfile host the write leg is `nm-pi`) ·
 **HD-443** — either a host whose journal actually covers the claimed interval, or the owner's ruling that the Pi's
 volatile journal cannot prove a 30-day silence and the `admin` revoke proceeds on nine old acceptances plus the
 neutralized state · **HD-1110** — the OAuth-vs-`api_key` call on the seat's `pi_auth` providers, which a `--push` must
