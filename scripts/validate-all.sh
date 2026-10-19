@@ -576,7 +576,7 @@ true & wait -n >/dev/null 2>&1 && HAVE_WAITN=1     # supported => reaps that `tr
 # does `_launch_all` walk the SAME list in the SAME order: launch order, labels,  #
 # printed output and the exit-code contract are unchanged by the split.           #
 # --------------------------------------------------------------------------- #
-n_items=0; labels=(); cmds=(); cstart=(); clen=(); starts=(); walls=()
+n_items=0; labels=(); cmds=(); cstart=(); clen=(); starts=(); ends=(); walls=()
 pids=(); states=(); mems=(); whys=(); n_run=0; rc_missing=0; n_excl_launch=0
 
 # The profile decision for the NEXT registration. A bare `item` / `item_blk` leaves P_MEM empty,
@@ -592,7 +592,7 @@ _reg() {
   local label="$1"; shift
   local i=$n_items; n_items=$((n_items+1))
   labels+=("$label"); mems+=("$P_MEM"); whys+=("$P_WHY")
-  starts+=(""); walls+=(""); pids+=("0"); states+=("pending")
+  starts+=(""); ends+=(""); walls+=(""); pids+=("0"); states+=("pending")
   cstart+=("${#cmds[@]}"); clen+=("$#")
   local _w
   for _w in "$@"; do cmds+=("$_w"); done
@@ -780,6 +780,48 @@ _time_report() {
   done
   return 0
 }
+# --------------------------------------------------------------------------- #
+# HD-1117 — the red-run diagnosis, printed ONLY when an item failed.                            #
+# Four items in this pool are on record as reddening under pool pressure and passing solo, and   #
+# every one of those red runs reported a verdict with NO measurement attached — so the next      #
+# session could only re-run it, and a re-run that goes green proves nothing. So the run now      #
+# prints, per failed item, its own wall and how many sibling legs were in flight with it, plus   #
+# the pool width and this host's load. Pool-level starvation of a fork-heavy arm and a genuinely #
+# broken item look identical in a verdict line and completely different in these numbers.        #
+# Built from the start/END stamps the launcher already writes (`_now` → EPOCHREALTIME), so it    #
+# costs one awk on a run that already failed, changes no verdict, and prints nothing on green.   #
+# A number this cannot obtain prints as `?` or SKIP, never as a reassuring zero (CONVENTIONS §6). #
+# --------------------------------------------------------------------------- #
+_diagnose_fails() {
+  local i rows="" load="SKIP — /proc/loadavg is unreadable here (an environment boundary, not a verdict)"
+  local cores="?" _l1="" _l5="" _l15=""
+  if [ -r /proc/loadavg ]; then
+    IFS=' ' read -r _l1 _l5 _l15 _ < /proc/loadavg || true
+    load="${_l1:-?} ${_l5:-?} ${_l15:-?}"
+  fi
+  command -v nproc >/dev/null 2>&1 && cores="$(nproc 2>/dev/null || echo '?')"
+  for i in "${!labels[@]}"; do
+    [ "${states[$i]}" = "run" ] || continue
+    # ONE ROW PER ITEM THAT RAN: start, end, wall-ms, failed?, label. awk decides who gets named.
+    local _f=0; [ "$(_rc_of "$i")" != "0" ] && _f=1
+    rows+="${starts[$i]:-0}"$'\t'"${ends[$i]:-0}"$'\t'"${walls[$i]:-0}"$'\t'"$_f"$'\t'"${labels[$i]}"$'\n'
+  done
+  printf '%s' "$rows" | awk -F'\t' -v par="$MAXPAR" -v npar="$GATE_NPAR" -v cores="$cores" -v load="$load" '
+    { s[NR] = $1 + 0; e[NR] = $2 + 0; w[NR] = $3 + 0; bad[NR] = $4 + 0; nm[NR] = $5; n = NR }
+    END {
+      printf "\nPOOL DIAGNOSTIC (HD-1117) — the pool was %s wide (GATE_NPAR %s) on %s core(s); load 1/5/15: %s\n",
+             par, npar, cores, load
+      for (i = 1; i <= n; i++) {
+        if (!bad[i]) continue
+        infl = 0
+        for (j = 1; j <= n; j++) if (s[j] < e[i] && e[j] > s[i]) infl++   # legs overlapping THIS one
+        printf "  %8.1f s wall, %2d sibling leg(s) in flight, rc!=0   %s\n", w[i] / 1000, infl - 1, nm[i]
+      }
+      printf "  ⚠ The sibling count is the number to read: pool-level starvation of a fork-heavy arm looks\n"
+      printf "    like a flaky item and is not one — the same arm passes SOLO and fails beside this many.\n"
+    }'
+}
+
 _report() {
   local i rc fails=0 ran=0 filt=0 excl=0 never=""
   for i in "${!labels[@]}"; do
@@ -796,7 +838,7 @@ _report() {
     wait "${pids[$i]}" >/dev/null 2>&1 || true
     _read_rc "$i"; rc="$RC"
     [ "$RC_MISSING" = 1 ] && rc_missing=$((rc_missing+1))
-    _ms_between "${starts[$i]}" "$END"; walls[$i]="$MS"
+    _ms_between "${starts[$i]}" "$END"; walls[$i]="$MS"; ends[$i]="${END:-${starts[$i]}}"
     [ -f "$RUN/$i.log" ] && cat "$RUN/$i.log"
     ran=$((ran+1))
     if [ "$rc" != "0" ]; then
@@ -863,6 +905,8 @@ _report() {
     } >&2
     exit 1
   fi
+  # ---- HD-1117: a RED run carries its own diagnosis ------------------------------------------- #
+  if [ "$fails" -gt 0 ]; then _diagnose_fails; fi
   [ "$fails" -eq 0 ] || { printf '\n%d of %d items FAILED:\n' "$fails" "$ran"
     for i in "${!labels[@]}"; do
       [ "${states[$i]}" = "run" ] || continue
