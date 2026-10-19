@@ -70,7 +70,7 @@
     fail_msg: >-
       {{ inventory_hostname }}: .storage/http is not the http settings object this task reconciles
       (key '{{ ha_http_obj.key | default('<none>') }}', data.stable
-      {{ 'present' if ha_http_obj.data.stable is defined else 'ABSENT' }). The effective trusted-proxies
+      {{ 'present' if ha_http_obj.data.stable is defined else 'ABSENT' }}). The effective trusted-proxies
       list therefore cannot be derived — reconcile it by hand from the HA UI or a documented object
       edit, and fix this task before converging it. Read the object with
       `python3 -m json.tool /opt/home-assistant-primary/config/.storage/http`.
