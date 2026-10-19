@@ -768,9 +768,16 @@ rather than wait. The traps:
   is measured absent, not assumed. A host with no `git` binary at all (`nas`) is not a git seat, and neither is an
   account that owns no clone: no cron job or systemd timer on any fleet host runs `git`, so nothing there commits
   outside an interactive shell.
-  ⚠ **A seat payload is a hand edit; the scripted step cannot pay it.** `git-bootstrap.sh --ssh-auth` writes
-  the **clone's** config and says so, so the seat's own global file keeps whatever it already held. Take the
-  backup in the same command (`cp -p <file> ~/.gitconfig.pre-signing-$(date +%Y%m%d-%H%M%S)`, then
+  ⚠ **The seat-global half is scripted since HD-495 (2026-10-19); the clone half always was.** `git-bootstrap.sh --ssh-auth`
+  writes the **clone's** config and says so. `git-bootstrap.sh --git-identity` now owns the three lines a Debian seat needs
+  **outside** any clone — `commit.gpgsign=false` (explicit, never merely unset: an inherited `true` is a HANG in cron, a
+  converge or pi's non-interactive bash, because the signature prompt has no tty), `gpg.format=ssh`, and
+  `gpg.ssh.allowedSignersFile=$HOME/.ssh/allowed_signers` — read back with `git config --global --get` so git's own
+  precedence, `includeIf` included, is the thing reported. `--git-identity --check` and `--reload` write nothing, and the mode
+  never generates or pulls a signing key (that stays `--ssh-auth`, and the sign half is retired) and never installs an `ssh-add`
+  recovery block. The Win11 seat's equivalent is `git-bootstrap-win11.sh --git-identity`. So a rebuilt seat is repaired by one
+  command rather than remembered by hand — which was the point of the role-ownership leg. Where a seat still holds `true` the
+  historical repair is still a hand edit: take the backup in the same command (`cp -p <file> ~/.gitconfig.pre-signing-$(date +%Y%m%d-%H%M%S)`, then
   `git config --file <file> commit.gpgsign false`) and read the verdict knowing that the backup legitimately
   still holds `true` — a glob-wide `grep -n gpgsign ~/.gitconfig*` returning "no `true`" is therefore NOT the
   acceptance form; `git config --list --show-origin` inside a `github.com` clone, printing `false` only, is.

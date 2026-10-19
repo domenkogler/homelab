@@ -11,6 +11,8 @@
 #   bash scripts/git/git-bootstrap.sh pull                 # alias of update
 #   bash scripts/git/git-bootstrap.sh --reload             # informational: no repo/network
 #   bash scripts/git/git-bootstrap.sh --ssh-auth            # 1Password SSH auth + signing setup
+#   bash scripts/git/git-bootstrap.sh --git-identity       # OWN the seat-global git identity state
+#   bash scripts/git/git-bootstrap.sh --git-identity --check   # the same report, writing nothing
 #
 # Overridable env (bash shorthand):
 #   SRC=$HOME/source · REPO=$SRC/homelab · REPOPATH=$SRC/homelab · REMOTE=<github homelab url>
@@ -190,6 +192,77 @@ OP_AUTH_ITEM="${OP_AUTH_ITEM:-GitHub auth}"    # spaces kept literal (op read us
 SSH_AUTH=0
 if [ "$MODE" = "--ssh-auth" ]; then SSH_AUTH=1; MODE=""; fi
 [ "${OP_SSH_AUTH:-}" = "1" ] && SSH_AUTH=1
+# `--git-identity [--check]` is dispatched below, next to the helpers it owns. MODE is cleared so no
+# later branch mistakes it for a clone/pull run; the dispatch itself exits.
+GIT_IDENTITY=0
+GIT_IDENTITY_CHECK=0
+if [ "$MODE" = "--git-identity" ]; then
+  GIT_IDENTITY=1
+  [ "${2:-}" = "--check" ] && GIT_IDENTITY_CHECK=1
+  MODE=""
+fi
+
+# ---- the seat-global git state this script owns (HD-495) ------------------------------------
+# The three lines below are the whole of what a seat needs OUTSIDE any clone. `commit.gpgsign`
+# must be an explicit FALSE, not unset: an unset value inherits whatever any other file says, and a
+# `gpgsign=true` inherited by cron, a converge or pi's non-interactive bash is a HANG, not an error
+# (the signature prompt has no tty) — the failure HD-1116 recorded. `allowedSignersFile` is what lets
+# `git log --show-signature` verify the history that WAS signed while the key still existed.
+# Read with `--global --get`, never by parsing the file: git's own precedence (including any
+# `includeIf` a seat carries) is the thing being reported.
+GIT_IDENTITY_LINES=(
+  "commit.gpgsign|false"
+  "gpg.format|ssh"
+  "gpg.ssh.allowedSignersFile|$HOME/.ssh/allowed_signers"
+)
+
+git_identity_report() {
+  local line key want have drift=0
+  echo "    seat git identity (global, $(hostname)):"
+  for line in "${GIT_IDENTITY_LINES[@]}"; do
+    key="${line%%|*}"; want="${line##*|}"
+    have="$(git config --global --get "$key" 2>/dev/null || true)"
+    if [ "$have" = "$want" ]; then
+      printf '      %-32s = %s\n' "$key" "$have"
+    else
+      printf '      %-32s = %s  WANT %s\n' "$key" "${have:-<unset>}" "$want"
+      drift=1
+    fi
+  done
+  # The keys themselves: present or absent, never their contents.
+  local k present=()
+  for k in "$HOME/.ssh/github_auth" "$HOME/.ssh/github_signing"; do
+    [ -f "$k" ] && present+=("$(basename "$k")")
+  done
+  echo "      ssh keys present               = ${present[*]:-none} (auth is the transport; the sign key"
+  echo "        is retired as a default — this script never generates or pulls one; --ssh-auth does)"
+  if [ "$drift" = 1 ]; then
+    echo "      DRIFT — repair with: bash scripts/git/git-bootstrap.sh --git-identity"
+  else
+    echo "      in sync with this script's ownership"
+  fi
+  return 0
+}
+
+git_identity_apply() {
+  local line key want have changed=0
+  echo "==> git-bootstrap --git-identity (seat: $(hostname), HOME=$HOME)"
+  # The file has to exist for the config line to mean anything, and an empty one is the honest
+  # state on a seat that has never verified a signature — not a reason to skip the setting.
+  mkdir -p "$HOME/.ssh"
+  [ -e "$HOME/.ssh/allowed_signers" ] || : > "$HOME/.ssh/allowed_signers"
+  chmod 600 "$HOME/.ssh/allowed_signers" 2>/dev/null || true
+  for line in "${GIT_IDENTITY_LINES[@]}"; do
+    key="${line%%|*}"; want="${line##*|}"
+    have="$(git config --global --get "$key" 2>/dev/null || true)"
+    [ "$have" = "$want" ] && continue
+    git config --global "$key" "$want"
+    printf '    %s: %s -> %s\n' "$key" "${have:-<unset>}" "$want"
+    changed=1
+  done
+  [ "$changed" = 1 ] || echo "    nothing to change"
+  git_identity_report
+}
 
 # --- --reload: informational only, never touches repo/network --------------
 if [ "$MODE" = "--reload" ]; then
@@ -199,7 +272,29 @@ if [ "$MODE" = "--reload" ]; then
   else
     echo "    repo present; run: bash scripts/git/git-bootstrap.sh update"
   fi
+  git_identity_report
   echo "    then: bash scripts/ansible/ansible-run.sh playbooks/vps.yml --tags docker_services,headscale"
+  exit 0
+fi
+
+# --- --git-identity: the seat's OWN git state, owned by this script (HD-495) ----------------
+# WHY HERE AND NOT IN A RUNBOOK: the rebuild route for a seat's git state WAS this file — `--ssh-auth`
+# already pulls both GitHub keys out of 1Password and wires the clone — and everything OUTSIDE the
+# clone was planted by hand: a global `~/.gitconfig`, an `allowed_signers` line, and no recorded route
+# for `git init` anywhere else. A hand-planted seat state is not recoverable, and "we do not sign
+# commits" is an assertion until something in the config can contradict it. So the seat-global lines
+# are written here, and `--check` reads them back.
+# WHAT IT DOES NOT DO, deliberately: it never generates or pulls a signing key (that is `--ssh-auth`,
+# and the sign half was retired as a default in HD-1116), and it never adds an ssh-add recovery line —
+# an agent auto-load block is a machine detail, not identity, and one that silently reappears on a
+# rebuilt seat is exactly the state this row is about.
+if [ "$GIT_IDENTITY" = 1 ]; then
+  if [ "$GIT_IDENTITY_CHECK" = 1 ]; then
+    echo "==> git-bootstrap --git-identity --check (seat: $(hostname), HOME=$HOME) — reading, writing nothing"
+    git_identity_report
+    exit 0
+  fi
+  git_identity_apply
   exit 0
 fi
 
