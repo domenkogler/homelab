@@ -47,7 +47,23 @@ tags: [ai, pi, agent-harness, harness, spark, llm, settings]
   (`install-pi-debian.sh --path-only` is the repair for a seat whose block predates it), the cockpit
   unit (`roles/seat` → `pi-on-path.conf`, `seat_pi_bin` + `seat_pi_node_bin`, asserted in the live
   unit), and every probe (`pi_bin()` / `pi_candidate()`) — a probe that reads only PATH reports
-  "no pi here" for a seat that has one. `pi update self` installs the LATEST release and takes no version
+  "no pi here" for a seat that has one.
+  ⚠ **Who WRITES the seat's block (HD-1110, 2026-10-19): the installers, not the operator.**
+  `install-pi-wsl.sh` used to print a NOTE asking for a `~/.bashrc` edit, which is a step owned by
+  nobody — whether `pi` resolved was then a fact about one hand-written line on one seat rather than
+  about the installer. `persist_path()` now writes the node bin dir and pi's entrypoint dir into
+  `.bashrc` and `.profile` under the installer's own marks (distinct from `install-pi-debian.sh`'s, so
+  each can tell whether IT persisted) and skips a directory this box does not have, and
+  `verify_login_path()` asks a **login** shell (`bash -lc 'command -v pi'`, `which -a pi`) and FAILS if
+  the winner is a `/mnt/c` copy, reporting the drvfs candidates instead of pretending they are not on
+  PATH. Which file answers what, measured: `wsl -- bash <cmd>` is non-interactive AND non-login and reads
+  neither file; `bash -l` reads `~/.profile`; an interactive shell reads `~/.bashrc` (which on Debian
+  returns early when non-interactive); a systemd USER unit reads neither — that is `roles/seat`'s
+  `Environment=PATH` drop-in, not this file. On the WSL seat today the login shell resolves
+  `~/.local/share/pi-node/current/bin/pi` first with the Volta `/mnt/c/...` copy last, and the marks are
+  **absent** from both files — the correct resolution is currently carried by hand-written lines, one of
+  which pins a version directory (`node-v22.23.2-linux-x64`), which is exactly the line this leg exists to
+  replace. HD-1118 Stage 2 is the follow-through for the rest of the seat family. `pi update self` installs the LATEST release and takes no version
   flag, so a managed seat off its pin is an **owner** action — move `pi_host_npm_version` +
   `pi_dev_npm_version` to what it reports, or move the seat back to the pinned layout with
   `install-pi-debian.sh --pi-only`; the script refuses to npm-install a second layout underneath it.

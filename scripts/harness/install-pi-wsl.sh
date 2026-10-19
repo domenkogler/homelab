@@ -17,6 +17,11 @@
 #   bash scripts/harness/install-pi-wsl.sh --pi-only       # pi binary + node, skip config sync
 #   bash scripts/harness/install-pi-wsl.sh --config-only   # deploy repo skills/AGENTS/prompts/packages
 #   bash scripts/harness/install-pi-wsl.sh --reload        # informational: report pi + config state
+#   PATH persistence is OWNED here (HD-1110): the node bin dir and pi's entrypoint dir are written
+#   into ~/.bashrc and ~/.profile under this script's marks, and the install legs VERIFY the result
+#   by asking a login shell (`bash -lc 'which -a pi'`), not this process. HD-1118 Stage 2 is the
+#   follow-through for the rest of the seat family (repo root + pins through scripts/lib/). The
+#   hand-written PATH line a seat used to need is superseded by this — do not hand-edit either file.
 #   Anything else exits 2 WITHOUT installing: an unrecognised argument used to fall through to the
 #   full installer (see the guard below `MODE=`), and this installer cannot be pinned — it fetches
 #   `latest`, not `pi_host_npm_version`.
@@ -110,6 +115,10 @@ require_cmds() {
 # ran `pi update` can be migrated there with the node-dir symlink deleted. A bare `command -v pi`
 # is empty in exactly those cases while pi runs fine (oldsrv, 2026-10-09).
 PI_ENTRY_DIR="${PI_ENTRY_DIR:-$HOME/.pi/agent/bin}"
+# The node bin dir a pi install needs on PATH. Found, never assumed: pi.dev's installer puts a
+# standalone node under ~/.local/share/pi-node, and a hand-written line pointing at ONE version
+# directory is what HD-1110 is about — so the `current` symlink is what gets persisted.
+PI_NODE_BIN_DIR="${PI_NODE_BIN_DIR:-$HOME/.local/share/pi-node/current/bin}"
 pi_bin() {
   local p
   p="$(command -v pi 2>/dev/null || true)"
@@ -118,10 +127,69 @@ pi_bin() {
   return 1
 }
 
+# ---- PATH persistence — this installer owns it, it does not describe it --------------------
+# HD-1110, with HD-1118 Stage 2 as the follow-through (the seat family resolving repo root and pins
+# through lib/repo-root.sh + lib/pi-seat.sh). What this file used to do was PRINT a note asking the
+# operator to edit ~/.bashrc. A step an installer only describes is owned by nobody: the box worked
+# because one hand-written line happened to put a bin dir first, so whether `pi` resolved was a fact
+# about one file on one seat rather than about this script. The lines are written here now, under
+# this script's own marks, idempotently, into the files a shell actually reads — and the verify asks
+# a LOGIN shell, which is exactly the shell a hand-written ~/.bashrc line does not always reach.
+# Measured, which file answers what: `wsl -- bash <cmd>` is non-interactive AND non-login and reads
+# neither file; `bash -l` reads ~/.profile; an interactive shell reads ~/.bashrc (which on Debian
+# returns early when non-interactive). A systemd USER unit reads neither — that is roles/seat's
+# Environment=PATH drop-in, not this file.
+# The marks are this installer's OWN, distinct from install-pi-debian.sh's, because both installers
+# legitimately run on one box and each must be able to tell whether IT already persisted.
+PROFILE_MARK_NODE="# pi-seat wsl node (install-pi-wsl.sh)"
+PROFILE_MARK_PI="# pi-seat wsl pi entrypoint (install-pi-wsl.sh)"
+
+persist_path() {
+  local f dir mark pair wrote=0
+  for pair in "$PROFILE_MARK_NODE|$PI_NODE_BIN_DIR" "$PROFILE_MARK_PI|$PI_ENTRY_DIR"; do
+    mark="${pair%%|*}"; dir="${pair##*|}"
+    # Only a directory that exists on THIS box is persisted: a PATH line for a layout this seat
+    # never had is how a later reader starts trusting a path that leads nowhere.
+    [ -d "$dir" ] || { info "skip $dir — no such directory on this box"; continue; }
+    for f in "$HOME/.bashrc" "$HOME/.profile"; do
+      [ -e "$f" ] || continue
+      if grep -qF "$mark" "$f"; then info "PATH block already in $(basename "$f")"; continue; fi
+      { printf '\n%s\nexport PATH="%s:$PATH"\n' "$mark" "$dir"; } >> "$f"
+      info "persisted $dir into $(basename "$f")"
+      wrote=1
+    done
+  done
+  if [ "$wrote" = 1 ]; then hash -r 2>/dev/null || true; fi
+  return 0
+}
+
+# Ask a LOGIN shell, never this process's own PATH: `hash -r; command -v pi` proves only that the
+# installer's shell can see pi — true the moment the installer exports a dir, and silent about the
+# shell the operator will actually open. Under WSL the Windows PATH is appended, so a /mnt/c copy is
+# always a candidate; what matters is WHO WINS, so that is what is asserted.
+verify_login_path() {
+  local winner all drvfs
+  winner="$(bash -lc 'command -v pi' 2>/dev/null || true)"
+  [ -n "$winner" ] || { echo "error: no login shell resolves 'pi' — the persisted PATH block did not take effect" >&2; return 1; }
+  all="$(bash -lc 'which -a pi' 2>/dev/null || true)"
+  drvfs="$(printf '%s\n' "$all" | grep -c '^/mnt/c' || true)"
+  info "login shell resolves pi: $winner"
+  info "  candidates: $(printf '%s\n' "$all" | tr '\n' ' ')"
+  [ "$drvfs" -gt 0 ] && info "  $drvfs Windows(drvfs) copy(ies) on PATH, not first"
+  case "$winner" in
+    /mnt/c/*|/mnt/C/*)
+      echo "error: a login shell resolves pi to the Windows copy ($winner) — the persisted block must come earlier in PATH" >&2
+      return 1 ;;
+  esac
+  return 0
+}
+
 # ---- --reload: informational only -------------------------------------------
 if [ "$MODE" = "--reload" ]; then
   say "install-pi (REPO=$REPO)"
   pb="$(pi_bin || true)"
+  # What a login shell actually resolves — the only PATH question an operator can ask.
+  info "login shell: $(bash -lc 'which -a pi' 2>/dev/null | tr '\n' ' ' || echo 'pi resolves nowhere')"
   if [ -n "$pb" ]; then
     info "pi:        $pb -> $("$pb" --version 2>/dev/null || echo '?')"
     info "pi config: $(ls -d "$HOME/.pi/agent" 2>/dev/null || echo 'ABSENT')"
@@ -147,17 +215,20 @@ if [ "$MODE" != "--config-only" ]; then
   fi
   # Official installer: installs/repairs pi + ensures a new-enough node.
   curl -fsSL https://pi.dev/install.sh | sh
-  # Refresh PATH for this session (installer may have appended a standalone node bin).
+  # PATH is PERSISTED here (HD-1110), not recommended in a note.
+  persist_path
+  # Refresh PATH for this session (the installer may have installed a standalone node).
   pb="$(pi_bin || true)"
   if [ -z "$pb" ]; then hash -r 2>/dev/null || true; pb="$(pi_bin || true)"; fi
-  [ -n "$pb" ] || { echo "error: no pi after install (looked on PATH and in $PI_ENTRY_DIR) — add the installer's bin dir to your shell profile" >&2; exit 1; }
-  if [ "$pb" = "$PI_ENTRY_DIR/pi" ] && ! command -v pi >/dev/null 2>&1; then
-    echo "    NOTE: pi lives at $PI_ENTRY_DIR and that dir is NOT on PATH — add it to ~/.bashrc or 'pi' will not resolve in a shell" >&2
-  fi
+  [ -n "$pb" ] || { echo "error: no pi after install (looked on PATH and in $PI_ENTRY_DIR) — no PATH entry can resolve a binary the installer never wrote" >&2; exit 1; }
   info "pi:  $pb -> $("$pb" --version)"
+  verify_login_path || exit 1
 else
   pb="$(pi_bin || true)"
   [ -n "$pb" ] || { echo "error: no pi found (neither PATH nor $PI_ENTRY_DIR) — run without --config-only" >&2; exit 1; }
+  # --config-only still proves the seat resolves: a synced config for a pi that a login shell
+  # cannot find is not a working seat.
+  verify_login_path || exit 1
 fi
 PI_BIN="$pb"
 
