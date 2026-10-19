@@ -250,16 +250,18 @@ storage_push_music:
   dest_user: "{{ music_box_dest_user }}"
   dest_port: "{{ music_box_dest_port }}"
   dest_path: "{{ music_box_dest_path }}"
-  ssh_key: /root/.ssh/livebox_push            # root-only 0600 identity — NOT seeded yet, see `enabled`
+  ssh_key: /root/.ssh/livebox_push            # root-only 0600 identity — seeded here, see `enabled` for what is outstanding
   known_hosts: /etc/storage/box_known_hosts   # strict host-key pinning, same discipline as kopia's --known-hosts
   max_delete: 50
   min_files: 1
   oncalendar: "*-*-* 04:20:00"
-  # The SSH identity that authenticates to the live Box does not exist on oldsrv, and port 23 is
-  # key-auth-only (the live Box's 1Password item holds a CIFS/WebDAV password, not a key). An
-  # ENABLED-but-unauthenticated timer is a red unit in everybody's `list-fail`, which reads worse
-  # than a parked leg, so this ships disabled: seed the key (owner step in the Hetzner console),
-  # then flip this to true and run the leg once.
+  # The identity EXISTS here — `/root/.ssh/livebox_push` `0600`, its public half re-derived from the
+  # private key with `ssh-keygen -yf` and diffed against the stored `.pub` — but it is not registered
+  # on the FAR side, and port 23 is key-auth-only (the live Box's 1Password item holds a CIFS/WebDAV
+  # password, not a key, so there is no other way in). An ENABLED-but-unauthenticated timer is a red
+  # unit in everybody's `list-fail`, which reads worse than a parked leg, so this ships disabled:
+  # register the public key in the storage provider's console (owner step), then flip this to true
+  # and run the leg once.
   enabled: false
 
 # Kopia wiring (oldsrv): sources already exist as dirs above; policies are
