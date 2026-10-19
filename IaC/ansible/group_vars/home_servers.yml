@@ -166,7 +166,10 @@ ai_tier_gguf_ubatch_size: 2048
 # accounting rule 4).
 # Shape borrowed from `spark_metrics_publish` (templates/docker_services/spark-ai/).
 #   → docs/observability.md §LLM token accounting
-ai_tier_metrics_publish: false
+# ON since 2026-10-19 (HD-1122): the owner accepted the recreation of the two serving legs, and the
+# after-read is `up{job="llama-cpp"} = 1` for BOTH legs. Before the flip the engine half of this tier was
+# dark — the RX 7600 counters were live, the request/token counters were not.
+ai_tier_metrics_publish: true
 
 docker_services:
   # === This is OLDSRV — GPU / LAN / storage-bound services only. ===
