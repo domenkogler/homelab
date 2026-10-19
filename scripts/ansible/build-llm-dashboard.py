@@ -22,7 +22,7 @@ WHAT MERGING ACTUALLY MEANS HERE (it is not concatenation):
     (sum() across engines is not a metric). EXPR_REWRITES below carries each join.
     The RX 7600 is deliberately NOT in that join: its counters are host-side `homelab_gpu_*`
     series published by the hygiene collector on oldsrv, and its engine is llama.cpp, whose
-    `llama_*` names do not join the `vllm:*`/`sglang:*` panels. They get their own row.
+    `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels. They get their own row.
   * DRY: a panel whose query already spans both engines (25502's gnet family) is carried
     VERBATIM — no rewrite, no re-translation of the Chinese legend format it carries.
 
@@ -885,7 +885,7 @@ NEW_PANELS = {
         "title": "RX 7600 — VRAM used / total (oldsrv)",
         "description": (
             "**This tier is llama.cpp over Vulkan, not vLLM.** Nothing in this row joins the "
-            "`vllm:*` / `sglang:*` panels above: llama.cpp's `llama_*` metric names carry a "
+            "`vllm:*` / `sglang:*` panels above: llama.cpp's `llamacpp:*` metric names carry a "
             "different shape and a different unit of accounting, so a `by (job, instance)` join "
             "across them would add up two quantities that only look alike. "
             "What IS here is the card. `amdgpu` exposes its counters in sysfs and the host ships "
@@ -893,9 +893,11 @@ NEW_PANELS = {
             "them directly (`job=\"homelab-hygiene\"`, loopback :9098 — a `textfile` collector is "
             "unusable on this Alloy build). Unlike the GB10, this card DOES expose VRAM, so the "
             "pair is a real used/total and not a unified-memory stand-in. "
-            "⚠ The ENGINE side of this tier is not here: `llama-server --metrics` is gated off by "
-            "`ai_tier_metrics_publish=false`, so no `llama_*` series exist in the backend and a "
-            "token or latency panel for this box would be empty by design, not broken."
+            "The ENGINE side has been live on this host since 2026-10-19 "
+            "(`ai_tier_metrics_publish=true`, HD-1122): `llama-server --metrics` is on both GGUF "
+            "engines and their `llamacpp:*` names land in the store under `job=\"llama-cpp\"` with a "
+            "`leg=\"embed\"`/`leg=\"reranker\"` discriminator. No token or latency panel for them is "
+            "authored on THIS board, because those names join nothing here — read them in Metrics."
         ),
         "unit": "bytes", "min": 0,
         "targets": [
@@ -913,8 +915,9 @@ NEW_PANELS = {
             "Flat 0 with VRAM held allocated is the normal idle shape of this tier: Whisper STT "
             "and the embed/rerank models keep their weights resident and only move the GPU when "
             "a request arrives, so `busy` is a burst signal, not a utilisation figure. The same "
-            "tier's TOKENS are not here at all — llama.cpp `--metrics` is gated off by "
-            "`ai_tier_metrics_publish=false`, and its `llama_*` names would not join the "
+            "tier's TOKENS are not here at all — they are live in the store as "
+            "`llamacpp:prompt_tokens_total` / `llamacpp:tokens_predicted_total` "
+            "(`job=\"llama-cpp\", leg=`), and llama.cpp's names would not join the "
             "`vllm:*`/`sglang:*` token panels in any case."
         ),
         "unit": "percent", "min": 0, "max": 100,
@@ -946,19 +949,21 @@ NEW_PANELS = {
         "type": "text",
         "title": "What still waits on this tier, and on SGLang",
         "content": (
-            "**The RX 7600 counters above are the card half; the engine half of that tier is "
-            "deliberately missing, and this row is where the rest of the forward look lives.** "
+            "**The RX 7600 counters above are the card half; the engine half of that tier is live in "
+            "the store and unpanelled, and this row is where the rest of the forward look lives.** "
             "The tier is llama.cpp over Vulkan serving Whisper STT + bge-m3 embed + bge-reranker, "
-            "and its `llama_*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this "
+            "and its `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this "
             "board — different names, different accounting, and a joined selector would filter one "
-            "family out in silence. "
+            "family out in silence. ⚠ NAME: the family is `llamacpp:` (colon), read off the live "
+            "`/metrics` on 2026-10-19 — `{__name__=~\"llama_.*\"}` answers ZERO series here, so any "
+            "query or alert rule written with the `llama_` prefix silently matches nothing. "
             "**The rows above are engine-agnostic on purpose.** Every joined query groups "
             "`by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds "
             "a series, not a dashboard. Note the pickers enumerate ENGINE instances, which is why "
             "this row's queries name the host instead — the same choice the spark node row makes. "
-            "**Still waiting:** `llama-server --metrics` is proved present on the pin but wired "
-            "behind `ai_tier_metrics_publish`, whose apply recreates two serving containers, so it "
-            "waits for an oldsrv `docker_services` window. "
+            "**Landed 2026-10-19:** `ai_tier_metrics_publish=true` and the apply recreated the two "
+            "serving containers (HD-1122); both legs scrape `up=1`. What is still missing is a panel "
+            "for the `llamacpp:*` names on this board — an authored panel, not a gate. "
             "**SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its "
             "`sglang:*` sibling is already written into every joined query, so the SGLang half fills "
             "from the same file. TWO places are deliberately vLLM-only until that scrape exists, "
@@ -1571,8 +1576,9 @@ LIVE_GPU_METRICS = ("homelab_gpu_present", "homelab_gpu_vram_used_bytes",
 # Host-side counters for the RX 7600 tier, NOT engine metrics: the host ships no
 # `rocm-smi`/`amd_smi`, so `amdgpu` sysfs reaches the backend through the hygiene collector's
 # direct-publish leg. All four names re-read from the backend as `gpu="rx7600"` series on
-# instance="oldsrv.kogler.si"; the engine side of that tier (`llama_*`) is NOT here because
-# `ai_tier_metrics_publish` is false, and it would not join the vllm/sglang panels either.
+# instance="oldsrv.kogler.si"; the engine side of that tier (`llamacpp:*`, live since
+# `ai_tier_metrics_publish=true` on 2026-10-19, HD-1122) is NOT here because those names would
+# not join the vllm/sglang panels either.
 
 
 def _has_live_series(expr: str) -> bool:

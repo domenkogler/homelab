@@ -362,16 +362,17 @@ prometheus.scrape "zfs_exporter" {
     forward_to = [prometheus.remote_write.metrics.receiver]
 }
 
-// ---- llama.cpp serving tier on the RX 7600 (embed + reranker) — GATED ----
+// ---- llama.cpp serving tier on the RX 7600 (embed + reranker) ----
 // `--metrics` EXISTS on the pinned `llama_cpp_vulkan_image` (proved read-only on the box:
 // `docker exec embed /app/llama-server --help` → "--metrics enable prometheus compatible metrics
 // endpoint (default: disabled)", env LLAMA_ARG_ENDPOINT_METRICS), and the flag is rendered into both
 // command lists behind `ai_tier_metrics_publish`. That same var renders the loopback publish in the two
 // composes — the flag WITHOUT the publish is a surface nothing can scrape, and this file must not grow
 // a target that cannot answer (a permanently-failing target still counts in `count(up{…})`).
-// So: flip `ai_tier_metrics_publish` (group_vars/home_servers.yml) and all three halves land on the next
-// oldsrv converge — command lists + publish + this job. Cold 60 s: no `scrape_interval` line, which IS
-// the fleet cold cadence (§Scrape cadence).
+// LIVE since 2026-10-19: `ai_tier_metrics_publish` is true, so all three halves landed together on the
+// oldsrv converge — command lists + publish + this job — and both legs report `up=1`.
+// The family this job ingests is `llamacpp:*` (colon; read off the live endpoint, NOT `llama_*`).
+// Cold 60 s: no `scrape_interval` line, which IS the fleet cold cadence (§Scrape cadence).
 // `leg` is the discriminator the panels need: llama.cpp names carry no per-leg label, so embed and
 // reranker would otherwise merge into one series per name under one job/instance pair.
 {% if ai_tier_metrics_publish | default(false) %}

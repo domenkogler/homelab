@@ -1128,10 +1128,11 @@ cut 100 % — every one of its 14 queries is covered by a better-scoped panel el
 rewritten to group `by (job, instance)` and to honour `$instance`, because a `sum()`
 across two engines is not a metric. Adding an engine must add a *series*, not a dashboard
 — so SGLang lands in these same rows with only a scrape job, and the RX 7600's llama.cpp
-legs (oldsrv, Vulkan) join the `by (job, instance)` panels the same way once
-`ai_tier_metrics_publish` flips. They do **not** fill the `vllm:*`/`sglang:*` panels: llama.cpp
-publishes its own `llama_*` names, so a join there would be a claim about a metric that does
-not exist. `guard_instance()` refuses any query that ignores the picker. Joins are
+legs (oldsrv, Vulkan) have been scraping since 2026-10-19 (`ai_tier_metrics_publish=true`,
+HD-1122). They do **not** fill the `vllm:*`/`sglang:*` panels: llama.cpp publishes its own
+`llamacpp:*` names — read off the live endpoint, NOT the `llama_*` this file used to claim, so a
+`{__name__=~"llama_.*"}` query answers zero series here — and a join there would be a claim about a
+metric that does not exist. `guard_instance()` refuses any query that ignores the picker. Joins are
 applied **only** where both engines expose the same metric name; where they do not
 (vLLM `prompt_tokens_total` vs SGLang `realtime_tokens_total` — different quantities,
 the latter carries a `mode` dimension) the two upstream panels are kept side by side
@@ -1143,10 +1144,11 @@ published by that host's hygiene collector over loopback, because the box ships 
 and this Alloy build cannot use a `textfile` collector — see §Rules for these three rows, rule 6. Three
 panels carry them: used-vs-total VRAM (this card DOES expose VRAM, unlike the GB10), busy % and a
 present/absent stat whose worst state is **no data**, because a host that emits nothing is invisible to
-every rule that asks whether a number is old (§Silent-failure hygiene). Two things the row does NOT
-claim, both stated in-panel: the tier is **llama.cpp over Vulkan**, so its `llama_*` names do not join
-the `vllm:*`/`sglang:*` panels above; and its engine-side metrics are gated off
-(`ai_tier_metrics_publish=false`), so a token or latency panel for this box would be empty by design.
+every rule that asks whether a number is old (§Silent-failure hygiene). What the row does NOT claim is
+that the tier is vLLM: it is **llama.cpp over Vulkan**, and since 2026-10-19
+(`ai_tier_metrics_publish=true`, HD-1122) its `llamacpp:*` counters ARE in the store — `job="llama-cpp"`,
+`leg="embed"`/`leg="reranker"`, both legs `up=1` — joined to nothing on this board, because llama.cpp's
+names are not vLLM's names. Reading those counters is a Metrics query, not a panel.
 The queries name the host instead of filtering on `$instance` for the same reason the spark node row
 does — the pickers enumerate ENGINE instances, and this box runs no engine.
 
@@ -1301,7 +1303,7 @@ is dark for a reason that is now measured rather than assumed.**
 |---|---|---|---|
 | **Engine counters** `vllm:*` | spark's own `/metrics` on the API port, scraped by `vllm` + `vllm_hot` (`IaC/ansible/roles/monitoring/templates/alloy.river.j2:557`, `:586`) | ✅ live | **tokens** — prompt / generation / cached / by-source, for **every caller**, because the counter is on the engine and does not care who sent the request. Labels: `model_name` + `instance` + `job` — no client, key or user dimension exists. |
 | **LiteLLM gateways** (`litellm` on the VPS, `lan-litellm` on oldsrv) | the proxy's own process — and in this pin, from a **separate metrics process/port** | ❌ nothing, and now for a measured reason | per-key / per-user spend and `rpm` — the attribution the fleet could get for *free*. Those numbers live only in each gateway's Postgres + Admin UI. See **Why the LiteLLM surface is dark** below: the endpoint is not mounted in the running process, so there is deliberately **no `job="litellm"`** anywhere. |
-| **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers + the host's `amdgpu` sysfs | 🟡 **GPU counters live, engine counters gated** | The card now reports: `homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent` (`gpu="rx7600"`), published by the host hygiene collector. The request/token counters need llama.cpp's `--metrics`, **proved present on the pin** and rendered into both command lists behind `ai_tier_metrics_publish` (`IaC/ansible/group_vars/home_servers.yml`) — off until an oldsrv `docker_services` window. whisper.cpp has no metrics surface. |
+| **oldsrv serving tier** (`embed`, `reranker`, `whisper` on the RX 7600) | llama.cpp / whisper.cpp containers + the host's `amdgpu` sysfs | ✅ **both halves live** | The card reports `homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent` (`gpu="rx7600"`), published by the host hygiene collector. The request/token counters came live on 2026-10-19 when `ai_tier_metrics_publish` went `true` (HD-1122): `llama-server --metrics` runs on both GGUF legs and the `llamacpp:*` family (`prompt_tokens_total`, `prompt_tokens_cached_total`, `tokens_predicted_total`, `*_seconds_total`) lands under `job="llama-cpp"` with a `leg="embed"`/`leg="reranker"` label. They join no `vllm:*`/`sglang:*` panel — different names, so read them by job. whisper.cpp (STT) still has no metrics surface. |
 
 The honest sentence this section exists to force: **totals are known, attribution is not.**
 `sum(increase(vllm:generation_tokens_total[1d]))` is a measurement; "this machine / this harness used N
@@ -1410,10 +1412,9 @@ per-client where the path allows it, per-plane (Home vs tailnet) where it does n
    (§LLM Dashboard — the RX 7600 row), generated by the board's generator, not hand-placed, and they
    are host telemetry: they join none of the engine panels.
 7. **The RX 7600 is the only host that can show VRAM** — GB10 exposes none (§LLM Dashboard → GPU). The
-   board says so itself, and its engine-count readiness panel reads **1** today (`count(up{job=~"…"})`,
-   spark vLLM only). Two corrections to the earlier claim that scraping this tier moves that panel
-   "1 → 2": the llama.cpp legs are **two** containers, so the honest ceiling is **3**, and they only join
-   when `ai_tier_metrics_publish` flips (each leg is one `up` target). The panel's own text says this now
+   board says so itself, and its engine-count readiness panel is `count(up{job=~"vllm|sglang|llama-cpp"})`.
+   It read **1** while only spark scraped; since the 2026-10-19 flip it reads **3** — spark vLLM plus the
+   two llama.cpp legs, each one `up` target. The panel's own text says this now
    — it is generated by `scripts/ansible/build-llm-dashboard.py`, so the text is fixed in the generator.
 
 ### The per-day token report

@@ -147,6 +147,10 @@ CATALOG = [
     ("API Credential", "immich-ml-internal_api",  lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "n8n-webhook_api",         lambda: [f"credential={gen_pw()}"]),
     ("API Credential", "signal-internal_api",     lambda: [f"credential={gen_pw()}"]),
+    # HD-1091: soularr→slskd bridge credential. gen_token's alphabet, not gen_pw's: this value is
+    # rendered into a compose env AND soularr's config.ini, which configparser reads with
+    # ExtendedInterpolation — the pool must contain no character either parser means something by.
+    ("API Credential", "soulseek-internal_api",   lambda: [f"credential={gen_token()}"]),
     ("API Credential", "network-snmp_api",       lambda: [f"credential={gen_pw()}"]),   # HD-205: catalog-created ONCE, but NOT_AUTO_ROTATABLE — the RO community is applied to the router/switch as a manual `/snmp community` step (HD-03); auto-rotating the vault value alone would silently diverge from the live device (deployment-secrets §3 rotation contract)
     # HD-313: router read-only logpipe API user — Password item (role reads field='password',
     # the RouterOS /user password; NOT an API-Credential like network-snmp). Non-VPS role item,
