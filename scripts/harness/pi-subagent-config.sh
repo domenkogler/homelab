@@ -12,10 +12,26 @@
 # settings plane owns the UN-prefixed keys of ~/.pi/agent/settings.json and
 # nothing else — this arm owns the extension file instead.
 #
+# WHAT `_note` IS, AND WHY IT IS NOT COMPARED
+# --------------------------------------------
+#   The payload carries one prose key, `_note`, that the extension never reads: it is a pointer
+#   to the docs that explain the numbers. Those docs live in the DOCS tree, so a prose-only rename
+#   there rewrites the SSOT's note and — when the verdict byte-compared the whole block — reddened
+#   the `subagent` plane on EVERY seat not pushed since. HD-1119(a) did exactly that on 2026-10-19:
+#   two seats read DRIFT with `differing keys: ['_note']` and every functional value identical, and
+#   no offline gate could predict it because the value it compares lives in a seat's HOME.
+#   So: the COMPARE ignores `_note`; `--push` still WRITES the whole payload, note included, so a
+#   push refreshes the prose. Every other key — known or not — is compared exactly, so a real knob
+#   still reddens, and `--self-test` proves BOTH halves (a moved key behind a changed note is still
+#   a RED that names the key). The owning rule is docs/harness-pi-seats.md §1.
+#
 # VERDICTS
 # --------
 #   --check            OK / DRIFT / MISSING / INVALID (report-only)
-#   --check --strict   exit 1 on a drift too (gate form; validate-all item 31)
+#   --check --strict   exit 1 on a drift too (the seat-leg form; validate-all runs no seat-byte
+#                      item for this plane — the fan-out `pi-seat-sync.sh --plane subagent` is the
+#                      leg that reaches a seat, and `check_subagent_contract.py` proves only that
+#                      this arm exists, never what a seat holds)
 #   --push             write the payload, 0600, keep a timestamped backup
 #                      (the extension file holds no secrets today, but 0600 is
 #                      the ownership default for anything under ~/.pi/agent)
@@ -49,7 +65,9 @@ usage() {
 usage: pi-subagent-config.sh [--check [--strict] | --push] [--self-test]
 
   --check            (default) compare ~/.pi/agent/extensions/subagent/config.json
-                     against the `_subagentConfig` block of pi-agent/settings-ssot.json
+                     against the `_subagentConfig` block of pi-agent/settings-ssot.json.
+                     The prose key `_note` is NOT compared (the extension does not read it);
+                     every other key is compared exactly
   --check --strict   exit 1 on a drift too (gate use)
   --push             write the payload; keep every key; keep a timestamped backup
   --self-test        sandboxed canaries (temp files; never touches ~/.pi)
@@ -89,19 +107,28 @@ require_node() {
   return 0
 }
 
-# --- the compare / the write (ONE node program, two actions) ------------------
+# --- the compare (ONE node program; the write below is the other half) --------
 # STATE<TAB>detail    ok | drift | missing | invalid
+#   ok   + detail ""      = equal on everything, prose included
+#   ok   + detail "_note" = equal on every key the extension READS; the deployed note lags
+#   drift+ + detail        = the names of the keys that differ, `_note` never among them
 run_node() {
-  local action="$1"
   "$NODE" -e '
     const fs = require("fs");
-    const [ssotPath, confPath, action] = process.argv.slice(1);
+    const [ssotPath, confPath] = process.argv.slice(1);
+    // `_note` is documentation carried inside the payload, not a knob: the extension reads none
+    // of it and it cites docs that live elsewhere. Byte-comparing it turned a prose-only rename
+    // into seat-plane drift on every seat not yet pushed (HD-1119(a), 2026-10-19, two seats).
+    // It is therefore excluded from the COMPARE only — `--push` writes it. Rule: docs/harness-pi-seats.md §1.
+    const NOTE = "_note";
+    const j = (v) => JSON.stringify(v, null, 2);
+    const fn = (o) => { const c = Object.assign({}, o); delete c[NOTE]; return c; };
     const ssot = JSON.parse(fs.readFileSync(ssotPath, "utf8"));
-    if (!ssot._subagentConfig || typeof ssot._subagentConfig !== "object") {
-      console.log("missing\t_subagentConfig block absent from the SSOT"); process.exit(0);
-    }
-    const want = JSON.stringify(ssot._subagentConfig, null, 2) + "\n";
     const state = (s, d) => { console.log(s + "\t" + d); };
+    if (!ssot._subagentConfig || typeof ssot._subagentConfig !== "object") {
+      state("missing", "_subagentConfig block absent from the SSOT"); process.exit(0);
+    }
+    const wantAll = ssot._subagentConfig, want = fn(wantAll);
     if (!fs.existsSync(confPath)) { state("missing", ""); process.exit(0); }
     let cur;
     try { cur = fs.readFileSync(confPath, "utf8"); }
@@ -110,13 +137,18 @@ run_node() {
     try { parsed = JSON.parse(cur); }
     catch { state("invalid", ""); process.exit(0); }
     if (typeof parsed !== "object" || parsed === null) { state("invalid", ""); process.exit(0); }
-    if (JSON.stringify(parsed, null, 2) + "\n" === want) { state("ok", ""); process.exit(0); }
-    state("drift", "_subagentConfig"); process.exit(0);
-  ' "$SSOT" "$CONF" "$action"
+    const got = fn(parsed);
+    if (j(got) === j(want)) { state("ok", j(parsed) === j(wantAll) ? "" : NOTE); process.exit(0); }
+    // name the keys that differ — the old body printed the BLOCK name here, and "these keys
+    // differ: _subagentConfig" is what sent a lane looking for a key that had not moved.
+    const names = Array.from(new Set(Object.keys(want).concat(Object.keys(got)))).sort();
+    state("drift", names.filter((k) => j(want[k]) !== j(got[k])).join(", ") || "(shape)");
+    process.exit(0);
+  ' "$SSOT" "$CONF"
 }
 invoke() {
   local out l1
-  out="$(run_node "$1")"
+  out="$(run_node)"
   l1="${out%%$'\n'*}"
   STATE="${l1%%$'\t'*}"
   DETAIL="${l1#*$'\t'}"; [ "$DETAIL" = "$l1" ] && DETAIL=""
@@ -124,10 +156,13 @@ invoke() {
 
 do_check() {
   require_node || return $?
-  invoke check
+  invoke
   case "$STATE" in
-    ok)      info "OK: $CONF carries the _subagentConfig payload of pi-agent/settings-ssot.json"; return 0 ;;
-    drift)   err "DRIFT: these keys differ from the SSOT payload: $DETAIL"
+    ok)      info "OK: $CONF carries the _subagentConfig payload of pi-agent/settings-ssot.json"
+             # Honest about the one thing the compare deliberately does not look at: prose only.
+             [ "$DETAIL" = "_note" ] && info "the deployed _note prose lags the SSOT; --push refreshes it (the compare ignores it by design)"
+             return 0 ;;
+    drift)   err "DRIFT: these keys differ from the SSOT payload: ${DETAIL:-the payload shape}"
              [ "$STRICT" -eq 1 ] && return 1
              info "reported, not failed (add --strict for the gate form; --push converges)"; return 0 ;;
     missing) err "MISSING: no $CONF — the subagent payload is not installed (run --push, or an install-pi-*.sh)"; return 1 ;;
@@ -138,9 +173,13 @@ do_check() {
 do_push() {
   require_node || return $?
   local stamp _d
-  invoke push
+  # The compare here decides only WHETHER IT MAY WRITE (a file it cannot parse is a refusal) and
+  # whether the target directory must exist. `ok` with the `_note` detail means the functional
+  # payload is already right but the PROSE lags — and --push writes the WHOLE payload, so it
+  # refreshes the note anyway. Only a byte-for-byte equal file is left alone (no spurious backup).
+  invoke
   case "$STATE" in
-    ok)      info "in place: $CONF carries the _subagentConfig payload ($CONF)"; return 0 ;;
+    ok)      [ -n "$DETAIL" ] || { info "in place: $CONF carries the _subagentConfig payload ($CONF)"; return 0; } ;;
     invalid) err "REFUSAL: $CONF does not parse — refusing to overwrite it"; return 1 ;;
     missing) _d="${CONF%/*}"; [ "$_d" != "$CONF" ] || _d=.
              mkdir -p "$_d" 2>/dev/null || true
@@ -158,7 +197,7 @@ do_push() {
     fs.writeFileSync(confPath, JSON.stringify(payload, null, 2) + "\n", "utf8");
     try { fs.chmodSync(confPath, 0o600); } catch {}
   ' "$SSOT" "$CONF"
-  invoke check
+  invoke
   [ "$STATE" = ok ] || { err "wrote $CONF but the payload still reads '$STATE' ($DETAIL)"; return 1; }
   info "wrote $CONF from pi-agent/settings-ssot.json _subagentConfig (backup: ${CONF##*/}.pre-subagent-$stamp)"
   return 0
@@ -207,6 +246,43 @@ self_test() {
   PI_NODE="$tmp/there-is-no-such-node" PI_SUBAGENT_CONF="$tmp/good.json" \
     bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict >/dev/null 2>&1 || rc=$?
   if [ "$rc" -eq 2 ]; then info "skip-arm         GREEN (rc 2 = SKIP, not a pass)"; else err "canary: the no-node path returned $rc — a SKIP must be 2"; fails=$((fails+1)); fi
+  # 6. THE NOTE CLASS (HD-1119(a), measured 2026-10-19): a doc path lives inside `_subagentConfig._note`
+  #    and the plane byte-compared the payload, so a PROSE-ONLY rename in the docs tree reddened the
+  #    `subagent` plane on two seats whose functional values were identical. Both halves, per
+  #    CONVENTIONS §6 — the exclusion must be narrow, not blind, so each half has a canary:
+  #    (a) prose-only    -> still GREEN under --strict  (deleting the exclusion reddens THIS arm)
+  #    (b) prose + a key -> still RED, naming the KEY  (widening the exclusion reddens THIS arm)
+  note_set() { "$NODE" -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));c._note=process.argv[2];fs.writeFileSync(process.argv[1],JSON.stringify(c,null,2)+"\n")' "$1" "$2"; }
+  local _out
+  note_set "$tmp/good.json" "Installed by the subagent seat plane — why each value: the harness doc section this copy kept after the docs were renamed."
+  _out=""
+  if _out="$(PI_SUBAGENT_CONF="$tmp/good.json" bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict 2>&1)"; then
+    case "$_out" in
+      *"_note prose lags"*) info "note-only        GREEN (a renamed doc path cannot redden a seat; the lag is printed)" ;;
+      *) err "canary: a note-only difference passed silently — the honest lag line is gone"; fails=$((fails+1)) ;;
+    esac
+  else err "canary: a note-only difference reddened the plane — the exclusion is gone"; fails=$((fails+1)); fi
+  "$NODE" -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));c._note="a note reworded when the docs were renamed";c.timeoutMs=123;fs.writeFileSync(process.argv[1],JSON.stringify(c,null,2)+"\n")' "$tmp/good.json"
+  _out="$(PI_SUBAGENT_CONF="$tmp/good.json" bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict 2>&1)"; rc=$?
+  if [ "$rc" -eq 0 ]; then
+    err "canary: a moved key hidden behind a changed note read OK — the compare is blind, not narrow"; fails=$((fails+1))
+  else
+    case "$_out" in
+      *timeoutMs*) info "note-cannot-mask GREEN (strict RED, and it names timeoutMs, not the block)" ;;
+      *) err "canary: the DRIFT line does not name the key that differs: $_out"; fails=$((fails+1)) ;;
+    esac
+  fi
+  # an extra key the SSOT does not carry is not documentation, whatever it is called
+  "$NODE" -e 'const fs=require("fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));delete c._note;c.seatLocalKnob=1;fs.writeFileSync(process.argv[1],JSON.stringify(c,null,2)+"\n")' "$tmp/good.json"
+  if PI_SUBAGENT_CONF="$tmp/good.json" bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --check --strict >/dev/null 2>&1; then
+    err "canary: an unknown extra key read OK — the payload is not open-ended"; fails=$((fails+1))
+  else info "unknown-key      caught (a key the SSOT does not carry is still drift)"; fi
+  # --push writes the WHOLE payload: a note-only-lagging seat gets its prose back, not just its knobs
+  note_set "$tmp/good.json" "a note from before the rename"
+  if PI_SUBAGENT_CONF="$tmp/good.json" bash "$SCRIPT_DIR/${BASH_SOURCE[0]##*/}" --push >/dev/null 2>&1 \
+     && "$NODE" -e 'const fs=require("fs");const a=JSON.parse(fs.readFileSync(process.argv[1],"utf8"))._subagentConfig._note;const b=JSON.parse(fs.readFileSync(process.argv[2],"utf8"))._note;process.exit(a===b?0:1)' "$SSOT" "$tmp/good.json"; then
+    info "push-writes-note GREEN (the exclusion is in the compare, never in the write)"
+  else err "canary: --push no longer writes the whole payload — _note stayed stale through a push"; fails=$((fails+1)); fi
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
 }
