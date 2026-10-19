@@ -176,6 +176,24 @@ inside one session. The LIVE wave table is
 1. Touch nothing until both lane branches are **committed and green in their own worktree** — and prove that to yourself: `git -C <lane-worktree> log --oneline -1` + `git show --stat` + `git status --short`. **A lane's own report is not evidence; only `git log` decides.** A finished-sounding report naming files, line numbers, validator output and a commit message can describe a worktree with no commit and no changed byte. (A report that does not match the tree is refused: stop the run, keep the row open, take the work over.)
 2. FF-merge lane A into `main` from the primary; `bash scripts/validate-all.sh` there.
 3. Rebase lane B onto `main` **inside its worktree** → re-run `validate-all.sh` **there** → FF-merge B (O1).
+   ⚠ **`todo.md` merges ROW-WISE, never by choosing a conflict hunk.** A row is the unit of record (CONVENTIONS §4),
+   and two lanes editing one row produce a conflict whose two sides are each **half the truth** — picking either side
+   silently deletes the other lane's measurement, its parked state, or its falsified premise. So resolve every
+   `todo.md` hunk by reading **both** sides against the row and writing the union: one row, both lanes' facts, the
+   newer premise winning over the older one it contradicts. ⛔ `git checkout --ours`/`--theirs` on a registry file,
+   and `-X theirs` / `-X ours` on a whole merge, are forbidden for `todo.md` by default; if one is ever used, the
+   merge is **not finished** until the other side's row content is re-verified claim-by-claim — `git diff main^1 main
+   -- todo.md` plus a `grep -F` for a specific sentence taken from each side of every row the two branches both
+   touched. A green validator is not that proof: both views can agree with a registry that just lost a row.
+   ⚠ **Before any merge into `main`, diff the row-id sets and require the difference to be empty** — both directions,
+   `comm -3` over the ids each side carries. An id present on one side and absent in the merged result is a row some
+   lane's work died in, and it is the one thing a row-wise merge can still lose while printing no conflict.
+   `scripts/gate/check_todo_done.py --refs` then proves the surviving rows still hold every id the root briefs and
+   views name, so a row that vanished with its references is caught by the gate rather than by a reader.
+   ⚠ **After an interrupted or aborted rebase, prove the branch actually moved:**
+   `git merge-base --is-ancestor main <lane-branch>` must exit **0** before the FF-merge. A rebase that stopped on a
+   conflict and was quit leaves the branch where it started, `merge` then opens a real merge commit instead of a
+   fast-forward, and the lane's rows land with `main`'s newer rows on the losing side of it (O1).
 4. Open **the parent's own worktree/branch** (O5) and make cleanup **one commit**:
    re-sync `todo-table.md` from the merged `todo.md` + `prompt.md` (it is a view, not a second record);
    update `prompt.md` §2 to the post-merge state and remove the closed brief from the wave table;
