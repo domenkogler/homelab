@@ -943,6 +943,22 @@ oldsrv is on NVMe and mostly unaffected):
 > kept small (trimmed recorder, reduced log verbosity). tmpfs-ing the recorder would throw away state/history on
 > every reboot — see the energy/logbook caveats above.
 
+⚠ **A tmpfs carries its own mode, and `mode=` is a MOUNT-TIME option (HD-1103, 2026-10-19).** A tmpfs mounted
+without `mode=` arrives `1777 root:root`, and logrotate then refuses **every** stanza with `error: skipping "…"
+because parent directory has insecure permissions` — the journal keeps working, so the box looks healthy while
+nothing rotates and only `systemctl --failed` says otherwise. The value to converge is what the hosts that mount
+`/var/log` from the root fs measure: `755 root:adm`. On a tmpfs there are two owners of that fact, and both are
+needed: `mode=0755,uid=0,gid=0` in the fstab options (owned by `roles/home_assistant/tasks/pi.yml`, and therefore
+owning every mount made afterwards, including the next boot's), **and** a `file:` leg for the mount that is already
+up — measured on a scratch tmpfs, `mount -o remount,mode=0755` returns 0 and leaves the directory `1777`, so a
+remount cannot move a tmpfs's mode and an fstab edit alone leaves logrotate skipping files until someone reboots
+(a reboot is an owner act, not how this repo fixes a mode). **Verify with the mount, never with the fstab line:**
+`findmnt --target /var/log` plus `stat -c '%a %U:%G' /var/log`. `ansible.builtin.mount` rewrites fstab and issues a
+bare `mount -o remount <mnt>`, which for tmpfs silently keeps the options the mount already had — a truthful fstab
+line is evidence about the NEXT mount, not this one. The acceptance read is `logrotate -d /etc/logrotate.conf`
+(read-only): no `error: skipping … bad file mode`/`insecure permissions` line, and note that `logrotate -d` prints
+`does not exist -- skipping` for files a host simply lacks, which is not the defect.
+
 ---
 
 ## Dashboards

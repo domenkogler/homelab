@@ -1295,6 +1295,16 @@ domain_local: kogler.si
 - **Deploy:** `/usr/local/sbin/ai-diag` + `/etc/sudoers.d/ai-diag` (single NOPASSWD entry for `ai-debug`)
 - **Deps:** smartmontools, hdparm, dmidecode, sg3-utils
 - **Scope:** read-only diagnostics (SMART, ZFS, journal) — see [`deployment-secrets.md`](deployment-secrets.md); script lives in `roles/ai_diag/files/ai-diag`
+- **`smartd` is decided by measurement, not by host name (HD-1103, 2026-10-19).** This role installs the
+  package, so this role owns whether the daemon runs: one `smartctl --scan` probe drives a symmetric
+  `systemd` leg — start+enable where SMART sees devices, stop+disable+**mask** where it sees none. The
+  exit code that motivated it is `17` = "no devices to monitor", which on an SD-card or controller-hidden
+  device fails at EVERY start and leaves a permanent tenant in `systemctl --failed` — the one command this
+  fleet uses as its health probe, so a standing failure in it trains every reader to ignore the output.
+  Masking, not merely disabling, is what survives a package upgrade. Two absences must not be conflated:
+  no `smartctl` binary (⚠ it lives in `/usr/sbin`, which a non-login shell's PATH does not carry, so an
+  unqualified `command -v smartctl` reports "absent" on a box that has it) and no unit, both of which are
+  "nothing to decide about here" — only "present, scans nothing" is a decision about that host.
 - **Update:** edit the file → re-run the role
 
 ---

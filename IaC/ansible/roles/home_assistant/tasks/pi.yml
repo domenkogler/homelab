@@ -212,11 +212,99 @@
   notify: restart journald
   tags: [pi_sd_trim, hd19]
 
-- name: Mount /var/log as tmpfs (Pi SD-card wear)
+# The mode belongs to the MOUNT. A tmpfs mounted without `mode=` arrives as 1777 root:root, and
+# logrotate then skips every system file with "skipping … because of bad file mode" — the journal is
+# still kept, so the box looks healthy while nothing rotates. 0755 root:adm is what /var/log measures
+# on the Debian hosts that mount it from the root fs (nas, oldsrv), so this is the fleet value, not a
+# Pi-only guess. Two legs own it, because they own different things: the fstab option owns every mount
+# made from now on, and a chmod owns the mount that is ALREADY up — measured here, a tmpfs applies
+# `mode=` at mount time and ignores it on remount, so `mount -o remount,mode=0755` returns 0 and
+# leaves the directory 1777. Neither leg is optional: a chmod alone is undone by the next boot (the
+# defect this row records), and an fstab option alone leaves logrotate skipping files until someone
+# reboots — and a reboot is an owner act, not how this repo fixes a mode.
+- name: Name the /var/log tmpfs options this host owns
+  # One string, so the mount line and the report cannot drift into two different stories.
+  ansible.builtin.set_fact:
+    pi_var_log_opts: "defaults,noatime,nosuid,nodev,noexec,size=100m,mode=0755,uid=0,gid=0"
+  tags: [pi_sd_trim, hd19]
+
+- name: Mount /var/log as tmpfs carrying the mode logrotate requires
+  # Owns /etc/fstab — therefore every mount made after this run, including the next boot's.
   ansible.builtin.mount:
     path: /var/log
     src: tmpfs
     fstype: tmpfs
-    opts: defaults,noatime,nosuid,nodev,noexec,size=100m
+    opts: "{{ pi_var_log_opts }}"
     state: mounted
+  tags: [pi_sd_trim, hd19]
+
+- name: Read how /var/log is mounted RIGHT NOW, not how fstab says it will be
+  # `findmnt --target` reads the APPLIED mount, so this catches a running fstab line that does not
+  # describe the live state — the gap that let this row read "fixed" while nothing rotated. It also
+  # shows what the mount module actually did: it rewrites the fstab line and issues a bare
+  # `mount -o remount`, which for a tmpfs re-applies the MOUNT-TIME options it already had. A read,
+  # and it really runs under --check.
+  ansible.builtin.command:
+    cmd: findmnt -no OPTIONS,FSTYPE --target /var/log
+  register: pi_var_log_mount
+  changed_when: false
+  check_mode: false   # a probe, not a mutation — --check must still be able to judge
+  tags: [pi_sd_trim, hd19]
+
+- name: Read what /var/log actually measures
+  # `stat` is check-safe, so --check judges the mode the mount really produced. This is the reading
+  # the reconciliation below is gated on.
+  ansible.builtin.stat:
+    path: /var/log
+  register: pi_var_log_stat
+  tags: [pi_sd_trim, hd19]
+
+- name: Bring the mode of the running mount to the one this host owns
+  # Gated on the measurement, so on a box that mounts with the option it simply does not run. This
+  # is not the durable owner — it is the reconciliation for the mount that is up and cannot be
+  # remounted into a new mode (see the block comment).
+  ansible.builtin.file:
+    path: /var/log
+    state: directory
+    owner: root
+    group: adm
+    mode: '0755'
+  when: "pi_var_log_stat.stat.mode | default('0000') not in ['0755', '755']"
+  tags: [pi_sd_trim, hd19]
+
+- name: Read what /var/log measures after any reconciliation
+  ansible.builtin.stat:
+    path: /var/log
+  register: pi_var_log_stat_after
+  tags: [pi_sd_trim, hd19]
+
+- name: Report the /var/log mount the running system has
+  ansible.builtin.debug:
+    msg: >-
+      /var/log on {{ inventory_hostname }}: mode {{ pi_var_log_stat_after.stat.mode | default('?') }} owner
+      {{ pi_var_log_stat_after.stat.pw_name | default('?') }}:{{ pi_var_log_stat_after.stat.gr_name | default('?') }}
+      under live mount options '{{ pi_var_log_mount.stdout | default('unreadable') }}' (fstab opts
+      '{{ pi_var_log_opts }}'). Want 0755 root:adm, the value logrotate's secure-parent check accepts.
+      A live mount line with no mode= is expected until the next mount: tmpfs honours mode= at mount
+      time only, so the mount line becomes truthful at a boot, never from a converge.
+  tags: [pi_sd_trim, hd19]
+
+- name: Refuse to call /var/log configured while logrotate has nowhere to write
+  # Asserted, not reported: "the task is green" is not the invariant. It asserts the mode logrotate
+  # really sees and NOT the mount line — the mount line cannot be made truthful without unmounting a
+  # filesystem that is open, which is a reboot-shaped act this run must not take. Skipped under
+  # --check, where the report line IS the verdict (the split the nm-resolver block uses).
+  ansible.builtin.assert:
+    that:
+      - "pi_var_log_stat_after.stat.mode | default('0000') in ['0755', '755']"
+      - "pi_var_log_stat_after.stat.pw_name | default('') == 'root'"
+    fail_msg: >-
+      /var/log on {{ inventory_hostname }} measures mode {{ pi_var_log_stat_after.stat.mode | default('?') }}
+      {{ pi_var_log_stat_after.stat.pw_name | default('?') }}:{{ pi_var_log_stat_after.stat.gr_name | default('?') }}
+      under mount options '{{ pi_var_log_mount.stdout | default('unreadable') }}'. A tmpfs mounted without
+      mode= arrives 1777 root:root and logrotate skips every system file with "skipping … because of bad
+      file mode", so the logs live and nothing rotates. The fstab option owns future mounts and the
+      task above owns the mount that is up; neither one worked here.
+    quiet: true
+  when: not ansible_check_mode
   tags: [pi_sd_trim, hd19]

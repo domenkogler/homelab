@@ -36,3 +36,42 @@
     group: root
     mode: '0440'
     validate: '/usr/sbin/visudo -cf %s'
+
+# ---- smartd: this role installs the package, so this role decides whether the daemon runs ----
+# smartd's exit 17 is "No devices to monitor" — on a board whose storage is an SD card or an NVMe
+# behind a controller SMART cannot reach, the daemon fails at every single start and stays in
+# `systemctl --failed` forever. That is not cosmetic in the way it looks: `systemctl --failed` is
+# the one command that answers "is this host healthy?", and a permanent failure in it trains every
+# reader to ignore the output. The measurement, not the host name, decides — and it is symmetric, so
+# a box that GAINS a device gets smartd back on the next converge without anyone remembering that
+# it was ever masked. Masking (not merely disabling) also survives a package upgrade, which is the
+# thing that re-enables a disabled unit behind our back.
+- name: Ask the box which devices SMART can actually see
+  # Two absences must not be confused: no `smartctl` (this host has no SMART stack at all — note
+  # that smartctl lives in /usr/sbin, which a non-login shell's PATH does not carry, so an
+  # unqualified `command -v` reports "absent" on a box that has it), and no unit (a host where the
+  # package is missing has nothing to decide about). "Present, and scans nothing" is the only answer
+  # that is a decision about THIS host.
+  ansible.builtin.shell:
+    cmd: |
+      set -eu
+      PATH="/usr/local/sbin:/usr/sbin:/sbin:$PATH"
+      command -v smartctl >/dev/null 2>&1 || { printf 'absent\n'; exit 0; }
+      systemctl list-unit-files --no-legend smartmontools.service 2>/dev/null | grep -q . \
+        || { printf 'absent\n'; exit 0; }
+      smartctl --scan 2>/dev/null || true
+    executable: /bin/bash
+  register: ai_diag_smart_scan
+  changed_when: false
+  check_mode: false        # a probe, not a mutation — --check must still be able to judge
+
+- name: Run smartd where SMART has devices, mask it where it has none
+  # The stop is what clears the recorded failure: a unit left in `failed` keeps appearing in
+  # `systemctl --failed` until it is stopped or reset, and a reboot is not how this repo fixes
+  # anything.
+  ansible.builtin.systemd:
+    name: smartmontools.service
+    state: "{{ 'started' if ai_diag_smart_scan.stdout | trim | length > 0 else 'stopped' }}"
+    enabled: "{{ ai_diag_smart_scan.stdout | trim | length > 0 }}"
+    masked: "{{ ai_diag_smart_scan.stdout | trim | length == 0 }}"
+  when: ai_diag_smart_scan.stdout | default('') | trim != 'absent'

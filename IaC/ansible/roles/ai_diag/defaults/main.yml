@@ -2,12 +2,15 @@
 # ai_diag role defaults
 
 # Lockout-exempt classification (read by scripts/gate/check_self_converge_guard.py, not by Ansible).
-# This role writes /etc/sudoers.d/ai-diag — a session-critical path — but it cannot sever
-# the driving session: it ADDS one narrow Cmnd grant for the ai-debug dispatcher account,
-# touches no unit, firewall, netdev or sshd setting, and the drop-in is validated with
-# `visudo -cf` at write time, so a malformed render cannot land. The ai-debug account's own
-# prohibition on running Ansible is enforced separately (the per-role ansible_user asserts).
+# This role writes /etc/sudoers.d/ai-diag — a session-critical path — and manages one unit, so the
+# detector flags it and this row exists rather than silence. The sudoers change ADDS one narrow Cmnd
+# grant for the ai-debug dispatcher account and is validated with `visudo -cf` at write time, so a
+# malformed render cannot land. The unit leg acts on smartmontools and nothing else: starting a
+# monitoring daemon, or masking one whose `smartctl --scan` measured empty, reaches no login, no
+# route, no listener — the driving session rides sshd, the netdev and the route table, none of which
+# this role touches. The ai-debug account's own prohibition on running Ansible is enforced
+# separately (the per-role ansible_user asserts).
 homelab_lockout_exempt_reason: >-
-  Adds one validated (visudo -cf) sudoers drop-in granting a narrow Cmnd to ai-debug; no
-  unit, firewall, netdev, mount or sshd state is touched, so it cannot cut the driving
-  session and a malformed render cannot land.
+  Adds one validated (visudo -cf) sudoers drop-in granting a narrow Cmnd to ai-debug, and starts or
+  masks the smartmontools unit by measurement; no firewall, netdev, mount or sshd state is touched,
+  so it cannot cut the driving session and a malformed sudo render cannot land.
