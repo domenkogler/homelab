@@ -177,10 +177,49 @@ ssh nas 'sudo -n cat /proc/$(pgrep -f "pv -p -t -e -r -b")/io'      # unchanged 
 ssh nas 'zfs list -t snapshot -o name -s creation | grep "_hourly$" | awk -F"@" "{print \$1}" | sort | uniq -c'
 ```
 
-⛔ **The reap is an owner act and is parked on HD-1107**: stopping the unit (`systemctl stop
-storage-syncoid.service`, which SIGKILLs the wedged `pv` and its tree) and then letting the next timer fire is
-a live act on the replication leg, and a `zfs receive -F` that ended without a clean finish should be observed
-through one full cycle by whoever is awake for it. Nothing was signalled on the host from this pass.
+### The reap was run — and it re-wedges in one second (measured 2026-10-19, owner-authorised)
+
+`systemctl stop storage-syncoid.service` does exactly what it says: the tree dies (`Main process exited,
+code=killed, status=15/TERM`, `Consumed 1d 6h 13min CPU`). Stopping a unit whose `.timer` is still active also
+re-triggers it in the same second, so the re-fire arrived immediately, sent ~42 KB, and the receiver answered:
+
+```
+cannot restore to bulk/data/services@autosnap_2026-10-08_21:05:07_monthly: destination already exists
+```
+
+…twice, identically, after which `pv` was wedged in `R` again (state `R`, 100 % of a core, 0 bytes written).
+**So the wedge is not a one-off accident of one night — it is the failure path of this pipeline**: a `zfs
+receive` that exits non-zero leaves `pv` spinning, `sh -c` waits for every pipeline member, `syncoid` never
+returns, and a `Type=oneshot` with `JobTimeoutUSec=infinity` sits in `activating` until someone reaps it.
+
+And the receive has a real reason to fail, which is the part this section used to get wrong. **`zfs send -I` is
+incremental from `tank/data/services@syncoid_nas_2026-10-08:21:00:08`; 66 snapshots on the destination are newer
+than that base and every one of them is a sanoid `@autosnap_*` the replica takes for itself** — `bulk/data/services`
+carries `use_template = data`, so it snapshots its own history. An incremental `-F` receive cannot land on a target
+that holds snapshots the stream does not contain. "The replica retains independent snapshot history" and "the
+replica is a syncoid target" are therefore **mutually exclusive on this dataset**, and the honest reading of the
+counts is that this leg has replicated nothing since the base snapshot: 2026-10-08 21:00.
+
+The same collision is why the snapshot counts do not fall after the reap. `sanoid`'s `iszfsbusy()` decides whether
+a dataset is "in zfs send or receive" by grepping `ps -Ao args=` for a `zfs send`/`zfs receive` line naming it — and
+the wedged pipeline's **shell wrapper** (`sh -c "zfs send … | mbuffer | pv … | zfs receive …"`) stays in the process
+table for as long as the wedge does. So both datasets read busy, and pruning defers, while no `zfs` process exists.
+Clear the wedge and the next `sanoid.timer` fire prunes on its own; leave it and the count grows by one snapshot an
+hour. Proof reads:
+
+```bash
+ssh nas 'systemctl show storage-syncoid.service -p ActiveState,SubState,ExecMainStartTimestamp --timestamp=utc'
+ssh nas 'sudo -n journalctl -u storage-syncoid.service --since "-20min" | grep -E "cannot restore|Sending"'
+ssh nas 'zfs list -t snapshot -H -o name,createtxg bulk/data/services | awk -v b=$(zfs get -H -o value createtxg bulk/data/services@syncoid_nas_2026-10-08:21:00:08-GMT02:00) "$2 > b" | wc -l'   # 66
+ssh nas 'sudo -n /usr/sbin/sanoid --prune-snapshots --readonly --verbose | grep -c deferring'
+```
+
+⛔ **What is left is an owner act, and it is a destroy, not a restart.** Letting one receive land means removing
+the destination's post-base history — `zfs destroy bulk/data/services@autosnap_2026-10-08_21:05:07_monthly` and 65
+more, i.e. the replica's own rollback history on `bulk` — or taking the replica datasets out of `sanoid.conf.j2` and
+letting those 66 age out through retention. Replication *into* a dataset that already has snapshots of its own is
+not an overnight experiment, so neither was done. A `systemctl stop` here is safe and reversible; `zfs receive
+--force`/`-u` and any destination rollback are not, and are what this row exists to keep out of the night.
 
 ---
 

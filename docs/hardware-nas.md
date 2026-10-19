@@ -48,6 +48,27 @@ tags: [hardware, nas, zfs]
 > unsupported). A collector process that dies on this host is investigated through its own runtime and
 > the kernel/firmware level first; `intel_iommu=off` remains an experiment worth one reboot window, not
 > a fix to reach for blind.
+>
+> **The kernel half of that hunt is closed as a measurement, not as an opinion.** All five hosts run the
+> same pinned collector (`alloy 1.20.1-1`, `alloy v1.20.1`) and this is what each carries under it:
+>
+> | Host | `uname -r` | collector |
+> |---|---|---|
+> | **nas** | `6.12.107+deb13-amd64` | `1.20.1-1` — **dies every ~6 s** |
+> | oldsrv | `6.12.107+deb13-amd64` | `1.20.1-1` — healthy |
+> | vps | `6.12.107+deb13-amd64` | `1.20.1-1` — healthy |
+> | pi | `6.18.34+rpt-rpi-v8` | `1.20.1-1` — healthy |
+> | spark | `7.0.0-1019-nvidia` | `1.20.1-1` — healthy |
+>
+> So this box is on the **same kernel build as the two x86 hosts that run the same deb without dying**: a
+> different kernel is not the finding, and "same pin, same kernel, one box dies" leaves the
+> firmware/microcode/memory level — the iLO 2.55 + memtest window this row already asks for, which is an
+> owner act because the box holds the NFS media export, the Kopia agent and the replication leg.
+> Restart-shaped numbers from a supervised `systemctl start alloy` (12:34:25 → stopped 12:46:02 on
+> 2026-10-19): `NRestarts` 4,847 → 0 at the start (a start resets the counter) → **119 at the stop**, ≈10
+> restarts/min against `Restart=always RestartUSec=100ms` and `StartLimitIntervalUSec=10s`/`Burst=5`, load
+> 1.00 → 2.16 → 1.00, `curl 127.0.0.1:12345/metrics` answering `200` only in the gaps between crashes.
+> The collector is **left stopped** (`enabled`, unmasked, no drop-in; restore line `systemctl start alloy`).
 
 ---
 
