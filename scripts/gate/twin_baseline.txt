@@ -149,3 +149,40 @@ group_keys_sha256 a093bf3da44e5388c3462e1df48ab28b5f7f4bdb84a79522447b876544ea7b
 baseline_rev 4eb6bad9c5ea4969edd70eacd8f69b4861ae0ae9
 twin_groups 2454
 group_keys_sha256 bf4ee1f9e97ddb6c4ab2ead4bea6b35da3d99c62faa6624d80c0cf94e03ae6a0
+#
+# Moved to 524a332feffb3d356633115ff69649a078f056cb by HD-1169, and this move needs its argument
+# written down because it is the re-baseline that the gate's own message authorises, not one that
+# buys silence. The red group was base value `scripts/`, and the side that made it red was
+# `check_doc_path_refs.py`'s `ROOT_DIRS = ("IaC/", "scripts/", "docs/", "spark/", "reports/",
+# "deploy/")` entry: the fix REPLACED that recalled tuple with roots DERIVED from the checkout
+# (every real top-level directory, plus the Ansible names resolved against `IaC/ansible/`). The
+# gate's rule is that one fact may not live in two places, so restoring the literal to satisfy the
+# ratchet would re-buy the exact duplication inside the file whose job is to prevent it -- the twin
+# is genuinely gone, which is the only condition the message names for moving B. What a restore
+# would buy is a green that lies twice: the duplicate back, and a population that pretends it never
+# left.
+#
+# Shape of the move 2454 -> 2612, measured by diffing the group-key sets AND their file sets at
+# main 9580f60e (this lane's parent) and at the tip above, so the two lanes' work cannot blur:
+# ONE group lost a side -- `scripts/`, which shed only the tuple's side and stayed a group -- and
+# ONE key left the population, `docs/`, whose two sides were `check_doc_domain.py` and that same
+# deleted tuple. Nothing else shed anything: no other group's file set moved downward anywhere in
+# the tree, which is the fact that separates "the rewrite deleted a duplicate" from "the rewrite
+# renamed a twin". The other 27 moves are all upward and all keyed on the rewritten
+# `check_doc_path_refs.py` -- 13 new keys (`roles/`, `group_vars/`, `handlers/`, `host_vars/`,
+# `playbooks/` pairing with `scripts/ansible/ansible_query.py`, which already listed the same
+# Ansible names, plus pipeline fragments and the shared `ERROR: %s` / `OK  ` report strings) and 14
+# groups the file joined. Net +158 against the old B is the 203 commits of other work between them;
+# the lane's own three commits net +12. So the population GREW -- the direction the canary exists
+# to distinguish from narrowing.
+#
+# Detection survived the move, which is the half a re-baseline can silently cost: `--self-test` arm
+# `i` still reddens on a planted cross-file sever, and a twin planted in THIS tree at this commit
+# came back FAIL with both sides named by file:line: one side of the `Docker Compose service: %i`
+# group (IaC/README.md, renamed in the working tree only) reddened the run against the NEW
+# population -- 2,612 groups, 0 commits of history between -- and was reverted. A gate that mutes
+# after re-baselining is worse than no gate, so the proof is part of the commit, not an assumption.
+# Eligibility, measured BEFORE the move: `git rev-list --count 4eb6bad9..HEAD` = 203 (cap 300).
+baseline_rev 524a332feffb3d356633115ff69649a078f056cb
+twin_groups 2612
+group_keys_sha256 e3a2ac07273b743775d8fda884097eefbbb73620c3df75ffd2bb6a8eeb35326b
