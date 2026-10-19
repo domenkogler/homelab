@@ -9,6 +9,7 @@ no SSL expiry). This exporter is the collector for both.
 
     homelab_unit_last_success{unit="traefik-cert-pull.service"}   1 | 0
     homelab_unit_result{unit="…", result="success|failed|missing"} 1
+    homelab_unit_last_success_timestamp_seconds{unit="…"}         <unix ts of that successful run>
     homelab_cert_days_left{consumer="traefik-internal"}           44.2
     homelab_cert_pair_present{consumer="traefik-internal"}        1 | 0
     homelab_nut_master_reachable{master="nas.kogler.si"}           1 | 0
@@ -143,14 +144,29 @@ PLAN_HEAD = [
 ]
 
 
+# `systemctl show --timestamp=utc` (systemd 253+) is the only form of a unit timestamp this file can
+# parse: the default form prints the host's LOCAL zone abbreviation, which stdlib cannot resolve, and
+# the numeric form (`ExecMainExitTimestampUSec`) is not a property systemd 257 answers `-p` with.
+# Measured on all four Debian 13 nodes (systemd 257.13): `-p ExecMainExitTimestampUSec` prints nothing
+# at all, `--timestamp=utc -p ExecMainExitTimestamp` prints `Www YYYY-MM-DD HH:MM:SS UTC`.
+SHOW_PROPS = ["-p", "LoadState", "-p", "ActiveState", "-p", "Result",
+              "-p", "TriggeredBy", "-p", "ExecMainExitTimestamp"]
+SYSTEMD_TS = re.compile(r"^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2} UTC$")
+
+
 def show(unit: str) -> dict:
     """`systemctl show` for one unit as a dict (key=value lines; NOT `--value`, so a key the unit does
     not have stays distinguishable from an empty one). stderr is kept under `_err` so a failed
     invocation is explainable in the log instead of becoming a silent "healthy"."""
-    r = subprocess.run(
-        ["systemctl", "show", unit, "-p", "LoadState", "-p", "ActiveState", "-p", "Result"],
-        capture_output=True, text=True, check=False,
-    )
+    r = subprocess.run(["systemctl", "show", unit, "--timestamp=utc"] + SHOW_PROPS,
+                       capture_output=True, text=True, check=False)
+    if not (r.stdout or "").strip():
+        # A systemd too old for `--timestamp=` rejects the flag and prints NOTHING, and the branch in
+        # unit_lines() that reads "no output" as "cannot ask" would page for it. Retry bare: the result
+        # legs then work exactly as they always did, and only the freshness leg goes silent (its parser
+        # refuses a zone-abbreviated timestamp rather than guessing an offset for it).
+        r = subprocess.run(["systemctl", "show", unit] + SHOW_PROPS,
+                           capture_output=True, text=True, check=False)
     out: dict = {"_err": (r.stderr or "").strip()[:140]}
     for line in (r.stdout or "").splitlines():
         if "=" in line:
@@ -165,6 +181,24 @@ def sel(labels: str) -> str:
     converge that proved it: a format placeholder that began with a brace-percent was parsed as a Jinja
     statement and the template died with `Encountered unknown tag 's'`."""
     return "{" + labels + "}"
+
+
+def systemd_ts(value: str):
+    """A systemd `--timestamp=utc` value as an aware datetime, or None.
+
+    None is the ANSWER, not a gap: empty / `n/a` means the unit has never run since this boot, and a
+    value carrying any other zone abbreviation means this systemd did not take `--timestamp=utc`. Both
+    mean "no freshness claim", never "ran at the epoch" — a 0 there would read as an age of 56 years."""
+    v = value.strip()
+    if len(v) > 4 and v[3] == " ":                  # leading weekday name: `Www YYYY-MM-DD … UTC`
+        v = v[4:]
+    if not SYSTEMD_TS.match(v):
+        return None
+    try:
+        return datetime.datetime.strptime(v, "%Y-%m-%d %H:%M:%S UTC").replace(
+            tzinfo=datetime.timezone.utc)
+    except ValueError:
+        return None
 
 
 def unit_lines(unit: str) -> list[str]:
@@ -184,12 +218,30 @@ def unit_lines(unit: str) -> list[str]:
     else:
         ok, reason = 1, result or "success"
     q = sel('unit="%s"' % unit)
-    return [
+    lines = [
         "# HELP homelab_unit_last_success 1 when the unit exists and its last run succeeded.",
         "# TYPE homelab_unit_last_success gauge",
         "homelab_unit_last_success%s %d" % (q, ok),
         'homelab_unit_result%s %s' % (sel('unit="%s", result="%s"' % (unit, reason)), "1"),
     ]
+    # The FRESHNESS leg, and why it is a third series rather than a reading of the two above:
+    # `last_success` answers "how did the LAST attempt go", which stays 1 forever the moment the TIMER
+    # stops firing — the unit never runs, so it never fails, and `Result` keeps reporting some earlier
+    # success. Age-of-success is the shape that catches a dead or masked timer and a run that never
+    # returns, the same hole a cert pair's own age cannot close: an rsync that ships the public half and
+    # fails on the key moves `homelab_cert_days_left` not at all while the sync is 100 % broken.
+    # Gated on TriggeredBy so that ONLY a timer-driven unit ages: a long-running daemon (the NUT units
+    # on this very list) has no "last exit" worth ageing and ageing one would page a healthy host.
+    # Emitted only for a run that SUCCEEDED — a failing unit is the `== 0` rule's business, already.
+    ran = systemd_ts(st.get("ExecMainExitTimestamp", "")) if st.get("TriggeredBy", "").endswith(".timer") else None
+    if ok and ran is not None:
+        lines += [
+            "# HELP homelab_unit_last_success_timestamp_seconds Unix time of the last successful run",
+            "# of this timer-driven unit. Absent = never succeeded since this boot.",
+            "# TYPE homelab_unit_last_success_timestamp_seconds gauge",
+            "homelab_unit_last_success_timestamp_seconds%s %d" % (q, int(ran.timestamp())),
+        ]
+    return lines
 
 
 def _as_utc(value: str):

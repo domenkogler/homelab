@@ -465,6 +465,7 @@ holds the `IaC/` template half clean:
 | --- | --- |
 | `homelab_unit_last_success{unit=}` | 1 when the unit exists AND its last run succeeded — the only signal that separates a healthy oneshot from a failing one, because `is-active` answers `inactive` for both |
 | `homelab_unit_result{unit=,result="success\|failed\|missing"}` | the reason, for the dashboard and the alert text |
+| `homelab_unit_last_success_timestamp_seconds{unit=}` | unix time of this unit's last SUCCESSFUL run — the age the two result series cannot express, because a timer that stops firing produces no attempt and therefore no result, leaving `last_success` holding the value of some earlier success indefinitely. Emitted ONLY for a unit a `.timer` triggers (`TriggeredBy`) and only when the last run succeeded, so a long-running daemon — the NUT units on the same list — and a unit that has not run since a boot both emit nothing rather than an age that would page a healthy host |
 | `homelab_cert_pair_present{consumer=}` | 1 when the pair this edge actually loads exists |
 | `homelab_cert_days_left{consumer=}` | days to expiry of the pair this edge loads |
 | `homelab_nut_master_reachable{master=}` | 1 when this host's NUT **client** can read its master — a unit result never implies this claim |
@@ -518,6 +519,17 @@ Grafana: of 26 rules loaded, **7 reference `homelab_*`** — `cert-pair-missing`
 (WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m) and `pkg-pin-drift`
 (WARN, 30 m, §Pin-lag report) — read back from the ruler API. Count them from the ruler API, never
 from this sentence — the read is in the table below.
+
+**A unit's RESULT is not its AGE, and only the age sees a dead timer.** `unit-last-result-failed` reads
+`homelab_unit_last_success`, which answers "how did the last attempt go" — so a timer that stops firing (masked,
+unset, a `.timer` whose install never landed) leaves the gauge at **1** for as long as the host is up, and a run
+that never returns leaves it wherever the last good run left it. `homelab_unit_last_success_timestamp_seconds`
+above, with the `unit-last-success-stale` warning rule (90 min, `for: 30 m`), is the age half. **It is authored
+and not loaded**: the rule ships in `roles/monitoring/vars/main.yml` and reaches Grafana only through the
+VPS-side `Provision Grafana alert rules`, so no page has been watched red yet — the same honest label
+§Pin-lag report puts on `pkg-pin-drift`. The series is the proof to look at first: on the Pi it read
+`last_success = 0` / `result = "failed"` on every scrape of a tick that failed, which is the result half working
+exactly as designed while nobody was looking at it.
 
 **A host that emits NO series is invisible to every rule, so the expected set has to come from the
 inventory.** The shape, measured on the storage collector host: `alloy` and `homelab-hygiene` both

@@ -205,6 +205,27 @@ grafana_alert_rules:
       execErrState: Error
       eval_type: lt
       eval_params: [1]
+    - uid: unit-last-success-stale
+      title: A watched timer has not succeeded recently
+      # 90 min = six missed fires of the 15-min cert pulls this fleet actually watches, so one dropped
+      # tick or one reboot-then-run cannot page. The threshold lives in eval_params, never in the expr.
+      for: 30m
+      # UNFILTERED, and `max_over_time[6h]` for the reason hygiene-collector-stale above documents: the
+      # value here is a TIMESTAMP, so the series stays fresh while the age it implies grows, and the
+      # window is what keeps `unit=`/`instance=` on the page instead of collapsing to NoData.
+      expr: "time() - max_over_time(homelab_unit_last_success_timestamp_seconds[6h])"
+      summary: !unsafe "No successful run of {{ $labels.unit }} on {{ $labels.instance }} for >90 min — the timer stopped firing, the unit is masked, or a run never returns"
+      # The twin that `unit-last-result-failed` cannot be: a timer that stops firing produces no attempt,
+      # so no result, and `last_success` keeps the value of some earlier success forever. Age-of-success is
+      # also the only eye on a pull whose bytes never move — a cert pair that simply ages is invisible to
+      # cert-age-warning for the whole 90-day window.
+      # noDataState: OK because absence is not a fault here: the exporter emits this series ONLY for a
+      # timer-driven unit whose last run succeeded, so a host whose watched units have not yet run since a
+      # reboot legitimately carries no value, and paging on that would be paging on a boot.
+      noDataState: OK
+      execErrState: Error
+      eval_type: gt
+      eval_params: [5400]
     - uid: cert-age-warning
       title: Consumer cert pair aging
       for: 30m
