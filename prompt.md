@@ -307,9 +307,9 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    attributed to recreate-churn or a one-off `docker run postgres` whose user db is template1-sized, and absent compose
    labels prove nothing because Docker labels only a compose's **named** volumes — nothing was deleted; the owner half
    is the prune itself plus the two state-in-anonymous-volume paths, `onlyoffice-docs`' `/var/www/onlyoffice/Data` pair
-   whose WOPI/JWT keypair is **re-minted at every recreate**), **HD-1093** (**owner**: rotate both
-   family SMB passwords, then land them with `storage_samba_password_force` — a vault rotate alone changes nothing
-   on the box), **HD-207** and **HD-238**. → [prompt-storage-backup.md](prompt-storage-backup.md)
+   whose WOPI/JWT keypair is **re-minted at every recreate**), **HD-1093** (⏳ land the rotated family SMB passwords on the NAS with `storage_samba_password_force` —
+   ✅ the **owner**'s own rotate happened on 2026-10-08, so the rotate is not owed here and a vault rotate alone changes
+   nothing on the box), **HD-207** and **HD-238**. → [prompt-storage-backup.md](prompt-storage-backup.md)
 7. ⏳ **The Pi's own box** — **HD-418** (✅ **reconciled at both ends and owned in IaC** — `roles/home_assistant/tasks/pi.yml`,
    tag **`hd418`**: `.storage/http` now carries `oldsrv_home_ip`/32 in `stable` AND `pending`, `--check ok=27 changed=1`
    → apply `ok=32 changed=3 failed=0` → the same apply again `ok=26 changed=0`, no second restart. The proof is
