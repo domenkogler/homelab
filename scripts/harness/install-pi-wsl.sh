@@ -17,14 +17,17 @@
 #   bash scripts/harness/install-pi-wsl.sh --pi-only       # pi binary + node, skip config sync
 #   bash scripts/harness/install-pi-wsl.sh --config-only   # deploy repo skills/AGENTS/prompts/packages
 #   bash scripts/harness/install-pi-wsl.sh --reload        # informational: report pi + config state
+#   bash scripts/harness/install-pi-wsl.sh --self-test     # the pi leg against fixture pins, in a
+#                                                          # temp HOME; installs nothing on this box
 #   PATH persistence is OWNED here (HD-1110): the node bin dir and pi's entrypoint dir are written
 #   into ~/.bashrc and ~/.profile under this script's marks, and the install legs VERIFY the result
 #   by asking a login shell (`bash -lc 'which -a pi'`), not this process. HD-1118 Stage 2 is the
 #   follow-through for the rest of the seat family (repo root + pins through scripts/lib/). The
 #   hand-written PATH line a seat used to need is superseded by this — do not hand-edit either file.
 #   Anything else exits 2 WITHOUT installing: an unrecognised argument used to fall through to the
-#   full installer (see the guard below `MODE=`), and this installer cannot be pinned — it fetches
-#   `latest`, not `pi_host_npm_version`.
+#   full installer (see the guard below `MODE=`). The pi leg is PINNED (HD-1161): it runs the
+#   Debian sibling's pinned leg and then asserts the answering `pi` against `pi_host_npm_version`,
+#   so nothing here can install a build the repo has not read.
 #
 # SSOT (deploy direction = repo -> ~/.pi/agent). The root update_pi.cmd that did the
 #   Windows half with robocopy is retired (HD-1112): scripts/harness/pi-seat-sync.sh is the path.
@@ -187,16 +190,15 @@ STUB
 fi
 
 # ⛔ AN UNKNOWN ARGUMENT MEANS FULL INSTALL HERE, so it is refused before anything runs.
-# This script has no `--check`: `MODE` is only ever compared with `--pi-only`, `--config-only` and
-# `--reload`, so any OTHER first argument falls through to the installer branch, which pipes
-# `https://pi.dev/install.sh` into `sh`. Measured the hard way on the WSL seat 2026-10-19: typing the
-# shape every sibling script answers to (`install-pi-wsl.sh --check`, the spelling HD-1118's own
-# from-zero leg uses for `install-pi-debian.sh --check`) downloaded the managed installer,
-# `npm install`ed 119 packages into a staging tree and created `~/.pi/agent/install/{releases,staging}`
-# on a box that was only meant to be READ. The pin survived only because the smoke test disagreed
-# (`Managed Pi smoke test returned version 1.1.0; expected 1.3.0` — the pi.dev installer takes no
-# version, so what it fetches is `latest`, not `pi_host_npm_version`). §7, fail loud: a mode this
-# file does not know is a STOP, never a default.
+# This script has no `--check`: `MODE` is only ever compared with `--pi-only`, `--config-only`,
+# `--reload` and `--self-test`, so any OTHER first argument used to fall through to the installer
+# branch, which piped `https://pi.dev/install.sh` into `sh`. Measured the hard way on the WSL seat
+# 2026-10-19: typing the shape every sibling script answers to (`install-pi-wsl.sh --check`, the
+# spelling HD-1118's own from-zero leg uses for `install-pi-debian.sh --check`) downloaded the
+# managed installer, `npm install`ed 119 packages into a staging tree and created
+# `~/.pi/agent/install/{releases,staging}` on a box that was only meant to be READ. The pin survived
+# only because that installer takes no version — it fetches `latest`, and its own smoke test is what
+# disagreed. §7, fail loud: a mode this file does not know is a STOP, never a default.
 case "$MODE" in
   ''|--pi-only|--config-only|--reload|--self-test) ;;
   *)
