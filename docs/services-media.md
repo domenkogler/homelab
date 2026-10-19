@@ -369,7 +369,7 @@ cannot be answered until the provider login works.
   root inside the completion tree lives where soularr's timeout pass deletes (measured, in the soularr ini's own
   comment: an album enqueued at 17:17:35 was deleted at 17:22:39 — 304 s). **Never pin a library root inside
   `downloads/`**; prove the live set with `GET /api/v1/rootfolder` (`lidarr_api`) rather than trusting the YAML,
-  because the YAML cannot see the difference. Options and the owed read-and-report leg: [`todo.md`](todo.md)
+  because the YAML cannot see the difference. Options and the owed read-and-report leg: [`todo.md`](../todo.md)
   HD-1172, cross-linked to HD-1091.
 - *****arr ←? downloader wiring:***** Prowlarr (existing) points at SABnzbd + qBittorrent for Lidarr.
   ⚠ **slskd cannot be a Lidarr download client at all** — `GET /api/v1/downloadclient/schema` on the live
