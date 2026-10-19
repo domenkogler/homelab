@@ -369,7 +369,7 @@ prometheus.scrape "zfs_exporter" {
 // command lists behind `ai_tier_metrics_publish`. That same var renders the loopback publish in the two
 // composes — the flag WITHOUT the publish is a surface nothing can scrape, and this file must not grow
 // a target that cannot answer (a permanently-failing target still counts in `count(up{…})`).
-// LIVE since 2026-10-19: `ai_tier_metrics_publish` is true, so all three halves landed together on the
+// LIVE: `ai_tier_metrics_publish` is true, so all three halves landed together on the
 // oldsrv converge — command lists + publish + this job — and both legs report `up=1`.
 // The family this job ingests is `llamacpp:*` (colon; read off the live endpoint, NOT `llama_*`).
 // Cold 60 s: no `scrape_interval` line, which IS the fleet cold cadence (§Scrape cadence).

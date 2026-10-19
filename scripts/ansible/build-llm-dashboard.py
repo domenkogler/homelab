@@ -893,8 +893,8 @@ NEW_PANELS = {
             "them directly (`job=\"homelab-hygiene\"`, loopback :9098 — a `textfile` collector is "
             "unusable on this Alloy build). Unlike the GB10, this card DOES expose VRAM, so the "
             "pair is a real used/total and not a unified-memory stand-in. "
-            "The ENGINE side has been live on this host since 2026-10-19 "
-            "(`ai_tier_metrics_publish=true`, HD-1122): `llama-server --metrics` is on both GGUF "
+            "The ENGINE side is live on this host "
+            "(`ai_tier_metrics_publish=true`): `llama-server --metrics` is on both GGUF "
             "engines and their `llamacpp:*` names land in the store under `job=\"llama-cpp\"` with a "
             "`leg=\"embed\"`/`leg=\"reranker\"` discriminator. No token or latency panel for them is "
             "authored on THIS board, because those names join nothing here — read them in Metrics."
@@ -955,14 +955,14 @@ NEW_PANELS = {
             "and its `llamacpp:*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this "
             "board — different names, different accounting, and a joined selector would filter one "
             "family out in silence. ⚠ NAME: the family is `llamacpp:` (colon), read off the live "
-            "`/metrics` on 2026-10-19 — `{__name__=~\"llama_.*\"}` answers ZERO series here, so any "
+            "`/metrics` — `{__name__=~\"llama_.*\"}` answers ZERO series here, so any "
             "query or alert rule written with the `llama_` prefix silently matches nothing. "
             "**The rows above are engine-agnostic on purpose.** Every joined query groups "
             "`by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds "
             "a series, not a dashboard. Note the pickers enumerate ENGINE instances, which is why "
             "this row's queries name the host instead — the same choice the spark node row makes. "
-            "**Landed 2026-10-19:** `ai_tier_metrics_publish=true` and the apply recreated the two "
-            "serving containers (HD-1122); both legs scrape `up=1`. What is still missing is a panel "
+            "**Landed:** `ai_tier_metrics_publish=true` and the apply recreated the two "
+            "serving containers; both legs scrape `up=1`. What is still missing is a panel "
             "for the `llamacpp:*` names on this board — an authored panel, not a gate. "
             "**SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its "
             "`sglang:*` sibling is already written into every joined query, so the SGLang half fills "
@@ -1576,8 +1576,8 @@ LIVE_GPU_METRICS = ("homelab_gpu_present", "homelab_gpu_vram_used_bytes",
 # Host-side counters for the RX 7600 tier, NOT engine metrics: the host ships no
 # `rocm-smi`/`amd_smi`, so `amdgpu` sysfs reaches the backend through the hygiene collector's
 # direct-publish leg. All four names re-read from the backend as `gpu="rx7600"` series on
-# instance="oldsrv.kogler.si"; the engine side of that tier (`llamacpp:*`, live since
-# `ai_tier_metrics_publish=true` on 2026-10-19, HD-1122) is NOT here because those names would
+# instance="oldsrv.kogler.si"; the engine side of that tier (`llamacpp:*`, live under
+# `ai_tier_metrics_publish=true`) is NOT here because those names would
 # not join the vllm/sglang panels either.
 
 
