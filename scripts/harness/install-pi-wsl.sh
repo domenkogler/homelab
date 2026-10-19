@@ -70,6 +70,11 @@ VERSIONS="$REPO/IaC/ansible/group_vars/all/versions.yml"
 hl_source_lib "${BASH_SOURCE[0]:-$0}" pi-seat.sh
 pin TUI_PKG pi_host_tui_npm_package
 pin TUI_V pi_host_tui_npm_version
+# The pi binary's own pin, read HERE so the leg can ASSERT its result. Before HD-1161 this file read
+# the TUI pair and not this one, because it never compared the install against anything — the
+# upstream bootstrap it called takes no version, so there was no expectation to read.
+pin PI_PKG pi_host_npm_package
+pin PI_V  pi_host_npm_version
 
 # HD-1118 Stage 2: the package set is NOT listed in this file. It is DISCOVERED from the pi_pkg_*
 # inventory in the version SSOT, so a from-zero WSL bootstrap cannot carry a private list again.
@@ -79,6 +84,107 @@ pin TUI_V pi_host_tui_npm_version
 pi_fleet_packages() { seat_pkg_rows "$VERSIONS" | awk -F'\t' '$3=="fleet"{print $2}'; }
 
 MODE="${1:-}"
+
+# ---- --self-test: the pi leg, proven in a sandbox -------------------------------------------
+# This file had NO self-test for its install leg, so the leg HD-1161 is about could not fail. The
+# arms drive THIS script with HOME and REPO pointed at a fixture in a temp dir — `env -i`, so no
+# host PATH can smuggle in the pi this box really has — where:
+#   * the fixture inventory carries the pin the arm names, and
+#   * the Debian delegate this script calls is stubbed to install a `pi` answering a chosen version
+#     and to RECORD that it ran,
+# which is the only way to ask "what happens when the install answers something other than the
+# pin?" and "does it npm-install underneath a managed seat?" without doing either to a real box.
+# The delegate's own pinned leg is proven by install-pi-debian.sh, whose --check this arm set does
+# not replace.
+if [ "${MODE:-}" = "--self-test" ]; then
+  _st_fail=0
+  _st_t="$(mktemp -d)"; trap 'rm -rf "$_st_t"' EXIT
+  # _st_arm <name> <pin> <answer> <pre: none|managed> <expect: ok|fail|refuse|skip>
+  _st_arm() {
+    local _n="$1" pinv="$2" ansv="$3" pre="$4" expect="$5" out rc
+    local _d="$_st_t/$_n"   # separate statement: one `local` line cannot read a name it is assigning
+    mkdir -p "$_d/repo/IaC/ansible/group_vars/all" "$_d/repo/scripts/harness" "$_d/repo/scripts/lib" \
+             "$_d/repo/docs" "$_d/home/bin" "$_d/home/.pi/agent/bin"
+    : >"$_d/repo/docs/index.md"
+    # persist_path only writes into files that already exist, and verify_login_path asks a LOGIN
+    # shell — so the fixture home needs the two files a real Debian home ships with.
+    : >"$_d/home/.profile"; : >"$_d/home/.bashrc"
+    cp "$REPO/scripts/lib/"*.sh "$_d/repo/scripts/lib/" 2>/dev/null || true
+    # The script under test runs FROM the fixture, so the fixture's copy is this file byte for byte;
+    # only the stubbed delegate and the fixture inventory differ from the real tree.
+    cp "$REPO/scripts/harness/install-pi-wsl.sh" "$_d/repo/scripts/harness/install-pi-wsl.sh"
+    printf 'pi_host_npm_package: @x/pi\npi_host_npm_version: %s\npi_host_tui_npm_package: pi-open-tui\npi_host_tui_npm_version: 0.1.0\n' \
+      "$pinv" >"$_d/repo/IaC/ansible/group_vars/all/versions.yml"
+    # The delegate, stubbed. Recording that it ran is what makes "refused, so nothing was installed"
+    # an observable fact rather than an absence of evidence.
+    cat >"$_d/repo/scripts/harness/install-pi-debian.sh" <<STUB
+#!/usr/bin/env bash
+printf called >> "$_d/delegate-called"
+mkdir -p "\$PI_SEAT_ROOT/current/bin"
+{ echo '#!/bin/sh'; echo "echo $ansv"; } > "\$PI_SEAT_ROOT/current/bin/pi"
+chmod +x "\$PI_SEAT_ROOT/current/bin/pi"
+exit 0
+STUB
+    chmod +x "$_d/repo/scripts/harness/install-pi-debian.sh"
+    if [ "$pre" = managed ]; then
+      # pi's OWN layout: the launcher dir, answering $ansv. This is the state §1 says not to
+      # npm-install underneath.
+      printf '#!/bin/sh\necho %s\n' "$ansv" >"$_d/home/.pi/agent/bin/pi"
+      chmod +x "$_d/home/.pi/agent/bin/pi"
+      # A managed seat got that launcher onto PATH from a previous install, so the fixture carries
+      # the same persisted block — otherwise the login-shell leg tests the fixture, not the script.
+      printf '\nexport PATH="%s:$PATH"\n' "$_d/home/.pi/agent/bin" >>"$_d/home/.profile"
+      printf '\nexport PATH="%s:$PATH"\n' "$_d/home/.pi/agent/bin" >>"$_d/home/.bashrc"
+    fi
+    out="$(env -i HOME="$_d/home" TERM=dumb \
+            PATH="$_d/home/.local/share/pi-node/current/bin:$_d/home/bin:$_d/home/.pi/agent/bin:/usr/bin:/bin" \
+            REPO="$_d/repo" PI_ENTRY_DIR="$_d/home/.pi/agent/bin" PI_SEAT_ROOT="$_d/home/.local/share/pi-node" \
+            bash "$_d/repo/scripts/harness/install-pi-wsl.sh" --pi-only 2>&1)" && rc=0 || rc=$?   # `|| rc=$?`: under
+            # set -e a failing assignment would abort the arm before its expectation could be checked
+    local called=0; [ -f "$_d/delegate-called" ] && called=1
+    # Every expectation is an if/then, never a bare `test && printf`: under `set -e` a false
+    # AND-list would abort the whole arm run at the first arm that passes.
+    if [ "$expect" = ok ]; then
+      if [ "$rc" = 0 ] && [ "$called" = 1 ]; then
+        printf 'ok: %s — an on-pin answer is accepted (rc 0, delegate ran)\n' "$_n"
+      else
+        printf 'NOT CAUGHT: %s rc %s delegate %s\n%s\n' "$_n" "$rc" "$called" "$out"; _st_fail=$((_st_fail+1))
+      fi
+    elif [ "$expect" = fail ]; then
+      if [ "$rc" != 0 ]; then
+        printf 'ok: %s — an off-pin answer reddens the leg\n' "$_n"
+      else
+        printf 'NOT CAUGHT: %s accepted an off-pin pi\n%s\n' "$_n" "$out"; _st_fail=$((_st_fail+1))
+      fi
+    elif [ "$expect" = refuse ]; then
+      if [ "$rc" != 0 ] && printf '%s' "$out" | grep -q managed && [ "$called" = 0 ]; then
+        printf 'ok: %s — a managed seat off its pin is a STOP, and nothing was installed\n' "$_n"
+      else
+        printf 'NOT CAUGHT: %s did not refuse a managed seat (rc %s, delegate %s)\n%s\n' "$_n" "$rc" "$called" "$out"
+        _st_fail=$((_st_fail+1))
+      fi
+    else  # skip
+      if [ "$rc" = 0 ] && [ "$called" = 0 ]; then
+        printf 'ok: %s — a managed seat AT its pin is left alone, no second layout\n' "$_n"
+      else
+        printf 'NOT CAUGHT: %s touched a managed seat already at the pin (rc %s, delegate %s)\n%s\n' "$_n" "$rc" "$called" "$out"
+        _st_fail=$((_st_fail+1))
+      fi
+    fi
+  }
+  _st_arm on-pin          7.7.7 7.7.7 none     ok
+  _st_arm off-pin         7.7.7 7.7.8 none     fail
+  # The pair that proves the expectation is READ, not typed: a fixture pin of 8.8.8 must be obeyed
+  # in one direction and disbelieved in the other. A hardcoded version anywhere in this file makes
+  # one of these two arms impossible to pass. The numbers are deliberately not real pi releases —
+  # a real one in this file would be indistinguishable from the pin it is supposed to be read from.
+  _st_arm pin-is-read-yes 8.8.8 8.8.8 none     ok
+  _st_arm pin-is-read-no  8.8.8 9.9.9 none     fail
+  _st_arm managed-off-pin 7.7.7 7.7.8 managed  refuse
+  _st_arm managed-on-pin  7.7.7 7.7.7 managed  skip
+  if [ "$_st_fail" = 0 ]; then printf 'install-pi-wsl self-test: all arms ok\n'; exit 0; fi
+  printf 'install-pi-wsl self-test: %s arm(s) NOT caught\n' "$_st_fail" >&2; exit 1
+fi
 
 # ⛔ AN UNKNOWN ARGUMENT MEANS FULL INSTALL HERE, so it is refused before anything runs.
 # This script has no `--check`: `MODE` is only ever compared with `--pi-only`, `--config-only` and
@@ -92,11 +198,12 @@ MODE="${1:-}"
 # version, so what it fetches is `latest`, not `pi_host_npm_version`). §7, fail loud: a mode this
 # file does not know is a STOP, never a default.
 case "$MODE" in
-  ''|--pi-only|--config-only|--reload) ;;
+  ''|--pi-only|--config-only|--reload|--self-test) ;;
   *)
     printf 'error: unknown mode %s — refusing.\n' "$MODE" >&2
-    printf '  anything this script does not name INSTALLS (curl -fsSL https://pi.dev/install.sh | sh),\n'
-    printf '  so it will not guess. Known: (full) · --pi-only · --config-only · --reload (read-only report).\n' >&2
+    printf '  anything this script does not name INSTALLS (it runs the pinned pi leg), so it will not\n'
+    printf '  guess. Known: (full) · --pi-only · --config-only · --reload (read-only report) ·\n' >&2
+    printf '  --self-test (the pi leg against a fixture pin, in a temp HOME — installs nothing).\n' >&2
     printf '  There is NO --check here: the read-only leg is install-pi-debian.sh --check, and on a seat\n'
     printf '  already built the report form is `bash scripts/harness/pi-seat-sync.sh --check`.\n' >&2
     exit 2 ;;
@@ -206,23 +313,64 @@ fi
 require_cmds curl git bash
 
 # ============================ node + pi binary ==============================
+# HD-1161: this leg was `curl -fsSL https://pi.dev/install.sh | sh` — no version argument, no
+# version env, and the smoke test inside that script compares what it installed against ITS OWN
+# `latest` — measured on the WSL seat, its own smoke test reported the version it installed and the
+# newer version it expected, and the fleet pin was on the installed side of that disagreement.
+# Upstream takes no version, so the only honest expectation
+# is this repo's pin, read here through pin() and asserted on the binary that answers afterwards.
+# The leg is DELEGATED to the pinned Debian sibling rather than re-implemented: two installers
+# carrying the same node-tarball-and-prefix logic is how the fleet grew a pinned and an unpinned
+# path to one binary in the first place.
+PI_SEAT_ROOT="${PI_SEAT_ROOT:-$HOME/.local/share/pi-node}"
+pi_answers() { local b; b="$(pi_bin || true)"; [ -n "$b" ] && "$b" --version 2>/dev/null \
+  | tr -d '[:space:]"' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1; }
+pi_is_managed() { case "$1" in "$PI_ENTRY_DIR"/*|*/.pi/agent/bin/pi|*/install/releases/*) return 0 ;; esac; return 1; }
+
 if [ "$MODE" != "--config-only" ]; then
-  say "installing / updating pi.dev (curl -fsSL https://pi.dev/install.sh | sh)"
-  if command -v node >/dev/null 2>&1; then
-    info "node: $(command -v node) -> $(node --version)"
-  else
-    info "no node found — the pi installer will install a standalone Node.js 22.19+ into \$HOME"
-  fi
-  # Official installer: installs/repairs pi + ensures a new-enough node.
-  curl -fsSL https://pi.dev/install.sh | sh
-  # PATH is PERSISTED here (HD-1110), not recommended in a note.
-  persist_path
-  # Refresh PATH for this session (the installer may have installed a standalone node).
   pb="$(pi_bin || true)"
-  if [ -z "$pb" ]; then hash -r 2>/dev/null || true; pb="$(pi_bin || true)"; fi
-  [ -n "$pb" ] || { echo "error: no pi after install (looked on PATH and in $PI_ENTRY_DIR) — no PATH entry can resolve a binary the installer never wrote" >&2; exit 1; }
-  info "pi:  $pb -> $("$pb" --version)"
-  verify_login_path || exit 1
+  install_leg=1
+  if [ -n "$pb" ] && pi_is_managed "$pb"; then
+    # docs/harness-pi-seats.md §1: an `npm install -g` underneath a managed seat leaves TWO
+    # layouts and makes `which pi` a PATH-order question, so this is an owner action, not a lane's.
+    if [ "$(pi_answers)" = "$PI_V" ]; then
+      info "the answering pi is pi's OWN managed install ($pb) and already answers the pin $PI_V —"
+      info "leaving that layout alone: 'pi update self' owns it, and installing under it would add a second layout"
+      install_leg=0
+    else
+      printf 'error: the answering pi is pi%s  s OWN managed install (%s) and answers %s, not the pin %s.\n' \
+        "'" "$pb" "$(pi_answers || echo '?')" "$PI_V" >&2
+      printf '  "pi update self" owns that layout and installs the LATEST release, not a version it is handed,\n' >&2
+      printf '  so this script will not npm-install underneath it (docs/harness-pi-seats.md §1). Two legal moves:\n' >&2
+      printf '    1. run "pi update self" here, then move pi_host_npm_version AND pi_dev_npm_version to what it\n       reports (an owner ruling, CONVENTIONS §7);\n' >&2
+      printf '    2. move the seat back onto the pinned layout with "bash scripts/harness/install-pi-debian.sh --pi-only",\n       which removes the managed launcher rather than burying it.\n' >&2
+      exit 1
+    fi
+  fi
+
+  if [ "$install_leg" = 1 ]; then
+    say "installing ${PI_PKG}@${PI_V} via the pinned Debian leg"
+    [ -f "$REPO/scripts/harness/install-pi-debian.sh" ] \
+      || { echo "error: no scripts/harness/install-pi-debian.sh in this clone — the pinned leg has no owner here" >&2; exit 1; }
+    # --pi-only = pinned node tarball + `npm_config_prefix=$PI_SEAT_ROOT/current npm install -g
+    # ${PI_PKG}@${PI_V}`, which is the shape pi-self-update.sh can converge. The upstream bootstrap
+    # is gone from this file, so nothing here can fetch a version the repo has not read.
+    bash "$REPO/scripts/harness/install-pi-debian.sh" --pi-only || { echo "error: the pinned install leg reported a problem" >&2; exit 1; }
+    persist_path
+    pb="$(pi_bin || true)"
+    if [ -z "$pb" ]; then hash -r 2>/dev/null || true; pb="$(pi_bin || true)"; fi
+    [ -n "$pb" ] || { echo "error: no pi after install (looked on PATH and in $PI_ENTRY_DIR) — no PATH entry can resolve a binary the installer never wrote" >&2; exit 1; }
+    got="$(pi_answers || true)"
+    # The assertion, not the delegate's exit code: a delegate that installs something else and exits
+    # 0 is exactly the failure this row is about.
+    [ "$got" = "$PI_V" ] \
+      || { printf 'error: the pi that answers is %s, pin pi_host_npm_version says %s — refusing to call that installed\n' "${got:-nothing}" "$PI_V" >&2
+           printf '  (%s). An off-pin answer is the HD-1161 defect, not a finished install.\n' "$pb" >&2; exit 1; }
+    info "pi:  $pb -> $got == pi_host_npm_version"
+    verify_login_path || exit 1
+  else
+    verify_login_path || exit 1
+  fi
 else
   pb="$(pi_bin || true)"
   [ -n "$pb" ] || { echo "error: no pi found (neither PATH nor $PI_ENTRY_DIR) — run without --config-only" >&2; exit 1; }
