@@ -78,7 +78,7 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 19 | lidarr | lidarr | `https://lidarr.kogler.si` | enabled |
 | 20 | aurral | aurral | `https://aurral.kogler.si` | enabled |
 | 21 | slskd | slskd | `https://slskd.kogler.si` | enabled |
-| 22 | soularr | soularr | `https://soularr.kogler.si` | disabled |
+| 22 | soularr | soularr | `https://soularr.kogler.si` | enabled |
 | 23 | lidarr-ydl | lidarr-ydl | `https://lidarr-ydl.kogler.si` | enabled |
 | 24 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | disabled |
 | 25 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
