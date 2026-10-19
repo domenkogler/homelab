@@ -276,8 +276,12 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
   the issuer address is neither empty nor this host (plain `assert`, check-mode safe); and both pull scripts
   (`traefik-cert-pull.sh`, Pi `ha-cert-sync.sh`) exit **90** when `SRC` names one of the host's own scope-global
   addresses — a self-pull otherwise exits 0, which is why this class of fault is expensive. **Scope of what is
-  deployed:** oldsrv's copy is live; the Pi carries the guard from its next `home_assistant` converge — its pull
-  works today, so the HA primary is not restarted just to install a guard; Spark's `spark-dashboard` copy picks
+  deployed:** oldsrv's copy is live; the Pi carries the guard from its next `home_assistant` converge — ⚠ the
+  claim that came with it, "its pull works today", was **false on the day it was read** (measured 2026-10-19: the
+  Pi's pull had been failing every tick since the 2026-10-17 renewal, for the sender-side reason in the next
+  bullet — a
+  running-but-failing timer, which no guard could report, so not restarting a healthy edge to install one was
+  still the right call); Spark's `spark-dashboard` copy picks
   it up at its own next `docker_services` converge (never run from a spark-backed session).
   Tag arithmetic: reaching the Pi's pull task needs a filter that names `ha_failover` —
   `--tags home_assistant,ha_failover` works, and so does `--tags ha_failover` alone, because the Pi
@@ -285,7 +289,37 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
   (`IaC/ansible/roles/home_assistant/tasks/main.yml:92-93`), which is what makes the file LOAD under
   either form; the tasks inside remain filtered on their own tags (`ha_failover,hd17`).
   `--tags home_assistant` alone opens the file and executes nothing inside it.
-  ⏳ Open: nothing observes pair age at the consumers and nothing watches these units' result.
+  ✅ **Closed 2026-10-19 — and the half that mattered was the AGE, not the result.** Pair age at a consumer is
+  a series (`homelab_cert_days_left` / `homelab_cert_pair_present`, declared per host in
+  `monitoring_hygiene_certs`, never derived) and so is the last run's result (`homelab_unit_last_success` /
+  `homelab_unit_result`, from `monitoring_hygiene_units` — the Pi's list already names `ha-cert-sync.service`).
+  What neither can express is a sync that never RUNS: no attempt, so no result, so `last_success` keeps reporting
+  the value of some earlier success for as long as the box is up. `homelab_unit_last_success_timestamp_seconds{unit=}`
+  is that third claim (timer-driven units only), with `unit-last-success-stale` beside it — 90 min, six missed
+  fires of a 15-min pull. ⚠ **That rule is authored, not loaded:** rule provisioning runs on the backend host
+  (`roles/monitoring` → `Provision Grafana alert rules`, gated to `groups['vps']`), so it pages from that VPS
+  provisioning onward and nobody has watched it turn red yet.
+- **The issuer's keys are readable BY THE PULL ACCOUNT, and a mode that says otherwise fails silently on every
+  consumer.** Both pullers run `rsync ansible-admin@<issuer>:/opt/traefik/certs/`, so a `0600 root:root` key is
+  refused in the **sender**: `rsync: [sender] send_files failed to open /opt/traefik/certs/kogler.si-key.pem:
+  Permission denied (13)` → exit 23, fleet-wide, identically. Measured 2026-10-19: pi `ha-cert-sync` and oldsrv
+  `traefik-cert-pull` failing every 15 min since the issuer's **2026-10-17 10:08** renewal (the store brackets it:
+  `last_success` 1 at −3 d, 0 at −50 h) while the pair looked perfectly healthy at 32.45 days left on every
+  consumer. ⚠ **Why a 0600 key can hide for a whole cert lifetime: rsync's sender opens only the files it has to
+  send.** While the key's size and mtime match the consumer's copy nothing is transferred and nothing is opened,
+  so every tick exits 0 — the mode became visible the moment the renewal moved the key's mtime. The last key bytes
+  any consumer received are dated 2026-08-28, the previous issuance. Nothing about the mode "drifted" either:
+  `certs-rename.sh` `cp`s onto the existing file, and `cp` keeps the destination's mode, so a dumper that lands a
+  key at 0600 stays there through every renewal. `roles/docker_services` now owns the mode on the issuer (**0640,
+  group `ansible-admin`** — the narrowest answer, since that account already holds sudo here, and `rsync -a`
+  carries the mode to the consumers, which is the mode their disks already show).
+  Read it back with `ls -l /opt/traefik/certs/*-key.pem` on the issuer; prove the leg with a manual run of
+  `/usr/local/sbin/ha-cert-sync.sh` on the Pi (rc 0) and a key mtime that moves to the issuer's.
+  ⚠ **What this fault was NOT, measured:** a TLS outage. The 2026-10-17 renewal **reused the key** — the stale
+  consumer keys still hash to the fresh certs (`eea2b3afa111…`, `dc930b090511…` match on pi and oldsrv) — so every
+  edge kept serving valid TLS while its sync was 100 % broken. The hazard is the next renewal that rotates the
+  key: rsync would then land the new cert, fail on the new key, and leave every consumer with a mismatched pair.
+  Which is exactly why the eye above has to be an age-of-success and not a certificate check.
 - **A consumer's cert pair that is MONITORED is declared, never derived.** The hygiene exporter's `homelab_cert_pair_present` /
 `homelab_cert_days_left` series ([observability.md](observability.md) §Silent-failure hygiene) read the pair a consumer edge actually loads, and that path comes from a per-host `monitoring_hygiene_certs` list — it is never derived from a fact. The two templates that render the entry disagree on the path, and `traefik_consumer_dir` is task-scoped inside `docker_services`, so deriving it silently yields a path that exists nowhere: the series then reports the pair missing on a healthy box. Each entry is an absolute path **confirmed on that host**; this §Certification row is the owning contract for what those paths mean. Declared today on `oldsrv` (`traefik-internal`) and the Pi (`traefik-ha`) only; a host with no entry emits no cert-pair series at all, so standing up a consumer edge means adding the entry in the same change — the absent series is the tell.
 - **trusted_proxies:** HA must trust **all** edges that front it — Pi `traefik-ha` (Pi Home-IP/32, SSOT `dns_tertiary_ip`), **oldsrv `traefik-internal` (oldsrv Home-IP/32 — host-net source = oldsrv Home-VLAN IP, SSOT `oldsrv_home_ip`)** and the VPS edges (`traefik_edge_ips`/32, e.g. the oldsrv `traefik` label-edge bridge default) — so real client IPs are preserved (`ha_trusted_proxies` in group_vars/all/main.yml). ⚠ **That var renders `configuration.yaml`; it is not necessarily what the running HA consults.** Once the `http` integration has migrated, HA reads `<config>/.storage/http` and the YAML block is decoration — measured on the Pi 2026-10-19: the rendered YAML lists the oldsrv Home-IP, `.storage/http` (`stable` **and** `pending`) does not, and the object's mtime is the 2026-09-03 migration, so no converge of the YAML can move it. Read the effective list from the storage object and probe with a request; the rule and the probe are in [smart-home-failover.md](smart-home-failover.md) §Caveats.

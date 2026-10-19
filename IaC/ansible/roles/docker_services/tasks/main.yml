@@ -506,6 +506,48 @@
     - "'tube-archivist' in (docker_services | map(attribute='name') | list)"
   tags: [docker_services, hd362]
 
+- name: Find the issuer's dumped cert keys
+  # The issuer-side half of the pull contract, read before it is touched: the pair is written by the
+  # certs-dumper sidecar, so on a host that has not issued yet there is nothing to re-mode and this run
+  # must say nothing rather than create an empty "key".
+  ansible.builtin.find:
+    paths: "{{ docker_compose_dir }}/traefik/certs"
+    patterns: ["*-key.pem"]
+    file_type: file
+  register: issuer_cert_keys
+  changed_when: false
+  when:
+    - scope_is_all
+    - traefik_acme_issuer | default(false)
+  tags: [docker_services, hd181]
+
+- name: Keep the issuer's cert keys readable by the pull account
+  # Every consumer pulls this pair AS THE CONVERGE ACCOUNT (`ansible-admin@…` in both pull scripts), so
+  # a key at `0600 root:root` fails on the SENDER: `rsync: [sender] send_files failed to open
+  # /opt/traefik/certs/kogler.si-key.pem: Permission denied (13)` → exit 23, on EVERY consumer at once.
+  # Measured on pi + oldsrv, and the reason it survived unnoticed is the nasty part: rsync's
+  # sender OPENS ONLY THE FILES IT HAS TO SEND, so while the key's size and mtime match the consumer's copy
+  # every tick exits 0 — the mode surfaced the moment a renewal moved the key's mtime, and
+  # `homelab_cert_days_left` went on reporting a healthy ~32 d on a pull that was 100 % broken.
+  # The mode never drifted — `certs-rename.sh` `cp`s
+  # onto the existing file, which keeps THAT file's mode, so a dumper that lands its key at 0600 stays
+  # 0600 through every renewal. Hence the mode is owned here, once, per converge.
+  # 0640 root + the pull account's group is the narrowest thing that works: readable by the one account
+  # that must read it (which already holds sudo on this host, so nothing new becomes reachable), and
+  # because `rsync -a` carries the mode, it is also the mode the consumers land in — the one their disks
+  # already show. Not 0644, and not an ACL (rsync -a does not carry one).
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    group: ansible-admin
+    mode: '0640'
+  loop: "{{ issuer_cert_keys.files | default([]) }}"
+  loop_control:
+    label: "{{ item.path }}"
+  when:
+    - scope_is_all
+    - traefik_acme_issuer | default(false)
+  tags: [docker_services, hd181]
+
 - name: Traefik cert-pull consumer wiring (non-issuer hosts)
   # These tasks must carry a tag: `roles/*` here get no implicit role tag (see the role list in
   # home_servers.yml), so an untagged block is silently filtered out of a `--tags docker_services`
