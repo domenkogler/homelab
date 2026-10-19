@@ -291,7 +291,7 @@ here (its record is the owning doc + the commit). Run `todo.md` for the full sta
 > **VLAN 21 is deleted** (HD-325, 2026-09-04) — cloud-IoT lives on VLAN 20 behind the per-device `wan_allow` flag.
 
 - [x] **[MANUAL]** **Router baseline** — ✅ **cut over 2026-09-02** (factory-reset + `run-after-reset`,
-     then handed to the Ansible `router` role; re-converged + delta-applied since). Apply `IaC/router/rb4011_initial.rsc`
+     then handed to the Ansible `router` role; re-converged + delta-applied since). Apply `IaC/router/rendered/rb4011_initial.rsc` (the rendered, git-ignored output of `IaC/router/templates/rb4011_initial.rsc.j2`)
      (rendered from `IaC/router/templates/*.rsc.j2` — never hand-edit the rendered file):
    - VLANs: 10 Home, 20 IoT, 30 Guest, 40 Kids, 50 Media, 99 Management (VLAN 21 deleted HD-325)
    - Inter-VLAN firewall (default-deny; address-lists `trusted-ha`/`trusted-admin`; the UPS web rule on 99)
@@ -585,7 +585,7 @@ HD-358 (Seerr → \*arr link — IaC-seeded by `roles/docker_services/tasks/arr-
 - [x] **[MANUAL]** **Physical + OS first-boot** — ✅ 2026-09-14: the **rack-fit problem is the real work item**
    (it is not a 1U server), and the DGX OS setup wizard needs a human at a display + keyboard to set `spark_login`.
 - [x] **Network identity** — ✅ 2026-09-14: `spark.kogler.si` = **Home VLAN 10**, static per the address SSOT; the Mgmt-99 leg
-   is a **tagged dual-home on the same NIC** (`IaC/ansible/host_vars/spark.yml` + the switch role's parity-trunk
+   is a **tagged dual-home on the same NIC** (`IaC/ansible/host_vars/spark.kogler.si.yml` + the switch role's parity-trunk
    task), and the VLAN-10↔99 allow is **source-pinned per device**, never a /24 shortcut. The DGX dashboard edge
    (`spark.kogler.si:11000`) is a Traefik file-provider route, live 2026-09-15.
 - [x] **Ansible** — ✅ 2026-09-14: `ansible-playbook -i inventory.ini playbooks/spark.yml` — `spark-prep` → `spark-models`

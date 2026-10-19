@@ -27,8 +27,8 @@
 - `host_vars/oldsrv.kogler.si.yml` — ansible_host 10.10.99.30 ✅
 - `host_vars/nas.kogler.si.yml` — ansible_host 10.10.1.10 ✅
 - `host_vars/pi.kogler.si.yml` — ansible_host 10.10.1.20 ✅
-- `host_vars/router.kogler.si.yml` and `host_vars/switch.kogler.si.yml` —
-  **DO NOT EXIST**. These are MikroTik devices, managed via the
+- `host_vars/router.kogler.si.yml` and `host_vars/switch.kogler.si.yml` **DO NOT EXIST** —
+  these are MikroTik devices, managed via the
   `router`/`switch` roles (not via host_vars). This is by design — RouterOS
   devices don't have an SSH ansible_host the way Linux boxes do (community.routeros
   uses API).

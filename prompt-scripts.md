@@ -122,10 +122,10 @@ Nothing in this stage depends on the tree decision, and Stage 3 is unsafe withou
    `pi-self` plane landed (with the pin helper) with **no registry row** — the dispatcher missed a whole plane), and delete the two
    duplicate rows in the cross-platform table (`check_iac_backend_strings.py`, `testdata/check-vault-items/run.sh` —
    `check_md_tables.py`'s duplicate-identity half only fires on link-headed rows, so plain-text keys are invisible to it).
-5. **`scripts/utils.txt` → delete after folding its four one-liners into their owning docs** (spark vllm health-wait →
+5. **`scripts/utils.txt` — DONE, that file does not exist in the tree any more** (deleted when `scripts/` was foldered; its four one-liners are folded into their owning docs, each re-read here by `git grep`:
    [docs/hardware-spark.md](docs/hardware-spark.md); `upsc powerwalker@localhost` → [docs/hardware-ups.md](docs/hardware-ups.md);
    the `powercfg` standby-disable → [docs/hardware-workstation.md](docs/hardware-workstation.md); `tailscale up --login-server` →
-   [docs/network-vpn.md](docs/network-vpn.md)). A scratch pad is the only place those commands are currently written down.
+   [docs/network-vpn.md](docs/network-vpn.md)).
 6. **Delete `ansible-network-hop.sh`** and reduce its `scripts/README.md` row to a one-line retired note.
 
 Commit: one commit, `validate-all` green. **Do not start Stage 3 in the same session's first commit.**

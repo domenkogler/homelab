@@ -200,7 +200,7 @@ profile still exists and fails loudly when it does not.
 > set, `.srt` sidecars landing next to the media. ⏳ **None of it is in IaC.** Bazarr keeps its settings in
 > its own SQLite DB (`/srv/docker/bazarr/config/db/bazarr.db`; `config/config.yaml` is only a partial
 > mirror — `use_radarr` there can disagree with the running instance), so a from-zero
-> converge recovers a blank app. ⏳ The missing seed is `tasks/bazarr-seed.yml`.
+> converge recovers a blank app. ⏳ The seed to write is `roles/docker_services/tasks/bazarr-seed.yml`, which does not exist yet.
 
 **Readiness is not the container.** Up, `bazarr.kogler.si` → 200 and a honoured `versions.yml` pin can
 still sit next to `GET /api/movies` = `{"data": [], "total": 0}` and `GET /api/providers` = `[]` — a

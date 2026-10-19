@@ -59,7 +59,7 @@ edits the same directory.
 
 **Owns:** `IaC/ansible/roles/cockpit/**` and `IaC/ansible/roles/access/**` with `group_vars/all/access.yml`, the cockpit legs
 of the tailnet listener's dynamic dir, `scripts/{pi-seat-sync.sh,pi-settings-config.sh,pi-tui-config.sh,pi-self-update.sh,install-tmux-conf.sh,install-nerd-font.sh,install-pi-debian.sh,install-pi-wsl.sh,sync-extensions.sh,git-bootstrap.sh,git-bootstrap-win11.sh}`
-and `scripts/win/`, `scripts/harness/pi/`, `pi-agent/**` (incl. `tmux/tmux.conf`, `settings-ssot.json`),
+and `scripts/harness/win/` + `scripts/bench/laptop/win/`, `scripts/harness/pi/`, `pi-agent/**` (incl. `tmux/tmux.conf`, `settings-ssot.json`),
 `scripts/git/`, the grant/seat sections of `docs/security.md`, `docs/services-traefik.md` §Cockpit Routes,
 The harness docs are ALL FIVE of the split set, not one of them: the harness body is
 [docs/harness-pi-engines.md](docs/harness-pi-engines.md), [docs/harness-pi-models.md](docs/harness-pi-models.md),

@@ -65,7 +65,7 @@ settle — out of this change's scope, tracked in todo (§2 below).
 ## 3. Files
 
 - `IaC/ansible/roles/network/tasks/main.yml` — add a Pi-only block that renders + activates a **NetworkManager keyfile** profile for `eth0`: `ipv4.method manual`, two static addresses (Home `10.10.1.20/24` + Mgmt `10.10.99.20/24`), Home default via `10.10.1.1`, `never-default: yes`, DHCP off. Guarded by a var (e.g. `network_static_hosts` + `mgmt_ip is defined` on `pi.kogler.si`). Keep the existing admin assert + `/etc/hosts` + doc render.
-- `IaC/ansible/roles/network/templates/eth0.nmconnection.j2` — the NM keyfile, values from SSOT (host_vars `ansible_host`/`mgmt_ip` + `network_static_hosts` gateway), never literals.
+- `IaC/ansible/roles/network/templates/pi-eth0.nmconnection.j2` — the NM keyfile, values from SSOT (host_vars `ansible_host`/`mgmt_ip` + `network_static_hosts` gateway), never literals.
 - `IaC/ansible/roles/network/handlers/main.yml` — NEW: `reload NetworkManager` (tags: always).
 - `IaC/ansible/host_vars/pi.kogler.si.yml` — no change needed (IPs already there).
 - `IaC/ansible/group_vars/raspberry_pi.yml` — no change (role list already includes `network`).

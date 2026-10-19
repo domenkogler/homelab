@@ -1,0 +1,29 @@
+# Carried debt for scripts/gate/check_doc_path_refs.py — the citations it reports and this session
+# did NOT fix. Every line is `<hits>TAB<citing file>TAB<cited path>`, sorted; regenerate the body
+# with `python3 scripts/gate/check_doc_path_refs.py --show-baseline > scripts/gate/path_refs_baseline.txt`
+# and re-add this header. The ratchet runs on every `validate-all.sh`: a dangling path this file does
+# not carry reddens, and a line whose path resolves again reddens too, so a carried citation can never
+# quietly become coverage. A line is added only with a reason the owning row states; the classes here are
+# named in the todo.md row that owns the gate — an audit prompt pointing at docs that were never in this
+# repository, a probe note citing a script that never existed, a seat guide citing a deleted plan folder,
+# a bench CSV that lives on the bench box and was never committed, a file inside someone else's
+# repository, an optional vault file a second project's playbook reads if the operator created it.
+1	audit.md	docs/hardware-topology.md
+1	audit.md	docs/network-topology.md
+1	audit.md	skills/pi-subagents/SKILL.md
+1	reports/probe-agentmemory-20260921.md	scripts/backup-snapshot-trigger.sh
+1	skills/platform-env/references/windows11.md	plan/2026-08-06-reorg/T1.md
+1	spark/ansible/site.yml	group_vars/vault.yml
+1	spark/ansible/spark-bootstrap-playbook.yml	group_vars/vault.yml
+1	spark/reports/hd469-graded/image-probe-20260928.md	files/patch_qsa_fp8_kv.py
+1	spark/reports/hd489-ar-blk/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-ar-dv/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-ar-mmap/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-u1-patch/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-u2-blk/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-u3-s8/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-u4-pin/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-v16b-pin/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-v16b-s4/README.md	scripts/bench/spark/results-v2.csv
+1	spark/reports/hd489-v16b/README.md	scripts/bench/spark/results-v2.csv
+1	spark/resources/R4-madeye-dgx-spark-vllm-nvfp4.md	scripts/serve-500k.sh

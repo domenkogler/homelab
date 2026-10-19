@@ -238,7 +238,7 @@
       account it is being run from. The role also asserts that the converge identity stays
       inside the gate (tasks/main.yml, BEFORE the template task) — but an assert protects a
       mistake, not a deliberate removal, so this guard stays the outer layer. The names that
-      must survive are `ansible_admin_users` in roles/access/defaults/main.yml. Off-box: run this leg from a controller
+      must survive are the `ansible_admin_users` list in `group_vars/all/main.yml`. Off-box: run this leg from a controller
       that is not the target. Check mode of this role IS allowed: nothing in it carries
       `check_mode: false`.
       Tags requested: {{ ansible_run_tags | join(',') }}.
