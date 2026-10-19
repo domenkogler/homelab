@@ -80,7 +80,7 @@ harness) so the next harness is a row there and not a restructure here.
 
 The split above is a **placement decision, now carried by five docs**: every harness detail named in the
 table is owned by `harness-pi-engines.md` / `harness-pi-models.md` / `harness-pi-seats.md` /
-`harness-pi-seat-identity.md` / `harness-pi-terminal.md` (HD-1119a split, 2026-10-18).
+`harness-pi-seat-identity.md` / `harness-pi-terminal.md` (the 2026-10-18 split; the split's own record is git).
 
 ---
 

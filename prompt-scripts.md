@@ -1,23 +1,26 @@
-# `prompt-scripts.md` — Lane brief · the `scripts/` restructure (HD-1118; the docs-domain split rides nothing, it is HD-1119)
+# `prompt-scripts.md` — Lane brief · the `scripts/` restructure (HD-1118; the docs-domain split rode nothing — it is landed and its row closed 2026-10-19)
 
 > **Role:** dispatch note for **one** lane session: reorganise `scripts/` into named folders **without changing what any
-> script does**. The rows are the authority for what is missing: [todo.md](todo.md) HD-1118 (+ HD-1119 for the docs half).
+> script does**. The rows are the authority for what is missing: [todo.md](todo.md) HD-1118 — the docs-domain half of this
+> brief is landed and its row is closed, so its record is the docs themselves plus git, never a pointer.
 > The structure itself was brainstormed with the owner on 2026-10-09 and is **agreed as the target, not as a doc** — this
-> file is the only place the agreed tree + the stage order are written down. Design context: [docs/harness-pi-engines.md](docs/harness-pi-engines.md)
-> §1 (the seat planes, split into [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md) §5), [CONVENTIONS.md](CONVENTIONS.md) §6 (worktree/gate discipline), [`scripts/README.md`](scripts/README.md) (the registry).
+> file is the only place the agreed tree + the stage order are written down. Design context: [docs/harness-pi-seats.md](docs/harness-pi-seats.md)
+> §1 (the seat planes and the deploy direction — the split doc that carries what `harness-pi.md`'s §1 used to) and its §5
+> (the reference `settings.json` block), [CONVENTIONS.md](CONVENTIONS.md) §6 (worktree/gate discipline), [`scripts/README.md`](scripts/README.md) (the registry).
 > **Linked from:** [todo.md](todo.md) HD-1118
 > **Status 2026-10-12:** HD-1118 **landed**, re-derived at the tip — Stages 1–4 below are the tree's provenance,
-> not work; the unreplayable 2026-10-09 lane tree is pinned as `rescue/hd1118-20261011`. This brief now carries
-> **HD-1119** (the `harness` docs domain) and the row's live legs. **Status 2026-10-18:** re-derived at the tip — the tree is
+> not work; the unreplayable 2026-10-09 lane tree is pinned as `rescue/hd1118-20261011`. This brief also carried the
+> `harness` docs-domain work, now landed with its row closed. **Status 2026-10-18:** re-derived at the tip — the tree is
 > foldered and `gate/check_script_layout.py` is wired, Stage 2's package-inventory tail is landed, HD-1118 carries **three live
 > legs** — the two seat legs run FROM the seats (`pi-seat-sync.sh --check` per seat, `install-tmux-conf.sh --push` on the win11
 > seat) plus the from-zero `install-pi-debian.sh --check` leg, **parked** for want of a clean Debian box. **The
 > `scripts/README.md` prose sweep landed**: [`scripts/gate/check_registry_prose.py`](scripts/gate/check_registry_prose.py)
 > prints `registry: 120 linked rows, 0 state-date exempt site(s), 0 finding(s)` and runs in `validate-all.sh` with its
-> `--self-test`. **HD-1119(a) landed**: the split was of `harness-pi.md` — not of [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md),
+> `--self-test`. **The `harness-pi.md` split landed**: the split was of `harness-pi.md` — not of
+> [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md),
 > which is one of the five children it produced alongside [`docs/harness-pi-models.md`](docs/harness-pi-models.md), [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md),
 > [`docs/harness-pi-seat-identity.md`](docs/harness-pi-seat-identity.md), [`docs/harness-pi-terminal.md`](docs/harness-pi-terminal.md) — with its
-> reference sweep and hub-map repair. **HD-1119(b) landed**: [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) exists, runs in
+> reference sweep and hub-map repair. **The domain checker landed**: [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) exists, runs in
 > `validate-all.sh` (run + `--self-test`) and prints `OK: 88 docs, 10 domains, each with one claimed home`.
 > Read §What is open at this commit first; everything above it in this file is provenance.
 
@@ -36,7 +39,7 @@ failure [`spark/llm-profiles/README.md`](spark/llm-profiles/README.md) records f
 
 | Part of this brief | Serve it from |
 |---|---|
-| the **campaign** items — the landed `scripts/README.md` prose sweep, held by `scripts/gate/check_registry_prose.py`, and the landed `docs/harness-pi-*.md` split with its reference sweep (HD-1119), and the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison) | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
+| the **campaign** items — the landed `scripts/README.md` prose sweep, held by `scripts/gate/check_registry_prose.py`, and the landed `docs/harness-pi-*.md` split with its reference sweep (row closed 2026-10-19), and the gate legs that must compare whole-corpus behaviour (HD-1117's `render_all.py --check` wiring, HD-1137's quick-subset comparison) | the **designated runner station** with an externally-served model — [prompt-laptop-wsl.md](prompt-laptop-wsl.md) §0/§1, and the rule in [todo-table.md](todo-table.md) §C rule 9 |
 | the **prep** for the campaign legs still live — measure the corpus, list the cells that must change, print the live count `check_registry_prose.py --show` prints (0 findings, so the six rows that lacked the third column are repaired, not owed) | any seat, spark-served: it is read-only arithmetic and it is what makes the campaign one pass instead of a re-measurement |
 
 Row ownership does not move: this brief keeps the rows (§B0 is the index), the station brief claims **legs, not rows**.
@@ -52,11 +55,11 @@ Nothing in this brief moves a file any more. Stages 1-4 are provenance, **and St
 | Leg | State | Who may run it |
 |---|---|---|
 | HD-1118 **(b)** — `install-pi-debian.sh --check` on a from-zero Debian seat | **PARKED, not open.** It is the only proof that the from-zero path converges the foldered tree, and it needs a clean Debian box: there is no in-lane command and no host in this repo that is a spare Debian box. Do not re-derive it here; the row closes when someone runs it in the seat lane | a clean Debian box, not this lane |
-| HD-1119 **(a)** — split `harness-pi.md` by subject | **landed.** Five children now carry the content — [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md), [`docs/harness-pi-models.md`](docs/harness-pi-models.md), [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md), [`docs/harness-pi-seat-identity.md`](docs/harness-pi-seat-identity.md), [`docs/harness-pi-terminal.md`](docs/harness-pi-terminal.md) — with the whole-tree reference sweep and the hub-map repair in the same wave | nobody — the row's remaining ⏳ is in [todo.md](todo.md) HD-1119 |
-| HD-1119 **(b)** — [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) | **landed and wired.** The run and its `--self-test` are `validate-all.sh` items; the verdict is `OK: 88 docs, 10 domains, each with one claimed home`. The domain set stays derived from `docs/**/*.md` frontmatter, so a retag moves the rule and not the code — the six floor-0 files in §The taxonomy call are what it was told about | nobody — retags are frontmatter edits, not a lane |
+| the **harness split** (a) — split `harness-pi.md` by subject | **landed, row closed.** Five children now carry the content — [`docs/harness-pi-engines.md`](docs/harness-pi-engines.md), [`docs/harness-pi-models.md`](docs/harness-pi-models.md), [`docs/harness-pi-seats.md`](docs/harness-pi-seats.md), [`docs/harness-pi-seat-identity.md`](docs/harness-pi-seat-identity.md), [`docs/harness-pi-terminal.md`](docs/harness-pi-terminal.md) — with the whole-tree reference sweep and the hub-map repair in the same wave. Its last prose tail landed 2026-10-19: the one lane brief whose ownership list named a single harness doc "(split docs: … etc.)" now names all five | nobody — landed, and the prose tail was a brief-text edit, not a leg |
+| the **domain checker** (b) — [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) | **landed and wired.** The run and its `--self-test` are `validate-all.sh` items; the verdict is `OK: 88 docs, 10 domains, each with one claimed home`. The domain set stays derived from `docs/**/*.md` frontmatter, so a retag moves the rule and not the code — the six floor-0 files in §The taxonomy call are what it was told about | nobody — retags are frontmatter edits, not a lane |
 | The `scripts/README.md` prose sweep — wire `check_registry_prose.py` | **landed.** `python3 scripts/gate/check_registry_prose.py --show` prints `registry: 120 linked rows, 0 state-date exempt site(s), 0 finding(s)` and the checker + `--self-test` run as gate items, so the registry stays a facts-only file | nobody — `scripts/gate/check_registry_prose.py` holds the rule in `validate-all.sh` |
 
-**Ordering inside this brief** (it was undeclared when two rows here edited the same file): that ordering is spent — the `scripts/README.md` prose sweep landed first and **HD-1119(a)**'s sweep landed on the registry text that survived it, exactly in that order. The only live work this brief carries now is **HD-1118's seat legs, run FROM the seats** (`pi-seat-sync.sh --check`, `install-tmux-conf.sh --push` on the win11 seat) and its **parked** from-zero leg; nothing in this brief has a file-moving order dependency left, and `gate/`'s and `lib/`'s exception note in the registry header stays the only registry text a domain-set change may touch.
+**Ordering inside this brief** (it was undeclared when two rows here edited the same file): that ordering is spent — the `scripts/README.md` prose sweep landed first and the **harness split**'s sweep landed on the registry text that survived it, exactly in that order. The only live work this brief carries now is **HD-1118's seat legs, run FROM the seats** (`pi-seat-sync.sh --check`, `install-tmux-conf.sh --push` on the win11 seat) and its **parked** from-zero leg; nothing in this brief has a file-moving order dependency left, and `gate/`'s and `lib/`'s exception note in the registry header stays the only registry text a domain-set change may touch.
 
 ## The agreed target tree
 
@@ -213,9 +216,9 @@ Then restructure `scripts/README.md` into one section per folder (the file's own
 "Utilities" sections become folder sections), and update [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1 + [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §5 +
 [docs/deployment-ansible.md](docs/deployment-ansible.md) §Runner placement for the new paths.
 
-## HD-1119 — the `harness` docs domain (both legs landed; the `docs/`-wide move stays out of scope)
+## The `harness` docs domain (both legs landed, row closed 2026-10-19; the `docs/`-wide move stays out of scope)
 
-The `harness` domain exists now and both legs are landed, so what is left is what the row's ⏳ names.
+The `harness` domain exists now and both legs are landed, so nothing is left to dispatch from here.
 **(a)** Landed: `harness-pi.md` was split by subject into the five `docs/harness-pi-*.md` children, as its own change with its
 own reference sweep — a `docs/<file>.md` split has call sites across the whole tree, which is why it was never folded into a
 stage commit here. **(b)** Landed: [`scripts/gate/check_doc_domain.py`](scripts/gate/check_doc_domain.py) is written, wired into
@@ -301,7 +304,7 @@ and the checker runs there with its `--self-test`. The sequence below is the met
 - `git grep 'scripts/[a-z-]*\.\(sh\|py\|ps1\)'` returns **no** reference to a path that does not exist.
 - the seat driver's `--self-test` (wherever Stage 3 puts it) has all canaries caught, and its `--list` prints the same plane set the
   registry declares.
-- **HD-1119(b):** `python3 scripts/gate/check_doc_domain.py` prints `OK: 88 docs, 10 domains, each with one claimed home` and is
+- **The domain checker:** `python3 scripts/gate/check_doc_domain.py` prints `OK: 88 docs, 10 domains, each with one claimed home` and is
   **wired into `validate-all.sh` in the same commit that made it green**, with `--self-test` catching both halves of every rule. The six floor-0 files named in §The taxonomy call are
   the only things it was told about — if it needs a list to pass, it is hardcoded and wrong.
 - **The `scripts/README.md` prose sweep:** `python3 scripts/gate/check_registry_prose.py --show` prints **0 findings** and the checker runs as a gate item; the
