@@ -1306,6 +1306,15 @@ domain_local: kogler.si
   no `smartctl` binary (⚠ it lives in `/usr/sbin`, which a non-login shell's PATH does not carry, so an
   unqualified `command -v smartctl` reports "absent" on a box that has it) and no unit, both of which are
   "nothing to decide about here" — only "present, scans nothing" is a decision about that host.
+- **What SMART can and cannot see on an SD-only host, measured on the Pi.** smartmontools `7.4-3` has no
+  `scamm` device type (it needs ≥7.5), `-d removable` is a `smartd.conf` **directive** rather than a device
+  TYPE, and both probes that do exist fail outright on `mmcblk0` (`scsi`: `Both 36 and 64 byte INQUIRY
+  failed`; `sat`: `Read Device Identity failed`), so `smartctl --scan` is empty on a box whose only block
+  device is a card. The wear numbers a SMART ask really stands for — `life_a`/`life_b`/`pre_eol_info` — are
+  eMMC **EXT_CSD** fields: an SD card exposes `cid`/`csd`/`fwrev`/`manfid` under `/sys/bus/mmc/devices/…`
+  and none of those three, so reading SD wear needs a userspace reader (`mmc-utils`), not a smarter
+  `smartctl` call. A host with no rotating drive has no firmware revision to date and no 512-byte-sector
+  (512e) question either, which is why no such task exists for the Pi and none should be minted for it.
 - **Update:** edit the file → re-run the role
 
 ---
