@@ -149,6 +149,19 @@ inside one session. The LIVE wave table is
    lockout-class role on the controller's own host is refused by the guard and must be re-driven from another control node
    (the seat brief names the legs), and an externally-served run belongs on the designated runner station — naming the seat
    in the launch is what makes a timed leg's provenance checkable afterwards.
+7. **Launch every lane with `checkpointBeforeDeadlineMs`, and say the deadline in the prompt.** A lane's wall timeout
+   (two hours by default) KILLS it where it stands, and a kill does not commit: the measured failure mode on this fleet
+   is a lane that ran two hours, reported a green tree and deliverables by name, and left **no commit at all** — the work
+   existed only in its context. The checkpoint parameter asks the runner to tell the child to checkpoint a fixed interval
+   before that deadline (this repo uses 20 minutes), so it commits and reports instead of being cut off mid-sentence.
+   It is best-effort — the deadline kill still applies — so the prompt must also carry the standing instruction
+   **"commit after each deliverable, before starting the next"**: committing per deliverable is what makes a lost lane
+   partially recoverable, and it costs nothing.
+8. **A timed-out lane is rescued, not re-run from scratch.** The parent inspects the tree first (`git log main..HEAD`,
+   `git show --stat`, `git status --short`), rebases and merges whatever is committed and green, then launches a
+   **finisher** child in the *same* worktree carrying only the unfinished scope and the parent's own measurements of the
+   live state — the finisher starts from landed commits, and must not be told to re-derive what the parent has already
+   measured on the host.
 
 
 ### Merge + cleanup (the parent — none of this is ever a lane's job)
