@@ -335,6 +335,76 @@
 # The untagged parent (pi-eth0) carries HOME only; the MGMT IP rides the TAGGED eth0.99
 # sub-interface (pi-mgmt). A connected route for 10.10.99.x on the parent hijacks lookups away
 # from the tagged leg, and the router then reports 'No route to host' for the mgmt address.
+# ---- host_resolver_dns: the shape guard BOTH apply legs share ------------------------------
+# `host_resolver_dns` is the ONE var every host that sets a resolver actually applies: the nmcli
+# leg below writes it into the profile named by `nm_oldsrv_profile`, the keyfile leg below renders
+# it into the connection named by `nm_pi_profile`. The guard is keyed on THAT var plus the profile
+# var of the leg this host really writes — never on one host's profile var. An assertion gated on
+# `nm_oldsrv_profile` (an oldsrv-only host var) is SKIPPED on every other host, which is how the Pi
+# — a box that declares host_resolver_dns and writes it into a keyfile — had no shape check at all:
+# a broken `dns_*` chain there reaches NetworkManager as a literal `{{ … }}` and costs the HA
+# primary every name it has. A guard must not be able to break a host it does not describe, and it
+# must not be able to silently skip one it does.
+- name: Gather the fact the resolver shape guard needs
+  # NOT decoration: `--tags <anything>` SKIPS the implicit "Gathering Facts" task, so under
+  # `--tags nm-resolver` / `--tags nm-pi` the default-route fact must be taken explicitly here.
+  # `setup` is read-only, so it really runs under --check and the guard judges the real box.
+  ansible.builtin.setup:
+    filter: ansible_default_ipv4
+  when: host_resolver_dns is defined
+  tags: [network, nm-pi, nm-resolver]
+
+- name: Name the profile and the interface THIS host applies its resolver through
+  # Per host, per leg: the nmcli host modifies the installer's profile by NAME, the keyfile hosts
+  # render a profile whose `interface-name=` is nm_parent_iface. A host that declares
+  # host_resolver_dns while matching NEITHER leg gets an empty profile here and is refused below —
+  # a resolver string nothing writes is the same silent-no-op class as a unit rendered for a
+  # config-manager that is not running (docs/network.md §Config-manager truth).
+  ansible.builtin.set_fact:
+    nm_resolver_profile_target: >-
+      {{ nm_oldsrv_profile
+         if nm_oldsrv_profile is defined
+         else (nm_pi_profile
+               if (inventory_hostname in network_nm_dualhome_hosts
+                   and (network_manager | default('')) == 'NetworkManager'
+                   and nm_parent_iface | default('') | length > 0)
+               else '') }}
+    nm_resolver_iface: >-
+      {{ nm_parent_iface
+         if (nm_oldsrv_profile is not defined
+             and inventory_hostname in network_nm_dualhome_hosts)
+         else (ansible_facts['default_ipv4']['interface'] | default('')) }}
+  when: host_resolver_dns is defined
+  tags: [network, nm-pi, nm-resolver]
+
+- name: Assert this host's resolver target is real addresses on a real interface
+  # Fail-loud, not decoration. host_resolver_dns is built by templating two SSOT scalars into one
+  # comma-joined string; if either name ever stops resolving in the var chain, what reaches the
+  # live profile is a literal `{{ … }}` — nmcli and the keyfile both accept that happily, and it
+  # costs the box ALL name resolution. The shape test is the thing that cannot pass quietly.
+  ansible.builtin.assert:
+    that:
+      - host_resolver_dns is match('^[0-9]+(\.[0-9]+){3}(,[0-9]+(\.[0-9]+){3})*$')
+      - nm_resolver_profile_target | default('') | length > 0
+      - nm_resolver_iface | default('') | length > 0
+      # The interface the resolver rides IS the interface that carries the default route. On the
+      # nmcli leg this is an identity (both come from the same fact); on a keyfile host it is the
+      # real cross-check — a rendered `interface-name=` that is not the uplink would write the
+      # resolver into a profile NetworkManager never commits to /etc/resolv.conf.
+      - nm_resolver_iface == (ansible_facts['default_ipv4']['interface'] | default(''))
+    fail_msg: >-
+      Cannot proceed on {{ inventory_hostname }}: host_resolver_dns must be a comma-joined IPv4
+      list, applied through a profile this host actually writes, on an interface that is real.
+      Got resolver='{{ host_resolver_dns }}' profile='{{ nm_resolver_profile_target | default('<undefined>') }}'
+      iface='{{ nm_resolver_iface | default('<undefined>') }}'
+      (default-route iface '{{ ansible_facts['default_ipv4']['interface'] | default('<none>') }}').
+      The profile var is per host on purpose: nm_oldsrv_profile names the nmcli profile, nm_pi_profile
+      the rendered keyfile. A resolver written on the wrong interface is as dead as a resolver
+      written to no profile at all. Either half wrong leaves this box unable to name anything.
+    quiet: true
+  when: host_resolver_dns is defined
+  tags: [network, nm-pi, nm-resolver]
+
 - name: Render Pi eth0 NetworkManager keyfile (untagged HOME parent)
   template:
     src: pi-eth0.nmconnection.j2
@@ -514,56 +584,14 @@
 # privileges" / rc=6 "not authorized"), which a hand-test hits but a converge does not, because
 # playbooks/home_servers.yml runs the play with become: true.
 
-- name: Gather the one network fact this block needs
-  # NOT decoration — the fix for a bug the first --check run caught: `--tags <anything>` SKIPS the
-  # implicit "Gathering Facts" task, so on the scoped converge form this block is meant to be applied
-  # with (`--tags nm-resolver`, `--tags network`) ansible_default_ipv4 was UNDEFINED and the reapply
-  # target was empty. `setup` is a read-only module, so it also runs under --check and the state line
-  # below reports the real device there.
-  ansible.builtin.setup:
-    filter: ansible_default_ipv4
-  when:
-    - nm_oldsrv_profile is defined
-    - host_resolver_dns is defined
-  tags: [network, nm-resolver]
-
-- name: Take the uplink interface from the gathered facts
-  # ⚠ `ansible_default_ipv4` as a TOP-LEVEL var does not exist in this repo: IaC/ansible/ansible.cfg
-  # sets `inject_facts_as_vars = False`, so facts are read as `ansible_facts[...]` and the
-  # prefix is stripped inside that dict. Reading a top-level fact var here yields an empty interface,
-  # especially under a --tags run that skips fact gathering.
-  ansible.builtin.set_fact:
-    nm_resolver_iface: "{{ (ansible_facts['default_ipv4']['interface']) | default('') }}"
-  when:
-    - nm_oldsrv_profile is defined
-    - host_resolver_dns is defined
-  tags: [network, nm-resolver]
-- name: Assert the host resolver target is real addresses, not an unrendered template
-  # Fail-loud guard, not decoration: host_resolver_dns is built by templating two SSOT scalars into
-  # one comma-joined string. If either name ever stops resolving in the var chain, the string that
-  # would reach the live profile is a literal `{{ … }}` — which nmcli would accept happily and which
-  # would cost this box ALL name resolution. The shape test is the thing that cannot pass quietly.
-  ansible.builtin.assert:
-    that:
-      - host_resolver_dns is match('^[0-9]+(\.[0-9]+){3}(,[0-9]+(\.[0-9]+){3})*$')
-      - nm_resolver_iface | default('') | length > 0
-    fail_msg: >-
-      Cannot proceed on {{ inventory_hostname }}: want a comma-joined IPv4 pair in
-      host_resolver_dns (host_vars/oldsrv.kogler.si.yml: dns_secondary_ip + dns_tertiary_ip) and the
-      uplink interface from ansible_facts['default_ipv4'], and got resolver='{{ host_resolver_dns }}'
-      iface='{{ nm_resolver_iface | default('<undefined>') }}'. Either half would leave this box
-      unable to name anything.
-    quiet: true
-  # ⚠ Gated like EVERY other task in this block, not on host_resolver_dns alone. A host that sets
-  # host_resolver_dns without nm_oldsrv_profile (an oldsrv-only var) skips the gather-facts and
-  # set_fact tasks above, so nm_resolver_iface is never set and a guard on it alone fails the play on
-  # a host that never applies this profile — and the play stops before the later roles run. A fail-loud
-  # guard must not be able to break a host it does not describe; a second host shape needs its own
-  # check, not an oldsrv-shaped assertion.
-  when:
-    - nm_oldsrv_profile is defined
-    - host_resolver_dns is defined
-  tags: [network, nm-resolver]
+# The shape guard for this leg — resolver list, profile var, interface — runs EARLIER, above the
+# keyfile render, and is keyed on host_resolver_dns so it fires on every host that applies the var
+# (pi and spark through the keyfile, oldsrv through the nmcli tasks below). Under `--tags
+# nm-resolver` it is the first thing in this block that runs, so nothing below reads an
+# unverified string.
+# ⚠ `ansible_default_ipv4` as a TOP-LEVEL var does not exist in this repo: IaC/ansible/ansible.cfg
+# sets `inject_facts_as_vars = False`, so facts are read as `ansible_facts[...]`. Reading a
+# top-level fact var here yields an empty interface, especially under a --tags run.
 
 - name: Read the NM profile that owns the uplink (on-disk desired state)
   # Read with slurp, not `nmcli -g`: slurp is a check-mode-safe read-only module, so `--check` shows
@@ -650,7 +678,7 @@
       - nmcli
       - device
       - reapply
-      - "{{ nm_resolver_iface }}"
+      - "{{ nm_resolver_iface }}"   # set by the shape guard above, from the gathered default-route fact
   when:
     - not ansible_check_mode
     - nm_oldsrv_profile is defined

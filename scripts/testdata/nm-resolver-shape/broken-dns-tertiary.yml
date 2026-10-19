@@ -1,0 +1,24 @@
+---
+# Deliberately-broken resolver chain — the teeth proof for the resolver shape guard in
+# `IaC/ansible/roles/network/tasks/main.yml` (the assert named "Assert this host's resolver
+# target is real addresses on a real interface").
+#
+# `dns_tertiary_ip` is one of the two SSOT scalars `host_resolver_dns` templates on pi and
+# oldsrv. The `{% raw %}` here is the point: the value that reaches the live profile is the
+# UNRENDERED literal, which is the failure the guard exists for — nmcli and a rendered keyfile
+# both accept such a string happily, and the box keeps its IP and loses every name.
+#
+# Run it ON A HOST THAT APPLIES THE VAR, read-only, and the play must stop RED before any write:
+#
+#   bash scripts/ansible/ansible-run.sh playbooks/raspberry_pi.yml --limit pi.kogler.si \
+#        --check --tags nm-resolver -e @"$PWD/scripts/testdata/nm-resolver-shape/broken-dns-tertiary.yml"
+#
+# The `"$PWD/…"` form is required, not tidiness: ansible-run.sh cds to IaC/ansible before exec'ing
+# ansible-playbook, so a bare relative `-e @scripts/…` is read as an INVENTORY source and the whole
+# run dies parsing inventory.ini instead of ever reaching the guard.
+#
+# Expect: `failed=1`, one `Cannot proceed on <host>: host_resolver_dns must be a comma-joined
+# IPv4 list…` naming `resolver='{{ dns_quad_ip }},…'`. Without the guard the same command prints
+# the resolver-state line and exits 0, which is the difference between a gate and a log line.
+
+dns_tertiary_ip: '{% raw %}{{ dns_quad_ip }}{% endraw %}'

@@ -306,6 +306,24 @@ re-activates it — that is the leg the converge, and every ssh into the box, ri
 commits without dropping the link: the converge that changes the resolver runs over that leg, the session
 survives it, and the link reads `UP` with the same address afterwards.
 
+**The resolver shape guard is keyed on the var, not on one host's profile var (HD-1101, 2026-10-19).**
+`host_resolver_dns` is the one input every host that sets a resolver actually applies — oldsrv through the
+nmcli tasks, the Pi and spark through the rendered keyfile — so the assert now runs on any host that
+declares it and names the profile **that host** writes (`nm_oldsrv_profile` for the nmcli leg,
+`nm_pi_profile` for the keyfile leg) plus the interface it writes it on, cross-checked against
+`ansible_facts['default_ipv4']['interface']`. The previous shape gated the assert on `nm_oldsrv_profile`,
+an oldsrv-only host var: on every other host the guard was **silently SKIPPED**, which is how the Pi — a
+box that declares the var and writes it into a keyfile — had no shape check at all. Both halves of the rule
+are load-bearing: a guard gated on a var some hosts lack can skip a host it should stop, and a guard keyed
+on `host_resolver_dns` alone (no per-host profile half) fails the play on a host that declares a resolver
+and has no profile to write it through, killing the run before the later roles. Teeth, measured on the Pi
+read-only: `--check --tags nm-resolver` → `ok=22 changed=0 failed=0`; the same command with
+[`scripts/testdata/nm-resolver-shape/broken-dns-tertiary.yml`](../scripts/testdata/nm-resolver-shape/broken-dns-tertiary.yml)
+→ `failed=1`, `resolver='{{ dns_quad_ip }},…'` (an unrendered literal, so the shape test is what fires), play
+stopped before any write (`changed=0`).
+⛔ The fixture path must be passed as `-e @"$PWD/scripts/…"`: `ansible-run.sh` cds to `IaC/ansible`, so a
+bare relative path is parsed as inventory and the run dies before reaching the guard.
+
 ⚠ **Three traps:**
 
 1. `nmcli connection modify` and `nmcli device reapply` are **refused to a plain user** (rc=1
