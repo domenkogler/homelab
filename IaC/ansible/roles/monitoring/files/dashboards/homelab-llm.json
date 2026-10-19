@@ -5093,8 +5093,270 @@
       },
       "id": 61,
       "panels": [],
-      "title": "Forward look — RX 7600 (oldsrv) + SGLang",
+      "title": "RX 7600 (oldsrv) — the pinned-services tier + what still waits",
       "type": "row"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "**This tier is llama.cpp over Vulkan, not vLLM.** Nothing in this row joins the `vllm:*` / `sglang:*` panels above: llama.cpp's `llama_*` metric names carry a different shape and a different unit of accounting, so a `by (job, instance)` join across them would add up two quantities that only look alike. What IS here is the card. `amdgpu` exposes its counters in sysfs and the host ships no `rocm-smi`/`amd_smi`, so the hygiene collector reads the sysfs files and publishes them directly (`job=\"homelab-hygiene\"`, loopback :9098 — a `textfile` collector is unusable on this Alloy build). Unlike the GB10, this card DOES expose VRAM, so the pair is a real used/total and not a unified-memory stand-in. ⚠ The ENGINE side of this tier is not here: `llama-server --metrics` is gated off by `ai_tier_metrics_publish=false`, so no `llama_*` series exist in the backend and a token or latency panel for this box would be empty by design, not broken.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "bytes"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 177
+      },
+      "id": 62,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "homelab_gpu_vram_used_bytes{instance=\"oldsrv.kogler.si\"}",
+          "legendFormat": "used · {{ gpu }}",
+          "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "homelab_gpu_vram_total_bytes{instance=\"oldsrv.kogler.si\"}",
+          "legendFormat": "total · {{ gpu }}",
+          "refId": "B"
+        }
+      ],
+      "title": "RX 7600 — VRAM used / total (oldsrv)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "The `amdgpu` sysfs busy percentage, published by the host's hygiene collector. Flat 0 with VRAM held allocated is the normal idle shape of this tier: Whisper STT and the embed/rerank models keep their weights resident and only move the GPU when a request arrives, so `busy` is a burst signal, not a utilisation figure. The same tier's TOKENS are not here at all — llama.cpp `--metrics` is gated off by `ai_tier_metrics_publish=false`, and its `llama_*` names would not join the `vllm:*`/`sglang:*` token panels in any case.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {
+            "axisBorderShow": false,
+            "axisCenteredZero": false,
+            "axisPlacement": "auto",
+            "drawStyle": "line",
+            "fillOpacity": 8,
+            "gradientVisibility": false,
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            },
+            "lineInterpolation": "linear",
+            "lineWidth": 1,
+            "pointSize": 5,
+            "showPoints": "never",
+            "spanNulls": false,
+            "stacking": {
+              "group": {
+                "A": "none"
+              },
+              "mode": "none"
+            },
+            "thresholdsStyle": {
+              "mode": "off"
+            }
+          },
+          "mappings": [],
+          "max": 100,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 6,
+        "x": 12,
+        "y": 177
+      },
+      "id": 63,
+      "options": {
+        "legend": {
+          "calcs": [
+            "mean",
+            "max"
+          ],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "hideZeros": false,
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "homelab_gpu_busy_percent{instance=\"oldsrv.kogler.si\"}",
+          "legendFormat": "busy · {{ gpu }}",
+          "refId": "A"
+        }
+      ],
+      "title": "RX 7600 — busy % (oldsrv)",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "description": "The fail-loud half. 1 = the collector found the render node's sysfs counters; 0 = it declared the GPU and could not read it (a renamed `cardN` after a kernel bump, a driver that came up without `amdgpu`). **No data is the third state and the worst one**: the whole series is gone, which means the host stopped publishing — and a host that emits nothing is invisible to every rule that asks whether a number is old. Published by `job=\"homelab-hygiene\"`, so this stat is also a liveness read on that collector, on the box that owns the card.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "palette-classic"
+          },
+          "custom": {},
+          "mappings": [],
+          "max": 1,
+          "min": 0,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "green",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 177
+      },
+      "id": 64,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "homelab_gpu_present{instance=\"oldsrv.kogler.si\"}",
+          "instant": true,
+          "legendFormat": "{{ gpu }}",
+          "range": false,
+          "refId": "A"
+        }
+      ],
+      "title": "RX 7600 — counters present",
+      "type": "stat"
     },
     {
       "datasource": {
@@ -5106,16 +5368,16 @@
         "h": 3,
         "w": 24,
         "x": 0,
-        "y": 177
+        "y": 185
       },
-      "id": 62,
+      "id": 65,
       "mode": "markdown",
       "options": {
-        "content": "**The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. **RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 embed + bge-reranker):** its GPU counters are ALREADY here — the host ships no `rocm-smi`/`amd_smi` and this Alloy build cannot use a `textfile` collector, so the `amdgpu` sysfs files are published by the host's hygiene collector (`homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent`, labelled `gpu=\"rx7600\"`), and that card DOES expose VRAM, unlike the GB10. What is not here is the engine side: `llama-server --metrics` is proved present on the pin and wired behind `ai_tier_metrics_publish`, which recreates two serving containers, so it waits for an oldsrv `docker_services` window. **SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its `sglang:*` sibling is already written into every joined query, so the SGLang half fills from the same file. TWO places are deliberately vLLM-only until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a joined selector cannot filter one family with it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, unverified). Both are named in scripts/ansible/build-llm-dashboard.py, which refuses the joined form. **The three dashboards stay provisioned** until the owner retires them.",
+        "content": "**The RX 7600 counters above are the card half; the engine half of that tier is deliberately missing, and this row is where the rest of the forward look lives.** The tier is llama.cpp over Vulkan serving Whisper STT + bge-m3 embed + bge-reranker, and its `llama_*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this board — different names, different accounting, and a joined selector would filter one family out in silence. **The rows above are engine-agnostic on purpose.** Every joined query groups `by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds a series, not a dashboard. Note the pickers enumerate ENGINE instances, which is why this row's queries name the host instead — the same choice the spark node row makes. **Still waiting:** `llama-server --metrics` is proved present on the pin but wired behind `ai_tier_metrics_publish`, whose apply recreates two serving containers, so it waits for an oldsrv `docker_services` window. **SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its `sglang:*` sibling is already written into every joined query, so the SGLang half fills from the same file. TWO places are deliberately vLLM-only until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a joined selector cannot filter one family with it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, unverified). Both are named in scripts/ansible/build-llm-dashboard.py, which refuses the joined form. **The three dashboards stay provisioned** until the owner retires them.",
         "mode": "markdown"
       },
       "targets": [],
-      "title": "Forward look — RX 7600 + SGLang",
+      "title": "What still waits on this tier, and on SGLang",
       "type": "text"
     }
   ],

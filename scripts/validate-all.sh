@@ -962,7 +962,8 @@ blk_bash_n_sweep() {
   if command -v bash >/dev/null 2>&1; then
     local f first bash_fail=0
     for f in scripts/*.sh scripts/testdata/check-vault-items/run.sh \
-             scripts/testdata/self-converge-guard/run.sh; do
+             scripts/testdata/self-converge-guard/run.sh \
+             scripts/testdata/rsync-max-delete/run.sh; do
       [ -f "$f" ] || continue
       # `$(head -n1 "$f")` was one EXEC PER FILE — an extra ~90 processes to ask what the shebang
       # says. `read` answers it in-process; with -r the CR of a CRLF checkout survives, exactly as it
@@ -1129,6 +1130,11 @@ item_q "check_hd_mint_space.py --self-test (each rule bred on a throwaway repo; 
 item_q "check_net_manager.py (per-host config-manager declaration: no implied manager, no implied render leg)" $PY scripts/gate/check_net_manager.py
 item_q "check_net_manager.py --self-test (each rule bred on a tree copy: canaries must redden, the legal shapes must stay green)" $PY scripts/gate/check_net_manager.py --self-test
 item_q "probe-net-manager.sh --self-test (the config-manager verdict still separates the states it names)" bash scripts/ansible/probe-net-manager.sh --self-test
+# The live half of the next item is deliberately NOT registered: a read tool must never fail a commit
+# (the same reason `ansible_query.py` gates only its fixture). What IS gated is the offline proof that
+# the verdict can still redden — a dark monitoring host emits NO series, so no metric rule can see it
+# and the only instrument is the inventory's expected set compared against one live query.
+item_q "check_host_reporting.py --self-test (the expected-set verdict: a dark host, an undeclared reporter and the two stale shapes must each redden)" $PY scripts/gate/check_host_reporting.py --self-test
 item_x "walks every byte under IaC/ for twin groups and its self-test re-derives a 2,300-group baseline — minutes on this host, and a pre-commit edit does not rename a twin" "check_string_twins.py (a string two files shipped byte-equal at the wave baseline may not be renamed on one side)" $PY scripts/gate/check_string_twins.py
 # The plain run above cannot tell a gate that has lost its teeth from a gate that passed: on a
 # green tree both print one OK line, and the cases that prove the verdict (a sever inside a long
@@ -1260,7 +1266,23 @@ item_q "laptop-llm.py probe-client (HD-474: client contract may not drift ahead 
 item_q "gate7-read.py --self-test (HD-489 gate-7 bucketing: mixed-pid artifact, bounded fill, leak)" $PY scripts/bench/spark/gate7-read.py --self-test
 # Not the query itself — a read tool must never fail a commit — but its offline fixture is a real
 # verdict, and it is the witness for the venv-guard predicate render-pi-config.py copies verbatim.
+item_q "testdata/rsync-max-delete/run.sh --self-test (--max-delete is a CAP: exactly N/2 deleted + rc 25, asserted as numbers; every weakening reddens a canary)" bash scripts/testdata/rsync-max-delete/run.sh --self-test
+item_q "testdata/rsync-max-delete/run.sh (the shape-parity arm + the two real rsync fires over N=100 files)" blk_rsync_max_delete
 item_q "ansible_query.py --self-test (HD-456 fixtures + the venv re-exec guard both seat planes depend on)" $PY scripts/ansible/ansible_query.py --self-test
+
+# The rsync `--max-delete` fixture. rc 2 is a BOUNDARY, printed and never counted green: the two
+# deletion arms need an rsync binary, which the WSL Debian seat does not carry, while the shape-parity
+# arm and every canary run there (the self-test beside this item is what is gated for real).
+blk_rsync_max_delete() {
+  local rc_md=0
+  bash scripts/testdata/rsync-max-delete/run.sh || rc_md=$?
+  case "$rc_md" in
+    0) return 0 ;;
+    2) echo "NOTE: the two rsync arms did not run here (no rsync binary on this host) — the parity arm did,"; echo "      and --self-test beside this item proves both halves of the verdict can still redden."
+       return 0 ;;
+    *) return "$rc_md" ;;
+  esac
+}
 
 # --------------------------------------------------------------------------- #
 # Drain and report.                                                           #

@@ -179,10 +179,12 @@ it would silently pull down every other package whose pin lags its box. The fix 
 `versions.yml`: raise the pin to the highest release **already running** somewhere in the fleet, then
 converge (which costs one Alloy restart per host).
 
-✅ **Live-verified 2026-10-17, all five `monitoring` hosts** (`oldsrv`, `vps`, `nas`, `pi`, `spark`): the
-running `alloy_build_info` `version` equals the pin on every one of them, `up{job="alloy"}` = **1** on every
-one of them, and each unit is `active/running`. The package half agrees (`alloy` = the pinned deb string on
-all five).
+✅ **Live-verified 2026-10-19, every collector that reaches the store**: `alloy_build_info` reports
+`version` == the pin on the four `monitoring` hosts the backend can see (`oldsrv`, `vps`, `pi`, `spark`),
+with `up{job="alloy"}` = **1** on each. A fifth host in the group is on the pin and reports **nothing at
+all** — `dpkg` will happily confirm the pinned deb while the process ships no series, which is the gap
+between "installed", "running" and "scraping"; see §Silent-failure hygiene for the class and the
+instrument that names it.
 
 The standing, automated version of the same comparison — per package, read on the box, no ssh in the way —
 is §Pin-lag report (`homelab_pkg_pin_result`). The table above is the manual read that stands behind it, and
@@ -504,19 +506,52 @@ issuer renews late in that window, so a healthy consumer's `days_left` bottoms o
 Shipped: **WARN 14 d / CRIT 7 d** + a critical on
 `pair_present == 0`. Re-derive them if the pair lifetime or the renewal threshold changes.
 
-**Fleet coverage:** the exporter runs on `oldsrv · pi · nas · vps · spark` — but **four** reach the backend,
-not five: `count by (instance) (homelab_hygiene_scrape_ok)` read **4 series on 2026-10-18** (`oldsrv · pi ·
-spark · vps`), and `nas.kogler.si` contributed **nothing at all** — no `up{job="alloy"}`, no `node_uname_info`,
-while on the box `alloy` and `homelab-hygiene` were both `active`, `:9098` answered 19 `homelab_*` lines, and
-`127.0.0.1:12345` (Alloy's own server) refused a `curl`. A unit that is `active` while its HTTP server does
-not answer is exactly the class this section exists to close, and `hygiene-collector-stale` cannot see it:
-the rule's A leg is unfiltered, so a host with **no** series never becomes a value. Read the per-instance
-enumeration, never just the count of the heartbeat. The rules are in
+**Fleet coverage:** the exporter runs on `oldsrv · pi · nas · vps · spark`. Count them from the store,
+never from this sentence: `count by (instance) (homelab_hygiene_scrape_ok)` answers which collectors are
+reaching the backend, and the two numbers are not the same claim — the exporter runs on every host,
+while a host reaches the store only if its **own Alloy** ships what it scraped. `nas` publishes no unit
+and no cert series because it declares neither a watched unit nor a cert pair, and that absence is
+topology; the absence that matters is when a host publishes **nothing at all**, which the next
+paragraph is about. The rules are in
 Grafana: of 26 rules loaded, **7 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
 `cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
 (WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m) and `pkg-pin-drift`
-(WARN, 30 m, §Pin-lag report) — read back from the ruler API on 2026-10-17. Count them from the ruler API, never
+(WARN, 30 m, §Pin-lag report) — read back from the ruler API. Count them from the ruler API, never
 from this sentence — the read is in the table below.
+
+**A host that emits NO series is invisible to every rule, so the expected set has to come from the
+inventory.** The shape, measured on the storage collector host: `alloy` and `homelab-hygiene` both
+`active`, `:9098` answering its `homelab_*` lines, the unit `active (running)` for 19 h with **one**
+runtime thread burning 100 % of a core and `curl 127.0.0.1:12345/metrics` hanging to its timeout (TCP
+accepted by the kernel, never answered by the process) — and in the store **zero** series carrying that
+host's `instance`, no `up{job="alloy"}`, no `node_uname_info`, no heartbeat. Before it wedged the unit
+had restarted 4,847 times in one boot, each exit `status=2/INVALIDARGUMENT` — which is how a **Go
+runtime fatal** leaves a process, not how a bad config leaves one: the rendered file answers
+`alloy validate` with rc 0, so nothing in the role was wrong about the box. Its `nut_exporter` and
+`zfs_exporter` stayed green the whole time, because OLDSRV scrapes those under
+`instance="<ip>:919x"`, not under the host's name. Nothing paged:
+`hygiene-collector-stale` is correct as written — unfiltered A + a threshold — and a threshold needs a
+value, which a dark host never produces. Three instruments close it, and each proves a different half:
+
+| Instrument | What it holds | What it cannot do |
+| --- | --- | --- |
+| the probe + restart leg in `roles/monitoring` | the SERVING claim at converge time: `curl -sf -m 10 127.0.0.1:12345/metrics`, and one `systemd state: restarted` on the host whose own listener refused | act between converges; `state: started` alone asks systemd whether a process exists, so a converge on a wedged host reported `ok` and changed nothing |
+| `scripts/gate/check_host_reporting.py --check` | the **expected set**: every host in the inventory's `[monitoring]` group must carry `up{job="alloy",instance=<host>}` **and** the heartbeat. Four verdicts — `BLIND`, `SCRAPE LEG DEAD`, `COLLECTOR STALE`, `UNDECLARED` | page anyone: it answers when run, which is why the rule-shaped form below is the upgrade and stays unproven |
+| the metric rules | every shape where a value exists and goes stale | see a host that never produced a value |
+
+⚠ **Why an offline check and not a ruler rule**, stated plainly because it is the honest limit of the
+current state: a rule can only compare values the backend holds, so a rule-shaped version needs the
+expected set **inside** the backend first — a static `homelab_expected_host{instance=…} 1` rendered from
+`groups['monitoring']` plus an anti-join, or one generated `absent_over_time` rule per host. Both are
+loaded by provisioning on the backend host, so neither has been loaded and reddened; an instrument
+nobody has watched turn red is not evidence. What IS proven offline is the verdict's teeth:
+`--self-test` removes one instance's series from a fixture store and must redden, and re-runs the same
+healthy store against an inventory that declares one host more — which must also redden, because the
+set comes from the inventory and not from what happens to report.
+
+⚠ **`active` is not `serving`, on any collector host.** The reads that answer are the collector's own
+`/metrics` on the box and `up{job="alloy"}` in the store; `systemctl is-active` answers a different
+question and, in the case above, answered it wrongly for 19 hours.
 
 **`hygiene-collector-stale` must be written as unfiltered A + a threshold expression**, the shape
 §Alerting demands: `time() - max_over_time(homelab_hygiene_scrape_ok[6h])` in A, `gt [900]` in B, `for: 5m`,
@@ -1024,13 +1059,13 @@ in the DB). Do not call a dashboard verified until that replay has been run on i
 per-engine panels are honest, while **`tp_rank` does not exist** (SGLang's) and `sglang:*` has
 **zero** series. `model_name` is `spark/qwen3.8-flash-next`.
 
-**Layout** (live as `version` 3, 53 panels / 9 rows). The two
+**Layout** (live as `version` 3, 56 panels / 9 rows). The two
 groupings the owner named are reproduced rather than re-invented: a row **"Engine internals &
 cache"** carries the v2 row's six panels (KV usage, prefix hit rate, scheduler state, Python
 GC/memory, finish-reason distribution, throughput-vs-success) plus cached-token stats, and
 **"Decode Throughput" / "Prefill Throughput"** sit in **"Throughput & Workload"**
 instead of in a row titled for TP-ranks; the `Cache` and `Reliability` groupings are folded into
-those rows, which is why the count is 9 rows and 53 panels.
+those rows. The last row is the RX 7600 tier, named below.
 
 **Generation chain (SSOT direction).**`grafana.com exports (25502/24756/25043)` → [`adapt-vllm-dashboards.py`](../scripts/ansible/adapt-vllm-dashboards.py)
 → the three repo JSONs → [`build-llm-dashboard.py`](../scripts/ansible/build-llm-dashboard.py) →
@@ -1058,6 +1093,19 @@ applied **only** where both engines expose the same metric name; where they do n
 (vLLM `prompt_tokens_total` vs SGLang `realtime_tokens_total` — different quantities,
 the latter carries a `mode` dimension) the two upstream panels are kept side by side
 rather than summed into a number that means neither. The board states this in-panel.
+
+**The RX 7600 row is host telemetry, not a fourth engine.** The card's counters
+(`homelab_gpu_present`, `_vram_used_bytes`, `_vram_total_bytes`, `_busy_percent`, labelled `gpu=`) are
+published by that host's hygiene collector over loopback, because the box ships no `rocm-smi`/`amd_smi`
+and this Alloy build cannot use a `textfile` collector — see §Rules for these three rows, rule 6. Three
+panels carry them: used-vs-total VRAM (this card DOES expose VRAM, unlike the GB10), busy % and a
+present/absent stat whose worst state is **no data**, because a host that emits nothing is invisible to
+every rule that asks whether a number is old (§Silent-failure hygiene). Two things the row does NOT
+claim, both stated in-panel: the tier is **llama.cpp over Vulkan**, so its `llama_*` names do not join
+the `vllm:*`/`sglang:*` panels above; and its engine-side metrics are gated off
+(`ai_tier_metrics_publish=false`), so a token or latency panel for this box would be empty by design.
+The queries name the host instead of filtering on `$instance` for the same reason the spark node row
+does — the pickers enumerate ENGINE instances, and this box runs no engine.
 
 **Readiness = three signals, not one.** `up{job="vllm"}` (scrape leg), `up{job="sglang"}`
 (the SGLang lane) and a blackbox `http_2xx` on the engine's own `/health`. They fail
@@ -1315,7 +1363,9 @@ per-client where the path allows it, per-plane (Home vs tailnet) where it does n
    publishes `homelab_gpu_*{gpu="rx7600"}` on the loopback exporter — ⛔ not a `textfile` directory
    (unusable on this Alloy build) and not a new daemon. Declare the device by **render node**
    (`/sys/class/drm/{{ gpu_vulkan_render_node | basename }}/device` in `host_vars/oldsrv.kogler.si.yml`),
-   never by `cardN`: the index is probe order and renames.
+   never by `cardN`: the index is probe order and renames. All four names are on the LLM board
+   (§LLM Dashboard — the RX 7600 row), generated by the board's generator, not hand-placed, and they
+   are host telemetry: they join none of the engine panels.
 7. **The RX 7600 is the only host that can show VRAM** — GB10 exposes none (§LLM Dashboard → GPU). The
    board says so itself, and its engine-count readiness panel reads **1** today (`count(up{job=~"…"})`,
    spark vLLM only). Two corrections to the earlier claim that scraping this tier moves that panel

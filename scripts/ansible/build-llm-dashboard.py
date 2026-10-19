@@ -16,10 +16,13 @@ WHAT MERGING ACTUALLY MEANS HERE (it is not concatenation):
     latency, 2× prefix-cache, 3× running/queued). See DROPPED for every cut + the reason.
   * new panels none of them have and the owner asked for: engine **readiness** (vLLM /
     SGLang /health) and spark **CPU / RAM / GPU**.
-  * **cross-engine `by (job)` join** — the merged view spans vLLM *and* SGLang *and*
-    (later) the RX 7600, so every vLLM-only expr gains an `sglang:*` sibling and every
+  * **cross-engine `by (job)` join** — the merged view spans vLLM *and* SGLang, so every
+    vLLM-only expr gains an `sglang:*` sibling and every
     aggregate gets `by (job, instance)`. Without that a second engine silently lies
     (sum() across engines is not a metric). EXPR_REWRITES below carries each join.
+    The RX 7600 is deliberately NOT in that join: its counters are host-side `homelab_gpu_*`
+    series published by the hygiene collector on oldsrv, and its engine is llama.cpp, whose
+    `llama_*` names do not join the `vllm:*`/`sglang:*` panels. They get their own row.
   * DRY: a panel whose query already spans both engines (25502's gnet family) is carried
     VERBATIM — no rewrite, no re-translation of the Chinese legend format it carries.
 
@@ -127,7 +130,8 @@ LAYOUT: list[tuple[str, str, list[tuple[str, int]]]] = [
     ("row_engine_detail", "Per-engine / TP-rank detail", [
         ("inf:23", 12), ("inf:14", 12),
     ]),
-    ("row_forward", "Forward look — RX 7600 (oldsrv) + SGLang", [
+    ("row_forward", "RX 7600 (oldsrv) — the pinned-services tier + what still waits", [
+        ("new:rx7600_vram", 12), ("new:rx7600_busy", 6), ("new:rx7600_present", 6),
         ("new:forward_note", 24),
     ]),
 ]
@@ -868,31 +872,101 @@ NEW_PANELS = {
                     'clamp_min(sum by (job) ({__name__=~"vllm:e2e_request_latency_seconds_count", instance=~"$instance"}), 0.001)',            "legend": "{{ job }}",
         }],
     },
+    # ---- RX 7600 (oldsrv) — the pinned-services tier's OWN counters ----------
+    # Host-side, not engine-side, and that distinction is the panel's whole caption.
+    # The card is scraped by nothing: this fleet has no rocm-smi/amd_smi on that host and
+    # this Alloy build cannot point a `textfile` collector at a directory, so the amdgpu
+    # sysfs files ride the hygiene collector's direct-publish leg (loopback :9098, job
+    # "homelab-hygiene"). All four names below were re-read from the backend as
+    # `gpu="rx7600"` series carrying `instance="oldsrv.kogler.si"` before these panels
+    # existed, which is why they are in LIVE_GPU_METRICS rather than empty-on-purpose.
+    "rx7600_vram": {
+        "type": "timeseries",
+        "title": "RX 7600 — VRAM used / total (oldsrv)",
+        "description": (
+            "**This tier is llama.cpp over Vulkan, not vLLM.** Nothing in this row joins the "
+            "`vllm:*` / `sglang:*` panels above: llama.cpp's `llama_*` metric names carry a "
+            "different shape and a different unit of accounting, so a `by (job, instance)` join "
+            "across them would add up two quantities that only look alike. "
+            "What IS here is the card. `amdgpu` exposes its counters in sysfs and the host ships "
+            "no `rocm-smi`/`amd_smi`, so the hygiene collector reads the sysfs files and publishes "
+            "them directly (`job=\"homelab-hygiene\"`, loopback :9098 — a `textfile` collector is "
+            "unusable on this Alloy build). Unlike the GB10, this card DOES expose VRAM, so the "
+            "pair is a real used/total and not a unified-memory stand-in. "
+            "⚠ The ENGINE side of this tier is not here: `llama-server --metrics` is gated off by "
+            "`ai_tier_metrics_publish=false`, so no `llama_*` series exist in the backend and a "
+            "token or latency panel for this box would be empty by design, not broken."
+        ),
+        "unit": "bytes", "min": 0,
+        "targets": [
+            {"expr": 'homelab_gpu_vram_used_bytes{instance="oldsrv.kogler.si"}',
+             "legend": "used · {{ gpu }}"},
+            {"expr": 'homelab_gpu_vram_total_bytes{instance="oldsrv.kogler.si"}',
+             "legend": "total · {{ gpu }}"},
+        ],
+    },
+    "rx7600_busy": {
+        "type": "timeseries",
+        "title": "RX 7600 — busy % (oldsrv)",
+        "description": (
+            "The `amdgpu` sysfs busy percentage, published by the host's hygiene collector. "
+            "Flat 0 with VRAM held allocated is the normal idle shape of this tier: Whisper STT "
+            "and the embed/rerank models keep their weights resident and only move the GPU when "
+            "a request arrives, so `busy` is a burst signal, not a utilisation figure. The same "
+            "tier's TOKENS are not here at all — llama.cpp `--metrics` is gated off by "
+            "`ai_tier_metrics_publish=false`, and its `llama_*` names would not join the "
+            "`vllm:*`/`sglang:*` token panels in any case."
+        ),
+        "unit": "percent", "min": 0, "max": 100,
+        "targets": [
+            {"expr": 'homelab_gpu_busy_percent{instance="oldsrv.kogler.si"}',
+             "legend": "busy · {{ gpu }}"},
+        ],
+    },
+    "rx7600_present": {
+        "type": "stat",
+        "title": "RX 7600 — counters present",
+        "description": (
+            "The fail-loud half. 1 = the collector found the render node's sysfs counters; 0 = it "
+            "declared the GPU and could not read it (a renamed `cardN` after a kernel bump, a "
+            "driver that came up without `amdgpu`). **No data is the third state and the worst "
+            "one**: the whole series is gone, which means the host stopped publishing — and a host "
+            "that emits nothing is invisible to every rule that asks whether a number is old. "
+            "Published by `job=\"homelab-hygiene\"`, so this stat is also a liveness read on that "
+            "collector, on the box that owns the card."
+        ),
+        "unit": "short", "min": 0, "max": 1,
+        "thresholds": [{"color": "red", "value": None}, {"color": "green", "value": 1}],
+        "targets": [
+            {"expr": 'homelab_gpu_present{instance="oldsrv.kogler.si"}',
+             "legend": "{{ gpu }}", "instant": True},
+        ],
+    },
     "forward_note": {
         "type": "text",
-        "title": "Forward look — RX 7600 + SGLang",
+        "title": "What still waits on this tier, and on SGLang",
         "content": (
+            "**The RX 7600 counters above are the card half; the engine half of that tier is "
+            "deliberately missing, and this row is where the rest of the forward look lives.** "
+            "The tier is llama.cpp over Vulkan serving Whisper STT + bge-m3 embed + bge-reranker, "
+            "and its `llama_*` names do not join the `vllm:*`/`sglang:*` panels anywhere on this "
+            "board — different names, different accounting, and a joined selector would filter one "
+            "family out in silence. "
             "**The rows above are engine-agnostic on purpose.** Every joined query groups "
-            "`by (job, instance)` and filters on `$instance`/`$model_name`, so adding a "
-            "target adds a series, not a dashboard. "
-            "**RX 7600 (oldsrv, decision #24 pinned-services tier — Whisper STT + bge-m3 "
-            "embed + bge-reranker):** its GPU counters are ALREADY here — the host ships no "
-            "`rocm-smi`/`amd_smi` and this Alloy build cannot use a `textfile` collector, so "
-            "the `amdgpu` sysfs files are published by the host's hygiene collector "
-            "(`homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent`, labelled "
-            "`gpu=\"rx7600\"`), and that card DOES expose VRAM, unlike the GB10. What is not "
-            "here is the engine side: `llama-server --metrics` is proved present on the pin and "
-            "wired behind `ai_tier_metrics_publish`, which recreates two serving containers, so "
-            "it waits for an oldsrv `docker_services` window. "
-            "**SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — "
-            "its `sglang:*` sibling is already written into every joined query, so the "
-            "SGLang half fills from the same file. TWO places are deliberately vLLM-only "
-            "until that scrape exists, because SGLang's names need a `stage=`/`cache_source=` "
-            "label vLLM does not carry and a joined selector cannot filter one family with "
-            "it: the decode/prefill legs of 'Inference Stage Breakdown' and the SGLang line "
-            "of 'Prefix cache hit rate' (its own target, unverified). Both are named in "
-            "scripts/ansible/build-llm-dashboard.py, which refuses the joined form. "
-            "**The three dashboards stay provisioned** until the owner retires them."
+            "`by (job, instance)` and filters on `$instance`/`$model_name`, so adding a target adds "
+            "a series, not a dashboard. Note the pickers enumerate ENGINE instances, which is why "
+            "this row's queries name the host instead — the same choice the spark node row makes. "
+            "**Still waiting:** `llama-server --metrics` is proved present on the pin but wired "
+            "behind `ai_tier_metrics_publish`, whose apply recreates two serving containers, so it "
+            "waits for an oldsrv `docker_services` window. "
+            "**SGLang:** needs `prometheus.scrape \"sglang\"` only for most of this board — its "
+            "`sglang:*` sibling is already written into every joined query, so the SGLang half fills "
+            "from the same file. TWO places are deliberately vLLM-only until that scrape exists, "
+            "because SGLang's names need a `stage=`/`cache_source=` label vLLM does not carry and a "
+            "joined selector cannot filter one family with it: the decode/prefill legs of 'Inference "
+            "Stage Breakdown' and the SGLang line of 'Prefix cache hit rate' (its own target, "
+            "unverified). Both are named in scripts/ansible/build-llm-dashboard.py, which refuses "
+            "the joined form. **The three dashboards stay provisioned** until the owner retires them."
         ),
     },
 }
@@ -1178,9 +1252,11 @@ def guard_picker_operators(dash: dict) -> list:
 
 
 def template_vars() -> list:
-    # Instance + model vars enumerate BOTH engine families so a second engine (or the
-    # RX 7600 later) becomes selectable the moment it is scraped — the same join trick
-    # the queries use, applied to the pickers. gnet 25502's own pair is the pattern.
+    # Instance + model vars enumerate BOTH ENGINE families so a second engine becomes
+    # selectable the moment it is scraped — the same join trick the queries use, applied to
+    # the pickers. gnet 25502's own pair is the pattern. ⚠ They enumerate ENGINE series, so a
+    # host that runs no engine is NOT in the list — which is why the RX 7600 row names its host
+    # in the query instead of filtering on $instance, exactly as the spark node row does.
     inst_q = ('label_values({__name__=~"vllm:num_requests_running|sglang:num_running_reqs"}, instance)')
     model_q = ('label_values({__name__=~"vllm:num_requests_running|sglang:num_running_reqs"}, model_name)')
     return [
@@ -1490,6 +1566,15 @@ LIVE_NODE_METRICS = ("node_cpu_seconds_total", "node_load1", "node_load5",
                      "node_disk_io_time_seconds_total")
 
 
+LIVE_GPU_METRICS = ("homelab_gpu_present", "homelab_gpu_vram_used_bytes",
+                    "homelab_gpu_vram_total_bytes", "homelab_gpu_busy_percent")
+# Host-side counters for the RX 7600 tier, NOT engine metrics: the host ships no
+# `rocm-smi`/`amd_smi`, so `amdgpu` sysfs reaches the backend through the hygiene collector's
+# direct-publish leg. All four names re-read from the backend as `gpu="rx7600"` series on
+# instance="oldsrv.kogler.si"; the engine side of that tier (`llama_*`) is NOT here because
+# `ai_tier_metrics_publish` is false, and it would not join the vllm/sglang panels either.
+
+
 def _has_live_series(expr: str) -> bool:
     """True if the query touches at least one selector proven live in VM.
 
@@ -1503,6 +1588,9 @@ def _has_live_series(expr: str) -> bool:
     if any(m in expr for m in LIVE_PROCESS_METRICS + LIVE_NODE_METRICS):
         return True
     if any(m in expr for m in LIVE_DCGM_METRICS):
+        return True
+    # Host-side GPU counters: live for the hygiene collector's job on the box that owns the card.
+    if any(m in expr for m in LIVE_GPU_METRICS):
         return True
     for name in re.findall(r"vllm:[A-Za-z0-9_:]+", expr):
         base = name.rstrip("_")

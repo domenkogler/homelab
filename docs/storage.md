@@ -369,7 +369,14 @@ an unbounded delete of an empty source would empty the library Navidrome serves 
 green. The bound is a **cap, not an abort**: measured on rsync 3.5.0, a run that would delete more
 entries than the limit deletes exactly the limit, stops deleting the rest and exits 25
 (`Deletions stopped due to --max-delete limit`) — so the per-fire blast radius is `max_delete`
-entries and the two asserts, which run BEFORE any rsync, are what actually protect the library.
+entries and the two asserts, which run BEFORE any rsync, are what actually protect the library. That
+claim is a fixture, not prose: [`scripts/testdata/rsync-max-delete/run.sh`](../scripts/testdata/rsync-max-delete/run.sh)
+builds the hazard out of the leg's own flags — the first fire transfers N files with
+`--remove-source-files`, so the second fire sees an existing-but-empty source beside a destination
+holding all N, which is exactly what a dead mount hands it — then the uncapped fire deletes all N at
+rc 0 (the denominator: N deletions really were pending) and the capped fire with `--max-delete=N/2`
+must delete exactly N/2, leave N/2, and exit 25. The third arm asserts the fixture still mirrors the
+flags this script renders, and it is the arm that runs on a seat with no rsync binary.
 Strict host-key pinning (`UserKnownHostsFile`, `StrictHostKeyChecking=yes`) — the same discipline
 as kopia's `--known-hosts`, not TOFU on a root timer. The timer renders **unarmed** until the Box SSH
 identity exists on oldsrv (port 23 is key-auth-only), and the acceptance read is the file count **on the

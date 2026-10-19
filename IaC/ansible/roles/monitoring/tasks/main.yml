@@ -118,6 +118,46 @@
   when: inventory_hostname in groups['monitoring']
   tags: [monitoring, alloy]
 
+# ---- `active` is not `serving`: reconcile the listener, not the unit state ----------------
+# Measured on the storage collector host: `alloy` read `active (running)` for 19 h while
+# ONE runtime thread burned 19 h 31 min of CPU (100 % of a core) and `curl 127.0.0.1:12345/metrics`
+# hung until its timeout — the kernel completed the TCP connect, the process never answered. The
+# backend held ZERO series for that host (`up{job="alloy"}`, `node_uname_info`, the hygiene
+# heartbeat), while its nut/zfs exporters stayed green in the same store because a THIRD host
+# scrapes those, which is what made the host look healthy from the dashboard.
+# Before it wedged, the unit had restarted 4,847 times in one boot, each exit
+# `status=2/INVALIDARGUMENT` — that is how a Go runtime fatal leaves a process, not how a bad config
+# leaves one: the same rendered file answers `alloy validate` with rc 0, so NOTHING in this role was
+# wrong about the host. What was wrong is the claim: `state: started` asks systemd whether a process
+# exists, systemd says yes, Ansible reports `ok`, and a converge "fixes" a blind host by changing
+# nothing. The assert at the END of this file already reads the listener — after the restart handlers,
+# so on a wedged host it fails the run instead of repairing it. Probe BEFORE reconciling, and restart
+# exactly the host whose own listener refused to answer.
+- name: Probe this host's Alloy HTTP server
+  # `/metrics`, not `/-/ready`: the claim is "this process serves", and `/-/ready` also answers 503
+  # whenever ANY component is degraded (a flapping remote_write peer), which would turn a bound
+  # repair into a restart on a host that is merely unhealthy. Same read the closing assert makes.
+  ansible.builtin.command:
+    cmd: curl -sf -m 10 -o /dev/null http://127.0.0.1:{{ alloy_metrics_port | default(12345) }}/metrics
+  register: _alloy_serve
+  changed_when: false
+  failed_when: false
+  when: inventory_hostname in groups['monitoring']
+  tags: [monitoring, alloy]
+
+- name: Restart Alloy on a host whose listener is not serving
+  # Only this host, only when its own probe refused. On the backend host an Alloy restart drops one
+  # scrape cycle for everything that host scrapes, so this is not a cheap leg — but the alternative
+  # on the table is a monitoring host that publishes nothing while every unit reads active.
+  ansible.builtin.systemd:
+    name: alloy
+    state: restarted
+  when:
+    - inventory_hostname in groups['monitoring']
+    - _alloy_serve.rc is defined
+    - _alloy_serve.rc != 0
+  tags: [monitoring, alloy]
+
 # -------------------------------------------------------------------------
 # Host rsyslog remote-syslog receiver
 #   The RB4011 forwards RFC5424 syslog over wg-s2s to the VPS. rsyslog on the
