@@ -348,6 +348,15 @@ unmeasured. Two places still read the Pi as a `1.1.1.1` box and so do not hold: 
 guarded-converge row ("measure from the VIP address, not by name") and a Pi procedure that asserts
 "Pi read-back proves nothing".
 
+⚠ **A `#` line in a keyfile template is file content, so a comment edit is a write.** The rendered
+keyfile carries the template's leading `#` block verbatim — it is output, not a `{# … #}` Jinja comment —
+so that text is part of what the `template:` module compares. Reword a comment and the next run reports
+`changed` on the render of the very file that carries the box's address, gateway and resolver, and the
+render notifies `reload NetworkManager`. Prose therefore has exactly two homes: inside the rendered file,
+where it costs a write and a handler fire on a live addressing file, or in a Jinja comment / this
+document, where it costs nothing. A host whose functional lines already match but that reports `changed`
+every run is this, and the fix belongs in the template.
+
 ---
 
 ## Per-Instance Split-Horizon
