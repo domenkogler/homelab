@@ -18,9 +18,13 @@
 # bash either way (Git-Bash on Win11, bash on Debian). What differs is which TRANSPORTS exist
 # here: `wsl.exe` exists only on the Windows side, and the `win11` seat is the Windows
 # filesystem — so a Debian host reports that seat NOT-HERE instead of pretending, and running
-# inside WSL makes this shell the `wsl` seat directly (no nested wsl.exe). Every seat gets a
-# verdict, and an UNREACHABLE seat FAILS the run: a sync that "succeeded" because it never got
-# to the seat is the exact failure this file exists to kill.
+# inside WSL makes this shell the `wsl` seat directly (no nested wsl.exe). Standing ON oldsrv
+# makes this shell the `oldsrv` seat the same way (a hostname read, see IS_OLDSRV below) — that
+# seat has no host key for itself and no self-alias, so an ssh leg from it can only ever die.
+# `--list` prints the transport this host would use for every seat, which is the question
+# "where do I run this?" actually asks. Every seat gets a verdict, and an UNREACHABLE seat FAILS
+# the run: a sync that "succeeded" because it never got to the seat is the exact failure this
+# file exists to kill.
 #
 # THE PRE-FLIGHT IS THE POINT
 # ---------------------------
@@ -38,14 +42,17 @@
 #   bash scripts/harness/pi-seat-sync.sh --self-test         # stubbed transports, no network
 #
 # Seats (env PI_SEATS overrides): win11 (this shell, Windows side) · wsl (wsl.exe -d
-# $PI_WSL_DISTRO, or this shell when running inside WSL) · oldsrv (ssh $PI_OLDSRV_TARGET, the
-# HD-492 door over the vps jump). Env sandbox hooks: PI_SEATS, PI_WSL_DISTRO, PI_WSL_REPO,
-# PI_OLDSRV_TARGET, PI_OLDSRV_REPO, PI_SSH_OPTS, PI_SEAT_STUB (the self-test's transport).
+# $PI_WSL_DISTRO, or this shell when running inside WSL) · oldsrv (the ssh $PI_OLDSRV_TARGET door
+# over the vps jump, OR this shell when this host IS the oldsrv seat — see IS_OLDSRV). Env sandbox
+# hooks: PI_SEATS, PI_WSL_DISTRO, PI_WSL_REPO, PI_OLDSRV_TARGET, PI_OLDSRV_REPO, PI_SSH_OPTS,
+# PI_SEAT_STUB (the self-test's transport).
 #
 # Exit: 0 all seats OK or printed-SKIP · 1 a plane drifted or failed, a seat was UNREACHABLE or
-# STALE-CLONE, or a seat's declared planes did NOT all run (`coverage`) · 2 usage. A SKIP is never
-# counted as in-sync, and a seat that "synced" by skipping its plane list is a FAILURE — the loop
-# reads on FD 3 and the ssh transport takes `-n` for exactly that reason (see sync_seat).
+# STALE-CLONE, or a seat's declared planes did NOT all run (`coverage`) · 2 usage, including a
+# `--seat` that names a seat this host does not have (silently running no seat is how an empty run
+# reads `IN SYNC`). A SKIP is never counted as in-sync, and a seat that "synced" by skipping its
+# plane list is a FAILURE — the loop reads on FD 3 and the ssh transport takes `-n` for exactly that
+# reason (see sync_seat).
 #
 # Owning rule: docs/harness-pi-seats.md §1 + docs/harness-pi-seats.md §5/§5a · CONVENTIONS §6.
 set -uo pipefail
@@ -76,6 +83,26 @@ _procver=""
 if [ -r /proc/version ]; then IFS= read -r _procver </proc/version || true
   case "${_procver,,}" in *microsoft*) IS_WSL=1 ;; esac; fi
 command -v wsl.exe >/dev/null 2>&1 && [ "$IS_WSL" -eq 0 ] && IS_WINDOWS=1
+
+# Is THIS host the oldsrv seat? The oldsrv cockpit is a plain Debian box, so unlike the other two
+# seats it has no OS-class marker (`wsl.exe`, the `microsoft` string in /proc/version). Its marker
+# is its own hostname: the seat is `domen@oldsrv`, the inventory names the box
+# `oldsrv.kogler.si`, the ssh alias is `oldsrv-domen` and the seat's name in the list below is
+# `oldsrv` — one word in four places, so the read is the box's own short hostname, de-domained and
+# case-folded, against the seat name. It is deliberately NOT `PI_OLDSRV_TARGET`: that is an env var
+# an operator must remember (which is the half of the defect this closes), and the away form is
+# `oldsrv-domen-vps` (docs/network-vpn.md), so the target is not a stable identity anyway.
+# A host has no host key for itself and no self-alias, so sshing from the seat to the seat cannot
+# ever work: `ssh: Could not resolve hostname oldsrv-domen`, or with PI_OLDSRV_TARGET=localhost,
+# `Host key verification failed`. Both were measured 2026-10-19 FROM oldsrv.
+# DECLARED LIMIT, same as the two arms above it: this reads the BOX, not the account. Running this
+# driver on oldsrv as a user who is not the seat (`ansible-admin`, whose clone is a different one
+# on the same box) makes this shell that user's seat, and the seat line names the clone and the home
+# it is standing in so the case is visible in the output rather than silent.
+IS_OLDSRV=0
+_self_host="$(hostname 2>/dev/null || uname -n 2>/dev/null)"
+_self_host="${_self_host%%.*}"
+case "${_self_host,,}" in oldsrv) IS_OLDSRV=1 ;; esac
 
 if [ -z "${PI_SEATS:-}" ]; then
   if [ "$IS_WSL" -eq 1 ]; then SEATS="wsl oldsrv"          # inside WSL: the wsl seat is this shell
@@ -122,6 +149,14 @@ while [ "$#" -gt 0 ]; do
 done
 
 # --- transports ---------------------------------------------------------------
+# The THREE legs are functions, not inline text, so the self-test can replace one LEG and leave
+# the DECISION under test where it is. A stub that replaces `run_on_seat` wholesale — which is what
+# the self-test does for the classification arms — cannot fail the bug arm 8 exists for, because the
+# branch it must prove was taken is gone with the function it lives in.
+seat_local_exec() { ( cd "$REPO" && eval "$1" ); }
+seat_ssh_exec()   { ssh -n $SSH_OPTS "$1" "cd $2 && $3" 2>&1 </dev/null; }
+seat_wsl_exec()   { wsl.exe -d "$WSL_DISTRO" -- bash -lc "cd $WSL_REPO && $1" 2>&1 | tr -d '\000'; }
+
 # run_on_seat <seat> <cmd…>: stdout+stderr on stdout; rc 255 = transport died (UNREACHABLE),
 # rc 3 = the seat does not exist on this host (NOT-HERE).
 run_on_seat() {
@@ -129,19 +164,35 @@ run_on_seat() {
   local cmd="$*"
   case "$seat" in
     win11) [ "$IS_WINDOWS" -eq 1 ] || { info "win11 seat: this host is not the Windows workstation"; return 3; }
-           ( cd "$REPO" && eval "$cmd" ) ;;
-    wsl)   if [ "$IS_WSL" -eq 1 ]; then ( cd "$REPO" && eval "$cmd" )
-           elif command -v wsl.exe >/dev/null 2>&1; then
-             wsl.exe -d "$WSL_DISTRO" -- bash -lc "cd $WSL_REPO && $cmd" 2>&1 | tr -d '\000'
+           seat_local_exec "$cmd" ;;
+    wsl)   if [ "$IS_WSL" -eq 1 ]; then seat_local_exec "$cmd"
+           elif command -v wsl.exe >/dev/null 2>&1; then seat_wsl_exec "$cmd"
            else info "wsl.exe absent — this host cannot reach the WSL seat"; return 3; fi ;;
-    oldsrv) ssh -n $SSH_OPTS "$OLDSRV_TARGET" "cd $OLDSRV_REPO && $cmd" 2>&1 </dev/null ;;
+    # The local arm is FIRST on the seat itself and the ssh arm stays first everywhere else, so the
+    # laptop and the runner are untouched by this branch and the away alias keeps working away.
+    oldsrv) if [ "$IS_OLDSRV" -eq 1 ]; then seat_local_exec "$cmd"
+            else seat_ssh_exec "$OLDSRV_TARGET" "$OLDSRV_REPO" "$cmd"; fi ;;
     *) err "unknown seat: $seat"; return 2 ;;
   esac
 }
 seat_repo()  { case "$1" in win11) printf '%s' "$REPO" ;;
                         wsl)    if [ "$IS_WSL" -eq 1 ]; then printf '%s' "$REPO"; else printf '%s' "$WSL_REPO"; fi ;;
-                        oldsrv) printf '%s' "$OLDSRV_REPO" ;; esac; }
+                        oldsrv) if [ "$IS_OLDSRV" -eq 1 ]; then printf '%s' "$REPO"; else printf '%s' "$OLDSRV_REPO"; fi ;; esac; }
 seat_label() { case "$1" in win11) printf 'Win11 workstation seat' ;; wsl) printf 'Debian-on-WSL seat' ;; oldsrv) printf 'oldsrv cockpit seat' ;; esac; }
+# seat_transport <seat> — the LEG this host would actually use, which is the question a reader of
+# `--list` is asking when they decide where to run the command. Naming it is the point of the row:
+# "run it from the seat" was unsatisfiable for `oldsrv` for the length of time the matrix implied
+# it was a choice.
+seat_transport() {
+  case "$1" in
+    win11) if [ "$IS_WINDOWS" -eq 1 ]; then printf 'local — this shell IS the Windows seat' 
+           else printf 'ABSENT — no Windows on this host'; fi ;;
+    wsl)   if [ "$IS_WSL" -eq 1 ]; then printf 'local — this shell IS the WSL seat'
+           elif command -v wsl.exe >/dev/null 2>&1; then printf 'wsl.exe -d %s' "$WSL_DISTRO"
+           else printf 'ABSENT — no wsl.exe on this host'; fi ;;
+    oldsrv) if [ "$IS_OLDSRV" -eq 1 ]; then printf 'local — this host IS the oldsrv seat (no ssh leg)'
+            else printf 'ssh %s' "$OLDSRV_TARGET"; fi ;;
+  esac; }
 
 # The self-test replaces the transport with stubs; no other reason for the hook.
 [ -n "${PI_SEAT_STUB:-}" ] && . "$PI_SEAT_STUB"
@@ -201,7 +252,7 @@ sync_seat() {
   local seat="$1" head seat_head out rc verdict name cmd2 diag _mode=check
   self_head head
   info ""
-  info "── seat $seat · $(seat_label "$seat") · repo $(seat_repo "$seat")"
+  info "── seat $seat · $(seat_label "$seat") · $(seat_transport "$seat") · repo $(seat_repo "$seat")"
   out="$(run_on_seat "$seat" 'git rev-parse --short HEAD')"; rc=$?
   if [ "$rc" -ne 0 ]; then
     printf '  %-8s %-11s %s\n' "$seat" "pre-flight" "UNREACHABLE"
@@ -272,7 +323,7 @@ sync_seat() {
 
 # --- self-test: stubbed transports, no network, no seats ------------------------
 self_test() {
-  local tmp fails=0 head _pf
+  local tmp fails=0 head _pf _rc _log
   tmp="$(mktemp -d 2>/dev/null)" || { err "mktemp failed"; return 1; }
   # shellcheck disable=SC2064
   trap "rm -rf '$tmp'" RETURN
@@ -410,6 +461,48 @@ EOS
     info "stdin-drain      GREEN (a draining transport cannot truncate the FD-3 list)"
   else err "canary: a stdin-draining transport truncated the plane list (the FD-3 protection is gone)"; fails=$((fails+1)); fi
 
+  # 8. THE SEAT-STANDS-ON-ITSELF ARM (HD-1162): a driver running ON the oldsrv seat must reach that
+  #    seat WITHOUT ssh. The host identity is a read of `hostname`, so this arm shims THAT on PATH —
+  #    the derivation itself runs, it just runs on a host that answers `oldsrv` — and both legs are
+  #    RECORDERS writing into one log. Delete the local arm and the log gains an `ssh` line here;
+  #    the inverse is arm 9, so neither recorder can rot into a file nothing writes to.
+  mkdir -p "$tmp/seat-host" "$tmp/other-host"
+  { printf '#!/bin/sh\nprintf "oldsrv\\n"\n'; }          > "$tmp/seat-host/hostname"
+  { printf '#!/bin/sh\nprintf "some-laptop-seat\\n"\n'; } > "$tmp/other-host/hostname"
+  chmod +x "$tmp/seat-host/hostname" "$tmp/other-host/hostname"
+  cat > "$tmp/here.sh" <<EOS
+# Arm 8/9's seam: ONLY the two legs are replaced, so the transport CHOICE inside run_on_seat — the
+# thing under test — is the real one. A stub that replaced run_on_seat (as arms 1-7 do) would delete
+# the branch it is supposed to be proving and still print GREEN.
+seat_local_exec() { printf 'local\\n' >> "\$STUB_LOG"; bash "\$STUB_DIR/good" "\$*"; }
+seat_ssh_exec()   { printf 'ssh\\n'   >> "\$STUB_LOG"; bash "\$STUB_DIR/good" "\$3"; }
+EOS
+  # ONE ssh call is enough to fail the arm, so the assertion is on the log's CONTENT, never on a
+  # count: pre-flight plus the plane list may legitimately use the chosen leg many times. The
+  # `hostname` shim makes BOTH arms host-independent — an arm that relied on the ambient hostname
+  # would pass differently on the laptop, the runner and the seat itself.
+  STUB_LOG="$tmp/legs.log"
+  : > "$STUB_LOG"
+  PI_SEATS="oldsrv" STUB_DIR="$tmp" STUB_LOG="$STUB_LOG" PI_SEAT_STUB="$tmp/here.sh" \
+    PATH="$tmp/seat-host:$PATH" bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" \
+    --seat oldsrv --check >"$tmp/here.out" 2>&1; _rc=$?
+  if [ "$_rc" -eq 0 ] && ! grep -qx 'ssh' < "$STUB_LOG" && grep -qx 'local' < "$STUB_LOG" \
+     && grep -q 'this host IS the oldsrv seat' "$tmp/here.out"; then
+    info "seat-is-local    GREEN (standing on the seat: no ssh leg, and the printed matrix says so)"
+  else err "canary passed: the driver sshed to the seat it was standing on (rc $_rc, legs: $(tr '\n' ' ' < "$STUB_LOG"))"; fails=$((fails+1)); fi
+
+  # 9. the INVERSE, and the recorder's own witness: on a host that is NOT the seat the ssh leg must
+  #    be the one used — a local arm that swallowed every host would pass arm 8 having broken the
+  #    laptop and the runner, which is the change this row explicitly refuses.
+  : > "$STUB_LOG"
+  PI_SEATS="oldsrv" STUB_DIR="$tmp" STUB_LOG="$STUB_LOG" PI_SEAT_STUB="$tmp/here.sh" \
+    PATH="$tmp/other-host:$PATH" bash "$SCRIPT_DIR/$(basename "${BASH_SOURCE[0]}")" \
+    --seat oldsrv --check >"$tmp/away.out" 2>&1; _rc=$?
+  if [ "$_rc" -eq 0 ] && grep -qx 'ssh' < "$STUB_LOG" && ! grep -qx 'local' < "$STUB_LOG" \
+     && grep -q 'ssh ' "$tmp/away.out"; then
+    info "away-host        GREEN (off the seat: the ssh leg is still the transport)"
+  else err "canary passed: off the seat the driver did NOT use ssh (rc $_rc, legs: $(tr '\n' ' ' < "$STUB_LOG"))"; fails=$((fails+1)); fi
+
   printf '\nself-test: %s\n' "$([ "$fails" -eq 0 ] && echo "OK — all canaries caught" || echo "$fails canary/canaries NOT caught")"
   return "$fails"
 }
@@ -421,14 +514,31 @@ if [ "$MODE" = list ]; then
   elif [ "$IS_WSL" -eq 1 ]; then c="Debian in WSL"
   else c="Debian"; fi
   info "this host: $c"
+  # The TRANSPORT column is the whole point of `--list`: "where do I run this?" is answered by the
+  # leg each seat uses HERE, not by a table of seat names. `ssh` on the line of the seat you are
+  # standing on is the sentence that made this driver unusable FROM its own reference seat.
   info "seats:  $SEATS"
-  for s in $SEATS; do info "  $s — $(seat_label "$s")  repo $(seat_repo "$s")"; done
-  info "planes: $(planes_for_seat wsl check | cut -f1 | tr '\n' ' ')"
+  for s in $SEATS; do
+    info "  $s — $(seat_label "$s")  via $(seat_transport "$s")  repo $(seat_repo "$s")"
+  done
+  _pl="$(planes_for_seat "${SEATS%% *}" check | cut -f1 | tr '\n' ' ')"
+  info "planes (${SEATS%% *} — the set is keyed per seat, so read each seat's own row if they differ): $_pl"
   exit 0
 fi
 
 self_head _this_head     # one `git rev-parse` for the whole process, shared with the pre-flight
-info "pi-seat-sync · $MODE · seats: $SEATS · this checkout $_this_head"
+# The banner states what THIS run will execute. It used to print the declared list even when
+# `--seat` had selected one of them, and a reader counted the `RESULT ok=` line as planes across
+# every seat named there — ten legs looked like two seats × five planes when it was one seat's
+# pre-flight plus its planes. The selected seat, and how many planes it declares, are stated here
+# so the tally at the bottom has one unambiguous denominator.
+if [ -n "$WANT_SEAT" ]; then
+  _sel=""; for s in $SEATS; do [ "$s" = "$WANT_SEAT" ] && _sel="$s"; done
+  [ -n "$_sel" ] || { err "--seat $WANT_SEAT is not a seat on this host (this host runs: $SEATS)"; exit 2; }
+  info "pi-seat-sync · $MODE · seat: $_sel (one seat; this host declares: $SEATS) · this checkout $_this_head"
+else
+  info "pi-seat-sync · $MODE · seats: $SEATS · this checkout $_this_head"
+fi
 for s in $SEATS; do
   [ -n "$WANT_SEAT" ] && [ "$WANT_SEAT" != "$s" ] && continue
   sync_seat "$s" || true

@@ -72,14 +72,19 @@ answerable from an extension, and this section is the only place that fact is wr
   `pi_host_npm_version` pin), and `validate-all.sh` exits 0 there. The retired `host-status.ts` is gone from
   every seat — the Win11 copy is removed by that seat's own `--push` — so the retirement mechanism has
   reached every seat and `validate-all.sh`'s RETIRED arm has nothing left to fail on.
-- **Running the driver ON the oldsrv box (seat == host):** all three of
-  [`../scripts/harness/pi-seat-sync.sh`](../scripts/harness/pi-seat-sync.sh)'s legs are laptop-side — `win11` is "this
-  shell" only on the Windows workstation, `wsl` needs `wsl.exe`, and `oldsrv` sshes to `oldsrv-domen`,
-  an alias that exists in the *workstation's* ssh config. Run the driver on oldsrv itself and every
-  leg reads `UNREACHABLE` (rc 1) with three different true reasons, which is the fail-closed contract
-  working, not a broken seat. From the seat, run that seat's own plane list locally instead — the same
-  seven commands `planes_for_seat oldsrv` prints, in the same order, from the same clone (pre-flight
-  still applies: the clone must be at `origin/main`). One seat-side failure is NOT the repo's fault:
+- **Running the driver ON the oldsrv box (seat == host):** `win11` is "this shell" only on the
+  Windows workstation and `wsl` needs `wsl.exe`, so both read `NOT-HERE` here; `oldsrv` is the seat
+  THIS box is, so its leg is local — the driver takes `cd "$REPO" && eval` whenever the host's own
+  hostname is `oldsrv`, and `--list` prints that leg per seat on the host you are standing on. An ssh
+  leg from a box to its own alias cannot work in principle: there is no self-alias in the box's ssh
+  config (the `oldsrv-domen` alias is written for the laptop-class seats) and a host carries no host
+  key for itself, which is why `PI_OLDSRV_TARGET=localhost` fails host-key verification rather than
+  looping back. Everywhere else — the laptop, the runner, the VPS — the ssh leg stays first, away form
+  (`oldsrv-domen-vps`) included. A `--seat` naming a seat this host does not have is a usage refusal,
+  never a run of nothing that prints `IN SYNC`.
+  From the seat, run that seat's own plane list locally — the same commands `planes_for_seat oldsrv`
+  prints, in the same order, from the same clone (pre-flight still applies: the clone must be at
+  `origin/main`). One seat-side failure is NOT the repo's fault:
   the `models` plane resolves credentials at render time, so a `TLS handshake timeout` from `op` is a
   transient 1Password/network fault — retry it, and never reach for `--keep-legacy-credentials`, which
   would paper over a provider the spec expects to be managed.
