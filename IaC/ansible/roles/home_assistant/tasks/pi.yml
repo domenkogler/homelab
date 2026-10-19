@@ -17,12 +17,13 @@
     mode: '0644'
   tags: [ha_recorder, hd19]
 
-# ---- HD-418: the proxy trust list HA ENFORCES is the storage object, not the YAML above ----
+# ---- The proxy trust list HA ENFORCES is the storage object, not the YAML above ----
 # `yaml_migration_done: true` in `.storage/http` means the `http:` integration read its YAML once in
 # September and has owned the running value ever since: `.storage/http` is the effective config and
 # the rendered `configuration.yaml` block is decoration. An address can be in the YAML, survive every
 # converge, and still get `400 Bad Request` — HA refuses `X-Forwarded-For` from a peer outside the
-# list it loaded, which is the whole HD-418 symptom (the standby/oldsrv edge `10.10.1.30` was in the
+# list it loaded, which is the whole symptom (the standby/oldsrv edge — the address named by
+# `oldsrv_home_ip` — was in the
 # YAML and missing from the object, so every takeover-shaped request died at the edge).
 # ⛔ Do not "fix" this by editing the YAML or by stripping the header at the edge: the object is the
 # source and the trust list is the fix (docs/smart-home-rejected.md, docs/smart-home-failover.md
@@ -30,8 +31,8 @@
 # names the address that is missing. This block reconciles BOTH `stable` and `pending` — `pending`
 # carries `error: not_promoted` and would be promoted over the reconciled `stable` on the next
 # migration event, so reconciling only `stable` would leave the fix undone by HA itself.
-# The ACTIVE node only: pi.yml is the primary, and the standby half of HD-418 has no subject while
-# HD-1109's standby is UNDEPLOYED (no `home-assistant-standby` container exists on oldsrv to reconcile).
+# The ACTIVE node only: pi.yml is the primary, and the standby half of this work has no subject while
+# the standby is UNDEPLOYED (no `home-assistant-standby` container exists on oldsrv to reconcile).
 - name: Read HA's http storage object before touching it
   # `get_checksum` makes this the recorded hash of the state being replaced, and `stat` is a read that
   # really runs under --check, so the check-mode report quotes the live hashes too.
@@ -149,8 +150,8 @@
   tags: [ha_render, hd418]
 
 - name: Reload HA so it loads the reconciled trust list
-  # The accepted cost of HD-418 (owner-authorized 2026-10-08: the restart may run unattended in the
-  # overnight window; short voice outage). A TASK, not a handler, and that is load-bearing: handlers
+  # The accepted cost here: the restart was authorized to run unattended in an overnight window (a short
+  # voice outage; read HA's active conversations first). A TASK, not a handler, and that is load-bearing: handlers
   # flush at the END of the play, i.e. after the read-back below, which would then be reading a file HA
   # had not loaded yet — act and assert in one run, the scripts/README.md guarded-converge lesson. Only
   # the HA container restarts: `docker restart` on the one name leaves the co-located keepalived (the

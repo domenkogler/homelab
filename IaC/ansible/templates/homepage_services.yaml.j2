@@ -31,7 +31,7 @@
 # physical moves, Homematic rides the cloud HAP. `failover_api_url` is the oldsrv HOME-VLAN
 # address, so the card works from a device on the home network and reaches nothing from away.
 # Rendered only when the group_var homepage_failover_button is true, so a button is never dead.
-# ⚠ STATE, measured 2026-10-19 (docs/smart-home-failover.md §Intent vs reality): the standby is
+# ⚠ STATE on the ground (docs/smart-home-failover.md §Intent vs reality): the standby is
 # UNDEPLOYED — oldsrv runs no `home-assistant-standby`/`keepalived` container, and the tag the compose
 # pins is not on that host. So "standby start" below was the lie this line now corrects: a forward click
 # runs `compose up -d`, which CREATES both containers under time pressure and stalls on a registry pull if
