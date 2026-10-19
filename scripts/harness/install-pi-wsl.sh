@@ -17,6 +17,9 @@
 #   bash scripts/harness/install-pi-wsl.sh --pi-only       # pi binary + node, skip config sync
 #   bash scripts/harness/install-pi-wsl.sh --config-only   # deploy repo skills/AGENTS/prompts/packages
 #   bash scripts/harness/install-pi-wsl.sh --reload        # informational: report pi + config state
+#   Anything else exits 2 WITHOUT installing: an unrecognised argument used to fall through to the
+#   full installer (see the guard below `MODE=`), and this installer cannot be pinned — it fetches
+#   `latest`, not `pi_host_npm_version`.
 #
 # SSOT (deploy direction = repo -> ~/.pi/agent). The root update_pi.cmd that did the
 #   Windows half with robocopy is retired (HD-1112): scripts/harness/pi-seat-sync.sh is the path.
@@ -71,6 +74,28 @@ pin TUI_V pi_host_tui_npm_version
 pi_fleet_packages() { seat_pkg_rows "$VERSIONS" | awk -F'\t' '$3=="fleet"{print $2}'; }
 
 MODE="${1:-}"
+
+# ⛔ AN UNKNOWN ARGUMENT MEANS FULL INSTALL HERE, so it is refused before anything runs.
+# This script has no `--check`: `MODE` is only ever compared with `--pi-only`, `--config-only` and
+# `--reload`, so any OTHER first argument falls through to the installer branch, which pipes
+# `https://pi.dev/install.sh` into `sh`. Measured the hard way on the WSL seat 2026-10-19: typing the
+# shape every sibling script answers to (`install-pi-wsl.sh --check`, the spelling HD-1118's own
+# from-zero leg uses for `install-pi-debian.sh --check`) downloaded the managed installer,
+# `npm install`ed 119 packages into a staging tree and created `~/.pi/agent/install/{releases,staging}`
+# on a box that was only meant to be READ. The pin survived only because the smoke test disagreed
+# (`Managed Pi smoke test returned version 1.1.0; expected 1.3.0` — the pi.dev installer takes no
+# version, so what it fetches is `latest`, not `pi_host_npm_version`). §7, fail loud: a mode this
+# file does not know is a STOP, never a default.
+case "$MODE" in
+  ''|--pi-only|--config-only|--reload) ;;
+  *)
+    printf 'error: unknown mode %s — refusing.\n' "$MODE" >&2
+    printf '  anything this script does not name INSTALLS (curl -fsSL https://pi.dev/install.sh | sh),\n'
+    printf '  so it will not guess. Known: (full) · --pi-only · --config-only · --reload (read-only report).\n' >&2
+    printf '  There is NO --check here: the read-only leg is install-pi-debian.sh --check, and on a seat\n'
+    printf '  already built the report form is `bash scripts/harness/pi-seat-sync.sh --check`.\n' >&2
+    exit 2 ;;
+esac
 
 say()  { printf '\n== %s\n' "$*"; }
 info() { printf '    %s\n' "$*"; }
