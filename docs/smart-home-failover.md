@@ -339,11 +339,22 @@ Forward-Auth. Direct fallback `pi:5380` on the LAN.
   (WAN loss is not a failover trigger and is not required in fallback).
 - **`trusted_proxies`:** HA must trust every edge that fronts it so real client IPs are preserved.
   `ha_trusted_proxies` (`group_vars/all/main.yml`) renders the list and includes the oldsrv Home-IP.
+  ⚠ **The rendered `configuration.yaml` is not what HA enforces here.** Once the `http` integration has
+  migrated its YAML into `.storage`, HA reads `http` from `<config>/.storage/http` and the YAML block
+  becomes decoration: a value can be present in every rendered `configuration.yaml`, survive every
+  converge, and still not be in the trust list the running process consults. Read the effective list
+  from the storage object on the **active** node — `jq '.data["http"].trusted_proxies
+  | to_entries[] | .value' /opt/home-assistant-primary/config/.storage/http` — and diff it against what
+  `ha_trusted_proxies` renders. Extending `ha_trusted_proxies` alone does NOT change the running list:
+  the storage object has to be reconciled, which is a config write plus a **restart** of the HA
+  container (an owner-window act, not a converge side effect).
   ⚠ **Configured, not proven:** HA answers `400 Bad Request` to an `X-Forwarded-For` from any source outside
   its trust list, so a takeover-shaped request can still fail. The fix is to keep every HA-fronting edge's
-  address in `ha_trusted_proxies` — never to strip the header ([smart-home-rejected.md](smart-home-rejected.md)).
-  Read the **active** HA host's rendered `configuration.yaml` before concluding; the standby edge proves
-  nothing until a request shaped like a takeover returns 200.
+  address in the effective list — never to strip the header ([smart-home-rejected.md](smart-home-rejected.md)).
+  The instrument is the request, not the file: probe the **active** HA with the standby edge's source
+  address in `X-Forwarded-For` and read the code. `200` = trusted, `400 untrusted proxy X` = names the
+  exact address that is missing. The standby edge proves nothing until a request shaped like a takeover
+  returns 200.
 
 ---
 

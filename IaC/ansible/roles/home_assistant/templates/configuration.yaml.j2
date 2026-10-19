@@ -4,6 +4,11 @@
 
 # ---- Reverse proxy (Traefik) ----
 # Both edges must be trusted so HA sees real client IPs.
+# ⚠ This list is what HA reads only until the `http` integration's YAML has migrated into storage.
+# After that `.storage/http` wins and the rendered block below is decoration: an address can appear
+# here, survive every converge, and still answer `400 untrusted proxy`. Read the effective list from
+# the storage object on the active node, and reconcile it there — a converge of this file alone
+# changes nothing running.
 http:
   use_x_forwarded_for: true
   # Trust only the specific Traefik edge container IPs, not the whole traefik-public /16 —
