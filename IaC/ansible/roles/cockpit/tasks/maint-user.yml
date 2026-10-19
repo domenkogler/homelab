@@ -84,6 +84,11 @@
   register: cockpit_maint_hash
   changed_when: false
   no_log: true
+  check_mode: false   # A hash computation, not a mutation: nothing here touches the box. It is
+                      # also one of the contract assert's inputs, and a SKIPPED read-back yields an
+                      # empty stdout, so under `--check` this task alone made
+                      # `installed-hash-differs-from-vault-value` fire on a host whose hash agrees
+                      # with the vault — the same structural red the read-backs below carry.
 
 - name: Provision {{ cockpit_maint_user }} with its exact group set
   ansible.builtin.user:
@@ -128,6 +133,8 @@
   # host. What must hold is that the module exists somewhere.
   failed_when: cockpit_pam_module.stdout | length == 0
   changed_when: false
+  check_mode: false   # A read of the filesystem; running it under --check is what lets --check
+                      # name a missing PAM module instead of quietly writing a gate line for nothing
   when: cockpit_maint_pam_gate | bool
 
 - name: Refuse to edit the PAM stack if the anchor line is not where we think it is
@@ -138,6 +145,8 @@
     cmd: grep -qE '^auth[[:space:]]+required[[:space:]]+pam_sepermit\.so' /etc/pam.d/cockpit
   register: cockpit_pam_anchor
   changed_when: false
+  check_mode: false   # A `grep` on the target — a read. Skipping it under --check would let a run
+                      # report "would insert the gate line" for a file whose anchor is not there
   failed_when: cockpit_pam_anchor.rc != 0
   when: cockpit_maint_pam_gate | bool
 
