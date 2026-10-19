@@ -17,6 +17,207 @@
     mode: '0644'
   tags: [ha_recorder, hd19]
 
+# ---- HD-418: the proxy trust list HA ENFORCES is the storage object, not the YAML above ----
+# `yaml_migration_done: true` in `.storage/http` means the `http:` integration read its YAML once in
+# September and has owned the running value ever since: `.storage/http` is the effective config and
+# the rendered `configuration.yaml` block is decoration. An address can be in the YAML, survive every
+# converge, and still get `400 Bad Request` — HA refuses `X-Forwarded-For` from a peer outside the
+# list it loaded, which is the whole HD-418 symptom (the standby/oldsrv edge `10.10.1.30` was in the
+# YAML and missing from the object, so every takeover-shaped request died at the edge).
+# ⛔ Do not "fix" this by editing the YAML or by stripping the header at the edge: the object is the
+# source and the trust list is the fix (docs/smart-home-rejected.md, docs/smart-home-failover.md
+# §Caveats). The instrument is the REQUEST: `200`/`401` = the source is trusted, `400 untrusted proxy X`
+# names the address that is missing. This block reconciles BOTH `stable` and `pending` — `pending`
+# carries `error: not_promoted` and would be promoted over the reconciled `stable` on the next
+# migration event, so reconciling only `stable` would leave the fix undone by HA itself.
+# The ACTIVE node only: pi.yml is the primary, and the standby half of HD-418 has no subject while
+# HD-1109's standby is UNDEPLOYED (no `home-assistant-standby` container exists on oldsrv to reconcile).
+- name: Read HA's http storage object before touching it
+  # `get_checksum` makes this the recorded hash of the state being replaced, and `stat` is a read that
+  # really runs under --check, so the check-mode report quotes the live hashes too.
+  ansible.builtin.stat:
+    path: /opt/home-assistant-primary/config/.storage/http
+    get_checksum: true
+    checksum_algorithm: sha256
+  register: ha_http_storage_before
+  changed_when: false
+  tags: [ha_render, hd418]
+
+- name: Slurp HA's http storage object
+  ansible.builtin.slurp:
+    path: /opt/home-assistant-primary/config/.storage/http
+  register: ha_http_storage_raw
+  changed_when: false
+  when: ha_http_storage_before.stat.exists
+  tags: [ha_render, hd418]
+
+- name: Derive what HA enforces today against what this host renders
+  # The comparison is exact, order included, because the write below emits `ha_trusted_proxies` in the
+  # order it is declared — so a converged box compares equal on the next run instead of rewriting the
+  # object and restarting the controller every converge.
+  ansible.builtin.set_fact:
+    ha_http_obj: "{{ ha_http_storage_raw.content | default('{}') | b64decode | from_json }}"
+  when: ha_http_storage_before.stat.exists
+  tags: [ha_render, hd418]
+
+- name: Refuse to rewrite a storage object this task does not understand
+  # Fail-loud, not decoration: an object without `data.stable` is a different HA major's shape, and
+  # writing a `stable` block HA never had would invent config rather than reconcile it.
+  ansible.builtin.assert:
+    that:
+      - ha_http_obj.key | default('') == 'http'
+      - ha_http_obj.data.stable is defined
+    fail_msg: >-
+      {{ inventory_hostname }}: .storage/http is not the http settings object this task reconciles
+      (key '{{ ha_http_obj.key | default('<none>') }}', data.stable
+      {{ 'present' if ha_http_obj.data.stable is defined else 'ABSENT' }). The effective trusted-proxies
+      list therefore cannot be derived — reconcile it by hand from the HA UI or a documented object
+      edit, and fix this task before converging it. Read the object with
+      `python3 -m json.tool /opt/home-assistant-primary/config/.storage/http`.
+    quiet: true
+  when: ha_http_storage_before.stat.exists
+  tags: [ha_render, hd418]
+
+- name: Decide whether the enforced trust list differs from the rendered one
+  ansible.builtin.set_fact:
+    ha_http_want: "{{ ha_trusted_proxies }}"
+    ha_http_stable_now: "{{ ha_http_obj.data.stable.trusted_proxies | default([]) }}"
+    ha_http_pending_now: "{{ (ha_http_obj.data.pending.trusted_proxies | default([])) if ha_http_obj.data.pending is defined else [] }}"
+    ha_http_drift: >-
+      {{ (ha_http_obj.data.stable.trusted_proxies | default([])) != ha_trusted_proxies
+         or ((ha_http_obj.data.pending.trusted_proxies | default([])) != ha_trusted_proxies
+             if ha_http_obj.data.pending is defined else false) }}
+  when: ha_http_storage_before.stat.exists
+  tags: [ha_render, hd418]
+
+- name: Report the trust list HA is enforcing on this node
+  # Under --check this line IS the verdict: nothing below runs, so the check output has to carry the
+  # whole answer (the same split as the nm-resolver and /var/log legs).
+  ansible.builtin.debug:
+    msg: >-
+      .storage/http on {{ inventory_hostname }}: stable {{ ha_http_stable_now | default(['<unreadable>']) }}
+      | pending {{ ha_http_pending_now | default(['<none>']) }}
+      | rendered {{ ha_trusted_proxies }}
+      | {{ 'DRIFT — a proxied request from an address in the second list gets 400 untrusted proxy' if ha_http_drift | default(false) | bool else 'in step' }}
+      (sha256 {{ ha_http_storage_before.stat.checksum | default('<no file>') | truncate(12, true) }})
+      {{ ' — --check: nothing written, HA not restarted' if ansible_check_mode else '' }}
+  when: ha_http_storage_before.stat.exists
+  tags: [ha_render, hd418]
+
+- name: Keep a root-only copy of the object this run is about to replace
+  # The write touches a file HA owns, so the pre-write state is kept, timestamped, mode 0600, and its
+  # hash is printed into the converge log — the rollback needs no memory of what was there.
+  ansible.builtin.command:
+    cmd: |
+      set -eu
+      PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+      D=/var/backups/ha-storage
+      S=/opt/home-assistant-primary/config/.storage/http
+      install -d -m 0700 "$D"
+      F="$D/http.{{ now().strftime('%Y%m%dT%H%M%S') }}.pre-hd418.json"
+      install -m 600 "$S" "$F"
+      sha256sum "$S" "$F"
+  args:
+    executable: /bin/bash
+  register: ha_http_backup
+  when:
+    - ha_http_storage_before.stat.exists
+    - ha_http_drift | default(false) | bool
+    - not ansible_check_mode
+  changed_when: true
+  tags: [ha_render, hd418]
+
+- name: Reconcile the enforced trusted proxies with the list this host renders
+  # Only the blocks the object actually has get rewritten; every other key (server_port, ssl_profile,
+  # cors_allowed_origins, created_at, pending.error) is carried through untouched.
+  ansible.builtin.copy:
+    dest: /opt/home-assistant-primary/config/.storage/http
+    owner: root
+    group: root
+    mode: '0600'
+    content: "{{ ha_http_reconciled | to_nice_json }}\n"
+  vars:
+    ha_http_reconciled: >-
+      {{ ha_http_obj | combine({'data': ha_http_obj.data | combine(
+        {'stable': ha_http_obj.data.stable | combine({'trusted_proxies': ha_trusted_proxies})},
+        {'pending': ha_http_obj.data.pending | combine({'trusted_proxies': ha_trusted_proxies})}
+          if ha_http_obj.data.pending is defined else {}
+      )}, recursive=False) }}
+  when:
+    - ha_http_storage_before.stat.exists
+    - ha_http_drift | default(false) | bool
+  tags: [ha_render, hd418]
+
+- name: Reload HA so it loads the reconciled trust list
+  # The accepted cost of HD-418 (owner-authorized 2026-10-08: the restart may run unattended in the
+  # overnight window; short voice outage). A TASK, not a handler, and that is load-bearing: handlers
+  # flush at the END of the play, i.e. after the read-back below, which would then be reading a file HA
+  # had not loaded yet — act and assert in one run, the scripts/README.md guarded-converge lesson. Only
+  # the HA container restarts: `docker restart` on the one name leaves the co-located keepalived (the
+  # VIP advertiser) and every sibling container alone, so the VIP does not move.
+  ansible.builtin.command:
+    cmd: docker restart home-assistant-primary
+  when:
+    - ha_http_drift | default(false) | bool
+    - not ansible_check_mode
+  changed_when: true
+  tags: [ha_render, hd418]
+
+- name: Wait for the smart-home controller to answer again
+  # No XFF header here, so this cannot be a 400: it asks only "is HA back" after the restart — an
+  # unauthenticated /api/ is a 401, a booting HA is retried. `127.0.0.1` because this must not depend
+  # on the VIP or on DNS to report its own health.
+  ansible.builtin.uri:
+    url: http://127.0.0.1:8123/api/
+    status_code: [200, 401]
+    timeout: 10
+  register: ha_http_up
+  until: ha_http_up.status | default(0) in [200, 401]
+  retries: 30
+  delay: 5
+  changed_when: false
+  when:
+    - ha_http_drift | default(false) | bool
+    - not ansible_check_mode
+  tags: [ha_render, hd418]
+
+- name: Read the object back after HA has reloaded it
+  ansible.builtin.slurp:
+    path: /opt/home-assistant-primary/config/.storage/http
+  register: ha_http_storage_after
+  changed_when: false
+  when:
+    - ha_http_drift | default(false) | bool
+    - not ansible_check_mode
+  tags: [ha_render, hd418]
+
+- name: Assert HA now enforces the address every HA-fronting edge arrives from
+  # rc=0 on the copy proves only that the file was written. The object is the evidence (the same rule
+  # as the nm-resolver leg), and it is skipped under --check on purpose: nothing was written, so the
+  # file legitimately still holds the old list and the report line above is the check verdict.
+  ansible.builtin.assert:
+    that:
+      - (ha_http_after_obj.data.stable.trusted_proxies | default([])) == ha_trusted_proxies
+      - ((ha_http_after_obj.data.pending.trusted_proxies | default([])) == ha_trusted_proxies)
+        if ha_http_after_obj.data.pending is defined else true
+    fail_msg: >-
+      {{ inventory_hostname }}: .storage/http does not carry the rendered trust list after the
+      reconcile — HA will keep answering 400 untrusted proxy for the edge that is missing. Actual
+      stable: {{ (ha_http_after_obj.data.stable.trusted_proxies | default(['<unreadable>'])) }}
+      pending: {{ (ha_http_after_obj.data.pending.trusted_proxies | default(['<none>'])) }}
+      want: {{ ha_trusted_proxies }}.
+      Rollback: `install -m 600 <backup> /opt/home-assistant-primary/config/.storage/http`
+      (backup path and hash are in this run's log), then `docker restart home-assistant-primary`.
+      The request that proves it: `curl -sk -H 'Host: ha.kogler.si' -H 'X-Forwarded-For: 203.0.113.1'
+      http://<edge-address>:8123/api/` — 400 names the address still missing.
+    quiet: true
+  vars:
+    ha_http_after_obj: "{{ ha_http_storage_after.content | default('{}') | b64decode | from_json }}"
+  when:
+    - ha_http_drift | default(false) | bool
+    - not ansible_check_mode
+  tags: [ha_render, hd418]
+
 # ---- Lovelace dashboard (Stanovanje, YAML mode) ----
 # Root + views are rendered under /config/lovelace/ (relative !include resolution).
 - name: Create lovelace directory

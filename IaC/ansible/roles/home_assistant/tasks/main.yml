@@ -90,7 +90,7 @@
   # role (`home_servers.yml`, `raspberry_pi.yml`) do so BARE, so there is no roles:-entry cascade to
   # lean on; the compound `--tags home_assistant,ha_failover` form keeps working unchanged.
   tags: [home_assistant, ha_render, ha_failover, ha_recorder, pi_sd_trim, lovelace, knx,
-         hd17, hd19, hd185, hd204]
+         hd17, hd19, hd185, hd204, hd418]
 
 - name: Standby + failover tasks (oldsrv)
   ansible.builtin.include_tasks: standby.yml
