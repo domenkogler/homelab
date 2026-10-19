@@ -444,6 +444,51 @@ automation path that was designed to be read-only.
 > (`--list`) — counts are derived, never hand-entered (CONVENTIONS §2).
 > Future / not-yet-created: `n8n-smtp_login` (SMTP relay — provider not chosen yet, see deployment.md), `ha_mqtt` / `ha-mqtt_login` (if MQTT added to HA), `proxmox_root` / `proxmox_login` (Phase 2).
 
+### Catalog-vs-vault completeness read (HD-442, 2026-10-19, seat service account, read-only)
+
+The row's (a) leg said the read could not run because "`op` is not authenticated on the laptop". **It is now** —
+the seat carries an `OP_SERVICE_ACCOUNT_TOKEN` and `op whoami` answers `User Type: SERVICE_ACCOUNT` against
+`my.1password.eu`, so the read ran. **No value and no fingerprint of a live secret was printed by any command
+below; counts, titles, item ids and field lengths only. Nothing was revoked, edited or rotated.**
+
+| Read | Result |
+|---|---|
+| `provision-secrets.py` `CATALOG` entries | **54** names, all unique. The row's "catalog's 75 vault ids" is stale prose — the catalog is 54, not 75 |
+| `op item list --vault Homelab-ansible` | **140** items |
+| catalog − vault | **0** — every catalog name resolves in the vault, and `op item get <title>` returned rc 0 for all 54 (no `More than one item matches`, so no duplicate-title outage either) |
+| vault − catalog | **86** items — the expected classes: SSH-key items, provider logins, OIDC items the egress glue seeds, hand-minted `*_api` bearers. A delta by class, not a leak; `check-vault-items.sh` measures the other direction (required-vs-present) and stays informational |
+| field shape of the 54 | **4 items carry an empty `credential` field beside a populated 32-char `password`**: `openclaw_gateway_token`, `victoria-metrics_api`, `victoria-logs_api`, `tube-archivist-es`. **Not a defect** — every consumer reads `field='username'`/`field='password'` (e.g. `roles/monitoring/tasks/main.yml` renders the Grafana datasource with `field='username'`), and [1password.md](1password.md) already states that the Victoria pair rotates `username`+`password` in lockstep. The empty field is a vestigial API-key slot on an item that is not an API-key item. The trap it *would* become is a lookup with `field='api'`/`field='credential'` — the `cockpit-pi-web_api` row above is that bug already documented, so the shape difference is worth knowing and worth nothing more |
+
+**Verdict on the row's (b) leg: no disagreement was found, so nothing is revoked.** Both token-dependent oldsrv
+paths were accounted for on 2026-10-05; this pass adds only the correction that the completeness half was never
+owner-gated — it was a command that had not been run.
+
+Reproduce it in one pass (needs `OP_SERVICE_ACCOUNT_TOKEN` in the environment; prints counts, titles and field
+lengths, never values):
+
+```bash
+python3 - <<'PYEOF'
+import importlib.util, json, subprocess
+spec = importlib.util.spec_from_file_location("p", "scripts/secrets/provision-secrets.py")
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+cat = [n for (_c, n, _f) in m.CATALOG]
+vault = {i["title"]: i["id"] for i in json.loads(subprocess.run(
+    ["op", "item", "list", "--vault", "Homelab-ansible", "--format", "json"],
+    capture_output=True, text=True).stdout)}
+print("catalog", len(cat), "vault", len(vault))
+print("missing from vault:", [n for n in cat if n not in vault])
+for n in cat:                                  # item get, not list: list is not a substitute
+    r = subprocess.run(["op", "item", "get", n, "--vault", "Homelab-ansible",
+                        "--format", "json"], capture_output=True, text=True)
+    if r.returncode:
+        print("GET-FAIL", n, r.stderr.strip()[:80]); continue
+    d = json.loads(r.stdout)
+    empty = [f["label"] for f in d["fields"]
+             if f["label"] in ("password", "credential", "api", "token") and not f.get("value")]
+    if empty: print("EMPTY FIELD", n, empty)    # labels only, never values
+PYEOF
+```
+
 ### Item titles are load-bearing — they are the primary key
 
 1Password resolves items **by title** for every consumer here (`op read op://vault/item/field`,

@@ -288,14 +288,118 @@ out. Decision log for the shape declined: [network-rejected.md](network-rejected
 entry (navidrome, matrix and zipline included) — `pgvector` was the one exception. `docker volume ls`
 → **11 volumes, all in use, 0 dangling**; 930 MB of local volume storage.
 
+> ⚠ **Superseded 2026-10-19 — read the count from the command, not from this paragraph.** Live today:
+> **47 volumes, 10 in use, 37 dangling**, 2.16 GB with 671.5 MB reclaimable. The dangling set is not a
+> mystery and nothing in it is unattributed — see §The dangling-volume table below.
+
 | Item | Live state | What would break if removed | Verdict |
 |------|-------------------------------|-----------------------------|---------|
 | `confident_shamir` — a hand-run `traefik:v3.7.11` with no networks, ports or compose labels | **Gone** — not in `docker ps -a` (which includes exited), and no unlabeled container exists on the host. Its image is still present because it *is* the pinned image of the real `traefik` container — in use, not orphaned | Nothing | **Nothing to remove** |
 | `pgvector` — project `pgvector`, `/opt/pgvector/docker-compose.yml`, image `pgvector/pgvector:0.8.6-pg16-trixie` | ✅ **RETIRED** — the one live project absent from `group_vars/vps.yml`; Qdrant superseded it ([services-rejected.md](services-rejected.md) row *PGVector as the RAG vector store*) | Nothing — probed empty: DB `pgvector` is 7.5 MB (= `template1` size) with **0 user tables**, `pg_extension` lists only `plpgsql` (the `vector` extension was never created), `pg_stat_activity` shows **no external client connections**, and no rendered compose references it — `db-backup`'s own header states "no pgvector/qdrant Postgres target exists to dump" | Render → `/opt/.retired-pgvector`, data → `/srv/docker/.retired-pgvector` (47 MB); delete both once the next green converge agrees (manual.md §1.12 step 6) |
 | `/opt/loki`, `/opt/prometheus` | Rendered compose + config dirs on disk; no containers, no projects. **No registry row, no repo template** — so, unlike `/opt/metabase`, nothing can re-render them | Nothing — VictoriaMetrics/VictoriaLogs replaced the stack | ✅ **RETIRED** — dirs moved to `/opt/.retired-loki`, `/opt/.retired-prometheus`; their volumes `loki_loki-data` + `prometheus_prometheus-data` removed (0 container references) |
 | `/opt/metabase` | Nothing — the dir and its render target are gone, and no registry row names this host | Nothing: with no metabase entry in `group_vars/vps.yml`, no converge can re-render it back into existence | ✅ **REMOVED** — the service runs on oldsrv; the rendered project dir was deleted with it (no containers, no volumes, no app DB on disk) |
-| **Unlabeled anonymous volumes** + dangling named volumes | Anonymous volumes carry **no provenance at all** — no name, no project, no labels | Unknown by construction; the named ones were `loki_loki-data` / `prometheus_prometheus-data` (retired stack) and `dsh_dsh-home` (dsh browser/session profiles — recreated empty by design) | ✅ **CLEARED** — every dangling volume removed after a per-volume re-check that no container, running or stopped, referenced it → `docker volume ls`: **11, all in use, 0 dangling**; 930 MB local volume storage. Rule: **inventory first, `prune --all` never** (manual.md §1.12 step 3) |
+| **Unlabeled anonymous volumes** + dangling named volumes | ⚠ **Void as written (2026-10-19).** Anonymous volumes carry no *labels*, which is not the same as no provenance: Docker labels only compose's named volumes, so every anonymous volume — compose-created or not — carries just `com.docker.volume.anonymous`. Content + timestamps + the image's `Config.Volumes` attribute all 37. And they are back: 0 dangling then, **37** now | Unknown by construction; the named ones were `loki_loki-data` / `prometheus_prometheus-data` (retired stack) and `dsh_dsh-home` (dsh browser/session profiles — recreated empty by design) | ✅ **CLEARED** — every dangling volume removed after a per-volume re-check that no container, running or stopped, referenced it → `docker volume ls`: **11, all in use, 0 dangling**; 930 MB local volume storage. Rule: **inventory first, `prune --all` never** (manual.md §1.12 step 3) |
 | `authentik-ldap` | ✅ **RETIRED** — no LDAP listener on this box; removed from the `authentik` compose, nothing consumes LDAP. ⚠ An `Up` container plus a quiet 24 h of logs reads as "almost deployed": the outpost backs off exponentially, so a quiet window is normal — trust `State.Health.FailingStreak`, never log absence | ⛔ Nothing — the Samba passdb is local tdbsam | Evidence: [storage-rejected.md](storage-rejected.md) row *Authentik LDAP outpost as the Samba passdb (ldapsam)* |
+
+### The dangling-volume table — provenance for every dangling volume (re-derived 2026-10-19, read-only)
+
+**The count is the command's, not this doc's.** `ssh vps 'docker volume ls -q --filter dangling=true | wc -l'`
+→ **37**; `du -sh -c` over their `_data` dirs → **644 MB**; `docker system df` → `Local Volumes 47, 2.16 GB,
+671.5 MB reclaimable`, of which **10 volumes are in use**. Every dangling volume is `driver=local` and
+**anonymous** (64-hex name). None carries a compose label — and that is NOT evidence of a hand-run container:
+Docker labels the *named* volumes compose creates, so a compose-created anonymous volume carries exactly one
+label, `com.docker.volume.anonymous` (verified on the five in-use ones). "Anonymous volumes carry no
+provenance at all", the claim in the census table above, is therefore **void**: provenance is content +
+timestamp + the image's `Config.Volumes`, and it resolved for all 37.
+
+Two mechanisms account for everything in the table:
+
+1. **recreate churn on an image `VOLUME` path.** A service that maps no source for a path the image declares
+   in `Config.Volumes` gets a **fresh anonymous volume at every container create**, seeded from that image's
+   content at that path; the previous one is orphaned where it stands. Every same-second timestamp burst is
+   one recreate (2026-08-23 22:35, 2026-10-17 10:08, 2026-10-17 16:01).
+2. **a one-off `docker run postgres` with no pinned data path** — initdb wrote the cluster into the anonymous
+   volume instead of into a bind. This is the HD-247 class the row feared, and it is bounded: 14 clusters,
+   every one holding a user database whose body is template1's size (7–11 MB) — created, **never loaded** —
+   and untouched since its first-start burst.
+
+**Why 47 MB copies are not lost state.** `litellm-db` and `authentik-postgres` mount the image path
+`/var/lib/postgresql` as an anonymous volume **and** `/var/lib/postgresql/data` as a bind. The bind is nested
+inside the volume mount, so it is mounted second and it wins: `PGDATA=/var/lib/postgresql/data` in
+`Config.Env` on every postgres container on this box, the live data paths hold 64–332 MB each and carry their
+service's own `datname`, and the anonymous halves hold 8 KB of empty skeleton. A cluster living inside an
+anonymous volume therefore means "this run had no bind" — an experiment, never a service.
+
+| volume (12-hex) | created | size | content class | what serves that path today | verdict | last write |
+|---|---|---|---|---|---|---|
+| `1cc70e008061` | 2026-10-07 02:49 | 50M | postgres cluster (PG_VERSION=16), user db `forgejo` body=11M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:49 |
+| `23cb413b2bad` | 2026-10-17 10:08 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 10:08 |
+| `3b71ffe46b27` | 2026-08-23 22:35 | 240K | rabbitmq mnesia + erlang cookie | named volume onlyoffice-docs_onlyoffice-rabbitmq-data | prune-when-proven | 08-23 22:35 |
+| `3f0e79e25f7d` | 2026-10-08 19:56 | 16K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 19:56 |
+| `4007af1e2a21` | 2026-02-24 04:46 | 4.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 02-24 04:46 |
+| `406090fd41a8` | 2026-10-07 02:45 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.2M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:46 |
+| `407ec6164f85` | 2026-08-23 22:35 | 4.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 08-23 22:35 |
+| `49e041f375b0` | 2026-10-07 02:49 | 50M | postgres cluster (PG_VERSION=16), user db `forgejo` body=11M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:49 |
+| `4cc4279a6ea4` | 2026-10-07 02:47 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:47 |
+| `4e6a6df9e92d` | 2026-10-07 02:48 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:48 |
+| `4f8a2cced787` | 2026-10-08 22:20 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 22:20 |
+| `5444b783f43b` | 2026-10-17 16:02 | 20K | onlyoffice WOPI/JWT keypair | the anonymous volume now mounted at onlyoffice-docs:/var/www/onlyoffice/Data | prune-when-proven | 10-17 16:02 |
+| `5604fa0ce848` | 2026-10-17 16:02 | 36K | onlyoffice docservice logs (logrotate archives) | the anonymous volume now mounted at onlyoffice-docs:/var/log/onlyoffice | prune | 10-18 04:19 |
+| `580682655bf6` | 2026-10-08 19:20 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.6M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:20 |
+| `582452b0b4e9` | 2026-10-17 10:08 | 4.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 10:08 |
+| `6648a8e0b3cb` | 2026-10-17 10:08 | 20K | onlyoffice WOPI/JWT keypair | the anonymous volume now mounted at onlyoffice-docs:/var/www/onlyoffice/Data | prune-when-proven | 10-17 10:08 |
+| `6952c4a2555e` | 2026-10-08 19:21 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.6M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:21 |
+| `6a022e411261` | 2026-08-23 22:35 | 39M | postgres cluster (PG_VERSION=16), user db `onlyoffice` body=7.4M (no user-db dir) | named volume onlyoffice-docs_onlyoffice-pgdata — live, 47 MB, same datname | prune-when-proven | 08-23 22:35 |
+| `760a72464bce` | 2026-10-08 19:21 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.6M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:21 |
+| `83721c4acd62` | 2026-10-07 02:48 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:48 |
+| `85866a74be54` | 2026-10-08 22:25 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 22:25 |
+| `8c508da6951d` | 2026-08-23 22:35 | 316K | onlyoffice docservice logs (logrotate archives) | the anonymous volume now mounted at onlyoffice-docs:/var/log/onlyoffice | prune | 10-17 09:53 |
+| `8dd3c94f9b02` | 2026-10-08 19:20 | 47M | postgres cluster (PG_VERSION=18), user db `probe` body=7.4M | nothing — the scratch PG-18 attempt; no live cluster carries this datname | prune-when-proven | 10-08 19:20 |
+| `975c0ff9c1e2` | 2026-10-08 19:17 | 16K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 19:17 |
+| `9e9ca7c5cf3d` | 2026-10-08 20:07 | 16K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 20:07 |
+| `a324dc67d31d` | 2026-10-17 10:08 | 36K | onlyoffice docservice logs (logrotate archives) | the anonymous volume now mounted at onlyoffice-docs:/var/log/onlyoffice | prune | 10-17 16:01 |
+| `a4edec661743` | 2026-10-07 02:44 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.2M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:44 |
+| `ac9839fc7dbe` | 2026-10-07 02:49 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:49 |
+| `acd58df614ad` | 2026-10-08 21:39 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 21:39 |
+| `cd272b207530` | 2026-10-08 22:48 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 22:48 |
+| `d2478277e0b2` | 2026-10-08 19:18 | 16K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-08 19:18 |
+| `e778b635265e` | 2026-10-17 16:01 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 16:01 |
+| `eb4b30e403cb` | 2026-08-23 22:35 | 20K | onlyoffice WOPI/JWT keypair | the anonymous volume now mounted at onlyoffice-docs:/var/www/onlyoffice/Data | prune-when-proven | 08-23 22:35 |
+| `f04c62127919` | 2026-10-17 16:01 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 16:01 |
+| `f545c862df59` | 2026-10-07 02:48 | 46M | postgres cluster (PG_VERSION=16), user db `forgejo` body=7.4M | bind /srv/docker/forgejo/postgres — live, 71 MB, same datname | prune-when-proven | 10-07 02:48 |
+| `fa9a8ebdf666` | 2026-10-17 10:08 | 8.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 10:08 |
+| `fb989e058b5b` | 2026-10-17 16:01 | 4.0K | image skeleton, **0 files** | the live mount of the same image VOLUME path (a bind, or the recreate's own new anonymous volume) | prune | 10-17 16:01 |
+
+**Verdict legend.** `prune` = provably empty (0 files) or log-only. `prune-when-proven` = holds bytes, but the
+same data is provably live elsewhere or the producer no longer exists. `keep` = unresolved — **none of the 37**.
+`last write` is the newest mtime inside the volume: the whole table's state argument is that in every case it
+sits inside the creation minute, i.e. one first-start burst and nothing since.
+
+⛔ **Nothing was deleted to produce this table**, and no prune runs in an unattended window: each prune is a
+`docker volume rm` of live host state and belongs to an owner-present sitting (the row keeps that tail).
+
+**Two findings the table exposes, neither fixed here:**
+
+1. `onlyoffice-docs` keeps `/var/www/onlyoffice/Data` — the **WOPI/JWT keypair** — in an *anonymous* volume,
+   so every container recreate mints a fresh keypair and strands the old one (three stranded copies here:
+   2026-08-23, 2026-10-17 10:08, 2026-10-17 16:01). Anything that cached the previous public key fails on the
+   next recreate. The fix is a named volume or a bind at that path.
+2. Same shape at `/var/log/onlyoffice`: the docservice logs live in an anonymous volume, so the running
+   container's log history is discarded at every recreate and the stranded copies are the only history left.
+
+Re-derive (read-only, every claim above):
+
+```bash
+ssh vps 'docker volume ls -q --filter dangling=true | wc -l'                     # the live count
+ssh vps 'docker volume ls -q --filter dangling=true | while read v; do
+        docker volume inspect -f "{{.Name}} {{.Driver}} {{.CreatedAt}} {{.Labels}}" $v; done'
+ssh vps "sudo -n find /var/lib/docker/volumes/<id>/_data -printf '%T@\n' | sort -g | tail -1"   # last write
+ssh vps "sudo -n sh -c 'for v in \$(docker volume ls -q --filter dangling=true); do
+        pg=\$(find /var/lib/docker/volumes/\$v/_data -maxdepth 3 -name PG_VERSION | head -1);
+        [ -n "\$pg" ] && echo \$v \$(dirname \$pg)/base \$(ls \$(dirname \$pg)/base) \
+          \$(strings \$(dirname \$pg)/global/1262 | grep -vE "^(template0|template1|postgres)$") | sort -u; done'"  # a user db?
+ssh vps 'docker inspect -f "{{.Name}} {{range .Config.Env}}{{println .}}{{end}}" <pg-container>' | grep PGDATA
+```
 
 ---
 

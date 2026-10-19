@@ -203,6 +203,36 @@ dig +short <resolver> media.kogler.si AAAA                                   # e
 > not by inspection, and by position — a rule far down the chain still matches, so position is part of
 > correctness. Reloading the KNX integration re-establishes the tunnel: that is the symptom fix.
 
+
+### Proving the KNX reply rule — live read (2026-10-19, read-only)
+
+The derivation is confirmed; the counter half is not.
+
+| Read | Result |
+|---|---|
+| `/ip firewall address-list print where list=trusted-ha` | **5 rows**: `oldsrv` ×2 (VLAN 99 + Home), `pi` ×2 (VLAN 99 + Home), `ha-vip` ×1, comments `Trusted HA host: <name>` |
+| the same set, derived | `network_static_hosts \| selectattr('name','in', (groups['raspberry_pi'] + groups['home_servers'] \| map('regex_replace','\\..*$','')) + ['ha-vip'])` over `inventory.ini` (`home_servers: oldsrv.kogler.si`, `raspberry_pi: pi.kogler.si`) → the **same 5 addresses and the same comments**. The live list is the derived list, so the 2026-09-23 Pi widening (HD-438) is not a hand-edit sitting on top of it |
+| `/ip firewall filter print stats detail where comment~"KNX"` | reverse rule (`… replies go to xknx ephemeral port) - HD-438`): **1 packet / 53 bytes**; forward rule *Home → KNX router (new UDP)*: **36 packets / 1 934 bytes** |
+| is the tunnel healthy right now? | yes, by HA's own counters: `sensor.knx_interface_telegrams` = **3611**, `last_updated` inside the last minute, and `sensor.knx_interface_outgoing_telegram_errors` updating too. The half-open symptom this rule exists for is **not** present at read time |
+
+One packet on the reverse rule is *consistent with* first-match-wins — the `established,related` accept above it
+takes every packet after the first, so the new-connection acceptor should be seen once per conntrack lifetime —
+but **1 is not a proof attributed to a controlled read**, and tonight the read could not be made:
+
+- ⚠ **`homeassistant.update_entity` is NOT a GroupValueRead for KNX entities.** `POST
+  /api/services/homeassistant/update_entity {"entity_id":"light.hodnik_luc_on_off_1_1"}` (the HA instance on
+  the Pi, token from 1Password `ha_api`/`credential`, 183 chars) returned `200` with body `[]` in 5 ms and
+  moved neither the entity's `last_updated` (frozen at 2026-10-15) nor either firewall counter. KNX entities
+  are non-polling — state arrives from the bus — so this probe is a no-op. **Do not spend another pass on it.**
+  The same call on a `sensor.*` that is not KNX-backed returns the same `[]`, so a `200` here proves nothing
+  about the bus either way.
+
+⛔ **What is owed, and why it is parked:** exactly one `GroupValueRead` from the Pi with the reverse rule's
+counter read immediately before and after. Both routes to it are privileged on this box: `docker exec` into the
+HA container needs the socket (`root:docker`; the `domen` account is in `sudo` only, and `sudo -n` on the Pi
+answers `a password is required`), and reloading the KNX integration re-establishes the tunnel — which is a
+live act on the bus at night. So it belongs to an owner-present sitting, not to a read-only lane.
+
 Implemented with **address-lists** and **interface lists** in RouterOS.
 
 > **Rule-order invariants (RouterOS is first-match-wins):**

@@ -641,6 +641,15 @@ network_static_hosts:
   - { name: pi,       vlan: 99, ip: "10.10.99.20", mac: "E4:5F:01:26:EF:AA", role: "RPi4 node + DNS tertiary" }
   - { name: oldsrv,   vlan: 99, ip: "10.10.99.30", mac: "70:85:C2:2D:6F:04", dhcp_client: mac, role: "i7-7700K node + DNS secondary" }
   - { name: spark,    vlan: 99, ip: "10.10.99.40", mac: "38:A7:46:78:13:97", role: "DGX Spark GB10 — mgmt-plane (tagged VLAN-99 on the same enP7s7 NIC as Home); static reservation" }
+  # Read off the router: the laptop holds TWO reservations for the SAME NIC MAC —
+  # the VLAN-99 row below (`dhcp-mgmt`, `status=waiting`, last-seen ~6 weeks) and a VLAN-10 `dhcp-10`
+  # reservation that is `status=bound` and is the address every jump-less Home-leg alias actually reaches.
+  # That Home reservation exists in NO file here: `rb4011_hd307_delta.rsc.j2` writes only the dhcp-mgmt one,
+  # and its address sits outside pool-vlan10's range, so it is a pure static. Its siblings on dhcp-10 (nas,
+  # oldsrv, pi) DO come from this table, which is what makes the omission visible. ⏳ OWNER CALL (todo.md, the laptop-reservation row):
+  # give it a row here + a find-guarded `rb4011_*_delta` in the Pi's shape, or drop the reservation and rest
+  # the alias contract on the name. Until that call is made this stays a comment, not a row — a row would be
+  # the decision. Do not type the address into a doc instead: the IP-literal gate reddens it outside this SSOT.
   - { name: laptop-domen, vlan: 99, ip: "10.10.99.80", mac: "48:2A:E3:9D:31:85", role: "Domen's laptop Windows — Mgmt 99 static (vEthernet Mgmt99; no default gw); WSL Debian reaches 99 via Windows route-through (10.10.99.0/24 → 10.10.1.80), opt-in -EnableMgmt99 extra" }
   - { name: laptop-wsl,  vlan: 10, ip: "10.10.1.81",  role: "Domen's WSL Debian — durable runner state = NAT + auto-resolv (no static; eth0 = NAT DHCP; resolv follows Windows), scripts/hardware/wsl-nat-resolv.ps1; 10.10.1.81 was the old bridged static (systemd-networkd), kept as reservation for fallback" }
   # Home VLAN 10

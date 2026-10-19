@@ -596,6 +596,24 @@ Three rules decide every block:
    `ProxyJump vps` added, for when the Home leg is not reachable. The Mgmt leg is never an away path
    (decision A above), and a `10.10.1.x` address **away** is a dead ADDRESS, not a dead host: off-site you
    use the name, never the address.
+
+   > ⚠ **The rule above rests on an address no file in this repo creates (HD-1140, read 2026-10-19).** Off the
+   > router the laptop's Home binding is `server=dhcp-10`, `status=bound`, comment
+   > `laptop-domen static reservation (R-2)`, MAC `48:2A:E3:9D:31:85`, host-name `Domen_P14s`, and its address
+   > sits **outside** `pool-vlan10` (`.100-.199`, `USED 1` — the only dynamic lease on that pool), so it
+   > is a pure static reservation. Its siblings on the same server are the ledger's own hosts — `nas`,
+   > `oldsrv`, `pi` (their Home addresses from the ledger), plus a `canon-ts9550` printer and a tablet — and of those the tree
+   > produces the Pi's reservation by name (`IaC/router/templates/rb4011_pi_delta.rsc.j2`) and the rest through
+   > the `network_static_hosts` render. For the laptop, the **only** file the tree produces is
+   > `rb4011_hd307_delta.rsc.j2`, which writes the **`dhcp-mgmt`** reservation (VLAN 99) — tonight that one
+   > reads `status=waiting`, `last-seen 6w4d`, i.e. the mgmt leg is real in IaC and unused on the wire. So the
+   > address this contract leans on is named in the repo **only inside a `role:` free-text string**
+   > (`group_vars/all/main.yml`, the `laptop-domen` VLAN-99 row's route-through note) and in the
+   > `laptop-wsl` row that calls its own address a fallback static; **a rebuild from the tree would not
+   > reproduce it.** Which owner it gets — a `network_static_hosts` row plus a find-guarded `rb4011_*_delta` the
+   > Pi's shape, or no reservation at all with the contract resting on the NAME — is an owner call and stays
+   > parked on HD-1140; typing the live address into prose is not the fix (`check_doc_ips.py` reddens an IP
+   > literal outside the SSOT, which is how the row was found).
 2. **OpenSSH matches the name ACTUALLY TYPED**, so each node gets an alias block **and** a `Host <ip>`
    block for the leg its `ansible_host` names. Ansible does not *need* the IP block (the jump travels in
    the inventory — proven above); the block is what `scp`/`rsync`/`git` and a human typing an address need.

@@ -248,12 +248,58 @@ answers `v4 v6` (it was `v6 v4`), `wget --no-config` on the artifact URL returns
 verdict), and the control `curl -6 https://www.google.com` still returns `200` — the preference
 deprioritizes v6, it does not break it.
 
+**The prefix read the row owed, taken 2026-10-19 (read-only) — and it closes the finding, in the opposite
+direction.** There is no dead prefix class on this network.
+
+| Read | Result |
+|---|---|
+| `/ipv6 route print detail` | One **global** route: `2a00:ee2:2700:8f00::/64` (connect, `vlan10-home`) plus the PD/RA-installed `::/0 via pppoe-telekom`, `ACTIVE`. Everything else is `fe80::/64` connects. One delegated prefix, one exit — there is no second prefix that could be dead |
+| `/ipv6 address print` | One `G`LOBAL address, `2a00:ee2:2700:8f00::1/64` on `vlan10-home`, `advertise=yes`, `from-pool=pd-wan6`; `pppoe-telekom` carries only `fe80::…` |
+| `/ipv6 nd print` | RA on `vlan10-home` only, `hop-limit=64`, `ra-lifetime=30m` — matches the SLAAC-on-Home-only invariant |
+| oldsrv `ip -6 addr/route` | a live temporary address in the advertised `/64` and `default via fe80::764d:28ff:fe8d:45bf` from the RA — the source is proven, so every `-6` verdict below is a verdict, not an undetermined read |
+| `curl -6` per destination, from oldsrv | Google `2a00:1450:…` **301**, `www.google.com` `2001:4860:…` **200**, Cloudflare **200**, `www.microsoft.com` `2a02:26f0:…` (Akamai) **200**, `github.githubassets.com` `2606:50c0:…` (Fastly) **404 = reached** |
+| the same `-6` on the row's dead set | `github.com`, `update.microsoft.com`, `download.windowsupdate.com`, `objects.githubusercontent.com`, `release.githubusercontent.com` → `http=000` in **15–140 ms** — an instant failure, not a connect timeout |
+| the resolver, both home instances + an outside control | `dig AAAA github.com` against both home resolvers (the box's own, then `pi.kogler.si`) → **no AAAA**; the same query to `2606:4700:4700::1111` → **no AAAA**. `update.microsoft.com` chains through `…trafficmanager.net` with A only, and the outside resolver agrees |
+
+**The dead class is DNS, not routing: hostnames that publish no `AAAA` at all.** With no `AAAA` in the answer
+`curl -6` has no address to try, and it says so in milliseconds. The pair that read as "the Microsoft CDN and
+GitHub prefixes are black holes" are A-only names, and two of them (`objects.githubusercontent.com`,
+`release.githubusercontent.com`) are the actual artifact hosts behind the VS Code download in the table above.
+The `AAAA first` row in that table stays true for names that publish both families — which is exactly why the
+non-racing `wget` still needed the gai.conf lever, so nothing here reopens it. Nothing was found that a router
+rule could touch, which is the only clean outcome the paragraph below anticipates: **no rule change is
+warranted by this finding, and none was made.** The counter-only discriminator was never needed — the
+independent-resolver control answered the ours-vs-upstream question more cheaply, and it is the read to reuse.
+
+Two honest residuals:
+
+1. The **0-byte-artifact class is not closed by this**: a name with no `AAAA` still defeats a downloader that
+   will not fall back, and the lever for that is client-side family handling (landed as
+   `ipv4_first_address_family`), not the router. Caveat for the old table: `curl -4` of
+   `download.windowsupdate.com/c/msdownload/update/` from this same box tonight also returns `000` — that cell
+   was a bare directory path, not a file, so it no longer reproduces as written.
+2. `pppoe-telekom` carries **no global address of its own**: RouterOS originates router-side v6 from the
+   delegated-prefix address on `vlan10-home`, which upstream routes back to the router — a shape note, not a
+   defect, but it makes a router-originated v6 probe a weak control. Prove v6 from a host.
+
+```bash
+# the whole re-derivation, read-only
+ssh router '/ipv6 route print detail where gateway'
+ssh router '/ipv6 address print detail'
+ssh oldsrv 'ip -6 addr show scope global | head; ip -6 route show default'
+ssh oldsrv 'for u in https://www.google.com https://www.cloudflare.com/cdn-cgi/trace \
+                   https://www.microsoft.com https://github.com; do \
+             printf "%-44s " "$u"; curl -6 -sS -o /dev/null -m 12 -w "http=%{http_code} ip=%{remote_ip} t=%{time_total}\n" "$u"; done'
+ssh oldsrv 'for n in github.com www.microsoft.com objects.githubusercontent.com; do printf "%-32s " $n;   # default resolver dig +short AAAA $n | tr "\n" " "; echo; done'
+ssh oldsrv 'dig +short AAAA github.com @2606:4700:4700::1111'    # the outside control
+```
+
 ⛔ **The durable fix belongs at the router's v6 leg. What the accept-parity verdict at the head of this
 section decides is the filter's *family handling*, not this leg — and it is given (KEEP THE PARITY), so it
 authorizes nothing here**: no rule change follows from this finding before the prefix read below, so
-this is recorded as a measurement plus the probe, never as an edit. What would close it is a prefix-level reachability read from the router itself (`/ipv6 route
-print`, then a test per prefix), with the counter-only discriminator above deciding whether the drop is ours
-or upstream's **before** anything is touched.
+this is recorded as a measurement plus the probe, never as an edit. The prefix-level read it owed
+(`/ipv6 route print`, then a test per prefix) **was taken on 2026-10-19 immediately above** and found no prefix
+to fix, so the ⛔ stands as the ruling: no edit, and none authorized by this row.
 ⚠ **Scratch rule hygiene** (this is what `routeros-apply-delta.sh` comments are for): a temporary accept **must
 sit above the drop** (below it, it does nothing and the test result is a lie), **must be `dst-port`-scoped**
 (otherwise the first packet of a *scan* matches, the conntrack entry then admits the real target, and the matrix

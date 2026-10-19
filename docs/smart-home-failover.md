@@ -120,6 +120,56 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 - **Secrets via one renderer:** the `home_assistant` role renders **`secrets.yaml.j2`** into `/opt/home-assistant-primary/secrets.yaml` (Pi) and `{{ ha_standby_path }}/secrets.yaml` (oldsrv) — inline `community.general.onepassword` lookups, fail-closed, block-scalar. `configuration.yaml.j2` references the values via `!secret <name>` (single source; HA resolves at YAML load). Each node keeps its OWN 1Password-rendered copy: `secrets.yaml` is excluded from the Pi→standby config rsync (`ha-config-sync.sh.j2`). `ha_api` is NOT part of HA's secrets.yaml — the `monitoring` role writes the HA bearer to `/etc/prometheus/ha_token` under the `alloy_ha_exporter` gate.
 - **Update policy:** **Renovate + `stable` tag** (controlled/gated: Renovate → PR → review → deploy). **No watchtower** — preserves primary/standby version parity and the repo's deliberate update gating.
 
+### Intent vs reality on the standby, measured 2026-10-19 (read-only)
+
+The row said "cold-deployed". **The box says nothing is deployed.** Measured on oldsrv:
+
+| Read | Result |
+|---|---|
+| `docker ps -a -q \| wc -l` | **39** containers on the host |
+| `docker ps -a \| grep -iE 'hass\|home.?assist\|keepalived'` | **none** — there is no `home-assistant-standby` container and no `keepalived` container, running or stopped |
+| `docker images \| grep home-assistant` | `:latest` and `:2026.8.1` only. The rendered compose pins **`2026.9.4`**, which is not on the host ⇒ `docker compose up` has never been run against the current render |
+| `/opt/home-assistant-standby/` | `docker-compose.yml` (services `home-assistant` + `keepalived`, `restart: "no"`, VIP ports 8123 + 5683/udp), `keepalived.conf` (18 Oct 13:57), `keepalived.standby.conf`, `keepalived.failover.conf`, `secrets.yaml` (8 Oct), `config/` — **files, no containers** |
+| `config/configuration.yaml` newest content | 2026-09-15; the directory was stamped 2026-10-08 19:20 — one copy, not a running sync |
+| `systemctl is-enabled ha-config-sync.timer` / `ls /usr/local/sbin/ha-config-sync.sh` | `not-found` / **no such file** ⇒ the "config synced from the Pi every ~15 min" half of the standby contract is **not installed on this host** |
+| VIP `ha-vip` | answers; the Pi holds it. Normal mode is intact — nothing here is a live outage |
+
+**Two probes that read wrong on this host, both worth knowing before the next pass:**
+
+- `systemctl is-active keepalived` → `inactive`, `is-enabled` → `not-found`. That is **correct**: the standby's
+  VRRP half is the `keepalived` **container** in `/opt/home-assistant-standby/docker-compose.yml`
+  (`osixia/keepalived:2.3.4`), driven by `ha-failover.sh`'s `promote_vip()`/`demote_vip()` — there is no host
+  unit to be active. The honest read is `docker compose -f /opt/home-assistant-standby/docker-compose.yml
+  ps`, not `systemctl`.
+- `/usr/local/sbin/ha-failover.sh` **is** installed and complete (forward = promote VIP then `up -d
+  home-assistant`; reverse = `down` then demote), and it is the `ha_failover`-tagged half of
+  `roles/home_assistant/tasks/standby.yml`. The script is ready; its subject is missing.
+
+**Consequence, stated plainly:** **HD-418's standby-edge proof and HD-434's standby KNX tunnel have no subject
+until a standby exists.** Both ask for a behaviour read *of the standby node* — a proxied request reaching
+`home-assistant-standby`, a tunnel opened from it to `knx-ip` — and there is no such process on oldsrv to
+observe. They are not blocked by a missing measurement technique, a router rule, or an owner ruling; they are
+blocked by this row's cold leg. Any "proof" written against them before the create runs would be proof about
+the Pi, relabelled.
+
+The create itself is unchanged and owner-scheduled — `ansible-playbook IaC/ansible/playbooks/home_servers.yml
+--limit oldsrv --tags ha_failover` (⛔ never `--diff`; its `authorized_key` task writes SSH keys on oldsrv) —
+and note what it will *not* do: the role renders and creates, it never starts. The `enabled: false` registry
+entry (`group_vars/home_servers.yml`) also means every unscoped `docker_services` converge runs
+`docker compose -p home-assistant-standby ... down --remove-orphans || true` over this directory
+(`roles/docker_services/tasks/main.yml`, *Tear down DISABLED services*), so the guard the row asks for is
+still owed and becomes live the moment the container exists: while the standby **is** the running node, a full
+converge stops the live HA. Re-derive the whole table with:
+
+```bash
+ssh oldsrv 'docker ps -a -q | wc -l; docker ps -a --format "{{.Names}} {{.Image}}" | grep -iE "hass|home.?assist|keepalived"; \
+            docker images --format "{{.Repository}}:{{.Tag}}" | grep home-assistant; \
+            grep -nE "image:|container_name" /opt/home-assistant-standby/docker-compose.yml; \
+            systemctl is-enabled ha-config-sync.timer; ls -la /usr/local/sbin/ha-config-sync.sh'
+```
+
+---
+
 ### Debian + HA Container, not HA OS, on the Pi
 
 The Pi runs plain Debian with the HA Container image under the same `home_assistant` role that renders the

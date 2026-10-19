@@ -128,7 +128,8 @@ case a homelab loses <24 h of DB changes, acceptable.
   every 15 min, sends only when a new source snapshot exists — effectively ≈ hourly for services/db-dumps.
   ⏳ A send that never exits freezes this leg **and** retention: sanoid prints
   `deferring pruning of <snap> — <dataset> is currently in zfs send or receive`, so a stuck send shows
-  up as a snapshot count that grows past the configured window (`hourly = 24` holding 100) rather than
+  up as a snapshot count that grows past the configured window (`hourly = 24` holding **43 on
+  `tank/data/services` as of 2026-10-19** — measured per dataset in §Reading the activating state below; the "100" was prose)
   as a red unit. The read that separates the two causes is
   `sanoid --prune-snapshots --readonly --verbose` next to `systemctl status storage-syncoid.service`
   — a leg sitting in `activating` for days has not replicated since its start time.
@@ -137,6 +138,49 @@ case a homelab loses <24 h of DB changes, acceptable.
 - `bulk/data/immich-thumbs` and `bulk/media` are **push targets** — no syncoid definition.
 - Managed by **systemd timers** (`sanoid.timer`, `storage-syncoid.timer`) — journaling, randomized
   schedules, failure tracking. Not raw cron.
+
+### Reading the activating state — sanoid and syncoid, measured 2026-10-19 (read-only)
+
+Two causes were on the row: sanoid's retention, and a stuck `zfs receive`. **Neither explains the state on
+the box tonight.** The reads, in the order that settles it:
+
+| Read | Value |
+|---|---|
+| `systemctl cat sanoid.service` | `Type=oneshot`, `ExecStart=/usr/sbin/sanoid --cron` — the path the role generates |
+| `systemctl show sanoid.service -p Result,ExecMainStatus` | `Result=success`, `ExecMainStatus=0`, last fire `2026-10-19 01:25:00`, `sanoid.timer` next fire 01:30 — a 5-minute cadence that is a prune/snapshot check, as this section says |
+| `zfs list -t snapshot -o name \| grep -c _hourly$` | **134** policy snapshots, and the per-dataset counts are the honest ones: `tank/data/services` **43**, `tank/data/db-dumps` **24** (at window), and the same on the two `bulk/data/*` replicas — `sanoid.conf` gives `bulk/data/services` and `bulk/data/db-dumps` `use_template = data`, so the replica snapshots its own history by config, which is the "independent replica history" bullet above, not an accident |
+| `systemctl show storage-syncoid.service` | `activating (start)` since **2026-10-18 06:45:04** (18 h 43 min at read time), `NRestarts=0`, `Job=3164`, `JobTimeoutUSec=infinity` — nothing will ever time this out |
+| `systemctl status` cgroup | 5 tasks: `bash storage-syncoid.sh` → `syncoid --force-delete tank/data/services bulk/data/services` → the syncoid tee helper → `sh -c "zfs send -I tank/data/services@syncoid_nas_2026-10-08:21:00:08 tank/data/services@syncoid_nas_2026-10-18:06:45:05 \| mbuffer \| pv -p -t -e -r -b -s 23712 \| zfs receive -s -F bulk/data/services"` → **`pv`** |
+| Is a receive running? | **No.** `zfs send`, `mbuffer` and `zfs receive` are absent from the process table and from the unit's cgroup; `zfs get receive_resume_token bulk/data/services` → empty |
+| `cat /proc/<pv>/io`, twice 6 s apart | `rchar: 4980  wchar: 0  syscr: 10  syscw: 0` — identical both times; `State: R (running)`, unit CPU `18 h 41 min` against 18 h 43 min of wall clock |
+
+**The cause is the progress pipe, not the replication.** `zfs receive` exited (which is why the destination
+still reads `bulk/data/services used=140K`); `pv` was left writing into a pipe with no reader, and instead of
+dying on the EPIPE it has been spinning in `R` at 100 % of one core since 06:45 — 0 bytes written, 0 write
+syscalls completed, forever. `sh -c` waits for every pipeline member, so it never returns; `syncoid` never
+returns; a `Type=oneshot` unit whose main process has not exited sits in `activating (start)` — and with
+`JobTimeoutUSec=infinity` systemd will never end it. The row's "stuck `zfs receive`" and "sanoid defers
+pruning" are both descriptions of a different night: what must be reaped is a **wedged `pv`**, and killing it
+kills the whole unit's process tree.
+
+The stream itself was never the problem: `pv -s 23712` says the incremental send was **23 KB**. Eight
+`syncoid_*` snapshots exist, three of them on 2026-10-18 at 06:26 / 06:30 / 06:45 — the 15-minute timer
+(`Persistent=true`) firing new attempts into a unit that had not finished, and `zfs list` shows the newest
+`@autosnap_*_hourly` on **both** pools at 01:00, so snapshots kept running the whole time.
+
+```bash
+# the reads above, in one pass (read-only)
+ssh nas 'systemctl show storage-syncoid.service -p ActiveState,SubState,ExecMainStartTimestamp,NRestarts,Job'
+ssh nas 'systemctl show sanoid.service -p Result,ExecMainStatus,ExecMainStartTimestamp'
+ssh nas 'sudo -n ps -o pid,ppid,stat,cmd -p $(systemctl show -p MainPID --value storage-syncoid.service)'
+ssh nas 'sudo -n cat /proc/$(pgrep -f "pv -p -t -e -r -b")/io'      # unchanged across two reads = wedged
+ssh nas 'zfs list -t snapshot -o name -s creation | grep "_hourly$" | awk -F"@" "{print \$1}" | sort | uniq -c'
+```
+
+⛔ **The reap is an owner act and is parked on HD-1107**: stopping the unit (`systemctl stop
+storage-syncoid.service`, which SIGKILLs the wedged `pv` and its tree) and then letting the next timer fire is
+a live act on the replication leg, and a `zfs receive -F` that ended without a clean finish should be observed
+through one full cycle by whoever is awake for it. Nothing was signalled on the host from this pass.
 
 ---
 
@@ -231,6 +275,8 @@ These properties of the shape are deliberate:
   Windows NTLM challenge. See [storage-rejected.md](storage-rejected.md).
 - **Who can mount is a repo edit, not a directory sync.** Membership is `storage_samba_users`; the
   per-user share sections come from the template, with no `include = /etc/samba/share-*.conf` drop-in.
+  ⚠ **HD-1092's premise — an Authentik → NAS provisioning script that had to be finished — is void as
+  written, and was void before anyone read it tonight** (measured 2026-10-19, §Reading the family accounts below).
 - **Rotation needs one extra word.** A passdb write is a target-side act, so rotating the vault item
   changes nothing on the NAS by itself (CONVENTIONS §2 rotation propagation). Rotate the item, then
   converge with `-e storage_samba_password_force=<name>` — without that flag the password task only
@@ -277,6 +323,28 @@ These properties of the shape are deliberate:
 - **Scoped converge:** `--tags samba` (or `storage,samba`) works only because BOTH halves of the tag
   rule are in place — the `include_tasks: samba.yml` line carries the tag *and* every task inside does.
   A share change applied without both halves is a no-op that reports success.
+
+---
+
+### Reading the family accounts — the glue is gone, the drives exist, and the gid the row asked for is not the gid the design uses (2026-10-19, read-only)
+
+The row was written on 2026-10-07 from `sync-authentik-users.timer` exiting 127. Every half of that premise
+has since moved, so the row is corrected here rather than executed:
+
+| The row's claim | Live state on nas, 2026-10-19 |
+|---|---|
+| "`sync-authentik-users.timer` fires hourly and exits 127 (823 failed runs)" | **Gone from the host and from the tree**: no `/usr/local/sbin/sync-authentik-users.sh`, no unit files, `systemctl is-enabled` → `not-found`, timer `inactive`. `roles/storage/tasks/samba.yml` now owns only the **teardown** (stop + disable + `file: absent` + `reset-failed`), so a re-derive could not reproduce the failure even on a rebuild |
+| "`op` is not installed on the NAS" — so install it and give it a scoped SA token | Still not installed, and **no longer wanted**: the secret half of that path was a PUSH of a Samba password, which the `ldapsam` ruling rejected ([storage-rejected.md](storage-rejected.md)); the password comes from `smb-<name>_login` at converge. Item (1) of the row is answered, and answered the other way |
+| "`/tank/data/users` does not exist, no family unix users exist" | **Void.** `/tank/data/users` exists (created 2026-10-07 18:12, `drwxr-xr-x media media`) and `/tank/data/users/domen` exists, `drwx------ domen media` — a plain directory under the `tank/data` dataset, not a per-user ZFS dataset, which is what the template does and why "no per-user datasets" was never a defect |
+| "verify `id <member>` returns a uid with **primary gid 1005**" | **Void as written.** `id domen` → `uid=1007(domen) gid=1008(domen) groups=1008(domen),27(sudo),1005(media)`; `id shared` → `uid=1008(shared) gid=1009(shared) groups=1009(shared),1005(media)`; `getent group 1005` → `media:x:1005:domen,shared`. A member's primary gid is **their own group** and 1005 is **supplementary** — by design: the private drive is owned by the member (that IS the isolation, no `force user`), while `@media` and `force group` on the shared trees need group membership, not a primary group. A converge that set primary gid 1005 would strip every member's own group. The task that does this is `groups: "{{ storage_gid }}", append: true` in `samba.yml`, which is exactly what the box shows |
+| "`/etc/samba/share-*.conf` is absent, so the glue's fragments were never written" + the latent `include` bug | Moot, and safe: `/etc/samba/` holds only `smb.conf` (rendered, no `include` line) and no `share-*.conf` exists to be deleted by the next storage converge. The bug the row warned about needed both halves — a runtime writer and a template that drops its include — and the writer is gone |
+
+What is left of the row is one leg, and it is not a read: **prove a member can tree-connect their private
+drive from a client.** The doc already carries that matrix (§Accounts, `domen` → `domen` ✅); re-proving it
+means an authenticated `smbclient` session with the member's password, which is a credential-bearing act on
+a second host, not a read — it stays parked on the row.
+
+---
 
 ---
 
