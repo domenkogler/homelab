@@ -1076,6 +1076,19 @@ blk_tmux_check() {
   fi
 }
 
+# The leak eye. Its own SKIP semantics: `op` absent or an unreadable vault is an environment
+# boundary (rc 2), printed and never counted green — the check compares captured bytes against the
+# vault's CURRENT values, so without them it has no idea what a leak would look like.
+blk_secret_leak() {
+  local rc_leak=0
+  "$PY" scripts/gate/check_secret_leak.py "$@" || rc_leak=$?
+  case "$rc_leak" in
+    0) return 0 ;;
+    2) echo "SKIP: the vault is not readable here — reason above; a leak check without current values cannot judge, and a SKIP is not a pass"; return 0 ;;
+    *) return "$rc_leak" ;;
+  esac
+}
+
 # rc 2 = no pi binary here = SKIP, printed and never counted green (CONVENTIONS: a SKIP
 # is not a pass). BEHIND and AHEAD are both drift — a seat ahead of its pin is the shape
 # every file plane misses.
@@ -1158,6 +1171,9 @@ item_blk_x "runs the real ansible-playbook against a throwaway inventory: needs 
 item_blk_x "ansible is absent or dies WinError 87 on the Windows seat, so this SKIPs here anyway; on a WSL/CI runner it is the syntax half that a quick loop does not need per keystroke" "ansible-playbook --syntax-check (WSL/CI-gated)" blk_ansible_syntax
 
 # The corpus walkers.
+# The corpus walkers. Longest leg first, per the pool note in the header.
+item_x "reads the vault to know what a leak is: 141 item reads at the documented 6-wide fan-out budget, then a content search over the seat's run captures (~600 MB) and the working tree — about 25 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class and the working tree)" blk_secret_leak
+item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names — and eight mutants of the scanner must each be caught)" $PY scripts/gate/check_secret_leak.py --self-test
 item_x "walks the whole tracked tip, 99 MB with archive members included — the leg HD-1117 measured at 5 s, which is the whole budget of a pre-commit loop" "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/gate/check_secrets.py
 item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/gate/check_secrets.py --self-test
 item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/gate/check_yaml_dup_keys.py
