@@ -906,13 +906,26 @@ blk_ansible_syntax() {
     # playbook gets its own stderr/rc file, so the duplicate-key witness below still sees
     # exactly what ansible printed for each playbook, and one playbook cannot affect another's rc.
     local SC_DIR="$RUN/syntax-check.$BASHPID"; mkdir -p "$SC_DIR"  # a $RUN subdir: the gate's single EXIT trap owns it — never re-trap here
-    local names=() files=() i=0 pb n rc_all=0 rc
+    local names=() files=() i=0 pb n rc_all=0 rc in_flight=0
     for pb in IaC/ansible/site.yml IaC/ansible/playbooks/*.yml; do
       n="pb$i"
+      # HD-1135/HD-1117: the ACQUIRE the pool runner above already uses. This loop used to launch and
+      # then ask `jobs -rp | wc -l` every 50 ms — 37 forks (27 wc + 10 sleep) for its 16 playbooks at
+      # GATE_NPAR=12, counted 2026-10-19 on the WSL Debian seat with wc/sleep shimmed onto PATH — and
+      # those forks land on the same process-creation queue as the items running beside this one in
+      # the pool, which is the contention HD-1117 is about. Waiting is exact and costs nothing.
+      if [ "${HAVE_WAITN:-0}" = 1 ]; then
+        while [ "$in_flight" -ge "$GATE_NPAR" ]; do
+          wait -n >/dev/null 2>&1 || true
+          in_flight=$((in_flight - 1))
+        done
+      else
+        while [ "$(jobs -rp | wc -l)" -ge "$GATE_NPAR" ]; do sleep 0.05; done   # bash < 5.1: no wait -n
+      fi
       ( ansible-playbook -i IaC/ansible/inventory.ini "$pb" --syntax-check \
           >/dev/null 2>"$SC_DIR/$n.err"; echo "$?" > "$SC_DIR/$n.rc" ) &
+      in_flight=$((in_flight + 1))
       names+=("$n"); files+=("$pb"); i=$((i+1))
-      while [ "$(jobs -rp | wc -l)" -ge "$GATE_NPAR" ]; do sleep 0.05; done
     done
     wait
     # HD-1098: ansible's own parser is the second witness for duplicate mapping keys. It

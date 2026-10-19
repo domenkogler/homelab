@@ -50,11 +50,15 @@
 declare -gA _HL_PIN_CACHE=()
 _HL_PIN_CACHE_FILE=""
 
-# _hl_pin_load — parse the whole SSOT into _HL_PIN_CACHE. Column-0 `key:` rows only, which is
-# exactly what the old `grep -E "^key:"` could see: comments, indented (nested) rows and the
+# _hl_pin_load [versions.yml] — parse the whole SSOT into _HL_PIN_CACHE. Column-0 `key:` rows only,
+# which is exactly what the old `grep -E "^key:"` could see: comments, indented (nested) rows and the
 # `---` document marker carry a non-word first field and are skipped.
+# The optional argument is for `seat_pkg_val`, which may be pointed at another file than $VERSIONS;
+# the cache is ONE map with the loaded path recorded in _HL_PIN_CACHE_FILE, so the two entry points
+# cannot each hold a half-stale view of the same SSOT.
 _hl_pin_load() {
-  local _k="" _rest="" _line _a _b
+  local _k="" _rest="" _line _a _b _src="${1:-${VERSIONS:-}}"
+  [ -f "$_src" ] || { printf 'FATAL: no versions file at %s (§7)\n' "$_src" >&2; return 1; }
   declare -gA _HL_PIN_CACHE=()          # -g: see the note above; also the reset, so a re-read cannot keep a stale row
   while IFS=: read -r _k _rest || [ -n "${_k}${_rest}" ]; do   # trailing `||`: an unterminated last row still counts
     case "$_k" in ''|*[!A-Za-z0-9_]*) continue ;; esac
@@ -67,8 +71,18 @@ _hl_pin_load() {
     case "$_b" in *#*)  _b="${_b%%#*}" ;; esac                 # … or at the first #,
     if [ "${#_b}" -lt "${#_a}" ]; then _a="$_b"; fi            # whichever comes FIRST (sed's [^"#]*)
     _HL_PIN_CACHE[$_k]="${_a//[[:space:]]/}"                   # `tr -d '[:space:]'`, CR included
-  done < "$VERSIONS"
-  _HL_PIN_CACHE_FILE="$VERSIONS"
+  done < "$_src"
+  # A test seam, not a feature: with `_HL_PIN_READ_LOG` set (the self-test only), every read of an
+  # SSOT appends its path. The count lives on DISK because the thing it must catch is a SUBSHELL — a
+  # `$(seat_pkg_val …)` inside a loop drops the cache and re-reads per call, and a counter in a
+  # variable dies with that subshell, so it would report the one read that never happened.
+  # `if`, never `[ … ] && …`: an AND-list that ends a function RETURNS 1, and `set -e` in a caller
+  # that sources this file would turn a disabled seam into a dead leg.
+  if [ -n "${_HL_PIN_READ_LOG:-}" ]; then
+    printf '%s\n' "$_src" >>"$_HL_PIN_READ_LOG"
+  fi
+  _HL_PIN_CACHE_FILE="$_src"
+  _HL_PIN_CACHE_FILE="$_src"
 }
 
 # pin <var> <key> — set <var> from the versions SSOT; a missing pin STOPS the caller.
@@ -84,7 +98,7 @@ pin() {
     printf 'FATAL: pin: no versions file at %s (§7)\n' "$VERSIONS" >&2
     exit 1
   fi
-  if [ "$_HL_PIN_CACHE_FILE" != "$VERSIONS" ]; then _hl_pin_load; fi   # re-pointed VERSIONS = new cache, never a stale one
+  if [ "$_HL_PIN_CACHE_FILE" != "$VERSIONS" ]; then _hl_pin_load || exit 1; fi   # re-pointed VERSIONS = new cache, never a stale one
   __v="${_HL_PIN_CACHE[$__key]-}"
   if [ -z "$__v" ]; then
     printf 'FATAL: pin %s missing from %s — add it there, do not hardcode it here (§7)\n' \
@@ -272,11 +286,22 @@ hl_planes_selftest() {
   return "$fails"
 }
 
-# seat_pkg_val <key> <versions.yml> — one scalar out of the version SSOT, no YAML parser needed
+# seat_pkg_val <key> [versions.yml] — one scalar out of the version SSOT, no YAML parser needed
 # in the seat path (the same trick pin() uses; a reader that needs a venv on a bare seat is a
 # reader that fails on exactly the machine that is being bootstrapped).
+# FAST (HD-1135) but SUBSHELL-SENSITIVE: the body is a lookup in the one-pass cache `pin()` fills,
+# so the SSOT is read ONCE per process. ⚠ `v="$(seat_pkg_val k f)"` runs in a SUBSHELL, which throws
+# that cache away — the next call re-reads the whole file, and a bash `read` loop over a 45 KB file
+# is slower than the `sed | head` it replaced (measured on this WSL Debian seat: the inventory read
+# went 1.11 s → 3.18 s when `seat_pkg_rows` kept calling through `$( )`). So the HOT path is
+# `seat_pkg_rows`, which loads once and reads the map IN-PROCESS; this function stays the single-key
+# entry point for callers that are not in a loop. Same out-parameter rule as pin() and
+# hl_owner_path(), for the same reason.
 seat_pkg_val() {
-  sed -n "s/^$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\}[[:space:]]*#.*/\1/p; s/^$1: *\"\{0,1\}\([^\"]*\)\"\{0,1\}[[:space:]]*$/\1/p" "${2:-${VERSIONS:-}}" | head -1
+  local _f="${2:-${VERSIONS:-${REPO:-.}/IaC/ansible/group_vars/all/versions.yml}}" _v
+  if [ "$_HL_PIN_CACHE_FILE" != "$_f" ]; then _hl_pin_load "$_f" || return 1; fi
+  _v="${_HL_PIN_CACHE[$1]-}"
+  printf '%s' "$_v"
 }
 
 # seat_pkg_rows [versions.yml] — emit `name|spec|scope` for every pi package the repo carries.
@@ -288,16 +313,31 @@ seat_pkg_val() {
 seat_pkg_rows() {
   local _f="${1:-${VERSIONS:-${REPO:-.}/IaC/ansible/group_vars/all/versions.yml}}" id name scope ver vpin mutable n=0
   [ -f "$_f" ] || { printf 'FATAL: no version SSOT at %s — an inventory that cannot be read is not an empty one\n' "$_f" >&2; return 1; }
-  for id in $(sed -n 's/^pi_pkg_\([a-z0-9_]*\)_name:.*/\1/p' "$_f" | sort -u); do
-    name="$(seat_pkg_val "pi_pkg_${id}_name" "$_f")"
-    scope="$(seat_pkg_val "pi_pkg_${id}_scope" "$_f")"
-    ver="$(seat_pkg_val "pi_pkg_${id}_version" "$_f")"
-    vpin="$(seat_pkg_val "pi_pkg_${id}_version_pin" "$_f")"
-    mutable="$(seat_pkg_val "pi_pkg_${id}_mutable" "$_f")"
+  if [ "$_HL_PIN_CACHE_FILE" != "$_f" ]; then _hl_pin_load "$_f" || return 1; fi
+  # The ids are DISCOVERED from the cache's own keys, so the inventory still lives in versions.yml
+  # and never in a copy inside a script. ONE `sort` for the whole walk — the old form paid two forks
+  # (sed | sort) plus five `sed | head` pairs PER package; ~70 forks a process, most of what
+  # `pi-settings-config --self-test` spent. Sorting is kept because the output feeds a rendered
+  # `packages` array, so its ORDER is part of the drift verdict.
+  local _k _ids=()
+  for _k in "${!_HL_PIN_CACHE[@]}"; do
+    case "$_k" in
+      pi_pkg_*_name) _k="${_k#pi_pkg_}"; _ids+=("${_k%_name}") ;;   # the id is what sits BETWEEN the two
+    esac
+  done
+  [ "${#_ids[@]}" -ge 1 ] || { printf 'FATAL: the version SSOT carries ZERO packages (%s) — an empty inventory here means the reader broke, not that the fleet has no packages\n' "$_f" >&2; return 1; }
+  for id in $(printf '%s\n' "${_ids[@]}" | sort -u); do
+    name="${_HL_PIN_CACHE[pi_pkg_${id}_name]-}"
+    scope="${_HL_PIN_CACHE[pi_pkg_${id}_scope]-}"
+    ver="${_HL_PIN_CACHE[pi_pkg_${id}_version]-}"
+    vpin="${_HL_PIN_CACHE[pi_pkg_${id}_version_pin]-}"
+    mutable="${_HL_PIN_CACHE[pi_pkg_${id}_mutable]-}"
     [ -n "$name" ] || { printf 'FATAL: pi_pkg_%s has no _name — a row that names nothing is a row that installs nothing\n' "$id" >&2; return 1; }
     [ -n "$scope" ] || { printf 'FATAL: package %s has no scope — fleet or seat is exactly the question that got asked too late for pi-subagents\n' "$name" >&2; return 1; }
     if [ -n "$vpin" ]; then
-      ver="$(seat_pkg_val "$vpin" "$_f")"
+      # IN-PROCESS, never `$(seat_pkg_val …)`: a subshell drops the cache and re-reads the file
+      # (measured 3.2 s for this loop when it did — see the seat_pkg_val note above).
+      ver="${_HL_PIN_CACHE[$vpin]-}"
       [ -n "$ver" ] || { printf 'FATAL: package %s points at pin %s, which has no value\n' "$name" "$vpin" >&2; return 1; }
     fi
     if [ "$mutable" != "true" ] && [ -z "$ver" ]; then
@@ -358,6 +398,87 @@ hl_pkg_selftest() {
     printf 'NOT CAUGHT: a scope-less package row was accepted\n'; fails=$((fails + 1))
   else
     printf 'ok: a scope-less package row fails loud\n'
+  fi
+
+  # 6. THE DIET (HD-1135): seat_pkg_val is a cache lookup, not a `sed | head`. The cache is only a
+  #    valid way to EVALUATE the same assertion if it answers like the fork body on the keys the
+  #    inventory path reads, byte for byte. Breeding the comparison rather than trusting it: the fork
+  #    body runs alongside the cache, so a cache that answers a different key (the indexed-array
+  #    class) or truncates a value reddens here, not on a seat. The key set is the inventory's own
+  #    (pi_pkg_* plus the pins those rows reference) — NOT the whole SSOT: comparing every one of the
+  #    147 keys turned this arm into 147 seds, which is the cost the arm exists to remove. The fork
+  #    body is the ORIGINAL expression, transcription unchanged, handed to ONE `sed -f` instead of one
+  #    `sed | head` a key — the key name goes into the substitution so every answer stays attributed,
+  #    and `head -1` becomes "first row wins" in the read loop below.
+  local _k _old _new _bad=0 _nkeys=0 _sf _keys _inv="${VERSIONS:-${REPO:-.}/IaC/ansible/group_vars/all/versions.yml}"
+  local -A _fork=()
+  _keys="$(grep -oE '^pi_pkg_[A-Za-z0-9_]+:' "$_inv" | tr -d ':'
+           grep -oE '^pi_pkg_[A-Za-z0-9_]+_version_pin: *[A-Za-z0-9_]+' "$_inv" | awk '{print $2}')"
+  _sf="$_t/compare.sed"; : >"$_sf"
+  for _k in $(printf '%s\n' "$_keys" | sort -u); do
+    # \1 NOT \x01: a bare `\1` in a printf FORMAT is an OCTAL escape and silently becomes SOH, which
+    # is a sed replacement that captures nothing — the arm would compare an empty fork answer with the
+    # cache and call that a divergence. Every other backslash here survives printf untouched.
+    printf 's/^%s: *"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*#.*/%s\t\\1/p\ns/^%s: *"\{0,1\}\([^"]*\)"\{0,1\}[[:space:]]*$/%s\t\\1/p\n' \
+           "$_k" "$_k" "$_k" "$_k" >>"$_sf"
+  done
+  while IFS=$'\t' read -r _k _old; do
+    [ -n "${_fork[$_k]+set}" ] || _fork[$_k]="$_old"        # the fork body's answer, first row per key
+  done < <(sed -n -f "$_sf" "$_inv")
+  for _k in $(printf '%s\n' "$_keys" | sort -u); do
+    _nkeys=$((_nkeys + 1))
+    _old="${_fork[$_k]-}"
+    # NOT `$(seat_pkg_val …)`: a command substitution forks, and forking 27 times inside the arm whose
+    # whole subject is fork cost is the tail wagging the dog. Redirecting a FUNCTION runs it in the
+    # current shell (bash opens the file, forks nothing) — the same reason the legs are told to read
+    # the map in-process. `|| :` because the value carries no trailing newline, so `read` returns 1 on
+    # the partial line with the bytes correctly assigned.
+    seat_pkg_val "$_k" "$_inv" >"$_t/one" || { printf 'NOT CAUGHT: seat_pkg_val stopped on %s\n' "$_k"; fails=$((fails + 1)); }
+    _new=""; IFS= read -r _new <"$_t/one" || :
+    # The ONLY tolerated difference is padding the fork body leaked for an UNQUOTED value — `\([^"]*\)`
+    # is greedy, so `key: 1.6.1␣␣␣` came back with the spaces attached and a consumer building
+    # `npm:name@$_old` got a spec with trailing blanks. Stripping it is the fix, not a divergence.
+    [ "${_old//[[:space:]]/}" = "$_new" ] || { _bad=$((_bad + 1)); [ "$_bad" -le 3 ] && printf 'NOT CAUGHT: cache disagrees with the fork body on %s: fork=[%s] cache=[%s]\n' "$_k" "$_old" "$_new"; }
+  done
+  if [ "$_bad" -eq 0 ] && [ "$_nkeys" -ge 20 ]; then
+    printf 'ok: seat_pkg_val answers like the fork body on %s inventory keys\n' "$_nkeys"
+  elif [ "$_nkeys" -lt 20 ]; then
+    printf 'NOT CAUGHT: the inventory key walk saw only %s keys — the SSOT was not read, not compared\n' "$_nkeys"; fails=$((fails + 1))
+  else
+    fails=$((fails + _bad))
+  fi
+
+  # 7. the cache must FOLLOW a re-pointed file. Two SSOTs in one process with a shared map is the
+  #    stale-answer shape; the fixture points at a second file and asks for a key only it has.
+  printf 'pi_pkg_only_here_name: "only-here"\n' >"$_t/other.yml"
+  if [ "$(seat_pkg_val pi_pkg_only_here_name "$_t/other.yml")" = "only-here" ] \
+     && [ -z "$(seat_pkg_val pi_pkg_web_access_name "$_t/other.yml")" ]; then
+    printf 'ok: a re-pointed SSOT re-reads, it does not answer from the previous file\n'
+  else
+    printf 'NOT CAUGHT: seat_pkg_val answered from a stale cache after the file changed\n'; fails=$((fails + 1))
+  fi
+
+  # 8. THE DIET IS REAL, not just equal (HD-1135). Arm 6 compares `seat_pkg_val` with the fork body, so
+  #    a `seat_pkg_val` that went BACK to `sed | head` would compare sed with sed and print GREEN —
+  #    the one mutation this row must not survive. So count the reads instead of trusting the shape:
+  #    one cold `seat_pkg_rows` walk must read the SSOT EXACTLY ONCE. Zero means the loader never ran,
+  #    i.e. a fork per lookup (the body this row deleted); two or more means the walk lost its cache —
+  #    the `$(seat_pkg_val …)` shape, whose reload happens in a subshell and is invisible to a counter
+  #    held in a variable, which is why `_hl_pin_load` writes the tally to a file. Teeth, both sides:
+  #    the fork body back in `seat_pkg_rows` reddens it (0 lines), and so does routing the walk's
+  #    lookups through `$( )` (1 + one line per call).
+  local _log="$_t/reads.log" _n
+  _HL_PIN_CACHE_FILE=""                       # cold start: the walk must load the file itself
+  : >"$_log"
+  _HL_PIN_READ_LOG="$_log" seat_pkg_rows "$_inv" >/dev/null 2>&1
+  _HL_PIN_READ_LOG=""
+  _n=0
+  while IFS= read -r _; do _n=$((_n + 1)); done <"$_log"   # `read`, not `wc -l`: a fork-free arm in a fork diet
+  if [ "$_n" -eq 1 ]; then
+    printf 'ok: one inventory walk reads the SSOT once, not once a key\n'
+  else
+    printf 'NOT CAUGHT: an inventory walk read the SSOT %s time(s) — 0 means a fork per lookup (the body this diet deleted), >1 means the walk dropped its cache and re-read per call\n' "$_n"
+    fails=$((fails + 1))
   fi
 
   [ "$fails" -eq 0 ] || printf 'package inventory self-test: %s arm(s) NOT caught\n' "$fails" >&2
