@@ -222,7 +222,10 @@ inside one session. The LIVE wave table is
    git drops the already-applied commits, the branch becomes a true ancestor, and `-d` then succeeds with its proof intact.
    ⛔ Also: never run that rebase from the merge station — `git rebase main <branch>` **checks the branch out**, turning the
    primary into an edit context mid-cleanup (`git checkout main` immediately restores it).
-6. Prove the station is clean: primary on `main`, `git status` empty, `git worktree list` shows one entry.
+6. Prove the station is clean: primary on `main`, `git status` empty, `git worktree list` shows one entry — and
+   **no lane process is left holding a host**: the residue inventory is a file list only, and a merged lane can
+   still own a live session or a listener on a converge target. The rule and the two process-side reads are
+   §Lane residue below; run them before `git worktree remove`, not after.
 7. Report: rows closed (= deleted from `todo.md`), rows parked on an owner gate (with the exact blocked
    action), and any row that still has **no** brief — an unbriefed row is not lost, it stays in
    [todo-table.md](../todo-table.md) §B.
@@ -230,4 +233,40 @@ inside one session. The LIVE wave table is
 **A lane's own close-out is deliberately shorter than CONVENTIONS §close-out**: owning doc + row tail + runbook
 line if it did a manual step (O6) + plain `git commit` (commit signing is retired) + `validate-all.sh` green **in its worktree** → **stop**. The
 merge, the views and the brief's death belong to the parent.
+
+### Lane residue — what a lane leaves behind (the exit check)
+
+> **The rule: a lane leaves no uncommitted tree, no running process, and no untracked file.** A lane ends when
+> its *worktree* is empty, not when its work is described. Three classes of residue outlived their lanes, each
+> one measured here rather than theorised, and none of the three is caught by `validate-all.sh`, because every
+> one of them is invisible to a checker reading the committed tree.
+
+| Residue | How it was measured | What it costs |
+|---|---|---|
+| **An uncommitted tree at the deadline** | several lanes reported deliverables by name with **no commit at all** — the work existed only in the child's context, and the run's wall timeout kills without committing | the lane is unrecoverable; step 7's `checkpointBeforeDeadlineMs` and the commit-per-deliverable instruction exist because of this |
+| **A process that outlived its lane** | a detached `ssh -n -N -L 5030:<oldsrv's Home address>:5030 oldsrv` was found **LISTENing on the driving seat 5 h 27 m after the lane that opened it finished**, forwarding a loopback port into a production host's service socket (the address is the SSOT's, [network-addresses-generated.md](network-addresses-generated.md) — written here as a name because an IP literal outside the SSOT is a gate failure, and this sentence outlives any one address) | an unowned path into a live host, held by nobody, closed by nobody, and discovered by accident |
+| **A half-written file left untracked** | an instrument (a script nothing had `git add`ed) sat in the worktree, so the gate could not see it and no later session could find it | an instrument that does not exist is worse than no instrument: it reports nothing and hides nothing |
+
+**The lane's own exit check — three commands, run by the lane, before it reports:**
+
+```bash
+git status --porcelain                                  # must print NOTHING: committed, or it does not exist
+ps -eo args | grep -E 'ssh .*(-N|-L|-D)'                # must print NOTHING: no tunnel, no mux you opened
+ss -ltn                                                 # must show no port this lane opened
+```
+
+⚠ **A tunnel is not a read-only access.** An `-L`/`-D` forward reads nothing by itself, so it feels like a probe,
+but it is a standing path from the driving seat into a production host's socket, and its lifetime is the process,
+not the task. It survives the context that justified it — the lane is gone, the endpoint stays — and because
+nothing owns it, it is found by accident, usually as somebody else's unexplained listener. Kill it when the read
+that needed it returns, in the same lane, and prove it with `ss -ltn`; if it must outlive the lane, that is a
+parent decision and it goes in the row, not in the shell history.
+
+**The parent-side corollary:** before merging a lane, the parent verifies **no lane process is still holding a
+host**. O3's *one converge in flight per host* is a statement about the fleet, not about the branch — it is a lie
+if a finished lane left an attached session, a detached run, or a listener on that host, because the next lane
+merges into a host that is still busy. `git merge-base --is-ancestor` proves the commits; the process table is a
+different proof and step 5's residue inventory does not produce it. Run the same two process-side reads above in
+the lane's worktree host before removing the worktree, and if anything is alive, stop the merge and take the work
+over rather than freeing a slot that is not free.
 
