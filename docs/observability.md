@@ -835,11 +835,17 @@ docker-family lag being reported rather than work left on this leg.** The
 collector half landed with the `--tags monitoring` converges and was verified per host with
 `curl -s 127.0.0.1:9098/metrics | grep -E '^homelab_(pkg|upgrade|reboot)'` — 8 pin pairs +
 `homelab_upgrade_plan_ok`/`_count` + `homelab_reboot_required` on each of `oldsrv · vps · nas · pi ·
-spark`, and the same series in the store (`count by (instance) (homelab_pkg_pin_result)` → 8 for each of
 the five). `pkg-pin-drift` ships in `roles/monitoring/vars/main.yml` and reaches Grafana only through the
-rules task, which `--list-tasks` proves is selected by `bash scripts/ansible/ansible-run.sh
-playbooks/vps.yml --tags monitoring` and by nothing else — `--tags grafana` alone does NOT select it
-(measured: 0 matching tasks). ⛔ That converge is a deliberate window, never an unattended one: on the VPS
+rules task, and **which filter selects that task is a property of the tree, not of the host**: the role entry in
+`playbooks/vps.yml` carries `tags: [monitoring]`, Ansible inherits a role's tags onto every task in it, so
+`bash scripts/ansible/ansible-run.sh playbooks/vps.yml --tags monitoring` **does** select `Provision Grafana alert
+rules` and a run under it cannot skip rule provisioning while printing green. The filter that silently dropped it
+was **`--tags grafana`**, while the task was untagged and so inherited only the role's tag: that run re-provisioned
+the contact points, the policy and the dashboards, reported `failed=0`, and never re-rendered `rules.yml` — the
+silent-drop half of the tag class (→ [deployment-ansible.md](deployment-ansible.md) §Tags & surgical runs; the same class
+as an untagged dynamic include, which is what `scripts/gate/check_tag_coverage.py` now holds). The task carries
+`tags: [monitoring, grafana]` since, so **either** filter selects it and a surgical grafana run re-renders the rules.
+⛔ That converge is a deliberate window, never an unattended one: on the VPS
 the monitoring role restarts the scrape tier, and `--diff` on this role prints vault values into the run
 log (→ [deployment-secrets.md](deployment-secrets.md); use `--check`). Read it back from the ruler API
 afterwards — a rule that is authored is not a rule that is loaded. **That read has been done** (2026-10-17):

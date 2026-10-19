@@ -296,9 +296,12 @@ X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex"
   What neither can express is a sync that never RUNS: no attempt, so no result, so `last_success` keeps reporting
   the value of some earlier success for as long as the box is up. `homelab_unit_last_success_timestamp_seconds{unit=}`
   is that third claim (timer-driven units only), with `unit-last-success-stale` beside it — 90 min, six missed
-  fires of a 15-min pull. ⚠ **That rule is authored, not loaded:** rule provisioning runs on the backend host
-  (`roles/monitoring` → `Provision Grafana alert rules`, gated to `groups['vps']`), so it pages from that VPS
-  provisioning onward and nobody has watched it turn red yet.
+  fires of a 15-min pull. ⚠ **The rule is loaded and evaluating, and it has never been watched red:** rule
+  provisioning runs on the backend host (`roles/monitoring` → `Provision Grafana alert rules`, gated to
+  `groups['vps']`), and the loaded set is read from `GET /api/v1/provisioning/alert-rules` — what is LOADED, not what
+  is in the repo — where this rule carries live instances, all `Normal`. ⛔ Do not read its state from the repo file
+  or from a green converge: the only evidence it would give is a watched transition, and neither shortcut that could
+  produce one (failing a real cert puller, or parking a fabricated sample in the store) is allowed.
 - **The issuer's keys are readable BY THE PULL ACCOUNT, and a mode that says otherwise fails silently on every
   consumer.** Both pullers run `rsync ansible-admin@<issuer>:/opt/traefik/certs/`, so a `0600 root:root` key is
   refused in the **sender**: `rsync: [sender] send_files failed to open /opt/traefik/certs/kogler.si-key.pem:
