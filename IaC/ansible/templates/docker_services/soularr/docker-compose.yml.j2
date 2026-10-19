@@ -12,20 +12,19 @@
 #   and the slskd API. A host timer would need both trees on the host and would sit outside the
 #   registry that owns the media stack.
 #
-#   SECRETS are NOT here: they go into /srv/docker/soularr/config/config.ini (rendered from
-#   config/config.ini.j2 by the same pipeline, the 1P pre-pass supplying lidarr_api + soulseek_api. A
-#   missing vault item renders
-#   an empty key and the arr answers 401 forever — which is why the items are registered under
-#   _template_vault_items.soularr rather than looked up ad hoc.
+#   SECRETS are NOT in the compose: they go into the rendered `config/config.ini` (from
+#   config/config.ini.j2 by the role's extra-template step, the 1P pre-pass supplying `lidarr_api` +
+#   `soulseek-internal_api`). A missing vault item renders an empty key and that leg answers 401 forever,
+#   which is why the items are registered under `_template_vault_items.soularr` rather than looked up ad hoc.
+#   The render lands next to THIS compose file (that is where the role writes every extra), so it is
+#   bind-mounted into the state dir explicitly below — a config rendered to a path the container never
+#   mounts is a container running with no config, which for soularr is a startup error, not a silent no-op.
 #
-#   NOT ARMED (enabled: false in group_vars), and the reason is measured, not assumed: soularr
-#   authenticates to slskd with `x-api-key`, and this box has no slskd API key. SLSKD_API_KEY is
-#   absent from the slskd env and the api_keys block in the appDir slskd.yml is stock-commented, so
-#   EVERY x-api-key request answers 401 — including the one carrying the `soulseek_api` credential,
-#   which is the UI password and therefore JWT auth, not an API key. Giving slskd an API key is an
-#   env change to a SERVING container (it recreates it, dropping the Soulseek session and any
-#   in-flight transfers) → a named-window apply, not an unattended lane action. Until it lands,
-#   enabling this service would deploy a poller that 401s on every interval and downloads nothing.
+#   ARMED. slskd accepts `x-api-key` because the slskd compose now publishes the `soulseek-internal_api`
+#   value as `SLSKD_API_KEY`; the same item is `[Slskd] api_key` here, so a rotation is one re-render of
+#   both templates. slskd's UI password (`soulseek_api`) is NOT this value and never authenticates an
+#   x-api-key call. Both halves move in the same converge: the slskd env change recreates that container
+#   and drops the Soulseek session, so read `transfers 0/0 + queue 0` first.
 #
 #   VERSION PIN: {{ soularr_version }} — ghcr publishes semver (1.2.2 in tags/list), Renovate tracks it.
 services:
@@ -44,8 +43,19 @@ services:
     tmpfs:
       - /tmp
     volumes:
-      - /srv/docker/soularr/config:/data           # config.ini (Ansible-rendered) + soularr's state:
-                                                   # the search-page cursor and the failed-import denylist
+      # STATE lives on the pool, owned by the container's uid: soularr writes its search-page cursor
+      # (.current_page.txt), its failed-import denylist (failed_imports.json) and .soularr.lock into
+      # var_dir (/data), so this dir must be writable by storage_uid (bind_dirs pre-creates it 1005-owned).
+      - /srv/docker/soularr/config:/data:rw
+      # The Ansible-rendered config. The role writes extras NEXT TO THE COMPOSE FILE, so without this
+      # second bind the container would start with no config.ini at all and exit on the
+      # "Config file does not exist! Please mount /data…" branch. `:ro` because config.ini is Ansible-owned
+      # and the WebUI (the only writer in the image) is switched off below — the litellm two-bind pattern.
+      # Mounting a FILE inside a mountpoint that is itself a bind creates a 0-byte stub at
+      # /srv/docker/soularr/config/config.ini, stacked OVER by this read-only bind. The stub is why dropping
+      # this bind does NOT read as a missing file: soularr parses the empty stub and dies on
+      # `KeyError: 'Slskd'`, which is a config problem wearing a traceback costume.
+      - ./config/config.ini:/data/config.ini:ro
       - /mnt/nas/media/downloads:/downloads:rw     # the SAME bind slskd writes into and Lidarr imports from
     environment:
       TZ: {{ timezone | default('Europe/Ljubljana') }}

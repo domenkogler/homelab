@@ -287,14 +287,15 @@ docker_services:
   - { name: aurral,        template_dir: aurral,         public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'downloads'] }  # music discovery (Last.fm/ListenBrainz -> Lidarr API), GHCR — app su-execs to AURRAL_UID (storage_uid 1005) and writes SQLite into /data, so /srv/docker/aurral/config must be pre-created 1005-owned (SQLITE_CANTOPEN otherwise); `downloads` bound at /app/downloads (weekly playlist manager EACCES otherwise)
   - { name: slskd,         template_dir: slskd,          public: false, enabled: true }  # Soulseek P2P #2 — gluetun sidecar (official slskd VPN integration), VPN-locked, fetch-only
   # The poller that closes the ladder (Lidarr wanted → Soulseek search → completion folder → Lidarr import).
-  # DISABLED, and the reason is measured rather than assumed: soularr authenticates to slskd with
-  # `x-api-key` and this box has NO slskd API key (`SLSKD_API_KEY` absent from the env; the appDir
-  # slskd.yml api_keys block is stock-commented) — every x-api-key request answers 401, including the
-  # one carrying `soulseek_api`, which is slskd's UI password (JWT auth, not an API key). Seeding one is
-  # an env change that RECREATES a serving container, dropping the Soulseek session and any in-flight
-  # transfers → a named-window apply, so the switch stays off here rather than deploying a poller that
-  # 401s every interval. Flip `enabled: true` together with the slskd key (one converge brings both).
-  - { name: soularr,       template_dir: soularr,        public: false, enabled: false, bind_owner_uid: 1005, bind_dirs: ['config'] }  # /srv/docker/soularr/config holds the rendered config.ini; 1005-owned because the container runs as storage_uid and keeps its state (search-page cursor, failed-import denylist) in /data
+  # Its one secret is the slskd HTTP API key, which lives in the `soulseek-internal_api` item and is rendered
+  # into BOTH templates: `SLSKD_API_KEY` here (so slskd accepts x-api-key at all) and `[Slskd] api_key` in
+  # soularr's config.ini. slskd's UI password (`soulseek_api`) is the human login and is NOT that key — an
+  # x-api-key request carrying it answers 401. Setting the env on slskd RECREATES that container, which
+  # drops the Soulseek session, so the two entries land in the SAME converge (one restart, not two).
+  # `extra_config_*` renders config.ini 0600 owned by the container's uid: the file carries both API keys in
+  # configparser-plain text and the container runs as storage_uid, so a world-readable or root-owned render
+  # is either a leak or a crash loop.
+  - { name: soularr,       template_dir: soularr,        public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config'], extra_config_mode: '0600', extra_config_owner_uid: 1005 }  # /srv/docker/soularr/config holds the state (search-page cursor, failed-import denylist) and must be 1005-owned; the rendered config.ini is bind-mounted from the compose dir into it
   - { name: lidarr-ydl,    template_dir: lidarr-ydl,     public: false, enabled: true, bind_owner_uid: 1005, bind_dirs: ['config', 'home'] }  # Lidarr-YouTube-Downloader (Angrido) — youtube -> Lidarr, #3 priority, Newznab+SABnzbd emulation; s6 setprivs to PUID (1005) and chmods /config, so the host dir must be 1005-owned ("chmod /home/appuser: Operation not permitted" otherwise); `home` bound at /home/appuser (the image has NO appuser home on its RO layer — s6's `> /home/appuser/.profile` EACCES crash-loop otherwise)
   - { name: tube-archivist, template_dir: tube-archivist, public: false, enabled: false, bind_owner_uid: 1000, bind_dirs: ['es'] } # Personal YouTube (headless yt-dlp) — internal only; the ES image runs uid 1000, so /srv/docker/tube-archivist/es must be pre-created 1000-owned (crash-loop "failed to obtain node locks" otherwise) — DISABLED: on this box it loops on the `path.repo` ES snapshot env-check (constant CPU / alternating RAM); re-enable once that is set in ES elasticsearch.yml directly
   - { name: prowlarr,     template_dir: prowlarr, bind_owner_uid: 1005, bind_dirs: ['config'] }   # image runs PUID=1005; pre-create the config dir 1005-owned or it crash-loops

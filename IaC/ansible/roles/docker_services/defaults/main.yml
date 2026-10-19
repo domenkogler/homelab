@@ -88,8 +88,9 @@ _extra_templates:
     - recyclarr.yml.j2
   # soularr has no env-based config surface at all: every setting, including both API keys and both
   # download-dir path views, lives in config.ini. Rendering it is the only way to keep it in git. The
-  # `config/` prefix matches the compose bind (./config:/data) — the loop preserves sub-paths, and a
-  # bare name would land the file at the compose root where the container never sees it.
+  # `config/` prefix keeps the render under the compose dir, where the compose bind mounts it read-only at
+  # /data/config.ini — the loop preserves sub-paths, and a bare name would land the file at the compose
+  # root where the container never sees it.
   soularr:
     - config/config.ini.j2
 
@@ -387,11 +388,12 @@ _template_vault_items:
                                   # writes this client too, and derive mode fetches per service IN SCOPE
   aurral: []   # config is all IN-UI (Lidarr API, Last.fm, ListenBrainz in first-run setup); no 1P items for the compose. lastfm_login/metabrainz_login stay as owner-reference items + docs rows. An empty set is `[]`: a bare `set()` is a Python literal YAML parses as the STRING "set()", which pollutes the derive item set with per-char fake items and op-vault-export fails on '('.
   lidarr-ydl: {'lidarr_api'}   # Lidarr API key (compose). Its Web-UI login has NO vault item — first-run setup, not fetched/required by compose.
-  slskd: {'slskd_login', 'soulseek_api', 'privado-vpn_api'}   # Soulseek login + slskd UI token + VPN client key (gluetun sidecar)
-  # The poller bridge spans BOTH arr APIs, so it needs both items. `soulseek_api` is slskd's UI password
-  # and soularr authenticates with x-api-key, which slskd only honours for a configured API key — this
-  # box has none, so the bridge is disabled until one is seeded (see soularr/config.ini.j2).
-  soularr: {'lidarr_api', 'soulseek_api'}
+  slskd: {'slskd_login', 'soulseek_api', 'soulseek-internal_api', 'privado-vpn_api'}   # Soulseek login + slskd UI password (JWT) + the slskd HTTP API key (x-api-key, read by soularr) + VPN client key (gluetun sidecar)
+  # The poller bridge spans BOTH arr APIs, so it needs both items. `[Slskd] api_key` is the slskd HTTP API
+  # key (`soulseek-internal_api`), NOT the slskd UI password: soularr authenticates with `x-api-key`, which
+  # slskd honours only for a configured API key. `soulseek_api` is therefore absent here by design — the
+  # human login and the machine credential are different items and rotate separately (docs/deployment-secrets.md).
+  soularr: {'lidarr_api', 'soulseek-internal_api'}
   tube-archivist: {'tube-archivist_login', 'tube-archivist_ui', 'tube-archivist-es'}   # login + UI/API token + ES 'elastic' bootstrap password (ELASTIC_PASSWORD env on app + ES); `tube_archivist_api` stays DOCS-ONLY for the future Jellyfin plugin (not fetched)
   recyclarr: {'sonarr_api', 'radarr_api'}
   renovate: {'forgejo_api'}

@@ -1,28 +1,27 @@
 # {{ ansible_managed }}
-# soularr config.ini — rendered to /srv/docker/soularr/config/config.ini, mounted read-write at /data.
-# Edit the template in git; the WebUI is disabled in the compose precisely so nothing else writes here.
+# soularr config.ini — rendered next to the compose file and bind-mounted at /data/config.ini (read-only);
+# soularr's own state (the search-page cursor, the failed-import denylist, the lock file) is written into
+# the /data directory bind. Edit the template in git; the WebUI is disabled in the compose precisely so
+# nothing else writes here.
 #
-# FILE MODE IS 0644 AND BOTH API KEYS ARE PLAINTEXT IN IT — the same accepted tradeoff as
-# signal-cli-rest-api/config.yaml.j2: soularr reads its keys from this file and from nowhere else, and
-# the container's env is equally readable via `docker inspect` on this host. Never print this file
-# (README §2). Unlike a compose file this is NOT fed to `docker compose`, so the `| replace('$','$$')`
-# escaping rule does NOT apply. What DOES apply: soularr parses this with configparser's
-# ExtendedInterpolation + os.path.expandvars, so a value containing `${` is read as a reference to
-# another option and a value containing `$NAME` is expanded from the container's env — a secret with
-# either shape must be moved to a different item, not escaped here. Both values today are alphanumeric.
+# FILE MODE IS 0600, OWNED BY THE UID THE CONTAINER RUNS AS (`extra_config_*` on the registry entry), and
+# both API keys are PLAINTEXT in it. A 0644 render would leak them to every other uid on this host and a
+# root-owned 0600 would be unreadable to a container that dropped its privileges — soularr reads its keys
+# from this file and from nowhere else, so the file IS the secret surface and never gets printed (README §2).
+# Unlike a compose file this is NOT fed to `docker compose`, so the `| replace('$','$$')` escaping rule does
+# NOT apply. What DOES apply: soularr parses this with configparser's ExtendedInterpolation +
+# os.path.expandvars, so a value containing `${` is read as a reference to another option and a value
+# containing `$NAME` is expanded from the container's env — a secret with either shape must be moved to a
+# different item, not escaped here. Both values today are alphanumeric.
 #
 # The two legs this bridges:
 #   [Lidarr]  the wanted list + the DownloadedAlbumsScan that finishes the import.
-#   [Slskd]   the search/enqueue/status API. NOT REACHABLE WITH A KEY TODAY: slskd has no API key on
-#             this box (no SLSKD_API_KEY env, the appDir slskd.yml api_keys block is stock-commented),
-#             so every x-api-key call answers 401 — measured against /api/v0/options. The value below
-#             is the `soulseek_api` credential, which today serves only as slskd's UI password (JWT
-#             auth). To arm the bridge, slskd's API key must BE this same value — set
-#             `SLSKD_API_KEY` in the slskd compose to this item's credential — or both templates move
-#             to a dedicated `soulseek-internal_api` item. Either way it is an env change that recreates
-#             the slskd container, so it is a named-window apply; that is why this service ships
-#             disabled. Re-measure before flipping the switch:
-#             `curl -H "x-api-key: …" http://gluetun-slskd:5030/api/v0/options` → 200.
+#   [Slskd]   the search/enqueue/status API, authenticated by `x-api-key`. The value below is the minted
+#             `soulseek-internal_api` item and it must be the SAME item the slskd compose renders into
+#             `SLSKD_API_KEY`: slskd accepts an x-api-key only against a configured API key, and slskd's UI
+#             password (`soulseek_api`, JWT via `POST /api/v0/session`) is NOT an API key — sending it here
+#             answers 401. Reachability is by the SIDECAR's name (`gluetun-slskd:5030`), not `slskd:5030`.
+#             A probe before any debug: `curl -H "x-api-key: …" http://gluetun-slskd:5030/api/v0/options`.
 #
 # PATHS ARE NOT FREEFORM. [Slskd] download_dir is the completion folder as SL SKD names it and as
 # this container mounts it (/downloads/complete/music); [Lidarr] download_dir is the SAME directory as
@@ -39,7 +38,7 @@ download_dir = /downloads/complete/music
 disable_sync = False
 
 [Slskd]
-api_key = {{ vault['soulseek_api'].credential }}
+api_key = {{ vault['soulseek-internal_api'].credential }}
 # slskd shares the gluetun sidecar's network namespace, so its API is reachable under the SIDECAR's
 # name, not its own: `slskd:5030` does not resolve, `gluetun-slskd:5030` answers 200.
 host_url = http://gluetun-slskd:5030

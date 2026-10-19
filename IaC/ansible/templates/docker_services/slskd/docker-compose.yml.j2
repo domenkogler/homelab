@@ -7,8 +7,13 @@
 #   https://github.com/slskd/slskd · docs: services-media.md §Music Pillar,
 #   services-downloads.md §VPN & Ingress (rate-limit + open-port notes).
 #
-#   AUTH = Soulseek network login (slskd_login -> SLSKD_SLSK_*) + the slskd web-UI
-#   password (soulseek_api -> SLSKD_PASSWORD). slskd 0.26 has NO token option.
+#   AUTH has TWO independent surfaces and they never substitute for each other:
+#     * the human web UI — username `slskd` + the `soulseek_api` password -> JWT
+#       (`POST /api/v0/session`). slskd 0.26 has NO token option.
+#     * the HTTP API — the `soulseek-internal_api` key -> `SLSKD_API_KEY`, presented as
+#       `x-api-key`. With NO key configured every x-api-key request answers 401, including one
+#       carrying the UI password, which is JWT auth and is never accepted as an API key.
+#   `SLSKD_API_KEY` is the machine surface (soularr, the Soulseek bridge); it is minted, never typed.
 #   Fail-closed lookups, | replace('$','$$') compose-escape.
 #   VERSION PIN: {{ slskd_version }} (exact tag from group_vars).
 services:
@@ -65,6 +70,11 @@ services:
       # the STOCK DEFAULT slskd/slskd — which is exactly what answered on slskd.kogler.si.
       SLSKD_USERNAME: "slskd"
       SLSKD_PASSWORD: "{{ vault['soulseek_api'].credential | replace('$','$$') }}"
+      # The HTTP API key (`x-api-key`), read by soularr. Both names below are in `slskd --envars`; the
+      # `api_keys` block of the appDir slskd.yml is a COMMENTED template, so env is the only lever here.
+      # Adding it recreates this container — the Soulseek session and any in-flight transfers drop, so
+      # the before-read is `transfers 0/0 + queue 0`, never a guess.
+      SLSKD_API_KEY: "{{ vault['soulseek-internal_api'].credential | replace('$','$$') }}"
       # Downloads land on the NAS, where the arr can see them: /downloads == the same
       # /mnt/nas/media/downloads bind qBittorrent uses (TRaSH complete/<cat> layout).
       # Unset, slskd writes to <appDir>/downloads == /srv/docker/slskd/data/downloads —

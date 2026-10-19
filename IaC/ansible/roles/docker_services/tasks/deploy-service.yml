@@ -116,7 +116,14 @@
   ansible.builtin.template:
     src: "{{ playbook_dir }}/../templates/docker_services/{{ svc.template_dir }}/{{ extra }}"
     dest: "{{ docker_compose_dir }}/{{ svc.name }}/{{ extra | replace('.j2', '') }}"
-    mode: '0644'
+    # Default is a plain world-readable config. An extra that renders secret VALUES opts out with
+    # `extra_config_mode`, and then the OWNER must move with the mode: a 0600 root-owned file is unreadable
+    # by a container that dropped its privileges, so mode without owner is a crash loop and not a hardening.
+    # `extra_config_owner_uid` is the uid that container runs as and, like `bind_owner_uid`, sets owner and
+    # group together. The app-owned-ini precedent is sabnzbd's 0600 media:media ini.
+    mode: "{{ svc.extra_config_mode | default('0644') }}"
+    owner: "{{ svc.extra_config_owner_uid | default(omit) }}"
+    group: "{{ svc.extra_config_owner_uid | default(omit) }}"
   loop: "{{ _extra_templates[svc.template_dir] | default([]) }}"
   loop_control:
     label: "{{ extra | replace('.j2', '') }}"
