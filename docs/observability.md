@@ -1005,6 +1005,15 @@ line is evidence about the NEXT mount, not this one. The acceptance read is `log
 (read-only): no `error: skipping … bad file mode`/`insecure permissions` line, and note that `logrotate -d` prints
 `does not exist -- skipping` for files a host simply lacks, which is not the defect.
 
+⚠ **Rotation moves bytes, it does not remove them, and on a tmpfs the bytes have nowhere else to go.**
+`logrotate` renames `/var/log/x` to `/var/log/x.1` on the SAME filesystem, so a `weekly` + `rotate 4`
+policy with **no `compress`** on a 100 MB tmpfs cannot hold four periods of a ~75 MB/period `syslog` —
+one real rotation of exactly that configuration leaves 77 M of that 100 M in use, which is the
+full-`/var/log` failure deferred into RAM rather than avoided. A retention policy for a tmpfs `/var/log`
+is therefore a sizing decision against `size=100m` (`compress` + `delaycompress`, or `rotate 1` +
+`maxsize`), and it is an owner's: how much log history an SD-card box should carry. The repo ships the
+mount and the mode here, not the policy.
+
 ---
 
 ## Dashboards
