@@ -23,17 +23,23 @@ http:
     # HA refuses any request that carries X-Forwarded-For unless the SENDING socket is in
     # HA's `trusted_proxies`: from oldsrv, `Host: ha.kogler.si` + XFF -> 400 Bad Request
     # from aiohttp, without XFF -> 200; direct VIP:8123 -> 200. Check what the ACTIVE HA
-    # host actually rendered before trusting the symptom: `ha_trusted_proxies` lists
-    # `oldsrv_home_ip`/32, but an HA host that has not rendered the var still answers 400
-    # (read the rendered `configuration.yaml` before editing anything here). Strip the
+    # host actually enforces before trusting the symptom — and it is NOT the rendered
+    # `configuration.yaml`: once `yaml_migration_done` is true HA reads `http` from
+    # `<config>/.storage/http`, so this host's address can be in the YAML, survive every
+    # converge, and still answer 400. Read the object
+    # (`python3 -c "import json;d=json.load(open('/opt/home-assistant-primary/config/.storage/http'));print(d['data']['stable']['trusted_proxies'],d['data']['pending']['trusted_proxies'])"`
+    # on the ACTIVE node) and reconcile it there — `roles/home_assistant/tasks/pi.yml`, tag `hd418`, owns
+    # that write. Strip the
     # forwarding headers on
     # the tailnet router ONLY: HA then sees a plain, non-proxied request, keeps the Host the
     # client used, and no smart-home config has to change (fixing it on the HA side would
     # mean trusting oldsrv as a proxy + a HA restart). Cost: HA logs the src as oldsrv for
     # this one path, so an HA brute-force ban here would hit the node, not the phone.
     # End-state: HA trusts this edge and
-    # serves HA direct, which also repairs the standby edge; this middleware stays until the rendered
-    # `trusted_proxies` on the active HA host has been read and the XFF-present → 200 proof is taken.
+    # serves HA direct, which also repairs the standby edge. ✅ The trust side landed 2026-10-19: the
+    # active node's `.storage/http` now carries the rendered `ha_trusted_proxies` list in `stable` and
+    # `pending`, so this host's Home address is on it. ⏳ What has NOT been taken from this box is the
+    # XFF-present → 200 read through this middleware, so the middleware stays.
     ha-ts-strip-forwarded:
       headers:
         customRequestHeaders:

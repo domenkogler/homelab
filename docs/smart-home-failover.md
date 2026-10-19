@@ -12,24 +12,45 @@ tags: [smart-home, homeassistant, failover, ha, vip, standby]
 > `deployment-ansible.md`, `services.md`, `backup.md`
 > **Linked from:** `smart-home.md`, `index.md`
 
-> 🟢 **The standby is deployed COLD — ⏳ deploy-gated, never drilled as cold.** A standby **exists on
-> oldsrv** and is **held cold by ruling**: `home-assistant-standby` carries `enabled: false` in the oldsrv
-> registry, so the `docker_services` deploy loop never touches it, and the `home_assistant` role owns the
-> whole cold target — it renders the compose + `configuration.yaml` + `secrets.yaml` + both keepalived
-> variants into `/opt/home-assistant-standby`, bootstraps the active `keepalived.conf` (from the BACKUP
-> config, `force: false`, Pi-pattern) so the compose bind-mount is a real file from render time, and
-> creates the container with `--no-recreate` so a takeover does not depend on a registry being reachable.
-> Nothing starts it: `restart: "no"` and no unit mean **the cold node is only ever raised by the takeover
-> path**. The Pi → oldsrv config sync is live (`ha-config-sync.timer`), so the cold node carries a current
-> `/config` rather than a snapshot of whenever the role last ran.
+> 🔴 **The standby is UNDEPLOYED — not "cold-deployed", absent — and no takeover has ever been drilled.**
+> Measured 2026-10-19 (§Intent vs reality below): oldsrv runs 39 containers and none of them is
+> `home-assistant-standby` or `keepalived`, running or stopped; the rendered compose pins
+> `home-assistant:2026.9.4` while the host holds only `2026.8.1`/`latest`, so `compose up` has never been
+> run against the current render. What DOES exist is the rendered cold target — `/opt/home-assistant-standby`
+> with its compose, `configuration.yaml`, `secrets.yaml` and the keepalived variants — and the Pi → standby
+> config push, which is **live on the Pi** (`ha-config-sync.timer`: enabled + active, ~15 min, last tick
+> `Finished`). It reads `not-found` on oldsrv because the pusher is the SOURCE, and that is the correct read
+> — the same trap as `systemctl is-active keepalived` there.
 >
-> **What that does and does not buy.** The standby compose hosts oldsrv's keepalived, so while the standby
-> is cold the `ha-vip` has exactly **one advertiser — the Pi**: the VIP never floats on its own and "HA
-> failed over" is always a human act, never a VRRP event. ⏳ **Deploy-gated:** the cold *create* is
-> authored but not yet run, so today `docker ps -a` on oldsrv still lists no HA container — the files and
-> the synced config are there, the created container is not. The **Homepage failover cards are rendered**
-> (`homepage_failover_button: true`): they are the same `/usr/local/sbin/ha-failover.sh` trigger behind
-> root's `sudo … forward`, reachable from the home network only (§Forward Takeover, *Who fires it*).
+> **The design this was meant to serve, unchanged.** `home-assistant-standby` carries `enabled: false` in
+> the oldsrv registry so the `docker_services` deploy loop never touches it; the `home_assistant` role owns
+> the whole cold target — renders the compose + configs, bootstraps the active `keepalived.conf` from the
+> BACKUP variant (`force: false`, Pi-pattern) so the bind-mount is a real file from render time, and creates
+> the container with `--no-recreate` so a takeover does not depend on a registry being reachable. Nothing
+> starts it: `restart: "no"` and no unit mean **the cold node is only ever raised by the takeover path**.
+> Because the standby compose hosts oldsrv's keepalived, while it is down the `ha-vip` has exactly **one
+> advertiser — the Pi**: the VIP never floats on its own and "HA failed over" is always a human act.
+>
+> **What happens today if you click a failover card.** `ha-failover.sh forward` would not start a standby,
+> it would **create one in production while the VIP is already moving**: `promote_vip()` runs
+> `docker compose … up -d keepalived` on a service that does not exist yet — creating and starting the VRRP
+> container, so the VIP arrives on oldsrv beside a Pi that still advertises it — and then runs
+> `up -d home-assistant` for a service whose pinned tag is **not on the host**, so the takeover waits on a
+> registry pull and fails outright if the registry is unreachable, which is exactly the outage-shaped moment
+> this path exists for. `reverse` (`down --remove-orphans` + demote) then tears down the container the
+> forward leg just created. Neither direction has been executed once, from either side.
+>
+> **What would have to be created for the click to work.** (1) the cold create, run once in an owner window
+> — `ansible-playbook IaC/ansible/playbooks/home_servers.yml --limit oldsrv --tags ha_failover` (⛔ never
+> `--diff`; its `authorized_key` task writes SSH keys on oldsrv) — which renders and creates with
+> `--no-recreate` and starts nothing; (2) the pinned image on the host before any drill, so a takeover never
+> depends on a registry; (3) a forward drill, a reverse drill, and the standby KNX tunnel read (HD-434).
+> Until (1) runs the two **Homepage failover cards are rendered** (`homepage_failover_button: true`,
+> generated by
+> [`../IaC/ansible/templates/homepage_services.yaml.j2`](../IaC/ansible/templates/homepage_services.yaml.j2))
+> and they are the same `/usr/local/sbin/ha-failover.sh` trigger behind root's `sudo … forward`, reachable
+> from the home network only (§Forward Takeover, *Who fires it*) — so the launchpad currently offers a real,
+> untested cold-create-under-pressure, not a standby start.
 > Homematic has no local RF path; the HmIP-HAP stays cloud-mode
 > ([smart-home-rejected.md](smart-home-rejected.md)). Runbooks below are the spec to be executed at
 > takeover time.
@@ -348,19 +369,28 @@ Forward-Auth. Direct fallback `pi:5380` on the LAN.
   `ha_trusted_proxies` renders. Extending `ha_trusted_proxies` alone does NOT change the running list:
   the storage object has to be reconciled, which is a config write plus a **restart** of the HA
   container (an owner-window act, not a converge side effect).
-  ⚠ **Configured, not proven:** HA answers `400 Bad Request` to an `X-Forwarded-For` from any source outside
-  its trust list, so a takeover-shaped request can still fail. The fix is to keep every HA-fronting edge's
-  address in the effective list — never to strip the header ([smart-home-rejected.md](smart-home-rejected.md)).
-  The instrument is the request, not the file: probe the **active** HA with the standby edge's source
-  address in `X-Forwarded-For` and read the code. `200` = trusted, `400 untrusted proxy X` = names the
-  exact address that is missing. The standby edge proves nothing until a request shaped like a takeover
-  returns 200.
+  ✅ **Reconciled 2026-10-19 on the active node:** `.storage/http` on the Pi now carries the full rendered
+  `ha_trusted_proxies` list in BOTH `stable` and `pending` (the third entry, the oldsrv Home-IP, had been in
+  the YAML for a month and absent from the object the whole time — HA's own log recorded `Received
+  X-Forwarded-For header from an untrusted proxy <oldsrv home ip>`), owned in IaC by
+  `roles/home_assistant/tasks/pi.yml` under the `hd418` tag, which backs the object up root-only with a
+  timestamp and its hash, writes both blocks, restarts only the HA container and re-reads the object.
+  Proof instrument unchanged: `200`/`401` = trusted, `400 untrusted proxy X` = names the missing address.
+  ⚠ **Configured, not proven end-to-end from the standby edge:** the request that would settle it comes FROM
+  oldsrv's own address, and oldsrv is not this lane's to run commands on — what was proven here is that HA
+  honours `X-Forwarded-For` from an address on the list (the real client IP lands in its auth log) and
+  refuses it from one that is not (`400` + `untrusted proxy <source>`), plus list equality with the rendered
+  value. The standby half of the row has no subject while the standby is UNDEPLOYED (HD-1109).
 
 ---
 
 ## Forward Takeover (Pi → oldsrv) — MANUAL
 
-**Prerequisites:** the standby is rendered on oldsrv — `/opt/home-assistant-standby` with its compose and a real `keepalived.conf` file (both created by the `home_assistant` role), and the standby's config kept current by the Pi-side `ha-config-sync.timer`.
+**Prerequisites:** ⛔ **not met today — see the banner.** The standby must already be **created**; on this
+fleet it is not, so a forward click cold-creates it. What is in place: `/opt/home-assistant-standby` with
+its compose and a real `keepalived.conf` file (rendered by the `home_assistant` role), and the standby's
+config kept current by the Pi-side `ha-config-sync.timer` (live, measured 2026-10-19). What is missing: the
+cold `create` (`--tags ha_failover` on oldsrv, owner-window) and the pinned image on that host.
 
 **Two manual actions total:** (1) confirm Pi down, and (2) fire **one** takeover trigger. Everything after the trigger is a single orchestrated script — no VIP / standby steps.
 

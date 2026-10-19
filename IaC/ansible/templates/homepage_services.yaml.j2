@@ -31,16 +31,22 @@
 # physical moves, Homematic rides the cloud HAP. `failover_api_url` is the oldsrv HOME-VLAN
 # address, so the card works from a device on the home network and reaches nothing from away.
 # Rendered only when the group_var homepage_failover_button is true, so a button is never dead.
+# ⚠ STATE, measured 2026-10-19 (docs/smart-home-failover.md §Intent vs reality): the standby is
+# UNDEPLOYED — oldsrv runs no `home-assistant-standby`/`keepalived` container, and the tag the compose
+# pins is not on that host. So "standby start" below was the lie this line now corrects: a forward click
+# runs `compose up -d`, which CREATES both containers under time pressure and stalls on a registry pull if
+# the image is missing. The descriptions say what the click does TODAY. The cold create
+# (`--tags ha_failover` on oldsrv, owner-window) is what would make them read like a standby start again.
 {% if homepage_failover_button %}
 - Smart Home Failover:
     - HA Forward Takeover:
         icon: sh-home-assistant
         href: "{{ failover_api_url }}/failover?token={{ lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) }}"
-        description: Pi → oldsrv — VIP move, then standby start
+        description: Pi → oldsrv — VIP move, then create+start the standby (none exists yet: this click creates it)
     - HA Reverse Failback:
         icon: sh-home-assistant
         href: "{{ failover_api_url }}/failback?token={{ lookup('community.general.onepassword', 'ha-failover_api', field='credential', vault=op_vault) }}"
-        description: oldsrv → Pi — standby down, then VIP back
+        description: oldsrv → Pi — standby down, then VIP back (no takeover has ever been drilled)
 {% endif %}
 
 {% set d = domain_local | default('kogler.si') %}
