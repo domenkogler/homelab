@@ -521,8 +521,11 @@ if [ "$MODE" = list ]; then
   for s in $SEATS; do
     info "  $s — $(seat_label "$s")  via $(seat_transport "$s")  repo $(seat_repo "$s")"
   done
-  _pl="$(planes_for_seat "${SEATS%% *}" check | cut -f1 | tr '\n' ' ')"
-  info "planes (${SEATS%% *} — the set is keyed per seat, so read each seat's own row if they differ): $_pl"
+  # One registry read per seat: the sets are keyed per seat, so a single line naming one seat's
+  # planes would misstate the others.
+  for s in $SEATS; do
+    info "planes ($s): $(planes_for_seat "$s" check | cut -f1 | tr '\n' ' ')"
+  done
   exit 0
 fi
 
