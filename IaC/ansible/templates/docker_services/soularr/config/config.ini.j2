@@ -1,0 +1,101 @@
+# {{ ansible_managed }}
+# soularr config.ini — rendered to /srv/docker/soularr/config/config.ini, mounted read-write at /data.
+# Edit the template in git; the WebUI is disabled in the compose precisely so nothing else writes here.
+#
+# FILE MODE IS 0644 AND BOTH API KEYS ARE PLAINTEXT IN IT — the same accepted tradeoff as
+# signal-cli-rest-api/config.yaml.j2: soularr reads its keys from this file and from nowhere else, and
+# the container's env is equally readable via `docker inspect` on this host. Never print this file
+# (README §2). Unlike a compose file this is NOT fed to `docker compose`, so the `| replace('$','$$')`
+# escaping rule does NOT apply. What DOES apply: soularr parses this with configparser's
+# ExtendedInterpolation + os.path.expandvars, so a value containing `${` is read as a reference to
+# another option and a value containing `$NAME` is expanded from the container's env — a secret with
+# either shape must be moved to a different item, not escaped here. Both values today are alphanumeric.
+#
+# The two legs this bridges:
+#   [Lidarr]  the wanted list + the DownloadedAlbumsScan that finishes the import.
+#   [Slskd]   the search/enqueue/status API. NOT REACHABLE WITH A KEY TODAY: slskd has no API key on
+#             this box (no SLSKD_API_KEY env, the appDir slskd.yml api_keys block is stock-commented),
+#             so every x-api-key call answers 401 — measured against /api/v0/options. The value below
+#             is the `soulseek_api` credential, which today serves only as slskd's UI password (JWT
+#             auth). To arm the bridge, slskd's API key must BE this same value — set
+#             `SLSKD_API_KEY` in the slskd compose to this item's credential — or both templates move
+#             to a dedicated `soulseek-internal_api` item. Either way it is an env change that recreates
+#             the slskd container, so it is a named-window apply; that is why this service ships
+#             disabled. Re-measure before flipping the switch:
+#             `curl -H "x-api-key: …" http://gluetun-slskd:5030/api/v0/options` → 200.
+#
+# PATHS ARE NOT FREEFORM. [Slskd] download_dir is the completion folder as SL SKD names it and as
+# this container mounts it (/downloads/complete/music); [Lidarr] download_dir is the SAME directory as
+# LIDARR names it. soularr renames the folder in place and hands Lidarr that second path, so any
+# mismatch is a scan of a directory that exists but is always empty — a silent no-op, not an error.
+
+[Lidarr]
+api_key = {{ vault['lidarr_api'].credential }}
+host_url = http://lidarr:8686
+# Lidarr's own view of the NAS downloads tree (its /downloads bind), music category.
+download_dir = /downloads/complete/music
+# False = soularr fires the import itself. True would leave every completed album sitting in the
+# completion folder for a human — the exact manual step this service exists to remove.
+disable_sync = False
+
+[Slskd]
+api_key = {{ vault['soulseek_api'].credential }}
+# slskd shares the gluetun sidecar's network namespace, so its API is reachable under the SIDECAR's
+# name, not its own: `slskd:5030` does not resolve, `gluetun-slskd:5030` answers 200.
+host_url = http://gluetun-slskd:5030
+url_base = /
+download_dir = /downloads/complete/music
+# Keep the search entries: they are the audit trail of what was asked of the network, and slskd's
+# own history is the only place a stalled Soulseek transfer is visible.
+delete_searches = False
+stalled_timeout = 3600
+remote_queue_timeout = 300
+
+[Release Settings]
+# Lidarr's own release preference wins over soularr guessing which release the peers hold.
+use_selected_lidarr_release = True
+use_most_common_tracknum = True
+allow_multi_disc = True
+accepted_countries = Europe,Japan,United Kingdom,United States,[Worldwide],Australia,Canada
+skip_region_check = False
+accepted_formats = CD,Digital Media,Vinyl
+
+[Search Settings]
+search_timeout = 5000
+maximum_peer_queue = 50
+minimum_peer_upload_speed = 0
+# 0.8 is upstream's default and it matters: a Soulseek result whose filenames do not match Lidarr's
+# tracklist is a DIFFERENT release, and importing it writes wrong tags into the master copy.
+minimum_filename_match_ratio = 0.8
+minimum_search_interval = 5
+# flac first, then the lossy fall-backs. The library's quality target is lossless, and the whole
+# reason this leg exists is the rarest FLAC — accepting mp3 where a FLAC exists would quietly lower
+# the master. Keep `flac 24/192,flac 16/44.1,flac` ahead of the mp3 entries.
+allowed_filetypes = flac 24/192,flac 16/44.1,flac,mp3 320,mp3
+ignored_users =
+album_prepend_artist = False
+# incrementing_page: every poll looks one page deeper instead of re-asking for page 1 forever, so a
+# rare album is eventually found without anyone touching it.
+search_type = incrementing_page
+number_of_albums_to_grab = 10
+title_blacklist =
+search_blacklist =
+search_source = missing
+# Remember imports that failed and stop re-attempting them: without it one permanently unavailable
+# album pins itself at the head of the wanted list and the poller never reaches anything behind it.
+failed_import_denylist = True
+
+[Download Settings]
+download_filtering = True
+use_extension_whitelist = True
+# Audio plus the covers/logs the arr would otherwise re-fetch. Anything else a peer shares stays out.
+extensions_whitelist = flac,mp3,m3u,cue,jpg,png,txt,nfo,lrc
+rename_download_folders = True
+
+[Logging]
+level = INFO
+format = [%(levelname)s|%(module)s|L%(lineno)d] %(asctime)s: %(message)s
+datefmt = %Y-%m-%dT%H:%M:%S%z
+# stdout only: `docker logs soularr` is the read, and a rotated file inside /data would be a second
+# log nobody collects.
+log_to_file = False

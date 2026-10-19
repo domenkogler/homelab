@@ -236,9 +236,13 @@ storage_push_db_dumps_pg:
 # ---------------------------------------------------------------------
 # max_delete BOUNDS `--delete`. A dead source mount reads as an empty directory, and an unbounded
 # --delete would then empty the serving library in ONE green-running timer fire — Navidrome would
-# serve an empty tree while every unit reads active. A run that would delete more than max_delete
-# entries aborts (rsync rc 25) before touching the destination. min_files is the same duty on the
-# other side of the same mount: refuse to run at all rather than run against an empty source.
+# serve an empty tree while every unit reads active. The bound is a blast-radius cap, not an abort:
+# measured on rsync 3.5.0, a run with more pending deletions than the limit DELETES `max_delete`
+# entries, stops deleting the rest and exits 25 (`Deletions stopped due to --max-delete limit`).
+# So the guarantee is "at most max_delete entries per fire", never "nothing" — which is why the
+# mount assert and min_files (both BEFORE any rsync) are the real guards and this is the last net.
+# min_files is the same duty on the other side of the same mount: refuse to run at all rather than
+# run against an empty source.
 storage_push_music:
   src: "{{ music_master_mount }}"
   expected_source: "{{ music_master_expected_source }}"   # asserted against findmnt before rsync

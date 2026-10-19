@@ -78,24 +78,25 @@ Services grouped by host, in the order defined in `group_vars` (grouped by purpo
 | 19 | lidarr | lidarr | `https://lidarr.kogler.si` | enabled |
 | 20 | aurral | aurral | `https://aurral.kogler.si` | enabled |
 | 21 | slskd | slskd | `https://slskd.kogler.si` | enabled |
-| 22 | lidarr-ydl | lidarr-ydl | `https://lidarr-ydl.kogler.si` | enabled |
-| 23 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | disabled |
-| 24 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
-| 25 | bazarr | bazarr | `https://bazarr.kogler.si` | enabled |
-| 26 | sabnzbd | sab | `https://sab.kogler.si` | enabled |
-| 27 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
-| 28 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
-| 29 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
-| 30 | flaresolverr | flaresolverr | `https://flaresolverr.kogler.si` | enabled |
-| 31 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | enabled |
-| 32 | dsh | dsh | `https://dsh.kogler.si` | disabled |
-| 33 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | disabled |
-| 34 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
-| 35 | metabase | metabase | `https://metabase.kogler.si` | enabled |
-| 36 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
-| 37 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
-| 38 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
-| 39 | homelable | homelable | `https://homelable.kogler.si` | disabled |
+| 22 | soularr | soularr | `https://soularr.kogler.si` | disabled |
+| 23 | lidarr-ydl | lidarr-ydl | `https://lidarr-ydl.kogler.si` | enabled |
+| 24 | tube-archivist | tube-archivist | `https://tube-archivist.kogler.si` | disabled |
+| 25 | prowlarr | prowlarr | `https://prowlarr.kogler.si` | enabled |
+| 26 | bazarr | bazarr | `https://bazarr.kogler.si` | enabled |
+| 27 | sabnzbd | sab | `https://sab.kogler.si` | enabled |
+| 28 | qbittorrent | torrent | `https://torrent.kogler.si` | enabled |
+| 29 | profilarr | profilarr | `https://profilarr.kogler.si` | enabled |
+| 30 | recyclarr | recyclarr | `https://recyclarr.kogler.si` | enabled |
+| 31 | flaresolverr | flaresolverr | `https://flaresolverr.kogler.si` | enabled |
+| 32 | lan-litellm | lan-litellm | `https://lan-litellm.kogler.si` | enabled |
+| 33 | dsh | dsh | `https://dsh.kogler.si` | disabled |
+| 34 | pi-dev | pi-dev | `https://pi-dev.kogler.si` | disabled |
+| 35 | actual-budget | actual-budget | `https://actual-budget.kogler.si` | enabled |
+| 36 | metabase | metabase | `https://metabase.kogler.si` | enabled |
+| 37 | kopia-agent | kopia-agent | `https://kopia-agent.kogler.si` | enabled |
+| 38 | mcp-victoriametrics | mcp-victoriametrics | `https://mcp-victoriametrics.kogler.si` | enabled |
+| 39 | mcp-victorialogs | mcp-victorialogs | `https://mcp-victorialogs.kogler.si` | enabled |
+| 40 | homelable | homelable | `https://homelable.kogler.si` | disabled |
 
 ## pi.kogler.si
 

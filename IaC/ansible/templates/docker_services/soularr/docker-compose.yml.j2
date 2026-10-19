@@ -1,0 +1,67 @@
+# soularr docker-compose.yml — the poller bridge of the music ladder on oldsrv
+#   Reads Lidarr's WANTED list, searches Soulseek through slskd, waits for the download, renames +
+#   tags the folder and fires Lidarr's DownloadedAlbumsScan. It is the only component that makes
+#   discover → request → download → import close itself; without it every Soulseek find is a manual
+#   copy. A POLLER, not a web service: no port, no route, one loop per SCRIPT_INTERVAL.
+#   https://github.com/mrusse/soularr · docs: services-media.md §Music Pillar
+#
+#   WHY A CONTAINER, NOT A HOST TIMER: soularr moves files between TWO paths that must resolve
+#   identically inside it and inside Lidarr — the slskd completion folder it moves out of, and the
+#   folder it hands Lidarr to scan. Those are the same two binds the arrs carry
+#   (/mnt/nas/media/media, /mnt/nas/media/downloads) plus services-internal DNS for `lidarr:8686`
+#   and the slskd API. A host timer would need both trees on the host and would sit outside the
+#   registry that owns the media stack.
+#
+#   SECRETS are NOT here: they go into /srv/docker/soularr/config/config.ini (rendered from
+#   config/config.ini.j2 by the same pipeline, the 1P pre-pass supplying lidarr_api + soulseek_api. A
+#   missing vault item renders
+#   an empty key and the arr answers 401 forever — which is why the items are registered under
+#   _template_vault_items.soularr rather than looked up ad hoc.
+#
+#   NOT ARMED (enabled: false in group_vars), and the reason is measured, not assumed: soularr
+#   authenticates to slskd with `x-api-key`, and this box has no slskd API key. SLSKD_API_KEY is
+#   absent from the slskd env and the api_keys block in the appDir slskd.yml is stock-commented, so
+#   EVERY x-api-key request answers 401 — including the one carrying the `soulseek_api` credential,
+#   which is the UI password and therefore JWT auth, not an API key. Giving slskd an API key is an
+#   env change to a SERVING container (it recreates it, dropping the Soulseek session and any
+#   in-flight transfers) → a named-window apply, not an unattended lane action. Until it lands,
+#   enabling this service would deploy a poller that 401s on every interval and downloads nothing.
+#
+#   VERSION PIN: {{ soularr_version }} — ghcr publishes semver (1.2.2 in tags/list), Renovate tracks it.
+services:
+  soularr:
+    image: ghcr.io/mrusse/soularr:{{ soularr_version }}
+    container_name: soularr
+    hostname: soularr
+    restart: unless-stopped
+    networks:
+      - services-internal
+    # python:3.11 base: no s6, no PUID/PGID. Run as the media uid so everything soularr moves into
+    # the downloads tree carries it, exactly like the arrs' own writes.
+    user: "{{ storage_uid }}:{{ storage_gid }}"
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    volumes:
+      - /srv/docker/soularr/config:/data           # config.ini (Ansible-rendered) + soularr's state:
+                                                   # the search-page cursor and the failed-import denylist
+      - /mnt/nas/media/downloads:/downloads:rw     # the SAME bind slskd writes into and Lidarr imports from
+    environment:
+      TZ: {{ timezone | default('Europe/Ljubljana') }}
+      # Poll cadence. Each cycle issues Soulseek searches against OTHER people's servers, so a tight
+      # loop is traffic on peers for no gain — Lidarr's wanted list moves on the order of minutes.
+      SCRIPT_INTERVAL: "300"
+      # The WebUI is a config EDITOR on :8265 and config.ini is Ansible-owned: a live editor on a
+      # rendered file is drift with a nice UI. Off, so the config moves in git or not at all.
+      WEBUI_ENABLED: "false"
+    healthcheck:
+      # A poller has no endpoint, and the image ships no healthcheck, so the container cannot answer
+      # "is the loop alive" — an exec-based probe on a python image just proves /bin/sh exists.
+      # Declared disabled rather than omitted so the gap is a decision on record; the real acceptance
+      # read is Lidarr's wanted list shrinking plus one folder appearing in the completion dir.
+      disable: true
+
+networks:
+  services-internal:
+    external: true

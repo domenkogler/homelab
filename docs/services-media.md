@@ -364,11 +364,40 @@ cannot be answered until the provider login works.
   Lidarr **3.1.0.4875** returns 18 client types and every one is usenet or torrent; there is no Soulseek/Slskd
   type (checked in the binary's own schema, not from the UI). So nothing pulls slskd's completed albums into
   the library on its own, and any text claiming "Lidarr sees Soulseek as #2" describes an intention, not a
-  wiring. Options, none implemented yet: **[`mrusse/soularr`](https://github.com/mrusse/soularr)** (polls
-  Lidarr's wanted list, drives slskd, drops the album where Lidarr scans), a Lidarr plugin adding a Slskd
-  client, or the manual `\\nas\music` drop above. **lidarr-ydl** does register (Newznab indexer + a SABnzbd-
-  emulating client) — that leg is a real client, unlike this one. SeerrNG stays the music-request UI on top
-  of the same Lidarr.
+  wiring. **lidarr-ydl** does register (Newznab indexer + a SABnzbd-emulating client) — that leg is a real
+  client, unlike this one. SeerrNG stays the music-request UI on top of the same Lidarr.
+
+- **The Soulseek bridge is [`mrusse/soularr`](https://github.com/mrusse/soularr), and it is authored but
+  NOT ARMED.** It is a poller, not a download client: read Lidarr's wanted list → search via the slskd API
+  → enqueue → wait for the completion folder → rename + tag the folder → `DownloadedAlbumsScan`. The live
+  reads that define its wiring: the slskd API answers on the **sidecar's** name (`gluetun-slskd:5030` →
+  **200**; `slskd:5030` does not resolve, because the daemon shares the sidecar's network namespace), and
+  **`x-api-key` answers 401 for every value** — `SLSKD_API_KEY` is absent from the slskd env and the
+  `api_keys` block in the appDir `slskd.yml` is stock-commented, while `soulseek_api` is the **UI password**
+  (JWT via `POST /api/v0/session`). So the bridge needs one thing this box does not have: an slskd **API
+  key**. Seeding it is an env change to a serving container — it **recreates** slskd, dropping the Soulseek
+  session and any in-flight transfers — so `soularr` ships `enabled: false` in the registry with the reason
+  on the entry, and the arm is one window: set `SLSKD_API_KEY` on slskd to the same `soulseek_api`
+  credential (or move both templates to a dedicated `soulseek-internal_api` item), confirm
+  `curl -H "x-api-key: …" http://gluetun-slskd:5030/api/v0/options` → **200**, then flip `enabled: true`
+  and converge. Until then no Soulseek find reaches the library on its own, and the `\\nas\music` drop
+  above stays the only working path for albums that arrive through slskd.
+
+- **YouTube acquisition (`lidarr-ydl`) — the credential works, the grab path has never fired.** Read from
+  the app and from Lidarr on the same pass:
+  - the downloader authenticates and syncs — its log repeats `Lidarr sync complete: 3 albums cached`, which
+    matches Lidarr's own `wanted/missing` count, so `lidarr_api` is valid and its read of the wanted list
+    is live (no 401 class in its log);
+  - **it has never downloaded anything**: `download_queue`, `track_downloads`, `download_client_jobs` and
+    `download_logs` are all 0 rows and only `missing_albums_cache` holds content (3) — there is no
+    YouTube-sourced album in the library to point at, and there never has been;
+  - **and Lidarr has no route to it**: the instance's indexer list is the three Prowlarr-sourced ones and
+    its download clients are qBittorrent + SABnzbd (`host: SABnzbd`, port 8080) — nothing points at
+    `lidarr-ydl:5000`, so a Lidarr search can never hand it a release. Its Newznab surface is not at
+    `/api/v1/indexers.xml` either (404; the real path is not established).
+  So today it is a poll-and-cache reader of the wanted list, not a client Lidarr can grab through. Closing
+  that is APP state — a Lidarr indexer entry plus a download-client entry — which is the seed-in-IaC
+  question HD-363 asks, not a credential question. Until it lands, "YouTube #3" is an intention.
 
 ## Related
 - [Downloads stack](services-downloads.md) — SABnzbd / qBittorrent / gluetun ingress

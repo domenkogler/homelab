@@ -366,10 +366,17 @@ asserting the Box mount onto the **VPS only**. It carries three gates, all load-
 assert that the source really is `nas.kogler.si:/bulk/media`; a **non-empty floor** (a bound-but-dead
 NFS mount passes the assert and reads as an empty directory); and a **bounded `--max-delete`**, because
 an unbounded delete of an empty source would empty the library Navidrome serves while the timer reads
-green. Strict host-key pinning (`UserKnownHostsFile`, `StrictHostKeyChecking=yes`) — the same discipline
+green. The bound is a **cap, not an abort**: measured on rsync 3.5.0, a run that would delete more
+entries than the limit deletes exactly the limit, stops deleting the rest and exits 25
+(`Deletions stopped due to --max-delete limit`) — so the per-fire blast radius is `max_delete`
+entries and the two asserts, which run BEFORE any rsync, are what actually protect the library.
+Strict host-key pinning (`UserKnownHostsFile`, `StrictHostKeyChecking=yes`) — the same discipline
 as kopia's `--known-hosts`, not TOFU on a root timer. The timer renders **unarmed** until the Box SSH
 identity exists on oldsrv (port 23 is key-auth-only), and the acceptance read is the file count **on the
-far side**, not rsync's exit code.
+far side**, not rsync's exit code. What the leg is unarmed on is the identity, not the code: with no
+`/root/.ssh/livebox_push` the script aborts at its own identity assert before the mount assert, so the
+mount assert cannot fire in the live path until the key exists — and `findmnt` against a non-NFS path
+reproduces the refusal on the box.
 
 ---
 

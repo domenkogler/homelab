@@ -11,7 +11,9 @@
 #  * the SOURCE really is the NAS export. Here the dead-mount hazard points the other way from the
 #    DB-dump leg: a stale automount makes the source an EMPTY DIRECTORY, and an unbounded `--delete`
 #    then empties the serving library in one fire while the timer reads green. So: mountpoint assert,
-#    a non-empty floor, and `--max-delete` as the last net.
+#    a non-empty floor, and `--max-delete` as the last net. The net is a CAP, not an abort — rsync
+#    deletes up to the limit, stops, and exits 25 — so the two asserts above are what protect the
+#    library and they must stay before the copy.
 #  * host keys are PINNED (`StrictHostKeyChecking=yes` + a rendered known_hosts). This unit writes to
 #    a remote box over a public endpoint; TOFU on a root cron job is not a policy.
 #  * ownership flags are OFF: the Box's SFTP receiver is a plain box user and can neither chown nor
@@ -55,7 +57,7 @@ ssh_cmd="ssh -p $DEST_PORT -i $SSH_KEY -o BatchMode=yes -o PasswordAuthenticatio
 rsync -rlt --no-perms --no-owner --no-group --delete --max-delete="$MAX_DELETE" \
       --delay-updates --partial -e "$ssh_cmd" \
       "$SRC/" "$DEST_USER@$DEST_HOST:$DEST_PATH/" \
-  || fail "rsync $SRC → $DEST_HOST:$DEST_PATH failed (rc $?; rc 25 with 'Too many deletions' means --max-delete=$MAX_DELETE did its job)"
+  || fail "rsync $SRC → $DEST_HOST:$DEST_PATH failed (rc $?; rc 25 with 'Deletions stopped due to --max-delete limit' means the bound did its job: $MAX_DELETE entries were deleted before rsync stopped, so the next fire must be investigated, not re-run blind)"
 
 # --- acceptance is read back through the far side, not inferred from rc 0 -----------------------
 remote=$(ssh -p "$DEST_PORT" -i "$SSH_KEY" -o BatchMode=yes -o StrictHostKeyChecking=yes \

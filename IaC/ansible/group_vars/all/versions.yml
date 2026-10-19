@@ -110,6 +110,10 @@ tube_archivist_es_version: "8.19.0"             # bbilly1/tubearchivist-es — t
                                                # Tube Archivist upstream ships ES 8.x only, so this is not a missed 9.x bump.
 lidarr_ydl_version: "latest"                    # angrido/lidarr-downloader — only `latest`/`beta` exist upstream
                                                # → fluid (MUST-pin note) → ALLOWED_LATEST
+# soularr (the Lidarr↔slskd poller) publishes plain semver on GHCR — `mrusse/soularr` tags/list carries
+# 1.2.0/1.2.1/1.2.2 with no `v` prefix, so pin one and let Renovate track it. The Docker Hub mirror
+# (`mrusse08/soularr`) tags the SAME builds with a `v` prefix; do not mix the two spellings.
+soularr_version: "1.2.2"                       # ghcr.io/mrusse/soularr — the wanted-list poller
 profilarr_version: "2.2.0"                  # ghcr.io/dictionarry-hub/profilarr — upstream publishes
                                            # versioned `X.Y.Z` tags, so pin one and keep `profilarr`
                                            # out of ALLOWED_LATEST; `latest` here is a fluid alias.
