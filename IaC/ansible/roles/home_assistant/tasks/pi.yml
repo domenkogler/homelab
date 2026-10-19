@@ -107,7 +107,7 @@
 - name: Keep a root-only copy of the object this run is about to replace
   # The write touches a file HA owns, so the pre-write state is kept, timestamped, mode 0600, and its
   # hash is printed into the converge log — the rollback needs no memory of what was there.
-  ansible.builtin.command:
+  ansible.builtin.shell:
     cmd: |
       set -eu
       PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
