@@ -71,7 +71,12 @@ PASS. sha256 match repo↔spark (`5b271deb…`), unit env `SPARK_OOM_ENFORCE=1 R
 - gate 0 offline preflight: `check_spark_llm_gate.py` **0 failures, canaries biting** · `profile awq-mmap` render leg OK — `raw/b10-render.log`
 - boot: converged failed=0, container `running restarts=0`; engine: `GPU KV cache size 450,604 tokens = 1.72 × window`
   (brief expected 451,219/1.72×) at `--kv-cache-memory-bytes 14000000000` (14 GB), `--max-num-seqs 4`, model load 73.55 GiB —
-  `raw/b10-boot.txt`, `raw/b10-health.log` (HTTP 200)
+  `raw/b10-health.log` (HTTP 200)
+- the engine's own boot log for this leg is **no longer in `raw/`** (removed 2026-10-19): it echoed the engine's accepted
+  `--api-key` bearer — the `spark-llm_api` credential — into its own text, so it was a published credential in a public repo
+  and not evidence. The KV/load figures above are the measurements taken from it and stand on their own; the health proof is
+  `raw/b10-health.log`, the render proof is `raw/b10-render.log`, and the counters behind `restarts=0` are the harness rows
+  below. Closing the disclosure needs a ROTATION of the item, not this deletion — see `todo.md` row HD-1170
 - **measured (harness on spark, stamped --profile awq-mmap --client oldsrv):**
   | leg | ttft p50 | itl p50 | dec/stream | ok | preempts | MTP accept | window |
   |---|---|---|---|---|---|---|---|
@@ -103,7 +108,7 @@ PASS. sha256 match repo↔spark (`5b271deb…`), unit env `SPARK_OOM_ENFORCE=1 R
 | gate 5 needle ≥90% depth | **PASS** | needle recalled 3/3 (token-subseq), 241.2k prompt tokens (92%), preempts +0 | raw/g5-verdict.txt, raw/g5-run-{1,2,3}.log, raw/g5-needle-{1,2,3}-*.log |
 | reasoning arm (B1 control legs) | **PASS** | booted healthy restarts=0; 500/500 MMLU items | raw/health-reasoning.log, raw/mmlu-reasoning.log |
 | paired McNemar | **KEEP** | n=500 Δ=−0.20 pts p=1.000 (pre-registered ≤2 rule) | raw/mmlu-mcnemar-summary.txt |
-| B10 AWQ boot + gates | **PASS** | healthy restarts=0, KV 450,604 (1.72×), C2/C2L 25.4/27.6 tok/s | raw/b10-*.log, raw/b10-boot.txt |
+| B10 AWQ boot + gates | **PASS** | healthy restarts=0, KV 450,604 (1.72×), C2/C2L 25.4/27.6 tok/s | raw/b10-*.log, raw/b10-health.log |
 | converge-back ×2 | **PASS** | failed=0 both; box on fast 20000000000/8, restarts=0 | raw/live-final.txt, raw/health-final.log, raw/kv-final.txt |
 | preemptions (whole night) | 0 | counter 0.0 at every read (g4, g5×6 legs, MMLU 5 h, B10×2) | raw/preempts-final.txt + window rows |
 
