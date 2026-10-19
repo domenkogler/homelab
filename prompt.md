@@ -673,6 +673,16 @@ are DONE on both hosts — do not re-run them; on a keyfile host the write leg i
 volatile journal cannot prove a 30-day silence and the `admin` revoke proceeds on nine old acceptances plus the
 neutralized state · **HD-1110** — the OAuth-vs-`api_key` call on the seat's `pi_auth` providers, which a `--push` must
 not settle by rewriting a working login.
+> **What §D of the human table carries that this paragraph does not**, so the two lists are not mistaken for each
+> other: §D is everything genuinely left, this paragraph is only the part of it with an authored act queued behind the
+> owner. The rest is owner eyes and hands with nothing authored waiting — the one visual pass over the boards
+> (**HD-316 · 315 · 343 · 377 · 319**), the browser-login seats still owed (**HD-147** with **HD-141**'s tail), the
+> physical windows (**HD-06 · 288 · 194 · 34 · 191**, and the two drill-time decisions **HD-230 · HD-207**), the
+> on-site matrix and `Mgmt99` tail (**HD-397**), the JupyterLab LAN edge deliberately untouched on instruction
+> (**HD-366**), the Immich family-library seat question (**HD-457**), the enrolment sessions (**HD-412**), the WoL
+> ruling (**HD-454**), the Jellyfin-login eyeball (**HD-353**) and the `opensubtitles_login` fix (**HD-1096**). They are
+> parked too, but with no half-written change behind them — so a lane reading only this file should not go looking for
+> an authored act to flip, and a lane reading only §D should not assume the acts above are already written.
 
 **Unbriefed open rows** — no session launches from them; they live in [todo.md](todo.md) and every view. The full
 list is **derived** in [todo-table.md](todo-table.md) §B0, so only the ones an owner or a

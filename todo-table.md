@@ -755,6 +755,12 @@ truncated on purpose. The ROW stays the authority; `⏳` shown here is the row's
 The decision round closed most of this table; the residue below is **hands and eyes**, not questions. Every row is
 also in §A2 with the reasoning.
 
+**Parity with the handoff:** `prompt.md` §2's parked list is the subset of this table that has an authored act queued
+behind the owner — **HD-436**, **HD-487**, **HD-384** step 2, **HD-1148**'s `pi` apply, **HD-1088**, **HD-1091**, and the
+six measured into their rows on 2026-10-19 — and this table carries those rows too, in the owner's words rather than
+the lane's. What appears here and not there is the same parity from the other side: owner eyes and hands with nothing
+authored waiting. Neither list is the whole truth on its own.
+
 | HD | P | Your move | AI then |
 |----|---|-----------|---------|
 | **HD-454** | **1** | **Ruled:** nothing is purchased and no out-of-band path is scheduled, so a switched-off or hung `oldsrv` waits for presence — the chassis button and a hand at home. That is the posture, not a deferral: nothing may park behind "wait for the KVM", and a purchase later is a new decision that would also owe a ruling on where the device may sit (VLAN 99 is sealed same-site by HD-398 A; a box that can hard-power a production host must not sit un-gated on a user VLAN). ⏳ The one thing still owed here: **one WoL re-test at a planned power-off** — the NIC reads `Wake-on: g`, so the earlier "spent" verdict measured a box powered off at the button, not an unarmed NIC | the WoL re-test, then HD-442's converge, HD-443's oldsrv placements and the HD-419-class 502s |
