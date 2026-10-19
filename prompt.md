@@ -629,10 +629,13 @@ upstream may live at all (Technitium 15.6 has no such surface and the router's o
 at one shared address; ⛔ shipping a fourth resolver instance as a side effect of a DNS row is what the row forbids) ·
 **HD-1122** — flip `ai_tier_metrics_publish: true` and converge **oldsrv** `--tags docker_services,monitoring`: the
 flag, the `127.0.0.1` publish and the `prometheus.scrape "llama_cpp"` leg are ONE change that recreates two serving
-containers · **HD-1088** — register oldsrv's public key on the live Box (port 23 is key-auth-only; `Hertzner-SB-Data`
-holds only a CIFS/WebDAV password), seed `/root/.ssh/livebox_push` 0600 + `/etc/storage/box_known_hosts`, set
-`storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`, `systemctl start
-push-music.service` once · **HD-1091** — seed `SLSKD_API_KEY` on slskd (or mint `soulseek-internal_api` and point both
+containers · **HD-1088** — ONE act: register oldsrv's public key on the live Box in the storage provider's console
+(port 23 is key-auth-only, and `Hertzner-SB-Data` holds only a CIFS/WebDAV password, so there is no other way in).
+The two seed halves are **already done on oldsrv and verified there** — `/root/.ssh/livebox_push` `0600`, its public
+half re-derived from the private key with `ssh-keygen -yf` and diffed against the stored `.pub`, and
+`/etc/storage/box_known_hosts` `0600` carrying the Box's three host keys for the `:23` endpoint — so no seed step is
+owed here. Then set `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`,
+`systemctl start push-music.service` once · **HD-1091** — seed `SLSKD_API_KEY` on slskd (or mint `soulseek-internal_api` and point both
 templates at it), confirm `GET /api/v0/options` → `200`, flip `enabled: true`, converge
 `--tags docker_services,slskd,soularr --limit oldsrv.kogler.si`, then the one-album proof — seeding the key recreates
 slskd and drops the Soulseek session · **HD-1107** — the parked `systemctl stop storage-syncoid.service` on `nas` was RUN
