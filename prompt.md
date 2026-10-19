@@ -307,9 +307,10 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    → apply `ok=32 changed=3 failed=0` → the same apply again `ok=26 changed=0`, no second restart. The proof is
    BEHAVIOUR and not the YAML, because on this instance the list HA **enforces** is the `.storage/http` object
    (`yaml_migration_done: true`) and `grep -A6 trusted_proxies configuration.yaml` can neither prove nor fix a `400`:
-   HA's own log shows the real client address honoured through the Pi's `traefik-ha` edge, and a forged
-   `X-Forwarded-For: 1.1.1.1` at `VIP:8123` still answers the `400` that **names the untrusted address** — enforcement,
-   not an echo. ⏳ what that does not buy is the takeover-shaped request sent **from the oldsrv edge** (another lane's
+   HA's own log shows the real client address honoured through the Pi's `traefik-ha` edge, and a forged XFF sent straight to `VIP:8123` still draws
+   `[http.forwarded] Received X-Forwarded-For header from an untrusted proxy …` + `400 Bad Request` — enforcement, not
+   an echo. The read the row names as still owed is the **XFF-present → 200 through the `traefik-internal`
+   middleware**, which its own note in `routes.yml.j2` now records. ⏳ what that does not buy is the takeover-shaped request sent **from the oldsrv edge** (another lane's
    host), and the standby-shaped case has **no subject** while HD-1109 stands), **HD-1103** (the cause was a **tmpfs
    mounted without `mode=`**, not a mode that drifted — the mount owns the `1777`, `mount -o remount,mode=0755` returns
    0 and leaves it `1777`, and the fleet value logrotate's secure-parent check accepts is `755 root:adm`. The logrotate
@@ -338,7 +339,8 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    the render pins `home-assistant:2026.9.4` which that host does not hold, so `compose up` has never run against it
    and HD-418's standby-edge proof and HD-434's standby KNX tunnel have **no subject**. ⚠ **and half of the first
    correction was itself wrong**: `ha-config-sync.timer` is not missing — on the Pi it is `enabled` + `active`, fires
-   every ~15 min and its last run was `rc=0`; the `not-found` was read on **oldsrv**, the wrong host, which is exactly
+   every ~15 min and its last run finished clean in 2 s (`Finished ha-config-sync.service — Push Pi HA config →
+   oldsrv standby`); the `not-found` was read on **oldsrv**, the wrong host, which is exactly
    the class this row exists for (a systemd/file-presence probe answers about the box you ran it on). Probe the standby
    with `docker compose -f /opt/home-assistant-standby/docker-compose.yml ps`, NEVER `systemctl is-active keepalived`:
    its `inactive` is the CORRECT read, because the VRRP half is the container that compose does not have),
@@ -633,12 +635,15 @@ holds only a CIFS/WebDAV password), seed `/root/.ssh/livebox_push` 0600 + `/etc/
 push-music.service` once · **HD-1091** — seed `SLSKD_API_KEY` on slskd (or mint `soulseek-internal_api` and point both
 templates at it), confirm `GET /api/v0/options` → `200`, flip `enabled: true`, converge
 `--tags docker_services,slskd,soularr --limit oldsrv.kogler.si`, then the one-album proof — seeding the key recreates
-slskd and drops the Soulseek session · **HD-1107** — the `systemctl stop storage-syncoid.service` on `nas` was RUN
-(the unit and its spinning `pv` are gone), and the re-fire failed a different way, so the ask is now wider: the
-destination carries **66 sanoid `@autosnap_*` snapshots newer than the send base**, and `zfs receive -F` refuses a send
-whose origin is ahead of the receiver — either destroy those 66 (read them first) or stop snapshotting the replica, since
-`roles/storage/templates/sanoid.conf.j2` recurses into every `tank.*` including the dataset that HOLDS the replica
-marker. The one-shot re-fire timer is already armed and needs no help ·
+slskd and drops the Soulseek session · **HD-1107** — the parked `systemctl stop storage-syncoid.service` on `nas` was RUN
+and the wedged tree died, but the authorised re-fire failed a different way: **66 snapshots on the destination are newer
+than the send base and every one is a sanoid `@autosnap_*` the replica takes for itself** (`use_template = data` on
+`bulk/data/*`), and an incremental `-F` receive cannot land on a target holding snapshots the stream does not contain —
+`cannot restore to bulk/data/services@autosnap_2026-10-08_21:05:07_monthly: destination already exists`, twice,
+identically. So either the replica's own post-base rollback history is destroyed (that snapshot plus 65 more) or the
+replica datasets come out of `sanoid.conf.j2`'s `data` template and the 66 age out; ⛔ neither is an overnight act, and
+pruning stays blocked meanwhile because sanoid's `iszfsbusy()` greps the process table for a `zfs send`/`zfs receive`
+line that only the wedged pipeline's **shell wrapper** still carries ·
 **HD-1106** — the prune itself, one `docker volume rm` per row the table marks `prune`, and a named volume or bind for
 the two `onlyoffice-docs` paths · **HD-1164** — an `intel_iommu=off` experiment plus a memory test on the HP Gen8 in a
 window the owner schedules (the box holds the NFS media export, the Kopia agent and HD-1107's stuck `zfs receive`, so
