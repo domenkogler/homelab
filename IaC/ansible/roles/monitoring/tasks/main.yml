@@ -557,12 +557,19 @@
   tags: [monitoring, grafana]
 
 - name: Provision Grafana alert rules
+  # The tag is the task's only teeth: `tags: [monitoring]` on the role in playbooks/vps.yml is
+  # inherited by every task here, so an UNTAGGED task is still selected by `--tags monitoring` and
+  # silently DROPPED by `--tags grafana` — a surgical grafana run then re-provisions the contact
+  # points, the policy and the dashboards, reports failed=0, and never re-renders the rules. A rule
+  # added to vars/main.yml stays loaded-on-no-backend through that run, and nothing in the RECAP
+  # says so. Same silent-failure class as a duplicate YAML key stripping a tag (CONVENTIONS §6).
   ansible.builtin.template:
     src: grafana-rules.yml.j2
     dest: /srv/docker/grafana/provisioning/alerting/rules.yml
     mode: '0644'
   notify: restart grafana
   when: inventory_hostname in groups['vps']
+  tags: [monitoring, grafana]
 
 # -------------------------------------------------------------------------
 # The silent-failure hygiene collector (unit results + consumer cert age)
