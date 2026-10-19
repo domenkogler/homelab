@@ -151,11 +151,18 @@ The row said "cold-deployed". **The box says nothing is deployed.** Measured on 
 | `docker ps -a \| grep -iE 'hass\|home.?assist\|keepalived'` | **none** — there is no `home-assistant-standby` container and no `keepalived` container, running or stopped |
 | `docker images \| grep home-assistant` | `:latest` and `:2026.8.1` only. The rendered compose pins **`2026.9.4`**, which is not on the host ⇒ `docker compose up` has never been run against the current render |
 | `/opt/home-assistant-standby/` | `docker-compose.yml` (services `home-assistant` + `keepalived`, `restart: "no"`, VIP ports 8123 + 5683/udp), `keepalived.conf` (18 Oct 13:57), `keepalived.standby.conf`, `keepalived.failover.conf`, `secrets.yaml` (8 Oct), `config/` — **files, no containers** |
-| `config/configuration.yaml` newest content | 2026-09-15; the directory was stamped 2026-10-08 19:20 — one copy, not a running sync |
-| `systemctl is-enabled ha-config-sync.timer` / `ls /usr/local/sbin/ha-config-sync.sh` | `not-found` / **no such file** ⇒ the "config synced from the Pi every ~15 min" half of the standby contract is **not installed on this host** |
+| `config/configuration.yaml` newest content | 2026-09-15; the directory was stamped 2026-10-08 19:20 — an old file mtime at the RECEIVING end is what `rsync -az` preserves from the source, so it says that one file has not been edited since, not that the sync is dead |
+| `systemctl is-enabled ha-config-sync.timer` / `ls /usr/local/sbin/ha-config-sync.sh` | `not-found` / **no such file** — **and that is the correct read on this host**: the pusher is installed on the **Pi**, which is the source of the copy, and a receiving host carries no copy of the tool that pushes to it. Measured on the Pi it is `enabled` + `active`, fires every ~15 min, last tick `Finished`, and its script is `rsync -az --delete --exclude secrets.yaml` to the standby path — so the standby's `/config` IS current |
 | VIP `ha-vip` | answers; the Pi holds it. Normal mode is intact — nothing here is a live outage |
 
-**Two probes that read wrong on this host, both worth knowing before the next pass:**
+**Three probes that read wrong on this host, all worth knowing before the next pass — one class, two instances:**
+
+⛔ **The wrong-host read.** A systemd state or a file-presence probe answers about the box you ran it on,
+and this contract has two boxes: the pusher lives on the SOURCE, the standby's VRRP lives in a CONTAINER on
+the target. Both probes below came back empty, both were read as missing halves, and both readings were
+correct about a host that was not the one owning the unit. State a probe's host before its result means
+anything — and `rsync -az` preserves mtimes, so an old timestamp on a rendered file at the receiving end is
+what a successful copy leaves behind, never evidence against the sync.
 
 - `systemctl is-active keepalived` → `inactive`, `is-enabled` → `not-found`. That is **correct**: the standby's
   VRRP half is the `keepalived` **container** in `/opt/home-assistant-standby/docker-compose.yml`
@@ -165,6 +172,8 @@ The row said "cold-deployed". **The box says nothing is deployed.** Measured on 
 - `/usr/local/sbin/ha-failover.sh` **is** installed and complete (forward = promote VIP then `up -d
   home-assistant`; reverse = `down` then demote), and it is the `ha_failover`-tagged half of
   `roles/home_assistant/tasks/standby.yml`. The script is ready; its subject is missing.
+- `ha-config-sync.timer` read on the standby reads `not-found` and means nothing: the unit is deployed by
+  `roles/home_assistant/tasks/pi.yml`, so it exists on the Pi alone. Read it there.
 
 **Consequence, stated plainly:** **HD-418's standby-edge proof and HD-434's standby KNX tunnel have no subject
 until a standby exists.** Both ask for a behaviour read *of the standby node* — a proxied request reaching
