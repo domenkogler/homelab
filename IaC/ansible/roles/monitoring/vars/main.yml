@@ -13,7 +13,9 @@ network_clients_scrape_interval: 45
 # self-scrape job names; a rule keyed to a job name that no longer exists is silently dead.
 # noDataState/execErrState: Alerting only on self-monitoring rules (a dead data
 # source must still page).
-grafana_alert_rules:
+# The authored half. The blind-host half is GENERATED from the inventory and appended to
+# `critical` in `grafana_alert_rules` below, which is the name the template reads.
+grafana_alert_rules_authored:
   critical:
     # ---- The two silent-failure classes this stack cannot see ----
     # Series come from /usr/local/sbin/homelab-hygiene.py → the Alloy textfile collector on each
@@ -371,3 +373,33 @@ grafana_alert_rules:
       summary: !unsafe "ZFS pool {{ $labels.pool }} at {{ $values.A }}% — ≥70% used"
       noDataState: OK
       execErrState: Error
+
+# -------------------------------------------------------------------------------------------
+# The blind-host half of `critical` — GENERATED per host, never hand-listed
+# -------------------------------------------------------------------------------------------
+# Every rule above reads a VALUE the backend holds, so none of them can see the one shape where a
+# collector host contributes nothing at all: no series, therefore no value, therefore nothing
+# crosses a threshold and every rule stays Normal while the box is dark. `up{job="alloy"}` going
+# missing is not a series going to zero — absence is an anomaly about a SET the store does not
+# contain, so the rule has to carry that set itself, and the only owner of that set is the
+# `[monitoring]` inventory group. Hence GENERATED: an expected set typed into this file would be a
+# second owner of who is a collector, and two owners drift exactly when a host is added — which is
+# the moment the check stops being worth anything. The shape (why `absent_over_time` per host and
+# not an anti-join against a static `homelab_expected_host` series), why `noDataState` must be `OK`
+# here and `execErrState` must then be `Alerting`, and why NO `keep_firing_for` is set on these
+# rules, are written once in docs/observability.md §Silent-failure hygiene.
+#
+# Built as JSON because a Jinja loop in a YAML value emits scalars, never mappings; the renderer
+# parses it back with `from_json` and appends it to `critical`, so ONE rule body renders both
+# halves. `instance` carries the inventory hostname, because that is what every `up`/`node_*`
+# series in this store is keyed on (FQDN, never the short label).
+grafana_alert_rules_blind_host: >-
+  [{% for h in groups['monitoring'] | sort %}
+  {"uid": "host-not-reporting-{{ h.split('.')[0] }}",
+   "title": "No telemetry from {{ h }}",
+   "for": "5m",
+   "expr": "absent_over_time(up{job=\"alloy\",instance=\"{{ h }}\"}[10m])",
+   "summary": "No up{job=alloy} series for {{ h }} in 10 min — that host publishes nothing, so every rule above is blind to it; run scripts/gate/check_host_reporting.py --check to read which of the four shapes this is",
+   "noDataState": "OK",
+   "execErrState": "Alerting"}{{ "," if not loop.last }}
+  {% endfor %}]

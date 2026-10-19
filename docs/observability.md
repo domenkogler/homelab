@@ -514,20 +514,21 @@ while a host reaches the store only if its **own Alloy** ships what it scraped. 
 and no cert series because it declares neither a watched unit nor a cert pair, and that absence is
 topology; the absence that matters is when a host publishes **nothing at all**, which the next
 paragraph is about. The rules are in
-Grafana: of 26 rules loaded, **7 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
+Grafana: of 32 rules loaded, **8 reference `homelab_*`** — `cert-pair-missing` (CRIT, 5 m),
 `cert-age-critical` (`< 7 d`, CRIT, 10 m), `hygiene-collector-stale` (CRIT, 5 m), `unit-last-result-failed`
-(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m) and `pkg-pin-drift`
-(WARN, 30 m, §Pin-lag report) — read back from the ruler API. Count them from the ruler API, never
+(WARN, 5 m), `cert-age-warning` (`< 14 d`, WARN, 30 m), `nut-master-unreachable` (WARN, 5 m), `pkg-pin-drift`
+(WARN, 30 m, §Pin-lag report) and `unit-last-success-stale` (WARN, 30 m, the age half below) — read back from the ruler API. Count them from the ruler API, never
 from this sentence — the read is in the table below.
 
 **A unit's RESULT is not its AGE, and only the age sees a dead timer.** `unit-last-result-failed` reads
 `homelab_unit_last_success`, which answers "how did the last attempt go" — so a timer that stops firing (masked,
 unset, a `.timer` whose install never landed) leaves the gauge at **1** for as long as the host is up, and a run
 that never returns leaves it wherever the last good run left it. `homelab_unit_last_success_timestamp_seconds`
-above, with the `unit-last-success-stale` warning rule (90 min, `for: 30 m`), is the age half. **It is authored
-and not loaded**: the rule ships in `roles/monitoring/vars/main.yml` and reaches Grafana only through the
-VPS-side `Provision Grafana alert rules`, so no page has been watched red yet — the same honest label
-§Pin-lag report puts on `pkg-pin-drift`. The series is the proof to look at first: on the Pi it read
+above, with the `unit-last-success-stale` warning rule (90 min, `for: 30 m`), is the age half. **It is loaded and
+evaluating, and it has never been watched red**: 32 rules load on the backend and this one lists two live
+instances (`traefik-cert-pull.service`, `ha-cert-sync.service`), both `Normal` at ~4 min of age. Reaching it needs
+90 min of a watched timer not succeeding, and both shortcuts are refused below — fail a real cert puller, or park
+a fabricated sample in the metric store, which is a page that lies. The series is the proof to look at first: on the Pi it read
 `last_success = 0` / `result = "failed"` on every scrape of a tick that failed, which is the result half working
 exactly as designed while nobody was looking at it.
 
@@ -547,18 +548,39 @@ value, which a dark host never produces. Three instruments close it, and each pr
 | Instrument | What it holds | What it cannot do |
 | --- | --- | --- |
 | the probe + restart leg in `roles/monitoring` | the SERVING claim at converge time: `curl -sf -m 10 127.0.0.1:12345/metrics`, and one `systemd state: restarted` on the host whose own listener refused | act between converges; `state: started` alone asks systemd whether a process exists, so a converge on a wedged host reported `ok` and changed nothing |
-| `scripts/gate/check_host_reporting.py --check` | the **expected set**: every host in the inventory's `[monitoring]` group must carry `up{job="alloy",instance=<host>}` **and** the heartbeat. Four verdicts — `BLIND`, `SCRAPE LEG DEAD`, `COLLECTOR STALE`, `UNDECLARED` | page anyone: it answers when run, which is why the rule-shaped form below is the upgrade and stays unproven |
+| `scripts/gate/check_host_reporting.py --check` | the **expected set**: every host in the inventory's `[monitoring]` group must carry `up{job="alloy",instance=<host>}` **and** the heartbeat. Four verdicts — `BLIND`, `SCRAPE LEG DEAD`, `COLLECTOR STALE`, `UNDECLARED` | say which of the four shapes a page means, and answer between converges only when run — the rule-shaped form below pages, but it cannot name the shape |
 | the metric rules | every shape where a value exists and goes stale | see a host that never produced a value |
 
-⚠ **Why an offline check and not a ruler rule**, stated plainly because it is the honest limit of the
-current state: a rule can only compare values the backend holds, so a rule-shaped version needs the
-expected set **inside** the backend first — a static `homelab_expected_host{instance=…} 1` rendered from
-`groups['monitoring']` plus an anti-join, or one generated `absent_over_time` rule per host. Both are
-loaded by provisioning on the backend host, so neither has been loaded and reddened; an instrument
-nobody has watched turn red is not evidence. What IS proven offline is the verdict's teeth:
-`--self-test` removes one instance's series from a fixture store and must redden, and re-runs the same
-healthy store against an inventory that declares one host more — which must also redden, because the
-set comes from the inventory and not from what happens to report.
+**The paging half is one generated `absent_over_time` rule per `[monitoring]` host, and that form was chosen
+against the anti-join on purpose.** `roles/monitoring/vars/main.yml` builds `grafana_alert_rules_blind_host`
+from `groups['monitoring']` — never from a list typed into a file, because an expected set with two owners
+drifts exactly when a host is added — and `grafana-rules.yml.j2` appends it to `critical`, so ONE rule body
+renders both halves. The rendered rule is
+`absent_over_time(up{job="alloy",instance="<inventory hostname>"}[10m])`, `for: 5m`, evaluator `gt 0`, severity
+critical (a host nobody can see hides every other fault, so it is not a warning).
+
+| Knob | Value here | Why, and what the alternative cost |
+| --- | --- | --- |
+| rule shape | one rule per host, the expectation carried in the expression | The anti-join needs a publisher for a static `homelab_expected_host{instance=…} 1`. Nothing publishes it: `count(homelab_expected_host)` answers **empty** on the live store, so the anti-join is NoData and — with the only sane `noDataState` for an absent-style rule, `OK` — **it is green on a tree where the expected set never loaded at all**. Its failure direction is silence. `absent_over_time` is evaluated inside VictoriaMetrics and its failure direction is a page: no matching series in the window ⇒ `1`, carrying the selector's labels, so the page names the host. Measured: `…instance="nas.kogler.si"` → `1`, `…instance="vps.kogler.si"` → empty. |
+| the probed metric | `up{job="alloy",instance=<host>}` | The same selector the offline check uses, so the two instruments cannot disagree about what "reporting" means. Deliberately NOT `homelab_hygiene_scrape_ok`, which is absent on a host that declares no watched units and no cert pair — topology, not an outage, and it would page on a newly-added collector host. |
+| `noDataState` | **`OK`** | For an absent-style rule the healthy state IS NoData: a reporting host makes the expression return nothing. `Alerting` here pages on a healthy fleet, which is how an alert class gets muted inside a week. |
+| `execErrState` | **`Alerting`** | The half that closes the green-out trap `noDataState: OK` opens. "Every host reports" and "nobody could be queried" must not be the same state. A store that cannot answer at all (connection refused, a broken datasource, an expression the backend rejects) lands in Error, and Error is a state nothing pages on; `Alerting` makes "I could not look" cost a page — the right trade for the one rule whose whole job is to notice that nobody is looking. |
+| `keep_firing_for` | **not set** | It shipped once at `5m` and was removed on measurement: the provisioned file said `keep_firing_for: 5m` while the loaded record read `keep_firing_for: 0s` (`GET /api/v1/provisioning/alert-rules/<uid>`) — this Grafana's **file** provisioning applies `for`, `noDataState` and `execErrState` and drops that key. A knob whose value the backend discards is worse than no knob: it reads as a protection the rule does not have. The anti-strobe property therefore comes from the 10 m window + the 5 m hold, which is what actually governs. |
+
+**Watched red, live, with nothing fabricated.** The set loaded at 16:24:54 and `No telemetry from
+nas.kogler.si` went **`firing`** at 16:30:00 — `value=1`, `labels{instance="nas.kogler.si", job="alloy",
+severity="critical"}` — the `for: 5m` hold after the load, on the box that has published nothing since its
+collector began crash-looping. The four hosts that DO report read `Normal (NoData)`, which is the designed
+healthy state. The reads that answer are `/api/prometheus/grafana/api/v1/rules` (per-rule `state`, and
+`alerts[].state` / `activeAt` / `value` per instance) and `/api/v1/provisioning/alert-rules` (what is LOADED,
+32 rules, `provenance: file`). ⚠ Both endpoints can mislead: the ruler API and the provisioning folder
+endpoint key a file-provisioned rule by its **TITLE**, so grepping either for a `uid` finds nothing while every
+rule is loaded.
+
+What is NOT retired is the offline tool: it still answers **which of the four shapes** a page means, which no
+rule can, and its teeth are still measured by `--self-test` — remove one instance's series from a fixture store
+and it must redden, and re-run that same healthy store against an inventory declaring one host more, which must
+also redden because the set comes from the inventory and not from what happens to report.
 
 **What the restart leg bought, measured.** Probing and restarting the host whose listener refused is the
 right repair for a wedged collector and the wrong expectation for this box: the probe returned rc 28

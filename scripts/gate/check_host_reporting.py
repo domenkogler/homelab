@@ -21,14 +21,13 @@ in one check.
 
 WHICH INSTRUMENT CARRIES THIS, HONESTLY: an offline check, not a ruler rule. A recording or alerting
 rule can only compare values the backend holds, and the expected set is inventory state — so a
-rule-shaped version needs the expected set IN the backend first (a static `homelab_expected_host{instance=…} 1`
-series rendered from `groups['monitoring']` plus an anti-join, or one generated `absent_over_time` rule
-per host). Both of those are loaded by provisioning on the backend host, so neither can be proven from
-a lane that does not hold that host's converge slot, and an instrument nobody has watched turn red is
-not evidence. This file is the form that is provable today: inventory on one side, one live query set
-on the other, a verdict that names the host. ⚠ What it does NOT carry is paging: it answers when
-somebody runs it. The actuating upgrade is the rule-shaped version above, and that stays unproven
-until someone can load it and redden it.
+rule-shaped version needs the expected set IN the backend first, and the form that ships is ONE generated
+`absent_over_time` rule per `[monitoring]` host (rendered from `groups['monitoring']` by the monitoring
+role's alert-rule template, because an expected series that nothing publishes is a green that never
+loaded). So paging is covered by the rule, and this file is the half the rule cannot be: the DIAGNOSIS. A
+page says a host went dark; only this run says WHICH of the four shapes it is, and it answers between
+converges on the seat that has the route. ⚠ What it does not carry is the page itself — it answers when
+somebody runs it, which is the reason the rule exists and not a reason to retire this.
 
 FOUR SHAPES PER HOST, kept apart on purpose, because they are different faults with different fixes:
   BLIND              nothing carries instance=<host>            → the host's own scrape leg is dead

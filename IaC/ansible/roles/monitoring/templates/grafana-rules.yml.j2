@@ -14,7 +14,13 @@ groups:
     folder: Homelab · {{ tier | capitalize }}
     interval: 1m
     rules:
-{% for r in grafana_alert_rules[tier] %}
+{# The blind-host half of `critical` is GENERATED from the inventory (see
+   roles/monitoring/vars/main.yml). It is appended HERE, in one template evaluation, and not in a
+   vars-level expression on purpose: a templated var holding a list can come back as the STRING
+   repr of that list, and `{% for %}` over a string walks its characters — the failure
+   scripts/ansible/zone_kogler_si_render.py carries as a lesson. Here both operands stay real
+   objects, and `from_json` is what makes the generated half the same shape as the authored one. #}
+{% for r in grafana_alert_rules_authored[tier] + (grafana_alert_rules_blind_host | from_json if tier == 'critical' else []) %}
       - uid: {{ r.uid }}
         title: {{ r.title }}
         condition: B
