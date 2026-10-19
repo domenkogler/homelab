@@ -532,7 +532,6 @@ runtime fatal** leaves a process, not how a bad config leaves one: the rendered 
 `instance="<ip>:919x"`, not under the host's name. Nothing paged:
 `hygiene-collector-stale` is correct as written — unfiltered A + a threshold — and a threshold needs a
 value, which a dark host never produces. Three instruments close it, and each proves a different half:
-
 | Instrument | What it holds | What it cannot do |
 | --- | --- | --- |
 | the probe + restart leg in `roles/monitoring` | the SERVING claim at converge time: `curl -sf -m 10 127.0.0.1:12345/metrics`, and one `systemd state: restarted` on the host whose own listener refused | act between converges; `state: started` alone asks systemd whether a process exists, so a converge on a wedged host reported `ok` and changed nothing |
@@ -549,8 +548,24 @@ nobody has watched turn red is not evidence. What IS proven offline is the verdi
 healthy store against an inventory that declares one host more — which must also redden, because the
 set comes from the inventory and not from what happens to report.
 
-⚠ **`active` is not `serving`, on any collector host.** The reads that answer are the collector's own
-`/metrics` on the box and `up{job="alloy"}` in the store; `systemctl is-active` answers a different
+**What the restart leg bought, measured.** Probing and restarting the host whose listener refused is the
+right repair for a wedged collector and the wrong expectation for this box: the probe returned rc 28
+against a socket in `LISTEN`, one `systemd state: restarted` ran, the listener answered `200` and
+`up{job="alloy"}` came back — for about two minutes. After that the process died every ~5 s with
+`fatal error: traceback did not unwind completely` on Go 1.26.7, preceded by `runtime: gN: frame.sp=…
+top=…` (a frame pointer ABOVE the stack top, which no application-level panic produces), and the restart
+counter ran 99 → 107 in 41 s at load 2.07. The unit was then **stopped** to end the CPU churn — not
+masked, no drop-in, still `enabled`, so a boot brings it back; the restore line is `systemctl start alloy`
+on that host. So the class this section names is now closed by the instruments, while the cause on that
+one host is a hardware/firmware question owned by [hardware-nas.md](hardware-nas.md), not by this section:
+the repo is excluded (the rendered file validates rc 0, the converge found the template unchanged, the
+same pin runs on two other hosts of the same arch and OS without dying) and so is memory corruption
+(`edac` `ce_count`/`ue_count` are 0, no `mce` lines, and the `DMAR: ERROR: DMA PTE … already set` traces
+— which carry `Comm: alloy` and look like the smoking gun — are that box's documented benign VT-d quirk).
+Until it publishes again, the expected-set check reads **red for that host and that is the correct
+signal**: it is naming a real hole in what the fleet can see, and the fix is not to soften the set.
+
+⚠ **`active` is not `serving`, on any collector host.** The reads that answer are the collector's own`/metrics` on the box and `up{job="alloy"}` in the store; `systemctl is-active` answers a different
 question and, in the case above, answered it wrongly for 19 hours.
 
 **`hygiene-collector-stale` must be written as unfiltered A + a threshold expression**, the shape

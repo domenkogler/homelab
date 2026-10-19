@@ -40,6 +40,14 @@ tags: [hardware, nas, zfs]
 > `DMAR: ERROR: DMA PTE … already set` console spam (B120i quirk). It is harmless — no accompanying
 > block-layer faults — but if it becomes noise, `intel_iommu=off` is safe here
 > (no passthrough is planned).
+>
+> ⚠ **Do not read those traces as the cause of a process that died.** `dmesg` here carries them with
+> `Comm: alloy` in the task line, which invites exactly that conclusion. The counter-evidence is on the
+> same box: `edac` `ce_count`/`ue_count` are **0**, there are no `mce`/machine-check lines, and
+> `rasdaemon`/`mcelog` are inactive (so an unlogged correctable error cannot be ruled out, only
+> unsupported). A collector process that dies on this host is investigated through its own runtime and
+> the kernel/firmware level first; `intel_iommu=off` remains an experiment worth one reboot window, not
+> a fix to reach for blind.
 
 ---
 

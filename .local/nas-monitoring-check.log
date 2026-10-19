@@ -1,0 +1,381 @@
+[WARNING]: Found both group and host with same name: localhost
+
+PLAY [Safety check — only whitelisted admin users may run Ansible] *************
+
+PLAY [router] ******************************************************************
+skipping: no hosts matched
+
+PLAY [switch] ******************************************************************
+skipping: no hosts matched
+
+PLAY [vps] *********************************************************************
+skipping: no hosts matched
+
+PLAY [home_servers] ************************************************************
+skipping: no hosts matched
+
+PLAY [spark] *******************************************************************
+skipping: no hosts matched
+
+PLAY [storage] *****************************************************************
+
+TASK [Identify the control plane this playbook runs from] **********************
+Monday 19 October 2026  10:31:30 +0200 (0:00:00.051)       0:00:00.051 ******** 
+ok: [nas.kogler.si]
+
+TASK [Refuse to guess when the control plane cannot be identified] *************
+Monday 19 October 2026  10:31:30 +0200 (0:00:00.036)       0:00:00.088 ******** 
+ok: [nas.kogler.si]
+
+TASK [Refuse the network role against the control node it is run from] *********
+Monday 19 October 2026  10:31:30 +0200 (0:00:00.027)       0:00:00.115 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Refuse the storage role against the control node it is run from] *********
+Monday 19 October 2026  10:31:30 +0200 (0:00:00.024)       0:00:00.139 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Refuse the wireguard role against the control node it is run from] *******
+Monday 19 October 2026  10:31:30 +0200 (0:00:00.024)       0:00:00.164 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Refuse the tailscale-node role against the control node it is run from] ***
+Monday 19 October 2026  10:31:30 +0200 (0:00:00.026)       0:00:00.190 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Refuse the cockpit role against the control node it is run from] *********
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.030)       0:00:00.220 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Refuse the access role against the control node it is run from] **********
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.023)       0:00:00.244 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [Refuse vps-hardening (nftables + sshd) against the control node it is run from] ***
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.023)       0:00:00.267 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [ai_diag : Refuse Ansible runs as ai-debug or unknown users] **************
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.028)       0:00:00.295 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [network : Refuse network runs as ai-debug or unknown users] **************
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.021)       0:00:00.317 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [storage : Refuse storage runs as ai-debug or unknown users] **************
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.021)       0:00:00.339 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [nut : Refuse NUT runs as ai-debug or unknown users] **********************
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.021)       0:00:00.360 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [nut : Require nut_mode is set per host] **********************************
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.019)       0:00:00.379 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [nut : Probe upssched-cmd mode + ACL state (drives the changed verdict; never mutates)] ***
+Monday 19 October 2026  10:31:31 +0200 (0:00:00.015)       0:00:00.395 ******** 
+ok: [nas.kogler.si]
+
+TASK [nut : Decide whether upssched-cmd actually needs the ACL repair (read, not assumed)] ***
+Monday 19 October 2026  10:31:33 +0200 (0:00:01.858)       0:00:02.253 ******** 
+ok: [nas.kogler.si]
+
+TASK [nut : Clear stray ACL on upssched-cmd and restore mode 0750 (group nut must execute)] ***
+Monday 19 October 2026  10:31:33 +0200 (0:00:00.033)       0:00:02.287 ******** 
+skipping: [nas.kogler.si]
+
+TASK [nut : Allow nut to halt the host (sudoers)] ******************************
+Monday 19 October 2026  10:31:33 +0200 (0:00:00.025)       0:00:02.313 ******** 
+ok: [nas.kogler.si]
+
+TASK [nut : Install wakeonlan (master, wake enabled)] **************************
+Monday 19 October 2026  10:31:34 +0200 (0:00:00.893)       0:00:03.206 ******** 
+ok: [nas.kogler.si]
+
+TASK [nut : Deploy nut-wake script (master, wake enabled)] *********************
+Monday 19 October 2026  10:31:34 +0200 (0:00:00.718)       0:00:03.924 ******** 
+ok: [nas.kogler.si]
+
+TASK [nut : Deploy nut-wake systemd service (master, wake enabled)] ************
+Monday 19 October 2026  10:31:35 +0200 (0:00:00.808)       0:00:04.733 ******** 
+ok: [nas.kogler.si]
+
+TASK [nut : Deploy nut-wake timer (master, wake enabled)] **********************
+Monday 19 October 2026  10:31:36 +0200 (0:00:00.777)       0:00:05.511 ******** 
+ok: [nas.kogler.si]
+
+TASK [nut : Enable and start nut-wake timer (master, wake enabled)] ************
+Monday 19 October 2026  10:31:37 +0200 (0:00:00.780)       0:00:06.291 ******** 
+ok: [nas.kogler.si]
+
+TASK [cockpit : Refuse cockpit runs as ai-debug or unknown users] **************
+Monday 19 October 2026  10:31:37 +0200 (0:00:00.726)       0:00:07.018 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [monitoring : Refuse Ansible runs as ai-debug or unknown users] ***********
+Monday 19 October 2026  10:31:37 +0200 (0:00:00.021)       0:00:07.039 ******** 
+ok: [nas.kogler.si] => {
+    "changed": false,
+    "msg": "All assertions passed"
+}
+
+TASK [monitoring : Create HA Prometheus API bearer token for Prometheus scraping] ***
+Monday 19 October 2026  10:31:37 +0200 (0:00:00.020)       0:00:07.059 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Add Grafana APT repo (deb822, for Alloy)] *******************
+Monday 19 October 2026  10:31:37 +0200 (0:00:00.015)       0:00:07.075 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Update APT cache after repo add (for Alloy)] ****************
+Monday 19 October 2026  10:31:38 +0200 (0:00:00.622)       0:00:07.697 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Install Alloy (pinned, host-APT — deliberate exception, see group_vars/all/versions.yml)] ***
+Monday 19 October 2026  10:31:39 +0200 (0:00:00.820)       0:00:08.518 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Create Alloy config directory] ******************************
+Monday 19 October 2026  10:31:39 +0200 (0:00:00.646)       0:00:09.165 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Template Alloy River config] ********************************
+Monday 19 October 2026  10:31:40 +0200 (0:00:00.330)       0:00:09.496 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Template Alloy SNMP config (MikroTik module)] ***************
+Monday 19 October 2026  10:31:46 +0200 (0:00:06.493)       0:00:15.989 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Ensure Alloy service is running] ****************************
+Monday 19 October 2026  10:31:46 +0200 (0:00:00.010)       0:00:16.000 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Probe this host's Alloy HTTP server] ************************
+Monday 19 October 2026  10:31:47 +0200 (0:00:00.506)       0:00:16.507 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Restart Alloy on a host whose listener is not serving] ******
+Monday 19 October 2026  10:31:47 +0200 (0:00:00.328)       0:00:16.835 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Install rsyslog (UDP/514 receiver for RouterOS logs)] *******
+Monday 19 October 2026  10:31:47 +0200 (0:00:00.013)       0:00:16.849 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Create remote-syslog directory] *****************************
+Monday 19 October 2026  10:31:48 +0200 (0:00:00.629)       0:00:17.479 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Install rsyslog receiver config (RouterOS RFC5424)] *********
+Monday 19 October 2026  10:31:48 +0200 (0:00:00.334)       0:00:17.813 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Ensure rsyslog is enabled and running] **********************
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.772)       0:00:18.586 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Create CrowdSec acquis.d directory in the config mount] *****
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.496)       0:00:19.082 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Install CrowdSec RouterOS acquisition into the config mount] ***
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.010)       0:00:19.093 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Restart CrowdSec when the RouterOS acquisition changed] *****
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.011)       0:00:19.105 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Install python3-venv (exporter venv prerequisite)] **********
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.014)       0:00:19.119 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Create network-clients exporter venv dir] *******************
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.009)       0:00:19.129 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Create network-clients exporter venv (routeros-api from PyPI)] ***
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.009)       0:00:19.138 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Install pinned routeros-api into the exporter venv] *********
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.009)       0:00:19.148 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Create network-clients exporter user (no shell)] ************
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.009)       0:00:19.157 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Deploy network-clients exporter script (root-owned 0750 networkclients — carries the logpipe credential)] ***
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.008)       0:00:19.165 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Deploy network-clients exporter systemd unit] ***************
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.009)       0:00:19.175 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Enable network-clients exporter] ****************************
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.010)       0:00:19.185 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Create Grafana provisioning directories] ********************
+Monday 19 October 2026  10:31:49 +0200 (0:00:00.009)       0:00:19.195 ******** 
+skipping: [nas.kogler.si] => (item=datasources) 
+skipping: [nas.kogler.si] => (item=dashboards) 
+skipping: [nas.kogler.si] => (item=alerting) 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Provision Grafana datasources file (Loki only)] *************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.015)       0:00:19.210 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Read grafana admin password from container env] *************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.010)       0:00:19.220 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Resolve grafana container IPs for API calls] ****************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.009)       0:00:19.230 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Check whether the observability datasource already exists] ***
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.022)       0:00:19.253 ******** 
+skipping: [nas.kogler.si] => (item=(censored due to no_log)) 
+skipping: [nas.kogler.si] => (item=(censored due to no_log)) 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Seed observability datasource via API (create-only)] ********
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.014)       0:00:19.268 ******** 
+skipping: [nas.kogler.si] => (item=(censored due to no_log)) 
+skipping: [nas.kogler.si] => (item=(censored due to no_log)) 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Ensure the VictoriaMetrics datasource carries its 5s interval floor] ***
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.013)       0:00:19.281 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Verify observability datasource health through grafana] *****
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.009)       0:00:19.291 ******** 
+skipping: [nas.kogler.si] => (item={'uid': 'prometheus'}) 
+skipping: [nas.kogler.si] => (item={'uid': 'loki'}) 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Provision Grafana dashboard provider] ***********************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.013)       0:00:19.305 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Copy Grafana dashboards] ************************************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.009)       0:00:19.315 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Provision Grafana alert contact points] *********************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.009)       0:00:19.325 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Provision Grafana alert notification policy] ****************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.010)       0:00:19.335 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Install the hygiene exporter] *******************************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.009)       0:00:19.344 ******** 
+changed: [nas.kogler.si]
+
+TASK [monitoring : Install the hygiene exporter unit] **************************
+Monday 19 October 2026  10:31:50 +0200 (0:00:00.501)       0:00:19.845 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Ensure the hygiene exporter is running] *********************
+Monday 19 October 2026  10:31:51 +0200 (0:00:00.783)       0:00:20.629 ******** 
+ok: [nas.kogler.si]
+
+TASK [monitoring : Prove the exporter answers and this host's Alloy is alive] ***
+Monday 19 October 2026  10:31:51 +0200 (0:00:00.498)       0:00:21.127 ******** 
+skipping: [nas.kogler.si]
+
+TASK [monitoring : Record what the hygiene exporter publishes] *****************
+Monday 19 October 2026  10:31:52 +0200 (0:00:00.317)       0:00:21.444 ******** 
+ok: [nas.kogler.si] => {
+    "msg": []
+}
+
+RUNNING HANDLER [monitoring : restart hygiene exporter] ************************
+Monday 19 October 2026  10:31:52 +0200 (0:00:00.025)       0:00:21.470 ******** 
+changed: [nas.kogler.si]
+
+PLAY [raspberry_pi] ************************************************************
+skipping: no hosts matched
+
+PLAY [all:!router:!localhost] **************************************************
+
+PLAY [Render SSOT docs from IaC (control plane)] *******************************
+skipping: no hosts matched
+
+PLAY RECAP *********************************************************************
+nas.kogler.si              : ok=39   changed=2    unreachable=0    failed=0    skipped=29   rescued=0    ignored=0   
+
+
+TASKS RECAP ********************************************************************
+Monday 19 October 2026  10:31:52 +0200 (0:00:00.484)       0:00:21.954 ******** 
+=============================================================================== 
+monitoring : Template Alloy River config -------------------------------- 6.49s
+nut : Probe upssched-cmd mode + ACL state (drives the changed verdict; never mutates) --- 1.86s
+nut : Allow nut to halt the host (sudoers) ------------------------------ 0.89s
+monitoring : Update APT cache after repo add (for Alloy) ---------------- 0.82s
+nut : Deploy nut-wake script (master, wake enabled) --------------------- 0.81s
+monitoring : Install the hygiene exporter unit -------------------------- 0.78s
+nut : Deploy nut-wake timer (master, wake enabled) ---------------------- 0.78s
+nut : Deploy nut-wake systemd service (master, wake enabled) ------------ 0.78s
+monitoring : Install rsyslog receiver config (RouterOS RFC5424) --------- 0.77s
+nut : Enable and start nut-wake timer (master, wake enabled) ------------ 0.73s
+nut : Install wakeonlan (master, wake enabled) -------------------------- 0.72s
+monitoring : Install Alloy (pinned, host-APT — deliberate exception, see group_vars/all/versions.yml) --- 0.65s
+monitoring : Install rsyslog (UDP/514 receiver for RouterOS logs) ------- 0.63s
+monitoring : Add Grafana APT repo (deb822, for Alloy) ------------------- 0.62s
+monitoring : Ensure Alloy service is running ---------------------------- 0.51s
+monitoring : Install the hygiene exporter ------------------------------- 0.50s
+monitoring : Ensure the hygiene exporter is running --------------------- 0.50s
+monitoring : Ensure rsyslog is enabled and running ---------------------- 0.50s
+monitoring : restart hygiene exporter ----------------------------------- 0.48s
+monitoring : Create remote-syslog directory ----------------------------- 0.33s
