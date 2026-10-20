@@ -225,7 +225,7 @@ ssh nas 'sudo -n /usr/sbin/sanoid --prune-snapshots --readonly --verbose | grep 
 retires the destination's post-base `@autosnap_*` history through retention instead of an ad-hoc `zfs destroy`
 of 66 snapshots — a hand-destroy is unrecoverable and is what this section exists to keep out of the night, while
 pruning is sanoid's own, age-ordered, audited path. `zfs receive --force`/`-u` and any destination rollback stay out
-of scope for the same reason. Clear the wedged pipeline's shell wrapper first (§above): until it is gone every
+of scope for the same reason. Clear the wedged pipeline's shell wrapper first (§The reap was run): until it is gone every
 prune defers, so the retag appears to do nothing.
 
 ---
