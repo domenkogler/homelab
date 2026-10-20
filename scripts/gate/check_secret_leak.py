@@ -38,23 +38,49 @@ Standing exposure, and the ledger. A hit in a capture is not fixed by editing a 
 the item closes it, which is an owner act. So a pre-existing exposure is a DEBT, not a regression, and
 `scripts/gate/secret_leak_ledger.txt` names the known set (item id + class + title — never a value).
 The gate exits 0 when only ledger-listed `(item, class)` pairs hit and reddens on anything else, which
-makes a NEW leak in a NEW item loud while the known ones stay on the books. `--update-ledger` re-derives
-the file from a scan (derived, never hand-typed, CONVENTIONS §2) and `--strict` ignores it. A ledger
-line whose hit is gone is reported so the book cannot rot into a standing free pass. Capture lines are
-keyed per ITEM because capture paths are session ids that rotate — a declared limit: the ledger is
-emptied by rotating, not by waiting.
+makes a NEW leak in a NEW item loud while the known ones stay on the books. `--strict` ignores the book.
+A ledger line whose hit is gone is reported so the book cannot rot into a standing free pass. Capture
+lines are keyed per ITEM because capture paths are session ids that rotate — a declared limit: the
+ledger is emptied by rotating, not by waiting. `--update-ledger` is NON-DESTRUCTIVE across seats: it
+drops a line only when THIS run read that line's class and did not hit that pair, it carries through
+every line of a class it could not see, and `--class` scopes the rewrite to the one class a lane was
+actually looking at. A ledger line in a class this run did not read prints `NOT JUDGED`, never `STALE`.
+
+(e) **History is a class, not a blind spot.** `spark-llm_api` sat in a tracked bench capture for 13
+    days; `git rm` of the artifact made the TREE scan go clean while the blob stayed reachable from
+    `origin/main` forever, and both scanners read `git ls-files` — so the suite read green over a
+    published credential (HD-1170). This leg reads the blobs, not the tip. Its finding is
+    `<blob-sha> matches item <vault-id-prefix>` and nothing else: no value, no line, no length, no
+    title. It is bounded by a cache in the object store's own directory, keyed on scanner version + the
+    blob set + the vault's per-item VERSION numbers (never a hash of a secret, which would be both a
+    disclosure and an oracle), so a repeat run on an unchanged store reads no blob at all — and SAYS
+    so, because a cached verdict that prints as a fresh read is a green the run did not earn. Rotating
+    an item bumps its version, which invalidates the cache: a rotated-out value in history stops being
+    a finding, exactly as in (d).
+
+(f) **A partial sweep never reads as a full green.** Every class the run did not look at prints with its
+    reason (`--tree-only`/`--no-captures`, `--no-history`, or a class whose scan set resolved to zero
+    files), the OK line carries `PARTIAL`, and a ledger line in an unread class prints `NOT JUDGED`
+    rather than `STALE` — a class this run never read cannot prove a debt closed, and it cannot delete
+    that class's lines either (see `--update-ledger`).
 
 Scan set (the class today's leaks landed in):
-  * the repo working tree — `git ls-files --cached --others --exclude-standard`, plus repo `logs/*.log`;
-  * `$SESSION_DIR/output-*.log`, and the same patterns under every pi run-capture root
+  * `repo-tree` — `git ls-files --cached --others --exclude-standard`, plus repo `logs/*.log`;
+  * `run-capture` — `$SESSION_DIR/output-*.log`, and the same patterns under every pi run-capture root
     (`$TMPDIR`/`pi-subagents-*`, `/tmp/pi-subagents-*`): `output-*.log`, `events.jsonl`, `logs/*.log`;
-  * `~/.pi/agent/sessions/**/*.jsonl` — the parent transcripts and the child `session.jsonl` files;
-  * every `--path` given on the command line (file or directory).
+    and `~/.pi/agent/sessions/**/*.jsonl` — the parent transcripts and the child `session.jsonl` files;
+  * `git-history` — every BLOB reachable from any ref (`git rev-list --objects --all`), so a value that
+    was in the tree once and was edited out stays a finding. Declared limit: a blob reachable ONLY from
+    a reflog or as a dangling object is not in that set — which is why a `git cat-file
+    --batch-all-objects` sweep can name a hit blob this leg does not;
+  * every `--path` given on the command line (file or directory, counted in `repo-tree`).
 
 Run:    python3 scripts/gate/check_secret_leak.py [--strict] [--self-test] [--path P …]
-                                                   [--retired-file F] [--max-file-mb N] [--update-ledger]
+                                                   [--retired-file F] [--max-file-mb N]
+                                                   [--tree-only | --no-captures] [--no-history]
+                                                   [--update-ledger [--class C] …]
 Exit:   0 = no current value outside the ledger was found in anything scanned;
-        1 = at least one CURRENT value sits where a transcript can be read;
+        1 = at least one CURRENT value sits where a transcript can be read, or --update-ledger refused;
         2 = environment boundary: no `op`, no auth, an empty vault answer, nothing scanned.
 Wired into `validate-all.sh` (full profile only — the vault read makes it seat-dependent) and listed in
 `scripts/README.md`.
@@ -63,6 +89,8 @@ from __future__ import annotations
 
 import argparse
 import glob
+import hashlib
+import io
 import json
 import os
 import re
@@ -72,8 +100,11 @@ import string
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import redirect_stdout
 from pathlib import Path
+from typing import NamedTuple
 
 sys.path.insert(0, str(next(p for p in Path(__file__).resolve().parents
                             if p.name == "scripts") / "lib"))
@@ -81,7 +112,16 @@ from repo_root import root as _hl_root  # noqa: E402
 
 ROOT = _hl_root(__file__)
 VAULT = "Homelab-ansible"
-LEDGER = ROOT / "scripts" / "gate" / "secret_leak_ledger.txt"
+# $HL_LEAK_LEDGER is a test seam, not a feature: `--update-ledger` WRITES, so a fixture (or a
+# demonstration of a refusal) must be able to aim it at a COPY. Unset in every normal run, where the
+# committed file is the book.
+LEDGER = Path(os.environ.get("HL_LEAK_LEDGER") or ROOT / "scripts" / "gate" / "secret_leak_ledger.txt")
+# The classes. A finding carries its own, because the ledger mutes one (item, class) pair at a time and
+# a run has to be able to name the classes it did NOT look at.
+CLASSES = ("repo-tree", "run-capture", "git-history")
+# A finding: (target, line, vault item id, item title, class). `target` is a path for a file class and a
+# blob sha for `git-history`, where `line` is 0 because a blob has no line a report may print.
+Finding = tuple[str, int, str, str, str]
 
 # A field is secret-bearing by its OWN id/label, never by the item's name: a `*_login` item keeps its
 # credential in `password`, a `*_api` item in `credential`, and a section field can carry the label
@@ -100,6 +140,13 @@ PARALLEL_MAX = 6
 CAPTURE_PATTERNS = ("output-*.log", "events.jsonl", "session.jsonl", "logs/*.log")
 # A ceiling on printed findings: 200 lines of the same item is a wall, not a report.
 MAX_PRINTED = 40
+# Bump when the needle selection or the matching changes: it is part of the history cache key, so the
+# bump is what stops an old verdict from being read as a verdict this scanner produced.
+HISTORY_SCANNER = "leak-gate/1"
+HISTORY_CACHE_NAME = "homelab-leak-history-cache.tsv"
+# One `git cat-file --batch` read per this many bytes of history: 500 blobs at a time would spawn 24
+# processes over this store, and a 40 MB object would arrive whole.
+HISTORY_READ_BYTES = 32 * 1024 * 1024
 
 
 class Boundary(Exception):
@@ -123,8 +170,9 @@ def _secret_fields(raw: dict) -> list[str]:
     return out
 
 
-def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], list[str], list[str]]:
-    """The fleet's CURRENT secret values. Returns (needles, id→title, short-value item ids, read errors)."""
+def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], list[str], list[str], str]:
+    """The fleet's CURRENT secret values.
+    Returns (needles, id→title, short-value item ids, read errors, vault version key)."""
     r = _op(["item", "list", "--vault", VAULT, "--format", "json"])
     if r.returncode != 0:
         raise Boundary(f"`op item list` rc {r.returncode}: {(r.stderr or '').strip()[:120]}")
@@ -160,7 +208,12 @@ def load_values(parallel: int) -> tuple[dict[bytes, list[str]], dict[str, str], 
     if not needles:
         raise Boundary("the vault read produced ZERO secret values — a vault that answers nothing "
                        "is an environment boundary, not a clean fleet")
-    return needles, titles, short, errs
+    # The history cache's value half. An item's `version` bumps on every save, so a rotation — the only
+    # event that changes what a history hit MEANS — invalidates the cache. Deliberately NOT a digest of
+    # the values: a digest of an 8-char secret is a dictionary oracle, and the provenance line prints.
+    vkey = hashlib.sha256("\n".join(f"{row['id']}\t{row.get('version')}"
+                                    for row in sorted(rows, key=lambda r: r["id"])).encode()).hexdigest()
+    return needles, titles, short, errs, vkey
 
 
 # --------------------------------------------------------------------------- scan set
@@ -208,11 +261,27 @@ def expand(paths: list[str]) -> list[str]:
 
 
 # --------------------------------------------------------------------------- scan
+class ScanRun(NamedTuple):
+    """What one invocation actually looked at. `not_scanned` is part of the verdict, not a footnote: a
+    partial sweep that prints like a full green is the mute-the-gate failure mode wearing a green coat,
+    and a ledger line in a class that was never read cannot be called STALE (no evidence either way)."""
+    findings: list[Finding]
+    counts: dict[str, int]
+    n_paths: int
+    scanned: set[str]
+    not_scanned: dict[str, str]
+    notes: list[str]
+
+
+def zero_counts() -> dict[str, int]:
+    return {"scanned": 0, "bytes": 0, "too_big": 0, "binary": 0, "unreadable": 0}
+
+
 def scan_files(files: list[str], needles: dict[bytes, list[str]], max_bytes: int,
-               titles: dict[str, str]) -> tuple[list[tuple[str, int, str, str]], dict[str, int]]:
-    """Whole-file containment. Findings: (path, line, item id, title); counts are never implied."""
-    findings: list[tuple[str, int, str, str]] = []
-    counts = {"scanned": 0, "bytes": 0, "too_big": 0, "binary": 0, "unreadable": 0}
+               titles: dict[str, str]) -> tuple[list[Finding], dict[str, int]]:
+    """Whole-file containment. Findings: (path, line, item id, title, class); counts are never implied."""
+    findings: list[Finding] = []
+    counts = zero_counts()
     for path in files:
         try:
             size = os.path.getsize(path)
@@ -236,7 +305,7 @@ def scan_files(files: list[str], needles: dict[bytes, list[str]], max_bytes: int
                     break
                 line = data.count(b"\n", 0, i) + 1
                 for iid in iids:
-                    findings.append((path, line, iid, titles.get(iid, "?")))
+                    findings.append((path, line, iid, titles.get(iid, "?"), _class_of(path)))
                 start = i + 1
     return findings, counts
 
@@ -258,79 +327,354 @@ def scan_retired(files: list[str], retired: list[bytes], max_bytes: int) -> list
 
 
 def scan_all(files: list[str], needles: dict[bytes, list[str]], max_mb: int,
-             titles: dict[str, str]) -> tuple[list[tuple[str, int, str, str]], dict[str, int]]:
+             titles: dict[str, str]) -> tuple[list[Finding], dict[str, int]]:
     findings, counts = scan_files(files, needles, max_mb * 1024 * 1024, titles)
     # One finding per (item, path): a value repeated through a 12 MB log is ONE exposure, not 4 000.
-    uniq: dict[tuple[str, str], tuple[str, int, str, str]] = {}
-    for path, line, iid, title in findings:
-        uniq.setdefault((iid, path), (path, line, iid, title))
+    uniq: dict[tuple[str, str], Finding] = {}
+    for f in findings:
+        uniq.setdefault((f[2], f[0]), f)
     return sorted(uniq.values()), counts
+
+
+def scan_run(files_by_class: dict[str, list[str]], needles: dict[bytes, list[str]], max_mb: int,
+             titles: dict[str, str]) -> tuple[list[Finding], dict[str, int], dict[str, int]]:
+    """Scan each class's own scan set, so `which classes did this run judge` is a fact the run carries
+    instead of something the reporter has to remember. Returns (findings, counts, files per class)."""
+    findings: list[Finding] = []
+    counts = zero_counts()
+    corpus: dict[str, int] = {}
+    for cls, files in sorted(files_by_class.items()):
+        got, got_counts = scan_all(files, needles, max_mb, titles)
+        findings += got
+        for k, v in got_counts.items():
+            counts[k] += v
+        corpus[cls] = len(files)
+    return sorted(findings), counts, corpus
+
+
+def class_verdict(corpus: dict[str, int], skipped: dict[str, str]) -> tuple[set[str], dict[str, str]]:
+    """Which classes this run may JUDGE. A class whose scan set resolved to zero files was NOT scanned:
+    an empty capture root is not a clean capture set, and a run that read nothing must not get to call a
+    debt closed — nor to delete that debt's ledger line next run."""
+    judged, not_scanned = set(), dict(skipped)
+    for cls, n in corpus.items():
+        if n:
+            judged.add(cls)
+        else:
+            not_scanned[cls] = ("its scan set resolved to ZERO files here — nothing was read, so nothing "
+                                "about that class is proven")
+    return judged, not_scanned
+
+
+# --------------------------------------------------------------------------- history leg
+def _git(repo: Path, args: list[str], stdin: bytes | None = None) -> subprocess.CompletedProcess:
+    fed = {"input": stdin} if stdin is not None else {"stdin": subprocess.DEVNULL}
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, check=False, **fed)
+
+
+def history_cache_path(repo: Path | None = None) -> Path:
+    """The cache lives in the OBJECT STORE's directory, not in the work tree: it is a property of the
+    store (so every worktree of one clone shares one cache instead of paying a cold sweep each), and an
+    untracked file in the work tree is something every tree-walking gate would have to explain — this
+    one included, since it scans `git ls-files --others`."""
+    if os.environ.get("HL_LEAK_HISTORY_CACHE"):
+        return Path(os.environ["HL_LEAK_HISTORY_CACHE"])
+    r = _git(repo or ROOT, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
+    if r.returncode != 0 or not r.stdout.strip():
+        raise Boundary("the history leg cannot locate the object store (`git rev-parse --git-common-dir` "
+                       "failed) — no cache, no verdict, not a green")
+    return Path(r.stdout.decode().strip()) / HISTORY_CACHE_NAME
+
+
+def ref_blobs(repo: Path) -> tuple[dict[str, int], str]:
+    """The blobs reachable from ANY ref, with their sizes, plus a fingerprint of that set.
+
+    `--all` is every ref, so a value published on `main` stays a finding after the file holding it is
+    deleted — that is the whole point of the leg. Declared limit: a blob reachable only from a reflog,
+    or dangling, is NOT here, so a `git cat-file --batch-all-objects` sweep can name more hit blobs."""
+    r = _git(repo, ["rev-list", "--objects", "--all"])
+    if r.returncode != 0:
+        raise Boundary(f"the history leg cannot enumerate the object store: `git rev-list --objects "
+                       "--all` rc {r.returncode} — not a green")
+    shas = [ln.split(" ")[0] for ln in r.stdout.decode(errors="replace").splitlines() if ln]
+    chk = _git(repo, ["cat-file", "--batch-check"], stdin=("\n".join(shas) + "\n").encode())
+    if chk.returncode != 0:
+        raise Boundary("`git cat-file --batch-check` failed on the reachable object list — the history "
+                       "leg has no scan set, which is a boundary, not a clean store")
+    blobs: dict[str, int] = {}
+    for ln in chk.stdout.decode(errors="replace").splitlines():
+        parts = ln.split(" ")
+        if len(parts) == 3 and parts[1] == "blob":
+            blobs[parts[0]] = int(parts[2])
+    fp = hashlib.sha256("\n".join(sorted(blobs)).encode()).hexdigest()
+    return blobs, fp
+
+
+def read_blobs(repo: Path, shas: list[str], sizes: dict[str, int]):
+    """Yield (sha, bytes) for the named blobs, one `git cat-file --batch` per HISTORY_READ_BYTES so a
+    big object cannot arrive whole next to 500 small ones."""
+    batch: list[str] = []
+    total = 0
+    for sha in [*shas, None]:
+        if sha is not None:
+            batch.append(sha)
+            total += sizes.get(sha, 0)
+        if sha is None or total >= HISTORY_READ_BYTES:
+            if not batch:
+                return
+            r = _git(repo, ["cat-file", "--batch"], stdin=("\n".join(batch) + "\n").encode())
+            data = r.stdout or b""
+            pos = 0
+            while pos < len(data):
+                nl = data.find(b"\n", pos)
+                if nl < 0:
+                    break
+                parts = data[pos:nl].decode(errors="replace").split(" ")
+                if len(parts) == 3 and parts[1] == "blob":
+                    size = int(parts[2])
+                    yield parts[0], data[nl + 1:nl + 1 + size]
+                    pos = nl + 1 + size + 1
+                else:
+                    pos = nl + 1          # "<sha> missing", or a commit/tree asked for by mistake
+            batch, total = [], 0
+        if sha is None:
+            return
+
+
+def _history_cache(path: Path, vkey: str) -> tuple[dict[str, list[str]], str, dict[str, str]]:
+    """Load the cache: (per-blob verdicts, why the cache was NOT usable — empty when usable, header).
+
+    A row is reusable because a blob is addressed BY ITS CONTENT: the same sha is the same bytes, so the
+    only things that can stale a row are a different scanner or a different current-value set."""
+    if not path.is_file():
+        return {}, "no cache file in this object store yet", {}
+    rows: dict[str, list[str]] = {}
+    hdr: dict[str, str] = {}
+    try:
+        lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError as exc:
+        return {}, f"the cache file could not be read ({exc})", {}
+    for line in lines:
+        if line.startswith("#") or not line.strip():
+            continue
+        cols = line.split("\t")
+        if len(cols) != 2:
+            continue
+        if cols[0] in ("scanner", "values", "blobset", "written", "head"):
+            hdr[cols[0]] = cols[1]
+        elif len(cols[0]) == 40:
+            rows[cols[0]] = [c for c in cols[1].split(",") if c]
+    if hdr.get("scanner") != HISTORY_SCANNER:
+        return {}, f"written by scanner {hdr.get('scanner', '?')}, this run is {HISTORY_SCANNER}", hdr
+    if hdr.get("values") != vkey:
+        # The interesting invalidation: the vault changed, so a value in history may be dead now.
+        return {}, ("the vault's item versions changed since the cache was written (a ROTATION?) — a "
+                    "rotated-out value in history is DEAD and must stop being a finding"), hdr
+    if not rows:
+        return {}, "the cache holds no blob verdicts", hdr
+    return rows, "", hdr
+
+
+def history_note(info: dict) -> str:
+    """The history leg's line — including what it did NOT read. A cache hit that prints like a fresh
+    sweep is a green the run did not earn, so the inherited half names its provenance."""
+    if info["read"] == 0:
+        src = (f"{info['cached']} carried from the cache written {info.get('written', '?')} at "
+               f"{info.get('head', '?')} (scanner {info['scanner']}, values {info['values'][:12]}, blob set "
+               f"{info['blobset'][:12]}) — NO blob was read for those: that half of the verdict is "
+               "INHERITED, not re-derived by this run")
+    else:
+        src = f"{info['read']} read by this run, {info['cached']} carried from the cache"
+    why = f" (cache not usable: {info['stale_why']})" if info.get("stale_why") else ""
+    return (f"git-history: {info['blobs']} blob(s) reachable from refs, {info['bytes'] / 1e6:.0f} MB, "
+            f"{info['hit_blobs']} hit blob(s) — {src}{why}")
+
+
+def scan_history(needles: dict[bytes, list[str]], titles: dict[str, str], vkey: str,
+                 repo: Path | None = None, cache: Path | None = None) -> tuple[list[Finding], dict]:
+    """The `git-history` class: CURRENT values inside blobs reachable from refs, with the cache the
+    sweep needs to stay bounded. Never reads a working-tree file and never prints a value."""
+    repo = repo or ROOT
+    cache = cache or history_cache_path(repo)
+    sizes, blobs_fp = ref_blobs(repo)
+    shas = sorted(sizes)
+    seen, stale_why, hdr = _history_cache(cache, vkey)
+    need = [s for s in shas if s not in seen]
+    read = 0
+    for sha, body in read_blobs(repo, need, sizes):
+        read += 1
+        hits = {iid for needle, iids in needles.items() if len(needle) >= MIN_VALUE_LEN
+                and b"\0" not in body[:8192] and needle in body for iid in iids}
+        seen[sha] = sorted(hits)
+    findings: list[Finding] = [(s, 0, iid, titles.get(iid, "?"), "git-history")
+                               for s in shas for iid in seen.get(s, [])]
+    head = _git(repo, ["rev-parse", "--short", "HEAD"]).stdout.decode().strip()
+    info = {"blobs": len(shas), "read": read, "cached": len(shas) - read,
+            "hit_blobs": len({f[0] for f in findings}), "bytes": sum(sizes.values()),
+            "blobset": blobs_fp, "stale_why": stale_why, "cache": str(cache), "values": vkey,
+            "scanner": HISTORY_SCANNER, "head": head, "written": hdr.get("written", "now")}
+    _write_history_cache(repo, cache, vkey, blobs_fp, seen)
+    return sorted(findings), info
+
+
+def _write_history_cache(repo: Path, path: Path, vkey: str, blobs_fp: str,
+                         seen: dict[str, list[str]]) -> None:
+    head = _git(repo, ["rev-parse", "--short", "HEAD"]).stdout.decode().strip()
+    body = "\n".join(f"{sha}\t{','.join(sorted(iids))}" for sha, iids in sorted(seen.items()))
+    text = ("# check_secret_leak.py git-history cache — blob shas, vault item IDS and version numbers.\n"
+            "# A blob sha IS its content, so a row is reusable until the scanner or the current-value set\n"
+            "# changes; those two are the header. Nothing here is a secret value, a line or a length.\n"
+            f"scanner\t{HISTORY_SCANNER}\nvalues\t{vkey}\nblobset\t{blobs_fp}\n"
+            f"written\t{time.strftime('%Y-%m-%dT%H:%M:%S%z')}\nhead\t{head}\n"
+            f"{body}\n")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(text, encoding="utf-8")
+        os.chmod(tmp, 0o600)
+        os.replace(tmp, path)
+    except OSError as exc:
+        # Losing the cache costs time on the next run, never a verdict — but it says so.
+        print(f"NOTE: the git-history cache was not written ({exc}) — the next run pays the full sweep")
 
 
 # --------------------------------------------------------------------------- ledger
 def _class_of(path: str) -> str:
+    """The class of a FILE finding. A `git-history` finding names a blob rather than a path, so it
+    carries its class where it is built — the alternative is guessing which class a string is, which is
+    how a mute ends up wider than the pair the book names."""
     return "repo-tree" if str(path).startswith(str(ROOT) + os.sep) else "run-capture"
 
 
-def finding_text(path: str, line: int, iid: str, title: str) -> str:
-    """A finding's ENTIRE disclosure: file, line, item id prefix, title. No value, no length, no
-    captured line — ids and titles are already in docs/deployment-secrets.md, values are not, and this
-    is the only place a finding is ever formatted (`--self-test` mutates it and must go red)."""
-    return f"{path}:{line} matches item {iid[:8]} ({title})"
+def finding_text(target: str, line: int, iid: str, title: str, cls: str = "repo-tree") -> str:
+    """A finding's ENTIRE disclosure. For a file: file, line, item id prefix, title. For a blob: the sha
+    and the id prefix, and NOTHING else — no line, no length, not even the title. No value and no
+    captured line in either case: ids and titles are already in docs/deployment-secrets.md, values are
+    not, and this is the only place a finding is ever formatted (`--self-test` mutates it and must go
+    red)."""
+    if cls == "git-history":
+        return f"{target} matches item {iid[:8]}"
+    return f"{target}:{line} matches item {iid[:8]} ({title})"
 
 
-def read_ledger(path: Path) -> set[tuple[str, str]]:
-    """The known-exposure book, keyed on `(item-id-prefix, class)`."""
-    known: set[tuple[str, str]] = set()
+def extra_comments(path: Path) -> list[str]:
+    """Comment lines a human added to EXPLAIN a debt, kept across a re-derivation.
+
+    They are not derived data, so dropping them would delete an argument someone made (the ledger names
+    its HD rows in comments, and HD-1171's note is the reason its line exists). Everything that is not
+    the canonical header is preserved, in file order."""
     if not path.is_file():
-        return known
+        return []
+    keep = set(LEDGER_HEADER)
+    return [ln for ln in path.read_text(encoding="utf-8", errors="replace").splitlines()
+            if ln.startswith("#") and ln not in keep]
+
+
+def read_ledger_rows(path: Path) -> list[tuple[str, str, str]]:
+    """The book as ROWS: (item-id-prefix, class, title). Comments are skipped, so the comments a human
+    added to explain a debt survive a re-derivation only if `--update-ledger` keeps them — it writes its
+    own header and keeps the rows, never the other way round."""
+    rows: list[tuple[str, str, str]] = []
+    if not path.is_file():
+        return rows
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         if not line.strip() or line.startswith("#"):
             continue
         cols = [c.strip() for c in line.split("\t")]
         if len(cols) >= 2 and cols[0] and cols[1]:
-            known.add((cols[0], cols[1]))
-    return known
+            rows.append((cols[0], cols[1], cols[2] if len(cols) > 2 else "?"))
+    return rows
+
+
+def read_ledger(path: Path) -> set[tuple[str, str]]:
+    """The known-exposure book, keyed on `(item-id-prefix, class)`."""
+    return {(item, cls) for item, cls, _t in read_ledger_rows(path)}
 
 
 LEDGER_HEADER = [
-    "# secret_leak_ledger.txt — CURRENT vault values KNOWN to sit in a run capture or the repo tree.",
+    "# secret_leak_ledger.txt — CURRENT vault values KNOWN to sit in a run capture, the repo tree, or a",
+    "# blob that is still reachable from a ref.",
     "# One line per exposure: <item-id-prefix><TAB><class><TAB><item title>. Never a value, a length,",
     "# or a captured line. A line here is a DEBT: the only thing that closes a transcript leak is",
     "# ROTATING the item (docs/deployment-secrets.md §Creation & Rotation Workflow), after which",
     "# `check_secret_leak.py --update-ledger` re-derives this file and the line drops out. Any hit that",
     "# is NOT listed here reddens scripts/gate/check_secret_leak.py — the book is a debt register, not",
     "# a mute button, and a line whose hit is gone is printed as stale on every run until it is removed.",
+    "# A `git-history` line is a value that is PUBLISHED and cannot be removed from the tree at all;",
+    "# only rotation closes it, and a rewrite of the public history would not, because GitHub keeps old",
+    "# commits reachable by SHA. `--update-ledger` never drops such a line unless the history leg ran.",
 ]
 
 
-def write_ledger(path: Path, findings: list[tuple[str, int, str, str]]) -> int:
-    rows = sorted({(iid[:8], _class_of(path), title) for path, _l, iid, title in findings})
-    body = "\n".join(f"{a}\t{b}\t{c}" for a, b, c in rows)
-    path.write_text("\n".join(LEDGER_HEADER) + (("\n" + body) if body else "") + "\n", encoding="utf-8")
-    return len(rows)
+def update_ledger(path: Path, findings: list[Finding], judged: set[str],
+                  class_scope: list[str] | None = None) -> int:
+    """Rewrite the book from this run — without ever deleting a debt this run could not see.
+
+    The old behaviour was `write_ledger(findings)`: derive everything from what THIS seat's scan set
+    reached. On a seat whose captures are elsewhere that rewrote 24 lines to 2, which is not a re-derive
+    but an erasure — the items stay exposed, and the next run on the seat that recorded them prints them
+    as fresh FAILs. So a line may only be dropped when this run PROVED the pair absent, which needs the
+    class to have been scanned AND to have had a non-empty corpus. Everything else is carried through
+    unchanged, and a scope that reaches a class this run could not read is a refusal, not a rewrite.
+
+    `judged` is the set of classes this run actually read with a non-empty corpus — the only classes
+    entitled to prove a pair absent.
+    Returns 0 when the file was written, 1 when the rewrite was refused (the file is then untouched).
+    """
+    scope = set(class_scope) if class_scope else set(judged)
+    blind = sorted(scope - judged)
+    rows = read_ledger_rows(path)
+    hit = {ledger_key(f) for f in findings if f[4] in scope}
+    carried = [r for r in rows if r[1] not in scope]
+    dropped = [r for r in rows if r[1] in scope and (r[0], r[1]) not in hit]
+    if blind:
+        would = [r for r in rows if r[1] in blind]
+        print(f"REFUSED: --update-ledger would delete {len(would)} line(s) it cannot prove — "
+              f"scope reached {', '.join(blind)}, which this run did not scan with a non-empty corpus")
+        for item, cls, title in would:
+            print(f"  would remove {item} {cls} ({title}) — this run read NOTHING of that class, so it "
+                  "has no evidence the exposure closed; the line belongs to the seat that recorded it "
+                  "and deleting it there would print a live debt as a fresh FAIL")
+        print("Refusing to write: the file is unchanged. Name only the classes actually scanned "
+              "(--class), or drop --update-ledger.")
+        return 1
+    derived = sorted({(f[2][:8], f[4], f[3]) for f in findings if f[4] in scope})
+    final = sorted(set(carried) | set(derived))
+    body = "\n".join(f"{a}\t{b}\t{c}" for a, b, c in final)
+    comments = extra_comments(path)
+    path.write_text("\n".join(LEDGER_HEADER + comments) + (("\n" + body) if body else "") + "\n",
+                    encoding="utf-8")
+    print(f"ledger rewritten: {len(final)} line(s) in {path.name}, derived from {sorted(scope)}"
+          + (f" ({len(comments)} explanatory comment line(s) kept)" if comments else ""))
+    for item, cls, title in dropped:
+        print(f"  dropped {item} {cls} ({title}) — proven ABSENT this run: the class was scanned with a "
+              "corpus and did not hit that pair")
+    if carried:
+        print(f"  carried through unchanged: {len(carried)} line(s) of class(es) this run did not "
+              f"rewrite ({sorted({r[1] for r in carried})})")
+    return 0
 
 
 # --------------------------------------------------------------------------- verdict
-def scan_run(files: list[str], needles: dict[bytes, list[str]], max_mb: int, titles: dict[str, str]
-             ) -> tuple[list[tuple[str, int, str, str]], dict[str, int]]:
-    if not files:
-        raise Boundary("the scan set resolved to ZERO files — nothing to read is not a clean fleet")
-    return scan_all(files, needles, max_mb, titles)
+def ledger_key(f: Finding) -> tuple[str, str]:
+    """The ONE shape of a ledger key: (item-id-prefix, class). A mute that is wider than the pair the
+    book names is the failure this register exists to avoid, so it is spelled here and nowhere else."""
+    return (f[2][:8], f[4])
 
 
-def ledger_split(findings: list[tuple[str, int, str, str]],
-                 known: set[tuple[str, str]]) -> tuple[list, list]:
+def ledger_split(findings: list[Finding], known: set[tuple[str, str]]) -> tuple[list, list]:
     """Split findings into (fresh, ledgered). The ONE place the ledger decides anything, so the
     self-test's ledger arm and the gate's verdict cannot drift apart."""
-    fresh = [f for f in findings if (f[2][:8], _class_of(f[0])) not in known]
-    ledgered = [f for f in findings if (f[2][:8], _class_of(f[0])) in known]
+    fresh = [f for f in findings if ledger_key(f) not in known]
+    ledgered = [f for f in findings if ledger_key(f) in known]
     return fresh, ledgered
 
 
-def report(findings: list[tuple[str, int, str, str]], counts: dict[str, int], n_files: int,
-           n_values: int, n_items: int, short: list[str], errs: list[str],
-           ledger_path: Path, strict: bool, max_mb: int, retired_hits: list[tuple[str, int]]) -> int:
+def report(res: ScanRun, n_values: int, n_items: int, short: list[str], errs: list[str],
+           ledger_path: Path, strict: bool, max_mb: int,
+           retired_hits: list[tuple[str, int]]) -> int:
+    for note in res.notes:
+        print(note)
     if retired_hits:
         for path, line in retired_hits[:MAX_PRINTED]:
             print(f"INFO retired value (a DEAD secret, informational only) at {path}:{line}")
@@ -339,9 +683,13 @@ def report(findings: list[tuple[str, int, str, str]], counts: dict[str, int], n_
     else:
         print("note: retired values NOT compared — superseded values are dead by definition; pass "
               "--retired-file <0600> for a probe window")
-    print(f"scanned {counts['scanned']} of {n_files} path(s) / {counts['bytes'] / 1e6:.0f} MB "
-          f"({counts['too_big']} over {max_mb} MB, {counts['binary']} binary, "
-          f"{counts['unreadable']} unreadable); {n_values} current secret values from {n_items} items")
+    print(f"scanned {res.counts['scanned']} of {res.n_paths} path(s) / {res.counts['bytes'] / 1e6:.0f} MB "
+          f"({res.counts['too_big']} over {max_mb} MB, {res.counts['binary']} binary, "
+          f"{res.counts['unreadable']} unreadable); {n_values} current secret values from {n_items} items; "
+          f"classes judged: {sorted(res.scanned) or 'NONE'}")
+    for cls, why in sorted(res.not_scanned.items()):
+        print(f"NOT SCANNED {cls}: {why} — a finding of that class would NOT appear in this report, so "
+              "this is a PARTIAL sweep, not a clean fleet")
     if errs:
         print(f"NOTE: {len(errs)} item(s) did not read, so their values were NOT compared "
               f"(first: {errs[0]}) — a partial read is not a clean read")
@@ -351,30 +699,38 @@ def report(findings: list[tuple[str, int, str, str]], counts: dict[str, int], n_
               "scripts/gate/check_secrets.py is the instrument for those")
 
     known = set() if strict else read_ledger(ledger_path)
-    fresh, ledgered = ledger_split(findings, known)
+    fresh, ledgered = ledger_split(res.findings, known)
     if ledgered:
-        items = sorted({f"{iid[:8]} {_class_of(path)} ({title})" for path, _l, iid, title in ledgered})
+        items = sorted({f"{iid[:8]} {cls} ({title})" for _t, _l, iid, title, cls in ledgered})
         print(f"KNOWN-EXPOSED {len(items)} item+class pair(s) from {ledger_path.name} — each is closed "
               "by ROTATING the item, then re-deriving the ledger:")
         for it in items:
             print(f"  {it}")
-        hit_keys = {(f[2][:8], _class_of(f[0])) for f in findings}
-        stale = sorted(known - hit_keys)
-        if stale:
-            print(f"STALE ledger lines (no hit this run — rotate-and-remove, or the book becomes a "
-                  f"standing free pass): {len(stale)}")
-            for k in stale[:10]:
-                print(f"  {k[0]} {k[1]}")
+    hit_keys = {ledger_key(f) for f in res.findings}
+    stale = sorted(k for k in known - hit_keys if k[1] in res.scanned)
+    if stale:
+        print(f"STALE ledger lines (no hit this run — rotate-and-remove, or the book becomes a "
+              f"standing free pass): {len(stale)}")
+        for k in stale[:10]:
+            print(f"  {k[0]} {k[1]}")
+    unjudged = sorted(k for k in known - hit_keys if k[1] not in res.scanned)
+    if unjudged:
+        print(f"NOT JUDGED ledger lines: {len(unjudged)} — their class was not scanned this run, so they "
+              "are NEITHER confirmed NOR stale (a class you cannot see cannot prove a debt closed, and "
+              "`--update-ledger` will not delete them either)")
+        for k in unjudged[:10]:
+            print(f"  {k[0]} {k[1]}")
     if fresh:
         print(f"FAIL: {len(fresh)} hit(s) outside the ledger — a CURRENT vault value is readable in a "
-              "run capture or the repo tree. Rotate it; do not grep it, do not shred the transcript "
-              "and call it closed:")
-        for path, line, iid, title in fresh[:MAX_PRINTED]:
-            print(finding_text(path, line, iid, title))
+              "run capture, the working tree, or a blob still reachable from a ref. Rotate it; do not "
+              "grep it, do not shred the transcript and call it closed:")
+        for f in fresh[:MAX_PRINTED]:
+            print(finding_text(*f))
         if len(fresh) > MAX_PRINTED:
             print(f"  … {len(fresh) - MAX_PRINTED} more hit(s), same items, not listed")
         return 1
-    print(f"OK: no current vault value outside the ledger appears in the {n_files} scanned path(s)")
+    tail = " — PARTIAL: see NOT SCANNED above" if res.not_scanned else ""
+    print(f"OK: no current vault value outside the ledger appears in what this run scanned{tail}")
     return 0
 
 
@@ -406,6 +762,22 @@ def _fixture_tree(dirpath: Path, values: dict[str, str], plant: tuple[str, ...] 
         json.dumps({"type": "message", "text": "ordinary transcript text"}) + "\n", encoding="utf-8")
 
 
+def _fixture_repo(dirpath: Path, value: str) -> None:
+    """A throwaway repo whose HISTORY holds a minted canary and whose tip does not — the exact shape of
+    the HD-1170 gap: `git rm` of the artifact made the tree scan go clean while the blob stayed
+    reachable. The value is MINTED by the caller, never taken from the fleet."""
+    dirpath.mkdir(parents=True, exist_ok=True)
+    (dirpath / "capture.txt").write_text(f"engine boot --api-key {value}\n", encoding="utf-8")
+    ident = ["-c", "user.email=fixture@example.invalid", "-c", "user.name=fixture",
+             "-c", "commit.gpgsign=false"]
+    for args in (["init", "-q"], ["add", "-A"], [*ident, "commit", "-q", "-m", "add the capture"],
+                 ["rm", "-q", "capture.txt"], [*ident, "commit", "-q", "-m", "remove the artifact"]):
+        r = _git(dirpath, args)
+        if r.returncode != 0:
+            raise Boundary(f"the history fixture could not be built: git {' '.join(args)}: "
+                           f"{(r.stderr or b'').decode(errors='replace')[:120]}")
+
+
 def self_test() -> int:
     fails = 0
     values = {"api": _mint(), "pw": _mint(), "key": _mint()}
@@ -417,6 +789,21 @@ def self_test() -> int:
         nonlocal fails
         fails += not ok
         print(f"  arm {label}: {'ok' if ok else 'FAIL'}{(' — ' + detail) if (detail and not ok) else ''}")
+
+    def verdict(res: ScanRun, ledger: Path) -> tuple[int, str]:
+        """Ask the reporter and keep its text: several arms are about what the run PRINTS, and a verdict
+        nobody can read is not an instrument."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = report(res, 1, 1, [], [], ledger, False, DEFAULT_MAX_FILE_MB, [])
+        return rc, buf.getvalue()
+
+    def rewrite(path: Path, findings: list[Finding], judged: set[str],
+                scope: list[str] | None = None) -> tuple[int, str]:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = update_ledger(path, findings, judged, scope)
+        return rc, buf.getvalue()
 
     # (1) a clean tree reads GREEN — a check that cannot say so cannot be trusted to say otherwise.
     with tempfile.TemporaryDirectory() as td:
@@ -443,7 +830,7 @@ def self_test() -> int:
         _fixture_tree(tree, values, plant=("compose", "glued", "ini"))
         found, _c = scan_all([str(p) for p in tree.rglob("*") if p.is_file()], needles_all,
                              DEFAULT_MAX_FILE_MB, titles_all)
-        text = "\n".join(finding_text(p, l, i, t) for p, l, i, t in found)
+        text = "\n".join(finding_text(*f) for f in found)
         bad_values = [n for n, v in values.items() if v in text]
         bad_lengths = [n for n, v in values.items() if str(len(v)) in text.split()]
         check("finding text carries no value and no length", len(found) == 3 and not bad_values
@@ -470,7 +857,7 @@ def self_test() -> int:
         led = Path(td) / "ledger.txt"
         files = [str(p) for p in tree.rglob("*") if p.is_file()]
         found, _c = scan_all(files, needles_all, DEFAULT_MAX_FILE_MB, titles_all)
-        write_ledger(led, [f for f in found if f[3] == "api"])
+        rewrite(led, [f for f in found if f[3] == "api"], {"run-capture"})
         fresh, ledgered = ledger_split(found, read_ledger(led))
         check("ledger mutes the named item only",
               len(found) == 2 and len(fresh) == 1 and len(ledgered) == 1
@@ -501,6 +888,90 @@ def self_test() -> int:
         check("binary + oversize skipped AND counted",
               counts["binary"] == 1 and counts["too_big"] == 1 and counts["scanned"] >= 3, str(counts))
 
+    # (8) THE HISTORY LEG. A value that was in the tree once and was `git rm`'d out of it is still
+    # published — this is the leg HD-1170 had to ask for by hand, so its canary is minted, never taken
+    # from the fleet, and the repo is a throwaway.
+    with tempfile.TemporaryDirectory() as td:
+        repo = Path(td) / "repo"
+        cache = Path(td) / "hist-cache.tsv"
+        canary, titles_h = _mint(), {"histitem": "fixture_canary"}
+        _fixture_repo(repo, canary)
+        cold, info = scan_history({canary.encode(): ["histitem"]}, titles_h, "vault-v1", repo, cache)
+        text = "\n".join(finding_text(*f) for f in cold)
+        check("a value deleted from the tree is still a finding, as git-history",
+              len(cold) == 1 and cold[0][4] == "git-history" and len(cold[0][0]) == 40, f"{text[:90]}")
+        check("a history finding discloses the blob sha and the id prefix and NOTHING else",
+              bool(cold) and canary not in text and "fixture_canary" not in text
+              and str(len(canary)) not in text.split() and text.count(" matches item ") == 1, text[:90])
+        _c2, warm = scan_history({canary.encode(): ["histitem"]}, titles_h, "vault-v1", repo, cache)
+        note = history_note(warm)
+        check("the cached repeat reads NO blob and says the verdict is INHERITED",
+              warm["read"] == 0 and warm["cached"] >= 1 and "INHERITED" in note, note)
+        # the book turns the blob into named debt instead of silence
+        led = Path(td) / "hist-ledger.txt"
+        rc, _o = rewrite(led, cold, {"git-history"})
+        rc, out = verdict(ScanRun(cold, zero_counts(), 1, {"git-history"}, {}, [history_note(info)]), led)
+        check("a ledgered git-history hit reads KNOWN-EXPOSED, not green-by-silence",
+              rc == 0 and "KNOWN-EXPOSED" in out and "STALE" not in out, f"rc {rc}: {out[-140:]}")
+        rc, out = verdict(ScanRun([], zero_counts(), 1, {"git-history"}, {}, []), led)
+        check("a git-history line whose hit is gone prints STALE", rc == 0 and "STALE" in out, out[-140:])
+        # rotate the item: the value in history is now DEAD, so it must stop being a finding AND the
+        # cache must know that its own rows are about a value nobody holds any more
+        dead, info_r = scan_history({_mint().encode(): ["histitem"]}, titles_h, "vault-v2", repo, cache)
+        check("a rotated-out value in history stops being a finding (the cache invalidated)",
+              not dead and "version" in info_r["stale_why"].lower(), str(info_r["stale_why"])[:90])
+
+    # (9) a PARTIAL sweep may never read as a full green, and may not judge what it did not read.
+    with tempfile.TemporaryDirectory() as td:
+        led = Path(td) / "led.txt"
+        led.write_text("# book\naaaa\trun-capture\titem_a\nbbbb\tgit-history\titem_b\n", encoding="utf-8")
+        res = ScanRun([], zero_counts(), 3, {"repo-tree"},
+                      {"run-capture": "--tree-only: no capture file was opened",
+                       "git-history": "--no-history: no blob was read"}, [])
+        rc, out = verdict(res, led)
+        ok_line = [ln for ln in out.splitlines() if ln.startswith("OK:")]
+        check("a partial run names every class it did NOT look at and marks its OK line PARTIAL",
+              rc == 0 and "NOT SCANNED run-capture" in out and "NOT SCANNED git-history" in out
+              and bool(ok_line) and "PARTIAL" in ok_line[0], out[-200:])
+        check("an unread class's ledger line is NOT JUDGED, never STALE",
+              "NOT JUDGED" in out and "bbbb git-history" in out and "STALE" not in out, out[-200:])
+        rc, out = verdict(ScanRun([], zero_counts(), 3, {"repo-tree", "run-capture", "git-history"},
+                                  {}, []), led)
+        check("a full run over the same book prints no PARTIAL tag", rc == 0 and "PARTIAL" not in out,
+              out[-200:])
+        check("a class with an empty scan set is never judged", class_verdict(
+            {"repo-tree": 4, "run-capture": 0}, {})[0] == {"repo-tree"}, str(class_verdict(
+            {"repo-tree": 4, "run-capture": 0}, {})))
+
+    # (10) --update-ledger across seats: a run may only delete a line it PROVED absent.
+    with tempfile.TemporaryDirectory() as td:
+        led = Path(td) / "led.txt"
+        book = ("# book\naaaa\trun-capture\titem_a\nbbbb\tgit-history\titem_b\n"
+                "cccc\trun-capture\titem_c\n")
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"repo-tree"})
+        pairs = {k for k in read_ledger(led)}
+        check("a tree-only run cannot delete the classes it could not see",
+              rc == 0 and {("aaaa", "run-capture"), ("bbbb", "git-history"), ("cccc", "run-capture")}
+              <= pairs and "carried through" in out, f"rc {rc}: {sorted(pairs)}")
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"repo-tree"}, ["git-history"])
+        check("--class naming a class this run did not scan REFUSES, and the file does not move",
+              rc == 1 and led.read_text() == book and "would remove bbbb git-history" in out,
+              f"rc {rc}: {out[-140:]}")
+        led.write_text(book, encoding="utf-8")
+        hit = [("p", 1, "aaaa", "item_a", "run-capture")]
+        rc, out = rewrite(led, hit, {"run-capture"})
+        pairs = {k for k in read_ledger(led)}
+        check("a pair this run PROVED absent does drop, with the reason printed",
+              rc == 0 and pairs == {("aaaa", "run-capture"), ("bbbb", "git-history")}
+              and "proven ABSENT" in out, f"rc {rc}: {sorted(pairs)} {out[-120:]}")
+        # and the history leg has to have RUN to clear a git-history line
+        led.write_text(book, encoding="utf-8")
+        rc, out = rewrite(led, [], {"repo-tree", "run-capture"}, ["run-capture", "git-history"])
+        check("a run without the history leg cannot clear a git-history line",
+              rc == 1 and led.read_text() == book, f"rc {rc}: {led.read_text()[-80:]}")
+
     print(f"check_secret_leak.py --self-test: {fails} failing arm(s)")
     if fails:
         return 1
@@ -523,21 +994,21 @@ MUTATIONS = [
      "                i = data.find(('_' + titles.get(iids[0], '?') + '_api_key').encode(), start)",
      "leak arms"),
     ("a finding prints what it matched",
-     'findings.append((path, line, iid, titles.get(iid, "?")))',
-     'findings.append((path, line, iid, needle.decode("utf-8", "replace")))',
+     'findings.append((path, line, iid, titles.get(iid, "?"), _class_of(path)))',
+     'findings.append((path, line, iid, needle.decode("utf-8", "replace"), _class_of(path)))',
      "disclosure arm"),
     ("no `op` on PATH reads green",
      '              "Environment boundary, not a green.")\n        return 2',
      '              "Environment boundary, not a green.")\n        return 0',
      "vault-unreachable"),
     ("the ledger is ignored",
-     "    fresh = [f for f in findings if (f[2][:8], _class_of(f[0])) not in known]",
-     "    fresh = [f for f in findings if (f[2][:8], _class_of(f[0])) not in set()]",
+     "    fresh = [f for f in findings if ledger_key(f) not in known]",
+     "    fresh = [f for f in findings if ledger_key(f) not in set()]",
      "ledger"),
     ("the ledger mutes every item, not the one it names",
-     "    fresh = [f for f in findings if (f[2][:8], _class_of(f[0])) not in known]",
-     "    known = {(f[2][:8], _class_of(f[0])) for f in findings}\n"
-     "    fresh = [f for f in findings if (f[2][:8], _class_of(f[0])) not in known]",
+     "    fresh = [f for f in findings if ledger_key(f) not in known]",
+     "    known = {ledger_key(f) for f in findings}\n"
+     "    fresh = [f for f in findings if ledger_key(f) not in known]",
      "ledger (both arms)"),
     ("an over-capacity file is skipped without saying so",
      '            if size > max_bytes:\n                counts["too_big"] += 1\n                continue',
@@ -547,6 +1018,40 @@ MUTATIONS = [
      '    for path in files:\n        try:\n            data = Path(path).read_bytes()\n        except OSError:\n            continue\n        if len(data) > max_bytes or b"\\0" in data[:8192]:',
      '    for path in []:\n        try:\n            data = Path(path).read_bytes()\n        except OSError:\n            continue\n        if len(data) > max_bytes or b"\\0" in data[:8192]:',
      "retired"),
+    # The legs added with the git-history class, the partial-sweep honesty and the non-destructive
+    # ledger — each is a claim, so each has to be seen to be breakable.
+    ("a value published in history is invisible (no blob is ever read)",
+     "    for sha, body in read_blobs(repo, need, sizes):",
+     "    for sha, body in []:",
+     "the git-history arms"),
+    ("the history cache is trusted after a rotation",
+     '    if hdr.get("values") != vkey:',
+     "    if False:",
+     "the rotation arm"),
+    ("a cached history verdict prints as a fresh read",
+     '    if info["read"] == 0:',
+     "    if False:",
+     "the cache-provenance arm"),
+    ("a partial sweep reads as a full green",
+     '    tail = " — PARTIAL: see NOT SCANNED above" if res.not_scanned else ""',
+     '    tail = ""',
+     "the PARTIAL arm"),
+    ("an unread class's debt is reported as STALE",
+     "    stale = sorted(k for k in known - hit_keys if k[1] in res.scanned)",
+     "    stale = sorted(k for k in known - hit_keys)",
+     "the NOT JUDGED arm"),
+    ("an empty scan set still counts as a judged class",
+     "        if n:\n            judged.add(cls)",
+     "        if True:\n            judged.add(cls)",
+     "the empty-corpus arm"),
+    ("--update-ledger re-derives from whatever the run happened to see",
+     "    scope = set(class_scope) if class_scope else set(judged)",
+     "    scope = set(class_scope) if class_scope else set(CLASSES)",
+     "the carried-through arm"),
+    ("a --class scope wider than the run's eyes is accepted",
+     "    if blind:",
+     "    if False:",
+     "the refusal arm"),
 ]
 
 
@@ -598,6 +1103,36 @@ def mutation_test() -> int:
 
 
 # --------------------------------------------------------------------------- main
+def build_run(needles: dict[bytes, list[str]], titles: dict[str, str], vkey: str, args
+              ) -> tuple[ScanRun, list[str]]:
+    """Assemble the scan set CLASS by CLASS. A flag that narrows the sweep subtracts a class from the
+    verdict rather than making the run look quiet, which is the whole difference between a partial sweep
+    and a green one."""
+    by_class: dict[str, list[str]] = {"repo-tree": repo_tree_files() + expand(args.path)}
+    skipped: dict[str, str] = {}
+    if args.tree_only:
+        skipped["run-capture"] = ("--tree-only/--no-captures: no capture file was opened, so a value in a "
+                                  "session transcript or a pi run log is invisible to this run")
+    else:
+        by_class["run-capture"] = capture_files()
+    findings, counts, corpus = scan_run(by_class, needles, args.max_file_mb, titles)
+    notes: list[str] = []
+    if args.no_history:
+        skipped["git-history"] = ("--no-history: no history blob was read, so a value that was in the tree "
+                                  "once and was edited out stays invisible — the HD-1170 gap, on purpose "
+                                  "this time")
+    else:
+        hist, hinfo = scan_history(needles, titles, vkey)
+        findings += hist
+        corpus["git-history"] = hinfo["blobs"]
+        notes.append(history_note(hinfo))
+    judged, not_scanned = class_verdict(corpus, skipped)
+    if not judged:
+        raise Boundary("every scan set resolved to ZERO files — nothing to read is not a clean fleet")
+    files = sorted({p for group in by_class.values() for p in group})
+    return ScanRun(sorted(findings), counts, len(files), judged, not_scanned, notes), files
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--self-test", action="store_true", help="prove the arms on minted fixtures")
@@ -606,7 +1141,18 @@ def main() -> int:
     ap.add_argument("--retired-file", help="0600 file of SUPERSEDED values, reported as INFO only")
     ap.add_argument("--max-file-mb", type=int, default=DEFAULT_MAX_FILE_MB)
     ap.add_argument("--parallel", type=int, default=PARALLEL_MAX)
-    ap.add_argument("--update-ledger", action="store_true", help="re-derive the ledger from this scan")
+    ap.add_argument("--tree-only", "--no-captures", dest="tree_only", action="store_true",
+                    help="scan the working tree only — the flag that replaces the "
+                         "`HOME=/tmp/empty-home TMPDIR=…` trick. The run-capture class is then NOT read, "
+                         "and the report says so instead of reading as a full green")
+    ap.add_argument("--no-history", action="store_true",
+                    help="skip the git-history leg: a value published once and edited out of the tree "
+                         "becomes invisible, which the report prints and --update-ledger refuses to act on")
+    ap.add_argument("--update-ledger", action="store_true",
+                    help="rewrite the ledger from THIS run — only for the classes this run actually read")
+    ap.add_argument("--class", dest="classes", action="append", default=[], metavar="CLASS",
+                    help=f"with --update-ledger: rewrite only this class ({', '.join(CLASSES)}); naming "
+                    "one this run did not scan is a refusal, not a rewrite")
     args = ap.parse_args()
 
     if args.self_test:
@@ -616,6 +1162,10 @@ def main() -> int:
     if shutil.which("op") is None:
         print("SKIP: no `op` on PATH — a leak check needs the vault to know what a leak is. "
               "Environment boundary, not a green.")
+        return 2
+    if set(args.classes) - set(CLASSES):
+        print(f"SKIP: unknown class(es) {sorted(set(args.classes) - set(CLASSES))} — the classes are "
+              f"{list(CLASSES)}. An unrecognised scope is an environment mistake, not a verdict")
         return 2
 
     retired: list[bytes] = []
@@ -630,16 +1180,13 @@ def main() -> int:
         retired = [ln.strip() for ln in rf.read_bytes().splitlines() if ln.strip()]
 
     try:
-        needles, titles, short, errs = load_values(args.parallel)
-        files = sorted(set(capture_files() + repo_tree_files() + expand(args.path)))
-        findings, counts = scan_run(files, needles, args.max_file_mb, titles)
+        needles, titles, short, errs, vkey = load_values(args.parallel)
+        res, files = build_run(needles, titles, vkey, args)
         if args.update_ledger:
-            n = write_ledger(LEDGER, findings)
-            print(f"ledger re-derived: {n} line(s) in {LEDGER.relative_to(ROOT)}")
-            return 0
+            return update_ledger(LEDGER, res.findings, res.scanned, args.classes)
         hits = scan_retired(files, retired, args.max_file_mb * 1024 * 1024) if retired else []
-        return report(findings, counts, len(files), len(needles), len(titles),
-                      short, errs, LEDGER, args.strict, args.max_file_mb, hits)
+        return report(res, len(needles), len(titles), short, errs, LEDGER, args.strict,
+                      args.max_file_mb, hits)
     except Boundary as exc:
         print(f"SKIP: {exc} — an unavailable vault is an environment boundary, not a green")
         return 2

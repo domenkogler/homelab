@@ -1078,7 +1078,9 @@ blk_tmux_check() {
 
 # The leak eye. Its own SKIP semantics: `op` absent or an unreadable vault is an environment
 # boundary (rc 2), printed and never counted green — the check compares captured bytes against the
-# vault's CURRENT values, so without them it has no idea what a leak would look like.
+# vault's CURRENT values, so without them it has no idea what a leak would look like. It judges three
+# classes (the working tree, the seat's run captures, and every blob a ref still reaches); a run asked
+# to read less says which class it did NOT look at instead of reading as a full green.
 blk_secret_leak() {
   local rc_leak=0
   "$PY" scripts/gate/check_secret_leak.py "$@" || rc_leak=$?
@@ -1172,8 +1174,8 @@ item_blk_x "ansible is absent or dies WinError 87 on the Windows seat, so this S
 
 # The corpus walkers.
 # The corpus walkers. Longest leg first, per the pool note in the header.
-item_x "reads the vault to know what a leak is: 141 item reads at the documented 6-wide fan-out budget, then a content search over the seat's run captures (~600 MB) and the working tree — about 25 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class and the working tree)" blk_secret_leak
-item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names — and eight mutants of the scanner must each be caught)" $PY scripts/gate/check_secret_leak.py --self-test
+item_x "reads the vault to know what a leak is: 141 item reads at the documented 6-wide fan-out budget, then a content search over the seat's run captures (~560 MB) and the working tree, then the git-history leg (11 942 blobs reachable from refs, ~525 MB — ~9 s cold, and ~0.2 s once the cache in the object store is warm, which the run prints either way). About 23 s on this seat, which is the whole pre-commit budget and more; it also only means something where a vault token exists" "check_secret_leak.py (current vault values vs the run-capture class, the working tree, and every blob a ref still reaches)" blk_secret_leak
+item_q "check_secret_leak.py --self-test (the shapes that leaked must each redden, the finding text must disclose nothing, the vault boundary must SKIP, the ledger must mute only what it names, a published-then-deleted value must still redden through the history leg, a partial sweep must say PARTIAL, and --update-ledger must not delete a line it cannot prove — and every mutant of the scanner must be caught, the count is printed by the run)" $PY scripts/gate/check_secret_leak.py --self-test
 item_x "walks the whole tracked tip, 99 MB with archive members included — the leg HD-1117 measured at 5 s, which is the whole budget of a pre-commit loop" "check_secrets.py (secret shapes in the tracked tip, archive members included)" $PY scripts/gate/check_secrets.py
 item_x "re-execs itself per archive/casefold arm: a shape-grammar self-test, not a tree check — rerun it when the scanner changes, not per commit" "check_secrets.py --self-test (the speed prefilter must not have narrowed a shape)" $PY scripts/gate/check_secrets.py --self-test
 item_q "check_yaml_dup_keys.py (HD-1098: a duplicate YAML key is a silent no-op)" $PY scripts/gate/check_yaml_dup_keys.py
