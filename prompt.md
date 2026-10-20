@@ -224,7 +224,11 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    (`smbclient //nas/domen -A creds`), parked. (**HD-1089**, the SABnzbd locality read, is the same lane's subject but
    no brief claims the row — it is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
 5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
-   1110 · 1138 · 1139 · 1140 · 1161 · 1162**) with its owner-gated tails intact. **The laptop↔oldsrv coding leg closed
+   1110 · 1138 · 1139 · 1140 · 1161 · 1162 · **1173**) with its owner-gated tails intact. **HD-1173 is registered and
+   UNIMPLEMENTED** — the parked `dsh` + `pi-dev` harness IaC is to be removed and `pi-dev.ts.kogler.si` made a
+   second name on the existing `pi-oldsrv-backend` (`pi-oldsrv.ts.kogler.si` stays canonical); only the row landed,
+   so its four lanes and its live tails are all still open. Sequence matters: do it **before** any `pi` npm-pin
+   bump, because dropping `pi_dev_npm_version` is what leaves the repo with one pi pin instead of two. **The laptop↔oldsrv coding leg closed
    2026-10-16:** the alias contract is LAN-direct by default with `<node>-vps` as the opt-in hop, all three seats
    carry one contract digest, and VS Code connects over `oldsrv-domen`; what is left in that cluster is the
    away-case spelling in the scripts that shell out (`1138`) and the VS Code server-install leg it gates. **HD-1139**
