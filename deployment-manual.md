@@ -105,6 +105,34 @@ ansible + collections from `requirements.yml`, stores the token at `~/.config/op
 
 ✔ Script prints `FULL BOOTSTRAP COMPLETED SUCCESSFULLY`; `ansible --version` and `op --version` respond.
 
+### 0.2.5 Name resolution on a rebuilt runner `[MANUAL — one elevated step on the Windows side]`
+
+Elevated PowerShell on the laptop — the Tailscale adapter must carry the MagicDNS loop, and the EFFECTIVE list is
+the fact that matters:
+
+```
+netsh interface ipv4 add dnsservers name="Tailscale" address=100.100.100.100 index=1 validate=no
+netsh interface ipv4 show dnsservers name="Tailscale"
+```
+```powershell
+(Get-DnsClientServerAddress -InterfaceAlias "Tailscale").ServerAddresses
+```
+
+Then the per-link route inside the distro (seat-local until the `wsl` seat plane owns it — see
+[docs/network-dns.md](docs/network-dns.md) §Host-side resolver):
+
+```bash
+sudo resolvectl dns eth0 100.100.100.100
+sudo resolvectl domain eth0 "~ts.kogler.si" "~kogler.si"
+sudo resolvectl flush-caches
+```
+
+✔ In the guest: `dig +short llm.kogler.si @127.0.0.53` answers the tailnet edge, `dig +noanswer +comments AAAA
+llm.kogler.si @127.0.0.53` reads `NOERROR`, `getent hosts stats.ts.kogler.si` answers. A `NXDOMAIN` that stands
+while `dig @100.100.100.100` answers the same name is the negative-cache class — `sudo resolvectl flush-caches`,
+then re-run the read-back; the mechanism and the cache-vs-upstream probe are in
+[docs/network-dns.md](docs/network-dns.md) §Host-side resolver.
+
 ### 0.3 Canonical runner identity + 1Password/Ansible connectivity check
 
 ```bash

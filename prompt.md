@@ -15,7 +15,9 @@
 
 **The pi-dev seat is `oldsrv`, and its clone `domen@oldsrv:~/source/homelab` is the merging station** — merges
 land there, `scripts/validate-all.sh` runs there, and `git worktree list` on that host is the fleet's live set
-(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). **Pushing is not that station's exclusive
+(harness state in [docs/harness-pi-engines.md](docs/harness-pi-engines.md)). ⚠ **On the laptop, grade from the WSL
+Debian clone and not the Win11 shell** — three gate items are red or blind on that seat (**HD-1177**), so a Win11
+green is a *partial* result and must be reported as one, never as the gate. **Pushing is not that station's exclusive
 job: every station pushes after it merges** (the rule is [docs/orchestration.md](docs/orchestration.md) §4 step 5 — an
 unpushed `main` is one disk between the work and the fleet). The laptop's WSL Debian clone is **retained, and
 now has a job: it is the designated runner station for externally-served runs** — off-box for every converge target, not the
@@ -613,7 +615,7 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
       `ok`/unchanged and every service's new reachability check green — the leg that proves IaC and the hosts agree.
       (Owning: [docs/deployment-compose.md](docs/deployment-compose.md) §Boot auto-start (docker-compose@))
 
-15. ⏳ **The gate's own speed on a Windows seat** — **HD-1135** landed the fork diet (gate 134 s → 78 s measured
+15. ⏳ **The gate's own speed on a Windows seat — and, since 2026-10-20, its trustworthiness there** — **HD-1135** landed the fork diet (gate 134 s → 78 s measured
     interleaved on the Win11 git-bash seat, `$(<file)` proven to be as blind to CR as plain `grep` was) and gave
     `sync-skills.sh` the `--self-test` its encoding guard had been waiting on (teeth proven by mutation, both
     siblings now share one guard). **The bill the folder move re-bought is now paid**: `scripts/lib/pi-seat.sh`'s single
@@ -625,8 +627,22 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     **flat**, which is the honest Debian reading: process creation is not the cost here, so the win11 figures were never
     a Debian forecast. A new counting arm (arm 8) is what catches the regression arm 6 could not — a `sed|head` body
     compares sed with sed and prints GREEN. ⏳ **What is left:** the win11 side of THIS change has not been re-run on
-    that seat, so the 398 ms-per-pin numbers still stand for it. Record: [scripts/README.md](scripts/README.md)
-    `validate-all.sh` + `sync-skills.sh` rows.
+    that seat, so the 398 ms-per-pin numbers still stand for it. **And that seat cannot be trusted to grade itself
+    (**HD-1177**)**: measured in the primary checkout, `check_secret_leak.py` dies in a cp1252 `UnicodeDecodeError`
+    inside a subprocess reader thread (rc 1 direct, rc 127 inside the gate, where no `~/ansible-venv` exists),
+    `check_self_converge_guard.py`'s `check_mode` fixture calls all five role dirs `INVISIBLE` here while the same
+    commit is green in WSL, and `check_doc_path_refs.py` reds on citations to paths `.gitignore` excludes — so two
+    clones of one commit reach opposite verdicts, and HD-1117's `POOL DIAGNOSTIC` cannot say so on that seat because
+    `-v load=` is a gawk fatal. ⏳ **in order from there:** the gawk rename (one variable, prove the block prints on a
+    forced red run), the UTF-8 pin in `check_secret_leak.py`, then the fix-or-`SKIP` call on the converge-guard
+    fixture and the ledger-or-rescope call on the generated-path citations. The seat's DNS plane settled the same day
+    (**HD-1176** — the mechanism is in place on the seat: internal names routed to the MagicDNS loop per-link and
+    re-asserted by a timer, the Windows adapter's registration read back as effective, the WSL seat's drifted
+    `models.json` re-rendered), and the row stays **open** for what it still owes: that the four seat artifacts have
+    **no repo owner** (the `wsl` seat plane in
+    `scripts/harness/`), the headscale-side call on MagicDNS `SERVFAIL`ing most of `zone_kogler_si`, and the
+    suspend/resume + away-from-home re-measure. Record: [scripts/README.md](scripts/README.md)
+    `validate-all.sh` + `sync-skills.sh` rows · [docs/network-dns.md](docs/network-dns.md) §Host-side resolver.
 
 **Parked on an owner-present window** — authored work with exactly one blocked action in front of it, named with that
 action so no lane re-derives it: **HD-436** (a) re-render headscale's `config.yaml` on the **VPS** slot, ONE guarded
