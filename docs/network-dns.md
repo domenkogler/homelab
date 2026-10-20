@@ -381,6 +381,14 @@ a 2-minute timer — `Type=oneshot` **without** `RemainAfterExit`, since an `act
 every later start (timer fires included) a no-op that reports success. `resolvectl` exits 0 when resolved
 refuses the call, so the re-assert logs its own read-back.
 
+⚠ **The leaky arm stops being leaky on the Windows side, and that is the half that fixes both seats.** The
+uplink behind the gateway is the Windows resolver, so once the Tailscale adapter carries the MagicDNS loop
+(`netsh interface ipv4 show dnsservers name="Tailscale"` prints it **and** `Get-DnsClientServerAddress`
+effective list carries it — the two are different facts), the gateway answers `NOERROR` for `A` and `AAAA`
+alike and has no negative answer left to leak. The per-link claim still earns its place: it is what holds
+while the adapter is down, disconnected, or mid-reconnect, which is exactly when a negative answer would
+otherwise be cached.
+
 **Recovery, and the reason it is a flush and not a re-route:** a cached NXDOMAIN outlives the route fix,
 so the route alone leaves the seat broken until the entry expires.
 
@@ -388,7 +396,7 @@ so the route alone leaves the seat broken until the entry expires.
 sudo resolvectl flush-caches                       # clears the poison; the route keeps it clear
 resolvectl status | sed -n '/Global/,/Default Route/p'    # who is asked for which domain
 for t in A AAAA; do dig +noanswer +comments $t llm.ts.kogler.si @127.0.0.53 | sed -n 4p; done
-GW=$(ip route | awk '/^default/ {print $2}')       # the WSL NAT gateway == the Windows resolver; it MOVES between boots — read it, never type it
+GW=$(ip route | sed -n 's/^default via \([^ ]*\).*/\1/p')   # the WSL NAT gateway == the Windows resolver; it MOVES between boots — read it, never type it
 for s in 100.100.100.100 "$GW"; do printf '%s %s\n' "$s" "$(dig +short llm.ts.kogler.si @"$s")"; done
 ```
 
