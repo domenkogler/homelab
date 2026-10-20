@@ -1275,7 +1275,7 @@ domain_local: kogler.si
 - **VictoriaMetrics:** sole metrics backend, retention 365d, `db-internal` (pure storage/query)
 - **VictoriaLogs:** single-node log store, retention 90d
 - **Grafana:** provisioned dashboards + alert rules; datasources = VictoriaMetrics (uid `prometheus`) + VictoriaLogs (uid `loki`); Authentik OIDC, admin-only
-- **Grafana Alerting:** 3 tiers (Critical/Warning/Info), poke interval ~30 min, self-monitoring rules
+- **Grafana Alerting:** 3 tiers (Critical/Warning/Info), poke interval 24 h, self-monitoring rules
 - **Grafana-native SMTP:** fail-safe contact point in parallel with n8n (independent of n8n)
 - **blackbox-exporter:** external reachability → `probe_success`
 - **HA exporter:** enable HA `/api/prometheus` (bearer token from 1Password); Alloy scrape job

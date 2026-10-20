@@ -3,7 +3,10 @@
 #
 # Single default route → homelab-alerts (webhook n8n + SMTP fail-safe).
 # Throttle (docs/observability.md "Poke/throttle"): a still-firing alert is
-# re-sent at most every 30m; new/grouped alerts wait 2m before first send.
+# re-sent at most every 24h — a fault that outlives the day must not become a
+# page every half hour, because a paged alert that cannot be acted on trains the
+# reader to ignore the channel. The first send is NOT delayed by it: new/grouped
+# alerts still wait 2m (group_wait), then 10m between different alerts in a group.
 apiVersion: 1
 
 policies:
@@ -14,4 +17,4 @@ policies:
       - alertname
     group_wait: 2m
     group_interval: 10m
-    repeat_interval: 30m
+    repeat_interval: 24h

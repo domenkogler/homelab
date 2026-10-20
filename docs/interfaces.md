@@ -122,7 +122,7 @@ every existing session token fails signature validation and the UI becomes an in
 > **SSOT:** full alerting architecture, tiers, delivery and fail-safes live in [`observability.md`](observability.md) (§Alerting) — this section is only the interface-level summary.
 
 - Grafana Unified Alerting → **n8n** → Signal + email; Grafana-native SMTP as parallel fail-safe.
-- Tiers: Critical (Signal+email) / Warning (Signal, deduped) / Info (log only); ~30 min poke.
+- Tiers: Critical (Signal+email) / Warning (Signal, deduped) / Info (log only); 24 h poke.
 - Reachability (`blackbox probe_success`) shows on the Homepage status widget — no separate status page.
 - Self-monitoring: the observability stack alerts if it is down.
 

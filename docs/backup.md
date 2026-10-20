@@ -95,6 +95,17 @@ mount-and-emptiness guard so a NAS outage costs that one snapshot and nothing el
 > interpolation gotcha in the same file:** the command block must be `$$`-escaped, or single-`$`
 > interpolation mangles the credential at parse time.
 
+> **The connect line carries the credential, so the agent's log carries it too.** kopia 0.23 carries
+> server Basic auth in the URL **userinfo** (`--server-username`/`--server-password` were dropped
+> upstream), and `kopia repository connect server` echoes the URL it was handed. The agent's first-connect
+> line therefore prints `kopia-server-internal_api.credential` in plaintext into the container log, which
+> `docker logs` replays and the log tail ships into VictoriaLogs, where it sits for the retention window
+> (90 d) — and the shipped lines carry **no host label**, so which box emitted a line is not answerable
+> from the store. Anyone who can read the logs reads the credential (CONVENTIONS §3, Secret output
+> hygiene). Two consequences: the connect output has to be scrubbed before it reaches a log, and rotating
+> the item **re-connects the agent**, because the credential is also cached in its `repository.config` —
+> a re-render alone leaves an agent authenticating with the retired value.
+
 > **Kopia-server first-run gate:** the server's first-run bootstrap (`kopia repository create sftp`) must
 > be gated on **`repository.config`** (kopia's repo-connection file) — NOT `config.json` (an unrelated
 > technitium zone file). Gate on `/app/config/repository.config` (create only when absent) and the server
