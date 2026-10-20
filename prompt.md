@@ -185,7 +185,16 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    collector dies ~5 s after every start with `fatal error: traceback did not unwind completely` on Go 1.26.7, with the
    repo, the backend and the DMAR lines all excluded, so the acceptance is a firmware/kernel look plus a memory test the
    owner schedules and the unit stays **stopped on purpose** meanwhile. ⚠ `check_host_reporting.py --check` reads RED for
-   `nas` and that is the instrument working — do not soften the expected set to make it green. →
+   `nas` and that is the instrument working — do not soften the expected set to make it green.
+   **What arrives in the channel is a separate design question from what fires.** A still-firing alert now
+   re-sends at most every **24 h** (`repeat_interval` in the notification policy `roles/monitoring` renders;
+   `group_wait: 2m` and `group_interval: 10m` are untouched, so the FIRST send is not delayed). At 30 min a
+   finding that is parked for days by design — a host in an owner hardware window, a host off its pin — was
+   a page ~48 times a day, which is how an alert channel stops carrying information. ⛔ **HD-1174** is
+   registered and open: kopia's `repository connect server` echoes the URL it was handed, so the
+   `kopia-server-internal_api` credential sits in plaintext in the agent's container log and in the log store
+   for the retention window — scrub the connect line, then rotate with the agent **re-connected** (its
+   `repository.config` caches the credential). →
    [prompt-observability-alerting.md](prompt-observability-alerting.md)
 4. ⏳ **The media / music ladder** — **HD-362**'s two Lidarr legs were measured 2026-10-19 and neither is the
    credential the row assumed: `lidarr-ydl` authenticates fine (its log reads `Lidarr sync complete: 3 albums cached`,
@@ -436,7 +445,9 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     drill · **1103 + 1167** one Pi visit — the boot that makes the fstab `mode=` true on the mount, and the one-time
     re-render of `pi-eth0.nmconnection` that notifies `reload NetworkManager` (HD-418's HA restart window was spent in
     the reconcile apply, so it is no longer gated) · **HD-06** the UPS drill · **411** the cockpit resume word ·
-    **HD-230/207** the decisions taken at the drill · **1170 · 1171 · 1150** the three secret-close windows: rotate
+    **HD-230/207** the decisions taken at the drill · **1175** a human at `oldsrv`'s console — there is no
+    out-of-band power path at all (the posture **HD-454** rules; its WoL re-test has never been run), so the
+    box is read by eye · **1170 · 1171 · 1150** the three secret-close windows: rotate
     `spark-llm_api` (published in a tracked bench capture of the public repo — the blob is still reachable from a ref,
     so only rotation closes it) and rule on `radarr_api`/`sonarr_api` (same publication class, `NOT_AUTO_ROTATABLE`);
     rotate `op_api` and re-seat all four installs; re-seat `vps:/etc/op/provision-token` with the `matrix_password`
@@ -457,12 +468,13 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     pin-lag series are live on all five hosts and the `pkg-pin-drift` rule is in the ruler (read from
     the ruler API, not from the repo: it sits in `Homelab · Warning` on `count by (instance)
     (homelab_pkg_pin_result{result="differ"})`, `for: 30m`, `noDataState: OK` — count what loads with
-    that same read, never from this sentence). It reads RED on `pi` and that is true
-    drift, not noise: **HD-1148**'s one unrun `--tags docker` apply (`vps` and `spark` landed 2026-10-18), which is now the only thing left on
-    the docker leg — the one pinned package that no task could reach is named in
-    `docker_ce_suite_packages`, so one list drives the apt call, the hold lift and the read-back, and an
-    apply moves the family to its pin by lifting the hold for exactly the names it touches. →
-    [todo.md](todo.md) HD-1148 ·
+    that same read, never from this sentence). It is QUIET, and that is the fleet reading, not a mute:
+    the last `--tags docker` apply landed on `pi` (`ok=35 changed=3 failed=0`; docker-ce/-cli/rootless-extras
+    `5:29.8.2`, containerd.io `2.3.6`, buildx `0.37.1`, compose `5.5.1`, re-held in the same play, every
+    rule `inactive` afterwards), so **no apply is owed on the docker leg anywhere** — `oldsrv` never was, `nas`
+    runs no docker role, and the row is deleted with its last ⏳ emptied. What the leg taught stays put: one
+    list (`docker_ce_suite_packages`) drives the apt call, the hold lift and the read-back, and every host
+    that carries the suite is on its pin. →
     [docs/observability.md](docs/observability.md) §Pin-lag report.
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
@@ -634,13 +646,14 @@ controller, or use one of the two forms that section measures:
 **HD-384 step 2** — the
 two LiteLLM gateways may be pointed at `litellm-engine_api` only AFTER spark reboots with it in its accepted-key
 list, and a spark engine restart is an owner window (PLE load, ~20 min); inverting the order 401s every upstream
-call · **the docker-family apply** **HD-1148** owes on `pi` (`vps` landed 2026-10-18 and `spark` landed in its owner
-window the same day, so the daemon restart is no longer owed on either) — the restart takes every
-container on the host with it, so one host at a time, detached, `--check` first, never behind a
-timeout, ⛔ not overnight. `oldsrv` owes no apply and `nas` runs
+call · **the docker-family apply landed on `pi`**, which was the last one owed (`vps` and `spark` landed
+earlier, so no daemon restart is owed on any host now) — the shape stays the rule for the next pin bump:
+one host at a time, detached, `--check` first, never behind a timeout, ⛔ not overnight, and the §1.10
+survivor restart after it, because a live-restore survivor keeps the OLD `docker.sock` inode. `oldsrv`
+owes no apply and `nas` runs
 no docker role at all. An apply lifts the hold for exactly the suite names it moves and re-holds them in the same play,
-so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; the rule stays RED on `pi`
-until that runs, which is the gap being reported, not a false positive. Six more parks carry exactly one blocked action
+so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; when a host does read `differ`,
+that is the gap being reported, not a false positive. Six more parks carry exactly one blocked action
 each, all measured into their rows on 2026-10-19: **HD-1160** — the owner chooses A/B/C/D for where a per-policy DNS
 upstream may live at all (Technitium 15.6 has no such surface and the router's one `:53` dst-nat pair aims every policy
 at one shared address; ⛔ shipping a fourth resolver instance as a side effect of a DNS row is what the row forbids) ·
