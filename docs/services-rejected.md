@@ -111,6 +111,7 @@ tags: [services, rejected, decision-log]
 | SABnzbd `dir`/`temp_dir` ini keys                                  | superseded | SAB 5 reads `complete_dir`/`download_dir`                          |
 | SABnzbd `local_ip` locality option                                 | superseded | measured key is `local_ranges`                                     |
 | SABnzbd published on the Home IP                                   | superseded | loopback-only publish now                                          |
+| `seerrng.kogler.si` published in the public DNS zone               | rejected   | tailnet-only; a second login behind CrowdSec alone                  |
 | Shared bind mount to restore hardlinks                             | rejected   | rewrites every stored arr path                                     |
 | Signal as the fleet's alert delivery channel                       | superseded | Matrix `#homelab-alerts`; SMTP stays as fail-safe                  |
 | Silencing the systemd-ssh-generator vsock kmsg noise               | dropped    | console-only noise; blacklist and stub declined                    |

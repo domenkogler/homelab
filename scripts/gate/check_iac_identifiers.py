@@ -201,7 +201,8 @@ def _fixture(files: dict[str, str], allow: str | None = None) -> Path:
         # that never ran.
         (d / ALLOW).parent.mkdir(parents=True, exist_ok=True)
         (d / ALLOW).write_text(allow, encoding="utf-8")
-    env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", HOME=str(d))
+    # HD-1179: never inherit the CALLER's git location — GIT_DIR/GIT_INDEX_FILE outrank cwd
+    env = {**{k: v for k, v in os.environ.items() if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_COMMON_DIR", "GIT_SEPARATE_GITDIR")}, "GIT_CONFIG_NOSYSTEM": "1", "HOME": str(d)}
     for cmd in (["git", "init", "-q"], ["git", "add", "-A"]):
         subprocess.run(cmd, cwd=d, env=env, check=True, capture_output=True)
     return d

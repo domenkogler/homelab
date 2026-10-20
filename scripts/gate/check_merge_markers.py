@@ -161,8 +161,14 @@ def self_test() -> int:
         repo = Path(td)
         for name, body in {**CLEAN, **CASES}.items():
             (repo / name).write_text(body, encoding="utf-8")
-        env = {**os.environ, "GIT_AUTHOR_NAME": "canary", "GIT_AUTHOR_EMAIL": "c@x",
-               "GIT_COMMITTER_NAME": "canary", "GIT_COMMITTER_EMAIL": "c@x"}
+        # HD-1179: a fixture env carries no git location — GIT_DIR/GIT_INDEX_FILE from the seat
+        # outrank cwd and would point these commits at the tree running the gate.
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                            "GIT_COMMON_DIR", "GIT_SEPARATE_GITDIR")}
+        env.update({"GIT_CONFIG_NOSYSTEM": "1",
+                    "GIT_AUTHOR_NAME": "canary", "GIT_AUTHOR_EMAIL": "c@x",
+                    "GIT_COMMITTER_NAME": "canary", "GIT_COMMITTER_EMAIL": "c@x"})
         for cmd in (["git", "init", "-q"], ["git", "add", "-A"], ["git", "commit", "-qm", "fixture"]):
             subprocess.run(cmd, cwd=repo, check=True, capture_output=True, env=env)
 

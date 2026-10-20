@@ -120,6 +120,7 @@ from __future__ import annotations
 import ast
 import difflib
 import hashlib
+import contextlib
 import os
 import re
 import subprocess
@@ -749,6 +750,26 @@ def self_test() -> int:
            f"rc={res['rc']} severs={res['severs']} unproven={res['result']['unproven']} "
            f"presence={res['result']['proven_by_presence']}")
 
+    # xiii a fixture must never inherit the CALLER's git location. A seat that exports GIT_DIR --
+    # the documented way to run the gate from a linked worktree -- used to send this fixture's
+    # `baseline` commits onto the session branch it was grading. The scrub is the fix; this arm is
+    # the proof, and it fails LOUDLY (a ToolError from the containment guard) rather than quietly
+    # writing into whichever tree happens to be running the gate.
+    saved = os.environ.get("GIT_DIR")
+    try:
+        os.environ["GIT_DIR"] = str(Path("not-a-repo-gitdir").resolve())
+        res = _fixture(pair, {"IaC/a.yml": "- name: Reboot the box (HD-1)\n"})
+        ok = res["rc"] == 0
+        said = f"rc={res['rc']} (a planted GIT_DIR steered the fixture)"
+    except ToolError as exc:
+        ok, said = False, f"guard fired: {exc}"
+    finally:
+        os.environ.pop("GIT_DIR", None)
+        if saved is not None:
+            os.environ["GIT_DIR"] = saved
+    record("xiii a planted GIT_DIR in the environment cannot move the fixture's repository",
+           ok and not (Path.cwd() / "not-a-repo-gitdir").exists(), said)
+
     # x  no side carries the base bytes and no side can name the value that took them: the gate
     # cannot decide, so it names the group and exits non-zero rather than printing OK.
     res = _fixture({"IaC/a.yml": long_run, "IaC/b.yml": twin},
@@ -809,21 +830,69 @@ def self_test() -> int:
     return 0
 
 
+GIT_LOCATION_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                     "GIT_COMMON_DIR", "GIT_SEPARATE_GITDIR")
+
+
+def _scrubbed_env() -> dict:
+    """The seat's environment minus anything that tells git WHERE a repository is. Twin of
+    `_scrubbed_env()` in corpus_diff.py — change both sides."""
+    return {k: v for k, v in os.environ.items() if k not in GIT_LOCATION_VARS}
+
+
+@contextlib.contextmanager
+def _hermetic_git_env():
+    """Hide the caller's git location for the duration of a fixture. The dict form alone is not
+    enough: a fixture also reaches git through helpers that pass no explicit env, and `git -C <dir>`
+    still honours an inherited GIT_DIR — which is how a self-test wrote commits onto a live branch."""
+    saved = {k: os.environ.pop(k) for k in GIT_LOCATION_VARS if k in os.environ}
+    try:
+        yield
+    finally:
+        os.environ.update(saved)
+
+
+def _assert_local_git(repo: Path, env: dict) -> None:
+    """Prove the fixture owns its own `.git` — a fixture whose git-dir resolves outside its temp
+    directory is writing into somebody's real tree, so it must die before its first commit."""
+    got = subprocess.run(["git", "-C", str(repo), "rev-parse", "--absolute-git-dir"],
+                         env=env, capture_output=True, text=True)
+    target = Path(got.stdout.strip()) if got.returncode == 0 else None
+    here, root = Path(repo).resolve(), (target.resolve() if target else None)
+    if root is None or here != root and here not in root.parents:
+        raise ToolError(f"git fixture escaped its temp dir: git-dir resolves to {root}, outside "
+                        f"{here} — the environment names a repository (GIT_DIR?) and a fixture must "
+                        f"not inherit one")
+
+
 def _fixture(base_files: dict[str, str], now_files: dict[str, str],
              untracked: tuple[str, ...] = ()) -> dict:
     """A throwaway repo: commit 1 is the baseline, commit 2 records it, the working tree is
     `now`, and `untracked` paths are then dropped from the index by `git rm --cached` with
-    their bytes left in place. Nothing outside a temp dir is touched, nothing is pushed."""
+    their bytes left in place. Nothing outside a temp dir is touched, nothing is pushed.
+
+    ⛔ **The fixture env carries no git location.** `GIT_DIR` / `GIT_WORK_TREE` / `GIT_INDEX_FILE`
+    outrank `-C` and the working directory, so a fixture that inherits them from the seat runs its
+    `init`/`add`/`commit` against the CALLER's tree (HD-1179: one seat exported `GIT_DIR` to get past
+    the session guard, and this fixture's `baseline` commits landed on the session branch). Scrub, then
+    prove containment with `_assert_local_git` — the guard, not the scrub, is what makes it a fixture."""
     d = Path(tempfile.mkdtemp(prefix="string-twins-"))
-    env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="t",
+    env = dict(_scrubbed_env(), GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="t",
                GIT_AUTHOR_EMAIL="t@t.invalid", GIT_COMMITTER_NAME="t",
                GIT_COMMITTER_EMAIL="t@t.invalid")
 
     def run(*cmd: str) -> None:
         subprocess.run(cmd, cwd=d, env=env, check=True, capture_output=True)
 
+    with _hermetic_git_env():
+      return _fixture_inner(d, env, run, base_files, now_files, untracked)
+
+
+def _fixture_inner(d: Path, env: dict, run, base_files: dict[str, str],
+                   now_files: dict[str, str], untracked: tuple[str, ...]) -> dict:
     try:
         run("git", "init", "-q")
+        _assert_local_git(d, env)   # before a single object is written
         for rel, text in base_files.items():
             (d / rel).parent.mkdir(parents=True, exist_ok=True)
             (d / rel).write_text(text, encoding="utf-8")

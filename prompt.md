@@ -135,8 +135,11 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    the VPS and oldsrv instances pick it up in their own slots. **What did not land is not an unbuilt feature:**
    Technitium 15.6 answers **404** on every per-client/per-group endpoint on the pin and upstream alike, so a per-policy
    upstream has nowhere to live and the router's one `:53` dst-nat pair aims every policy at ONE shared resolver address
-   — that decision is **HD-1160** (owner: A/B/C/D), and until it is made the device-level Kids/IoT acceptance in
-   HD-481/482 cannot be met by any settings change. Also open on the same tier, unbriefed: **HD-1152**'s prune leg has been proved
+   — **✅ RULED 2026-10-20 (owner): ONE tier-wide upstream; the per-policy claim is dropped** (option C in that row's
+   lettering — read the mechanism there, because the two views lettered the options differently). So the device-level
+   Kids/IoT acceptance in HD-481/482 is not owed by any settings change: filtering, where the family needs it, is a
+   device-side act. What the lane owes is now pure AI — the doc retag and the `technitium_dns_policy` retag named in the
+   row, with no converge behind it. Also open on the same tier, unbriefed: **HD-1152**'s prune leg has been proved
    un-runnable rather than un-run — the read uses a query-string shape this API does not answer, and the candidate build
    uses a Jinja list comprehension that dies at render; both are invisible to `--syntax-check` because the block is
    gated `not ansible_check_mode`. → [prompt-dns-transport.md](prompt-dns-transport.md)
@@ -249,9 +252,9 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    closed its own premise 2026-10-19: the prefix read ran from the router and there is NO dead prefix class — one
    global /64 plus an active `::/0`, and every destination that HAS a `AAAA` answers over v6; what failed fast
    (`http=000` in 15–140 ms, not a timeout) are **A-only hostnames** that answer nothing at our resolvers or at a
-   public one, so no rule change is warranted and none was made. **HD-1140**'s lease read ran too and the gap is now
-   stated where a rebuild would look for it; the parked half is the owner's call — a `network_static_hosts` row plus a
-   find-guarded router delta, or no reservation at all with the alias contract resting on the name. **HD-495**: its
+   public one, so no rule change is warranted and none was made. **HD-1140** is **ruled 2026-10-20 (owner): the ledger owns
+   the laptop's Home reservation** — a `network_static_hosts` row plus a find-guarded `rb4011_*_delta` in the Pi's shape, so
+   the apply rides an existing router window rather than needing one of its own; the lease read it needed already ran. **HD-495**: its
    role-ownership tail — the row's actual ⏳ — landed 2026-10-19 as a SCRIPTED mode, not a runbook line:
    `git-bootstrap.sh --git-identity` (and `--git-identity --check`, read-only) owns the three lines a Debian seat needs
    OUTSIDE any clone — `commit.gpgsign=false` **explicit** (an inherited `true` is a hang where there is no tty),
@@ -281,8 +284,9 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    exactly one boot, and that window **contains nine** `Accepted publickey for admin` from 2026-10-05 and none since —
    while the neutralization is real (`/home/admin/.ssh/authorized_keys` holds no key; the dated `.disabled-20261005`
    copy carries exactly the fingerprint those nine logged). So the row's 14-day and 30-day windows were the same seven
-   days of RAM read twice, nothing was changed, and the trigger read can only be closed on a host whose journal covers
-   the interval or by the owner accepting that a volatile journal cannot prove a 30-day silence. ⛔ A raw journal grep
+   days of RAM read twice, nothing was changed, and the trigger read is **ruled closed 2026-10-20 (owner)**: a volatile
+   journal cannot prove a 30-day silence, so the `admin` revoke proceeds on the neutralized state plus the fingerprint
+   match, behind the order that keeps the door open (`ansible-admin` and `domen` proven first). ⛔ A raw journal grep
    for the phrase also **matches the probe that greps for it** — filter on `sshd-session[…]` / `-u ssh.service`.
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/harness/pi-seat-sync.sh` is
    the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID, and the
@@ -293,9 +297,10 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    PATH persistence** (`persist_path()` writes the node `current` bin dir and pi's entrypoint dir under its own marks,
    distinct from `install-pi-debian.sh`'s, and `verify_login_path()` then asks a LOGIN shell and fails if a `/mnt/c`
    copy wins) instead of printing a NOTE about `~/.bashrc`. Two things remain: the **Win11** seat leg, which no leg from
-   this box reaches (inside WSL the driver's seat list is `wsl oldsrv`), and the parked OAuth-vs-`api_key` call on the
-   `pi_auth` providers — a `--push` on a seat authorised by OAuth would replace a working login with a key entry, so it
-   is an owner decision, never a rewrite until a line reads green. Mint through the `pi_auth` vendor lane of
+   this box reaches (inside WSL the driver's seat list is `wsl oldsrv`), and the OAuth-vs-`api_key` call on the
+   `pi_auth` providers — **ruled 2026-10-20 (owner): `api_key` is the fleet spelling**, an OAuth entry on a seat is drift,
+   and it is never cured by overwriting a live credential: the plane reads the live `type` and reports the mismatch instead
+   of rewriting. Mint through the `pi_auth` vendor lane of
    [`scripts/harness/render-pi-config.py`](scripts/harness/render-pi-config.py) (§4 of [docs/harness-pi-models.md](docs/harness-pi-models.md)) and
    never overwrite a live token to green a check. **The seat legs do NOT run FROM the `oldsrv` seat** — that sentence
    held for `win11` and `wsl` and is now measured false for oldsrv (HD-1118's tail): `run_on_seat oldsrv` has one
@@ -319,8 +324,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    in the row were void as written**: `storage-syncoid.service` is not failing, it sits in `activating (start)` since
    2026-10-18 06:45 with `NRestarts=0` and `JobTimeoutUSec=infinity`, **no `zfs receive` is running**, and the wedge is
    `pv` spinning on a pipe whose reader exited (`rchar 4980`, `wchar 0` frozen across two reads) so `sh` never reaps and
-   the oneshot never finishes — the stream was 23 KB. One parked owner act: `systemctl stop storage-syncoid.service`
-   and then watch a full timer cycle), **HD-1105** (three enabled-but-dead units on nas — all three ruled, `--failed`
+   the oneshot never finishes — the stream was 23 KB. **✅ Ruled 2026-10-20 (owner): take the replica datasets out of the
+   snapshotting template — the retag, never a hand-destroy of the 66.** A `zfs receive` target takes no autosnapshots of its
+   own and the rollback targets of record are the source-side `tank/data/*` snapshots; the act is AI work on the `nas` slot
+   and is sequenced in the row — kill the wedged pipeline's shell wrapper first, or sanoid's `iszfsbusy()` defers every
+   prune and the retag looks like it did nothing), **HD-1105** (three enabled-but-dead units on nas — all three ruled, `--failed`
    now lists 0), **HD-1106** (re-derived read-only 2026-10-19: the live count is **37**, not 20, 644 MB, every one
    attributed to recreate-churn or a one-off `docker run postgres` whose user db is template1-sized, and absent compose
    labels prove nothing because Docker labels only a compose's **named** volumes — nothing was deleted; the owner half
@@ -490,6 +498,22 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
 14. **Decisions the last wave left open** (none has a domain brief; each is one call, and the evidence that makes it
     actionable is named with it). The gates named here are indexed in [scripts/README.md](scripts/README.md)
     §Validation gate, and every count a gate prints is re-derived by running it here, never quoted.
+    - ✅ **The 2026-10-20 backlog decision round — ANSWERED in one sitting; nine rows became pure AI work.**
+      **HD-1160**: one upstream for the whole DNS tier, the per-policy claim dropped, so the fix is a retag of the policy
+      table and `technitium_dns_policy` and **no converge is owed** — the live tier already runs one shared forwarder list
+      (mechanism in the row; the two views lettered the options differently, so quote the mechanism, not the letter).
+      **HD-1107**: replica datasets come out of the snapshotting template — a receive target takes no autosnapshots of its
+      own and rollbacks are source-side — never a hand-destroy of the 66. **HD-1106**: approved, by name, with the
+      onlyoffice named-volume fix **before** any `docker volume rm`; the blanket prune stays refused. **HD-1103**: `rotate 1`
+      + `maxsize`, a new role-owned file sized against the 100 MB tmpfs. **HD-1140**: the ledger owns the laptop's Home
+      reservation via a find-guarded delta riding a router window. **HD-357**: `seerrng.kogler.si` stays tailnet-only and its
+      tile stays linked-not-probed. **HD-443**: revoke Pi `admin`, accepting that a `Storage=volatile` journal cannot prove a
+      30-day silence, with `ansible-admin`/`domen` proven first. **HD-1110**: `api_key` is the fleet spelling; a live OAuth
+      entry is reported as drift, never overwritten to green a check. **HD-448/HD-460**: the 2026-10-12 KEEP-THE-PARITY
+      ruling stands — a fresh proposal to scope the SSH and RustDesk accepts to IPv4 was weighed and **not adopted** — and
+      "chase inbound IPv6 from the ISP" is answered **no** and mints no row. ⏳ The owner still runs the **secret rotations**
+      (`HD-1170` · `HD-1171` · `HD-1150`) and the `oldsrv` console look (`HD-1175`, owner away); both are parked on that word
+      and no AI lane waits on them. Rulings live in the rows and in the docs each row names — this bullet is an index.
     - ✅ **`corpus_diff.py --gate` in the pool, or a hand-run wave audit — ANSWERED: it is a pool item now, and
       the rule that kept it out is the rule that changed.** Both halves are registered (`--list` prints the run and
       its `--self-test`). What held it out was that its verdict is a function of a pinned window: measured at one tip
@@ -679,7 +703,12 @@ owes no apply and `nas` runs
 no docker role at all. An apply lifts the hold for exactly the suite names it moves and re-holds them in the same play,
 so there is no manual `apt-mark` dance and no `--allow-change-held-packages`; when a host does read `differ`,
 that is the gap being reported, not a false positive. Six more parks carry exactly one blocked action
-each, all measured into their rows on 2026-10-19: **HD-1160** — the owner chooses A/B/C/D for where a per-policy DNS
+each, all measured into their rows on 2026-10-19 — **⚠ read this list with the 2026-10-20 owner round applied: the
+`HD-1160`, `HD-1107`, `HD-1106`, `HD-1103`-retention, `HD-1140`, `HD-357`, `HD-443` and `HD-1110` entries below are
+RULED and their remaining work is AI work, so the owner act they describe no longer exists** (the ruling and the ordered
+act are in the rows and in §14); what is genuinely owner-blocked in this paragraph is `HD-1122`, `HD-1088`, `HD-1091`,
+`HD-1093`, `HD-1164`, `HD-1143`, `HD-1152` and the Pi-visit bundle — and `oldsrv`-targeted acts of any kind, because the
+box is dark and the owner is away from it. **HD-1160** — the owner chooses A/B/C/D for where a per-policy DNS
 upstream may live at all (Technitium 15.6 has no such surface and the router's one `:53` dst-nat pair aims every policy
 at one shared address; ⛔ shipping a fourth resolver instance as a side effect of a DNS row is what the row forbids) ·
 **HD-1122** — flip `ai_tier_metrics_publish: true` and converge **oldsrv** `--tags docker_services,monitoring`: the
@@ -719,6 +748,17 @@ are DONE on both hosts — do not re-run them; on a keyfile host the write leg i
 volatile journal cannot prove a 30-day silence and the `admin` revoke proceeds on nine old acceptances plus the
 neutralized state · **HD-1110** — the OAuth-vs-`api_key` call on the seat's `pi_auth` providers, which a `--push` must
 not settle by rewriting a working login.
+
+**✅ 2026-10-20 owner round — what stopped being an owner act.** Ruled, with the AI tail written into the rows:
+**HD-1160** (one tier-wide upstream — a doc/`group_vars` retag, and **no converge is owed**, because the live tier already
+runs one shared forwarder list) · **HD-1107** (retag the replica datasets out of the snapshotting template; never a
+hand-destroy) · **HD-1106** (onlyoffice named-volume fix first, then the prune by name, in a VPS window) · **HD-1103**
+(`rotate 1` + `maxsize` as a new role-owned logrotate file) · **HD-1140** (ledger row + find-guarded delta, riding an
+existing router window) · **HD-357** (`seerrng` tailnet-only; leave `homepage_seerrng_probe: false`) · **HD-443** (revoke
+Pi `admin` on the neutralized state) · **HD-1110** (`api_key` is the fleet spelling; report drift, never overwrite).
+**HD-448/HD-460** were re-examined and **not changed**: the KEEP-THE-PARITY ruling stands, and the separate
+"chase inbound IPv6 from the ISP" question is answered **no** and mints no row. **Secret rotation** (`HD-1170`,
+`HD-1171`, `HD-1150`) is the owner's to run, unscheduled — parked on that word, and no AI lane waits on it.
 > **What §D of the human table carries that this paragraph does not**, so the two lists are not mistaken for each
 > other: §D is everything genuinely left, this paragraph is only the part of it with an authored act queued behind the
 > owner. The rest is owner eyes and hands with nothing authored waiting — the one visual pass over the boards

@@ -494,10 +494,12 @@
         dst-address: "{{ comtrend_modem.modem_mgmt_ip }}"
         dst-port: "80,443"
         comment: "modem UI via router SNAT (trusted-admin)"
-      # --- Kids VLAN 40 forced filtered DNS ---
+      # --- Kids VLAN 40 DNS steering (not filtering) ---
       # Hijack every DNS query (53 udp/tcp) leaving the Kids VLAN — hardcoded-resolver
-      # devices included — to the Technitium primary, which enforces the Kids-Group
-      # policy (Cloudflare Families, network-dns.md). NAT runs BEFORE the forward chain,
+      # devices included — onto the Technitium primary. This STEERS traffic so it is
+      # logged there; it does not filter, because the tier runs one upstream for every
+      # group and holds no per-policy resolver address (network-dns.md).
+      # NAT runs BEFORE the forward chain,
       # so the rewritten packets match the LAN→resolver accept above; the DoT (853)
       # bypass is dropped in the filter chain.
       - chain: dstnat
@@ -538,10 +540,11 @@
         to-ports: 53
         comment: "IoT forced DNS - TCP 53 -> Pi (DNS visibility)"
 
-# Per-MAC kids filtered DNS on Home VLAN 10 (the kids join the Kogler SSID, so the
+# Per-MAC kids DNS steering on Home VLAN 10 (the kids join the Kogler SSID, so the
 # VLAN-40 hijack above does NOT cover them): redirect each kids tablet's DNS (53) to the
-# Technitium primary, which enforces the Kids-Group policy (Cloudflare Families,
-# network-dns.md). Selection is the `kids: true` marker in SSOT, matched per device by
+# Technitium primary, where the queries get logged — the tier applies no per-policy filter,
+# so these rows steer and never filter (network-dns.md).
+# Selection is the `kids: true` marker in SSOT, matched per device by
 # src-mac-address.
 - name: Ensure per-MAC kids filtered DNS dst-nat
   community.routeros.api_modify:

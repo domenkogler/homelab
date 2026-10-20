@@ -43,12 +43,12 @@ See the HA-failover tie-in in [`smart-home-failover.md`](smart-home-failover.md)
 
 VLAN subnets per [`network-addresses-generated.md`](network-addresses-generated.md) (SSOT).
 
-| Source VLAN | Policy group (declared) | Upstream (declared — see the capability note) | Purpose |
+| Source VLAN | Policy group (declared) | Upstream | Purpose |
 |--------------|------------------|-----------------|---------|
 | Management | — | Local system | Infrastructure isolation |
 | Home (10) | Main-Group | **none — no list on this tier** | No block list is loaded here ([network-rejected.md](network-rejected.md)); the tier answers the operator's own tailnet traffic, where a false positive is self-inflicted. The two kids tablets are **per-MAC dst-nat'd off this row** by router NAT, onto the VPS primary address — see the dst-nat note below, which is the half that is actually live. |
-| Kids (40) | Kids-Group | **Cloudflare Families** (1.1.1.3) | Adult content + porn filtering — the enforcement is the **upstream**, not a list: Families answers `NXDOMAIN` for the whole family-blocked set. The VLAN-40 hijack covers the (currently unused for Wi-Fi) Kids VLAN; the Home-VLAN kids tablets are meant to get the same policy via the per-MAC dst-nat |
-| IoT (20) | IoT-Group | **Quad9** (9.9.9.9) | Malware + botnet blocking. **No ad block lists here:** appliance firmware is the flakiest thing on the network and shares CDN/IP ranges with ad-serving endpoints, so the IoT tier gets malware blocking at the resolver and nothing more. Cloud-IoT devices with `wan_allow` still resolve through this row — they gain WAN egress only, never a DNS bypass. IoT plain `:53` is meant to be dst-nat'd to the **Pi tertiary** (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). |
+| Kids (40) | Kids-Group | **the one tier upstream** — no Families | **Nothing filters at this tier.** A Families upstream (`1.1.1.3`, which answers `NXDOMAIN` for the whole family-blocked set) needs a resolver address of its own and none is adopted — see §What the pin can and cannot enforce. Filtering of the two Home-VLAN tablets, which are the actual children, therefore lives on the devices, not on this tier. VLAN 40 carries no Wi-Fi |
+| IoT (20) | IoT-Group | **the one tier upstream** — no per-policy Quad9 | Malware + botnet blocking at the shared resolver only; a Quad9 upstream scoped to this VLAN needs a resolver address of its own and none is adopted. **No ad block lists here:** appliance firmware is the flakiest thing on the network and shares CDN/IP ranges with ad-serving endpoints, so the IoT tier gets malware blocking at the resolver and nothing more. Cloud-IoT devices with `wan_allow` still resolve through this row — they gain WAN egress only, never a DNS bypass. IoT plain `:53` is meant to be dst-nat'd to the **Pi tertiary** (`dns_tertiary_ip`) so per-device query visibility lands on the Pi's log (`dns-pi.kogler.si`); DoT(853) bypass is dropped (router role). |
 | Guest (30) | Guest-Group | Same as Home | **Guest inherits the Home posture** — same protection (which is: no list), one group fewer to maintain. Home and Guest carry **no block list** (see §Tier policy rulings). |
 
 ### What the pin can and cannot enforce
@@ -77,11 +77,20 @@ them ("client custom options") does not exist in the product:
 So the upstream column is not a knob this tier can turn, and **no version bump buys it** — the
 feature is not in the product. `technitium_dns_policy` in
 [`group_vars/all/main.yml`](../IaC/ansible/group_vars/all/main.yml) carries the ruled policy in
-machine-readable form; `block_lists` there IS applied (next section), `upstreams` there is intent
-with no consumer, and `scripts/gate/check_dns_policy_drift.py` reddens if a file starts applying it
-while this page still says it cannot be applied. Which upstream a VLAN actually reaches is decided
+machine-readable form; `block_lists` there IS applied (next section). Its `upstreams` key carries the
+**same** tier-wide value in every group — the forwarders in `dns_resolver_upstreams`, applied once per
+instance by the seed — and never a per-group value: no IaC file reads that key per group, and
+`scripts/gate/check_dns_policy_drift.py` reddens one that does. Which upstream a VLAN actually reaches is decided
 **by the router**, in the `:53` dst-nat map — which chooses *which resolver answers*, never what that
 resolver asks outward.
+
+**ONE upstream for the whole tier is the settled shape, not a held-open question.** Running a Technitium
+instance per policy, each carrying its own upstream with the router dst-nat aiming at its address, is
+**not adopted**: it buys a fourth stateful DNS instance — a second seed surface, answer-plane parity work,
+its own timer, its own drift gates, plus an address to publish — in order to express a filter two devices
+need ([network-rejected.md](network-rejected.md)). The tier states one upstream for every group (the shared
+forwarders) and leaves per-device protection on the devices. The ⛔ against shipping that fourth instance,
+or a router write, from an unattended session stands indefinitely — it is not a gate waiting on an answer.
 
 **The live dst-nat map, read off the device (read-only print).** `ip firewall nat`, chain `dstnat`,
 holds **one** `:53` pair tonight: the two rows for `tablet-ipad`'s MAC, both to `dns_primary_ip` —
@@ -90,16 +99,17 @@ IoT-VLAN-20 pair and the second tablet's pair are **absent from the device** (th
 would write them is parked in the router's own row, whose trunk parity gap would darken the mgmt
 plane). Two consequences, both load-bearing:
 
-* **no policy VLAN has its own resolver address.** Kids traffic lands on the shared primary, so a
-  Families upstream set there would filter the whole Home tier and the tailnet too — this is the
-  owner decision about a per-policy resolver address or the router rows, not an oversight here;
+* **no policy VLAN has its own resolver address, and none is planned.** Kids traffic lands on the shared
+  primary, so a Families upstream set there would filter the whole Home tier and the tailnet too — which
+  is why no per-policy upstream is configured anywhere on this tier, and why the table above names one
+  upstream for every group rather than a per-VLAN one;
 * **the per-device query visibility this doc cites as the reason for the IoT row is real, but it does not
   come from the dst-nat.** The instance's own query log carries per-client `QNAME` lines whose client
   addresses are in the IoT subnet — IoT queries reach the Pi because it is the **first resolver DHCP
   advertises** (§DNS Flow), with no NAT involved. What the absent rows actually cost is narrower: a client
-  that ignores its DHCP-assigned resolver (hardcoded `1.1.1.1`, or DoT) is neither steered nor logged, and
-  a per-policy upstream cannot be attached to traffic that is not being steered — the decision **HD-1160**
-  has to make, not a DNS setting.
+  that ignores its DHCP-assigned resolver (hardcoded `1.1.1.1`, or DoT) is neither steered nor logged.
+  That is the accepted cost of a tier with one upstream and one steering address; no planned change
+  attaches a per-policy upstream to traffic that is not being steered.
 
 ✅ **What IS applied from IaC:** the block-list posture and the resolver tuning —
 `technitium_dns_policy` + `technitium_resolver_settings`, written by one seed task and proved by a
@@ -115,8 +125,8 @@ policy table above must not restate it.**
 | # | Question | Ruling |
 |---|---|---|
 | 1 | Which block lists for **Home** | **None** — the Home/Guest tier loads no block list. The candidate light curated set Hagezi `multi` + `privacy` (`https://raw.githubusercontent.com/hagezi/dns-blocklists/main/adblock/multi.txt` + `…/adblock/privacy.txt`) is not loaded, and neither is an aggressive `multi+`/`premium`/`PRO` tier: this tier answers the operator's own tailnet traffic, so a false positive is self-inflicted |
-| 2 | **Kids** scope | **VLAN 40 AND the two Home-VLAN kids tablets.** The per-MAC `:53` dst-nat is already live and lands on a group that does not exist; the tablets are the actual children, so VLAN-only would leave the doc's claim false. Upstream = **Cloudflare Families `1.1.1.3`**, never a block list — Families answers `NXDOMAIN` for the whole family-blocked set, which is the enforcement |
-| 3 | **IoT** | **Quad9 upstream, no block lists** (see the table row above for why) |
+| 2 | **Kids** filtering | **Not enforced at the DNS tier.** A per-policy upstream would need a resolver address of its own and none is adopted (see §What the pin can and cannot enforce), so no Families upstream is configured anywhere. Filtering of the two Home-VLAN tablets — the actual children — is a device-side concern. The per-MAC `:53` dst-nat rows exist to steer, not to filter |
+| 3 | **IoT** | **No block lists, and no per-policy Quad9** — IoT resolves through the same tier upstream as every other group. The VLAN's own contribution is query visibility on the Pi tertiary (ruling 5), not a different resolver |
 | 4 | **Guest** | **Same as Home** |
 | 5 | **Query log** (`logQueries`) | **On the Pi tertiary only** (the dst-nat target, i.e. the box that already sees IoT traffic), **14-day retention, root-readable, no per-device dashboard.** It is a per-device behaviour record on the box that also hosts the HA primary, so the retention and the readers are part of the setting, not an afterthought. The rendered knob is `maxLogFileDays` on that instance's `technitium_settings` — Technitium's own default is 365 days, so a retention that is not written down is not this ruling. ⚠ **Where the record lives, measured:** the query log is `/var/log/technitium/dns/<date>.log` **inside the container**, one line per query carrying the client address (`[<client>:port] [UDP] QNAME: …; RCODE: …`) — that field is what makes it a per-device record. The compose binds `/etc/technitium` and `/etc/dns` only, so the directory sits in the container's writable layer: readable as root **in the container** (or via the console's query-log view), not on the host, and it does not survive a container recreate. A bind mount for it is a compose change — a resolver recreate — so it is a decision, not a settings write. The same file also carries the server's error lines, so an empty-looking log is not evidence that query logging is off; read `logQueries` back. |
 
