@@ -337,6 +337,25 @@
 #                                     `--self-test` breeds each rule, requires each exemption to stay
 #                                     quiet, and refuses an empty walk — a checker that lost its
 #                                     target must not be able to print OK.
+#  36. check_view_registry_sync.py   — the view↔registry seam no gate ever held: `todo-table.md` §B9
+#                                     must hold EXACTLY the row ids `todo.md` carries, in BOTH
+#                                     directions. The registry is the record and §B9 is the index of it;
+#                                     nothing compared the two id sets, which is why the view's own
+#                                     header records re-syncs that found 13, 8 and 18 rows missing — each
+#                                     one caught by a human typing `comm`, never by the suite. A row the
+#                                     registry carries and §B9 does not is work no dispatcher reads (the
+#                                     shape a commit that MINTS a row produces, since the new id belongs
+#                                     to no index until someone re-derives); an id §B9 carries that the
+#                                     registry does not is the view becoming a second record — a deleted
+#                                     row that outlived its line, or an invented id. One regex extracts
+#                                     both sides (a diff that reads the two files differently is not a
+#                                     diff), the appendix is found by its heading, and the counts are
+#                                     derived every run (CONVENTIONS §2). `--show-baseline` exists for a
+#                                     difference the repo decides to CARRY; there is nothing to carry
+#                                     here, so no baseline file is committed and a stale baseline line
+#                                     reddens. It earned its first run: the tip it landed on was 3 rows
+#                                     behind (§B9 said "re-derived" and the three newest ids were not in
+#                                     it), which is the seam, not a false positive.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1280,6 +1299,8 @@ item_q "check_runbook_purity.py (runbook = imperative procedure only)" $PY scrip
 item_q "check_runbook_purity.py --self-test (phase-alignment arms seen RED then GREEN; every single-letter phase suffix proved compared; a blind walk or a missing input refused, never OK: 0 phases)" $PY scripts/gate/check_runbook_purity.py --self-test
 item_q "check_vault_docs.py (every IaC-read vault item is documented)" $PY scripts/gate/check_vault_docs.py
 item_q "check_todo_done.py (CONVENTIONS §4(a) done-row sweep)" $PY scripts/gate/check_todo_done.py
+item_q "check_view_registry_sync.py (todo-table.md §B9 holds exactly todo.md's row ids, in both directions — the dispatch view cannot silently lose a row, and cannot invent one)" $PY scripts/gate/check_view_registry_sync.py
+item_q "check_view_registry_sync.py --self-test (a row missing from §B9 must redden AND an id §B9 carries that the registry lacks must redden; the ratchet line whose difference cleared must go STALE)" $PY scripts/gate/check_view_registry_sync.py --self-test
 item_q "check_todo_done.py --refs (an HD id named by any root prompt brief must still be a row)" $PY scripts/gate/check_todo_done.py --refs
 item_x "breeds both directions of the marker grammar and the reference rule in a synthetic tree: a checker self-test, not a tree check — and HD-1117 names this leg as a pool flake" "check_todo_done.py --self-test (marker grammar + reference-existence canaries, both directions)" $PY scripts/gate/check_todo_done.py --self-test
 item_q "check_merge_markers.py (HD-453: no conflict markers in tracked files)" $PY scripts/gate/check_merge_markers.py
