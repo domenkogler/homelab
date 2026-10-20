@@ -120,6 +120,12 @@ check_mode() {
 # --- self-test ---------------------------------------------------------------
 self_test() {
   local rc fails=0 out
+  # HD-1179: this fixture builds throwaway repos and registers worktrees. `git -C <dir>` does NOT
+  # override an inherited GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE, so with the pool's documented
+  # `GIT_DIR=… bash scripts/validate-all.sh` override this self-test would register its temp worktree
+  # in the REPOSITORY IT IS VALIDATING (a `…/guard-selftest.XXXX/wt [session/selftest]` entry left
+  # behind in `git worktree list`). Drop the location vars for the fixture's lifetime.
+  unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_OBJECT_DIRECTORY GIT_COMMON_DIR GIT_SEPARATE_GITDIR
   FIXDIR="$(mktemp -d "${TMPDIR:-/tmp}/guard-selftest.XXXXXX")" || { err "self-test: mktemp failed"; return 1; }
   # Explicit best-effort cleanup (Windows: git worktree handles can still be held at
   # script-exit time, so a bare EXIT trap races — clean up BEFORE returning instead).
