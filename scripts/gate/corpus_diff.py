@@ -1452,13 +1452,24 @@ FIXTURE_REASON = ("the task's `- name:` line was rewritten into a top-level comm
                   "purge, so the parse moved with the token")
 
 
+GIT_LOCATION_VARS = ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY",
+                     "GIT_COMMON_DIR", "GIT_SEPARATE_GITDIR")
+
+
+def _scrubbed_env() -> dict:
+    """The seat's environment minus anything naming a repository (HD-1179)."""
+    return {k: v for k, v in os.environ.items() if k not in GIT_LOCATION_VARS}
+
+
 class _FixtureRepo:
     """A throwaway repo: commit 1 is the base, commit 2 is the purge, nothing outside a temp dir is
     touched and nothing is pushed. Mirrors the fixture scripts/gate/check_string_twins.py builds."""
 
     def __init__(self, base_lines, now_lines):
         self.dir = tempfile.mkdtemp(prefix="corpus-diff-")
-        self.env = dict(os.environ, GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="t",
+        # HD-1179: no git location is inherited — GIT_DIR from the seat would point these commits
+        # at the tree running the gate. Twin of check_string_twins.py's _fixture; change both sides.
+        self.env = dict(_scrubbed_env(), GIT_CONFIG_NOSYSTEM="1", GIT_AUTHOR_NAME="t",
                         GIT_AUTHOR_EMAIL="t@t.invalid", GIT_COMMITTER_NAME="t",
                         GIT_COMMITTER_EMAIL="t@t.invalid")
         self._run("init", "-q")

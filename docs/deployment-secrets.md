@@ -930,7 +930,11 @@ is being locked out by your own fix, so the order matters and each step is evide
    `Storage=volatile`, so its journal reaches back exactly one boot — the window it happened to cover
    started 2026-10-04 23:00 and CONTAINED nine `admin` acceptances, so the row's 14-day and 30-day claims
    are not windows on this host at all: they are the same seven days of RAM read twice. A volatile host
-   cannot prove a 30-day silence; say so rather than reporting zero. (b) **A raw journal grep matches the
+   cannot prove a 30-day silence; say so rather than reporting zero. **On a host whose journal cannot cover
+   the interval, the disuse test is replaced — by ruling, not by shortcut — with the neutralized state plus
+   the fingerprint match:** the key absent from `authorized_keys`, and the dated `.disabled-*` copy holding
+   exactly the fingerprint the logged acceptances carry. Where that holds, the delete is authorized; hunting
+   a different host to log on is not required and buys nothing. (b) **A raw journal grep matches the
    probe that greps for it** — an ansible `command` task carrying the literal string in its `_raw_params`
    lands in the journal and was counted as an acceptance (it read 1-in-7-days for a fingerprint with no
    logins at all). Filter on the authorizing unit (`sshd-session[…]: Accepted publickey for <user>`, or
@@ -962,7 +966,7 @@ measured per host with `ssh-keygen -lf`:
 | `domen_ssh` placement | the `domen` account on **vps · oldsrv · nas · pi · spark**, and **not** under `ansible-admin` on any of them — place-then-remove is task order in the role, so no host ever has the key on neither account |
 | `ansible-admin_ssh` | every host, unchanged — the converge key; the role asserts `ansible_admin_users` stays inside `AllowUsers` BEFORE it writes the gate (the guard is also in `self-converge-guard.yml`) |
 | `ai_ssh` | oldsrv + nas only (where `roles/ai_diag` runs), with `from="10.10.0.0/16"` on the live line |
-| Pi `admin` | exists with uid 1000 and `/etc/sudoers.d/admin` = `NOPASSWD:ALL`, but **neutralized, not deleted**: the key line carries a `# RETIRED-20261005` marker with a copy at `authorized_keys.disabled-20261005`; the operator's `Host pi` alias uses `domen`. Delete trigger = zero `admin` acceptances in `journalctl -u sshd`, then drop `access_admit_extra` from `host_vars/pi.kogler.si.yml` and remove the account; taking that reading is AI work, not an owner errand. With `admin` closed, `ssh ansible-admin@pi` (same key, that account) still authenticates and `sudo` there is NOPASSWD, so a botched revoke is recoverable without another credential |
+| Pi `admin` | **not an authorized identity, and scheduled for deletion.** A volatile journal cannot produce the acceptance count the retire sequence normally waits for, so the delete rests on the neutralized state: uid 1000 still present, `/etc/sudoers.d/admin` = `NOPASSWD:ALL`, the key line carrying a `# RETIRED-20261005` marker with a copy at `authorized_keys.disabled-20261005`; the operator's `Host pi` alias uses `domen`. Delete trigger = zero `admin` acceptances in `journalctl -u sshd`, then drop `access_admit_extra` from `host_vars/pi.kogler.si.yml` and remove the account; taking that reading is AI work, not an owner errand. With `admin` closed, `ssh ansible-admin@pi` (same key, that account) still authenticates and `sudo` there is NOPASSWD, so a botched revoke is recoverable without another credential |
 | spark `admin` | exists, has no `~/.ssh` at all and is not admitted → inert; not a grant, so nothing here names it |
 
 **Third-party grants survive by construction**: the role writes non-exclusively, so

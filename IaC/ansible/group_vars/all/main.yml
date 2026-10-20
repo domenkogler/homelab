@@ -158,15 +158,16 @@ technitium_resolver_settings:
 # is the router's :53 dst-nat map, not this list. A row that lands a per-policy resolver address
 # changes the router rows; nothing here becomes live by editing it.
 technitium_dns_policy:
-  - { group: Main-Group,  vlan: 10, block_lists: [], upstreams: [] }
+  - { group: Main-Group,  vlan: 10, block_lists: [], upstreams: "{{ dns_resolver_upstreams }}" }
   # Guest inherits the Home tier's posture verbatim — same rule, one fewer object to maintain.
-  - { group: Guest-Group, vlan: 30, block_lists: [], upstreams: [] }
-  # IoT: malware blocking at the resolver, no ad lists (appliance firmware shares CDN ranges with
-  # ad endpoints). Quad9 is the upstream the answer plane was supposed to reach, not this list.
-  - { group: IoT-Group,   vlan: 20, block_lists: [], upstreams: ["9.9.9.9"] }
-  # Kids: the FILTER is the upstream — Cloudflare Families answers NXDOMAIN for the whole
-  # family-blocked set, which is why this tier has no block list of its own.
-  - { group: Kids-Group,  vlan: 40, block_lists: [], upstreams: ["1.1.1.3"] }
+  - { group: Guest-Group, vlan: 30, block_lists: [], upstreams: "{{ dns_resolver_upstreams }}" }
+  # IoT: no block lists (appliance firmware shares CDN ranges with ad endpoints). The upstream is
+  # the tier-wide one — a per-group resolver address is not adopted, so no per-VLAN upstream exists.
+  - { group: IoT-Group,   vlan: 20, block_lists: [], upstreams: "{{ dns_resolver_upstreams }}" }
+  # Kids: nothing filters at this tier. The upstream is the tier-wide value like every other group;
+  # a Families upstream would need a resolver address of its own, which is not adopted
+  # (docs/network-dns.md §What the pin can and cannot enforce).
+  - { group: Kids-Group,  vlan: 40, block_lists: [], upstreams: "{{ dns_resolver_upstreams }}" }
 
 # The union of `block_lists` above is what an instance must load. Empty is a policy, not an
 # absence: blocking switched on with nothing loaded is the silent-failure shape, so the seed

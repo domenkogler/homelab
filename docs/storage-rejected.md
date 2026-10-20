@@ -44,6 +44,7 @@ tags: [storage, rejected, decision-log]
 | Pre-seeded OpenCloud accounts via a service account                 | dropped    | OIDC users JIT-provision on first login                   |
 | Prometheus/Loki TSDB excluded from backup                           | superseded | the VictoriaMetrics/VictoriaLogs volumes are Kopia-backed |
 | RAIDZ1 for `tank`, even with RAIDZ expansion                        | rejected   | mirror wins resilver, self-healing and random I/O         |
+| Hand-destroying a replica's snapshots to unblock syncoid             | rejected   | sanoid's own prune retires them, age-ordered and auditable |
 | `rsync -a` owner/group preservation onto the NAS export             | rejected   | the export accepts writes from `media` only               |
 | Skipping missing containers so a push exits 0                       | rejected   | a green unit that ships nothing is fake green             |
 | The upstream parent image's `/var/lib/postgresql/18` bind           | superseded | `cap_drop: ALL` cannot mkdir it; the path is stale        |

@@ -74,6 +74,9 @@ tags: [network, rejected, decision-log]
 | One home tailnet node only | superseded | One box holding the tailnet answer leaves ha.kogler.si unreachable away |
 | Per-box unversioned resolver drop-in files | dropped | A fourth source of zone answers; the generated alias artifact replaces it |
 | Per-instance dns_resolver_upstreams lists | rejected | Parallel forwarding takes the fastest; independent operators is the point |
+| Per-policy DNS upstream: one resolver instance per policy | rejected | Fourth stateful DNS instance to filter two devices |
+| Per-policy upstream carried by the router `:53` dst-nat | dropped | No policy resolver address exists to aim them at |
+| Chasing inbound IPv6 from the ISP for home services | accepted-as-unavailable | Delegated prefix takes no unsolicited inbound; the edge is the VPS |
 | Per-purpose SSIDs, five per VLAN | superseded | 3-SSID consolidation; every MAC is static, so per-MAC control is stronger |
 | Pi exit node alone as the sole admin VPN path | rejected | Pi 4 throughput is the ceiling; a router WG peer needs neither |
 | Pi granted tailnet `udp 53` | rejected | Technitium tertiary is a LAN role; naming it is its own call |

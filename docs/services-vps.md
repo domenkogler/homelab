@@ -375,15 +375,19 @@ same data is provably live elsewhere or the producer no longer exists. `keep` = 
 `last write` is the newest mtime inside the volume: the whole table's state argument is that in every case it
 sits inside the creation minute, i.e. one first-start burst and nothing since.
 
-⛔ **Nothing was deleted to produce this table**, and no prune runs in an unattended window: each prune is a
-`docker volume rm` of live host state and belongs to an owner-present sitting (the row keeps that tail).
+⛔ **Nothing was deleted to produce this table.** The set is approved for removal **per row, by name** — one
+`docker volume rm <name>` per row the table marks `prune`, and `prune-when-proven` rows only once the named-volume
+fix below has landed. A blanket `docker volume prune -f` stays refused: it takes the `keep` rows with the rest, and
+its exit code says nothing about which volumes it chose. Destroying live host state still runs in a VPS window with
+the read-backs below, not in an unattended overnight lane.
 
-**Two findings the table exposes, neither fixed here:**
+**Two findings the table exposes; the named-volume half is the fix that must land FIRST:**
 
 1. `onlyoffice-docs` keeps `/var/www/onlyoffice/Data` — the **WOPI/JWT keypair** — in an *anonymous* volume,
    so every container recreate mints a fresh keypair and strands the old one (three stranded copies here:
    2026-08-23, 2026-10-17 10:08, 2026-10-17 16:01). Anything that cached the previous public key fails on the
-   next recreate. The fix is a named volume or a bind at that path.
+   next recreate. State that must outlive a recreate lives in a **named volume or a bind**, never in an anonymous
+   one; give the path one of those before pruning, or the prune removes the only copies of the minted keys.
 2. Same shape at `/var/log/onlyoffice`: the docservice logs live in an anonymous volume, so the running
    container's log history is discarded at every recreate and the stranded copies are the only history left.
 

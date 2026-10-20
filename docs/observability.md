@@ -988,6 +988,12 @@ oldsrv is on NVMe and mostly unaffected):
    (90d, VPS NVMe)** and Dozzle streams live — no durable on-Pi log store.
 3. **OS logs off the SD.** `journald Storage=volatile` + `/var/log` mounted as tmpfs (fstab) — host OS logs live in
    RAM, lost on reboot (acceptable; VictoriaLogs retains the useful logs). Cheap, well-tested Pi-SD saver.
+   ⚠ A tmpfs mount makes rotation a **zero-sum** act: `.1` sits on the same 100 MB filesystem as the live file, so a
+   calendar rotation of a large log moves bytes instead of retiring them. `/var/log` therefore rotates **by size,
+   with one retained generation** (`rotate 1` + a `maxsize` well under the mount), never by the calendar with four
+   uncompressed copies: a chatty week then cannot fill the mount, and the CPU cost of recompressing a ~75 MB syslog
+   every period is not paid on a box whose durable log store is VictoriaLogs on the VPS. One period of local history
+   is the accepted cost. The policy is a file in a role, sized against the mount, not a host edit.
 4. *(Optional)* **Docker *log* directory on tmpfs** to guarantee zero *transient* SD writes — must stay hard-capped
    (`max-size`/`max-file`); **never** tmpfs the Docker data-root (`/var/lib/docker`/overlay2, that holds images &
    containers), only the log portion. Only if the 4 GB RAM budget (shared with HA/Technitium) allows.

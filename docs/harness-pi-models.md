@@ -42,6 +42,13 @@ Two properties worth knowing before you reach for the file:
 * **Takeover rule for a credential file**: if the target holds a provider the spec does not name, the
   render **preserves it and prints why**. A silent drop in `auth.json` is a lockout you discover by
   being locked out; a printed NOTE is a task someone can finish.
+* **The fleet spelling for a seat credential is `type: api_key`.** An entry authorised by an interactive
+  login (`oauth`) is seat drift, not an alternative shape: it cannot be re-rendered from the vault, it
+  expires on its own schedule, and a rebuilt seat cannot reproduce it. But **the drift is never fixed by
+  overwriting a live credential** — a render that replaced a working login to make a check read green
+  destroys the only path the human has back into the machine. So the rule is paired: `--check` reports the
+  entry's live `type` per seat, a mismatch is a named drift line rather than a silent rewrite, and the
+  credential itself is minted through the vendor lane and installed while someone can re-login.
 
 ```json
 {

@@ -99,8 +99,9 @@ case a homelab loses <24 h of DB changes, acceptable.
 
 ## Snapshot & Replication (sanoid / syncoid)
 
-- **sanoid** on nas snapshots `tank/data/*` (and `bulk/data/*` replicas + `bulk/data/immich-thumbs`).
-  `bulk/media` is excluded from sanoid entirely (`autosnap = no`), which is the fact to read back —
+- **sanoid** on nas snapshots `tank/data/*` plus `bulk/data/immich-thumbs`; the `bulk/data/*` receive
+  targets are excluded from snapshotting for the reason in the replica bullet below, and `bulk/media` is
+  excluded from sanoid entirely (`autosnap = no`), which is the fact to read back —
   `zfs list -t snapshot bulk/media` must stay empty.
 - **The one part of `bulk/media` that IS backed up is the music master, and sanoid is not how.**
   `bulk/media/media/music` is a DIRECTORY inside the `bulk/media` dataset (TRaSH hardlinks require one
@@ -133,8 +134,14 @@ case a homelab loses <24 h of DB changes, acceptable.
   as a red unit. The read that separates the two causes is
   `sanoid --prune-snapshots --readonly --verbose` next to `systemctl status storage-syncoid.service`
   — a leg sitting in `activating` for days has not replicated since its start time.
-- Replica datasets retain **independent** snapshot history on the `bulk` pool (protects against source
-  deletion/error propagation; the replica is a rollback target of its own).
+- **Replica datasets take NO autosnapshots of their own.** An incremental `zfs receive -F` cannot land on a
+  target holding snapshots the stream does not contain, so "the replica keeps its own snapshot history" and
+  "the replica is a syncoid target" are mutually exclusive on one dataset — with autosnapshots on the
+  target, replication stops dead at the send's base snapshot and the failure reads as a wedged send.
+  `bulk/data/services` and `bulk/data/db-dumps` therefore sit on a template with `autosnap = no` and the
+  rollback targets of record are the **source-side** `tank/data/*` snapshots. A replica dataset that is a
+  receive target never appears in the snapshotting template; a dataset that is a push target
+  (`bulk/data/immich-thumbs`) keeps its own cadence, because nothing receives into it.
 - `bulk/data/immich-thumbs` and `bulk/media` are **push targets** — no syncoid definition.
 - Managed by **systemd timers** (`sanoid.timer`, `storage-syncoid.timer`) — journaling, randomized
   schedules, failure tracking. Not raw cron.
@@ -214,12 +221,12 @@ ssh nas 'zfs list -t snapshot -H -o name,createtxg bulk/data/services | awk -v b
 ssh nas 'sudo -n /usr/sbin/sanoid --prune-snapshots --readonly --verbose | grep -c deferring'
 ```
 
-⛔ **What is left is an owner act, and it is a destroy, not a restart.** Letting one receive land means removing
-the destination's post-base history — `zfs destroy bulk/data/services@autosnap_2026-10-08_21:05:07_monthly` and 65
-more, i.e. the replica's own rollback history on `bulk` — or taking the replica datasets out of `sanoid.conf.j2` and
-letting those 66 age out through retention. Replication *into* a dataset that already has snapshots of its own is
-not an overnight experiment, so neither was done. A `systemctl stop` here is safe and reversible; `zfs receive
---force`/`-u` and any destination rollback are not, and are what this row exists to keep out of the night.
+⛔ **The fix is the template, never the destroy.** The replica datasets leave the snapshotting template, which
+retires the destination's post-base `@autosnap_*` history through retention instead of an ad-hoc `zfs destroy`
+of 66 snapshots — a hand-destroy is unrecoverable and is what this section exists to keep out of the night, while
+pruning is sanoid's own, age-ordered, audited path. `zfs receive --force`/`-u` and any destination rollback stay out
+of scope for the same reason. Clear the wedged pipeline's shell wrapper first (§The reap was run): until it is gone every
+prune defers, so the retag appears to do nothing.
 
 ---
 
