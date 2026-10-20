@@ -311,7 +311,9 @@ from a runner, these rules are what make it safe *and correct*:
   capture lives outside the repo and is appended for the life of the session — so the only close is
   ROTATING the item ([1password.md](1password.md) §Rotating the control-node token), and
   [`scripts/gate/check_secret_leak.py`](../scripts/gate/check_secret_leak.py) is the eye that says whether
-  it is still sitting there: it compares CURRENT values across the tree **and** the run-capture class.
+  it is still sitting there: it compares CURRENT values across the tree, the run-capture class **and** every
+  blob a ref still reaches (the `git-history` class — a value that was `git rm`'d is out of the tree but not
+  out of the publication, and only rotation closes that one).
 - **A minted preauth key is captured, never displayed.** headscale 0.29.4 has no `--output <file>` —
   `-o` is the FORMAT flag — so `preauthkeys create … -o json` writes the value to stdout, and the
   documented mint commands in this repo and in `deployment-manual.md` are therefore only safe inside a

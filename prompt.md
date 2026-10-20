@@ -432,7 +432,11 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
     drill · **1103 + 1167** one Pi visit — the boot that makes the fstab `mode=` true on the mount, and the one-time
     re-render of `pi-eth0.nmconnection` that notifies `reload NetworkManager` (HD-418's HA restart window was spent in
     the reconcile apply, so it is no longer gated) · **HD-06** the UPS drill · **411** the cockpit resume word ·
-    **HD-230/207** the decisions taken at the drill. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no
+    **HD-230/207** the decisions taken at the drill · **1170 · 1171 · 1150** the three secret-close windows: rotate
+    `spark-llm_api` (published in a tracked bench capture of the public repo — the blob is still reachable from a ref,
+    so only rotation closes it) and rule on `radarr_api`/`sonarr_api` (same publication class, `NOT_AUTO_ROTATABLE`);
+    rotate `op_api` and re-seat all four installs; re-seat `vps:/etc/op/provision-token` with the `matrix_password`
+    ruling — none of these closes with a repo change. ⏸ **HD-454 is ruled, not pending** (nothing is purchased and no
     out-of-band path is scheduled, so a switched-off `oldsrv` waits for presence; the one owner-side leg left is a WoL
     re-test at a planned power-off) and **HD-47** above.
 13. ⏳ **Unrowed, but not free** — **HD-1100**'s held legs: both owner-authorized PG legs are DONE and verified
