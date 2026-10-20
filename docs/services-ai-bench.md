@@ -3,7 +3,7 @@ title: Measured AI inference benchmarks on oldsrv (STT + rerank device sweep)
 role: evidence
 domain: services
 status: active
-tags: [services, ai, gpu, benchmark, stt, rerank, vram, whisper, vulkan]
+tags: [services, ai, gpu, benchmark, stt, rerank, embed, vram, whisper, vulkan]
 ---
 # AI Inference Benchmarks — oldsrv RX 7600 / HD 630 / CPU
 
@@ -194,6 +194,65 @@ rather than a signal, and which `top_n: 5` never shows the caller.
    live Ollama reference agree to five decimals across the two runs, so the conversion is deterministic and the
    mirror choice is about **provenance/maintenance**, not accuracy. (The two reranker Q8_0 mirrors are
    byte-identical: both `a43c7c9b11a4…`.)
+
+## 3d. Embedder candidates queued for this bench — ⏳ **no numbers here, the gate only**
+
+Two candidates sit in front of the live leg (§3b). Neither is measured on this card, so neither has a verdict;
+this section is the stop-loss that keeps a paper chase from being re-run as a decision: what each must beat,
+and the two things a leaderboard cannot say. Incumbent to beat: **bge-m3 Q8_0 — 16 ms/chunk, ~326 MiB VRAM Δ,
+dim 1024** (§3b/§3c).
+
+| Candidate | Its own record (vendor-reported, unverified here) | Native dim | What this card has to decide |
+|---|---|---|---|
+| **`Qwen/Qwen3-Embedding-0.6B`** (Apache-2.0, GGUF exists) | MTEB multilingual v2 **64.33** vs bge-m3 **59.56**; 32K ctx; wants an `Instruct:` query prefix | **1024** | whether a leaderboard +5 is a hit@5 gain on **our** Slovenian corpus. ~0.6 GB weights ≈ bge-m3's 0.63 GB, and **same dim ⇒ no re-ingest** — which is why it is first in the queue |
+| **`google/embeddinggemma-2`**, text-only tower (Apache-2.0 + the Gemma prohibited-use policy; GGUF `ggml-org/embeddinggemma-2-GGUF`) | MTEB multilingual v2 **61.36** (EG1 61.15 — +0.21 across a generation); MTEB code v1 **78.68** vs EG1 68.76; 8K ctx; `task: … \| query:` prefix | **768** | **the code-retrieval slice only** ([services-ai.md](services-ai.md) §9b OQ-14). Its multilingual claim is flat, one independent third-party test (203 queries, English/Arabic, not reproducible on this box) put it *behind* bge-m3 on non-English and cross-lingual queries at ~3× the CPU cost per doc, and 768 ≠ 1024 ⇒ **full re-ingest + backtest** |
+| **bge-m3 Q8_0 (live)** | MTEB multilingual v2 59.56 — a third party's run of it, not ours | 1024 | the incumbent: beaten on our corpus or not at all |
+
+**The two measurements a paper number cannot replace** — both cheap, both are the gate:
+
+1. **Retrieval on our corpus, in Slovenian.** MTEB carries no Slovenian retrieval set, so every figure above
+   ranks *other* languages. Reuse the §3b corpus (51 chunk-shaped Slovenian docs) with ≥30 real queries —
+   family-manual phrasing, an English→Slovenian cross-lingual slice, and the exact-identifier probes of the
+   memory-plane probe set — **with each candidate's own prefixes applied on both arms**; a candidate run
+   without its documented prefixes was not measured ([services-ai.md](services-ai.md) §9c). Gate: beat bge-m3's hit@5 by more than ±1 document
+   over ≥30 queries, at ≤ 2× recall latency.
+2. **Precision and pooling on Vulkan, before one vector is trusted.** Both candidates are decoder-lineage, not
+   BERT-lineage. EG2's card forbids fp16 compute — NaN **or silently degraded** embeddings, no error — and
+   RADV on this card advertises `fp16: 1 · bf16: 0`, so the probe runs with f16 compute disabled and prices
+   that. Read the GGUF's own `pooling_type` instead of guessing (the reranker GGUF needed `--pooling rank`
+   spelled out, bench §8); assert every returned float is **finite**; and cosine the leg against the same
+   model on CPU in fp32. A leg with quietly degraded vectors scores *plausibly* — it passes a smoke test and
+   poisons the index, which is the one failure class this tier refuses ([services-ai.md](services-ai.md) §3a: loud 500 over silent truncation).
+
+**Repro** — throwaway containers, loopback-only, deleted after; the live legs are not touched:
+
+```bash
+# Qwen3-Embedding-0.6B: dim 1024 = the live Qdrant shape, so a win here costs no re-ingest
+docker run -d --name probe-qe -p 127.0.0.1:18094:8080 \
+  --device /dev/dri/renderD129 --group-add 992 -v $M:/models:ro \
+  -e GGML_VK_VISIBLE_DEVICES=0 --entrypoint /app/llama-server \
+  ghcr.io/ggml-org/llama.cpp@sha256:"$NEWER_PIN" \
+  -m /models/qwen3-embedding-0.6b-q8_0.gguf --embedding --pooling last --embd-normalize 2 \
+  --ctx-size 2048 --batch-size 2048 --ubatch-size 2048 \
+  --device Vulkan0 --host 0.0.0.0 --port 8080
+
+# EmbeddingGemma 2, text tower only (270M): the fp16 ban is why GGML_VK_DISABLE_F16 is set here
+docker run -d --name probe-eg -p 127.0.0.1:18095:8080 \
+  --device /dev/dri/renderD129 --group-add 992 -v $M:/models:ro \
+  -e GGML_VK_VISIBLE_DEVICES=0 -e GGML_VK_DISABLE_F16=1 --entrypoint /app/llama-server \
+  ghcr.io/ggml-org/llama.cpp@sha256:"$NEWER_PIN" \
+  -m /models/embeddinggemma-2-Q8_0.gguf --embedding --pooling mean --embd-normalize 2 \
+  --ctx-size 2048 --batch-size 2048 --ubatch-size 2048 \
+  --device Vulkan0 --host 0.0.0.0 --port 8080
+
+curl -d '{"model":"cand","input":["task: search result | query: Kako nastavim varnostno kopiranje?"]}' \
+     http://127.0.0.1:18095/v1/embeddings                        # -> dim 768, every value finite
+```
+
+⚠ `$NEWER_PIN` is deliberate, not a missing value: the pinned `server-vulkan` digest `7158edb4…` **predates
+both architectures** ([services-ai.md](services-ai.md) §9c), so the first act of this bench is a pin bump — and that bump recreates the
+**reranker** leg too (one image, two legs), so `--pooling rank` ranking (top-5 identical, §3c) must be
+re-proved on the new build before the bump counts as done, not merely boot green.
 
 ## 4. The iGPU question: can the HD 630 serve the reranker?
 

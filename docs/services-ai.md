@@ -773,9 +773,10 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
 - **Memory = agent-memory.dev, per project** — the owner answered OQ-12 in favour of **one central** instance
   (the calls below), so this per-project wording stands as the as-written rule until a central shape that is
   implementable today is accepted. ⏸ **The blueprint stays parked: nothing installed, no compose, no work row
-  minted — the calls below are answered, the deployment is not authorized.** OQ-14 is closed as a **park** — the
-  `bge-m3` memory leg is unbuilt and the condition that re-opens it is stated below — so no
-  AI work waits on any of them (the durable negative also stands: LLM memory
+  minted — the calls below are answered, the deployment is not authorized.** OQ-14 is **open on one axis only**:
+  the vector leg it asks about is unbuilt, its docs/multilingual half still stands parked on the measured floor
+  below, and the one funded act is the embedder bench named there — not a build. The blueprint stays
+  unauthorized either way (the durable negative also stands: LLM memory
   compression scored **R5 0/5** — it rewrites identifiers out of existence). One instance per project (project = 1+ repos), records tagged
   project+repo; **cross-project recall is opt-in, not default**. Data under `~/.agentmemory/<project>`,
   ports 3111+N, MCP = `@agentmemory/mcp`, consolidation LLM via a LiteLLM scoped key. **OpenViking is rejected
@@ -829,7 +830,7 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
     `GET /agentmemory/export` (plain JSON, no CLI verb) ⇒ **lock-in low**; the `iii` **0.11.2** binary ships **no
     verifiable license** (GitHub API `license: None`, no LICENSE file) — record those terms as unverified before
     it ships anywhere. Booting from a different cwd silently switches instance (`dataDirResolution`).
-  * **Owner calls — OQ-12 and OQ-13 are answered; OQ-14 is parked (bullet below).** **OQ-12 = yes**: `agentmemory` **is** the one
+  * **Owner calls — OQ-12 and OQ-13 are answered; OQ-14 is open on the code axis only (bullet below).** **OQ-12 = yes**: `agentmemory` **is** the one
     central memory plane, with the **`user_id` and `project_id` filters set on each client**. That is the answer
     chosen for the measured "one shared bearer, no per-user isolation" gap, and it means isolation is **by
     client-side filter** — so whether that satisfies the isolation requirement, or whether the
@@ -850,20 +851,32 @@ research plane (OWUI/Docling/Qdrant/Mem0). It runs on **oldsrv**, managed from t
     needs one of two ways out and each is an owner act: a **different memory-server version/build** that does take
     a Qdrant backend, or an **explicit two-plane decision** recorded in
     [`services-ai-rejected.md`](services-ai-rejected.md).
-  * **OQ-14 — the `bge-m3` memory leg: PARKED, neither "build it" nor "never", with a measured re-open
-    condition.** Keyless BM25-only cleared **every** gate the probe set (hit@5 **7/10** against a ≥7/10 gate,
-    determinism 10/10, 455 tok/query, zero embedding dependency, ≈2× faster recall), so no gate demands the leg;
-    hybrid on our `bge-m3` @1024 measured **+2 hit@5 (9/10) and +2 exact-identifier recall (8/12) at ≈2× recall
-    latency (0.195 s vs 0.100 s)** — an upgrade that is real, which is why the answer is a park and not a no.
-    **The leg is unbuilt, plainly:** no `agentmemory` pin exists, the memory plane is declared nowhere in the
-    IaC, and no compose exists. The `embed` leg the hybrid arm called **is** live for the RAG pipeline (§3a);
-    what does not exist is any memory server wired to it.
-    **Re-open is a condition, not a re-ask:** the leg is funded when recall measured on the **real corpus** falls
-    **below the floor keyless BM25 recorded — hit@5 7/10** (exact-identifier 6/12 raw → 8/9 attributable; that
-    shortfall is a *capture* gap, not a ranking gap — identifiers living only in tool output are never indexed).
-    At or above that floor keyless stands and the question stays closed; re-asking it without a recall number
-    taken against that floor is not a re-open. Declined so it is not silently re-proposed:
-    [`services-ai-rejected.md`](services-ai-rejected.md).
+  * **OQ-14 — the memory vector leg: OPEN on the code axis, still parked on the docs axis.** Keyless
+    BM25-only cleared **every** gate the probe set (hit@5 **7/10** against a ≥7/10 gate, determinism 10/10,
+    455 tok/query, zero embedding dependency, ≈2× faster recall), so nothing on the docs/multilingual side
+    demands the leg; hybrid on our `bge-m3` @1024 measured **+2 hit@5 (9/10) and +2 exact-identifier recall
+    (8/12) at ≈2× recall latency (0.195 s vs 0.100 s)** — an upgrade that is real, which is why that half is a
+    park and not a no. **That floor stands and is unmet:** recall at or above hit@5 7/10 on the real corpus
+    keeps keyless BM25 the answer, and re-asking *that* half without a recall number taken against the floor is
+    not a re-open.
+    * **What moved is a different axis, not a new number.** Every probe arm embedded with `bge-m3` — a 2024
+      multilingual generalist whose code head was never measured here — while the candidate generation is not
+      flat on code: the `EmbeddingGemma 2` text tower posts **78.68 on MTEB code v1 against its own 68.76**,
+      in 270M parameters at ~0.3 GB of weights. So the leg is funded **as a measurement, not as an install**:
+      [services-ai-bench.md](services-ai-bench.md) §3d carries the candidates, the two gates and the probe
+      commands — **`Qwen3-Embedding-0.6B` first** (native **1024**, so a win there costs no re-ingest at all),
+      the Gemma tower **second and only for the code slice**.
+    * ⚠ **The re-open does not extend to the RAG leg.** That call is closed: the same candidate's multilingual
+      movement is **+0.21 across a generation**, one third-party 203-query test put it *behind* `bge-m3` on
+      non-English and cross-lingual queries at ~3× the CPU cost per doc, its native 768 dims would buy a full
+      re-ingest before it bought anything else, and its multimodality has no consumer here (photo vectors are
+      immich-ML's, voice is whisper.cpp). Recorded so it is not silently re-proposed:
+      [`services-ai-rejected.md`](services-ai-rejected.md).
+    * **The leg is still unbuilt, plainly:** no `agentmemory` pin exists, the memory plane is declared nowhere
+      in the IaC, and no compose exists. The `embed` leg the hybrid arm called **is** live for the RAG pipeline
+      (§3a); what does not exist is any memory server wired to it. Whichever model the bench picks, the first
+      act of that bench is an image-pin bump — the pinned `server-vulkan` digest predates both architectures
+      (§9c) — and that bump recreates the **reranker** leg with it.
   * **A trap that generalises beyond this product (confirmed twice):** a *falsy-but-set* key is a cloud-egress
     switch. `OPENAI_API_KEY=false` made agentmemory dial **`api.openai.com` once per observation**, and Hermes'
     `provider: custom` with a **non-loopback** `base_url` silently resolved to **`openrouter.ai`** (its trust
@@ -1050,6 +1063,10 @@ questions are not re-litigated; the sources are upstream repos/trackers, read di
 | **`jina_ai/` rerank accepts a custom `api_base` and rewrites the path.** | `litellm/llms/jina_ai/rerank/transformation.py` in the pinned image: `get_complete_url` replaces any path with `/v1/rerank`. | A llama.cpp `/v1/rerank` endpoint is routable through LiteLLM with **no path in `api_base`** — the answer to "how do we route a local reranker". |
 | **`openai/` chat provider param allow-list looks narrow — and it does NOT govern what reaches the engine.** | `OpenAIGPTConfig.get_supported_openai_params` carries `temperature`, `top_p`, `max_tokens`, `stream_options`, `tools`, … and **not** `top_k`, `chat_template_kwargs`, `thinking_token_budget`. A repo-wide grep therefore predicts `drop_params: true` eats them. **Measured on the pin, it does not** (both gateways): the three knobs arrive at the engine unchanged through the `openai/` provider. | ⛔ **Do not re-derive param survival from that allow-list** — it is a conversion table, not the forwarded body. The reasoning/knob question is answered by measurement, in **§9d** (method + numbers). What the grep still legitimately governs: params LiteLLM itself *consumes* (`reasoning_effort`, `max_completion_tokens`, tool schemas) and provider selection for rerank/embed. |
 | **ONNX Runtime ROCm / MIGraphX support is Instinct-only** (`gfx942`, `gfx950`). | AMD docs. | There is **no ONNX-GPU on RDNA3** — "CPU fallback if ONNX-GPU proves fragile" is a dead branch on this card. |
+| **Gemma/Qwen-lineage embedders forbid fp16 compute; ggml's Vulkan path runs f16 by default on this card.** | `google/embeddinggemma-2` card, "Numerical Precision" section: the activation range exceeds fp16's dynamic range and the model "returns NaN or silently degraded embeddings rather than raising an error"; RADV on `gfx1102` advertises `fp16: 1 · bf16: 0`; the documented escape is `GGML_VK_DISABLE_F16=1`. | A wrong-precision embedder scores *plausibly* — it passes a smoke test and degrades the index silently, the one class §3a refuses. Any such candidate is probed with f16 compute off and priced, with a finite-value + fp32-reference cosine check, before a vector is written ([services-ai-bench.md](services-ai-bench.md) §3d). |
+| **Decoder-lineage embedders pool differently from BERT-lineage.** | EG2's GGUF carries `pooling_type = MEAN` and its card describes mask-aware mean pooling + L2; Qwen3-Embedding is last-token + normalize; `gguf-py` numbers the enum `NONE/MEAN/CLS/LAST/RANK`. | Pooling must be **read from the artifact and stated on the command line**, never inherited — the same trap the reranker GGUF spring-loaded (`--pooling rank`). A pooling mismatch is silent and total. |
+| **Task-instruction prefixes are part of the model, not of the prompt.** | EG2 card (`task: search result \| query:` / `title: … \| text: …`, "omitting it … reduces precision"), Qwen3-Embedding (`Instruct: … Query:`); third-party measurements put the cost at ~5 recall points and report the same prefix sensitivity on both families. | These candidates are **not drop-in**: the prefix belongs in the ingest *and* the query path (`rag-mcp`, Mem0, OWUI), so "swap the embedding model" is a pipeline change, and re-prefixing later re-embeds the corpus ([services-ai-bench.md](services-ai-bench.md) §3d gate 1). |
+| **Both candidates need an engine newer than this repo's pin.** | llama.cpp merged `gemma-embedding2` support 2026-10-06 (PR #30054, GGUF `ggml-org/embeddinggemma-2-GGUF`); Ollama needs ≥ 0.40.4 for the Gemma-4 base (below it, `HTTP 412` on pull). The pinned `server-vulkan` digest `7158edb4…` predates both. | Adopting either is a **pin bump that recreates both GGUF legs** (embed + reranker share one image), so the reranker's `--pooling rank` ranking must be re-proved on the new build — CONVENTIONS §7, [services-ai-bench.md](services-ai-bench.md) §3d. |
 | **Per-runtime host RAM is the oldsrv constraint, not VRAM.** | Each ROCm/PyTorch process holds its own rocBLAS/hipBLASLt/MIOpen workspace (~0.5–1.5 GB RSS); a C++ ggml binary sits at ~150–350 MiB. | On a 48 GB host the binding constraint is **host RAM**, which is an argument for one backend family across the tier. |
 
 ---
@@ -1102,7 +1119,8 @@ is **not** tested through the gateway and stays unsupported there.
 
 | Item | State |
 |------|-------|
-| **Coding-plane memory plane** | **Answered, parked.** OQ-12 and OQ-13 are answered and the durable copy is §9b: `agentmemory` is the **one central plane** with `user_id`/`project_id` filters set per client, and the **Qdrant + one central `agentmemory` + direct clients** blueprint is the target architecture. **OQ-14 — the `bge-m3` leg — is parked, not open**: keyless BM25 cleared every gate the probe set, the leg is a measured **+2** at ≈2× recall latency, it is unbuilt, and it re-opens on a recall number taken below the floor the probe recorded — §9b states the condition. Nothing is installed and no build is authorized: the shape the blueprint assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29, the client-side filters are an isolation claim that still has to be proven, and the blueprint's **Qdrant-backend collision (§9b) must be proven or disproven against the version that would actually ship — there is no pin to read today — before any compose lands.** |
+| **Coding-plane memory plane** | **Answered, parked on the blueprint; OQ-14 open on one axis.** OQ-12 and OQ-13 are answered and the durable copy is [services-ai.md](services-ai.md) §9b: `agentmemory` is the **one central plane** with `user_id`/`project_id` filters set per client, and the **Qdrant + one central `agentmemory` + direct clients** blueprint is the target architecture. **OQ-14 — the memory vector leg — is open on the code-retrieval axis and still parked on the docs axis**: keyless BM25 cleared every gate the probe set, the leg is a measured **+2** at ≈2× recall latency, it is unbuilt, and the docs half re-opens only on a recall number taken below the floor the probe recorded — [services-ai.md](services-ai.md) §9b states both. What the open half funds is a **measurement** ([services-ai-bench.md](services-ai-bench.md) §3d), not a build. Nothing is installed and no build is authorized: the shape the blueprint assumed (LAN bind + per-client tokens + per-user isolation) does not exist in 0.9.29, the client-side filters are an isolation claim that still has to be proven, and the blueprint's **Qdrant-backend collision ([services-ai.md](services-ai.md) §9b) must be proven or disproven against the version that would actually ship — there is no pin to read today — before any compose lands.** |
+| **Embedder candidate bench** | ⏳ Unmeasured. Two candidates sit in front of the live `bge-m3` leg; the corpus, the two gates and the probe commands are [services-ai-bench.md](services-ai-bench.md) §3d. First act is an image-pin bump — the pinned `server-vulkan` digest predates both architectures ([services-ai.md](services-ai.md) §9c) — and that bump recreates the **reranker** leg too, whose ranking must be re-proved. |
 | **Scoped-consumer tier** | Not shipped. `rpm` has a code path — a decided cap must never mint an uncapped key and look green. The first LAN record (`home-assistant`) is authored **and minted**. Held: the OWUI grant (the glue is create-only — see §4), Docling's key (its consumer does not exist yet), and the `llm`-router client credential that ends `spark-llm_api`'s triple use. |
 | **`rag-mcp` + `forgejo-mcp` implementation** | Stub compose (no `services:` block). The rerank leg ships dormant until this exists. |
 | **Qdrant cutover + OKF wiki tails** | Qdrant cutover verification + OKF wiki repos + first-ingest dimension check (1024). |

@@ -51,6 +51,7 @@ tags: [services, ai, rejected, decision-log, rag, memory]
 | `dsh_api` scoped consumer | rejected | Harnesses go direct (#26); the record is not restored |
 | `dsh` / `pi-dev` as `docker_services` entries | superseded | Dedicated deployments now; their routes answer 502 by design |
 | EasyOCR as the Docling OCR engine | rejected | 3.2–3.4× slower, with its own diacritic and merge defects |
+| `EmbeddingGemma 2` as the `embed` leg | rejected | paper-only multilingual gain; loses sl/en slice; re-ingest |
 | External APIs as a proxy fallback | rejected | A harness-side fallback, never a gateway fallback |
 | `fallback/login` as the LiteLLM login path | rejected | `/ui/login` resolves on the pinned build |
 | `fast` NVFP4 profile (mixed NVFP4/FP8 weights) | superseded | JIT-compiles QSA/GDN kernels; the name now marks the winner |

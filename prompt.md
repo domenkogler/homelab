@@ -395,6 +395,12 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    What remains is **sequencing, not thinking**: `litellm-engine_api` is minted and rendered into spark's
    accepted-key list, and the gateways may only be pointed at it **after** spark reboots with it — a spark engine
    restart is an owner-window action (PLE load, ~20 min), so step 2 is parked rather than slipped in.
+   New in this lane, **unbriefed**: **HD-1178** — the oldsrv `embed` leg's next model gets chosen by a bench, not
+   by a leaderboard. Nothing is measured yet; the corpus, both gates and the probe commands are in
+   [docs/services-ai-bench.md](docs/services-ai-bench.md) §3d, and the bench's first act is a `server-vulkan` pin
+   bump that recreates the **reranker** leg with it. `EmbeddingGemma 2` is rejected for the RAG leg and stays in
+   scope only as the code-retrieval candidate inside that bench (OQ-14 is open on that axis, and its docs half
+   still stands parked on the measured recall floor).
    → [prompt-litellm-consumers.md](prompt-litellm-consumers.md)
 10. ⏳ **The Win11 seat's serving legs** — **HD-474** FIM latency and **HD-476** the VL `mmproj` on the iGPU. The
     laptop's local **agent** leg is retired (owner ruling 2026-10-09), so this brief is FIM + vision only and claims
