@@ -185,7 +185,10 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    collector dies ~5 s after every start with `fatal error: traceback did not unwind completely` on Go 1.26.7, with the
    repo, the backend and the DMAR lines all excluded, so the acceptance is a firmware/kernel look plus a memory test the
    owner schedules and the unit stays **stopped on purpose** meanwhile. ⚠ `check_host_reporting.py --check` reads RED for
-   `nas` and that is the instrument working — do not soften the expected set to make it green.
+   `nas` and that is the instrument working — do not soften the expected set to make it green. **`oldsrv` is the
+   second blind host and it is an incident, not a rule defect** — every job it publishes stopped at the same minute
+   on 2026-10-20, it answers on no leg while the three other hosts ride the same tunnel peer, and there is no
+   out-of-band power path (HD-454's posture), so the first act is an owner at its console → **HD-1175**.
    **What arrives in the channel is a separate design question from what fires.** A still-firing alert now
    re-sends at most every **24 h** (`repeat_interval` in the notification policy `roles/monitoring` renders;
    `group_wait: 2m` and `group_interval: 10m` are untouched, so the FIRST send is not delayed). At 30 min a

@@ -7,6 +7,20 @@
 > is a view, not a second record) and **must be re-synced whenever the backlog changes**.
 > **Linked from:** [`todo.md`](todo.md) · [`prompt.md`](prompt.md) · [`README.md`](README.md) · [`scripts/README.md`](scripts/README.md)
 >
+> **Re-synced 2026-10-20 (the alert-noise session — both views re-derived, no count recalled):** two rows were
+> minted and carried here so neither view loses them — **HD-1174** (`kopia-server-internal_api` readable in the
+> agent's container log and in the log store, because `kopia repository connect server` echoes the URL it was handed)
+> and **HD-1175** (`oldsrv` publishes nothing since 2026-10-20 10:27 CEST — the host, not a scrape leg, its first step
+> an owner at the console). **HD-1148 left the registry when its last `⏳` landed:** the `pi` `--tags docker` apply ran
+> (`changed=3 failed=0`, six packages to the pin and re-held, Home Assistant back to 200 through the VIP and through
+> the Pi's own edge), so the note below that says the row "still owes" the applies is history, not a pending act —
+> §B9 and §D lost the line with it, and `prompt.md` §2 reads the same way now. The re-derivation belongs to the gate,
+> not to this note: `python3 scripts/gate/check_view_registry_sync.py` prints the registry∕§B9 diff in both directions
+> and the row count, and it is green at this commit. Swept rather than left standing: the poke interval the docs
+> quoted (**30 min → 24 h**, the value the notification policy renders) and the pin-lag fleet table in
+> [docs/observability.md](docs/observability.md) §Pin-lag report, whose `oldsrv`/`nas` cells now say the true thing —
+> **no series is not a match**.
+>
 > **Re-synced 2026-10-19 (the session close-out — both views re-derived from `todo.md`, nothing recalled):** the
 > registry stands at **160** rows and §B9 was one behind it again — the row this session minted last
 > (**HD-1169**, the `check_doc_path_refs.py` citation-blind-spot gate) was never carried, so §B9 gained its line and
