@@ -348,6 +348,54 @@ unmeasured. Two places still read the Pi as a `1.1.1.1` box and so do not hold: 
 guarded-converge row ("measure from the VIP address, not by name") and a Pi procedure that asserts
 "Pi read-back proves nothing".
 
+**A laptop seat has no DNS tier of its own, and the public tree is authoritative for the same names.**
+The two laptop seats (Win11 and its WSL guest) reach `kogler.si` over two arms: the **MagicDNS loop**
+(`100.100.100.100`), which answers the netmap set — every `.ts` name plus the AI/dashboard names, TTL 5,
+and `SERVFAIL` for anything outside the netmap — and the **host uplink**, which is whatever the laptop is
+currently on: the home resolvers at home, a public resolver everywhere else. The public `kogler.si` zone is
+a real delegated zone, so the second arm is *authoritative* for the same names this split-horizon exists to
+answer, and it answers **`NXDOMAIN`** for every internal-only name. A negative answer is cached for the
+zone's SOA minimum (**1800 s**) **against the name**, not against one record type — so the `A` lookup fails
+for the same half hour as the `AAAA`, on a box where `dig A` looked healthy the moment before.
+`getaddrinfo` asks for both types, which is why this surfaces as an application that loses a service
+mid-session and a hand probe that finds nothing: **the `AAAA` leg is what leaks**, and MagicDNS answers it
+`NOERROR`/no-data while the public arm says the name does not exist.
+
+The rule follows the VPS-rung rule above, one layer down: **a public answer for a name the split-horizon
+owns is worse than a timeout**, and the fix is a route-only claim on the internal namespaces — never a
+record in the public zone. Publishing an internal name to stop a negative cache would answer *publicly*
+for the first time: the `.ts` names are tailnet-only by design
+([network-vpn.md](network-vpn.md) §Tailnet-exposed services), and a public `A` for `llm` points the whole
+internet at the inference edge, whose only
+gate is the engine's own bearer. Adding only an `AAAA` does not even fix the poisoning: the `A` leg then
+answers `NOERROR`/no-data, which is *also* a negative answer with the same SOA-minimum lifetime.
+
+⚠ **The claim must be held on the per-link plane.** `resolved.conf.d` merges the `DNS=`/`Domains=` of
+**every** drop-in onto **every** global server: two files that each name one server and one domain set both
+print `DNS Domain: ~. ~kogler.si ~ts.kogler.si` on both servers, so a drop-in cannot assign different
+domains to different servers. Only per-link state pairs a server with its domains, and `resolvectl domain`
+**replaces** the list, so both domains go in one call. `~ts.kogler.si` can be MagicDNS-only; `~kogler.si`
+must keep both arms, because MagicDNS `SERVFAIL`s the names outside the netmap. Per-link state does not
+survive a `systemd-resolved` restart or a link reconfigure, so the seat re-asserts it from a oneshot unit on
+a 2-minute timer — `Type=oneshot` **without** `RemainAfterExit`, since an `active (exited)` oneshot makes
+every later start (timer fires included) a no-op that reports success. `resolvectl` exits 0 when resolved
+refuses the call, so the re-assert logs its own read-back.
+
+**Recovery, and the reason it is a flush and not a re-route:** a cached NXDOMAIN outlives the route fix,
+so the route alone leaves the seat broken until the entry expires.
+
+```bash
+sudo resolvectl flush-caches                       # clears the poison; the route keeps it clear
+resolvectl status | sed -n '/Global/,/Default Route/p'    # who is asked for which domain
+for t in A AAAA; do dig +noanswer +comments $t llm.ts.kogler.si @127.0.0.53 | sed -n 4p; done
+GW=$(ip route | awk '/^default/ {print $2}')       # the WSL NAT gateway == the Windows resolver; it MOVES between boots — read it, never type it
+for s in 100.100.100.100 "$GW"; do printf '%s %s\n' "$s" "$(dig +short llm.ts.kogler.si @"$s")"; done
+```
+
+⚠ **A stub `NXDOMAIN` with upstream `NOERROR` is this class and nothing else** — the four commands above
+separate the two halves (cache vs upstream) in one pass. A seat whose model picker 401s is not this class;
+a seat whose client cannot name the endpoint at all is.
+
 ⚠ **A `#` line in a keyfile template is file content, so a comment edit is a write.** The rendered
 keyfile carries the template's leading `#` block verbatim — it is output, not a `{# … #}` Jinja comment —
 so that text is part of what the `template:` module compares. Reword a comment and the next run reports
