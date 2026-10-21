@@ -67,8 +67,8 @@ no values are TRACKED, so a clone elsewhere loses nothing —
 **Reachability is settled — read the one SSOT, do not re-derive it:** [network-vpn.md](docs/network-vpn.md)
 §Reaching LAN nodes when away (measured matrix + traps) and §The laptop alias contract (the only alias table; governs
 BOTH `~/.ssh/config` files). In one line: behind-NAT hosts (`pi`/`nas`/`oldsrv`/`spark`) are reached over the VPS jump
-onto their **Home leg**; the **Mgmt plane (VLAN 99) is same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/
-`nas99` — never a `ProxyJump`). `ssh oldsrv` = the Home address. `python3`/bash/LF/UTF-8 no-BOM everywhere
+onto their **Home leg**; the **Mgmt plane (VLAN 99) is same-site only** (`router`/`switch`/`ap-*`/`pi99`/`oldsrv99`/`nas99` —
+never a `ProxyJump`). `ssh oldsrv` = the Home address. `python3`/bash/LF/UTF-8 no-BOM everywhere
 (`.gitattributes` pins `eol=lf`, so a checkout is LF on Windows too).
 
 ## 2. Next tasks (the rows are the authority; this is only the ranked pointer list)
@@ -440,19 +440,19 @@ not an owner act** — the rulings are the rows' and [todo-table.md](todo-table.
 
 | HD | the one blocked action | slot / host | 📋 brief |
 |----|------------------------|-------------|----------|
-| **HD-436** (a) | ONE guarded converge re-rendering headscale's `config.yaml` — the answer set is identical and the FILE is not, so it reports changed and restarts the control plane: sampled liveness probe, never a one-shot inspect | **VPS** slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-436** (a) ONE guarded converge re-rendering headscale's `config.yaml` — it reports changed and restarts the control plane: sampled liveness probe, never a one-shot inspect | **VPS** slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-436** (b) | `IaC/ansible/playbooks/dns.yml` run where the Cloudflare token is IP-filtered; expected to report no record change | home control plane | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-436** step 2 | the `extra_records_path` swap that **HD-435**'s `tailnet: dual` publish rides | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
-| **HD-487** | the narrow `--tags netd` delete of `/etc/systemd/network/20-eno1.netdev` — only the role's removal leg reaches it, because vps declares no `netd_phys_name` | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
-| **HD-1152** | the first REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired — `--check` skips the whole Technitium block and can never name candidates | vps · oldsrv · pi | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-487** | the narrow `--tags netd` delete of `/etc/systemd/network/20-eno1.netdev` — only the role's removal leg reaches it | **VPS** | [prompt-dns-transport.md](prompt-dns-transport.md) |
+| **HD-1152** | the first REAL `playbooks/dns-seed.yml` apply per instance, and only after its two defects are repaired — `--check` can never name candidates | vps · oldsrv · pi | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-1160** | render + `routeros-apply-delta.sh` for the converge template's twin of the retagged `#`-comment (a `#`-line IS rendered output — HD-1167's class); ⛔ never `--diff`, never from a docs lane, and **no converge is behind it** | router window, global slot | [prompt-dns-transport.md](prompt-dns-transport.md) |
 | **HD-384** step 2 | point the two LiteLLM gateways at `litellm-engine_api` — only AFTER spark reboots with it in its accepted-key list; inverting the order 401s every upstream call | spark window (PLE load, ~20 min) | [prompt-litellm-consumers.md](prompt-litellm-consumers.md) |
 | **HD-1122** | flip `ai_tier_metrics_publish: true` and converge `--tags docker_services,monitoring` — ONE change that recreates two serving containers, so not at night | **oldsrv** | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
-| **HD-1164** | an `intel_iommu=off` experiment plus a memory test; the restore line is `systemctl start alloy` and the unit stays stopped until then | **nas** (HP Gen8) | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
-| **HD-1088** | register oldsrv's public key on the live Box (port 23 is key-auth-only and `Hertzner-SB-Data` holds only a CIFS/WebDAV password, so there is no other way in); then `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`, `systemctl start push-music.service` once | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
+| **HD-1164** | an `intel_iommu=off` experiment plus a memory test on the Gen8 (nobody reboots it overnight); restore line `systemctl start alloy`, the unit stays stopped until then | **nas** (HP Gen8) | [prompt-observability-alerting.md](prompt-observability-alerting.md) |
+| **HD-1088** | register oldsrv's public key on the live Box — port 23 is key-auth-only, there is no other way in; then `storage_push_music.enabled: true`, converge `--tags storage --limit oldsrv.kogler.si`, `systemctl start push-music.service` once | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
 | **HD-1091** | rotate `lidarr_api` — `NOT_AUTO_ROTATABLE`, and the order is forced: mint → Lidarr's own `config.xml` → restart lidarr → re-render soularr's `config.ini` → re-point Seerr | **oldsrv** | [prompt-media-arrs.md](prompt-media-arrs.md) |
 | **HD-1093** | land the rotated family SMB passwords with `storage_samba_password_force` — a vault rotate alone changes nothing on the box | **nas** | [prompt-storage-backup.md](prompt-storage-backup.md) |
-| **HD-1107** RULED | the retag: the replica datasets leave `sanoid.conf.j2`'s `data` template, never a hand-destroy of the 66. Kill the wedged pipeline's shell wrapper first, or `iszfsbusy()` defers every prune and the retag reads as doing nothing | **nas** | [prompt-storage-backup.md](prompt-storage-backup.md) |
+| **HD-1107** RULED | the retag: the replica datasets leave `sanoid.conf.j2`'s `data` template, ⛔ never a hand-destroy of the 66. Kill the wedged pipeline's shell wrapper first, or `iszfsbusy()` defers every prune | **nas** | [prompt-storage-backup.md](prompt-storage-backup.md) |
 | **HD-1106** RULED | the prune — one `docker volume rm` per row the table marks `prune`, plus a named volume or bind for the two `onlyoffice-docs` paths | **VPS** | [prompt-storage-backup.md](prompt-storage-backup.md) |
 | **HD-1103 · HD-1167 · HD-1109** | ONE owner-window Pi visit: the boot that makes the fstab `mode=0755` true on the mount, the UNTAGGED converge that applies `ai_diag`'s derived smartd mask, and the one-time re-render of `pi-eth0.nmconnection`. ⛔ the `nm-resolver` applies and HD-418's reconcile are DONE on both hosts — do not re-run them; on a keyfile host the write leg is `nm-pi` | **pi** | [prompt-smart-home.md](prompt-smart-home.md) |
 | **HD-1143** | one privileged act (`docker exec` into the HA container, or a KNX integration reload) so exactly one `GroupValueRead` leaves the Pi, with the reverse rule's counters read either side | oldsrv + **pi** | [prompt-smart-home.md](prompt-smart-home.md) |
