@@ -314,6 +314,26 @@ from a runner, these rules are what make it safe *and correct*:
   it is still sitting there: it compares CURRENT values across the tree, the run-capture class **and** every
   blob a ref still reaches (the `git-history` class — a value that was `git rm`'d is out of the tree but not
   out of the publication, and only rotation closes that one).
+- **The session transcript is the capture surface, and the verdict about it is SEAT-LOCAL.**
+  `~/.pi/agent/sessions/**/*.jsonl` — the pi parent transcripts plus each child's `session.jsonl` — is appended
+  for the life of a session, lives outside the repo and outside git, so no commit can scrub it and the only close
+  is ROTATING the item. This is the HD-1174 class (a vault value readable in a capture —
+  [backup.md](backup.md) §Layer 2: Kopia) with a **wider door**: the loud door is any command whose stdout the
+  session captures, the quiet one is **the chat input itself**, because a value typed into a prompt is a transcript
+  line from the moment it is typed. ⛔ **A rotated value stops being a finding — [`check_secret_leak.py`](../scripts/gate/check_secret_leak.py)
+  compares CURRENT values — while an UNROTATED one is never closed by deleting, shredding or `git rm`-ing a
+  transcript.** Deleting the store removes evidence and not exposure: the value stays live in the vault and in
+  every other copy the session wrote, and the run after the deletion prints *greener while knowing less*.
+  ⚠ **A green is a statement about the seat it was taken on.** The `run-capture` class reads the seat's own
+  stores, so two checkouts of one commit do not reach the same verdict (the HD-1177 class, with a sharper edge).
+  Measured 2026-10-21 against one vault at one commit: on the seat that has the store, **1,858 paths / 233 MB**
+  scanned and the item failed with 24 hits; with `$HOME` pointed at an empty directory the same commit scanned
+  **1,559 paths / 22 MB**, still listed `classes judged: [… run-capture]`, printed 24 real ledger debts as STALE
+  and exited **0** — `/tmp/pi-subagents-*` keeps that class's corpus non-empty even when the transcript store is
+  gone, and the `--update-ledger` guard decides per CLASS, so it cannot see a missing store inside a class it
+  judged and would let that run shorten the debt register. Name the seat with every leak-check verdict, and treat
+  a store-less clone's `OK` as a partial result (the honest form of the same run is `--no-captures`, which prints
+  `NOT SCANNED run-capture` and marks the line `PARTIAL`).
 - **A minted preauth key is captured, never displayed.** headscale 0.29.4 has no `--output <file>` —
   `-o` is the FORMAT flag — so `preauthkeys create … -o json` writes the value to stdout, and the
   documented mint commands in this repo and in `deployment-manual.md` are therefore only safe inside a
