@@ -1,0 +1,43 @@
+# Frozen seal for scripts/gate/check_handoff_size.py — the handoff size it was sealed at, plus the
+# sites this gate reports and this repo has agreed to CARRY. Read that file's docstring before
+# editing this one: the two directions this file fails on (a site the seal does not carry, and a
+# carried site whose text is gone) are the whole point of it.
+#
+# Fields, one per line, `<name> <value>` — always re-derived by --reseal, never hand-typed, because
+# a count in prose is a defect (CONVENTIONS §2):
+#     baseline_bytes <n>   the handoff's byte size at the seal; the ceiling is this + the tolerance
+#     baseline_lines <n>   its line count at the same commit, same ceiling
+#     sealed_at <rev>      the commit both numbers were taken at
+#
+# Frozen sites — five TAB-separated fields, matched by KEY and never by line number:
+#     exempt<TAB><class><TAB><path><TAB><count><TAB><the site as written>
+#   class `history`  a §2 entry already history-shaped at the seal — an ⏸ row holding a standing
+#                    ruling reads as history, so it is sealed here rather than deleted from the file.
+#   class `derived`  a typed computable count still standing in the handoff: debt owed to the next
+#                    trim, NOT a licence for the next session to type another one.
+#
+# Re-derive the body after a trim lands — at the merge station, never inside a lane:
+#     python3 scripts/gate/check_handoff_size.py --reseal
+baseline_bytes 99317
+baseline_lines 881
+sealed_at 1a40c5e0ab61addeb90644777f5ab020440fb968
+exempt	derived	prompt.md	1	--seat wsl` FROM the wsl seat → `RESULT ok=10 problems=0`, `models` reporting **no drift** because that seat's
+exempt	derived	prompt.md	1	`OK: 88 docs, 10 domains, each with one claimed home`. The taxonomy call it was told about is recorded in
+exempt	derived	prompt.md	1	`probe_success{job="blackbox_icmp"}` read `1` for all 271 samples — four live hosts masking the dead one — so
+exempt	derived	prompt.md	1	and the wedged tree died, but the authorised re-fire failed a different way: **66 snapshots on the destination are newer
+exempt	derived	prompt.md	1	are all 0 rows, so the missing piece is APP state (one indexer + one download-client entry, the seed-in-IaC
+exempt	derived	prompt.md	1	crash-looping. The proof is the loaded set (`GET /api/v1/provisioning/alert-rules` → 32 rules, `provenance: file`),
+exempt	derived	prompt.md	1	planes are green (`pi-seat-sync.sh --check`: every `wsl` line OK; the one problem is the oldsrv cockpit's `STALE-CLONE`, and that `ok=` count is a function of THAT seat's clone lagging `main` — with oldsrv current the same command prints `ok=18 problems=0`, so re-derive it, never copy it). Two refs were unique to that box — a stash (`On main: never_evict
+exempt	derived	prompt.md	1	print where list=trusted-ha` holds **5 rows** (`oldsrv`×2, `pi`×2, `ha-vip`) and deriving the set from the inventory
+exempt	derived	prompt.md	1	run **FROM the Win11 seat** reaches all three seats → **`RESULT ok=29 problems=0`**, `pi-self` OK everywhere at the
+exempt	history	prompt.md	1	- ⏸ **Retire the RB4011 deltas — RULED 2026-10-13: yes, and scheduled, not executed.** The retire procedure and its
+exempt	history	prompt.md	1	- ✅ **Does this station have to push? — ANSWERED: yes, every station pushes after it merges** (option B3).
+exempt	history	prompt.md	1	- ✅ **Promote the string-purge gate, or keep calling it advisory — ANSWERED 2026-10-13: promoted, in-tree; SUPERSEDED — the run half left the pool, the `--self-test` stayed.** `corpus_diff.py` and its signed accepts list
+exempt	history	prompt.md	1	- ✅ **Rotate the tailnet sidecar's pre-auth key (`tailscale-sidecar_api`) — ANSWERED 2026-10-18: rotated, and the
+exempt	history	prompt.md	1	- ✅ **The 2026-10-20 backlog decision round — ANSWERED in one sitting; nine rows became pure AI work.**
+exempt	history	prompt.md	1	- ✅ **The NAT reconcile, and what it removes — ANSWERED: list it.** The reconcile runs with
+exempt	history	prompt.md	1	- ✅ **The mint space is poisoned by test fixtures — ANSWERED: `9000–9999` is the fixture block, and a gate holds it**
+exempt	history	prompt.md	1	- ✅ **Which spelling of the IoT DoT-bypass drop is canonical — ANSWERED: the converge's.** The converge writes
+exempt	history	prompt.md	1	- ✅ **`corpus_diff.py --gate` in the pool, or a hand-run wave audit — ANSWERED: it is a pool item now, and
+exempt	history	prompt.md	1	- ✅ **`metabase`: retire the entry or enable it — ANSWERED 2026-10-18: revived on OLDSRV, and the VPS copy is
+exempt	history	prompt.md	1	- ✅ **`trusted-ha` membership, stated three ways — ANSWERED: the Pi IS a member, and the list is DERIVED.** The
