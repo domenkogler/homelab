@@ -212,12 +212,15 @@ seat_planes_emit() {
   path="${HL_REPO_PREFIX:-}${path}"
   case "$runner" in
     bash)       printf '%s\t%s %s %s\n' "$plane" bash "$path" "$args" ;;
-    python3)    # Windows: `python3` resolves to the Microsoft-Store alias stub; `py -3` is the real
-                 # interpreter (HD-1110). Debian/WSL seats keep the bare `python3` (the venv).
-                 case "$(uname -s 2>/dev/null)" in MINGW*|MSYS*|CYGWIN*)
-                   printf '%s\t%s %s %s\n' "$plane" py "-3 $path $args" ;;
-                 *) printf '%s\t%s %s %s\n' "$plane" python3 "$path" "$args" ;;
-                 esac ;;
+    python3)    # WHICH interpreter answers is a fact about the box that RUNS this line, and the
+                 # driver is not that box: the command is composed HERE and executed in the SEAT
+                 # (docs/harness-pi-seats.md §1). seat-python.sh carries the per-box case — the
+                 # Windows half exists because `python3` there is the Microsoft-Store alias stub,
+                 # the Debian half because a Debian seat has no `py` at all. Choosing it here is
+                 # what made a Windows driver ship `py -3` into both Debian seats.
+                 local _pyw
+                 hl_owner_path _pyw seat-python.sh || { printf 'FATAL: seat-planes.yml: plane %s needs the launcher resolver seat-python.sh, which is not under scripts/ (a runner whose resolver moved runs nothing and says nothing)\n' "$plane" >&2; return 1; }
+                 printf '%s\t%s %s%s %s %s\n' "$plane" bash "${HL_REPO_PREFIX:-}$_pyw" "$path" "$args" ;;
     powershell) printf '%s\tpowershell.exe -NoProfile -ExecutionPolicy Bypass -File %s %s\n' "$plane" "$path" "$args" ;;
     *) printf 'FATAL: seat-planes.yml: plane %s has unknown runner %s\n' "$plane" "$runner" >&2; return 1 ;;
   esac
@@ -281,6 +284,27 @@ hl_planes_selftest() {
       printf 'ok: registry case %s fails loud\n' "$_case"
     fi
   done
+
+  # 5. the python runner's launcher is chosen WHERE THE COMMAND RUNS, not where it was composed.
+  #    A Windows driver that emits `py -3 …` ships a Windows command line into a Debian seat, which
+  #    dies at `py: command not found` and reads as that seat's `models` plane being broken — while
+  #    the same registry line reads green from a Debian driver, which is why no other arm sees it.
+  #    The fake Windows driver is a `uname` shim: go back to a compose-time `uname -s` case and this
+  #    arm reddens. (The resolver's own two halves: harness/seat-python.sh --self-test.)
+  mkdir -p "$_t/windrv"
+  printf '%s\n' '#!/bin/sh' 'printf "MINGW64_NT-10.0-19045\n"' >"$_t/windrv/uname"
+  chmod +x "$_t/windrv/uname"
+  local _mdl
+  _mdl="$(PATH="$_t/windrv:$PATH" seat_planes win11 check 2>/dev/null | awk -F'\t' '$1=="models"{print $2}')"
+  if [ -z "$_mdl" ]; then
+    printf 'NOT CAUGHT: the models plane emitted no command at all\n'; fails=$((fails + 1))
+  elif printf '%s' "$_mdl" | grep -Eq '(^|[[:space:]])py([[:space:]]|$)'; then
+    printf 'NOT CAUGHT: a Windows driver composed a seat command naming py: %s\n' "$_mdl"; fails=$((fails + 1))
+  elif ! printf '%s' "$_mdl" | grep -q 'seat-python.sh'; then
+    printf 'NOT CAUGHT: the python runner ships no launcher resolver: %s\n' "$_mdl"; fails=$((fails + 1))
+  else
+    printf 'ok: the python runner ships the resolver, not a compose-time launcher\n'
+  fi
 
   [ "$fails" -eq 0 ] || printf 'seat-planes self-test: %s arm(s) NOT caught\n' "$fails" >&2
   return "$fails"

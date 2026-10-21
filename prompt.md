@@ -244,8 +244,7 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    1110 · 1138 · 1139 · 1140 · 1161 · 1162 · **1173**) with its owner-gated tails intact. **HD-1173 is registered and
    UNIMPLEMENTED** — the parked `dsh` + `pi-dev` harness IaC is to be removed and `pi-dev.ts.kogler.si` made a
    second name on the existing `pi-oldsrv-backend` (`pi-oldsrv.ts.kogler.si` stays canonical); only the row landed,
-   so its four lanes and its live tails are all still open. Sequence matters: do it **before** any `pi` npm-pin
-   bump, because dropping `pi_dev_npm_version` is what leaves the repo with one pi pin instead of two. **The laptop↔oldsrv coding leg closed
+   so its four lanes and its live tails are all still open. Sequence note UPDATED: the fleet pi pin moved to 1.3.0 on 2026-10-21 with **both** vars moved together (`pi_host_npm_version` and `pi_dev_npm_version` MUST stay equal), so what this row still owes on the pin side is the deletion half — dropping `pi_dev_npm_version` and its `image-pin-probe.py` row is what leaves the repo with one pi pin instead of two. **The laptop↔oldsrv coding leg closed
    2026-10-16:** the alias contract is LAN-direct by default with `<node>-vps` as the opt-in hop, all three seats
    carry one contract digest, and VS Code connects over `oldsrv-domen`; what is left in that cluster is the
    away-case spelling in the scripts that shell out (`1138`) and the VS Code server-install leg it gates. **HD-1139**
@@ -290,14 +289,24 @@ item, and `op vault list` cannot tell the scopes apart, so prove scope with the 
    for the phrase also **matches the probe that greps for it** — filter on `sshd-session[…]` / `-u ssh.service`.
    ⚠ Never re-add `git commit -s`; signing is retired. **HD-1110**: `scripts/harness/pi-seat-sync.sh` is
    the one deploy path; its 2026-10-08 "oldsrv closed on all eight planes" reading is VOID, and the
-   2026-10-19 re-read from the `wsl` seat is the current one: `--check --seat wsl` → **`RESULT ok=10 problems=0`**,
-   every declared plane OK (`pi-self skills extensions settings models tui tmux font subagent` + the pre-flight), the
-   `models` line reporting **no drift** because this seat's `pi_auth` entries really are `type: api_key` as
+   2026-10-21 re-read is the current one: the driver run **FROM the Win11 seat** reaches all three seats and reads
+   **`RESULT ok=27 problems=0`** — every declared plane on `win11` + `wsl` + `oldsrv` OK, after each seat clone was
+   fast-forwarded to the driver's own commit (`pi-self` OK everywhere at the new **1.3.0**: win11 by volta, wsl by the
+   pinned npm prefix, oldsrv by `pi update`, whose answering binary is pi's managed layout — the layout
+   `pi-self-update.sh` refuses to npm-install underneath, and the same command on the win11 layout refuses:
+   "not managed by a global npm install"). The first run of that fan-out read `ok=27 problems=2`, both lines
+   `models` on the Debian seats at `bash: line 1: py: command not found`: the `runner: python3` branch chose the
+   interpreter on the DRIVER and shipped `py -3` into a Debian seat. Fixed here — `scripts/harness/seat-python.sh`
+   carries the case and the seat resolves its own launcher (rule: [docs/harness-pi-seats.md](docs/harness-pi-seats.md) §1),
+   both halves canaried in `pi-seat.sh --self-test` and the resolver's own `--self-test`. Earlier readings stand as
+   seat-local truth: `--check --seat wsl` FROM the wsl seat → `RESULT ok=10 problems=0`, the `models` line reporting
+   **no drift** because this seat's `pi_auth` entries really are `type: api_key` as
    `scripts/harness/pi/models-spec.yml` declares. The row's own tail closed tonight: `install-pi-wsl.sh` now **owns
    PATH persistence** (`persist_path()` writes the node `current` bin dir and pi's entrypoint dir under its own marks,
    distinct from `install-pi-debian.sh`'s, and `verify_login_path()` then asks a LOGIN shell and fails if a `/mnt/c`
-   copy wins) instead of printing a NOTE about `~/.bashrc`. Two things remain: the **Win11** seat leg, which no leg from
-   this box reaches (inside WSL the driver's seat list is `wsl oldsrv`), and the OAuth-vs-`api_key` call on the
+   copy wins) instead of printing a NOTE about `~/.bashrc`. **The Win11 seat leg is paid — run FROM that seat
+   2026-10-21**, which is also how the driver-side `python3` defect above surfaced (a Windows driver had never
+   fanned out to the Debian seats before). What remains: the OAuth-vs-`api_key` call on the
    `pi_auth` providers — **ruled 2026-10-20 (owner): `api_key` is the fleet spelling**, an OAuth entry on a seat is drift,
    and it is never cured by overwriting a live credential: the plane reads the live `type` and reports the mismatch instead
    of rewriting. Mint through the `pi_auth` vendor lane of
