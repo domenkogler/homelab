@@ -118,156 +118,82 @@ the row→brief index is [todo-table.md](todo-table.md) §B0. A brief is named f
    with the value deliberately unchanged — price the 2026-10-06 transient before touching the var, and read
    [docs/hardware-spark.md](docs/hardware-spark.md) first. →
    [prompt-spark-llm.md](prompt-spark-llm.md) (one spark slot; HD-376 · 400 · 359 · 367 · 380 ride it too)
-2. ⏳ **The transport / answer plane** — **HD-436**'s hinge has closed on the repo side: `zone_kogler_si` is the one
-   derived list and BOTH remaining consumers read it (`vps.yml`'s two tailnet lists are aliases of its views, the
-   headscale template loops them by FQDN, and `roles/cloudflare_dns` loops the public view with its vars file now a
-   pointer) — parity-proven on all six surfaces, so nothing hand-authors a subdomain list any more. Its dry-diff
-   artifact was taken read-only 2026-10-19 and it says the answer plane needs nothing: headscale's deployed
-   `dns.extra_records` holds 38 pairs, the derived render 39, and the single delta is the ADD of
-   `metabase.ts.kogler.si` — no existing name changes address; on the Pi tertiary `dig metabase.kogler.si` already
-   answers with the oldsrv Home address, so the Technitium leg is a no-op on the instance that was read. What the row
-   owes is ONLY the live half — the two converges named in the parked list below, both still PARKED. Alongside it:
-   **HD-477** (make the resolver actually float with the VIP; premise measured green, the row carries the three gates), **HD-487** (the
-   config-manager truth is now DECLARED per host in `host_vars/<host>.yml` — oldsrv/pi/spark/nas = NetworkManager, vps =
-   systemd-networkd; the `ifupdown` third state is off the fleet, nas having adopted NM on `eno1` (2026-10-18, read back:
-   NM enabled, `networking` disabled, the `nas-eth0` keyfile up) — held down by
-   [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read per host with
-   `scripts/ansible/probe-net-manager.sh`; every dead `eno1` netd render is off the fleet — pi/oldsrv/nas removals landed,
-   and spark's `/etc/systemd/network` read **empty** on 2026-10-18 with networkd `disabled`. The fleet probe settled the
-   question the row used to carry: four hosts are clean, and the ONE thing owed moved to the **VPS** — a dead
-   `/etc/systemd/network/20-eno1.netdev` only the role's removal leg can delete), **the
-   host-resolver class beyond oldsrv** (the Pi leg landed and was verified 2026-10-08; spark's converge closed it
-   2026-10-18 — resolver pair + networkd disarm via the spark slot), and the
-   DNS-policy rows **HD-480 · 481 · 482 · 483**, whose landable half LANDED 2026-10-19: one SSOT policy list
-   `technitium_dns_policy` + the tuning dict `technitium_resolver_settings` written by ONE seed step with an asserted
-   read-back, `enableBlocking` DERIVED from the list so "blocking on, nothing loaded" is unrepresentable, `logQueries`
-   on the Pi tertiary with its `maxLogFileDays: 14` rendered instead of inherited from Technitium's 365-day default, and
-   [`scripts/gate/check_dns_policy_drift.py`](scripts/gate/check_dns_policy_drift.py) in the gate. Converged on the Pi;
-   the VPS and oldsrv instances pick it up in their own slots. **What did not land is not an unbuilt feature:**
-   Technitium 15.6 answers **404** on every per-client/per-group endpoint on the pin and upstream alike, so a per-policy
-   upstream has nowhere to live and the router's one `:53` dst-nat pair aims every policy at ONE shared resolver address
-   — **✅ RULED 2026-10-20 (owner): ONE tier-wide upstream; the per-policy claim is dropped** (quote the mechanism from
-   the row, never a letter — the two views lettered the options differently). So the device-level Kids/IoT acceptance in
-   HD-481/482 is not owed by any settings change: filtering, where the family needs it, is a device-side act.
-   **HD-1160** is now ONE item and it is not AI: the retag LANDED — [network-dns.md](docs/network-dns.md)
-   §What the pin can and cannot enforce, [network-rejected.md](docs/network-rejected.md) and the router role's comment —
-   and **no converge is owed**, because the tier already runs the one shared forwarder list. What remains is the
-   converge template's twin of that retagged router comment: the `#`-line in
-   `IaC/router/templates/rb4011_converge.rsc.j2` is RENDERED output (HD-1167's class), so it moves only inside an
-   **owner-present router window** (the global slot; ⛔ never from a docs lane, never `--diff`). The rules' own
-   `comment=` strings are live device state and stay as they are. Also open on the same tier, unbriefed: **HD-1152**'s prune leg has been proved
-   un-runnable rather than un-run — the read uses a query-string shape this API does not answer, and the candidate build
-   uses a Jinja list comprehension that dies at render; both are invisible to `--syntax-check` because the block is
-   gated `not ansible_check_mode`. → [prompt-dns-transport.md](prompt-dns-transport.md)
-3. ⏳ **Silent-failure alerting** — **HD-450**'s collector legs are LIVE and read back per host 2026-10-17: the NUT
-   client→master metric with `nut-master-unreachable` loaded, and the VPS's own on-disk cert pair exported. The
-   `acme.sh` premise this handoff used to carry is dead — that box's Traefik IS the ACME issuer and its age was
-   already a series; the missing half was the on-disk pair. What the row still owes is one re-point: alert delivery
-   moves to Matrix under **HD-1108**, and until that leg is proven Signal stays the path alerts are read on.
-   ⚠ The canary recipe this handoff used to carry could not fire — a transient unit outside
-   `monitoring_hygiene_units` is invisible to the exporter; the working trigger is in the doc. The **Alloy fleet
-   pin** is settled state, not an open question: `alloy_version: "1.20.1-1"`
-   (`IaC/ansible/group_vars/all/versions.yml`) with no per-host override and all five monitoring hosts on it — the
-   reads, the apt failure shape and the ⛔ never-`--allow-downgrades` rule are in
-   [docs/observability.md](docs/observability.md) §The Alloy pin. **LLM token accounting
-   (HD-1120 · 1121 · 1122, minted 2026-10-09)** is now in the same brief, and 2026-10-19 settled what each half is:
-   **HD-1121** is a FINDING, not a job — `/metrics` answers `401` unauthenticated and `404` **with a valid admin
-   bearer** on both gateways (pin `v1.104.0`) because the image mounts the endpoint only when the `prometheus`
-   callback is configured, so no scrape was added; the row now owes the callback + the auth form + the VPS loopback
-   publish, which is a **gateway** recreate, not a monitoring one. **HD-1122** reports the RX 7600 now
-   (`homelab_gpu_vram_used_bytes` / `_vram_total_bytes` / `_busy_percent`, `gpu="rx7600"`, boarded in `homelab-llm`
-   by its generator) and its ENGINE half is authored behind `ai_tier_metrics_publish: false`
+2. ⏳ **The transport / answer plane** — **HD-436**: the repo-side hinge is CLOSED (one derived list, both consumers
+   read it, parity-proven on all six surfaces); the row owes ONLY the live half — the two converges in the parked table
+   below, both still PARKED. **HD-477** make the resolver actually float with the VIP: premise measured green, the row
+   carries the three gates. **HD-487** config-manager truth is DECLARED per host in `host_vars/<host>.yml`, held by
+   [`scripts/gate/check_net_manager.py`](scripts/gate/check_net_manager.py) and read with
+   `scripts/ansible/probe-net-manager.sh`; the ONE thing owed is the **VPS** delete of the dead
+   `/etc/systemd/network/20-eno1.netdev`, which only the role's removal leg reaches (parked). **HD-480 · 481 · 482 ·
+   483**: the landable half — one SSOT `technitium_dns_policy` list plus the `technitium_resolver_settings` tuning dict
+   from ONE seed step with an asserted read-back, `enableBlocking` DERIVED from the list, and
+   [`scripts/gate/check_dns_policy_drift.py`](scripts/gate/check_dns_policy_drift.py) in the gate — LANDED and
+   converged on the Pi; the VPS and oldsrv instances pick it up in their own slots. **✅ RULED 2026-10-20 (owner): ONE
+   tier-wide upstream, the per-policy claim is DROPPED** — quote the mechanism from the row, never a letter (the two
+   views lettered the options differently); ⛔ never buy per-policy filtering with a resolver instance, a listener
+   address or a `:53` dst-nat target. So the device-level Kids/IoT acceptance in HD-481/482 is not owed by any settings
+   change: filtering, where the family needs it, is a device-side act. **HD-1160** is not AI and **no converge is
+   owed** ([network-dns.md](docs/network-dns.md) §What the pin can and cannot enforce,
+   [network-rejected.md](docs/network-rejected.md)); what remains is the converge template's twin of the retagged router
+   comment — the `#`-line in `IaC/router/templates/rb4011_converge.rsc.j2` is RENDERED output (HD-1167's class), so it
+   moves only inside an **owner-present router window** (the global slot; ⛔ never from a docs lane, never `--diff`). The
+   rules' own `comment=` strings are live device state and stay as they are. **HD-1152** (unbriefed) has its prune leg
+   proved UN-RUNNABLE rather than un-run — both defects are invisible to `--syntax-check`, so `--check` can never name
+   candidates; the repair is AI work, the first real apply is parked.
+   → [prompt-dns-transport.md](prompt-dns-transport.md)
+3. ⏳ **Silent-failure alerting** — **HD-450**'s collector legs are LIVE and read back per host; the row owes ONE
+   re-point: alert delivery moves to Matrix under **HD-1108**, and until that leg is proven Signal stays the path
+   alerts are read on. ⚠ A transient unit outside `monitoring_hygiene_units` is invisible to the exporter — use the
+   trigger the doc carries, never a hand-made one. The **Alloy fleet pin** is settled state, not an open question:
+   [docs/observability.md](docs/observability.md) §The Alloy pin (⛔ never `--allow-downgrades`).
+   **LLM token accounting HD-1120 · 1121 · 1122** — **HD-1121** is a FINDING, not a job: `/metrics` answers `401`
+   unauthenticated and `404` **with a valid admin bearer**, so no scrape was added; the row owes the gateway's
+   `prometheus` callback + the auth form + the VPS loopback publish, which is a **gateway** recreate, not a monitoring
+   one. **HD-1122**'s GPU half is live; its ENGINE half is authored behind `ai_tier_metrics_publish: false`
    (`group_vars/home_servers.yml`) — the flag, the `127.0.0.1` publish and the `prometheus.scrape "llama_cpp"` leg are
-   ONE change that recreates two serving containers, so it waits an owner window. **HD-1120** is unchanged: totals
-   are known for every caller, attribution comes from the **edge access log** — a metering proxy hop was ruled out
-   because it re-buys the hop decision #26 removed. Spec + the XFF trap:
-   [docs/observability.md](docs/observability.md) §LLM token accounting. Two new rows came out of the same night:
-   **HD-1163** names a dark monitoring host instead of discovering it in a forum post — the `curl 127.0.0.1:12345/metrics`
+   ONE change that recreates two serving containers, so it waits an owner window. **HD-1120** is unchanged: totals are
+   known for every caller and attribution comes from the **edge access log** (spec + the XFF trap:
+   [docs/observability.md](docs/observability.md) §LLM token accounting).
+   **HD-1163** names a dark monitoring host instead of discovering it in a forum post: the `curl 127.0.0.1:12345/metrics`
    probe + conditional restart leg in `roles/monitoring` and
-   [`scripts/gate/check_host_reporting.py`](scripts/gate/check_host_reporting.py) (four verdicts, expected set read from
-   `[monitoring]`) are landed, and **the PAGING half is authored, LOADED on the backend and watched red** — the
-   generated `absent_over_time`-per-host form was chosen over the anti-join (an anti-join needs a publisher nothing
-   publishes, so its failure direction is silence), one rule per `[monitoring]` host, `noDataState: OK` with
-   `execErrState: Alerting`, proven at 16:30 on the box that has published nothing since its collector began
-   crash-looping. The proof is the loaded set (`GET /api/v1/provisioning/alert-rules` → 32 rules, `provenance: file`),
-   never the repo file, because **a rule that is authored is not a rule that is loaded** — and the one-word reason it
-   used to be unverifiable was a provisioning task with no `tags:` of its own: the ROLE is tagged `monitoring` and
-   Ansible inherits role tags onto every task, so `--tags monitoring` always selected it, while **`--tags grafana`
-   silently dropped it** and still recapped `failed=0` (measured both ways on the backend: no task line at all, then
-   the task line and `changed=2` once the tag was added). The task carries `[monitoring, grafana]` now, so either filter
-   loads rules; that is also why no row is minted for "write the paging rule in a grafana window".
-   **HD-1166** is the reachability half of the same sweep and it is a FINDING about a rule we already ship:
-   `host-unreachable` cannot name the host that is down, because `probe_success{job="blackbox_icmp"}` carries the
-   EXPORTER's address (`127.0.0.1:9115`) as `instance` for all five targets — `__param_target` is a query parameter and
-   never becomes a label — and `ha-unreachable`'s `instance="https://ha.kogler.si"` filter can therefore never match a
-      series at all. **The read ran, the premise held, and the fix is live**: through the 2026-10-20 `oldsrv` outage
-   `probe_success{job="blackbox_icmp"}` read `1` for all 271 samples — four live hosts masking the dead one — so
-   `host-unreachable` could neither fire nor name a host, and the relabel that makes each target name itself in
-   `instance` is what made that visible. ⚠ **Retiring a probe target can be the cheaper half of a fix — check what the
-   rule was actually watching.** `ha.kogler.si` is `internal: true` with no public record, so the backend host cannot
-   resolve it and `ha-unreachable` had never matched a series; giving the series a real `instance` made the target fail
-   and a CRITICAL page that describes a healthy HA. The target and the rule are retired, and the honest consequence is
-   that **HA liveness has no firing rule** until the gated `ha_exporter` job → **HD-1182**; one owner-present VPS
-   `--tags monitoring` converge applies the retirement, and that apply is the row's only live tail.
-   **HD-1164** is why `nas` is the blind host — the
-   collector dies ~5 s after every start with `fatal error: traceback did not unwind completely` on Go 1.26.7, with the
-   repo, the backend and the DMAR lines all excluded, so the acceptance is a firmware/kernel look plus a memory test the
-   owner schedules and the unit stays **stopped on purpose** meanwhile. ⚠ `check_host_reporting.py --check` reads RED for
-   `nas` and that is the instrument working — do not soften the expected set to make it green. **`oldsrv` is the
-   second blind host and it is an incident, not a rule defect** — every job it publishes stopped at the same minute
-   on 2026-10-20, it answers on no leg while the three other hosts ride the same tunnel peer, and there is no
-   out-of-band power path (HD-454's posture), so the first act was an owner at its console → **HD-1175**, which is
-   **recovered but not closed**: its telemetry is proven, not assumed — all four of its jobs `up`, `check_host_reporting.py --check`
-   reports its series, the exported units all read `success`, and the store excludes a thermal, memory, load or disk
-   excursion — a clean hard stop. What the row still owes is the root-only read (the previous boot's journal and
-   `pstore`), because the cause is still unexplained and no rule can reach it from a user session. The same reboot
-   surfaced a boot-time DB-dump push race that no rule can see → **HD-1183**.
-   **What arrives in the channel is a separate design question from what fires.** A still-firing alert now
-   re-sends at most every **24 h** (`repeat_interval` in the notification policy `roles/monitoring` renders;
-   `group_wait: 2m` and `group_interval: 10m` are untouched, so the FIRST send is not delayed). At 30 min a
-   finding that is parked for days by design — a host in an owner hardware window, a host off its pin — was
-   a page ~48 times a day, which is how an alert channel stops carrying information. ⛔ **HD-1174** is
-   registered and open: kopia's `repository connect server` echoes the URL it was handed, so the
-   `kopia-server-internal_api` credential sits in plaintext in the agent's container log and in the log store
-   for the retention window — scrub the connect line, then rotate with the agent **re-connected** (its
-   `repository.config` caches the credential). →
-   [prompt-observability-alerting.md](prompt-observability-alerting.md)
-4. ⏳ **The media / music ladder** — **HD-362**'s two Lidarr legs were measured 2026-10-19 and neither is the
-   credential the row assumed: `lidarr-ydl` authenticates fine (its log reads `Lidarr sync complete: 3 albums cached`,
-   matching `wanted/missing` = 3) but **Lidarr has no route to it** — its indexers are the three Prowlarr-sourced ones,
-   its download clients are qBittorrent + SABnzbd, and `download_queue` / `track_downloads` / `download_client_jobs`
-   are all 0 rows, so the missing piece is APP state (one indexer + one download-client entry, the seed-in-IaC
-   question), not a secret; Aurral → Lidarr is a **browser** leg (the add is a click on a recommendation card, its
-   URL+key encrypted inside `aurral.db`, the API 404s on the obvious routes). The Tube Archivist `path.repo` note stays;
-   the slskd login question is CLOSED (the vault was right; the compose carried four env names slskd does not read —
-   probe with `docker exec slskd /slskd/slskd --envars`, never by grepping a rendered compose) and the Soulseek password
-   rotation is **DECLINED and risk-accepted on record** — do not re-open either. **HD-1090** owes one grab started
-   in Prowlarr's own UI. **HD-1091** is authored and **ARMED**, not OFF: `templates/docker_services/soularr/` +
-   `soularr_version: "1.2.2"`, `enabled: true` on the oldsrv Home leg, and ONE vault item (`soulseek-internal_api`)
-   rendered into **both** ends — `SLSKD_API_KEY` in slskd's env and `[Slskd] api_key` in soularr's rendered
-   `config.ini` — so neither side can be armed alone. The arm is proven in the order that matters: the internal key
-   answers `200` on `GET /api/v0/options`, the UI password answers `401` there, and `POST /api/v0/session` with the UI
-   password still returns a JWT, so the owner's login survives the arm. That item was **rotated twice**, once for each
-   of two leaks of its own making, and the read pattern that caused the second is now written into
-   [deployment-secrets.md](docs/deployment-secrets.md) — the key was never absent, it was never *rendered*, which is
-   why the row's earlier "this box has no slskd API key" was true when written and is not true now. What the row owes
-   is not a seed: **one album crossed end-to-end**, which needs a peer to finish one inside the poll window (the last
-   attempt crossed everything but soularr's final rename, and the `remote_queue_timeout` that cut it is measured and
-   raised), and the **`lidarr_api` rotation**, which `provision-secrets.py` refuses to auto-rotate and which moves
-   four copies in a forced order. The `SLSKD_DOWNLOADS_DIR` retarget is decided as NONE (soularr renames in place and fires `DownloadedAlbumsScan`, so the
-   import still moves the file and seeding stops at import). **HD-1088** now RENDERS on oldsrv (`--tags storage` →
-   `ok=46 changed=2 failed=0`: script + service + timer, timer **disabled** while `storage_push_music.enabled` is
-   false), its guard was proven before any push, and two of its premises were corrected: `--max-delete` is a **CAP,
-   not an abort** (measured on rsync 3.5.0: 50 of 100 pending deletions executed, rc 25) — the weight sits on the two
-   asserts that run before rsync, and the shape now has a pool fixture in
-   [`scripts/testdata/rsync-max-delete/run.sh`](scripts/testdata/rsync-max-delete/run.sh) — and with no identity the
-   script aborts at its OWN identity assert before the mount assert. One owner action gates every end-to-end proof:
-   register oldsrv's public key on the live Box. **HD-1092** is void as written — the Authentik→NAS glue is gone from
-   BOTH sides (no script, no units, `roles/storage/tasks/samba.yml` carries only its teardown), `op` on the NAS is now
-   unwanted rather than missing, `/tank/data/users` exists with `domen`'s drive, both members are real unix users and
-   gid 1005 is supplementary BY DESIGN; what remains is one credential-bearing leg on a second host
-   (`smbclient //nas/domen -A creds`), parked. (**HD-1089**, the SABnzbd locality read, is the same lane's subject but
-   no brief claims the row — it is in the unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
+   [`scripts/gate/check_host_reporting.py`](scripts/gate/check_host_reporting.py) are landed, and the paging half is
+   authored, LOADED and watched red. ⚠ **A rule that is authored is not a rule that is loaded** — prove it with
+   `GET /api/v1/provisioning/alert-rules`, never the repo file; a provisioning task with no `tags:` of its own was the
+   shape that hid it (`--tags grafana` silently dropped it and still recapped `failed=0`).
+   **HD-1166** is landed — every probe target now names itself in `instance`. ⚠ **Retiring a probe target can be the
+   cheaper half of a fix: check what the rule was actually watching.** `ha-unreachable` could never match a series, so
+   target and rule are retired, and the honest consequence is that **HA liveness has no firing rule** until the gated
+   `ha_exporter` job → **HD-1182**; one owner-present VPS `--tags monitoring` converge applies the retirement and that
+   apply is the row's only live tail. **HD-1164** is a firmware/kernel question, not a repo question: the `nas` unit
+   stays **stopped on purpose** until the owner schedules the look plus a memory test. ⚠
+   `check_host_reporting.py --check` reads RED for `nas` and that is the instrument working — do not soften the expected
+   set to make it green. **HD-1175** (`oldsrv`) is **recovered, not closed**: the cause is unexplained, so the row owes
+   the root-only read of the previous boot's journal and `pstore`, which no rule can reach from a user session; the same
+   reboot surfaced a boot-time DB-dump push race → **HD-1183**. What *arrives* in the channel is a separate design
+   question from what *fires*: a still-firing alert re-sends at most every **24 h** (`repeat_interval` in the
+   notification policy `roles/monitoring` renders; the first send is not delayed).
+   ⛔ **HD-1174** is registered and open: kopia's `repository connect server` echoes the URL it was handed, so the
+   `kopia-server-internal_api` credential sits in plaintext in the agent's container log and in the log store for the
+   retention window — scrub the connect line, then rotate with the agent **re-connected** (its `repository.config`
+   caches the credential). → [prompt-observability-alerting.md](prompt-observability-alerting.md)
+4. ⏳ **The media / music ladder** — **HD-362**: what Lidarr is missing is APP state, not a secret — one indexer and one
+   download-client entry (the seed-in-IaC question); Aurral → Lidarr is a **browser** leg (the add is a click on a
+   recommendation card; its URL+key are encrypted inside `aurral.db` and the API 404s on the obvious routes). The Tube
+   Archivist `path.repo` note stays; the slskd login question is CLOSED (⛔ probe with `docker exec slskd
+   /slskd/slskd --envars`, never by grepping a rendered compose) and the Soulseek password rotation is **DECLINED and
+   risk-accepted on record** — do not re-open either. **HD-1090** owes one grab started in Prowlarr's own UI.
+   **HD-1091** is authored and **ARMED**, not OFF: one vault item (`soulseek-internal_api`) renders into BOTH ends, so
+   neither side can be armed alone. What it owes is not a seed: **one album crossed end-to-end**, which needs a peer to
+   finish one inside the poll window, and the **`lidarr_api` rotation** (`NOT_AUTO_ROTATABLE`, four copies, a forced
+   order — parked). The `SLSKD_DOWNLOADS_DIR` retarget is decided as NONE. **HD-1088** now RENDERS on oldsrv with its
+   guard proven before any push (⚠ `--max-delete` is a **CAP, not an abort** — [docs/storage.md](docs/storage.md) and
+   the fixture [`scripts/testdata/rsync-max-delete/run.sh`](scripts/testdata/rsync-max-delete/run.sh) — and with no
+   identity the script aborts at its OWN identity assert before the mount assert). **One owner action gates every
+   end-to-end proof: register oldsrv's public key on the live Box.** **HD-1092** is void as written — the Authentik→NAS
+   glue is gone from BOTH sides and `op` on the NAS is unwanted rather than missing, gid 1005 is supplementary BY
+   DESIGN; what remains is one credential-bearing leg on a second host (`smbclient //nas/domen -A creds`), parked.
+   (**HD-1089**, the SABnzbd locality read, is the same lane's subject but no brief claims the row — it is in the
+   unbriefed list below.) → [prompt-media-arrs.md](prompt-media-arrs.md)
 5. ⏳ **Cockpit, the coding seats, grants** — the cluster (**HD-361 · 411 · 442 · 443 · 444 · 465 · 495 · 1085 ·
    1110 · 1138 · 1139 · 1140 · 1161 · **1173**) with its owner-gated tails intact, plus **HD-1180** (unbriefed — its AI
    half is one pin line in `IaC/ansible/group_vars/all/versions.yml`, its acceptance half is a hand on each seat).
