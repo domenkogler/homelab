@@ -356,6 +356,32 @@
 #                                     reddens. It earned its first run: the tip it landed on was 3 rows
 #                                     behind (§B9 said "re-derived" and the three newest ids were not in
 #                                     it), which is the seam, not a false positive.
+#  37. check_handoff_size.py       — the standing handoff (`prompt.md`) is the file every earlier
+#                                     rule left unbounded, and the rule that was supposed to bound it —
+#                                     "every prior open item appears or is explicitly resolved" — was
+#                                     the regrowth mechanism: choosing "explicitly resolved" let the ✅
+#                                     narrative stay as proof a decision had been made, so every
+#                                     session added a story instead of deleting an item. Three bounds
+#                                     now, all measured against the frozen seal
+#                                     `gate/handoff_baseline.txt` so no verdict depends on the day:
+#                                     CEILING (bytes and lines, each `baseline + tolerance`, tolerances
+#                                     that admit an ordinary two-line pointer and refuse a paragraph),
+#                                     HISTORY (a pointer-list entry marked only with completion or
+#                                     parked glyphs — the resolved item that stayed; a pending glyph or
+#                                     a durable-refusal glyph exempts it, which is what keeps live work
+#                                     and standing rules out of the finding), and DERIVED (a computable
+#                                     count typed into the handoff — the value belongs in the seal, the
+#                                     command that prints it in the owning doc, CONVENTIONS §2). Keys
+#                                     are normalized text, never line numbers, and the seal fails in
+#                                     BOTH directions: a site it does not carry reddens, a carried site
+#                                     whose text has gone reddens too, because a line matching nothing
+#                                     is the next site's free pass. Read-only here — `--reseal`, its
+#                                     one write, belongs to the merge station (docs/orchestration.md
+#                                     §4), never to a lane. `--self-test` proves neither ceiling half
+#                                     is dead code, breeds an answered bullet, an unsealed parked
+#                                     ruling, each typed count shape, a copy of a carried story, a
+#                                     frozen site whose text was deleted, and the shapes in which the
+#                                     gate must refuse rather than print OK.
 #   + ansible-playbook --syntax-check across all playbooks (WSL/CI-gated, HD-197) — its stderr is
 #                                     kept and the duplicate-mapping-key warning fails the run, the
 #                                     second witness for HD-1098 (it sees role task files as ansible
@@ -1244,6 +1270,8 @@ item_q "check_doc_path_refs.py (HD-490: a path a doc cites must exist)" $PY scri
 item_q "check_doc_path_refs.py --self-test (HD-490 canary)" $PY scripts/gate/check_doc_path_refs.py --self-test
 item_q "check_doc_headings.py (the ANCHOR half: a § pointer must name a heading that exists; the committed ledger makes it growth-only)" $PY scripts/gate/check_doc_headings.py
 item_q "check_doc_headings.py --self-test (anchor canaries + both halves of the ledger ratchet)" $PY scripts/gate/check_doc_headings.py --self-test
+item_q "check_handoff_size.py (the standing handoff may not regrow: size ceiling, answered-item history, typed counts — all against the frozen seal)" $PY scripts/gate/check_handoff_size.py
+item_q "check_handoff_size.py --self-test (both ceiling halves, the marker exemptions, each count shape, and both halves of the seal ratchet)" $PY scripts/gate/check_handoff_size.py --self-test
 item_q "check_registry_prose.py (CONVENTIONS §6 on this file: registry states facts + owning spec, no ids/dates/narrative/glyphs/pipe-in-code/dup-paragraph)" $PY scripts/gate/check_registry_prose.py
 item_q "check_registry_prose.py --self-test (each prose rule bred + every exemption kept quiet + the empty-corpus refusal)" $PY scripts/gate/check_registry_prose.py --self-test
 item_q "validate_doc_templates.py" $PY scripts/gate/validate_doc_templates.py
